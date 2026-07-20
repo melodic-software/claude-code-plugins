@@ -172,7 +172,7 @@ INVALID_REASONS=()
 
 key_seen() {
   local k="$1" e
-  for e in "${REPO_KEYS[@]:-}"; do [[ "$e" == "$k" ]] && return 0; done
+  for e in "${REPO_KEYS[@]}"; do [[ "$e" == "$k" ]] && return 0; done
   return 1
 }
 
@@ -295,7 +295,10 @@ for ((i = 0; i < ${#REPO_TOPS[@]}; i++)); do
     COUNT_BLOCKED=$((COUNT_BLOCKED + 1))
     ;;
   4)
-    emit "$top" blocked "unpushed commits (pass --include-dirty)"
+    # Reachable only without --include-dirty (which passes --allow-unpushed): the
+    # child re-gates unpushed after its fetch, so a repo that looked not-ahead at
+    # the batch dirty-check can become ahead once fetch advances the upstream.
+    emit "$top" blocked "unpushed commits after fetch (pass --include-dirty)"
     COUNT_BLOCKED=$((COUNT_BLOCKED + 1))
     ;;
   5)

@@ -4,6 +4,12 @@
 # shellcheck source=cleanup-paths.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/cleanup-paths.sh"
 
+# Resolve the OS once at source time. clean_path_key runs twice per repo across a
+# batch (toplevel + each skip comparison), so forking uname on every call is
+# hundreds of needless subprocesses on a large fleet — worst on Windows/MSYS
+# where process creation is slow.
+_CLEAN_OS="$(uname -s 2>/dev/null || true)"
+
 clean_repo_root() {
   local root
   root="$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
@@ -20,7 +26,7 @@ clean_repo_root() {
 clean_path_key() {
   local value="${1//\\//}"
   while [[ "$value" == */ && "$value" != "/" ]]; do value="${value%/}"; done
-  case "$(uname -s 2>/dev/null || true)" in
+  case "$_CLEAN_OS" in
   MINGW* | MSYS* | CYGWIN*) printf '%s' "$value" | tr '[:upper:]' '[:lower:]' ;;
   *) printf '%s' "$value" ;;
   esac

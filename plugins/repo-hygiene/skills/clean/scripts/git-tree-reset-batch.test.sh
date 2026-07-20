@@ -193,6 +193,41 @@ mkdir -p "$TEST_TMPDIR/not-a-repo"
 out="$(bash "$BATCH" --dry-run --repo "$TEST_TMPDIR/not-a-repo" 2>&1)" || true
 assert_contains "non-git input reported blocked" "$out" "not-a-git-repo"
 
+# --- 14. --repos-from - reads the list from stdin (the primary ghq-list flow) ---
+out="$(printf '%s\n' "$CLEAN_REPO" | bash "$BATCH" --dry-run --repos-from - 2>&1)" || true
+assert_contains "stdin list enumerates one repo" "$out" "Repos: 1"
+assert_contains "stdin list repo would reset" "$out" "would-reset"
+
+# --- 15. --skip-from FILE applies skip entries from a file ---
+SKIPFILE="$TEST_TMPDIR/skips.txt"
+printf '%s\n' 'acme\keepme' >"$SKIPFILE"
+out="$(bash "$BATCH" --dry-run --repo "$CLEAN_REPO" --repo "$SKIP_REPO" --skip-from "$SKIPFILE" 2>&1)" || true
+assert_contains "skip-from file skips the listed repo" "$out" "skip-list"
+assert_not_contains "skip-from matched entry not reported unmatched" "$out" "UnmatchedSkip:"
+
+# --- 16. a child reset failure (exit 5) propagates to failed count + exit 1 ---
+# Intercept only `git reset` via a PATH shim (delegating every other subcommand
+# to real git); the single-repo child exits 5, which the batch must surface as a
+# `failed` outcome, count it, and exit non-zero.
+FAIL_REPO="$(make_repo reset-fail-repo)"
+REAL_GIT="$(command -v git)"
+SHIM="$TEST_TMPDIR/git-shim"
+mkdir -p "$SHIM"
+cat >"$SHIM/git" <<SHIMEOF
+#!/usr/bin/env bash
+if [[ "\$1" == "reset" ]]; then
+  echo "fatal: simulated reset --hard failure" >&2
+  exit 1
+fi
+exec "$REAL_GIT" "\$@"
+SHIMEOF
+chmod +x "$SHIM/git"
+rc=0
+out="$(PATH="$SHIM:$PATH" bash "$BATCH" --apply --repo "$FAIL_REPO" 2>&1)" || rc=$?
+assert_exit "child reset failure makes the batch exit 1" 1 "$rc"
+assert_contains "failed repo reported as failed" "$out" "failed"
+assert_contains "summary counts the failure" "$out" "failed=1"
+
 if [[ $FAILED -ne 0 ]]; then
   echo "FAILED: $FAILED test(s)"
   exit 1
