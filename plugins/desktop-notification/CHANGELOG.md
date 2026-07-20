@@ -3,6 +3,23 @@
 All notable changes to the `desktop-notification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.3]
+
+### Changed
+
+- C1 fd1-leak detector in `desktop-notification.test.sh` now measures the slow-sink
+  invariant differentially — a fast-sink baseline run captures the machine's current
+  process-spawn overhead, and the slow-sink run's excess over it isolates the leak
+  signal — instead of asserting a fixed `< 2000ms` wall-clock bound. On Windows Git
+  Bash the hook's own spawn overhead (~1.6s solo, 4-10s under parallel-suite load)
+  left the fixed bound with a thin-to-negative margin and false-failed even with no
+  leak. The differential form cancels ambient overhead, so the check holds under load
+  while still catching a real fd1 leak (the sink's whole sleep lands in the delta).
+  The baseline is the minimum of several fast runs so that one unluckily-descheduled
+  baseline sample cannot inflate the subtracted overhead and let a real leak pass as a
+  false-negative under load; an inflated *slow* sample only re-fails a green run
+  (fail-safe), so only the baseline is sampled repeatedly.
+
 ## [0.4.2]
 
 ### Changed
