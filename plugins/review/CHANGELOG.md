@@ -21,13 +21,13 @@ All notable changes to the `review` plugin are documented here. Format follows
   needing neither a locally-set `origin/HEAD` symref nor `gh`. The resolved branch
   is then fetched and the diff is taken against `FETCH_HEAD`, because `ls-remote`
   reports only the branch name and does not populate a local `refs/remotes/origin/*`
-  ref — so `origin/<default>` is unresolvable in `--single-branch`/shallow clones
-  (the exact CI scenario), where `merge-base "origin/<default>"` would otherwise
-  still fall through to the empty-diff terminal. This mirrors the existing
-  `PR_BASE` fetch. The rung stays lazy — the network `ls-remote`/fetch fire only
-  when the local `origin/HEAD` rung fails, so the well-connected common case pays
-  no round-trip. Falls to `origin/main` only as the terminal last resort. Applied
-  identically across the
+  ref — so `origin/<default>` is unresolvable in a full-depth `--single-branch`
+  clone (and in a full clone whose `origin/HEAD` is unset), where
+  `merge-base "origin/<default>"` would otherwise still fall through to the
+  empty-diff terminal. This mirrors the existing `PR_BASE` fetch. The rung stays
+  lazy — the network `ls-remote`/fetch fire only when the local `origin/HEAD` rung
+  fails, so the well-connected common case pays no round-trip. Falls to
+  `origin/main` only as the terminal last resort. Applied identically across the
   four reviewer agents (`code-reviewer`, `security-reviewer`, `architecture-guardian`,
   `ecosystem-specialist`), the `fanout` pre-computed diff-size snippet, and the
   `fanout`/`quality-gate` shared-input and subagent-prompt prose. The remote name
@@ -35,6 +35,13 @@ All notable changes to the `review` plugin are documented here. Format follows
   helper tracked separately by #442, out of scope here). Same bug shape as the
   toolchain gap resolved in #411, using that fix's `git ls-remote --symref`
   resolution mechanism.
+
+  Known limitation: a `--depth=1` shallow clone (the default `actions/checkout`
+  shape) still degrades to the empty-diff terminal — after fetching the resolved
+  branch at the same shallow depth, `merge-base FETCH_HEAD HEAD` finds no common
+  ancestor. Resolving that requires deepening/unshallowing (or a convention-aligned
+  report-and-stop), a heavier tradeoff deferred to the #442 shared default-branch
+  helper rather than bolted onto every reviewer-agent invocation here.
 
 ## [0.14.2]
 
