@@ -203,7 +203,7 @@ assert_contains "--rec-maxlen 010 normalizes to 10 (truncates at 10 chars)" "$OU
 # (as real BSD date does) and services `-j -f` / `-r` by delegating the epoch
 # math to the host's real date. This proves the BSD branch is reached and wired
 # — return handling, TZ, from_epoch's `-r` render, and the parseable-vs-
-# unparseable decision on the `07:XX` fixture. It does not re-implement strptime,
+# unparsable decision on the `07:XX` fixture. It does not re-implement strptime,
 # so it does not assert format-string matching (only a real BSD date or a Python
 # strptime could, and neither is in the bash+jq runner contract). The double
 # relies on the host's `date -d`, so run it only when GNU date is present.
