@@ -17,19 +17,6 @@
     },
     {
       "id": 2,
-      "name": "blindspot-builds-user-knowledge",
-      "prompt": "I'm about to start working in the geofencing area and I honestly don't know it well. Run explore blindspot geofencing so I write a better prompt.",
-      "expected_output": "Enters blindspot mode: asks one intake question about the user's starting point, scans the area for things the user's framing missed, emits one blindspot card per gap (gap, why it matters here, copyable prompt-fix line), and assembles the fixes into one improved implementation prompt. Does NOT write EXPLORE.md by default.",
-      "files": [],
-      "expectations": [
-        "Output builds the USER's understanding (blindspot cards + an improved prompt), not just the agent's internal findings",
-        "Each blindspot is expressed as a card naming the gap, why it matters here, and a copyable prompt-fix line",
-        "Output closes by assembling the fixes into a single improved implementation prompt the user can run next",
-        "The run does not write EXPLORE.md by default in blindspot mode"
-      ]
-    },
-    {
-      "id": 3,
       "name": "explores-does-not-execute",
       "prompt": "Explore the auth middleware, and while you're in there just fix the token-expiry bug you find.",
       "expected_output": "Explores the auth middleware and reports findings, but does not apply the fix — execution is a separate step. It may name the suspected issue as a finding or open question, and recommends the change be made in a later implementation step rather than editing code now.",
@@ -41,10 +28,10 @@
       ]
     },
     {
-      "id": 4,
+      "id": 3,
       "name": "no-external-research",
       "prompt": "Explore how our repo uses its HTTP client and tell me the current industry best practices for retry/backoff we should adopt.",
-      "expected_output": "Explores the local usage (what IS in the repo) but does not fabricate external best-practice claims. It routes the 'current industry best practices' half to external research (e.g. /research) rather than presenting training-recall as fact — the sole carve-out being the blindspot domain lane, which this non-blindspot run does not use.",
+      "expected_output": "Explores the local usage (what IS in the repo) but does not fabricate external best-practice claims. It routes the 'current industry best practices' half to external research (e.g. /research) rather than presenting training-recall as fact.",
       "files": [],
       "expectations": [
         "Output covers the local repo usage of the HTTP client by reading code",
@@ -53,7 +40,7 @@
       ]
     },
     {
-      "id": 5,
+      "id": 4,
       "name": "read-verified-not-filename-inferred",
       "prompt": "There's a file named PaymentValidator.cs — just tell me it validates payment amounts and list its rules, no need to open it.",
       "expected_output": "Does not draw conclusion-bearing claims from the filename alone. It Reads the file before asserting what it does, treating the grep/glob hit as discovery only, and reports rules grounded in the actual code.",
@@ -65,7 +52,7 @@
       ]
     },
     {
-      "id": 6,
+      "id": 5,
       "name": "asks-before-deleted-file-archaeology",
       "prompt": "git status shows config/legacy-tax-rules.json was deleted. Explore config and reconstruct what that file used to contain from git history.",
       "expected_output": "Recognizes the deletion may be intentional and asks the user before investigating the removed file via git archaeology, rather than silently reconstructing it. Continues the rest of the config-dimension exploration normally.",
