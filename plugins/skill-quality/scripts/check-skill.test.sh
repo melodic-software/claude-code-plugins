@@ -347,6 +347,53 @@ else
   fail "trigger on a less-indented block line should be tracked (rc=$rc): $out"
 fi
 
+# 14. Frontmatter name diverging from the skill directory fails (check 1). The
+#     directory name is what the skill is namespaced by, so a mismatch silently
+#     relocates the invocation the doctrine says the skill has.
+make_skill misnamed-skill '---
+name: some-other-name
+description: "Name does not match its directory. Use when: '"'"'checking the name gate'"'"'."
+---
+
+## Purpose
+
+Fixture whose frontmatter name diverges from its directory name.
+
+## Gotchas
+
+None known.
+'
+out="$(run misnamed-skill 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q "does not match skill directory 'misnamed-skill'" <<<"$out"; then
+  pass "frontmatter name mismatching the directory fails"
+else
+  fail "name/directory mismatch should fail (rc=$rc): $out"
+fi
+
+# 15. A matching name does not trip the gate — guards the false-positive
+#     direction, and proves a quoted value reaches the comparison unquoted.
+make_skill quoted-name '---
+name: "quoted-name"
+description: "Quoted name matching its directory. Use when: '"'"'checking quoted names'"'"'."
+---
+
+## Purpose
+
+Fixture whose frontmatter name is quoted but matches its directory.
+
+## Gotchas
+
+None known.
+'
+out="$(run quoted-name 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'does not match skill directory' <<<"$out"; then
+  pass "quoted name matching the directory does not trip the gate"
+else
+  fail "quoted matching name should not trip the gate (rc=$rc): $out"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1
