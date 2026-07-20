@@ -97,10 +97,17 @@ fi
 # A test can force a failed \`claude stop\` via STUB_CLAUDE_STOP_RC to exercise
 # the stop-failure paths (no relaunch, non-zero exit).
 if [[ "\$1" == "stop" ]]; then exit "\${STUB_CLAUDE_STOP_RC:-0}"; fi
+# A test can force a failed \`claude plugin marketplace update\` via
+# STUB_CLAUDE_UPDATE_RC to exercise the refresh-failure abort path.
+if [[ "\$1" == "plugin" ]]; then exit "\${STUB_CLAUDE_UPDATE_RC:-0}"; fi
 STUB
 cat >"$STUB_BIN/git" <<STUB
 #!/usr/bin/env bash
 printf 'git %s\n' "\$*" >>"$CLAUDE_LOG"
+# A test can force a failed \`git pull\` via STUB_GIT_PULL_RC to exercise the
+# refresh-failure abort path. git is only ever invoked for pull here (repos are
+# passed via --repo), so matching on the pull subcommand is sufficient.
+case "\$*" in *pull*) exit "\${STUB_GIT_PULL_RC:-0}" ;; esac
 STUB
 chmod +x "$STUB_BIN/claude" "$STUB_BIN/git"
 
@@ -340,6 +347,58 @@ assert_contains "live empty session list → lanes launch" "$out" "claude --bg -
 out="$(STUB_CLAUDE_AGENTS_RC=1 run_launcher start --repo "$REPO" --config "$CONFIG" --dry-run 2>&1)"
 rc=$?
 assert_eq "dry-run tolerates a failed live list (exit 0)" 0 "$rc"
+
+# ============================================================================
+# Issue #639 item 1 — a failed pre-launch refresh ABORTS the launch: no lane is
+# started/stopped and the action exits non-zero with an actionable message. The
+# refresh is a documented launch prerequisite, so stale repo/plugin state must
+# never seed background lanes.
+# ============================================================================
+: >"$CLAUDE_LOG"
+out="$(STUB_GIT_PULL_RC=1 run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" 2>&1)"
+rc=$?
+log="$(cat "$CLAUDE_LOG")"
+assert_eq "start aborts when git pull fails (exit 1)" 1 "$rc"
+assert_contains "start refresh-failure message is actionable" "$out" "refresh failed — aborting launch"
+assert_not_contains "no lane launched after a failed pull" "$log" "--bg -n"
+
+: >"$CLAUDE_LOG"
+out="$(STUB_CLAUDE_UPDATE_RC=1 run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" 2>&1)"
+rc=$?
+log="$(cat "$CLAUDE_LOG")"
+assert_eq "start aborts when marketplace update fails (exit 1)" 1 "$rc"
+assert_not_contains "no lane launched after a failed update" "$log" "--bg -n"
+
+: >"$CLAUDE_LOG"
+out="$(STUB_GIT_PULL_RC=1 run_launcher restart work --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_RUNNING" 2>&1)"
+rc=$?
+log="$(cat "$CLAUDE_LOG")"
+assert_eq "restart aborts when git pull fails (exit 1)" 1 "$rc"
+assert_not_contains "restart does not stop a lane after a failed pull" "$log" "stop sid-work-1"
+assert_not_contains "restart does not relaunch after a failed pull" "$log" "--bg -n"
+
+# The intentional-bypass path (--no-pull/--no-update) is NOT a refresh failure:
+# the skipped-step status stays 0, so lanes still launch even with the failure
+# env set (proves the abort keys on real failure, not on skipping).
+out="$(STUB_GIT_PULL_RC=1 STUB_CLAUDE_UPDATE_RC=1 run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" --no-pull --no-update --dry-run 2>&1)"
+rc=$?
+assert_eq "refresh bypass still launches despite failure env (exit 0)" 0 "$rc"
+assert_contains "refresh bypass launches lanes" "$out" "claude --bg -n work"
+
+# ============================================================================
+# Issue #639 item 2 — an unknown restart target is rejected BEFORE the refresh
+# mutates anything (matches stop's fail-first behaviour): the log shows no git
+# pull and no marketplace update. Regression guard against the old order that
+# pulled + updated only to reject the misspelled target afterward.
+# ============================================================================
+: >"$CLAUDE_LOG"
+out="$(run_launcher restart does-not-exist --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_RUNNING" 2>&1)"
+rc=$?
+log="$(cat "$CLAUDE_LOG")"
+assert_eq "restart unknown lane exits 3" 3 "$rc"
+assert_contains "restart unknown lane message" "$out" "unknown lane 'does-not-exist'"
+assert_not_contains "restart unknown lane does not pull" "$log" "pull --ff-only"
+assert_not_contains "restart unknown lane does not update the marketplace" "$log" "plugin marketplace update"
 
 # ============================================================================
 echo
