@@ -1,0 +1,103 @@
+{
+  "skill_name": "audit-derivability",
+  "evals": [
+    {
+      "id": 1,
+      "name": "derivable-restatement-verdict",
+      "prompt": "Is this doc worth keeping? Read evals/fixtures/derivable-config-restatement.md relative to the skill directory and audit its derivability.",
+      "expected_output": "Classifies the document as derivable — every claim (port, timeout, retry count, env vars, image source) restates values that a config file, Dockerfile, and deploy manifest already own. Returns a verdict of `delete` or `convert-to-pointer` (a one-line pointer to the config as source of truth), naming the audience and noting that a load-bearing deletion would be confirmed by a fresh-context spot-test. No file is edited.",
+      "files": ["evals/fixtures/derivable-config-restatement.md"],
+      "expectations": [
+        "The document is classified as derivable — the claims restate config/Dockerfile/deploy-manifest values",
+        "The verdict is `delete` or `convert-to-pointer`, not `keep-owns-facts`",
+        "The output names the primary audience and reports the four factors (derivable, re-derivation cost, drift risk, fact ownership)",
+        "No file is edited — the classifier is read-only"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "owned-rationale-is-kept",
+      "prompt": "Should this doc exist? Read evals/fixtures/decision-rationale.md relative to the skill directory and audit its derivability.",
+      "expected_output": "Returns `keep-owns-facts`: the document records WHY the retry count is 3 — an external billing/rate-limit constraint, a past incident, and a cross-cutting invariant tying the count to the circuit-breaker threshold. None of that is derivable from the code, which only shows the value 3. Fact ownership is the trump card even though the bare value itself is derivable.",
+      "files": ["evals/fixtures/decision-rationale.md"],
+      "expectations": [
+        "The verdict is `keep-owns-facts`",
+        "The output identifies the non-derivable owned facts (rationale / external constraint / past decision / cross-cutting invariant), not just the derivable value",
+        "The output does NOT recommend deletion despite the retry value itself being derivable from code"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "read-only-even-when-asked-to-delete",
+      "prompt": "Audit docs/legacy-notes.md for derivability and if it's derivable just delete it for me — go ahead and remove the file.",
+      "expected_output": "Stays read-only despite the explicit request to delete: surfaces the verdict with reasoning and does NOT run Edit/Write or a destructive Bash op. Explains that the author owns every deletion (deletion is the highest-stakes doc edit) and, for a load-bearing candidate, that the verdict should be confirmed by a fresh-context spot-test first. Optionally offers to route the deletion to the work-item tracker.",
+      "files": [],
+      "expectations": [
+        "Does NOT delete or edit the file despite the explicit request",
+        "Surfaces a verdict with reasoning for the author to act on",
+        "States or honors the read-only contract (author owns the deletion)"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "cache-verdict-demotes-without-drift-control",
+      "prompt": "A doc is a hand-maintained summary of a large generated OpenAPI spec — expensive to reconstruct by hand, but there is no regeneration script and no recorded recheck trigger keeping it in sync with the spec. Audit its derivability.",
+      "expected_output": "Recognizes the content is derivable-but-expensive, which points at `keep-as-derivation-cache`, but because there is NO drift-control condition (no regeneration/verification path, no recheck trigger) the cache verdict DEMOTES to `convert-to-pointer` (point at the generated spec) or `delete`. An unmaintained cache silently drifts from its source — the point-don't-copy failure the demotion rule prevents.",
+      "files": [],
+      "expectations": [
+        "Does NOT land on `keep-as-derivation-cache` given the absence of a regeneration path and recheck trigger",
+        "Demotes to `convert-to-pointer` or `delete`, citing the missing drift-control condition",
+        "Explains the risk: an unmaintained cache drifts silently from its source"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "audience-awareness-splits-the-verdict",
+      "prompt": "The same content — a list restating each public method of a well-named class — appears both as a `.claude/rules/` file (agent-facing) and as a hand-written onboarding page for new engineers (human-facing). Audit both for derivability.",
+      "expected_output": "Splits by audience. On the agent-facing `.claude/rules/` surface, exploration is cheap and the restatement is a standing token tax — full axe, lean toward `delete`/`convert-to-pointer`. On the human-facing onboarding page the deletion bar is higher because human re-derivation cost is real — a keep or convert-to-pointer is defensible. Names the audience in each verdict and does not apply one verdict to both.",
+      "files": [],
+      "expectations": [
+        "Classifies the agent-facing and human-facing copies separately",
+        "Applies a lower deletion bar to the agent-facing surface (exploration cheap / token tax) than to the human-facing doc",
+        "Names the audience in each verdict"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "duplication-routes-to-extract-ssot-not-delete",
+      "prompt": "This doc repeats, almost word for word, a section that already lives in another markdown doc in the repo. Audit its derivability.",
+      "expected_output": "Recognizes this is doc-to-doc DUPLICATION, not code-derivability, and routes it to `/docs-hygiene:extract-ssot` (dedup into one source of truth + cite) rather than issuing a `delete` on derivability grounds. Derivability is re-derivation from CODE/config/structure; a doc that restates another DOC is the sibling's axis, and this skill defers to it.",
+      "files": [],
+      "expectations": [
+        "Identifies the case as cross-document duplication rather than code-derivability",
+        "Routes to `/docs-hygiene:extract-ssot` rather than issuing a plain `delete` verdict",
+        "Distinguishes 're-derivable from code' from 'duplicates another doc'"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "load-bearing-deletion-uses-fresh-context-spot-test",
+      "prompt": "You've read an architecture doc and it looks entirely re-derivable from the code, so you're inclined to delete it. It is load-bearing — several teams rely on it. How do you confirm the deletion is safe?",
+      "expected_output": "Does NOT confirm the deletion from its own (now doc-contaminated) context — having read the doc, it knows the answers and would overestimate derivability (a self-grade). Delegates the empirical spot-test to a FRESH-CONTEXT, NON-FORK subagent that has not seen the doc: it reproduces the doc's key conclusions from native exploration only, then compare. Explicitly rejects `context: fork` because a fork inherits the contaminated history. Convergence confirms derivable; divergence means the doc owns something — keep it.",
+      "files": [],
+      "expectations": [
+        "Delegates the derivability confirmation to a fresh-context subagent that has NOT seen the doc",
+        "Explicitly uses a non-fork subagent and rejects `context: fork` (fork inherits the contaminated context)",
+        "Frames self-judgment from the doc-contaminated context as unreliable (self-grade / fresh-eyes rationale)",
+        "Treats divergence/failure of the fresh agent as evidence the doc owns non-derivable facts (keep)"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "not-line-level-noise",
+      "prompt": "Audit derivability of a rule file that clearly owns a non-derivable team constraint but also contains a dated 'Empirically observed 2026-03-14' citation line and a bit of filler prose.",
+      "expected_output": "Keeps the document (`keep-owns-facts` — it owns a non-derivable constraint) and does NOT try to classify the dated citation line or the filler as its own concern. Routes line-level noise to `/docs-hygiene:audit-noise` and prose flavor to `/docs-hygiene:compress`. Document-level worth is this skill's axis; within-document trimming is the siblings'.",
+      "files": [],
+      "expectations": [
+        "The whole-document verdict is `keep-owns-facts`",
+        "Line-level noise (the dated citation) is routed to `/docs-hygiene:audit-noise`, not classified here",
+        "Prose flavor is routed to `/docs-hygiene:compress`, not classified here"
+      ]
+    }
+  ]
+}
