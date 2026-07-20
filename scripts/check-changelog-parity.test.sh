@@ -372,6 +372,28 @@ rc=$?
 if [[ $rc -ne 0 && "$out" == *"UNDOCUMENTED BUMP"*"beta"* && "$out" != *"alpha"* ]]; then ok "a plugin the branch bumped is still checked while the main-only advance is scoped out"; else fail "diff-scoping incorrectly scoped: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
+# NO COMMON ANCESTOR (git diff cannot compute a diff): base is a resolvable
+# commit but shares no history with HEAD (an orphan root), so 'git diff
+# base...HEAD' fails ("fatal: no merge base", exit 128). The gate must fail LOUD
+# (exit 2), not silently pass: an empty result from a FAILED git invocation would
+# skip every plugin and let this required merge gate exit 0 without checking
+# anything (fail-open). This is distinct from a legitimate "zero files changed"
+# diff, which git computes successfully and which must still pass (covered above).
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+# Orphan branch: a second root commit with no ancestor in common with base.
+git -C "$repo" checkout -q --orphan orphan
+git -C "$repo" rm -rq --cached . >/dev/null 2>&1 || true
+mk_plugin "$repo" alpha 1.1.0 yes
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'orphan root'
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
+rc=$?
+if [[ $rc -eq 2 && "$out" == *"failed"* ]]; then ok "no common ancestor -> git diff fails -> gate fails loud (exit 2), never silent pass"; else fail "no-common-ancestor did not fail loud: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
 # unresolvable base ref -> exit 2
 repo="$(mk_repo)"
 git_init "$repo"

@@ -137,6 +137,20 @@ fi
 # plugin-root scoping) a cosmetic touch elsewhere under the plugin dir cannot pull
 # a main-only advance back into scope.
 declare -A bumped_candidate
+# Read the change set's touched paths via COMMAND substitution, not process
+# substitution: this gate is a required CI merge check, and a git failure here
+# must fail loud, never silently pass. Process substitution swallows git's exit
+# status, so a diff that genuinely cannot be computed (e.g. no common ancestor
+# between "$base" and HEAD -> "fatal: no merge base", exit 128) would yield an
+# empty result, skip every plugin's bumped_candidate guard below, and let the
+# gate exit 0 without checking anything (fail-open). Command substitution
+# propagates that non-zero status so the guard fires. A legitimate empty diff
+# ("zero files changed") succeeds with empty output and correctly leaves
+# bumped_candidate empty.
+if ! diff_paths="$(git diff --name-only "$base...HEAD")"; then
+  echo "check-changelog-parity: 'git diff --name-only $base...HEAD' failed (no common ancestor between '$base' and HEAD, or history not fetched deeply enough); refusing to pass without checking." >&2
+  exit 2
+fi
 while IFS= read -r path; do
   case "$path" in
   plugins/*/.claude-plugin/plugin.json)
@@ -145,7 +159,7 @@ while IFS= read -r path; do
     ;;
   *) ;;
   esac
-done < <(git diff --name-only "$base...HEAD" 2>/dev/null)
+done <<<"$diff_paths"
 
 undocumented=0
 malformed=0
