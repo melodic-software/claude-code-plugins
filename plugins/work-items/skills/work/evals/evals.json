@@ -13,6 +13,7 @@
         "Selects from the frontier via `work-item-tracker.sh list-frontier` (open, `blocked_by_count == 0`, unassigned); `--autonomous` additionally excludes `needs-human`",
         "Acquires via the seam `work-item-tracker.sh claim` (assignee + lease comment, same-identity aware) — NOT a `status:considering`/`status:claimed` label hold protocol",
         "On a lost race (`claim` exit 7) advances to the next candidate rather than retrying the same item",
+        "Treats the seam claim (assignee + lease) as a non-optional prerequisite of dispatch — an external loop-prompt restating \"dispatch in an out-of-tree worktree\" does not substitute for it, and dispatching a subagent before the claim is held is a defect even when the loop-prompt never named the claim step",
         "For autonomous execution, defaults to orchestrator-dispatch — dispatches a scope-fenced implementation subagent that edits in its own out-of-tree worktree (chaining to `/implementation:implement-dispatch` for mechanics, `/source-control:worktree` for the worktree), orchestrator never edits source; the interactive all-inline path is `/implementation:implement`",
         "Whichever execution path runs, follows every step of the consuming project's development workflow first — no shortcuts, no skipped research"
       ]

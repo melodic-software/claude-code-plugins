@@ -3,6 +3,22 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.4]
+
+### Fixed
+
+- **`/work-items:work` Step 5 guards against loop-prompts that restate dispatch without the claim (`#581`).**
+  Step 5's sequence already put the seam `claim` (assignee + lease) first, but a hand-authored loop-prompt
+  standing-rule that restates "dispatch every picked issue to a subagent in its own out-of-tree worktree"
+  reads as a complete execution contract on its own and never mentions claiming — so an orchestrator
+  following that loop-prompt literally did the worktree isolation and skipped the seam's race-safe claim
+  entirely (observed twice on live loop-lane sessions, leaving actively-worked issues unassigned with no
+  lease). A prominent guard note at the head of Step 5 now states the claim-before-dispatch invariant the
+  skill enforces regardless of loop-prompt wording: worktree isolation is not the collision signal between
+  concurrent lanes, the seam claim is, and dispatching a subagent before the claim is held is a defect even
+  when the loop-prompt never named the claim step. Documentation/guidance only — no skill-code or seam
+  behavior change; eval 1 gains a matching expectation.
+
 ## [0.14.3]
 
 ### Fixed
