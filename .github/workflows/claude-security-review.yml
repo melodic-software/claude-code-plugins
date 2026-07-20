@@ -18,9 +18,14 @@ on:
       - "plugins/*/hooks/**"
       - "plugins/*/tools/**"
       - "plugins/*/skills/*/scripts/**"
+      - "plugins/*/src/**"
+      - "plugins/*/dist/**"
       - "**/*.sh"
       - "**/*.ps1"
       - "**/*.mjs"
+      - "**/*.ts"
+      - "**/*.js"
+      - "**/*.cjs"
 
 permissions:
   contents: read
