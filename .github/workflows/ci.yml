@@ -282,6 +282,20 @@ jobs:
       - name: Run cross-plugin-source-drift tests
         run: bash scripts/check-cross-plugin-source-drift.test.sh
 
+  skill-leaf-name-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      # Self-test first, so a broken detector cannot mask a regression.
+      - name: Run skill-leaf-name tests
+        run: bash scripts/check-skill-leaf-names.test.sh
+      - name: Check for unregistered cross-plugin skill leaf-name collisions
+        run: scripts/check-skill-leaf-names.sh --check
+
   silent-skip-gate:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -577,6 +591,7 @@ jobs:
       - hook-utils-sync
       - standards-contract-sync
       - cross-plugin-source-drift
+      - skill-leaf-name-gate
       - silent-skip-gate
       - orphaned-fixture-gate
       - changelog-parity-gate
