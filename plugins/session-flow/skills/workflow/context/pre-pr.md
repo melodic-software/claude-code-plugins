@@ -32,4 +32,5 @@ next. Use the consuming repo's own commands and review criteria at each gate.
   (4–6) — is fixed plugin identity, not consumer config; there is no seam to swap in a different
   pre-PR checklist by editing the plugin. What adapts is the commands and review criteria applied
   at each gate (the intro above); a consumer whose process genuinely differs runs its own
-  documented workflow, which the `workflow` skill already recognizes in place of this map.
+  documented workflow separately, outside this skill — the `pre-pr` mode always loads this fixed
+  map and never defers to a consumer-supplied one.
