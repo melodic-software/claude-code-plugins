@@ -25,11 +25,12 @@ All notable changes to the `review` plugin are documented here. Format follows
   documented canonical mechanism for dynamic-context bash, matching the
   `pressure-test` and `wayfind` in-repo precedents. The existing `|| echo`
   fallbacks are retained — they cover a different failure mode (`gh` missing /
-  unauthenticated / no PRs) that `allowed-tools` does not touch. Narrow,
-  read-only, non-interpreter allow rules that carry into auto mode; the
-  git-branch rule is pinned to the exact read-only invocation
-  (`git branch --show-current`), so mutating `git branch` forms stay outside
-  the grant.
+  unauthenticated / no PRs) that `allowed-tools` does not touch. The three
+  fixed pre-computed lines are granted as EXACT full-command rules (no
+  prefix wildcards), so neither mutating subcommands nor output-redirection
+  writes (`echo payload > file`, `head src > dst`) fall inside the grant;
+  the only wildcard kept is `Bash(gh pr list:*)` for the documented uncapped
+  fallback query.
 
 ## [0.14.5]
 
