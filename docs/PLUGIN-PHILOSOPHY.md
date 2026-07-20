@@ -71,6 +71,17 @@ Skills specification allows. Never degrade a name to dodge a built-in command: p
 namespaced and cannot collide with other levels. When a name matches a built-in, the bare token
 still belongs to the built-in; the namespaced form is the plugin skill's only command.
 
+That guarantee is about **resolution**, and it does not extend to **display**. The slash-command
+picker lists a skill by its short name and registers the namespaced form as a hidden alias — so
+`/planning:` still filters to that plugin's skills, but `planning:plan` is not what the row is
+labelled. Origin travels in the description instead: a plugin skill renders as
+`(<plugin-name>) <description>`, a personal or project skill as `<description> (user)` or
+`(project)`, and a built-in, bundled, or MCP entry carries no marker at all. So sibling short names
+across different plugins are unambiguous to *invoke* and identical to *read* — a shared leaf name
+costs legibility in the description column, never correctness. Weigh it there; never rename to buy
+display uniqueness, and keep the description's first clause carrying the distinguishing object,
+since that column is what a reader actually scans.
+
 ## Native-first
 
 Prefer a built-in native mechanism — `userConfig`, a native component type, a native lifecycle
