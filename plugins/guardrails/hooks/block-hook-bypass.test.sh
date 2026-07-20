@@ -59,7 +59,7 @@ run "echo > file with 2>/dev/null still blocked" \
 # The guard must flag ONLY when the echo/printf is itself the producer whose
 # stdout is redirected into a file — not any compound command that merely
 # CO-MENTIONS an `echo` token and a `>` token. The three cases below are the
-# false positives observed while PR-babysitting #526 (a script's stdout captured
+# false positives observed during PR babysitting (a script's stdout captured
 # to a scratchpad data file, with an unrelated `echo` status line in the same
 # call), which must now be ALLOWED.
 # 1. Script stdout captured to a JSON sink + a trailing echo status line.
@@ -94,6 +94,11 @@ run "echo > file in for-loop body (blocked)" \
 run "echo > file in if-then body (blocked)" \
   'if true; then echo x > real.txt; fi' 2
 run "echo > file in brace group (blocked)" '{ echo x > real.txt; }' 2
+# Group-level redirect (`{ echo x; } > file`) is NOT caught — the closing `}`
+# and `)` are seps, so the redirect is a separate segment from the echo inside.
+# Accepted as the floor: this form is structurally unusual for LLM output.
+run "echo in brace group with group-level redirect (accepted floor — allowed)" \
+  '{ echo x; } > real.txt' 0
 
 # --- Executable-token vs quoted-argument detection --------------------------
 # Prose or a commit message merely MENTIONING a bypass in a quoted span is

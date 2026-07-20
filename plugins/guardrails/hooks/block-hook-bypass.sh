@@ -211,6 +211,13 @@ _py_write='open[[:space:]]*\(|\.write[[:space:]]*\(|pathlib|path[[:space:]]*\('
 # redirects stdout to a real file. This passes `bash x.sh > out.json && echo done`
 # (the redirect's producer is `bash`, not the trailing `echo`) and a bounded poll
 # loop `... > poll.json; echo "..."`, while still blocking `echo "x" > file`.
+#
+# SCOPE (documented residual): a redirect applied to a GROUP rather than to the
+# echo itself — `{ echo x; } > file` / `( echo x ) > file` — is NOT caught. The
+# closing `}` / `)` are separators, so the redirect lands in a different segment
+# from the echo inside the group. Catching it needs brace/paren-depth tracking,
+# out of scope for a false-positive fix; the form is structurally unusual for LLM
+# output and covered by an accepted-floor test.
 producer_redirect_bypass() {
   local exec_lc="$1" seps=$';\n|&()' normalized seg
   # Each separator becomes a segment boundary; args cannot contain a raw
