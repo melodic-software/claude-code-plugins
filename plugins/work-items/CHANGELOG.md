@@ -13,8 +13,8 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   comment — could PATCH a fresh `renewed_at` and reclaim an item another worker had reasonably treated
   as expired, defeating TTL-based handoff. It now checks `wit_lease_is_live` immediately before
   patching and returns a conflict (exit `7`) for an expired lease instead of reviving it.
-- **GitHub adapter `reclaim` unassigns only the expired lease's holder (`#370`).** On the expired-lease
-  + no-activity path `reclaim` read all assignees and removed every one, silently unassigning a user
+- **GitHub adapter `reclaim` unassigns only the expired lease's holder (`#370`).** On the expired-lease,
+  no-activity path `reclaim` read all assignees and removed every one, silently unassigning a user
   added manually after the old lease or a concurrent claimer added before the snapshot — in the
   concurrent case leaving that claimer's live lease in place while the frontier treated the item as
   unassigned (two workers on one item). Removal is now scoped to the lease's `holder`, and ownership is
