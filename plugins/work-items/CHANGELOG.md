@@ -39,6 +39,20 @@ them instead of a session prompt (`#478`). Bullet 5 stays deferred to `#459` (po
   decision (open design space, product intent, cross-repo policy) or a capability blocker (external
   access, manual QA), distinguishing it from the new decision-defaulted route.
 
+## [0.13.1]
+
+### Fixed
+
+- **`status: ready` issues with an open linked PR are no longer pickable (`#463`).** `/work-items:work`
+  selection now excludes a frontier candidate (tiers 2–3) that already has an open PR targeting it for
+  closure, closing the re-pick risk where an issue kept `status: ready` for its entire open-PR window and
+  a picker had to hand-cross-check `gh pr list` to avoid starting a duplicate branch. The check routes
+  through a new GitHub adapter *Open linked PRs* mechanic (closing-keyword linkage — the same `Closes #N`
+  signal `pr-issue-linkage` enforces — is authoritative; an intentional `Refs #N` opt-out does not
+  exclude), and fails open when the bound provider exposes no PR host (offline `local-markdown`). This
+  retires the interim in-flight heuristic that lived in the execute-step staleness pre-check. The durable
+  seam-level in-review state is deferred to the tracker-seam layer (`#416`/`#498`), not built here.
+
 ## [0.13.0]
 
 Absorb the v4 loop-prompt execution rules into `/work-items:work` so the execute step owns them

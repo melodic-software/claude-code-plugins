@@ -3,6 +3,31 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0]
+
+### Added
+
+- **`tree-batch` — multi-repo working-tree reset with a skip-list and a dirty guard.**
+  A new `clean` action that runs the `tree` tier across a set of repositories
+  (`ghq list` output via `--repos-from -`, a shell glob, or explicit `--repo`
+  flags) behind a single dry-run -> confirm -> apply gate, then reports a per-repo
+  outcome summary (`would-reset` / `done` / `skipped` / `blocked` / `failed`). It
+  is a thin orchestrator: every per-repo reset delegates to the unchanged
+  `git-tree-reset.sh`, so all single-repo safety gates are reused verbatim and the
+  single-repo behavior is untouched.
+
+  Closes the gap that caused an unrecoverable data loss when an operator
+  hand-rolled a `ghq list` reset loop. Two defects are fixed as first-class
+  behavior: (1) **separator-agnostic skip-matching** — a skip entry and the
+  enumerated repo path are each normalized to a canonical separator-agnostic key
+  (`clean_path_key`) before comparison, so a Windows `\`-path skip entry reliably
+  matches a repo whose path git enumerated with `/` (the exact match that silently
+  failed and reset a repo that should have been skipped); a skip entry matching no
+  repo is surfaced as `UnmatchedSkip:`, never silently ignored. (2) **Dirty-by-
+  default guard** — a repo with uncommitted/untracked changes or unpushed commits
+  is skipped with a reported reason; `--include-dirty` opts in and is gated with
+  its own explicit confirmation, like `--include-secrets`.
+
 ## [0.3.3]
 
 ### Fixed

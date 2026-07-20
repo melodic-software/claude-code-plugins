@@ -10,7 +10,7 @@
     {
       "id": 2,
       "prompt": "Where should I put integration tests for a new shared library?",
-      "expected_output": "Routes to context/organize.md. Evaluates whether the library has testable behavior (business logic, conditional branching) vs pure contracts. If testable: a dedicated test project co-located with the library, following the consuming project's documented naming and location convention. If contracts only: no dedicated test project needed, transitive coverage acceptable.",
+      "expected_output": "Routes to context/organize.md. Evaluates whether the library has testable behavior (business logic, conditional branching) vs pure contracts. If testable: a dedicated test project is warranted; its placement turns on whether the integration tests are single-project (co-locate with the library) or cross-project (centralize under the integration-test root) — inspects or asks for the consuming project's documented naming and location convention to decide, rather than pre-committing to either branch. If contracts only: no dedicated test project needed, transitive coverage acceptable.",
       "files": []
     }
   ]
