@@ -3,6 +3,28 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.0]
+
+### Added
+
+- **`interview` recommends the downstream session's model, effort, and advisor.**
+  The interview already reads task complexity and ambiguity to drive its rounds; at
+  the stop/handoff boundary it now turns that read into a recommendation for how the
+  execution session should be configured — a **model tier** (capability: raise when
+  the assistant would be confidently wrong despite full context) and an **effort
+  level** (thoroughness: raise when it would under-explore or under-verify) picked per
+  the official distinction, plus the **advisor** pairing when the main model is a
+  faster tier (a faster main without a stronger advisor is not the recommended config
+  for non-trivial work). The current model names, tiers, and accepted pairings are
+  read **live** from the official docs each run and never pinned in the skill (the
+  durable distinction is stable; the names drift) — mirroring `draft-goal-condition`'s
+  live-doc discipline. A doc-fetch failure **degrades, never halts**: it falls back to
+  the durable distinction with a visible note rather than guessing a model name. The
+  recommendation is advisory (applied via `/model`, `/advisor`, the effort setting),
+  fires for engineering and general sessions alike, and carries an inverse mid-task
+  direction (surface "too complex for the current model/effort" when execution
+  warrants). Detail in the new `skills/interview/context/session-config.md` (#231).
+
 ## [0.22.3]
 
 ### Changed
