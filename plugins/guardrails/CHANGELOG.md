@@ -22,6 +22,18 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   multi-line quoted argument (a `--body "…"` payload spanning newlines) stays
   inert instead of leaking its tokens from the second line on. `printf … > file`
   content-authoring is now caught alongside `echo … > file`.
+- **The producer scan now peels command prefixes, so a producer hidden behind a
+  valid shell prefix is no longer a trivial bypass.** The head-only producer match
+  looked only at a segment's first token, so `FOO=bar echo x > file`,
+  `command echo x > file`, `builtin printf x > file`, and `env echo x > file` all
+  slipped through even though their stdout is redirected into a real file — the
+  prior anywhere-in-command detector caught them. The segment head now peels
+  environment assignments and the command-name modifiers `command`/`builtin`/
+  `exec`/`env` before the echo/printf check, closing that hole. Peeling is
+  block-safe: the producer gate still requires echo/printf, so revealing a
+  non-producer command word never causes a block. External command-runner
+  utilities that carry their own options (`nohup`/`nice`/`time`/`timeout`/`sudo`/
+  `xargs`, non-bare `env`) remain an accepted, documented floor.
 
 ## [0.8.0]
 

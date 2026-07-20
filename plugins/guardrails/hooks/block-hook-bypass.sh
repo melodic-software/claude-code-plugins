@@ -196,6 +196,16 @@ _cat_redir='(^|[[:space:];|&()]+)cat[[:space:]]*>'
 # to the segment start (see producer_redirect_bypass), so it never matches an
 # `echo`/`printf` mention buried mid-command.
 _producer_head='^(echo|printf)([[:space:]]|>)'
+# Command-prefix tokens that legitimately precede the real command word in a
+# simple command: environment assignments (`FOO=bar cmd`) and the command-name
+# modifiers `command` / `builtin` / `exec` / `env`. Peeling them (see
+# producer_redirect_bypass) exposes an echo/printf hidden behind a valid prefix
+# (`command echo x > f`, `FOO=bar echo x > f`) so the producer scan still sees it.
+# The compound-command keywords / group opener (`do`/`then`/`else`/`{`) that put a
+# producer inside a loop, conditional, or brace-group body are peeled by the same
+# pass. Peeling is safe: the `_producer_head` gate still requires echo/printf, so
+# revealing a NON-echo command word can never cause a block.
+_cmd_prefix='^([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*|command|builtin|exec|env|do|then|else|\{)([[:space:]]|$)'
 # stdout-to-file redirect: `>` / `>>` NOT preceded by an fd digit or `&`, so
 # stderr/fd redirects (`2>/dev/null`, `2>&1`, `&>`) do not trip. _echo_devnull
 # exempts a stdout discard (`>/dev/null`) — that's not a Write/Edit bypass.
@@ -218,6 +228,16 @@ _py_write='open[[:space:]]*\(|\.write[[:space:]]*\(|pathlib|path[[:space:]]*\('
 # from the echo inside the group. Catching it needs brace/paren-depth tracking,
 # out of scope for a false-positive fix; the form is structurally unusual for LLM
 # output and covered by an accepted-floor test.
+#
+# SCOPE (documented residual): the command-prefix peel (see _cmd_prefix) covers
+# the bounded shell-grammar set — env assignments and `command`/`builtin`/`exec`/
+# bare `env`. External command-runner utilities that take their own options and a
+# command argument — `nohup`/`nice`/`time`/`timeout N`/`sudo`/`stdbuf -oL`/`xargs`,
+# and non-bare `env` (`env -i echo …`, `/usr/bin/env echo …`) — are NOT peeled, so
+# `nohup echo x > f` and friends are not caught. Peeling them correctly requires
+# per-utility argument parsing (each has a different option grammar), out of scope
+# for this false-positive fix; the forms are structurally unusual for LLM output
+# and covered by an accepted-floor test.
 producer_redirect_bypass() {
   local exec_lc="$1" seps=$';\n|&()' normalized seg
   # Each separator becomes a segment boundary; args cannot contain a raw
@@ -226,11 +246,13 @@ producer_redirect_bypass() {
   normalized="${exec_lc//[$seps]/$'\n'}"
   while IFS= read -r seg || [[ -n "$seg" ]]; do
     seg="${seg#"${seg%%[![:space:]]*}"}"
-    # Peel leading compound-command keywords / group openers so a producer in a
-    # loop, conditional, or brace-group body is still seen as the command word
-    # (`; do echo x > f`, `then echo ...`, `{ echo ...`) rather than being hidden
-    # behind the `do`/`then`/`else`/`{` token at the segment head.
-    while [[ "$seg" =~ ^(do|then|else|\{)([[:space:]]|$) ]]; do
+    # Peel leading command-prefix tokens (see _cmd_prefix) so a producer hidden
+    # behind an env assignment (`FOO=bar echo x > f`), a command-name modifier
+    # (`command echo ...`, `builtin printf ...`, `exec echo ...`, `env echo ...`),
+    # or a compound-command keyword / group opener (`; do echo x > f`, `then echo
+    # ...`, `{ echo ...`) is still seen as the segment's command word rather than
+    # being masked by the prefix at the head.
+    while [[ "$seg" =~ $_cmd_prefix ]]; do
       seg="${seg#"${BASH_REMATCH[1]}"}"
       seg="${seg#"${seg%%[![:space:]]*}"}"
     done

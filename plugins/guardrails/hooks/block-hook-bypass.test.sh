@@ -100,6 +100,32 @@ run "echo > file in brace group (blocked)" '{ echo x > real.txt; }' 2
 run "echo in brace group with group-level redirect (accepted floor — allowed)" \
   '{ echo x; } > real.txt' 0
 
+# --- Command-prefix producers (bypass regression) ----------------------------
+# A producer preceded by a valid shell prefix — an env assignment or a
+# command-name modifier (`command`/`builtin`/`exec`/`env`) — must still be caught:
+# its stdout is redirected into a real file exactly like a bare `echo > file`.
+# The head-only producer match would otherwise skip these, making the Write/Edit
+# bypass trivial via `command echo` or `FOO=bar echo`.
+run "env-assignment prefix before echo > file (blocked)" \
+  'FOO=bar echo content > real.txt' 2
+run "command modifier before echo > file (blocked)" \
+  'command echo content > real.txt' 2
+run "builtin modifier before printf > file (blocked)" \
+  'builtin printf x > real.txt' 2
+run "exec modifier before echo > file (blocked)" 'exec echo x > real.txt' 2
+run "env modifier before echo > file (blocked)" 'env echo content > real.txt' 2
+# No new false positive: peeling a prefix only reveals the command word; a
+# NON-producer command word after the prefix is still allowed.
+run "command modifier before non-producer > file (allowed)" \
+  'command ls > out.txt' 0
+run "env-assignment before non-producer > file (allowed)" \
+  'FOO=bar make > log.txt' 0
+# Floor: external command-runner utilities (own options + a command arg) are NOT
+# peeled — each needs per-utility argument parsing. Accepted as the floor; these
+# forms are structurally unusual for LLM output.
+run "nohup wrapper before echo > file (accepted floor — allowed)" \
+  'nohup echo x > real.txt' 0
+
 # --- Executable-token vs quoted-argument detection --------------------------
 # Prose or a commit message merely MENTIONING a bypass in a quoted span is
 # documentation, not a Write/Edit bypass. The python write-indicator scan stays
