@@ -29,6 +29,9 @@ concurrency:
 jobs:
   pr-issue-linkage:
     permissions: {}
-    uses: melodic-software/ci-workflows/.github/workflows/pr-issue-linkage.yml@90f1c54935203fa31b5b3d1f41531228be2c2b7f # 90f1c54 2026-07-18
+    uses: melodic-software/ci-workflows/.github/workflows/pr-issue-linkage.yml@d7734df8c557084edc2df7cf578cf62ad2f261e4 # d7734df 2026-07-20
     with:
       runner: ubuntu-24.04
+      # dependabot PR bodies cannot carry the closing-keyword + `## Related`
+      # markers this gate requires; exempt the login so its PRs are mergeable.
+      exempt-authors: 'dependabot[bot]'

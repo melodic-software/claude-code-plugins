@@ -44,6 +44,10 @@ This skill adapts to the consuming repo rather than imposing structure:
   clobber across two in-flight topics.
 - **Quality gates.** The consuming repo's own build/test/lint commands and review criteria govern;
   this skill names WHERE gates belong in the sequence, not what they contain.
+- **Override boundary.** The stage set itself is fixed — plugin identity, not consumer config; there
+  is no seam to swap in a different taxonomy, and this skill never reads a consumer-supplied one.
+  What adapts flows through the conventions above (execution routes to your skills; gate commands
+  and review criteria come from your repo), never by editing the plugin.
 
 ## Argument parsing
 

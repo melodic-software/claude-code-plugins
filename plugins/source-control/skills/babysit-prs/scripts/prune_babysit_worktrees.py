@@ -18,7 +18,7 @@ from babysit_state import resolve_state_dir, state_lock
 from babysit_util import configure_stdio, run_command
 
 WORKTREE_RE = re.compile(r"^(?P<owner>.+?)__(?P<repo>.+?)__pr-(?P<number>\d+)$")
-ALLOWED_EXECUTABLES = ("git", "gh", "ghq")
+ALLOWED_EXECUTABLES = ("git", "gh")
 
 
 @dataclass
@@ -57,21 +57,22 @@ def resolve_root(value: str | None) -> Path:
     return path
 
 
-def repo_path(owner: str, repo: str) -> Path:
-    # Prefer ghq so non-default roots (and prompt-configured reposRoot) resolve correctly.
-    proc = run(["ghq", "list", "-p", f"{owner}/{repo}"], check=False)
-    lines = [line.strip() for line in proc.stdout.splitlines() if line.strip()]
-    if lines:
-        return Path(lines[0])
+def repo_path(worktree_path: Path) -> Path:
+    """Resolve the main checkout a linked worktree belongs to, from git alone.
 
-    proc = run(["git", "config", "--get", "ghq.root"], check=False)
-    root = (proc.stdout or "").strip()
-    if root:
-        return Path(root) / "github.com" / owner / repo
-
-    raise RuntimeError(
-        f"unable to resolve main checkout for {owner}/{repo}; install ghq or set ghq.root"
-    )
+    A linked worktree records its repository through its gitdir/commondir
+    pointer, so `git rev-parse --git-common-dir` yields the shared git directory
+    with no external repo-layout tool. For a standard clone that directory is the
+    main working tree's `.git`, so its parent is the checkout git worktree
+    commands run from; a bare-clone hub has no working tree, so the git directory
+    itself is where those commands run.
+    """
+    proc = run(["git", "-C", str(worktree_path), "rev-parse", "--git-common-dir"])
+    common = Path(proc.stdout.strip())
+    if not common.is_absolute():
+        common = worktree_path / common
+    common = common.resolve()
+    return common.parent if common.name == ".git" else common
 
 
 def iter_worktrees(root: Path) -> list[Worktree]:
@@ -132,7 +133,7 @@ def pr_state(worktree: Worktree) -> dict[str, str]:
 
 
 def remove_worktree(worktree: Worktree, root: Path) -> None:
-    main_repo = repo_path(worktree.owner, worktree.repo)
+    main_repo = repo_path(worktree.path)
     if not main_repo.exists():
         raise RuntimeError(f"main repo missing for {worktree.key}: {main_repo}")
     resolved = worktree.path.resolve()

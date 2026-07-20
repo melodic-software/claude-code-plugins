@@ -18,6 +18,15 @@ All notable changes to the `firecrawl` plugin are documented here. Format follow
   the invocation moves from `/firecrawl:firecrawl update` to `/firecrawl:update`.
   No behavior change to the update flow itself.
 
+## [0.3.1]
+
+### Changed
+
+- Documentation-only: the License section now states the plugin's own MIT
+  license inline and no longer points at a `LICENSE` file at the repository
+  root, which an installed consumer running from the isolated plugin cache
+  cannot reach. No behavior change.
+
 ## [0.3.0]
 
 ### Added

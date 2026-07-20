@@ -65,5 +65,4 @@ and its work-artifact convention. There is nothing to hand-edit in the plugin.
 
 ## License
 
-MIT (SPDX-License-Identifier: MIT). See the `LICENSE` file at the root of the
-`melodic-software/claude-code-plugins` repository.
+MIT (SPDX-License-Identifier: MIT).
