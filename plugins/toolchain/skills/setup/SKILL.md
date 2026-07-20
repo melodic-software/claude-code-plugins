@@ -1,6 +1,6 @@
 ---
 name: setup
-description: "Configure the toolchain plugin for this repository. check (read-only): report which ecosystems are configured, each one's resolved build/test/lint command surface, and the topic-docs concern file, validating the tracked files against the contract schema. apply: interview the user, infer per-ecosystem commands from the repo layout, and write the tracked .claude/ecosystems/<ecosystem>.yaml files that /toolchain:check and /toolchain:lint resolve first, plus the offered .claude/topic-docs.yaml concern file. Use when: 'set up toolchain', 'configure build/lint commands', 'toolchain setup', /toolchain:check or /toolchain:lint reports it is falling back to bundled defaults, a toolchain change needs recording, or a skill asks where topic documents should land. Actions: check (read-only verification, default) | apply (write the ecosystem command config and topic-docs concern file). Re-runnable and safe."
+description: "Configure the toolchain plugin for this repository. check (read-only): report which ecosystems are configured and each one's resolved build/test/lint command surface, validating the tracked files against the contract schema. apply: interview the user, infer per-ecosystem commands from the repo layout, and write the tracked .claude/ecosystems/<ecosystem>.yaml files that /toolchain:check and /toolchain:lint resolve first. Use when: 'set up toolchain', 'configure build/lint commands', 'toolchain setup', /toolchain:check or /toolchain:lint reports it is falling back to bundled defaults, or a toolchain change needs recording. Actions: check (read-only verification, default) | apply (write the ecosystem command config). Re-runnable and safe."
 argument-hint: "check | apply [<ecosystem>]"
 user-invocable: true
 disable-model-invocation: true
@@ -51,17 +51,11 @@ first**, then report a PASS/FAIL/INFO table; modify nothing.
    configured (see the inference signals under `apply`), and note that `/toolchain:check` /
    `/toolchain:lint` resolve those through inference then the bundled portable defaults. The
    remediation is `apply` to persist a command surface.
-3. **Topic-docs concern file** (`$REPO_ROOT/.claude/topic-docs.yaml`). Report present/absent and, when
-   present, the effective `contract_tier` and `vault_backend`. INFO when absent (companion plugins use
-   the documented defaults). When `vault_backend` is `gitbook`, note it is deferred and non-writable
-   (see `docs/adr/0001-defer-gitbook-as-knowledge-vault-backend.md`) — the writable promotion target
-   remains `docs`.
 
 ## `apply` (idempotent)
 
-Run `check` first. Then write the accepted ecosystem files and, when accepted, the topic-docs concern
-file. After each write, confirm the file is tracked (not gitignored) — re-run the `check` probe for
-that path rather than trusting the write.
+Run `check` first. Then write the accepted ecosystem files. After each write, confirm the file is
+tracked (not gitignored) — re-run the `check` probe for that path rather than trusting the write.
 
 ### 1. Read existing config first
 
@@ -119,38 +113,11 @@ Personal per-key overrides go in `.claude/ecosystems/<ecosystem>.local.yaml`; a 
 user-global → team → local overlay, additively per key. Recommend the consumer add
 `.claude/ecosystems/*.local.*` to `.gitignore` if not already covered.
 
-### 6. Offer the topic-docs concern file
-
-Companion lifecycle plugins — `implementation` (`/implementation:implement`) and `verification`
-(`/verification:confirm`, `/verification:measure`) — place plan progress, verification manifests, and
-baselines per the topic-docs convention
-([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)). This
-skill offers the shared consumer-side concern file those plugins resolve, independent of whether they
-are installed today.
-When `$REPO_ROOT/.claude/topic-docs.yaml` is absent, offer to write it — one question, recommended
-option first (`contract_tier: branch`, the default; `local` for solo/offline work) — and materialize
-only the keys that differ from the documented defaults (always at least one explicit key, e.g.
-`contract_tier: branch` — a comment-only YAML document parses as null and fails the contract
-schema's `type: object`), offering every schema key (`contract_dir`,
-`memory_dir`, `contract_tier`, `vault_backend`). When it exists, leave it alone unless the user asks
-to reconfigure — and preserve every schema key it carries; a re-run never drops one. Before writing, run the conflict check — only when the chosen
-tier is `branch` (local mode has no committed tier to guard): `git check-ignore -v` on a
-representative file path inside the chosen contract root (e.g. `<contract_dir>/probe/PLAN.md` — a
-bare directory misses `**` patterns) — a matching ignore rule is surfaced to
-the user with the exact rule, never worked around. Never edit the consumer's root `.gitignore`; the
-resolved memory root self-ignores through its own `.gitignore`. Whenever the effective
-`vault_backend` is (or becomes) `gitbook` — preserved from an existing file or chosen by the user
-during this interview — report that GitBook is deferred and non-writable (see
-`docs/adr/0001-defer-gitbook-as-knowledge-vault-backend.md`): the effective writable promotion
-target remains `docs` until a later reviewed decision enables the backend. Do not configure or test a
-GitBook API, MCP, or Git Sync writer; offer to replace the key with `docs` only if the user chooses
-that change.
-
 ## Output
 
-Tracked `.claude/ecosystems/*.yaml` files in the consuming repo — plus `.claude/topic-docs.yaml`
-when accepted — and a one-paragraph summary of what was written and how to re-run this setup to
-reconfigure. `check` alone reports the effective configuration and changes nothing.
+Tracked `.claude/ecosystems/*.yaml` files in the consuming repo, and a one-paragraph summary of what
+was written and how to re-run this setup to reconfigure. `check` alone reports the effective
+configuration and changes nothing.
 
 ## What this skill does NOT do
 
