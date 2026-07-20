@@ -3,6 +3,50 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.0]
+
+Absorb the v4 loop-prompt execution rules into `/work-items:work` so the execute step owns them
+instead of a session prompt, delegating anything a sibling skill already owns rather than restating it.
+
+### Added
+
+- **Orchestrator-dispatch is the documented default for autonomous execution (`#451`).** The execute
+  step's generic "follow the project's development workflow" deference now states the default posture:
+  pick and claim, then dispatch a scope-fenced implementation subagent that edits source in its own
+  out-of-tree worktree — the orchestrator never edits source. Dispatch *mechanics* are chained to
+  `/implementation:implement-dispatch` (not re-described); worktree lifecycle stays with
+  `/source-control:worktree`; the interactive all-inline path remains `/implementation:implement`.
+  The autonomous dispatch handoff (branch/worktree provisioning before the dispatch preflight and
+  orchestrator-owned PR creation) is not yet guaranteed end-to-end — deferred to `#572`.
+- **The dispatch brief carries the PR contract forward (`#462`).** The brief relays what
+  `/source-control:pull-request` will require at PR time — that skill still owns the PR body shape,
+  `Closes #N` injection, and merge style — enumerating the version-bump, CHANGELOG, attribution-trailer
+  plus session link, and `## Related` obligations so a worker knows them up front, not via red CI.
+- **Post-green review pass with work-item linkage.** After CI green, one review pass fixes branch-owned
+  findings via the owning subagent; the fetch → validate → classify → reply → resolve loop stays owned
+  by `/source-control:pull-request`. A VALID-but-deferred finding now requires a follow-up issue filed
+  via `/work-items:track add`, cited in the reply and in `## Related`, before it can be resolved. The PR
+  then hands off to `/source-control:babysit-prs`.
+- **High-blast-radius pre-PR diff gate.** The orchestrator does a full-diff read before opening a PR
+  when the diff touches skill frontmatter descriptions or trigger keywords, cross-plugin contracts, or
+  hooks — complementing the worker scope-fence with an orchestrator read of what actually changed.
+- **Concurrency and batch caps as `userConfig`.** New `work_dispatch_concurrency_cap` (default mirrors
+  `/implementation:implement-dispatch`'s 3–5 wave cap) and `work_cycle_batch_cap` scalars; the execute
+  step resolves them from config with no hardcoded literal. Enforcement is not yet wired — these are the
+  *intended* values (implement-dispatch still applies its own internal cap and no consumer reads the batch
+  cap), with threading into the delegated dispatch and driving loop tracked in `#573`. A batch cap bounds
+  one CYCLE, never the loop
+  — cap-reached or frontier-drained ends the cycle only, not autonomous operation (loop wakeup and delay
+  stay owned by `/loop`). Same-plugin serialization carries an interim awareness note pending `#464`.
+- **Explicit never-merge boundary.** The skill states that `work`'s lane ends at PR creation and
+  handoff; merging is the babysit lane or a human, never `work`.
+
+### Changed
+
+- **Selection skips a frontier item that already has an open PR (interim, retire on `#463`).** The
+  staleness pre-check advances past an in-flight item rather than starting a duplicate branch, until the
+  durable in-progress marker lands and the frontier excludes in-flight items itself.
+
 ## [0.12.3]
 
 ### Fixed
