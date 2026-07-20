@@ -482,6 +482,40 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         self.assertEqual(result["autopilotMergeTier"]["humanBlockingComments"], [])
         self.assertTrue(result["ready"], result["blockers"])
 
+    def test_configured_user_approver_body_is_not_a_human_block(self) -> None:
+        # The configured distinct-bot approver GitHub reports as a `User` (no
+        # [bot] suffix): its own approving review body carrying blocking-looking
+        # prose must not count as a human stop against the very approval it
+        # provides. The same review satisfies find_distinct_bot_approval and no
+        # longer self-blocks the merge.
+        review = _approval(APPROVER, HEAD, typename="User")
+        review["body"] = (
+            "Approved. This change resolves the blocking regression "
+            "from the linked issue."
+        )
+        result = self._evaluate(_pr(), reviews=[review])
+        self.assertTrue(result["ready"], result["blockers"])
+        self.assertEqual(result["autopilotMergeTier"]["humanBlockingComments"], [])
+        self.assertIsNotNone(result["autopilotMergeTier"]["distinctBotApproval"])
+
+    def test_configured_user_lane_does_not_ratify_decision_default(self) -> None:
+        # A pipeline lane account GitHub reports as a `User` is automation for the
+        # ratification scan: its "ratified" comment after the marker must not
+        # clear the decision-default veto (the #450 hazard of automation ratifying
+        # its own default). The OWNER association proves the bot classification --
+        # not the association -- holds it.
+        ratify = _comment(
+            LANE, "Ratified — proceed.", typename="User", association="OWNER",
+            created_at="2026-02-01T00:00:00Z",
+        )
+        result = self._evaluate(
+            _pr(), linked_issue_comments=[DECISION_MARKER, ratify]
+        )
+        self.assertFalse(result["ready"])
+        self.assertEqual(
+            result["autopilotMergeTier"]["decisionDefaultHeldIssues"], [LINKED_REF]
+        )
+
 
 class TierAbsentIsInert(TierEvaluateHarness):
     def test_no_tier_makes_no_tier_network_calls(self) -> None:

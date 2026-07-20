@@ -50,7 +50,9 @@ from typing import Any, cast
 
 from babysit_checks import check_identity_key, classify_checks
 from babysit_classify import (
+    DEFAULT_FEEDBACK_CONFIG,
     NON_APPROVAL_RE,
+    FeedbackConfig,
     actor_kind,
     has_blocking_severity,
     has_blocking_text,
@@ -106,6 +108,23 @@ class AutopilotMergeTierConfig:
     lane_logins: frozenset[str]
     approver_bot_logins: frozenset[str]
     block_labels: frozenset[str]
+
+    @property
+    def automation_actor_config(self) -> FeedbackConfig:
+        """Classify every configured pipeline identity as a bot for the veto and
+        ratification scans.
+
+        A lane or approver account GitHub misreports as a `User` (no `[bot]`
+        suffix) passes the structural `is_bot` fallback in
+        `find_distinct_bot_approval` but would otherwise read as a human here: a
+        configured identity is *always* automation for these scans -- never a
+        human merge veto, never a maintainer ratifying its own decision-default
+        marker (the #450 attribution-drift hazard the ratification design
+        excludes).
+        """
+        return FeedbackConfig(
+            extra_bot_logins=self.approver_bot_logins | self.lane_logins
+        )
 
 
 def parse_csv_set(raw: str | None) -> set[str]:
@@ -266,7 +285,11 @@ RATIFICATION_SIGNAL_RE = re.compile(
 )
 
 
-def _decision_default_ratified(comments: list[dict[str, Any]], marker_ts: str) -> bool:
+def _decision_default_ratified(
+    comments: list[dict[str, Any]],
+    marker_ts: str,
+    config: FeedbackConfig = DEFAULT_FEEDBACK_CONFIG,
+) -> bool:
     """True when a maintainer's latest decisive comment after the marker ratifies.
 
     Every human-maintainer comment posted strictly after the marker is scanned and
@@ -294,7 +317,7 @@ def _decision_default_ratified(comments: list[dict[str, Any]], marker_ts: str) -
         created_at = str(comment.get("createdAt") or "")
         if created_at <= marker_ts:
             continue
-        if actor_kind(comment) != "human":
+        if actor_kind(comment, config) != "human":
             continue
         association = str(comment.get("authorAssociation") or "").upper()
         if association not in RATIFYING_ASSOCIATIONS:
@@ -324,7 +347,9 @@ def _ref_repo(ref: dict[str, Any]) -> str | None:
 
 
 def evaluate_decision_default_veto(
-    repo: str, closing_issues: list[Any]
+    repo: str,
+    closing_issues: list[Any],
+    config: FeedbackConfig = DEFAULT_FEEDBACK_CONFIG,
 ) -> tuple[list[str], list[str]]:
     """Hold when a linked issue carries an unratified 'Decision defaulted' marker.
 
@@ -368,7 +393,7 @@ def evaluate_decision_default_veto(
         ]
         if not marker_timestamps:
             continue
-        if _decision_default_ratified(comments, max(marker_timestamps)):
+        if _decision_default_ratified(comments, max(marker_timestamps), config):
             continue
         blockers.append(
             f"linked issue {target} carries an unratified 'Decision defaulted' "
@@ -453,8 +478,13 @@ def evaluate_autopilot_tier(
         {"author": normalized_rest_author(row), "body": row.get("body")}
         for row in fetch_pull_request_review_comments(repo, number)
     )
+    # A configured approver/lane account GitHub misreports as a `User` classifies
+    # as a bot here, so its clean review body ("no blocking issues") no longer
+    # self-blocks the very approval `find_distinct_bot_approval` accepted --
+    # extending the existing "a bot's blocking-looking prose is not a human stop"
+    # rule to configured bots that lack a `[bot]` suffix.
     for item in corpus:
-        if actor_kind(item) != "human":
+        if actor_kind(item, tier.automation_actor_config) != "human":
             continue
         body = str(item.get("body") or "")
         if (
@@ -473,7 +503,7 @@ def evaluate_autopilot_tier(
         )
 
     veto_blockers, decision_default_held = evaluate_decision_default_veto(
-        repo, closing_issues
+        repo, closing_issues, tier.automation_actor_config
     )
     blockers.extend(veto_blockers)
 
