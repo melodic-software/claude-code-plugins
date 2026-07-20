@@ -126,16 +126,25 @@ commits a personal preference to shared history.
 
 When the invocation carries a `subject_pattern=` argument, write non-interactively: use it as
 `subject_pattern` (the literal `Conventional Commits` keyword, which resolves to the bundled 11-type
-anchored pattern and enables `type_list`, or an anchored regex), set `pr_title_pattern` to the same,
-and omit `trailer_policy`. Reject a `subject_pattern` that is not machine-checkable (a plain-language
-value) with the same message `check` gives, rather than persisting it.
+anchored pattern and enables `type_list`, or an anchored regex), and set `pr_title_pattern` to the
+same. Reject a `subject_pattern` that is not machine-checkable (a plain-language value) with the same
+message `check` gives, rather than persisting it.
 
-**Writing an overlay layer — `user` or `local` — this path still resolves the layers below first and
-omits any key already equal to that merge.** A non-interactive argument is not evidence of a genuine
+**A non-interactive write is an update, not a fresh file.** The target layer is rewritten in place, so
+read it first and carry through every key the invocation did not ask to change. An argument naming
+`subject_pattern` says nothing about `trailer_policy`; dropping an existing `trailer_policy: none`
+because the new invocation did not mention it changes commit behavior the user never asked to change.
+Only a key the invocation explicitly sets may be replaced, and only a key the user explicitly clears
+may be removed.
+
+**Writing an overlay layer — `user` or `local` — resolve the layers below first and omit any
+*requested* key already equal to that merge.** A non-interactive argument is not evidence of a genuine
 deviation: `apply layer=local subject_pattern=X` against a team file that already declares `X` would
 otherwise pin `X` locally, so a later team change would be silently ignored on this machine — the
-exact failure per-key override exists to prevent. Writing nothing is the correct outcome when the
-requested value already holds; say so rather than materializing an empty overlay.
+exact failure per-key override exists to prevent. This applies to the requested keys only; it never
+licenses dropping an unrelated key the overlay already carries. When every requested key already holds
+and the overlay would otherwise be empty, write nothing and say so rather than materializing an empty
+file.
 
 With no argument in an interactive session, run the interview:
 
@@ -147,8 +156,11 @@ With no argument in an interactive session, run the interview:
    overwrites nothing without confirmation. Writing an overlay layer, carry only the keys that
    genuinely differ from the merge below it: an overlay that restates every key silently pins values
    the base layer should still own, which is the failure mode per-key override exists to avoid.
-2. **Infer before asking.** With no config file, look for an existing declared or enforced
-   convention, surfacing which signal produced the candidate:
+2. **Infer before asking.** Gate this on the resolved value, not on file presence: infer whenever the
+   **effective merged `subject_pattern` is unresolved**, which includes the case where layers exist
+   but contribute only other keys. Skipping inference because some file exists would recommend the
+   bundled default over a `commit-msg` hook that demands ticket-prefixed subjects. Look for an
+   existing declared or enforced convention, surfacing which signal produced the candidate:
    - The repo's own `CLAUDE.md`, `AGENTS.md`, or `.claude/rules` — prose stating a commit-message or
      PR-title convention.
    - A commit-msg git hook — `lefthook.yml` (`commit-msg` entry), `.husky/commit-msg`,

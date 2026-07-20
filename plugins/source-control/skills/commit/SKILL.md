@@ -39,7 +39,7 @@ Compliant examples:
 
 The 11 types — `build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test` — come from the Conventional Commits spec, the Angular convention, commitlint's `@commitlint/config-conventional` source, and `amannn/action-semantic-pull-request`'s default `types` list; all four agree on this exact set. `security` is **not** a Conventional Commits type in any of them — never add it.
 
-When the project enforces its convention with a commit-msg git hook (lefthook, husky, commitlint, plain `.git/hooks/`), that hook is the authoritative gate regardless of which rung above resolved the pattern; this skill's pre-check exists to fast-fail client-side before the hook round-trip. When no config exists and nothing is inferable from the project's own files, point the user at `/source-control:setup` to persist a convention instead of re-inferring one every commit.
+When the project enforces its convention with a commit-msg git hook (lefthook, husky, commitlint, plain `.git/hooks/`), that hook is the authoritative gate regardless of which rung above resolved the pattern; this skill's pre-check exists to fast-fail client-side before the hook round-trip. When no layer resolves a `subject_pattern` and nothing is inferable from the project's own files, point the user at `/source-control:setup` to persist a convention instead of re-inferring one every commit.
 
 ## Task
 

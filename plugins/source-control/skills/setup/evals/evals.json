@@ -129,6 +129,19 @@
         "Does not write an overlay whose keys restate the team layer",
         "Tells the user the requested convention already holds instead of reporting a write it did not need to make"
       ]
+    },
+    {
+      "id": 11,
+      "name": "non-interactive-update-preserves-unrequested-overlay-keys",
+      "prompt": "/source-control:setup apply layer=local subject_pattern=^[A-Z]+-\\d+: .+",
+      "expected_output": "The personal overlay already declares trailer_policy: none, which this invocation says nothing about. The skill reads the target layer before rewriting it and carries that key through unchanged, replacing only subject_pattern (and the pr_title_pattern derived from it). It does not treat a rewrite as a fresh file, which would silently drop the active personal trailer override and change commit behavior the user never asked to change.",
+      "files": [".claude/source-control.md", ".claude/source-control.local.md"],
+      "expectations": [
+        "Reads the existing overlay before rewriting it rather than composing the file from the invocation alone",
+        "Preserves the overlay's existing trailer_policy: none, which the invocation did not mention",
+        "Replaces only subject_pattern and the pr_title_pattern derived from it",
+        "Removes a key only when the user explicitly clears it, never as a side effect of an unrelated one-key update"
+      ]
     }
   ]
 }
