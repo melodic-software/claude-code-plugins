@@ -71,6 +71,29 @@ else
 fi
 rm -f "$f"
 
+# --- generic presence prose does NOT guard a bare branch default -----------
+f="$(tmpfile 'If using a rebase workflow, diff origin/main first.')"
+if out="$(scan_paths "$f" 2>&1)"; then
+  fail "generic 'if using' prose must not guard a bare branch default: $out"
+elif echo "$out" | grep -q "COUPLING: ${f}:1:"; then
+  ok "generic optional-dependency prose does not guard the active branch token"
+else
+  fail "expected line 1 flagged for bare origin/main under 'if using' prose, got: $out"
+fi
+rm -f "$f"
+
+# --- a malformed active token fails closed (exit 2), not a silent pass ------
+BAD_TOKENS="$(mktemp)"
+printf 'origin/(main\n' >"$BAD_TOKENS" # unmatched '(' — invalid ERE, awk faults
+f="$(tmpfile 'diff against origin/main here')"
+SKILL_PORTABILITY_TOKENS="$BAD_TOKENS" bash "$SCRIPT" --paths "$f" >/dev/null 2>&1
+if [[ "$?" -eq 2 ]]; then
+  ok "malformed active token exits 2 (fail closed, no silent pass)"
+else
+  fail "malformed active token should exit 2, not silently treat the file as clean"
+fi
+rm -f "$f" "$BAD_TOKENS"
+
 # --- same-line portability-ok annotation passes ----------------------------
 f="$(tmpfile 'reset --hard origin/main <!-- portability-ok: fixture asserts the hardcode on purpose -->')"
 if scan_paths "$f" >/dev/null 2>&1; then
@@ -97,10 +120,10 @@ now a plain line
 diff against origin/main again')"
 if out="$(scan_paths "$f" 2>&1)"; then
   fail "annotation should not sanction a later hit, got success: $out"
-elif echo "$out" | grep -q ":4:"; then
-  ok "annotation does not leak past intervening code"
+elif echo "$out" | grep -q ":4:" && ! echo "$out" | grep -q ":2:"; then
+  ok "annotation covers line 2 only and does not leak past intervening code"
 else
-  fail "expected only line 4 flagged, got: $out"
+  fail "expected line 4 flagged and line 2 clean, got: $out"
 fi
 rm -f "$f"
 

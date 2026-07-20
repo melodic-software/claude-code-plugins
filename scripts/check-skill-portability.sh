@@ -137,13 +137,17 @@ scan_file() {
   awk '
     function is_annotated(l) { return l ~ /portability-ok:/ }
     function is_comment(l) { return l ~ /^[[:space:]]*#/ || l ~ /<!--/ }
-    # Guard markers for the active branch class: a detection-first ladder or a
-    # presence-gated use, which is the correct pattern, not a bare assumption.
+    # Guard markers for the active branch class: branch-detection evidence ONLY
+    # (a symbolic-ref / merge-base / origin/HEAD ladder that documents an
+    # origin/main last-resort fallback is the correct pattern, not a bare
+    # assumption). Generic optional-dependency presence prose ("if using",
+    # "when present") is NOT branch-resolution evidence and must not sanction a
+    # bare branch default; a future class that genuinely needs presence guards
+    # adds its own class-scoped markers here when it is enabled.
     function is_guarded(l) {
       return l ~ /origin\/HEAD/ || l ~ /symbolic-ref/ || l ~ /merge-base/ ||
         l ~ /baseRefName/ || l ~ /[Ff]allback/ || l ~ /[Ff]alling back/ ||
-        l ~ /-> *origin\// || l ~ /if installed/ || l ~ /if using/ ||
-        l ~ /when installed/ || l ~ /when present/
+        l ~ /-> *origin\//
     }
     # Pass 1: collect active ERE patterns from the token list.
     FNR == NR {
@@ -180,7 +184,13 @@ for file in "${files[@]}"; do
     printf 'Error: no such file: %s\n' "$file" >&2
     exit 2
   fi
-  out="$(scan_file "$file")"
+  # Propagate a scanner fault (e.g. a malformed active ERE token makes awk exit
+  # non-zero with no stdout): without this the empty $out reads as "clean" and
+  # the file is silently skipped — the exact false negative fail-closed forbids.
+  out="$(scan_file "$file")" || {
+    printf 'Error: gate scanner failed on %s — failing closed\n' "$file" >&2
+    exit 2
+  }
   if [[ -n "$out" ]]; then
     while IFS= read -r v; do
       echo "COUPLING: ${file}:${v}" >&2

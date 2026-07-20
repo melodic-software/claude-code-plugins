@@ -39,12 +39,13 @@ origin/(main|master)
 # --- STAGED (commented until the class is proven clean against the corpus) ---
 #
 # Before enabling ANY staged class below, beyond the corpus audit:
-#   - Audit and tighten `is_guarded()` in check-skill-portability.sh against the
-#     class's real false-guard risk. Its markers are seeded for the active
-#     branch/default-branch class; the generic presence signals (`if using`,
-#     `when installed`, `when present`) would spuriously guard a bare ecosystem
-#     hardcode like "useful if using .NET — requires dotnet CLI" once the dotnet
-#     or gh class is live — a hardcode, not a legitimately guarded use.
+#   - Audit and EXTEND `is_guarded()` in check-skill-portability.sh with the
+#     markers the new class legitimately needs. Its markers are scoped to the
+#     active branch/default-branch class — branch-detection evidence only. A
+#     class that genuinely needs optional-dependency presence signals (e.g.
+#     "useful if using .NET — requires dotnet CLI") must add its own
+#     class-scoped markers; a generic `if using` / `when present` must never
+#     guard a bare hardcode, or the gate goes green on a real coupling.
 #   - If the pattern uses `\b` as a word boundary, it is NOT reliable: POSIX ERE
 #     defines no word-boundary escape, and on common awks (gawk AND mawk/nawk)
 #     `\b` matches a literal backspace byte, not a boundary — verified: gawk uses
