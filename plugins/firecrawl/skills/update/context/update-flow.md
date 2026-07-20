@@ -1,6 +1,6 @@
 # firecrawl — update procedure
 
-Read when running the update action. The update model, preservation invariants, and safety guarantees stay in `../SKILL.md` "Updating the skill and CLI" + "Safety"; this file holds the procedural detail (when to invoke, the modes, the full pipeline). Maintainer-facing: run in a working-tree checkout of this plugin, never against an installed marketplace copy.
+Read when running the update action. The update model, preservation invariants, and safety guarantees stay in `../SKILL.md` "Preservation rules" + "Safety"; this file holds the procedural detail (when to invoke, the modes, the full pipeline). Maintainer-facing: run in a working-tree checkout of this plugin, never against an installed marketplace copy.
 
 ## When to invoke
 
@@ -13,8 +13,8 @@ Read when running the update action. The update model, preservation invariants, 
 
 | Invocation | Effect |
 |---|---|
-| `/firecrawl:firecrawl update --check` | Read-only drift report. Fetches upstream + npm metadata, compares against `UPSTREAM.md`. Prints CLI version delta, upstream SHA delta. **No mutations.** |
-| `/firecrawl:firecrawl update` | Full update pipeline with two approval gates |
+| `/firecrawl:update --check` | Read-only drift report. Fetches upstream + npm metadata, compares against `UPSTREAM.md`. Prints CLI version delta, upstream SHA delta. **No mutations.** |
+| `/firecrawl:update` | Full update pipeline with two approval gates |
 
 ## Pipeline (full update)
 

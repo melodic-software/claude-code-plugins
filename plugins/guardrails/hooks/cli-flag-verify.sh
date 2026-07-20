@@ -47,7 +47,11 @@ hook::ctx_reset
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 VERIFIER="$PLUGIN_ROOT/lib/verification/verify-cli-flag.sh"
 
-FILE=$(hook::read_file_path) || exit 0
+# hook::buffer_stdin encapsulates the Win32-pipe-safe bounded fd0 read; empty
+# or timed-out stdin skips this advisory hook. Pipe the buffered payload into
+# hook::read_file_path so its jq no longer reads the inherited fd0 directly.
+INPUT=$(hook::buffer_stdin) || exit 0
+FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
 IS_MD=false
 case "$FILE" in
 *.md) IS_MD=true ;;
