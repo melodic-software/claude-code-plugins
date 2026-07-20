@@ -85,6 +85,31 @@ rc=$?
 if [[ $rc -ne 0 && "$out" == *"ORPHANED FIXTURE"*"fixtures/valid.json is"* && "$out" != *"valid.json.bak is"* ]]; then ok "files[] path match is exact (substring of a longer referenced path does not consume)"; else fail "files[] substring path match not caught: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
+# --- SIBLING-SKILL BASENAME CONFLATION: skill a's test naming shared.md must
+# NOT consume skill b's same-named fixture (basename matches count only inside
+# the owning skill; cross-skill consumption needs the plugin-relative path) ----
+repo="$(mk_repo)"
+seed_skill "$repo" "plugins/p/skills/a" ''
+seed_skill "$repo" "plugins/p/skills/b" ''
+printf 'x\n' >"$repo/plugins/p/skills/a/evals/fixtures/shared.md"
+printf 'x\n' >"$repo/plugins/p/skills/b/evals/fixtures/shared.md"
+mkdir -p "$repo/plugins/p/skills/a/scripts"
+printf 'assert_on fixtures/shared.md\n' >"$repo/plugins/p/skills/a/scripts/thing.test.sh"
+out="$(cd "$repo" && bash scripts/check-orphaned-fixtures.sh --check 2>&1)"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"ORPHANED FIXTURE"*"skills/b/evals/fixtures/shared.md"* && "$out" != *"skills/a/evals/fixtures/shared.md is"* ]]; then ok "sibling skill's same-named fixture is not conflated (test basename scoped to owning skill)"; else fail "sibling-skill basename conflation not caught: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# --- CROSS-SKILL CONSUMPTION BY PLUGIN-RELATIVE PATH: a plugin-root test naming
+# skills/b/evals/fixtures/by-plugin-test.md consumes it ------------------------
+repo="$(mk_repo)"
+seed_skill "$repo" "plugins/p/skills/b" ''
+printf 'x\n' >"$repo/plugins/p/skills/b/evals/fixtures/by-plugin-test.md"
+mkdir -p "$repo/plugins/p/tools"
+printf 'assert_on skills/b/evals/fixtures/by-plugin-test.md\n' >"$repo/plugins/p/tools/suite.test.sh"
+if run_check "$repo" >/dev/null; then ok "plugin-root test consuming by plugin-relative path passes --check"; else fail "plugin-relative path consumption wrongly flagged"; fi
+rm -rf "$repo"
+
 # --- evals.json consumption is limited to files[] VALUES: a fixture named only
 # in a prompt/metadata string, with an empty files[], is NOT consumed -> orphan -
 repo="$(mk_repo)"

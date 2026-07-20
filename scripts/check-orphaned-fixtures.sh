@@ -83,7 +83,7 @@ plugin_root_of() {
 # consumed <fixture-path> -> 0 if some grader consumes it
 consumed() {
   local fixture="$1"
-  local fixtures_dir evals_dir skill_dir evals_json rel base plugin files_values
+  local fixtures_dir evals_dir skill_dir evals_json rel base plugin plugin_rel files_values
 
   fixtures_dir="${fixture%/*}"
   # walk up to the nearest 'fixtures' segment (fixtures may nest a subdir)
@@ -122,9 +122,21 @@ consumed() {
     fi
   fi
 
-  plugin="$(plugin_root_of "$fixture")"
+  # Test-file consumption is scoped: a bounded-basename match counts only inside
+  # the OWNING skill, so same-named fixtures in sibling skills are never
+  # conflated. A test elsewhere in the plugin must name the fixture by its
+  # plugin-relative path (fixed string), which is unambiguous across skills.
   while IFS= read -r -d '' test_file; do
     if grep -qE "$base_re" "$test_file"; then
+      return 0
+    fi
+  done < <(find "$skill_dir" -type f -name '*.test.*' -print0 2>/dev/null)
+
+  plugin="$(plugin_root_of "$fixture")"
+  plugin_rel="${fixture#"$plugin"/}"
+  while IFS= read -r -d '' test_file; do
+    case "$test_file" in "$skill_dir"/*) continue ;; *) ;; esac
+    if grep -qF -- "$plugin_rel" "$test_file"; then
       return 0
     fi
   done < <(find "$plugin" -type f -name '*.test.*' -print0 2>/dev/null)

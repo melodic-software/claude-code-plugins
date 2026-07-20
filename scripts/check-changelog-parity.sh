@@ -152,10 +152,28 @@ for manifest in "${manifests[@]}"; do
   # delimiter char, a run at least as long as the opener, and nothing but
   # whitespace after it — so a ~~~ line, a ```not-a-close line, or an indented
   # would-be closer inside a ``` block never prematurely re-opens the heading.
+  # HTML raw blocks are tracked alongside fences: a heading inside a multi-line
+  # <!-- --> comment is not rendered Markdown, so it neither satisfies nor
+  # pre-exists the release entry. A same-line "<!-- ## [x] -->" can never match
+  # anyway (the heading is not at column one). Comment markers inside fenced
+  # code are content; fence markers inside a comment are suppressed.
   heading="## [${head_version}]"
   has_heading() {
     awk -v h="$heading" '
       {
+        if (!infence && inhtml) {
+          p = index($0, "-->")
+          if (p == 0) next
+          inhtml = 0
+          rem = substr($0, p + 3)
+          while ((q = index(rem, "<!--")) > 0) {
+            rem = substr(rem, q + 4)
+            r = index(rem, "-->")
+            if (r == 0) { inhtml = 1; break }
+            rem = substr(rem, r + 3)
+          }
+          next
+        }
         if (match($0, /^ {0,3}`+/) || match($0, /^ {0,3}~+/)) {
           seg = substr($0, RSTART, RLENGTH)
           sub(/^ +/, "", seg)
@@ -172,6 +190,15 @@ for manifest in "${manifests[@]}"; do
           }
         }
         if (!infence && index($0, h) == 1) { found = 1; exit }
+        if (!infence) {
+          rem = $0
+          while ((q = index(rem, "<!--")) > 0) {
+            rem = substr(rem, q + 4)
+            r = index(rem, "-->")
+            if (r == 0) { inhtml = 1; break }
+            rem = substr(rem, r + 3)
+          }
+        }
       }
       END { exit !found }
     '
