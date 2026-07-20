@@ -249,6 +249,17 @@ jobs:
       - name: Run silent-skip-gate tests
         run: bash scripts/check-silent-skips.test.sh
 
+  # Deep plugin-contract lane and the heaviest suite (Node + Python installs,
+  # every plugins/**/*.test.sh, manifest + catalog validation). A PR whose diff
+  # is confined to the docs-only allowlist (scripts/docs-only-paths.txt) cannot
+  # affect any of it, so those runs report an honest evaluated-and-not-applicable
+  # success. The job NEVER skips — a skipped required lane's result is not
+  # `success` (the ci-status aggregate rejects it) and a workflow skipped by a
+  # path filter leaves its required check Pending
+  # (troubleshooting-required-status-checks). Only the inner install/test steps
+  # are gated; the detector self-test runs unconditionally so a broken detector
+  # cannot mask a regression behind a docs-only short-circuit, and detection is
+  # fail-closed toward running the full suite.
   plugin-gate:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -257,19 +268,32 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
+          # Full history so the PR base ref resolves for the docs-only diff.
+          fetch-depth: 0
+      - name: Test the docs-only detector
+        run: bash scripts/check-docs-only.test.sh
+      - name: Detect a docs-only diff
+        id: scope
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/check-docs-only.sh "origin/$BASE_REF"
       - name: Set up Node
+        if: steps.scope.outputs.docs_only != 'true'
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version-file: .node-version
           cache: npm
           cache-dependency-path: package-lock.json
       - name: Set up Python
+        if: steps.scope.outputs.docs_only != 'true'
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: '3.14'
           cache: pip
           cache-dependency-path: .github/requirements-ci.txt
       - name: Install and verify ShellCheck toolchain
+        if: steps.scope.outputs.docs_only != 'true'
         # This canonical action also makes the exact ShellCheck version
         # available to the later bash-format contract tests in this same job.
         uses: melodic-software/ci-workflows/.github/actions/shellcheck@c2654182bc2d78f7909795df78304d482aa69226 # c265418 2026-07-13
@@ -283,6 +307,7 @@ jobs:
       # and Ruff are declared here so hosted and local runs exercise the same
       # contract suites instead of inheriting different image tool inventories.
       - name: Install locked plugin test toolchains
+        if: steps.scope.outputs.docs_only != 'true'
         run: |
           npm ci
           python -m pip install --user --only-binary=:all: --require-hashes \
@@ -290,15 +315,24 @@ jobs:
           echo "$GITHUB_WORKSPACE/node_modules/.bin" >> "$GITHUB_PATH"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Run plugin contract tests
+        if: steps.scope.outputs.docs_only != 'true'
         run: scripts/run-plugin-tests.sh
       - name: Validate plugin and catalog manifests
+        if: steps.scope.outputs.docs_only != 'true'
         run: scripts/validate-plugins.sh
+      - name: Report not applicable to a docs-only diff
+        if: steps.scope.outputs.docs_only == 'true'
+        run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the plugin contract suite cannot be affected — reporting success."
 
   # The miro plugin ships a bundled Node MCP server — the marketplace's first.
   # Its TypeScript source is the source of truth; dist/index.min.js is committed
   # generated output. This lane rebuilds from source with the pinned toolchain
   # and fails on any drift, then runs the bundle over stdio so a build that
   # compiles but cannot serve MCP is caught here, not on a consumer's machine.
+  # Every step reads only plugins/miro/**, so a docs-only diff cannot affect it;
+  # it uses the same never-skip, self-test-first, fail-closed docs-only gate as
+  # plugin-gate. (Scoping this lane to plugins/miro/** specifically — skipping it
+  # on any non-miro diff — is a broader, separately-tracked optimization.)
   miro-plugin:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -307,28 +341,45 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
+          # Full history so the PR base ref resolves for the docs-only diff.
+          fetch-depth: 0
+      - name: Test the docs-only detector
+        run: bash scripts/check-docs-only.test.sh
+      - name: Detect a docs-only diff
+        id: scope
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/check-docs-only.sh "origin/$BASE_REF"
       - name: Set up Node
+        if: steps.scope.outputs.docs_only != 'true'
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version-file: .node-version
           cache: npm
           cache-dependency-path: plugins/miro/package-lock.json
       - name: Install dependencies
+        if: steps.scope.outputs.docs_only != 'true'
         run: npm ci
         working-directory: plugins/miro
       - name: Typecheck
+        if: steps.scope.outputs.docs_only != 'true'
         run: npm run typecheck
         working-directory: plugins/miro
       - name: Lint
+        if: steps.scope.outputs.docs_only != 'true'
         run: npm run lint
         working-directory: plugins/miro
       - name: Test
+        if: steps.scope.outputs.docs_only != 'true'
         run: npm test
         working-directory: plugins/miro
       - name: Verify the committed bundle matches source
+        if: steps.scope.outputs.docs_only != 'true'
         run: npm run verify-bundle
         working-directory: plugins/miro
       - name: Smoke-test the bundled MCP server over stdio
+        if: steps.scope.outputs.docs_only != 'true'
         working-directory: plugins/miro
         run: |
           printf '%s\n%s\n' \
@@ -337,6 +388,9 @@ jobs:
             | MIRO_API_TOKEN=ci-smoke-token timeout 10 node dist/index.min.js > smoke-out.json
           grep -q '"miro_create_board"' smoke-out.json
           rm -f smoke-out.json
+      - name: Report not applicable to a docs-only diff
+        if: steps.scope.outputs.docs_only == 'true'
+        run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the miro plugin build cannot be affected — reporting success."
 
   # Skill-regression net: the only lane that invokes the skill-quality checker.
   # On a PR it runs the static contract gate (trigger-keyword preservation vs
