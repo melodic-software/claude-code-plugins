@@ -308,6 +308,25 @@ else
   pass "#642 per-surface credit skipped (no Python 3.11+; bash degrade is thread-blind)"
 fi
 
+# --- Case: #642 reuse path — fetch-all-pr-comments.sh `type` tags are surface-aware
+# On `--comments-json` fed fetch-all-pr-comments.sh output, an inline finding is
+# tagged `type:"inline"` and a detached PR-level classification `type:"review"`.
+# The Python counter buckets by that tag, so the stale review-surface row cannot
+# cross-credit the inline finding -> classified=0 < findings=1 -> BLOCKED.
+# Thread-aware (tag-driven), so Python-gated; the bash degrade greps all bodies
+# and false-passes here, the accepted degrade coarseness.
+if probe_py py -3 || probe_py python3 || probe_py python; then
+  F=$(mkjson reuse-inline-type '[
+    {type:"inline", author:"codex[bot]", body:"[CRITICAL] inline finding"},
+    {type:"review", author:"me[bot]", body:"| 1 | old | VALID | fixed |"}
+  ]')
+  r=$(run_gate "$F")
+  assert_contains "#642 reuse-path inline tag -> classified=0" "$r" "findings=1 classified=0"
+  assert_contains "#642 reuse-path inline tag -> BLOCKED" "$r" "READINESS_BLOCKED reason=under-decomposed"
+else
+  pass "#642 reuse-path inline tag skipped (no Python 3.11+; bash degrade is thread-blind)"
+fi
+
 # --- Convergence: Python counter and bash degrade agree on thread-state-free input
 # The gate prefers the shared Python counter but keeps the bash grep counting as
 # the Python-free safe-tier degrade. The two must not drift: a severity marker is

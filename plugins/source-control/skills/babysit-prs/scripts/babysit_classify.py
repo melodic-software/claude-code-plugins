@@ -367,12 +367,26 @@ def is_thread_comment(comment: dict[str, Any]) -> bool:
     load-bearing for classification credit (#642): a review thread can be
     resolved (its findings and their in-thread classifications drop together),
     while a PR-level comment never can, so a stale classification posted there
-    would otherwise count forever. The live entrypoint stamps `in_review_thread`
-    when a comment is fetched from a review thread; a fixture sets it explicitly.
-    Absent (the bash-degrade and legacy fixture shape), a comment is treated as
-    PR-level -- there is no thread whose resolution state it could inherit.
+    would otherwise count forever. Two signals identify the surface, in order:
+
+    * `in_review_thread` -- the explicit stamp the live entrypoint applies when a
+      comment is fetched from a review thread (and a fixture sets directly). When
+      present it is authoritative, so a live PR-level comment (stamped false) is
+      never re-inferred as a thread.
+    * `type == "inline"` -- the `fetch-all-pr-comments.sh` schema tag for an
+      inline review comment (vs `general`/`review` for the two PR-level
+      surfaces), honored on the `--comments-json` reuse path so it is
+      surface-aware too: without it an inline finding and a detached PR-level
+      classification share the non-thread bucket and the row cross-credits the
+      finding -- the #642 fail-open, on the reuse path.
+
+    Absent both (the bash-degrade shape and legacy `{author, body}` fixtures) a
+    comment is treated as PR-level -- there is no surface signal to infer a
+    thread from.
     """
-    return bool(comment.get("in_review_thread"))
+    if "in_review_thread" in comment:
+        return bool(comment["in_review_thread"])
+    return comment.get("type") == "inline"
 
 
 def _severity_occurrences(text: str) -> int:

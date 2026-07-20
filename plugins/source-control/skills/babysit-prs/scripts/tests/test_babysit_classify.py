@@ -211,6 +211,33 @@ class EffectiveClassifiedTests(unittest.TestCase):
         self.assertEqual(bc.count_classified(over, self.SELF), 2)
         self.assertEqual(bc.count_effective_classified(over, self.SELF), 1)
 
+    def test_inline_type_tag_is_bucketed_as_thread_on_reuse_path(self) -> None:
+        # The `--comments-json` reuse path is fed `fetch-all-pr-comments.sh`
+        # output, which tags inline review comments `type: "inline"` but carries
+        # no `in_review_thread` stamp. Honoring the tag keeps that path
+        # surface-aware: an inline finding + a detached PR-level (`type:
+        # "review"`) classification row must not cross-credit (#642 on the reuse
+        # path). Without the tag inference both share the non-thread bucket and
+        # the row false-passes the finding.
+        comments = [
+            {"type": "inline", "author": "codex[bot]", "body": "[CRITICAL] inline finding"},
+            {"type": "review", "author": "me[bot]", "body": "| 1 | old | VALID | fixed |"},
+        ]
+        self.assertTrue(bc.is_thread_comment(comments[0]))
+        self.assertFalse(bc.is_thread_comment(comments[1]))
+        self.assertEqual(bc.count_findings(comments, self.SELF), 1)
+        self.assertEqual(bc.count_effective_classified(comments, self.SELF), 0)
+
+    def test_explicit_stamp_wins_over_type_tag(self) -> None:
+        # An explicit `in_review_thread: false` (a live PR-level comment) is
+        # authoritative even if a stray `type` is present -- it is never
+        # re-inferred as a thread.
+        self.assertFalse(
+            bc.is_thread_comment(
+                {"in_review_thread": False, "type": "inline", "body": ""}
+            )
+        )
+
     def test_resolved_thread_contributes_to_neither_bucket(self) -> None:
         # A resolved thread's finding and classification both drop (thread_is_open
         # discount), so a fresh PR-level finding stays uncovered.
