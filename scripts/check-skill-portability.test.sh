@@ -209,7 +209,7 @@ rm -rf "$fx"
 # --- diff-mode reads a Git-quoted (non-ASCII) changed path -----------------
 # A changed file whose pathname triggers Git's C-style quoting (here a non-ASCII
 # byte; core.quotePath defaults on) must still be gated. Without -z, git diff
-# emits `"plugins/.../caf\303\251.md"`, the leading quote misses the
+# emits `"plugins/.../quoted-\303\251.md"`, the leading quote misses the
 # plugins/*/skills/* glob, and the file is silently dropped — the silent
 # exclusion the contract forbids. The fixture commits one ASCII-named and one
 # non-ASCII-named coupling file, then diffs against the empty base commit: the
@@ -219,7 +219,7 @@ rm -rf "$fx"
 fx="$(mktemp -d)"
 mkdir -p "$fx/scripts"
 cp "$SCRIPT" "$fx/scripts/"
-quoted_name="$(printf 'caf\303\251.md')" # café.md in UTF-8 — non-ASCII, triggers Git quoting
+quoted_name="$(printf 'quoted-\303\251.md')" # trailing U+00E9 byte — non-ASCII, triggers Git quoting
 out="$(
   cd "$fx" &&
     git init -q &&
