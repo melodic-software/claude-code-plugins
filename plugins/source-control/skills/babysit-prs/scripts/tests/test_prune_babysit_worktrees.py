@@ -44,6 +44,14 @@ def make_repo(tmp: pathlib.Path) -> pathlib.Path:
     return main
 
 
+def make_bare_hub(tmp: pathlib.Path) -> pathlib.Path:
+    """A bare-clone hub: no working tree, so `--git-common-dir` is the repo dir."""
+    source = make_repo(tmp)
+    bare = tmp / "hub.git"
+    git("clone", "-q", "--bare", str(source), str(bare))
+    return bare
+
+
 def add_worktree(main: pathlib.Path, root: pathlib.Path, name: str) -> pathlib.Path:
     root.mkdir(exist_ok=True)
     wt = root / name
@@ -61,6 +69,19 @@ class RepoPathResolvesFromGitMetadata(unittest.TestCase):
             resolved = prune.repo_path(wt)
 
         self.assertEqual(resolved, main.resolve())
+
+    def test_bare_hub_worktree_resolves_to_the_bare_repo_itself(self) -> None:
+        # A bare-clone hub has no working tree, so `--git-common-dir` is the bare
+        # repo directory (name != ".git"); the else-branch must return it as-is,
+        # not its parent, or `git -C <parent> worktree remove` would fail.
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
+            tmp = pathlib.Path(td)
+            bare = make_bare_hub(tmp)
+            wt = add_worktree(bare, tmp / "root", "owner__repo__pr-1")
+
+            resolved = prune.repo_path(wt)
+
+        self.assertEqual(resolved, bare.resolve())
 
 
 class RemoveWorktreeIsHermetic(unittest.TestCase):
