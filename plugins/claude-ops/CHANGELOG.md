@@ -3,6 +3,27 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.0]
+
+### Added
+
+- **`lanes` skill** — a scripted launcher that starts, restarts, stops, and
+  reports loop lanes as **named background Claude Code sessions** seeded from
+  canonical prompt files, replacing the manual morning refresh (cancel loop,
+  clear, re-paste the canonical prompt) across N lanes. `start` (default) and
+  `restart` first `git pull --ff-only` and `claude plugin marketplace update`,
+  then launch each configured lane with `claude --bg -n <lane>` mirroring the
+  lane's `model`/`effort`; `status` prints a per-lane running/stopped table with
+  the live sessionId; `stop` ends a lane via `claude stop <sessionId>` (resolved
+  from `claude agents --json` — there is no `claude agents stop` verb). Acts on a
+  session **only** when its name is a configured lane, so a hand-started session
+  is never touched. Lanes come from a JSON config (`--config`, else
+  `$CLAUDE_OPS_LANES_CONFIG`, else `<repo>/.work/lanes.json`); `--dry-run`,
+  `--no-pull`, `--no-update`, and `--agents-json` support previewing and offline
+  reuse. Prompt files are read from a session-local `.work` dir today via the
+  single `prompt_dir`/`resolve_prompt_dir` seam, which composes with #480
+  (loop-prompt authoring skill) when durable prompt storage lands.
+
 ## [0.14.0]
 
 ### Added
