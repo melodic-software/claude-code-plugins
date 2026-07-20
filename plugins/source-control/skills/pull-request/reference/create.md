@@ -160,7 +160,7 @@ Persist chosen line(s) into `${CLOSES_LINE}`. NEVER wrap a closing keyword in an
 git push -u origin <branch-name>
 ```
 
-Derive PR title from the commit subject, shaped to satisfy the resolved subject/title convention (SKILL.md §"PR title format" ladder: `.claude/source-control.md` → project convention → Conventional Commits default). Build body with `${CLOSES_LINE}` at top, followed by Summary + Test plan + a `## Related` section + Claude Code attribution:
+Derive PR title from the commit subject, shaped to satisfy the resolved subject/title convention (the ladder in [SKILL.md](../SKILL.md): layered `source-control.md` config → project convention → Conventional Commits default). Build body with `${CLOSES_LINE}` at top, followed by Summary + Test plan + a `## Related` section + Claude Code attribution:
 
 ```bash
 # Quoted heredoc — body template is inert; nothing inside expands.
@@ -244,8 +244,8 @@ When user explicitly selected `No related issue: <reason>` in §2.4.0, the gate 
 # `--reviewer`. Reviews come from whatever AI reviewers the repo wires up
 # and any humans who opt in.
 # Title shape: whatever the resolved subject/title convention requires
-# (Conventional Commits default shown; a custom .claude/source-control.md
-# pattern or the project's own convention overrides this).
+# (Conventional Commits default shown; a custom resolved pr_title_pattern
+# or the project's own convention overrides this).
 PR_URL=$(gh pr create --title "<type>: <description>" --body "$BODY")
 
 # Extract PR number from URL (gh pr create outputs the URL on success).

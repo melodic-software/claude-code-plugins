@@ -88,6 +88,19 @@
         "trailer_policy: none from .claude/source-control.md is honored: --trailer is omitted from the pathspec-limited invocation, not just the canonical one",
         "No Co-Authored-By trailer appears in the resulting commit"
       ]
+    },
+    {
+      "id": 8,
+      "name": "personal-overlay-overrides-team-convention-per-key",
+      "prompt": "Commit the null-user fix in src/api/me.js.",
+      "expected_output": "Resolves the convention across all three layers before drafting. The personal overlay .claude/source-control.local.md declares only subject_pattern (a ticket-prefix regex), so the drafted subject matches the ticket-prefix shape rather than the team file's Conventional Commits value; the team file's trailer_policy: none still applies, because the overlay does not declare that key and per-key override never drops the base layer wholesale. The overlay is not treated as the whole config.",
+      "files": [".claude/source-control.md", ".claude/source-control.local.md"],
+      "expectations": [
+        "Reads the personal overlay and the team file, not the team file alone",
+        "Drafts a subject matching the overlay's ticket-prefix subject_pattern, not the team file's Conventional Commits pattern",
+        "Still honors the team file's trailer_policy: none, since the overlay declares no trailer_policy",
+        "Does not treat the overlay as a replacement for the whole team config (keys absent from the overlay keep their team value)"
+      ]
     }
   ]
 }
