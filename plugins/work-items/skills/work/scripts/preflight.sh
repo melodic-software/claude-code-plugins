@@ -5,13 +5,14 @@
 #   (a) the working directory is not a git repository — a NOTE, since a lane
 #       that operates in an out-of-tree worktree can still proceed once (c) is
 #       covered; the SKILL interprets it against the lane's needs.
-#   (b) a core git/gh working verb is missing from the effective allow-list
-#       (probe set: git commit, git push, gh pr create, gh issue comment).
+#   (b) a core git/gh working verb (probe set: git add, git commit, git push,
+#       gh pr create, gh issue comment) is blocked by a matching deny rule, or
+#       is missing from the effective allow-list. Deny wins over allow.
 #   (c) the configured out-of-tree worktree root is not covered by any
 #       permissions.additionalDirectories entry, so acceptEdits prompts on
 #       every write into it.
 #
-# REPORT-ONLY by design (issue #495): the assistant cannot self-apply the
+# REPORT-ONLY by design: the assistant cannot self-apply the
 # remediation — the auto-mode classifier blocks an agent editing its own
 # permissions.allow, and a permissions block shipped in a plugin settings.json
 # is inert (docs/conventions/permission-rule-hygiene). This script never edits
@@ -19,16 +20,19 @@
 # Findings never fail the run.
 #
 # Effective settings (union of permissions.allow / additionalDirectories):
-#   user-global : ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json
-#   project     : <root>/.claude/settings.json, <root>/.claude/settings.local.json
-# Probe root: $PREFLIGHT_FIXTURE_DIR (tests) else $PWD; project settings resolve
-# against the git toplevel of that root when it is a repo, else the root itself.
+#   user-global : ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json (applies everywhere)
+#   project     : <project-root>/.claude/settings.json, .../settings.local.json
+# The cwd probed for (a) is $PREFLIGHT_FIXTURE_DIR (tests) else $PWD. Project
+# settings are read from --project-root (default: the cwd checkout) resolved to
+# its git toplevel; pass the worker worktree the lane dispatches into so its own
+# project settings are checked rather than the main checkout's, which could
+# otherwise mask a worker-side gap. $PREFLIGHT_PROJECT_ROOT is the env fallback.
 #
 # Requires jq (exits 2 when absent).
 #
 # Usage:
-#   preflight.sh [--worktree-root <path>]   # report lines; exit 0
-#   preflight.sh --count [--worktree-root <path>]   # gap count only; exit 0
+#   preflight.sh [--worktree-root <path>] [--project-root <path>]   # report; exit 0
+#   preflight.sh --count [--worktree-root <path>] [--project-root <path>]   # gap count
 #   preflight.sh --help
 
 set -uo pipefail
@@ -37,24 +41,28 @@ usage() {
   cat <<'EOF'
 preflight.sh — report the loop-start permission gaps for the work/babysit lanes.
 
-Usage: preflight.sh [--worktree-root <path>] [--count] [--help]
+Usage: preflight.sh [--worktree-root <path>] [--project-root <path>] [--count] [--help]
 
   (no arg)          print one line per condition, then a PREFLIGHT summary; exit 0
   --worktree-root P check that some permissions.additionalDirectories entry covers P
                     (also read from PREFLIGHT_WORKTREE_ROOT); omitted → NOTE, not checked
+  --project-root P  read project settings from P's checkout instead of the cwd's
+                    (also read from PREFLIGHT_PROJECT_ROOT) — pass the dispatched
+                    worker worktree so its own grants are checked, not the main one's
   --count           print the integer GAP count only (NOTEs excluded); exit 0
   --help            this message
 
 Reports three conditions from the effective settings — (a) cwd not a git repo,
-(b) a probed git/gh verb missing from permissions.allow, (c) the worktree root
-not covered by additionalDirectories. Report-only: never edits settings, always
-exits 0. The remediation is operator-side (see reference/permission-preflight.md).
+(b) a probed git/gh verb denied or missing from permissions.allow, (c) the
+worktree root not covered by additionalDirectories. Report-only: never edits
+settings, always exits 0. Remediation is operator-side (see reference/permission-preflight.md).
 Requires jq (exit 2 when absent).
 EOF
 }
 
 mode="report"
 worktree_root="${PREFLIGHT_WORKTREE_ROOT:-}"
+project_root="${PREFLIGHT_PROJECT_ROOT:-}"
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
     -h | --help)
@@ -78,6 +86,19 @@ while [[ "$#" -gt 0 ]]; do
       worktree_root="${1#--worktree-root=}"
       shift
       ;;
+    --project-root)
+      shift
+      [[ "$#" -gt 0 ]] || {
+        echo "ERROR: --project-root requires a path" >&2
+        exit 2
+      }
+      project_root="$1"
+      shift
+      ;;
+    --project-root=*)
+      project_root="${1#--project-root=}"
+      shift
+      ;;
     *)
       echo "ERROR: unknown argument: $1" >&2
       exit 2
@@ -91,9 +112,16 @@ if ! command -v jq >/dev/null 2>&1; then
 fi
 
 # --- Settings resolution ------------------------------------------------------
+# (a) is about the actual cwd; project settings are read from --project-root when
+# given (the worker worktree the orchestrator is dispatching into), else the cwd
+# checkout. Reading the dispatched worktree's own project settings is what keeps
+# the main checkout's grants from masking a worker-side gap. User-global settings
+# apply everywhere and are read regardless.
 CHECK_DIR="${PREFLIGHT_FIXTURE_DIR:-$PWD}"
 repo_root="$(git -C "$CHECK_DIR" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
-proj_base="${repo_root:-$CHECK_DIR}"
+proj_src="${project_root:-$CHECK_DIR}"
+proj_toplevel="$(git -C "$proj_src" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
+proj_base="${proj_toplevel:-$proj_src}"
 user_settings="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
 
 read_array() {
@@ -114,15 +142,23 @@ collect() {
 }
 
 ALL_ALLOW="$(collect '.permissions.allow')"
+ALL_DENY="$(collect '.permissions.deny')"
 ALL_ADDDIRS="$(collect '.permissions.additionalDirectories')"
 
 # --- Matchers -----------------------------------------------------------------
-verb_covered() {
-  # verb_covered <verb> — true when some Bash()/PowerShell() allow rule grants
-  # <verb> exactly or as a boundary-prefixed command. The boundary (space, ':',
-  # '*', or end) keeps a distinct verb (git commit-tree) from covering 'git
-  # commit'. Runs in the current shell (heredoc, not a pipe) so return escapes.
-  local verb="$1" rule inner
+verb_in_rules() {
+  # verb_in_rules <verb> <rules> — true when some Bash()/PowerShell() rule in the
+  # newline-separated <rules> is an OPEN-shape grant of <verb>: the bare verb
+  # (`git commit`) or its open-glob form (`git commit *` / `git commit:*`). A
+  # rule whose next token is a specific flag or argument (`git commit --amend`, a
+  # force-with-lease-only push) does NOT match — it is a narrower slice, so the
+  # lane's arbitrary invocation of the bare verb would still prompt (for allow)
+  # or still run (for deny). Exact-shape only, by deliberate design: this does
+  # NOT simulate glob semantics, so a broader deny pattern that would match the
+  # verb at runtime is not detected here. The `'*'` is a quoted literal asterisk,
+  # so each arm matches one exact rule spelling, not a prefix. Runs in the
+  # current shell (heredoc, not a pipe) so return escapes.
+  local verb="$1" rules="$2" rule inner
   while IFS= read -r rule; do
     [[ -n "$rule" ]] || continue
     case "$rule" in
@@ -131,16 +167,18 @@ verb_covered() {
       *) continue ;;
     esac
     inner="${inner%)}"
-    [[ "$inner" == "$verb" ]] && return 0
     case "$inner" in
-      "$verb "* | "$verb:"* | "$verb"'*'*) return 0 ;;
+      "$verb" | "$verb "'*' | "$verb:"'*') return 0 ;;
       *) ;;
     esac
   done <<RULES
-$ALL_ALLOW
+$rules
 RULES
   return 1
 }
+
+verb_covered() { verb_in_rules "$1" "$ALL_ALLOW"; }
+verb_denied() { verb_in_rules "$1" "$ALL_DENY"; }
 
 normalize_path() {
   # Fold a path to one comparable form: backslashes → slashes, lower-case and
@@ -198,12 +236,19 @@ if [[ -z "$repo_root" ]]; then
   emit_note "(a) '$CHECK_DIR' is not a git repository. A lane that needs a checkout at the cwd cannot claim, branch, or push here; a lane that operates in an out-of-tree worktree proceeds once (c) is covered."
 fi
 
-# (b) probed working verbs missing from the effective allow-list.
+# (b) probed working verbs blocked by deny, or missing from the effective
+# allow-list. Deny is checked first because deny wins over allow in the
+# permission model — an allowed-but-denied verb is still unrunnable.
 while IFS= read -r verb; do
   [[ -n "$verb" ]] || continue
+  if verb_denied "$verb"; then
+    emit_gap "(b) '$verb' is DENIED by a matching deny rule (deny wins over allow), so the unattended lane cannot run it even if allowed. Resolve the deny rule operator-side before relying on this verb. See reference/permission-preflight.md."
+    continue
+  fi
   verb_covered "$verb" && continue
   emit_gap "(b) no Bash()/PowerShell() allow rule covers '$verb'. Apply the fleet permission floor operator-side (standards components/claude-permissions, composed into settings via dotfiles#233) — never a plugin self-grant. See reference/permission-preflight.md."
 done <<PROBES
+git add
 git commit
 git push
 gh pr create

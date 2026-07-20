@@ -43,11 +43,25 @@ What it covers, at a glance (read the component for the authoritative list):
   discards, forced branch deletion, `--no-verify` bypass), the `gh api` DELETE surface, hook-disable
   environment prefixes, and secret-material `Read()` patterns. Deny always wins over allow.
 
-The preflight probes a small representative subset of the allow floor — `git commit`, `git push`,
-`gh pr create`, `gh issue comment` — reading the effective `permissions.allow` from the operator's
-user-global settings and the project's `.claude/settings.json` / `settings.local.json`. It never
-runs a live permission probe. A missing verb means the floor is not composed in on this machine;
-the remediation is to apply the component operator-side, not to add a one-off rule.
+The preflight probes a small representative subset of the allow floor — `git add`, `git commit`,
+`git push`, `gh pr create`, `gh issue comment` (a commit flow stages before it commits, so `git add`
+is probed too) — reading the effective `permissions.allow` from the operator's user-global settings
+and the project's `.claude/settings.json` / `settings.local.json`. It never runs a live permission
+probe. A verb counts as covered only by an **open** grant — the bare verb (`Bash(git commit)`) or
+its open-glob form (`Bash(git commit *)` / `Bash(git commit:*)`). A narrower, flag-scoped rule
+(`Bash(git commit --amend)`, a force-with-lease-only push rule) is **not** coverage: the lane's
+arbitrary `git commit` / `git push` would still prompt, so it is reported as a gap. A missing verb
+means the floor is not composed in on this machine; the remediation is to apply the component
+operator-side, not to add a one-off rule.
+
+**Deny wins over allow.** Because `permissions.deny` overrides `permissions.allow` in the permission
+model, the check first tests each probed verb against the effective **deny** rules: a deny rule of
+the bare verb or its open-glob form keeps the verb a gap (reported distinctly as *denied*, not
+*missing*) even when an identical allow rule exists — the lane still cannot run it. This deny match
+is **exact-shape only**: it does not simulate glob semantics, so a broader deny pattern that would
+match the verb at runtime (a wildcard spanning it) is not caught here. That conservatism is
+deliberate — it never false-flags the standard deny floor, whose destructive-verb rules are
+flag-scoped (`git push --force …`) rather than the bare `git push` / `git commit` / `git add` shape.
 
 ## The trusted worktree root — `additionalDirectories`
 
@@ -85,12 +99,27 @@ The `work` skill invokes the script at loop start; run it directly to preview th
 "${CLAUDE_PLUGIN_ROOT}/skills/work/scripts/preflight.sh" --worktree-root <configured-worktree-root>
 ```
 
+**Check the worktree the lane actually runs in.** Project `.claude/settings(.local).json` is
+per-checkout, so a fresh linked worktree can carry different grants than the main checkout — and the
+main checkout's grants would otherwise mask a worker-side gap. When the orchestrator dispatches a
+worker into a worktree, pass that worktree as `--project-root` so its own project settings are the
+ones probed:
+
+```bash
+"${CLAUDE_PLUGIN_ROOT}/skills/work/scripts/preflight.sh" \
+  --project-root <dispatched-worker-worktree> --worktree-root <configured-worktree-root>
+```
+
+`--project-root` defaults to the current checkout. User-global settings apply everywhere and are
+read regardless of it; only the project layer is re-pointed.
+
 It is report-only and always exits `0`. Each output line is one of:
 
 - `NOTE (a) …` — the cwd is not a git repository. Informational: a lane operating in an out-of-tree
   worktree proceeds once `(c)` is covered; a lane that needs a checkout at the cwd cannot.
-- `GAP (b) …` — a probed working verb is not covered by any allow rule. Remediate by composing the
-  standards floor operator-side (above).
+- `GAP (b) …` — a probed working verb is denied by a matching deny rule, or is not covered by any
+  allow rule (the message distinguishes the two). Remediate operator-side: resolve the deny rule, or
+  compose the standards floor in (above).
 - `GAP (c) …` — the worktree root is not covered by `additionalDirectories`. Add the entry (above).
 - `NOTE (c) …` — no worktree root was passed, so coverage was not checked.
 

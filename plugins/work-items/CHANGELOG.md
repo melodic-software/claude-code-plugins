@@ -19,12 +19,20 @@ broader grants.
   `preflight.test.sh`) reads the effective `permissions.allow` / `permissions.additionalDirectories`
   from user-global and project settings and reports three conditions: (a) cwd is not a git repo (a
   note — a worktree-operating lane still proceeds); (b) a probed core working verb
-  (`git commit`, `git push`, `gh pr create`, `gh issue comment`) is not covered by any
-  `Bash()`/`PowerShell()` allow rule; (c) the configured out-of-tree worktree root is not covered by
-  `additionalDirectories`. The verb match accepts the narrow bare-command spellings that survive
-  auto mode, the worktree-root check is root-agnostic (coverage of the passed root, never a
-  hardcoded path), and Windows and git-bash path spellings are folded to one comparable form. Always
-  exits `0`; `--count` reports the GAP total for a scripted gate. No live permission probe.
+  (`git add`, `git commit`, `git push`, `gh pr create`, `gh issue comment`) is denied by a matching
+  deny rule or is not covered by any `Bash()`/`PowerShell()` allow rule; (c) the configured
+  out-of-tree worktree root is not covered by `additionalDirectories`. A verb counts as covered only
+  by an **open** grant — the bare verb or its open-glob form (`git commit` / `git commit *` /
+  `git commit:*`); a narrower flag-scoped rule (`git commit --amend`, a force-with-lease-only push)
+  is reported as a gap, since the lane's arbitrary invocation would still prompt. Deny wins over
+  allow: a deny rule of the same open shape keeps the verb a gap (reported distinctly as denied) even
+  when allowed — matched exact-shape only, never by glob simulation, so the flag-scoped standard deny
+  floor is never false-flagged. The worktree-root check is root-agnostic (coverage of the
+  passed root, never a hardcoded path), and Windows and git-bash path spellings are folded to one
+  comparable form. `--project-root` reads the dispatched worker worktree's own per-checkout project
+  settings instead of the main checkout's, so the main checkout's grants cannot mask a worker-side
+  gap (user-global settings apply everywhere regardless). Always exits `0`; `--count` reports the GAP
+  total for a scripted gate. No live permission probe.
 - **Preflight reference (`#495`).** New `reference/permission-preflight.md` is the source of truth
   for the preconditions: it points at the `melodic-software/standards` `claude-permissions`
   component (`components/claude-permissions/`, composed operator-side via the dotfiles chezmoi seam)
