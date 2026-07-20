@@ -318,11 +318,11 @@
       "id": 25,
       "name": "routine-free-default-wiring-home-split",
       "prompt": "/autonomy:setup apply --org-policy-home none --budget-posture free\n\nWire the free routine defaults.",
-      "expected_output": "Wires free defaults as reviewable changes across role homes: the CI-cron handler shape on the CI-orchestration home (emitting a temporal signal into the queue), the enabling cadence and enablement keyed by routine identity in the repo-local routines section on the settings-as-code home, and the protected identity-to-surface association (each routine identity mapped to {class, source_surface}, one entry per identity, no two sharing a surface) PREPARED as an admission.classification.temporal change for the security governance surface rather than written repo-local. Every shape enqueues through the temporal adapter and the one dispatch entrypoint, no second scheduling path is created, and zero paid dependencies are introduced.",
+      "expected_output": "Wires free defaults as reviewable changes across role homes: the CI-cron handler shape on the CI-orchestration home (emitting a temporal signal into the queue), the enabling cadence and enablement keyed by routine identity in the repo-local routines section on the settings-as-code home, and the protected identity-to-surface association (each routine identity mapped to the full four-field entry {class, source_surface, run_link_prefix, producer_identity}, one entry per identity, no two sharing a surface or a producer) PREPARED as an admission.classification.temporal change for the security governance surface rather than written repo-local. Every shape enqueues through the temporal adapter and the one dispatch entrypoint, no second scheduling path is created, and zero paid dependencies are introduced.",
       "files": [],
       "expectations": [
         "CI-cron handler lands on the CI-orchestration home; enabling settings on the settings-as-code home",
-        "Protected identity-to-surface association (identity to {class, source_surface}) prepared as an admission.classification.temporal change on the security binding, never repo-local",
+        "Protected identity-to-surface association (identity to the four-field {class, source_surface, run_link_prefix, producer_identity} entry) prepared as an admission.classification.temporal change on the security binding, never repo-local",
         "Repo-local routines section carries cadence, enablement, and surface choice only, keyed by routine identity",
         "Every routine enqueues through the temporal adapter's one entrypoint; no second scheduling path"
       ]
@@ -331,10 +331,10 @@
       "id": 26,
       "name": "routine-reconciles-existing-bot-record-not-duplicate",
       "prompt": "/autonomy:setup apply\n\nWire routines; we already run a dependency-update bot on a schedule.",
-      "expected_output": "Detect-diff-reconciles rather than standing up a rival mechanism: records the live bot as an instance of the dependency-update-wave catalog class under its class token and surface, reconciles its cadence, and never creates a second mechanism for the same concern. Honors DET-stays-cron — the deterministic detection half stays plain cron filing work items through the trigger adapters, only the judgment half is the routine — and surfaces the diff for a stale or duplicate bot instead of silently overwriting it.",
+      "expected_output": "Detect-diff-reconciles rather than standing up a rival mechanism: first determines which of the dependency-update-wave catalog class's two postures the live bot instantiates (mechanical for pin/lockfile bumps, changelog-informed where it reads external release notes), then records it under that posture-qualified identity (dependency-update-wave/mechanical or dependency-update-wave/changelog-informed) and its surface — never the bare class token, which a multi-posture class forbids binding — reconciles its cadence, and never creates a second mechanism for the same concern. Honors DET-stays-cron — the deterministic detection half stays plain cron filing work items through the trigger adapters, only the judgment half is the routine — and surfaces the diff for a stale or duplicate bot instead of silently overwriting it.",
       "files": [],
       "expectations": [
-        "Existing agent-judgment bot recorded as a catalog-class instance (class token plus surface), not duplicated",
+        "Existing agent-judgment bot recorded as a catalog-class instance under its posture-qualified identity plus surface (never the bare multi-posture class token), not duplicated",
         "Never stands up a second mechanism for a concern an existing scheduler already covers",
         "DET detection half stays plain cron; only the judgment half becomes the routine",
         "Stale or duplicate bot surfaced as a diff and reconciled, never silently overwritten"
