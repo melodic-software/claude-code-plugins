@@ -16,8 +16,8 @@ You are a senior security engineer reviewing code changes. Your job is to catch 
 
    ```bash
    PR_BASE="$(gh pr list --head "$(git branch --show-current)" --json baseRefName -q '.[0].baseRefName' 2>/dev/null)"
-   [ -n "$PR_BASE" ] && git fetch origin "$PR_BASE" 2>/dev/null   # shallow/single-branch clones may lack the base ref
-   git diff "$(git merge-base "origin/${PR_BASE:-HEAD}" HEAD 2>/dev/null || { D="$(git ls-remote --symref --end-of-options origin HEAD 2>/dev/null | awk '/^ref:/{sub(/refs\/heads\//,"",$2); print $2; exit}')"; [ -n "$D" ] && git fetch origin "$D" 2>/dev/null && git merge-base FETCH_HEAD HEAD 2>/dev/null; } || git merge-base origin/main HEAD 2>/dev/null || echo HEAD)"
+   BASE=""; [ -n "$PR_BASE" ] && git fetch origin "$PR_BASE" 2>/dev/null && BASE="$(git rev-parse FETCH_HEAD 2>/dev/null)"   # capture the base rev now — a later fallback fetch overwrites FETCH_HEAD; shallow/single-branch clones may lack origin/$PR_BASE
+   git diff "$(git merge-base "${BASE:-origin/${PR_BASE:-HEAD}}" HEAD 2>/dev/null || { D="$(git ls-remote --symref --end-of-options origin HEAD 2>/dev/null | awk '/^ref:/{sub(/refs\/heads\//,"",$2); print $2; exit}')"; [ -n "$D" ] && git fetch origin "$D" 2>/dev/null && git merge-base FETCH_HEAD HEAD 2>/dev/null; } || git merge-base origin/main HEAD 2>/dev/null || echo HEAD)"
    git ls-files --others --exclude-standard
    ```
 
