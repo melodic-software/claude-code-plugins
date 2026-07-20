@@ -373,6 +373,33 @@ jobs:
           schemafile: plugins/skill-quality/reference/evals.schema.json
           files: plugins/*/skills/*/evals/evals.json
 
+  # Portability lint: skills declared ecosystem/forge/tracker-agnostic must not
+  # ship bare hardcoded stack/forge/branch/tracker defaults — the coupling class
+  # the external reviewer re-caught PR after PR. On a PR it scans the skill files
+  # the change touches (not the whole corpus) against the coupling-token list, so
+  # enabling a token class prevents NEW coupling without red-lining existing
+  # violations that member issues own. The job itself never skips (a skipped
+  # required job reports success to branch protection) — only the PR-diff step is
+  # event-gated, and the self-test gives push a passing path and stops a broken
+  # detector masking a real violation behind a green gate.
+  portability-lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          # Full history so the PR base ref resolves for the changed-file diff.
+          fetch-depth: 0
+      - name: Test the portability gate
+        run: bash scripts/check-skill-portability.test.sh
+      - name: Gate changed skill files on the portability contract
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/check-skill-portability.sh "origin/$BASE_REF"
+
   runner-policy:
     name: Runner policy
     runs-on: ubuntu-24.04
@@ -408,6 +435,7 @@ jobs:
       - miro-plugin
       - runner-policy
       - skill-quality-gate
+      - portability-lint
       - zizmor
     # Fail-closed through execution: !cancelled() (never a success-guard) so a
     # lane failure still runs this required aggregate and the result join below
