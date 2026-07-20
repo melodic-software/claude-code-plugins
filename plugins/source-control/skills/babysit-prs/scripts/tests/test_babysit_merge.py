@@ -396,6 +396,82 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         )
         self.assertFalse(result["ready"])
 
+    def test_ratified_then_revoked_holds(self) -> None:
+        # The latest decisive maintainer signal wins: a later revocation ("do not
+        # merge") re-holds a marker an earlier comment had ratified.
+        ratify = _comment(
+            "maintainer", "Ratified — proceed.", association="OWNER",
+            created_at="2026-02-01T00:00:00Z",
+        )
+        revoke = _comment(
+            "maintainer", "Actually, do not merge — hold this.", association="OWNER",
+            created_at="2026-02-02T00:00:00Z",
+        )
+        result = self._evaluate(
+            _pr(), linked_issue_comments=[DECISION_MARKER, ratify, revoke]
+        )
+        self.assertFalse(result["ready"])
+        self.assertEqual(
+            result["autopilotMergeTier"]["decisionDefaultHeldIssues"], [LINKED_REF]
+        )
+
+    def test_revoked_then_ratified_clears(self) -> None:
+        # Latest wins in the other direction: a ratification newer than an earlier
+        # revocation clears the veto.
+        revoke = _comment(
+            "maintainer", "not approved yet — hold this", association="OWNER",
+            created_at="2026-02-01T00:00:00Z",
+        )
+        ratify = _comment(
+            "maintainer", "Re-reviewed — ratified, proceed.", association="OWNER",
+            created_at="2026-02-02T00:00:00Z",
+        )
+        result = self._evaluate(
+            _pr(), linked_issue_comments=[DECISION_MARKER, revoke, ratify]
+        )
+        self.assertTrue(result["ready"], result["blockers"])
+        self.assertEqual(
+            result["autopilotMergeTier"]["decisionDefaultHeldIssues"], []
+        )
+
+    def test_non_decisive_comment_after_ratification_leaves_it_standing(self) -> None:
+        # A non-decisive later comment (a bare "thanks") does not disturb a prior
+        # ratification.
+        ratify = _comment(
+            "maintainer", "Ratified — proceed.", association="OWNER",
+            created_at="2026-02-01T00:00:00Z",
+        )
+        chatter = _comment(
+            "maintainer", "thanks, nice work here", association="OWNER",
+            created_at="2026-02-02T00:00:00Z",
+        )
+        result = self._evaluate(
+            _pr(), linked_issue_comments=[DECISION_MARKER, ratify, chatter]
+        )
+        self.assertTrue(result["ready"], result["blockers"])
+        self.assertEqual(
+            result["autopilotMergeTier"]["decisionDefaultHeldIssues"], []
+        )
+
+    def test_same_timestamp_ratify_and_revoke_holds(self) -> None:
+        # Ambiguity is fail-closed: a ratify/revoke tie at the same timestamp holds
+        # (ratification must be strictly newer than every revocation to clear).
+        ratify = _comment(
+            "maintainer", "Ratified — proceed.", association="OWNER",
+            created_at="2026-02-01T00:00:00Z",
+        )
+        revoke = _comment(
+            "maintainer", "do not merge", association="OWNER",
+            created_at="2026-02-01T00:00:00Z",
+        )
+        result = self._evaluate(
+            _pr(), linked_issue_comments=[DECISION_MARKER, ratify, revoke]
+        )
+        self.assertFalse(result["ready"])
+        self.assertEqual(
+            result["autopilotMergeTier"]["decisionDefaultHeldIssues"], [LINKED_REF]
+        )
+
     def test_bot_comment_with_blocking_prose_does_not_block(self) -> None:
         # A bot review body carrying blocking-looking prose is not a human stop.
         comment = {

@@ -267,21 +267,32 @@ RATIFICATION_SIGNAL_RE = re.compile(
 
 
 def _decision_default_ratified(comments: list[dict[str, Any]], marker_ts: str) -> bool:
-    """True when a human maintainer explicitly ratified strictly after the marker.
+    """True when a maintainer's latest decisive comment after the marker ratifies.
 
-    Ratification requires an explicit signal (`RATIFICATION_SIGNAL_RE`) in a human
-    maintainer's comment posted after the marker -- an unrelated later comment
-    ("thanks", a status question) does not clear the veto, and a withheld-approval
-    negation (`NON_APPROVAL_RE`) never ratifies even when it contains an approval
-    token. Reactions are deliberately not consulted: the reactions API carries no
-    author association, so a reaction cannot be attributed to a maintainer, and
-    attributing it via the operator's own self-logins would let pipeline
-    automation posting under that identity clear its own veto (the #450
-    attribution-drift hazard). The fail-closed reading holds the marker until a
-    maintainer clears it with an explicit ratification comment.
+    Every human-maintainer comment posted strictly after the marker is scanned and
+    the latest *decisive* signal wins: a single early ratification no longer
+    settles the question, so a maintainer who ratifies and then revokes ("not
+    approved", "do not merge") re-holds the PR for the human list. A comment is
+    decisive when it carries either an explicit ratification signal
+    (`RATIFICATION_SIGNAL_RE`) or an explicit revocation signal reusing the shared
+    veto vocabulary (`NON_APPROVAL_RE`, or `HUMAN_MERGE_VETO_RE`). Revocation is
+    tested first, so a comment mixing both reads as a revoke (fail closed). An
+    unrelated later comment ("thanks", a status question) is non-decisive and
+    leaves any prior decisive signal standing.
+
+    Ratification clears the veto only when a ratifying comment is strictly newer
+    than every revoking one, so a ratify/revoke tie at the same timestamp -- like a
+    bare marker with no decisive comment -- holds. Reactions are deliberately not
+    consulted: the reactions API carries no author association, so a reaction
+    cannot be attributed to a maintainer, and attributing it via the operator's own
+    self-logins would let pipeline automation posting under that identity clear its
+    own veto (the #450 attribution-drift hazard).
     """
+    latest_ratify = ""
+    latest_revoke = ""
     for comment in comments:
-        if str(comment.get("createdAt") or "") <= marker_ts:
+        created_at = str(comment.get("createdAt") or "")
+        if created_at <= marker_ts:
             continue
         if actor_kind(comment) != "human":
             continue
@@ -289,11 +300,11 @@ def _decision_default_ratified(comments: list[dict[str, Any]], marker_ts: str) -
         if association not in RATIFYING_ASSOCIATIONS:
             continue
         body = str(comment.get("body") or "")
-        if NON_APPROVAL_RE.search(body):
-            continue  # a withheld/negated approval is not a ratification
-        if RATIFICATION_SIGNAL_RE.search(body):
-            return True
-    return False
+        if NON_APPROVAL_RE.search(body) or HUMAN_MERGE_VETO_RE.search(body):
+            latest_revoke = max(latest_revoke, created_at)
+        elif RATIFICATION_SIGNAL_RE.search(body):
+            latest_ratify = max(latest_ratify, created_at)
+    return bool(latest_ratify) and latest_ratify > latest_revoke
 
 
 def _ref_repo(ref: dict[str, Any]) -> str | None:

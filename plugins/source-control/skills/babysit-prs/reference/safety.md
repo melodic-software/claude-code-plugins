@@ -250,9 +250,13 @@ as done and re-running the gate.
     merge only once a maintainer has **ratified** it: a human `OWNER`/`MEMBER` comment posted
     after the marker carrying an explicit ratification signal — a closed, whole-word token set
     (`ratify`/`ratified`, `approve`/`approved`, `confirm`/`confirmed`), and not a
-    withheld-approval negation (`not approved`, `cannot approve`). Matching is strict and
-    fail-closed: an unrelated maintainer comment, a signal appearing before the marker, an
-    unratified marker, or an issue whose comments cannot be read all hold the PR;
+    withheld-approval negation (`not approved`, `cannot approve`). All maintainer comments
+    after the marker are scanned and the **latest decisive signal wins**: a ratification token
+    ratifies, while a revocation reusing the veto vocabulary (`not approved`, `do not merge`)
+    re-holds, so a maintainer who ratifies and then revokes holds the PR. Matching is strict and
+    fail-closed: an unrelated maintainer comment, a signal appearing before the marker, a
+    ratify/revoke tie at the same timestamp, an unratified marker, or an issue whose comments
+    cannot be read all hold the PR;
   - the approving review is by a **distinct bot identity** (author ≠ approver) and was
     submitted against the **live head** (head SHA unchanged since review), pinned as always by
     `--expected-head`.
