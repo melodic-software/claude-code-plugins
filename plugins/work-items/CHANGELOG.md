@@ -7,7 +7,7 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 
 ### Fixed
 
-- **Open-linked-PR filter no longer mis-drops issues from fenced examples (`#654`).** The GitHub
+- **Open-linked-PR filter no longer wrongly drops issues from fenced examples (`#654`).** The GitHub
   adapter's "Open linked PRs" mechanic (`#463`) matched a closing-keyword `jq` regex over the raw
   PR body, so a PR body carrying a fenced `Closes #<N>` example spuriously reported issue `#<N>` as
   having an open closing PR and dropped the still-pickable issue from the `/work-items:work`
