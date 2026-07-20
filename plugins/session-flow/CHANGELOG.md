@@ -5,12 +5,12 @@
 Changed:
 
 - workflow / retro: the override boundary is now explicit. The stage taxonomy
-  (workflow) and the five scoring dimensions (retro) are documented as fixed
-  plugin identity with no consumer-config seam to swap them — what adapts is
-  stage execution, gate commands, and the conventions each dimension scores
-  against, all flowing through the consumer conventions the skills already
-  name, never by editing the plugin. Documents the existing boundary per the
-  extensibility contract; no behavior change.
+  and the pre-PR sequence skeleton (workflow) and the five scoring dimensions
+  (retro) are documented as fixed plugin identity with no consumer-config seam
+  to swap them — what adapts is stage execution, gate commands, and the
+  conventions each dimension scores against, all flowing through the consumer
+  conventions the skills already name, never by editing the plugin. Documents
+  the existing boundary per the extensibility contract; no behavior change.
 
 ## [0.10.2] — 2026-07-19
 

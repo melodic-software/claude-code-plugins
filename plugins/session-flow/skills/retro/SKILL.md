@@ -105,7 +105,7 @@ backwards from the newest handoff file and aggregates metrics across every chain
 - **Does not read a consumer-supplied scoring rubric** — the five dimensions are fixed plugin
   identity, not consumer config, and there is no seam to swap them. What adapts is what each
   dimension scores *against* (your repo's conventions, session-type calibration), never the
-  dimension set by editing the plugin.
+  dimensions themselves.
 
 ## Gotchas
 
