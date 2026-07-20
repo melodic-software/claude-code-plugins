@@ -26,6 +26,20 @@ jobs:
   # public repositories); the local-runner selector is not permitted here. The
   # short hygiene checks still share one checkout to avoid per-check setup
   # churn.
+  # Docs-linting lane. Markdownlint / typos / editorconfig / gitleaks /
+  # eol-renormalize / comment-hygiene / machine-specific-paths read the changed
+  # docs themselves and run on every diff. The docs-IRRELEVANT full-repo linters
+  # (ShellCheck, actionlint, the four check-jsonschema steps, exec-bit) cannot be
+  # affected by a diff confined to the docs-only allowlist
+  # (scripts/docs-only-paths.txt), so on such a diff they report an honest
+  # evaluated-and-not-applicable success. The job NEVER skips — only those inner
+  # steps are gated, via the same never-skip, self-test-first, fail-closed
+  # detector plugin-gate/miro-plugin use. The detector self-test runs
+  # unconditionally so a broken detector cannot mask a regression, and detection
+  # is fail-closed toward running the full suite. The gated steps' intentional
+  # docs-only skip is mapped to `success` in the CHECK_RESULTS feed below (where
+  # the step provably did not run), never by weakening the aggregator — it still
+  # fails closed on any real non-`success` outcome.
   hygiene:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -34,7 +48,16 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
+          # Full history so the PR base ref resolves for the docs-only diff.
           fetch-depth: 0
+      - name: Test the docs-only detector
+        run: bash scripts/check-docs-only.test.sh
+      - name: Detect a docs-only diff
+        id: scope
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/check-docs-only.sh "origin/$BASE_REF"
       - name: Lint markdown
         id: markdown
         continue-on-error: true
@@ -67,6 +90,7 @@ jobs:
 
       - name: Lint shell scripts
         id: shellcheck
+        if: steps.scope.outputs.docs_only != 'true'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/shellcheck@c2654182bc2d78f7909795df78304d482aa69226 # c265418 2026-07-13
         with:
@@ -74,11 +98,13 @@ jobs:
 
       - name: Lint workflows
         id: actionlint
+        if: steps.scope.outputs.docs_only != 'true'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/actionlint@c2654182bc2d78f7909795df78304d482aa69226 # c265418 2026-07-13
 
       - name: Validate marketplace manifest
         id: marketplace_schema
+        if: steps.scope.outputs.docs_only != 'true'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@c2654182bc2d78f7909795df78304d482aa69226 # c265418 2026-07-13
         with:
@@ -86,6 +112,7 @@ jobs:
           files: .claude-plugin/marketplace.json
       - name: Validate plugin manifests
         id: plugin_schema
+        if: steps.scope.outputs.docs_only != 'true'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@c2654182bc2d78f7909795df78304d482aa69226 # c265418 2026-07-13
         with:
@@ -93,6 +120,7 @@ jobs:
           files: plugins/*/.claude-plugin/plugin.json
       - name: Validate dependabot.yml
         id: dependabot_schema
+        if: steps.scope.outputs.docs_only != 'true'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@c2654182bc2d78f7909795df78304d482aa69226 # c265418 2026-07-13
         with:
@@ -100,6 +128,7 @@ jobs:
           files: .github/dependabot.yml
       - name: Validate workflows
         id: workflow_schema
+        if: steps.scope.outputs.docs_only != 'true'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@c2654182bc2d78f7909795df78304d482aa69226 # c265418 2026-07-13
         with:
@@ -114,6 +143,7 @@ jobs:
 
       - name: Verify shebang files are executable
         id: exec_bit
+        if: steps.scope.outputs.docs_only != 'true'
         continue-on-error: true
         uses: melodic-software/ci-workflows/.github/actions/exec-bit@c2654182bc2d78f7909795df78304d482aa69226 # c265418 2026-07-13
 
@@ -150,6 +180,10 @@ jobs:
             :(exclude)plugins/code-tidying/skills/audit-comment-residue/scripts/**
             :(exclude)plugins/code-tidying/skills/audit-comment-residue/evals/**
 
+      - name: Report docs-irrelevant checks not applicable to a docs-only diff
+        if: steps.scope.outputs.docs_only == 'true'
+        run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the docs-irrelevant full-repo linters (shellcheck, actionlint, check-jsonschema x4, exec-bit) cannot be affected — reporting success for them."
+
       - name: Test hygiene result aggregation
         run: scripts/aggregate-hygiene-results.sh --self-test
 
@@ -157,18 +191,25 @@ jobs:
         if: always()
         env:
           # Display names (left) are annotations; step ids (right) use underscores.
+          # The docs-irrelevant linters carry `if: docs_only != 'true'`, so on a
+          # docs-only diff they are skipped (never run) — their intentional skip
+          # is mapped to `success` here BECAUSE the step provably did not run, so
+          # no real outcome is masked. The aggregator stays fail-closed on any
+          # real non-`success` (including `skipped`); it is never told to pass on
+          # `skipped`. The condition (docs_only == 'true') is the exact inverse of
+          # each gate, so the two can never disagree.
           CHECK_RESULTS: |
             markdown=${{ steps.markdown.outcome }}
             typos=${{ steps.typos.outcome }}
             gitleaks=${{ steps.gitleaks.outcome }}
             editorconfig=${{ steps.editorconfig.outcome }}
-            shellcheck=${{ steps.shellcheck.outcome }}
-            actionlint=${{ steps.actionlint.outcome }}
-            marketplace-schema=${{ steps.marketplace_schema.outcome }}
-            plugin-schema=${{ steps.plugin_schema.outcome }}
-            dependabot-schema=${{ steps.dependabot_schema.outcome }}
-            workflow-schema=${{ steps.workflow_schema.outcome }}
-            exec-bit=${{ steps.exec_bit.outcome }}
+            shellcheck=${{ steps.scope.outputs.docs_only == 'true' && 'success' || steps.shellcheck.outcome }}
+            actionlint=${{ steps.scope.outputs.docs_only == 'true' && 'success' || steps.actionlint.outcome }}
+            marketplace-schema=${{ steps.scope.outputs.docs_only == 'true' && 'success' || steps.marketplace_schema.outcome }}
+            plugin-schema=${{ steps.scope.outputs.docs_only == 'true' && 'success' || steps.plugin_schema.outcome }}
+            dependabot-schema=${{ steps.scope.outputs.docs_only == 'true' && 'success' || steps.dependabot_schema.outcome }}
+            workflow-schema=${{ steps.scope.outputs.docs_only == 'true' && 'success' || steps.workflow_schema.outcome }}
+            exec-bit=${{ steps.scope.outputs.docs_only == 'true' && 'success' || steps.exec_bit.outcome }}
             machine-specific-paths=${{ steps.machine_paths.outcome }}
             eol-renormalize=${{ steps.eol.outcome }}
             comment-hygiene=${{ steps.comment_hygiene.outcome }}

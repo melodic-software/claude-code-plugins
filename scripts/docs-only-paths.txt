@@ -1,7 +1,8 @@
 # Docs-only allowlist — path prefixes that feed NO code lane, so a PR whose diff
-# is confined to them lets the heavy lanes (plugin-gate, miro-plugin) report an
-# honest evaluated-and-not-applicable success instead of running their full
-# suites. Consumed by scripts/check-docs-only.sh.
+# is confined to them lets the heavy lanes (plugin-gate, miro-plugin) and the
+# hygiene job's docs-irrelevant full-repo linters report an honest
+# evaluated-and-not-applicable success instead of running their full suites.
+# Consumed by scripts/check-docs-only.sh.
 #
 # ALLOWLIST, NOT BLOCKLIST — by design. A blocklist ("skip on any doc the
 # validators don't currently read") silently turns false-green the day a
@@ -10,11 +11,21 @@
 # run. That is why the seed is deliberately narrow.
 #
 # Adding an entry is a two-part proof, enforced by the self-test:
-#   1. The prefix must feed no code lane. Today the only lanes this gate wraps
-#      are plugin-gate (runs hermetic plugins/**/*.test.sh, then validates
-#      manifests + catalog: reads README.md, docs/PLUGIN-ARTIFACT-PROTOCOL.md,
-#      docs/CATALOG-TAXONOMY.md) and miro-plugin (reads only plugins/miro/**).
-#      NONE of those read the paths below — that is the inertness proof.
+#   1. The prefix must feed no code lane. Today the lanes this gate wraps are:
+#      - plugin-gate: hermetic plugins/**/*.test.sh, then manifest + catalog
+#        validation (reads README.md, docs/PLUGIN-ARTIFACT-PROTOCOL.md,
+#        docs/CATALOG-TAXONOMY.md);
+#      - miro-plugin: reads only plugins/miro/**;
+#      - hygiene's docs-irrelevant subset — ShellCheck (lints *.sh under
+#        scripts/ + plugins/**), actionlint + the workflow check-jsonschema
+#        (read .github/workflows/**), the marketplace / plugin / dependabot
+#        check-jsonschema steps (read .claude-plugin/marketplace.json,
+#        plugins/*/.claude-plugin/plugin.json, .github/dependabot.yml), and
+#        exec-bit (scans shebang files for the executable bit).
+#      NONE of those read the paths below — that is the inertness proof. (The
+#      hygiene DOCS-linters — markdown, typos, editorconfig, gitleaks,
+#      eol-renormalize, comment-hygiene, machine-specific-paths — DO read the
+#      changed docs and stay unconditional; they are not gated on this list.)
 #   2. A matching case in scripts/check-docs-only.test.sh must pin it.
 #
 # Prefixes match by literal string prefix; keep the trailing slash so
