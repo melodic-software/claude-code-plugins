@@ -349,10 +349,10 @@ rc=$?
 assert_eq "dry-run tolerates a failed live list (exit 0)" 0 "$rc"
 
 # ============================================================================
-# Issue #639 item 1 — a failed pre-launch refresh ABORTS the launch: no lane is
-# started/stopped and the action exits non-zero with an actionable message. The
-# refresh is a documented launch prerequisite, so stale repo/plugin state must
-# never seed background lanes.
+# A failed pre-launch refresh ABORTS the launch: no lane is started/stopped and
+# the action exits non-zero with an actionable message. The refresh is a
+# documented launch prerequisite, so stale repo/plugin state must never seed
+# background lanes.
 # ============================================================================
 : >"$CLAUDE_LOG"
 out="$(STUB_GIT_PULL_RC=1 run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" 2>&1)"
@@ -386,10 +386,10 @@ assert_eq "refresh bypass still launches despite failure env (exit 0)" 0 "$rc"
 assert_contains "refresh bypass launches lanes" "$out" "claude --bg -n work"
 
 # ============================================================================
-# Issue #639 item 2 — an unknown restart target is rejected BEFORE the refresh
-# mutates anything (matches stop's fail-first behaviour): the log shows no git
-# pull and no marketplace update. Regression guard against the old order that
-# pulled + updated only to reject the misspelled target afterward.
+# An unknown restart target is rejected BEFORE the refresh mutates anything
+# (matches stop's fail-first behaviour): the log shows no git pull and no
+# marketplace update. Regression guard against the old order that pulled +
+# updated only to reject the misspelled target afterward.
 # ============================================================================
 : >"$CLAUDE_LOG"
 out="$(run_launcher restart does-not-exist --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_RUNNING" 2>&1)"
