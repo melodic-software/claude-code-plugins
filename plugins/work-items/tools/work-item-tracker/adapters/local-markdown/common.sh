@@ -159,9 +159,17 @@ wit_claim_write() {
   if wit_fm_set "$file" assignees "$assignees"; then
     return 0
   fi
-  if tmp="$(mktemp)" && grep -vxF -- "$marker_line" "$file" >"$tmp"; then
-    mv "$tmp" "$file" 2>/dev/null || rm -f "$tmp"
+  # Compensate for the partial write by dropping the marker just appended. The
+  # marker line is unique in the file (lease_comment_id is store-monotonic), so
+  # removing every exact match removes only this one — grep has no portable
+  # "remove the last matching line" primitive. The rollback is best-effort: it can
+  # fail under the same store condition that failed the assignee write, so on that
+  # path warn about the orphaned marker rather than leave it silently stranded.
+  if tmp="$(mktemp)" && grep -vxF -- "$marker_line" "$file" >"$tmp" && mv "$tmp" "$file" 2>/dev/null; then
+    return 1
   fi
+  [[ -n "${tmp:-}" ]] && rm -f "$tmp"
+  printf 'wit_claim_write: rollback of the lease marker failed — the store may hold an orphaned lease marker\n' >&2
   return 1
 }
 

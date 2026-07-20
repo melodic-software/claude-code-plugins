@@ -95,4 +95,25 @@ fi
 assert_eq "failed claim leaves assignees empty" "[]" "$(wit_fm_field "$FAIL_FILE" assignees)"
 rm -f "$FAIL_FILE"
 
+# Failure path where the rollback itself cannot run (mktemp fails — the same class
+# of store condition). The claim still fails, and the helper WARNS that the marker
+# may be orphaned instead of silently claiming a clean rollback.
+FAIL2_FILE="$(mktemp)"
+write_item "$FAIL2_FILE"
+# Invoked indirectly by the sourced wit_claim_write, which shellcheck cannot see
+# across the source boundary (it resolves mktemp there as the external command).
+# shellcheck disable=SC2329
+mktemp() { return 1; }
+WARN="$(wit_claim_write "$FAIL2_FILE" "$MARKER_LINE" '["tester"]' 2>&1)"
+RC=$?
+unset -f mktemp
+assert_eq "rollback-blocked claim still fails" "1" "$RC"
+assert_contains "rollback failure is reported, not silently claimed" "$WARN" "rollback of the lease marker failed"
+if grep -qxF -- "$MARKER_LINE" "$FAIL2_FILE"; then
+  pass "rollback-blocked claim leaves the marker (warned, not silent)"
+else
+  fail "rollback-blocked claim leaves the marker (warned, not silent)" "marker present" "marker missing"
+fi
+rm -f "$FAIL2_FILE"
+
 [[ $FAILED -eq 0 ]] || exit 1

@@ -60,12 +60,13 @@ lease="$(jq -cn --arg sv "$WIT_SCHEMA_VERSION" --arg holder "$holder" --arg now 
    + (if $sid != "" then {session_id: $sid} else {} end)')"
 # The lease marker and the assignee are one claim and must land together: a live
 # lease with an empty assignees would look available and let a later claim race the
-# live lease. A failed assignee write rolls the marker back and fails the claim —
-# never a success record for a half-applied write. Exit 1 is internal/unexpected
-# store I/O failure (CONTRACT.md "Exit codes"), distinct from an exit-7 claim race.
+# live lease. A failed assignee write attempts to roll the marker back (wit_claim_write
+# warns if that best-effort compensation cannot run) and fails the claim — never a
+# success record for a half-applied write. Exit 1 is internal/unexpected store I/O
+# failure (CONTRACT.md "Exit codes"), distinct from an exit-7 claim race.
 marker_line="${WIT_LEASE_MARKER}${lease} -->"
 if ! wit_claim_write "$file" "$marker_line" "$(jq -cn --arg h "$holder" '[$h]')"; then
-  printf 'claim: recording the assignee for %s failed; rolled back the lease marker\n' "$id" >&2
+  printf 'claim: recording the assignee for %s failed\n' "$id" >&2
   exit 1
 fi
 
