@@ -3,6 +3,35 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.6]
+
+### Fixed
+
+- **`quality-gate` slash invocation no longer dies silently in headless
+  sessions.** The skill's *Pre-computed context* block injects dynamic context
+  via the `` !`<command>` `` syntax, which is preprocessing that runs during
+  prompt expansion — before the model turn — so the permission gate sits *above*
+  the shell. In a non-interactive session (`claude -p "/review:quality-gate …"`)
+  the `gh pr list` preflight was permission-denied during that preprocessing,
+  and the whole invocation aborted with empty output and exit 0 — total silent
+  failure with no model output. The in-command `|| echo "unknown"` guard is
+  structurally incapable of catching this: the denial happens a layer above the
+  shell, so the shell string (and its `||` fallback) never runs. Prose
+  invocation degraded gracefully only because it has no dynamic-context
+  preprocessing — the model issues `gh` as an ordinary Bash *tool* call whose
+  denial returns a handleable result. Fix: declare `allowed-tools` frontmatter
+  authorizing every segment of the three compound pre-computed lines
+  (`git branch --show-current`, `git status`, `head`, `echo`, `gh pr list`), the
+  documented canonical mechanism for dynamic-context bash, matching the
+  `pressure-test` and `wayfind` in-repo precedents. The existing `|| echo`
+  fallbacks are retained — they cover a different failure mode (`gh` missing /
+  unauthenticated / no PRs) that `allowed-tools` does not touch. The three
+  fixed pre-computed lines are granted as EXACT full-command rules (no
+  prefix wildcards), so neither mutating subcommands nor output-redirection
+  writes (`echo payload > file`, `head src > dst`) fall inside the grant;
+  the only wildcard kept is `Bash(gh pr list:*)` for the documented uncapped
+  fallback query.
+
 ## [0.14.5]
 
 ### Fixed
