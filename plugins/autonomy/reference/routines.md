@@ -191,63 +191,63 @@ never gain leaves.
 
 ## Precedent pointers (non-normative)
 
-Marked examples only: the vendor names below are precedent evidence for the deferred and
-deterministic rows, never normative contract content. `v1` classes carry their precedent in
+Non-normative precedent pointers for the deferred and deterministic rows, stated as shipped
+pattern descriptions; the named-product evidence behind each pattern lives in the
+routine-catalog research record, one row per class. `v1` classes carry their precedent in
 their leaf documents.
 
-- `alert-triage` — per-alert investigation agents, event-triggered today (Datadog Bits AI
-  SRE, PagerDuty SRE Agent, New Relic SRE Agent)
-- `anomaly-detection` — continuous statistical/ML detectors (Datadog Watchdog, Grafana ML)
-- `slo-error-budget-review` — standing human cadence in SRE practice (Google SRE Workbook
-  error-budget reviews)
-- `alert-noise-review` — standing insight dashboards feeding a human review (incident.io
-  Alert Insights)
-- `log-review-sweep` — scheduled log-watch samples (GitHub agentic-workflows sample pack)
-- `incident-retro-drafting` — post-incident draft generation on resolve (incident.io,
-  Rootly)
-- `postmortem-followup-sweep` — auto-exported follow-ups nudged to completion (incident.io,
-  Rootly)
-- `on-call-handoff-summary` — recipient-tailored handoff summaries (Rootly)
-- `on-call-conflict-resolution` — continuous background conflict detection and replacement
-  coordination (PagerDuty Shift Agent)
-- `stale-issue-pr-grooming` — deterministic date-threshold grooming bots (actions/stale,
-  gitlab-triage)
-- `flaky-test-quarantine` — auto-quarantine pipelines, agent root-cause emerging (Google
-  flaky-test quarantine, Trunk, BuildPulse, Datadog)
-- `support-ticket-conversion` — classify-and-escalate assistants; no verified closed loop —
-  an emerging, unverified class (Intercom Fin, Zendesk AI)
-- `secret-scan-review` — validity-checked incident triage workflows (GitHub secret
-  scanning, GitGuardian)
-- `license-compliance-audit` — deterministic scanners with judgment on edge cases (FOSSA,
-  ScanCode; precedent depth unverified)
-- `sbom-refresh` — per-build artifact regeneration mandated by minimum-elements guidance
-  (CISA/NTIA)
-- `access-review` — evidence automation with the decision kept human (Vanta, Drata)
-- `malicious-code-scan` — scheduled scan samples (GitHub agentic-workflows Daily Malicious
-  Code Scan, VEX Generator)
-- `dead-code-sweep` — daily deterministic deletion change-requests at fleet scale;
-  judgment-bearing triage of its findings belongs to the tech-debt sweep (Meta SCARF, Google
-  Sensenmann)
-- `coverage-mutation-watch` — threshold gates and nightly ratchets (Codecov, Stryker)
-- `release-notes-generation` — deterministic cut plus drafted narrative flagged for review
-  (semantic-release, Release Drafter, Copilot Release Notes)
+- `alert-triage` — per-alert investigation agents shipped across observability platforms,
+  event-triggered today
+- `anomaly-detection` — continuous statistical/ML detectors built into monitoring platforms
+- `slo-error-budget-review` — standing human cadence in the SRE literature's error-budget
+  practice
+- `alert-noise-review` — standing alert-insight dashboards feeding a human review
+- `log-review-sweep` — scheduled log-watch samples in hosted agentic-workflow sample packs
+- `incident-retro-drafting` — post-incident draft generation on resolve in
+  incident-management platforms
+- `postmortem-followup-sweep` — follow-up items auto-exported to trackers and nudged to
+  completion by incident-management platforms
+- `on-call-handoff-summary` — recipient-tailored handoff summaries in incident-management
+  tooling
+- `on-call-conflict-resolution` — a GA continuous background agent on a major
+  incident-response platform detecting schedule conflicts and coordinating replacements
+- `stale-issue-pr-grooming` — deterministic stale-bot policy engines driven by
+  date-threshold rules
+- `flaky-test-quarantine` — auto-quarantine pipelines at large test fleets and CI-analytics
+  services; agent root-cause analysis emerging
+- `support-ticket-conversion` — classify-and-escalate support assistants; no verified
+  closed loop — an emerging, unverified class
+- `secret-scan-review` — validity-checked secret-incident triage workflows in scanning
+  platforms
+- `license-compliance-audit` — deterministic license scanners with judgment on edge cases;
+  precedent depth unverified
+- `sbom-refresh` — per-build artifact regeneration mandated by government minimum-elements
+  guidance
+- `access-review` — compliance-evidence automation with the decision kept human
+- `malicious-code-scan` — daily malicious-code-scan and VEX-generation samples in hosted
+  agentic-workflow sample packs
+- `dead-code-sweep` — dead-code deletion pipelines filing review-gated change requests
+  daily at hundred-million-line scale; judgment-bearing triage of its findings belongs to
+  the tech-debt sweep
+- `coverage-mutation-watch` — coverage threshold gates and nightly mutation-score ratchets
+- `release-notes-generation` — deterministic release-cut tooling plus drafted narratives
+  flagged for human review
 - `knowledge-base-gardening` — weakest precedent of the catalog; wiki and glossary
-  maintainer samples (GitHub agentic-workflows Wiki Writer, Glossary Maintainer)
-- `rotating-quality-improver` — daily targeted improver samples (GitHub agentic-workflows
-  Test/Perf/Efficiency Improvers)
-- `cross-artifact-sync` — mirrored-PR port routines (vendor routine samples: library port,
-  SDK sync)
-- `release-cut` — deterministic version-and-tag pipelines (semantic-release)
-- `deploy-verification` — analysis-gated promotion/rollback plus go/no-go review samples
-  (Argo Rollouts, Harness AI)
-- `voc-theme-digest` — continuous ingestion with weekly theme digests (Productboard AI,
-  Canny Autopilot)
-- `analytics-anomaly-review` — anomaly surfacing with human review (Amplitude AI, PostHog
-  Max)
-- `experiment-readout` — AI experiment summaries with the ship decision human (Statsig AI
-  Experiment Summary, Eppo)
-- `competitive-ecosystem-watch` — continuous external-signal monitoring (Klue, Crayon;
-  weekly research samples in vendor packs)
+  maintainer samples in agentic-workflow packs
+- `rotating-quality-improver` — daily targeted test, performance, and accessibility
+  improver samples in agentic-workflow packs
+- `cross-artifact-sync` — mirrored-PR port routines (library port, parallel-SDK sync) in
+  hosted routine samples
+- `release-cut` — deterministic version-and-tag release pipelines
+- `deploy-verification` — analysis-gated canary promotion/rollback plus go/no-go
+  verification samples
+- `voc-theme-digest` — continuous feedback ingestion with weekly theme digests in
+  product-feedback platforms
+- `analytics-anomaly-review` — anomaly surfacing with human review in product-analytics
+  platforms
+- `experiment-readout` — AI experiment summaries with the ship decision kept human
+- `competitive-ecosystem-watch` — continuous external-signal monitoring in
+  competitive-intelligence platforms; weekly research samples in agentic-workflow packs
 
 ## Hosting stance
 

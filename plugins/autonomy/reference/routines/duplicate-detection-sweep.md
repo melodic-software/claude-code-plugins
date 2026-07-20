@@ -8,9 +8,9 @@ them.
 
 Unlinked duplicates are the toil addressed: the same defect or request accumulates as
 separate tracker items, splitting discussion, votes, and effort across copies until someone
-happens to recognize one. The sweep does the recurring semantic comparison across open items
-and links candidates, so the human decision is a disposition on a surfaced pair, not a
-memory-dependent hunt.
+happens to recognize a copy. The sweep does the recurring semantic comparison across open
+items and links candidates, so the human decision is a disposition on a surfaced pair, not
+a memory-dependent hunt.
 
 ## Trigger and cadence
 
@@ -70,7 +70,7 @@ its routing obligation.
 ## Precedent
 
 The proven manual pattern is the human duplicate hunt: a maintainer recognizes a familiar
-report and searches for the original before triaging the copy. Research-catalog precedents
-(vendor names as marked examples only): GitHub's inline duplicate detection at issue-compose
-time, Linear Triage Intelligence's similar-issue surfacing, and Mozilla bugbug's duplicate
-classification.
+report and searches for the original before triaging the copy. Precedents from the
+routine-catalog research (row 11): tracker-native inline duplicate detection at
+issue-compose time, tracker triage-intelligence features that surface similar issues, and
+narrow ML duplicate classifiers.

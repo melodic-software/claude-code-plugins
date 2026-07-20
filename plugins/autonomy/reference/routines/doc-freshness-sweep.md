@@ -82,8 +82,8 @@ events and routing are the derived row's escalation column in the
 ## Precedent
 
 The proven manual pattern is the periodic docs review pass — someone rereads the docs their
-team owns against the current code and fixes or files what drifted. Research-catalog
-precedents (vendor names as marked examples only): Swimm's auto-sync per-change doc
-verification, Google's doc freshness dates with automated staleness reminders, the GitHub
-agentic-workflows Daily Documentation Updater, and the Anthropic routine catalog's
-docs-drift example.
+team owns against the current code and fixes or files what drifted. Precedents from the
+routine-catalog research (row 26): doc-code coupling tools that verify freshness per
+change, doc freshness-date conventions with automated staleness reminders, hosted
+agentic-workflow sample packs' scheduled documentation updaters, and coding-agent vendors'
+showcased docs-drift routines.

@@ -70,6 +70,6 @@ its routing obligation.
 
 The proven manual pattern is the recurring human sweep over open PRs — re-checking CI,
 chasing reviews, answering or escalating stale threads — that every maintainer of a busy
-queue runs by hand. Research-catalog precedents (vendor names as marked examples only): the
-GitHub agentic-workflows sample pack's PR-tending workflows (scheduled PR reviewers and
-daily repo status) and the OpenAI Codex review-what-changed automation.
+queue runs by hand. Precedents from the routine-catalog research: hosted agentic-workflow
+sample packs' scheduled PR-tending and daily repo-status workflows, and coding-agent
+vendors' showcased review-what-changed scheduled automations.

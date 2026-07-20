@@ -69,7 +69,7 @@ its routing obligation.
 ## Precedent
 
 The proven manual pattern is the pre-refinement grooming pass a lead or product owner runs
-before the session so the meeting refines instead of investigates. Research-catalog
-precedents (vendor names as marked examples only): Atlassian Rovo's Readiness Checker
-(missing fields and acceptance criteria) and Linear Triage Intelligence's property
-suggestions.
+before the session so the meeting refines instead of investigates. Precedents from the
+routine-catalog research (row 13): tracker-native readiness checkers that flag missing
+fields and acceptance criteria, and tracker triage-intelligence features that suggest item
+properties.

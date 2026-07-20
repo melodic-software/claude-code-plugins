@@ -68,8 +68,7 @@ its routing obligation.
 ## Precedent
 
 The proven manual pattern is the recurring human triage sweep over untriaged intake, as
-documented in mature projects' triage guides. Research-catalog precedents (vendor names as
-marked examples only): Mozilla's bugbug classifier suite — whose key finding is that
-"triage" decomposes into many narrow classification judgments, not one job — plus hosted
-triage agents such as GitHub Copilot issue triage, Atlassian Rovo Issue Organizer, and the
-Anthropic routine catalog's backlog-maintenance example.
+documented in mature projects' triage guides. Precedents from the routine-catalog research
+(row 10): narrow ML triage-classifier suites — whose key finding is that "triage" decomposes
+into many per-field classification judgments, not one job — plus tracker-native hosted
+triage assistants and coding-agent vendors' showcased backlog-maintenance routines.

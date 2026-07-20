@@ -59,6 +59,5 @@ escalation rules.
 ## Precedent
 
 The proven manual pattern: periodic hand-run CI reviews after incidents or visible
-slowdowns. Productized precedent: scheduled pipeline doctoring, coaching, and cost
-tracking (marked examples: gh-aw CI Doctor, CI Coach, Cost Tracker). Precedent record:
-routine-catalog research, row 31.
+slowdowns. Productized precedent: hosted agentic pipeline-doctor, coach, and cost-tracker
+workflow samples running on schedule. Precedent record: routine-catalog research, row 31.

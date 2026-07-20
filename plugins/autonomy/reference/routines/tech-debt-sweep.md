@@ -58,7 +58,7 @@ escalation rules.
 ## Precedent
 
 The proven manual pattern: recurring hand-run debt review sessions producing a backlog of
-cleanup tickets. Productized precedent: hotspot prioritization by change-frequency and
-ROI, recipe-driven remediation campaigns, and dedicated fix-it cadences (marked examples:
-CodeScene ROI hotspots, Moderne/OpenRewrite, Google Fixits). Precedent record:
-routine-catalog research, row 24.
+cleanup tickets. Productized precedent: hotspot-ROI code-health platforms prioritizing by
+change frequency, deterministic refactoring-recipe engines running remediation campaigns,
+and dedicated org-wide fix-it cadences. Precedent record: routine-catalog research,
+row 24.
