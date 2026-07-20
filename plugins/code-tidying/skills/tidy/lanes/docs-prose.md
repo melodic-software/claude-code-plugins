@@ -17,7 +17,7 @@ Retarget this to the consuming project's actual documentation layout with a proj
 
 ## Merge semantics
 
-This lane is layered per the [consumer-config layering contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/consumer-config-layering/README.md) ("Merge semantics"). A project lane at `.claude/tidy-lanes/docs-prose.md` does **not** replace this file wholesale — it merges with the bundled lane **per section**, so bundled improvements to sections the project does not touch keep reaching the repo:
+This lane is layered per the [consumer-config layering contract](../../../../../docs/conventions/consumer-config-layering/README.md) ("Merge semantics"). A project lane at `.claude/tidy-lanes/docs-prose.md` does **not** replace this file wholesale — it merges with the bundled lane **per section**, so bundled improvements to sections the project does not touch keep reaching the repo:
 
 - **`Scope`** — **per-section override.** A project `Scope` block replaces the bundled globs entirely; retargeting doc layout is the whole reason a project writes a lane, and two glob sets do not meaningfully concatenate. A project lane that omits `Scope` keeps the bundled globs.
 - **`Watch-for patterns`** — **additive (concatenate).** A project's watch-for entries are **appended** to the bundled P-1..P-6; the generic patterns are never frozen out, and new bundled patterns flow to the project on upgrade. A project adds repo-specific patterns here; it does not restate or replace the bundled ones.
