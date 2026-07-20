@@ -166,7 +166,7 @@ then the closing-keyword test keeps only the ones that actually close `#<N>` (ba
 ```bash
 gh pr list --state open --search "<N> in:body" --json number,body --limit 100 | tr -d '\r' \
   | jq --arg n "<N>" 'any(.[]; .body | test(
-      "(?i)(?:clos(?:e|es|ed)|fix(?:|es|ed)|resolv(?:e|es|ed)):?[ \t]+#\($n)(?![0-9])"))'
+      "(?i)(?:close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved):?[ \t]+#\($n)(?![0-9])"))'
 ```
 
 Emits `true` when at least one open PR closes `#<N>`, `false` otherwise. The **closing keyword is
