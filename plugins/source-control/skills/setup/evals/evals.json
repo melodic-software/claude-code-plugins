@@ -142,6 +142,19 @@
         "Replaces only subject_pattern and the pr_title_pattern derived from it",
         "Removes a key only when the user explicitly clears it, never as a side effect of an unrelated one-key update"
       ]
+    },
+    {
+      "id": 12,
+      "name": "derived-type-list-drops-when-pattern-becomes-custom",
+      "prompt": "/source-control:setup apply layer=team subject_pattern=^[A-Z]+-\\d+: .+",
+      "expected_output": "The existing team file declares Conventional Commits plus the bundled 11-type type_list. Replacing subject_pattern with a custom ticket-prefix regex drops type_list entirely rather than carrying it through as an unrequested key — type_list is derived from subject_pattern, and a custom pattern has no type vocabulary, so preserving it would leave /commit pre-checking against types the pattern does not use. trailer_policy and any other independent key are still carried through unchanged.",
+      "files": [".claude/source-control.md"],
+      "expectations": [
+        "Drops the type_list section because the new subject_pattern is not Conventional-Commits-shaped",
+        "Does not treat type_list as an independent unrequested key to preserve",
+        "Still carries through independent keys such as trailer_policy that the invocation did not name",
+        "Leaves no config in which type_list coexists with a custom subject_pattern"
+      ]
     }
   ]
 }

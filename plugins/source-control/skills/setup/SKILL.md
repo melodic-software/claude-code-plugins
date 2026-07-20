@@ -131,11 +131,20 @@ same. Reject a `subject_pattern` that is not machine-checkable (a plain-language
 message `check` gives, rather than persisting it.
 
 **A non-interactive write is an update, not a fresh file.** The target layer is rewritten in place, so
-read it first and carry through every key the invocation did not ask to change. An argument naming
-`subject_pattern` says nothing about `trailer_policy`; dropping an existing `trailer_policy: none`
-because the new invocation did not mention it changes commit behavior the user never asked to change.
-Only a key the invocation explicitly sets may be replaced, and only a key the user explicitly clears
-may be removed.
+read it first and carry through every *independent* key the invocation did not ask to change. An
+argument naming `subject_pattern` says nothing about `trailer_policy`; dropping an existing
+`trailer_policy: none` because the new invocation did not mention it changes commit behavior the user
+never asked to change. Only a key the invocation explicitly sets may be replaced, and only a key the
+user explicitly clears may be removed.
+
+**Keys derived from a changed key are recomputed, not carried.** `type_list` and `pr_title_pattern`
+are functions of `subject_pattern`, so preserving them across a `subject_pattern` change produces a
+config that contradicts itself. Replacing a Conventional-Commits pattern with a custom regex drops
+`type_list` entirely — a custom pattern has no type vocabulary, and a stale
+`build, chore, ci, …` list beside `^[A-Z]+-\d+: .+` would have `/commit` pre-check against a
+vocabulary the pattern does not use. Moving the other way re-adds the bundled 11-type list.
+`pr_title_pattern` follows the same rule unless the user set it to a value independent of
+`subject_pattern`, which is carried through like any other independent key.
 
 **Writing an overlay layer — `user` or `local` — resolve the layers below first and omit any
 *requested* key already equal to that merge.** A non-interactive argument is not evidence of a genuine
