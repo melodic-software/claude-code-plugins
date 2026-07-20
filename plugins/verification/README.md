@@ -9,6 +9,7 @@ green build into confirmed outcomes.
 |---|---|
 | `/verification:confirm` | Outcome verification — a mechanical prerequisite gate (delegated to build/lint) followed by intent-match + evidence + verdict, with the criterion auto-detected by change-type (feature / fix / refactor). |
 | `/verification:measure` | Measurable-improvement verification — capture a baseline at planning time, re-measure after the change under the same conditions; no baseline → honest "cannot quantify", never fabricated numbers. |
+| `/verification:setup` | Configure where verification artifacts land. `check` (read-only, default) reports the effective topic-docs concern; `apply` persists the tracked `.claude/topic-docs.yaml`. Re-runnable. |
 
 ## Works in any repo
 
@@ -42,8 +43,8 @@ green build into confirmed outcomes.
 ## Configuration
 
 Artifact placement is governed by the tracked `.claude/topic-docs.yaml` concern file
-(the `toolchain` plugin's `/toolchain:setup` interviews for and persists it). This
-plugin declares no userConfig options.
+(`/verification:setup` interviews for and persists it — `check` reports the effective
+concern read-only, `apply` writes it). This plugin declares no userConfig options.
 
 ## License
 

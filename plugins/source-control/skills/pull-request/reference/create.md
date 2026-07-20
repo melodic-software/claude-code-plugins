@@ -160,7 +160,7 @@ Persist chosen line(s) into `${CLOSES_LINE}`. NEVER wrap a closing keyword in an
 git push -u origin <branch-name>
 ```
 
-Derive PR title from the commit subject, shaped to satisfy the resolved subject/title convention (the ladder in [SKILL.md](../SKILL.md): layered `source-control.md` config → project convention → Conventional Commits default). Build body with `${CLOSES_LINE}` at top, followed by Summary + Test plan + a `## Related` section + Claude Code attribution:
+Derive PR title from the commit subject, shaped to satisfy the resolved subject/title convention (the ladder in [SKILL.md](../SKILL.md): layered `source-control.md` config → project convention → Conventional Commits default). Build body with `${CLOSES_LINE}` at top, followed by Summary + Test plan + a `## Related` section + a config-gated attribution line:
 
 ```bash
 # Quoted heredoc — body template is inert; nothing inside expands.
@@ -174,23 +174,44 @@ TEMPLATE=$(cat <<'EOF'
 
 ## Related
 N/A
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
 EOF
 )
 
-# Concat CLOSES_LINE in front of TEMPLATE via bash parameter expansion.
-# Parameter expansion of "${VAR}" does NOT re-evaluate the expanded value
-# — if CLOSES_LINE contains literal "$(rm -rf ~)" (e.g. user typed it into
-# the orphan-PR or multi-issue prompt), it stays a literal string and is
-# never executed. This is the defense against shell injection through
-# user-supplied prompt input.
+# Resolve the PR-body attribution line from the `pr_body_attribution` key across
+# the three source-control.md layers (../../reference/config-resolution.md), the
+# same seam `/commit`'s `trailer_policy` uses for the commit trailer. Absent → the
+# default line (current behavior — existing consumers are unaffected); a value of
+# `none` → omit the line; any other value → that literal line. Resolve the effective
+# value at the model level and bake it in as literal text below; do NOT reference it
+# as an unexpanded shell var inside the quoted heredoc (a quoted heredoc emits
+# `${ATTRIBUTION}` verbatim), and do NOT switch the heredoc to unquoted `<<EOF` to
+# force expansion — that would re-evaluate the whole body and reopen the injection
+# hole this section is built to close.
+ATTRIBUTION='🤖 Generated with [Claude Code](https://claude.com/claude-code)'  # key absent → default
+# pr_body_attribution: none         -> ATTRIBUTION=""            (omit the line)
+# pr_body_attribution: <custom text> -> ATTRIBUTION='<that text>'  (SINGLE-quoted, NEVER
+#                                       double-quoted: bash command-substitutes $(…) inside a
+#                                       double-quoted assignment RHS at assignment time, so a
+#                                       $()-bearing custom value would execute here — single-
+#                                       quoting keeps it inert at the assignment site. Escape any
+#                                       literal single quote as '\'' — e.g. ATTRIBUTION='it'\''s ok'.
+#                                       The concat below is also inert, but assignment is the
+#                                       first line of defense.)
+
+# Concat CLOSES_LINE in front of TEMPLATE and ATTRIBUTION after it, via bash
+# parameter expansion. Parameter expansion of "${VAR}" does NOT re-evaluate the
+# expanded value — if CLOSES_LINE contains literal "$(rm -rf ~)" (e.g. user typed
+# it into the orphan-PR or multi-issue prompt), or ATTRIBUTION carries a configured
+# `$`-bearing custom line, it stays a literal string and is never executed. This is
+# the defense against shell injection through user-supplied prompt input and
+# configured text.
 BODY=""
 [[ -n "$CLOSES_LINE" ]] && BODY="${CLOSES_LINE}"$'\n\n'
 BODY+="$TEMPLATE"
+[[ -n "$ATTRIBUTION" ]] && BODY+=$'\n\n'"$ATTRIBUTION"
 ```
 
-**Why quoted heredoc + concat (not `<<EOF`):** unquoted heredoc `<<EOF` evaluates `$(...)`, `${...}`, and `` `...` `` *inside the body content itself* (POSIX heredoc semantics — `<<EOF` is treated as if double-quoted). If `${CLOSES_LINE}` ever contains shell-meta from interactive prompt input, an unquoted heredoc would execute it. Quoted `<<'EOF'` is inert; splicing `${CLOSES_LINE}` via parameter expansion + concat keeps user input as literal text.
+**Why quoted heredoc + concat (not `<<EOF`):** unquoted heredoc `<<EOF` evaluates `$(...)`, `${...}`, and `` `...` `` *inside the body content itself* (POSIX heredoc semantics — `<<EOF` is treated as if double-quoted). If `${CLOSES_LINE}` ever contains shell-meta from interactive prompt input, or `${ATTRIBUTION}` carries a configured custom line, an unquoted heredoc would execute it. Quoted `<<'EOF'` is inert; splicing `${CLOSES_LINE}` and `${ATTRIBUTION}` via parameter expansion + concat keeps both as literal text. The attribution line is deliberately spliced *outside* the heredoc rather than embedded inside it so that a `pr_body_attribution` value resolved from config never re-enters shell evaluation.
 
 `gh pr create --body` fully overrides `.github/PULL_REQUEST_TEMPLATE.md` (cli/cli #10751) — body assembly above is the canonical path for skill-driven PRs; the template is the web-UI backstop. When the consuming project ships a PR template, mirror its section shape in the assembled body.
 

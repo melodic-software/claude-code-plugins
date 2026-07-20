@@ -1036,6 +1036,18 @@ function normalizeStructuralValue(value) {
   return value;
 }
 
+function normalizedWorkflowJobs(workflow) {
+  return workflow.jobs !== null &&
+    typeof workflow.jobs === "object" &&
+    !Array.isArray(workflow.jobs)
+    ? workflow.jobs
+    : {};
+}
+
+function isValidJobRecord(job) {
+  return job !== null && typeof job === "object" && !Array.isArray(job);
+}
+
 function normalizePermissionsSurface(permissions) {
   if (permissions === undefined) {
     return { declaration: "omitted" };
@@ -1082,13 +1094,10 @@ function normalizeDeclarationSurface(declaration) {
 // a bumped SHA that adds or widens a job-level permissions grant is not
 // silently treated as an unchanged security surface.
 function jobPermissionsSurface(workflow) {
-  const jobs =
-    workflow.jobs !== null && typeof workflow.jobs === "object" && !Array.isArray(workflow.jobs)
-      ? workflow.jobs
-      : {};
+  const jobs = normalizedWorkflowJobs(workflow);
   return Object.fromEntries(
     Object.entries(jobs)
-      .filter(([, job]) => job !== null && typeof job === "object" && !Array.isArray(job))
+      .filter(([, job]) => isValidJobRecord(job))
       .map(([jobId, job]) => [
         jobId,
         normalizePermissionsSurface(effectivePermissions(workflow, job)),
@@ -1116,13 +1125,10 @@ function declaredValueSurface(mapping, key) {
 }
 
 function jobRoutingSurface(workflow) {
-  const jobs =
-    workflow.jobs !== null && typeof workflow.jobs === "object" && !Array.isArray(workflow.jobs)
-      ? workflow.jobs
-      : {};
+  const jobs = normalizedWorkflowJobs(workflow);
   return Object.fromEntries(
     Object.entries(jobs)
-      .filter(([, job]) => job !== null && typeof job === "object" && !Array.isArray(job))
+      .filter(([, job]) => isValidJobRecord(job))
       .map(([jobId, job]) => [
         jobId,
         {
@@ -1181,13 +1187,10 @@ function workflowCallSurface(workflow) {
 // checks are not skipped), closes that gap using the exact same detection
 // logic already trusted for direct/local jobs.
 function jobCredentialSurface(workflow, policy) {
-  const jobs =
-    workflow.jobs !== null && typeof workflow.jobs === "object" && !Array.isArray(workflow.jobs)
-      ? workflow.jobs
-      : {};
+  const jobs = normalizedWorkflowJobs(workflow);
   return Object.fromEntries(
     Object.entries(jobs)
-      .filter(([, job]) => job !== null && typeof job === "object" && !Array.isArray(job))
+      .filter(([, job]) => isValidJobRecord(job))
       .map(([jobId, job]) => [
         jobId,
         privilegedHostedRequirement(
@@ -1337,13 +1340,10 @@ function jobCredentialReferenceSurface(workflow, job, policy) {
 }
 
 function jobCredentialReferencesSurface(workflow, policy) {
-  const jobs =
-    workflow.jobs !== null && typeof workflow.jobs === "object" && !Array.isArray(workflow.jobs)
-      ? workflow.jobs
-      : {};
+  const jobs = normalizedWorkflowJobs(workflow);
   return Object.fromEntries(
     Object.entries(jobs)
-      .filter(([, job]) => job !== null && typeof job === "object" && !Array.isArray(job))
+      .filter(([, job]) => isValidJobRecord(job))
       .map(([jobId, job]) => [jobId, jobCredentialReferenceSurface(workflow, job, policy)])
       .sort(([left], [right]) => left.localeCompare(right)),
   );
@@ -1385,10 +1385,7 @@ function malformedWorkflowCallMappingField(surface) {
 // its own, on both the candidate and every reviewed basis, before the
 // per-job surfaces are ever computed or diffed.
 function malformedJobIds(workflow) {
-  const jobs =
-    workflow.jobs !== null && typeof workflow.jobs === "object" && !Array.isArray(workflow.jobs)
-      ? workflow.jobs
-      : {};
+  const jobs = normalizedWorkflowJobs(workflow);
   return Object.keys(jobs)
     .filter((jobId) => {
       const job = jobs[jobId];
@@ -1471,10 +1468,7 @@ const DYNAMIC_ROUTING_FIELDS = [
 ];
 
 function dynamicRoutingReferenceJobIds(workflow) {
-  const jobs =
-    workflow.jobs !== null && typeof workflow.jobs === "object" && !Array.isArray(workflow.jobs)
-      ? workflow.jobs
-      : {};
+  const jobs = normalizedWorkflowJobs(workflow);
   return Object.keys(jobs)
     .filter((jobId) => {
       const job = jobs[jobId];
@@ -1505,10 +1499,7 @@ function dynamicRoutingReferenceJobIds(workflow) {
 // or a reviewed basis, therefore makes the revision ineligible for
 // surface-diff auto-approval and requires a human contract entry instead.
 function localReferenceJobIds(workflow) {
-  const jobs =
-    workflow.jobs !== null && typeof workflow.jobs === "object" && !Array.isArray(workflow.jobs)
-      ? workflow.jobs
-      : {};
+  const jobs = normalizedWorkflowJobs(workflow);
   return Object.keys(jobs)
     .filter((jobId) => {
       const job = jobs[jobId];

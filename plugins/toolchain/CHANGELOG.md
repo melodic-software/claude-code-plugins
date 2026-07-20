@@ -3,6 +3,20 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0]
+
+### Removed
+
+- **`/toolchain:setup` no longer offers the topic-docs concern file — relocated to the lifecycle
+  plugins that own it.** Setup step 6 wrote `.claude/topic-docs.yaml`, a consumer config resolved by
+  the `implementation` and `verification` plugins for artifact placement; no `/toolchain:*` skill reads
+  it, so this build/test/lint plugin was writing another plugin's consumer config. Setup is now scoped
+  solely to the ecosystem command surface it owns (the tracked `.claude/ecosystems/*.yaml` files):
+  `check` no longer reports the topic-docs concern and `apply` no longer offers it, and the orphaned
+  `reference/topic-docs.md` binding that only step 6 read is removed. The shared concern file is offered
+  by each lifecycle plugin's own setup — `/discovery:setup`, `/planning:setup`, and the new
+  `/verification:setup` — independent of whether the others are installed. Closes #263.
+
 ## [0.4.3]
 
 ### Changed

@@ -37,11 +37,11 @@
 # would match), and where a bare root ends at a value boundary is
 # format-specific — a driver-owned concern like the left prefix. A consumer
 # that needs bare-root detection adds that right boundary in its own driver.
-HPP_WIN_USER_BODY='[A-Za-z]:(/|\\\\?)Users(/|\\\\?)[^/\\$<{~]+(~[0-9]+)?(/|\\\\?)'
+HPP_WIN_USER_BODY='[A-Za-z]:(/|\\\\?)Users(/|\\\\?)[^/\\$%<{~]+(~[0-9]+)?(/|\\\\?)'
 HPP_MACOS_USER_BODY='/Users/[^/$<{~]+/'
 HPP_LINUX_USER_BODY='/home/[^/$<{~]+/'
-HPP_WIN_REPO_BODY='[A-Za-z]:(/|\\\\?)repos(/|\\\\?)[^/\\$<{~]+(~[0-9]+)?(/|\\\\?)'
+HPP_WIN_REPO_BODY='[A-Za-z]:(/|\\\\?)repos(/|\\\\?)[^/\\$%<{~]+(~[0-9]+)?(/|\\\\?)'
 # SC1003 false positive: the trailing \\\\ is a deliberate literal-backslash ERE
 # body (a JSON-escaped path separator), not a botched single-quote escape.
 # shellcheck disable=SC1003
-HPP_ESCAPED_WIN_REPO_BODY='[A-Za-z]:\\\\repos\\\\[^\\$<{~]+(~[0-9]+)?\\\\'
+HPP_ESCAPED_WIN_REPO_BODY='[A-Za-z]:\\\\repos\\\\[^\\$%<{~]+(~[0-9]+)?\\\\'

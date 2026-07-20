@@ -148,6 +148,23 @@ printf 'see d.md\n' >"$WS/.scratch dir/refD.md"
 OUT=$(cd "$WS" && bash "$SCRIPT")
 assert_contains "whitespace: ref in quoted '.scratch dir' tier is excluded => d.md orphan" "$OUT" "d.md"
 
+# --- Case 9: `#` inside a quoted memory_dir is preserved, not truncated ---------------
+# A naive `${seam%%#*}` truncates `.scratch#dir` to `.scratch`, so the REAL tier is not
+# excluded and its ref counts — masking the orphan. Quote-aware parsing keeps the `#`:
+# the full tier IS excluded and the rule stays an orphan.
+
+HASH="$TEST_TMPDIR/hash"
+make_repo "$HASH"
+mkdir -p "$HASH/.claude/rules" "$HASH/.scratch#dir"
+printf 'memory_dir: ".scratch#dir"\n' >"$HASH/.claude/topic-docs.yaml"
+# rule E referenced ONLY from the #-containing memory tier => still ORPHAN
+printf '# Rule E\n\nbody\n' >"$HASH/.claude/rules/e.md"
+printf 'see e.md\n' >"$HASH/.scratch#dir/refE.md"
+(cd "$HASH" && git add -A && git commit -q -m "hash fixture")
+
+OUT=$(cd "$HASH" && bash "$SCRIPT")
+assert_contains "hash: ref in quoted '.scratch#dir' tier is excluded => e.md orphan" "$OUT" "e.md"
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0

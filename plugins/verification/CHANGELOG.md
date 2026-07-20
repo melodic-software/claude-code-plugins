@@ -3,6 +3,20 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.0]
+
+### Added
+
+- **`/verification:setup` — settles the topic-docs seam for the consuming repo.** Offers the tracked
+  `.claude/topic-docs.yaml` concern file that governs where `/verification:confirm` lands its manifests
+  (contract tier) and `/verification:measure` lands its baselines and raw captures (memory tier). `check`
+  (default) reports the effective concern read-only; `apply` persists it — non-interactively from
+  complete `<key>=<value>` arguments or via a one-question, recommendation-first interview — running the
+  committed-tier `git check-ignore` guard before writing and never editing the consumer's root
+  `.gitignore`. Mirrors the `/discovery:setup` and `/planning:setup` pattern, offering the shared file
+  independent of whether the sibling lifecycle plugins are installed. This concern was previously offered
+  by `/toolchain:setup`, a build/test/lint plugin that owns no lifecycle artifacts. Part of #263.
+
 ## [0.2.4]
 
 ### Changed

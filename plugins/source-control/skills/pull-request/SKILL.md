@@ -30,6 +30,8 @@ Consumer conventions come from the consuming project's own `CLAUDE.md`, `AGENTS.
 
 **PR title format** resolves via the same ladder `/commit` uses for the commit subject (see its SKILL.md), checked in order: the `pr_title_pattern` resolved across all three layers of the `source-control.md` convention config per [../../reference/config-resolution.md](../../reference/config-resolution.md) → the consuming project's own `CLAUDE.md`/`AGENTS.md`/rules → Conventional Commits (11-type vocabulary — `build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test`; confirmed via the spec, the Angular convention, commitlint's `@commitlint/config-conventional`, and `amannn/action-semantic-pull-request`'s default `types` — `security` is not a member of any of these) as the default. See [reference/create.md](reference/create.md) §2.4.1 for where the title is derived. When no layer resolves a `pr_title_pattern` and nothing is inferable, point the user at `/source-control:setup`.
 
+**PR-body attribution** (the `🤖 Generated with [Claude Code]…` line) resolves from the `pr_body_attribution` key across the same three `source-control.md` layers ([../../reference/config-resolution.md](../../reference/config-resolution.md)) — absent → the default line, `none` → omitted, any other value → that line. It is the PR-body analogue of `/commit`'s `trailer_policy` and gated separately; see [reference/create.md](reference/create.md) §2.4.1 for the assembly.
+
 ## Emit checklist
 
 For PR lifecycle runs spanning 3+ phases, copy `${CLAUDE_PLUGIN_ROOT}/skills/pull-request/templates/checklist.md` into your project's working-notes location (or track it inline) and tick each `- [ ]` as the phase produces its output. Stateful surface; survives `/clear`.

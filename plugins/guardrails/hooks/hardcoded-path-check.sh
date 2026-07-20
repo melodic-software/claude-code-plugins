@@ -124,6 +124,38 @@ else
   PROJECT_ROOT=""
 fi
 
+# hpp::scan_text's repo-path branch matches PROJECT_ROOT as a
+# literal substring and is never OS-suppressed. That is a valid machine-specific
+# marker ONLY when PROJECT_ROOT sits inside a genuine git checkout whose ROOT is
+# not the user's home (nor an ancestor of it). The comparison is against the
+# discovered TOPLEVEL, not PROJECT_ROOT itself: a project dir can be a
+# subdirectory of its checkout, and when home is itself a checkout (e.g.
+# chezmoi-managed dotfiles) a project dir like $HOME/Desktop would clear a
+# PROJECT_ROOT-only home test and wrongly re-enable the branch, hard-denying
+# every path under it. When the enclosing checkout is home — or the path is not
+# in a checkout at all — skip the branch. Resolve a SCAN_ROOT the scanner uses
+# for it: PROJECT_ROOT when the gate passes (the literal being scanned for is
+# still the project dir), empty otherwise (empty is the lib's documented seam to
+# skip the branch). PROJECT_ROOT is unchanged — telemetry below still uses it for
+# the repo-relative path. Native Windows exposes home as %USERPROFILE%, not $HOME,
+# so fall back to it; a missing home leaves the branch active (fail toward
+# detection, never a false negative).
+SCAN_ROOT=""
+if [[ -n "$PROJECT_ROOT" ]]; then
+  _toplevel="$(git -C "$PROJECT_ROOT" rev-parse --show-toplevel 2>/dev/null)"
+  if [[ -n "$_toplevel" ]]; then
+    _tl_norm="$(hook::normalize_path "$_toplevel")"
+    _tl_norm="${_tl_norm%/}"
+    _home_norm="$(hook::normalize_path "${HOME:-${USERPROFILE:-}}")"
+    _home_norm="${_home_norm%/}"
+    if [[ -n "$_home_norm" && ( "$_tl_norm" == "$_home_norm" || "$_home_norm" == "$_tl_norm"/* ) ]]; then
+      SCAN_ROOT="" # enclosing checkout is home or an ancestor of home — suppress the branch
+    else
+      SCAN_ROOT="$PROJECT_ROOT"
+    fi
+  fi
+fi
+
 # Repo-relative file for telemetry data.file (best-effort prefix strip).
 FILE_REL="$FILE"
 if [[ -n "$PROJECT_ROOT" ]]; then
@@ -154,7 +186,7 @@ emit_tel() {
   hook::emit_telemetry "hardcoded-path-check" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
-VIOLATIONS=$(hpp::scan_text "$CONTENT" "$PROJECT_ROOT" "$FILE")
+VIOLATIONS=$(hpp::scan_text "$CONTENT" "$SCAN_ROOT" "$FILE")
 if [[ -n "$VIOLATIONS" ]]; then
   {
     printf 'Hardcoded machine-specific path(s) in %s:\n\n' "$FILE"
