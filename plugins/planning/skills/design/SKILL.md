@@ -93,7 +93,7 @@ For SaaS or B2B org-scoped products, open a **tenancy posture** thread early: si
 
 When exploration surfaces high coupling, large types, or multi-responsibility files (refactor or strangler scope), open a **refactoring posture** thread: characterization-test strategy, seam map, incremental extract order, change budget.
 
-For any feature with a testable surface, open a **test-seam posture** thread: sketch the seams the feature will be tested at. Prefer existing seams over new ones; place any new seam at the highest level possible; drive toward the fewest seams that cover the surface — the ideal count is one. Confirm the seam sketch with the user before design output is finalized.
+For any feature with a testable surface, open a **test-seam posture** thread: sketch the seams the feature will be tested at. Prefer existing seams over new ones; place any new seam at the highest level possible; drive toward the fewest seams that cover the surface — the ideal count is one. The change→test-type mapping that grounds seam-altitude choices (unit / integration / e2e / architecture / analyzer) lives in `/testing:plan`'s classification table — cite it, don't restate. Confirm the seam sketch with the user before design output is finalized.
 
 Produce: `design-threads.md`
 
