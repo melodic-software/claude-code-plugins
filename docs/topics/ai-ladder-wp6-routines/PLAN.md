@@ -118,7 +118,7 @@ merges after both.
 - `not-a-routine` rows = 7 (`grep -c 'not-a-routine' plugins/autonomy/reference/routines.md` ≥ 7); the dead-code-sweep row carries the flag (`grep 'dead-code' plugins/autonomy/reference/routines.md | grep -c 'not-a-routine'` = 1 — flagged, never a silent exclusion, and never a v1 leaf)
 - Vendor+fleet deny-list sweep exit 0; lychee lane passes
 
-### Phase 2: v1 definition leaves [TODO]
+### Phase 2: v1 definition leaves [DONE]
 
 | File | Action | What changes |
 |---|---|---|
