@@ -5,7 +5,7 @@ AI-adoption-ladder contract set: it ships the tool-agnostic contracts an adoptin
 its own repositories, tools, and policies, plus a guided-setup skill that discovers the org's
 state and records that binding.
 
-## Shipped capability (0.6.0)
+## Shipped capability (0.7.0)
 
 - **Topology contracts** (`reference/`): role topology for the repositories an adoption spans,
   the binding-seam shape that maps contract roles to an org's real instances, and the
@@ -44,6 +44,14 @@ state and records that binding.
   that discovers scheduling surfaces, wires the free CI-cron/local-scheduler defaults as reviewable
   changes, homes each routine's work-class mapping on the security surface, and
   detect-diff-reconciles existing org schedulers and bots instead of duplicating them.
+- **Runner design pack** (`reference/runner.md`): the architect-ready design contract for the
+  autonomous-drain runner — the composition spine and its eight seams, the lifecycle state
+  model, the two-family stop-criteria taxonomy with terminal-handoff escalation and
+  severity-routed notification fan-out, the matrix-derived launch backend set, and the topology
+  ownership seam map, as a progressive-disclosure hub with `reference/runner/` leaves. Design
+  only — the build stays gated on the charter's own triggers and the runner-execution home
+  stays unborn; setup records nothing runner-specific beyond the escalation notification routes
+  (severity axis + personal-push tier) bound through the security binding.
 - **Guided setup** (`/autonomy:setup`): discovery-first interview of the adopting org's state —
   role homes, substrate availability, budget posture — writing a schema-versioned binding under
   `.claude/autonomy/` as reviewable changes. Never assumes any particular org or repo shape.
@@ -56,7 +64,11 @@ locked (no step-skipping — trust before scale).
 | Capability | Trigger |
 |---|---|
 | Fleet adapter materializations (reusable workflows, labels, drain routine) | Work-item backlog, post trigger-package graduation. |
-| Runner charter execution pack | The runner build trigger fires (charter's own conditions). |
+| Fleet guardrail materializations (binding instances, workflow gates, scanner wiring) | Work-item backlog, post guardrail-package graduation. |
+| Fleet routine stand-up + existing-scheduler reconciliation | Work-item backlog, post routine-package graduation. |
+| Vendor-binding capability templates (routine/workflow files) | Build stage, post-architect. |
+| Cost enforcement (hard spend caps; cost tiers stay policy vocabulary until then) | 3→4 transition work begins. |
+| Runner charter execution pack (design pack shipped) | The runner build trigger fires (charter's own conditions). |
 
 ## Trigger register (plugin-scoped)
 
@@ -64,6 +76,7 @@ locked (no step-skipping — trust before scale).
 |---|---|
 | Role vocabulary changes in `reference/role-topology.md` | Update the org-policy home's binding instance doc to the new vocabulary version. |
 | A second plugin consumes `.claude/autonomy/` config | Graduate the binding schema to a versioned concern contract per the marketplace's concern-named-folder convention. |
+| A second repository consumes the security binding | Stand up a mechanical cross-repo binding drift check. |
 
 ## Configuration
 

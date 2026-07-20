@@ -4,7 +4,7 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
-## 0.2.0
+## [0.2.0]
 
 ### Changed
 
@@ -17,7 +17,7 @@ only after that version increases.
   drift-check mechanics now point at the renamed pack path. Only the wrapper skill
   name (directory, frontmatter `name`, and references) changed.
 
-## 0.1.0
+## [0.1.0]
 
 ### Added
 

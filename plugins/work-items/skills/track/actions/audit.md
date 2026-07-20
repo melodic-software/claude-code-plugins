@@ -11,8 +11,9 @@ Detect stale claims, orphaned recurring entries, and label hygiene issues.
 ## Checks
 
 Before any tracker read, resolve `recurring-maintenance` from `.work-item-tracker.json`
-`config.role_labels`, using `recurring` only when the file or entry is absent. Stop on a malformed,
-empty, or non-string configured value. Keep the resolved string for every recurring-item query and
+`config.role_labels`, using `recurring` only when the file or entry is absent — and warn loudly when
+it defaults for that reason (surface it, never silent). Stop on a malformed, empty, or non-string
+configured value. Keep the resolved string for every recurring-item query and
 comparison in this audit.
 
 ### 1. Stale claims

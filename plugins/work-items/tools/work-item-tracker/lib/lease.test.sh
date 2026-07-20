@@ -31,4 +31,33 @@ if wit_lease_is_live "$FRESH_LIVE" "$NOW"; then pass "fresh 24h lease is live"; 
 SUPERSEDED="$(jq -cn --arg t "$NOW_ISO" '{renewed_at:$t, ttl_hours:24, superseded_at:$t}')"
 if wit_lease_is_live "$SUPERSEDED" "$NOW"; then fail "superseded lease not live" "not live" "live"; else pass "superseded lease not live"; fi
 
+# Active-lease selection: newest NON-superseded lease wins, and it is the marker's
+# own selection (a superseded higher-id back-off does not mask the still-active
+# earlier lease — the subtlety both renew-lease and reclaim depend on).
+mk() { printf '<!-- work-item-lease v1 %s -->' "$1"; }
+BODY_A="$(mk "$(jq -cn '{holder:"a"}')")"
+BODY_B="$(mk "$(jq -cn '{holder:"b"}')")"
+BODY_B_SUP="$(mk "$(jq -cn '{holder:"b", superseded_at:"2020-01-01T00:00:00Z"}')")"
+
+LEASES_ONE="$(jq -cn --arg a "$BODY_A" '[{id:10, body:$a}]')"
+wit_select_active_lease "$LEASES_ONE"
+assert_eq "select: single active lease id" "10" "$WIT_ACTIVE_LEASE_ID"
+assert_eq "select: single active lease holder" "a" "$(jq -r '.holder' <<<"$WIT_ACTIVE_LEASE_JSON")"
+
+# Higher-id (100) is a superseded back-off; the active lease is the earlier id 10.
+LEASES_BACKOFF="$(jq -cn --arg a "$BODY_A" --arg b "$BODY_B_SUP" '[{id:10, body:$a}, {id:100, body:$b}]')"
+wit_select_active_lease "$LEASES_BACKOFF"
+assert_eq "select: superseded back-off does not mask active lease" "10" "$WIT_ACTIVE_LEASE_ID"
+
+# Two live leases: the newest (highest id) wins.
+LEASES_TWO_LIVE="$(jq -cn --arg a "$BODY_A" --arg b "$BODY_B" '[{id:10, body:$a}, {id:100, body:$b}]')"
+wit_select_active_lease "$LEASES_TWO_LIVE"
+assert_eq "select: newest non-superseded lease wins" "100" "$WIT_ACTIVE_LEASE_ID"
+
+# No active lease: all superseded → both out-params empty.
+LEASES_NONE="$(jq -cn --arg b "$BODY_B_SUP" '[{id:100, body:$b}]')"
+wit_select_active_lease "$LEASES_NONE"
+assert_eq "select: no active lease → empty id" "" "$WIT_ACTIVE_LEASE_ID"
+assert_eq "select: no active lease → empty json" "" "$WIT_ACTIVE_LEASE_JSON"
+
 [[ $FAILED -eq 0 ]] || exit 1

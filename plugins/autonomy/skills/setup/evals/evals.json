@@ -365,6 +365,19 @@
         "Admission validates the (signal.routine, attested source surface) pair AND that raw_link falls under the ratified run_link_prefix AND that producer_identity matches the ratified value before stamping; any mismatch fail-closes human-gated",
         "A multi-posture class binds per-posture identities on distinct surfaces, never its bare token"
       ]
+    },
+    {
+      "id": 29,
+      "name": "runner-escalation-routes-bindable-home-unborn",
+      "prompt": "/autonomy:setup apply\n\nWire the runner's escalation notifications — severity levels and a push-to-my-phone tier for urgent stops.",
+      "expected_output": "Records ONLY the escalation notification routes: the severity axis (notice/attention/urgent) and the personal-push tier as org-bindable route options through the security binding's escalation_severity, escalation_severity_routes, and escalation_ack keys, prepared as a reviewable change on the settings-as-code (security) surface like every other security axis — never repo-local. Restates that the runner-execution home is unborn: no probe, no wiring, no binding section for it, and NOTHING else runner-specific is recorded until a build trigger fires. Cites the runner design pack for the route set and its severity resolution rather than restating them.",
+      "files": [],
+      "expectations": [
+        "Severity axis (notice/attention/urgent) and personal-push tier recorded as org-bindable routes via the security binding's escalation_severity/escalation_severity_routes/escalation_ack keys",
+        "Escalation routes prepared as a reviewable change on the settings-as-code (security) surface, never written repo-local",
+        "Restates that the runner-execution home is unborn and nothing else runner-specific is recorded until a build trigger fires",
+        "Cites the runner design pack rather than restating its stop-criteria taxonomy or severity-resolution content"
+      ]
     }
   ]
 }

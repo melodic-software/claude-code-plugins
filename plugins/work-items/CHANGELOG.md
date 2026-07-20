@@ -3,6 +3,104 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.0]
+
+Close the work-items entry-invariant gap where a missing provider binding (`.work-item-tracker.json`)
+degraded silently — role labels fell to defaults with no signal, and seam coordination verbs surfaced
+a raw mid-flow `exit 3` instead of an actionable message (`#449`). The full remote / no-checkout mode
+(shallow-clone or `gh api`-backed codebase reads) stays deferred with a recorded trigger.
+
+### Added
+
+- **Binding presence is a third loud entry invariant (`#449`).** "Shared tracker context" now checks
+  the provider binding alongside `jq` and the seam script, but discharges it distinctly: the first two
+  have no recovery path and stop; a missing binding is loud and routable, never a silent default and
+  never a raw `exit 3`. Seam **coordination** verbs (`create-item`, `get-item`, `claim`, `renew-lease`,
+  `reclaim`, `link-blocks`, `add-sub-item`, `list-frontier`, `capabilities`) cannot run unbound, so
+  before the first one the skill surfaces a message distinguishing **setup was never run** (→
+  `/work-items:setup`) from a **deliberate gh-native
+  operating mode** (proceed for provider-mechanic operations only, accepting no race-safe claim/lease).
+  Provider-mechanic operations (list/search/close, label/comment edits) run as raw `gh`, never read
+  the binding, and proceed unbound. Caveat recorded: the gh-native path presumes a `gh`-backed
+  provider — a `local-markdown` target with no binding cannot proceed and stays a hard stop.
+  `/work-items:work` gains an explicit binding preflight **before Step 0** — its `reclaim` is the
+  lane's first coordination verb, so the check is discharged before it runs rather than surfacing as a
+  raw mid-reclaim `exit 3`.
+
+### Changed
+
+- **Silent role-label default becomes a loud warning (`#449`).** When a canonical role resolves to its
+  documented default because `.work-item-tracker.json` or its `config.role_labels` entry is absent, the
+  skills now warn loudly instead of substituting silently — a repo that remapped `config.role_labels`
+  was previously queried under the wrong strings with no signal. Applied at every action-entry
+  resolution site that inlines it (`work`, `triage`, `track` — `SKILL.md` summary plus
+  `due`/`recheck`/`audit` — and `decompose`) and in the shared invariants (`reference/tracker-seam.md`,
+  `reference/label-taxonomy.md`). A present-but-malformed, empty, or non-string configured value
+  remains a hard stop, unchanged.
+
+### Deferred
+
+- **A first-class gh-native no-lease claim path for coordination-*dependent* lanes (`/work-items:work`)
+  is parked, not built (`#449`).** Making those lanes runnable unbound (assignee-only claim, no lease,
+  races are the operator's problem) is claim-safety contract surface — deferred with the same trigger
+  as the full remote-repo mode: someone needs unattended coordination-dependent work at scale.
+
+## [0.14.4]
+
+### Fixed
+
+- **`/work-items:work` Step 5 guards against loop-prompts that restate dispatch without the claim (`#581`).**
+  Step 5's sequence already put the seam `claim` (assignee + lease) first, but a hand-authored loop-prompt
+  standing-rule that restates "dispatch every picked issue to a subagent in its own out-of-tree worktree"
+  reads as a complete execution contract on its own and never mentions claiming — so an orchestrator
+  following that loop-prompt literally did the worktree isolation and skipped the seam's race-safe claim
+  entirely (observed twice on live loop-lane sessions, leaving actively-worked issues unassigned with no
+  lease). A prominent guard note at the head of Step 5 now states the claim-before-dispatch invariant the
+  skill enforces regardless of loop-prompt wording: worktree isolation is not the collision signal between
+  concurrent lanes, the seam claim is, and dispatching a subagent before the claim is held is a defect even
+  when the loop-prompt never named the claim step. Documentation/guidance only — no skill-code or seam
+  behavior change; eval 1 gains a matching expectation.
+
+## [0.14.3]
+
+### Fixed
+
+- **GitHub adapter `renew-lease` no longer revives an expired lease (`#370`).** `renew-lease` confirmed
+  the handle still matched the active (newest non-superseded) lease but never checked liveness, so a
+  crashed or delayed holder retaining its handle past `renewed_at + ttl_hours` — with no newer lease
+  comment — could PATCH a fresh `renewed_at` and reclaim an item another worker had reasonably treated
+  as expired, defeating TTL-based handoff. It now checks `wit_lease_is_live` immediately before
+  patching and returns a conflict (exit `7`) for an expired lease instead of reviving it.
+- **GitHub adapter `reclaim` unassigns only the expired lease's holder (`#370`).** On the expired-lease,
+  no-activity path `reclaim` read all assignees and removed every one, silently unassigning a user
+  added manually after the old lease or a concurrent claimer added before the snapshot — in the
+  concurrent case leaving that claimer's live lease in place while the frontier treated the item as
+  unassigned (two workers on one item). Removal is now scoped to the lease's `holder`, and ownership is
+  revalidated immediately before mutating (the lease must still be the active, expired lease) so a
+  concurrent claim during the activity-check window aborts the reclaim as a no-op rather than stripping
+  the new owner. The shared active-lease selection is extracted to `wit_select_active_lease`
+  (`lib/lease.sh`), reused by both verbs.
+
+## [0.14.2]
+
+### Fixed
+
+- **Local-markdown expired lease returns the item to the frontier (`#367`).** For the `local-markdown`
+  binding an expired lease still left `assignees` populated, and since `reclaim` is unsupported for
+  this offline adapter (no coordination surface to run an activity check over) and `list-frontier`
+  always excludes assigned items, any abandoned local claim was permanently absent from selection after
+  its TTL expired. `list-items` now projects the effective assignee of an expired-lease item as empty,
+  so the core frontier derivation returns it to the frontier — without inventing a new adapter
+  capability. The projection is scoped to list/frontier derivation; `get-item` still reports the stored
+  assignee verbatim (parity with the GitHub adapter, whose assignee persists until reclaim).
+- **Local-markdown claim no longer reports success on a failed assignee write (`#367`).** `claim`
+  appended the inline lease marker and then set `assignees` with no return-code check, so a failed
+  assignee write (store full or unwritable) was silently ignored and a successful claim JSON was still
+  emitted — leaving a live lease marker with an empty `assignees`, which `list-frontier` presents as
+  available while later claims conflict on the live lease until it expires. The two writes are now a
+  single consistent operation: a failed assignee write rolls the just-appended marker back and fails
+  the claim (exit `1`), emitting no success record for a half-applied write.
+
 ## [0.14.1]
 
 ### Fixed

@@ -5,7 +5,7 @@
       "id": 1,
       "name": "work-auto-selects-one-item-via-seam-claim",
       "prompt": "/work-items:work",
-      "expected_output": "Reclaims stale leases at session start (idempotent), auto-selects exactly ONE item from the frontier (open, unblocked, unassigned) via the seam list-frontier, then acquires it through the seam claim verb (assignee + lease record, race-safe) before executing it. Autonomous execution defaults to orchestrator-dispatch — a scope-fenced implementation subagent in its own out-of-tree worktree, orchestrator never editing source. The claim identity is the authenticated session user, never the bot.",
+      "expected_output": "Reclaims stale leases at session start (idempotent), auto-selects exactly ONE item from the frontier (open, unblocked, unassigned) via the seam list-frontier, then acquires it through the seam claim verb (assignee + lease record, race-safe) before executing it. Autonomous execution defaults to orchestrator-dispatch — a scope-fenced implementation subagent in its own out-of-tree worktree, orchestrator never editing source. The seam claim is a non-optional prerequisite of dispatch: an external loop-prompt restating dispatch-in-a-worktree never substitutes for it, and dispatching before the claim is held is a defect. The claim identity is the authenticated session user, never the bot.",
       "files": [],
       "expectations": [
         "Runs an idempotent session-start reclaim (`work-item-tracker.sh reclaim`) before selecting — never releases a live lease",
@@ -13,6 +13,7 @@
         "Selects from the frontier via `work-item-tracker.sh list-frontier` (open, `blocked_by_count == 0`, unassigned); `--autonomous` additionally excludes `needs-human`",
         "Acquires via the seam `work-item-tracker.sh claim` (assignee + lease comment, same-identity aware) — NOT a `status:considering`/`status:claimed` label hold protocol",
         "On a lost race (`claim` exit 7) advances to the next candidate rather than retrying the same item",
+        "Treats the seam claim (assignee + lease) as a non-optional prerequisite of dispatch — an external loop-prompt restating \"dispatch in an out-of-tree worktree\" does not substitute for it, and dispatching a subagent before the claim is held is a defect even when the loop-prompt never named the claim step",
         "For autonomous execution, defaults to orchestrator-dispatch — dispatches a scope-fenced implementation subagent that edits in its own out-of-tree worktree (chaining to `/implementation:implement-dispatch` for mechanics, `/source-control:worktree` for the worktree), orchestrator never edits source; the interactive all-inline path is `/implementation:implement`",
         "Whichever execution path runs, follows every step of the consuming project's development workflow first — no shortcuts, no skipped research"
       ]
@@ -43,6 +44,20 @@
         "Does a full-diff read before opening a PR when the diff touches skill frontmatter descriptions/trigger keywords, cross-plugin contracts, or hooks",
         "Does not resolve the VALID-but-deferred finding without a follow-up issue filed via /work-items:track add and cited in both the reply and `## Related`",
         "Hands the PR off to /source-control:babysit-prs and never merges — work's lane ends at PR creation plus handoff"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "work-unbound-binding-is-loud-and-routable-not-raw-exit-3",
+      "prompt": "/work-items:work\n\nThere is a full local checkout (git top-level resolves) but no .work-item-tracker.json anywhere in the repo — /work-items:setup was never run here.",
+      "expected_output": "Before the first seam coordination verb (the Step 0 session-start reclaim), the skill detects the missing binding and surfaces a clear, actionable message rather than dead-ending on the raw seam exit 3. The message distinguishes the two ways to arrive here: setup was never run (remediate by running /work-items:setup to bind the provider) versus a deliberate gh-native operating mode (proceed for provider-mechanic operations only — list/search/comment/label — accepting that no race-safe claim/lease is available and coordination verbs stay unavailable). It never silently substitutes role-label defaults: when a canonical role resolves to its default because the binding is absent, it warns loudly.",
+      "files": [],
+      "expectations": [
+        "Detects the missing `.work-item-tracker.json` binding before the first coordination verb rather than surfacing a raw seam `exit 3` mid-flow",
+        "Surfaces an actionable message distinguishing `setup was never run` (→ run `/work-items:setup`) from a deliberate gh-native operating mode",
+        "Names the gh-native tradeoff: provider-mechanic operations proceed unbound, but no race-safe claim/lease is available and seam coordination verbs stay unavailable",
+        "When a canonical role resolves to its default because the binding is absent, warns loudly instead of substituting the default silently",
+        "Does not fabricate or forge a binding to proceed — surfaces the choice instead"
       ]
     }
   ]

@@ -263,6 +263,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Lifecycle artifact protocol | [`docs/PLUGIN-ARTIFACT-PROTOCOL.md`](PLUGIN-ARTIFACT-PROTOCOL.md) |
 | Shared hook utility library | `lib/hook-utils.sh`, synced by `scripts/sync-hook-utils.sh` |
 | Cross-plugin shared-source clusters | `scripts/cross-plugin-source-registry.txt` |
+| Consumer-config layering and precedence | [`docs/conventions/consumer-config-layering/`](conventions/consumer-config-layering/README.md) |
 | Ecosystem command resolution | [`docs/conventions/ecosystem-commands/`](conventions/ecosystem-commands/README.md) |
 | Hook telemetry | [`docs/conventions/hook-telemetry/`](conventions/hook-telemetry/README.md) |
 | Permission-rule hygiene | [`docs/conventions/permission-rule-hygiene/`](conventions/permission-rule-hygiene/README.md) |

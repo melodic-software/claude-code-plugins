@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.14.0]
+## [0.15.0]
 
 ### Added
 
@@ -28,6 +28,43 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `babysit_merge_block_labels`. Absent the flag the merge gate is byte-for-byte its prior self, so
   worker/autopilot's existing gate-proven merges are unchanged. `safety.md`'s "Never do
   automatically: merge" contract is updated deliberately to codify the tier and its criteria.
+
+## [0.14.0]
+
+### Added
+
+- **The convention config is now three layers, not one.** `source-control.md` was resolved as a
+  single project-level file, so a commit convention could not follow an operator across repos or
+  machines and a personal deviation from team policy had nowhere to live — per-machine
+  reconfiguration meant editing the team-tracked file. It now resolves
+  `~/.claude/source-control.md` (user-global) → `.claude/source-control.md` (team, tracked) →
+  `.claude/source-control.local.md` (gitignored personal overlay), the order the tracked-rich-config
+  seam mandates. `/commit`, `/pull-request`, and `/setup` all read the layering rules from one new
+  bundled reference instead of restating them.
+- **`/setup apply` takes a `layer=user|team|local` target**, defaulting to `team`, and infers the
+  layer from a request that names one ("my personal convention", "for all my repos"). `/setup check`
+  now renders the effective merge as a row per key with the layer that supplied it, rather than
+  reporting the team file's values as if they were the whole convention.
+
+### Changed
+
+- **Merge semantics are per-key override, a recorded deviation from the seam's concatenating
+  default.** A later layer replaces an earlier layer's value key by key and never drops the base
+  layer wholesale; a key absent from a later layer keeps the earlier value. Concatenation is right
+  for the first-party `security-guidance` precedent, whose layers are prose blocks that genuinely
+  accumulate. Every key here is a scalar or a closed list: two `subject_pattern` regexes cannot
+  concatenate into a third valid regex, and a concatenated `trailer_policy` would emit two trailers.
+
+### Fixed
+
+- **`/setup`'s gitignore guard no longer applies one verdict to layers that need opposite ones.** A
+  gitignored *team* file remains a hard STOP — teammates would never receive the shared convention.
+  A gitignored *personal overlay* is the success condition, and the overlay is never staged; when it
+  is not ignored, `/setup` surfaces the `.claude/*.local.*` line for the consumer to add rather than
+  editing their `.gitignore`. The user-global file is outside the worktree, so no git command runs
+  against it at all — `git check-ignore` and `git status` on a path outside the repository would
+  produce a meaningless verdict, or a confidently wrong one when the home directory is itself a
+  repository.
 
 ## [0.13.4]
 

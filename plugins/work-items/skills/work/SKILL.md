@@ -34,6 +34,20 @@ derive `<slug>` per its slug spec and, on the session's first memory-tier write,
 memory root's self-ignore guard (a `.gitignore` containing `*`, created and announced when absent).
 Tick each step as completed.
 
+## Binding preflight (before Step 0)
+
+Step 0's `reclaim` is this lane's **first seam coordination verb**, so the binding-presence entry
+invariant ([`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md)
+"Shared tracker context") is discharged **here, before Step 0 runs** — never left to surface as a raw
+`exit 3` mid-reclaim. If `.work-item-tracker.json` does not resolve, surface the actionable choice
+before attempting `reclaim`: **(1) setup was never run** → run `/work-items:setup` to bind the
+provider; **(2) a deliberate gh-native operating mode** → this lane is coordination-*dependent* (Step
+0 `reclaim`, `list-frontier`, and the Step 5 `claim` are all seam verbs that need the binding), so an
+unbound run cannot acquire a race-safe claim/lease. Do NOT silently skip the claim and dispatch anyway
+(claim-before-dispatch is a Step 5 invariant): surface that the lane is unbound and stop for the
+remediation. A first-class gh-native no-lease claim path for this lane is a parked decision, not yet a
+supported mode. A `local-markdown` target with no binding cannot proceed at all.
+
 ## Step 0: Session-start reclaim (idempotent)
 
 Before selecting, clear stale claims left by crashed or abandoned sessions (an idempotent entry step). Enumerate currently-assigned items (adapter: "List items", assigned filter — the rows carry `number`), resolve each `number` to a fully-qualified id (adapter: "Resolve item ID"; `reclaim` rejects a bare number), and run the seam `reclaim` verb on each id — idempotent; outcome + activity-check semantics per `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Lease protocol".
@@ -63,8 +77,9 @@ Exit `6` (capability-unsupported, CONTRACT.md "Exit codes") means the bound prov
 ### Role-label preflight
 
 Before any tracker read, resolve `recurring-maintenance` from `.work-item-tracker.json`
-`config.role_labels`, using `recurring` only when the file or entry is absent. Stop on a malformed,
-empty, or non-string configured value. Use the resolved string for every recurring/non-recurring
+`config.role_labels`, using `recurring` only when the file or entry is absent — and warn loudly when
+it defaults for that reason (surface it, never silent). Stop on a malformed, empty, or non-string
+configured value. Use the resolved string for every recurring/non-recurring
 filter and every adapter query in this action; do not compare labels against the default literal after
 a remap.
 
@@ -126,6 +141,8 @@ Before claiming, verify the item is still actionable:
 - If stale (work already done): close it with a comment (adapter: "Close item") and advance to the next candidate.
 
 ### Step 5: Claim and execute
+
+> **The seam claim (assignee + lease) is a non-optional prerequisite of this step — claim-before-dispatch is an invariant this skill enforces, not merely an implication of the sub-step ordering below.** An external loop-prompt or standing-rule that restates "dispatch every picked issue to a subagent in its own out-of-tree worktree" describes only the execute sub-step; it is **not** a complete execution contract and is **not** a substitute for claiming. Worktree isolation is not a race-safe collision signal between concurrent lanes — the seam claim is. Acquire the claim first, before branching or dispatching a subagent, regardless of whether the invoking loop-prompt mentioned claiming: dispatching a subagent before the claim is held is a defect even when the loop-prompt's own wording never named the claim step.
 
 On user confirmation ("yes"):
 

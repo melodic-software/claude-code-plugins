@@ -1,0 +1,30 @@
+# Grandfathered orphaned eval fixtures — existing debt this gate must not
+# red-line, each owned by (or awaiting) a burn-down issue. Each line is one
+# exact fixture path, matched by full-string EQUALITY (not prefix): a line
+# exempts only that file from check-orphaned-fixtures.sh --check. This is a
+# snapshot of today's known orphans, so a NEW orphan — whether added under an
+# already-listed directory or as a `<name>.json.bak` / `<name>.jsonl` sibling
+# of a listed file — matches no line and is red-lined rather than grandfathered.
+#
+# An entry here is a standing promise the debt is tracked, not a place to hide
+# new orphans: --check fails on a STALE entry (one that no longer shadows any
+# orphan), so a line cannot outlive its debt. Delete the line when the owning
+# issue lands the fix. Do NOT add a plugin's fixtures here to dodge the gate on
+# NEW work — reference them from a grader instead.
+
+# eval files[] entry and graded by no test) plus the otlp-demo sample corpus,
+# issue #662 (attach expected-verdict blocks and wire them into the grader, or
+# demote them to documentation exemplars out of evals/fixtures/); otlp-demo is
+# the same ungraded class in the same skill. autonomy is WP-lane-owned — the fix
+# is coordinated there, not here.
+plugins/autonomy/skills/setup/evals/fixtures/otlp-demo/pipeline.jsonl
+plugins/autonomy/skills/setup/evals/fixtures/otlp-demo/session-metrics.jsonl
+plugins/autonomy/skills/setup/evals/fixtures/otlp-demo/session-spans.jsonl
+plugins/autonomy/skills/setup/evals/fixtures/otlp-demo/trigger.jsonl
+
+# knowledge youtube-digest skill: this data file lives under evals/fixtures/ but
+# is named only from SKILL.md / vendor TUNING.md prose — no eval files[] entry
+# and no test consume it. Surfaced by this gate's initial discover run; tracked
+# by issue #688 (wire it into a grader, or move it out of evals/fixtures/ if it
+# is reference data rather than a fixture).
+plugins/knowledge/skills/youtube-digest/evals/fixtures/variation-matrix-backlog.json

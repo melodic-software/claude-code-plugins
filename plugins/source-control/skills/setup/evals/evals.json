@@ -52,6 +52,18 @@
       ]
     },
     {
+      "id": 5,
+      "name": "subject-pattern-always-machine-checkable",
+      "prompt": "/source-control:setup\n\nOur convention is: start with a ticket number, then a colon, then a short summary in the imperative mood.",
+      "expected_output": "Translates the prose description into a single anchored regex (e.g. ^[A-Z]+-\\d+: .+) and confirms the translation with the user before persisting, rather than writing the plain-language description itself to subject_pattern. Never persists a free-text subject_pattern.",
+      "files": [],
+      "expectations": [
+        "Translates a prose-described convention into an anchored regex before persisting",
+        "Confirms the translated regex with the user rather than silently guessing",
+        "Never writes a plain-language description as subject_pattern in .claude/source-control.md"
+      ]
+    },
+    {
       "id": 6,
       "name": "reconfiguration-stages-updated-config",
       "prompt": "/source-control:setup\n\nWe're switching from Conventional Commits to a ticket-prefix convention like WEB-123: fix the thing.",
@@ -65,15 +77,83 @@
       ]
     },
     {
-      "id": 5,
-      "name": "subject-pattern-always-machine-checkable",
-      "prompt": "/source-control:setup\n\nOur convention is: start with a ticket number, then a colon, then a short summary in the imperative mood.",
-      "expected_output": "Translates the prose description into a single anchored regex (e.g. ^[A-Z]+-\\d+: .+) and confirms the translation with the user before persisting, rather than writing the plain-language description itself to subject_pattern. Never persists a free-text subject_pattern.",
+      "id": 7,
+      "name": "check-renders-effective-merge-with-winning-layer",
+      "prompt": "/source-control:setup check",
+      "expected_output": "Reports one effective-configuration table across all three layers — a row per key with its resolved value and which layer supplied it — rather than the tracked team file's values alone. The personal overlay's trailer_policy: none wins that key; the team file supplies the rest. Also reports a per-layer presence line, and reports the local overlay's gitignore status as a PASS when it is ignored rather than as the team file's hard-STOP condition.",
+      "files": [".claude/source-control.md", ".claude/source-control.local.md"],
+      "expectations": [
+        "Reports the effective merged configuration, not one layer's values presented as the whole convention",
+        "Names which layer supplied each resolved key (the overlay wins trailer_policy; the team file supplies subject_pattern)",
+        "Treats a gitignored personal overlay as PASS, not as the FAIL a gitignored team file produces",
+        "Reports each layer's presence, including absent layers, as INFO rather than failure"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "routes-personal-request-to-local-overlay-not-team-file",
+      "prompt": "/source-control:setup apply\n\nI personally want ticket-prefixed subjects like WEB-123: fix the thing on this repo, but don't change what the team uses.",
+      "expected_output": "Writes .claude/source-control.local.md, not the tracked team .claude/source-control.md, and says which layer it picked before writing. Carries only the keys that differ from the layers below rather than restating the whole config. Verifies the overlay is gitignored — an ignore match is the success condition here, the inverse of the team file's check — never runs git add on it, and if it is not ignored, surfaces the .claude/*.local.* line for the consumer to add rather than editing their .gitignore. Closes by reporting the resulting effective merge, not only the keys written.",
+      "files": [".claude/source-control.md"],
+      "expectations": [
+        "Writes the personal overlay path, leaving the tracked team file unmodified",
+        "States which layer it selected before writing",
+        "Writes only the differing keys instead of restating every key from the team layer",
+        "Treats a git check-ignore match on the overlay as success, and never stages the overlay with git add",
+        "When the overlay is not ignored, recommends the .claude/*.local.* gitignore line instead of editing the consumer's .gitignore",
+        "Reports the resulting effective merge across layers rather than only the keys just written"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "user-global-write-runs-no-repo-git-checks",
+      "prompt": "/source-control:setup apply layer=user subject_pattern=Conventional Commits",
+      "expected_output": "Writes ~/.claude/source-control.md and runs no git command against it — git check-ignore, git status, and git add all target the repository worktree and would produce a meaningless or confidently wrong verdict on a path outside it (including when the home directory is itself a git repository). Confirms the file exists with the intended content, reports the path, and does not claim the value is staged or committed.",
       "files": [],
       "expectations": [
-        "Translates a prose-described convention into an anchored regex before persisting",
-        "Confirms the translated regex with the user rather than silently guessing",
-        "Never writes a plain-language description as subject_pattern in .claude/source-control.md"
+        "Writes the user-global path rather than a repo path",
+        "Runs no git check-ignore, git status, or git add against the user-global file",
+        "Does not report the user-global write as staged or awaiting a commit",
+        "Reports the resulting effective merge, noting that an existing team file or personal overlay still overrides these values per key"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "non-interactive-overlay-omits-keys-equal-to-lower-layers",
+      "prompt": "/source-control:setup apply layer=local subject_pattern=Conventional Commits",
+      "expected_output": "Resolves the layers below the overlay before writing. The team file already declares the same Conventional Commits subject_pattern and a pr_title_pattern of Same as subject_pattern, so neither key is a genuine deviation and neither is written — pinning them in the overlay would make a later team convention change silently ineffective on this machine. Reports that the requested value already holds and that no overlay was needed, rather than materializing an overlay that restates the team layer.",
+      "files": [".claude/source-control.md"],
+      "expectations": [
+        "Reads the team layer before writing, even though the invocation is non-interactive and names an explicit value",
+        "Omits subject_pattern and pr_title_pattern from the overlay because they already equal the effective lower-layer merge",
+        "Does not write an overlay whose keys restate the team layer",
+        "Tells the user the requested convention already holds instead of reporting a write it did not need to make"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "non-interactive-update-preserves-unrequested-overlay-keys",
+      "prompt": "/source-control:setup apply layer=local subject_pattern=^[A-Z]+-\\d+: .+",
+      "expected_output": "The personal overlay already declares trailer_policy: none, which this invocation says nothing about. The skill reads the target layer before rewriting it and carries that key through unchanged, replacing only subject_pattern (and the pr_title_pattern derived from it). It does not treat a rewrite as a fresh file, which would silently drop the active personal trailer override and change commit behavior the user never asked to change.",
+      "files": [".claude/source-control.md", ".claude/source-control.local.md"],
+      "expectations": [
+        "Reads the existing overlay before rewriting it rather than composing the file from the invocation alone",
+        "Preserves the overlay's existing trailer_policy: none, which the invocation did not mention",
+        "Replaces only subject_pattern and the pr_title_pattern derived from it",
+        "Removes a key only when the user explicitly clears it, never as a side effect of an unrelated one-key update"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "derived-type-list-drops-when-pattern-becomes-custom",
+      "prompt": "/source-control:setup apply layer=team subject_pattern=^[A-Z]+-\\d+: .+",
+      "expected_output": "The existing team file declares Conventional Commits plus the bundled 11-type type_list. Replacing subject_pattern with a custom ticket-prefix regex drops type_list entirely rather than carrying it through as an unrequested key — type_list is derived from subject_pattern, and a custom pattern has no type vocabulary, so preserving it would leave /commit pre-checking against types the pattern does not use. trailer_policy and any other independent key are still carried through unchanged.",
+      "files": [".claude/source-control.md"],
+      "expectations": [
+        "Drops the type_list section because the new subject_pattern is not Conventional-Commits-shaped",
+        "Does not treat type_list as an independent unrequested key to preserve",
+        "Still carries through independent keys such as trailer_policy that the invocation did not name",
+        "Leaves no config in which type_list coexists with a custom subject_pattern"
       ]
     }
   ]

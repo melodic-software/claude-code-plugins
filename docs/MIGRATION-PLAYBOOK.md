@@ -219,7 +219,7 @@ one increment past the precedent). Behavioral gaps the docs leave open are resol
      *audience* or *deployment* — a different framing, ranking lens, or branding per team / client /
      context — add a profile axis to the folder form. Files at `.claude/<plugin>/` are the **default
      profile**; each `.claude/<plugin>/<profile-name>/` subfolder is a **named profile** that overlays
-     the default per key (the same additive semantics as the resolution rule below — a named profile
+     the default per key (the same additive semantics the layering contract below fixes — a named profile
      refines the root, absent keys fall through). A single-config consumer never nests: its files sit at
      the root, which *is* the default profile, so growing a profile later is additive (drop a sibling
      subfolder), never a reorg — and there is no reserved `default/`/`team/` name to collide with. Pick
@@ -231,13 +231,11 @@ one increment past the precedent). Behavioral gaps the docs leave open are resol
      splits config across *plugins* (concern axis); this splits it across *audiences* within one plugin
      (profile axis) — the two compose (`.claude/<concern>/<profile-name>/`). Reference adopter:
      [`ai-briefing`](ai-briefing-design.md).
-   - **Resolution + override semantics.** Resolve **user-global → team (project) → local overlay**,
-     **additive-preferred**: a later layer adds to or refines earlier layers rather than silently
-     replacing them. The first-party precedent concatenates; a plugin that genuinely must override does
-     so per key, never by dropping the base layer wholesale.
-   - **Recommended consumer `.gitignore`.** Ship the overlay convention with the one line the consumer
-     adds: `.claude/*.local.*` (and `.claude/<plugin>/**/*.local.*` for the folder form) — personal
-     overlays stay out of version control, team config stays tracked.
+   - **Resolution + override semantics, overlay naming, and the recommended consumer `.gitignore`
+     line** are owned by [`docs/conventions/consumer-config-layering/`](conventions/consumer-config-layering/README.md)
+     — the layering axis is cross-cutting, so it is contracted once there rather than restated per
+     seam. A surface declares its own keys and schema here or in its own owner doc, and points there
+     for how its layers merge.
 3. **Consumer `CLAUDE.md` / `.claude/rules` steering. [SPEC]** A plugin's skill and agent components
    run in the model's context and already read the consuming project's own rules — the default surface
    for project conventions, naming, and policy, requiring no plugin-side wiring. (Hook scripts do not
@@ -655,8 +653,15 @@ plugins-reference, and hooks pages 2026-07-17; re-verify per the `CLAUDE.md` fre
    never put a secret there. Claude Code reads this key from user settings, `--settings`, and managed settings,
    not project or local settings. Endpoints and toggles are fine as non-sensitive. Every option is documented.
 4. **Cache isolation — no reach-outs.** References only files inside the plugin via `${CLAUDE_PLUGIN_ROOT}`;
-   persists state in `${CLAUDE_PLUGIN_DATA}`. No `../` reach-outs, no absolute paths, no reading consumer files
-   outside `${CLAUDE_PROJECT_DIR}`.
+   persists state in `${CLAUDE_PLUGIN_DATA}`. No `../` reach-outs, no constructed absolute paths, no reading
+   **consumer repository** files outside `${CLAUDE_PROJECT_DIR}`.
+   - **The operator's own `~/.claude/` is not consumer repository data.** Reading a documented user-global
+     config file there is sanctioned rather than a reach-out: criterion 3 above already stores consumer
+     credentials at `~/.claude/.credentials.json`, and seam 2 mandates an optional `~/.claude/<plugin>.md`
+     user-global layer — a criterion that forbade the read would contradict both. Read only the documented
+     path for the plugin's own declared config; anything broader is a reach-out again. What this criterion
+     targets is a plugin wandering out of the repository it was pointed at, not the operator's own Claude
+     Code home.
 5. **Data egress — telemetry & network.** Any telemetry (e.g. `HOOK_TELEMETRY_SINK`) is opt-in (unset = exact
    no-op), never writes to the hook's stdout/`additionalContext` channel, and emits only the declared envelope —
    no payload beyond the documented schema. Name any other outbound network call and justify it.

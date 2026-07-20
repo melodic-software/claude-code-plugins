@@ -112,9 +112,11 @@ paid sinks are advisory + explicit opt-in with cost surfaced first.
    `OTEL_RESOURCE_ATTRIBUTES` carrying `autonomy.work_item.url=<canonical item URL>` (the
    vendor attaches resource attributes to every metric datapoint and event — verified against
    the official monitoring doc). Headless `-p` sessions inherit `TRACEPARENT`/`TRACESTATE`
-   from the environment; interactive sessions deliberately ignore inbound trace context.
-   Traces stay beta behind `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1`; the slice treats spans as
-   optional and never depends on beta span shapes.
+   from the environment only under the enhanced-telemetry beta — the default surface starts
+   a fresh root and joins query-side via the resource attribute (verified empirically) — and
+   interactive sessions deliberately ignore inbound trace context. Traces stay beta behind
+   `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1`; the slice treats spans as optional and never
+   depends on beta span shapes.
 4. **Record the binding** — sink class, endpoint or artifact path, and the semconv pin land
    as the `telemetry` section of the schema-versioned binding.
 5. **Conformance** — run
@@ -393,6 +395,20 @@ resolution order.
    `signal.producer_identity` equals that entry's ratified `producer_identity`; a missing
    `signal.routine`, an unresolvable surface, an identity↔surface mismatch, a raw link outside the
    ratified prefix, a `producer_identity` mismatch, or an unclassified class is a finding.
+
+## Runner note
+
+The [runner design pack](${CLAUDE_PLUGIN_ROOT}/reference/runner.md) is bindable-when-born:
+until a build trigger fires and the runner-execution home is born, setup records NOTHING
+runner-specific — no probe, no wiring, no binding section for the unborn home. The single
+exception is escalation notification routes, which already home on the security surface: the
+severity axis (`notice`/`attention`/`urgent`) and the personal-push tier are prepared as route
+options through the security binding's `escalation_severity`, `escalation_severity_routes`, and
+`escalation_ack` keys — a reviewable change on the settings-as-code home like every other
+security axis, never repo-local. The route set, its two-step severity resolution, and the
+per-class default severities are specified by the
+[runner escalation leaf](${CLAUDE_PLUGIN_ROOT}/reference/runner/escalation.md); this note points
+there rather than restating them.
 
 ## Gotchas
 
