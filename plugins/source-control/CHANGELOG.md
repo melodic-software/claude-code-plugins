@@ -16,8 +16,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
   CI gate on push. The regex now drops `Refs #N` (`^No related issue:` only), so any body the local
   gate passes the validator also passes (a strict safe subset). `Refs #N` remains a valid
   link-without-close reference in the `## Related` section; the §2.4.0 orphan-PR prompt, the §2.4.1
-  asymmetry note, and the §2.4.2 gate messages were reconciled to match. Narrow same-repo fix
-  (option 1); extending the upstream validator to accept `Refs #N` was out of scope.
+  asymmetry note, and the §2.4.2 gate messages were reconciled to match. The §2.4.0 multi-issue
+  prompt still offers `Refs #Y`, but its accepted `Refs` lines now route into `## Related` rather
+  than onto the closing-keyword line, and the `closed-branch-issue-does-not-autoclose` eval's
+  expected output was aligned to the two-option orphan prompt (`Closes` or `No related issue:`).
+  Narrow same-repo fix (option 1); extending the upstream validator to accept `Refs #N` was out of
+  scope.
 
 ## [0.13.1]
 

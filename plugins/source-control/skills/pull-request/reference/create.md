@@ -131,7 +131,7 @@ if [[ -n "$ISSUE_NUM" ]]; then
     CLOSES_LINE="Closes #${ISSUE_NUM}"
   else
     echo "⚠ Branch suggests Closes #${ISSUE_NUM}, but that issue is missing or not open in this repo. Falling back to interactive prompt." >&2
-    ISSUE_NUM=""   # fall through to orphan-PR 3-option prompt below
+    ISSUE_NUM=""   # fall through to orphan-PR 2-option prompt below
   fi
 fi
 # If still empty, the orphan-PR prompt populates CLOSES_LINE below.
@@ -143,7 +143,7 @@ fi
 
 > *"This PR closes #N. Any other issues to close on merge? List them one per line (`Closes #X`), use `Refs #Y` to link without closing, or `no` to skip."*
 
-Append each accepted line to `${CLOSES_LINE}` (newline-separated). GitHub accepts one keyword per issue, comma- or newline-separated.
+Append each accepted `Closes #X` line to `${CLOSES_LINE}` (newline-separated); route each `Refs #Y` line into the `## Related` section instead (§2.4.1, replacing its `N/A`), never onto the closing-keyword line — the same rule the orphan-PR and `## Related` guidance below apply to every non-closing reference. GitHub accepts one keyword per issue, comma- or newline-separated.
 
 **Branch lacks issue number (orphan PR — drift sweep, hotfix, refactor):** prompt with two options:
 
