@@ -124,7 +124,7 @@ else
   PROJECT_ROOT=""
 fi
 
-# issue #389 F1: hpp::scan_text's repo-path branch matches PROJECT_ROOT as a
+# hpp::scan_text's repo-path branch matches PROJECT_ROOT as a
 # literal substring and is never OS-suppressed. That is a valid machine-specific
 # marker ONLY when PROJECT_ROOT is a genuine git checkout that is not the user's
 # home (nor an ancestor of it). When the project dir is home — e.g. a
