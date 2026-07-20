@@ -21,3 +21,11 @@ All notable changes to the `github` plugin are documented here. Format follows
 - The `setup` skill (user-invoked only): `check` verifies `gh`, auth, credential-modality
   picture, and per-layer config verdicts; `apply` writes `.claude/github/` config idempotently
   via interview. Drafted `setup` eval cases.
+- The `advise` skill: forward-looking guidance and hand-holding grounded in live `gh` state and
+  freshly fetched official docs, proactive in-session suggestions (offered, never acted on), and
+  a declared routing boundary against `audit` in both skill descriptions. Drafted `advise` eval
+  cases.
+- The `--apply` resolution flow in `reference/change-routing.md` (scope+target resolved first —
+  org/enterprise targets asked, never silently inferred; then `propose` / `guided-apply` with
+  per-step confirms, doc provenance, and post-write read-back / `handoff`; unconfigured →
+  `propose`), wired into both `audit` and `advise`.

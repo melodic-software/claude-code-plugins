@@ -12,8 +12,8 @@ reach, the skills say so honestly instead of guessing.
 
 | Skill | Status | What it does |
 |---|---|---|
-| `/github:audit <area…>` | shipped | Read-only findings over one, several, or all coverage areas: current-state review, drift vs declared conventions, standards conformance, cost signals. |
-| `/github:advise` | planned | Forward-looking guidance and hand-holding ("how should I configure X", "walk me through Y"). |
+| `/github:audit <area…> [--apply]` | shipped | Read-only findings over one, several, or all coverage areas: current-state review, drift vs declared conventions, standards conformance, cost signals. |
+| `/github:advise <topic> [--apply]` | shipped | Forward-looking guidance and hand-holding ("how should I configure X", "walk me through Y"), plus proactive in-session suggestions. |
 | `/github:setup` | shipped | Verify prerequisites (`gh` present and authenticated, config layers) and write consumer config — `check` and `apply`, user-invoked only. |
 
 Areas are **arguments, not skills** — the coverage matrix (rulesets, billing, security model,
@@ -31,8 +31,10 @@ GraphQL mutations). It additionally declares one new verb at this coupling site:
   design/forward-looking ("how should I…") where `audit` is current-state/backward-looking
   ("what is…", "what drifted…").
 
-Mutation is only ever reachable behind an explicit override argument, resolves through the
-consumer's declared change routing, and keeps the user in the loop for every write.
+Mutation is only ever reachable behind the explicit `--apply` override argument, resolves through
+the consumer's declared change routing (the `--apply` resolution flow in
+[`reference/change-routing.md`](reference/change-routing.md)), and keeps the user in the loop for
+every write.
 
 ## Prerequisites
 

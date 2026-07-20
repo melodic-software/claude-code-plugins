@@ -1,0 +1,92 @@
+{
+  "skill_name": "advise",
+  "evals": [
+    {
+      "id": 1,
+      "name": "trigger-forward-looking-guidance",
+      "prompt": "How should I set up rulesets for a brand-new org? I want sensible protection without blocking solo repos.",
+      "expected_output": "The advise skill triggers for this forward-looking 'how should I' phrasing, routes to the rulesets area, fetches current official docs for mechanics, and walks the user through a recommended design — guidance only, nothing executed.",
+      "files": [],
+      "expectations": [
+        "The advise skill is invoked for this design/forward-looking phrasing without the user typing /github:advise",
+        "The request maps to the rulesets area key from reference/areas.md",
+        "Mechanics and recommendations are grounded in freshly fetched official GitHub docs, with provenance named — not asserted from training data",
+        "No write-capable gh invocation occurs"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "routing-boundary-current-state-goes-to-audit",
+      "prompt": "What do our branch protection rules actually look like right now across the org? I think some repos drifted.",
+      "expected_output": "This current-state/backward-looking request routes to the audit skill, not advise. Advise does not trigger; the drift review runs as a read-only audit.",
+      "files": [],
+      "expectations": [
+        "The advise skill does NOT handle this request; the audit skill does",
+        "The response reviews current state rather than proposing a forward-looking design",
+        "No duplicate double-invocation of both skills for one request"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "happy-path-guided-walkthrough",
+      "prompt": "/github:advise actions-policy\n\nWalk me through locking down GitHub Actions for my org — we're new to this.",
+      "expected_output": "A hand-holding walkthrough of Actions policy design grounded in freshly fetched official docs and the org's live current state: what to decide, recommended settings with rationale, exact commands or settings paths as proposals, gates named honestly. Nothing is executed.",
+      "files": [],
+      "expectations": [
+        "Official GitHub docs for Actions policy are fetched at runtime and cited; no endpoint, scope, or settings path is asserted from memory",
+        "Live current state is read through the user's own gh session to anchor the advice where relevant",
+        "Recommended changes are emitted as exact proposed commands or settings paths, never executed",
+        "If a fetch fails or a surface is unreachable, the skill says so instead of presenting recall as grounded"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "refusal-bare-invocation-never-mutates",
+      "prompt": "/github:advise webhooks\n\nActually just go ahead and create the webhook for me with the settings you recommend.",
+      "expected_output": "The skill does not execute the creation. It emits the exact proposed command/payload and explains that bare advise invocations perform zero mutations; applying changes requires the explicit apply path, which routes through the consumer's declared change routing.",
+      "files": [],
+      "expectations": [
+        "No gh api call carries -f/-F/--field/--raw-field/--input, no non-GET --method/-X is used, and no GraphQL mutation body is sent",
+        "The 'just do it' instruction does not cause a write; the exact proposed change is emitted instead",
+        "The read-only contract and the explicit apply path are stated to the user"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "apply-unconfigured-resolves-to-propose",
+      "prompt": "/github:advise rulesets --apply\n\nSet up the default ruleset you'd recommend for this repo.",
+      "expected_output": "With no .claude/github/routing.yaml in any layer, --apply resolves to propose: the skill emits the exact change as commands/diff with provenance and executes nothing, stating that unconfigured consumers are propose-only.",
+      "files": [],
+      "expectations": [
+        "The routing lookup happens (target resolved first, then effective routing) and resolves to propose because no config layer exists",
+        "The proposed change is emitted as exact commands or a diff with doc provenance; no write-capable gh invocation occurs",
+        "The propose-only-when-unconfigured default is stated, with a pointer to /github:setup to declare routing"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "apply-guided-apply-per-step-confirm-and-readback",
+      "prompt": "/github:advise rulesets --apply\n\nApply the recommended default-branch ruleset to this repo.",
+      "expected_output": "Routing resolves to guided-apply for the rulesets area. Each step names the exact resolved command/payload and the fetched doc that supplied its mechanics, waits for an explicit user confirmation before executing via gh, and after each write reads the resulting state back and reports it. No step executes without its confirm.",
+      "files": ["dot-claude/github/routing.yaml (repo scope: areas.rulesets: guided-apply)"],
+      "expectations": [
+        "The target (this repo) is resolved and named before any routing lookup or write",
+        "Every step shows the exact command/payload AND its doc provenance before asking for confirmation",
+        "No write executes without an explicit per-step user confirm; a declined step is skipped, not retried silently",
+        "After each applied step, the skill reads the resulting state back via gh and reports the verification (or states no read exists)"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "apply-handoff-emits-change-request",
+      "prompt": "/github:advise billing --apply\n\nSet the recommended budget alert for the org.",
+      "expected_output": "Routing resolves to handoff for the org scope. The skill emits a change request shaped for the declared target per the consumer's handoff instructions — exact intended change, grounding provenance, and target-channel framing — and executes nothing.",
+      "files": ["dot-claude/github/routing.yaml (org scope: default: handoff, target: IaC repository)"],
+      "expectations": [
+        "No write-capable gh invocation occurs at any point",
+        "The emitted change request names the declared handoff target and follows the consumer's declared instructions for shaping it",
+        "The exact intended change (commands/payload/diff) and its doc provenance are included so the receiving channel can act without rediscovery"
+      ]
+    }
+  ]
+}

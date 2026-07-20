@@ -1,7 +1,7 @@
 ---
 name: audit
-description: "Read-only audit of the GitHub settings/admin plane through the user's own gh CLI: current-state review, drift vs declared conventions, standards conformance, and cost signals over any coverage area (rulesets, billing, security model, Actions policy, webhooks, PATs, apps, and more). Use when: 'audit my GitHub org', 'check billing', 'review repo settings', 'GitHub drift', 'are my rulesets consistent', 'what does our Actions policy allow', 'review org security posture'. Bare invocation performs zero mutations — findings only; grounded in live gh state and freshly fetched official GitHub docs, never recall."
-argument-hint: "[area ...]"
+description: "Read-only audit of the GitHub settings/admin plane through the user's own gh CLI: current-state review, drift vs declared conventions, standards conformance, and cost signals over any coverage area (rulesets, billing, security model, Actions policy, webhooks, PATs, apps, and more). Use when: 'audit my GitHub org', 'check billing', 'review repo settings', 'GitHub drift', 'are my rulesets consistent', 'what does our Actions policy allow', 'review org security posture'. NOT for forward-looking design ('how should I configure X', 'walk me through setting up Y') — that is the advise skill. Bare invocation performs zero mutations — findings only; grounded in live gh state and freshly fetched official GitHub docs, never recall."
+argument-hint: "[area ...] [--apply]"
 ---
 
 # github audit
@@ -62,6 +62,19 @@ Per area, incrementally:
 - **Proposed remedy** (when one exists): the exact command or settings path — **proposed only,
   never executed**.
 
+## `--apply`
+
+The explicit mutation override, for acting on findings this audit just produced. It never widens
+what a bare invocation may do mid-flight — it is declared at invocation, and everything it does
+resolves through the `--apply` resolution flow in
+`${CLAUDE_PLUGIN_ROOT}/reference/change-routing.md`: scope and target resolved first (org and
+enterprise targets are asked, never silently inferred — the read-path inference in step 2 does
+not carry over to writes), then the consumer's effective routing — `propose` (emit exact
+commands/diff, execute nothing), `guided-apply` (per-step user confirms, each step naming the
+exact command/payload and its doc provenance, post-write read-back), or `handoff` (emit a change
+request for the consumer's declared channel). Unconfigured consumers resolve to `propose`. Every
+path keeps the user in the loop.
+
 ## Read-only contract (hard)
 
 A bare invocation of this skill performs zero mutations, stated in write-capability terms:
@@ -73,7 +86,7 @@ A bare invocation of this skill performs zero mutations, stated in write-capabil
 - No browser automation fires from this skill on a bare invocation.
 
 Requests to "just fix it" mid-audit do not override this: emit the exact proposed change and state
-the contract. Applying changes is a separate, explicitly routed path shipped in a later phase.
+the contract. Applying changes requires `--apply` at invocation, routed as above.
 
 ## Standing security posture
 

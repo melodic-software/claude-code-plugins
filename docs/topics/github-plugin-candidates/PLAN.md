@@ -292,7 +292,7 @@ live `gh` state + runtime doc fetch → grounded findings) on the real platform 
 - Smoke: `setup apply` twice in a scratch repo → second run reports no changes (idempotent);
   `routing.yaml` written with `default: propose`.
 
-#### Phase 3: `advise` + `--apply` routing [TODO]
+#### Phase 3: `advise` + `--apply` routing [DONE]
 
 - `skills/advise/SKILL.md` — guidance/hand-holding vocabulary, proactive-suggestion posture (D1),
   same grounding + ladder citations, negative routing boundary vs `audit` in both descriptions.
