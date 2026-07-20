@@ -85,11 +85,13 @@ strip_value() {
     val="${val%%\'*}"
     ;;
   *)
-    # Unquoted: strip a trailing comment only at a `#` preceded by whitespace
-    # (` #…`); a `#` adjacent to a non-space char (`a#b`, `.work/#t`) is part of
-    # the scalar. Then trim trailing whitespace.
+    # Unquoted: strip a comment at a `#` that starts the value (a comment-only
+    # value like `# use default` — YAML-null, must resolve to empty so the
+    # fallback fires) or is preceded by whitespace (` #…`); a `#` adjacent to a
+    # non-space char (`a#b`, `.work/#t`) is part of the scalar. Then trim
+    # trailing whitespace.
     val="$raw"
-    val="$(printf '%s' "$val" | sed 's/[[:space:]]#.*$//')"
+    val="$(printf '%s' "$val" | sed -e 's/^#.*$//' -e 's/[[:space:]]#.*$//')"
     val="${val%"${val##*[![:space:]]}"}"
     ;;
   esac

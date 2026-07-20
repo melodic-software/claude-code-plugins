@@ -73,6 +73,10 @@ assert_eq 'absent key returns fallback (declared save-point)' \
   ".notes" "$(resolve 'other_key: x' memory_dir '.notes')"
 assert_eq 'empty value returns fallback' \
   ".notes" "$(resolve 'memory_dir:' memory_dir '.notes')"
+assert_eq 'comment-only value falls back (memory_dir: # use default)' \
+  ".notes" "$(resolve 'memory_dir: # use default' memory_dir '.notes')"
+assert_eq 'comment-only value, no fallback => empty' \
+  "" "$(resolve 'memory_dir: # use default')"
 assert_eq 'fallback is trailing-slash-agnostic passthrough' \
   ".notes/deep" "$(resolve 'other_key: x' memory_dir '.notes/deep')"
 

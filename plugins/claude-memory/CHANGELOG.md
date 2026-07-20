@@ -17,6 +17,13 @@ All notable changes to the `claude-memory` plugin are documented here. Format fo
   handling are unchanged. As a
   non-interactive detector it still degrades to the documented `.work` default when the
   seam is unset — the contract's inferred/interactive rungs stay the calling skill's job.
+- **A comment-only `memory_dir` now resolves to the fallback, not a literal directory.**
+  `memory_dir: # use default` is YAML-null; the parser previously kept `# use default`
+  as the value (its comment strip only fired on a whitespace-*preceded* `#`), so the
+  detector searched `# use default/` and stopped excluding the default `.work/` tier —
+  letting a `.work` reference mask an orphan. A `#` that starts the unquoted value is now
+  treated as a comment, so resolution falls through to the caller's fallback / documented
+  default.
 
 ## [0.2.2]
 
