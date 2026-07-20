@@ -108,16 +108,46 @@ def _data_root_key(value: str) -> str:
     return os.path.normcase(os.fspath(Path(value).expanduser().resolve(strict=False)))
 
 
-def _is_authorized_data_root(value: str) -> bool:
-    """Accept only the data root this hook process was told about by the runtime."""
-    authority = os.environ.get("CLAUDE_PLUGIN_DATA")
+_AUTHORIZED_DATA_ROOT_FLAG = "--authorized-data-root"
+
+
+def _argv_authorized_data_root(argv: list[str]) -> str | None:
+    """Read the authorized data root the runtime substituted into the hook argv.
+
+    The skill-frontmatter hook passes ``--authorized-data-root ${CLAUDE_PLUGIN_DATA}``;
+    inline placeholder substitution resolves in hook arguments even where
+    environment injection does not, so the guard's own argv is the authoritative,
+    model-unforgeable channel for the data root.
+    """
+    for index, token in enumerate(argv):
+        if token == _AUTHORIZED_DATA_ROOT_FLAG and index + 1 < len(argv):
+            return argv[index + 1]
+        prefix = f"{_AUTHORIZED_DATA_ROOT_FLAG}="
+        if token.startswith(prefix):
+            return token[len(prefix) :]
+    return None
+
+
+def resolve_authorized_data_root() -> str | None:
+    """Resolve the authoritative data root from the hook argv, then the environment.
+
+    A literal, unsubstituted placeholder is treated as absent so the environment
+    fallback still applies.
+    """
+    from_argv = _argv_authorized_data_root(sys.argv[1:])
+    if from_argv and "${" not in from_argv:
+        return from_argv
+    return os.environ.get("CLAUDE_PLUGIN_DATA")
+
+
+def _is_authorized_data_root(value: str, authority: str | None) -> bool:
+    """Accept only the data root the runtime told this hook to authorize."""
     if not authority:
         return False
     return _data_root_key(value) == _data_root_key(authority)
 
 
-def _display_data_root() -> str | None:
-    authority = os.environ.get("CLAUDE_PLUGIN_DATA")
+def _display_data_root(authority: str | None) -> str | None:
     if not authority:
         return None
     return os.fspath(Path(authority).expanduser().resolve(strict=False)).replace(
@@ -125,17 +155,19 @@ def _display_data_root() -> str | None:
     )
 
 
-def _valid_optional_value(flag: str, value: str) -> bool:
+def _valid_optional_value(flag: str, value: str, authority: str | None) -> bool:
     if not _argument(value):
         return False
     if flag == "--max-depth":
         return re.fullmatch(r"[1-9][0-9]{0,3}", value) is not None
     if flag == "--data-root":
-        return _is_authorized_data_root(value)
+        return _is_authorized_data_root(value, authority)
     return True
 
 
-def _consume_optional_pairs(tokens: list[str], allowed: frozenset[str]) -> bool:
+def _consume_optional_pairs(
+    tokens: list[str], allowed: frozenset[str], authority: str | None
+) -> bool:
     seen: list[str] = []
     while tokens:
         flag = tokens[0]
@@ -143,7 +175,7 @@ def _consume_optional_pairs(tokens: list[str], allowed: frozenset[str]) -> bool:
             flag not in allowed
             or flag in seen
             or len(tokens) < 2
-            or not _valid_optional_value(flag, tokens[1])
+            or not _valid_optional_value(flag, tokens[1], authority)
         ):
             return False
         seen.append(flag)
@@ -151,7 +183,7 @@ def _consume_optional_pairs(tokens: list[str], allowed: frozenset[str]) -> bool:
     return True
 
 
-def classify_exact_engine_command(command: str) -> str | None:
+def classify_exact_engine_command(command: str, authority: str | None) -> str | None:
     """Return scan/preview/apply only for one complete, canonical invocation."""
     tokens = _literal_shell_words(command)
     if tokens is None:
@@ -174,6 +206,7 @@ def classify_exact_engine_command(command: str) -> str | None:
         if not _consume_optional_pairs(
             tokens[7:],
             frozenset({"--policy", "--project-dir", "--data-root", "--max-depth"}),
+            authority,
         ):
             return None
         return "scan"
@@ -184,7 +217,9 @@ def classify_exact_engine_command(command: str) -> str | None:
             and _argument(tokens[4])
             and tokens[5] == "--plan"
             and _argument(tokens[6])
-            and _consume_optional_pairs(tokens[7:], frozenset({"--data-root"}))
+            and _consume_optional_pairs(
+                tokens[7:], frozenset({"--data-root"}), authority
+            )
         )
         return "preview" if valid else None
     if tokens[2] == "apply":
@@ -203,15 +238,17 @@ def classify_exact_engine_command(command: str) -> str | None:
                 re.fullmatch(r"[0-9a-f]{24}", tokens[11]) is not None,
                 tokens[12] == "--report",
                 _argument(tokens[13]),
-                _consume_optional_pairs(tokens[14:], frozenset({"--data-root"})),
+                _consume_optional_pairs(
+                    tokens[14:], frozenset({"--data-root"}), authority
+                ),
             )
         )
         return "apply" if valid else None
     return None
 
 
-def is_exact_engine_apply(command: str) -> bool:
-    return classify_exact_engine_command(command) == "apply"
+def is_exact_engine_apply(command: str, authority: str | None) -> bool:
+    return classify_exact_engine_command(command, authority) == "apply"
 
 
 _POWERSHELL_MUTATION_WORDS = re.compile(
@@ -257,14 +294,15 @@ def powershell_decision(command: str) -> tuple[str, str] | None:
     return None
 
 
-def _bash_denial_guidance() -> str:
-    data_root = _display_data_root()
+def _bash_denial_guidance(authority: str | None) -> str:
+    data_root = _display_data_root(authority)
     data_sentence = (
         f' Pass --data-root "{data_root}" so generated state lands in the plugin data directory.'
         if data_root
         else (
-            " The hook process did not receive CLAUDE_PLUGIN_DATA, so --data-root"
-            " cannot be validated and engine calls fail closed."
+            " The guard did not receive an authorized data root (neither the"
+            f" {_AUTHORIZED_DATA_ROOT_FLAG} hook argument nor CLAUDE_PLUGIN_DATA),"
+            " so --data-root cannot be validated and engine calls fail closed."
         )
     )
     return (
@@ -299,7 +337,8 @@ def main() -> int:
             print(json.dumps(decision(*verdict)))
         return 0
 
-    command_kind = classify_exact_engine_command(command)
+    authority = resolve_authorized_data_root()
+    command_kind = classify_exact_engine_command(command, authority)
     enabled = os.environ.get("CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED", "true").lower() != "false"
     if command_kind in {"scan", "preview"}:
         print(
@@ -324,7 +363,7 @@ def main() -> int:
     reason = (
         "Disk-hygiene execution is disabled; only exact bundled scan and preview invocations are permitted."
         if command_kind == "apply"
-        else _bash_denial_guidance()
+        else _bash_denial_guidance(authority)
     )
     print(json.dumps(decision("deny", reason)))
     return 0

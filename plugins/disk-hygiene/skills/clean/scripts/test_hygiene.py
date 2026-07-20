@@ -1324,6 +1324,131 @@ class GuardTests(unittest.TestCase):
                 "deny", result["hookSpecificOutput"]["permissionDecision"]
             )
 
+    def run_guard_hook_argv(
+        self, command: str, authorized: str | None
+    ) -> dict[str, object]:
+        """Drive the guard with the data root supplied via hook argv, not the env.
+
+        Mirrors the skill-frontmatter hook, which substitutes
+        ``--authorized-data-root ${CLAUDE_PLUGIN_DATA}`` into the guard's own argv
+        while CLAUDE_PLUGIN_DATA is absent from the hook process environment.
+        """
+        argv = [str(SCRIPT_DIR / "destructive_guard.py")]
+        if authorized is not None:
+            argv += ["--authorized-data-root", authorized]
+        environment = {
+            key: value
+            for key, value in os.environ.items()
+            if key != "CLAUDE_PLUGIN_DATA"
+        }
+        environment["CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED"] = "true"
+        stdin = io.StringIO(json.dumps({"tool_input": {"command": command}}))
+        stdout = io.StringIO()
+        with (
+            mock.patch("sys.stdin", stdin),
+            redirect_stdout(stdout),
+            mock.patch.object(guard.sys, "argv", argv),
+            mock.patch.dict("os.environ", environment, clear=True),
+        ):
+            self.assertEqual(0, guard.main())
+        return json.loads(stdout.getvalue())
+
+    def test_guard_authorizes_data_root_from_hook_argv_without_env(self) -> None:
+        script = SCRIPT_DIR / "hygiene.py"
+        with tempfile.TemporaryDirectory() as temporary:
+            authorized = str(Path(temporary).resolve() / "plugin-data")
+            other = str(Path(temporary).resolve() / "elsewhere")
+            base = f'"{self.python_command()}" "{script}" scan --target t --output s'
+            self.assertEqual(
+                "allow",
+                self.run_guard_hook_argv(
+                    f'{base} --data-root "{authorized}"', authorized
+                )["hookSpecificOutput"]["permissionDecision"],
+            )
+            self.assertEqual(
+                "deny",
+                self.run_guard_hook_argv(f'{base} --data-root "{other}"', authorized)[
+                    "hookSpecificOutput"
+                ]["permissionDecision"],
+            )
+
+    def test_guard_denies_data_root_when_argv_and_env_both_absent(self) -> None:
+        script = SCRIPT_DIR / "hygiene.py"
+        with tempfile.TemporaryDirectory() as temporary:
+            target = str(Path(temporary).resolve())
+            base = f'"{self.python_command()}" "{script}" scan --target t --output s'
+            result = self.run_guard_hook_argv(
+                f'{base} --data-root "{target}"', None
+            )
+            self.assertEqual(
+                "deny", result["hookSpecificOutput"]["permissionDecision"]
+            )
+            self.assertIn(
+                "--authorized-data-root",
+                result["hookSpecificOutput"]["permissionDecisionReason"],
+            )
+
+    def test_argv_authorized_data_root_parses_both_arg_spellings(self) -> None:
+        self.assertEqual(
+            "/data", guard._argv_authorized_data_root(["--authorized-data-root", "/data"])
+        )
+        self.assertEqual(
+            "/data", guard._argv_authorized_data_root(["--authorized-data-root=/data"])
+        )
+        self.assertIsNone(guard._argv_authorized_data_root(["--other", "/data"]))
+        self.assertIsNone(guard._argv_authorized_data_root(["--authorized-data-root"]))
+
+    def test_resolve_authorized_data_root_precedence(self) -> None:
+        script = str(SCRIPT_DIR / "destructive_guard.py")
+        with mock.patch.dict(
+            "os.environ", {"CLAUDE_PLUGIN_DATA": "/from-env"}, clear=False
+        ):
+            with mock.patch.object(
+                guard.sys, "argv", [script, "--authorized-data-root", "/from-argv"]
+            ):
+                self.assertEqual("/from-argv", guard.resolve_authorized_data_root())
+            with mock.patch.object(guard.sys, "argv", [script]):
+                self.assertEqual("/from-env", guard.resolve_authorized_data_root())
+            with mock.patch.object(
+                guard.sys,
+                "argv",
+                [script, "--authorized-data-root", "${CLAUDE_PLUGIN_DATA}"],
+            ):
+                self.assertEqual(
+                    "/from-env",
+                    guard.resolve_authorized_data_root(),
+                    "an unsubstituted placeholder must fall back to the environment",
+                )
+
+    def test_skill_hook_passes_authorized_data_root_flag_matching_constant(
+        self,
+    ) -> None:
+        """Lock the config<->code seam the fix depends on.
+
+        The frontmatter hook must pass the exact flag literal the guard parses,
+        immediately followed by the ${CLAUDE_PLUGIN_DATA} placeholder. If either
+        side is renamed without the other, the guard silently loses its authority
+        and the engine lane fails closed — the regression this test guards.
+        """
+        skill = SCRIPT_DIR.parent / "SKILL.md"
+        text = skill.read_text(encoding="utf-8")
+        args_line = next(
+            (
+                line
+                for line in text.splitlines()
+                if "destructive_guard.py" in line and "args:" in line
+            ),
+            None,
+        )
+        self.assertIsNotNone(args_line, "frontmatter hook args line not found")
+        assert args_line is not None
+        array_text = args_line[args_line.index("[") : args_line.rindex("]") + 1]
+        args = json.loads(array_text)
+        self.assertTrue(args[0].endswith("destructive_guard.py"), args)
+        self.assertIn(guard._AUTHORIZED_DATA_ROOT_FLAG, args)
+        flag_index = args.index(guard._AUTHORIZED_DATA_ROOT_FLAG)
+        self.assertEqual("${CLAUDE_PLUGIN_DATA}", args[flag_index + 1])
+
     def test_guard_scan_max_depth_accepts_only_positive_integer_literal(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         base = f'"{self.python_command()}" "{script}" scan --target t --output s'
