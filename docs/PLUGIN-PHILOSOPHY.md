@@ -79,8 +79,8 @@ misfit where the custom mechanism lives.
 
 Built-in-first is a gate on every customization surface, not a preference. Before building
 any custom config surface — a YAML concern file, a bespoke seam — first verify against the *current*
-official Claude Code plugin documentation that no native mechanism (`userConfig`, environment
-variables, a built-in per-repo config surface) can host the need; the platform moves, so re-fetch
+official Claude Code plugin documentation that no native mechanism (`userConfig`, a built-in
+per-repo config surface) can host the need; the platform moves, so re-fetch
 the documentation rather than trusting memory or an old summary. A custom extensibility point is the
 fallback only where the built-in surface genuinely cannot support the need.
 
