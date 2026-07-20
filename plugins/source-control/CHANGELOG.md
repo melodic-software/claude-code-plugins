@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.9.4]
+## [0.12.0]
 
 ### Fixed
 
@@ -22,8 +22,54 @@ All notable changes to the `source-control` plugin are documented here. Format f
   findings` — is redacted before the severity check, the structured-marker analogue of the
   existing `no P1/P2 issues` redaction, so introducing severity-marker detection does not itself
   re-create a false blocker for that common clean-verdict phrasing. A login named in
-  `babysit_approval_downgrade_logins` opts that bot's clean approvals into the more-conservative
-  `material` bucket (surfaced but non-blocking) instead of being fully ignored.
+  `babysit_approval_downgrade_logins` opts that bot's approval into the more-conservative
+  `material` bucket (surfaced but non-blocking) instead of `ignored` in the one case the
+  structural downgrade reaches — a review body carrying blocking-looking prose that still parses
+  as an approval verdict. It does not affect a review already in the APPROVED state or a plain
+  clean approval whose body carries no blocking-looking prose: both are ignored regardless of the
+  setting, since neither reaches the downgrade branch.
+
+## [0.11.0]
+
+### Added
+
+- **`babysit-prs` surfaces a silent bot→personal identity fallback as an attribution-drift material
+  finding.** The snapshot engine gains an `attribution_drift` reconciliation arm: for each write the
+  mutation ledger recorded performing, it verifies the landed timeline author is the configured
+  intended write-identity, not merely *some* accepted self-login. A recorded write that landed under
+  a different self-login — the canonical case being a bot write-identity that degraded to the
+  operator's personal login when a token mint failed — becomes a first-class material finding on that
+  PR's cycle-status line instead of drifting silently. It is the complement of `foreign_activity`
+  (which reconciles same-login events the ledger *cannot* account for) and is mutually exclusive with
+  it per comment; unlike `foreign_activity` it reports without suppressing dispatch, since the PR is
+  still ours to babysit. The intended identity is configured via the new `babysit_intended_write_identity`
+  userConfig key (threaded as `--intended-write-identity` to the snapshot); absent it, the arm is
+  dormant. This is pure plugin-side authorship verification — the token-generation root cause is a
+  cross-repo concern (medley `gh-bot.sh`) and no change there is needed for the finding to fire.
+  Coverage is bounded to the write class the ledger records with a recoverable author (review-trigger
+  comments); drift on reactions, classification replies, and branch pushes awaits ledgering their
+  identifiers with authorship. Covered by unit and full-classify regression tests in
+  `test_babysit_delta.py`. Closes #450.
+
+## [0.10.0]
+
+### Changed
+
+- **`babysit-prs` requires per-thread pins for autonomous thread resolves — the bulk autonomous
+  path is refused.** `babysit_resolve_thread.py` now rejects a `--autonomous --resolve` call that
+  carries no `--thread-id`, forcing the unattended-worker path through a per-thread vetted loop
+  (each thread pinned with `--expected-comment-count` and `--expected-last-updated`, reusing the
+  existing TOCTOU pin guard). `--allow-unpinned-thread` is likewise refused in `--autonomous`
+  mode, so there is no unpinned autonomous resolve. A worker's own push marks a review thread
+  `isOutdated`, and the previous bulk path cleared such threads in one unpinned sweep with no
+  proof the finding was addressed; the per-thread pins now close the bulk and comment-drift gaps.
+  They do not close the displacement bypass — a push that flips `isOutdated` while the comment
+  pins still match is still resolvable — which is tracked as the root fix in #571. This is a
+  behavior change to the
+  autonomous-worker contract: `SKILL.md` Autopilot step 2 changes from one bulk call to a
+  per-thread loop, aligning it with the pinned form already documented in
+  `reference/orchestration.md` and `reference/safety.md`. Covered by a regression test in
+  `test_guards.py`.
 
 ## [0.9.3]
 

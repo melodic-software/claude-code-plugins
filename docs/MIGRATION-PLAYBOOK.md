@@ -260,6 +260,12 @@ The **adopted** rule for how a plugin settles a value at runtime, applied to eve
 No baked repo assumptions, ever. A plugin never hardcodes a consumer's layout; it reads a declared
 value, infers-and-records, or asks — never guesses silently.
 
+This ladder is the runtime application of the durable convention posture owned by
+[PLUGIN-PHILOSOPHY.md § Two-lane convention posture](PLUGIN-PHILOSOPHY.md): a pre-prescribed
+convention is a hardcoded dependency, so a plugin ships a default only in lane 1 (a good-practice
+value that cannot conflict in any consuming repo) and otherwise takes lane 2 — its setup discovers
+the consumer's convention and externalizes it as an extensibility point the ladder then resolves.
+
 ## Setup action — required iff the criteria hold
 
 Whether a plugin needs a `setup` skill, and the uniform contract it follows (`setup` name,

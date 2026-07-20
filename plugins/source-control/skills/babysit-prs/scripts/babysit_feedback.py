@@ -110,9 +110,14 @@ class FeedbackConfig:
     `extra_bot_logins` supplements structural bot detection for accounts whose
     metadata misreports them as users. A clean approval (explicit approval
     verdict, no CRITICAL/IMPORTANT or required-fix marker) is treated as
-    non-blocking for every bot structurally; `approval_downgrade_logins` names
-    the reviewer logins whose clean approvals are surfaced as material findings
-    rather than fully ignored. `skip_downgrade_logins` names the reviewer logins
+    non-blocking for every bot structurally. `approval_downgrade_logins` names
+    the reviewer logins whose approval is surfaced as a material finding rather
+    than ignored in the one case the structural downgrade reaches: a review body
+    carrying blocking-looking prose that still parses as an approval verdict. It
+    does not affect a review already in the APPROVED state or a plain clean
+    approval whose body carries no blocking-looking prose -- both are ignored
+    regardless, since neither reaches the downgrade branch.
+    `skip_downgrade_logins` names the reviewer logins
     whose not-approving text may be downgraded to material when their review
     provably could not run.
     """

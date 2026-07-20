@@ -22,7 +22,9 @@
 # Exit: 0 success; 1 not a git repo; 2 usage/validation error;
 #       3 blocked on default branch; 4 blocked on unpushed commits;
 #       5 reset --hard failed (apply aborted before clean);
-#       6 blocked on unresolvable upstream (configured but remote-tracking ref absent).
+#       6 blocked on unresolvable upstream (configured but remote-tracking ref absent);
+#       7 clean failed (reset succeeded; git clean -fdx errored for a reason other
+#         than locked/in-use files — untracked removal is incomplete).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -63,7 +65,8 @@ Output labels:
 
 Exit: 0; 1 not a git repo; 2 usage error; 3 blocked default branch; 4 unpushed commits;
       5 reset --hard failed (apply aborted before clean);
-      6 blocked on unresolvable upstream (configured but remote-tracking ref absent).
+      6 blocked on unresolvable upstream (configured but remote-tracking ref absent);
+      7 clean failed (reset succeeded; git clean -fdx errored, non-locked-file cause).
 EOF
 }
 
@@ -217,14 +220,42 @@ if ! git reset --hard "$UPSTREAM"; then
   printf 'AppliedClean: none\n'
   exit 5
 fi
+# Report the reset outcome as soon as it genuinely succeeds — before clean — so a
+# later clean failure (exit 7 below) still surfaces the truthful AppliedReset line
+# rather than swallowing it.
+printf 'AppliedReset: git reset --hard %s\n' "$UPSTREAM"
 
-# Capture clean stderr to surface files git could not remove (locked / in use).
+# Capture clean stderr AND its exit status. git clean returns non-zero when it
+# fails to remove any path; the expected, non-fatal case is a locked / in-use file
+# (surfaced below as Unremovable). CLEAN_RC must be read on the very next line —
+# before any other command runs — or $? is clobbered.
 CLEAN_STDERR="$(git clean -fdx "${PRESERVE_ARGS[@]}" 2>&1 >/dev/null)"
+CLEAN_RC=$?
 UNREMOVABLE="$(printf '%s\n' "$CLEAN_STDERR" | grep -c 'failed to remove' || true)"
 
+# Restore guard runs after clean unconditionally (data-loss guard): recover any
+# tracked file clean deleted via reparse-point traversal, even on the failure path
+# below — a clean that errored mid-run may still have deleted tracked files first.
 RESTORED="$(clean_restore_tracked_deletions "$REPO_ROOT")"
 
-printf 'AppliedReset: git reset --hard %s\n' "$UPSTREAM"
+# Gate the AppliedClean success line on the real outcome. A non-zero exit whose
+# sole cause is locked/in-use files (UNREMOVABLE>0) is NOT a failure: clean ran and
+# removed everything it could, and that is reported honestly as Unremovable — do
+# not regress that into a hard error. Only a non-zero exit with NO 'failed to
+# remove' warnings is a genuine clean failure; emit a distinct failure line and a
+# non-zero exit instead of a success line that misrepresents the outcome.
+# Known limitation: a non-zero exit mixing locked-file warnings AND an unrelated
+# error still falls through to the success path (UNREMOVABLE>0 wins) — the locked-
+# file heuristic predates this gate; a stricter classifier is deferred.
+if [[ "$CLEAN_RC" -ne 0 && "${UNREMOVABLE:-0}" -eq 0 ]]; then
+  printf 'FAILED: git clean -fdx exited %s (non-locked-file cause) — untracked removal incomplete; reset --hard already applied.\n' "$CLEAN_RC" >&2
+  [[ -n "$CLEAN_STDERR" ]] && printf '%s\n' "$CLEAN_STDERR" >&2
+  printf 'AppliedClean: failed\n'
+  printf 'RestoredTracked: %s\n' "${RESTORED:-0}"
+  printf 'Unremovable: %s\n' "0"
+  exit 7
+fi
+
 printf 'AppliedClean: git clean -fdx%s\n' "$([[ ${#PRESERVE_ARGS[@]} -gt 0 ]] && printf ' (+%d preserve excludes)' "$(((${#PRESERVE_ARGS[@]}) / 2))")"
 printf 'RestoredTracked: %s\n' "${RESTORED:-0}"
 printf 'Unremovable: %s\n' "${UNREMOVABLE:-0}"

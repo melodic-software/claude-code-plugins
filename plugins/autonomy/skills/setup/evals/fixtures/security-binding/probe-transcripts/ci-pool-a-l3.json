@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "surface": "ci-pool-a",
+  "level": "L3",
+  "substrate": "microvm-pool",
+  "substrate_class": "vm-microvm",
+  "probed_at": "2026-07-01T10:00:00Z",
+  "assertions": {
+    "egress_denied": { "host": "example.com", "exit_code": "7", "outer_exit_code": "0", "outcome": "denied" },
+    "credentials_absent": { "path": "$HOME/.netrc", "host_expanded": "/home/runner/.netrc", "exit_code": "1", "outer_exit_code": "0", "transport_outcome": "read-denied", "outcome": "absent-or-denied" }
+  },
+  "outer_context_networked": true
+}

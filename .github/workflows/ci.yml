@@ -123,8 +123,13 @@ jobs:
         uses: melodic-software/ci-workflows/.github/actions/machine-specific-paths@c2654182bc2d78f7909795df78304d482aa69226 # c265418 2026-07-13
         with:
           # The guardrails plugin bundles a path-detection pattern lib whose
-          # regex bodies self-match this lane's own detector.
-          exclude: ':(exclude)plugins/guardrails/lib/path-detection/**'
+          # regex bodies self-match this lane's own detector. The autonomy
+          # security-binding fixtures carry ADVERSARIAL host paths on purpose
+          # (invented /home users the checker must reject) — sanitizing them
+          # would gut the regressions they pin.
+          exclude: >-
+            :(exclude)plugins/guardrails/lib/path-detection/**
+            :(exclude)plugins/autonomy/skills/setup/evals/fixtures/security-binding/**
 
       - name: Check index-level EOL drift
         id: eol
@@ -333,6 +338,41 @@ jobs:
           grep -q '"miro_create_board"' smoke-out.json
           rm -f smoke-out.json
 
+  # Skill-regression net: the only lane that invokes the skill-quality checker.
+  # On a PR it runs the static contract gate (trigger-keyword preservation vs
+  # the base ref, frontmatter, line caps, broken refs, evals presence) over each
+  # changed skill under plugins/*/skills/**, replacing the work lane's manual
+  # high-blast-radius skill-diff read with a deterministic check. Eval sets are
+  # schema-validated on every event. The job itself never skips (a skipped
+  # required job reports success to branch protection) — only the PR-diff step
+  # is event-gated, and the self-test and eval-schema steps give push a passing
+  # path.
+  skill-quality-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          # Full history so the PR base ref resolves for the changed-skill diff
+          # and the checker's git-backed trigger-preservation check.
+          fetch-depth: 0
+      # Self-test first so a broken orchestrator can never mask a real skill
+      # regression behind a green gate.
+      - name: Test the changed-skill gate
+        run: bash scripts/check-changed-skills.test.sh
+      - name: Gate changed skills on the static skill-quality contract
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/check-changed-skills.sh "origin/$BASE_REF"
+      - name: Validate every eval set against the bundled schema
+        uses: melodic-software/ci-workflows/.github/actions/check-jsonschema@c2654182bc2d78f7909795df78304d482aa69226 # c265418 2026-07-13
+        with:
+          schemafile: plugins/skill-quality/reference/evals.schema.json
+          files: plugins/*/skills/*/evals/evals.json
+
   runner-policy:
     name: Runner policy
     runs-on: ubuntu-24.04
@@ -367,6 +407,7 @@ jobs:
       - plugin-gate
       - miro-plugin
       - runner-policy
+      - skill-quality-gate
       - zizmor
     # Fail-closed through execution: !cancelled() (never a success-guard) so a
     # lane failure still runs this required aggregate and the result join below

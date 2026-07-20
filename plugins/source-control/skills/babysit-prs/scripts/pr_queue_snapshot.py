@@ -67,6 +67,9 @@ def build_config(args: argparse.Namespace) -> delta.ClassifyConfig:
     return delta.ClassifyConfig(
         allowed_owners=owners,
         self_logins=self_logins,
+        intended_write_identity=str(
+            getattr(args, "intended_write_identity", None) or ""
+        ),
         feedback=FeedbackConfig(
             extra_bot_logins=_csv(getattr(args, "extra_bot_logins", None)),
             approval_downgrade_logins=_csv(
@@ -146,11 +149,24 @@ def substantive_errors(errors: list[str]) -> list[str]:
 
 def build_snapshot(args: argparse.Namespace) -> dict[str, Any]:
     generated_at = datetime.now(UTC).isoformat()
-    config = build_config(args)
     state_path = state_store.state_path_for(args.state_dir)
     state = state_store.load_state(state_path)
     previous_prs = json_object(state.get("prs"))
     mutation_ledger = json_object(state.get("mutation_ledger"))
+
+    # Resolve @me to the authenticated posting identity for EITHER scope, before
+    # building the config. `self_logins` gates same-login classification
+    # (foreign-activity and attribution-drift) whether or not discovery runs, so
+    # a single-PR (`--pr`) run must resolve it too: deriving `self_logins` from
+    # raw `--author` alone drops the resolved `@me`, leaving the personal
+    # fallback identity out of the set and silently no-opping those checks for
+    # single-PR scope. build_snapshot also runs from hand-built Namespaces
+    # (tests, callers) that may omit optional flags; default the optional
+    # --author/--repo rather than require them.
+    authors = gh.resolve_authors(getattr(args, "author", None))
+    args.resolved_authors = authors
+    args.resolved_self_logins = resolve_self_logins(authors)
+    config = build_config(args)
 
     targets: list[tuple[str, int]]
     errors: list[str]
@@ -159,13 +175,6 @@ def build_snapshot(args: argparse.Namespace) -> dict[str, Any]:
         targets = [gh.parse_repo_number(args.pr)]
         errors = []
     else:
-        # build_snapshot also runs from hand-built Namespaces (tests, callers)
-        # that may omit optional flags; default the optional --author/--repo
-        # rather than require them.
-        authors = gh.resolve_authors(getattr(args, "author", None))
-        args.resolved_authors = authors
-        args.resolved_self_logins = resolve_self_logins(authors)
-        config = build_config(args)
         scope_repos = resolve_scope_repos(args, config.allowed_owners)
         if scope_repos:
             targets, errors = gh.discover_prs(
@@ -509,11 +518,15 @@ def main() -> int:
         "--approval-downgrade-logins",
         default=None,
         help=(
-            "Comma-separated reviewer-bot logins whose clean approvals (explicit "
-            "approval verdict, no CRITICAL/IMPORTANT or required-fix marker) are "
-            "surfaced as material findings rather than fully ignored. Every bot's "
-            "clean approval is treated as non-blocking by default; this opts named "
-            "logins into the more-conservative material bucket (ships empty)."
+            "Comma-separated reviewer-bot logins whose approval is surfaced as a "
+            "material finding rather than ignored in the one case the structural "
+            "downgrade reaches: a review body carrying blocking-looking prose that "
+            "still parses as an approval verdict (no CRITICAL/IMPORTANT or "
+            "required-fix marker). Every bot's such approval is downgraded to "
+            "non-blocking by default; naming a login opts its own into the "
+            "more-conservative material bucket instead of ignored. Does not affect "
+            "a review already in the APPROVED state or a plain clean approval with "
+            "no blocking-looking prose -- both are ignored regardless (ships empty)."
         ),
     )
     parser.add_argument(
@@ -522,6 +535,16 @@ def main() -> int:
         help=(
             "Comma-separated reviewer-bot logins whose not-approving text may "
             "downgrade when their review provably could not run (ships empty)."
+        ),
+    )
+    parser.add_argument(
+        "--intended-write-identity",
+        default=None,
+        help=(
+            "Login the orchestrator's own writes are intended to land under "
+            "(e.g. a bot posting identity). A recorded write that lands under a "
+            "different self-login is surfaced as attribution drift. Absent: the "
+            "check is dormant."
         ),
     )
     args = parser.parse_args()

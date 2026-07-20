@@ -253,7 +253,7 @@
       "name": "claude-ops",
       "source": "./plugins/claude-ops",
       "category": "claude-code",
-      "tags": ["operations", "observability", "otel", "telemetry", "troubleshooting", "changelog", "claude-code", "skill"]
+      "tags": ["operations", "observability", "otel", "telemetry", "troubleshooting", "changelog", "dashboard", "claude-code", "skill"]
     },
     {
       "name": "songwriting",
