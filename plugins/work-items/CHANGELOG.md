@@ -3,6 +3,36 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.0]
+
+Add a loop-start permission preflight so the unattended `work` (and, by shared contract,
+`source-control:babysit-prs`) lanes report a missing grant or untrusted worktree root **once, up
+front**, instead of stopping for a per-operation prompt mid-cycle (`#495`). Report-only by design:
+the assistant cannot self-apply the fix — the auto-mode classifier blocks an agent broadening its
+own `permissions.allow`, and a plugin `settings.json` grant is inert — so the check detects and
+points at the operator-side remediation, never edits settings, and never retries a denial into
+broader grants.
+
+### Added
+
+- **Loop-start permission preflight (`#495`).** New `skills/work/scripts/preflight.sh` (with
+  `preflight.test.sh`) reads the effective `permissions.allow` / `permissions.additionalDirectories`
+  from user-global and project settings and reports three conditions: (a) cwd is not a git repo (a
+  note — a worktree-operating lane still proceeds); (b) a probed core working verb
+  (`git commit`, `git push`, `gh pr create`, `gh issue comment`) is not covered by any
+  `Bash()`/`PowerShell()` allow rule; (c) the configured out-of-tree worktree root is not covered by
+  `additionalDirectories`. The verb match accepts the narrow bare-command spellings that survive
+  auto mode, the worktree-root check is root-agnostic (coverage of the passed root, never a
+  hardcoded path), and Windows and git-bash path spellings are folded to one comparable form. Always
+  exits `0`; `--count` reports the GAP total for a scripted gate. No live permission probe.
+- **Preflight reference (`#495`).** New `reference/permission-preflight.md` is the source of truth
+  for the preconditions: it points at the `melodic-software/standards` `claude-permissions`
+  component (`components/claude-permissions/`, composed operator-side via the dotfiles chezmoi seam)
+  as the canonical allow/deny floor rather than restating a list, documents the trusted
+  sibling-worktree-root `additionalDirectories` guidance, and records the detect-and-report /
+  never-self-apply contract. The `work` skill wires the check as the first loop-start action, ahead
+  of the binding preflight.
+
 ## [0.16.1]
 
 ### Fixed
