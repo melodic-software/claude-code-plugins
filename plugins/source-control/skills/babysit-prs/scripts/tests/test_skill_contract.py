@@ -80,21 +80,32 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("exact head SHA from the snapshot", paragraph)
         self.assertNotIn("<post-push-head-sha>", paragraph)
 
-    def test_worker_push_paths_require_the_post_push_head(self) -> None:
-        pinned_merge = "--merge --expected-head <post-push-head-sha>"
-        markers = (
-            "After the worker's final push",
-            "In worker mode, after a worker's fix",
+    def test_worker_push_path_pins_the_post_push_head_command(self) -> None:
+        # Worker tier has no merge tier, so its push paragraph still spells the
+        # full pinned merge command inline.
+        paragraph = _paragraph_containing(
+            self.skill_text, "In worker mode, after a worker's fix"
         )
+        self.assertIn("--merge --expected-head <post-push-head-sha>", paragraph)
+        self.assertIn("fresh post-push snapshot", paragraph)
+        self.assertIn("exact pushed commit", paragraph)
+        self.assertIn("Never reuse the pre-worker snapshot pin", paragraph)
+        self.assertNotIn("<snapshotted-head-sha>", paragraph)
 
-        for marker in markers:
-            with self.subTest(marker=marker):
-                paragraph = _paragraph_containing(self.skill_text, marker)
-                self.assertIn(pinned_merge, paragraph)
-                self.assertIn("fresh post-push snapshot", paragraph)
-                self.assertIn("exact pushed commit", paragraph)
-                self.assertIn("Never reuse the pre-worker snapshot pin", paragraph)
-                self.assertNotIn("<snapshotted-head-sha>", paragraph)
+    def test_autopilot_step3_points_at_safety_for_the_tier_wired_command(self) -> None:
+        # Autopilot §3 no longer inlines a base-only merge command (the coherence
+        # gap #675 closed): it points at safety.md, which holds both the base and
+        # enabled-tier merge paths as one home so an enabled config cannot merge
+        # via the flagless base path. The push discipline stays in the paragraph.
+        paragraph = _paragraph_containing(
+            self.skill_text, "After the worker's final push"
+        )
+        self.assertIn("fresh post-push snapshot", paragraph)
+        self.assertIn("exact pushed commit", paragraph)
+        self.assertIn("Never reuse the pre-worker snapshot pin", paragraph)
+        self.assertIn("--autopilot-merge-tier", paragraph)
+        self.assertIn("reference/safety.md", paragraph)
+        self.assertNotIn("<snapshotted-head-sha>", paragraph)
 
     def test_generic_merge_gate_requires_the_vetted_head(self) -> None:
         paragraph = _paragraph_containing(self.skill_text, "**Merge readiness**")
@@ -155,6 +166,44 @@ class SkillContractTests(unittest.TestCase):
         ):
             with self.subTest(criterion=criterion):
                 self.assertIn(criterion, safety)
+
+    def test_safety_md_specifies_the_enabled_path_mechanics(self) -> None:
+        # #675 flip-precondition prose: the tier-wired merge command, the
+        # second-account approve mechanic, and the review-context enabling
+        # precondition are pinned so they cannot silently drift. Fenced command
+        # lines land in their own paragraphs, so assert against the whole file.
+        safety = (SKILL.parent / "reference" / "safety.md").read_text(encoding="utf-8")
+
+        for header in (
+            "Enabled-path merge command",
+            "Second-account approve mechanic",
+            "Review-workflow requiredness precondition",
+        ):
+            with self.subTest(header=header):
+                self.assertIn(header, safety)
+
+        # Enabled-path merge command — the four-flag tier layering is the single home.
+        self.assertIn(
+            "--autopilot-merge-tier --lane-logins <lane-logins> "
+            "--approver-bot-logins <approver-bot-logins> "
+            "--block-labels <merge-block-labels>",
+            safety,
+        )
+        self.assertIn(
+            "*only* autopilot merge path once the tier is enabled", safety
+        )
+
+        # Second-account approve mechanic — distinct approver identity, clean pass only.
+        self.assertIn("gh pr review owner/repo#N --approve", safety)
+        self.assertIn("GH_TOKEN=<approver-bot-token>", safety)
+        self.assertIn("gh auth switch --user <approver-login>", safety)
+        self.assertIn("never the PR author or a lane identity", safety)
+
+        # Review-workflow requiredness enabling precondition (fork 3a).
+        self.assertIn("required status context", safety)
+        self.assertIn("mergeStateStatus == CLEAN", safety)
+        self.assertIn("operator enabling precondition", safety)
+        self.assertIn("do not enable the tier", safety)
 
     def test_full_queue_and_draft_contract_remains_explicit(self) -> None:
         autopilot = _paragraph_containing(self.skill_text, '"Every PR" means every PR')

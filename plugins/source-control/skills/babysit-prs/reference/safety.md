@@ -160,6 +160,55 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   Treat a thread as cleared only when its own entry shows `"action": "resolved"`, and a merge as
   performed only when the merge output's `action` field says so.
 
+## Autopilot Merge Tier: Enabled-Path Mechanics
+
+Reachable only while `babysit_autopilot_merge_tier` is enabled; absent that flag none of this
+section applies and autopilot's merge path is byte-for-byte its prior self. This is the single
+home for the enabled-path merge command that autopilot's step 3 in `SKILL.md` points at, so the
+base and enabled-tier merge paths never drift apart. The tier still ships **DISABLED**; enabling
+it, and any later gate-off flip, is a separate announced operator step.
+
+- **Enabled-path merge command.** After the worker's final push and a fresh post-push snapshot
+  (or the exact pushed commit, vetted), merge on that post-push head by layering the tier flags
+  onto the base gate command — this is the *only* autopilot merge path once the tier is enabled,
+  never the four-flagless base command, which would ignore every tier criterion:
+
+  ```text
+  source-control-babysit-merge owner/repo#N --allowed-owners <watched-owners> --self-logins @me,<self-logins> --merge --expected-head <post-push-head-sha> --autopilot-merge-tier --lane-logins <lane-logins> --approver-bot-logins <approver-bot-logins> --block-labels <merge-block-labels>
+  ```
+
+  The umbrella `--autopilot-merge-tier` is fail-closed: it refuses (exit `3`) unless
+  `--lane-logins`, `--approver-bot-logins`, and `--block-labels` are all supplied, and any of
+  those three without the umbrella is a usage error (exit `2`). Add `--method <merge-method>`
+  when configured, exactly as for the base merge readiness gate above.
+
+- **Second-account approve mechanic.** The approving review the gate's distinct-bot criterion
+  requires is submitted out-of-band by the agent — the gate only verifies one exists on the live
+  head, it never creates it. Bind a **distinct** identity (one of the `<approver-bot-logins>`
+  accounts, never the PR author or a lane identity), run a **genuine** review pass through the
+  review plugin, and only when that pass is clean submit the approval under that identity:
+
+  ```text
+  GH_TOKEN=<approver-bot-token> gh pr review owner/repo#N --approve --body "<clean-review-summary>"
+  ```
+
+  `gh auth switch --user <approver-login>` before a plain `gh pr review … --approve` is the
+  equivalent when the approver is a persisted gh account rather than a bound token. Submit on the
+  live head so the gate's head-unchanged-since-review pin (`--expected-head`) still holds; any
+  push after the approval invalidates it and the review pass must be re-run against the new head.
+  Never approve on an unclean pass, and never under the author or a lane identity — either
+  collapses author ≠ approver and the gate refuses the merge fail-closed.
+
+- **Review-workflow requiredness precondition (enabling).** Enable the tier ONLY on a base branch
+  whose ruleset makes the review workflow a **required status context**. The gate proves the
+  review ran solely through `mergeStateStatus == CLEAN`, which guarantees only that *required*
+  contexts passed; a review workflow that is present but not required can be absent, skipped, or
+  failing while the PR still reads CLEAN, so the gate could green-light a merge the review never
+  actually gated. Making the review workflow a required context closes that hole deterministically
+  with no merge-gate config to add. Where it is not a required context, do not enable the tier:
+  this is an operator enabling precondition, verified before the flip, not something the merge
+  gate can self-enforce.
+
 ## Harness Permission Layer
 
 A permission denial can come from two different layers. Tell them apart before deciding how to

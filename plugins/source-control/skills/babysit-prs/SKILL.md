@@ -151,12 +151,12 @@ a human. Per PR, in its own fresh worker, autopilot:
    `"action": "resolved"` before treating it as cleared — never the exit code alone.
 
 3. After the worker's final push, takes a fresh post-push snapshot (or uses the exact pushed
-   commit after vetting it), then merges through `source-control-babysit-merge owner/repo#N
-   --allowed-owners <watched-owners> --self-logins @me,<self-logins> --merge --expected-head
-   <post-push-head-sha>` once the
-   deterministic gate proves the PR ready. Never reuse the pre-worker snapshot pin after a
-   push. The gate is never bypassed; if a PR cannot be made ready, autopilot reports that one
-   PR and moves on.
+   commit after vetting it), then merges on that post-push head through the pinned
+   `source-control-babysit-merge` gate once it proves the PR ready. The exact command — and the
+   `--autopilot-merge-tier` flags the enabled tier layers on so an enabled config never merges
+   via the base path — is the single home in [reference/safety.md](reference/safety.md). Never
+   reuse the pre-worker snapshot pin after a push. The gate is never bypassed; if a PR cannot be
+   made ready, autopilot reports that one PR and moves on.
 
 "Every PR" means every PR: the orchestrator's own priority judgment is never grounds to leave
 a queue member untouched. The only permitted exclusions are the deterministic ones — lease
@@ -178,7 +178,7 @@ settings powers — those still escalate. Run it looped:
 
 ## Autopilot merge tier (#476)
 
-A config-gated escalation of autopilot's merge authority, **shipped DISABLED** and active only while the operator sets `babysit_autopilot_merge_tier` (enabling it, and the later gate-off flip, are separate announced steps; without it every merge decision is exactly today's). When enabled, per candidate PR autopilot runs a **genuine review pass** under a **second bot account** (author ≠ approver) that submits an approving review **only when clean**, then runs the pinned merge gate with the tier flags (`--autopilot-merge-tier --lane-logins <lane-logins> --approver-bot-logins <approver-bot-logins> --block-labels <merge-block-labels>`) added to `--merge --expected-head <post-push-head-sha>`.
+A config-gated escalation of autopilot's merge authority, **shipped DISABLED** and active only while the operator sets `babysit_autopilot_merge_tier` (enabling it, and the later gate-off flip, are separate announced steps; without it every merge decision is exactly today's). When enabled, per candidate PR autopilot runs a **genuine review pass** under a **second bot account** (author ≠ approver) that submits an approving review **only when clean**, then runs the pinned merge gate with the `--autopilot-merge-tier` flags layered onto `--merge --expected-head <post-push-head-sha>`. The concrete enabled-path merge command, the second-account approve mechanic, and the review-workflow requiredness precondition for enabling the tier are the single home in [reference/safety.md](reference/safety.md).
 That gate merges **only when every criterion holds** — the criteria and the safety-contract rationale are codified in [reference/safety.md](reference/safety.md). It is **fail-closed** (the umbrella flag refuses unless all three parameter sets are supplied; predicates reused from the shared `babysit_classify` module), and any criterion failing falls back to the human merge-ready list — the tier never routes around the gate.
 
 ## Guarded mutations: deterministic gates, agent judgment
