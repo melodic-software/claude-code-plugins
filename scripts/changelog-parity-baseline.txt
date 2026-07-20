@@ -1,0 +1,12 @@
+# Grandfathered "versioned plugin with no CHANGELOG.md" debt — existing gaps
+# check-changelog-parity.sh --check must not red-line. One plugin NAME per line
+# (comments and blank lines ignored). Stale-guarded: --check fails if a listed
+# plugin gains a CHANGELOG.md or drops its version, so an entry cannot outlive
+# its debt. This never relaxes --check-bump — a listed plugin that bumps its
+# version still must start its changelog in that same PR.
+#
+# autonomy: shipped 5 minor version bumps with no CHANGELOG.md while every other
+# plugin maintains one — the parity gap this gate exists to flag. Reconstructing
+# an accurate history is autonomy-plugin (WP-lane) work, not this repo-level CI
+# change; grandfathered pending a dedicated autonomy CHANGELOG issue.
+autonomy

@@ -1,0 +1,25 @@
+# Grandfathered orphaned eval fixtures — existing debt this gate must not
+# red-line, each owned by (or awaiting) a burn-down issue. Path-prefix lines,
+# same matching idiom as scripts/docs-only-paths.txt: a fixture whose path
+# starts with an active line is exempt from check-orphaned-fixtures.sh --check.
+#
+# A prefix here is a standing promise the debt is tracked, not a place to hide
+# new orphans: --check fails on a STALE prefix (one that no longer shadows any
+# orphan), so an entry cannot outlive its debt. Delete the line when the owning
+# issue lands the fix. Do NOT add a plugin's fixtures here to dodge the gate on
+# NEW work — reference them from a grader instead.
+
+# autonomy setup skill: the security-binding golden suite (referenced by no
+# eval files[] entry and graded by no test) plus the otlp-demo sample corpus.
+# The security-binding subset is tracked by issue #662 (attach expected-verdict
+# blocks and wire them into the grader, or demote them to documentation
+# exemplars out of evals/fixtures/); otlp-demo is the same ungraded class in the
+# same skill. autonomy is WP-lane-owned — the fix is coordinated there, not here.
+plugins/autonomy/skills/setup/evals/fixtures/
+
+# knowledge youtube-digest skill: this data file lives under evals/fixtures/ but
+# is named only from SKILL.md / vendor TUNING.md prose — no eval files[] entry
+# and no test consume it. Surfaced by this gate's initial discover run; it has
+# no dedicated owning issue yet and needs triage (wire it into a grader, or move
+# it out of evals/fixtures/ if it is reference data rather than a fixture).
+plugins/knowledge/skills/youtube-digest/evals/fixtures/variation-matrix-backlog.json
