@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# PreToolUse hook: advisory guard for direct `git commit` / `gh pr create`
-# calls that bypass this marketplace's own canonical `/commit` and
-# `/pull-request create` skills (source-control plugin).
+# PreToolUse hook: advisory guard for direct `gh pr create` calls that bypass
+# this marketplace's own canonical `/pull-request create` skill
+# (source-control plugin).
 # Triggered on Bash tool calls.
 #
 # SCOPE — only fires when the source-control plugin's skills are actually
@@ -13,18 +13,17 @@
 # advisory) — an advisory firing on unknown state is noise, not signal.
 #
 # WHAT IT FLAGS:
-#   git commit  — invoked WITHOUT the canonical mechanic's two markers
-#                 (`-F -` piping the message via stdin, and a `--trailer`
-#                 carrying the Co-Authored-By line). A manual `git commit`
-#                 that already replicates the canonical shape (e.g. a
-#                 hand-typed heredoc form) stays quiet — the guard targets the
-#                 anti-pattern (`git commit -m "..."`) /commit exists to
-#                 prevent, not "you didn't literally type /commit".
 #   gh pr create — invoked at all. /pull-request create's value is PROCESS
 #                 (rebase onto default, unrelated-changes triage, closing-
 #                 keyword gate, attribution footer) — there is no command-shape
 #                 signature to gate on, so every direct invocation is flagged.
 #                 Low-noise in practice: `gh pr create` runs once per PR.
+#
+# `git commit` is NOT handled here — it moved to block-noncanonical-commit.sh,
+# which BLOCKS on the stdin-form mechanic. Keeping a duplicate advisory would
+# double-fire on one command. That hook also drops the `--trailer` conjunct this
+# one used to require: /commit omits the trailer under trailer_policy `none`, so
+# demanding it flagged the skill's own conformant output.
 #
 # NON-BLOCKING (advisory): exits 0 always. Emits additionalContext naming the
 # skill to prefer; never blocks the call — create.md itself documents a
@@ -84,7 +83,7 @@ SUBJECT=$(bash_subject "$COMMAND")
 
 # Emit one telemetry envelope per run. Advisory guards always report status
 # "ok" (they never block); the finding signal rides in `data.forms` — category
-# labels only ("git-commit-bypass" / "gh-pr-create-bypass"), never the matched
+# labels only ("gh-pr-create-bypass"), never the matched
 # command text.
 emit_tel() {
   [[ -n "$start" ]] || return 0
@@ -166,22 +165,9 @@ strip_literals() {
 
 STRIPPED_LC="$(strip_literals "$COMMAND")"
 STRIPPED_LC="${STRIPPED_LC,,}"
-COMMAND_LC="${COMMAND,,}"
 
 MESSAGES=()
 FORMS=()
-
-# `git commit` at a command position (start of string, or after a control
-# operator), without the canonical `-F -` stdin-message form AND a `--trailer`
-# carrying the Co-Authored-By line. Either marker present → the caller already
-# replicates the skill's mechanic; stay quiet.
-if [[ "$STRIPPED_LC" =~ (^|[[:space:];&|()]+)git[[:space:]]+commit([[:space:]]|$) ]]; then
-  if ! [[ "$COMMAND_LC" =~ (^|[[:space:]])(-f|--file)[[:space:]]+-([[:space:]]|$) ]] ||
-    ! [[ "$COMMAND_LC" =~ --trailer ]]; then
-    MESSAGES+=("direct \`git commit\` (missing the canonical \`-F -\` stdin form + \`--trailer\` Co-Authored-By line) — prefer the \`/commit\` skill (source-control plugin), which encapsulates the heredoc mechanic, Conventional Commits pre-check, and attribution trailer.")
-    FORMS+=("git-commit-bypass")
-  fi
-fi
 
 # `gh pr create` at a command position. No command-shape signature separates
 # skill-driven from ad hoc — /pull-request create's value is process (rebase,

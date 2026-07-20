@@ -3,6 +3,40 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.0]
+
+### Added
+
+- **`block-noncanonical-commit` — `git commit` must pipe its message via `-F -`.** The advisory that
+  previously covered this was overridden 11 times in a single session; an advisory that is always
+  overridden trains the reader to filter it out. The guard enforces the *mechanic*, not the ritual:
+  `git commit -m "<multi-line>"` flattens newlines unpredictably across shells, and the stdin form is
+  what prevents it. Exempt, because no message-on-stdin form exists for them and gating them would
+  strand real work: `--amend`/`--no-edit`, `-C`/`-c`/`--reuse-message`/`--reedit-message`,
+  `--fixup`/`--squash`, `-F <path>`, and any commit taken while a merge, rebase, cherry-pick, or
+  revert is in progress. Kill switch `block_noncanonical_commit_enabled`; allow-list
+  `block_noncanonical_commit_allow` (`message-flag` permits a bare `-m`). Detection reuses the
+  argv-grammar-faithful parser, so `bash -lc` wrappers and git aliases resolve and a commit body
+  merely *mentioning* `git commit -m` never fires.
+
+### Fixed
+
+- **`flag-commit-pr-skill-bypass` no longer demands `--trailer`.** The old condition required both
+  `-F -` **and** `--trailer`, but `/commit` omits the trailer when the resolved `trailer_policy` is
+  `none` — so in a repo whose convention forbids a co-author trailer, the skill's own conformant
+  output was flagged on every commit. The trailer is policy; only the stdin form is mechanic. This
+  also had to be settled before the new guard could block on the same condition: requiring
+  `--trailer` to pass would have permanently blocked `/commit` in that configuration.
+
+### Changed
+
+- **`flag-commit-pr-skill-bypass` is now `gh pr create`-only.** The `git commit` branch moved to
+  `block-noncanonical-commit`, so the two never double-fire on one command. `gh pr create` stays
+  advisory and cannot become otherwise: `/pull-request create` issues that exact command itself, and
+  [anthropics/claude-code#22655](https://github.com/anthropics/claude-code/issues/22655) (expose
+  `skill_name` to hooks) is closed as not planned — a hook cannot tell a skill-driven call from an
+  ad hoc one, so blocking it would deadlock the skill.
+
 ## [0.8.0]
 
 ### Changed
