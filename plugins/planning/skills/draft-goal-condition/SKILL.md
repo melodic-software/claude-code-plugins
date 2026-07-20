@@ -53,13 +53,15 @@ Avoid conditions the transcript cannot show (subjective quality, external state 
 
 ## Step 3 — Mechanical length check
 
-Validate the draft's character count against the **live limit from Step 1** with the deterministic counter (no model estimation):
+Validate the draft's character count against the **live limit from Step 1** with the deterministic counter (no model estimation). Write the draft to a temp file and pass `--file` — this is the robust path, immune to a condition that contains a single quote, backtick, or `$` that would otherwise mangle a piped string:
 
 ```shell
-printf '%s' "<drafted condition>" | bash "${CLAUDE_PLUGIN_ROOT}/scripts/goal-condition-length.sh" --limit <LIMIT_FROM_STEP_1>
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/goal-condition-length.sh" --limit <LIMIT_FROM_STEP_1> --file <path-to-draft>
 ```
 
-`--file <path>` reads the condition from a file instead of stdin. Exit `0` = within limit, `1` = over, `2` = usage/env error; stdout reports `chars=<n> limit=<N> status=<ok|over>`.
+For a simple condition with no shell-special characters, stdin also works: `printf '%s' "<condition>" | bash "${CLAUDE_PLUGIN_ROOT}/scripts/goal-condition-length.sh" --limit <LIMIT_FROM_STEP_1>`.
+
+Exit `0` = within limit, `1` = over, `2` = usage/env error (including a counter that failed to produce a number); stdout reports `chars=<n> limit=<N> status=<ok|over>`.
 
 **On `status=over`:** tighten and re-run until it passes — shorten prose, fold the stated check into the end state, drop redundant constraints — **without dropping the measurable end state, the stated check, or the load-bearing constraints**. If the intent genuinely cannot compress into one provable condition under the limit, say so rather than silently shedding a constraint; splitting a goal into sequential per-phase goals is not documented doctrine and is out of scope here.
 

@@ -82,6 +82,20 @@ else
   printf 'SKIP - multibyte code-point count (perl absent)\n'
 fi
 
+# 14. Counter failure is caught, not silently passed. Shadow BOTH counting
+#     backends (perl and wc) with stubs that emit nothing, so whichever branch
+#     the script takes yields an empty count. The guard must then exit 2 rather
+#     than fall through to a false status=ok on a crashed counter.
+fake_bin="$TMP/fakebin"
+mkdir -p "$fake_bin"
+for stub in perl wc; do
+  printf '#!/usr/bin/env bash\ncat >/dev/null 2>&1\nexit 0\n' >"$fake_bin/$stub"
+  chmod +x "$fake_bin/$stub"
+done
+rc=0
+printf 'hello' | PATH="$fake_bin:$PATH" bash "$SUT" --limit 50 >/dev/null 2>&1 || rc=$?
+if [[ $rc -eq 2 ]]; then pass "counter failure -> 2 (no false pass)"; else fail "counter failure -> wrong code ($rc)"; fi
+
 if [[ "$fails" -ne 0 ]]; then
   printf '\n%d test(s) failed.\n' "$fails" >&2
   exit 1

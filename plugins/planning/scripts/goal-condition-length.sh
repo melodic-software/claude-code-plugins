@@ -24,7 +24,9 @@
 set -uo pipefail
 
 usage() {
-  sed -n '2,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  # Sentinel range (not fixed line numbers) so the printed usage never silently
+  # truncates when the header grows or shrinks on a future edit.
+  sed -n '/^# Mechanical/,/^# Output/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 limit=""
@@ -98,6 +100,14 @@ if command -v perl >/dev/null 2>&1; then
   chars="$(printf '%s' "$condition" | perl -CSAD -e 'my $c = do { local $/; <STDIN> }; print length $c;')"
 else
   chars="$(printf '%s' "$condition" | wc -m | tr -d '[:space:]')"
+fi
+
+# Without set -e, a crashed counter would leave $chars empty and the -gt test
+# below would error-and-fall-through to a false "status=ok". Fail loudly instead:
+# a length gate that silently passes when its own counter broke is worse than useless.
+if ! [[ "$chars" =~ ^[0-9]+$ ]]; then
+  echo "error: character count failed (counter returned: '${chars:-<empty>}')" >&2
+  exit 2
 fi
 
 if [[ "$chars" -gt "$limit" ]]; then
