@@ -155,6 +155,28 @@ Match GitHub's issue-closing keyword set (`close`/`closes`/`closed`/`fix`/`fixes
 `resolve`/`resolves`/`resolved`) followed by `#<num>`; the opt-out markers `Refs #<num>` /
 `No related issue:` leave the body untouched.
 
+## Open linked PRs
+
+For `/work-items:work` selection — report whether item `<N>` already has an open PR targeting it
+for closure, so a candidate whose work is in flight is dropped from the pickable frontier rather
+than re-picked. `--search "<N> in:body"` scopes the read to the open PRs that mention the number,
+so it is truncation-safe per item (no page-size race — see the `--limit` note under "List items"),
+then the closing-keyword test keeps only the ones that actually close `#<N>` (bare read):
+
+```bash
+gh pr list --state open --search "<N> in:body" --json number,body --limit 100 | tr -d '\r' \
+  | jq --arg n "<N>" 'any(.[]; .body | test(
+      "(?i)(?:clos(?:e|es|ed)|fix(?:|es|ed)|resolv(?:e|es|ed)):?[ \t]+#\($n)(?![0-9])"))'
+```
+
+Emits `true` when at least one open PR closes `#<N>`, `false` otherwise. The **closing keyword is
+the authoritative signal**, not the head-branch name: the `pr-issue-linkage` pre-create gate
+guarantees a standard-flow PR carries a `Closes #<N>` keyword, so keyword-matching catches it,
+while an intentional opt-out (`Refs #<num>` / `No related issue:`) correctly does NOT match and so
+does not exclude its issue. This is the same keyword set the "PR closing-keyword mechanics" section
+matches. The exact-number boundary (`(?![0-9])`) keeps `#463` from matching `#4630` / `#1463`; the
+`#` anchor already prevents a match inside `#1463`.
+
 ## Aggregate / count (dashboard + hygiene)
 
 `gh issue list --json ... --jq` projections for `stats` and `audit` (bare `gh`).
