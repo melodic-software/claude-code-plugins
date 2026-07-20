@@ -3,6 +3,20 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.3]
+
+### Changed
+
+- Stack-qualified the `implement` skill's optional-collaborator references: the mode contexts
+  (`skills/implement/context/feature.md`, `bugfix.md`, `refactor.md`) retain their `dotnet-*`
+  marketplace-skill names and `## Marketplace plugin skills (invoke only when installed)` presence
+  gate, and each now opens with a lead-in that frames those skills as .NET-ecosystem forward
+  references — invoked only when your stack is .NET and the plugin is installed — with an explicit
+  fallback to the project's own tooling otherwise, so a non-.NET consumer keeps the generic path
+  first-class rather than being handed a dead list. Matches the conforming `testing` (#491) and
+  `verification` (#526) pattern per the ratified #412 disposition governing #405. No reference
+  removal; every reference stays optional and installed-gated.
+
 ## [0.7.2]
 
 ### Changed

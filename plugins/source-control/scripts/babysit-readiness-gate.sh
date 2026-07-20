@@ -241,6 +241,42 @@ classified=${classified//[^0-9]/}
 findings=$((${sev_words:-0} + ${sev_badges:-0} + ${sev_plain:-0}))
 classified=${classified:-0}
 
+# --- Prefer the shared Python classifier when available -----------------------
+
+# The bash counts above are the Python-free safe-tier degrade (reference/loop.md
+# is that path, and it runs this gate). When a Python 3.11+ interpreter is
+# present, re-count via the shared babysit_classify module instead: it owns the
+# severity vocabulary as ONE source of truth rather than a second bash copy that
+# can drift from the snapshot classifier (the divergence class #534 exists to
+# close), and it discounts a severity marker carried in a resolved or outdated
+# thread, so a lifetime badge no longer inflates the count into a false
+# READINESS_BLOCKED (#465). A convergence test pins the two counts together on
+# thread-state-free input; if the Python counter cannot run (no interpreter, or a
+# transient live fetch failure) the bash degrade counts above stand.
+# BABYSIT_READINESS_BASH_ONLY=1 forces the degrade even when Python is present --
+# the operator escape that exercises (and, in the gate's own tests, pins) the
+# Python-free path deterministically.
+PY_SCRIPTS="$SCRIPT_DIR/../skills/babysit-prs/scripts"
+if [[ "${BABYSIT_READINESS_BASH_ONLY:-}" != 1 && -f "$PY_SCRIPTS/babysit-python.sh" ]]; then
+  # shellcheck source=../skills/babysit-prs/scripts/babysit-python.sh
+  . "$PY_SCRIPTS/babysit-python.sh"
+  self_csv_joined="$(
+    IFS=,
+    printf '%s' "${SELF_LOGINS[*]}"
+  )"
+  if [[ -n "$COMMENTS_JSON" ]]; then
+    py_out="$(babysit_python "$PY_SCRIPTS/babysit_findings.py" \
+      --comments-json "$COMMENTS_JSON" --self "$self_csv_joined" 2>/dev/null)"
+  else
+    py_out="$(babysit_python "$PY_SCRIPTS/babysit_findings.py" \
+      --pr "$PR_NUMBER" --self "$self_csv_joined" 2>/dev/null)"
+  fi
+  if [[ "$py_out" =~ findings=([0-9]+)[[:space:]]+classified=([0-9]+) ]]; then
+    findings="${BASH_REMATCH[1]}"
+    classified="${BASH_REMATCH[2]}"
+  fi
+fi
+
 # --- R6: checklist completeness ----------------------------------------------
 
 unticked=0

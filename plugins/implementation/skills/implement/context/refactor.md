@@ -33,5 +33,7 @@ These go in separate commits. Squash merge collapses them on main, but separate 
 
 ## Marketplace plugin skills (invoke only when installed)
 
+These are .NET-ecosystem plugin skills — invoke each only when your stack is .NET and its plugin is installed; otherwise fall back to the project's own build/reference tooling:
+
 - **`dotnet-msbuild:msbuild-antipatterns`** — after moving types across projects, invoke to scan changed .csproj/.props/.targets for anti-patterns introduced by the restructuring (missing PrivateAssets, stale references, unconditional overrides)
 - **`dotnet-msbuild:resolve-project-references`** — when renaming or moving projects, invoke to detect broken or circular references in the MSBuild dependency graph before committing

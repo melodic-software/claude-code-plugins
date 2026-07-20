@@ -17,7 +17,7 @@ Read in order:
 2. <path-to-slice-file> — your review criteria.
 3. The change set: git diff <review-diff-base> (the dispatcher substitutes the
    resolved review diff base from SKILL.md "Shared inputs" — the PR's real base
-   when one exists, else the origin/HEAD -> origin/main -> HEAD fallback),
+   when one exists, else the origin/HEAD -> remote default branch -> origin/main -> HEAD fallback),
    plus git ls-files --others --exclude-standard (Read any untracked files it lists).
    Bare `git diff HEAD` alone is empty on a clean committed branch.
 

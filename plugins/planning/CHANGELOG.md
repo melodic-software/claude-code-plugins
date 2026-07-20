@@ -3,6 +3,24 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.0]
+
+### Added
+
+- **New skill `draft-goal-condition`** — crafts a paste-ready `/goal` completion
+  condition from a stated intent. It reads the **current** official `/goal` docs
+  live for the condition shape and character limit (nothing is hardcoded, so the
+  skill does not rot when the documented contract changes between Claude Code
+  versions), gates the draft to the doc's transcript-demonstrable effective-condition
+  shape, and — because a model cannot reliably count characters — proves the draft
+  fits the limit with a deterministic counter rather than estimation. Includes a
+  lever-fit gate (step 0) that routes interval-shaped work to `/loop` and
+  cloud/sessionless work to routines/`/schedule` instead of authoring a goal.
+- **New plugin-root script `scripts/goal-condition-length.sh`** (with companion
+  `goal-condition-length.test.sh`) — a mechanical, model-free character-length
+  gate. The limit is passed in by the caller (read live from the docs), never
+  baked into the script; exit `0` within limit, `1` over, `2` usage/env error.
+
 ## [0.21.2]
 
 ### Added
