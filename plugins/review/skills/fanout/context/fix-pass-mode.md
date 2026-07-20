@@ -65,7 +65,7 @@ Invoke the `/simplify` skill when available in the session; otherwise apply the 
 - `/simplify` rediscovers cleanups from the working-tree diff — it does NOT read the findings file. Sound when the findings are fresh vs the working tree; note it when the findings timestamp lags far behind the latest commits.
 - Zero cleanup-class findings → skip entirely; do not invoke it to "tidy anyway".
 
-## Step 5: Report
+## Step 5: Report + applied-plan record
 
 - Cleanup-class: `<n>` findings → what changed.
 - Correctness-class: `<m>` → `<applied>` fixed (list with file:line), `<surfaced>` surfaced for decision.
