@@ -33,7 +33,7 @@ Derive `.work/<watch-epic>/<video-slug>/` from metadata title + video id:
 
 Implementation: `${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/transcript/derive-video-slug.js`
 
-This skill's `.work/` root is **formally carved out** of the marketplace topic-docs convention (<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>): the work root resolves through the knowledge plugin's own `library_dir` seam, not the concern file's `memory_dir`; slug conformance is form-only (kebab-case `[a-z0-9-]`, ≤ 40 chars, Windows-reserved base names take an `-x` suffix); and nested `<epic>/<slug>/` sub-slices are sanctioned. The root still self-ignores (a `.gitignore` containing `*`) and is never committed.
+This skill's `.work/` root is **formally carved out** of the marketplace topic-docs convention (<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>): the work root resolves through the knowledge plugin's own `library_dir` seam, not the concern file's `memory_dir`; slug conformance is form-only (kebab-case `[a-z0-9-]`, ≤ 40 chars, Windows-reserved base names take an `-x` suffix); and nested `<epic>/<slug>/` sub-slices are sanctioned. Unlike the convention's never-committed memory tier, this `.work/` root does **not** self-ignore with a root `*` `.gitignore` — its slice artifacts are the durable substrate and are committed, staged per the Output contract. The lone exception is the contact-sheet JPGs, which `snapshot-bootstrap.js` keeps out of git via a per-directory `.gitignore` (`*.jpg`) it writes into `key-frames/contact-sheets/`.
 
 ## Artifact landing (work root)
 

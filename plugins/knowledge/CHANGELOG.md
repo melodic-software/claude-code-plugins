@@ -4,6 +4,20 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.8.2]
+
+### Fixed
+
+- **youtube-digest: resolved a self-contradiction in `SKILL.md` about `.work/`
+  commit behavior.** The video-slug carve-out prose claimed the `.work/` root
+  "self-ignores (a `.gitignore` containing `*`) and is never committed" — an
+  unimplemented statement (no code writes a root `*` ignore) that directly
+  contradicted the Output contract, where ~35 slice artifacts are marked
+  `Staged: yes`. The prose now states the committed reality: slice artifacts are
+  the durable substrate and are committed, with the lone exception of the
+  contact-sheet JPGs that `snapshot-bootstrap.js` keeps out of git via a
+  per-directory `.gitignore` (`*.jpg`). Doc-only; no pipeline behavior changes.
+
 ## [0.8.1]
 
 ### Changed
