@@ -135,6 +135,14 @@ as defaults. This governs every plugin and every convention, not one class. Two 
    table assuming them. A convention a consumer could reasonably do differently belongs in lane 2, as
    a discovered-and-externalized extensibility point, never as a lane-1 default.
 
+A bare lane-1 hardcode in a skill declared agnostic — a fixed default branch, forge, ecosystem, or
+tracker where the consuming repo could reasonably differ — is a defect, mechanically caught rather
+than asserted only in prose. A detection-first or presence-gated use is compliant. A capability
+genuinely and inherently locked to one branch, forge, ecosystem, or tracker declares that narrower,
+inherent scope at the coupling site — the same declared-narrower-boundary allowance the
+cross-platform contract makes for OS platform — rather than shipping the assumption bare under a
+neutral name.
+
 ## Configuration ownership and scope
 
 Choose one authoritative owner for each value:

@@ -1,0 +1,57 @@
+# Portability-lint token list — coupling tokens that break declared skill
+# agnosticism (issue #531). Each ACTIVE line is one ERE pattern that
+# scripts/check-skill-portability.sh matches against changed skill files.
+#
+# Ownership / growth: this list is the gate's data, deliberately kept OUT of the
+# script so a reviewer re-catch of this coupling class becomes a one-line data
+# change, never a gate-logic edit. Every reviewer re-catch of a bare stack /
+# forge / branch / tracker default is a missing token — add it here (or uncomment
+# a staged class once its member issue lands and the corpus is proven clean for
+# it), closing the loop so the gate is self-improving.
+#
+# Rollout is one token-class at a time (ratified decision on #531, Option A): a
+# staged class stays commented with its enable-trigger until the class is proven
+# green against the real corpus. Changed-file scoping (see the script header)
+# means an active class only ever gates the files a PR actually touches, so
+# enabling a class never red-lines main — it prevents NEW coupling and forces a
+# fix-or-declare when a coupled file is next edited.
+#
+# Format: blank lines and lines beginning with `#` are ignored; every other line
+# is an ERE pattern (leading/trailing whitespace trimmed). Labels live in the
+# comment above each pattern, never on the pattern line.
+#
+# Escaping a legitimate hit (all three are comments the reviewer sees in the diff,
+# never a frontmatter field — see the script header for detection detail):
+#   - a detection-first / presence-gated use is auto-recognized (guard markers);
+#   - a per-site recorded exemption:  `portability-ok: <reason>`;
+#   - a whole-file inherent, declared narrower scope (the #441 case):
+#     `portability-scope: <reason>`.
+
+# --- ACTIVE ---
+
+# Branch / default-branch hardcode (the #467 review-churn class: "branch/remote
+# x4"). A bare `origin/main` / `origin/master` asserts the consumer's default
+# branch instead of resolving it (symbolic-ref / merge-base / origin/HEAD, with
+# origin/main only as a documented last-resort fallback — those detection-ladder
+# uses are auto-recognized as guarded).
+origin/(main|master)
+
+# --- STAGED (commented until the class is proven clean against the corpus) ---
+
+# Ecosystem hardcode: .NET-flavored defaults in an ecosystem-agnostic skill
+# (#491 #492). Enable when the .NET-example member issues land and an audit run
+# (`--all`) shows the agnostic skills clean (ecosystem-specific plugins declare
+# `portability-scope`). Bare token is high-volume in the corpus today (56 files).
+# dotnet
+# \bClean Arch(itecture)?\b
+
+# Forge/marketplace-internal hardcode: a hardcoded raw GitHub content URL where a
+# portable fetch or a declared scope belongs. Enable when #405 and the forge-lock
+# members (e.g. #441 declares source-control's inherent GitHub scope) land.
+# raw\.githubusercontent\.com
+
+# Tracker hardcode: bare `gh` tracker calls in a tracker-agnostic skill that
+# should route the work-item seam (#416). Enable once the seam-routing members
+# land; `gh` is legitimate in forge-scope-declared skills, so this class needs
+# the declared-scope escape hatch exercised first.
+# \bgh (issue|api|pr|label)
