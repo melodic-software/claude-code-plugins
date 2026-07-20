@@ -3,6 +3,20 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.2]
+
+### Fixed
+
+- **`orphan-rule-check` no longer truncates a quoted `memory_dir` at an interior `#`.**
+  Seam resolution now routes through the shared `parse-concern-value.sh` helper
+  (materialized from `lib/parse-concern-value.sh`), which resolves surrounding quotes
+  *before* stripping comments: `memory_dir: ".scratch#dir"` keeps its `#` and the correct
+  tier is excluded from the reference search, rather than collapsing to `.scratch` and
+  masking an orphan rule. The naive `${seam%%#*}`-first strip is gone; unquoted trailing
+  ` # comment`, whitespace, and trailing-slash handling are unchanged. As a
+  non-interactive detector it still degrades to the documented `.work` default when the
+  seam is unset — the contract's inferred/interactive rungs stay the calling skill's job.
+
 ## [0.2.1]
 
 ### Fixed

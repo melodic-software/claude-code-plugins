@@ -250,6 +250,26 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: scripts/sync-hook-utils.sh --check-bump "origin/$BASE_REF"
 
+  parse-concern-value-sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          # Full history so the PR base ref is resolvable for the bump gate.
+          fetch-depth: 0
+      - name: Verify plugin copies match the shared parser
+        run: scripts/sync-parse-concern-value.sh --check
+      - name: Run shared parser tests
+        run: bash lib/parse-concern-value.test.sh
+      - name: Verify consuming plugins bumped when the lib changed
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/sync-parse-concern-value.sh --check-bump "origin/$BASE_REF"
+
   standards-contract-sync:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -590,6 +610,7 @@ jobs:
     needs:
       - hygiene
       - hook-utils-sync
+      - parse-concern-value-sync
       - standards-contract-sync
       - cross-plugin-source-drift
       - skill-leaf-name-gate

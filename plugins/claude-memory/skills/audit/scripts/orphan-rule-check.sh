@@ -27,6 +27,10 @@
 
 set -uo pipefail
 
+# Absolute path to this script's dir, resolved before any `cd` so the sibling
+# shared parser stays locatable regardless of how we were invoked.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   cat <<'EOF'
 orphan-rule-check.sh — flag always-loaded .claude/rules/*.md referenced by no tracked file.
@@ -55,18 +59,14 @@ fi
 cd "$repo_root" || exit 1
 
 # Resolve the in-repo memory tier from the topic-docs seam (`.claude/topic-docs.yaml`
-# `memory_dir`) — the same sed-extract shape as docs-hygiene's noise-shapes.sh — and
-# exclude THAT path from the reference search, falling back to the convention default
-# `.work` only when the seam is unset. NOTE: this is the tracked in-repo tier, distinct
-# from the auto-memory dir the sibling resolve-memory-dir.sh derives.
-memory_dir=".work"
-topic_docs="${repo_root}/.claude/topic-docs.yaml"
-if [[ -f "$topic_docs" ]]; then
-  seam=$(sed -n 's/^memory_dir:[[:space:]]*//p' "$topic_docs" | head -1)
-  seam="${seam%%#*}"; seam="${seam%"${seam##*[![:space:]]}"}"; seam="${seam%/}"
-  seam="${seam#\"}"; seam="${seam%\"}"; seam="${seam#\'}"; seam="${seam%\'}"
-  [[ -n "$seam" ]] && memory_dir="$seam"
-fi
+# `memory_dir`) via the shared parser (quote-aware, comment-safe) and exclude THAT
+# path from the reference search. NOTE: this is the tracked in-repo tier, distinct
+# from the auto-memory dir the sibling resolve-memory-dir.sh derives. As a
+# non-interactive detector it degrades straight to the documented `.work` default
+# when the seam is unset; the contract's inferred/interactive rungs (a save-point
+# convention declared in CLAUDE.md / .claude/rules) are the calling skill's job.
+seam=$("$SCRIPT_DIR/parse-concern-value.sh" "${repo_root}/.claude/topic-docs.yaml" memory_dir)
+memory_dir="${seam:-.work}"
 
 # A rule is always-loaded unless its frontmatter declares `paths:`. Frontmatter is the
 # leading `---` ... `---` block.
