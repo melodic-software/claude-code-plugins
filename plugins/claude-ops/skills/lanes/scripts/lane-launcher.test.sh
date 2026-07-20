@@ -120,6 +120,17 @@ out="$(run_launcher status --repo "$REPO" --config "$TMP/empty.json" --agents-js
 rc=$?
 assert_eq "empty-lanes config exits 3" 3 "$rc"
 
+cat >"$TMP/dupe.json" <<'JSON'
+{ "lanes": [
+  { "name": "work", "prompt": "work.md" },
+  { "name": "work", "prompt": "babysit.md" }
+] }
+JSON
+out="$(run_launcher start --repo "$REPO" --config "$TMP/dupe.json" --agents-json "$AGENTS_EMPTY" --dry-run 2>&1)"
+rc=$?
+assert_eq "duplicate lane names exit 3" 3 "$rc"
+assert_contains "duplicate lane names named in message" "$out" "duplicate lane names: work"
+
 # ============================================================================
 # status
 # ============================================================================

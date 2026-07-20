@@ -215,6 +215,16 @@ resolve_config() {
     err "lane config has no lanes: $CONFIG"
     exit 3
   }
+  # Lane names are the safety key: stop/restart resolve a sessionId by name and
+  # every action snapshots sessions once, so a duplicated name would launch two
+  # same-named sessions while stop reaches only the most-recent one. Reject it at
+  # config time rather than silently acting on an ambiguous set.
+  local dupes
+  dupes="$(jq -r '[.lanes[].name | select(. != null)] | group_by(.) | map(select(length > 1) | .[0]) | join(", ")' "$CONFIG")"
+  [[ -z "$dupes" ]] || {
+    err "lane config has duplicate lane names: $dupes (names must be unique): $CONFIG"
+    exit 3
+  }
 }
 
 # The one prompt-storage seam — repoint here when a durable prompt home exists.
