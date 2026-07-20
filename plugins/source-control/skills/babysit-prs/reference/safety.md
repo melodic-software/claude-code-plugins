@@ -185,8 +185,11 @@ it, and any later gate-off flip, is a separate announced operator step.
 - **Second-account approve mechanic.** The approving review the gate's distinct-bot criterion
   requires is submitted out-of-band by the agent — the gate only verifies one exists on the live
   head, it never creates it. Bind a **distinct** identity (one of the `<approver-bot-logins>`
-  accounts, never the PR author or a lane identity), run a **genuine** review pass through the
-  review plugin, and only when that pass is clean submit the approval under that identity:
+  accounts, never the PR author or a lane identity), run a **genuine** review pass — through a
+  review skill/plugin when one is installed, otherwise an equivalent thorough manual review (this
+  skill declares no review-plugin dependency; the gate requires only that the resulting approval
+  exists on the live head, not that a particular tool produced it) — and only when that pass is
+  clean submit the approval under that identity:
 
   ```text
   GH_TOKEN=<approver-bot-token> gh pr review owner/repo#N --approve --body "<clean-review-summary>"
