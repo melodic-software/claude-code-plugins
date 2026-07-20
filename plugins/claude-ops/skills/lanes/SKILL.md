@@ -32,6 +32,25 @@ background-session surface.
 name is a lane in the resolved config — a hand-started session (e.g. an interactive
 `work` window, or an unrelated `PR Babysit`) is never stopped by this skill.
 
+## A relaunch is the only context reset a loop lane gets
+
+`/loop` re-invokes its prompt in the **same** session (it self-paces via
+`ScheduleWakeup`), so a lane's context accumulates monotonically across every cycle,
+subagent return, and operator turn — nothing inside the loop ever resets it. A
+running loop **cannot** reset its own context: a built-in like `/clear` issued from a
+loop re-run reaches the model as plain text, not an executed command, so the model
+cannot `/clear` itself. Any "restart the loop when context passes ~N%" discipline is
+therefore an admonition with no in-session enforcement — the lane has no reliable way
+to measure its own context usage and no way to act on the threshold if it could.
+
+`restart` (stop the session, relaunch from the canonical prompt) is what actually
+resets the context: the relaunched lane starts a **fresh** session seeded from the
+prompt file. That reset is **operator- or launcher-initiated**, not automatic — there
+is no per-cycle or threshold trigger that runs `restart` for you today. Until such a
+trigger exists, treat the periodic `restart` (e.g. the morning refresh) as the
+mechanism that keeps long-running lanes out of the compaction/degradation zone, and
+do not let a lane prompt assume each `/loop` cycle begins with fresh context.
+
 ## Run it
 
 ```bash
