@@ -163,7 +163,14 @@ else
   # divergent frontmatter name silently relocates the invocation the doctrine
   # says the skill has — and the picker labels rows by the resolved leaf name,
   # so the drift never surfaces in the listing either.
-  CUR_NAME="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field name <<<"$FRONTMATTER")")"
+  RAW_NAME="$(skill_frontmatter::field name <<<"$FRONTMATTER")"
+  # A trailing `# comment` is legal on a YAML scalar and is not part of the
+  # value. Skill names are kebab-case per the Agent Skills spec, so a '#' can
+  # never belong to the name itself — strip from the first whitespace-then-hash,
+  # before unquoting, so a quoted name with a trailing comment also resolves.
+  RAW_NAME="${RAW_NAME%%[[:space:]]#*}"
+  RAW_NAME="${RAW_NAME%"${RAW_NAME##*[![:space:]]}"}"
+  CUR_NAME="$(skill_frontmatter::strip_quotes "$RAW_NAME")"
   if [[ -n "$CUR_NAME" && "$CUR_NAME" != "$SKILL_NAME" ]]; then
     err "frontmatter name '$CUR_NAME' does not match skill directory '$SKILL_NAME'"
   fi

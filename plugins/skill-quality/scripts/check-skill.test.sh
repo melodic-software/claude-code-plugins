@@ -394,6 +394,51 @@ else
   fail "quoted matching name should not trip the gate (rc=$rc): $out"
 fi
 
+# 16. A trailing YAML comment is not part of the scalar, so a correctly named
+#     skill carrying one must not trip the gate (false-positive direction).
+make_skill commented-name '---
+name: commented-name # kept for the migration note
+description: "Name carries a trailing YAML comment. Use when: '"'"'checking comment stripping'"'"'."
+---
+
+## Purpose
+
+Fixture whose frontmatter name carries a legal trailing comment.
+
+## Gotchas
+
+None known.
+'
+out="$(run commented-name 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'does not match skill directory' <<<"$out"; then
+  pass "trailing YAML comment on name does not trip the gate"
+else
+  fail "commented name should not trip the gate (rc=$rc): $out"
+fi
+
+# 17. Comment stripping must not mask a real mismatch.
+make_skill commented-bad '---
+name: wrong-name # with a comment too
+description: "Wrong name plus a comment. Use when: '"'"'checking comment stripping'"'"'."
+---
+
+## Purpose
+
+Fixture that is both misnamed and commented.
+
+## Gotchas
+
+None known.
+'
+out="$(run commented-bad 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q "frontmatter name 'wrong-name' does not match" <<<"$out"; then
+  pass "comment stripping does not mask a real mismatch"
+else
+  fail "commented misnamed skill should still fail (rc=$rc): $out"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1
