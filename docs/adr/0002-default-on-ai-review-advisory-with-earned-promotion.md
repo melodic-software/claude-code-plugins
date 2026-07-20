@@ -1,6 +1,6 @@
 # Default-on AI review: advisory lanes with earned promotion to blocking
 
-- Status: accepted
+- Status: accepted (interim — pending the #509 enforcement design ruling)
 - Date: 2026-07-20
 
 ## Context
@@ -35,6 +35,11 @@ review friction compounds fast at fleet scale.
    WP5 verification-promotion discipline. No calendar-based flip.
 3. **Severity vocabulary**: the security lane reports CRITICAL/IMPORTANT/SUGGESTION with a
    confidence axis, matching the review-toolkit convention.
+
+This is the interim posture pending #509's enforcement design session (operator-deferred,
+2026-07-19): how the pipeline enforces and evidences that a security pass ran on every PR is
+that session's question, and it may promote the security lane to a required gate on its own
+terms without a further precision window.
 
 ## Revisit triggers
 
