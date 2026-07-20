@@ -90,7 +90,11 @@ confirmed the plan — the dry-run surfaces this before any mutation.
 
 - **Single batch-wide gate:** run `--dry-run` once, show the whole-batch plan (the
   per-repo outcomes + `Summary` + any `UnmatchedSkip`), `AskUserQuestion` once, then
-  `--apply` once. One confirmation covers the batch — do not gate per repo.
+  `--apply` once. One confirmation covers the batch — do not gate per repo. When the
+  repo list comes from `--repos-from -` (stdin), the `--apply` invocation must re-run
+  the same `ghq list -p | …` pipe (stdin is consumed once); the list is re-enumerated
+  at apply, a benign window in the same class as the child's fetch-between-dry-run-and-
+  apply.
 - `--include-dirty` and `--include-secrets` each need their own explicit
   confirmation; the `--include-dirty` confirmation must name the dirty repos whose
   uncommitted changes will be discarded.
