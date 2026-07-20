@@ -27,10 +27,17 @@ Deterministic guards encoded here:
   additionally REFUSES to bulk-resolve: a `--resolve` in `--autonomous` mode must
   carry a single pinned `--thread-id` (with its `--expected-comment-count` and
   `--expected-last-updated` pins), turning the call into a per-thread vetted loop.
-  A worker's own push marks a thread `isOutdated`, so `isOutdated` alone is not
-  proof the finding was addressed; the per-thread pins are what prove each thread
-  is unchanged since the agent vetted it. `--allow-unpinned-thread` is likewise
-  refused in `--autonomous` mode -- there is no unpinned autonomous resolve.
+  Those pins enforce comment-state ONLY: they refuse a thread whose comment count
+  or latest comment-edit timestamp drifted after it was vetted (a reply added or a
+  comment edited between vetting and execution). They do NOT catch displacement -- a
+  worker's own push flips `isOutdated` to `true` without touching a comment, so both
+  pins still match and such a thread is still resolved even though the push only
+  moved the finding's anchored lines rather than addressing it. Keeping a
+  displacement-outdated thread unresolved therefore rests on agent discipline (the
+  pre-push-outdated rule in `reference/orchestration.md`), not on this guard; the
+  machine-enforced displacement fix is tracked in #571. `--allow-unpinned-thread`
+  is likewise refused in `--autonomous` mode -- there is no unpinned autonomous
+  resolve.
 - `--only-outdated` independently restricts to `isOutdated` threads in any mode.
 - `--thread-id` operates on one agent-vetted thread. Combined with `--resolve`,
   it requires `--expected-comment-count` AND `--expected-last-updated` to pin

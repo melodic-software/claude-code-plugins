@@ -13,8 +13,11 @@ All notable changes to the `source-control` plugin are documented here. Format f
   (each thread pinned with `--expected-comment-count` and `--expected-last-updated`, reusing the
   existing TOCTOU pin guard). `--allow-unpinned-thread` is likewise refused in `--autonomous`
   mode, so there is no unpinned autonomous resolve. A worker's own push marks a review thread
-  `isOutdated`, and the previous bulk path cleared such threads with no proof the finding was
-  addressed; the resolve is now fail-closed by construction. This is a behavior change to the
+  `isOutdated`, and the previous bulk path cleared such threads in one unpinned sweep with no
+  proof the finding was addressed; the per-thread pins now close the bulk and comment-drift gaps.
+  They do not close the displacement bypass — a push that flips `isOutdated` while the comment
+  pins still match is still resolvable — which is tracked as the root fix in #571. This is a
+  behavior change to the
   autonomous-worker contract: `SKILL.md` Autopilot step 2 changes from one bulk call to a
   per-thread loop, aligning it with the pinned form already documented in
   `reference/orchestration.md` and `reference/safety.md`. Covered by a regression test in
