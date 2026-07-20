@@ -90,7 +90,11 @@ for (const [name, entry] of Object.entries(fixtures)) {
   if (entry.evidence) args.push("--evidence", join(fixturesDir, entry.evidence));
   if (entry.egress_hosts) args.push("--egress-hosts", entry.egress_hosts);
 
-  const result = spawnSync(process.execPath, args, { encoding: "utf8" });
+  const result = spawnSync(process.execPath, args, {
+    encoding: "utf8",
+    maxBuffer: 10 * 1024 * 1024,
+    timeout: 30_000,
+  });
   if (result.error) {
     fail(`grade: ${name}`, `could not launch checker: ${result.error.message}`);
     continue;
