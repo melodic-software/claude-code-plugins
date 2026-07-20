@@ -14,7 +14,7 @@ on Claude Code **2.1.215**.
 | Pillar 1 — `schema_url` pin on contract-authored emissions | Native declares NO `schemaUrl` at resource or scope level, on any signal (metrics, traces, logs) | Already handled: native output is consumed as-is per the contract's native-surface clause; the pin binds contract-authored emissions only |
 | Pillar 1 — upstream semconv vocabulary | Native emits its own `claude_code.*` vocabulary (metrics `claude_code.session.count` …, spans `claude_code.llm_request` / `claude_code.interaction`, log events `hook_execution_start` / `plugin_loaded`) plus standard resource attrs (`service.name=claude-code`, `service.version`, `host.arch`, `os.*`) | Consumed as-is; no rewrite |
 | Pillar 2 — `autonomy.work_item.url` RESOURCE-scope on agent-session emission | **Native honors `OTEL_RESOURCE_ATTRIBUTES`**: a headless run with `OTEL_RESOURCE_ATTRIBUTES=autonomy.work_item.url=<url>` landed the attribute at resource scope on the session's native metrics export | **SATISFIED natively** via environment injection by the dispatching surface — no hook emission needed |
-| Pillar 3 — inbound `traceparent` joining for headless contexts | **Native IGNORES an inbound `TRACEPARENT` environment value**: a headless run with a well-formed `TRACEPARENT` env var produced a fresh root `traceId`, no parent | **NOT satisfied natively** — the contract-authored wrapper emission remains required for the causal tree |
+| Pillar 3 — inbound `traceparent` joining for headless contexts | **Beta-gated.** Default surface ignores an inbound `TRACEPARENT` (fresh root, no parent). With `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1` the same probe JOINS: session spans carry the injected `traceId` and parent to the injected span | **Satisfied natively only behind the enhanced-telemetry beta**, whose span shapes the setup slice deliberately does not depend on — the contract-authored wrapper emission remains the stable conforming leg until spans graduate |
 
 ## Decision — hybrid, native-first
 
@@ -24,9 +24,12 @@ on Claude Code **2.1.215**.
    principle; a re-derivation would be non-conforming).
 2. **Causal joining (Pillar 3): contract-authored wrapper emission.** The trigger/CI/runner
    wrapper keeps emitting its own contract-authored span — inheriting inbound `traceparent`
-   and carrying the join attribute — because the native session cannot join the trace.
-   Native session signals join the chain **query-side by the Pillar-2 resource attribute**
-   (both surfaces carry the same normalized item URL), not by trace context.
+   and carrying the join attribute — because the DEFAULT native session does not join the
+   trace, and the beta path that does is explicitly non-load-bearing (the setup slice treats
+   spans as optional and never depends on beta span shapes). Native session signals join the
+   chain **query-side by the Pillar-2 resource attribute** (both surfaces carry the same
+   normalized item URL); a deployment running the enhanced-telemetry beta additionally gets
+   direct span parenting today, as a bonus rather than a dependency.
 3. **No migration off hooks is pending, because no hook emission exists to migrate**: the
    contract's conforming session path was already native; what this audit adds is the
    empirically proven injection mechanism for the join attribute and the confirmation that
@@ -41,13 +44,17 @@ on Claude Code **2.1.215**.
 
 - `OTEL_RESOURCE_ATTRIBUTES` injection works on Claude Code 2.1.215 (standard OTel SDK env
   var — expected stable, but the injection is contract-load-bearing, so regressions matter).
-- Inbound `TRACEPARENT` is not read by 2.1.215.
+- Inbound `TRACEPARENT` is not read by 2.1.215 on the DEFAULT surface; with
+  `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1` the same version reads it and parents session
+  spans correctly (probe: injected traceId carried, `claude_code.interaction` parented to
+  the injected span).
 - No `schemaUrl` declared by 2.1.215 (re-confirms the WP2-era finding on 2.1.211).
 
 ## Revisit triggers
 
-- Claude Code native telemetry starts reading inbound trace context → plan retiring the
-  wrapper span in favor of one native causal tree.
+- Enhanced telemetry (spans) graduates from beta → plan retiring the wrapper span in favor
+  of one native causal tree; until then the beta's inbound-context support is a bonus, not
+  a dependency.
 - Claude Code starts declaring a `schemaUrl` → re-evaluate against the contract's pin-match
   rule (a declared URL anywhere in a conforming output set MUST match the pin).
 - A Claude Code release breaks `OTEL_RESOURCE_ATTRIBUTES` injection → the join attribute has

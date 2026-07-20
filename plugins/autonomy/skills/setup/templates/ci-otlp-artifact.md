@@ -41,10 +41,11 @@ that step parents into the tree:
 export TRACEPARENT="00-$trace_id-$span_id-01"
 ```
 
-The agent CLI's own native session emissions may IGNORE inbound trace context and start a
-fresh root (current native surfaces do — verify against your agent CLI); that does not break
-the chain: the session attaches query-side through the `autonomy.work_item.url` resource
-attribute, which the dispatching step injects via `OTEL_RESOURCE_ATTRIBUTES`:
+Whether the agent CLI's own native session emissions honor that context is
+surface-specific — verify empirically (some read it only behind an opt-in flag, and a
+default surface may start a fresh root). A session that does not join the trace still
+attaches query-side through the `autonomy.work_item.url` resource attribute, which the
+dispatching step injects via `OTEL_RESOURCE_ATTRIBUTES`:
 
 ```sh
 export OTEL_RESOURCE_ATTRIBUTES="autonomy.work_item.url=<canonical-item-url>"
