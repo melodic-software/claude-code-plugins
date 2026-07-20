@@ -6,6 +6,17 @@ semantics, and overlay naming. Per-concern keys and schema are versioned by thei
 change independently. A change to the precedence order or the meaning of a layer is a major bump;
 adding an optional layer or relaxing a rule additively is a minor bump.
 
+## 1.1 — 2026-07-20
+
+Additive relaxation (minor bump): ratified a named exception class. Default precedence is unchanged for
+every surface; the change carves out one surface class that may invert precedence direction on conflict.
+
+- **Sanctioned exception class — policy-floor precedence inversion.** A surface whose team layer encodes
+  a policy floor personal layers may extend or tighten but never weaken may invert precedence so the
+  team layer wins a direct conflict, provided personal layers stay add/tighten-only and provenance is
+  reported. Such a surface is conformant, not a tolerated deviation. `standards` is the exemplar; ruled
+  in #649.
+
 ## 1.0 — 2026-07-20
 
 Initial published contract, extracted from the tracked-rich-config seam in `docs/MIGRATION-PLAYBOOK.md`
