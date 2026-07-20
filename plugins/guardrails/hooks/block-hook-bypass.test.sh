@@ -126,6 +126,56 @@ run "env-assignment before non-producer > file (allowed)" \
 run "nohup wrapper before echo > file (accepted floor — allowed)" \
   'nohup echo x > real.txt' 0
 
+# --- Options of command-name modifiers before the producer (bypass regression)
+# The peeled modifiers that take options — `command [-pVv]` and `exec [-cl]
+# [-a name]` (bash built-in help) — leave those options between the modifier and
+# the producer. They must be peeled too, else `-p`/`-a name` masks the echo/printf
+# and the redirect writes a real file unblocked.
+run "command -p before echo > file (blocked)" \
+  'command -p echo x > real.txt' 2
+run "exec -a name before echo > file (blocked)" \
+  'exec -a visible echo x > real.txt' 2
+run "exec -cl flags before printf > file (blocked)" \
+  'exec -cl printf x > real.txt' 2
+run "exec -- end-of-options before echo > file (blocked)" \
+  'exec -- echo x > real.txt' 2
+run "command -- end-of-options before printf > file (blocked)" \
+  'command -- printf x > real.txt' 2
+# No new false positive: the arg-taking `-a name` consumes its NAME word, so a
+# NON-producer command after it is still allowed; a modifier-lookup with no
+# redirect writes nothing.
+run "exec -a name before non-producer > file (allowed)" \
+  'exec -a visible ls > out.txt' 0
+run "command -v lookup, no redirect (allowed)" 'command -v echo' 0
+# `command -v`/`-V` DESCRIBE the argument (lookup) rather than run it, so the
+# redirect captures the builtin's lookup output, not echo/printf content — the
+# producer-scoped guard must NOT block these, even with a `>` redirect.
+run "command -v echo describe-lookup > file (allowed)" \
+  'command -v echo > out.txt' 0
+run "command -V echo describe-lookup > file (allowed)" \
+  'command -V echo > out.txt' 0
+run "command -pv cluster with describe flag > file (allowed)" \
+  'command -pv echo > out.txt' 0
+run "command -v printf describe-lookup >> file append (allowed)" \
+  'command -v printf >> out.txt' 0
+# The describe-skip drops ONLY the lookup segment: a real producer bypass in a
+# LATER segment of the same command must still block.
+run "command -v describe then real echo > file in next segment (blocked)" \
+  'command -v echo > a.txt; echo x > b.txt' 2
+# The describe-skip fires even when the modifier sits behind an env-assignment
+# prefix (`prev_mod` must survive the assignment peel into `command`).
+run "env-assignment before command -v describe > file (allowed)" \
+  'FOO=bar command -v echo > f' 0
+# exec's `-a` consumes its NAME word even when NAME is the letter `v`; the
+# describe-skip is command-only, so exec's echo producer still blocks.
+run "exec -a v name then echo > file (blocked)" \
+  'exec -a v echo x > f' 2
+# Option peeling is scoped to command/exec: `env` keeps its bare-only floor, so an
+# optioned `env` before a producer stays an accepted-floor miss (documented), not a
+# partial/inconsistent catch.
+run "env -i optioned before echo > file (accepted floor — allowed)" \
+  'env -i echo x > real.txt' 0
+
 # --- fd-duplication redirect before stdout redirect (bypass regression) ------
 # An fd-dup redirect (`2>&1`, `>&2`) before the real stdout redirect must not let
 # the `&` split cut the producer away from its `> file`. The whole simple command
@@ -173,6 +223,25 @@ run "coproc before echo > file (blocked)" 'coproc echo x > real.txt' 2
 run "coproc before printf > file (blocked)" 'coproc printf x > real.txt' 2
 # No new false positive: a non-producer command word after coproc is allowed.
 run "coproc before non-producer > file (allowed)" 'coproc make > log.txt' 0
+
+# --- Escaped separators between producer and redirect (bypass regression) ----
+# A backslash-escaped separator is NOT a command boundary — bash keeps `\;` `\|`
+# `\&` as literal arguments and removes a `\<newline>` line continuation, all
+# within the SAME simple command. The segment split must not cut the producer
+# from its `> file` at an escaped separator, or the write slips through.
+run "escaped semicolon then echo > file (blocked)" \
+  'echo x \; > real.txt' 2
+run "escaped pipe then echo > file (blocked)" \
+  'echo x \| > real.txt' 2
+run "escaped ampersand then echo > file (blocked)" \
+  'echo x \& > real.txt' 2
+ESCAPED_NEWLINE=$(printf 'echo x \\\n> real.txt')
+run "escaped-newline continuation then echo > file (blocked)" \
+  "$ESCAPED_NEWLINE" 2
+# No new false positive: an UNescaped separator still splits, so a captured
+# subprocess stdout with an unrelated trailing echo stays allowed.
+run "unescaped separator, capture + echo status (allowed)" \
+  'bash fetch.sh > out.json; echo done' 0
 
 # --- Comment quote-state leak (bypass regression) ----------------------------
 # strip_literals carries an open quote across physical lines. An unmatched quote

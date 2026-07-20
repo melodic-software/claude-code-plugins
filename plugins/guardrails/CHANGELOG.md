@@ -46,6 +46,45 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   `elif` forms wrote the file yet slipped past the head-only match, since only
   `do`/`then`/`else`/`{` were peeled. The header set now also peels
   `if`/`elif`/`while`/`until`/`!`, completing the before-command keyword class.
+- **An unmatched quote inside a `#` comment no longer leaks a quote span onto the
+  next line.** `strip_literals` carries an open quote across physical lines, so an
+  unclosed `"` in a trailing comment (`true # "`) previously stripped the following
+  line's real producer as a quoted span, and `true # "` + newline + `echo x > file`
+  returned 0. An unquoted `#` at a word boundary (line start, or after a blank or
+  one of `;|&()<>`) is now dropped to end-of-line WITHOUT touching the quote state,
+  so the comment cannot leak a span. A mid-word `#` (`echo a#b > file`) and a
+  parameter expansion (`${v#x}`) stay literal, so those real writes still block.
+- **A leading redirection before the command word no longer hides the producer.**
+  Bash permits redirections before the command word, so `> real.txt echo x` writes
+  the file, yet the segment-head producer match (anchored at `^(echo|printf)`) never
+  saw it and returned 0. A leading redirect is now peeled (operator + its target
+  word) to expose the producer, while the redirect itself stays in the segment so
+  `_echo_file_out`/`_echo_devnull` still decide whether a real write exists — a
+  leading input redirect or `/dev/null` discard stays allowed.
+- **The bare `coproc` header before a producer is now peeled.** `coproc echo x >
+  file` writes the file but `coproc` was absent from the peeled header set, so it
+  returned 0. `coproc` is added to the command-header peel. Only the bare keyword is
+  peeled; the named form `coproc NAME { … }` remains a documented floor (NAME is
+  indistinguishable from a command word by prefix-peeling, and its redirect is
+  group-level — the same brace-group floor).
+- **Options of the `command`/`exec` modifiers are now peeled too.** Both were
+  peeled but their options were not, so a producer behind a valid option leaked:
+  `command -p echo x > file` and `exec -a name echo x > file` wrote the file yet
+  returned 0. The producer scan now also peels the modifier options documented by
+  bash built-in help (`command [-pVv]`, `exec [-cl] [-a name]`, and a `--`
+  end-of-options marker), consuming the value word of the argument-taking
+  `exec -a name` so the echo/printf behind it is still seen. Option peeling applies
+  only to `command`/`exec` — `env`/`builtin` keep their bare-only floor. As an
+  exception, `command -v`/`-V` DESCRIBE their argument instead of running it, so
+  `command -v echo > file` (which writes the word "echo", not echo's output) stays
+  allowed — the guard blocks only a genuine echo/printf producer.
+- **Backslash-escaped separators no longer split a producer from its redirect.**
+  The segment split treated an escaped separator as a command boundary, so
+  `echo x \; > file` and an escaped-newline continuation (`echo x \` + newline +
+  `> file`) — both a single simple command in bash that writes the file — landed
+  the producer and its `> file` in different segments and returned 0. Escaped
+  separators (`\;`, `\|`, `\&`, `\(`, `\)`, and an escaped newline) are now
+  protected from the split so the simple command stays one segment.
 
 ## [0.8.0]
 

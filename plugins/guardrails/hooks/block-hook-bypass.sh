@@ -232,6 +232,27 @@ _producer_head='^(echo|printf)([[:space:]]|>)'
 # pass. Peeling is safe: the `_producer_head` gate still requires echo/printf, so
 # revealing a NON-echo command word can never cause a block.
 _cmd_prefix='^([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*|command|builtin|exec|env|coproc|if|elif|then|else|while|until|do|!|\{)([[:space:]]|$)'
+# Options of the two command-name modifiers that take options (bash built-in help:
+# `command [-pVv]`, `exec [-cl] [-a name]`). A modifier alone is peeled by
+# _cmd_prefix, but its options otherwise sit between the modifier and the producer
+# (`command -p echo x > f`, `exec -a name echo x > f`) and hide it. Peeled in the
+# same loop, on the already-lowercased segment, and ONLY when `command`/`exec` was
+# the immediately preceding modifier — `env`/`builtin` keep their bare-only floor
+# (see the SCOPE note below), so option grammar is not widened past those two.
+# `_modifier_opt_arg` covers the one value-taking option — exec's `-a name` (a
+# short-option cluster ending in `a`) — and consumes the NAME word too;
+# `_modifier_opt` covers no-argument clusters; `_modifier_optend` peels a lone `--`
+# end-of-options marker (`exec -- echo x > f` writes the file). Safe like the
+# modifier peel: `_producer_head` still gates, so exposing a non-producer word
+# never blocks. Only leading (post-modifier) options match, so a real command word
+# — which never starts with `-` — is untouched. EXCEPTION: `command -v`/`-V` (lower-
+# cased to `v`) flip `command` to DESCRIBE its argument rather than run it, so a
+# following `echo`/`printf` is a bareword being looked up, not a content producer
+# (`command -v echo > f` writes the word "echo", not echo's output) — that segment
+# is skipped, not blocked, keeping the producer-scoped contract.
+_modifier_opt_arg='^-[a-z]*a[[:space:]]+[^[:space:]]+([[:space:]]|$)'
+_modifier_opt='^-[a-z]+([[:space:]]|$)'
+_modifier_optend='^--([[:space:]]|$)'
 # A leading redirection element (`> file cmd`, `< in cmd`, `2> f cmd`, `>& n cmd`):
 # bash permits redirections before the command word, so a producer can hide behind
 # one (`> real.txt echo x`). Peeled (operator + its target word) — like _cmd_prefix
@@ -279,7 +300,20 @@ _py_write='open[[:space:]]*\(|\.write[[:space:]]*\(|pathlib|path[[:space:]]*\('
 # there is group-level (same brace-group floor as above). Structurally unusual for
 # LLM output and covered by an accepted-floor test.
 producer_redirect_bypass() {
-  local exec_lc="$1" seps=$';\n|&()' soh=$'\x01' normalized seg
+  local exec_lc="$1" seps=$';\n|&()' soh=$'\x01' esc=$'\x02' normalized seg s i
+  # Protect backslash-escaped separators (`echo x \; > file`, an escaped-newline
+  # line continuation `echo x \<newline> > file`) before the split: bash keeps an
+  # escaped separator inside the SAME simple command (`\;` is a literal argument,
+  # `\<newline>` is removed as a continuation), so it must not cut the producer
+  # away from its redirect. strip_literals preserves the escaping backslash, so an
+  # escaped separator reaches here as `\<sep>`. Sentinel each, then restore to an
+  # inert space after the split — its only role is to stay non-splitting; its
+  # literal value never feeds the producer/redirect scan.
+  normalized="$exec_lc"
+  for ((i = 0; i < ${#seps}; i++)); do
+    s="${seps:i:1}"
+    normalized="${normalized//\\"$s"/$esc}"
+  done
   # Protect fd-duplication / both-streams redirect ampersands (`2>&1`, `>&2`,
   # `&>file`) with a sentinel before the `&` control-operator split below, so a
   # redirect `&` never cuts a producer away from a LATER stdout redirect —
@@ -287,7 +321,7 @@ producer_redirect_bypass() {
   # trailing `> file` is still scanned as the echo's own. Restored right after the
   # split, before the per-segment scan. `&&` and a background `&` carry no
   # adjacent `<`/`>`, so they are untouched here and still split as separators.
-  normalized="${exec_lc//>&/>$soh}"
+  normalized="${normalized//>&/>$soh}"
   normalized="${normalized//<&/<$soh}"
   normalized="${normalized//&>/$soh>}"
   # Each remaining separator becomes a segment boundary; args cannot contain a raw
@@ -295,6 +329,7 @@ producer_redirect_bypass() {
   # simple command and the redirect in it is that command's own.
   normalized="${normalized//[$seps]/$'\n'}"
   normalized="${normalized//"$soh"/&}"
+  normalized="${normalized//"$esc"/ }"
   while IFS= read -r seg || [[ -n "$seg" ]]; do
     seg="${seg#"${seg%%[![:space:]]*}"}"
     # Peel leading command-prefix tokens (see _cmd_prefix) and leading redirections
@@ -306,19 +341,38 @@ producer_redirect_bypass() {
     # (`> real.txt echo x`) is still seen as the segment's command word. The redirect
     # itself is left in `seg`: _echo_file_out/_echo_devnull below decide whether a
     # real file write exists, so a leading redirect stays the write signal.
-    local head="$seg" tgt
+    local head="$seg" tgt prev_mod=""
     while :; do
       if [[ "$head" =~ $_cmd_prefix ]]; then
+        prev_mod="${BASH_REMATCH[1]}"
         head="${head#"${BASH_REMATCH[1]}"}"
         head="${head#"${head%%[![:space:]]*}"}"
         continue
       fi
       if [[ "$head" =~ $_leading_redir ]]; then
+        prev_mod=""
         head="${head#"${BASH_REMATCH[0]}"}"
         tgt="${head%%[[:space:]]*}"
         head="${head#"$tgt"}"
         head="${head#"${head%%[![:space:]]*}"}"
         continue
+      fi
+      # Options belong only to the option-taking modifiers command/exec (see
+      # _modifier_opt*); env/builtin keep their bare-only floor. The arg-taking
+      # form (exec's `-a name`) is peeled first so its NAME word is consumed too,
+      # else the plain-cluster peel would stop at `-a` and leave NAME masking the
+      # producer. `--` ends options (`exec -- echo x > f`).
+      if [[ "$prev_mod" == command || "$prev_mod" == exec ]]; then
+        if [[ "$head" =~ $_modifier_opt_arg || "$head" =~ $_modifier_opt ||
+          "$head" =~ $_modifier_optend ]]; then
+          # `command -v`/`-V` describes its argument instead of running it, so the
+          # echo/printf after it is a looked-up bareword, not a producer — skip the
+          # whole segment rather than exposing it (would be a false block).
+          [[ "$prev_mod" == command && "${BASH_REMATCH[0]}" == *v* ]] && continue 2
+          head="${head#"${BASH_REMATCH[0]}"}"
+          head="${head#"${head%%[![:space:]]*}"}"
+          continue
+        fi
       fi
       break
     done
