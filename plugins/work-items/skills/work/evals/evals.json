@@ -5,7 +5,7 @@
       "id": 1,
       "name": "work-auto-selects-one-item-via-seam-claim",
       "prompt": "/work-items:work",
-      "expected_output": "Reclaims stale leases at session start (idempotent), auto-selects exactly ONE item from the frontier (open, unblocked, unassigned) via the seam list-frontier, then acquires it through the seam claim verb (assignee + lease record, race-safe) before executing it. Autonomous execution defaults to orchestrator-dispatch — a scope-fenced implementation subagent in its own out-of-tree worktree, orchestrator never editing source. The claim identity is the authenticated session user, never the bot.",
+      "expected_output": "Reclaims stale leases at session start (idempotent), auto-selects exactly ONE item from the frontier (open, unblocked, unassigned) via the seam list-frontier, then acquires it through the seam claim verb (assignee + lease record, race-safe) before executing it. Autonomous execution defaults to orchestrator-dispatch — a scope-fenced implementation subagent in its own out-of-tree worktree, orchestrator never editing source. The seam claim is a non-optional prerequisite of dispatch: an external loop-prompt restating dispatch-in-a-worktree never substitutes for it, and dispatching before the claim is held is a defect. The claim identity is the authenticated session user, never the bot.",
       "files": [],
       "expectations": [
         "Runs an idempotent session-start reclaim (`work-item-tracker.sh reclaim`) before selecting — never releases a live lease",
