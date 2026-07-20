@@ -34,6 +34,26 @@ derive `<slug>` per its slug spec and, on the session's first memory-tier write,
 memory root's self-ignore guard (a `.gitignore` containing `*`, created and announced when absent).
 Tick each step as completed.
 
+## Permission preflight (before Step 0)
+
+The **first** loop-start action — ahead of the binding preflight — surfaces any missing permission
+grant or untrusted worktree root **once, up front**, so the unattended lane never rediscovers it as
+a mid-cycle prompt. Pass the out-of-tree worktree root this lane is configured to dispatch into
+(the `/source-control:worktree` layout); omit `--worktree-root` only for a fully inline run.
+
+```bash
+PREFLIGHT="${CLAUDE_PLUGIN_ROOT}/skills/work/scripts/preflight.sh"
+"$PREFLIGHT" --worktree-root "<configured-worktree-root>"
+```
+
+The check is **report-only** and always exits `0`. On any `GAP`, surface the exact remediation once
+and continue per this lane's report-only posture — the fix is **operator-side** (the standards
+permission floor and the local `additionalDirectories` seam) and is **never self-applied**: the
+classifier blocks an agent broadening its own `permissions.allow`, and a plugin `settings.json`
+grant is inert. Never retry a permission denial into broader grants. The full contract, remediation,
+and the `/source-control:babysit-prs` applicability note live in
+[`${CLAUDE_PLUGIN_ROOT}/reference/permission-preflight.md`](${CLAUDE_PLUGIN_ROOT}/reference/permission-preflight.md).
+
 ## Binding preflight (before Step 0)
 
 Step 0's `reclaim` is this lane's **first seam coordination verb**, so the binding-presence entry
