@@ -231,7 +231,7 @@ function checkEnvelope(envelope, where, { surfaces, duplicates, binding }, bindi
     // A temporal envelope carrying signal.work_class is conformant only when
     // the binding's admission.classification.temporal ratifies the exact
     // (routine, source_surface) -> class association — the same rationale as
-    // the agent-internal provenance rule: a self-stamped or mis-associated
+    // the agent-internal provenance rule: a self-stamped or wrongly associated
     // class would bypass admission, so the class must trace to the protected
     // binding, never to the agent-writable scheduled workflow that stamped
     // the identity. An envelope WITHOUT signal.work_class stays legal:
@@ -250,7 +250,7 @@ function checkEnvelope(envelope, where, { surfaces, duplicates, binding }, bindi
       } else {
         if (classificationEntry.source_surface !== sourceSurface) {
           findings.push(
-            `${where}: signal.source_surface ${JSON.stringify(sourceSurface)} is not the emitting surface the binding ratifies for routine ${JSON.stringify(routine)} (${JSON.stringify(classificationEntry.source_surface)}) — a mis-associated identity/surface pair lets a swapped selector resolve a different class; the ratified association pins one surface per routine identity`,
+            `${where}: signal.source_surface ${JSON.stringify(sourceSurface)} is not the emitting surface the binding ratifies for routine ${JSON.stringify(routine)} (${JSON.stringify(classificationEntry.source_surface)}) — a wrongly associated identity/surface pair lets a swapped selector resolve a different class; the ratified association pins one surface per routine identity`,
           );
         }
         if (classificationEntry.class !== workClass) {
