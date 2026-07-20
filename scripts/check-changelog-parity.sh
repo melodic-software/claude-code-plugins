@@ -143,14 +143,28 @@ for manifest in "${manifests[@]}"; do
   # changed: an unrelated edit (whitespace, title, an old release) must not
   # satisfy the gate. The match is a FIXED-STRING heading anchored to line
   # start (awk index()==1) and OUTSIDE fenced code, so the version string
-  # appearing in prose, an indented line, or a ``` / ~~~ example never
-  # satisfies — or falsely pre-exists — the release entry, and SemVer
-  # metacharacters (1.0.1+build.1) never leak into a regex.
+  # appearing in prose, an indented line, or a fenced example never satisfies —
+  # or falsely pre-exists — the release entry, and SemVer metacharacters
+  # (1.0.1+build.1) never leak into a regex. Fence tracking records the opening
+  # delimiter char and length and closes only on a matching delimiter (per
+  # CommonMark), so a mismatched inner marker — a ~~~ line inside a ``` block,
+  # or a shorter run of the same char — does not prematurely re-open the heading.
   heading="## [${head_version}]"
   has_heading() {
     awk -v h="$heading" '
-      /^[[:space:]]*(```|~~~)/ { infence = !infence; next }
-      !infence && index($0, h) == 1 { found = 1; exit }
+      {
+        line = $0
+        sub(/^[[:space:]]*/, "", line)
+        mchar = ""; mlen = 0
+        if (match(line, /^`+/) && RLENGTH >= 3) { mchar = "`"; mlen = RLENGTH }
+        else if (match(line, /^~+/) && RLENGTH >= 3) { mchar = "~"; mlen = RLENGTH }
+        if (mchar != "") {
+          if (!infence) { infence = 1; fchar = mchar; flen = mlen }
+          else if (mchar == fchar && mlen >= flen) { infence = 0 }
+          next
+        }
+        if (!infence && index($0, h) == 1) { found = 1; exit }
+      }
       END { exit !found }
     '
   }

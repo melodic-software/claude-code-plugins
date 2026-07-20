@@ -85,6 +85,19 @@ rc=$?
 if [[ $rc -ne 0 && "$out" == *"ORPHANED FIXTURE"*"fixtures/valid.json is"* && "$out" != *"valid.json.bak is"* ]]; then ok "files[] path match is exact (substring of a longer referenced path does not consume)"; else fail "files[] substring path match not caught: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
+# --- evals.json consumption is limited to files[] VALUES: a fixture named only
+# in a prompt/metadata string, with an empty files[], is NOT consumed -> orphan -
+repo="$(mk_repo)"
+mkdir -p "$repo/plugins/p/skills/s/evals/fixtures"
+cat >"$repo/plugins/p/skills/s/evals/evals.json" <<'JSON'
+{ "evals": [ { "id": 1, "prompt": "open evals/fixtures/prose-only.md and grade the summary", "files": [] } ] }
+JSON
+printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/prose-only.md"
+out="$(cd "$repo" && bash scripts/check-orphaned-fixtures.sh --check 2>&1)"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"ORPHANED FIXTURE"*"prose-only.md"* ]]; then ok "fixture named only in an eval prompt (empty files[]) is an orphan (consumption scoped to files[])"; else fail "prose-mention wrongly consumed: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
 # --- SYNTHETIC ORPHAN: consumed by nothing -> --check fails ----------------
 repo="$(mk_repo)"
 seed_skill "$repo" "plugins/p/skills/s" ''

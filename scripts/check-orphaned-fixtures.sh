@@ -83,7 +83,7 @@ plugin_root_of() {
 # consumed <fixture-path> -> 0 if some grader consumes it
 consumed() {
   local fixture="$1"
-  local fixtures_dir evals_dir skill_dir evals_json rel base plugin
+  local fixtures_dir evals_dir skill_dir evals_json rel base plugin files_values
 
   fixtures_dir="${fixture%/*}"
   # walk up to the nearest 'fixtures' segment (fixtures may nest a subdir)
@@ -106,15 +106,18 @@ consumed() {
   base_re="(^|[^A-Za-z0-9._-])${esc_base}([^A-Za-z0-9._-]|$)"
 
   if [[ -f "$evals_json" ]]; then
-    # Exact path match: compare $rel against each JSON string value, not a
-    # substring of the whole file — an eval referencing evals/fixtures/valid.json.bak
-    # must NOT consume a new evals/fixtures/valid.json sibling (shorter $rel is a
-    # substring of the longer value). jq failure (missing/invalid json) falls
-    # through to the bounded-basename check below.
-    if jq -e --arg r "$rel" 'any(.. | strings; . == $r)' "$evals_json" >/dev/null 2>&1; then
+    # Consumption via evals.json is limited to files[] VALUES: a fixture named
+    # only in a prompt or unrelated metadata string is NOT consumed. Extract every
+    # files[] string (at any nesting), then match $rel by whole-value equality, or
+    # the basename bounded within a value (a files[] form that spells the path
+    # differently still names the file). A shorter $rel is not a substring of a
+    # longer value under -x. jq failure (missing/invalid json) -> empty -> falls
+    # through to the test-file check below.
+    files_values="$(jq -r '.. | objects | .files? // empty | .[]? | select(type == "string")' "$evals_json" 2>/dev/null)"
+    if printf '%s\n' "$files_values" | grep -qxF -- "$rel"; then
       return 0
     fi
-    if grep -qE "$base_re" "$evals_json"; then
+    if printf '%s\n' "$files_values" | grep -qE -- "$base_re"; then
       return 0
     fi
   fi

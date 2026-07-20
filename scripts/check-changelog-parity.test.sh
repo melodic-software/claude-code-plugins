@@ -190,6 +190,25 @@ rc=$?
 if [[ $rc -ne 0 && "$out" == *"UNDOCUMENTED BUMP"*"alpha"* && "$out" != *"PRE-EXISTING"* ]]; then ok "fenced-code example heading (column zero inside a fence) does not satisfy --check-bump"; else fail "fenced-block heading wrongly satisfied gate: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
+# MISMATCHED INNER FENCE DELIMITER: a backtick fence contains a ~~~ content line
+# (a different delimiter, so NOT a close per CommonMark); a `## [1.1.0]` after it
+# is still inside the backtick fence -> fails as UNDOCUMENTED. Proves fence
+# tracking closes only on the opening delimiter, not any fence-looking line.
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+# shellcheck disable=SC2016  # single quotes are deliberate: the backtick/tilde fences and \n are literal changelog bytes
+printf '# Changelog\n\n```\n~~~\n## [1.1.0]\n```\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"UNDOCUMENTED BUMP"*"alpha"* && "$out" != *"PRE-EXISTING"* ]]; then ok "mismatched inner fence delimiter (tilde line inside a backtick fence) does not prematurely close"; else fail "fence delimiter mismatch mis-toggled: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
 # SYNTHETIC UNDOCUMENTED BUMP: version changed, changelog edited but WITHOUT an
 # entry for the new version (unrelated edit) -> fails. Proves the gate checks
 # the version's own entry, not merely that the file was touched.
