@@ -124,29 +124,36 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("reported and escalated with the reason", paragraph)
 
     def test_autopilot_merge_tier_ships_disabled_and_fail_closed(self) -> None:
-        intro = _paragraph_containing(self.skill_text, "config-gated escalation")
-        self.assertIn("ships DISABLED", intro)
-        self.assertIn("separate, loudly-announced operator step", intro)
+        para = _paragraph_containing(self.skill_text, "config-gated escalation")
+        for marker in (
+            "shipped DISABLED",
+            "separate announced steps",
+            "genuine review pass",
+            "second bot account",
+            "author ≠ approver",
+            "only when clean",
+            "--autopilot-merge-tier",
+            "fail-closed",
+            "never routes around the gate",
+            "reference/safety.md",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, para)
 
-        review = _paragraph_containing(self.skill_text, "genuine review pass")
-        self.assertIn("second bot account", review)
-        self.assertIn("author ≠ approver", review)
-        self.assertIn("only when that review is clean", review)
-
-        gate = _paragraph_containing(self.skill_text, "runs the pinned merge gate")
+    def test_safety_md_codifies_the_tier_criteria(self) -> None:
+        safety = (SKILL.parent / "reference" / "safety.md").read_text(encoding="utf-8")
+        self.assertIn("ships **DISABLED**", safety)
+        self.assertIn("babysit_autopilot_merge_tier", safety)
         for criterion in (
             "issue-linked",
             "pipeline lane",
             "do-not-merge label",
-            "distinct-bot approval",
+            "distinct bot identity",
             "head SHA unchanged since review",
             "review workflow",
         ):
-            self.assertIn(criterion, gate)
-
-        fallback = _paragraph_containing(self.skill_text, "Any criterion failing falls back")
-        self.assertIn("never routes around the gate", fallback)
-        self.assertIn("fail-closed", fallback)
+            with self.subTest(criterion=criterion):
+                self.assertIn(criterion, safety)
 
     def test_full_queue_and_draft_contract_remains_explicit(self) -> None:
         autopilot = _paragraph_containing(self.skill_text, '"Every PR" means every PR')
