@@ -46,11 +46,13 @@ Usage: preflight.sh [--worktree-root <path>] [--project-root <path>] [--count] [
   (no arg)          print one line per condition, then a PREFLIGHT summary; exit 0
   --worktree-root P check that some permissions.additionalDirectories entry covers P
                     (also read from PREFLIGHT_WORKTREE_ROOT); omitted → NOTE, not checked.
-                    The autonomous signal: coverage reads then exclude this checkout's
-                    gitignored settings.local.json (a fresh worktree lacks it)
+                    The autonomous signal: unless a distinct --project-root is given,
+                    coverage reads exclude this checkout's gitignored settings.local.json
+                    (a not-yet-created worktree lacks it)
   --project-root P  read project settings from P's checkout instead of the cwd's
                     (also read from PREFLIGHT_PROJECT_ROOT) — pass the dispatched
-                    worker worktree so its own grants are checked, not the main one's
+                    worker worktree so ITS OWN grants (incl. its settings.local.json)
+                    are checked, not the main checkout's
   --count           print the integer GAP count only (NOTEs excluded); exit 0
   --help            this message
 
@@ -149,10 +151,24 @@ collect() {
   [[ "$local_mode" == "with-local" ]] && read_array "$proj_base/.claude/settings.local.json" "$path"
 }
 
-# --worktree-root is the autonomous signal: exclude this checkout's local settings
-# from the COVERAGE reads (allow + additionalDirectories); the interactive/default
-# path keeps them. Deny always reads local.
-if [[ -n "$worktree_root" ]]; then
+# Local-settings scope for the COVERAGE reads (allow + additionalDirectories):
+#   - A DISTINCT --project-root (a worker worktree whose toplevel differs from this
+#     checkout) names a real, existing checkout — read ITS OWN settings.local.json
+#     (the worker's file, not this parent's); nothing is masked.
+#   - Otherwise, --worktree-root (the autonomous signal) is pre-dispatch: the worker
+#     is not yet created, so exclude this checkout's gitignored settings.local.json,
+#     which a fresh worktree would not carry, lest a local-only grant mask a gap.
+#   - The interactive/default path keeps local.
+# Deny always reads local (erring wide on deny never masks a gap).
+distinct_project_root=""
+if [[ -n "$project_root" && "$proj_base" != "$repo_root" ]]; then
+  distinct_project_root="yes"
+fi
+local_excluded=""
+if [[ -n "$worktree_root" && -z "$distinct_project_root" ]]; then
+  local_excluded="yes"
+fi
+if [[ -n "$local_excluded" ]]; then
   cov_local="no-local"
 else
   cov_local="with-local"
@@ -163,15 +179,19 @@ ALL_ADDDIRS="$(collect '.permissions.additionalDirectories' "$cov_local")"
 
 # --- Matchers -----------------------------------------------------------------
 verb_in_rules() {
-  # verb_in_rules <verb> <rules> <match-bare> — true when some Bash()/PowerShell()
-  # rule in the newline-separated <rules> grants <verb> in an open shape: the
-  # open-glob form (`git commit *` / `git commit:*`), plus — only when
-  # <match-bare> is "bare" — the argumentless bare verb (`git commit`).
-  #   COVERAGE (allow) excludes bare: `Bash(git commit)` permits only the literal
-  #   argumentless command, and a lane invocation always carries args, so a
-  #   bare-exact allow does NOT cover the verb — the real call would still prompt.
-  #   DENY includes bare: erring wide on deny is safe (a bare deny still signals
-  #   the verb is off-limits).
+  # verb_in_rules <verb> <rules> <mode> — true when some Bash()/PowerShell() rule
+  # in the newline-separated <rules> grants <verb> in a shape the <mode> accepts:
+  #   open-glob-only — the open-glob form only (`git commit *` / `git commit:*`).
+  #                    Used for COVERAGE: a bare-exact `Bash(git commit)` permits
+  #                    only the argumentless command, and a work-lane invocation
+  #                    always carries args, so bare does NOT cover.
+  #   bare           — open-glob OR the argumentless bare verb (`git commit`).
+  #                    Used for DENY: erring wide is safe (a bare deny still
+  #                    signals the verb is off-limits).
+  #   bare-exact-only — the bare verb only. Used to sharpen the gap message when
+  #                    open-glob coverage is absent but a bare-only grant exists
+  #                    (it serves an argumentless caller like babysit's plain
+  #                    `git push`, but not the work lane's argument-carrying call).
   # A rule whose next token is a specific flag or argument (`git commit --amend`,
   # a force-with-lease-only push) never matches — it is a narrower slice.
   # Exact-shape only, by deliberate design: this does NOT simulate glob semantics,
@@ -179,7 +199,7 @@ verb_in_rules() {
   # here. The `'*'` is a quoted literal asterisk, so each arm matches one exact
   # rule spelling, not a prefix. Runs in the current shell (heredoc, not a pipe)
   # so return escapes.
-  local verb="$1" rules="$2" match_bare="$3" rule inner
+  local verb="$1" rules="$2" mode="$3" rule inner
   while IFS= read -r rule; do
     [[ -n "$rule" ]] || continue
     case "$rule" in
@@ -188,11 +208,15 @@ verb_in_rules() {
       *) continue ;;
     esac
     inner="${inner%)}"
-    case "$inner" in
-      "$verb "'*' | "$verb:"'*') return 0 ;;
-      *) ;;
-    esac
-    [[ "$match_bare" == "bare" && "$inner" == "$verb" ]] && return 0
+    if [[ "$mode" != "bare-exact-only" ]]; then
+      case "$inner" in
+        "$verb "'*' | "$verb:"'*') return 0 ;;
+        *) ;;
+      esac
+    fi
+    if [[ "$mode" == "bare" || "$mode" == "bare-exact-only" ]]; then
+      [[ "$inner" == "$verb" ]] && return 0
+    fi
   done <<RULES
 $rules
 RULES
@@ -201,6 +225,7 @@ RULES
 
 verb_covered() { verb_in_rules "$1" "$ALL_ALLOW" "open-glob-only"; }
 verb_denied() { verb_in_rules "$1" "$ALL_DENY" "bare"; }
+verb_bare_exact() { verb_in_rules "$1" "$ALL_ALLOW" "bare-exact-only"; }
 
 normalize_path() {
   # Fold a path to one comparable form: backslashes → slashes, lower-case and
@@ -278,6 +303,10 @@ while IFS= read -r verb; do
     continue
   fi
   verb_covered "$verb" && continue
+  if verb_bare_exact "$verb"; then
+    emit_gap "(b) '$verb' has only a bare-exact allow rule: it covers argumentless invocations (e.g. the babysit fix cycle's plain \`git push\`) but not argument-carrying ones (the work lane's \`$verb …\`). Grant the open glob (\`$verb *\`) operator-side. See reference/permission-preflight.md."
+    continue
+  fi
   emit_gap "(b) no Bash()/PowerShell() allow rule covers '$verb'. Apply the fleet permission floor operator-side (standards components/claude-permissions, composed into settings via dotfiles#233) — never a plugin self-grant. See reference/permission-preflight.md."
 done <<PROBES
 git add
@@ -302,8 +331,10 @@ if [[ "$mode" == "count" ]]; then
   exit 0
 fi
 
-if [[ -n "$worktree_root" ]]; then
-  echo "PREFLIGHT: autonomous mode (--worktree-root set) — coverage read excludes this checkout's gitignored settings.local.json, which a fresh worktree would not carry; deny rules still include it."
+if [[ -n "$local_excluded" ]]; then
+  echo "PREFLIGHT: autonomous mode (--worktree-root, no distinct --project-root) — coverage read excludes this checkout's gitignored settings.local.json, which a fresh worktree would not carry; deny rules still include it."
+elif [[ -n "$distinct_project_root" ]]; then
+  echo "PREFLIGHT: reading project settings (incl. settings.local.json) from --project-root '$proj_base'."
 fi
 
 if [[ "${#findings[@]}" -eq 0 ]]; then

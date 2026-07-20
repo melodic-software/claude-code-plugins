@@ -171,15 +171,19 @@ assert_contains "flag-specific push rule leaves git push a gap" "$OUT" "'git pus
 assert_not_contains "the open gh pr create rule is not a gap" "$OUT" "'gh pr create'"
 assert_eq "two flag-masked verbs → two (b) gaps" "2" "$(run "$REPO" "$CFG7B" --count)"
 
-# --- Case 7c: a bare-exact allow rule is NOT coverage -----------------------
+# --- Case 7c: a bare-exact allow is not coverage, with a nuanced gap message -
 CFG7C="$TEST_TMPDIR/cfg7c"
-# Bash(git commit) permits only the argumentless command; a lane invocation
-# always carries args, so a bare-exact allow must NOT count as covering the verb.
+# Bash(git push) permits only the argumentless command (which babysit's fix cycle
+# does run) but not the work lane's argument-carrying call, so it is still a GAP —
+# reported with that nuance, not the generic missing-allow message.
 write_settings "$CFG7C" \
-  '["Bash(git add *)","Bash(git commit)","Bash(git push *)","Bash(gh pr create *)","Bash(gh issue comment *)"]'
+  '["Bash(git add *)","Bash(git commit *)","Bash(git push)","Bash(gh pr create *)","Bash(gh issue comment *)"]'
 OUT=$(run "$REPO" "$CFG7C")
-assert_contains "bare-exact commit rule leaves git commit a gap" "$OUT" "'git commit'"
-assert_eq "bare-exact allow → one gap" "1" "$(run "$REPO" "$CFG7C" --count)"
+assert_contains "bare-only push is still a gap" "$OUT" "'git push'"
+assert_contains "gap names the bare-exact-only case" "$OUT" "bare-exact allow rule"
+assert_contains "gap points at the open-glob remedy" "$OUT" "Grant the open glob"
+assert_not_contains "bare-only push not the generic missing-allow message" "$OUT" "no Bash()/PowerShell() allow rule covers 'git push'"
+assert_eq "bare-only allow → one gap" "1" "$(run "$REPO" "$CFG7C" --count)"
 
 # --- Case 8: worktree root not covered → GAP (c) ----------------------------
 CFG8="$TEST_TMPDIR/cfg8"
@@ -294,6 +298,27 @@ OUT=$(run "$REPO3" "$CFG16" --worktree-root "$POSIX_CHILD")
 assert_contains "autonomous path drops local → gh pr create gap surfaces" "$OUT" "'gh pr create'"
 assert_contains "report header notes the local exclusion" "$OUT" "settings.local.json"
 assert_eq "autonomous path drops local grant → one gap" "1" "$(run "$REPO3" "$CFG16" --count --worktree-root "$POSIX_CHILD")"
+
+# --- Case 17: a distinct --project-root reads the worker's OWN local settings -
+# When --project-root names a real worker worktree (toplevel differs from cwd),
+# read ITS OWN settings.local.json — the worker's file, present in that checkout —
+# instead of excluding local. The pre-dispatch exclusion (case 16) applies only
+# when no distinct --project-root is given.
+WORKER2="$TEST_TMPDIR/worker-local"
+git init -q "$WORKER2"
+WORKER2TOP="$(git -C "$WORKER2" rev-parse --show-toplevel)"
+mkdir -p "$WORKER2TOP/.claude"
+CFG17="$TEST_TMPDIR/cfg17"
+# gh pr create lives ONLY in the worker's own local file; user-global lacks it.
+write_settings "$CFG17" \
+  '["Bash(git add *)","Bash(git commit *)","Bash(git push *)","Bash(gh issue comment *)"]' \
+  "$WIN_ROOT"
+jq -n '{permissions:{allow:["Bash(gh pr create *)"]}}' >"$WORKER2TOP/.claude/settings.local.json"
+assert_eq "distinct project-root reads the worker's own local grant" "0" "$(run "$REPO" "$CFG17" --project-root "$WORKER2" --count --worktree-root "$POSIX_CHILD")"
+OUT=$(run "$REPO" "$CFG17" --project-root "$WORKER2" --worktree-root "$POSIX_CHILD")
+assert_contains "distinct project-root header names the source" "$OUT" "from --project-root"
+# Without the distinct --project-root (pre-dispatch), local is excluded → gap.
+assert_eq "no distinct project-root excludes local → one gap" "1" "$(run "$REPO" "$CFG17" --count --worktree-root "$POSIX_CHILD")"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

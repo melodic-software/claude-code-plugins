@@ -48,11 +48,14 @@ The preflight probes a small representative subset of the allow floor — `git a
 is probed too) — reading the effective `permissions.allow` from the operator's user-global settings
 and the project settings. It never runs a live permission probe. A verb counts as covered only by an
 **open-glob** grant — `Bash(git commit *)` or `Bash(git commit:*)`. A **bare-exact** rule
-(`Bash(git commit)`) is **not** coverage: it permits only the argumentless command, and a lane
-invocation always carries arguments, so the real call would still prompt. A narrower, flag-scoped
-rule (`Bash(git commit --amend)`, a force-with-lease-only push rule) is likewise not coverage. A
-missing verb means the floor is not composed in on this machine; the remediation is to apply the
-component operator-side, not to add a one-off rule.
+(`Bash(git commit)`) is **not** coverage: it permits only the argumentless command, and a work-lane
+invocation always carries arguments, so the real call would still prompt. When a gapped verb has
+*only* a bare-exact grant, the gap message says so precisely — that grant does cover an argumentless
+caller (e.g. the babysit fix cycle's plain `git push`) but not the work lane's argument-carrying
+call, and the remedy is to add the open glob (`git push *`). A narrower, flag-scoped rule
+(`Bash(git commit --amend)`, a force-with-lease-only push rule) is likewise not coverage. A missing
+verb means the floor is not composed in on this machine; the remediation is to apply the component
+operator-side, not to add a one-off rule.
 
 **Deny wins over allow.** Because `permissions.deny` overrides `permissions.allow` in the permission
 model, the check first tests each probed verb against the effective **deny** rules: a deny rule of
@@ -65,15 +68,22 @@ wildcard spanning it) is not caught here. That conservatism never false-flags th
 floor, whose destructive-verb rules are flag-scoped (`git push --force …`) rather than the bare
 `git push` / `git commit` / `git add` shape.
 
-**The autonomous path ignores this checkout's `settings.local.json`.** `settings.local.json` is
-gitignored, so a fresh linked worktree the lane dispatches a worker into carries this checkout's
-tracked `.claude/settings.json` but **not** its local file — a grant that lives only in local here
-would be absent there, and reading it would mask a worker-side gap. So when `--worktree-root` is
-passed (the autonomous signal), the **coverage** reads (allow + `additionalDirectories`) use
-user-global + tracked project settings only, and the report header says so. The interactive/default
-path (no `--worktree-root`) keeps local settings in scope. Deny always reads local regardless — the
-same err-wide rationale. Pair this with `--project-root <worker-worktree>` (below) to read the
-worker's own tracked project settings instead of this checkout's.
+**`settings.local.json` scope on the autonomous path.** `settings.local.json` is gitignored, so a
+fresh linked worktree the lane dispatches a worker into carries this checkout's tracked
+`.claude/settings.json` but **not** its local file. Two cases:
+
+- **Pre-dispatch** — `--worktree-root` is passed but no distinct `--project-root` (the worker is not
+  yet created). A grant living only in this checkout's local file would be absent in the fresh
+  worktree, and reading it would mask a worker-side gap, so the **coverage** reads (allow +
+  `additionalDirectories`) drop local — user-global + tracked project settings only — and the report
+  header says so.
+- **A named worker** — `--project-root <worker-worktree>` resolves to a checkout whose toplevel
+  differs from the cwd. That is a real, existing checkout, so the preflight reads **its own**
+  `settings.local.json` (the worker's file, not this parent's); nothing is masked, and the header
+  names the source.
+
+The interactive/default path (no `--worktree-root`) keeps local settings in scope. Deny always reads
+local regardless — the same err-wide rationale.
 
 ## The trusted worktree root — `additionalDirectories`
 
@@ -122,16 +132,18 @@ ones probed:
   --project-root <dispatched-worker-worktree> --worktree-root <configured-worktree-root>
 ```
 
-`--project-root` defaults to the current checkout. User-global settings apply everywhere and are
-read regardless of it; only the project layer is re-pointed.
+`--project-root` defaults to the current checkout. A distinct one (a different toplevel) re-points
+the project layer to that worker checkout and reads its own `settings.local.json`; without it, the
+autonomous path drops this checkout's local file (see the `settings.local.json` scope note above).
+User-global settings apply everywhere and are read regardless.
 
 It is report-only and always exits `0`. Each output line is one of:
 
 - `NOTE (a) …` — the cwd is not a git repository. Informational: a lane operating in an out-of-tree
   worktree proceeds once `(c)` is covered; a lane that needs a checkout at the cwd cannot.
-- `GAP (b) …` — a probed working verb is denied by a matching deny rule, or is not covered by any
-  allow rule (the message distinguishes the two). Remediate operator-side: resolve the deny rule, or
-  compose the standards floor in (above).
+- `GAP (b) …` — a probed working verb is denied by a matching deny rule, has only a bare-exact
+  (argumentless) allow, or is not covered at all (the message distinguishes the three). Remediate
+  operator-side: resolve the deny rule, add the open glob, or compose the standards floor in (above).
 - `GAP (c) …` — the worktree root is not covered by `additionalDirectories`. Add the entry (above).
 - `NOTE (c) …` — no worktree root was passed, so coverage was not checked.
 

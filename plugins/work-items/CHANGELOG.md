@@ -22,20 +22,21 @@ broader grants.
   (`git add`, `git commit`, `git push`, `gh pr create`, `gh issue comment`) is denied by a matching
   deny rule or is not covered by any `Bash()`/`PowerShell()` allow rule; (c) the configured
   out-of-tree worktree root is not covered by `additionalDirectories`. A verb counts as covered only
-  by an **open-glob** grant (`git commit *` / `git commit:*`); a bare-exact rule (`git commit`,
-  which permits only the argumentless command a real call never is) or a flag-scoped rule
-  (`git commit --amend`, a force-with-lease-only push) is reported as a gap, since the lane's
-  arbitrary invocation would still prompt. Deny wins over allow: a deny rule of the verb keeps it a
-  gap (reported distinctly as denied) even when allowed — matched exact-shape only (never glob
-  simulation) so the flag-scoped standard deny floor is never false-flagged, but erring **wider**
-  than coverage by also counting the bare spelling (a false *denied* is safe). The worktree-root
-  check is root-agnostic (coverage of the passed root, never a hardcoded path), and Windows and
-  git-bash path spellings are folded to one comparable form. Under `--worktree-root` (the autonomous
-  signal) the coverage reads exclude this checkout's gitignored `settings.local.json`, which a fresh
-  linked worktree would not carry, so a local-only grant here cannot mask a worker-side gap; the
-  interactive path keeps local, and deny always reads it. `--project-root` reads a dispatched worker
-  worktree's own tracked project settings instead of the main checkout's. Always exits `0`; `--count`
-  reports the GAP total for a scripted gate. No live permission probe.
+  by an **open-glob** grant (`git commit *` / `git commit:*`); a flag-scoped rule
+  (`git commit --amend`, a force-with-lease-only push) is a gap, and a **bare-exact** rule
+  (`git commit`) is a gap reported with a distinct message — it covers an argumentless caller (the
+  babysit fix cycle's plain `git push`) but not the work lane's argument-carrying call, so the remedy
+  is the open glob. Deny wins over allow: a deny rule of the verb keeps it a gap (reported distinctly
+  as denied) even when allowed — matched exact-shape only (never glob simulation) so the flag-scoped
+  standard deny floor is never false-flagged, but erring **wider** than coverage by also counting the
+  bare spelling (a false *denied* is safe). The worktree-root check is root-agnostic (coverage of the
+  passed root, never a hardcoded path), and Windows and git-bash path spellings are folded to one
+  comparable form. Per-checkout `settings.local.json` handling: under `--worktree-root` with no
+  distinct `--project-root` (pre-dispatch) the coverage reads exclude this checkout's gitignored
+  local file, which a fresh worktree would not carry, so a local-only grant cannot mask a worker-side
+  gap; a distinct `--project-root` (a named worker checkout) instead reads that worktree's OWN
+  `settings.local.json`; the interactive path keeps local; deny always reads it. Always exits `0`;
+  `--count` reports the GAP total for a scripted gate. No live permission probe.
 - **Preflight reference (`#495`).** New `reference/permission-preflight.md` is the source of truth
   for the preconditions: it points at the `melodic-software/standards` `claude-permissions`
   component (`components/claude-permissions/`, composed operator-side via the dotfiles chezmoi seam)
