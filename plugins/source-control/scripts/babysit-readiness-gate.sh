@@ -253,8 +253,11 @@ classified=${classified:-0}
 # READINESS_BLOCKED (#465). A convergence test pins the two counts together on
 # thread-state-free input; if the Python counter cannot run (no interpreter, or a
 # transient live fetch failure) the bash degrade counts above stand.
+# BABYSIT_READINESS_BASH_ONLY=1 forces the degrade even when Python is present --
+# the operator escape that exercises (and, in the gate's own tests, pins) the
+# Python-free path deterministically.
 PY_SCRIPTS="$SCRIPT_DIR/../skills/babysit-prs/scripts"
-if [[ -f "$PY_SCRIPTS/babysit-python.sh" ]]; then
+if [[ "${BABYSIT_READINESS_BASH_ONLY:-}" != 1 && -f "$PY_SCRIPTS/babysit-python.sh" ]]; then
   # shellcheck source=../skills/babysit-prs/scripts/babysit-python.sh
   . "$PY_SCRIPTS/babysit-python.sh"
   self_csv_joined="$(

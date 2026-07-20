@@ -288,4 +288,47 @@ else
   pass "#465 lifetime discount skipped (no Python 3.11+; bash degrade counts lifetime)"
 fi
 
+# --- Convergence: Python counter and bash degrade agree on thread-state-free input
+# The gate prefers the shared Python counter but keeps the bash grep counting as
+# the Python-free safe-tier degrade. The two must not drift: a severity marker is
+# a finding under both, or the safe tier and the engine-backed tier disagree on
+# readiness. BABYSIT_READINESS_BASH_ONLY=1 forces the degrade so both counts are
+# observable in one run; every representative fixture must yield identical
+# `findings=/classified=`. (On a host without Python both runs already take the
+# bash path and agree trivially; the assertion still holds.)
+gate_counts() { # gate_counts <fixture> -> "findings=N classified=N"
+  bash "$GATE" 123 --comments-json "$1" --self 'me[bot]' 2>/dev/null |
+    grep -oE 'findings=[0-9]+ classified=[0-9]+'
+}
+converge() { # converge <name> <fixture>
+  local py bash_only
+  py="$(gate_counts "$2")"
+  bash_only="$(BABYSIT_READINESS_BASH_ONLY=1 gate_counts "$2")"
+  if [[ -n "$py" && "$py" == "$bash_only" ]]; then
+    pass "convergence [$1]: python == bash degrade ($py)"
+  else
+    fail "convergence [$1]: python == bash degrade" "$py" "$bash_only"
+  fi
+}
+F=$(mkjson conv-words '[
+  {author:"claude[bot]", body:"CRITICAL a and IMPORTANT b on one line\nSUGGESTION c"},
+  {author:"me[bot]", body:"| 1 | a | VALID | x |"}
+]')
+converge "severity-words" "$F"
+F=$(mkjson conv-badge '[
+  {author:"chatgpt-codex-connector[bot]", body:"![P1 Badge](https://img.shields.io/badge/P1-red?style=flat) and ![P2 Badge](https://img.shields.io/badge/P2-yellow?style=flat)"},
+  {author:"me[bot]", body:"| 1 | x | VALID | y |"}
+]')
+converge "codex-badges" "$F"
+F=$(mkjson conv-plain '[
+  {author:"some-reviewer[bot]", body:"[P1] null deref\n[P2] missing timeout"},
+  {author:"me[bot]", body:"| 1 | null deref | VALID | fixed |"}
+]')
+converge "plain-p-markers" "$F"
+F=$(mkjson conv-selfrow '[
+  {author:"claude[bot]", body:"CRITICAL null deref in handler"},
+  {author:"me[bot]", body:"| 1 | CRITICAL: null deref | VALID | fixed abc123 |"}
+]')
+converge "self-row-exclusion" "$F"
+
 [[ $FAILED -eq 0 ]] || exit 1
