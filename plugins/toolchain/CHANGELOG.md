@@ -5,18 +5,18 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
 
 ## [0.4.3]
 
-### Fixed
+### Changed
 
-- **Stale cross-plugin coupling removed from `dotnet.md` build-diagnostics section.** The `.NET`
-  check context (`context/dotnet.md`) listed `dotnet-msbuild:*` plugin skills (`build-perf-diagnostics`,
-  `binlog-failure-analysis`, `msbuild-antipatterns`, and others) under a "invoke only when installed"
-  gate. No `dotnet-*` plugin ships in this marketplace and none is registered in `marketplace.json`, so
-  the presence gate could never open for any consumer of this marketplace — the references pointed at
-  skills nobody can install. The tool-specific `plugin:skill` names are replaced with ecosystem-neutral
-  capability descriptions (build-performance diagnosis, binlog failure analysis, MSBuild anti-pattern
-  scanning, bin/obj output-path clash detection) that resolve against whatever diagnostics plugin a
-  consumer actually has installed, keeping the presence-gated fallback-to-prose convention intact.
-  Addresses #412; the sibling `implementation` finding (#405) tracks the same pattern separately.
+- **Presence-gated `dotnet-msbuild:*` build-diagnostics references in `context/dotnet.md` reframed as
+  .NET-ecosystem forward references.** The `## Marketplace plugin skills for build diagnostics (invoke
+  only when installed)` list gains a lead-in that frames its `dotnet-msbuild:*` skills as applicable
+  when your stack is .NET and as forward references to the planned `dotnet-*` plugin family — invoked
+  only when the plugin is installed, otherwise falling back to the section's own prose remediation and
+  binlog gotcha (the generic path stays first-class). Framing only: no skill reference was removed,
+  renamed, or genericized, and no command string was altered. Aligns this file with the presence-gated
+  forward-reference convention the merged `testing` (#491) and `verification` (#526) siblings adopted,
+  per the ratified #412 disposition. Addresses #412; the sibling `implementation` finding (#405) tracks
+  the same pattern separately.
 
 ## [0.4.2]
 
