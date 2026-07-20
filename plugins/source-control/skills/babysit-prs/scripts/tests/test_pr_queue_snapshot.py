@@ -174,5 +174,36 @@ class BuildConfigSelfLoginsTests(unittest.TestCase):
         self.assertEqual(config.self_logins, frozenset({"alice"}))
 
 
+class SinglePrScopeSelfLoginTests(unittest.TestCase):
+    """`--pr` scope must resolve @me into the self-login set, not just discovery.
+
+    Regression: the single-PR path once skipped `resolve_self_logins`, so the
+    personal fallback identity was absent from `self_logins` and every
+    same-login check (foreign-activity, attribution-drift) silently no-opped for
+    single-PR runs even though `--pr` scope is a supported invocation.
+    """
+
+    def test_single_pr_run_resolves_me_into_self_logins(self) -> None:
+        with tempfile.TemporaryDirectory() as state_dir:
+            args = argparse.Namespace(
+                pr="owner/repo#1",
+                author="@me",
+                state_dir=state_dir,
+                write_state=False,
+            )
+            # view_pr raises so the per-PR loop is a no-op; the assertion is
+            # about the identity resolution that runs before it.
+            with mock.patch.object(gh, "resolve_author", return_value="kyle-sexton"), \
+                 mock.patch.object(gh, "resolve_authors", return_value=[]), \
+                 mock.patch.object(
+                     gh, "parse_repo_number", return_value=("owner/repo", 1)
+                 ), \
+                 mock.patch.object(
+                     gh, "view_pr", side_effect=RuntimeError("stop")
+                 ):
+                snapshot.build_snapshot(args)
+            self.assertIn("kyle-sexton", args.resolved_self_logins)
+
+
 if __name__ == "__main__":
     unittest.main()
