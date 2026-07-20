@@ -54,18 +54,22 @@ fi
 # lease records and let a stale session keep work it no longer owns. Require this
 # comment to BE the current active lease = the newest non-superseded lease.
 leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" || exit "$?"
-active_id=""
-while IFS= read -r row; do
-  [[ -n "$row" ]] || continue
-  cand="$(wit_lease_json "$(jq -r '.body' <<<"$row")")"
-  [[ -n "$cand" ]] || continue
-  [[ "$(jq -r '.superseded_at // empty' <<<"$cand")" == "" ]] || continue
-  active_id="$(jq -r '.id' <<<"$row")"
-  break
-done < <(jq -c 'sort_by(.id) | reverse | .[]' <<<"$leases")
-if [[ "$active_id" != "$lease_comment_id" ]]; then
+wit_select_active_lease "$leases"
+if [[ "$WIT_ACTIVE_LEASE_ID" != "$lease_comment_id" ]]; then
   printf 'renew-lease: comment %s is not the active lease (superseded by a newer claim, comment %s)\n' \
-    "$lease_comment_id" "${active_id:-none}" >&2
+    "$lease_comment_id" "${WIT_ACTIVE_LEASE_ID:-none}" >&2
+  exit "$EX_CONFLICT"
+fi
+
+# Being the active (non-superseded) lease is still not enough: an active lease can
+# be EXPIRED — `renewed_at + ttl_hours` already elapsed — without a superseding
+# comment yet, e.g. a crashed/delayed holder that never backed off. Renewing that
+# would revive a lease another worker has reasonably treated as expired and handed
+# off, defeating TTL-based handoff. Refuse the renewal (conflict) for an expired
+# lease; recovery is a fresh claim/reclaim, not a revive of the dead handle.
+if ! wit_lease_is_live "$lease_json" "$(date -u +%s)"; then
+  printf 'renew-lease: lease %s is expired (renewed_at + ttl_hours elapsed); not renewing\n' \
+    "$lease_comment_id" >&2
   exit "$EX_CONFLICT"
 fi
 
