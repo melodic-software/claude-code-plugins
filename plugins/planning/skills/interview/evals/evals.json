@@ -99,6 +99,20 @@
         "The override-precedence choice is asked as a question with a recommendation, not silently decided",
         "Output does not ask the user to confirm a fact the code already answers"
       ]
+    },
+    {
+      "id": 9,
+      "name": "recommends-session-config-from-live-docs",
+      "prompt": "/planning:interview me — I need to re-architect our authorization layer to support per-resource policies across three services, and I'm unsure which invariants can change safely.",
+      "expected_output": "At the stop/handoff boundary the skill recommends how to configure the downstream execution session — a model tier and effort level chosen per the capability-vs-thoroughness distinction, plus the advisor pairing when the main model is a faster tier — deriving the current model names and accepted pairings from the live official docs rather than pinned values, framed as an advisory delta the user applies, and degrading gracefully (durable distinction + a visible note) if the docs cannot be fetched rather than halting or guessing a model name.",
+      "files": [],
+      "expectations": [
+        "Output recommends a model tier and effort level for the downstream session, distinguishing capability (model) from thoroughness (effort)",
+        "Output recommends advisor pairing when the main model is a faster tier, rather than a faster main with no advisor",
+        "Current model names / tiers / pairings are sourced from the live official docs, not pinned in the skill",
+        "On a doc-fetch failure the skill degrades to the durable distinction with a visible note and does not halt the interview or guess a model name",
+        "The recommendation is framed as advisory (applied via /model, /advisor, effort setting), not as a read of the user's current config"
+      ]
     }
   ]
 }

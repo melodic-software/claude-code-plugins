@@ -197,6 +197,36 @@ Route the handoff by what the session produced. **A general (non-engineering) se
 
 Do NOT auto-clear or auto-invoke. Recommend; let the user pull the trigger.
 
+## Session-config recommendation (model, effort, advisor)
+
+The interview already reads task complexity and ambiguity to drive its rounds — so at
+the stop/handoff boundary, turn that read into a recommendation for how the
+**downstream execution session** should be configured. Two orthogonal knobs, picked
+per the official distinction:
+
+- **Model tier (capability)** — raise the model when the assistant would be
+  *confidently wrong despite full context* (a reasoning ceiling, not missing input).
+- **Effort level (thoroughness)** — raise effort when the assistant would
+  *under-explore or under-verify* (right answer reachable, but it stops short).
+
+When the recommendation keeps a faster main model, pair it with the **advisor**: a
+faster main without a stronger advisor is not the recommended config for non-trivial
+work — the documented efficiency pairing escalates planning, ambiguous failures, and
+completion checks to a stronger advisor instead of paying for the top model every
+turn.
+
+**Source the current names live, never pin them.** Model names, tiers, effort levels,
+and accepted advisor pairings drift between versions; the durable *distinction* above
+is stable, the *names* are not. Fetch them once when you form the recommendation from
+the official docs (mirror `draft-goal-condition`'s never-pin discipline). A doc-fetch
+failure **degrades, never halts** — fall back to the durable distinction and tell the
+user the current names could not be verified live so they confirm against `/model` /
+`/advisor`. Frame the whole thing as advisory (the skill cannot read the current
+effort/advisor state) and applicable to engineering and general sessions alike. The
+same signals run **mid-task** in the inverse direction — surface "too complex for the
+current model/effort" when execution warrants. Full detail, sources, and the
+knob-picking signals in [`context/session-config.md`](context/session-config.md).
+
 ## What this skill does NOT do
 
 - `context/gotchas.md` — failure patterns from real sessions
