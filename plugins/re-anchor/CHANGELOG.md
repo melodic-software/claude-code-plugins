@@ -3,6 +3,49 @@
 All notable changes to the `re-anchor` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0]
+
+### Added
+
+- **`use-your-skills`** — a corrector for skill-use discipline. The skill
+  listing (every skill's name and description) is in context so the fitting
+  skill gets invoked instead of reinvented; this re-anchors the habit of
+  scanning it, maps the conversation and task to the skills that fit, and
+  invokes them. Because a fresh non-fork subagent does not inherit the parent's
+  listing (it discovers skills on disk via the Skill tool), the skill's
+  subagent guidance is to name the relevant skills in a delegation prompt and,
+  for a discipline a custom subagent should always carry, recommend its
+  `skills:` frontmatter preload. Session-behavior only: description quality
+  routes to `/skill-quality:check` and machine-level listing-budget overflow to
+  `/claude-config:audit`. A deterministic per-prompt `UserPromptSubmit` routing
+  hook is deliberately deferred (trigger: audits repeatedly show a skill
+  existed but its description never surfaced it, or skills repeatedly fail to
+  fire).
+- **`converge-dont-fork`** — a corrector for anti-fragmentation discipline.
+  When an established way of doing something already exists, new work follows it
+  or openly challenges and replaces it (migrate the uses, record the decision)
+  — it never silently forks a second parallel way. The mandatory misconstrual
+  guard states this is NOT straight conformity: challenging the established way
+  is first-class when evidence backs an improvement or its rationale is missing,
+  incumbency-only, or stale; the sin is the silent second way, not divergence.
+  Divergence owes a recorded rationale proportional to blast radius (ADR/docs
+  for durable, PR/commit for small); no recorded reason is the finding. Scope is
+  the unlintable approach level (idioms, structure, naming shapes, error
+  handling, doc formats, process); mechanical style stays with linters.
+  Cross-references `reason-dont-recite` (evaluation-side) and carves itself out
+  of `pick-for-the-problem` (tool/dependency selection).
+
+### Changed
+
+- **`script-the-deterministic-work`** — its audit now runs in both directions.
+  Alongside hand-work that should have been scripted, it hunts an **existing**
+  script or tool that over-reaches into judgement (a detect-then-judge flag
+  consumed as the verdict, or reasoning-only work handed to a script), and
+  corrects by **de-scripting** — demoting the flag back to a candidate and
+  returning reasoning-only work to reasoning.
+- **`do-your-research`** — description adds the `'evidence, not vibes'` trigger
+  phrase; no behavior change.
+
 ## [0.3.3]
 
 ### Fixed
