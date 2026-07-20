@@ -74,6 +74,6 @@ the line and leaves the edit to the consumer.
   Surface the matching rule and stop; do not degrade silently.
 - **Local overlay NOT gitignored → warn.** The overlay is personal by contract; a tracked one leaks
   a per-operator deviation into team history. Recommend the `.gitignore` line.
-- **A layer is malformed** (a non-machine-checkable `subject_pattern`, an unparseable section) →
+- **A layer is malformed** (a non-machine-checkable `subject_pattern`, an unparsable section) →
   surface the error, name the layer, and resolve as if that layer were absent. Unknown H2 sections
   are inert.
