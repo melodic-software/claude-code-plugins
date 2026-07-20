@@ -145,23 +145,31 @@ for manifest in "${manifests[@]}"; do
   # start (awk index()==1) and OUTSIDE fenced code, so the version string
   # appearing in prose, an indented line, or a fenced example never satisfies —
   # or falsely pre-exists — the release entry, and SemVer metacharacters
-  # (1.0.1+build.1) never leak into a regex. Fence tracking records the opening
-  # delimiter char and length and closes only on a matching delimiter (per
-  # CommonMark), so a mismatched inner marker — a ~~~ line inside a ``` block,
-  # or a shorter run of the same char — does not prematurely re-open the heading.
+  # (1.0.1+build.1) never leak into a regex. Fence tracking follows CommonMark:
+  # a fence line is a run of >=3 backticks or tildes indented at most three
+  # SPACES (four-plus, or a tab, is indented code); an opening backtick fence
+  # rejects an info string containing a backtick; a CLOSE requires the same
+  # delimiter char, a run at least as long as the opener, and nothing but
+  # whitespace after it — so a ~~~ line, a ```not-a-close line, or an indented
+  # would-be closer inside a ``` block never prematurely re-opens the heading.
   heading="## [${head_version}]"
   has_heading() {
     awk -v h="$heading" '
       {
-        line = $0
-        sub(/^[[:space:]]*/, "", line)
-        mchar = ""; mlen = 0
-        if (match(line, /^`+/) && RLENGTH >= 3) { mchar = "`"; mlen = RLENGTH }
-        else if (match(line, /^~+/) && RLENGTH >= 3) { mchar = "~"; mlen = RLENGTH }
-        if (mchar != "") {
-          if (!infence) { infence = 1; fchar = mchar; flen = mlen }
-          else if (mchar == fchar && mlen >= flen) { infence = 0 }
-          next
+        if (match($0, /^ {0,3}`+/) || match($0, /^ {0,3}~+/)) {
+          seg = substr($0, RSTART, RLENGTH)
+          sub(/^ +/, "", seg)
+          mchar = substr(seg, 1, 1)
+          mlen = length(seg)
+          rest = substr($0, RSTART + RLENGTH)
+          if (mlen >= 3) {
+            if (!infence) {
+              # opening fence; a backtick info string must not contain a backtick
+              if (!(mchar == "`" && rest ~ /`/)) { infence = 1; fchar = mchar; flen = mlen; next }
+            } else if (mchar == fchar && mlen >= flen && rest ~ /^[ \t]*$/) {
+              infence = 0; next
+            }
+          }
         }
         if (!infence && index($0, h) == 1) { found = 1; exit }
       }

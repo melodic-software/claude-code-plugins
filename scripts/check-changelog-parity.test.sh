@@ -206,7 +206,27 @@ printf '# Changelog\n\n```\n~~~\n## [1.1.0]\n```\n\n## [1.0.0]\n' >"$repo/plugin
 git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
 rc=$?
-if [[ $rc -ne 0 && "$out" == *"UNDOCUMENTED BUMP"*"alpha"* && "$out" != *"PRE-EXISTING"* ]]; then ok "mismatched inner fence delimiter (tilde line inside a backtick fence) does not prematurely close"; else fail "fence delimiter mismatch mis-toggled: rc=$rc out='$out'"; fi
+if [[ $rc -ne 0 && "$out" == *"UNDOCUMENTED BUMP"*"alpha"* && "$out" != *"PRE-EXISTING"* ]]; then ok "mismatched inner fence delimiter (tilde line inside a backtick fence) does not prematurely close"; else fail "fence delimiter mismatch wrongly toggled: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# NON-CLOSING FENCE LINES: a backtick fence contains a ```not-a-close line (text
+# after the run) and a four-space-indented ``` line (indented code column, not a
+# fence per CommonMark); neither closes, so a `## [1.1.0]` after them is still
+# fenced -> fails as UNDOCUMENTED. Proves a close requires a whitespace-only
+# suffix and at-most-three-space indentation.
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+# shellcheck disable=SC2016  # single quotes are deliberate: fence lines are literal changelog bytes
+printf '# Changelog\n\n```\n```not-a-close\n    ```\n## [1.1.0]\n```\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"UNDOCUMENTED BUMP"*"alpha"* && "$out" != *"PRE-EXISTING"* ]]; then ok "non-closing fence lines (text suffix, four-space indent) do not close a fence"; else fail "non-closing fence line wrongly closed the fence: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
 # SYNTHETIC UNDOCUMENTED BUMP: version changed, changelog edited but WITHOUT an
