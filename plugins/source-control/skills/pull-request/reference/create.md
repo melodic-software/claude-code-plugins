@@ -145,11 +145,12 @@ fi
 
 Append each accepted line to `${CLOSES_LINE}` (newline-separated). GitHub accepts one keyword per issue, comma- or newline-separated.
 
-**Branch lacks issue number (orphan PR — drift sweep, hotfix, refactor):** prompt with three options:
+**Branch lacks issue number (orphan PR — drift sweep, hotfix, refactor):** prompt with two options:
 
 1. `Closes #<N>` — provide a number to auto-close on merge
-2. `Refs #<N>` — link without closing
-3. `No related issue: <reason>` — orphan PR, no linkage
+2. `No related issue: <reason>` — orphan PR, no linkage
+
+To reference an issue this PR does **not** close, put a `Refs #N — <why>` line in the `## Related` section (§2.4.1), not on the closing-keyword line: a bare `Refs #N` satisfies neither the §2.4.2 pre-create gate nor the real `pr-issue-linkage` validator's closing-keyword half, so such a PR still picks one of the two options above.
 
 Persist chosen line(s) into `${CLOSES_LINE}`. NEVER wrap a closing keyword in an HTML comment — `<!-- Closes #N -->` is parsed as a valid keyword and will auto-close the issue on merge. Fenced code blocks ARE inert, so example snippets are safe.
 
@@ -198,7 +199,7 @@ BODY+="$TEMPLATE"
 - **Closing-keyword line** (`${CLOSES_LINE}` at top): always populated by §2.4.0 (branch-derived `Closes #N`, the multi-issue prompt, or the orphan-PR opt-out) and asserted by the §2.4.2 gate before create — a required, always-present scaffold, not a conditional decoration.
 - **`## Related` section**: defaults to the literal `N/A` so the section is non-empty by default. Replace `N/A` with genuinely related-but-not-closed references — sibling PRs, ADRs, or decision-log entries (`Refs #N — <why>`, matching the repo's own `## Related` convention) — whenever they exist; leave `N/A` only when nothing else applies. The issue this PR *closes* belongs on the closing-keyword line, not here.
 
-Note the opt-out asymmetry: a `pr-issue-linkage` validator honors only a real closing keyword or a literal `No linked issue` / `No related issue:` phrase for its closing-keyword half — a bare `Refs #N` opt-out (§2.4.0 option 2) does **not** satisfy it. When the branch resolves a real `Closes #N` (the common path) both halves pass; a `Refs #N`-only PR still needs a `No related issue:` line to clear the gate.
+A `Refs #N` line links an issue without closing it and belongs in the `## Related` section, never on the closing-keyword line: it satisfies the closing-keyword half of **neither** the §2.4.2 pre-create gate nor the real `pr-issue-linkage` validator — only a real closing keyword or a literal `No linked issue` / `No related issue:` phrase does. When the branch resolves a real `Closes #N` (the common path) both halves pass; a PR that closes nothing needs a `No related issue:` line to clear the gate.
 
 ### 2.4.2 Verify closing-keyword line (pre-create gate)
 
@@ -210,7 +211,10 @@ Before invoking `gh pr create`, grep assembled `$BODY` for a valid closing keywo
 # linked-issues docs. The 3-keyword shortcut (Closes|Fixes|Resolves)
 # misses 6 valid forms GitHub auto-close honors.
 KEYWORD_REGEX='^(close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved):? #[0-9]+'
-OPTOUT_REGEX='^(Refs #[0-9]+|No related issue:)'
+# Only `No related issue:` — a bare `Refs #N` links without closing and does NOT
+# satisfy the real pr-issue-linkage validator's closing-keyword half, so accepting
+# it here would clear a body the CI gate then rejects.
+OPTOUT_REGEX='^No related issue:'
 
 if printf '%s\n' "$BODY" | grep -iE "$KEYWORD_REGEX" >/dev/null; then
   :  # closing keyword present — gate passes
@@ -220,14 +224,14 @@ else
   # No closing keyword AND no opt-out marker. §2.4.0's orphan-PR prompt
   # should have populated one. If we reach here, either the prompt was
   # skipped or `$CLOSES_LINE` is empty.
-  echo "⚠ PR body lacks a closing keyword (Closes/Fixes/Resolves #N, case-insensitive, optional colon) AND no opt-out marker (Refs #N / No related issue:)." >&2
-  echo "  Re-run §2.4.0's orphan-PR prompt to choose: Closes #N | Refs #N | No related issue: <reason>" >&2
+  echo "⚠ PR body lacks a closing keyword (Closes/Fixes/Resolves #N, case-insensitive, optional colon) AND no opt-out marker (No related issue:)." >&2
+  echo "  Re-run §2.4.0's orphan-PR prompt to choose: Closes #N | No related issue: <reason>" >&2
   echo "  Aborting PR creation. (Silent proceed would orphan the PR from any tracked issue.)" >&2
   exit 1
 fi
 ```
 
-When user explicitly selected `Refs #<N>` or `No related issue: <reason>` in §2.4.0, gate passes silently — opt-out is a legitimate path for refactors, drift sweeps, and hotfixes. Gate exists to catch the case where §2.4.0 fell through without populating `$CLOSES_LINE`.
+When user explicitly selected `No related issue: <reason>` in §2.4.0, the gate passes silently — the opt-out is a legitimate path for refactors, drift sweeps, and hotfixes. Gate exists to catch the case where §2.4.0 fell through without populating `$CLOSES_LINE`.
 
 ### 2.4.3 Create PR
 
