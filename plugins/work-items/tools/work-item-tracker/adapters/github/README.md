@@ -168,32 +168,40 @@ is not in flight (bare read):
 
 ```bash
 OWNER_REPO=$(gh repo view --json owner,name -q '.owner.login + " " + .name' | tr -d '\r')
-gh api graphql \
-  -f query='query($owner:String!, $repo:String!, $n:Int!) {
+gh api graphql --paginate \
+  -f query='query($owner:String!, $repo:String!, $n:Int!, $endCursor:String) {
     repository(owner:$owner, name:$repo) {
       issue(number:$n) {
-        closedByPullRequestsReferences(first:100, includeClosedPrs:false) { nodes { number state } }
+        closedByPullRequestsReferences(first:100, after:$endCursor, includeClosedPrs:false) {
+          nodes { number state }
+          pageInfo { hasNextPage endCursor }
+        }
       }
     }
   }' \
   -f owner="${OWNER_REPO% *}" -f repo="${OWNER_REPO#* }" -F n=<N> \
   --jq '[.data.repository.issue.closedByPullRequestsReferences.nodes[] | select(.state=="OPEN")] | any' \
-  | tr -d '\r'
+  | tr -d '\r' | grep -qx true && echo true || echo false
 ```
 
 Emits `true` when at least one **open** PR closes `#<N>`, `false` otherwise. `-F n=<N>` passes the
 number as a GraphQL `Int` (typed); `-f` passes the owner/repo strings; the trailing `| tr -d '\r'`
-follows the Windows/Git Bash rule under "Gotchas" (the boolean can otherwise arrive as `true\r`).
+follows the Windows/Git Bash rule under "Gotchas" (each page's boolean can otherwise arrive as
+`true\r`, which `grep -qx true` would then fail to match).
 The `select(.state=="OPEN")` filter is **load-bearing, not redundant with `includeClosedPrs:false`**:
 that argument suppresses only `CLOSED` (unmerged) PRs, so a `MERGED` PR still appears in the
 connection and must be dropped here — otherwise an issue whose only closing PR merged to a
 non-default base (or that was reopened after a merge) would be wrongly reported as in-flight.
 `first:100` requests the connection's maximum page (GitHub GraphQL caps `first`/`last` at 100).
 Because the connection retains `MERGED` nodes, this bound counts every PR the issue has *ever*
-linked as closing — not only the open ones — so a long merge/reopen history consumes page slots
-ahead of the currently-open PR. An issue carrying more than 100 such linked closing PRs (not
-realistic in practice) would need cursor pagination, the GraphQL analogue of the `--limit` note
-under "List items". Why GitHub's computed
+linked as closing — not only the open ones — so a long merge/reopen history can push the
+currently-open PR onto a later page. `--paginate` therefore walks the connection page by page via
+`pageInfo { hasNextPage endCursor }` and the `$endCursor` variable until GitHub reports no further
+pages, the GraphQL analogue of the `--limit` note under "List items"; a single-page `first:100`
+read would miss an `OPEN` closing PR sorted past the first 100 nodes and wrongly report the item
+pickable. `gh` applies `--jq` per page, so each page emits its own `true`/`false`; `grep -qx true`
+collapses the stream to one boolean — `true` as soon as any page carries an `OPEN` node, `false`
+once every page is exhausted without one. Why GitHub's computed
 linkage instead of a body regex over `gh pr list --search`:
 
 - **Fenced code blocks and HTML comments are inert for free.** GitHub does not link a closing
