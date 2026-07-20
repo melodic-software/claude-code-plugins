@@ -369,7 +369,7 @@ printf '{ "name": "beta", "version": "2.0.0" }\n' >"$repo/plugins/beta/.claude-p
 git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'pr bumps beta, no entry'
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$main" 2>&1)"
 rc=$?
-if [[ $rc -ne 0 && "$out" == *"UNDOCUMENTED BUMP"*"beta"* && "$out" != *"alpha"* ]]; then ok "a plugin the branch bumped is still checked while the main-only advance is scoped out"; else fail "diff-scoping mis-scoped: rc=$rc out='$out'"; fi
+if [[ $rc -ne 0 && "$out" == *"UNDOCUMENTED BUMP"*"beta"* && "$out" != *"alpha"* ]]; then ok "a plugin the branch bumped is still checked while the main-only advance is scoped out"; else fail "diff-scoping incorrectly scoped: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
 # unresolvable base ref -> exit 2
