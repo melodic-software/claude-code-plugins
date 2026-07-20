@@ -1,0 +1,13 @@
+{
+  "schema_version": "1",
+  "surface": "ci-pool-a",
+  "level": "L2",
+  "substrate": "egress-denied-container-pool",
+  "substrate_class": "container",
+  "probed_at": "2026-07-03T17:00:00Z",
+  "assertions": {
+    "egress_denied": { "host": "3fff::1", "exit_code": "7", "outer_exit_code": "0", "outcome": "denied" },
+    "credentials_absent": { "path": "$HOME/.netrc", "host_expanded": "/home/runner/.netrc", "exit_code": "1", "outer_exit_code": "0", "transport_outcome": "read-denied", "outcome": "absent-or-denied" }
+  },
+  "outer_context_networked": true
+}

@@ -112,6 +112,54 @@ class CollectFeedbackTests(unittest.TestCase):
         result = fb.collect_feedback(pr)
         self.assertEqual(result["blocking"], [])
 
+    def test_bot_approval_with_descriptive_blocking_prose_is_ignored(self) -> None:
+        # #499: an Approve verdict whose body uses the word "blocking" only
+        # descriptively ("blocking criteria"/"blocking checks") and carries no
+        # severity marker must be fully non-blocking, matching the readiness
+        # gate's findings=0 — not routed to blocking or even material.
+        pr = _pr([
+            {"id": 20, "author": {"login": "claude", "__typename": "Bot"},
+             "body": "Verdict: Approve. No blocking issues. Checked the REVIEW.md "
+                     "blocking criteria; all six blocking checks are inapplicable. "
+                     "\U0001F7E1 Nit: worth noting, not worth a change."}
+        ])
+        result = fb.collect_feedback(pr)
+        self.assertEqual(result["blocking"], [])
+        self.assertEqual(result["material"], [])
+        self.assertEqual(len(result["ignored"]), 1)
+        self.assertEqual(result["ignored"][0]["downgrade"], "approval_verdict")
+
+    def test_configured_login_surfaces_clean_approval_as_material(self) -> None:
+        # An opt-in `approval_downgrade_logins` login routes the same clean
+        # approval to the more-conservative material bucket instead of ignored.
+        comment = {"id": 21, "author": {"login": "claude", "__typename": "Bot"},
+                   "body": "Verdict: Approve. Checked every blocking criterion; "
+                           "all blocking checks are inapplicable."}
+        config = fb.FeedbackConfig(approval_downgrade_logins=frozenset({"claude"}))
+        result = fb.collect_feedback(_pr([comment]), config=config)
+        self.assertEqual(result["blocking"], [])
+        self.assertEqual(len(result["material"]), 1)
+        self.assertEqual(result["material"][0]["downgrade"], "approval_verdict")
+
+    def test_approval_verdict_with_critical_marker_stays_blocking(self) -> None:
+        pr = _pr([
+            {"id": 22, "author": {"login": "claude", "__typename": "Bot"},
+             "body": "Verdict: Approve overall. \U0001F534 CRITICAL: hardcoded "
+                     "secret; must fix before merge."}
+        ])
+        result = fb.collect_feedback(pr)
+        self.assertEqual(len(result["blocking"]), 1)
+        self.assertEqual(result["material"], [])
+
+    def test_request_changes_verdict_is_blocking(self) -> None:
+        pr = _pr([
+            {"id": 23, "author": {"login": "claude", "__typename": "Bot"},
+             "body": "Verdict: Request changes. The endpoint skips the tenant "
+                     "scope check."}
+        ])
+        result = fb.collect_feedback(pr)
+        self.assertEqual(len(result["blocking"]), 1)
+
     def test_disposition_only_applies_at_matching_head(self) -> None:
         comment = {"id": 6, "author": {"login": "bugbot[bot]", "__typename": "Bot"},
                    "body": "P1 must fix regression."}
@@ -202,11 +250,65 @@ class DowngradeHeuristicTests(unittest.TestCase):
         self.assertFalse(fb.approval_downgrade("Approved, but P1 must fix remains."))
         self.assertFalse(fb.approval_downgrade("Not approving this change yet."))
 
+    def test_approval_downgrade_rejects_critical_or_important_marker(self) -> None:
+        self.assertFalse(fb.approval_downgrade("Approve, but CRITICAL: fix this."))
+        self.assertFalse(fb.approval_downgrade("Approve. IMPORTANT: revisit."))
+        # Lowercase severity words are ordinary prose, not markers.
+        self.assertTrue(
+            fb.approval_downgrade("Approve; it is important to note the nit.")
+        )
+
+    def test_has_blocking_severity_matches_only_uppercase_markers(self) -> None:
+        self.assertTrue(fb.has_blocking_severity("CRITICAL: null deref"))
+        self.assertTrue(fb.has_blocking_severity("IMPORTANT: revisit this"))
+        self.assertFalse(fb.has_blocking_severity("this is a critical path"))
+        self.assertFalse(fb.has_blocking_severity("SUGGESTION: rename the var"))
+
+    def test_negated_severity_marker_is_not_blocking(self) -> None:
+        # A clean approval stating the absence of high-severity findings uses the
+        # same structured vocabulary in its verdict; it must not re-introduce a
+        # false blocker (the mirror of no-P1/P2 redaction for CRITICAL/IMPORTANT).
+        self.assertFalse(
+            fb.has_blocking_severity("No CRITICAL or IMPORTANT findings.")
+        )
+        self.assertFalse(fb.has_blocking_severity("No CRITICAL issues found."))
+        self.assertTrue(
+            fb.approval_downgrade(
+                "Verdict: Approve. No CRITICAL or IMPORTANT findings."
+            )
+        )
+        # A live marker without a negator still blocks.
+        self.assertTrue(fb.has_blocking_severity("CRITICAL: null deref remains"))
+
     def test_skip_downgrade_only_when_review_could_not_run(self) -> None:
         self.assertTrue(
             fb.skip_downgrade("bugbot skipped: usage limit reached. Not approving.")
         )
         self.assertFalse(fb.skip_downgrade("Not approving; P1 regression found."))
+
+    def test_skip_downgrade_rejects_live_severity_marker(self) -> None:
+        # A skip comment carrying a genuine CRITICAL/IMPORTANT marker has no
+        # imperative blocking text, so has_blocking_text alone would let it
+        # downgrade; the severity guard keeps the live finding blocking.
+        self.assertFalse(
+            fb.skip_downgrade(
+                "bugbot skipped: usage limit reached. Not approving. "
+                "CRITICAL: authorization bypass."
+            )
+        )
+        self.assertFalse(
+            fb.skip_downgrade(
+                "bugbot skipped: usage limit reached. Not approving. "
+                "IMPORTANT: unbounded retry loop."
+            )
+        )
+        # A negated severity conclusion still downgrades -- it is not a finding.
+        self.assertTrue(
+            fb.skip_downgrade(
+                "bugbot skipped: usage limit reached. Not approving. "
+                "No CRITICAL or IMPORTANT issues seen before the cutoff."
+            )
+        )
 
 
 if __name__ == "__main__":

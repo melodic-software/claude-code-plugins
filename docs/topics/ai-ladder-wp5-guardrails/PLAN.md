@@ -104,7 +104,7 @@ Prerequisite: the WP4 implementation PR merged (`reference/trigger-dispatch.md` 
 admission leaf cites its seam; the interim is safe via WP4's fail-closed absent-binding
 clause).
 
-### Phase 1: Guardrail hub + leaf docs [TODO]
+### Phase 1: Guardrail hub + leaf docs [DONE]
 
 | File | Action | What changes |
 |---|---|---|
@@ -122,7 +122,7 @@ clause).
 - Promotion defaults present: `grep -c '20 autonomous C2 completions' plugins/autonomy/reference/guardrails/work-classes.md` ≥ 1 and `grep -c '14 days' plugins/autonomy/reference/guardrails/work-classes.md` ≥ 1
 - Vendor+fleet deny-list sweep exit 0; lychee lane passes
 
-### Phase 2: Binding schema (two governance surfaces) [TODO]
+### Phase 2: Binding schema (two governance surfaces) [DONE]
 
 | File | Action | What changes |
 |---|---|---|
@@ -138,7 +138,7 @@ clause).
 - Schema `additionalProperties: false` present (`grep -c '"additionalProperties": false' …schema.json` ≥ 1)
 - `claude plugin validate --strict` exit 0
 
-### Phase 3: Guided-setup guardrail slice [TODO]
+### Phase 3: Guided-setup guardrail slice [DONE]
 
 Extends the `setup` skill: detect → bind → live-validate → fail-closed (D4), always
 detect-diff-reconcile against existing org guardrail surfaces (D5 — sandbox configs, branch
@@ -158,7 +158,7 @@ protections, review workflows), never greenfield-assume, never silently overwrit
 - `grep -ci 'detect-diff-reconcile' plugins/autonomy/skills/setup/SKILL.md` ≥ 1
 - Fleet-name sweep exit 0
 
-### Phase 4: Live-validation demonstration + gates [TODO]
+### Phase 4: Live-validation demonstration + gates [DONE]
 
 Acceptance probe, BOTH paths mandatory: (positive) run the Phase 3 probe recipe against a
 REAL, PROVISIONED egress-denied boundary — the CI job on this public repo (free minutes)

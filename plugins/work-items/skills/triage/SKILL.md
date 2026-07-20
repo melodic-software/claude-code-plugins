@@ -86,7 +86,12 @@ Classify **bug vs enhancement** first — it steers the rest of the flow (bugs g
 - **Priority label** (`priority:p0-critical` through `priority:p3-low`)
 - **Target state** — from the state machine above: needs-info, briefed for human-gated, or on track to autonomous-eligible
 
-Wait for the user's direction before mutating anything.
+**Direction gate.** Recommending is read-only; the gate governs *mutation* — labels, comments, closes, item creation — and which side of it you are on is fixed by how triage was invoked:
+
+- **Interactive session** — a human operator is present and no standing lane rules were supplied. Present the recommendation and **wait for the user's explicit direction** before mutating anything. This is the default whenever the invocation carries no autonomous mandate.
+- **Autonomous lane** — triage is running unattended as a `/loop` or `/schedule` AFK session whose standing rules — the directive supplied with its `/loop` / `/schedule` invocation — already authorize triage mutations. Those standing rules **are** the direction this gate requires: treat the gate as satisfied and proceed through verification and outcome without a human turn, prefixing every comment and item you create with the AI disclaimer. There is no operator turn to wait for, so blocking here would deadlock the lane — the gate is met by the lane's mandate, not skipped.
+
+The autonomous branch is the mode the AI disclaimer already anticipates: a session that mutates without a human turn. The two are one mode, not a contradiction.
 
 ### 3. Verify — BEFORE any interview
 

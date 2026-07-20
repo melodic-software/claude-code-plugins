@@ -23,6 +23,7 @@ from babysit_util import is_json_object, json_array, json_object
 
 BLOCKING_TEXT_RE = re.compile(
     r"\b(p0|p1|p2|high[- ]severity|not approving|changes requested|"
+    + r"request(?:s|ing)? changes|"
     + r"required fix|must fix|blocking|regression|vulnerability)\b",
     re.I,
 )
@@ -34,6 +35,19 @@ NEGATED_SEVERITY_LIST_RE = re.compile(
     + r"(?:\s*,?\s*(?:(?:and|or)\s+)?p[012])*\s+"
     + r"(?:issues?|findings?|defects?|problems?|regressions?|vulnerabilities?)\b",
     re.I,
+)
+# Negated CRITICAL/IMPORTANT conclusions ("No CRITICAL or IMPORTANT findings",
+# "No CRITICAL issues found") are the structured-severity analogue of
+# NEGATED_SEVERITY_LIST_RE: a clean approval stating the absence of high-severity
+# findings, not a live one. The severity tokens stay case-sensitive (uppercase
+# only) for the same reason BLOCKING_SEVERITY_RE is -- lowercase "critical"/
+# "important" are ordinary prose -- while the negator and trailing noun are not.
+NEGATED_SEVERITY_MARKER_RE = re.compile(
+    r"(?i:\b(?:no|zero|without)\s+(?:actionable\s+)?)"
+    + r"(?:CRITICAL|IMPORTANT)"
+    + r"(?:(?i:\s*,?\s*(?:(?:and|or)\s+)?)(?:CRITICAL|IMPORTANT))*"
+    + r"(?i:\s+(?:issues?|findings?|defects?|problems?|regressions?|"
+    + r"vulnerabilities?))\b"
 )
 NEGATED_BLOCKING_TERM_RE = re.compile(
     r"\b(?:no|zero|without)\s+(?:actionable\s+)?(?:p[012]|high[- ]severity|"
@@ -61,6 +75,15 @@ REQUIRED_FIX_RE = re.compile(
     + r"request(?:s|ing)? changes|regression|vulnerability|high[- ]severity)\b",
     re.I,
 )
+# Blocking-severity markers, case-sensitive and whole-word, matching the
+# vocabulary babysit-readiness-gate.sh counts as findings (CRITICAL/IMPORTANT).
+# Deliberately NOT case-insensitive: lowercase "critical"/"important" occur
+# constantly in ordinary review prose ("it is important to note", "critical
+# path"), whereas the uppercase tokens are the reviewer's structured severity
+# labels. SUGGESTION is intentionally excluded here -- like a 🟡 nit it is a
+# non-blocking marker -- so an approval carrying only suggestions/nits stays
+# non-blocking, consistent with the issue's "CRITICAL/IMPORTANT vs nits" split.
+BLOCKING_SEVERITY_RE = re.compile(r"\b(?:CRITICAL|IMPORTANT)\b")
 REVIEW_SKIP_RE = re.compile(
     r"\bbugbot\b[^\n.]{0,80}?\b(?:skipped|did(?:n't| not) run|"
     + r"could(?:n't| not) run|was not run|unable to run|usage limit)\b"
@@ -85,9 +108,18 @@ class FeedbackConfig:
     """Caller-supplied identity configuration; every set ships empty.
 
     `extra_bot_logins` supplements structural bot detection for accounts whose
-    metadata misreports them as users. `approval_downgrade_logins` and
-    `skip_downgrade_logins` name the reviewer logins whose blocking-looking
-    text may be downgraded by the approval-verdict and review-skip heuristics.
+    metadata misreports them as users. A clean approval (explicit approval
+    verdict, no CRITICAL/IMPORTANT or required-fix marker) is treated as
+    non-blocking for every bot structurally. `approval_downgrade_logins` names
+    the reviewer logins whose approval is surfaced as a material finding rather
+    than ignored in the one case the structural downgrade reaches: a review body
+    carrying blocking-looking prose that still parses as an approval verdict. It
+    does not affect a review already in the APPROVED state or a plain clean
+    approval whose body carries no blocking-looking prose -- both are ignored
+    regardless, since neither reaches the downgrade branch.
+    `skip_downgrade_logins` names the reviewer logins
+    whose not-approving text may be downgraded to material when their review
+    provably could not run.
     """
 
     extra_bot_logins: frozenset[str] = field(default_factory=frozenset)
@@ -228,19 +260,41 @@ def has_blocking_text(text: str) -> bool:
     return bool(BLOCKING_TEXT_RE.search(redacted))
 
 
+def has_blocking_severity(text: str) -> bool:
+    """True when a CRITICAL/IMPORTANT severity marker survives negation redaction.
+
+    A companion to `has_blocking_text` for the structured severity vocabulary
+    the readiness gate counts as findings. A bot review that raises a genuine
+    high-severity finding is blocking even when its prose contains none of
+    `BLOCKING_TEXT_RE`'s imperative terms.
+    """
+    redacted = NEGATED_SEVERITY_LIST_RE.sub("", text)
+    redacted = NEGATED_SEVERITY_MARKER_RE.sub("", redacted)
+    redacted = NEGATED_BLOCKING_TERM_RE.sub("", redacted)
+    return bool(BLOCKING_SEVERITY_RE.search(redacted))
+
+
 def approval_downgrade(text: str) -> bool:
     """True when a reviewer bot states an explicit approval verdict.
 
     Requires a clear approval/non-blocking conclusion, no negated approval
-    language, and no required-fix language surviving negation redaction.
-    Anything ambiguous stays blocking.
+    language, and neither a required-fix term nor a CRITICAL/IMPORTANT severity
+    marker surviving negation redaction. Anything ambiguous -- and any genuine
+    high-severity finding carried in an approval-verdict body that reaches this
+    check -- stays blocking. A review submitted in the formal APPROVED/DISMISSED
+    state is routed to `ignored` upstream, before this predicate; whether that
+    short-circuit should be severity-scanned first is tracked as a follow-up in
+    issue #621.
     """
     if NON_APPROVAL_RE.search(text):
         return False
     if not APPROVAL_VERDICT_RE.search(text):
         return False
     redacted = NEGATED_SEVERITY_LIST_RE.sub("", text)
+    redacted = NEGATED_SEVERITY_MARKER_RE.sub("", redacted)
     redacted = NEGATED_BLOCKING_TERM_RE.sub("", redacted)
+    if BLOCKING_SEVERITY_RE.search(redacted):
+        return False
     return not REQUIRED_FIX_RE.search(redacted)
 
 
@@ -250,14 +304,15 @@ def skip_downgrade(text: str) -> bool:
 
     A not-approving comment whose stated reason is a skipped review run (for
     example a usage limit) and which carries no findings of its own is a
-    user-triage item, not a code blocker. Any residual blocking language keeps
-    it blocking.
+    user-triage item, not a code blocker. Any residual blocking language --
+    imperative blocking text or a surviving CRITICAL/IMPORTANT severity marker
+    -- keeps it blocking.
     """
     if not REVIEW_SKIP_RE.search(text):
         return False
     remainder = NOT_APPROVING_RE.sub("", text)
     remainder = REVIEW_SKIP_RE.sub("", remainder)
-    return not has_blocking_text(remainder)
+    return not has_blocking_text(remainder) and not has_blocking_severity(remainder)
 
 
 def collect_feedback(
@@ -326,7 +381,7 @@ def collect_feedback(
             blocking.append(record)
         elif state in {"APPROVED", "DISMISSED"}:
             ignored.append(record)
-        elif has_blocking_text(text):
+        elif has_blocking_text(text) or has_blocking_severity(text):
             disposition = json_object((dispositions or {}).get(fid))
             current_head = str(pr.get("headRefOid") or "")
             # Only honor a disposition recorded at the current head. If the PR has
@@ -340,11 +395,24 @@ def collect_feedback(
             if disposition_applies:
                 record["disposed_reason"] = str(disposition.get("reason") or "")
                 material.append(record)
-            elif normalized_bot_login(
-                item
-            ) in approval_downgrade_logins and approval_downgrade(text):
+            elif approval_downgrade(text):
+                # An explicit approval verdict with no genuine severity marker
+                # (no CRITICAL/IMPORTANT, no required-fix term surviving negation
+                # redaction): the blocking-looking text is descriptive prose --
+                # e.g. "blocking criteria", "blocking checks", "no blocking
+                # issues" -- not a live finding. This is structural, not
+                # login-gated: a clean approval reads the same from any bot, and
+                # this keeps the snapshot consistent with
+                # babysit-readiness-gate.sh reporting findings=0 for the very
+                # same review. A login named in `approval_downgrade_logins` opts
+                # that bot's clean approvals into the more-conservative `material`
+                # bucket (surfaced but non-blocking) instead of being fully
+                # ignored; the safe default for every other bot is `ignored`.
                 record["downgrade"] = "approval_verdict"
-                material.append(record)
+                if normalized_bot_login(item) in approval_downgrade_logins:
+                    material.append(record)
+                else:
+                    ignored.append(record)
             elif normalized_bot_login(
                 item
             ) in skip_downgrade_logins and skip_downgrade(text):

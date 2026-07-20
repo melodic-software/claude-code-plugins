@@ -42,6 +42,20 @@ instead of a session prompt, delegating anything a sibling skill already owns ra
   staleness pre-check advances past an in-flight item rather than starting a duplicate branch, until the
   durable in-progress marker lands and the frontier excludes in-flight items itself.
 
+## [0.12.3]
+
+### Fixed
+
+- **Triage's step-2 wait-gate no longer contradicts its own autonomous mode.** The "Recommend
+  category + state" step ended with a flat "Wait for the user's direction before mutating anything,"
+  while the AI disclaimer section presupposed the opposite — autonomous/agent sessions that mutate
+  without a human turn. No branch selected between them, so an operator following step 2 could not triage
+  autonomously and an autonomous lane necessarily violated step 2. The gate is now an explicit
+  two-branch direction gate: interactive sessions (a human present, no standing lane rules) keep the
+  wait-gate; autonomous `/loop` / `/schedule` AFK lanes treat their standing rules as the direction
+  the gate requires and proceed without a human turn (the mode the AI disclaimer already anticipates),
+  so the gate is satisfied by the lane's mandate rather than silently ignored.
+
 ## [0.12.2]
 
 ### Fixed
