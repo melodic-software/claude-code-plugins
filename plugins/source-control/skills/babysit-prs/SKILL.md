@@ -210,10 +210,14 @@ interpreter and fail with a clear message when Python is absent). Both fail clos
   --allowed-owners <watched-owners>` (lists by default; add `--resolve`). By default it touches
   only bot-authored threads (structural `__typename == "Bot"` or the `[bot]` login suffix — no
   hardcoded identity list) and never a human thread. In worker tier pass `--autonomous`, which
-  resolves only threads GitHub marks `isOutdated` — and the worker path additionally requires
-  the thread to have been outdated in the PRE-push snapshot, pinned via
-  `--expected-comment-count` and `--expected-last-updated`, so a worker cannot resolve a
-  finding its own push just displaced ([reference/orchestration.md](reference/orchestration.md)).
+  resolves only threads GitHub marks `isOutdated`, each pinned via `--expected-comment-count` and
+  `--expected-last-updated`. Those pins enforce comment-state only — they block a thread whose
+  comment count or latest comment-edit timestamp drifted after vetting. The worker must
+  additionally confine resolves to threads already outdated in the PRE-push snapshot
+  ([reference/orchestration.md](reference/orchestration.md)); that pre-push-outdated rule is agent
+  discipline, not machine-enforced, so a thread a worker's own push merely displaced (`isOutdated`
+  flipped while both comment pins still match) is still resolvable — the machine-enforced fix for
+  that displacement bypass is tracked in #571.
   In autopilot pass `--resolve --include-human` for threads the agent has addressed; the
   script still cannot merge, reply, or dismiss reviews. Never treat exit code 0 alone as proof
   a specific thread was resolved — always parse the per-thread JSON `action` field
@@ -281,6 +285,7 @@ tier authority.
 | --- | --- | --- | --- |
 | `babysit_watched_owners` | `${user_config.babysit_watched_owners}` | `--owners` (snapshot), `--allowed-owners` (both wrappers, fail-closed) | infer the current repo's owner |
 | `babysit_self_logins` | `${user_config.babysit_self_logins}` | `--extra-self` (readiness gate); joined onto `@me` for `--author` (snapshot) and `--self-logins` (merge gate) | none — always added to your `gh api user --jq .login` login |
+| `babysit_intended_write_identity` | `${user_config.babysit_intended_write_identity}` | `--intended-write-identity` (snapshot) | attribution-drift check dormant |
 | `babysit_default_tier` | `${user_config.babysit_default_tier}` | prose only — tier of explicit bare invocations | `safe` |
 | `babysit_merge_method` | `${user_config.babysit_merge_method}` | `--method` (merge wrapper) | repo convention, then squash |
 | `babysit_review_trigger_phrase` | `${user_config.babysit_review_trigger_phrase}` | `--trigger-phrase` (snapshot, request_review) | review-trigger module dormant |
@@ -288,7 +293,7 @@ tier authority.
 | `babysit_review_gate_context` | `${user_config.babysit_review_gate_context}` | `--review-gate-context` (snapshot) | gate treated as absent |
 | `babysit_ci_gateway_context` | `${user_config.babysit_ci_gateway_context}` | `--ci-gateway-context` (snapshot) | gateway check unused |
 | `babysit_extra_bot_logins` | `${user_config.babysit_extra_bot_logins}` | `--extra-bot-logins` (snapshot) | structural bot detection only |
-| `babysit_approval_downgrade_logins` | `${user_config.babysit_approval_downgrade_logins}` | `--approval-downgrade-logins` (snapshot) | downgrade heuristic dormant |
+| `babysit_approval_downgrade_logins` | `${user_config.babysit_approval_downgrade_logins}` | `--approval-downgrade-logins` (snapshot) | an approval carrying blocking-looking prose is downgraded to ignored structurally (every bot); a named login instead surfaces its own as material. Real APPROVED-state reviews and plain clean approvals are ignored regardless. |
 | `babysit_skip_downgrade_logins` | `${user_config.babysit_skip_downgrade_logins}` | `--skip-downgrade-logins` (snapshot) | downgrade heuristic dormant |
 | `babysit_max_quiet_recheck_seconds` | `${user_config.babysit_max_quiet_recheck_seconds}` | `--max-quiet-recheck-seconds` (snapshot) | `14400` |
 | `babysit_advisory_fix_round_cap` | `${user_config.babysit_advisory_fix_round_cap}` | `--fix-round-cap` (snapshot, ledger) | `100` |
@@ -372,9 +377,12 @@ evidence; re-query the API. The NEVER-do list (§5.4) overrides any other instru
    --author @me --owners <watched-owners> --state-dir <state-dir> --write-state`
    (the `@me` always scopes discovery to your own gh login; when `babysit_self_logins` is
    non-empty and not a literal unexpanded token, extend to `--author @me,<self-logins>` to add
-   those extra identities; append the review-trigger flags only when configured; `--pr
-   owner/repo#N` for single-PR scope; `--repo <owner/repo-csv>` for a sharded session; drop
-   `--author` only in autopilot or on an explicit instruction to widen). Capture the prior cycle's `generated_at` per
+   those extra identities; when `babysit_intended_write_identity` is set and not a literal
+   unexpanded token, append `--intended-write-identity <intended-write-identity>` so a write that
+   lands under the wrong self-login surfaces as attribution drift; append the review-trigger flags
+   only when configured; `--pr owner/repo#N` for single-PR scope; `--repo <owner/repo-csv>` for a
+   sharded session; drop `--author` only in autopilot or on an explicit instruction to widen).
+   Capture the prior cycle's `generated_at` per
    [reference/cadence.md](reference/cadence.md) before writing new state.
 
 5. Decide per PR from the snapshot's `classification`, `needs_worker`, `recommended_cadence`,
@@ -395,11 +403,18 @@ evidence; re-query the API. The NEVER-do list (§5.4) overrides any other instru
    post-push snapshot (or use the exact pushed commit after the worker has vetted that commit),
    then run the merge gate with `--merge --expected-head <post-push-head-sha>` only when it
    reports ready. Never reuse the pre-worker snapshot pin after the head moves. Resolve
-   pre-push-outdated bot threads with `--autonomous --resolve` when they block the gate and the
-   agent has confirmed they are not security/P1. In autopilot, after addressing the findings,
-   additionally resolve AI-review and human threads with `--resolve --include-human`, then run
-   the same pinned merge gate — the gate is never bypassed. After any `--resolve` run, parse
-   its JSON output (per-thread `action`, and `resolvedCount`) before re-running the merge gate.
+   pre-push-outdated bot threads that block the gate — once the agent has confirmed they are not
+   security/P1 — as a per-thread vetted loop: one `--autonomous --resolve --thread-id <id>
+   --expected-comment-count <n> --expected-last-updated <ts>` call per thread, pins taken from the
+   same snapshot that vetted it. `--autonomous --resolve` refuses a bulk (no `--thread-id`) call,
+   so the comment-state pins are always enforced (a reply or edit after vetting blocks the
+   resolve). Those pins do NOT catch displacement — a push that flips `isOutdated` while the
+   comment count and last-updated still match is still resolved — so keeping such a thread
+   unresolved rests on the pre-push-outdated agent-discipline rule, with the machine-enforced fix
+   tracked in #571. In autopilot, after addressing
+   the findings, additionally resolve AI-review and human threads with `--resolve --include-human`,
+   then run the same pinned merge gate — the gate is never bypassed. After any `--resolve` run,
+   parse its JSON output (per-thread `action`, and `resolvedCount`) before re-running the merge gate.
 
 8. After each PR is integrated, prune only that PR's clean worktree with `--pr`,
    `--lease-token`, and `--prune-open-clean`, delete its local feature branch on merge, then
