@@ -58,7 +58,7 @@ A lane is a discrete glob-scoped slice of the repo, defined in a lane file that 
 1. `${CLAUDE_PROJECT_DIR}/.claude/tidy-lanes/<lane>.md` — the consuming project's own lane definition, if present
 2. `${CLAUDE_PLUGIN_ROOT}/skills/tidy/lanes/<lane>.md` — the bundled generic lane
 
-When the project layer is absent, resolution is the bundled lane alone. When it is present, how the two layers combine is governed by the **project layer's own `## Merge semantics` section** (per the [consumer-config layering contract](../../../../docs/conventions/consumer-config-layering/README.md)):
+When the project layer is absent, resolution is the bundled lane alone. When it is present, how the two layers combine is governed by the **project layer's own `## Merge semantics` section** (per the [consumer-config layering contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/consumer-config-layering/README.md)):
 
 - The project layer declares a `## Merge semantics` section → **read both layers and merge per that declaration** (typically: `Scope` and most sections per-section override, watch-for patterns additive). A section absent from the project layer keeps the bundled value; the bundled generic patterns are never frozen out. The bundled `docs-prose` lane declares this shape.
 - The project layer declares no such section → it resolves **project-only** (the bundled lane is not read). This is the legacy first-match path; lanes still on it are migrated one at a time.
