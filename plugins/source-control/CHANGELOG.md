@@ -16,9 +16,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
   approval carrying no genuine severity marker is downgraded structurally (for any bot, not only a
   configured login) to a non-blocking result, consistent with `babysit-readiness-gate.sh`
   reporting `findings=0` for the same review. Detection of genuinely blocking feedback is
-  unweakened — a `CRITICAL`/`IMPORTANT` finding or a Request-changes verdict still classifies as
-  blocking, and `CRITICAL`/`IMPORTANT` are now recognized as blocking-severity markers in their
-  own right. A negated severity conclusion — a clean approval stating `No CRITICAL or IMPORTANT
+  unweakened — in a comment or a non-`APPROVED`-state review, a `CRITICAL`/`IMPORTANT` finding or
+  a Request-changes verdict still classifies as blocking, and `CRITICAL`/`IMPORTANT` are now
+  recognized as blocking-severity markers in their own right. (A review submitted in the formal
+  `APPROVED`/`DISMISSED` state is routed to `ignored` before the severity check — pre-existing
+  behavior this change does not alter; whether such reviews should be severity-scanned first is
+  tracked as a follow-up in #621.) A negated severity conclusion — a clean approval stating `No CRITICAL or IMPORTANT
   findings` — is redacted before the severity check, the structured-marker analogue of the
   existing `no P1/P2 issues` redaction, so introducing severity-marker detection does not itself
   re-create a false blocker for that common clean-verdict phrasing. A login named in

@@ -280,7 +280,11 @@ def approval_downgrade(text: str) -> bool:
     Requires a clear approval/non-blocking conclusion, no negated approval
     language, and neither a required-fix term nor a CRITICAL/IMPORTANT severity
     marker surviving negation redaction. Anything ambiguous -- and any genuine
-    high-severity finding raised under an approval verdict -- stays blocking.
+    high-severity finding carried in an approval-verdict body that reaches this
+    check -- stays blocking. A review submitted in the formal APPROVED/DISMISSED
+    state is routed to `ignored` upstream, before this predicate; whether that
+    short-circuit should be severity-scanned first is tracked as a follow-up in
+    issue #621.
     """
     if NON_APPROVAL_RE.search(text):
         return False
