@@ -19,12 +19,15 @@ Two checks, run inside the boundary, both expected to FAIL:
 
 `<well-known-external-host>` is a durable public endpoint chosen at wire time (a marked example:
 a public DNS resolver's address, or a well-known example domain). `<host-credential-path>` is a
-host secret location the boundary must not expose, and must name a real host location by
-construction, ending at a concrete secret file rather than a directory or an arbitrary file
-beneath one — a home env var token (e.g. `$HOME/...`) or a fixed system path (`/root`, `/etc`,
-`/run/secrets`), with org-specific mounts routed through configuration (marked examples: a cloud
-metadata endpoint, a credentials file under the host home, an injected token env var). Neither is
-hardcoded in the binding — each resolves from the detected surface.
+host secret location the boundary must not expose, and must name a well-known credential
+location IN FULL — the exact host location of a concrete secret file, never a recognized
+filename at arbitrary depth under a credential anchor, and never a directory marker — anchored
+at a home env var token (e.g. `$HOME/...`) or the fixed `/root` home, or one of the fixed
+system secret paths (host SSH keys under `/etc/ssh`, the injected `/run/secrets` credentials
+file), with org-specific mounts routed through configuration (marked examples: a cloud metadata
+endpoint, a well-known credential file at its exact host location such as `$HOME/.netrc`, an
+injected token env var). Neither is hardcoded in the binding — each resolves from the detected
+surface.
 
 ## Egress-denial probe shape
 

@@ -12,8 +12,8 @@
       "outcome": "denied"
     },
     "credentials_absent": {
-      "path": "$HOME/.credentials",
-      "host_expanded": "/home/runner/.credentials",
+      "path": "$HOME/.netrc",
+      "host_expanded": "/home/runner/.netrc",
       "exit_code": "1",
       "outer_exit_code": "0",
       "transport_outcome": "read-denied",

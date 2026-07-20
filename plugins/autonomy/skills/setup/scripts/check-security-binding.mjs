@@ -80,54 +80,65 @@ const SPECIAL_USE_TLDS = [
   ".home.arpa",
   ".onion",
 ];
-// Recognized host-credential locations are TERMINAL forms: the path must
-// END at a well-known concrete secret FILE, matched on exact trailing
-// components — substring matching would accept e.g.
-// "/definitely-not-a-host-credential" via "credentials". A failed read must
-// be attributable to a SECRET being absent or denied: a non-secret sibling
-// under a credential directory ($HOME/.ssh/known_hosts) passes the outer
-// existence check and fails the inner read while the actual private key
-// stays exposed, and a directory marker as the terminal segment
-// ($HOME/.ssh) has ambiguous read-tool semantics and fails everywhere —
-// neither proves anything. Same no-config-source rationale as the
-// egress-host check: the checker cannot know the org's probed credential
-// paths, so any entry not ending at a recognizable secret file is rejected
-// rather than trusted. Generic single-word components are deliberately NOT
-// listed: a bare "token" segment (e.g. "/tmp/token") is not host-credential
-// evidence, and suffix forms are inherently inventable. GnuPG has no static
-// concrete secret file — its private keys live under private-keys-v1.d/
-// with arbitrary key-grip names — so it defers to the future configured
-// allow-list, like org-named injected secrets (/run/secrets/<org-name> is
-// an inventable name; /run/secrets/credentials remains the recognized
-// concrete form).
+// Recognized host-credential locations are EXACT full locations: the whole
+// path must equal a well-known credential location, never merely end at a
+// recognized basename somewhere under an accepted anchor. A failed read is
+// credential evidence only when the path IS a well-known credential
+// location in full — anchor + basename at arbitrary depth lets a probe pick
+// a benign existing descendant (e.g. $HOME/scratch/credentials or
+// /etc/example/credentials) whose outer existence check passes and whose
+// inner read fails, producing an accepted proof while the real host
+// credentials stay exposed. Substring matching is even weaker (it would
+// accept "/definitely-not-a-host-credential" via "credentials"), and a
+// non-secret sibling under a credential directory ($HOME/.ssh/known_hosts)
+// or a directory marker ($HOME/.ssh, ambiguous read-tool semantics) proves
+// nothing either — exactness excludes all of these by construction. Same
+// no-config-source rationale as the egress-host check: the checker cannot
+// know the org's probed credential paths, so any entry that is not exactly
+// a recognized location is rejected rather than trusted. GnuPG has no
+// static concrete secret file — its private keys live under
+// private-keys-v1.d/ with arbitrary key-grip names — so it defers to the
+// future configured allow-list, like org-named injected secrets
+// (/run/secrets/<org-name> is an inventable name; /run/secrets/credentials
+// is the one recognized concrete form, exactly at that depth).
 // The isolation-probe template's "cloud metadata endpoint" example qualifies
 // ONLY through the URL branch's known endpoints — a filesystem path segment
 // named "metadata" is not credential evidence. The metadata IP there is a
 // DELIBERATE asymmetry with the egress check, which DENIES 169.254.169.254
 // (link-local proves no external egress): metadata IS the cloud credential
 // source, and the two checks serve opposite goals.
-const TERMINAL_SECRET_FILES = new Set([
-  "id_rsa",
-  "id_dsa",
-  "id_ecdsa",
-  "id_ed25519",
-  ".netrc",
-  "credentials",
-  ".credentials",
-]);
-const TERMINAL_SECRET_PAIRS = [
+// HOME_SECRET_RELATIVE_FORMS are the exact relative forms under a home
+// anchor (a leading home env token, or the fixed /root home);
+// FIXED_SECRET_PATHS are whole fixed system locations. Segment arrays,
+// matched exactly and in full.
+const HOME_SECRET_RELATIVE_FORMS = [
+  [".ssh", "id_rsa"],
+  [".ssh", "id_dsa"],
+  [".ssh", "id_ecdsa"],
+  [".ssh", "id_ed25519"],
+  [".netrc"],
+  [".git-credentials"],
+  [".aws", "credentials"],
   [".kube", "config"],
   [".docker", "config.json"],
+  [".config", "gh", "hosts.yml"],
 ];
-const TERMINAL_SECRET_TRIPLES = [[".config", "gh", "hosts.yml"]];
+const FIXED_SECRET_PATHS = [
+  ["etc", "ssh", "ssh_host_rsa_key"],
+  ["etc", "ssh", "ssh_host_dsa_key"],
+  ["etc", "ssh", "ssh_host_ecdsa_key"],
+  ["etc", "ssh", "ssh_host_ed25519_key"],
+  ["run", "secrets", "credentials"],
+];
 // Well-known credential variable names for the whole-entry env-token form
 // (compared against the lowercased entry).
 const CREDENTIAL_ENV_VARS = new Set(["github_token", "gh_token"]);
-// A recognized credential segment counts only when the path is REAL BY
-// CONSTRUCTION — its ROOT names a location every probing host actually has:
-// a leading OS home env token ($HOME / %USERPROFILE%, expanded in-shell on
-// the probing host to the real home), the fixed /root home, /etc, or
-// /run/secrets. A literal multi-user or mount base ("/home/<user>",
+// A recognized location counts only when the path is REAL BY CONSTRUCTION —
+// its ROOT names a location every probing host actually has: a leading OS
+// home env token ($HOME / %USERPROFILE%, expanded in-shell on the probing
+// host to the real home) or the fixed /root home for the home-anchored
+// forms; the fixed system locations carry their own roots in full. A
+// literal multi-user or mount base ("/home/<user>",
 // "/users/<user>", "/host-home") is free-form inventable — the named user or
 // mount need not exist on any host, and a failing read of a path that need
 // not exist proves nothing while real host credentials stay readable — so it
@@ -210,21 +221,12 @@ function isRecognizedCredentialEntry(entry) {
     return false;
   }
   if (segments.some((segment) => EPHEMERAL_SEGMENTS.has(segment))) return false;
-  const last = segments.length - 1;
-  const terminalSecret =
-    TERMINAL_SECRET_FILES.has(segments[last]) ||
-    TERMINAL_SECRET_PAIRS.some(([parent, file]) => segments[last - 1] === parent && segments[last] === file) ||
-    TERMINAL_SECRET_TRIPLES.some(
-      ([grandparent, parent, file]) =>
-        segments[last - 2] === grandparent && segments[last - 1] === parent && segments[last] === file,
-    );
-  if (!terminalSecret) return false;
-  return (
-    isHomeEnvToken(segments[0]) ||
-    segments[0] === "root" ||
-    segments[0] === "etc" ||
-    (segments[0] === "run" && segments[1] === "secrets")
-  );
+  const segmentsEqual = (a, b) => a.length === b.length && a.every((segment, index) => segment === b[index]);
+  if (isHomeEnvToken(segments[0]) || segments[0] === "root") {
+    const relativeForm = segments.slice(1);
+    return HOME_SECRET_RELATIVE_FORMS.some((form) => segmentsEqual(form, relativeForm));
+  }
+  return FIXED_SECRET_PATHS.some((form) => segmentsEqual(form, segments));
 }
 
 // Per-entry validation of the recorded host-side expansion. The credential
@@ -1091,7 +1093,7 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
   }
   for (const [index, entry] of credentialPaths.entries()) {
     if (!isRecognizedCredentialEntry(entry)) {
-      return `transcript ${path} records assertions.credentials_absent.path entry ${JSON.stringify(entry)} — not a recognized host-credential location; probe genuine host credential locations: a path ENDING at a well-known concrete secret file — ${[...TERMINAL_SECRET_FILES].join(", ")}, or ${[...TERMINAL_SECRET_PAIRS, ...TERMINAL_SECRET_TRIPLES].map((form) => form.join("/")).join(", ")} — never a directory marker or an arbitrary file beneath one, rooted at a real-by-construction host location (a leading home env token like $HOME / %USERPROFILE%, /root, /etc, or /run/secrets), never under an ephemeral base (tmp, temp, shm), and free of dot segments (".", ".." — a dot-segment path resolves elsewhere than its anchor claims, so the anchor cannot be trusted); a well-known credential env token like $GITHUB_TOKEN alone; or a known cloud metadata endpoint credential route`;
+      return `transcript ${path} records assertions.credentials_absent.path entry ${JSON.stringify(entry)} — not a recognized host-credential location; probe a well-known credential location IN FULL: a home-anchored secret file (a leading home env token like $HOME / %USERPROFILE%, or the fixed /root home, followed exactly by ${HOME_SECRET_RELATIVE_FORMS.map((form) => form.join("/")).join(", ")}) or a fixed system secret file (${FIXED_SECRET_PATHS.map((form) => `/${form.join("/")}`).join(", ")}) — never an arbitrary descendant of a credential anchor (a recognized basename at arbitrary depth lets a probe pick a benign existing file while real credentials stay exposed), never under an ephemeral base (tmp, temp, shm), and free of dot segments (".", ".." — a dot-segment path resolves elsewhere than its anchor claims, so the anchor cannot be trusted); a well-known credential env token like $GITHUB_TOKEN alone; or a known cloud metadata endpoint credential route`;
     }
     if (!nonzeroExit(credentialCodes[index])) {
       return `transcript ${path} records assertions.credentials_absent.exit_code entry ${JSON.stringify(credentialCodes[index])} for path ${JSON.stringify(entry)} — a proven credential-absence requires a non-zero integer exit code string for every probed path`;
