@@ -3,6 +3,25 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.1]
+
+### Fixed
+
+- **`pull-request` create flow now scaffolds a non-empty `## Related` section in the assembled PR
+  body.** The create flow builds the PR body from its own template and passes it via `gh pr create
+  --body`, which fully overrides `.github/pull_request_template.md` (cli/cli#10751) — so
+  skill-driven PRs never see a repo PR template. The assembled skeleton had `## Summary` /
+  `## Test plan` but no `## Related` section, so PRs in a repo whose CI enforces a
+  `pr-issue-linkage`-style contract (non-empty `## Related` + a native closing keyword) failed the
+  gate on first push and burned a red-CI round-trip. The template now emits a `## Related` section
+  defaulting to the literal `N/A` (non-empty by default; replace with `Refs #N` references to
+  related-but-not-closed PRs/ADRs/decisions when they exist), pairing with the always-present
+  `${CLOSES_LINE}` closing keyword so both halves of the contract are scaffolded up front. This is
+  the create-flow half of the same gap the repo PR template covers for the web/editor authoring
+  path. The §2.4.1 prose documents both scaffolds and flags that a bare `Refs #N` opt-out does not
+  satisfy a validator's closing-keyword half (only a real keyword or a `No linked issue` /
+  `No related issue:` phrase does).
+
 ## [0.13.0]
 
 ### Changed

@@ -159,7 +159,7 @@ Persist chosen line(s) into `${CLOSES_LINE}`. NEVER wrap a closing keyword in an
 git push -u origin <branch-name>
 ```
 
-Derive PR title from the commit subject, shaped to satisfy the resolved subject/title convention (SKILL.md §"PR title format" ladder: `.claude/source-control.md` → project convention → Conventional Commits default). Build body with `${CLOSES_LINE}` at top, followed by Summary + Test plan + Claude Code attribution:
+Derive PR title from the commit subject, shaped to satisfy the resolved subject/title convention (SKILL.md §"PR title format" ladder: `.claude/source-control.md` → project convention → Conventional Commits default). Build body with `${CLOSES_LINE}` at top, followed by Summary + Test plan + a `## Related` section + Claude Code attribution:
 
 ```bash
 # Quoted heredoc — body template is inert; nothing inside expands.
@@ -170,6 +170,9 @@ TEMPLATE=$(cat <<'EOF'
 
 ## Test plan
 - ...
+
+## Related
+N/A
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 EOF
@@ -189,6 +192,13 @@ BODY+="$TEMPLATE"
 **Why quoted heredoc + concat (not `<<EOF`):** unquoted heredoc `<<EOF` evaluates `$(...)`, `${...}`, and `` `...` `` *inside the body content itself* (POSIX heredoc semantics — `<<EOF` is treated as if double-quoted). If `${CLOSES_LINE}` ever contains shell-meta from interactive prompt input, an unquoted heredoc would execute it. Quoted `<<'EOF'` is inert; splicing `${CLOSES_LINE}` via parameter expansion + concat keeps user input as literal text.
 
 `gh pr create --body` fully overrides `.github/PULL_REQUEST_TEMPLATE.md` (cli/cli #10751) — body assembly above is the canonical path for skill-driven PRs; the template is the web-UI backstop. When the consuming project ships a PR template, mirror its section shape in the assembled body.
+
+**Linkage scaffolds — always emitted.** Two scaffolds mirror the two-part contract a `pr-issue-linkage`-style gate enforces (a non-empty `## Related` section AND a native GitHub closing keyword or `No related issue:` opt-out), so a skill-driven PR clears that gate on first push instead of burning a red-CI round-trip:
+
+- **Closing-keyword line** (`${CLOSES_LINE}` at top): always populated by §2.4.0 (branch-derived `Closes #N`, the multi-issue prompt, or the orphan-PR opt-out) and asserted by the §2.4.2 gate before create — a required, always-present scaffold, not a conditional decoration.
+- **`## Related` section**: defaults to the literal `N/A` so the section is non-empty by default. Replace `N/A` with genuinely related-but-not-closed references — sibling PRs, ADRs, or decision-log entries (`Refs #N — <why>`, matching the repo's own `## Related` convention) — whenever they exist; leave `N/A` only when nothing else applies. The issue this PR *closes* belongs on the closing-keyword line, not here.
+
+Note the opt-out asymmetry: a `pr-issue-linkage` validator honors only a real closing keyword or a literal `No linked issue` / `No related issue:` phrase for its closing-keyword half — a bare `Refs #N` opt-out (§2.4.0 option 2) does **not** satisfy it. When the branch resolves a real `Closes #N` (the common path) both halves pass; a `Refs #N`-only PR still needs a `No related issue:` line to clear the gate.
 
 ### 2.4.2 Verify closing-keyword line (pre-create gate)
 
