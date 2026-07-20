@@ -201,11 +201,12 @@ _producer_head='^(echo|printf)([[:space:]]|>)'
 # modifiers `command` / `builtin` / `exec` / `env`. Peeling them (see
 # producer_redirect_bypass) exposes an echo/printf hidden behind a valid prefix
 # (`command echo x > f`, `FOO=bar echo x > f`) so the producer scan still sees it.
-# The compound-command keywords / group opener (`do`/`then`/`else`/`{`) that put a
-# producer inside a loop, conditional, or brace-group body are peeled by the same
+# The compound-command header keywords / group opener / pipeline negation that put
+# a producer inside a loop, conditional, or negated command
+# (`if`/`elif`/`while`/`until`/`do`/`then`/`else`/`{`/`!`) are peeled by the same
 # pass. Peeling is safe: the `_producer_head` gate still requires echo/printf, so
 # revealing a NON-echo command word can never cause a block.
-_cmd_prefix='^([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*|command|builtin|exec|env|do|then|else|\{)([[:space:]]|$)'
+_cmd_prefix='^([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*|command|builtin|exec|env|if|elif|then|else|while|until|do|!|\{)([[:space:]]|$)'
 # stdout-to-file redirect: `>` / `>>` NOT preceded by an fd digit or `&`, so
 # stderr/fd redirects (`2>/dev/null`, `2>&1`, `&>`) do not trip. _echo_devnull
 # exempts a stdout discard (`>/dev/null`) — that's not a Write/Edit bypass.
@@ -239,19 +240,30 @@ _py_write='open[[:space:]]*\(|\.write[[:space:]]*\(|pathlib|path[[:space:]]*\('
 # for this false-positive fix; the forms are structurally unusual for LLM output
 # and covered by an accepted-floor test.
 producer_redirect_bypass() {
-  local exec_lc="$1" seps=$';\n|&()' normalized seg
-  # Each separator becomes a segment boundary; args cannot contain a raw
+  local exec_lc="$1" seps=$';\n|&()' soh=$'\x01' normalized seg
+  # Protect fd-duplication / both-streams redirect ampersands (`2>&1`, `>&2`,
+  # `&>file`) with a sentinel before the `&` control-operator split below, so a
+  # redirect `&` never cuts a producer away from a LATER stdout redirect —
+  # `echo x 2>&1 > file` and `echo x >&2 > file` must stay ONE segment so the
+  # trailing `> file` is still scanned as the echo's own. Restored right after the
+  # split, before the per-segment scan. `&&` and a background `&` carry no
+  # adjacent `<`/`>`, so they are untouched here and still split as separators.
+  normalized="${exec_lc//>&/>$soh}"
+  normalized="${normalized//<&/<$soh}"
+  normalized="${normalized//&>/$soh>}"
+  # Each remaining separator becomes a segment boundary; args cannot contain a raw
   # separator (quoted spans are already stripped), so a segment holds at most one
   # simple command and the redirect in it is that command's own.
-  normalized="${exec_lc//[$seps]/$'\n'}"
+  normalized="${normalized//[$seps]/$'\n'}"
+  normalized="${normalized//"$soh"/&}"
   while IFS= read -r seg || [[ -n "$seg" ]]; do
     seg="${seg#"${seg%%[![:space:]]*}"}"
     # Peel leading command-prefix tokens (see _cmd_prefix) so a producer hidden
     # behind an env assignment (`FOO=bar echo x > f`), a command-name modifier
     # (`command echo ...`, `builtin printf ...`, `exec echo ...`, `env echo ...`),
-    # or a compound-command keyword / group opener (`; do echo x > f`, `then echo
-    # ...`, `{ echo ...`) is still seen as the segment's command word rather than
-    # being masked by the prefix at the head.
+    # or a compound-command header / group opener / negation (`; do echo x > f`,
+    # `if echo x > f`, `while echo ...`, `! echo ...`, `{ echo ...`) is still seen
+    # as the segment's command word rather than being masked by the prefix head.
     while [[ "$seg" =~ $_cmd_prefix ]]; do
       seg="${seg#"${BASH_REMATCH[1]}"}"
       seg="${seg#"${seg%%[![:space:]]*}"}"

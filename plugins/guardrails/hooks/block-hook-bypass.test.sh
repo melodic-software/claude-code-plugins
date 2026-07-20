@@ -126,6 +126,30 @@ run "env-assignment before non-producer > file (allowed)" \
 run "nohup wrapper before echo > file (accepted floor — allowed)" \
   'nohup echo x > real.txt' 0
 
+# --- fd-duplication redirect before stdout redirect (bypass regression) ------
+# An fd-dup redirect (`2>&1`, `>&2`) before the real stdout redirect must not let
+# the `&` split cut the producer away from its `> file`. The whole simple command
+# stays one segment so the trailing stdout-to-file redirect is still the echo's.
+run "echo 2>&1 then > file (blocked)" 'echo x 2>&1 > real.txt' 2
+run "echo >&2 then > file (blocked)" 'echo x >&2 > real.txt' 2
+# The dup redirects themselves, with no stdout-to-file target, are NOT writes.
+run "echo piped with 2>&1 dup (allowed)" 'echo hi 2>&1 | cat' 0
+run "ls to stderr via >&2 dup (allowed)" 'ls foo >&2' 0
+
+# --- Compound-command headers / negation before a producer (bypass regression)
+# `if`/`elif`/`while`/`until` headers and `!` negation can precede the command
+# word just like `do`/`then`/`else`; the producer inside them must still be seen.
+run "echo > file after ! negation (blocked)" '! echo x > real.txt' 2
+run "echo > file in if header (blocked)" \
+  'if echo x > real.txt; then :; fi' 2
+run "echo > file in while header (blocked)" \
+  'while echo x > real.txt; do :; done' 2
+run "echo > file in until header (blocked)" \
+  'until echo x > real.txt; do :; done' 2
+# No new false positive: a non-producer command word after the header is allowed.
+run "non-producer in if header > file (allowed)" \
+  'if grep -q x file; then ls; fi' 0
+
 # --- Executable-token vs quoted-argument detection --------------------------
 # Prose or a commit message merely MENTIONING a bypass in a quoted span is
 # documentation, not a Write/Edit bypass. The python write-indicator scan stays

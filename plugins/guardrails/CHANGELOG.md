@@ -34,6 +34,18 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   non-producer command word never causes a block. External command-runner
   utilities that carry their own options (`nohup`/`nice`/`time`/`timeout`/`sudo`/
   `xargs`, non-bare `env`) remain an accepted, documented floor.
+- **An fd-duplication redirect before the stdout redirect no longer splits the
+  producer off from its `> file`.** Segmenting on every `&` cut `echo x 2>&1 >
+  file` and `echo x >&2 > file` at the dup's `&`, orphaning the trailing stdout
+  redirect so neither blocked. The `&` in a redirect (`>&`, `<&`, `&>`) is now
+  protected from the control-operator split, so the simple command stays one
+  segment and its `> file` is scanned as the echo's own; `&&` and a background
+  `&` still split as separators.
+- **Compound-command headers and pipeline negation before a producer are now
+  peeled.** `! echo x > file`, `if echo x > file; then …`, and the `while`/`until`/
+  `elif` forms wrote the file yet slipped past the head-only match, since only
+  `do`/`then`/`else`/`{` were peeled. The header set now also peels
+  `if`/`elif`/`while`/`until`/`!`, completing the before-command keyword class.
 
 ## [0.8.0]
 
