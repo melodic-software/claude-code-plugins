@@ -26,6 +26,20 @@ from a stop reason to its terminal outcome is [the escalation leaf](escalation.m
 Only a run that reaches `disposing` and lands its change becomes `complete` — every other
 ending is `escalated`.
 
+### C4 pre-execution plan approval
+
+A `C4` (structural) item never travels `leased → executing` into structural work on ordinary
+admission alone: the [guardrail escalation contract](../guardrails.md#escalation) fires its
+`structural-plan-approval` event class for a `C4` item BEFORE execution, and the runner honors
+that as a two-phase drain through the one queue. The first leased run plans only — its
+disposition is the `structural-plan-approval` item (the inherited class, on its own route and
+severity, with the produced plan attached), and it completes without touching the structure.
+The structural execution is a second run, admitted only from the human-approved item; its
+`leased → executing` transition requires that recorded approval, and absent one the run
+fail-closes to `escalated` rather than executing. No second approval channel exists — the
+approval item is ordinary human-gated queue work, and the terminal-handoff shape
+([escalation leaf](escalation.md)) is untouched: neither phase pauses mid-run.
+
 ## Transition telemetry
 
 Every transition emits standard telemetry carrying the work-item join attribute and the
