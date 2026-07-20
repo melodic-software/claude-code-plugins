@@ -417,6 +417,30 @@ else
   fail "commented name should not trip the gate (rc=$rc): $out"
 fi
 
+# 16b. A YAML escape sequence is reported as the name defect it is, rather than
+#      surfacing as a confusing directory mismatch. Constraining the accepted
+#      syntax is the alternative to decoding YAML in bash.
+make_skill escaped-name '---
+name: "escaped\x2dname"
+description: "Name carries a YAML escape. Use when: '"'"'checking the charset gate'"'"'."
+---
+
+## Purpose
+
+Fixture whose frontmatter name uses a YAML escape sequence.
+
+## Gotchas
+
+None known.
+'
+out="$(run escaped-name 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'is not kebab-case' <<<"$out"; then
+  pass "a YAML escape in the name reports as a charset defect, not a mismatch"
+else
+  fail "escaped name should fail the charset gate (rc=$rc): $out"
+fi
+
 # 17. Comment stripping must not mask a real mismatch.
 make_skill commented-bad '---
 name: wrong-name # with a comment too

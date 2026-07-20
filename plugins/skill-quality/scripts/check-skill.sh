@@ -171,7 +171,15 @@ else
   RAW_NAME="${RAW_NAME%%[[:space:]]#*}"
   RAW_NAME="${RAW_NAME%"${RAW_NAME##*[![:space:]]}"}"
   CUR_NAME="$(skill_frontmatter::strip_quotes "$RAW_NAME")"
-  if [[ -n "$CUR_NAME" && "$CUR_NAME" != "$SKILL_NAME" ]]; then
+  # Constrain the accepted syntax rather than reimplementing a YAML decoder in
+  # bash: the Agent Skills spec restricts a name to lowercase alphanumerics and
+  # hyphens, so anything else (an escape sequence like "\x2d", whitespace, an
+  # unresolved quote) is a name defect in its own right. Reporting it as one
+  # keeps the directory comparison below working on literal text, and stops a
+  # decodable-but-undecoded scalar from surfacing as a confusing mismatch.
+  if [[ -n "$CUR_NAME" && ! "$CUR_NAME" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; then
+    err "frontmatter name '$CUR_NAME' is not kebab-case ([a-z0-9] and hyphens, per the Agent Skills spec)"
+  elif [[ -n "$CUR_NAME" && "$CUR_NAME" != "$SKILL_NAME" ]]; then
     err "frontmatter name '$CUR_NAME' does not match skill directory '$SKILL_NAME'"
   fi
 fi
