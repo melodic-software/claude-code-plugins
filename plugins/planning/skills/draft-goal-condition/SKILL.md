@@ -36,7 +36,7 @@ Fetch the current official `/goal` documentation and extract, from the page itse
 
 Primary source: `https://code.claude.com/docs/en/goal`. Cross-check the scheduling comparison via the pages that doc links (`/en/scheduled-tasks`, routines) if Step 0 routing is in question.
 
-**Doc-fetch failure is not silent and never guessed.** If the page cannot be fetched or its structure has shifted so the limit or shape cannot be located, stop and tell the user exactly that, citing the URL. Do not fall back to a remembered number — a stale limit baked in here is precisely the drift this skill exists to avoid. Offer the user two ways forward: paste the current character limit from that page so the counter (Step 3) can run, or defer until the docs are reachable. Never finalize a draft without a limit sourced live.
+**Doc-fetch failure is not silent and never guessed.** If the page cannot be fetched or its structure has shifted so the limit or shape cannot be located, stop and tell the user exactly that, citing the URL. Do not fall back to a remembered number or shape — a stale limit or condition shape baked in here is precisely the drift this skill exists to avoid. Offer the user two ways forward: paste the current condition shape and character limit from that page — the shape drives the Step 2 draft, the limit drives the Step 3 counter — or defer until the docs are reachable. Never finalize a draft on a shape or limit that was not sourced live.
 
 ## Step 2 — Draft the condition
 
