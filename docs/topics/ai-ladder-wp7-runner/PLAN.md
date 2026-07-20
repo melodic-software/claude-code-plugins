@@ -166,7 +166,7 @@ by citation). Design only — zero build artifacts; the runner-execution home st
 - Schema additivity: `grep -c 'escalation_severity_routes' …schema.json` ≥ 1 and a pre-WP7 fixture binding still passes `check-security-binding.mjs` unchanged (no major bump proven, not asserted)
 - `/skill-quality:check` + `validate-evals` pass; `claude plugin validate --strict` exit 0
 
-### Phase 4: Zero-build audit + gates [TODO]
+### Phase 4: Zero-build audit + gates [DONE]
 
 Acceptance probe (mechanical): the package introduces no executable/runtime artifact — the
 diff contains no new files outside `reference/`, `skills/setup/`, README, and plugin
