@@ -4,7 +4,7 @@
     {
       "id": 1,
       "prompt": "A test run failed with a 'logger is frozen / already initialized' error",
-      "expected_output": "Routes to context/investigate.md. Immediately recognizes the symptom as a process-global singleton / shared-state collision — a test acquiring its own per-class fixture where the project's shared-collection fixture is required — rather than a transient error. Explains the shared-state root cause and consults the consuming project's documented fixture convention for the correct shared-collection pattern. Does NOT suggest retrying.",
+      "expected_output": "Routes to context/investigate.md. Immediately recognizes the symptom as a process-global singleton / shared-state collision rather than a transient error. Explains the shared-state root cause, then inspects the project's fixture layout or asks for its documented fixture convention before committing to a specific mechanism (e.g. asserting that multiple fixture instances are needed when a shared-collection fixture is required, or vice versa). Does NOT suggest retrying.",
       "files": []
     },
     {
