@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "implementation",
-  "version": "0.7.2",
+  "version": "0.7.3",
   "description": "Disciplined implementation stage: execute approved plans inline (`/implementation:implement`) or via orchestrated worker subagents (`/implementation:implement-dispatch`) with incremental validation, TDD-by-default cadence, green-checkpoint commits, scope-fence drift detection, and divergence detection that routes back to planning. Build/test/lint, testing, and outcome verification live in the companion `toolchain`, `testing`, and `verification` plugins, invoked when installed.",
   "author": {
     "name": "Melodic Software",

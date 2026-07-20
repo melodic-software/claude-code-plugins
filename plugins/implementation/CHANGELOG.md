@@ -3,6 +3,20 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.3]
+
+### Changed
+
+- Ecosystem-neutral optional-capability references: the `implement` skill's mode contexts
+  (`skills/implement/context/feature.md`, `bugfix.md`, `refactor.md`) no longer name a specific
+  ecosystem's marketplace skills as the only optional collaborators. Each "Marketplace plugin skills"
+  section is restated as an "Optional capability skills" section that names the *capability* needed
+  (project scaffolding, performance diagnosis, build-failure analysis, build-config anti-pattern
+  scanning, project-reference validation) and instructs resolving the concrete skill from what the
+  target environment has installed, with a stated fallback to the project's own workflow when none is
+  installed — per the `docs/conventions/seam-phrasing/` shape and the `docs/PLUGIN-PHILOSOPHY.md`
+  design boundary. Presence-gating is preserved; no hardcoded tool name replaces the removed ones.
+
 ## [0.7.2]
 
 ### Changed
