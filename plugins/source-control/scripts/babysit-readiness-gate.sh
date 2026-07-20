@@ -26,7 +26,10 @@
 #   classified = TABLE ROWS (`|`-prefixed lines) carrying a classification
 #                token (VALID|INCORRECT|UNCERTAIN) across all SELF replies —
 #                one per line, so prose repetition never inflates the count.
-#                Word-boundary matched so "INVALID" does not count as "VALID"
+#                Word-boundary matched so "INVALID" does not count as "VALID".
+#                Capped at findings so a surplus of rows cannot mask an
+#                unclassified finding (the Python path refines this to a
+#                per-surface credit — see the classifier-preference note below).
 #   BLOCK when findings > 0 AND classified < findings (under-decomposed /
 #   unaddressed — R1+R5), OR when a --checklist file has any "- [ ]" (R6).
 #
@@ -65,7 +68,7 @@ SELF_CSV=""
 EXTRA_SELF_CSV=""
 
 usage() {
-  sed -n '2,55p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,58p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit 0
 }
 
