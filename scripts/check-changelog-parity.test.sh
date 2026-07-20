@@ -138,6 +138,21 @@ rc=$?
 if [[ $rc -ne 0 && "$out" == *"PRE-EXISTING CHANGELOG ENTRY"*"alpha"* && "$out" != *"UNDOCUMENTED BUMP"* ]]; then ok "bump reusing a base-pre-existing '## [x.y.z]' entry fails --check-bump"; else fail "preexisting-entry not caught: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
+# SEMVER BUILD METADATA: a version like 1.0.1+build.1 must round-trip — the
+# fixed-string heading match must not interpret "+" as a regex quantifier, so
+# a correctly-added `## [1.0.1+build.1]` entry passes the gate.
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+printf '{ "name": "alpha", "version": "1.0.1+build.1" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+printf '# Changelog\n\n## [1.0.1+build.1]\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
+if (cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" >/dev/null 2>&1); then ok "SemVer build-metadata version with a proper entry passes (no regex leak)"; else fail "build-metadata version wrongly failed"; fi
+rm -rf "$repo"
+
 # PROSE / CODE-EXAMPLE MENTION: the bumped version's `## [1.1.0]` appears only
 # inside prose (an indented example line), never as a line-start heading ->
 # fails as UNDOCUMENTED. Proves the heading match is anchored, so a mention in

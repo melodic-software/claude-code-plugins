@@ -96,18 +96,27 @@ consumed() {
   rel="${fixture#"$skill_dir"/}"          # evals/fixtures/<sub>
   base="${fixture##*/}"
 
+  # Basename matches are bounded by NON-FILENAME characters on both sides:
+  # grep -w treats "." as a word boundary, so a referenced valid.json would
+  # wrongly consume a new unconsumed valid.json.bak sibling. Escape ERE
+  # metacharacters in the basename, then require the neighbors (if any) to be
+  # outside [A-Za-z0-9._-] so a longer filename never satisfies the match.
+  # shellcheck disable=SC2016  # single quotes are deliberate: $ is an ERE metachar being escaped, not a shell expansion
+  esc_base="$(printf '%s' "$base" | sed -E 's/[][\\.|$(){}?+*^]/\\&/g')"
+  base_re="(^|[^A-Za-z0-9._-])${esc_base}([^A-Za-z0-9._-]|$)"
+
   if [[ -f "$evals_json" ]]; then
     if grep -qF "$rel" "$evals_json"; then
       return 0
     fi
-    if grep -qwF "$base" "$evals_json"; then
+    if grep -qE "$base_re" "$evals_json"; then
       return 0
     fi
   fi
 
   plugin="$(plugin_root_of "$fixture")"
   while IFS= read -r -d '' test_file; do
-    if grep -qwF "$base" "$test_file"; then
+    if grep -qE "$base_re" "$test_file"; then
       return 0
     fi
   done < <(find "$plugin" -type f -name '*.test.*' -print0 2>/dev/null)

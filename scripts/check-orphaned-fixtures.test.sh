@@ -60,6 +60,18 @@ printf 'assert_on fixtures/by-test.md\n' >"$repo/plugins/p/skills/s/scripts/thin
 if run_check "$repo" >/dev/null; then ok "test-asserted fixture passes --check"; else fail "test-asserted fixture wrongly flagged"; fi
 rm -rf "$repo"
 
+# --- REFERENCE-NAME SUFFIX SIBLING: a referenced valid.json must NOT consume
+# a new valid.json.bak (grep -w treated "." as a word boundary; the bounded
+# match rejects filename-character neighbors) -> .bak sibling is an orphan ---
+repo="$(mk_repo)"
+seed_skill "$repo" "plugins/p/skills/s" '"evals/fixtures/valid.json"'
+printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/valid.json"
+printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/valid.json.bak"
+out="$(cd "$repo" && bash scripts/check-orphaned-fixtures.sh --check 2>&1)"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"ORPHANED FIXTURE"*"valid.json.bak"* && "$out" != *"ORPHANED FIXTURE"*"fixtures/valid.json is"* ]]; then ok "suffix sibling of a referenced fixture red-lines (bounded basename match)"; else fail "reference-name suffix sibling not caught: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
 # --- SYNTHETIC ORPHAN: consumed by nothing -> --check fails ----------------
 repo="$(mk_repo)"
 seed_skill "$repo" "plugins/p/skills/s" ''

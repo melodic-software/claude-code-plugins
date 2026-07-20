@@ -141,19 +141,20 @@ for manifest in "${manifests[@]}"; do
 
   # Require the bumped version's own entry at head, not merely that the file
   # changed: an unrelated edit (whitespace, title, an old release) must not
-  # satisfy the gate. The match is ANCHORED to a line-start Markdown heading
-  # (^## [<v>]) so the version string appearing in prose or a fenced code
-  # example never satisfies — or falsely pre-exists — the release entry.
-  esc="${head_version//./\\.}"
-  heading_re="^## \[${esc}\]"
-  if [[ -f "$changelog" ]] && grep -Eq "$heading_re" "$changelog"; then
+  # satisfy the gate. The match is a FIXED-STRING heading anchored to line
+  # start (awk index()==1), so the version string appearing in prose or a
+  # fenced example never satisfies — or falsely pre-exists — the release
+  # entry, and SemVer metacharacters (1.0.1+build.1) never leak into a regex.
+  heading="## [${head_version}]"
+  has_heading() { awk -v h="$heading" 'index($0, h) == 1 { found=1; exit } END { exit !found }'; }
+  if [[ -f "$changelog" ]] && has_heading <"$changelog"; then
     # The release entry must be ADDED by this change set, not merely present:
     # a heading that already existed in the changelog at $base means the bump
     # reused a pre-existing entry and shipped no new release note. Require it
     # absent from the base changelog. (git show fails for a changelog that is
     # new at $base -> empty -> counts as absent, which is correct: it was added
     # here.)
-    if git show "$base:$changelog" 2>/dev/null | grep -Eq "$heading_re"; then
+    if git show "$base:$changelog" 2>/dev/null | has_heading; then
       echo "PRE-EXISTING CHANGELOG ENTRY: $name bumped $base_version -> $head_version but '## [$head_version]' already existed in $changelog at $base; add the release entry in this change set." >&2
       preexisting=$((preexisting + 1))
     fi
@@ -162,7 +163,10 @@ for manifest in "${manifests[@]}"; do
 
   # Split the failure: a heading that names the version but omits the brackets
   # (## <version>) is a FORMAT error the author can fix in place, not a missing
-  # release. (esc computed above; dots already escaped.)
+  # release. Escape ALL ERE metacharacters (SemVer allows + in build metadata),
+  # not just dots.
+  # shellcheck disable=SC2016  # single quotes are deliberate: $ is an ERE metachar being escaped, not a shell expansion
+  esc="$(printf '%s' "$head_version" | sed -E 's/[][\\.|$(){}?+*^]/\\&/g')"
   if found="$([[ -f "$changelog" ]] && grep -m1 -E "^##[[:space:]]+${esc}([[:space:]]|\$)" "$changelog")"; then
     echo "CHANGELOG FORMAT: $name $head_version is documented as '${found}' but must use the bracketed Keep-a-Changelog heading '## [$head_version]'." >&2
     malformed=$((malformed + 1))
