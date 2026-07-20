@@ -10,6 +10,36 @@ clean_repo_root() {
   printf '%s' "$root"
 }
 
+# Normalize a filesystem path to a comparison key: backslashes -> forward
+# slashes, collapse trailing slashes, and lowercase on case-insensitive
+# platforms (Windows via MSYS/Cygwin). This is the exact fix for the multi-repo
+# batch skip-list data-loss incident: a skip entry written with Windows
+# backslashes must compare equal to a repo path that git enumerated with forward
+# slashes (git rev-parse always emits forward slashes) and vice versa. Never
+# string-match raw paths across the two conventions.
+clean_path_key() {
+  local value="${1//\\//}"
+  while [[ "$value" == */ && "$value" != "/" ]]; do value="${value%/}"; done
+  case "$(uname -s 2>/dev/null || true)" in
+  MINGW* | MSYS* | CYGWIN*) printf '%s' "$value" | tr '[:upper:]' '[:lower:]' ;;
+  *) printf '%s' "$value" ;;
+  esac
+}
+
+# Return 0 when a canonical repo key (a rev-parse --show-toplevel path already
+# run through clean_path_key) matches a skip-list entry, separator-agnostic and
+# (on Windows) case-insensitive. The entry may be an absolute path or a trailing
+# path-segment sequence (owner/repo or repo); matching is anchored on segment
+# boundaries so a skip of "repo" never silently matches ".../other-repo".
+clean_skip_matches() {
+  local repo_key="$1" skip_key
+  skip_key="$(clean_path_key "$2")"
+  [[ -n "$skip_key" ]] || return 1
+  [[ "$repo_key" == "$skip_key" ]] && return 0
+  [[ "$repo_key" == *"/$skip_key" ]] && return 0
+  return 1
+}
+
 clean_path_is_tracked() {
   local repo_root="$1" rel="$2"
   git -C "$repo_root" ls-files --error-unmatch "$rel" >/dev/null 2>&1

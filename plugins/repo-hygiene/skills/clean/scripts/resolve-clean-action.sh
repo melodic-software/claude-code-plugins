@@ -50,6 +50,9 @@ resolve_one() {
   tree | fresh | fresh-pull | fresh-pull-state | pristine | reset-tree | working-tree)
     printf 'tree'
     ;;
+  tree-batch | batch | fleet | multi-repo | reset-all)
+    printf 'tree-batch'
+    ;;
   all | sweep | everything)
     printf 'all'
     ;;
@@ -75,6 +78,9 @@ done
 
 if [[ -z "$canonical" ]]; then
   case "$joined" in
+  *reset\ all* | *all\ my\ repos* | *all\ repos* | *every\ repo* | *across\ repos* | *ghq\ list*)
+    canonical=tree-batch
+    ;;
   *fresh\ pull* | *fresh\ clone* | *like\ a\ fresh* | *reset\ to\ origin* | *wipe\ ignored*)
     canonical=tree
     ;;

@@ -24,6 +24,11 @@ assert_action "fresh alias" "fresh" "tree"
 assert_action "fresh-pull alias" "fresh-pull" "tree"
 assert_action "build alias" "artifacts" "build"
 assert_action "git alias" "branches" "git"
+assert_action "tree-batch token" "tree-batch" "tree-batch"
+assert_action "batch alias" "batch" "tree-batch"
+assert_action "fleet alias" "fleet" "tree-batch"
+assert_action "every-repo phrase" "reset every repo" "tree-batch"
+assert_action "ghq list phrase" "reset from ghq list" "tree-batch"
 assert_action "conflicting tokens -> menu" "scan tree" "menu"
 
 if [[ $FAILED -ne 0 ]]; then
