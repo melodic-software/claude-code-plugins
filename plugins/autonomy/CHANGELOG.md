@@ -6,6 +6,20 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 Versions 0.1.0–0.7.0 predate this file (introduced with 0.7.1); their history lives in the
 merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
 
+## [0.7.2]
+
+### Changed
+
+- **Pillar 3 reconciled with the audited native-surface reality (`#351` audit).** The
+  causal-tree contract now states explicitly that `traceparent` propagation binds
+  CONTRACT-AUTHORED emissions, and that a native agent surface ignoring inbound context (a
+  default surface may, honoring it only behind an opt-in) does not break the tree — its
+  session emissions attach query-side through the Pillar 2 join attribute, and relying on
+  direct native span joining is a recorded migration trigger, not an assumption. The CI
+  OTLP template's trace-context-injection section carries the same surface-specific caveat
+  plus the `OTEL_RESOURCE_ATTRIBUTES` injection the setup flow already wires. No emission
+  or checker behavior changes.
+
 ## [0.7.1]
 
 ### Added

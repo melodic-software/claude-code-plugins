@@ -63,10 +63,17 @@ same reviewed-migration rule.
 ## Pillar 3 — one causal tree
 
 W3C `traceparent` context propagates trigger → CI → agent session, forming one causal tree
-per triggered chain. This is a headless/CI/runner property: conforming headless agent
-surfaces read inbound trace context from their environment; interactive contexts are
-explicitly excluded — the contract does not promise inbound trace joining for an interactive
-session, which deliberately ignores ambient context.
+per triggered chain. This is a headless/CI/runner property carried by CONTRACT-AUTHORED
+emissions: each chain leg's wrapper emission (the writers and adapters an adoption wires)
+reads inbound trace context from its environment and parents its span accordingly. A native
+agent surface that ignores inbound context — empirically, a default native agent-session
+surface can start a fresh root trace, honoring inbound context only behind an opt-in — does
+not break the tree: the dispatching wrapper's contract-authored span joins the chain, and
+the session's own native emissions ATTACH query-side through the Pillar 2 attribute, which
+both surfaces carry. Where a native surface honors inbound context its spans join the tree
+directly; relying on that is a recorded migration trigger, not an assumption. Interactive contexts are explicitly excluded — the
+contract does not promise inbound trace joining for an interactive session, which
+deliberately ignores ambient context.
 
 ## Sink binding — out of contract
 
