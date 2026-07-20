@@ -1,6 +1,6 @@
 # Changelog — discovery plugin
 
-## 0.7.3 — 2026-07-19
+## [0.7.3] — 2026-07-19
 
 ### Fixed
 
@@ -11,7 +11,7 @@
   current working directory when no repo root exists. The live root stays available for resolving
   files while working; it is never echoed into the handoff, so `EXPLORE.md` stays machine-agnostic.
 
-## 0.7.2 — 2026-07-19
+## [0.7.2] — 2026-07-19
 
 ### Changed
 
@@ -21,7 +21,7 @@
   write path — replacing the dead `docs/adr/…` reference that resolves to nothing in the
   cache-isolated installed plugin. Behavior is unchanged; gitbook stays deferred and non-writable.
 
-## 0.7.0 — 2026-07-18
+## [0.7.0] — 2026-07-18
 
 ### Changed
 
@@ -34,7 +34,7 @@
   interview, so headless and CI use are possible. The ignore guard, the gitbook-deferred
   handling, and the never-edit-root-`.gitignore` rule are unchanged.
 
-## 0.6.0 — 2026-07-17
+## [0.6.0] — 2026-07-17
 
 ### Changed
 
@@ -45,7 +45,7 @@
   artifacts there directly; only workers dispatched into their own checkout return findings by
   value for the parent to write.
 
-## 0.5.1 — 2026-07-15
+## [0.5.1] — 2026-07-15
 
 ### Fixed
 
@@ -54,7 +54,7 @@
   and states that durable writes still target `docs`; the skill never configures or tests a GitBook
   API, MCP, or Git Sync writer.
 
-## 0.5.0 — 2026-07-15
+## [0.5.0] — 2026-07-15
 
 ### Added
 
@@ -65,7 +65,7 @@
   doubled phase/query/source minimums (SKILL.md item 8, discipline.md's "Broad-topic
   auto-detect").
 
-## 0.4.0 — 2026-07-14
+## [0.4.0] — 2026-07-14
 
 Adopt the marketplace topic-docs convention, contract v1.0.0
 (<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>):

@@ -1,6 +1,6 @@
 # Changelog — docs-hygiene plugin
 
-## 0.7.0 — 2026-07-18
+## [0.7.0] — 2026-07-18
 
 Changed:
 
@@ -12,7 +12,7 @@ Changed:
   ambient, Git Bash on native Windows), the compress-only `markdownlint-cli2`
   requirement with its absence behavior, and the optional `caveman` backend.
 
-## 0.6.0 — 2026-07-17
+## [0.6.0] — 2026-07-17
 
 Changed:
 
@@ -24,7 +24,7 @@ Changed:
   word. The detect-script env vars moved with it:
   `DECLUTTER_REPO_ROOT` → `AUDIT_NOISE_REPO_ROOT`.
 
-## 0.5.0 — 2026-07-15
+## [0.5.0] — 2026-07-15
 
 Changed:
 
@@ -32,7 +32,7 @@ Changed:
   `/docs-hygiene:encapsulation-audit` invocations to `/docs-hygiene:audit-encapsulation`; the plugin ID
   (`docs-hygiene`) is unchanged, only the skill's leaf name moved.
 
-## 0.4.0 — 2026-07-15
+## [0.4.0] — 2026-07-15
 
 Added:
 
@@ -44,7 +44,7 @@ Added:
 - The "add an eval case" clause, re-added to the two Gotchas/Recheck-trigger
   bullets in rename-references/SKILL.md.
 
-## 0.3.0 — 2026-07-14
+## [0.3.0] — 2026-07-14
 
 Adopt the marketplace topic-docs convention
 (`docs/conventions/topic-docs/`, contract v1.0.0) in the declutter

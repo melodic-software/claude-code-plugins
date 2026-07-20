@@ -295,6 +295,53 @@ jobs:
       - name: Run silent-skip-gate tests
         run: bash scripts/check-silent-skips.test.sh
 
+  # Every file under a skill's evals/fixtures/ must be consumed by a grader — an
+  # eval files[] entry or a test assertion — so an ungraded suite cannot sit in
+  # the tree reading as tested. The check is repo-wide and static; existing debt
+  # is grandfathered in scripts/orphaned-fixtures-baseline.txt with a stale
+  # guard, so the gate holds the line without red-lining fixtures a member issue
+  # already owns. The self-test runs unconditionally so a broken detector cannot
+  # mask a regression behind a green gate.
+  orphaned-fixture-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Test the orphaned-fixture detector
+        run: bash scripts/check-orphaned-fixtures.test.sh
+      - name: Check for orphaned eval fixtures
+        run: scripts/check-orphaned-fixtures.sh --check
+
+  # CHANGELOG parity: a versioned plugin must keep a CHANGELOG.md (static
+  # --check), and a PR that changes a plugin's manifest version must update that
+  # plugin's CHANGELOG.md in the same diff (--check-bump, PR-only). Existing
+  # "versioned but changelog-less" debt is grandfathered by name in
+  # scripts/changelog-parity-baseline.txt with a stale guard; the bump gate is
+  # never relaxed by the baseline. The self-test runs unconditionally so a broken
+  # gate cannot mask a regression, and the PR-diff step is event-gated.
+  changelog-parity-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          # Full history so the PR base ref is resolvable for the bump gate.
+          fetch-depth: 0
+      - name: Test the changelog-parity gate
+        run: bash scripts/check-changelog-parity.test.sh
+      - name: Verify every versioned plugin keeps a CHANGELOG.md
+        run: scripts/check-changelog-parity.sh --check
+      - name: Verify a version bump updates the plugin's CHANGELOG.md
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/check-changelog-parity.sh --check-bump "origin/$BASE_REF"
+
   # Deep plugin-contract lane and the heaviest suite (Node + Python installs,
   # every plugins/**/*.test.sh, manifest + catalog validation). A PR whose diff
   # is confined to the docs-only allowlist (scripts/docs-only-paths.txt) cannot
@@ -531,6 +578,8 @@ jobs:
       - standards-contract-sync
       - cross-plugin-source-drift
       - silent-skip-gate
+      - orphaned-fixture-gate
+      - changelog-parity-gate
       - plugin-gate
       - miro-plugin
       - runner-policy

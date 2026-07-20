@@ -1,0 +1,208 @@
+# Grandfathered orphaned eval fixtures — existing debt this gate must not
+# red-line, each owned by (or awaiting) a burn-down issue. Each line is one
+# exact fixture path, matched by full-string EQUALITY (not prefix): a line
+# exempts only that file from check-orphaned-fixtures.sh --check. This is a
+# snapshot of today's known orphans, so a NEW orphan — whether added under an
+# already-listed directory or as a `<name>.json.bak` / `<name>.jsonl` sibling
+# of a listed file — matches no line and is red-lined rather than grandfathered.
+#
+# An entry here is a standing promise the debt is tracked, not a place to hide
+# new orphans: --check fails on a STALE entry (one that no longer shadows any
+# orphan), so a line cannot outlive its debt. Delete the line when the owning
+# issue lands the fix. Do NOT add a plugin's fixtures here to dodge the gate on
+# NEW work — reference them from a grader instead.
+
+# autonomy setup skill: the security-binding golden suite (referenced by no
+# eval files[] entry and graded by no test) plus the otlp-demo sample corpus,
+# enumerated file-by-file below. The security-binding subset is tracked by
+# issue #662 (attach expected-verdict blocks and wire them into the grader, or
+# demote them to documentation exemplars out of evals/fixtures/); otlp-demo is
+# the same ungraded class in the same skill. autonomy is WP-lane-owned — the fix
+# is coordinated there, not here.
+plugins/autonomy/skills/setup/evals/fixtures/otlp-demo/pipeline.jsonl
+plugins/autonomy/skills/setup/evals/fixtures/otlp-demo/session-metrics.jsonl
+plugins/autonomy/skills/setup/evals/fixtures/otlp-demo/session-spans.jsonl
+plugins/autonomy/skills/setup/evals/fixtures/otlp-demo/trigger.jsonl
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/admission-weakened-no-justification.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/ambiguous-runtime-markers.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/as112-v6-valid.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/c2-auto-unratified.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/c3-blocking-unratified.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/c4-auto-merge.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/equal-specificity-tie.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/escalation-ack-invalid.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/escalation-ack-loop.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/escalation-push-without-channel.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/escalation-runner-route-missing.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/escalation-severity-bad-token.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/escalation-severity-tracker-only-valid.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/escalation-severity-valid.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/evidence-contrary.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/evidence-stale.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/hosted-ephemeral-l3-valid.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/human-gated-only-no-l2.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/l3-ratified-class-container.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/marker-prototype-key.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/missing-l2-autonomous.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/missing-probe-evidence.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/missing-substrate-class.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/multi-host-egress-valid.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-6to4-relay.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-6to4-v6.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-bare-metadata.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-benchmarking-v6.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-bogus-credpath.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-bogus-metadata.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-cred-outer-missing.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-cred-outer-nonzero.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-credpath-code-count.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-credpath-partial-zero.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-discard-only.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-doc-3fff.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-docnet-host.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-dot-traversal.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-dummy-prefix.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-encoded-loopback.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-etc-descendant-credpath.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-expanded-loopback.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-expansion-ephemeral.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-expansion-tail-mismatch.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-generic-env-token.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-generic-token.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-home-descendant-credpath.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-host-home-mount.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-imds-http-error.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-invalid-tld.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-invented-env-token.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-invented-home-user.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-invented-token.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-ipv4-compat.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-known-hosts.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-l3-container.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-level-mismatch.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-local-host.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-malformed-dns.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-metadata-port.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-metadata-route-boundary.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-metadata-route.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-metadata-scheme.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-missing-host-expanded.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-missing-outer-exit.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-missing-probed-at.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-missing-target.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-missing-transport.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-multi-host-private.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-nat64-local.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-nat64-private-embed.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-outer-egress-failed.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-protocol-assignment.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-ratified-class-mismatch.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-relative-credpath.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-root-escape.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-site-local-v6.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-srv6-sid.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-ssh-dir.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-teredo.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-token-substring.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-transport-cross-type.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-unanchored-credpath.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-unanchored-envvar.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-unc-etc.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-uri-host.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-evidence-zero-exit.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-6to4-relay.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-6to4-v6.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-as112-v6.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-bare-metadata.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-benchmarking-v6.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-bogus-credpath.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-bogus-metadata.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-cred-outer-missing.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-cred-outer-nonzero.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-credpath-code-count.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-credpath-partial-zero.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-discard-only.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-doc-3fff.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-docnet.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-dot-traversal.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-dummy-prefix.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-encoded-loopback.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-etc-descendant-credpath.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-expanded-loopback.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-expansion-ephemeral.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-expansion-tail-mismatch.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-generic-env-token.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-generic-token.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-home-descendant-credpath.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-host-home-mount.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-id-rsa.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-imds-http-error.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-invalid-tld.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-invented-env-token.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-invented-home-user.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-invented-token.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-ipv4-compat.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-known-hosts.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-localhost.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-malformed-dns.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-metadata-port.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-metadata-route-boundary.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-metadata-route.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-metadata-scheme.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-multi-host-private.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-multi-host.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-nat64-local.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-nat64-private-embed.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-no-host-expanded.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-no-host.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-no-outer-exit.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-no-probed-at.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-no-transport.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-outer-egress-failed.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-protocol-assignment.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-relative-credpath.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-site-local-v6.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-srv6-sid.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-ssh-dir.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-teredo.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-token-substring.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-transport-cross-type.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-unanchored-credpath.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-unanchored-envvar.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-unc-etc.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-uri-host.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2-zero-exit.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l2.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l3-container.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l3-hosted.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-a-l3.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/probe-transcripts/ci-pool-b-l2.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/promoted-c2.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/promotion-nonpromotable.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/ratified-at-calendar-invalid.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/ratified-at-non-iso.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/ratified-at-offset-invalid.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/ratified-at-submilli.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/same-surface-level-ambiguity.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/ssh-id-rsa-valid.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/temporal-classification-bare-string.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/temporal-classification-valid.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/temporal-duplicate-producer-identity.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/temporal-empty-source-surface.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/temporal-identity-grammar.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/temporal-missing-producer-identity.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/temporal-missing-run-link-prefix.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/temporal-shared-run-link-prefix-valid.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/temporal-shared-source-surface.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/two-level-surface-valid.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/unverifiable-probe-evidence.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/valid.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/vendor-hosted-auto.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/verification-below-floor.json
+
+# knowledge youtube-digest skill: this data file lives under evals/fixtures/ but
+# is named only from SKILL.md / vendor TUNING.md prose — no eval files[] entry
+# and no test consume it. Surfaced by this gate's initial discover run; tracked
+# by issue #688 (wire it into a grader, or move it out of evals/fixtures/ if it
+# is reference data rather than a fixture).
+plugins/knowledge/skills/youtube-digest/evals/fixtures/variation-matrix-backlog.json
