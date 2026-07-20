@@ -14,8 +14,9 @@ understanding rather than the agent's.
 | `/discovery:research-deep` | External, isolated | Dispatcher that routes deep research to the heaviest isolated tier available — a deep-research workflow engine, a forked subagent, or inline as last resort — with a multi-topic check that fans out one agent per separable topic. |
 | `/discovery:blindspot` | Local, user-facing | Surfaces the USER's unknown-unknowns before they work in unfamiliar territory (a codebase area or a domain vocabulary), emitting blindspot cards and coaching one improved prompt. Deliverable is the user's understanding, not `EXPLORE.md`. |
 
-Both inline skills persist handoff artifacts (`EXPLORE.md` / `RESEARCH.md`) so a
-fresh session can resume planning from the artifact alone.
+The two artifact-persisting skills (`/discovery:explore`, `/discovery:research`)
+persist handoff artifacts (`EXPLORE.md` / `RESEARCH.md`) so a fresh session can
+resume planning from the artifact alone.
 
 ## Works in any repo
 
