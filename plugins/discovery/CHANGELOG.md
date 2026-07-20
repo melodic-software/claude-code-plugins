@@ -1,5 +1,33 @@
 # Changelog — discovery plugin
 
+## [0.8.1] — 2026-07-20
+
+### Changed
+
+- Documentation-only: the License section now states the plugin's own MIT
+  license inline and no longer points at a `LICENSE` file at the repository
+  root, which an installed consumer running from the isolated plugin cache
+  cannot reach. No behavior change.
+
+## [0.8.0] — 2026-07-20
+
+### Added
+
+- **`/discovery:blindspot` — blindspot mode extracted from `/discovery:explore` into its own skill.**
+  Surfacing the USER's unknown-unknowns before they work in unfamiliar territory (a codebase area or a
+  domain vocabulary) is a distinct responsibility with a distinct output contract — blindspot cards and
+  one improved prompt, no `EXPLORE.md`, and the explore outcome gate skipped — that had been grafted onto
+  explore. It now lives in `skills/blindspot/` with its own frontmatter, workflow, and evals.
+
+### Changed
+
+- **`/discovery:explore` is trimmed back to its core responsibility** — codebase investigation, the
+  `EXPLORE.md` handoff artifact, and the outcome gate. The blindspot mode/table row, its two artifact-skip
+  clauses in the outcome gate and final step, and the blindspot domain-lane research carve-out are removed;
+  a one-line pointer to the sibling `/discovery:blindspot` skill replaces the extracted section. Cross-plugin
+  references (`plugins/discovery/README.md`, `plugins/planning/skills/interview/SKILL.md`) now point at the
+  new skill.
+
 ## [0.7.3] — 2026-07-19
 
 ### Fixed

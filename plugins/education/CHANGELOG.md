@@ -17,6 +17,15 @@ All notable changes to the `education` plugin are documented here. Format follow
   gap check that surfaces an understanding gap instead of papering over it, and
   closes by offering `/education:teach topic <x>` for ongoing coaching.
 
+## [0.3.2]
+
+### Changed
+
+- Documentation-only: the License section now states the plugin's own MIT
+  license inline and no longer points at a `LICENSE` file at the repository
+  root, which an installed consumer running from the isolated plugin cache
+  cannot reach. No behavior change.
+
 ## [0.3.1]
 
 ### Changed

@@ -140,6 +140,7 @@ jobs:
           files: >-
             .github/workflows/ci.yml
             .github/workflows/claude-review.yml
+            .github/workflows/claude-security-review.yml
             .github/workflows/do-not-merge.yml
             .github/workflows/link-check.yml
             .github/workflows/pr-issue-linkage.yml

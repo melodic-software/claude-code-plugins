@@ -3,6 +3,26 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.3]
+
+### Changed
+
+- Documentation-only: the License section now states the plugin's own MIT
+  license inline and no longer points at a `LICENSE` file at the repository
+  root, which an installed consumer running from the isolated plugin cache
+  cannot reach. No behavior change.
+
+## [0.22.2]
+
+### Changed
+
+- Cited `/testing:plan`'s test-type classification table as the single source of
+  truth for which test type a given change needs (unit / integration / e2e /
+  architecture / analyzer). The `plan` skill's Step 2 test-strategy guidance (and its
+  `plan-template.md`) and the `design` skill's test-seam posture thread now point at
+  that table instead of letting a competing test-type take grow in each site. Pointer
+  only; no restated table, no behavior change (#264).
+
 ## [0.22.1]
 
 ### Changed

@@ -102,6 +102,10 @@ backwards from the newest handoff file and aggregates metrics across every chain
 - **Does not write scores or reports into the consumer's repo** — plugin state stays in
   `${CLAUDE_PLUGIN_DATA}`; only user-approved codifications (rule edits, memory entries) land
   outside it
+- **Does not read a consumer-supplied scoring rubric** — the five dimensions are fixed plugin
+  identity, not consumer config, and there is no seam to swap them. What adapts is what each
+  dimension scores *against* (your repo's conventions, session-type calibration), never the
+  dimensions themselves.
 
 ## Gotchas
 
