@@ -69,8 +69,10 @@ Checks repos often gate in CI that plain build/test/format don't catch locally �
 - **Locked-mode NuGet restore** (`dotnet restore --locked-mode`) — local `dotnet restore` is permissive; only locked-mode catches `packages.lock.json` drift. Remediation: `dotnet restore --force-evaluate`, commit the regenerated lockfiles. Cross-platform caveat: lockfiles generated on one OS can miss another OS's runtime transitives; regenerate on the CI OS (container/WSL) rather than forcing `-r <rid>`, which pollutes lockfiles with RID blocks
 - **Generated-artifact freshness** (e.g. a build-time OpenAPI spec) — build the producing project, then `git diff --exit-code` on the generated file; stage the regenerated artifact alongside the source change
 
-## Marketplace plugin skills for build diagnostics (invoke only when installed)
+## Build-diagnostic capabilities (invoke when an installed plugin provides them)
 
-- **Slow builds** — `dotnet-msbuild:build-perf-diagnostics` for bottleneck analysis via binary logs, `dotnet-msbuild:build-perf-baseline` for before/after measurement
-- **Build failures** — `dotnet-msbuild:binlog-failure-analysis` to diagnose opaque MSBuild errors, `dotnet-msbuild:binlog-generation` for binary log capture (`dotnet build /bl:{}`)
-- **Build config issues** — `dotnet-msbuild:msbuild-antipatterns` for AP-01 through AP-21, `dotnet-msbuild:check-bin-obj-clash` for OutputPath conflicts
+These are .NET build-diagnostic capabilities a marketplace plugin may supply. When your stack is .NET and an installed plugin exposes the matching skill, invoke it; otherwise fall back to the prose remediation and the binlog gotcha above:
+
+- **Slow builds** — build-performance diagnosis (bottleneck analysis via binary logs) and build-performance baselining (before/after measurement)
+- **Build failures** — binlog failure analysis (diagnose opaque MSBuild errors from a binary log) and binlog capture (`dotnet build -bl`)
+- **Build config issues** — MSBuild anti-pattern scanning and bin/obj output-path clash detection

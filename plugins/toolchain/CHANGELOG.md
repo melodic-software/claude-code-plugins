@@ -3,6 +3,21 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.3]
+
+### Fixed
+
+- **Stale cross-plugin coupling removed from `dotnet.md` build-diagnostics section.** The `.NET`
+  check context (`context/dotnet.md`) listed `dotnet-msbuild:*` plugin skills (`build-perf-diagnostics`,
+  `binlog-failure-analysis`, `msbuild-antipatterns`, and others) under a "invoke only when installed"
+  gate. No `dotnet-*` plugin ships in this marketplace and none is registered in `marketplace.json`, so
+  the presence gate could never open for any consumer of this marketplace — the references pointed at
+  skills nobody can install. The tool-specific `plugin:skill` names are replaced with ecosystem-neutral
+  capability descriptions (build-performance diagnosis, binlog failure analysis, MSBuild anti-pattern
+  scanning, bin/obj output-path clash detection) that resolve against whatever diagnostics plugin a
+  consumer actually has installed, keeping the presence-gated fallback-to-prose convention intact.
+  Addresses #412; the sibling `implementation` finding (#405) tracks the same pattern separately.
+
 ## [0.4.2]
 
 ### Fixed
