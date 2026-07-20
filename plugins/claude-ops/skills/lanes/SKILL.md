@@ -77,7 +77,8 @@ authoring skill) is slated to own durable prompt storage. When it lands, repoint
 The launcher shells out only to primitives confirmed on this machine's `claude`
 (`--help` / real invocation): `claude --bg -n <name> [--model M] [--effort E]
 "<prompt>"` (launch a named background session, return immediately),
-`claude agents --json` (list sessions: pid, cwd, kind, sessionId, name, status),
+`claude agents --json` (list active sessions: pid, cwd, kind, startedAt,
+sessionId, name, status),
 `claude stop <sessionId>` (stop one session; conversation kept, resumable with
 `claude attach`), and `claude plugin marketplace update`. There is no
 `claude agents stop` verb — stop resolves the sessionId from `agents --json` and
