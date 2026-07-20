@@ -20,11 +20,13 @@ All notable changes to the `source-control` plugin are documented here. Format f
   auth switch`, never the PR author or a lane identity), only after a genuine clean review pass,
   on the live head so the `--expected-head` pin holds. (3) **Review-workflow requiredness
   precondition:** enabling the tier now carries a documented operator precondition — the base
-  branch's ruleset must make the review workflow a **required** status context, so
-  `mergeStateStatus == CLEAN` actually proves the review ran; where it is not required the tier
-  must not be enabled. Chosen over a merge-gate review-context config (rejected option b) to keep
-  the gate deterministic with nothing new to wire. The skill-contract tests are extended to pin
-  all three contracts against drift.
+  branch's ruleset must make the review workflow a **required** status context *and* that workflow
+  must always run to a non-skipped conclusion on every PR to the base (requiredness is necessary
+  but not sufficient: a required-but-skipped review still reads `mergeStateStatus == CLEAN` without
+  having gated anything). Where the review workflow is not required, or can conditionally skip on
+  the tier's PRs, the tier must not be enabled. Chosen over a merge-gate review-context config
+  (rejected option b) to keep the gate deterministic with nothing new to wire. The skill-contract
+  tests are extended to pin all three contracts against drift.
 
 ## [0.15.0]
 
