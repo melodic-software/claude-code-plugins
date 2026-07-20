@@ -14,9 +14,14 @@ only after that version increases.
   unimplemented statement (no code writes a root `*` ignore) that directly
   contradicted the Output contract, where ~35 slice artifacts are marked
   `Staged: yes`. The prose now states the committed reality: slice artifacts are
-  the durable substrate and are committed, with the lone exception of the
-  contact-sheet JPGs that `snapshot-bootstrap.js` keeps out of git via a
-  per-directory `.gitignore` (`*.jpg`). Doc-only; no pipeline behavior changes.
+  the durable substrate, staged and committed per the Output contract *when the
+  resolved work root is not itself gitignored*, with the contact-sheet JPGs held
+  out of git in every case by the per-directory `.gitignore` (`*.jpg`) that
+  `snapshot-bootstrap.js` writes. It also surfaces the precondition the old text
+  elided: a co-resident topic-docs convention self-ignores the shared repo-root
+  `.work/` (default `memory_dir`), leaving slices local until the work root is
+  relocated (e.g. a non-default `library_dir`). Doc-only; no pipeline behavior
+  changes.
 
 ## [0.8.1]
 
