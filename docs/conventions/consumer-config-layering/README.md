@@ -203,6 +203,7 @@ open.
 | `source-control` | `.claude/source-control.md` | team only | single-layer; migration to all three in flight (#647) |
 | `toolchain` / `ecosystem-commands` | `.claude/ecosystems/<ecosystem>.yaml` | all three | conforms |
 | `codebase-health` | `.claude/codebase-health.md` | all three | conforms (concatenating, with a declared empty-list opt-out) |
+| `github` | `.claude/github/` (`routing.yaml` per-key override, `conventions.md` concatenating) | all three | conforms; policy-floor inversion on write-posture routing keys, declared in the plugin's `change-routing.md` |
 | `autonomy` | `.claude/autonomy/binding.json` | all three, plus an org rung | declared deviation |
 | `standards` (`planning`, `review`) | `<standards_dir>/`, rooted by `.claude/standards.yaml` | all three | precedence inversion ratified via policy-floor class (#649); layer location outside `.claude/` still observed, not ratified |
 | `disk-hygiene` | `.claude/disk-hygiene.json` | user-global + team | declared deviation; no overlay layer |

@@ -14,7 +14,7 @@ reach, the skills say so honestly instead of guessing.
 |---|---|---|
 | `/github:audit <area…>` | shipped | Read-only findings over one, several, or all coverage areas: current-state review, drift vs declared conventions, standards conformance, cost signals. |
 | `/github:advise` | planned | Forward-looking guidance and hand-holding ("how should I configure X", "walk me through Y"). |
-| `/github:setup` | planned | Verify prerequisites (`gh` present and authenticated) and write consumer config. |
+| `/github:setup` | shipped | Verify prerequisites (`gh` present and authenticated, config layers) and write consumer config — `check` and `apply`, user-invoked only. |
 
 Areas are **arguments, not skills** — the coverage matrix (rulesets, billing, security model,
 Actions policy, webhooks, packages, and the rest) lives in
@@ -44,8 +44,16 @@ consumer's declared change routing, and keeps the user in the loop for every wri
 
 Unconfigured consumers work read-only out of the box: change routing defaults to **propose-only**
 (proposed changes are emitted as exact commands or diffs, never executed). Consumer config lives in
-`.claude/github/` (change routing plus the conventions your audits compare against); its contract
-document ships in an upcoming phase.
+`.claude/github/` and layers user-global → team → local overlay:
+
+- [`reference/change-routing.md`](reference/change-routing.md) — `routing.yaml`: how proposed
+  changes leave the session (`propose` / `guided-apply` / `handoff`), with a team policy floor on
+  write-posture keys that personal layers can tighten but never loosen.
+- [`reference/conventions-file.md`](reference/conventions-file.md) — `conventions.md`: the
+  declared standards your audits compare against.
+
+`/github:setup` writes both interactively and recommends the one-line recursive overlay
+gitignore (`.claude/**/*.local.*`); it never edits your `.gitignore`.
 
 ## Install
 

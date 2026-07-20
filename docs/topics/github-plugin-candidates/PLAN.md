@@ -270,7 +270,7 @@ live `gh` state + runtime doc fetch → grounded findings) on the real platform 
   `gh api graphql` body contains the `mutation` keyword (a `-X POST`-only grep misses implied-POST
   and GraphQL writes — this stricter form is the load-bearing read-only proof).
 
-#### Phase 2: Consumer config surface + `setup` [TODO]
+#### Phase 2: Consumer config surface + `setup` [DONE]
 
 - `reference/change-routing.md` — the config contract: `routing.yaml` schema (keys above, incl.
   scope blocks), per-key override semantics declared, **the policy-floor inversion on write-posture

@@ -14,3 +14,10 @@ All notable changes to the `github` plugin are documented here. Format follows
   read-only contract stated in write-capability terms.
 - Plugin manifest, README (verb contract including the `advise` verb declaration), and drafted
   `audit` eval cases.
+- Consumer config surface: `reference/change-routing.md` (`routing.yaml` schema
+  `contract_version` 1.0.0 — scope blocks, per-key override layering, policy-floor inversion on
+  write-posture keys, target-resolution rule) and `reference/conventions-file.md` (concatenating
+  prose conventions audits compare against).
+- The `setup` skill (user-invoked only): `check` verifies `gh`, auth, credential-modality
+  picture, and per-layer config verdicts; `apply` writes `.claude/github/` config idempotently
+  via interview. Drafted `setup` eval cases.
