@@ -99,27 +99,72 @@ function isDurableLocalUri(value, surfaceEntry) {
   );
 }
 
-// Segment-boundary anchoring: the raw link equals the ratified prefix or
-// continues with "/" immediately after it — plain startsWith would let
-// ".../runs-evil" ride the ".../runs" namespace.
-// Canonical run-namespace containment: parse BOTH sides and compare origin
-// equality plus path-segment-boundary containment on the parsed pathnames —
-// the URL parser resolves dot segments for the schemes it knows, so a
-// lexical "/../" traversal cannot slip a canonical-outside link past a
-// string-prefix test. Anything the parser leaves unresolved is rejected
-// outright: a dot segment surviving in the parsed path (non-special
-// schemes), or a percent-encoded dot in the path (server decoding behavior
-// is unknowable here), is not certifiable evidence, fail-closed.
+// Canonical run-namespace containment: parse BOTH sides, compare authority
+// explicitly, then test path-segment-boundary containment on the parsed
+// pathnames — the URL parser resolves dot segments for the schemes it
+// knows, so a lexical "/../" traversal cannot slip a canonical-outside link
+// past a string-prefix test. Authority is compared as protocol + host, not
+// WHATWG origin: every non-special scheme (artifact stores like an s3-style
+// URI) serializes origin as "null", so an origin test would equate two
+// different artifact authorities. Anything the parser leaves unresolved, a
+// link carrying embedded credentials, a dot segment surviving in the parsed
+// path (non-special schemes), or a percent-encoded dot in the path (server
+// decoding behavior is unknowable here) is not certifiable evidence,
+// fail-closed.
 function underRunLinkPrefix(link, prefix) {
   const linkUrl = parseUrl(link);
   const prefixUrl = parseUrl(prefix);
   if (linkUrl === null || prefixUrl === null) return false;
-  if (linkUrl.origin !== prefixUrl.origin) return false;
+  if (linkUrl.protocol !== prefixUrl.protocol) return false;
+  if (linkUrl.host !== prefixUrl.host) return false;
+  if (linkUrl.username !== "" || linkUrl.password !== "") return false;
   const linkPath = linkUrl.pathname;
   if (/%2e/i.test(linkPath)) return false;
   if (linkPath.split("/").some((segment) => segment === "." || segment === "..")) return false;
   const prefixPath = prefixUrl.pathname;
   return linkPath === prefixPath || linkPath.startsWith(prefixPath.endsWith("/") ? prefixPath : `${prefixPath}/`);
+}
+
+// Structural gate on the security binding slices this checker consumes:
+// the executor-class discriminator and the admission.classification.temporal
+// home. Everything else the binding carries is check-security-binding.mjs's
+// jurisdiction — this gate exists only so an envelope cannot certify against
+// a binding the full checker would reject on these same surfaces.
+function gateSecurityBinding(securityBinding) {
+  const violations = [];
+  if (typeof securityBinding !== "object" || securityBinding === null || Array.isArray(securityBinding)) {
+    violations.push("the binding is not a JSON object");
+    return violations;
+  }
+  if (typeof securityBinding.executor_class !== "string" || securityBinding.executor_class.length === 0) {
+    violations.push("executor_class missing or empty (the schema-required executor discriminator)");
+  }
+  const temporalHome = securityBinding.admission?.classification?.temporal;
+  if (temporalHome === undefined) return violations;
+  if (typeof temporalHome !== "object" || temporalHome === null || Array.isArray(temporalHome)) {
+    violations.push("admission.classification.temporal is not an object");
+    return violations;
+  }
+  for (const [identity, entry] of Object.entries(temporalHome)) {
+    if (!ROUTINE_IDENTITY.test(identity)) {
+      violations.push(`admission.classification.temporal key ${JSON.stringify(identity)} is not a routine identity`);
+    }
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+      violations.push(
+        `admission.classification.temporal entry ${JSON.stringify(identity)} is not the object form {class, source_surface, run_link_prefix, producer_identity}`,
+      );
+      continue;
+    }
+    if (!WORK_CLASSES.has(entry.class)) {
+      violations.push(`admission.classification.temporal entry ${JSON.stringify(identity)}: class missing or invalid`);
+    }
+    for (const key of ["source_surface", "run_link_prefix", "producer_identity"]) {
+      if (typeof entry[key] !== "string" || entry[key].length === 0) {
+        violations.push(`admission.classification.temporal entry ${JSON.stringify(identity)}: ${key} missing or empty`);
+      }
+    }
+  }
+  return violations;
 }
 
 // The normalized canonical item URL per the telemetry contract's strip rule:
@@ -487,6 +532,18 @@ if (securityBindingPath !== null) {
   } catch (error) {
     console.error(`cannot read security binding ${securityBindingPath}: ${error.message}`);
     process.exit(2);
+  }
+  // Structural gate on the supplied security binding — a POINTER to
+  // check-security-binding.mjs, not a substitute for it (the full authority
+  // also verifies evidence this script cannot): an envelope must never
+  // certify against a binding the full checker rejects on the very surfaces
+  // this script consumes. Any gate violation is a finding, so the run exits
+  // nonconformant (fail-closed) even when every envelope matches the
+  // binding's records.
+  for (const violation of gateSecurityBinding(resolver.securityBinding)) {
+    findings.push(
+      `--security-binding ${securityBindingPath}: ${violation} — the supplied security binding is itself invalid, so no envelope can certify against it; repair it and re-run check-security-binding.mjs (the authority, including checks this gate does not repeat)`,
+    );
   }
 }
 
