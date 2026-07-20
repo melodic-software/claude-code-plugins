@@ -14,10 +14,14 @@ if ! have jq; then
   echo "SKIP: jq not installed" >&2
   exit 0
 fi
-# The script computes ages with `date -u -d`; a date without -d (BSD) cannot run
-# the staleness path, so skip rather than report false failures.
-if ! date -u -d "2026-01-01T00:00Z" +%s >/dev/null 2>&1; then
-  echo "SKIP: date -d (GNU date) not available" >&2
+# morning-brief.sh parses timestamps on either the GNU (`date -d`) or the
+# BSD/macOS (`date -j -f`) dialect, so the staleness path runs on both. Run the
+# suite whenever either dialect is present; skip only when the host has neither
+# (the age fixtures genuinely cannot be evaluated then).
+have_gnu_date() { date -u -d "2026-01-01T00:00Z" +%s >/dev/null 2>&1; }
+have_bsd_date() { date -u -j -f "%Y-%m-%dT%H:%MZ" "2026-01-01T00:00Z" +%s >/dev/null 2>&1; }
+if ! have_gnu_date && ! have_bsd_date; then
+  echo "SKIP: no supported date dialect (need GNU 'date -d' or BSD 'date -j -f')" >&2
   exit 0
 fi
 
@@ -190,6 +194,63 @@ OUT_LZ_MAXLEN="$(bash "$BRIEF" --now "$NOW" --rec-maxlen 010 \
   --decisions-json "$TMP/decisions.json" \
   --telemetry-json "$TMP/empty.json" 2>&1)"
 assert_contains "--rec-maxlen 010 normalizes to 10 (truncates at 10 chars)" "$OUT_LZ_MAXLEN" "alpha beta…"
+
+# --- BSD/macOS date fallback --------------------------------------------------
+# On macOS the relaxed guard above already drives the real BSD `date -j -f`
+# branch (GNU `-d` fails, so to_epoch/from_epoch fall through to it). On a GNU
+# host that branch is otherwise never taken, so a regression in it would ship
+# undetected. Force it here with a `date` test double that rejects GNU `-d`
+# (as real BSD date does) and services `-j -f` / `-r` by delegating the epoch
+# math to the host's real date. This proves the BSD branch is reached and wired
+# — return handling, TZ, from_epoch's `-r` render, and the parseable-vs-
+# unparseable decision on the `07:XX` fixture. It does not re-implement strptime,
+# so it does not assert format-string matching (only a real BSD date or a Python
+# strptime could, and neither is in the bash+jq runner contract). The double
+# relies on the host's `date -d`, so run it only when GNU date is present.
+if have_gnu_date; then
+  REAL_DATE="$(command -v date)"
+  STUB_DIR="$TMP/bsd-date-stub"
+  mkdir -p "$STUB_DIR"
+  cat >"$STUB_DIR/date" <<'STUB'
+#!/usr/bin/env bash
+# BSD/macOS `date` test double. See morning-brief.test.sh for scope.
+real="${MB_REAL_DATE:?MB_REAL_DATE not set}"
+# Real BSD date has no `-d`; reject it so callers fall through to `-j -f` / `-r`.
+for a in "$@"; do
+  [[ "$a" == "-d" ]] && { echo "date: illegal option -- d" >&2; exit 1; }
+done
+uflag=() outfmt="" mode="" input="" epoch=""
+while (($#)); do
+  case "$1" in
+    -u) uflag=(-u) ;;
+    -j) mode="parse" ;;
+    -f) shift ;;
+    -r) mode="render"; epoch="$2"; shift ;;
+    +*) outfmt="$1" ;;
+    *)  input="$1" ;;
+  esac
+  shift
+done
+case "$mode" in
+  parse)  exec "$real" "${uflag[@]}" -d "$input" "$outfmt" ;;
+  render) exec "$real" "${uflag[@]}" -d "@$epoch" "$outfmt" ;;
+  *)      exec "$real" "${uflag[@]}" "$outfmt" ;;
+esac
+STUB
+  chmod +x "$STUB_DIR/date" 2>/dev/null || true
+
+  OUT_BSD="$(PATH="$STUB_DIR:$PATH" MB_REAL_DATE="$REAL_DATE" \
+    bash "$BRIEF" --now "$NOW" --stale-hours 6 \
+    --counts-json "$TMP/counts.json" \
+    --pr-json "$TMP/pr.json" \
+    --decisions-json "$TMP/decisions.json" \
+    --telemetry-json "$TMP/telemetry.json" 2>&1)"
+  RC_BSD=$?
+  assert_exit "BSD fallback: renders successfully" 0 "$RC_BSD"
+  assert_contains "BSD fallback: fresh age computed via date -j -f" "$OUT_BSD" "age=1h 30m"
+  assert_contains "BSD fallback: stale verdict via date -j -f" "$OUT_BSD" "STALE (>6h)"
+  assert_contains "BSD fallback: unparsable stamp still unparsable" "$OUT_BSD" "unparsable timestamp"
+fi
 
 # --- Summary ------------------------------------------------------------------
 echo
