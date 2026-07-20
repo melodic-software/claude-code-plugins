@@ -3,6 +3,21 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.3]
+
+### Changed
+
+- **Presence-gated `dotnet-msbuild:*` build-diagnostics references in `context/dotnet.md` reframed as
+  .NET-ecosystem forward references.** The `## Marketplace plugin skills for build diagnostics (invoke
+  only when installed)` list gains a lead-in that frames its `dotnet-msbuild:*` skills as applicable
+  when your stack is .NET and as forward references to the planned `dotnet-*` plugin family — invoked
+  only when the plugin is installed, otherwise falling back to the section's own prose remediation and
+  binlog gotcha (the generic path stays first-class). Framing only: no skill reference was removed,
+  renamed, or genericized, and no command string was altered. Aligns this file with the presence-gated
+  forward-reference convention the merged `testing` (#491) and `verification` (#526) siblings adopted,
+  per the ratified #412 disposition. Addresses #412; the sibling `implementation` finding (#405) tracks
+  the same pattern separately.
+
 ## [0.4.2]
 
 ### Fixed
