@@ -102,8 +102,24 @@ function isDurableLocalUri(value, surfaceEntry) {
 // Segment-boundary anchoring: the raw link equals the ratified prefix or
 // continues with "/" immediately after it — plain startsWith would let
 // ".../runs-evil" ride the ".../runs" namespace.
+// Canonical run-namespace containment: parse BOTH sides and compare origin
+// equality plus path-segment-boundary containment on the parsed pathnames —
+// the URL parser resolves dot segments for the schemes it knows, so a
+// lexical "/../" traversal cannot slip a canonical-outside link past a
+// string-prefix test. Anything the parser leaves unresolved is rejected
+// outright: a dot segment surviving in the parsed path (non-special
+// schemes), or a percent-encoded dot in the path (server decoding behavior
+// is unknowable here), is not certifiable evidence, fail-closed.
 function underRunLinkPrefix(link, prefix) {
-  return link === prefix || link.startsWith(prefix.endsWith("/") ? prefix : `${prefix}/`);
+  const linkUrl = parseUrl(link);
+  const prefixUrl = parseUrl(prefix);
+  if (linkUrl === null || prefixUrl === null) return false;
+  if (linkUrl.origin !== prefixUrl.origin) return false;
+  const linkPath = linkUrl.pathname;
+  if (/%2e/i.test(linkPath)) return false;
+  if (linkPath.split("/").some((segment) => segment === "." || segment === "..")) return false;
+  const prefixPath = prefixUrl.pathname;
+  return linkPath === prefixPath || linkPath.startsWith(prefixPath.endsWith("/") ? prefixPath : `${prefixPath}/`);
 }
 
 // The normalized canonical item URL per the telemetry contract's strip rule:
