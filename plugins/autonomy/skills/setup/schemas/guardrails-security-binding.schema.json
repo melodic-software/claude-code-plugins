@@ -59,7 +59,7 @@
       "additionalProperties": { "$ref": "#/$defs/PromotionEntry" }
     },
     "escalation_routes": {
-      "description": "Org-bound route per escalation event class — a security-sensitive axis; every inherited guardrail event class must route. The two additive runner classes are legal OPTIONAL keys (never required, so existing bindings validate unchanged); a runner class may also route solely through the escalation_severity join.",
+      "description": "Org-bound queue route per escalation event class — a security-sensitive axis; every inherited guardrail event class must route. The two additive runner classes are legal OPTIONAL keys (never required, so existing bindings validate unchanged) — but a runner class bound in escalation_severity REQUIRES its entry here: severity selects only notification fan-out and can never supply the filed item's queue destination.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -228,7 +228,7 @@
     },
     "Route": { "type": "string", "minLength": 1 },
     "EscalationEventClass": {
-      "description": "The escalation event-class registry: the six inherited guardrail classes plus the two additive runner classes. escalation_routes keeps requiring only the six inherited classes; the two runner classes bind route and severity entries additively — an optional escalation_routes key, the escalation_severity join, or both.",
+      "description": "The escalation event-class registry: the six inherited guardrail classes plus the two additive runner classes. escalation_routes keeps requiring only the six inherited classes; the two runner classes bind additively, and a runner class keyed in escalation_severity must also carry its own escalation_routes entry (the queue destination severity can never supply).",
       "enum": [
         "gate-failure",
         "verification-divergence",
