@@ -172,6 +172,25 @@ ERR_MAXLEN="$(bash "$BRIEF" --rec-maxlen 12x 2>&1)"
 assert_exit "non-numeric --rec-maxlen exits 3" 3 "$?"
 assert_contains "non-numeric --rec-maxlen clear message" "$ERR_MAXLEN" "--rec-maxlen requires a non-negative integer"
 
+# Leading-zero values are normalized to base-10, not misread as octal. A raw
+# `08` errors in the `(( ))` staleness arithmetic and silently suppresses the
+# STALE verdict; a raw `010` truncates to 8 chars instead of 10. Both must
+# behave as the decimal the user wrote (normal-value paths above use 6 / 30).
+OUT_LZ_STALE="$(bash "$BRIEF" --now "$NOW" --stale-hours 08 \
+  --counts-json "$TMP/counts.json" \
+  --pr-json "$TMP/empty.json" \
+  --decisions-json "$TMP/empty.json" \
+  --telemetry-json "$TMP/telemetry.json" 2>&1)"
+assert_contains "--stale-hours 08 normalizes to 8 (stale still flagged)" "$OUT_LZ_STALE" "STALE (>8h)"
+assert_not_contains "--stale-hours 08 no octal arithmetic error" "$OUT_LZ_STALE" "value too great for base"
+
+OUT_LZ_MAXLEN="$(bash "$BRIEF" --now "$NOW" --rec-maxlen 010 \
+  --counts-json "$TMP/counts.json" \
+  --pr-json "$TMP/empty.json" \
+  --decisions-json "$TMP/decisions.json" \
+  --telemetry-json "$TMP/empty.json" 2>&1)"
+assert_contains "--rec-maxlen 010 normalizes to 10 (truncates at 10 chars)" "$OUT_LZ_MAXLEN" "alpha beta…"
+
 # --- Summary ------------------------------------------------------------------
 echo
 if ((FAILED > 0)); then

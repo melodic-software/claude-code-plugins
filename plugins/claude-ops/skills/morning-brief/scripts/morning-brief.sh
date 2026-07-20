@@ -93,7 +93,9 @@ while (($# > 0)); do
       printf 'morning-brief: --stale-hours requires a non-negative integer\n' >&2
       exit 3
     }
-    STALE_HOURS="$2"
+    # 10# forces base-10 so a leading-zero value (e.g. 08) is not later misread
+    # as octal in the staleness arithmetic (08 errors, 010 would evaluate as 8).
+    STALE_HOURS="$((10#$2))"
     shift 2
     ;;
   --rec-maxlen)
@@ -102,7 +104,9 @@ while (($# > 0)); do
       printf 'morning-brief: --rec-maxlen requires a non-negative integer\n' >&2
       exit 3
     }
-    REC_MAXLEN="$2"
+    # 10# forces base-10 so a leading-zero value (e.g. 010) is not later misread
+    # as octal in the truncation length (010 would evaluate as 8, not 10).
+    REC_MAXLEN="$((10#$2))"
     shift 2
     ;;
   --now)
