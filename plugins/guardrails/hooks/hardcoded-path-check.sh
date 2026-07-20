@@ -124,6 +124,32 @@ else
   PROJECT_ROOT=""
 fi
 
+# issue #389 F1: hpp::scan_text's repo-path branch matches PROJECT_ROOT as a
+# literal substring and is never OS-suppressed. That is a valid machine-specific
+# marker ONLY when PROJECT_ROOT is a genuine git checkout that is not the user's
+# home (nor an ancestor of it). When the project dir is home — e.g. a
+# chezmoi-managed home, which is not itself a work tree — or any non-repo dir,
+# every absolute path under it contains the root as a substring and would be
+# hard-denied. Resolve a SCAN_ROOT the scanner uses for that branch: PROJECT_ROOT
+# when it clears both gates, empty otherwise (empty is the lib's documented seam
+# to skip the branch). PROJECT_ROOT is unchanged — telemetry below still uses it
+# for the repo-relative path. Native Windows exposes home as %USERPROFILE%, not
+# $HOME, so fall back to it; a missing home leaves the branch active (fail toward
+# detection, never a false negative).
+SCAN_ROOT=""
+if [[ -n "$PROJECT_ROOT" ]] &&
+  git -C "$PROJECT_ROOT" rev-parse --show-toplevel >/dev/null 2>&1; then
+  _pr_norm="$(hook::normalize_path "$PROJECT_ROOT")"
+  _pr_norm="${_pr_norm%/}"
+  _home_norm="$(hook::normalize_path "${HOME:-${USERPROFILE:-}}")"
+  _home_norm="${_home_norm%/}"
+  if [[ -n "$_home_norm" && ( "$_pr_norm" == "$_home_norm" || "$_home_norm" == "$_pr_norm"/* ) ]]; then
+    SCAN_ROOT="" # project dir is home or an ancestor of home — suppress the branch
+  else
+    SCAN_ROOT="$PROJECT_ROOT"
+  fi
+fi
+
 # Repo-relative file for telemetry data.file (best-effort prefix strip).
 FILE_REL="$FILE"
 if [[ -n "$PROJECT_ROOT" ]]; then
@@ -154,7 +180,7 @@ emit_tel() {
   hook::emit_telemetry "hardcoded-path-check" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
-VIOLATIONS=$(hpp::scan_text "$CONTENT" "$PROJECT_ROOT" "$FILE")
+VIOLATIONS=$(hpp::scan_text "$CONTENT" "$SCAN_ROOT" "$FILE")
 if [[ -n "$VIOLATIONS" ]]; then
   {
     printf 'Hardcoded machine-specific path(s) in %s:\n\n' "$FILE"

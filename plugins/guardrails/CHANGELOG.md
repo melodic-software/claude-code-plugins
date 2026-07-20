@@ -3,6 +3,21 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.2]
+
+### Fixed
+
+- **`hardcoded-path-check` no longer hard-denies every absolute path under a home-rooted
+  project.** The repo-path branch matched `PROJECT_ROOT` as a bare substring with no
+  context gate, so a session rooted at the user home flagged any real path under it
+  (`AppData\...`, `Desktop\...`) as a checkout-root leak. The branch now engages only
+  when the resolved project root is a real git checkout that is neither the home
+  directory nor one of its ancestors; a missing home resolution leaves the branch
+  active (fail toward detection). Adds the branch's first MUST-FIRE regression case
+  plus two stay-quiet repros (non-git home project; checkout equal to home). The
+  sibling percent-env false positive lives in the upstream-owned pattern library and
+  ships separately via the standards distribution.
+
 ## [0.9.1]
 
 ### Fixed

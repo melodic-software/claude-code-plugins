@@ -55,6 +55,17 @@ assert_exit "Edit new_string → exit 2" 2 "$RC"
 OUT=$(bash "$HOOK" <<<"$(notebook_json "$FIXTURE" "cd ${MAC_HOME}")" 2>&1); RC=$?
 assert_exit "NotebookEdit new_source → exit 2" 2 "$RC"
 
+# Repo-path branch: a genuine (non-home) git checkout root hardcoded in content
+# is a machine-specific marker and MUST still fire — guards against issue #389
+# F1 over-suppressing the branch entirely (the branch had no prior test).
+REPO_REAL="$TEST_TMPDIR/realrepo"
+mkdir -p "$REPO_REAL"
+git -C "$REPO_REAL" init -q
+OUT=$(HOME="$TEST_TMPDIR/elsewhere" CLAUDE_PROJECT_DIR="$REPO_REAL" \
+  bash "$HOOK" <<<"$(write_json "$REPO_REAL/notes.txt" "checkout at $REPO_REAL/src")" 2>&1); RC=$?
+assert_exit "repo root in real non-home checkout → exit 2" 2 "$RC"
+assert_contains "repo root → machine-specific repo message" "$OUT" "Machine-specific repo path"
+
 # ============================ ALLOW (exit 0) ================================
 OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" 'echo "hello world"')" 2>&1); RC=$?
 assert_exit "clean content → exit 0" 0 "$RC"
@@ -101,6 +112,30 @@ assert_exit "gitignored file → exit 0 (consumer seam)" 0 "$RC"
 OUT=$(CLAUDE_PLUGIN_OPTION_HARDCODED_PATH_CHECK_ENABLED=false bash "$HOOK" <<<"$(write_json "$FIXTURE" "$LINUX_HOME")" 2>&1); RC=$?
 assert_exit "kill switch off → exit 0" 0 "$RC"
 assert_silent "kill switch off → no stderr" "$OUT"
+
+# --- issue #389 F1: repo-path branch must not flag paths under a project dir
+# that is the user's home (or a non-git dir). The branch matched PROJECT_ROOT
+# as a literal substring and was never OS-suppressed. ---
+
+# F1a — the reported incident: project dir is a NON-git home (e.g. a
+# chezmoi-managed home, which is not itself a work tree). A .cmd suppresses the
+# Windows-user branch, so ONLY the repo branch could fire; it must stay silent.
+HOME_DIR="C:${BS}Users${BS}bob"
+HOME_CMD="${HOME_DIR}${BS}Desktop${BS}run.cmd"
+HOME_UNDER="${HOME_DIR}${BS}AppData${BS}Local${BS}Docker${BS}img.vhdx"
+OUT=$(CLAUDE_PROJECT_DIR="$HOME_DIR" bash "$HOOK" <<<"$(write_json "$HOME_CMD" "copy $HOME_UNDER dst")" 2>&1); RC=$?
+assert_exit "F1: non-git home project + path under home → exit 0" 0 "$RC"
+assert_silent "F1: non-git home → no stderr" "$OUT"
+
+# F1b — belt-and-suspenders: project dir IS a git checkout but equals $HOME
+# (dotfiles-as-home). The not-$HOME clause suppresses the branch.
+GITHOME="$TEST_TMPDIR/githome"
+mkdir -p "$GITHOME"
+git -C "$GITHOME" init -q
+OUT=$(HOME="$GITHOME" CLAUDE_PROJECT_DIR="$GITHOME" \
+  bash "$HOOK" <<<"$(write_json "$GITHOME/notes.txt" "path $GITHOME/data/app.bin")" 2>&1); RC=$?
+assert_exit "F1: git checkout equal to \$HOME → exit 0" 0 "$RC"
+assert_silent "F1: \$HOME checkout → no stderr" "$OUT"
 
 # ============================ TELEMETRY ====================================
 TEL="$(mktemp -p "$TEST_TMPDIR")"
