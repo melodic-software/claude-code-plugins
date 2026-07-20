@@ -155,8 +155,11 @@ which condition raised it.
 
 **Acknowledgment and re-escalation.** An escalation item carries an acknowledgment state. An
 unacknowledged item that goes stale re-escalates once with a one-level severity bump; an
-acknowledged item never re-escalates. Both knobs are org-bindable: the default staleness
-window is 72h, and the re-escalation cap is 1 (a single bump, never a loop).
+acknowledged item never re-escalates. The bump saturates at `urgent`: an item already at
+`urgent` — an untrusted-provenance default, or either urgent stop-reason override — still
+re-escalates once, by re-notifying with a fresh `urgent` fan-out at the same severity, never by
+skipping the re-escalation or minting a level above the axis. Both knobs are org-bindable: the
+default staleness window is 72h, and the re-escalation cap is 1 (a single bump, never a loop).
 
 ## Deferred — mid-run interrupt
 
