@@ -290,6 +290,18 @@ out="$(bash "$BATCH" --dry-run --include-dirty --repo "$DIRTY_DRY_REPO" 2>&1)" |
 assert_contains "include-dirty dry-run still plans the reset" "$out" "would-reset"
 assert_contains "include-dirty dry-run names the discarded dirty edits" "$out" "uncommitted/untracked change(s) would be discarded"
 
+# --- 20. --include-dirty dry-run names discarded UNPUSHED commits on a clean tree ---
+# A repo with a clean working tree but unpushed commits (ahead of upstream) is
+# skipped by the dirty guard by default; under --include-dirty it resets away those
+# commits. TrackedDirty is 0, so only the child's AheadCount reveals the loss — the
+# confirmation must name it, mirroring the tracked-edit case in test 19.
+AHEAD_REPO="$(make_repo ahead-repo)"
+echo committed-ahead >>"$AHEAD_REPO/tracked.txt"
+git -C "$AHEAD_REPO" commit -aqm "unpushed commit ahead of upstream"
+out="$(bash "$BATCH" --dry-run --include-dirty --repo "$AHEAD_REPO" 2>&1)" || true
+assert_contains "include-dirty dry-run still plans the ahead repo reset" "$out" "would-reset"
+assert_contains "include-dirty dry-run names the discarded unpushed commits" "$out" "1 unpushed commit(s) would be discarded"
+
 if [[ $FAILED -ne 0 ]]; then
   echo "FAILED: $FAILED test(s)"
   exit 1

@@ -283,23 +283,28 @@ for ((i = 0; i < ${#REPO_TOPS[@]}; i++)); do
   out="$(cd "$top" && bash "$TREE_RESET" "$([[ "$DRY_RUN" -eq 1 ]] && echo --dry-run || echo --apply)" "${CHILD_PASS[@]}" 2>&1)" || rc=$?
   case "$rc" in
   0)
-    # The child exits 0 for a clean success AND for two success-with-signal cases
-    # the batch must not flatten to a bare outcome: an --include-dirty reset
-    # discards uncommitted/untracked edits (child TrackedDirty>0), and a clean
-    # that hit locked/in-use paths leaves them behind (child Unremovable>0, exit 0
-    # by design). Both are documented child output labels; surface them in the
-    # per-repo Reason so the --include-dirty dry-run confirmation can name the
-    # repos whose edits it will discard, and an operator never reads an incomplete
-    # clean as a completed reset. TrackedDirty is read from child output (not
-    # recomputed) because on apply the repo is already reset by this point.
+    # The child exits 0 for a clean success AND for success-with-signal cases the
+    # batch must not flatten to a bare outcome: an --include-dirty reset discards
+    # uncommitted/untracked edits (child TrackedDirty) AND unpushed commits (child
+    # AheadCount -- reset away because --include-dirty passes --allow-unpushed), and
+    # a clean that hit locked/in-use paths leaves them behind (child Unremovable>0,
+    # exit 0 by design). All are documented child output labels; surface them in the
+    # per-repo Reason so the --include-dirty dry-run confirmation can name every repo
+    # whose edits or commits it discards, and an operator never reads an incomplete
+    # clean as a completed reset. Counts are read from child output (not recomputed)
+    # because on apply the repo is already reset by this point.
     tracked_dirty="$(printf '%s\n' "$out" | sed -n 's/^TrackedDirty: //p' | head -1)"
+    ahead="$(printf '%s\n' "$out" | sed -n 's/^AheadCount: //p' | head -1)"
     reason=none
-    if [[ "$INCLUDE_DIRTY" -eq 1 && "${tracked_dirty:-0}" -gt 0 ]]; then
-      if [[ "$DRY_RUN" -eq 1 ]]; then
-        reason="$tracked_dirty uncommitted/untracked change(s) would be discarded"
-      else
-        reason="$tracked_dirty uncommitted/untracked change(s) discarded"
+    if [[ "$INCLUDE_DIRTY" -eq 1 ]]; then
+      verb="$([[ "$DRY_RUN" -eq 1 ]] && echo 'would be discarded' || echo 'discarded')"
+      discards=""
+      [[ "${tracked_dirty:-0}" -gt 0 ]] && discards="$tracked_dirty uncommitted/untracked change(s) $verb"
+      if [[ "${ahead:-0}" -gt 0 ]]; then
+        ahead_note="$ahead unpushed commit(s) $verb"
+        if [[ -n "$discards" ]]; then discards="$discards; $ahead_note"; else discards="$ahead_note"; fi
       fi
+      [[ -n "$discards" ]] && reason="$discards"
     fi
     if [[ "$DRY_RUN" -eq 1 ]]; then
       emit "$top" would-reset "$reason"
