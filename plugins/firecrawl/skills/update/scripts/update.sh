@@ -171,7 +171,7 @@ run_check() {
   fi
   log "Drift detected. Run '/firecrawl:update' (without --check) to apply."
   log "Script alone cannot rewrite SKILL.md — that's Claude's integration step,"
-  log "governed by the Preservation rules in SKILL.md 'Updating the skill and CLI'."
+  log "governed by this update skill's SKILL.md Preservation rules."
   return 1
 }
 
@@ -215,7 +215,7 @@ run_apply() {
   section "Next step"
   log "Now invoke the skill's Gate-2 integration: review the upstream SKILL.md"
   log "changes (diff against the tmp-fetched content) and integrate under the"
-  log "Preservation rules. See SKILL.md 'Updating the skill and CLI'."
+  log "Preservation rules. See this update skill's SKILL.md."
   return 0
 }
 
