@@ -113,6 +113,31 @@
         "It stashes tracked and untracked changes with git stash push -u",
         "It reports the stash and restoration command to the user"
       ]
+    },
+    {
+      "id": 9,
+      "name": "pr-body-attribution-default-present",
+      "prompt": "/pull-request create from branch feat/512-add-widget — no source-control.md config file exists in this repo. Assemble and create the PR.",
+      "expected_output": "With no source-control.md config declaring pr_body_attribution, the skill resolves the key as absent across all three layers and keeps the current default behavior: the assembled PR body ends with the `🤖 Generated with [Claude Code](https://claude.com/claude-code)` attribution line (§2.4.1). Existing consumers see no change. The line is spliced as literal text via parameter-expansion concat, not embedded in the quoted heredoc.",
+      "files": [],
+      "expectations": [
+        "The assembled PR body includes the default `🤖 Generated with [Claude Code](https://claude.com/claude-code)` attribution line when no pr_body_attribution key is configured",
+        "The default is the unchanged current behavior — absence of the key is not treated as opt-out",
+        "The attribution line is added by resolving the pr_body_attribution key (per config-resolution.md), not hardcoded unconditionally into the body"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "pr-body-attribution-opt-out-suppressed",
+      "prompt": "/pull-request create from branch feat/512-add-widget. Assemble and create the PR.",
+      "expected_output": "With .claude/source-control.md declaring `pr_body_attribution: none`, the skill resolves that key across the three source-control.md layers (per reference/config-resolution.md, the same seam /commit's trailer_policy uses) and omits the `🤖 Generated with [Claude Code]…` attribution line from the assembled PR body entirely — the ATTRIBUTION value resolves to empty and the trailing concat is skipped. The `## Summary`, `## Test plan`, and `## Related` sections and the `${CLOSES_LINE}` closing keyword are unaffected. trailer_policy is a separate key: this opt-out governs only the PR body, not the commit trailer.",
+      "files": [".claude/source-control.md"],
+      "expectations": [
+        "pr_body_attribution: none from .claude/source-control.md is honored: the PR body carries no `🤖 Generated with [Claude Code]…` attribution line",
+        "The suppression is driven by resolving pr_body_attribution across the source-control.md layers, not by editing the plugin",
+        "The rest of the PR body (Summary, Test plan, Related, and the closing-keyword line) is assembled unchanged",
+        "Suppressing the PR-body attribution is treated as independent of trailer_policy — the opt-out targets only the PR body"
+      ]
     }
   ]
 }

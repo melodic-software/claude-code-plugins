@@ -48,10 +48,11 @@ single layer's value as the effective convention; a reader who cannot see which 
 tell why `/commit` behaves as it does.
 
 ```text
-key                value                       won by
-subject_pattern    ^[A-Z]+-\d+: .+             team
-pr_title_pattern   Same as subject_pattern      team
-trailer_policy     none                         local overlay
+key                 value                       won by
+subject_pattern     ^[A-Z]+-\d+: .+             team
+pr_title_pattern    Same as subject_pattern      team
+trailer_policy      none                         local overlay
+pr_body_attribution none                         local overlay
 ```
 
 Per-layer verdicts:
@@ -216,6 +217,11 @@ With no argument in an interactive session, run the interview:
    - **`trailer_policy`** (optional) — whether commits should carry a `Co-Authored-By:` (or other)
      attribution trailer, and its exact template. Recommend keeping `/commit`'s default unless the
      user states otherwise. Omit this section entirely if the repo has no trailer convention.
+   - **`pr_body_attribution`** (optional) — the attribution line `/pull-request create` appends to the
+     PR body, the PR-body analogue of `trailer_policy` and gated separately (a consumer setting
+     `trailer_policy: none` still keeps the PR-body line unless this is also set). Recommend keeping the
+     default `🤖 Generated with [Claude Code]…` line unless the user wants a custom line or `none` to
+     omit it. Omit this section entirely to keep the default.
 5. **Write the config.** Materialize the target layer's path with these sections:
 
    ```markdown
@@ -243,6 +249,11 @@ With no argument in an interactive session, run the interview:
    ## trailer_policy
 
    <only present if the repo has a trailer convention>
+
+   ## pr_body_attribution
+
+   <only present if the repo overrides the default PR-body attribution line — a custom line, or
+   `none` to omit it>
    ```
 
    Drop any section with no content rather than leaving it empty. Writing a non-`team` layer, add one

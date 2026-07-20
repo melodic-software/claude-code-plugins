@@ -25,6 +25,11 @@ Markdown, one `## <key>` H2 per key, the value as the section body:
   any other casing or punctuation is treated as a pattern in its own right.
 - `trailer_policy` — the attribution-trailer template, or `none`. Absent means the `/commit` default
   trailer applies.
+- `pr_body_attribution` — the attribution line `/pull-request create` appends to the PR body, or
+  `none`. Absent means the default `🤖 Generated with [Claude Code](https://claude.com/claude-code)`
+  line applies. This is the PR-body analogue of `trailer_policy`, and a separate key on purpose: the
+  two govern different surfaces (a commit `Co-Authored-By:` trailer vs a Markdown PR-body line), so a
+  consumer setting `trailer_policy: none` keeps the PR-body line unless they also set this to `none`.
 
 Absent sections are absent, never empty.
 
