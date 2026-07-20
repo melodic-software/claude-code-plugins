@@ -3,6 +3,21 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.4]
+
+### Changed
+
+- Reworded two `files: []` (context-free) eval expectations to credit a consumer-agnostic inspect/ask
+  path equally with a doc-permitted default, rather than pre-committing to one answer. The `diagnose`
+  fixture-collision case (case 1) now grades recognition of the process-global singleton / shared-state
+  root cause plus inspecting the project's fixture layout or asking for its documented convention, with
+  the specific mechanism demoted to a non-exhaustive example instead of the asserted answer. The `write`
+  shared-library placement case (case 2) now grades the single-project-vs-cross-project judgment and
+  deferral to the project's documented convention, keeping the create-a-test-project decision while
+  dropping the co-location pre-commitment (`context/organize.md` permits co-location for single-project
+  integration tests and centralization for cross-project ones). Eval expectations only; no skill
+  behavior, routing, or context files changed.
+
 ## [0.2.3]
 
 ### Changed
