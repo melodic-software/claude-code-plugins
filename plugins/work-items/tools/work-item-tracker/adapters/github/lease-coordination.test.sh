@@ -144,4 +144,21 @@ assert_not_contains "reclaim removes NO assignee when revalidation fails" "$(cal
 assert_not_contains "reclaim does not supersede when revalidation fails" "$(calls)" "PATCH"
 cleanup_scenario
 
+# [revalidation, same id renewed] the OTHER revalidation branch: a concurrent
+# renew-lease completes IN PLACE during the activity window — same active id (123),
+# but renewed_at now in the future (live). reclaim must abort as a no-op too, never
+# unassigning the holder whose lease was just legitimately renewed.
+new_scenario
+EXP_MARKER="$(marker alice "$PAST" 24)"
+RENEWED_MARKER="$(marker alice "$FUTURE" 24)"
+lease_array 123 "$EXP_MARKER" >"$GH_STUB_DIR/lease-comments-1"
+lease_array 123 "$RENEWED_MARKER" >"$GH_STUB_DIR/lease-comments-2"
+jq -cn '["alice"]' >"$GH_STUB_DIR/assignees"
+out="$(bash "$RECLAIM" "$ID" 2>/dev/null)"; rc=$?
+assert_eq "reclaim succeeds (0) when the lease was renewed in place during the window" "0" "$rc"
+assert_eq "reclaim reports reclaimed:false when the lease was renewed in place" "false" "$(jq -r '.reclaimed' <<<"$out")"
+assert_not_contains "reclaim removes NO assignee when the lease was renewed in place" "$(calls)" "REMOVE_ASSIGNEE"
+assert_not_contains "reclaim does not supersede when the lease was renewed in place" "$(calls)" "PATCH"
+cleanup_scenario
+
 [[ $FAILED -eq 0 ]] || exit 1
