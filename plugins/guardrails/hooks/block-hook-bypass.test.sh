@@ -55,7 +55,7 @@ run "echo append > file still blocked" "echo line >> real.txt" 2
 run "echo > file with 2>/dev/null still blocked" \
   "echo data > real.txt 2>/dev/null" 2
 
-# --- Producer-scoped redirect (issue #546 false-fire regression) -------------
+# --- Producer-scoped redirect (false-fire regression) ------------------------
 # The guard must flag ONLY when the echo/printf is itself the producer whose
 # stdout is redirected into a file — not any compound command that merely
 # CO-MENTIONS an `echo` token and a `>` token. The three cases below are the
