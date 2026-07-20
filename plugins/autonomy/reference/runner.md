@@ -20,12 +20,12 @@ interactive-upstream from autonomous-downstream:
 
 - **Interactive upstream (plugins own it).** Everything interactive — interview, design,
   architect, decompose, triage — produces autonomous-eligible items, and the trigger adapters
-  live where their signals natively land ([trigger-dispatch](../trigger-dispatch.md)). The
+  live where their signals natively land ([trigger-dispatch](trigger-dispatch.md)). The
   runner never decides what to build.
 - **Autonomous downstream (the runner owns it).** The runner is the autonomous drain side
   only: lease-claim from the work-item queue, execute in isolation, run the verification
   gates, apply the per-class merge policy, and escalate back to humans. It is one executor
-  behind the [invocation-adapter seam](../trigger-dispatch.md#executor-surface-classes) —
+  behind the [invocation-adapter seam](trigger-dispatch.md#executor-surface-classes) —
   swapping executors leaves the trigger adapters untouched.
 
 ## Build triggers
@@ -34,7 +34,7 @@ The runner's graduation to build is gated: either T4 build trigger fires it, and
 assumed to have fired. Restated verbatim in substance (the executor references rendered in the
 shipped surface-class vocabulary, never as vendor names):
 
-- The `C2` promotion trigger fires (per the [guardrail matrix](../guardrails.md#the-matrix))
+- The `C2` promotion trigger fires (per the [guardrail matrix](guardrails.md#the-matrix))
   AND the existing executors behind the invocation-adapter seam — the self-operated and
   vendor-hosted surfaces reachable today — demonstrate a clean autonomous drain; **OR**
 - those existing executors hit an isolation, concurrency, or platform wall the runner uniquely
@@ -50,7 +50,7 @@ loop (Boris step-3 trap: no agent-count scaling before the loop earns trust).
   where merge policy is ownable — every vendor-hosted issue-to-change agent keeps a deliberate
   human-merge-gate — so the `C2` auto-merge promotion is reachable only self-run.
 - **Vendor-hosted is reachable, capped.** Vendor-hosted surfaces stay reachable through the
-  [invocation-adapter seam](../trigger-dispatch.md#executor-surface-classes) (it covers
+  [invocation-adapter seam](trigger-dispatch.md#executor-surface-classes) (it covers
   local-CLI and cloud-API shapes) but inherit their human-merge-gate: the matrix merge-policy
   column caps at human-gated on any vendor-hosted executor. Vendor-managed isolation remains a
   legitimate `L3` instance — untrusted-provenance (`C5`) work is its natural fit.
@@ -62,14 +62,14 @@ loop (Boris step-3 trap: no agent-count scaling before the loop earns trust).
 All imported unchanged; each is enforced by its owning contract, cited never restated:
 
 - Execution substrate is at least `L2`, fail-closed where unavailable
-  ([isolation ladder](../guardrails/isolation-ladder.md)).
+  ([isolation ladder](guardrails/isolation-ladder.md)).
 - Per-class gates, merge policy, cost tier, and escalation come from the
-  [guardrail matrix](../guardrails.md#the-matrix).
+  [guardrail matrix](guardrails.md#the-matrix).
 - Queue and lease are reused from the work-item capability's race-safe lease and its
   autonomous/human-gated classes — no second claim mechanism
-  ([dispatch](../trigger-dispatch.md#dispatch)).
+  ([dispatch](trigger-dispatch.md#dispatch)).
 - No queue bypass: every dispatch funnels through the one entrypoint, and the audit trail is
-  the trust loop ([trigger-dispatch](../trigger-dispatch.md)).
+  the trust loop ([trigger-dispatch](trigger-dispatch.md)).
 
 ## Anti-goals
 

@@ -133,7 +133,7 @@ by citation). Design only — zero build artifacts; the runner-execution home st
 - Seam count: `grep -cE '^## ' plugins/autonomy/reference/runner/seams.md` = 8
 - Vendor+fleet deny-list sweep exit 0; lychee lane passes
 
-### Phase 2: Lifecycle + stop-criteria + escalation leaves [TODO]
+### Phase 2: Lifecycle + stop-criteria + escalation leaves [DONE]
 
 | File | Action | What changes |
 |---|---|---|
