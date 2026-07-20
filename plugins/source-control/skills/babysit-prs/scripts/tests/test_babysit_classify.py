@@ -127,7 +127,7 @@ class ApprovalVerdictTests(unittest.TestCase):
         )
 
     def test_genuine_critical_finding_is_not_downgraded(self) -> None:
-        body = "CRITICAL: un," + " null dereference will crash the handler."
+        body = "CRITICAL: a null dereference will crash the handler."
         self.assertFalse(bc.approval_downgrade(body))
         self.assertTrue(bc.has_blocking_severity(body))
 

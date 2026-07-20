@@ -326,8 +326,8 @@ def skip_downgrade(text: str) -> bool:
 # false-count -- the same rationale as BLOCKING_SEVERITY_RE, plus SUGGESTION.
 SEVERITY_WORDS_RE = re.compile(r"\b(?:CRITICAL|IMPORTANT|SUGGESTION)\b")
 # codex's shields.io P-severity badge: the `/badge/P{N}-` URL segment appears
-# exactly once per finding (the `![PN Badge]` alt text carries the token a
-# second time, so a bare `P[0-3]` would double-count). `/badge/P0-` never
+# exactly once per finding (the badge's alt text carries the same P-number token
+# a second time, so a bare `P[0-3]` would double-count). `/badge/P0-` never
 # matches a lowercase priority:p0-critical label.
 SEVERITY_BADGE_RE = re.compile(r"/badge/P[0-3]-")
 # Plain bracketed P-severity markers ([P0]..[P3]) -- neither a severity word nor
