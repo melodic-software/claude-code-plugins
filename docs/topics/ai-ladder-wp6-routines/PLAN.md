@@ -104,7 +104,7 @@ scheduled trigger adapters behind its queue contract) and WP5 implementation mer
 (`reference/guardrails.md` — the D2 mapping rules derive rows into its matrix). This package
 merges after both.
 
-### Phase 1: Catalog hub + mapping rules [TODO]
+### Phase 1: Catalog hub + mapping rules [DONE]
 
 | File | Action | What changes |
 |---|---|---|
