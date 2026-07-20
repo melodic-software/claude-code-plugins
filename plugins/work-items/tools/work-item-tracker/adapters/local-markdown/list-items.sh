@@ -53,7 +53,7 @@ emitted=0
       closed) [[ "$item_state" == '"closed"' ]] || continue ;;
       *) ;; # unreachable: --state is validated to open|closed|all at parse time
     esac
-    wit_emit_local_item "$n"
+    wit_emit_local_item "$n" true
     emitted=$((emitted + 1))
   done
 } | jq -c -s --arg sv "$WIT_SCHEMA_VERSION" '{schema_version: $sv, items: .}'

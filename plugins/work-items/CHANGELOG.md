@@ -3,6 +3,26 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.2]
+
+### Fixed
+
+- **Local-markdown expired lease returns the item to the frontier (`#367`).** For the `local-markdown`
+  binding an expired lease still left `assignees` populated, and since `reclaim` is unsupported for
+  this offline adapter (no coordination surface to run an activity check over) and `list-frontier`
+  always excludes assigned items, any abandoned local claim was permanently absent from selection after
+  its TTL expired. `list-items` now projects the effective assignee of an expired-lease item as empty,
+  so the core frontier derivation returns it to the frontier — without inventing a new adapter
+  capability. The projection is scoped to list/frontier derivation; `get-item` still reports the stored
+  assignee verbatim (parity with the GitHub adapter, whose assignee persists until reclaim).
+- **Local-markdown claim no longer reports success on a failed assignee write (`#367`).** `claim`
+  appended the inline lease marker and then set `assignees` with no return-code check, so a failed
+  assignee write (store full or unwritable) was silently ignored and a successful claim JSON was still
+  emitted — leaving a live lease marker with an empty `assignees`, which `list-frontier` presents as
+  available while later claims conflict on the live lease until it expires. The two writes are now a
+  single consistent operation: a failed assignee write rolls the just-appended marker back and fails
+  the claim (exit `1`), emitting no success record for a half-applied write.
+
 ## [0.14.1]
 
 ### Fixed
