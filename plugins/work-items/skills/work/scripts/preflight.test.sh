@@ -320,6 +320,13 @@ assert_contains "distinct project-root header names the source" "$OUT" "from --p
 # Without the distinct --project-root (pre-dispatch), local is excluded → gap.
 assert_eq "no distinct project-root excludes local → one gap" "1" "$(run "$REPO" "$CFG17" --count --worktree-root "$POSIX_CHILD")"
 
+# --- Case 18: filesystem root entry authorizes every absolute path ------------
+CFG18="$TEST_TMPDIR/cfg18"
+# MSYS_NO_PATHCONV stops git-bash rewriting the bare "/" argument to the Git
+# install root before jq sees it.
+MSYS_NO_PATHCONV=1 write_settings "$CFG18" "$FULL_ALLOW" "/"
+assert_eq "root additionalDirectories entry covers any worktree root" "0" "$(run "$REPO" "$CFG18" --count --worktree-root "$POSIX_CHILD")"
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0

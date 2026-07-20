@@ -268,6 +268,9 @@ dir_covered() {
   while IFS= read -r entry; do
     [[ -n "$entry" ]] || continue
     entry="$(normalize_path "$entry")"
+    # Filesystem root authorizes every absolute path ("" after the trailing-slash
+    # strip would otherwise expand to //* and match nothing).
+    [[ "$entry" == "/" || "$entry" == "" ]] && return 0
     [[ "$want" == "$entry" ]] && return 0
     case "$want" in
       "$entry"/*) return 0 ;;
