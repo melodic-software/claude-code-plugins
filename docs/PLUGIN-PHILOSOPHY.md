@@ -75,8 +75,9 @@ That guarantee is about **resolution**, and it does not extend to **display**. T
 picker lists a skill by its short name and registers the namespaced form as a hidden alias — so
 `/planning:` still filters to that plugin's skills, but `planning:plan` is not what the row is
 labelled. Origin travels in the description instead: a plugin skill renders as
-`(<plugin-name>) <description>`, a personal or project skill as `<description> (user)` or
-`(project)`, and a built-in, bundled, or MCP entry carries no marker at all. So sibling short names
+`(<plugin-name>) <description>`, a personal skill as `<description> (user)`, a project skill as
+`(project)` or `(project, gitignored)` depending on whether it came from shared or local settings,
+and a built-in, bundled, or MCP entry carries no marker at all. So sibling short names
 across different plugins are unambiguous to *invoke* and identical to *read* — a shared leaf name
 costs legibility in the description column, never correctness. Weigh it there; never rename to buy
 display uniqueness, and keep the description's first clause carrying the distinguishing object,
