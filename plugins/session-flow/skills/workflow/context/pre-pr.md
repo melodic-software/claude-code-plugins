@@ -29,8 +29,10 @@ next. Use the consuming repo's own commands and review criteria at each gate.
 - Docs/config-only changes may skip steps 4–6 when there is no code to simplify
 - Keep the PR small and cohesive — split unrelated changes into separate PRs
 - **Override boundary.** This sequence — its steps and their order, including the simplify pass
-  (4–6) — is fixed plugin identity, not consumer config; there is no seam to swap in a different
-  pre-PR checklist by editing the plugin. What adapts is the commands and review criteria applied
-  at each gate (the intro above); a consumer whose process genuinely differs runs its own
-  documented workflow separately, outside this skill — the `pre-pr` mode always loads this fixed
-  map and never defers to a consumer-supplied one.
+  (4–6) — is fixed plugin identity, not consumer config; there is no seam to reorder it or swap in
+  a different checklist by editing the plugin. The fixed part is the skeleton, not the gates: a
+  consumer's own commands, review criteria, and any mandatory gates (e.g. security review or
+  approval) are still honored — applied at the matching step (the intro above) and independently
+  enforced by the consumer's own CI and branch protection, which this advisory map never overrides.
+  What has no seam is the sequence structure itself; a consumer whose required ordering genuinely
+  differs runs that structure as its own documented workflow, separately from this skill.
