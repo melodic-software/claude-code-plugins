@@ -27,7 +27,9 @@ All notable changes to the `review` plugin are documented here. Format follows
   fallbacks are retained — they cover a different failure mode (`gh` missing /
   unauthenticated / no PRs) that `allowed-tools` does not touch. Narrow,
   read-only, non-interpreter allow rules that carry into auto mode; the
-  `git branch` rule matches only its actual use, `git branch --show-current`.
+  git-branch rule is pinned to the exact read-only invocation
+  (`git branch --show-current`), so mutating `git branch` forms stay outside
+  the grant.
 
 ## [0.14.5]
 
