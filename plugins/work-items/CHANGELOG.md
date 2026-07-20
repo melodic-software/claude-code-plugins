@@ -3,6 +3,31 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.0]
+
+Extract the cross-lane self-observation filing rule ("file what you will not fix: dedupe → categorize
+→ fixed shape → `needs-triage`") into one shared reference surface so the lanes reference it instead
+of each absorbing a private, drift-prone copy (`#540`).
+
+### Added
+
+- **Shared self-observation filing contract — `reference/dogfood-filing.md`.** The rule that an
+  autonomous lane files a problem it will not fix in-cycle is cross-lane-identical, so the absorption
+  umbrellas (`#477`/`#478`/`#479`) must not each absorb a private copy. The new reference is the single
+  in-repo source of truth: it composes the existing mechanics by pointer — the *Search items* dedupe
+  read and body template `track add` owns, the `create-item` seam write, and the `needs-triage` status
+  label — and adds only the self-observation policy (when to file vs the `tracker-seam.md` "Default =
+  fix, not file" posture, the mechanical-vs-model split, autonomous authorization, and the AI
+  disclaimer). No new script: the mechanical core is already the seam + adapter + `track add`
+  machinery, so the doc references it rather than forking the template and search mechanics.
+
+### Changed
+
+- **`work`, `triage`, and `scan-todos` now reference the shared filing contract at their filing
+  sites** — the `work` post-green deferred-finding follow-up, the `triage` follow-up-work creation,
+  and the `scan-todos` "file a work item" branch each point at `reference/dogfood-filing.md` for the
+  dedupe → categorize → fixed shape → `needs-triage` sequence instead of leaving it implicit.
+
 ## [0.17.1]
 
 Paginate the github adapter's *open linked PRs* signal so the `/work-items:work` frontier filter
