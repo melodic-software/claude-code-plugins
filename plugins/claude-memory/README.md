@@ -51,5 +51,4 @@ consuming repo. Network: the `update` action fetches official docs pages (read-o
 
 ## License
 
-MIT (SPDX-License-Identifier: MIT). See the LICENSE file at the root of the
-melodic-software/claude-code-plugins repository.
+MIT (SPDX-License-Identifier: MIT).

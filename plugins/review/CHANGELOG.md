@@ -3,6 +3,27 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.7]
+
+### Added
+
+- **`quality-gate` code mode documents its boundary with the built-in
+  `/code-review`.** The mode triggers on "code review" and reviews the current
+  diff — the same target Claude Code's bundled `/code-review` skill covers — yet
+  `context/code.md` never acknowledged the built-in existed, leaving a user with
+  no basis to choose between them. The context file now carries a **Boundary**
+  section: reach for this mode when the review must ground in the project's own
+  standards and severity vocabulary (resolved through the standards index), stay
+  report-only, and land in the gate's unified findings report; reach for the
+  always-available built-in `/code-review` for a fast zero-dependency pass or its
+  `ultra` cloud deep-dive when project-standards grounding is not the point,
+  noting that its `--fix` / `--comment` flags mutate and sit outside the review
+  modes' report-only contract. Documents the boundary rather than dispatching the
+  built-in as a leaf surface — code mode's convention-grounded dispatch
+  (`pr-review-toolkit` / `code-reviewer`) is not duplicated review logic that a
+  thin router would remove, and delegating to the generic built-in would drop the
+  standards grounding, the unified report, and the report-only guarantee.
+
 ## [0.14.6]
 
 ### Fixed

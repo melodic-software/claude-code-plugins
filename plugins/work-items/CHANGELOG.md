@@ -3,6 +3,91 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.1]
+
+Paginate the github adapter's *open linked PRs* signal so the `/work-items:work` frontier filter
+cannot miss an `OPEN` closing PR that sorts past the first page of linked closing PRs (`#677`).
+
+### Fixed
+
+- **Open-linked-PR filter now walks every page (`#677`).** The github adapter's *Open linked PRs*
+  query read only `closedByPullRequestsReferences(first:100)` — a single page. Because
+  `includeClosedPrs:false` still retains `MERGED` nodes, an issue with a long merge/reopen history
+  (more than 100 linked closing PRs) could push its single `OPEN` closing PR onto a later page; the
+  filter then saw an all-`MERGED` page, reported `false` = pickable, and the in-flight item could be
+  re-picked from the frontier → double-dispatch (a duplicate PR). The documented snippet now uses
+  `gh api graphql --paginate` with an `$endCursor` variable and `pageInfo { hasNextPage endCursor }`,
+  walking the connection to exhaustion; `gh` applies `--jq` per page and `grep -qx true` collapses the
+  per-page booleans to a single result — `true` as soon as any page carries an `OPEN` node. The
+  connection exposes no server-side OPEN-state filter and no OPEN-first `orderBy`, so pagination is
+  the only correct route; a `first:100` bump only moves the boundary. Refs `#668`, `#654`.
+- **Open-linked-PR check now fails closed on query error.** The paginated snippet captures the
+  `gh api graphql` result and checks its exit status before reducing, propagating a non-zero exit
+  (and emitting no boolean) when the query fails — an expired token, rate limit, or a network error
+  on a later cursor page. Previously the `… | grep -qx true && echo true || echo false` tail masked
+  `gh`'s exit code and converted any failure to `false` = pickable, re-introducing the exact
+  double-dispatch this fix targets precisely when the in-flight state could not be confirmed. The
+  `/work-items:work` consumer now excludes the candidate this cycle on such a failure rather than
+  treating an unconfirmed check as "no open PR".
+
+## [0.17.0]
+
+Add a loop-start permission preflight so the unattended `work` (and, by shared contract,
+`source-control:babysit-prs`) lanes report a missing grant or untrusted worktree root **once, up
+front**, instead of stopping for a per-operation prompt mid-cycle (`#495`). Report-only by design:
+the assistant cannot self-apply the fix — the auto-mode classifier blocks an agent broadening its
+own `permissions.allow`, and a plugin `settings.json` grant is inert — so the check detects and
+points at the operator-side remediation, never edits settings, and never retries a denial into
+broader grants.
+
+### Added
+
+- **Loop-start permission preflight (`#495`).** New `skills/work/scripts/preflight.sh` (with
+  `preflight.test.sh`) reads the effective `permissions.allow` / `permissions.additionalDirectories`
+  from user-global and project settings and reports three conditions: (a) cwd is not a git repo (a
+  note — a worktree-operating lane still proceeds); (b) a probed core working verb
+  (`git add`, `git commit`, `git push`, `gh pr create`, `gh issue comment`) is denied by a matching
+  deny rule or is not covered by any `Bash()`/`PowerShell()` allow rule; (c) the configured
+  out-of-tree worktree root is not covered by `additionalDirectories`. A verb counts as covered only
+  by an **open-glob** grant (`git commit *` / `git commit:*`); a flag-scoped rule
+  (`git commit --amend`, a force-with-lease-only push) is a gap, and a **bare-exact** rule
+  (`git commit`) is a gap reported with a distinct message — it covers an argumentless caller (the
+  babysit fix cycle's plain `git push`) but not the work lane's argument-carrying call, so the remedy
+  is the open glob. Deny wins over allow: a deny rule of the verb keeps it a gap (reported distinctly
+  as denied) even when allowed — matched exact-shape only (never glob simulation) so the flag-scoped
+  standard deny floor is never false-flagged, but erring **wider** than coverage by also counting the
+  bare spelling (a false *denied* is safe). The worktree-root check is root-agnostic (coverage of the
+  passed root, never a hardcoded path), and Windows and git-bash path spellings are folded to one
+  comparable form. Per-checkout `settings.local.json` handling: under `--worktree-root` with no
+  distinct `--project-root` (pre-dispatch) the coverage reads exclude this checkout's gitignored
+  local file, which a fresh worktree would not carry, so a local-only grant cannot mask a worker-side
+  gap; a distinct `--project-root` (a named worker checkout) instead reads that worktree's OWN
+  `settings.local.json`; the interactive path keeps local; deny always reads it. Always exits `0`;
+  `--count` reports the GAP total for a scripted gate. No live permission probe.
+- **Preflight reference (`#495`).** New `reference/permission-preflight.md` is the source of truth
+  for the preconditions: it points at the `melodic-software/standards` `claude-permissions`
+  component (`components/claude-permissions/`, composed operator-side via the dotfiles chezmoi seam)
+  as the canonical allow/deny floor rather than restating a list, documents the trusted
+  sibling-worktree-root `additionalDirectories` guidance, and records the detect-and-report /
+  never-self-apply contract. The `work` skill wires the check as the first loop-start action, ahead
+  of the binding preflight.
+
+## [0.16.1]
+
+### Fixed
+
+- **Triage side-exit routing now clears the raw-intake marker on every outcome (`#562`).** The
+  closing invariant in the triage skill only named `status:ready` and the two role labels as
+  contradictory with the raw marker, and pinned the marker to a single hardcoded label string. A
+  status side-exit — `status:needs-decision`, `status:needs-info`, human-gated (`needs-human`), or
+  the terminal `status:ready` — could leave `needs-triage` attached, so an already-decided item
+  (e.g. `#505`, routed to `status:needs-decision`) resurfaced in the next cycle's needs-triage queue
+  as if it were unrouted intake, wasting a read-and-confirm pass every cycle. The invariant is now
+  exhaustive across the routing space — **every** open-keeping outcome removes the raw marker in the
+  same edit — and framed around the abstract raw-intake marker resolved from the live label set
+  rather than a hardcoded prefix, so it holds regardless of which axis a repo files `needs-triage`
+  under. Doc-only; absorbed into the triage `SKILL.md` alongside the `#478` routing rules.
+
 ## [0.16.0]
 
 Close the work-item-tracker seam's container read-verb gap (`#498`): the seam reserves `work-map`

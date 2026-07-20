@@ -34,6 +34,26 @@ derive `<slug>` per its slug spec and, on the session's first memory-tier write,
 memory root's self-ignore guard (a `.gitignore` containing `*`, created and announced when absent).
 Tick each step as completed.
 
+## Permission preflight (before Step 0)
+
+The **first** loop-start action — ahead of the binding preflight — surfaces any missing permission
+grant or untrusted worktree root **once, up front**, so the unattended lane never rediscovers it as
+a mid-cycle prompt. Pass the out-of-tree worktree root this lane is configured to dispatch into
+(the `/source-control:worktree` layout); omit `--worktree-root` only for a fully inline run.
+
+```bash
+PREFLIGHT="${CLAUDE_PLUGIN_ROOT}/skills/work/scripts/preflight.sh"
+"$PREFLIGHT" --worktree-root "<configured-worktree-root>"
+```
+
+The check is **report-only** and always exits `0`. On any `GAP`, surface the exact remediation once
+and continue per this lane's report-only posture — the fix is **operator-side** (the standards
+permission floor and the local `additionalDirectories` seam) and is **never self-applied**: the
+classifier blocks an agent broadening its own `permissions.allow`, and a plugin `settings.json`
+grant is inert. Never retry a permission denial into broader grants. The full contract, remediation,
+and the `/source-control:babysit-prs` applicability note live in
+[`${CLAUDE_PLUGIN_ROOT}/reference/permission-preflight.md`](${CLAUDE_PLUGIN_ROOT}/reference/permission-preflight.md).
+
 ## Binding preflight (before Step 0)
 
 Step 0's `reclaim` is this lane's **first seam coordination verb**, so the binding-presence entry
@@ -109,7 +129,7 @@ For each tier, emit the corresponding query:
 
   `--autonomous` additionally excludes items carrying the human-gated role label (`needs-human` by default — [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md) "Canonical roles"). Tier 2 keeps only `area: guardrails` items that do not carry the resolved recurring-maintenance label; tier 3 keeps the rest of that non-recurring set. The normalized frontier model omits `createdAt`, so apply tier 3's **oldest-first** ordering by sorting the candidates on `createdAt` from the adapter "List items" projection (over the frontier numbers) before picking the top one — pass an explicit `--limit` covering the whole frontier on that projection so the default truncation can't hide an older candidate outside the first page and defeat the oldest-first pick (page per the adapter "List items" note if the frontier exceeds the max page size). Provider search syntax never leaves the adapter — the label filter runs over the labels `list-frontier` already returns.
 
-**Exclude in-flight frontier candidates (open linked PR).** A frontier candidate (tiers 2–3) that already has an open PR targeting it for closure is work already in flight — drop it from the pickable set so it is not re-picked. For each surviving frontier number, query the bound adapter's *open linked PRs* operation (GitHub: [`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md`](${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md) "Open linked PRs") and exclude the number when it reports an open PR closing that item. The **closing-keyword linkage** is the authoritative signal — the same `Closes #N` / native-closing-keyword linkage `pr-issue-linkage` enforces (owned by `/source-control:pull-request`), so an intentional `Refs #N` opt-out does not exclude its issue. Provider search syntax never leaves the adapter — this filter reads only the open-closing-PR boolean the adapter returns per number. **Fail open when the bound provider exposes no PR host:** the offline `local-markdown` binding is never a coordination surface and touches no network tool ([`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md`](${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md) "local-markdown adapter"), so when no PR-host operation is available this filter has nothing to query — keep the candidate rather than blocking or reaching for a network tool.
+**Exclude in-flight frontier candidates (open linked PR).** A frontier candidate (tiers 2–3) that already has an open PR targeting it for closure is work already in flight — drop it from the pickable set so it is not re-picked. For each surviving frontier number, query the bound adapter's *open linked PRs* operation (GitHub: [`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md`](${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md) "Open linked PRs") and exclude the number when it reports an open PR closing that item. The **closing-keyword linkage** is the authoritative signal — the same `Closes #N` / native-closing-keyword linkage `pr-issue-linkage` enforces (owned by `/source-control:pull-request`), so an intentional `Refs #N` opt-out does not exclude its issue. Provider search syntax never leaves the adapter — this filter reads only the open-closing-PR boolean the adapter returns per number. **Fail closed when the in-flight check itself fails:** a query that errors (the adapter operation exits non-zero and returns no boolean — expired token, rate limit, network error) is *not* a `false`; exclude the number this cycle rather than treating an unconfirmed check as "no open PR", which would re-dispatch precisely when in-flight state could not be verified. **Fail open when the bound provider exposes no PR host:** the offline `local-markdown` binding is never a coordination surface and touches no network tool ([`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md`](${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md) "local-markdown adapter"), so when no PR-host operation is available this filter has nothing to query — keep the candidate rather than blocking or reaching for a network tool.
 
 Tiers flagged `last-resort: true` are skipped if any prior tier yielded a candidate.
 

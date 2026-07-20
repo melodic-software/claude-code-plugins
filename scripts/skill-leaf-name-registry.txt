@@ -1,0 +1,72 @@
+# Skill leaf names deliberately carried by more than one plugin. Read by
+# check-skill-leaf-names.sh --check.
+#
+# Format, one entry per line:
+#
+#   <leaf-name> <owner1>,<owner2>,...   accepted for exactly this owner set
+#   <leaf-name> *                       owner set is open by contract
+#
+# The owner set is part of the entry, not decoration. A new plugin joining an
+# already-accepted collision changes the collision being accepted, and has to be
+# argued on its own merits -- registering the bare name would silently
+# pre-authorize every later owner. Owners are sorted; the check compares sets,
+# not order. `*` is reserved for a name whose owner set is fixed by a contract
+# that already decided the question, where re-arguing each new owner would be
+# ceremony with no decision in it.
+#
+# --check fails three ways: an unregistered collision, a registered one whose
+# owner set has changed, and an entry that no longer collides at all (which has
+# outlived its reason and would otherwise pre-authorize a future name).
+#
+# Every one of these is separately invocable -- namespacing guarantees that, and
+# the philosophy's Naming section is explicit that a name is never degraded to
+# dodge a collision. What a shared leaf name costs is legibility: the picker
+# labels the row by this name, so the entries read identically and are told
+# apart only by the `(<plugin-name>)` prefix on the description. That is the
+# cost each entry below is accepted at, and the reason each description's first
+# clause has to name its object.
+
+# Contract-mandated, open owner set. docs/PLUGIN-PHILOSOPHY.md (Setup) fixes the
+# name for every plugin that ships consumer configuration; uniformity IS the
+# contract, so a new plugin adopting it is conformance, not a new decision. Not
+# consolidatable: ${CLAUDE_PLUGIN_ROOT} resolves per containing plugin and there
+# is no cross-plugin skill inheritance, so each plugin owns its own.
+setup *
+
+# Fixed verb meaning: read-only findings report (PLUGIN-PHILOSOPHY.md, Naming
+# verb table). The namespace supplies the object in every case. Qualifying the
+# verb per plugin would say the same thing twice; a topic qualifier is reserved
+# for siblings WITHIN one namespace (audit-noise beside audit-encapsulation).
+audit claude-config,claude-memory,codebase-health,machine-health,mcp-tools,repo-fleet-hygiene
+
+# Fixed verb meaning: deterministic pass/fail gate. skill-quality checks a
+# skill, toolchain checks a build.
+check skill-quality,toolchain
+
+# Fixed verb meaning: mutates the target. disk-hygiene cleans an arbitrary
+# directory tree, repo-hygiene cleans a repository's caches and git metadata.
+clean disk-hygiene,repo-hygiene
+
+# D19, kept on merit. songwriting diagnoses a song, testing diagnoses a failing
+# suite -- unrelated domains, and the namespace disambiguates.
+diagnose songwriting,testing
+
+# D19, kept on merit. planning:plan is the root-echo core action of its domain;
+# testing:plan is a test-strategy plan. The bare token still belongs to the
+# built-in plan-mode toggle, which neither shadows.
+plan planning,testing
+
+# D19, kept on merit. session-flow:workflow routes a development session,
+# songwriting:workflow routes a writing session.
+workflow session-flow,songwriting
+
+# Fixed verb meaning: refreshes vendored upstream material (PLUGIN-PHILOSOPHY.md,
+# Naming verb table). firecrawl:update syncs the firecrawl wrapper skill against
+# the upstream firecrawl-cli release and SKILL.md source; playbooks:update syncs
+# each vendored pack against its own upstream. Same maintainer-facing sync
+# contract; the namespace supplies the object.
+update firecrawl,playbooks
+
+# Fixed verb meaning: produces an artifact. bug-report writes a report, testing
+# writes tests.
+write bug-report,testing

@@ -124,6 +124,43 @@ if ! git rev-parse --verify --quiet "${base}^{commit}" >/dev/null; then
   exit 2
 fi
 
+# Scope the bump check to plugins THIS change set actually touched. A stale
+# branch whose base ref (main) has advanced an UNTOUCHED plugin's version must
+# not red-line on it and force a merge-from-main — the untouched plugin is not in
+# the PR's own diff. Three-dot base...HEAD is diff(merge-base(base,HEAD), HEAD),
+# i.e. only the commits unique to this branch, so a version main advanced after
+# the branch forked is excluded whether CI checks out the PR head or the
+# auto-merge commit. The filter keys on the MANIFEST path, not the plugin root:
+# the gate compares .version in exactly plugins/<name>/.claude-plugin/plugin.json,
+# so a version bump is definitionally a change to that file — manifest-scoping is
+# precisely "plugins whose version this change set could have changed," and (unlike
+# plugin-root scoping) a cosmetic touch elsewhere under the plugin dir cannot pull
+# a main-only advance back into scope.
+declare -A bumped_candidate
+# Read the change set's touched paths via COMMAND substitution, not process
+# substitution: this gate is a required CI merge check, and a git failure here
+# must fail loud, never silently pass. Process substitution swallows git's exit
+# status, so a diff that genuinely cannot be computed (e.g. no common ancestor
+# between "$base" and HEAD -> "fatal: no merge base", exit 128) would yield an
+# empty result, skip every plugin's bumped_candidate guard below, and let the
+# gate exit 0 without checking anything (fail-open). Command substitution
+# propagates that non-zero status so the guard fires. A legitimate empty diff
+# ("zero files changed") succeeds with empty output and correctly leaves
+# bumped_candidate empty.
+if ! diff_paths="$(git diff --name-only "$base...HEAD")"; then
+  echo "check-changelog-parity: 'git diff --name-only $base...HEAD' failed (no common ancestor between '$base' and HEAD, or history not fetched deeply enough); refusing to pass without checking." >&2
+  exit 2
+fi
+while IFS= read -r path; do
+  case "$path" in
+  plugins/*/.claude-plugin/plugin.json)
+    rest="${path#plugins/}"
+    bumped_candidate["${rest%%/*}"]=1
+    ;;
+  *) ;;
+  esac
+done <<<"$diff_paths"
+
 undocumented=0
 malformed=0
 preexisting=0
@@ -131,6 +168,11 @@ for manifest in "${manifests[@]}"; do
   plugin_dir="${manifest%/.claude-plugin/plugin.json}"
   name="${plugin_dir##*/}"
   changelog="$plugin_dir/CHANGELOG.md"
+
+  # Only plugins whose manifest this change set touched are in scope (see the
+  # bumped_candidate note above); a plugin main advanced but this branch never
+  # touched is not the PR's to document.
+  [[ -n "${bumped_candidate[$name]:-}" ]] || continue
 
   base_version="$(git show "$base:$manifest" 2>/dev/null | jq -r '.version // empty' 2>/dev/null || true)"
   # Absent at base => new plugin in this change set; the static --check owns

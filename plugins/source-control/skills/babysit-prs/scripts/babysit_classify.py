@@ -212,18 +212,28 @@ def is_bot(
 def actor_kind(
     item: dict[str, Any], config: FeedbackConfig = DEFAULT_FEEDBACK_CONFIG
 ) -> str:
-    """Classify actors from authoritative type metadata, then exact fallbacks."""
+    """Classify actors from authoritative type metadata, then exact fallbacks.
+
+    An explicitly configured `extra_bot_logins` identity outranks a `User`
+    typename: a bot account whose metadata misreports it as a user is the one
+    case that field exists for, so the operator's declaration wins over the
+    structural signal, matching `is_bot`, which already ignores any non-`Bot`
+    typename. An unconfigured caller (the empty default) never reaches this
+    override and classifies from structure alone.
+    """
     author = item.get("author")
+    login = author_login(item).casefold()
     if is_json_object(author):
         typename = str(author.get("__typename") or "")
         if typename == "Bot" or author.get("is_bot") is True:
+            return "bot"
+        if config.extra_bot_logins and is_bot(login, None, config.extra_bot_logins):
             return "bot"
         if (
             typename in {"Mannequin", "Organization", "User"}
             or author.get("is_bot") is False
         ):
             return "human"
-    login = author_login(item).casefold()
     return "bot" if is_bot(login, None, config.extra_bot_logins) else "human"
 
 

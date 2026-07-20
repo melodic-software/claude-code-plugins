@@ -18,6 +18,15 @@ All notable changes to the `code-tidying` plugin are documented here. Format fol
   migrated (`shell-tooling`, tracked in #724) are unchanged. Follow-up: the single-layer gap — no
   user-global or `*.local.*` overlay — is tracked in #723, not folded in here.
 
+## [0.6.1]
+
+### Changed
+
+- Documentation-only: the License section now states the plugin's own MIT
+  license inline and no longer points at a `LICENSE` file at the repository
+  root, which an installed consumer running from the isolated plugin cache
+  cannot reach. No behavior change.
+
 ## [0.6.0]
 
 ### Changed

@@ -153,6 +153,15 @@ Applying that precedence, the grammar of an invocation is `/<namespace>:<skill>`
 The one residual caution is model-side: avoid a skill leaf name *identical* to a bundled skill's
 (auto-invocation ambiguity when the model matches descriptions); similarity alone is fine.
 
+**That namespace guarantee covers invocation, not the slash-command listing.** The picker labels a
+row with the skill's short name and keeps the namespaced form as a hidden alias, so a leaf name
+shared across plugins reads identically in the list even though each is separately invocable; the
+plugin name reaches the reader through the description, which renders as `(<plugin-name>)
+<description>`. See the philosophy's Naming section for the full display contract. Two consequences
+for this playbook: prefix typeahead groups a family by its **leaf** name, which is what the
+base-concept-first rule above is buying; and a deliberately shared leaf name (`setup` across every
+plugin that ships one) is legible only if each description's first clause names its object.
+
 ## Extensibility model — what works today
 
 These are the proven, documented mechanisms for consumer customization that do not confuse the agent.
