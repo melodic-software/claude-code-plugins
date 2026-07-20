@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "review",
-  "version": "0.14.4",
+  "version": "0.14.5",
   "description": "Code-review toolkit: six read-only reviewer agents (code, security, architecture, doc drift, build/test/lint, CI-log audit) plus two orchestration skills — a single-lens quality gate and a multi-surface review fan-out with severity-ranked, deduplicated findings.",
   "author": {
     "name": "Melodic Software",
