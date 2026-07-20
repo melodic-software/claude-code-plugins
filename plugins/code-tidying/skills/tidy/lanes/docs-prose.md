@@ -11,9 +11,19 @@ README.md
 .claude/skills/*/**.md            # supporting prose files
 ```
 
-Adjust to the consuming project's actual documentation layout (a project lane at `.claude/tidy-lanes/docs-prose.md` overrides this file entirely).
+Retarget this to the consuming project's actual documentation layout with a project lane at `.claude/tidy-lanes/docs-prose.md`. A project `Scope` block **replaces** the globs above (see [Merge semantics](#merge-semantics)); it does not have to restate the sections it keeps.
 
 **Critical:** SKILL.md frontmatter (YAML between `---` markers) is HARD-EXCLUDED. The body (everything below the closing `---`) is in scope.
+
+## Merge semantics
+
+This lane is layered per the [consumer-config layering contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/consumer-config-layering/README.md) ("Merge semantics"). A project lane at `.claude/tidy-lanes/docs-prose.md` does **not** replace this file wholesale — it merges with the bundled lane **per section**, so bundled improvements to sections the project does not touch keep reaching the repo:
+
+- **`Scope`** — **per-section override.** A project `Scope` block replaces the bundled globs entirely; retargeting doc layout is the whole reason a project writes a lane, and two glob sets do not meaningfully concatenate. A project lane that omits `Scope` keeps the bundled globs.
+- **`Watch-for patterns`** — **additive (concatenate).** A project's watch-for entries are **appended** to the bundled P-1..P-6; the generic patterns are never frozen out, and new bundled patterns flow to the project on upgrade. A project adds repo-specific patterns here; it does not restate or replace the bundled ones.
+- **Every other section** (`Lane-specific extra exclusions`, `Verification commands`, `Conventional Commits type`, `Preferred research sources`) — **per-section override**, same as `Scope`: a section the project supplies replaces the bundled one; a section it omits keeps the bundled value.
+
+The presence of this section is what tells `/code-tidying:tidy` to read **both** the project lane and this bundled lane and merge them, rather than resolving the project lane alone.
 
 ## Watch-for patterns
 
