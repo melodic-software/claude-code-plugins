@@ -126,8 +126,7 @@ conservative (keep-leaning) verdict, and name the audience in the output.
 For a load-bearing or contested `delete` / `convert-to-pointer`, do not trust
 this context's judgment of derivability: having read the document, it knows the
 answers and will overestimate how re-derivable they were. That is a self-grade,
-and the fix is a fresh set of eyes (`docs/PLUGIN-PHILOSOPHY.md`, "Fresh-eyes
-checkpoints").
+and the fix is a fresh set of eyes — a context that never saw the document.
 
 1. Spawn a **fresh-context, non-fork subagent** (e.g. an `Explore` agent). It
    must NOT be shown the document and must NOT be a `context: fork` (a fork

@@ -21,7 +21,7 @@ Read-only classifier: it surfaces a verdict per document with the reasoning; the
 
 ## The rubric — four factors, never derivability alone
 
-A verdict is never "derivable, therefore delete." Derivability is one factor of four; weigh all four together. Full scoring guidance, factor definitions, the Diataxis fact-ownership mapping, and worked examples: `context/rubric.md`.
+A verdict is never "derivable, therefore delete." Derivability is one factor of four; weigh all four together. `context/rubric.md` holds the scoring detail this file only summarizes: factor definitions, the Diataxis fact-ownership mapping, the audience cost model, the spot-test protocol, and worked examples. Load it when a verdict is close.
 
 | Factor | Question | Pushes toward |
 |---|---|---|
@@ -41,26 +41,20 @@ Fact ownership is the trump card: a document that owns even one non-derivable fa
 | `keep-as-derivation-cache` | The content is derivable but re-derivation is expensive enough that a cached rendering earns its keep — IF the cache cannot silently rot. | Derivable + high re-derivation cost + **a drift-control condition is present**: a regeneration/verification path, or a recorded recheck trigger. Absent that condition, this verdict **demotes** to `convert-to-pointer` or `delete`. |
 | `keep-owns-facts` | The document owns at least one non-derivable fact (rationale, decision, constraint, external fact, cross-cutting invariant). | Any owned non-derivable fact. Route the derivable remainder to the trimming siblings. |
 
-**Cache demotion is mandatory, not advisory.** A "keep as cache" verdict with no regeneration path and no recheck trigger is an unmaintained copy waiting to drift out of sync with its source — the exact failure the point-don't-copy discipline exists to prevent. Demote it.
+A cache verdict with no regeneration path and no recheck trigger is an unmaintained copy that drifts silently from its source — demote it (the standing rule below; the why is in `context/rubric.md`).
 
 ## Audience-awareness
 
-Derivation cost is paid by the reader, and the two reader classes pay differently. Classify each document's primary audience; when a document serves both, classify it for each and take the more conservative (keep-leaning) verdict.
-
-- **Agent-facing surfaces** (`CLAUDE.md`, `AGENTS.md`, `.claude/rules/`, skill bodies, agent prompts): an agent re-derives by exploring on demand, and exploration is cheap. Redundant context is a standing token tax on every session that loads it. Apply the full axe — the deletion bar is low, and "an agent could just look" is usually decisive.
-- **Human-facing docs** (onboarding guides, READMEs, tutorials, architecture explainers): a human's re-derivation cost is far higher — they cannot grep the whole codebase in a second, and a good explainer saves every future reader that cost. The deletion bar is higher; weigh human derivation cost, not agent derivation cost.
-
-The same literal content can be worth deleting on an agent surface and worth keeping on a human surface. Name the audience in every verdict.
+Re-derivation cost is paid by the reader, and agent-facing and human-facing readers pay differently — the same content can score differently by audience. Classify each document's primary audience and name it in the verdict; a document serving both is classified for each, taking the more conservative (keep-leaning) verdict. Agent-facing surfaces (`CLAUDE.md`, `AGENTS.md`, `.claude/rules/`, skill and agent bodies) get the full axe — exploration is cheap and redundant context is a standing token tax. Human-facing docs (onboarding, READMEs, tutorials, architecture explainers) clear a higher bar — human re-derivation cost is real. Cost model and examples: `context/rubric.md`.
 
 ## Establishing derivability
 
-Do NOT guess derivability from a skim. Establish it in two passes, escalating only where the stakes justify it.
+Do NOT guess derivability from a skim. Two passes, escalating only where the stakes justify it:
 
-1. **Heuristic claim-source classification (every document).** Read the document and classify each load-bearing claim by where its truth lives: *code/config/structure* (derivable), *another tracked doc* (duplication — route to `/docs-hygiene:extract-ssot`), or *nowhere else — rationale/decision/constraint/external* (owned, non-derivable). The mix drives a provisional verdict.
+1. **Heuristic claim-source classification (every document).** Classify each load-bearing claim by where its truth lives — *code/config/structure* (derivable), *another tracked doc* (duplication → `/docs-hygiene:extract-ssot`), or *nowhere else* (owned, non-derivable) — and let the mix drive a provisional verdict.
+2. **Empirical spot-test (load-bearing or contested deletions only).** Once this context has read the document it knows the answers and will overestimate how derivable they were — a self-grade. Confirm a `delete`/`convert-to-pointer` by delegating to a **fresh-context, non-fork subagent** (e.g. `Explore`) that has NOT seen the document: it reproduces the document's conclusions from native exploration only, then compare. Convergence confirms derivable; divergence means the document owns something exploration could not recover — keep it. Never a `context: fork` — a fork inherits this context's contamination. Full protocol: `context/rubric.md`.
 
-2. **Empirical spot-test (contested or load-bearing deletion candidates only).** A skim is not proof, and there is a structural trap: once THIS context has read the document, it knows the answers and will overestimate how derivable they were. Judging derivability from the contaminated context is a self-grade. So confirm a confident `delete` or `convert-to-pointer` on any load-bearing or contested document by delegating to a **fresh-context, non-fork subagent** that has NOT seen the document: give it the questions the document answers (or ask it to reproduce the document's key conclusions) using only native repository exploration, then compare. Convergence confirms derivable; divergence or failure means the document owns something exploration could not recover — keep it. A fork inherits this context's history and the same contamination, so it must be a fresh named subagent (e.g. `Explore`), never `context: fork` (fresh-eyes-checkpoint rationale, `docs/PLUGIN-PHILOSOPHY.md`).
-
-The spot-test is gated by stakes: an obviously trivial derivable file (an auto-generated index, a doc that is verbatim a config file) does not need it; a doc someone will miss if it is wrong to delete does.
+Gate the spot-test by stakes: skip it for an obviously trivial derivable file (an auto-generated index, a verbatim config restatement); run it whenever being wrong about the deletion costs a reader something real.
 
 ## Action router
 
@@ -137,7 +131,6 @@ After the ledger, OFFER to route actionable verdicts (delete / convert-to-pointe
 ## Sources
 
 - [Diátaxis](https://diataxis.fr) — the four documentation modes; the fact-ownership factor leans on its separation of derivable reference material from explanation, which owns the non-derivable *why*.
-- `docs/PLUGIN-PHILOSOPHY.md` "Fresh-eyes checkpoints" — the fresh-context non-fork mandate behind the empirical spot-test.
 
 ## Recheck triggers
 

@@ -4,11 +4,14 @@
     {
       "id": 1,
       "name": "derivable-restatement-verdict",
-      "prompt": "Is this doc worth keeping? Read evals/fixtures/derivable-config-restatement.md relative to the skill directory and audit its derivability.",
-      "expected_output": "Classifies the document as derivable — every claim (port, timeout, retry count, env vars, image source) restates values that a config file, Dockerfile, and deploy manifest already own. Returns a verdict of `delete` or `convert-to-pointer` (a one-line pointer to the config as source of truth), naming the audience and noting that a load-bearing deletion would be confirmed by a fresh-context spot-test. No file is edited.",
-      "files": ["evals/fixtures/derivable-config-restatement.md"],
+      "prompt": "Is this doc worth keeping? Read evals/fixtures/derivable-with-source/runtime-settings.md relative to the skill directory and audit its derivability. The values it states come from evals/fixtures/derivable-with-source/settings.json in the same directory.",
+      "expected_output": "Classifies the document as derivable — every claim (port 8080, 30s timeout, 3 retries, /healthz, /readyz, info) restates a value that settings.json already owns. The spot-test is empirically demonstrable: a fresh agent reading settings.json reproduces every conclusion. Returns `delete` or `convert-to-pointer` (a one-line pointer to settings.json as source of truth), names the audience, and reports the four factors. No file is edited.",
+      "files": [
+        "evals/fixtures/derivable-with-source/runtime-settings.md",
+        "evals/fixtures/derivable-with-source/settings.json"
+      ],
       "expectations": [
-        "The document is classified as derivable — the claims restate config/Dockerfile/deploy-manifest values",
+        "The document is classified as derivable — each claim maps to a value in settings.json",
         "The verdict is `delete` or `convert-to-pointer`, not `keep-owns-facts`",
         "The output names the primary audience and reports the four factors (derivable, re-derivation cost, drift risk, fact ownership)",
         "No file is edited — the classifier is read-only"
@@ -85,6 +88,18 @@
         "Explicitly uses a non-fork subagent and rejects `context: fork` (fork inherits the contaminated context)",
         "Frames self-judgment from the doc-contaminated context as unreliable (self-grade / fresh-eyes rationale)",
         "Treats divergence/failure of the fresh agent as evidence the doc owns non-derivable facts (keep)"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "cache-verdict-holds-with-drift-control",
+      "prompt": "A doc is a generated architecture-dependency table synthesized from many modules — genuinely expensive to reconstruct by hand. It is produced by a committed `scripts/gen-dep-table.sh` and its header records the recheck trigger 'regenerate when module boundaries change'. Audit its derivability.",
+      "expected_output": "Lands on `keep-as-derivation-cache` and does NOT demote: the content is derivable but expensive to re-derive AND a drift-control condition is present (a regeneration script plus a recorded recheck trigger), so the cache cannot silently rot. This is the positive counterpart to the demotion case — the drift-control condition is exactly what earns the cache its keep. Output records the regeneration path / recheck trigger as the thing that keeps it honest.",
+      "files": [],
+      "expectations": [
+        "The verdict is `keep-as-derivation-cache` (not demoted to delete / convert-to-pointer)",
+        "The output credits the drift-control condition (regeneration script + recorded recheck trigger) as what earns the keep",
+        "Distinguishes this from the no-drift-control case, which would demote"
       ]
     },
     {
