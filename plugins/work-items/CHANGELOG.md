@@ -3,6 +3,37 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.0]
+
+Close the work-item-tracker seam's container read-verb gap (`#498`): the seam reserves `work-map`
+containers as a first-class use case but had no way to operate one within scope. The frontier was
+repo-global only, its rows dropped parent linkage, an unassigned/unblocked container surfaced as its
+own frontier item, and no verb enumerated a container's children — collectively blocking a clean
+container-based consumer (surfaced by the `#416` wayfind-routing planning pass). Related but distinct:
+`#416` (the wayfind consumer) and `#379` (the Jira adapter, a different backend).
+
+### Added
+
+- **`list-sub-items <parent-id> [--state open|closed|all]` (new seam + adapter verb).** Enumerates a
+  container's DIRECT children as full normalized item objects (same `{items:[…]}` envelope as
+  `list-items`), each re-parented to the container. Raw enumeration — closed and nested-container
+  children are kept, so the "decisions-so-far" closed-children invariant check and sub-map traversal
+  both have a seam path. `--state` defaults to `all`. Both adapters implement it: the GitHub adapter
+  resolves children through the native `subIssues` link and intersects with `list-items` (its list
+  surface omits parent linkage), so its truncation bound is `list-items`' own (`list_items_max`);
+  the offline `local-markdown` adapter matches on the stored `parent` frontmatter.
+- **`list-frontier --parent <container-id>` (container-scoped frontier).** Scopes the frontier to one
+  container's children — core reads `list-sub-items` for that container instead of the repo-global
+  `list-items`, then applies the identical filter. Gates on the adapter's `list-sub-items` capability.
+
+### Fixed
+
+- **A container is never its own frontier item (`#498` obs #3).** `list-frontier` now excludes any item
+  carrying the container label (`work-map`) unconditionally — global and `--parent`-scoped alike, and
+  under `--autonomous` — fixing the correctness wart where an unassigned, unblocked container passed the
+  frontier filter and surfaced itself. The container label is a named constant (`WIT_CONTAINER_LABEL`)
+  matching the CONTRACT term; per-repo remapping is deferred to the `config.role_labels` convention.
+
 ## [0.15.0]
 
 Close the work-items entry-invariant gap where a missing provider binding (`.work-item-tracker.json`)

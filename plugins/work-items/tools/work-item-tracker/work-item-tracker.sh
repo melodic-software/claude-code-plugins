@@ -56,7 +56,8 @@ Verbs:
   reclaim <id>
   link-blocks <id> --blocked-by <id>
   add-sub-item <id> --parent <id>
-  list-frontier [--autonomous] [--repo <owner>/<repo>]
+  list-sub-items <parent-id> [--state open|closed|all]
+  list-frontier [--autonomous] [--parent <container-id>] [--repo <owner>/<repo>]
   capabilities
 Contract: tools/work-item-tracker/CONTRACT.md
 EOF
@@ -113,9 +114,22 @@ main() {
 
   local adapter_verb="$verb"
   case "$verb" in
-  create-item | get-item | claim | renew-lease | reclaim | link-blocks | add-sub-item | capabilities) ;;
+  create-item | get-item | claim | renew-lease | reclaim | link-blocks | add-sub-item | list-sub-items | capabilities) ;;
   list-frontier)
+    # Frontier is a core-side derivation over the adapter's list surface: the
+    # global frontier reads list-items; a container-scoped frontier (--parent)
+    # reads list-sub-items. The scoped verb is chosen HERE, before the capability
+    # gate below, so an adapter that supports list-items but not list-sub-items
+    # degrades explicitly (exit 6) instead of passing the gate then failing the
+    # scoped call.
     adapter_verb="list-items"
+    local a
+    for a in "$@"; do
+      if [[ "$a" == "--parent" ]]; then
+        adapter_verb="list-sub-items"
+        break
+      fi
+    done
     ;;
   *)
     usage
@@ -131,12 +145,20 @@ main() {
 
   local out rc
   if [[ "$verb" == "list-frontier" ]]; then
-    local autonomous="false" list_args=()
+    local autonomous="false" parent="" list_args=()
     while [[ $# -gt 0 ]]; do
       case "$1" in
       --autonomous)
         autonomous="true"
         shift
+        ;;
+      --parent)
+        [[ $# -ge 2 ]] || {
+          usage
+          exit "$EX_USAGE"
+        }
+        parent="$2"
+        shift 2
         ;;
       --repo)
         [[ $# -ge 2 ]] || {
@@ -152,12 +174,21 @@ main() {
         ;;
       esac
     done
-    out="$(bash "$adapter_dir/list-items.sh" --state open "${list_args[@]+"${list_args[@]}"}")"
+    if [[ -n "$parent" ]]; then
+      # Container-scoped frontier: enumerate the container's children (the
+      # container's own repo is carried by its qualified id, so --repo does not
+      # re-target here) and apply the same filter — including container exclusion,
+      # so a nested sub-map among the children is never itself a frontier item.
+      out="$(bash "$adapter_dir/list-sub-items.sh" "$parent" --state open)"
+    else
+      out="$(bash "$adapter_dir/list-items.sh" --state open "${list_args[@]+"${list_args[@]}"}")"
+    fi
     rc=$?
     if ((rc != 0)); then
       exit "$rc"
     fi
-    printf '%s\n' "$out" | wit_strip_cr | wit_filter_frontier "$autonomous" "${WIT_HUMAN_GATED_LABEL:-needs-human}"
+    printf '%s\n' "$out" | wit_strip_cr |
+      wit_filter_frontier "$autonomous" "${WIT_HUMAN_GATED_LABEL:-needs-human}" "$WIT_CONTAINER_LABEL"
     exit 0
   fi
 

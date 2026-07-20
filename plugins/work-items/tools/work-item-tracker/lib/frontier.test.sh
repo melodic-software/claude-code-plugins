@@ -51,4 +51,36 @@ SPARSE='{"schema_version":"1.0","items":[{"id":"github:o/r#9","state":"open","bl
 OUT="$(wit_filter_frontier true <<<"$SPARSE")"
 assert_eq "sparse item survives filters" "1" "$(jq '.items | length' <<<"$OUT")"
 
+# Container exclusion (issue #498 obs #3): a container item (default work-map
+# label) that is itself open/unassigned/unblocked must never surface as its own
+# frontier item — unconditionally, not only under --autonomous.
+CONTAINERS='{
+  "schema_version": "1.0",
+  "items": [
+    {"id":"github:o/r#1","state":"open","assignees":[],"labels":[],"blocked_by_count":0},
+    {"id":"github:o/r#10","state":"open","assignees":[],"labels":["work-map"],"blocked_by_count":0}
+  ]
+}'
+OUT="$(wit_filter_frontier false <<<"$CONTAINERS")"
+IDS="$(jq -r '[.items[].id] | join(",")' <<<"$OUT")"
+assert_eq "default frontier excludes the container (work-map)" "github:o/r#1" "$IDS"
+OUT="$(wit_filter_frontier true <<<"$CONTAINERS")"
+IDS="$(jq -r '[.items[].id] | join(",")' <<<"$OUT")"
+assert_eq "autonomous frontier also excludes the container" "github:o/r#1" "$IDS"
+
+# A non-default container label passed explicitly is honored (parity with the
+# human-gated remap path); the stale default no longer excludes.
+REMAP_CONTAINER='{
+  "schema_version": "1.0",
+  "items": [
+    {"id":"github:o/r#1","state":"open","assignees":[],"labels":[],"blocked_by_count":0},
+    {"id":"github:o/r#10","state":"open","assignees":[],"labels":["work-map"],"blocked_by_count":0},
+    {"id":"github:o/r#11","state":"open","assignees":[],"labels":["decision-map"],"blocked_by_count":0}
+  ]
+}'
+OUT="$(wit_filter_frontier false "needs-human" "decision-map" <<<"$REMAP_CONTAINER")"
+IDS="$(jq -r '[.items[].id] | join(",")' <<<"$OUT")"
+assert_eq "explicit container label excludes the remap, not the stale default" \
+  "github:o/r#1,github:o/r#10" "$IDS"
+
 [[ $FAILED -eq 0 ]] || exit 1
