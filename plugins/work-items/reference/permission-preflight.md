@@ -46,22 +46,34 @@ What it covers, at a glance (read the component for the authoritative list):
 The preflight probes a small representative subset of the allow floor — `git add`, `git commit`,
 `git push`, `gh pr create`, `gh issue comment` (a commit flow stages before it commits, so `git add`
 is probed too) — reading the effective `permissions.allow` from the operator's user-global settings
-and the project's `.claude/settings.json` / `settings.local.json`. It never runs a live permission
-probe. A verb counts as covered only by an **open** grant — the bare verb (`Bash(git commit)`) or
-its open-glob form (`Bash(git commit *)` / `Bash(git commit:*)`). A narrower, flag-scoped rule
-(`Bash(git commit --amend)`, a force-with-lease-only push rule) is **not** coverage: the lane's
-arbitrary `git commit` / `git push` would still prompt, so it is reported as a gap. A missing verb
-means the floor is not composed in on this machine; the remediation is to apply the component
-operator-side, not to add a one-off rule.
+and the project settings. It never runs a live permission probe. A verb counts as covered only by an
+**open-glob** grant — `Bash(git commit *)` or `Bash(git commit:*)`. A **bare-exact** rule
+(`Bash(git commit)`) is **not** coverage: it permits only the argumentless command, and a lane
+invocation always carries arguments, so the real call would still prompt. A narrower, flag-scoped
+rule (`Bash(git commit --amend)`, a force-with-lease-only push rule) is likewise not coverage. A
+missing verb means the floor is not composed in on this machine; the remediation is to apply the
+component operator-side, not to add a one-off rule.
 
 **Deny wins over allow.** Because `permissions.deny` overrides `permissions.allow` in the permission
 model, the check first tests each probed verb against the effective **deny** rules: a deny rule of
-the bare verb or its open-glob form keeps the verb a gap (reported distinctly as *denied*, not
-*missing*) even when an identical allow rule exists — the lane still cannot run it. This deny match
-is **exact-shape only**: it does not simulate glob semantics, so a broader deny pattern that would
-match the verb at runtime (a wildcard spanning it) is not caught here. That conservatism is
-deliberate — it never false-flags the standard deny floor, whose destructive-verb rules are
-flag-scoped (`git push --force …`) rather than the bare `git push` / `git commit` / `git add` shape.
+the verb (bare, or its open-glob form) keeps the verb a gap (reported distinctly as *denied*, not
+*missing*) even when an identical allow rule exists — the lane still cannot run it. Deny matching
+deliberately errs **wider** than coverage — it also counts the bare-exact spelling, because a
+false *denied* report is safe whereas a missed one is not. It is still **exact-shape only**: it does
+not simulate glob semantics, so a broader deny pattern that would match the verb at runtime (a
+wildcard spanning it) is not caught here. That conservatism never false-flags the standard deny
+floor, whose destructive-verb rules are flag-scoped (`git push --force …`) rather than the bare
+`git push` / `git commit` / `git add` shape.
+
+**The autonomous path ignores this checkout's `settings.local.json`.** `settings.local.json` is
+gitignored, so a fresh linked worktree the lane dispatches a worker into carries this checkout's
+tracked `.claude/settings.json` but **not** its local file — a grant that lives only in local here
+would be absent there, and reading it would mask a worker-side gap. So when `--worktree-root` is
+passed (the autonomous signal), the **coverage** reads (allow + `additionalDirectories`) use
+user-global + tracked project settings only, and the report header says so. The interactive/default
+path (no `--worktree-root`) keeps local settings in scope. Deny always reads local regardless — the
+same err-wide rationale. Pair this with `--project-root <worker-worktree>` (below) to read the
+worker's own tracked project settings instead of this checkout's.
 
 ## The trusted worktree root — `additionalDirectories`
 

@@ -45,7 +45,9 @@ Usage: preflight.sh [--worktree-root <path>] [--project-root <path>] [--count] [
 
   (no arg)          print one line per condition, then a PREFLIGHT summary; exit 0
   --worktree-root P check that some permissions.additionalDirectories entry covers P
-                    (also read from PREFLIGHT_WORKTREE_ROOT); omitted → NOTE, not checked
+                    (also read from PREFLIGHT_WORKTREE_ROOT); omitted → NOTE, not checked.
+                    The autonomous signal: coverage reads then exclude this checkout's
+                    gitignored settings.local.json (a fresh worktree lacks it)
   --project-root P  read project settings from P's checkout instead of the cwd's
                     (also read from PREFLIGHT_PROJECT_ROOT) — pass the dispatched
                     worker worktree so its own grants are checked, not the main one's
@@ -134,31 +136,50 @@ read_array() {
 }
 
 collect() {
-  # collect <jq-path> — union the path across user-global + project settings.
-  local path="$1"
+  # collect <jq-path> <local-mode> — union the path across user-global + tracked
+  # project settings, plus the gitignored project settings.local.json only when
+  # <local-mode> is "with-local". A fresh linked worktree carries the tracked
+  # .claude/settings.json but NOT the gitignored settings.local.json, so in the
+  # autonomous (--worktree-root) path this checkout's local grants would mask a
+  # worker-side gap; the coverage reads drop local there. Deny always keeps local
+  # (erring wide on deny never masks a gap).
+  local path="$1" local_mode="$2"
   read_array "$user_settings" "$path"
   read_array "$proj_base/.claude/settings.json" "$path"
-  read_array "$proj_base/.claude/settings.local.json" "$path"
+  [[ "$local_mode" == "with-local" ]] && read_array "$proj_base/.claude/settings.local.json" "$path"
 }
 
-ALL_ALLOW="$(collect '.permissions.allow')"
-ALL_DENY="$(collect '.permissions.deny')"
-ALL_ADDDIRS="$(collect '.permissions.additionalDirectories')"
+# --worktree-root is the autonomous signal: exclude this checkout's local settings
+# from the COVERAGE reads (allow + additionalDirectories); the interactive/default
+# path keeps them. Deny always reads local.
+if [[ -n "$worktree_root" ]]; then
+  cov_local="no-local"
+else
+  cov_local="with-local"
+fi
+ALL_ALLOW="$(collect '.permissions.allow' "$cov_local")"
+ALL_DENY="$(collect '.permissions.deny' "with-local")"
+ALL_ADDDIRS="$(collect '.permissions.additionalDirectories' "$cov_local")"
 
 # --- Matchers -----------------------------------------------------------------
 verb_in_rules() {
-  # verb_in_rules <verb> <rules> — true when some Bash()/PowerShell() rule in the
-  # newline-separated <rules> is an OPEN-shape grant of <verb>: the bare verb
-  # (`git commit`) or its open-glob form (`git commit *` / `git commit:*`). A
-  # rule whose next token is a specific flag or argument (`git commit --amend`, a
-  # force-with-lease-only push) does NOT match — it is a narrower slice, so the
-  # lane's arbitrary invocation of the bare verb would still prompt (for allow)
-  # or still run (for deny). Exact-shape only, by deliberate design: this does
-  # NOT simulate glob semantics, so a broader deny pattern that would match the
-  # verb at runtime is not detected here. The `'*'` is a quoted literal asterisk,
-  # so each arm matches one exact rule spelling, not a prefix. Runs in the
-  # current shell (heredoc, not a pipe) so return escapes.
-  local verb="$1" rules="$2" rule inner
+  # verb_in_rules <verb> <rules> <match-bare> — true when some Bash()/PowerShell()
+  # rule in the newline-separated <rules> grants <verb> in an open shape: the
+  # open-glob form (`git commit *` / `git commit:*`), plus — only when
+  # <match-bare> is "bare" — the argumentless bare verb (`git commit`).
+  #   COVERAGE (allow) excludes bare: `Bash(git commit)` permits only the literal
+  #   argumentless command, and a lane invocation always carries args, so a
+  #   bare-exact allow does NOT cover the verb — the real call would still prompt.
+  #   DENY includes bare: erring wide on deny is safe (a bare deny still signals
+  #   the verb is off-limits).
+  # A rule whose next token is a specific flag or argument (`git commit --amend`,
+  # a force-with-lease-only push) never matches — it is a narrower slice.
+  # Exact-shape only, by deliberate design: this does NOT simulate glob semantics,
+  # so a broader deny pattern that would match the verb at runtime is not detected
+  # here. The `'*'` is a quoted literal asterisk, so each arm matches one exact
+  # rule spelling, not a prefix. Runs in the current shell (heredoc, not a pipe)
+  # so return escapes.
+  local verb="$1" rules="$2" match_bare="$3" rule inner
   while IFS= read -r rule; do
     [[ -n "$rule" ]] || continue
     case "$rule" in
@@ -168,17 +189,18 @@ verb_in_rules() {
     esac
     inner="${inner%)}"
     case "$inner" in
-      "$verb" | "$verb "'*' | "$verb:"'*') return 0 ;;
+      "$verb "'*' | "$verb:"'*') return 0 ;;
       *) ;;
     esac
+    [[ "$match_bare" == "bare" && "$inner" == "$verb" ]] && return 0
   done <<RULES
 $rules
 RULES
   return 1
 }
 
-verb_covered() { verb_in_rules "$1" "$ALL_ALLOW"; }
-verb_denied() { verb_in_rules "$1" "$ALL_DENY"; }
+verb_covered() { verb_in_rules "$1" "$ALL_ALLOW" "open-glob-only"; }
+verb_denied() { verb_in_rules "$1" "$ALL_DENY" "bare"; }
 
 normalize_path() {
   # Fold a path to one comparable form: backslashes → slashes, lower-case and
@@ -268,6 +290,10 @@ fi
 if [[ "$mode" == "count" ]]; then
   printf '%s\n' "$gapcount"
   exit 0
+fi
+
+if [[ -n "$worktree_root" ]]; then
+  echo "PREFLIGHT: autonomous mode (--worktree-root set) — coverage read excludes this checkout's gitignored settings.local.json, which a fresh worktree would not carry; deny rules still include it."
 fi
 
 if [[ "${#findings[@]}" -eq 0 ]]; then

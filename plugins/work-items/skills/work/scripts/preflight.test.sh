@@ -140,10 +140,11 @@ assert_eq "git add is the only missing verb → one gap" "1" "$(run "$REPO" "$CF
 
 # --- Case 6: verb spelling variants all recognized --------------------------
 CFG6="$TEST_TMPDIR/cfg6"
-# Exact (git push), starred (git commit *), colon (gh issue comment:*), and a
-# PowerShell-spelled rule (gh pr create) — every probe covered by a distinct form.
+# Space open-glob (git commit *), colon open-glob (gh issue comment:*), and a
+# PowerShell-spelled open glob (gh pr create *) — every probe covered by a
+# distinct open-glob form (a bare-exact rule is NOT coverage; see case 7c).
 write_settings "$CFG6" \
-  '["Bash(git add *)","Bash(git commit *)","Bash(git push)","PowerShell(gh pr create *)","Bash(gh issue comment:*)"]'
+  '["Bash(git add *)","Bash(git commit *)","Bash(git push *)","PowerShell(gh pr create *)","Bash(gh issue comment:*)"]'
 # No worktree-root arg → (c) is a note, so --count reflects only the (b) verb probe.
 assert_eq "all spelling variants recognized → 0 (b) gaps" "0" "$(run "$REPO" "$CFG6" --count)"
 OUT=$(run "$REPO" "$CFG6")
@@ -161,8 +162,7 @@ assert_contains "commit-tree does not cover commit" "$OUT" "'git commit'"
 CFG7B="$TEST_TMPDIR/cfg7b"
 # A flag-scoped commit rule and a force-with-lease-only push rule are narrower
 # than the plain verb — the lane's arbitrary `git commit` / `git push` would
-# still prompt — so they must NOT count as coverage; only the bare verb or its
-# open-glob form does.
+# still prompt — so they must NOT count as coverage; only an open-glob form does.
 write_settings "$CFG7B" \
   '["Bash(git add *)","Bash(git commit --amend)","Bash(git push --force-with-lease *)","Bash(gh pr create *)","Bash(gh issue comment *)"]'
 OUT=$(run "$REPO" "$CFG7B")
@@ -170,6 +170,16 @@ assert_contains "flag-specific commit rule leaves git commit a gap" "$OUT" "'git
 assert_contains "flag-specific push rule leaves git push a gap" "$OUT" "'git push'"
 assert_not_contains "the open gh pr create rule is not a gap" "$OUT" "'gh pr create'"
 assert_eq "two flag-masked verbs → two (b) gaps" "2" "$(run "$REPO" "$CFG7B" --count)"
+
+# --- Case 7c: a bare-exact allow rule is NOT coverage -----------------------
+CFG7C="$TEST_TMPDIR/cfg7c"
+# Bash(git commit) permits only the argumentless command; a lane invocation
+# always carries args, so a bare-exact allow must NOT count as covering the verb.
+write_settings "$CFG7C" \
+  '["Bash(git add *)","Bash(git commit)","Bash(git push *)","Bash(gh pr create *)","Bash(gh issue comment *)"]'
+OUT=$(run "$REPO" "$CFG7C")
+assert_contains "bare-exact commit rule leaves git commit a gap" "$OUT" "'git commit'"
+assert_eq "bare-exact allow → one gap" "1" "$(run "$REPO" "$CFG7C" --count)"
 
 # --- Case 8: worktree root not covered → GAP (c) ----------------------------
 CFG8="$TEST_TMPDIR/cfg8"
@@ -190,33 +200,37 @@ assert_contains "no root arg emits NOTE (c)" "$OUT" "NOTE (c)"
 assert_contains "NOTE (c) explains it was not checked" "$OUT" "not checked"
 assert_eq "no root arg is a note, not a gap" "0" "$(run "$REPO" "$CFG3" --count)"
 
-# --- Case 11: project settings.local.json is unioned in ---------------------
+# --- Case 11: interactive path unions in project settings.local.json --------
 REPO2="$TEST_TMPDIR/proj-local"
 mkdir -p "$REPO2"
 git init -q "$REPO2"
 PROJ="$(git -C "$REPO2" rev-parse --show-toplevel)"
 mkdir -p "$PROJ/.claude"
-# User-global misses gh pr create; project settings.local.json supplies it.
+# User-global misses gh pr create; project settings.local.json supplies it. The
+# interactive/default path (no --worktree-root) reads local, so the gap closes.
+# (The autonomous path excludes local — that is case 16.)
 CFG11="$TEST_TMPDIR/cfg11"
 write_settings "$CFG11" \
   '["Bash(git add *)","Bash(git commit *)","Bash(git push *)","Bash(gh issue comment *)"]' \
   "$WIN_ROOT"
 jq -n '{permissions:{allow:["Bash(gh pr create *)"]}}' >"$PROJ/.claude/settings.local.json"
-assert_eq "project settings.local.json closes the verb gap" "0" "$(run "$REPO2" "$CFG11" --count --worktree-root "$POSIX_CHILD")"
+assert_eq "interactive path reads settings.local.json" "0" "$(run "$REPO2" "$CFG11" --count)"
 
 # --- Case 12: --count is a bare integer -------------------------------------
 CNT=$(run "$NONREPO" "$CFG8" --count --worktree-root "$POSIX_CHILD")
 assert_eq "count of the one (c) gap (note (a) excluded)" "1" "$CNT"
 
 # --- Case 13: --project-root reads the worker worktree's own settings --------
-# The main checkout grants gh pr create in its project settings; a dispatched
-# worker worktree does not. Without --project-root the main grant MASKS the
-# worker gap; --project-root pointing at the worker surfaces it.
+# The main checkout grants gh pr create in its TRACKED project settings.json (a
+# fresh worktree would carry it too); a dispatched worker worktree here does not.
+# Without --project-root the main grant MASKS the worker gap; --project-root
+# pointing at the worker surfaces it. Tracked (not local) so it is independent of
+# the autonomous local-exclusion under test in case 16.
 MAINCO="$TEST_TMPDIR/main-checkout"
 git init -q "$MAINCO"
 MAINTOP="$(git -C "$MAINCO" rev-parse --show-toplevel)"
 mkdir -p "$MAINTOP/.claude"
-jq -n '{permissions:{allow:["Bash(gh pr create *)"]}}' >"$MAINTOP/.claude/settings.local.json"
+jq -n '{permissions:{allow:["Bash(gh pr create *)"]}}' >"$MAINTOP/.claude/settings.json"
 WORKER="$TEST_TMPDIR/worker-worktree"
 git init -q "$WORKER"
 # User-global carries the other three probe verbs plus the trusted root, but not
@@ -260,6 +274,26 @@ OUT=$(run "$REPO" "$CFG15")
 assert_contains "deny-only verb is a gap" "$OUT" "'git add'"
 assert_contains "deny-only gap has the DENIED message" "$OUT" "is DENIED"
 assert_eq "deny-only verb → exactly one gap" "1" "$(run "$REPO" "$CFG15" --count)"
+
+# --- Case 16: --worktree-root excludes settings.local.json from coverage -----
+# A grant present ONLY in this checkout's gitignored settings.local.json is not
+# carried by a fresh worktree. The interactive path reads local (gap closed); the
+# autonomous path (--worktree-root) drops local, so the worker-side gap surfaces.
+REPO3="$TEST_TMPDIR/local-mask"
+git init -q "$REPO3"
+PROJ3="$(git -C "$REPO3" rev-parse --show-toplevel)"
+mkdir -p "$PROJ3/.claude"
+CFG16="$TEST_TMPDIR/cfg16"
+# User-global carries four verbs plus the trusted root; local supplies gh pr create.
+write_settings "$CFG16" \
+  '["Bash(git add *)","Bash(git commit *)","Bash(git push *)","Bash(gh issue comment *)"]' \
+  "$WIN_ROOT"
+jq -n '{permissions:{allow:["Bash(gh pr create *)"]}}' >"$PROJ3/.claude/settings.local.json"
+assert_eq "interactive path reads local grant → no gap" "0" "$(run "$REPO3" "$CFG16" --count)"
+OUT=$(run "$REPO3" "$CFG16" --worktree-root "$POSIX_CHILD")
+assert_contains "autonomous path drops local → gh pr create gap surfaces" "$OUT" "'gh pr create'"
+assert_contains "report header notes the local exclusion" "$OUT" "settings.local.json"
+assert_eq "autonomous path drops local grant → one gap" "1" "$(run "$REPO3" "$CFG16" --count --worktree-root "$POSIX_CHILD")"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
