@@ -3,6 +3,29 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.4]
+
+### Changed
+
+- **`fanout` `fix` action no longer mutates the working tree unconfirmed in a
+  headless session.** The fix action's Step-3 confirmation gate previously
+  self-downgraded — "interactive sessions; non-interactive sessions proceed
+  without the gate" — so a headless `/review:fanout fix` applied correctness- and
+  cleanup-class fixes with no confirmation at all, in exactly the unattended
+  context where a human check matters most. The silent waiver is replaced with an
+  explicit opt-in flag mirroring the `ai-briefing:generate` `--yes` / `-y`
+  precedent ("Skip the pre-execution confirmation gate. Required for headless
+  runs."). Interactive `fix` is unchanged (emit plan, confirm, apply). Headless
+  `fix` WITHOUT `--yes` now emits the classification plan and STOPs, mutating
+  nothing — the plan is the report, so an operator reviews what would have been
+  applied and re-runs with the flag. Headless `fix` WITH `--yes` applies, then
+  writes a durable applied-plan record (`type: fix-pass-record`) into the branch
+  findings directory for after-the-fact review; the non-`review-findings` type
+  makes the fix-pass locator skip it so it is never re-consumed as findings.
+  Start-strict posture: loosening later is additive, tightening later would break
+  automations built against a permissive default. Implements the operator-accepted
+  direction on #435.
+
 ## [0.14.3]
 
 ### Fixed

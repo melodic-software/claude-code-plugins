@@ -25,7 +25,7 @@ Classification rules:
 
 ## Step 3: Plan + confirmation gate
 
-The fix action MUTATES the working tree. Before applying, emit the classification plan and confirm (interactive sessions; non-interactive sessions proceed without the gate):
+The fix action MUTATES the working tree — the only fanout action that does. ALWAYS emit the classification plan first:
 
 ```text
 Fix-pass plan — findings: <repo-relative-path> (<N> findings)
@@ -34,7 +34,16 @@ Fix-pass plan — findings: <repo-relative-path> (<N> findings)
 - Surface-only (<k>, need human judgment / unparsed)
 ```
 
-Honor scope narrowing ("only the correctness ones").
+Then gate on the session context and the `--yes` / `-y` flag (SKILL.md "Arguments"). Every side-effect path is explicitly gated — the gate never self-downgrades unattended:
+
+| Session | `--yes` | Gate |
+|---|---|---|
+| Interactive | absent | Confirm with the user before applying. Honor scope narrowing ("only the correctness ones"). |
+| Interactive | present | Skip the confirmation prompt and apply. |
+| Non-interactive (`CLAUDE_CODE_REMOTE`, `claude -p`, an autonomous loop) | absent | **STOP after the plan — mutate nothing.** The plan IS the report: an operator reviews what would have been applied, then re-runs with `--yes`. Fail-safe default — forgetting the flag pauses a lane for one cycle; the reverse mistake mutates a tree unconfirmed. |
+| Non-interactive | present | Apply, then write the applied-plan record (Step 5). |
+
+The `fix` argument opts INTO fix mode; `--yes` is the separate, explicit consent to mutate a tree with no human watching. A non-interactive session with no `--yes` is never consent.
 
 ## Step 4: Apply
 
@@ -61,6 +70,27 @@ Invoke the `/simplify` skill when available in the session; otherwise apply the 
 - Cleanup-class: `<n>` findings → what changed.
 - Correctness-class: `<m>` → `<applied>` fixed (list with file:line), `<surfaced>` surfaced for decision.
 - Unparsed / surface-only: `<k>` listed for manual handling.
+
+### Applied-plan record (headless apply only)
+
+When the apply ran under `--yes` in a non-interactive session, ALSO persist the applied plan as a durable record — a headless apply had no human watching it mutate the tree, so the record is the after-the-fact review surface. Interactive and headless-stop paths write no record (a human saw the interactive apply; the stop path mutated nothing). Run the self-ignore guard, then write into the same branch findings location (SKILL.md "Shared inputs") as `<UTC-timestamp>-fix-pass-applied.md` (`date -u +%Y%m%dT%H%M%SZ`, colon-free):
+
+```markdown
+---
+type: fix-pass-record
+date: <ISO-8601 UTC>
+branch: <branch>
+source-findings: <repo-relative path of the consumed findings file>
+---
+
+## Applied fix-pass plan
+
+- Cleanup-class (<n>) → /simplify: <what changed>
+- Correctness-class (<m>): <applied file:line list>; <surfaced> surfaced for decision
+- Surface-only / unparsed (<k>): <listed>
+```
+
+The `type: fix-pass-record` marker is deliberately NOT `review-findings`, so Step 1's locator skips this record and never re-consumes it as findings (the same frontmatter fence that already skips `quality-gate` reports). The record lands in the gitignored memory-tier findings dir, so it is checkout-local durable for the operator who ran the lane, not a committed artifact — matching this issue's "local, reversible" scope.
 
 Follow-up: after correctness-class fixes, re-run the review — the fixer confirming its own fix resolved a finding is the producer verifying its own work, and a fresh review pass re-fans-out to reviewers that did NOT apply the fix. Treat that re-review as **required** for correctness-class findings, not merely suggested; cleanup-class fixes are mechanical and behavior-preserving, so their `/simplify` verification stands on its own. Either way, run the project's build/test verification before committing — the fix action does NOT run builds or tests.
 
