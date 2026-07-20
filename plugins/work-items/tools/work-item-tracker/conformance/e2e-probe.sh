@@ -80,7 +80,7 @@ assert_eq "item2 parent is map" "$MAP_ID" "$(jq -r '.parent_id' <<<"$ITEM2")"
 assert_eq "item2 blocked" "1" "$(jq -r '.blocked_by_count' <<<"$ITEM2")"
 
 # 3. Frontier: item1 claimable, item2 blocked, and the map (a container) never
-# surfaces itself (issue #498 obs #3).
+# surfaces itself as its own frontier item.
 FRONTIER="$(wit list-frontier --repo "$REPO")"
 record "frontier before claim" "$FRONTIER"
 IDS="$(jq -c '[.items[].id]' <<<"$FRONTIER")"
@@ -88,7 +88,7 @@ assert_contains "frontier holds item1" "$IDS" "$ITEM1_ID"
 assert_not_contains "frontier hides blocked item2" "$IDS" "$ITEM2_ID"
 assert_not_contains "frontier excludes the unblocked container map" "$IDS" "$MAP_ID"
 
-# 3b. Sub-item enumeration + container-scoped frontier (issue #498). list-sub-items
+# 3b. Sub-item enumeration + container-scoped frontier. list-sub-items
 # returns BOTH children (raw enumeration keeps blocked/closed); the scoped
 # frontier applies the same filter as the global one — item1 in, blocked item2
 # out, and the map never its own frontier item.

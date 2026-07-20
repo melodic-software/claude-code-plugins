@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # End-to-end list-sub-items behavior through the core CLI against the offline
-# local-markdown store (issue #498): direct-child enumeration with state
+# local-markdown store: direct-child enumeration with state
 # filtering and parent stamping, the container-scoped frontier (list-frontier
 # --parent), and container exclusion from every frontier. Runs in CI, offline.
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced lib
@@ -71,7 +71,7 @@ assert_not_contains "scoped frontier drops the closed child C2" "$PFRONT" "$C2"
 assert_not_contains "scoped frontier drops the grandchild (not a direct child)" "$PFRONT" "$GC"
 assert_not_contains "scoped frontier never holds the container" "$PFRONT" "$MAP"
 
-# --- container exclusion from the GLOBAL frontier (issue #498 obs #3) ---
+# --- container exclusion from the GLOBAL frontier (a container never surfaces itself) ---
 GFRONT="$(bash "$TRACKER" list-frontier | jq -c '[.items[].id]')"
 assert_not_contains "global frontier excludes the unassigned/unblocked container" "$GFRONT" "$MAP"
 assert_contains "global frontier still holds the workable leaf" "$GFRONT" "$LEAF"

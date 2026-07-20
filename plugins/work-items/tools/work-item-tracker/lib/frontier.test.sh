@@ -51,7 +51,7 @@ SPARSE='{"schema_version":"1.0","items":[{"id":"github:o/r#9","state":"open","bl
 OUT="$(wit_filter_frontier true <<<"$SPARSE")"
 assert_eq "sparse item survives filters" "1" "$(jq '.items | length' <<<"$OUT")"
 
-# Container exclusion (issue #498 obs #3): a container item (default work-map
+# Container exclusion: a container item (default work-map
 # label) that is itself open/unassigned/unblocked must never surface as its own
 # frontier item — unconditionally, not only under --autonomous.
 CONTAINERS='{

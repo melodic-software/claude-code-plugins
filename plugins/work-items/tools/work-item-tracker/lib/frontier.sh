@@ -25,7 +25,7 @@ readonly WIT_CONTAINER_LABEL="work-map"
 # callers resolving a binding should pass WIT_HUMAN_GATED_LABEL (lib/binding.sh)
 # so a repo's configured remap is honored. container defaults to
 # WIT_CONTAINER_LABEL; a container item is dropped from every frontier
-# unconditionally (issue #498 obs #3 — a container must never surface itself).
+# unconditionally — a container must never surface itself.
 wit_filter_frontier() {
   local autonomous="${1:-false}" human_gated="${2:-needs-human}" container="${3:-$WIT_CONTAINER_LABEL}"
   jq -c --arg auto "$autonomous" --arg human_gated "$human_gated" --arg container "$container" '{
