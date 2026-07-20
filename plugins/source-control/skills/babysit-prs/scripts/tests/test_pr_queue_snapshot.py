@@ -150,13 +150,12 @@ class ResolveSelfLoginsTests(unittest.TestCase):
 HEAD = "a" * 40
 OBS = "2026-07-19T16:10:00Z"
 
-# Faithful abbreviation of the claude[bot] issue-comment review on
-# melodic-software/claude-code-plugins#492 (workflow run 29694104425): an
-# explicit **Approve** verdict whose only findings are two 🟡 nits, each
-# self-deprioritized, and no CRITICAL/IMPORTANT/P-severity marker anywhere. The
-# load-bearing tokens are the descriptive occurrences of the word "blocking"
-# ("blocking criteria", "blocking checks", "No blocking issues") that made the
-# old text heuristic misfire.
+# Faithful abbreviation of the claude[bot] issue-comment review captured from
+# workflow run 29694104425: an explicit **Approve** verdict whose only findings
+# are two 🟡 nits, each self-deprioritized, and no CRITICAL/IMPORTANT/P-severity
+# marker anywhere. The load-bearing tokens are the descriptive occurrences of
+# the word "blocking" ("blocking criteria", "blocking checks", "No blocking
+# issues") that made the old text heuristic misfire.
 APPROVE_WITH_NITS_BODY = (
     "**Claude finished @kyle-sexton's task** —— [View job](run/29694104425)\n\n"
     "### PR Review\n\n"
