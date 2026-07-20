@@ -30,6 +30,13 @@ plugins/autonomy/skills/setup/evals/fixtures/security-binding/c2-auto-unratified
 plugins/autonomy/skills/setup/evals/fixtures/security-binding/c3-blocking-unratified.json
 plugins/autonomy/skills/setup/evals/fixtures/security-binding/c4-auto-merge.json
 plugins/autonomy/skills/setup/evals/fixtures/security-binding/equal-specificity-tie.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/escalation-ack-invalid.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/escalation-ack-loop.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/escalation-push-without-channel.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/escalation-runner-route-missing.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/escalation-severity-bad-token.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/escalation-severity-tracker-only-valid.json
+plugins/autonomy/skills/setup/evals/fixtures/security-binding/escalation-severity-valid.json
 plugins/autonomy/skills/setup/evals/fixtures/security-binding/evidence-contrary.json
 plugins/autonomy/skills/setup/evals/fixtures/security-binding/evidence-stale.json
 plugins/autonomy/skills/setup/evals/fixtures/security-binding/hosted-ephemeral-l3-valid.json
