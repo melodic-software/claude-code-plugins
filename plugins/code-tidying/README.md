@@ -87,5 +87,4 @@ idempotent and safe to re-run to add or retune lanes.
 
 ## License
 
-MIT (SPDX-License-Identifier: MIT). See the LICENSE file at the root of the
-melodic-software/claude-code-plugins repository.
+MIT (SPDX-License-Identifier: MIT).
