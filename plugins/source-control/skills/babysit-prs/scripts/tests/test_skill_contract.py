@@ -80,6 +80,17 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("exact head SHA from the snapshot", paragraph)
         self.assertNotIn("<post-push-head-sha>", paragraph)
 
+    def test_direct_gate_path_wires_the_tier_when_enabled(self) -> None:
+        # #675: the zero-blocker direct-gate autopilot path must also carry the
+        # tier flags when the tier is enabled, or an already-clean PR merges via
+        # the flagless base gate — the same fail-open §3 closed.
+        paragraph = _paragraph_containing(
+            self.skill_text, "A non-draft PR with zero blockers"
+        )
+        self.assertIn("an enabled autopilot merge tier adds the tier flags", paragraph)
+        self.assertIn("reference/safety.md", paragraph)
+        self.assertIn("never the flagless base command", paragraph)
+
     def test_worker_push_path_pins_the_post_push_head_command(self) -> None:
         # Worker tier has no merge tier, so its push paragraph still spells the
         # full pinned merge command inline.

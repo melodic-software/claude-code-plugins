@@ -10,10 +10,11 @@ All notable changes to the `source-control` plugin are documented here. Format f
 - **`babysit-prs` autopilot merge tier (#476) — completed the gate-off flip precondition (#675),
   still shipped DISABLED.** Three coherence gaps that had to close before the tier can ever be
   flipped on are now resolved, all as prose/contract changes with no behavioral shift to the
-  merge gate. (1) **§3 wiring:** autopilot's step 3 in `SKILL.md` no longer inlines a base-only
-  merge command that would ignore the tier flags — it points at `reference/safety.md`, now the
-  single home for both the base and the enabled-tier merge paths, so an ENABLED config can no
-  longer merge via the flagless base path. (2) **Second-account approve mechanic:** the concrete
+  merge gate. (1) **Merge-surface wiring:** every autopilot merge surface is swept so an ENABLED
+  config can no longer merge via the flagless base path — autopilot's step 3 in `SKILL.md` and the
+  zero-blocker direct-gate path both point at `reference/safety.md`, now the single home for both
+  the base and the enabled-tier merge paths, and the Pinned-Command Degradation operator handoff
+  reproduces the tier-flagged command when the tier is enabled. (2) **Second-account approve mechanic:** the concrete
   out-of-band approval the gate's distinct-bot criterion requires is specified — `gh pr review
   … --approve` submitted under a distinct `<approver-bot-logins>` identity (`GH_TOKEN` or `gh
   auth switch`, never the PR author or a lane identity), only after a genuine clean review pass,

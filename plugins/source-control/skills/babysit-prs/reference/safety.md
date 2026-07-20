@@ -248,6 +248,11 @@ For a merge:
 source-control-babysit-merge owner/repo#42 --allowed-owners <watched-owners> --merge --expected-head <post-push-head-sha> --method <merge-method>
 ```
 
+When the autopilot merge tier is enabled, this degraded handoff carries the tier flags too:
+surface the enabled-path command from Autopilot Merge Tier: Enabled-Path Mechanics above, not this
+flagless base form, so the operator's manual merge is held to the same tier criteria the blocked
+gate would have enforced.
+
 For a thread resolve, never surface a bare `--autonomous` or `--include-human` resolve: both
 re-fetch the live thread list and re-evaluate every eligible thread at execution time, so an
 unpinned command could resolve a thread this run never vetted — one opened or changed after its

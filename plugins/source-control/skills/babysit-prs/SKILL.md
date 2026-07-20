@@ -251,14 +251,14 @@ template (untrusted PR fields fenced as data) are in
 A PR that is merely unchanged since the last cycle — even one still reporting blockers it was
 already escalated for — does not get a fresh worker. A non-draft PR with zero blockers **and no
 untriaged material feedback** also gets no worker, only a direct mode-appropriate
-`source-control-babysit-merge` gate check; that is coverage, not a skip — the gate does not
-triage bot feedback, so a PR still carrying untriaged material findings defers to the
-snapshot's `needs_worker` signal instead of going straight to the gate. In default (safe) mode,
-run the gate without `--merge` and report readiness without merging. Pass
+`source-control-babysit-merge` gate check; that is coverage, not a skip — a PR still carrying
+untriaged material findings defers to the snapshot's `needs_worker` signal instead. In default
+(safe) mode, run the gate without `--merge` and report readiness without merging. Pass
 `--merge --expected-head <snapshotted-head-sha>` only in `worker` or `autopilot` mode, or under
-an explicit user order to merge that PR. Use the exact head SHA from the snapshot; a missing or
-stale pin must refuse the merge and send the PR back through snapshot and assessment, never an
-unattended unpinned override.
+an explicit user order to merge that PR — but an enabled autopilot merge tier adds the tier flags
+([reference/safety.md](reference/safety.md)), never the flagless base command. Use the exact head
+SHA from the snapshot; a missing or stale pin must refuse the merge and send the PR back through
+snapshot and assessment, never an unattended unpinned override.
 
 **Zero-blocker drafts are the exception:** always route them through a worker, never directly
 to the merge gate. In autopilot, that worker assesses whether the draft is complete: a
