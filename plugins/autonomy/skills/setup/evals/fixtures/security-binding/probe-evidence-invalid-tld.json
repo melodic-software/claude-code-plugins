@@ -1,0 +1,69 @@
+{
+  "schema_version": "1.0",
+  "executor_class": "self-operated",
+  "dispatch_posture": "autonomous-enabled",
+  "isolation_bindings": {
+    "ci-pool-a": {
+      "L2": {
+        "substrate": "egress-denied-container-pool",
+        "substrate_class": "container",
+        "probe_evidence": "probe-transcripts/ci-pool-a-l2-invalid-tld.json",
+        "runtime_markers": {
+          "runner-pool": "ci-pool-a",
+          "region": "us-east"
+        }
+      }
+    }
+  },
+  "merge_policy": {
+    "C1": "human",
+    "C2": "human",
+    "C3": "human",
+    "C4": "human",
+    "C5": "human"
+  },
+  "verification_blocking": {
+    "deterministic": {
+      "C1": "not-required",
+      "C2": "blocking",
+      "C3": "blocking",
+      "C4": "blocking",
+      "C5": "blocking"
+    },
+    "ai-review": {
+      "C1": "not-required",
+      "C2": "not-required",
+      "C3": "advisory",
+      "C4": "blocking",
+      "C5": "blocking"
+    }
+  },
+  "escalation_routes": {
+    "gate-failure": "queue:escalations/gate-failure",
+    "verification-divergence": "queue:escalations/verification-divergence",
+    "admission-rejection": "queue:escalations/admission-rejection",
+    "demotion": "queue:escalations/demotion",
+    "structural-plan-approval": "queue:escalations/structural-plan-approval",
+    "untrusted-provenance": "queue:escalations/untrusted-provenance"
+  },
+  "admission": {
+    "classification": {
+      "tracker-vcs-event": {
+        "autonomy:audit": "C1",
+        "autonomy:mechanical": "C2",
+        "autonomy:scoped": "C3",
+        "autonomy:structural": "C4",
+        "autonomy:untrusted": "C5"
+      }
+    },
+    "rules": [
+      { "signal_class": "*", "provenance": "*", "work_class": "C1", "disposition": "autonomous-eligible" },
+      { "signal_class": "*", "provenance": "*", "work_class": "C2", "disposition": "autonomous-eligible" },
+      { "signal_class": "*", "provenance": "*", "work_class": "C3", "disposition": "human-gated" },
+      { "signal_class": "*", "provenance": "*", "work_class": "C4", "disposition": "human-gated" },
+      { "signal_class": "*", "provenance": "*", "work_class": "C5", "disposition": "human-gated" }
+    ],
+    "autonomous_concurrency": 1,
+    "items_per_run": 3
+  }
+}
