@@ -16,6 +16,7 @@ on:
       - ".claude/**"
       - "scripts/**"
       - "plugins/*/hooks/**"
+      - "plugins/*/bin/**"
       - "plugins/*/tools/**"
       - "plugins/*/skills/*/scripts/**"
       - "plugins/*/src/**"
