@@ -347,6 +347,122 @@ else
   fail "trigger on a less-indented block line should be tracked (rc=$rc): $out"
 fi
 
+# 14. Frontmatter name diverging from the skill directory fails (check 1). The
+#     directory name is what the skill is namespaced by, so a mismatch silently
+#     relocates the invocation the doctrine says the skill has.
+make_skill misnamed-skill '---
+name: some-other-name
+description: "Name does not match its directory. Use when: '"'"'checking the name gate'"'"'."
+---
+
+## Purpose
+
+Fixture whose frontmatter name diverges from its directory name.
+
+## Gotchas
+
+None known.
+'
+out="$(run misnamed-skill 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q "does not match skill directory 'misnamed-skill'" <<<"$out"; then
+  pass "frontmatter name mismatching the directory fails"
+else
+  fail "name/directory mismatch should fail (rc=$rc): $out"
+fi
+
+# 15. A matching name does not trip the gate — guards the false-positive
+#     direction, and proves a quoted value reaches the comparison unquoted.
+make_skill quoted-name '---
+name: "quoted-name"
+description: "Quoted name matching its directory. Use when: '"'"'checking quoted names'"'"'."
+---
+
+## Purpose
+
+Fixture whose frontmatter name is quoted but matches its directory.
+
+## Gotchas
+
+None known.
+'
+out="$(run quoted-name 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'does not match skill directory' <<<"$out"; then
+  pass "quoted name matching the directory does not trip the gate"
+else
+  fail "quoted matching name should not trip the gate (rc=$rc): $out"
+fi
+
+# 16. A trailing YAML comment is not part of the scalar, so a correctly named
+#     skill carrying one must not trip the gate (false-positive direction).
+make_skill commented-name '---
+name: commented-name # kept for the migration note
+description: "Name carries a trailing YAML comment. Use when: '"'"'checking comment stripping'"'"'."
+---
+
+## Purpose
+
+Fixture whose frontmatter name carries a legal trailing comment.
+
+## Gotchas
+
+None known.
+'
+out="$(run commented-name 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'does not match skill directory' <<<"$out"; then
+  pass "trailing YAML comment on name does not trip the gate"
+else
+  fail "commented name should not trip the gate (rc=$rc): $out"
+fi
+
+# 16b. A YAML escape sequence is reported as the name defect it is, rather than
+#      surfacing as a confusing directory mismatch. Constraining the accepted
+#      syntax is the alternative to decoding YAML in bash.
+make_skill escaped-name '---
+name: "escaped\x2dname"
+description: "Name carries a YAML escape. Use when: '"'"'checking the charset gate'"'"'."
+---
+
+## Purpose
+
+Fixture whose frontmatter name uses a YAML escape sequence.
+
+## Gotchas
+
+None known.
+'
+out="$(run escaped-name 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'is not kebab-case' <<<"$out"; then
+  pass "a YAML escape in the name reports as a charset defect, not a mismatch"
+else
+  fail "escaped name should fail the charset gate (rc=$rc): $out"
+fi
+
+# 17. Comment stripping must not mask a real mismatch.
+make_skill commented-bad '---
+name: wrong-name # with a comment too
+description: "Wrong name plus a comment. Use when: '"'"'checking comment stripping'"'"'."
+---
+
+## Purpose
+
+Fixture that is both misnamed and commented.
+
+## Gotchas
+
+None known.
+'
+out="$(run commented-bad 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q "frontmatter name 'wrong-name' does not match" <<<"$out"; then
+  pass "comment stripping does not mask a real mismatch"
+else
+  fail "commented misnamed skill should still fail (rc=$rc): $out"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1

@@ -25,7 +25,7 @@
 #   (e.g. HEAD^ or a merge-base).
 #
 # Checks:
-#   1. Frontmatter parses; name + description present
+#   1. Frontmatter parses; name matches dir; description present
 #   2. description + when_to_use <= 1536 chars (listing-truncation guard)
 #   3. Trigger-keyword preservation vs the base ref (skipped for new skills)
 #   4. SKILL.md < 500 lines (hard cap)
@@ -150,7 +150,7 @@ if [[ ! -f "$SKILL_MD" ]]; then
   exit 1
 fi
 
-# --- Check 1: frontmatter parses; name + description present ---------------
+# --- Check 1: frontmatter parses; name matches dir; description present ----
 
 FRONTMATTER="$(skill_frontmatter::extract <"$SKILL_MD")"
 if [[ -z "$FRONTMATTER" ]]; then
@@ -158,6 +158,30 @@ if [[ -z "$FRONTMATTER" ]]; then
 else
   grep -qE '^name:[[:space:]]*\S' <<<"$FRONTMATTER" || err "frontmatter missing 'name:'"
   grep -qE '^description:[[:space:]]*\S' <<<"$FRONTMATTER" || err "frontmatter missing 'description:'"
+
+  # The directory name is what Claude Code namespaces the skill by, so a
+  # divergent frontmatter name silently relocates the invocation the doctrine
+  # says the skill has — and the picker labels rows by the resolved leaf name,
+  # so the drift never surfaces in the listing either.
+  RAW_NAME="$(skill_frontmatter::field name <<<"$FRONTMATTER")"
+  # A trailing `# comment` is legal on a YAML scalar and is not part of the
+  # value. Skill names are kebab-case per the Agent Skills spec, so a '#' can
+  # never belong to the name itself — strip from the first whitespace-then-hash,
+  # before unquoting, so a quoted name with a trailing comment also resolves.
+  RAW_NAME="${RAW_NAME%%[[:space:]]#*}"
+  RAW_NAME="${RAW_NAME%"${RAW_NAME##*[![:space:]]}"}"
+  CUR_NAME="$(skill_frontmatter::strip_quotes "$RAW_NAME")"
+  # Constrain the accepted syntax rather than reimplementing a YAML decoder in
+  # bash: the Agent Skills spec restricts a name to lowercase alphanumerics and
+  # hyphens, so anything else (an escape sequence like "\x2d", whitespace, an
+  # unresolved quote) is a name defect in its own right. Reporting it as one
+  # keeps the directory comparison below working on literal text, and stops a
+  # decodable-but-undecoded scalar from surfacing as a confusing mismatch.
+  if [[ -n "$CUR_NAME" && ! "$CUR_NAME" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; then
+    err "frontmatter name '$CUR_NAME' is not kebab-case ([a-z0-9] and hyphens, per the Agent Skills spec)"
+  elif [[ -n "$CUR_NAME" && "$CUR_NAME" != "$SKILL_NAME" ]]; then
+    err "frontmatter name '$CUR_NAME' does not match skill directory '$SKILL_NAME'"
+  fi
 fi
 
 # --- Check 2: description + when_to_use <= DESC_CHAR_CAP chars --------------
