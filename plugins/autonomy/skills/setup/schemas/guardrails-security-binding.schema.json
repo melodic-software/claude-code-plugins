@@ -82,13 +82,13 @@
       }
     },
     "escalation_severity": {
-      "description": "Optional event class -> severity join: which severity each event class escalates at. Keys are the escalation event-class registry — the six inherited guardrail classes plus the two additive runner classes (runner-needs-human, runner-cap-exceeded). Contract-default severities are defined in the runner escalation contract, so an absent binding leaves every class at its default; entries here are org-bound overrides. Route resolution is severity-first: an event class resolves to its severity, then to that severity's escalation_severity_routes entry, falling back to the event class's own escalation_routes entry only when no severity route is bound. An event class keyed here with neither a bound severity route nor an escalation_routes entry is unroutable.",
+      "description": "Optional event class -> severity join: which severity each event class escalates at. Keys are the escalation event-class registry — the six inherited guardrail classes plus the two additive runner classes (runner-needs-human, runner-cap-exceeded). Contract-default severities are defined in the runner escalation contract, so an absent binding leaves every class at its default; entries here are org-bound overrides. Severity never redirects the escalation item itself: the item files at the event class's own escalation_routes destination regardless, and the severity selects only the NOTIFICATION fan-out layered on that filed item (escalation_severity_routes). A severity with no bound notification route degrades to tracker-item-only fan-out — never a missing item.",
       "type": "object",
       "propertyNames": { "$ref": "#/$defs/EscalationEventClass" },
       "additionalProperties": { "$ref": "#/$defs/Severity" }
     },
     "escalation_severity_routes": {
-      "description": "Optional severity token -> route map, the severity-first leg of route resolution. Keyed only by the three severity tokens; the value is an ordinary route, so personal-push is a legal route value at any tier. A runner class with no escalation_routes entry routes through its severity here.",
+      "description": "Optional severity token -> NOTIFICATION route map: the fan-out depth applied on top of the filed escalation item (a channel notification, a personal-push tier — personal-push is a legal route value at any tier). Keyed only by the three severity tokens. This is never the item's queue destination and never replaces an event class's escalation_routes entry; absent an entry for a severity, fan-out degrades to the tracker item only.",
       "type": "object",
       "propertyNames": { "$ref": "#/$defs/Severity" },
       "additionalProperties": { "$ref": "#/$defs/Route" }

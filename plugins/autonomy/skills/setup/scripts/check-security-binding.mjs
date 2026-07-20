@@ -1496,32 +1496,13 @@ function checkSemantics(binding, probeRoot, egressAllowList) {
     }
   }
 
-  // Routability of every event class bound in escalation_severity, matching
-  // the severity-first resolution rule: an event class resolves to its
-  // severity, then to that severity's escalation_severity_routes entry,
-  // falling back to the event class's own escalation_routes entry only when
-  // no severity route is bound. Severity-only fan-out is legal — a legacy
-  // per-event route is the fallback, never a requirement — so an event class
-  // is routable when EITHER path yields a route. Only an event class bound to
-  // a severity with no severity route AND no escalation_routes entry is
-  // unroutable, a fail-closed finding: a filed escalation would have nowhere
-  // to go. (A runner class binds an escalation_routes entry optionally,
-  // exactly like any guardrail class — either path routes it.)
-  if (isPlainObject(binding.escalation_severity)) {
-    const severityRoutes = isPlainObject(binding.escalation_severity_routes) ? binding.escalation_severity_routes : {};
-    const eventRoutes = isPlainObject(binding.escalation_routes) ? binding.escalation_routes : {};
-    for (const [eventClass, severity] of Object.entries(binding.escalation_severity)) {
-      if (!ESCALATION_EVENT_CLASSES.includes(eventClass) || !SEVERITY_TOKENS.includes(severity)) continue;
-      const severityRouted = isNonEmptyString(severityRoutes[severity]);
-      const eventRouted = isNonEmptyString(eventRoutes[eventClass]);
-      if (!severityRouted && !eventRouted) {
-        const remedy = `bind escalation_severity_routes.${severity} or an escalation_routes.${eventClass} entry`;
-        findings.push(
-          `escalation_severity.${eventClass}: bound to severity ${JSON.stringify(severity)} with no escalation_severity_routes entry for that severity and no escalation_routes entry for the event class — the event class is unroutable, so a filed escalation would have nowhere to go (fail-closed); ${remedy}`,
-        );
-      }
-    }
-  }
+  // No routability rule exists for escalation_severity on purpose: severity
+  // selects only the NOTIFICATION fan-out layered on the filed item — it
+  // never redirects the item, whose queue destination stays the event
+  // class's own escalation_routes entry — and the escalation contract makes
+  // tracker-item-only fan-out the legal degraded form when a severity has no
+  // bound notification route. A severity binding with no route anywhere is
+  // therefore a conforming binding, not a defect.
 
   if (isPlainObject(binding.admission) && Array.isArray(binding.admission.rules)) {
     checkAdmissionSemantics(binding.admission.rules);
