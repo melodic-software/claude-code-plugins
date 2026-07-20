@@ -28,3 +28,9 @@ the PR is the PLAN's durable home.
 | WP5 | #377 | T2 sandbox bar + T3 guardrail matrix + #241 instance |
 | WP6 | #600 | T7 standing routines |
 | WP7 | #676 | T4 runner charter (design pack; build stays trigger-gated) |
+
+## Post-delivery decision records
+
+- [`native-vs-hook-telemetry-audit.md`](native-vs-hook-telemetry-audit.md) — the WP2-deferred
+  emission-source decision (#351): hybrid, native-first, with version-pinned empirical probes
+  and revisit triggers.
