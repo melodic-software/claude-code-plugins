@@ -44,8 +44,9 @@ routes rather than halting unconditionally.
   it). Unlike the two above, a missing binding has a legitimate recovery path, so it is **loud and
   actionable, never a silent default and never a raw mid-flow `exit 3`** — but it does not halt the
   invocation unconditionally:
-  - **Seam coordination verbs** (`claim`, `reclaim`, `renew-lease`, `create-item`, `list-frontier`,
-    `capabilities`) cannot run without a binding — the seam hard-errors `exit 3`
+  - **Seam coordination verbs** (`create-item`, `get-item`, `claim`, `renew-lease`, `reclaim`,
+    `link-blocks`, `add-sub-item`, `list-frontier`, `capabilities`) cannot run without a binding —
+    the seam hard-errors `exit 3`
     (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Exit codes"). Before the first
     coordination verb, if no binding resolves, surface a message that distinguishes the two ways to
     arrive here rather than dead-ending on the raw `exit 3`: **(1) setup was never run** → run

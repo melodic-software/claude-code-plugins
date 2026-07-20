@@ -15,9 +15,10 @@ a raw mid-flow `exit 3` instead of an actionable message (`#449`). The full remo
 - **Binding presence is a third loud entry invariant (`#449`).** "Shared tracker context" now checks
   the provider binding alongside `jq` and the seam script, but discharges it distinctly: the first two
   have no recovery path and stop; a missing binding is loud and routable, never a silent default and
-  never a raw `exit 3`. Seam **coordination** verbs (`claim`, `reclaim`, `renew-lease`, `create-item`,
-  `list-frontier`, `capabilities`) cannot run unbound, so before the first one the skill surfaces a
-  message distinguishing **setup was never run** (→ `/work-items:setup`) from a **deliberate gh-native
+  never a raw `exit 3`. Seam **coordination** verbs (`create-item`, `get-item`, `claim`, `renew-lease`,
+  `reclaim`, `link-blocks`, `add-sub-item`, `list-frontier`, `capabilities`) cannot run unbound, so
+  before the first one the skill surfaces a message distinguishing **setup was never run** (→
+  `/work-items:setup`) from a **deliberate gh-native
   operating mode** (proceed for provider-mechanic operations only, accepting no race-safe claim/lease).
   Provider-mechanic operations (list/search/close, label/comment edits) run as raw `gh`, never read
   the binding, and proceed unbound. Caveat recorded: the gh-native path presumes a `gh`-backed
