@@ -264,6 +264,22 @@ class DowngradeHeuristicTests(unittest.TestCase):
         self.assertFalse(fb.has_blocking_severity("this is a critical path"))
         self.assertFalse(fb.has_blocking_severity("SUGGESTION: rename the var"))
 
+    def test_negated_severity_marker_is_not_blocking(self) -> None:
+        # A clean approval stating the absence of high-severity findings uses the
+        # same structured vocabulary in its verdict; it must not re-introduce a
+        # false blocker (the mirror of no-P1/P2 redaction for CRITICAL/IMPORTANT).
+        self.assertFalse(
+            fb.has_blocking_severity("No CRITICAL or IMPORTANT findings.")
+        )
+        self.assertFalse(fb.has_blocking_severity("No CRITICAL issues found."))
+        self.assertTrue(
+            fb.approval_downgrade(
+                "Verdict: Approve. No CRITICAL or IMPORTANT findings."
+            )
+        )
+        # A live marker without a negator still blocks.
+        self.assertTrue(fb.has_blocking_severity("CRITICAL: null deref remains"))
+
     def test_skip_downgrade_only_when_review_could_not_run(self) -> None:
         self.assertTrue(
             fb.skip_downgrade("bugbot skipped: usage limit reached. Not approving.")

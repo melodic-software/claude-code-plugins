@@ -18,9 +18,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
   reporting `findings=0` for the same review. Detection of genuinely blocking feedback is
   unweakened — a `CRITICAL`/`IMPORTANT` finding or a Request-changes verdict still classifies as
   blocking, and `CRITICAL`/`IMPORTANT` are now recognized as blocking-severity markers in their
-  own right. A login named in `babysit_approval_downgrade_logins` opts that bot's clean approvals
-  into the more-conservative `material` bucket (surfaced but non-blocking) instead of being fully
-  ignored.
+  own right. A negated severity conclusion — a clean approval stating `No CRITICAL or IMPORTANT
+  findings` — is redacted before the severity check, the structured-marker analogue of the
+  existing `no P1/P2 issues` redaction, so introducing severity-marker detection does not itself
+  re-create a false blocker for that common clean-verdict phrasing. A login named in
+  `babysit_approval_downgrade_logins` opts that bot's clean approvals into the more-conservative
+  `material` bucket (surfaced but non-blocking) instead of being fully ignored.
 
 ## [0.9.3]
 

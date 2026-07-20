@@ -36,6 +36,19 @@ NEGATED_SEVERITY_LIST_RE = re.compile(
     + r"(?:issues?|findings?|defects?|problems?|regressions?|vulnerabilities?)\b",
     re.I,
 )
+# Negated CRITICAL/IMPORTANT conclusions ("No CRITICAL or IMPORTANT findings",
+# "No CRITICAL issues found") are the structured-severity analogue of
+# NEGATED_SEVERITY_LIST_RE: a clean approval stating the absence of high-severity
+# findings, not a live one. The severity tokens stay case-sensitive (uppercase
+# only) for the same reason BLOCKING_SEVERITY_RE is -- lowercase "critical"/
+# "important" are ordinary prose -- while the negator and trailing noun are not.
+NEGATED_SEVERITY_MARKER_RE = re.compile(
+    r"(?i:\b(?:no|zero|without)\s+(?:actionable\s+)?)"
+    + r"(?:CRITICAL|IMPORTANT)"
+    + r"(?:(?i:\s*,?\s*(?:(?:and|or)\s+)?)(?:CRITICAL|IMPORTANT))*"
+    + r"(?i:\s+(?:issues?|findings?|defects?|problems?|regressions?|"
+    + r"vulnerabilities?))\b"
+)
 NEGATED_BLOCKING_TERM_RE = re.compile(
     r"\b(?:no|zero|without)\s+(?:actionable\s+)?(?:p[012]|high[- ]severity|"
     + r"blocking|regressions?|vulnerabilities?|required fixes?|changes requested)\b|"
@@ -251,6 +264,7 @@ def has_blocking_severity(text: str) -> bool:
     `BLOCKING_TEXT_RE`'s imperative terms.
     """
     redacted = NEGATED_SEVERITY_LIST_RE.sub("", text)
+    redacted = NEGATED_SEVERITY_MARKER_RE.sub("", redacted)
     redacted = NEGATED_BLOCKING_TERM_RE.sub("", redacted)
     return bool(BLOCKING_SEVERITY_RE.search(redacted))
 
@@ -268,6 +282,7 @@ def approval_downgrade(text: str) -> bool:
     if not APPROVAL_VERDICT_RE.search(text):
         return False
     redacted = NEGATED_SEVERITY_LIST_RE.sub("", text)
+    redacted = NEGATED_SEVERITY_MARKER_RE.sub("", redacted)
     redacted = NEGATED_BLOCKING_TERM_RE.sub("", redacted)
     if BLOCKING_SEVERITY_RE.search(redacted):
         return False
