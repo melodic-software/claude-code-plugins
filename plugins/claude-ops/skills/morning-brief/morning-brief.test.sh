@@ -79,6 +79,9 @@ cat >"$TMP/decisions.json" <<'EOF'
    "comments": []},
   {"number": 105, "title": "lowercase after rejection", "url": "http://x/i/105",
    "body": "The bare-clone hub is not recommended here.\nrecommended: keep the sibling worktree layout.",
+   "comments": []},
+  {"number": 106, "title": "uppercase after rejection", "url": "http://x/i/106",
+   "body": "Option A is NOT RECOMMENDED because of drift.\nRECOMMENDED: choose the managed sync path.",
    "comments": []}
 ]
 EOF
@@ -130,6 +133,10 @@ assert_contains "decision #103 scans comments" "$OUT" "adopt option B"
 # incidental "recommended" inside an earlier "not recommended" rejection line.
 assert_contains "decision #105 lowercase marker beats earlier 'not recommended'" "$OUT" "keep the sibling worktree layout"
 assert_not_contains "decision #105 ignores 'not recommended' rejection" "$OUT" "bare-clone hub is not recommended"
+# #106: tier 1 (uppercase) must anchor too — an unanchored uppercase scan grabs
+# the "NOT RECOMMENDED" prose line before the real marker.
+assert_contains "decision #106 uppercase marker beats earlier 'NOT RECOMMENDED'" "$OUT" "choose the managed sync path"
+assert_not_contains "decision #106 ignores 'NOT RECOMMENDED' rejection" "$OUT" "because of drift"
 
 # Telemetry — staleness + flags + skips
 assert_contains "telemetry babysit fresh age" "$OUT" "babysit"

@@ -331,19 +331,24 @@ print_decisions() {
     url="$(jq -r ".[$i].url // \"\"" <<<"$decisions")"
     # RECOMMENDED marker across the body and every comment. Two-tier so the
     # deliberate uppercase marker wins over an incidental lowercase mention
-    # (e.g. "not recommended"): tier 1 = the exact uppercase RECOMMENDED token;
-    # tier 2 = a lowercase marker anchored to MARKER POSITION (line start, after
-    # optional list/blockquote/bold decoration), which the process note recorded
-    # as necessary because a case-sensitive-only scan produced false negatives.
-    # The tier-2 anchor is load-bearing: an unanchored `recommended` scan matches
-    # the incidental mention inside "not recommended" and renders the rejected
-    # option (the same false-positive tier 1 exists to avoid), so both tiers must
-    # require marker position, not mere presence.
-    local combined
+    # (e.g. "not recommended"): tier 1 = the uppercase RECOMMENDED token, tier 2
+    # = a case-insensitive fallback (recorded by the process note as necessary
+    # because a case-sensitive-only scan produced false negatives). BOTH tiers
+    # require a LABELED marker — RECOMMENDED immediately followed (past optional
+    # bold/space) by a `:`/`-`/em-dash separator — not mere presence. That
+    # separator is the load-bearing discriminator on each tier independently: it
+    # accepts a real marker whether at line start or mid-line ("After review,
+    # RECOMMENDED: ...") while rejecting negated prose ("... is NOT RECOMMENDED
+    # because ...", "not recommended for ..."), where the token is followed by a
+    # word, not a separator — the false positive that otherwise renders the
+    # REJECTED option. Anchoring to line start instead would wrongly drop the
+    # legitimate mid-line marker form.
+    local combined marker_re
+    marker_re='RECOMMENDED[[:space:]]*\**[[:space:]]*[-:—]'
     combined="$(jq -r ".[$i] | (.body // \"\") + \"\n\" + ((.comments // []) | map(.body // \"\") | join(\"\n\"))" \
       <<<"$decisions")"
-    rec="$(grep -am1 -E '\bRECOMMENDED\b' <<<"$combined")"
-    [[ -n "$rec" ]] || rec="$(grep -iam1 -E '^[[:space:]]*([0-9]+[.)][[:space:]]*)?[-*>|#[:space:]]*\**[[:space:]]*recommended' <<<"$combined")"
+    rec="$(grep -am1 -E "$marker_re" <<<"$combined")"
+    [[ -n "$rec" ]] || rec="$(grep -iam1 -E "$marker_re" <<<"$combined")"
     # Strip leading list bullets / enumeration / blockquote / bold so the line reads clean.
     rec="$(sed -E 's/^[[:space:]]*//; s/^[0-9]+[.)][[:space:]]*//; s/^[-*>|#[:space:]]*//; s/\*\*//g; s/[[:space:]]*$//' <<<"$rec")"
     # Drop a leading RECOMMENDED/recommended token + its separator: the section
