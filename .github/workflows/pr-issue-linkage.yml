@@ -29,6 +29,13 @@ concurrency:
 jobs:
   pr-issue-linkage:
     permissions: {}
+    # DRAFT / BLOCKED: pin still points at the pre-exemption SHA. Before marking
+    # this PR ready, bump @90f1c54 to the merge SHA of ci-workflows#171 (Closes
+    # ci-workflows#149) — the exempt-authors input below is a no-op until the
+    # reusable at the pinned SHA understands it.
     uses: melodic-software/ci-workflows/.github/workflows/pr-issue-linkage.yml@90f1c54935203fa31b5b3d1f41531228be2c2b7f # 90f1c54 2026-07-18
     with:
       runner: ubuntu-24.04
+      # dependabot PR bodies cannot carry the closing-keyword + `## Related`
+      # markers this gate requires; exempt the login so its PRs are mergeable.
+      exempt-authors: 'dependabot[bot]'
