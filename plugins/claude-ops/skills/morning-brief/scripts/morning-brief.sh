@@ -89,11 +89,19 @@ while (($# > 0)); do
     ;;
   --stale-hours)
     require_value "$1" "${2:-}"
+    [[ "$2" =~ ^[0-9]+$ ]] || {
+      printf 'morning-brief: --stale-hours requires a non-negative integer\n' >&2
+      exit 3
+    }
     STALE_HOURS="$2"
     shift 2
     ;;
   --rec-maxlen)
     require_value "$1" "${2:-}"
+    [[ "$2" =~ ^[0-9]+$ ]] || {
+      printf 'morning-brief: --rec-maxlen requires a non-negative integer\n' >&2
+      exit 3
+    }
     REC_MAXLEN="$2"
     shift 2
     ;;

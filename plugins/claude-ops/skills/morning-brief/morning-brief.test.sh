@@ -163,6 +163,15 @@ assert_exit "unknown flag exits 3" 3 "$?"
 bash "$BRIEF" --counts-json "$TMP/does-not-exist.json" >/dev/null 2>&1
 assert_exit "missing fixture file exits 3" 3 "$?"
 
+# Numeric-flag validation: a non-numeric value must fail with a clear message,
+# not crash cryptically under `set -u` in the later arithmetic.
+ERR_STALE="$(bash "$BRIEF" --stale-hours abc 2>&1)"
+assert_exit "non-numeric --stale-hours exits 3" 3 "$?"
+assert_contains "non-numeric --stale-hours clear message" "$ERR_STALE" "--stale-hours requires a non-negative integer"
+ERR_MAXLEN="$(bash "$BRIEF" --rec-maxlen 12x 2>&1)"
+assert_exit "non-numeric --rec-maxlen exits 3" 3 "$?"
+assert_contains "non-numeric --rec-maxlen clear message" "$ERR_MAXLEN" "--rec-maxlen requires a non-negative integer"
+
 # --- Summary ------------------------------------------------------------------
 echo
 if ((FAILED > 0)); then
