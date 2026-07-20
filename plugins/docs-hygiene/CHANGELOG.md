@@ -1,5 +1,14 @@
 # Changelog — docs-hygiene plugin
 
+## [0.7.1] — 2026-07-20
+
+### Changed
+
+- Documentation-only: the License section now states the plugin's own MIT
+  license inline and no longer points at a `LICENSE` file at the repository
+  root, which an installed consumer running from the isolated plugin cache
+  cannot reach. No behavior change.
+
 ## [0.7.0] — 2026-07-18
 
 Changed:

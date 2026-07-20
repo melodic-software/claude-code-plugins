@@ -110,5 +110,4 @@ because a `sensitive` option persists as plaintext on Windows today.
 
 ## License
 
-MIT (SPDX-License-Identifier: MIT). See the LICENSE file at the root of the
-melodic-software/claude-code-plugins repository.
+MIT (SPDX-License-Identifier: MIT).
