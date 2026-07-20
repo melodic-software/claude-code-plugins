@@ -61,10 +61,10 @@ Per-layer verdicts:
 - **Team** (`REPO_ROOT/.claude/source-control.md`): present → PASS. **FAIL** when excluded by
   `.gitignore` — teammates would never receive the shared convention; report the matching rule.
   Absent → INFO, remediable by `apply`.
-- **Local overlay** (`REPO_ROOT/.claude/source-control.local.md`): present **and** gitignored →
-  PASS. Present but **not** gitignored → **FAIL**: a personal deviation would land in team history;
-  the remediation is the `.claude/*.local.*` line, which the consumer adds (this skill never edits
-  their `.gitignore`). Absent → INFO, which is the common case.
+- **Local overlay** (`REPO_ROOT/.claude/source-control.local.md`): PASS only when an ignore rule
+  matches it **and** it is not in the index. Two distinct failures hide behind one symptom and need
+  different remediations, so probe them separately — see the two-probe form under `apply`. Absent →
+  INFO, which is the common case.
 
 **FAIL** when the *effective* `subject_pattern` is not machine-checkable — it must be either the
 literal keyword `Conventional Commits` or an anchored regex (`^…`-style); a plain-language
@@ -225,12 +225,12 @@ interactive session, run the interview:
      here, and a home directory that happens to be its own repository would produce a confidently
      wrong verdict. Confirm the file exists with the intended content and report the path. It takes
      effect immediately in the next session; nothing is staged or committed.
-   - **`layer=local`** — `REPO_ROOT/.claude/source-control.local.md` **must** be gitignored. Here a
-     `git check-ignore -v` match is the success condition, not the stop condition. No match → the
-     same **FAIL** `check` reports for this state: never stage the overlay, and give the consumer the
-     `.claude/*.local.*` line to add to their own `.gitignore` (this skill never edits it). Say
-     plainly that the convention already resolves either way, but that until the line is added the
-     overlay shows up in their next `git status` and can be committed into team history.
+   - **`layer=local`** — `REPO_ROOT/.claude/source-control.local.md` **must** be both ignore-matched
+     and untracked, and those are two independent probes. Bare `git check-ignore` consults the index
+     and reports nothing for a file that is already tracked, because gitignore rules do not apply to
+     tracked files — so "no rule exists" and "a rule exists but the file was committed anyway" are
+     indistinguishable from its output alone, and they need opposite remediations. Never stage the
+     overlay in either case.
    - **`layer=team`** — `REPO_ROOT/.claude/source-control.md` must be tracked and staged. Verify it
      is actually staged before reporting success; neither `git check-ignore -v` nor
      `git ls-files --error-unmatch` proves this alone. `git check-ignore -v` only reports a matching
@@ -250,7 +250,7 @@ interactive session, run the interview:
    # `git diff --quiet` on an ignored untracked file exits 0 trivially, so the sequence would report
    # false success with nothing actually staged for teammates.
    if IGNORE_MATCH="$(git check-ignore -v "$REPO_ROOT/.claude/source-control.md")"; then
-     echo "STOP: .claude/source-control.md is excluded by .gitignore: $IGNORE_MATCH"
+     echo "STOP: .claude/source-control.md is excluded by .gitignore: $IGNORE_MATCH" >&2
      exit 1
    fi
    # With no ignore match, read the two-character XY status: `??` (untracked) or a non-blank
@@ -265,18 +265,28 @@ interactive session, run the interview:
    git -C "$REPO_ROOT" diff --quiet -- .claude/source-control.md
    ```
 
-   For `layer=local`, the ignore check is the same command read the opposite way:
+   For `layer=local`, run both probes and branch on the pair:
 
    ```bash
    REPO_ROOT="${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}"
-   # An ignore match is the PASS here — the personal overlay is meant to stay out of version
-   # control. Never `git add` this path.
-   if IGNORE_MATCH="$(git check-ignore -v "$REPO_ROOT/.claude/source-control.local.md")"; then
-     echo "OK: personal overlay is gitignored: $IGNORE_MATCH"
+   OVERLAY=".claude/source-control.local.md"
+   # --no-index answers "does a matching ignore rule exist?" on its own terms. Without it, git
+   # consults the index first and reports nothing for an already-tracked file, conflating a missing
+   # rule with a rule that exists but was overridden by a past commit.
+   IGNORE_MATCH="$(git -C "$REPO_ROOT" check-ignore --no-index -v -- "$OVERLAY")" && HAS_RULE=1 || HAS_RULE=0
+   # An ignore rule does not untrack an already-committed file, so ask the index separately.
+   TRACKED="$(git -C "$REPO_ROOT" ls-files -- "$OVERLAY")"
+   if [ "$HAS_RULE" -eq 1 ] && [ -z "$TRACKED" ]; then
+     echo "OK: personal overlay is ignored and untracked: $IGNORE_MATCH"
+   elif [ -n "$TRACKED" ]; then
+     echo "FAIL: $OVERLAY is tracked; untrack it with: git rm --cached $OVERLAY"
    else
-     echo "FAIL: .claude/source-control.local.md is not ignored; add .claude/*.local.* to .gitignore"
+     echo "FAIL: no ignore rule matches $OVERLAY; add .claude/*.local.* to .gitignore"
    fi
    ```
+
+   The tracked branch takes precedence in the report: adding the `.gitignore` line to an
+   already-committed overlay changes nothing, so recommending it there sends the user in a circle.
 
    If the team guard stops the sequence (non-zero exit, `IGNORE_MATCH` reported), do not report
    success: tell the user the matching `.gitignore` pattern and ask them to either fix `.gitignore`

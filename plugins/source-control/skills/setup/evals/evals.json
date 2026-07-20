@@ -52,6 +52,18 @@
       ]
     },
     {
+      "id": 5,
+      "name": "subject-pattern-always-machine-checkable",
+      "prompt": "/source-control:setup\n\nOur convention is: start with a ticket number, then a colon, then a short summary in the imperative mood.",
+      "expected_output": "Translates the prose description into a single anchored regex (e.g. ^[A-Z]+-\\d+: .+) and confirms the translation with the user before persisting, rather than writing the plain-language description itself to subject_pattern. Never persists a free-text subject_pattern.",
+      "files": [],
+      "expectations": [
+        "Translates a prose-described convention into an anchored regex before persisting",
+        "Confirms the translated regex with the user rather than silently guessing",
+        "Never writes a plain-language description as subject_pattern in .claude/source-control.md"
+      ]
+    },
+    {
       "id": 6,
       "name": "reconfiguration-stages-updated-config",
       "prompt": "/source-control:setup\n\nWe're switching from Conventional Commits to a ticket-prefix convention like WEB-123: fix the thing.",
@@ -62,18 +74,6 @@
         "Does not rely on index-presence alone (e.g. git ls-files --error-unmatch) to declare the update staged",
         "Detects the unstaged modification via git status --porcelain -- .claude/source-control.md (worktree column non-blank)",
         "Stages the modified file with git add and prompts the user to commit before reporting success, without requiring the commit itself to have happened"
-      ]
-    },
-    {
-      "id": 5,
-      "name": "subject-pattern-always-machine-checkable",
-      "prompt": "/source-control:setup\n\nOur convention is: start with a ticket number, then a colon, then a short summary in the imperative mood.",
-      "expected_output": "Translates the prose description into a single anchored regex (e.g. ^[A-Z]+-\\d+: .+) and confirms the translation with the user before persisting, rather than writing the plain-language description itself to subject_pattern. Never persists a free-text subject_pattern.",
-      "files": [],
-      "expectations": [
-        "Translates a prose-described convention into an anchored regex before persisting",
-        "Confirms the translated regex with the user rather than silently guessing",
-        "Never writes a plain-language description as subject_pattern in .claude/source-control.md"
       ]
     },
     {

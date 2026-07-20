@@ -36,8 +36,11 @@ Layer, in resolution order — a later layer refines an earlier one:
 3. **`${REPO_ROOT}/.claude/source-control.local.md`** — personal overlay, gitignored. A per-machine
    or per-operator deviation from team policy, never committed.
 
-Each layer is optional. All three absent → this rung yields nothing and resolution falls through to
-the repo's own `CLAUDE.md`/rules/commit-msg hook, then the bundled Conventional Commits default.
+Each layer is optional, and **fall-through is per key, not per file**. A key absent from every layer
+is unresolved even when some layer exists — a user-global file contributing only `trailer_policy`
+leaves `subject_pattern` exactly as unresolved as no file at all. Each unresolved key falls through
+independently to the repo's own `CLAUDE.md`/rules/commit-msg hook, then the bundled Conventional
+Commits default. Never gate that fall-through on file presence.
 
 ## Merge semantics: per-key override
 
@@ -72,8 +75,10 @@ the line and leaves the edit to the consumer.
 
 - **Team layer gitignored → hard STOP.** Teammates would never receive the shared convention.
   Surface the matching rule and stop; do not degrade silently.
-- **Local overlay NOT gitignored → warn.** The overlay is personal by contract; a tracked one leaks
-  a per-operator deviation into team history. Recommend the `.gitignore` line.
+- **Local overlay not ignored, or already tracked → FAIL, with different remediations.** The overlay
+  is personal by contract; a committed one leaks a per-operator deviation into team history. A
+  missing ignore rule is fixed by the `.gitignore` line; an already-tracked overlay is fixed by
+  untracking it, since an ignore rule never applies to a file already in the index.
 - **A layer is malformed** (a non-machine-checkable `subject_pattern`, an unparsable section) →
   surface the error, name the layer, and resolve as if that layer were absent. Unknown H2 sections
   are inert.
