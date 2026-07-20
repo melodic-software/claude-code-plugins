@@ -3,6 +3,19 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.1]
+
+### Fixed
+
+- **`cli-flag-verify` now buffers stdin via `hook::buffer_stdin` instead of reading fd0
+  directly.** It was the last hook entry script whose stdin parse ran `jq` against the
+  inherited, unbounded fd0 — `hook::read_file_path` — leaving it exposed to the Windows
+  Win32-pipe late-EOF stall the [0.8.0] migration closed for every other hook. The payload
+  is now buffered once through the bounded `read -t` helper and piped into
+  `hook::read_file_path`. As an advisory hook it skips silently on any read failure — empty
+  stdin (rc 1) and read timeout (rc 2) alike — matching its advisory siblings
+  `flag-commit-pr-skill-bypass` and `workflow-resilience-check`.
+
 ## [0.9.0]
 
 ### Added
