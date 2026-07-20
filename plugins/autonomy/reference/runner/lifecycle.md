@@ -23,8 +23,9 @@ Two states are terminal: `escalated` and `complete`.
 
 A stop at any non-terminal state resolves to `escalated` rather than advancing; the mapping
 from a stop reason to its terminal outcome is [the escalation leaf](escalation.md)'s subject.
-Only a run that reaches `disposing` and lands its change becomes `complete` — every other
-ending is `escalated`.
+Only a run that reaches `disposing` and successfully lands its class's disposition — a queue
+artifact for a read-only class, the plan-approval item for a `C4` planning run, a per-item PR
+for a mutating class — becomes `complete`; every other ending is `escalated`.
 
 ### C4 pre-execution plan approval
 
