@@ -189,8 +189,14 @@ EOF
 # hole this section is built to close.
 ATTRIBUTION='🤖 Generated with [Claude Code](https://claude.com/claude-code)'  # key absent → default
 # pr_body_attribution: none         -> ATTRIBUTION=""            (omit the line)
-# pr_body_attribution: <custom text> -> ATTRIBUTION="<that text>" (literal; a custom
-#                                       value containing $ or $(…) stays inert here)
+# pr_body_attribution: <custom text> -> ATTRIBUTION='<that text>'  (SINGLE-quoted, NEVER
+#                                       double-quoted: bash command-substitutes $(…) inside a
+#                                       double-quoted assignment RHS at assignment time, so a
+#                                       $()-bearing custom value would execute here — single-
+#                                       quoting keeps it inert at the assignment site. Escape any
+#                                       literal single quote as '\'' — e.g. ATTRIBUTION='it'\''s ok'.
+#                                       The concat below is also inert, but assignment is the
+#                                       first line of defense.)
 
 # Concat CLOSES_LINE in front of TEMPLATE and ATTRIBUTION after it, via bash
 # parameter expansion. Parameter expansion of "${VAR}" does NOT re-evaluate the
