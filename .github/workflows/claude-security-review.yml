@@ -26,6 +26,8 @@ on:
       - "**/*.ts"
       - "**/*.js"
       - "**/*.cjs"
+      - "**/.mcp.json"
+      - "**/mcp.json"
 
 permissions:
   contents: read
