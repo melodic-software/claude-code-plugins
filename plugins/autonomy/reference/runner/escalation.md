@@ -101,6 +101,16 @@ severity bindings for them exactly as it does for any guardrail event class, and
 bindings validate unchanged. Their contract-default severities are `attention` and `notice`,
 both org-bindable.
 
+**Runner launch precondition.** Both runner classes' queue routes are part of the runner's
+required governance: at launch the runner verifies that `runner-needs-human` and
+`runner-cap-exceeded` each carry a bound `escalation_routes` entry, and fail-closes — blocking
+dispatch — when either is absent, exactly as it does for an absent security binding
+([topology leaf](topology.md)). Every non-success stop maps to one of these classes, so a
+runner without their routes would have no queue destination for its required human-gated
+handoff. The requirement binds the RUNNER, not the binding: a binding without the runner keys
+stays valid for every pre-runner surface, which is why the static checker cannot enforce this
+(no binding key says a runner is enabled) and the launch gate does.
+
 ## Severity axis and notification fan-out
 
 Every event class escalates at a severity on a three-level axis — `notice`, `attention`,

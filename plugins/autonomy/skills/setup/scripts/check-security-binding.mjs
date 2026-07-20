@@ -610,7 +610,10 @@ function validateStructure(binding) {
         // inherited classes (whose escalation_routes entries are required), a
         // runner class with no escalation_routes entry has nowhere to file its
         // human-gated handoff. Legacy bindings that never key a runner class
-        // stay untouched.
+        // stay untouched — no binding key says a runner is enabled, so the
+        // runner-side requirement (both runner routes bound, else no dispatch)
+        // is the runner escalation contract's LAUNCH precondition, not a
+        // static rule here.
         if (RUNNER_EVENT_CLASSES.includes(eventClass) && !isNonEmptyString(eventRoutes[eventClass])) {
           findings.push(
             `${where}: severity is bound for a runner event class with no escalation_routes.${eventClass} entry — severity only selects notification fan-out on the filed item, so without a queue destination the class's human-gated handoff has nowhere to file (fail-closed); bind escalation_routes.${eventClass}`,
