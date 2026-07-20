@@ -3,6 +3,23 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.3]
+
+### Fixed
+
+- **`git-tree-reset.sh` — `AppliedClean` no longer claims success when `git clean` failed.**
+  On the `--apply` path the script captured `git clean -fdx` stderr but never checked its
+  exit status, then printed `AppliedClean: git clean -fdx …` unconditionally — so a clean
+  that errored still reported success, misleading any operator or automation keying off that
+  line to conclude the tree reached a known-good state. The clean exit code is now inspected:
+  a non-zero exit whose cause is NOT locked/in-use files (the expected non-fatal case, already
+  reported via `Unremovable:`) is a genuine failure that prints an explicit `FAILED:` line and
+  `AppliedClean: failed` instead of a success line, and exits 7. The `AppliedReset:` success
+  line is now emitted as soon as the reset genuinely succeeds — before `clean` — so a
+  subsequent clean failure still surfaces the truthful reset outcome. The reparse-point restore
+  guard runs on the failure path too, so tracked files a partially-run clean may have deleted
+  are still recovered.
+
 ## [0.3.2]
 
 ### Fixed
