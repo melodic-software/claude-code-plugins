@@ -37,6 +37,7 @@ Skill data (`.claude/skills/*/data/`) is preserved unconditionally — no flag r
 - Blocks on default branch (`main`/`master`/resolved default) unless `--force-default-branch` (exit 3).
 - Aborts when HEAD is ahead of upstream unless `--allow-unpushed` (exit 4) — prevents silent loss of unpushed commits.
 - Aborts the apply if `reset --hard` fails (exit 5) — `clean` and the restore guard never run, so a failed reset can never leave the tree cleaned but not reset.
+- Aborts the apply if `git clean -fdx` genuinely fails (exit 7) — a non-zero clean exit whose cause is NOT locked/in-use files. The reset succeeded (its `AppliedReset:` line is still emitted); `clean` prints `AppliedClean: failed` instead of a success line, so the report can never claim a clean that errored. Locked/in-use files are the expected non-fatal case (see `Unremovable:` below) and are not a failure.
 - Post-clean restore guard: any tracked file deleted via reparse-point traversal is restored from the index (`RestoredTracked:` count; safe because `reset --hard` ran first).
 - Locked / in-use files git could not delete are reported (`Unremovable:`), not silently left.
 

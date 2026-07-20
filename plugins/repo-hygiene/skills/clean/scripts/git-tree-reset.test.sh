@@ -195,6 +195,46 @@ assert_not_contains "unresolvable upstream runs no reset --hard" "$out" "reset -
 assert_not_contains "unresolvable upstream runs no clean" "$out" "AppliedClean"
 assert_file_exists "unresolvable upstream skips clean (untracked survives)" "$R3/scratch.txt"
 
+# --- 11. clean failure after a successful reset is not reported as success (exit 7) ---
+# A genuine git clean failure (non-zero exit NOT caused by locked/in-use files) must
+# not print an AppliedClean success line. Force it via a PATH shim intercepting only
+# `clean`, delegating every other subcommand — crucially `reset` — to the real git,
+# so reset genuinely succeeds and its truthful AppliedReset line must still appear
+# alongside AppliedClean: failed. The faked clean never runs, so an untracked file a
+# real clean would have removed must survive (proving no silent success).
+R4="$TEST_TMPDIR/repo-clean-fail"
+git init "$R4" >/dev/null 2>&1
+git -C "$R4" config user.email "t@example.com"
+git -C "$R4" config user.name "Test"
+echo tracked >"$R4/tracked.txt"
+git -C "$R4" add -A
+git -C "$R4" commit -m "init" >/dev/null
+git -C "$R4" branch -M main
+git -C "$R4" checkout -b feat/clean-fail >/dev/null 2>&1
+git -C "$R4" branch -u main >/dev/null 2>&1
+echo untracked >"$R4/scratch.txt"
+
+CLEAN_SHIM="$TEST_TMPDIR/git-clean-shim"
+mkdir -p "$CLEAN_SHIM"
+cat >"$CLEAN_SHIM/git" <<SHIMEOF
+#!/usr/bin/env bash
+if [[ "\$1" == "clean" && "\$*" != *-n* ]]; then
+  echo "fatal: simulated git clean failure" >&2
+  exit 1
+fi
+exec "$REAL_GIT" "\$@"
+SHIMEOF
+chmod +x "$CLEAN_SHIM/git"
+
+rc=0
+out="$(PATH="$CLEAN_SHIM:$PATH" bash -c "cd '$R4' && bash '$RESET' --apply" 2>&1)" || rc=$?
+assert_exit "clean failure exits 7" 7 "$rc"
+assert_contains "clean failure reports failure" "$out" "FAILED: git clean -fdx"
+assert_contains "clean failure emits AppliedClean: failed" "$out" "AppliedClean: failed"
+assert_not_contains "clean failure emits no clean success line" "$out" "AppliedClean: git clean"
+assert_contains "clean failure still reports the successful reset" "$out" "AppliedReset: git reset --hard"
+assert_file_exists "clean failure leaves untracked intact (clean did not silently succeed)" "$R4/scratch.txt"
+
 if [[ $FAILED -ne 0 ]]; then
   echo "FAILED: $FAILED test(s)"
   exit 1
