@@ -177,11 +177,20 @@ gh api graphql \
     }
   }' \
   -f owner="${OWNER_REPO% *}" -f repo="${OWNER_REPO#* }" -F n=<N> \
-  --jq '[.data.repository.issue.closedByPullRequestsReferences.nodes[] | select(.state=="OPEN")] | any'
+  --jq '[.data.repository.issue.closedByPullRequestsReferences.nodes[] | select(.state=="OPEN")] | any' \
+  | tr -d '\r'
 ```
 
 Emits `true` when at least one **open** PR closes `#<N>`, `false` otherwise. `-F n=<N>` passes the
-number as a GraphQL `Int` (typed); `-f` passes the owner/repo strings. Why GitHub's computed
+number as a GraphQL `Int` (typed); `-f` passes the owner/repo strings; the trailing `| tr -d '\r'`
+follows the Windows/Git Bash rule under "Gotchas" (the boolean can otherwise arrive as `true\r`).
+The `select(.state=="OPEN")` filter is **load-bearing, not redundant with `includeClosedPrs:false`**:
+that argument suppresses only `CLOSED` (unmerged) PRs, so a `MERGED` PR still appears in the
+connection and must be dropped here — otherwise an issue whose only closing PR merged to a
+non-default base (or that was reopened after a merge) would be wrongly reported as in-flight.
+`first:20` bounds the page; an issue carrying more than 20 linked closing PRs (not realistic in
+practice) would need cursor pagination, the GraphQL analogue of the `--limit` note under "List
+items". Why GitHub's computed
 linkage instead of a body regex over `gh pr list --search`:
 
 - **Fenced code blocks and HTML comments are inert for free.** GitHub does not link a closing
