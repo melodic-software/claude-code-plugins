@@ -171,9 +171,45 @@ fi
 REPO_ARGS=()
 [[ -n "$REPO" ]] && REPO_ARGS=(--repo "$REPO")
 
+# --- Portable date handling ---------------------------------------------------
+# GNU `date -d` and BSD/macOS `date -j -f` are mutually exclusive dialects, and
+# Claude Code commonly runs on macOS. to_epoch/from_epoch try GNU first (Linux,
+# most CI) then BSD, so a timestamp parses on either platform. On the BSD branch
+# the literal `Z` is matched by strptime as a plain character (not `%Z`), so the
+# parsed value is timezone-naive; TZ=UTC forces it to UTC, matching how GNU
+# reads the `Z`-suffixed telemetry stamps. Only time-bearing formats are tried:
+# a bare `%Y-%m-%d` would prefix-match a malformed stamp and yield a wrong
+# midnight instead of leaving it unparsable.
+to_epoch() {
+  local s="$1" e fmt
+  e="$(date -u -d "$s" +%s 2>/dev/null)" && {
+    printf '%s' "$e"
+    return
+  }
+  for fmt in '%Y-%m-%dT%H:%MZ' '%Y-%m-%dT%H:%M:%SZ' '%Y-%m-%dT%H:%M:%S' '%Y-%m-%dT%H:%M'; do
+    e="$(TZ=UTC date -j -f "$fmt" "$s" +%s 2>/dev/null)" && {
+      printf '%s' "$e"
+      return
+    }
+  done
+}
+
+from_epoch() {
+  local e="$1" out
+  out="$(date -u -d "@$e" '+%Y-%m-%dT%H:%MZ' 2>/dev/null)" && {
+    printf '%s' "$out"
+    return
+  }
+  out="$(date -u -r "$e" '+%Y-%m-%dT%H:%MZ' 2>/dev/null)" && {
+    printf '%s' "$out"
+    return
+  }
+  date -u '+%Y-%m-%dT%H:%MZ'
+}
+
 # --- Clock --------------------------------------------------------------------
 if [[ -n "$NOW_ISO" ]]; then
-  NOW_EPOCH="$(date -u -d "$NOW_ISO" +%s 2>/dev/null || echo "")"
+  NOW_EPOCH="$(to_epoch "$NOW_ISO")"
   [[ -n "$NOW_EPOCH" ]] || {
     printf 'morning-brief: could not parse --now value: %s\n' "$NOW_ISO" >&2
     exit 3
@@ -374,7 +410,7 @@ print_telemetry() {
     local age_note=""
     if [[ -n "$last" ]]; then
       local then_epoch
-      then_epoch="$(date -u -d "$last" +%s 2>/dev/null || echo "")"
+      then_epoch="$(to_epoch "$last")"
       if [[ -n "$then_epoch" ]]; then
         local delta=$((NOW_EPOCH - then_epoch))
         age_note="$(fmt_age "$delta")"
@@ -401,7 +437,7 @@ print_telemetry() {
 # =============================================================================
 # Render
 # =============================================================================
-printf 'Morning brief — %s — %s\n\n' "${REPO:-<fixtures>}" "$(date -u -d "@$NOW_EPOCH" '+%Y-%m-%dT%H:%MZ' 2>/dev/null || date -u '+%Y-%m-%dT%H:%MZ')"
+printf 'Morning brief — %s — %s\n\n' "${REPO:-<fixtures>}" "$(from_epoch "$NOW_EPOCH")"
 print_queues
 print_merge_ready
 print_decisions
