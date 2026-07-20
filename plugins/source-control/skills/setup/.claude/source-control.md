@@ -1,8 +1,8 @@
 # source-control configuration
 
-Tracked commit-subject / PR-title convention for the source-control plugin. `/source-control:commit`
-and `/source-control:pull-request` resolve this file first, before inferring from the repo's own
-CLAUDE.md/rules/commit-msg hook or falling back to the bundled Conventional Commits default.
+Commit-subject / PR-title convention for the source-control plugin, resolved by
+`/source-control:commit` and `/source-control:pull-request` before they infer from the repo's own
+CLAUDE.md/rules/commit-msg hook or fall back to the bundled Conventional Commits default.
 Re-run `/source-control:setup` to change these values.
 
 ## subject_pattern
