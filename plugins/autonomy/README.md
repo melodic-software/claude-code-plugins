@@ -5,7 +5,7 @@ AI-adoption-ladder contract set: it ships the tool-agnostic contracts an adoptin
 its own repositories, tools, and policies, plus a guided-setup skill that discovers the org's
 state and records that binding.
 
-## Shipped capability (0.5.0)
+## Shipped capability (0.6.0)
 
 - **Topology contracts** (`reference/`): role topology for the repositories an adoption spans,
   the binding-seam shape that maps contract roles to an org's real instances, and the
@@ -35,6 +35,15 @@ state and records that binding.
   setup guardrail slice that detects substrates per surface, live-validates isolation with an
   in-boundary probe before binding, folds in security-review wiring, and fail-closes autonomous
   dispatch where no `L2` substrate exists.
+- **Standing-routine catalog** (`reference/routines.md`): the routine classes an adopting org can
+  stand up as governed background maintenance — a progressive-disclosure hub whose glance-layer
+  table classifies every class (judgment, output, access → derived guardrail row) under
+  contract-owned catalog-to-matrix mapping rules, with `reference/routines/` definition leaves for
+  the v1 subset and the invariant that a routine is a scheduled `temporal`-class trigger adapter
+  behind the governed queue, never a private execution or merge path — plus the setup routine slice
+  that discovers scheduling surfaces, wires the free CI-cron/local-scheduler defaults as reviewable
+  changes, homes each routine's work-class mapping on the security surface, and
+  detect-diff-reconciles existing org schedulers and bots instead of duplicating them.
 - **Guided setup** (`/autonomy:setup`): discovery-first interview of the adopting org's state —
   role homes, substrate availability, budget posture — writing a schema-versioned binding under
   `.claude/autonomy/` as reviewable changes. Never assumes any particular org or repo shape.
@@ -47,7 +56,6 @@ locked (no step-skipping — trust before scale).
 | Capability | Trigger |
 |---|---|
 | Fleet adapter materializations (reusable workflows, labels, drain routine) | Work-item backlog, post trigger-package graduation. |
-| Standing-routine catalog + v1 definitions | Routines work package build lands. |
 | Runner charter execution pack | The runner build trigger fires (charter's own conditions). |
 
 ## Trigger register (plugin-scoped)

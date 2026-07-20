@@ -448,10 +448,91 @@ depends on the binding until that human-landed change exists.
    posture, not a defect — the verify reports blocked autonomous dispatch as declared, and the
    binding still validates.
 
+## Routine slice
+
+Wires the standing-routine state of the
+[routine catalog](${CLAUDE_PLUGIN_ROOT}/reference/routines.md): a routine is a scheduled
+`temporal`-class signal adapter behind the governed queue — never a private execution or merge
+path. This slice is discovery-first and detect-diff-reconciles against the org's EXISTING
+schedulers and bots. Everything free lands as reviewable changes; paid or preview scheduling
+surfaces are advisory + explicit opt-in with cost surfaced. Like the
+[guardrail slice](#guardrail-slice) it PREPARES the security surface, never writes it — a
+routine's work-class mapping is admission data proposed as a reviewable change on the
+settings-as-code home, and nothing dispatches autonomously until a human lands it.
+
+**Binding-home split by governance sensitivity (the guardrail contract's split).** A routine's
+`signal.work_class` is stamped, per
+[`${CLAUDE_PLUGIN_ROOT}/reference/trigger-dispatch.md`](${CLAUDE_PLUGIN_ROOT}/reference/trigger-dispatch.md)'s
+classification rules, from the routine→work-class mapping the routine's catalog-derived guardrail
+row fixes. That mapping is ADMISSION data: it binds ONLY in the security binding's
+`admission.classification.temporal` home
+([`schemas/guardrails-security-binding.schema.json`](schemas/guardrails-security-binding.schema.json),
+keyed by routine class token → `C1`–`C5`), on the settings-as-code home outside the agents'
+blast radius — for reconciled existing bots exactly as for freshly wired routines. A repo-local
+class source would be the precise agent-writable bypass the trigger contract's classification
+obligation forbids (an agent that could edit its own routine's work class could launder
+higher-risk work past admission). Only the NON-security keys — cadence, enablement, surface
+choice — land repo-local, in the additive `routines` section below; security axis resolves from
+the security binding always, non-security refinement repo-local, per the guardrail resolution
+order.
+
+1. **Discover scheduling surfaces + budget posture** — interview and inspect which scheduling
+   surfaces this org has: CI-cron on the CI-orchestration home, a developer-machine scheduler,
+   self-run infrastructure, a vendor-hosted preview scheduler (marked examples, not a closed
+   list — research the live surfaces at setup time, never from this doc; preview schedulers are
+   moving targets). Record each surface's transport (`poll`, or `push-lifecycle` where the
+   surface renews subscriptions) and its `scheduler_class` — the closed discriminator the
+   signal-envelope check branches on: `ci-cron` where the surface issues an https run permalink,
+   `local-scheduler` where it does not (a durable `file:`/artifact URI stands in). Per-org
+   absence of a surface is a binding outcome, never a blocker; budget posture defaults `free`.
+2. **Detect-diff-reconcile existing schedulers and bots** — before wiring anything, read what
+   already runs: org schedulers, dependency bots, scheduled scanners, existing cron. A live
+   agent-judgment bot (a dependency-update bot, a triage bot) IS an instance of a catalog routine
+   class, not a rival mechanism: record it in the binding under its class token and its surface,
+   reconcile its cadence, and NEVER stand up a second mechanism for the same concern. The
+   DET-stays-cron rule holds through reconciliation — a plain deterministic scheduled check is not
+   a routine and stays plain cron filing work items through the trigger adapters; only its
+   judgment-bearing successor, where one exists, is the routine, and a hybrid class (e.g.
+   `dependency-update-wave`) reconciles as its split: detection half cron, judgment half the
+   routine. A stale or duplicate bot is surfaced as the diff and reconciled, never silently
+   overwritten.
+3. **Wire free defaults as reviewable changes** — for each enabled routine on a free surface the
+   wiring is reviewable changes across role homes, never one agent-written file:
+   - the CI-cron handler shape from
+     [`templates/routine-definitions.md`](templates/routine-definitions.md) lands on the
+     CI-orchestration home (the scheduled job that emits the routine's `temporal` signal into the
+     queue);
+   - the enabling settings — which routines are on, at what cadence — land as the repo-local
+     `routines` section on the settings-as-code home;
+   - the routine→work-class mapping lands as the `admission.classification.temporal` change
+     PREPARED for the security governance surface.
+
+   Every shape enqueues through the trigger contract's `temporal` adapter and the one dispatch
+   entrypoint; no routine executes work in its own handler and no second scheduling path is
+   created.
+4. **Advise paid/preview surfaces** — a vendor-hosted or preview scheduler that carries a
+   plan/seat cost is advisory + explicit opt-in, cost surfaced first, never the default path. An
+   entitlement gap routes the surface to the advisory step; the free CI-cron/local-scheduler floor
+   covers the default path with zero paid dependencies.
+5. **Record the binding** — the `routines` section of the schema-versioned binding (additive,
+   absent-section tolerance, no major bump), NON-security keys only:
+
+   | Key | Value |
+   |---|---|
+   | `surfaces` | object keyed by scheduling-surface id, the SAME shape the [trigger slice](#triggerdispatch-slice)'s `surfaces` map uses (`{"class": "temporal", "transport": "poll"\|"push-lifecycle", "scheduler_class": "ci-cron"\|"local-scheduler", "execution_surface": "<recorded id>"}`; a `local-scheduler` surface using an org artifact store also declares `artifact_schemes`). Record a surface here ONLY when the trigger slice has not already recorded it — [`scripts/check-signal-envelope.mjs`](scripts/check-signal-envelope.mjs)'s resolver merges every section's `surfaces` map and refuses an id recorded in two sections as ambiguous; a routine riding an already-recorded surface REFERENCES its id, it does not re-declare it |
+   | `enabled` | object keyed by routine class token — each entry `{"source_surface": "<surfaces-map id>", "cadence": "<schedule expression or token>", "enabled": <bool>}`; cadence, enablement, and surface choice ONLY. The class token's work-class mapping is NOT here — it is admission data in the security binding's `admission.classification.temporal`, and a routine whose token has no such mapping stays unclassified and fail-closed human-gated |
+
+6. **Conformance** — the wired state is reached when
+   [`scripts/check-signal-envelope.mjs`](scripts/check-signal-envelope.mjs), run with `--binding`
+   at the resolved binding against a routine-emitted queue item, resolves the item's
+   `signal.source_surface` to the routines-section surface and confirms the temporal raw-link
+   form; a routine signal with no resolvable source surface, or an unclassified work class, is a
+   finding.
+
 ## What this skill does NOT do
 
-- Wire capability slices that have not shipped yet (routines) — each lands with its own work
-  package and extends this skill.
+- Wire capability slices that have not shipped yet — each lands with its own work package and
+  extends this skill (the runner charter execution pack is the next such slice).
 - Estimate, impute, or backfill the two human-attested return fields — ever.
 - Mutate platform settings, user settings, or `pluginConfigs`.
 - Assume the shape of any particular org or fleet — a run against an unknown repo asks or

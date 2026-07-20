@@ -131,7 +131,7 @@ merges after both.
 - Every leaf names a cadence default: `grep -lc 'cadence' plugins/autonomy/reference/routines/*.md | wc -l` = 10
 - Vendor+fleet deny-list sweep exit 0
 
-### Phase 3: Guided-setup routine slice [TODO]
+### Phase 3: Guided-setup routine slice [DONE]
 
 | File | Action | What changes |
 |---|---|---|
