@@ -1,8 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "autonomy",
-  "version": "0.6.0",
-  "description": "Governed autonomous agent operation: role-topology, binding-seam, wiring-vs-advisor, telemetry, return-accounting, trigger-dispatch, per-work-class guardrail-matrix, and standing-routine-catalog contracts for climbing the AI-adoption ladder, plus a guided-setup skill that discovers an adopting org's state, writes its schema-versioned binding, wires standards-pinned OTLP emission with a zero-cost file-artifact default, wires human-attested return capture at the task boundary, wires signal adapters with one governed dispatch entrypoint, binds the five-class guardrail matrix to an org's isolation substrates with an in-boundary live-validation probe before recording each fail-closed binding, and stands up standing-routine-catalog classes as scheduled temporal signal adapters behind the one governed queue with free scheduling defaults wired as reviewable changes and each routine's work-class mapping homed on the security surface.",
+  "version": "0.7.0",
+  "description": "Governed autonomous agent operation: role-topology, binding-seam, wiring-vs-advisor, telemetry, return-accounting, trigger-dispatch, per-work-class guardrail-matrix, standing-routine-catalog, and design-only runner-charter contracts for climbing the AI-adoption ladder, plus a guided-setup skill that discovers an adopting org's state, writes its schema-versioned binding, wires standards-pinned OTLP emission with a zero-cost file-artifact default, wires human-attested return capture at the task boundary, wires signal adapters with one governed dispatch entrypoint, binds the five-class guardrail matrix to an org's isolation substrates with an in-boundary live-validation probe before recording each fail-closed binding, and stands up standing-routine-catalog classes as scheduled temporal signal adapters behind the one governed queue with free scheduling defaults wired as reviewable changes and each routine's work-class mapping homed on the security surface.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -17,6 +17,7 @@
     "otlp",
     "return-accounting",
     "routines",
+    "runner",
     "telemetry",
     "topology"
   ]

@@ -273,7 +273,11 @@ network tool (`gh`, `curl`); the conformance suite runs it in CI, offline.
   (non-lease comments since `renewed_at`, open cross-referenced PRs) that a flat file
   store does not have. Invoking `reclaim` on this provider exits `6` with a stderr
   message (the core gates on the manifest before dispatch). This is the sole
-  degradation; every other verb is fully supported.
+  degradation; every other verb is fully supported. Because no reclaim clears an
+  abandoned claim, `list-items` compensates offline: an item whose lease has expired
+  is reported with an empty `assignees` (its effective post-expiry assignment), so
+  the core frontier returns it to selection. `get-item` still reports the stored
+  assignee, keeping the raw claim record inspectable.
 - **Offline role activates only by manual binding switch** — the local-markdown
   provider is used when a repo's binding names it, never as an automatic fallback
   from a network failure of another provider.
