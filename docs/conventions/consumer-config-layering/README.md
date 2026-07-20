@@ -27,9 +27,13 @@ Three layers, each optional, resolved in this order — a later layer refines an
 | 2 | team | `${CLAUDE_PROJECT_DIR}/.claude/<name>` | the consuming repository, tracked in version control |
 | 3 | local overlay | `${CLAUDE_PROJECT_DIR}/.claude/<stem>.local.<ext>` | one operator in one repo, gitignored |
 
-`<name>` is the surface's own filename — a single file (`source-control.md`, `standards.yaml`) or a
-file inside a concern- or plugin-named folder (`.claude/ecosystems/<ecosystem>.yaml`). The folder form
-takes the same three layers, and the overlay suffix attaches to the leaf file, not the folder.
+`<name>` is the surface's whole path **relative to `.claude/`**, not just its leaf filename. For a
+single-file surface that is `source-control.md`; for a folder-form surface it is
+`ecosystems/<ecosystem>.yaml`, giving a user-global layer at
+`~/.claude/ecosystems/<ecosystem>.yaml`. The folder hierarchy is part of the surface's identity and
+repeats in every layer — collapsing it to the leaf would point the user-global layer at a different
+file than the team layer. `<stem>.local.<ext>` follows the same rule: the overlay suffix attaches to
+the leaf file, never to a folder in the path.
 
 **All three layers absent is a valid state**, not an error. The surface falls through to whatever the
 plugin's own resolution ladder specifies next — inference from the repo's own files, an interview, or
@@ -74,14 +78,16 @@ across the fleet is the point: a consumer adds one `.gitignore` line and every c
 surface is covered.
 
 ```gitignore
-.claude/*.local.*
-```
-
-Folder-form surfaces need the recursive form as well:
-
-```gitignore
 .claude/**/*.local.*
 ```
+
+That is the whole convention — **one line, recursive form, for every surface**. `.claude/**/` matches
+zero or more directories, so this single rule covers a flat `.claude/source-control.local.md`, a
+one-deep `.claude/ecosystems/python.local.yaml`, and a profiled
+`.claude/ai-briefing/<profile>/x.local.md` alike, while leaving team files tracked. The narrower
+`.claude/*.local.*` is what several surfaces currently recommend and it silently fails to ignore any
+folder-form overlay; recommend the recursive form instead, and never ask a consumer for two lines
+where one is exact.
 
 **No plugin writes the consumer's `.gitignore`.** A setup skill recommends the line and leaves the
 edit to the consumer; their ignore file is their artifact.
@@ -147,10 +153,8 @@ human-gated decision.
 - **`ai-briefing` advertises an overlay layer it does not implement.** Its setup recommends a
   `.claude/ai-briefing/**/*.local.*` gitignore line, but no read path resolves a `.local.*` file and
   no file defines what one would do. Its documented resolution covers profile *selection* only, never
-  layer precedence.
-- **`codebase-health` enumerates three layers without stating how they merge.** The layer set and
-  order are correct; whether merging concatenates or overrides per key is unstated, so an
-  implementer or an operator cannot predict the effective config.
+  layer precedence. This is the only surface telling consumers to gitignore a layer that has no
+  effect.
 
 ## Implementers
 
@@ -161,7 +165,7 @@ the point.
 |---|---|---|---|
 | `source-control` | `.claude/source-control.md` | all three | conforms (declared per-key override) |
 | `toolchain` / `ecosystem-commands` | `.claude/ecosystems/<ecosystem>.yaml` | all three | conforms |
-| `codebase-health` | `.claude/codebase-health.md` | all three | merge semantics undocumented |
+| `codebase-health` | `.claude/codebase-health.md` | all three | conforms (concatenating, with a declared empty-list opt-out) |
 | `autonomy` | `.claude/autonomy/binding.json` | all three, plus an org rung | declared deviation |
 | `standards` (`planning`, `review`) | `<standards_dir>/`, rooted by `.claude/standards.yaml` | all three | declared deviation |
 | `disk-hygiene` | `.claude/disk-hygiene.json` | user-global + team | declared deviation; no overlay layer |
@@ -176,8 +180,11 @@ sweep. `source-control` is the worked example.
 
 ### Overlay spelling drift
 
-One recommended `.gitignore` line is the goal; the fleet currently ships four spellings —
-`.claude/*.local.*`, `.claude/ecosystems/*.local.*`, `.claude/autonomy/**/*.local.*`, and a bare
-`*.local.md` inside a setup-owned `<standards_dir>/.gitignore`. Each is individually correct for its
-surface and collectively they defeat the one-line promise. Consolidating them is a per-surface change
-tracked by the rows above, not a rule this contract can retroactively impose.
+The fleet currently ships four spellings — `.claude/*.local.*`, `.claude/ecosystems/*.local.*`,
+`.claude/autonomy/**/*.local.*`, and a bare `*.local.md` inside a setup-owned
+`<standards_dir>/.gitignore`. Each is narrowly correct for its own surface, and collectively they
+defeat the one-line promise: a consumer running three plugins is asked for three lines, and the two
+non-recursive spellings would silently miss a nested overlay if their surface ever grew a folder.
+The recursive line above subsumes all four. Converging each surface's recommendation on it is a
+per-surface change tracked by the rows above, not a rule this contract can retroactively impose on
+config already written into consumer repositories.

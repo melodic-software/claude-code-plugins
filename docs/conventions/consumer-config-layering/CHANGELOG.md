@@ -14,6 +14,7 @@ so fleet audits have a Convention registry row to check. No rule changed in the 
 - Layer set and precedence: user-global → team → local overlay, resolved in that order.
 - Override semantics: additive-preferred; per-key override is sanctioned for scalar and closed-list
   keys and must be declared; wholesale replacement of a base layer is forbidden.
-- Overlay naming: `*.local.*`, with the single recommended consumer `.gitignore` line.
+- Overlay naming: `*.local.*`, with one recursive consumer `.gitignore` line covering flat,
+  folder-form, and profiled surfaces alike.
 - Resolution algorithm, including the repo-root anchoring rule and the per-layer gitignore verdicts.
 - Deviations recorded as observed, not ratified.
