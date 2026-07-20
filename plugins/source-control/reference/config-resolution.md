@@ -20,7 +20,9 @@ Markdown, one `## <key>` H2 per key, the value as the section body:
   regex.
 - `type_list` — the type vocabulary; meaningful only when `subject_pattern` is
   Conventional-Commits-shaped, omitted otherwise.
-- `pr_title_pattern` — the PR-title shape, or the literal `Same as \`subject_pattern\`.`
+- `pr_title_pattern` — the PR-title shape, or the deferral marker spelled exactly
+  `` Same as `subject_pattern`. `` (capital S, backticked key, trailing period). The match is literal:
+  any other casing or punctuation is treated as a pattern in its own right.
 - `trailer_policy` — the attribution-trailer template, or `none`. Absent means the `/commit` default
   trailer applies.
 

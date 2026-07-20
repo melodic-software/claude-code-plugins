@@ -209,7 +209,10 @@ With no argument in an interactive session, run the interview:
 4. **Settle the remaining fields**, recommendation first:
    - **`pr_title_pattern`** — usually identical to `subject_pattern` (squash-merge repos set the PR
      title as the squash commit's subject). Ask only if the user wants them to differ; otherwise
-     record "same as `subject_pattern`".
+     write the deferral marker exactly as `` Same as `subject_pattern`. `` — capital S, backticked key,
+     trailing period. That literal is what the resolution contract recognizes and expands against the
+     effective `subject_pattern`; any other casing or punctuation is read as a pattern in its own
+     right and pre-checked as a regex.
    - **`trailer_policy`** (optional) — whether commits should carry a `Co-Authored-By:` (or other)
      attribution trailer, and its exact template. Recommend keeping `/commit`'s default unless the
      user states otherwise. Omit this section entirely if the repo has no trailer convention.
