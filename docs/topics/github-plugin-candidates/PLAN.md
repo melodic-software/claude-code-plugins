@@ -225,7 +225,7 @@ The Brief's deferred-questions table delegates these to this plan. Resolutions, 
 
 ### Phases
 
-#### Phase 1: Walking skeleton — scaffold + `audit` end-to-end [TODO]
+#### Phase 1: Walking skeleton — scaffold + `audit` end-to-end [DONE]
 
 Integration-first tracer bullet: prove the whole read path (skill → area router → method ladder →
 live `gh` state + runtime doc fetch → grounded findings) on the real platform before broadening.
