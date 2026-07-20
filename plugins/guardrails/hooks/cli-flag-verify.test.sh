@@ -138,6 +138,17 @@ OUT=$(PATH="$FAKE_BIN_DIR:$PATH" CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS=faket
   CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_SKIP_BINS=faketool bash "$HOOK" <<<"$dis_input" 2>&1); RC=$?
 assert_exit "per-binary skip → exit 0" 0 "$RC"
 
+# Empty stdin: hook::buffer_stdin returns 1 (no payload) → this advisory hook
+# skips silently. Guards the skip contract through the migrated buffered-read
+# path. NOTE: a here-string / /dev/null cannot reproduce the Win32
+# late-EOF pipe stall the fix targets, and rc-2 (timeout) collapses to the same
+# silent exit 0 as rc-1 for an advisory hook — so this asserts the skip contract,
+# not the stall itself.
+OUT=$(PATH="$FAKE_BIN_DIR:$PATH" CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS=faketool \
+  bash "$HOOK" </dev/null 2>&1); RC=$?
+assert_exit "empty stdin → exit 0" 0 "$RC"
+assert_silent "empty stdin → no output" "$OUT"
+
 # ============================ TELEMETRY ====================================
 TEL="$(mktemp -p "$TEST_TMPDIR")"
 SINK="$(make_sink "cat >\"$TEL\"")"

@@ -96,5 +96,4 @@ it writes no Claude Code user settings or `pluginConfigs`.
 
 ## License
 
-MIT (SPDX-License-Identifier: MIT). See the LICENSE file at the root of the
-melodic-software/claude-code-plugins repository.
+MIT (SPDX-License-Identifier: MIT).

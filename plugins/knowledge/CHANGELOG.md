@@ -4,7 +4,7 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
-## [0.8.2]
+## [0.8.3]
 
 ### Fixed
 
@@ -22,6 +22,15 @@ only after that version increases.
   `.work/` (default `memory_dir`), leaving slices local until the work root is
   relocated (e.g. a non-default `library_dir`). Doc-only; no pipeline behavior
   changes.
+
+## [0.8.2]
+
+### Changed
+
+- Documentation-only: the License section now states the plugin's own MIT
+  license inline and no longer points at a `LICENSE` file at the repository
+  root, which an installed consumer running from the isolated plugin cache
+  cannot reach. No behavior change.
 
 ## [0.8.1]
 

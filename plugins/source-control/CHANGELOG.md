@@ -3,6 +3,24 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.2]
+
+### Fixed
+
+- **`babysit-prs` worktree pruner no longer hard-depends on `ghq` (#438).** The engine-backed
+  pruner (`prune_babysit_worktrees.py`) resolved a linked worktree's main checkout by shelling out
+  to `ghq` — the plugin author's personal repo-layout tool — and raised a hard `RuntimeError`
+  ("install ghq or set ghq.root") for any consumer without it, an undeclared prerequisite absent
+  from the README's "runs on `git`, `gh`, `jq`" contract. `repo_path` now resolves the main
+  checkout natively from the worktree's own gitdir/commondir pointer via
+  `git rev-parse --git-common-dir` (parent of the shared `.git` for a standard clone, the git
+  directory itself for a bare-clone hub), so cleanup works with only `git` present regardless of
+  repo layout. `ghq` is removed from the executable allowlist entirely — native resolution is
+  strictly more correct than ghq's guess from a configured root plus an assumed
+  `<root>/github.com/owner/repo` layout, so no optional ghq path is retained. Adds a hermetic
+  regression test that exercises resolution and removal against a real linked worktree with no
+  `ghq` on `PATH`.
+
 ## [0.15.1]
 
 ### Changed

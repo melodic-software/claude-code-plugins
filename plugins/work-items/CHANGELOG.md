@@ -3,6 +3,48 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.0]
+
+Add a loop-start permission preflight so the unattended `work` (and, by shared contract,
+`source-control:babysit-prs`) lanes report a missing grant or untrusted worktree root **once, up
+front**, instead of stopping for a per-operation prompt mid-cycle (`#495`). Report-only by design:
+the assistant cannot self-apply the fix — the auto-mode classifier blocks an agent broadening its
+own `permissions.allow`, and a plugin `settings.json` grant is inert — so the check detects and
+points at the operator-side remediation, never edits settings, and never retries a denial into
+broader grants.
+
+### Added
+
+- **Loop-start permission preflight (`#495`).** New `skills/work/scripts/preflight.sh` (with
+  `preflight.test.sh`) reads the effective `permissions.allow` / `permissions.additionalDirectories`
+  from user-global and project settings and reports three conditions: (a) cwd is not a git repo (a
+  note — a worktree-operating lane still proceeds); (b) a probed core working verb
+  (`git add`, `git commit`, `git push`, `gh pr create`, `gh issue comment`) is denied by a matching
+  deny rule or is not covered by any `Bash()`/`PowerShell()` allow rule; (c) the configured
+  out-of-tree worktree root is not covered by `additionalDirectories`. A verb counts as covered only
+  by an **open-glob** grant (`git commit *` / `git commit:*`); a flag-scoped rule
+  (`git commit --amend`, a force-with-lease-only push) is a gap, and a **bare-exact** rule
+  (`git commit`) is a gap reported with a distinct message — it covers an argumentless caller (the
+  babysit fix cycle's plain `git push`) but not the work lane's argument-carrying call, so the remedy
+  is the open glob. Deny wins over allow: a deny rule of the verb keeps it a gap (reported distinctly
+  as denied) even when allowed — matched exact-shape only (never glob simulation) so the flag-scoped
+  standard deny floor is never false-flagged, but erring **wider** than coverage by also counting the
+  bare spelling (a false *denied* is safe). The worktree-root check is root-agnostic (coverage of the
+  passed root, never a hardcoded path), and Windows and git-bash path spellings are folded to one
+  comparable form. Per-checkout `settings.local.json` handling: under `--worktree-root` with no
+  distinct `--project-root` (pre-dispatch) the coverage reads exclude this checkout's gitignored
+  local file, which a fresh worktree would not carry, so a local-only grant cannot mask a worker-side
+  gap; a distinct `--project-root` (a named worker checkout) instead reads that worktree's OWN
+  `settings.local.json`; the interactive path keeps local; deny always reads it. Always exits `0`;
+  `--count` reports the GAP total for a scripted gate. No live permission probe.
+- **Preflight reference (`#495`).** New `reference/permission-preflight.md` is the source of truth
+  for the preconditions: it points at the `melodic-software/standards` `claude-permissions`
+  component (`components/claude-permissions/`, composed operator-side via the dotfiles chezmoi seam)
+  as the canonical allow/deny floor rather than restating a list, documents the trusted
+  sibling-worktree-root `additionalDirectories` guidance, and records the detect-and-report /
+  never-self-apply contract. The `work` skill wires the check as the first loop-start action, ahead
+  of the binding preflight.
+
 ## [0.16.1]
 
 ### Fixed
