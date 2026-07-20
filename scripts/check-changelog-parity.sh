@@ -7,19 +7,22 @@
 #   scripts/check-changelog-parity.sh --check-bump <ref>  fail if a plugin's
 #                                                         manifest version
 #                                                         changed vs <ref> but
-#                                                         its CHANGELOG.md was
-#                                                         not touched in the diff
+#                                                         its CHANGELOG.md has no
+#                                                         entry for the new
+#                                                         version at head
 #
 # Two complementary gaps the same audit surfaced:
 #   * --check is the static repo-wide invariant: a plugins/<name>/.claude-plugin/
 #     plugin.json carrying a `version` must ship a plugins/<name>/CHANGELOG.md.
 #     It catches a plugin that has bumped versions but never kept a changelog at
 #     all (autonomy shipped 5 minor bumps with none).
-#   * --check-bump is the go-forward PR discipline: a version change with no
-#     CHANGELOG.md edit in the same diff means the release is undocumented. It
-#     mirrors the sync-*.sh --check-bump bump gates and applies to EVERY plugin,
-#     grandfathered or not — the moment a debt-listed plugin bumps again it must
-#     start its changelog.
+#   * --check-bump is the go-forward PR discipline: a version change whose new
+#     version has no `## [<version>]` entry in the plugin's CHANGELOG.md at head
+#     means the release is undocumented. Checking for the version's own entry
+#     (not merely that the file was touched) is deliberate: an unrelated edit —
+#     whitespace, the title, an old release — must not satisfy the gate. It
+#     applies to EVERY plugin, grandfathered or not — the moment a debt-listed
+#     plugin bumps again it must start its changelog.
 #
 # Existing "versioned but changelog-less" debt is grandfathered by plugin NAME in
 # scripts/changelog-parity-baseline.txt (same stale-guarded idiom as
@@ -127,8 +130,13 @@ for manifest in "${manifests[@]}"; do
   head_version="$(version_of "$manifest")"
   [[ "$head_version" != "$base_version" ]] || continue
 
-  if git diff --quiet "$base" -- "$changelog"; then
-    echo "UNDOCUMENTED BUMP: $name went $base_version -> $head_version but $changelog was not updated in this diff." >&2
+  # Require the bumped version's own entry at head, not merely that the file
+  # changed: an unrelated edit (whitespace, title, an old release) must not
+  # satisfy the gate. Fixed-string match tolerates a trailing "- <date>" and
+  # keeps the dotted version and literal brackets literal; a missing file counts
+  # as undocumented.
+  if [[ ! -f "$changelog" ]] || ! grep -Fq "## [$head_version]" "$changelog"; then
+    echo "UNDOCUMENTED BUMP: $name went $base_version -> $head_version but $changelog has no '## [$head_version]' entry at head." >&2
     undocumented=$((undocumented + 1))
   fi
 done

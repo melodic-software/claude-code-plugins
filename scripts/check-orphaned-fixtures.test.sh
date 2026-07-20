@@ -69,20 +69,32 @@ rc=$?
 if [[ $rc -ne 0 && "$out" == *"ORPHANED FIXTURE"*"orphan.md"* ]]; then ok "un-consumed fixture fails --check (synthetic orphan caught)"; else fail "synthetic orphan not caught: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
-# --- orphan grandfathered by a baseline prefix -> passes -------------------
-repo="$(mk_repo $'plugins/p/skills/s/evals/fixtures/\n')"
+# --- orphan grandfathered by an exact baseline path -> passes --------------
+repo="$(mk_repo $'plugins/p/skills/s/evals/fixtures/orphan.md\n')"
 seed_skill "$repo" "plugins/p/skills/s" ''
 printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/orphan.md"
-if run_check "$repo" >/dev/null; then ok "grandfathered orphan passes --check"; else fail "grandfathered orphan wrongly failed"; fi
+if run_check "$repo" >/dev/null; then ok "grandfathered orphan (exact path) passes --check"; else fail "grandfathered orphan wrongly failed"; fi
 rm -rf "$repo"
 
-# --- STALE baseline prefix (shadows no orphan) -> fails --------------------
-repo="$(mk_repo $'plugins/p/skills/s/evals/fixtures/\n')"
+# --- baseline entry is EXACT, not a prefix: a .bak/.jsonl sibling of a
+#     baselined file is NOT grandfathered and red-lines --------------------
+repo="$(mk_repo $'plugins/p/skills/s/evals/fixtures/valid.json\n')"
+seed_skill "$repo" "plugins/p/skills/s" ''
+printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/valid.json"
+printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/valid.json.bak"
+printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/valid.jsonl"
+out="$(cd "$repo" && bash scripts/check-orphaned-fixtures.sh --check 2>&1)"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"valid.json.bak"* && "$out" == *"valid.jsonl"* ]]; then ok "prefix-sibling of a baselined path red-lines (exact-match, no grandfather leak)"; else fail "baseline prefix-leak not caught: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# --- STALE baseline entry (shadows no orphan) -> fails ---------------------
+repo="$(mk_repo $'plugins/p/skills/s/evals/fixtures/gone.md\n')"
 seed_skill "$repo" "plugins/p/skills/s" '"evals/fixtures/used.md"'
 printf 'x\n' >"$repo/plugins/p/skills/s/evals/fixtures/used.md"
 out="$(cd "$repo" && bash scripts/check-orphaned-fixtures.sh --check 2>&1)"
 rc=$?
-if [[ $rc -ne 0 && "$out" == *"STALE BASELINE"* ]]; then ok "stale baseline prefix fails --check"; else fail "stale baseline not caught: rc=$rc out='$out'"; fi
+if [[ $rc -ne 0 && "$out" == *"STALE BASELINE"* ]]; then ok "stale baseline entry fails --check"; else fail "stale baseline not caught: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
 # --- discover mode labels every fixture ------------------------------------

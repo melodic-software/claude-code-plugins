@@ -1,10 +1,10 @@
 # Grandfathered orphaned eval fixtures — existing debt this gate must not
-# red-line, each owned by (or awaiting) a burn-down issue. Exact-path lines,
-# same matching idiom as scripts/docs-only-paths.txt (a fixture whose path
-# starts with an active line is exempt from check-orphaned-fixtures.sh --check),
-# but each line pins one file, never a directory: this is a snapshot of today's
-# known orphans, so a NEW orphan added under an already-listed directory matches
-# no line and is red-lined by the gate rather than silently grandfathered.
+# red-line, each owned by (or awaiting) a burn-down issue. Each line is one
+# exact fixture path, matched by full-string EQUALITY (not prefix): a line
+# exempts only that file from check-orphaned-fixtures.sh --check. This is a
+# snapshot of today's known orphans, so a NEW orphan — whether added under an
+# already-listed directory or as a `<name>.json.bak` / `<name>.jsonl` sibling
+# of a listed file — matches no line and is red-lined rather than grandfathered.
 #
 # An entry here is a standing promise the debt is tracked, not a place to hide
 # new orphans: --check fails on a STALE entry (one that no longer shadows any

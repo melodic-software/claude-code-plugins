@@ -79,16 +79,33 @@ rm -rf "$repo"
 
 # ============================ --check-bump (diff) =========================
 
-# version changed AND changelog updated -> passes
+# version changed AND changelog has the new version's entry -> passes
 repo="$(mk_repo)"
 git_init "$repo"
 mk_plugin "$repo" alpha 1.0.0 yes
 git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
 base="$(git -C "$repo" rev-parse HEAD)"
 printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
-printf '# Changelog\n\n## 1.1.0\n' >"$repo/plugins/alpha/CHANGELOG.md"
+printf '# Changelog\n\n## [1.1.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
 git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
-if (cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" >/dev/null 2>&1); then ok "bump + changelog edit passes --check-bump"; else fail "bump+changelog wrongly failed"; fi
+if (cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" >/dev/null 2>&1); then ok "bump + '## [x.y.z]' entry passes --check-bump"; else fail "bump+entry wrongly failed"; fi
+rm -rf "$repo"
+
+# SYNTHETIC UNDOCUMENTED BUMP: version changed, changelog edited but WITHOUT an
+# entry for the new version (unrelated edit) -> fails. Proves the gate checks
+# the version's own entry, not merely that the file was touched.
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+printf '# Changelog (typo fix)\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"UNDOCUMENTED BUMP"*"alpha"* ]]; then ok "bump + unrelated changelog edit (no new-version entry) fails --check-bump"; else fail "unrelated-edit bump not caught: rc=$rc out='$out'"; fi
 rm -rf "$repo"
 
 # SYNTHETIC UNDOCUMENTED BUMP: version changed, changelog untouched -> fails

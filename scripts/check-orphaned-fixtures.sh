@@ -10,7 +10,7 @@
 #                                                whether a grader consumes it
 #   scripts/check-orphaned-fixtures.sh --check  fail if an un-grandfathered
 #                                                fixture is orphaned, or a
-#                                                baseline prefix is now stale
+#                                                baseline entry is now stale
 #
 # A fixture at <skill>/evals/fixtures/<sub> is CONSUMED when any of:
 #   * its skill-relative path (evals/fixtures/<sub>) appears in the sibling
@@ -31,10 +31,12 @@
 # name-matcher cannot honestly grade them.
 #
 # Existing orphan debt owned by another issue is grandfathered in
-# scripts/orphaned-fixtures-baseline.txt (path-prefix lines, same idiom as
-# scripts/docs-only-paths.txt). A prefix there is a promise the owning issue
-# burns it down; --check fails on a stale prefix (one that no longer shadows any
-# orphan) so the baseline cannot outlive its debt.
+# scripts/orphaned-fixtures-baseline.txt (exact fixture paths, one file per
+# line — matched by full-string equality, NOT prefix, so a baselined
+# `<name>.json` never shadows a new `<name>.json.bak` or `<name>.jsonl`
+# sibling). An entry there is a promise the owning issue burns it down; --check
+# fails on a stale entry (one that no longer shadows any orphan) so the baseline
+# cannot outlive its debt.
 #
 # Fail-closed: a fixture with no resolvable grader is an orphan unless
 # explicitly grandfathered. FIXTURES_BASELINE overrides the baseline path (test
@@ -54,16 +56,17 @@ discover | --check) ;;
   ;;
 esac
 
-# Active baseline prefixes: strip inline comments and surrounding blank lines.
-prefixes=()
+# Active baseline entries: strip inline comments and surrounding blank lines.
+# Each entry is one exact fixture path, matched by full-string equality below.
+entries=()
 if [[ -f "$BASELINE" ]]; then
-  mapfile -t prefixes < <(sed -E 's/#.*//; s/^[[:space:]]+//; s/[[:space:]]+$//' "$BASELINE" | grep -v '^$')
+  mapfile -t entries < <(sed -E 's/#.*//; s/^[[:space:]]+//; s/[[:space:]]+$//' "$BASELINE" | grep -v '^$')
 fi
 
 is_grandfathered() {
-  local path="$1" prefix
-  for prefix in "${prefixes[@]}"; do
-    if [[ "$path" == "$prefix"* ]]; then
+  local path="$1" entry
+  for entry in "${entries[@]}"; do
+    if [[ "$path" == "$entry" ]]; then
       return 0
     fi
   done
@@ -124,13 +127,13 @@ if ((${#fixtures[@]} > 0)); then
   mapfile -t -d '' fixtures < <(printf '%s\0' "${fixtures[@]}" | sort -z)
 fi
 
-# Track which baseline prefixes actually shadow an orphan, to flag stale ones.
-declare -A prefix_used
-matched_prefix() {
-  local path="$1" prefix
-  for prefix in "${prefixes[@]}"; do
-    if [[ "$path" == "$prefix"* ]]; then
-      printf '%s' "$prefix"
+# Track which baseline entries actually shadow an orphan, to flag stale ones.
+declare -A entry_used
+matched_baseline() {
+  local path="$1" entry
+  for entry in "${entries[@]}"; do
+    if [[ "$path" == "$entry" ]]; then
+      printf '%s' "$entry"
       return 0
     fi
   done
@@ -156,8 +159,8 @@ for f in "${fixtures[@]}"; do
   if consumed "$f"; then
     continue
   fi
-  if p="$(matched_prefix "$f")"; then
-    prefix_used["$p"]=1
+  if p="$(matched_baseline "$f")"; then
+    entry_used["$p"]=1
     continue
   fi
   echo "ORPHANED FIXTURE: $f is under evals/fixtures/ but no eval case references it and no test asserts on it." >&2
@@ -166,9 +169,9 @@ for f in "${fixtures[@]}"; do
 done
 
 stale=0
-for prefix in "${prefixes[@]}"; do
-  if [[ -z "${prefix_used[$prefix]:-}" ]]; then
-    echo "STALE BASELINE: '$prefix' in $BASELINE no longer shadows any orphaned fixture — remove it." >&2
+for entry in "${entries[@]}"; do
+  if [[ -z "${entry_used[$entry]:-}" ]]; then
+    echo "STALE BASELINE: '$entry' in $BASELINE no longer shadows any orphaned fixture — remove it." >&2
     stale=$((stale + 1))
   fi
 done
