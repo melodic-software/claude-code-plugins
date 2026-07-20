@@ -91,6 +91,53 @@ git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
 if (cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" >/dev/null 2>&1); then ok "bump + '## [x.y.z]' entry passes --check-bump"; else fail "bump+entry wrongly failed"; fi
 rm -rf "$repo"
 
+# SYNTHETIC MALFORMED ENTRY: version present but as an UNBRACKETED heading
+# (## 1.1.0) -> FORMAT error naming the found heading, NOT "UNDOCUMENTED BUMP".
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+printf '# Changelog\n\n## 1.1.0 — 2026-07-20\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"CHANGELOG FORMAT"*"alpha"* && "$out" == *"## 1.1.0"* && "$out" != *"UNDOCUMENTED BUMP"* ]]; then ok "bump + unbracketed heading -> FORMAT error (not UNDOCUMENTED)"; else fail "format-split not caught: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# NEWLY-ADDED ENTRY: base carries an earlier `## [1.0.0]`; the bump ADDS
+# `## [1.1.0]` (present at head, absent at base) -> passes. Proves the pass
+# path accepts a genuinely new release note.
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+printf '# Changelog\n\n## [1.1.0]\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
+if (cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" >/dev/null 2>&1); then ok "bump adding a NEW '## [x.y.z]' entry (absent at base) passes --check-bump"; else fail "newly-added entry wrongly failed"; fi
+rm -rf "$repo"
+
+# PRE-EXISTING ENTRY: the `## [1.1.0]` heading already exists in the base
+# changelog; the bump only edits plugin.json, adding no new release note ->
+# fails as PRE-EXISTING (not UNDOCUMENTED). Proves the gate closes the fail-open
+# where a bump reuses a heading that predates the change set.
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\n## [1.1.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+base="$(git -C "$repo" rev-parse HEAD)"
+printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm bump
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" 2>&1)"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"PRE-EXISTING CHANGELOG ENTRY"*"alpha"* && "$out" != *"UNDOCUMENTED BUMP"* ]]; then ok "bump reusing a base-pre-existing '## [x.y.z]' entry fails --check-bump"; else fail "preexisting-entry not caught: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
 # SYNTHETIC UNDOCUMENTED BUMP: version changed, changelog edited but WITHOUT an
 # entry for the new version (unrelated edit) -> fails. Proves the gate checks
 # the version's own entry, not merely that the file was touched.

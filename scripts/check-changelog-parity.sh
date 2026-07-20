@@ -7,22 +7,29 @@
 #   scripts/check-changelog-parity.sh --check-bump <ref>  fail if a plugin's
 #                                                         manifest version
 #                                                         changed vs <ref> but
-#                                                         its CHANGELOG.md has no
+#                                                         its CHANGELOG.md does
+#                                                         not ADD a `## [<v>]`
 #                                                         entry for the new
-#                                                         version at head
+#                                                         version (present at
+#                                                         head, absent at <ref>)
 #
 # Two complementary gaps the same audit surfaced:
 #   * --check is the static repo-wide invariant: a plugins/<name>/.claude-plugin/
 #     plugin.json carrying a `version` must ship a plugins/<name>/CHANGELOG.md.
 #     It catches a plugin that has bumped versions but never kept a changelog at
 #     all (autonomy shipped 5 minor bumps with none).
-#   * --check-bump is the go-forward PR discipline: a version change whose new
-#     version has no `## [<version>]` entry in the plugin's CHANGELOG.md at head
-#     means the release is undocumented. Checking for the version's own entry
-#     (not merely that the file was touched) is deliberate: an unrelated edit —
-#     whitespace, the title, an old release — must not satisfy the gate. It
-#     applies to EVERY plugin, grandfathered or not — the moment a debt-listed
-#     plugin bumps again it must start its changelog.
+#   * --check-bump is the go-forward PR discipline: a version change must ADD a
+#     `## [<version>]` entry for the new version — present in the plugin's
+#     CHANGELOG.md at head AND absent from it at <ref>. Two failure classes the
+#     gate must not conflate: (a) checking for the version's own entry, not
+#     merely that the file was touched, so an unrelated edit — whitespace, the
+#     title, an old release — cannot satisfy the gate; (b) requiring the entry
+#     to be newly added, so reusing a heading that already existed at <ref>
+#     (a bump with no fresh release note) cannot satisfy it either. An entry
+#     documented as `## <version>` (no brackets) is a separate FORMAT failure,
+#     reported as such rather than as undocumented. It applies to EVERY plugin,
+#     grandfathered or not — the moment a debt-listed plugin bumps again it must
+#     start its changelog.
 #
 # Existing "versioned but changelog-less" debt is grandfathered by plugin NAME in
 # scripts/changelog-parity-baseline.txt (same stale-guarded idiom as
@@ -118,6 +125,8 @@ if ! git rev-parse --verify --quiet "${base}^{commit}" >/dev/null; then
 fi
 
 undocumented=0
+malformed=0
+preexisting=0
 for manifest in "${manifests[@]}"; do
   plugin_dir="${manifest%/.claude-plugin/plugin.json}"
   name="${plugin_dir##*/}"
@@ -133,16 +142,38 @@ for manifest in "${manifests[@]}"; do
   # Require the bumped version's own entry at head, not merely that the file
   # changed: an unrelated edit (whitespace, title, an old release) must not
   # satisfy the gate. Fixed-string match tolerates a trailing "- <date>" and
-  # keeps the dotted version and literal brackets literal; a missing file counts
-  # as undocumented.
-  if [[ ! -f "$changelog" ]] || ! grep -Fq "## [$head_version]" "$changelog"; then
+  # keeps the dotted version and literal brackets literal.
+  if [[ -f "$changelog" ]] && grep -Fq "## [$head_version]" "$changelog"; then
+    # The release entry must be ADDED by this change set, not merely present:
+    # a heading that already existed in the changelog at $base means the bump
+    # reused a pre-existing entry and shipped no new release note. Require it
+    # absent from the base changelog. (git show fails for a changelog that is
+    # new at $base -> empty -> counts as absent, which is correct: it was added
+    # here.)
+    if git show "$base:$changelog" 2>/dev/null | grep -Fq "## [$head_version]"; then
+      echo "PRE-EXISTING CHANGELOG ENTRY: $name bumped $base_version -> $head_version but '## [$head_version]' already existed in $changelog at $base; add the release entry in this change set." >&2
+      preexisting=$((preexisting + 1))
+    fi
+    continue
+  fi
+
+  # Split the failure: a heading that names the version but omits the brackets
+  # (## <version>) is a FORMAT error the author can fix in place, not a missing
+  # release. Escape dots so the version matches literally.
+  esc="${head_version//./\\.}"
+  if found="$([[ -f "$changelog" ]] && grep -m1 -E "^##[[:space:]]+${esc}([[:space:]]|\$)" "$changelog")"; then
+    echo "CHANGELOG FORMAT: $name $head_version is documented as '${found}' but must use the bracketed Keep-a-Changelog heading '## [$head_version]'." >&2
+    malformed=$((malformed + 1))
+  else
     echo "UNDOCUMENTED BUMP: $name went $base_version -> $head_version but $changelog has no '## [$head_version]' entry at head." >&2
     undocumented=$((undocumented + 1))
   fi
 done
 
-if ((undocumented > 0)); then
-  echo "Add a CHANGELOG.md entry for every plugin whose version changed." >&2
+if ((undocumented > 0 || malformed > 0 || preexisting > 0)); then
+  ((undocumented > 0)) && echo "Add a '## [<version>]' entry for every plugin whose version changed." >&2
+  ((malformed > 0)) && echo "Convert unbracketed changelog headings to the '## [<version>]' Keep-a-Changelog form." >&2
+  ((preexisting > 0)) && echo "Add the bumped version's '## [<version>]' entry in this change set; it must be absent from the base changelog, not merely present at head." >&2
   exit 1
 fi
-echo "Every plugin whose version changed vs $base also updated its CHANGELOG.md."
+echo "Every plugin whose version changed vs $base has a '## [<version>]' CHANGELOG.md entry."
