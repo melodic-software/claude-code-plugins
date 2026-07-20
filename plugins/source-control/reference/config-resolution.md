@@ -12,7 +12,12 @@ Implements the tracked-rich-config seam in
 Markdown, one `## <key>` H2 per key, the value as the section body:
 
 - `subject_pattern` — required; the literal keyword `Conventional Commits`, or an anchored regex
-  (`^…`-style), or an any-of list of anchored regexes. Never a plain-language description.
+  (`^…`-style). Exactly one value, never a list and never a plain-language description — a convention
+  with several accepted shapes is expressed as alternation inside the one regex
+  (`^(?:feat|fix): .+|^[A-Z]+-\d+: .+`), which every consumer already evaluates correctly. A list form
+  would need a serialization grammar and an any-matches rule that nothing here defines, and a reader
+  handing a multi-line value straight to a matcher would reject valid subjects or build an invalid
+  regex.
 - `type_list` — the type vocabulary; meaningful only when `subject_pattern` is
   Conventional-Commits-shaped, omitted otherwise.
 - `pr_title_pattern` — the PR-title shape, or the literal `Same as \`subject_pattern\`.`

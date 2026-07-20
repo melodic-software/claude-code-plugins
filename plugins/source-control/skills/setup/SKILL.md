@@ -202,8 +202,10 @@ With no argument in an interactive session, run the interview:
      minimum) that `/commit` and `/pull-request` can evaluate directly. If the user describes their
      convention in prose, translate it into an anchored regex yourself and confirm the translation
      before persisting — never write the prose. If a convention genuinely cannot be expressed as one
-     regex, ask the user to restate it as an anchored regex (or a short any-of list), or fall back to
-     the Conventional Commits default; do not persist a free-text `subject_pattern`.
+     regex, express the alternatives as alternation inside one anchored regex
+     (`^(?:feat|fix): .+|^[A-Z]+-\d+: .+`), or fall back to the Conventional Commits default; do not
+     persist a free-text `subject_pattern`, and never persist a list — `subject_pattern` is exactly
+     one value, because nothing here defines how a list would serialize or match.
 4. **Settle the remaining fields**, recommendation first:
    - **`pr_title_pattern`** — usually identical to `subject_pattern` (squash-merge repos set the PR
      title as the squash commit's subject). Ask only if the user wants them to differ; otherwise
@@ -223,8 +225,8 @@ With no argument in an interactive session, run the interview:
 
    ## subject_pattern
 
-   <the literal keyword `Conventional Commits`, or a single anchored regex (or an any-of list of
-   anchored regexes) — always machine-checkable, never a plain-language description>
+   <the literal keyword `Conventional Commits`, or exactly one anchored regex — always
+   machine-checkable, never a list and never a plain-language description>
 
    ## type_list
 
