@@ -151,6 +151,7 @@ class SkillContractTests(unittest.TestCase):
             "distinct bot identity",
             "head SHA unchanged since review",
             "review workflow",
+            "Decision defaulted",
         ):
             with self.subTest(criterion=criterion):
                 self.assertIn(criterion, safety)

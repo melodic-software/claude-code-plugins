@@ -15,6 +15,8 @@ All notable changes to the `source-control` plugin are documented here. Format f
   criterion holds** — required checks green including the review workflow (`mergeStateStatus`
   CLEAN, ruleset untouched), issue-linked, authored by a configured pipeline lane, no human
   `CHANGES_REQUESTED` / blocking comment / unresolved thread, no configured do-not-merge label,
+  no unratified `Decision defaulted` marker on the linked issue (the triage lane's maintainer
+  veto window, which a maintainer ratifies by comment before the default rides into a merge),
   and a distinct-bot approval on the live head (head SHA unchanged since review). Any criterion
   failing falls back to today's behavior: the PR is reported on the human merge-ready list. The
   gate flag `--autopilot-merge-tier` is **fail-closed** — it refuses unless `--lane-logins`,

@@ -248,6 +248,84 @@ def find_distinct_bot_approval(
     return match
 
 
+DECISION_DEFAULT_MARKER_RE = re.compile(r"decision[ -]defaulted", re.I)
+# GitHub author associations that identify a maintainer able to exercise the
+# "veto before merge" window: the operators the ratification signal must come
+# from. COLLABORATOR is deliberately excluded -- it is granted per-repo push
+# access, not the maintainer role that owns the veto.
+RATIFYING_ASSOCIATIONS = frozenset({"OWNER", "MEMBER"})
+
+
+def _decision_default_ratified(comments: list[dict[str, Any]], marker_ts: str) -> bool:
+    """True when a human maintainer commented strictly after the marker.
+
+    Reactions are deliberately not consulted: the reactions API carries no
+    author association, so a reaction cannot be attributed to a maintainer, and
+    attributing it via the operator's own self-logins would let pipeline
+    automation posting under that identity clear its own veto (the #450
+    attribution-drift hazard). The fail-closed reading holds the marker until a
+    maintainer clears it with a comment.
+    """
+    for comment in comments:
+        if str(comment.get("createdAt") or "") <= marker_ts:
+            continue
+        if actor_kind(comment) != "human":
+            continue
+        association = str(comment.get("authorAssociation") or "").upper()
+        if association in RATIFYING_ASSOCIATIONS:
+            return True
+    return False
+
+
+def evaluate_decision_default_veto(
+    repo: str, closing_issues: list[Any]
+) -> tuple[list[str], list[int]]:
+    """Hold when a linked issue carries an unratified 'Decision defaulted' marker.
+
+    The triage lane records a defaulted (maintainer-vetoable) decision only as a
+    `Decision defaulted: X -- veto before merge` issue comment, which a
+    deterministic merge gate cannot see; the default may ride into an autopilot
+    merge only once a maintainer has ratified it. Marker matching is deliberately
+    loose (over-matching merely holds more for the human). Fail closed: a
+    comment-fetch failure holds the PR for the human list rather than merging on
+    an unverifiable issue.
+    """
+    blockers: list[str] = []
+    held: list[int] = []
+    for ref in closing_issues:
+        number = ref.get("number") if is_json_object(ref) else ref
+        try:
+            issue_number = int(number)
+        except (TypeError, ValueError):
+            continue
+        try:
+            comments = fetch_issue_comments(repo, issue_number)
+        except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
+            blockers.append(
+                f"could not verify the decision-default veto on #{issue_number} "
+                f"({type(exc).__name__}) -- holding for the human merge-ready list"
+            )
+            held.append(issue_number)
+            continue
+        marker_timestamps = [
+            str(c.get("createdAt") or "")
+            for c in comments
+            if is_json_object(c)
+            and DECISION_DEFAULT_MARKER_RE.search(str(c.get("body") or ""))
+        ]
+        if not marker_timestamps:
+            continue
+        if _decision_default_ratified(comments, max(marker_timestamps)):
+            continue
+        blockers.append(
+            f"linked issue #{issue_number} carries an unratified 'Decision "
+            "defaulted' marker -- a maintainer must ratify or veto before an "
+            "autopilot merge"
+        )
+        held.append(issue_number)
+    return blockers, held
+
+
 def evaluate_autopilot_tier(
     repo: str,
     number: int,
@@ -342,6 +420,11 @@ def evaluate_autopilot_tier(
             + " -- resolve before an autopilot merge"
         )
 
+    veto_blockers, decision_default_held = evaluate_decision_default_veto(
+        repo, closing_issues
+    )
+    blockers.extend(veto_blockers)
+
     tier_result = {
         "enabled": True,
         "issueLinked": issue_linked,
@@ -367,6 +450,7 @@ def evaluate_autopilot_tier(
             else None
         ),
         "humanBlockingComments": sorted(set(human_blocking)),
+        "decisionDefaultHeldIssues": decision_default_held,
     }
     return blockers, tier_result
 

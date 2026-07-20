@@ -27,6 +27,32 @@ HEAD = "a" * 40
 STALE = "b" * 40
 LANE = "lane-bot"
 APPROVER = "approver-bot"
+PR_NUMBER = 476
+LINKED_ISSUE = 999  # distinct from the PR so the two comment fetches are separable
+
+
+def _comment(
+    login: str,
+    body: str = "",
+    *,
+    typename: str = "User",
+    association: str = "NONE",
+    created_at: str = "2026-01-01T00:00:00Z",
+) -> dict[str, Any]:
+    return {
+        "author": {"login": login, "__typename": typename, "is_bot": typename == "Bot"},
+        "authorAssociation": association,
+        "body": body,
+        "createdAt": created_at,
+    }
+
+
+DECISION_MARKER = _comment(
+    "triage-bot[bot]",
+    "Decision defaulted: use squash — veto before merge",
+    typename="Bot",
+    created_at="2026-01-01T00:00:00Z",
+)
 
 TIER = merge.AutopilotMergeTierConfig(
     lane_logins=frozenset({LANE}),
@@ -49,7 +75,7 @@ def _pr(**overrides: Any) -> dict[str, Any]:
         "title": "t",
         "labels": [],
         "statusCheckRollup": [],
-        "closingIssuesReferences": [{"number": 476}],
+        "closingIssuesReferences": [{"number": LINKED_ISSUE}],
     }
     pr.update(overrides)
     return pr
@@ -89,6 +115,8 @@ class TierEvaluateHarness(unittest.TestCase):
         reviews: list[dict[str, Any]] | None = None,
         issue_comments: list[dict[str, Any]] | None = None,
         review_comments: list[dict[str, Any]] | None = None,
+        linked_issue_comments: list[dict[str, Any]] | None = None,
+        linked_issue_error: bool = False,
         tier: merge.AutopilotMergeTierConfig | None = TIER,
     ) -> dict[str, Any]:
         def gh_json(args: list[str]) -> Any:
@@ -97,6 +125,15 @@ class TierEvaluateHarness(unittest.TestCase):
             if args[0] == "api":  # branch rules
                 return RULES
             raise AssertionError(f"unexpected gh_json call: {args}")
+
+        def issue_comments_side_effect(repo: str, n: int) -> list[dict[str, Any]]:
+            # The linked-issue fetch (decision-default veto) is separable from the
+            # PR's own comment fetch (human-blocking scan) by issue number.
+            if n == LINKED_ISSUE:
+                if linked_issue_error:
+                    raise RuntimeError("simulated comment-fetch failure")
+                return linked_issue_comments or []
+            return issue_comments or []
 
         with (
             mock.patch.object(merge, "gh_json", side_effect=gh_json),
@@ -107,7 +144,7 @@ class TierEvaluateHarness(unittest.TestCase):
             ) as reviews_mock,
             mock.patch.object(
                 merge, "fetch_issue_comments",
-                return_value=(issue_comments or []),
+                side_effect=issue_comments_side_effect,
             ) as comments_mock,
             mock.patch.object(
                 merge, "fetch_pull_request_review_comments",
@@ -115,7 +152,7 @@ class TierEvaluateHarness(unittest.TestCase):
             ) as review_comments_mock,
         ):
             result = merge.evaluate(
-                "owner/repo", 476, HEAD, {"owner"}, frozenset(), False, False, tier,
+                "owner/repo", PR_NUMBER, HEAD, {"owner"}, frozenset(), False, False, tier,
             )
         result["_reviews_called"] = reviews_mock.called
         result["_comments_called"] = comments_mock.called
@@ -134,6 +171,21 @@ class TierPassesWhenEveryCriterionHolds(TierEvaluateHarness):
         self.assertEqual(tier["blockingLabels"], [])
         self.assertEqual(tier["distinctBotApproval"]["author"], f"{APPROVER}[bot]")
         self.assertEqual(tier["humanBlockingComments"], [])
+        self.assertEqual(tier["decisionDefaultHeldIssues"], [])
+
+    def test_ratified_decision_default_marker_passes(self) -> None:
+        # A maintainer (OWNER) comment strictly after the marker ratifies it.
+        ratify = _comment(
+            "maintainer", "Ratified — proceed.", association="OWNER",
+            created_at="2026-02-01T00:00:00Z",
+        )
+        result = self._evaluate(
+            _pr(), linked_issue_comments=[DECISION_MARKER, ratify]
+        )
+        self.assertTrue(result["ready"], result["blockers"])
+        self.assertEqual(
+            result["autopilotMergeTier"]["decisionDefaultHeldIssues"], []
+        )
 
 
 class TierFallsBackPerCriterion(TierEvaluateHarness):
@@ -247,6 +299,34 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         self.assertTrue(result["_review_comments_called"])
         self.assertIn("maintainer", result["autopilotMergeTier"]["humanBlockingComments"])
         self.assertFalse(result["ready"])
+
+    def test_unratified_decision_default_marker_blocks(self) -> None:
+        result = self._evaluate(_pr(), linked_issue_comments=[DECISION_MARKER])
+        self.assertFalse(result["ready"])
+        self.assertEqual(
+            result["autopilotMergeTier"]["decisionDefaultHeldIssues"], [LINKED_ISSUE]
+        )
+        self.assertTrue(any("Decision defaulted" in b for b in result["blockers"]))
+
+    def test_non_maintainer_comment_does_not_ratify(self) -> None:
+        # A later comment from a non-maintainer is not the veto-holder's ratification.
+        later = _comment(
+            "drive-by", "looks fine to me", association="NONE",
+            created_at="2026-02-01T00:00:00Z",
+        )
+        result = self._evaluate(
+            _pr(), linked_issue_comments=[DECISION_MARKER, later]
+        )
+        self.assertFalse(result["ready"])
+        self.assertEqual(
+            result["autopilotMergeTier"]["decisionDefaultHeldIssues"], [LINKED_ISSUE]
+        )
+
+    def test_decision_default_fetch_error_holds(self) -> None:
+        # Fail closed: a comment-fetch failure holds the PR for the human list.
+        result = self._evaluate(_pr(), linked_issue_error=True)
+        self.assertFalse(result["ready"])
+        self.assertTrue(any("could not verify" in b for b in result["blockers"]))
 
     def test_bot_comment_with_blocking_prose_does_not_block(self) -> None:
         # A bot review body carrying blocking-looking prose is not a human stop.

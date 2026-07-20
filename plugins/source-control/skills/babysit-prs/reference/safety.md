@@ -244,6 +244,11 @@ as done and re-running the gate.
   - the PR is authored by a configured pipeline lane;
   - no human `CHANGES_REQUESTED`, no human blocking comment, no unresolved review thread;
   - no configured do-not-merge label is present;
+  - the PR's linked issue carries no unratified `Decision defaulted` marker — the triage lane
+    records a defaulted (maintainer-vetoable) decision only as a `Decision defaulted: X — veto
+    before merge` issue comment, invisible to the gate, so the default rides into an autopilot
+    merge only once a maintainer has ratified it (a human `OWNER`/`MEMBER` comment after the
+    marker); an unratified marker, or an issue whose comments cannot be read, holds the PR;
   - the approving review is by a **distinct bot identity** (author ≠ approver) and was
     submitted against the **live head** (head SHA unchanged since review), pinned as always by
     `--expected-head`.
