@@ -23,7 +23,8 @@ Contract enforced here (encoded as code, not convention):
 - The #476 autopilot merge tier (`--autopilot-merge-tier`) layers five extra
   criteria on top of the base gate -- issue-linked, lane-authored, no blocking
   label, a distinct-bot approving review on the live head (author != approver via
-  bot identity, unchanged since review), and no human blocking comment. It is
+  bot identity, unchanged since review, no blocking finding in its own body), and
+  no human blocking comment. It is
   fail-closed: the umbrella flag refuses to run unless `--lane-logins`,
   `--approver-bot-logins`, and `--block-labels` are all non-empty. Any criterion
   failing is just another blocker, so the caller falls back to the human
@@ -52,6 +53,8 @@ from babysit_checks import check_identity_key, classify_checks
 from babysit_classify import (
     DEFAULT_FEEDBACK_CONFIG,
     NON_APPROVAL_RE,
+    SEVERITY_BADGE_RE,
+    SEVERITY_PLAIN_RE,
     FeedbackConfig,
     actor_kind,
     has_blocking_severity,
@@ -218,6 +221,29 @@ def branch_rules(repo: str, branch: str) -> dict[str, object]:
         elif rtype == "merge_queue":
             summary["mergeQueueRequired"] = True
     return summary
+
+
+def approval_reports_blocking(body: str) -> bool:
+    """True when an approving review's own body reports a live blocking finding.
+
+    A distinct-bot approval can ratify the live head while its body raises a
+    structured high-severity finding; the human-blocking corpus scan deliberately
+    skips bot-authored items and GitHub can still return `reviewDecision=APPROVED`,
+    so without this check an approve-with-blocking-findings verdict would merge.
+    Only the shared classifier's *structured* severity vocabulary counts -- a
+    CRITICAL/IMPORTANT marker surviving negation redaction (`has_blocking_severity`),
+    or a P0-P3 severity badge / bracketed `[P0-P3]` marker. Prose severity words
+    (`has_blocking_text`'s "blocking"/"regression"/"must fix") are intentionally not
+    scanned: a clean approval routinely describes the fix it signs off ("resolves
+    the blocking regression"), so keying on prose would over-hold legitimate
+    approvals. This is the autopilot-tier answer to the open #621 question of
+    whether formal APPROVED-state reviews should be severity-scanned.
+    """
+    return (
+        has_blocking_severity(body)
+        or bool(SEVERITY_BADGE_RE.search(body))
+        or bool(SEVERITY_PLAIN_RE.search(body))
+    )
 
 
 def find_distinct_bot_approval(
@@ -458,7 +484,22 @@ def evaluate_autopilot_tier(
     approval = find_distinct_bot_approval(
         decisive_reviews, author_login, head, tier.approver_bot_logins
     )
-    if approval is None:
+    if approval is not None and approval_reports_blocking(
+        str(approval.get("body") or "")
+    ):
+        # The latest distinct-bot approval ratifies the live head but its own body
+        # raises a structured high-severity finding. An approve-with-blocking-
+        # findings verdict is not a clean tier approval, so it counts as no
+        # approval (not a human blocker) -- a since-superseded earlier clean
+        # approval must not be honored past the latest blocking verdict. See #621.
+        blockers.append(
+            "distinct-bot approving review reports blocking findings in its body "
+            "(CRITICAL/IMPORTANT or a P0-P3 severity marker) -- an "
+            "approve-with-blocking-findings verdict is not a clean tier approval, "
+            "so it is treated as no approval"
+        )
+        approval = None
+    elif approval is None:
         blockers.append(
             "no distinct-bot approving review on the live head "
             "(need author != approver via bot identity, approval unchanged since head)"

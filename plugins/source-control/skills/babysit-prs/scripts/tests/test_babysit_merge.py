@@ -518,6 +518,79 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         )
 
 
+class TierApprovalBodySeverityGate(TierEvaluateHarness):
+    """The accepted approver's own review body is severity-scanned (#621).
+
+    A distinct-bot approval can ratify the live head while its body reports a live
+    blocking finding; the human-blocking corpus scan skips bot-authored items and
+    reviewDecision can stay APPROVED, so an approve-with-blocking-findings verdict
+    would merge. The tier invalidates such an approval -- treated as no approval,
+    never as a human block -- keying only on the shared classifier's structured
+    severity vocabulary (CRITICAL/IMPORTANT, P0-P3 badge, bracketed [P0-P3]).
+    """
+
+    def _approval_body(self, body: str) -> dict[str, Any]:
+        review = _approval(f"{APPROVER}[bot]", HEAD)
+        review["body"] = body
+        return review
+
+    def _assert_rejected(self, result: dict[str, Any]) -> None:
+        self.assertIsNone(result["autopilotMergeTier"]["distinctBotApproval"])
+        self.assertFalse(result["ready"])
+        # Treated as no approval, not a human blocker.
+        self.assertEqual(result["autopilotMergeTier"]["humanBlockingComments"], [])
+        self.assertTrue(
+            any("blocking findings in its body" in b for b in result["blockers"]),
+            result["blockers"],
+        )
+
+    def test_approval_with_shields_p1_badge_body_rejected(self) -> None:
+        # A Codex-style shields.io P1 badge in the approval body is a structured
+        # blocking finding; the approve-with-P1-body verdict is not clean (#621).
+        review = self._approval_body(
+            "Approved overall. "
+            "![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat) "
+            "this introduces an authorization-bypass regression."
+        )
+        self._assert_rejected(self._evaluate(_pr(), reviews=[review]))
+
+    def test_approval_with_bracketed_p1_body_rejected(self) -> None:
+        review = self._approval_body("Approved. [P1] auth bypass introduced here.")
+        self._assert_rejected(self._evaluate(_pr(), reviews=[review]))
+
+    def test_approval_with_critical_body_rejected(self) -> None:
+        review = self._approval_body("Approved. CRITICAL: authorization bypass.")
+        self._assert_rejected(self._evaluate(_pr(), reviews=[review]))
+
+    def test_approval_with_important_body_rejected(self) -> None:
+        review = self._approval_body("Approving. IMPORTANT: unhandled error path.")
+        self._assert_rejected(self._evaluate(_pr(), reviews=[review]))
+
+    def test_clean_approval_body_accepted(self) -> None:
+        review = self._approval_body("Approved. LGTM, no concerns.")
+        result = self._evaluate(_pr(), reviews=[review])
+        self.assertTrue(result["ready"], result["blockers"])
+        self.assertIsNotNone(result["autopilotMergeTier"]["distinctBotApproval"])
+
+    def test_negated_severity_approval_body_accepted(self) -> None:
+        # Negation redaction: a body stating the ABSENCE of high-severity findings
+        # is a clean approval, not a live one.
+        review = self._approval_body("Approved. No CRITICAL or IMPORTANT findings.")
+        result = self._evaluate(_pr(), reviews=[review])
+        self.assertTrue(result["ready"], result["blockers"])
+        self.assertIsNotNone(result["autopilotMergeTier"]["distinctBotApproval"])
+
+    def test_lowercase_severity_prose_approval_accepted(self) -> None:
+        # Lowercase "critical"/"important" are ordinary prose, not structured
+        # severity labels: a clean approval describing a fix stays accepted.
+        review = self._approval_body(
+            "Approved. This resolves the blocking regression on the critical path."
+        )
+        result = self._evaluate(_pr(), reviews=[review])
+        self.assertTrue(result["ready"], result["blockers"])
+        self.assertIsNotNone(result["autopilotMergeTier"]["distinctBotApproval"])
+
+
 class TierAbsentIsInert(TierEvaluateHarness):
     def test_no_tier_makes_no_tier_network_calls(self) -> None:
         result = self._evaluate(_pr(), tier=None)
@@ -553,6 +626,29 @@ class DistinctBotApprovalUnit(unittest.TestCase):
         self.assertIsNone(
             merge.find_distinct_bot_approval(CLEAN_APPROVAL, LANE, None, frozenset())
         )
+
+
+class ApprovalReportsBlockingUnit(unittest.TestCase):
+    """The structured-severity scan of an approval body (#621)."""
+
+    def test_structured_markers_are_blocking(self) -> None:
+        for body in (
+            "CRITICAL: bug",
+            "IMPORTANT: bug",
+            "see [P0] here",
+            "see [P1] here",
+            "![P1](https://img.shields.io/badge/P1-orange)",
+        ):
+            self.assertTrue(merge.approval_reports_blocking(body), body)
+
+    def test_clean_and_prose_are_not_blocking(self) -> None:
+        for body in (
+            "",
+            "Approved. LGTM.",
+            "No CRITICAL or IMPORTANT findings.",
+            "resolves the blocking regression on the critical path",
+        ):
+            self.assertFalse(merge.approval_reports_blocking(body), body)
 
 
 if __name__ == "__main__":
