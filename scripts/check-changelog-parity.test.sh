@@ -297,6 +297,81 @@ git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm add-beta
 if (cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$base" >/dev/null 2>&1); then ok "new plugin skipped by --check-bump"; else fail "new plugin wrongly failed --check-bump"; fi
 rm -rf "$repo"
 
+# =================== --check-bump branch staleness (#693) ================
+
+# BRANCH STALENESS (untouched plugin advanced only on the base ref): main bumps
+# alpha 1.0.0 -> 1.1.0 while the PR branch, forked before that bump, never touches
+# alpha (it edits only beta). The base ref sees alpha at 1.1.0 and the stale branch
+# at 1.0.0, but alpha is outside the branch's own diff, so it must NOT be flagged
+# -- no re-merge treadmill. Proves the bump check is scoped to base...HEAD.
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+mk_plugin "$repo" beta 1.0.0 yes
+printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/beta/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+fork="$(git -C "$repo" rev-parse HEAD)"
+# main advances alpha (a plugin the PR never touches)
+printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+printf '# Changelog\n\n## [1.1.0]\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'main bumps alpha'
+main="$(git -C "$repo" rev-parse HEAD)"
+# PR branch forks from base and edits only beta's changelog (alpha left stale)
+git -C "$repo" checkout -q -b pr "$fork"
+printf '# Changelog\n\ntypo fix\n\n## [1.0.0]\n' >"$repo/plugins/beta/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'pr edits beta only'
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$main" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]]; then ok "untouched plugin advanced only on the base ref is not flagged (branch staleness scoped out)"; else fail "branch-staleness wrongly flagged: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# MANIFEST-SCOPED (cosmetic touch does not pull a main-only advance into scope):
+# main advances alpha; the PR touches only alpha's README, never alpha's manifest.
+# Plugin-root scoping would drag alpha back in and red-line it; manifest scoping
+# leaves it out -> rc=0. Locks the filter granularity to the manifest path.
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+fork="$(git -C "$repo" rev-parse HEAD)"
+printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+printf '# Changelog\n\n## [1.1.0]\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'main bumps alpha'
+main="$(git -C "$repo" rev-parse HEAD)"
+git -C "$repo" checkout -q -b pr "$fork"
+printf 'docs\n' >"$repo/plugins/alpha/README.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'pr edits alpha README only'
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$main" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]]; then ok "cosmetic touch under a plugin dir does not pull a main-only advance into scope (manifest-scoped)"; else fail "manifest-scoping regressed to plugin-root: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
+# COUNTERPART (a plugin the branch DID bump is still checked): main advances alpha
+# (untouched by the PR) AND the PR bumps beta's manifest without adding beta's
+# entry. alpha is scoped out; beta -- whose manifest the change set touched -- must
+# still fail UNDOCUMENTED. Proves diff-scoping narrows the check, not disables it.
+repo="$(mk_repo)"
+git_init "$repo"
+mk_plugin "$repo" alpha 1.0.0 yes
+printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+mk_plugin "$repo" beta 1.0.0 yes
+printf '# Changelog\n\n## [1.0.0]\n' >"$repo/plugins/beta/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
+fork="$(git -C "$repo" rev-parse HEAD)"
+printf '{ "name": "alpha", "version": "1.1.0" }\n' >"$repo/plugins/alpha/.claude-plugin/plugin.json"
+printf '# Changelog\n\n## [1.1.0]\n\n## [1.0.0]\n' >"$repo/plugins/alpha/CHANGELOG.md"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'main bumps alpha'
+main="$(git -C "$repo" rev-parse HEAD)"
+git -C "$repo" checkout -q -b pr "$fork"
+printf '{ "name": "beta", "version": "2.0.0" }\n' >"$repo/plugins/beta/.claude-plugin/plugin.json"
+git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm 'pr bumps beta, no entry'
+out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump "$main" 2>&1)"
+rc=$?
+if [[ $rc -ne 0 && "$out" == *"UNDOCUMENTED BUMP"*"beta"* && "$out" != *"alpha"* ]]; then ok "a plugin the branch bumped is still checked while the main-only advance is scoped out"; else fail "diff-scoping mis-scoped: rc=$rc out='$out'"; fi
+rm -rf "$repo"
+
 # unresolvable base ref -> exit 2
 repo="$(mk_repo)"
 git_init "$repo"
