@@ -73,7 +73,8 @@ repo="$(mk_repo $'alpha\n')"
 mk_plugin "$repo" alpha 1.0.0 yes
 out="$(cd "$repo" && bash scripts/check-changelog-parity.sh --check 2>&1)"
 rc=$?
-if [[ $rc -ne 0 && "$out" == *"STALE BASELINE"*"alpha"* ]]; then ok "stale baseline entry fails --check"; else fail "stale baseline not caught: rc=$rc out='$out'"; fi
+stale_count="$(printf '%s\n' "$out" | grep -c 'STALE BASELINE')"
+if [[ $rc -ne 0 && "$stale_count" == "1" ]]; then ok "stale baseline entry fails --check (reported exactly once)"; else fail "stale baseline: rc=$rc count=$stale_count out='$out'"; fi
 rm -rf "$repo"
 
 # ============================ --check-bump (diff) =========================
@@ -132,6 +133,13 @@ mk_plugin "$repo" alpha 1.0.0 yes
 git -C "$repo" add -A >/dev/null && git -C "$repo" commit -qm base
 (cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump does-not-exist >/dev/null 2>&1)
 if [[ $? -eq 2 ]]; then ok "unresolvable base ref -> exit 2"; else fail "bad base ref did not exit 2"; fi
+rm -rf "$repo"
+
+# --check-bump with no base ref -> exit 2 (consistent with other usage errors)
+repo="$(mk_repo)"
+mk_plugin "$repo" alpha 1.0.0 yes
+(cd "$repo" && bash scripts/check-changelog-parity.sh --check-bump >/dev/null 2>&1)
+if [[ $? -eq 2 ]]; then ok "--check-bump without base ref -> exit 2"; else fail "missing base ref did not exit 2"; fi
 rm -rf "$repo"
 
 # bad usage -> exit 2

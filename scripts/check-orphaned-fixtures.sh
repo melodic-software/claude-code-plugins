@@ -121,7 +121,7 @@ while IFS= read -r -d '' dir; do
 done < <(find plugins -type d -path '*/evals/fixtures' -print0 2>/dev/null)
 
 if ((${#fixtures[@]} > 0)); then
-  mapfile -t fixtures < <(printf '%s\n' "${fixtures[@]}" | sort)
+  mapfile -t -d '' fixtures < <(printf '%s\0' "${fixtures[@]}" | sort -z)
 fi
 
 # Track which baseline prefixes actually shadow an orphan, to flag stale ones.

@@ -76,6 +76,8 @@ if [[ "$mode" == "--check" ]]; then
       if [[ -n "${grandfathered[$name]:-}" ]]; then
         echo "STALE BASELINE: '$name' in $BASELINE now has a CHANGELOG.md — remove it." >&2
         missing=$((missing + 1))
+        # Mark handled so the second stale-scan loop does not re-report it.
+        saw_debt["$name"]=1
       fi
       continue
     fi
@@ -102,7 +104,11 @@ if [[ "$mode" == "--check" ]]; then
 fi
 
 # --check-bump mode
-base="${2:?usage: check-changelog-parity.sh --check-bump <base-ref>}"
+if [[ -z "${2:-}" ]]; then
+  echo "usage: $(basename "$0") --check-bump <base-ref>" >&2
+  exit 2
+fi
+base="$2"
 if ! git rev-parse --verify --quiet "${base}^{commit}" >/dev/null; then
   echo "check-changelog-parity: base ref '$base' is not a resolvable commit." >&2
   exit 2
