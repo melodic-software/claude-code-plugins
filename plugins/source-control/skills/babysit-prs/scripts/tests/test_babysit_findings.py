@@ -15,8 +15,10 @@ namespace, where they are imported by name; no real gh process is spawned.
 from __future__ import annotations
 
 import io
+import json
 import pathlib
 import sys
+import tempfile
 import unittest
 from contextlib import redirect_stdout
 from unittest import mock
@@ -109,6 +111,65 @@ class Main642FailOpenTests(unittest.TestCase):
                         [_comment(body="[CRITICAL] fresh unclassified finding")])]):
             with redirect_stdout(buffer):
                 code = bf.main(["--pr", "1", "--self", "me[bot]"])
+        self.assertEqual(code, 0)
+        self.assertIn("findings=1 classified=0", buffer.getvalue())
+
+
+class SnapshotSurfaceInferenceTests(unittest.TestCase):
+    """#642: the `--comments-json` reuse path accepts the `fetch-all-pr-comments.sh`
+    snapshot, which marks surface via `type` (`inline` == review thread) and emits
+    no `in_review_thread` field. `load_comments_json` must infer the surface from
+    `type`, else an inline finding defaults to PR-level and a stale PR-level
+    classification row cross-credits it -- the exact fail-open #642 closes."""
+
+    def _load(self, rows):
+        with tempfile.NamedTemporaryFile(
+                "w", suffix=".json", delete=False, encoding="utf-8") as handle:
+            json.dump(rows, handle)
+            path = handle.name
+        try:
+            return bf.load_comments_json(path)
+        finally:
+            pathlib.Path(path).unlink()
+
+    def test_inline_type_is_stamped_thread_others_pr_level(self) -> None:
+        loaded = self._load([
+            {"type": "inline", "author": "codex[bot]", "body": "[CRITICAL] a"},
+            {"type": "general", "author": "human", "body": "note"},
+            {"type": "review", "author": "codex[bot]", "body": "summary"},
+        ])
+        by_body = {c["body"]: c["in_review_thread"] for c in loaded}
+        self.assertEqual(by_body["[CRITICAL] a"], True)
+        self.assertEqual(by_body["note"], False)
+        self.assertEqual(by_body["summary"], False)
+
+    def test_explicit_in_review_thread_is_not_overridden(self) -> None:
+        loaded = self._load([
+            {"type": "inline", "in_review_thread": False, "body": "x"},
+        ])
+        self.assertEqual(loaded[0]["in_review_thread"], False)
+
+    def test_neither_field_stays_pr_level(self) -> None:
+        loaded = self._load([{"author": "me[bot]", "body": "x"}])
+        self.assertNotIn("in_review_thread", loaded[0])
+
+    def test_snapshot_stale_pr_row_blocks_inline_finding(self) -> None:
+        buffer = io.StringIO()
+        rows = [
+            {"type": "inline", "author": "codex[bot]",
+             "body": "[CRITICAL] fresh unclassified finding"},
+            {"type": "review", "author": "me[bot]",
+             "body": "| 1 | old finding | VALID | fixed |"},
+        ]
+        with tempfile.NamedTemporaryFile(
+                "w", suffix=".json", delete=False, encoding="utf-8") as handle:
+            json.dump(rows, handle)
+            path = handle.name
+        try:
+            with redirect_stdout(buffer):
+                code = bf.main(["--comments-json", path, "--self", "me[bot]"])
+        finally:
+            pathlib.Path(path).unlink()
         self.assertEqual(code, 0)
         self.assertIn("findings=1 classified=0", buffer.getvalue())
 

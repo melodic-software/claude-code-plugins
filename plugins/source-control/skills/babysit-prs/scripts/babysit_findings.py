@@ -18,10 +18,11 @@ out of scope (no reliable mechanical "same concern" signal), so restatements
 within still-open threads still count.
 
 Input is either a comments JSON file (`--comments-json`, the gate's fixture /
-network-free path; the bash-emitted `fetch-all-pr-comments.sh` schema, optionally
-carrying per-comment `isResolved` / `isOutdated`) or a live PR (`--pr`), for
-which this entrypoint fetches issue comments, review summaries, and review
-threads (with resolution state) itself.
+network-free path; the bash-emitted `fetch-all-pr-comments.sh` schema, whose
+per-comment `type` is read as the surface signal and which optionally carries
+per-comment `isResolved` / `isOutdated`) or a live PR (`--pr`), for which this
+entrypoint fetches issue comments, review summaries, and review threads (with
+resolution state) itself.
 
 Usage:
   babysit_findings.py --comments-json <file> --self <csv>
@@ -73,12 +74,30 @@ def _comment(author: Any, body: Any, thread: dict[str, Any] | None = None) -> di
     }
 
 
+def _stamp_snapshot_surface(comment: dict[str, Any]) -> dict[str, Any]:
+    """Adapt the `fetch-all-pr-comments.sh` snapshot schema to the internal shape.
+
+    That producer records a comment's surface in `type` (`inline` is a review
+    thread; `general` / `review` are PR-level) but emits no `in_review_thread`
+    field. Without this, a genuine inline finding loaded via `--comments-json`
+    would default to PR-level and let a stale PR-level classification row
+    cross-credit it, reopening the #642 fail-open the surface bucketing closes.
+    An explicit `in_review_thread` (live path, fixtures that set it) wins; a
+    shape carrying neither field (legacy / bash-degrade) stays PR-level.
+    """
+    if "in_review_thread" not in comment and "type" in comment:
+        comment["in_review_thread"] = comment["type"] == "inline"
+    return comment
+
+
 def load_comments_json(path: str) -> list[dict[str, Any]]:
     with open(path, encoding="utf-8") as handle:
         data = json.load(handle)
     if not is_json_array(data):
         raise ValueError("comments JSON must be an array")
-    return [item for item in data if is_json_object(item)]
+    return [
+        _stamp_snapshot_surface(item) for item in data if is_json_object(item)
+    ]
 
 
 def resolve_repo(explicit: str | None) -> str:
