@@ -203,14 +203,19 @@ it, and any later gate-off flip, is a separate announced operator step.
   collapses author ≠ approver and the gate refuses the merge fail-closed.
 
 - **Review-workflow requiredness precondition (enabling).** Enable the tier ONLY on a base branch
-  whose ruleset makes the review workflow a **required status context**. The gate proves the
-  review ran solely through `mergeStateStatus == CLEAN`, which guarantees only that *required*
-  contexts passed; a review workflow that is present but not required can be absent, skipped, or
-  failing while the PR still reads CLEAN, so the gate could green-light a merge the review never
-  actually gated. Making the review workflow a required context closes that hole deterministically
-  with no merge-gate config to add. Where it is not a required context, do not enable the tier:
-  this is an operator enabling precondition, verified before the flip, not something the merge
-  gate can self-enforce.
+  whose ruleset makes the review workflow a **required status context** *and* whose review workflow
+  always runs to a non-skipped conclusion on every PR to that base. The gate proves the review ran
+  solely through `mergeStateStatus == CLEAN`, which guarantees only that *required* contexts passed;
+  a review workflow that is present but not required can be absent, skipped, or failing while the PR
+  still reads CLEAN, so the gate could green-light a merge the review never actually gated.
+  Requiredness is necessary but not sufficient: a conditionally-skipped review job can report a
+  `SKIPPED` conclusion that is counted as a passing state, so a required-but-skipped review still
+  reads CLEAN without having run. Requiring the review workflow therefore closes that hole
+  deterministically *only when* it cannot conditionally skip on the paths or conditions the tier's
+  PRs hit — it must always execute and produce a non-skipped result on the pinned head. Where the
+  review workflow is not a required context, or can skip on those PRs, do not enable the tier: this
+  is an operator enabling precondition, verified before the flip, not something the merge gate can
+  self-enforce.
 
 ## Harness Permission Layer
 
