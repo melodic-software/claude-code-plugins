@@ -29,6 +29,7 @@ LANE = "lane-bot"
 APPROVER = "approver-bot"
 PR_NUMBER = 476
 LINKED_ISSUE = 999  # distinct from the PR so the two comment fetches are separable
+LINKED_REF = f"owner/repo#{LINKED_ISSUE}"
 
 
 def _comment(
@@ -157,6 +158,7 @@ class TierEvaluateHarness(unittest.TestCase):
         result["_reviews_called"] = reviews_mock.called
         result["_comments_called"] = comments_mock.called
         result["_review_comments_called"] = review_comments_mock.called
+        result["_comments_calls"] = list(comments_mock.call_args_list)
         return result
 
 
@@ -304,7 +306,7 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         result = self._evaluate(_pr(), linked_issue_comments=[DECISION_MARKER])
         self.assertFalse(result["ready"])
         self.assertEqual(
-            result["autopilotMergeTier"]["decisionDefaultHeldIssues"], [LINKED_ISSUE]
+            result["autopilotMergeTier"]["decisionDefaultHeldIssues"], [LINKED_REF]
         )
         self.assertTrue(any("Decision defaulted" in b for b in result["blockers"]))
 
@@ -319,7 +321,7 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         )
         self.assertFalse(result["ready"])
         self.assertEqual(
-            result["autopilotMergeTier"]["decisionDefaultHeldIssues"], [LINKED_ISSUE]
+            result["autopilotMergeTier"]["decisionDefaultHeldIssues"], [LINKED_REF]
         )
 
     def test_decision_default_fetch_error_holds(self) -> None:
@@ -327,6 +329,31 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         result = self._evaluate(_pr(), linked_issue_error=True)
         self.assertFalse(result["ready"])
         self.assertTrue(any("could not verify" in b for b in result["blockers"]))
+
+    def test_cross_repo_linked_issue_read_from_its_own_repo(self) -> None:
+        # A PR closing an issue in another repo must have the veto read from that
+        # repo, not the PR's repo where a same-numbered issue could lack the marker.
+        cross = _pr(
+            closingIssuesReferences=[
+                {
+                    "number": LINKED_ISSUE,
+                    "repository": {
+                        "name": "other-repo",
+                        "owner": {"login": "other-owner"},
+                    },
+                }
+            ]
+        )
+        result = self._evaluate(cross, linked_issue_comments=[DECISION_MARKER])
+        self.assertFalse(result["ready"])
+        self.assertEqual(
+            result["autopilotMergeTier"]["decisionDefaultHeldIssues"],
+            [f"other-owner/other-repo#{LINKED_ISSUE}"],
+        )
+        self.assertIn(
+            mock.call("other-owner/other-repo", LINKED_ISSUE),
+            result["_comments_calls"],
+        )
 
     def test_unrelated_maintainer_comment_does_not_ratify(self) -> None:
         # A later maintainer comment with no explicit ratification signal (a bare
@@ -340,7 +367,7 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         )
         self.assertFalse(result["ready"])
         self.assertEqual(
-            result["autopilotMergeTier"]["decisionDefaultHeldIssues"], [LINKED_ISSUE]
+            result["autopilotMergeTier"]["decisionDefaultHeldIssues"], [LINKED_REF]
         )
 
     def test_ratification_signal_before_marker_does_not_clear(self) -> None:
@@ -354,7 +381,7 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         )
         self.assertFalse(result["ready"])
         self.assertEqual(
-            result["autopilotMergeTier"]["decisionDefaultHeldIssues"], [LINKED_ISSUE]
+            result["autopilotMergeTier"]["decisionDefaultHeldIssues"], [LINKED_REF]
         )
 
     def test_negated_approval_does_not_ratify(self) -> None:

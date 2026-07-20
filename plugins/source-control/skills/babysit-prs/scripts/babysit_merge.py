@@ -296,35 +296,58 @@ def _decision_default_ratified(comments: list[dict[str, Any]], marker_ts: str) -
     return False
 
 
+def _ref_repo(ref: dict[str, Any]) -> str | None:
+    """`owner/name` of a closing-issue reference's own repository, if present.
+
+    A PR may close an issue in a different repository; the reference carries that
+    repository, so the veto scan must read comments from it rather than assuming
+    the PR's repo (where a same-numbered issue could carry no marker).
+    """
+    repository = ref.get("repository")
+    if not is_json_object(repository):
+        return None
+    name = repository.get("name")
+    owner = repository.get("owner")
+    login = owner.get("login") if is_json_object(owner) else None
+    return f"{login}/{name}" if login and name else None
+
+
 def evaluate_decision_default_veto(
     repo: str, closing_issues: list[Any]
-) -> tuple[list[str], list[int]]:
+) -> tuple[list[str], list[str]]:
     """Hold when a linked issue carries an unratified 'Decision defaulted' marker.
 
     The triage lane records a defaulted (maintainer-vetoable) decision only as a
     `Decision defaulted: X -- veto before merge` issue comment, which a
     deterministic merge gate cannot see; the default may ride into an autopilot
-    merge only once a maintainer has ratified it. Marker matching is deliberately
-    loose (over-matching merely holds more for the human). Fail closed: a
-    comment-fetch failure holds the PR for the human list rather than merging on
-    an unverifiable issue.
+    merge only once a maintainer has ratified it. Each linked issue is read from
+    its own repository (a PR may close an issue in another repo). Marker matching
+    is deliberately loose (over-matching merely holds more for the human). Fail
+    closed: a comment-fetch failure holds the PR for the human list rather than
+    merging on an unverifiable issue.
     """
     blockers: list[str] = []
-    held: list[int] = []
+    held: list[str] = []
     for ref in closing_issues:
-        number = ref.get("number") if is_json_object(ref) else ref
+        if is_json_object(ref):
+            number = ref.get("number")
+            issue_repo = _ref_repo(ref) or repo
+        else:
+            number = ref
+            issue_repo = repo
         try:
             issue_number = int(number)
         except (TypeError, ValueError):
             continue
+        target = f"{issue_repo}#{issue_number}"
         try:
-            comments = fetch_issue_comments(repo, issue_number)
+            comments = fetch_issue_comments(issue_repo, issue_number)
         except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
             blockers.append(
-                f"could not verify the decision-default veto on #{issue_number} "
+                f"could not verify the decision-default veto on {target} "
                 f"({type(exc).__name__}) -- holding for the human merge-ready list"
             )
-            held.append(issue_number)
+            held.append(target)
             continue
         marker_timestamps = [
             str(c.get("createdAt") or "")
@@ -337,11 +360,10 @@ def evaluate_decision_default_veto(
         if _decision_default_ratified(comments, max(marker_timestamps)):
             continue
         blockers.append(
-            f"linked issue #{issue_number} carries an unratified 'Decision "
-            "defaulted' marker -- a maintainer must ratify or veto before an "
-            "autopilot merge"
+            f"linked issue {target} carries an unratified 'Decision defaulted' "
+            "marker -- a maintainer must ratify or veto before an autopilot merge"
         )
-        held.append(issue_number)
+        held.append(target)
     return blockers, held
 
 
