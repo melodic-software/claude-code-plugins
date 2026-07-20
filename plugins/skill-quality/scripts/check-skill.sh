@@ -42,6 +42,8 @@
 #  15. Companion spoke dirs referenced from SKILL.md (WARN; orphan-spoke direction)
 #  16. metadata.category present (INFO only)
 #  17. Vendor-backed: metadata.synced not older than 180 days (WARN)
+#  18. Precompute opportunity: a fenced shell block gathers read-only context
+#      the skill could inline at load time via `!` injection (WARN; heuristic)
 #
 # Notes (static, git-diff-based design):
 #   - Checks 3/8/9 diff the working tree against CHECK_SKILL_BASE_REF (default
@@ -391,6 +393,101 @@ if [[ -d "$SKILL_DIR/vendor" ]]; then
       fi
     fi
   fi
+fi
+
+# --- Check 18: precompute opportunity (WARN; advisory heuristic) --------------
+# Flags a SKILL.md that gathers deterministic, read-only context by telling
+# Claude to run shell commands at invocation, when that output could instead be
+# inlined at load time via `!`command`` / ```! dynamic-context injection (one
+# preprocessing pass, no per-invocation tool round-trip). Advisory only: a
+# static scan cannot tell an instruction-to-run block from an illustrative
+# example, and it reads fenced shell blocks only (not prose "run `git status`").
+# The whole-file gate below (silent when the skill already injects with `!`)
+# is deliberate — it suppresses per-block opportunities in a skill that already
+# precomputes something, an accepted recall limit for an advisory check.
+
+# Read-only context-gathering command line? A mutation/side-effect token
+# anywhere in the line, or a redirection, disqualifies the whole block; then the
+# leading command word must be a known reader. git/gh are allowed wholesale and
+# guarded by the write-token denylist rather than a subcommand allowlist.
+precompute_readonly_line() {
+  local line="$1"
+  line="${line#"${line%%[![:space:]]*}"}"   # ltrim
+  line="${line#\$ }"                          # strip a leading `$ ` prompt
+  # shellcheck disable=SC2016  # single quotes are deliberate: this is an ERE with $ as an end anchor, not a shell expansion
+  if grep -qE '(^|[[:space:]])(commit|push|add|rm|mv|cp|checkout|reset|merge|rebase|pull|fetch|clone|create|edit|delete|close|init|install|build|deploy|apply|mkdir|touch|tee|sed|write|publish|run)([[:space:]]|$)' <<<"$line"; then
+    return 1
+  fi
+  case "$line" in
+    *'>'*) return 1 ;; # redirection = write
+    *) ;;
+  esac
+  local cmd="${line%%[[:space:]]*}"
+  case "$cmd" in
+    ls | pwd | cat | find | date | uname | whoami | hostname | wc | head | tail | echo | printf | id | stat | du | df | basename | dirname | realpath | readlink | env | groups | tree | sw_vers | git | gh) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Does the skill already use `!` dynamic-context injection anywhere? Inline form
+# is recognized only at line start or after whitespace (per the skills docs); a
+# ```! opening fence is the multi-line form. Either presence silences check 18.
+PRECOMPUTE_INJECTS=0
+if grep -qE '(^|[[:space:]])!`' "$SKILL_MD" || grep -qE '^[[:space:]]*```+!' "$SKILL_MD"; then
+  PRECOMPUTE_INJECTS=1
+fi
+
+PRECOMPUTE_CANDIDATE=0
+if ((PRECOMPUTE_INJECTS == 0)); then
+  # Single-level fence scan. A fenced code block is opened by a run of >=3
+  # backticks and closes on a bare fence of at least that many; content inside
+  # never opens a nested block (CommonMark), so inner ``` examples inside a
+  # wider ```` wrapper are treated as literal content, not scanned as commands.
+  # shellcheck disable=SC2016  # single quotes are deliberate: backticks and $ are literal regex, not shell expansion
+  fence_open_re='^(```+)([^`]*)$'
+  in_block=0
+  fence_len=0
+  is_shell=0
+  block_ok=1
+  block_has_cmd=0
+  while IFS= read -r bl || [[ -n "$bl" ]]; do
+    trimmed="${bl#"${bl%%[![:space:]]*}"}"
+    if [[ "$trimmed" =~ $fence_open_re ]]; then
+      ticks="${BASH_REMATCH[1]}"
+      info="${BASH_REMATCH[2]}"
+      n=${#ticks}
+      info="${info#"${info%%[![:space:]]*}"}"
+      info_first="${info%%[[:space:]]*}"
+      if ((in_block == 0)); then
+        in_block=1
+        fence_len=$n
+        block_ok=1
+        block_has_cmd=0
+        case "$info_first" in
+          bash | sh | shell | zsh | console | shell-session | shellsession | sh-session) is_shell=1 ;;
+          *) is_shell=0 ;;
+        esac
+      elif ((n >= fence_len)) && [[ -z "$info" ]]; then
+        if ((is_shell == 1 && block_ok == 1 && block_has_cmd == 1)); then
+          PRECOMPUTE_CANDIDATE=1
+        fi
+        in_block=0
+        is_shell=0
+      fi
+      continue
+    fi
+    if ((in_block == 1 && is_shell == 1)); then
+      if [[ -n "$trimmed" && "$trimmed" != \#* ]]; then
+        block_has_cmd=1
+        precompute_readonly_line "$bl" || block_ok=0
+      fi
+    fi
+  done <"$SKILL_MD"
+fi
+
+if ((PRECOMPUTE_CANDIDATE == 1)); then
+  # shellcheck disable=SC2016  # single quotes are deliberate: the backticks and ! in the advisory text are literal, not shell expansion
+  warn 'precompute opportunity: a fenced shell block runs read-only context-gathering commands the skill could inline at load time via `!`command`` / ```! dynamic-context injection (preprocessed once at load, no per-invocation tool call). If the block runs on every invocation to gather context, convert it; if it is an illustrative example, ignore. Heuristic over fenced shell blocks — see https://code.claude.com/docs/en/skills#inject-dynamic-context'
 fi
 
 # --- Summary ---------------------------------------------------------------

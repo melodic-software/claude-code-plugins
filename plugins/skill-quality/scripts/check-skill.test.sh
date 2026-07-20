@@ -5,6 +5,8 @@
 # skills, runs the checker, and asserts on exit code + output. Mutates only its
 # own mktemp dir. markdownlint (check 6) is skipped via the documented test seam
 # so the suite needs no Node/npx.
+#
+# shellcheck disable=SC2016  # fixture SKILL.md bodies are literal bytes passed in single quotes (backticks and ! are content, never shell expansion)
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -461,6 +463,114 @@ if [[ $rc -eq 1 ]] && grep -q "frontmatter name 'wrong-name' does not match" <<<
   pass "comment stripping does not mask a real mismatch"
 else
   fail "commented misnamed skill should still fail (rc=$rc): $out"
+fi
+
+# 18a. A fenced shell block of read-only context-gathering commands, with no `!`
+#      injection anywhere, warns (precompute opportunity) but passes.
+make_skill precompute-cand '---
+name: precompute-cand
+description: "Gather repo context. Use when: '"'"'gathering repo context'"'"'."
+---
+
+## Steps
+
+Inspect the working tree first:
+
+```bash
+git status --short
+git diff HEAD
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run precompute-cand 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'precompute opportunity' <<<"$out"; then
+  pass "read-only shell block without !-injection warns (precompute opportunity)"
+else
+  fail "read-only context block should warn as a precompute opportunity (rc=$rc): $out"
+fi
+
+# 18b. A skill that already injects context with inline `!` is silent even when
+#      it also carries a qualifying shell block (the whole-file gate).
+make_skill precompute-injects '---
+name: precompute-injects
+description: "Already precomputes. Use when: '"'"'already injecting context'"'"'."
+---
+
+## Context
+- Tree: !`git status --short`
+
+## Steps
+
+```bash
+git diff HEAD
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run precompute-injects 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'precompute opportunity' <<<"$out"; then
+  pass "skill already using !-injection is silent (whole-file gate)"
+else
+  fail "skill already injecting with ! should not warn precompute (rc=$rc): $out"
+fi
+
+# 18c. A shell block that builds / runs a script is not a read-only context
+#      block, so it is not flagged.
+make_skill precompute-sideeffect '---
+name: precompute-sideeffect
+description: "Builds things. Use when: '"'"'building the project'"'"'."
+---
+
+## Steps
+
+```bash
+npm run build
+bash ./scripts/deploy.sh prod
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run precompute-sideeffect 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'precompute opportunity' <<<"$out"; then
+  pass "side-effecting shell block is not flagged as a precompute opportunity"
+else
+  fail "build/deploy block should not warn precompute (rc=$rc): $out"
+fi
+
+# 18d. A git block with write subcommands is disqualified by the write-token
+#      denylist even though `git` leads every line.
+make_skill precompute-gitwrite '---
+name: precompute-gitwrite
+description: "Commits work. Use when: '"'"'committing changes'"'"'."
+---
+
+## Steps
+
+```bash
+git add -A
+git commit -m "wip"
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run precompute-gitwrite 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'precompute opportunity' <<<"$out"; then
+  pass "git write block is disqualified by the write-token denylist"
+else
+  fail "git add/commit block should not warn precompute (rc=$rc): $out"
 fi
 
 if [[ $fails -ne 0 ]]; then

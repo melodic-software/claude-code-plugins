@@ -3,6 +3,21 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0]
+
+### Added
+
+- **Check 18 (precompute opportunity) — advisory WARN.** Flags a `SKILL.md` that gathers
+  deterministic, read-only context by telling Claude to run shell commands at invocation, when that
+  output could instead be inlined at load time via `!`command`` / ```! dynamic-context injection (one
+  preprocessing pass, no per-invocation tool round-trip). It is a heuristic, never a FAIL: it scans
+  fenced shell blocks whose command lines are all read-only context-gatherers (a write-token denylist
+  disqualifies mutating blocks — `git commit`, `npm run build`, redirections), and stays silent when
+  the skill already uses any `!` injection. A static scan cannot tell an instruction-to-run block from
+  an illustrative example, so the WARN is a candidate to hand-verify, not a defect; it reads fenced
+  blocks only (not prose) and under-reports by design. Points at the official
+  `#inject-dynamic-context` docs rather than any other plugin, so it stays valid in any consumer repo.
+
 ## [0.6.0]
 
 ### Added

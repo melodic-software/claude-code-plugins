@@ -4,6 +4,19 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.3.0]
+
+### Added
+
+- **`skill-authoring` — precomputed-context authoring guidance.** New locally-owned spoke
+  `reference/precompute-context.md` (not upstream) plus a hub pointer: when to inline deterministic,
+  read-only context at load time via `!`command`` / ```! dynamic-context injection instead of a
+  per-invocation tool call, and the two conventions we pin — a mandatory `|| echo "<fallback>"`
+  defensive form (because the skills docs do not yet document `!` failure/timeout/stderr semantics)
+  and `shell:`/Windows-host awareness. Both carry the recheck trigger: revisit if upstream documents
+  `!` failure semantics. Points at the official `#inject-dynamic-context` docs for syntax rather than
+  restating it. The vendored `vendor/SKILL.md` baseline is untouched.
+
 ## [0.2.0]
 
 ### Changed
