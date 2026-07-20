@@ -94,5 +94,4 @@ To turn the plugin off for a single repository, disable it in that project's
 
 ## License
 
-MIT (SPDX-License-Identifier: MIT). See the `LICENSE` file at the root of the
-melodic-software/claude-code-plugins repository.
+MIT (SPDX-License-Identifier: MIT).

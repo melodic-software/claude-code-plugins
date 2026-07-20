@@ -54,5 +54,4 @@ already uses; the plugin adds no runtime of its own.
 
 ## License
 
-MIT (SPDX-License-Identifier: MIT). See the LICENSE file at the root of the
-melodic-software/claude-code-plugins repository.
+MIT (SPDX-License-Identifier: MIT).
