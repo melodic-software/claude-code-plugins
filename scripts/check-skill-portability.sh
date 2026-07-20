@@ -31,9 +31,12 @@
 # violations wait for the owning follow-up fix or the file's next edit.
 #
 # A token hit fails UNLESS one of three reviewer-visible escapes applies:
-#   1. detection-first / presence-gated use — auto-recognized guard markers on
-#      the hit line (an `origin/HEAD` / symbolic-ref / merge-base ladder that
-#      falls back to origin/main is the CORRECT pattern, not a bare assumption);
+#   1. a detection-first resolution use — an auto-recognized branch-resolution
+#      command on the hit line (an `origin/HEAD` / symbolic-ref / merge-base /
+#      PR-baseRefName ladder that falls back to origin/main is the CORRECT
+#      pattern, not a bare assumption); the resolution command is the evidence,
+#      not the surrounding prose, so a bare default whose resolution is not
+#      co-located on the line flags and uses a per-site portability-ok escape;
 #   2. a per-site recorded exemption `portability-ok: <reason>` on the hit line
 #      or in the contiguous comment block directly above it;
 #   3. a whole-file `portability-scope: <reason>` declaration anywhere in the
@@ -138,16 +141,20 @@ scan_file() {
     function is_annotated(l) { return l ~ /portability-ok:/ }
     function is_comment(l) { return l ~ /^[[:space:]]*#/ || l ~ /<!--/ }
     # Guard markers for the active branch class: branch-detection evidence ONLY
-    # (a symbolic-ref / merge-base / origin/HEAD ladder that documents an
-    # origin/main last-resort fallback is the correct pattern, not a bare
-    # assumption). Generic optional-dependency presence prose ("if using",
-    # "when present") is NOT branch-resolution evidence and must not sanction a
-    # bare branch default; a future class that genuinely needs presence guards
-    # adds its own class-scoped markers here when it is enabled.
+    # — a symbolic-ref / merge-base / origin/HEAD / PR-baseRefName resolution
+    # command (or a `-> origin/` symbolic-ref target) co-located on the hit line.
+    # The resolution command IS the evidence; prose alone is not. So the bare
+    # word "fallback" / "falling back" is NOT a marker (an unrelated "as a
+    # fallback, run git diff origin/main" imposes main with no resolution
+    # evidence), nor is optional-dependency presence prose ("if using",
+    # "when present"). A bare default whose resolution evidence is not
+    # co-located on the line must flag — a reviewer cannot see it is guarded
+    # either; a legitimately split-across-lines ladder uses the per-site
+    # portability-ok escape. A future class needing other markers adds them
+    # here when it is enabled.
     function is_guarded(l) {
       return l ~ /origin\/HEAD/ || l ~ /symbolic-ref/ || l ~ /merge-base/ ||
-        l ~ /baseRefName/ || l ~ /[Ff]allback/ || l ~ /[Ff]alling back/ ||
-        l ~ /-> *origin\//
+        l ~ /baseRefName/ || l ~ /-> *origin\//
     }
     # Pass 1: collect active ERE patterns from the token list.
     FNR == NR {
@@ -204,7 +211,8 @@ if ((violations > 0)); then
     echo
     echo "A skill declared ecosystem/forge/tracker-agnostic must not hardcode a"
     echo "stack/forge/branch/tracker default. Resolve the coupling, or — when the"
-    echo "use is legitimate — make it detection-first/presence-gated, add a"
+    echo "use is legitimate — co-locate the branch-resolution command on the"
+    echo "line (detection-first), add a"
     echo "'portability-ok: <reason>' comment at the site, or declare an inherent"
     echo "narrower scope with 'portability-scope: <reason>' in the file."
   } >&2

@@ -82,6 +82,17 @@ else
 fi
 rm -f "$f"
 
+# --- the bare word "fallback" does NOT guard a bare branch default ----------
+f="$(tmpfile 'As a fallback for a network timeout, run git diff origin/main.')"
+if out="$(scan_paths "$f" 2>&1)"; then
+  fail "standalone 'fallback' prose must not guard a bare branch default: $out"
+elif echo "$out" | grep -q "COUPLING: ${f}:1:"; then
+  ok "standalone 'fallback' prose does not guard the active branch token"
+else
+  fail "expected line 1 flagged for bare origin/main under 'fallback' prose, got: $out"
+fi
+rm -f "$f"
+
 # --- a malformed active token fails closed (exit 2), not a silent pass ------
 BAD_TOKENS="$(mktemp)"
 printf 'origin/(main\n' >"$BAD_TOKENS" # unmatched '(' — invalid ERE, awk faults
