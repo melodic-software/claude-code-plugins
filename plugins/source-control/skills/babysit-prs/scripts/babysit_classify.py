@@ -20,7 +20,9 @@ Three concern areas:
 * Finding (severity occurrence + lifetime-vs-open state): the blocking-text and
   structured-severity heuristics, and the finding/classification counting the
   readiness gate delegates here (`count_findings` discounts markers carried in a
-  resolved or outdated thread, so a lifetime badge no longer inflates the count).
+  resolved or outdated thread, so a lifetime badge no longer inflates the count;
+  `count_effective_classified` credits classifications per surface so a stale
+  PR-level row cannot offset an open-thread finding).
 * Approval verdict: the approval / non-approval / required-fix heuristics and the
   structural approval and review-skip downgrades.
 """
@@ -357,6 +359,22 @@ def thread_is_open(comment: dict[str, Any]) -> bool:
     )
 
 
+def is_thread_comment(comment: dict[str, Any]) -> bool:
+    """True when a comment belongs to a review thread rather than the PR-level
+    issue/review-summary surface.
+
+    The surface a comment lives on -- not just its resolution state -- is
+    load-bearing for classification credit (#642): a review thread can be
+    resolved (its findings and their in-thread classifications drop together),
+    while a PR-level comment never can, so a stale classification posted there
+    would otherwise count forever. The live entrypoint stamps `in_review_thread`
+    when a comment is fetched from a review thread; a fixture sets it explicitly.
+    Absent (the bash-degrade and legacy fixture shape), a comment is treated as
+    PR-level -- there is no thread whose resolution state it could inherit.
+    """
+    return bool(comment.get("in_review_thread"))
+
+
 def _severity_occurrences(text: str) -> int:
     return (
         len(SEVERITY_WORDS_RE.findall(text))
@@ -424,3 +442,41 @@ def count_classified(
             if PIPE_ROW_RE.search(line) and CLASSIFY_TOKEN_RE.search(line):
                 total += 1
     return total
+
+
+def count_effective_classified(
+    comments: list[dict[str, Any]], self_logins: frozenset[str]
+) -> int:
+    """Classifications that effectively cover findings, credited per surface.
+
+    The readiness gate blocks while findings outnumber their classifications. A
+    raw global count lets a classification row on one surface offset a finding on
+    another: a stale pipe-row in a PR-level (non-thread) comment -- which can
+    never be thread-resolved -- would keep covering a finding raised fresh in an
+    open review thread, a fail-open past a live unclassified finding (#642).
+
+    Credit is therefore bucketed by surface (review-thread vs PR-level) and
+    capped within each bucket -- a non-thread classification can only offset a
+    non-thread finding, an open-thread classification only an open-thread
+    finding. Resolved/outdated thread comments are already discounted by
+    `thread_is_open` inside both counters, so they contribute to neither bucket.
+    On thread-state-free input (every comment PR-level, the bash-degrade shape)
+    the thread bucket is empty and this collapses to `min(classified, findings)`,
+    keeping the Python count convergent with the bash degrade's own cap.
+    """
+    thread = [c for c in comments if is_json_object(c) and is_thread_comment(c)]
+    non_thread = [
+        c for c in comments if is_json_object(c) and not is_thread_comment(c)
+    ]
+    return _capped_credit(thread, self_logins) + _capped_credit(
+        non_thread, self_logins
+    )
+
+
+def _capped_credit(
+    comments: list[dict[str, Any]], self_logins: frozenset[str]
+) -> int:
+    return min(
+        count_classified(comments, self_logins),
+        count_findings(comments, self_logins),
+    )

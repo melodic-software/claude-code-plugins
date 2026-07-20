@@ -288,6 +288,26 @@ else
   pass "#465 lifetime discount skipped (no Python 3.11+; bash degrade counts lifetime)"
 fi
 
+# --- Case: #642 stale PR-level classification does NOT cover an open-thread finding
+# A classification pipe-row in a PR-level (non-thread) comment can never be
+# thread-resolved, so it must not offset a finding raised fresh in an OPEN review
+# thread. The Python counter credits classifications per surface, confining the
+# stale row to the (empty) PR-level finding bucket -> classified=0 < findings=1
+# -> BLOCKED. Thread-aware, so asserted only under Python; the bash degrade is
+# reply-thread-blind and false-passes here (the accepted degrade coarseness, same
+# as the #465 discount above).
+if probe_py py -3 || probe_py python3 || probe_py python; then
+  F=$(mkjson stale-pr-classification '[
+    {author:"codex[bot]", body:"[CRITICAL] fresh unclassified finding", in_review_thread:true},
+    {author:"me[bot]", body:"| 1 | old resolved finding | VALID | fixed |"}
+  ]')
+  r=$(run_gate "$F")
+  assert_contains "#642 stale PR-level row -> classified=0 (no cross-surface credit)" "$r" "findings=1 classified=0"
+  assert_contains "#642 stale PR-level row -> BLOCKED" "$r" "READINESS_BLOCKED reason=under-decomposed"
+else
+  pass "#642 per-surface credit skipped (no Python 3.11+; bash degrade is thread-blind)"
+fi
+
 # --- Convergence: Python counter and bash degrade agree on thread-state-free input
 # The gate prefers the shared Python counter but keeps the bash grep counting as
 # the Python-free safe-tier degrade. The two must not drift: a severity marker is
@@ -330,5 +350,13 @@ F=$(mkjson conv-selfrow '[
   {author:"me[bot]", body:"| 1 | CRITICAL: null deref | VALID | fixed abc123 |"}
 ]')
 converge "self-row-exclusion" "$F"
+# Over-classified, thread-state-free: the Python per-surface credit collapses to
+# min(classified, findings) and the bash degrade's own cap does the same, so both
+# report classified=1 for one finding + two rows (#642 cap convergence).
+F=$(mkjson conv-overclassified '[
+  {author:"claude[bot]", body:"CRITICAL a"},
+  {author:"me[bot]", body:"| 1 | a | VALID | x |\n| 2 | spurious | INCORRECT | y |"}
+]')
+converge "over-classified-cap" "$F"
 
 [[ $FAILED -eq 0 ]] || exit 1

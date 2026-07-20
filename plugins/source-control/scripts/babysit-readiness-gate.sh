@@ -241,6 +241,15 @@ classified=${classified//[^0-9]/}
 findings=$((${sev_words:-0} + ${sev_badges:-0} + ${sev_plain:-0}))
 classified=${classified:-0}
 
+# Cap classified at findings: a surplus of classification rows cannot offset
+# findings that do not exist. This is the coarse, thread-state-free analogue of
+# the Python counter's per-surface credit (#642) — the bash degrade has no
+# reply-thread links, so it cannot bucket thread vs PR-level, but capping still
+# stops an over-count of rows from masking an unclassified finding, and keeps
+# the degrade count convergent with the Python `min(classified, findings)` on
+# thread-state-free input.
+((classified > findings)) && classified="$findings"
+
 # --- Prefer the shared Python classifier when available -----------------------
 
 # The bash counts above are the Python-free safe-tier degrade (reference/loop.md
@@ -250,9 +259,12 @@ classified=${classified:-0}
 # can drift from the snapshot classifier (the divergence class #534 exists to
 # close), and it discounts a severity marker carried in a resolved or outdated
 # thread, so a lifetime badge no longer inflates the count into a false
-# READINESS_BLOCKED (#465). A convergence test pins the two counts together on
-# thread-state-free input; if the Python counter cannot run (no interpreter, or a
-# transient live fetch failure) the bash degrade counts above stand.
+# READINESS_BLOCKED (#465). It also credits classifications per surface — a
+# PR-level (non-thread) row cannot offset a finding raised fresh in an open
+# review thread — closing a fail-open the thread-blind bash degrade cannot see
+# (#642). A convergence test pins the two counts together on thread-state-free
+# input; if the Python counter cannot run (no interpreter, or a transient live
+# fetch failure) the bash degrade counts above stand.
 # BABYSIT_READINESS_BASH_ONLY=1 forces the degrade even when Python is present --
 # the operator escape that exercises (and, in the gate's own tests, pins) the
 # Python-free path deterministically.

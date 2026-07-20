@@ -132,6 +132,107 @@ class ClassificationCountTests(unittest.TestCase):
         )
 
 
+class EffectiveClassifiedTests(unittest.TestCase):
+    """#642: classification credit is bucketed by surface (review-thread vs
+    PR-level) so a stale PR-level pipe-row cannot offset an open-thread finding.
+    A resolved thread drops its finding and its in-thread classification
+    together; a PR-level comment never resolves, so its rows must be confined to
+    covering PR-level findings."""
+
+    SELF = bc.normalize_self_logins(["me[bot]"])
+
+    def test_stale_pr_level_row_does_not_cover_open_thread_finding(self) -> None:
+        # The exact #642 fail-open: a fresh finding raised in an OPEN review
+        # thread, plus a stale classification pipe-row in a PR-level (non-thread)
+        # comment. A raw global count reports classified=1 >= findings=1 and the
+        # gate false-passes; per-surface credit confines the PR-level row to the
+        # (empty) PR-level finding bucket, so effective classified is 0 < 1.
+        comments = [
+            {
+                "author": "codex[bot]",
+                "body": "[CRITICAL] fresh unclassified finding",
+                "in_review_thread": True,
+            },
+            {
+                "author": "me[bot]",
+                "body": "| 1 | old resolved finding | VALID | fixed |",
+            },
+        ]
+        self.assertEqual(bc.count_findings(comments, self.SELF), 1)
+        # Raw counter still sees the stale row (documents the defect surface).
+        self.assertEqual(bc.count_classified(comments, self.SELF), 1)
+        # Per-surface credit closes the fail-open.
+        self.assertEqual(bc.count_effective_classified(comments, self.SELF), 0)
+        self.assertLess(
+            bc.count_effective_classified(comments, self.SELF),
+            bc.count_findings(comments, self.SELF),
+        )
+
+    def test_pr_level_finding_and_pr_level_classification_still_pass(self) -> None:
+        # The D5-mandated flow: issue/review-summary findings answered by a
+        # detached PR-level classification. Both are non-thread, so they share a
+        # bucket and the classification credits normally -- restricting credit to
+        # threads would have permanently blocked this path.
+        comments = [
+            {"author": "claude[bot]", "body": "### 1. [CRITICAL] a\n### 2. [IMPORTANT] b"},
+            {
+                "author": "me[bot]",
+                "body": "| 1 | a | VALID | fixed |\n| 2 | b | INCORRECT | refuted |",
+            },
+        ]
+        self.assertEqual(bc.count_findings(comments, self.SELF), 2)
+        self.assertEqual(bc.count_effective_classified(comments, self.SELF), 2)
+
+    def test_open_thread_finding_covered_by_in_thread_classification(self) -> None:
+        # A finding and its classification both carried in the same open thread
+        # balance within the thread bucket.
+        comments = [
+            {"author": "codex[bot]", "body": "[CRITICAL] a", "in_review_thread": True},
+            {
+                "author": "me[bot]",
+                "body": "| 1 | a | VALID | fixed |",
+                "in_review_thread": True,
+            },
+        ]
+        self.assertEqual(bc.count_effective_classified(comments, self.SELF), 1)
+
+    def test_thread_state_free_input_collapses_to_min(self) -> None:
+        # Convergence invariant: with no thread markers every comment is PR-level,
+        # so effective classified is min(classified, findings) -- what the bash
+        # degrade computes with its own cap.
+        over = [
+            {"author": "claude[bot]", "body": "CRITICAL a"},
+            {
+                "author": "me[bot]",
+                "body": "| 1 | a | VALID | x |\n| 2 | spurious | INCORRECT | y |",
+            },
+        ]
+        self.assertEqual(bc.count_findings(over, self.SELF), 1)
+        self.assertEqual(bc.count_classified(over, self.SELF), 2)
+        self.assertEqual(bc.count_effective_classified(over, self.SELF), 1)
+
+    def test_resolved_thread_contributes_to_neither_bucket(self) -> None:
+        # A resolved thread's finding and classification both drop (thread_is_open
+        # discount), so a fresh PR-level finding stays uncovered.
+        comments = [
+            {
+                "author": "codex[bot]",
+                "body": "[CRITICAL] addressed last round",
+                "in_review_thread": True,
+                "isResolved": True,
+            },
+            {
+                "author": "me[bot]",
+                "body": "| 1 | addressed | VALID | fixed |",
+                "in_review_thread": True,
+                "isResolved": True,
+            },
+            {"author": "claude[bot]", "body": "### [IMPORTANT] new PR-level finding"},
+        ]
+        self.assertEqual(bc.count_findings(comments, self.SELF), 1)
+        self.assertEqual(bc.count_effective_classified(comments, self.SELF), 0)
+
+
 class ApprovalVerdictTests(unittest.TestCase):
     """#499: an Approve-with-nits review carries no live finding."""
 
