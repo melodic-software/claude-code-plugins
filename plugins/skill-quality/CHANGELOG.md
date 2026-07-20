@@ -3,6 +3,20 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.0]
+
+### Added
+
+- **Check 1 now enforces that frontmatter `name` matches the skill directory name.**
+  `docs/PLUGIN-PHILOSOPHY.md` has always required it, but nothing verified it — check 1 asserted
+  only that `name:` was present and non-empty. The directory name is what Claude Code namespaces the
+  skill by, so a divergent frontmatter `name` silently relocates the invocation the doctrine says
+  the skill has, and because the slash-command picker labels rows by the resolved leaf name the
+  drift never surfaced in the listing either. Lands as a deterministic FAIL rather than a warning:
+  the whole catalog (144 skills) already conforms, so there is no debt to grandfather and no
+  baseline file. A quoted value is unquoted before comparison, and an absent `name` still reports
+  only the existing missing-`name` failure rather than a spurious second one.
+
 ## [0.5.0]
 
 ### Changed

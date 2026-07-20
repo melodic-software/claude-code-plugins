@@ -78,10 +78,21 @@ history; grouping lives in marketplace metadata.
 - Empty `deployment` category — created when first deploy plugin lands.
 - `music` → `creative` rename — trigger: a non-music creative plugin lands.
 - fable-5 regeneration — trigger: model-version change (self-authored, no upstream).
+- Namespaced picker labels — trigger: anthropics/claude-code#25150 ships a namespaced name column.
+  Until then the leaf name is the label and the plugin name reaches the reader via the description
+  prefix; revisit whether any description carries disambiguating text it would no longer need.
 
 ### Deferred questions
 
-- Empirical check: typeahead prefix filtering on plugin-skill leaf names — `/planning:plan`.
+- ~~Empirical check: typeahead prefix filtering on plugin-skill leaf names — `/planning:plan`.~~
+  **Resolved (Claude Code 2.1.215).** The picker labels each row with the **leaf** name and registers
+  the namespaced form as a hidden alias, so `/planning:` filters correctly while the row still reads
+  `plan`. Typeahead therefore groups families by leaf name — the base-concept-first rule (D20) is
+  what makes that grouping work. Origin is rendered in the description as `(<plugin-name>) …`, which
+  is the only thing distinguishing the 8 shared leaf names (`setup` ×33, `audit` ×6,
+  `check`/`clean`/`diagnose`/`plan`/`workflow`/`write` ×2). D19 stands unchanged: every one of those
+  is separately invocable, so no name was kept or dropped on a mistaken premise. Doctrine updated in
+  `docs/PLUGIN-PHILOSOPHY.md` (Naming) and `docs/MIGRATION-PLAYBOOK.md` (Naming).
 - session-flow category label `workflow` — judgment call (no marketplace precedent); revisit if a stronger authoritative label emerges.
 
 ## Plan

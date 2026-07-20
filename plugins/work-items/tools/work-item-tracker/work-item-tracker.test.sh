@@ -28,6 +28,7 @@ cat >"$FAKE_DIR/capabilities.json" <<'EOF'
     "link-blocks": true,
     "add-sub-item": true,
     "list-items": true,
+    "list-sub-items": true,
     "capabilities": true
   }
 }
@@ -39,6 +40,10 @@ EOF
 cat >"$FAKE_DIR/list-items.sh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\r\n' '{"schema_version":"1.0","items":[{"id":"fake:o/r#1","state":"open","assignees":[],"labels":[],"blocked_by_count":0},{"id":"fake:o/r#2","state":"open","assignees":[],"labels":["needs-human"],"blocked_by_count":0},{"id":"fake:o/r#3","state":"open","assignees":[],"labels":[],"blocked_by_count":1}]}'
+EOF
+cat >"$FAKE_DIR/list-sub-items.sh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' '{"schema_version":"1.0","items":[]}'
 EOF
 cat >"$FAKE_DIR/get-item.sh" <<'EOF'
 #!/usr/bin/env bash
@@ -105,6 +110,13 @@ assert_eq "autonomous frontier drops needs-human" "fake:o/r#1" "$IDS"
 
 run_dispatcher list-frontier --bogus >/dev/null 2>&1
 assert_eq "list-frontier bad flag → exit 2" "2" "$?"
+
+# --parent + --repo is an invalid combination: --repo cannot re-target a
+# container-scoped frontier, so it must be rejected loudly, not silently dropped.
+ERR="$(run_dispatcher list-frontier --parent 'fake:o/r#9' --repo o/r 2>&1 >/dev/null)"
+RC_CAPTURE=$?
+assert_eq "list-frontier --parent + --repo → exit 2" "2" "$RC_CAPTURE"
+assert_contains "--parent + --repo error names --repo/--parent" "$ERR" "--repo is not valid with --parent"
 
 # --- two-root adapter resolution (CONTRACT.md "Adapter resolution") ---
 # WIT_ADAPTERS_DIR is left UNSET here so the consumer-local-first / plugin-bundled

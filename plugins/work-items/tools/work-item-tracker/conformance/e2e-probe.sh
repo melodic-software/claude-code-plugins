@@ -79,12 +79,32 @@ record "create item2 (task, blocked by item1)" "$ITEM2"
 assert_eq "item2 parent is map" "$MAP_ID" "$(jq -r '.parent_id' <<<"$ITEM2")"
 assert_eq "item2 blocked" "1" "$(jq -r '.blocked_by_count' <<<"$ITEM2")"
 
-# 3. Frontier: item1 claimable, item2 blocked.
+# 3. Frontier: item1 claimable, item2 blocked, and the map (a container) never
+# surfaces itself as its own frontier item.
 FRONTIER="$(wit list-frontier --repo "$REPO")"
 record "frontier before claim" "$FRONTIER"
 IDS="$(jq -c '[.items[].id]' <<<"$FRONTIER")"
 assert_contains "frontier holds item1" "$IDS" "$ITEM1_ID"
 assert_not_contains "frontier hides blocked item2" "$IDS" "$ITEM2_ID"
+assert_not_contains "frontier excludes the unblocked container map" "$IDS" "$MAP_ID"
+
+# 3b. Sub-item enumeration + container-scoped frontier. list-sub-items
+# returns BOTH children (raw enumeration keeps blocked/closed); the scoped
+# frontier applies the same filter as the global one — item1 in, blocked item2
+# out, and the map never its own frontier item.
+SUBS="$(wit list-sub-items "$MAP_ID")"
+record "map sub-items" "$SUBS"
+SUB_IDS="$(jq -c '[.items[].id]' <<<"$SUBS")"
+assert_contains "sub-items hold item1" "$SUB_IDS" "$ITEM1_ID"
+assert_contains "sub-items hold blocked item2" "$SUB_IDS" "$ITEM2_ID"
+assert_eq "sub-items are re-parented to the map" "$MAP_ID" "$(jq -r '.items[0].parent_id' <<<"$SUBS")"
+
+PFRONTIER="$(wit list-frontier --parent "$MAP_ID")"
+record "scoped frontier before claim" "$PFRONTIER"
+PIDS="$(jq -c '[.items[].id]' <<<"$PFRONTIER")"
+assert_contains "scoped frontier holds item1" "$PIDS" "$ITEM1_ID"
+assert_not_contains "scoped frontier hides blocked item2" "$PIDS" "$ITEM2_ID"
+assert_not_contains "scoped frontier excludes the map itself" "$PIDS" "$MAP_ID"
 
 # 4. Claim item1 (assignee + lease comment).
 CLAIM="$(wit claim "$ITEM1_ID" --session-id "e2e-$TS")"

@@ -1,0 +1,7 @@
+{
+  "schema_version": "1.0",
+  "provider": "github",
+  "config": {
+    "lease_ttl_hours": 24
+  }
+}

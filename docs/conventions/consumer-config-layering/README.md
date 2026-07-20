@@ -71,6 +71,30 @@ not.
 **A surface using per-key override must declare it** in its own contract, next to its keys. The
 declaration is what makes it a design decision a reviewer can check rather than an accident.
 
+### Sanctioned exception class: policy-floor precedence inversion
+
+One class of surface — and only this class — inverts the precedence *direction* above while staying
+additive on every other axis. A **policy-floor surface** encodes, in its team-tracked layer, a floor
+that personal layers may extend or tighten but must never weaken. On a **direct conflict the team
+layer wins**, the reverse of the default where a later layer refines an earlier one. It never drops a
+base layer wholesale; it only decides who wins a conflict.
+
+A surface qualifies for this class only when all three hold:
+
+1. Its team layer is a genuine **policy floor** — a shared standard whose whole purpose is that a
+   personal layer cannot loosen it; personal weakening of a team-agreed rule is the failure mode worth
+   structurally preventing.
+2. Personal layers (user-global and overlay) remain **add/tighten-only** — they may never supply a
+   looser value that takes effect.
+3. **Provenance is reported** — when a personal-layer rule materially shapes output, the surface names
+   the contributing layer, so a reader can tell a team floor from a personal addition.
+
+This mirrors well-established prior art — managed settings that supersede user settings, org-enforced
+rulesets a repo cannot loosen, MDM managed preferences — where a higher-authority layer may be extended
+but not weakened. A surface in this class is **conformant, not a tolerated deviation**, and must declare
+the inversion in its own contract next to its keys. The class was ratified by #649; `standards` is its
+exemplar.
+
 ## Overlay naming and the consumer `.gitignore`
 
 The overlay is spelled `*.local.*` — the stem, `.local`, then the original extension. One spelling
@@ -132,15 +156,26 @@ docs and are deliberately decoupled from this number.
 
 ## Deviations
 
-Recorded as **observed**, not ratified. Listing a deviation here documents that it exists and diverges;
-it does not bless it. Ruling on each — correct the surface, or amend this contract — is a separate
-human-gated decision.
+Recorded here whether or not ratified. Listing a deviation documents that it exists and diverges; it
+does not by itself bless it. Ratifying one — as #649 did for the policy-floor precedence-inversion
+class above — moves it from observed to sanctioned. Ruling on each remaining deviation (correct the
+surface, or amend this contract) is a separate human-gated decision.
+
+**Ratified as a sanctioned exception class — one axis only:**
+
+- **`standards` precedence inversion** — the exemplar of the policy-floor precedence-inversion class
+  above (ratified by #649). Personal layers may add or tighten only; the team-tracked layer wins a
+  direct conflict, with provenance reported. Conformant to that class, not a tolerated deviation.
+  **This ratification covers the precedence axis alone.** `standards` also diverges on layer *location*
+  (see Declared, below), which #649 did not rule on and which remains observed.
 
 **Declared** — the surface states its divergence and why:
 
-- **`standards` inverts precedence.** Personal layers may add or tighten only; the team-tracked layer
-  wins a direct conflict, with provenance reported. The stated rationale is that a personal layer
-  loosening a shared engineering standard is the failure mode worth structurally preventing.
+- **`standards` locates its layers outside `.claude/`.** Its team and overlay layers live at
+  `<standards_dir>/` (default `docs/standards/`) with a setup-owned in-directory `.gitignore`, rather
+  than the contract's `${CLAUDE_PROJECT_DIR}/.claude/<name>` and `*.local.*` paths — deliberately,
+  because writes under `.claude/` are permission-guarded. **Observed, not ratified:** #649 ruled the
+  precedence axis only; the location model is a separate, still-open ruling.
 - **`autonomy` exempts its security axes.** Layers refine additively as the contract requires, except
   that no repo-local value may supply or override a security axis at all — a stricter rule than this
   contract, in the direction of safety.
@@ -169,7 +204,7 @@ open.
 | `toolchain` / `ecosystem-commands` | `.claude/ecosystems/<ecosystem>.yaml` | all three | conforms |
 | `codebase-health` | `.claude/codebase-health.md` | all three | conforms (concatenating, with a declared empty-list opt-out) |
 | `autonomy` | `.claude/autonomy/binding.json` | all three, plus an org rung | declared deviation |
-| `standards` (`planning`, `review`) | `<standards_dir>/`, rooted by `.claude/standards.yaml` | all three | declared deviation |
+| `standards` (`planning`, `review`) | `<standards_dir>/`, rooted by `.claude/standards.yaml` | all three | precedence inversion ratified via policy-floor class (#649); layer location outside `.claude/` still observed, not ratified |
 | `disk-hygiene` | `.claude/disk-hygiene.json` | user-global + team | declared deviation; no overlay layer |
 | `ai-briefing` | `.claude/ai-briefing/` | team only | undeclared: overlay recommended, never resolved |
 | `code-tidying` | `.claude/tidy-lanes/<lane>.md` | team only | single-layer over a bundled default |

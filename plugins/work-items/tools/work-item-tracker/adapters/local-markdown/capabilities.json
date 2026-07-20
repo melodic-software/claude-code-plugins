@@ -10,6 +10,7 @@
     "link-blocks": true,
     "add-sub-item": true,
     "list-items": true,
+    "list-sub-items": true,
     "capabilities": true
   },
   "features": {

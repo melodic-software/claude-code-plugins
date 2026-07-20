@@ -6,6 +6,19 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 Versions 0.1.0–0.7.0 predate this file (introduced with 0.7.1); their history lives in the
 merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
 
+## [0.7.3]
+
+### Added
+
+- **Security-binding golden suite is graded (`#662`).** A table-driven runner
+  (`check-security-binding.fixtures.test.mjs` + its co-located expectations manifest) runs
+  every fixture under `evals/fixtures/security-binding/` through
+  `check-security-binding.mjs` and asserts exit code + defect-naming findings: 109 fixtures
+  (14 pass-expected, 95 reject-expected), zero quarantined, with the fixtures' 67 probe
+  transcripts enumerated as suite inputs. Self-policing in both directions — an ungraded
+  new fixture, an unlisted transcript, or a manifest entry whose file vanished all fail the
+  suite, and the repo's orphaned-fixture gate no longer grandfathers the set.
+
 ## [0.7.2]
 
 ### Changed

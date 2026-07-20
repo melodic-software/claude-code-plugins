@@ -3,6 +3,20 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.4]
+
+### Changed
+
+- `implement-dispatch`'s "Compose the brief" step (`skills/implement-dispatch/SKILL.md`) now requires
+  a worktree-cwd clause whenever a worker edits in a dedicated worktree: the brief must give the
+  worktree's absolute path and instruct the worker to never rely on the shell's working directory
+  persisting across separate tool calls — anchoring every command that touches the worktree (file
+  edits and git operations alike: `status`, `add`, `commit`, `diff`, `log`) with
+  `git -C <worktree-path>` (or a re-`cd` per call) rather than a one-time `cd`, since cwd can drift
+  between a read and the next write and silently risks committing into the wrong checkout. Reinforced
+  as a Gotchas-section reminder. Closes the correctness gap behind #566, where a dispatched worker's
+  edits landed in the canonical checkout instead of its assigned out-of-tree worktree.
+
 ## [0.7.3]
 
 ### Changed

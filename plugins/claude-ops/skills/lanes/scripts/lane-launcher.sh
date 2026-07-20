@@ -385,29 +385,39 @@ refresh_repo_and_plugins() {
     info "claude plugin marketplace update"
     run claude plugin marketplace update || rc=1
   fi
+  # A skipped step (--no-pull/--no-update) leaves rc=0, so this only fires on an
+  # UNEXPECTED failure of a step that actually ran — the intentional-bypass path
+  # stays clean. Callers abort the launch on non-zero (see action_start/restart).
+  ((rc)) && err "refresh failed (pass --no-pull/--no-update to skip refresh intentionally)"
   return "$rc"
+}
+
+# --- Target validation --------------------------------------------------------
+# Reject any explicit TARGET_LANES name absent from the config. Called from main
+# ahead of action dispatch so an invalid target fails fast (exit 3) BEFORE any
+# refresh/mutation runs — matching stop's fail-first DX rather than pulling the
+# repo and updating plugins only to reject a misspelled target afterward.
+validate_target_lanes() {
+  ((${#TARGET_LANES[@]})) || return 0
+  local t known
+  for t in "${TARGET_LANES[@]}"; do
+    known="$(jq -r --arg n "$t" '[.lanes[].name] | index($n) // "no"' "$CONFIG")"
+    [[ "$known" != "no" ]] || {
+      err "unknown lane '$t' (not in $CONFIG)"
+      exit 3
+    }
+  done
 }
 
 # --- Lane iteration helper ----------------------------------------------------
 # Runs `callback <name> <model> <effort> <prompt_path>` for every lane, or only
-# the lanes named in TARGET_LANES. Unknown target names are an error.
+# the lanes named in TARGET_LANES. Target names are validated up front by
+# validate_target_lanes (called from main), so every name here is already known.
 for_each_lane() {
   local callback="$1" pdir
   pdir="$(resolve_prompt_dir)"
   local count
   count="$(jq -r '.lanes | length' "$CONFIG")"
-
-  # Validate any explicit targets against the config first.
-  if ((${#TARGET_LANES[@]})); then
-    local t known
-    for t in "${TARGET_LANES[@]}"; do
-      known="$(jq -r --arg n "$t" '[.lanes[].name] | index($n) // "no"' "$CONFIG")"
-      [[ "$known" != "no" ]] || {
-        err "unknown lane '$t' (not in $CONFIG)"
-        exit 3
-      }
-    done
-  fi
 
   local i name model effort prompt_path failures=0
   for ((i = 0; i < count; i++)); do
@@ -488,7 +498,10 @@ lane_scope() { ((${#TARGET_LANES[@]})) && printf ' (%s)' "${TARGET_LANES[*]}"; }
 action_start() {
   local rc=0
   info "== lanes: start =="
-  refresh_repo_and_plugins || rc=1
+  # A failed refresh aborts BEFORE launching: never seed lanes from stale
+  # repo/plugin state the user did not sign off on (--no-pull/--no-update is the
+  # intentional-skip path, which leaves the refresh status 0).
+  refresh_repo_and_plugins || return 1
   info "lanes:"
   for_each_lane _start_one || rc=1
   return "$rc"
@@ -497,7 +510,7 @@ action_start() {
 action_restart() {
   local rc=0
   info "== lanes: restart$(lane_scope) =="
-  refresh_repo_and_plugins || rc=1
+  refresh_repo_and_plugins || return 1
   info "lanes:"
   for_each_lane _restart_one || rc=1
   return "$rc"
@@ -521,6 +534,9 @@ main() {
   require_claude
   resolve_repo
   resolve_config
+  # Validate explicit targets up front — before session load and, crucially,
+  # before any action's refresh step mutates the repo/plugin state (Item 2).
+  validate_target_lanes
   [[ -z "$AGENTS_JSON_FILE" || -f "$AGENTS_JSON_FILE" ]] || {
     err "agents-json file not found: $AGENTS_JSON_FILE"
     exit 4

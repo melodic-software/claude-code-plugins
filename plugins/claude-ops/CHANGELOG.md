@@ -3,6 +3,26 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.1]
+
+### Fixed
+
+- **`lanes` skill — launch aborts on a failed pre-launch refresh.** `start` /
+  `restart` previously ran `refresh_repo_and_plugins || rc=1` and launched lanes
+  regardless, so a failed `git pull --ff-only` (divergent/dirty checkout) or
+  `claude plugin marketplace update` still seeded background lanes from stale
+  repo/plugin state. The refresh is a documented launch prerequisite, so an
+  unexpected failure now hard-stops the launch (exit non-zero) with an actionable
+  message; `--no-pull` / `--no-update` remain the intentional-skip path (a
+  skipped step is not a failure). (#639)
+
+- **`lanes` skill — unknown restart/stop targets are rejected before any refresh
+  mutation.** `restart does-not-exist` ran `git pull --ff-only` +
+  `claude plugin marketplace update` before discovering the target was unknown.
+  The `TARGET_LANES` existence check now runs up front in `main`, ahead of the
+  refresh step, so a misspelled target fails fast (exit 3) with no repo/plugin
+  mutation — matching `stop`'s fail-first behaviour. (#639)
+
 ## [0.15.0]
 
 ### Added
