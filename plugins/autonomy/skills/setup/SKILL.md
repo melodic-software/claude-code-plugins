@@ -112,9 +112,11 @@ paid sinks are advisory + explicit opt-in with cost surfaced first.
    `OTEL_RESOURCE_ATTRIBUTES` carrying `autonomy.work_item.url=<canonical item URL>` (the
    vendor attaches resource attributes to every metric datapoint and event — verified against
    the official monitoring doc). Headless `-p` sessions inherit `TRACEPARENT`/`TRACESTATE`
-   from the environment; interactive sessions deliberately ignore inbound trace context.
-   Traces stay beta behind `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1`; the slice treats spans as
-   optional and never depends on beta span shapes.
+   from the environment only under the enhanced-telemetry beta — the default surface starts
+   a fresh root and joins query-side via the resource attribute (verified empirically) — and
+   interactive sessions deliberately ignore inbound trace context. Traces stay beta behind
+   `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1`; the slice treats spans as optional and never
+   depends on beta span shapes.
 4. **Record the binding** — sink class, endpoint or artifact path, and the semconv pin land
    as the `telemetry` section of the schema-versioned binding.
 5. **Conformance** — run

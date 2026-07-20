@@ -232,8 +232,11 @@ The contract (agnostic on every axis — machine, repo, user, org, tool):
    short IDs collide across repos); resource-scoped on agent-session emission, span-scoped on
    CI spans. WP2 PLAN.md is the governing record.
 3. W3C TRACEPARENT propagates across trigger → CI → agent session: one causal tree.
-   Verified: headless agent sessions inherit TRACEPARENT natively. Unification by context
-   propagation, not sink merging.
+   Verified with a post-delivery correction (#351 audit): headless agent sessions inherit
+   TRACEPARENT natively only behind the enhanced-telemetry opt-in — the default surface
+   starts a fresh root and attaches query-side via the join attribute, so the
+   contract-authored wrapper span is the stable causal leg until spans graduate.
+   Unification by context propagation, not sink merging.
 
 Sink binding is deployment-owned (out of contract): existing observability stack when the
 org has one (Boris step-1 guardrail verbatim); free default when none = OTLP file
