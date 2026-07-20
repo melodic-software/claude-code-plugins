@@ -3,6 +3,22 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.1]
+
+### Fixed
+
+- **Triage side-exit routing now clears the raw-intake marker on every outcome (`#562`).** The
+  closing invariant in the triage skill only named `status:ready` and the two role labels as
+  contradictory with the raw marker, and pinned the marker to a single hardcoded label string. A
+  status side-exit — `status:needs-decision`, `status:needs-info`, human-gated (`needs-human`), or
+  the terminal `status:ready` — could leave `needs-triage` attached, so an already-decided item
+  (e.g. `#505`, routed to `status:needs-decision`) resurfaced in the next cycle's needs-triage queue
+  as if it were unrouted intake, wasting a read-and-confirm pass every cycle. The invariant is now
+  exhaustive across the routing space — **every** open-keeping outcome removes the raw marker in the
+  same edit — and framed around the abstract raw-intake marker resolved from the live label set
+  rather than a hardcoded prefix, so it holds regardless of which axis a repo files `needs-triage`
+  under. Doc-only; absorbed into the triage `SKILL.md` alongside the `#478` routing rules.
+
 ## [0.16.0]
 
 Close the work-item-tracker seam's container read-verb gap (`#498`): the seam reserves `work-map`
