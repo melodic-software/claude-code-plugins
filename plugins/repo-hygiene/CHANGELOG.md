@@ -3,6 +3,52 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.3]
+
+### Fixed
+
+- **`tree-batch` — `--repo` now consumes every consecutive path, so the documented
+  shell-glob form works.** `--repo ~/repos/*` reaches the script as one `--repo`
+  flag followed by N positional paths (the shell expands the glob before exec), but
+  the arg-parsing arm consumed only the first: the second expanded path hit the
+  unknown-argument default and the batch exited 2. The documented glob usage
+  therefore always failed whenever the glob matched more than one directory. The
+  `--repo` arm now greedily ingests every consecutive non-flag path, halting at the
+  next `-`-prefixed flag or end of args, so the advertised `--repo ~/repos/*` form
+  is ingested whole. Repeated `--repo` and `--repos-from -` are unchanged. A bare
+  `--repo` with no following path (end of args or immediately followed by a flag)
+  now fails loud with a usage error instead of silently absorbing the next flag as a
+  directory. (#650)
+
+## [0.4.2]
+
+### Fixed
+
+- **`git-tree-reset` context doc — surfaces the `reset --hard` non-atomicity
+  caveat on the exit-5 gate.** The exit-5 bullet in
+  `skills/clean/context/git-tree-reset.md` accurately described the gating
+  contract (a failed `reset --hard` skips `clean` and the restore guard, so the
+  tree is never left cleaned-but-not-reset) but omitted that `reset --hard` is
+  not atomic and may have partially modified tracked files before it failed —
+  a caveat the runtime exit-5 stderr message already surfaces. The bullet now
+  carries that parenthetical, so the doc is consistent with the script's stderr
+  output. (#485)
+
+## [0.4.1]
+
+### Fixed
+
+- **`git-tree-reset` — exit-7 clean-failure path now emits the restore-guard
+  warning identically to the success path.** When `git clean -fdx` fails for a
+  non-locked-file cause (exit 7) after the restore guard recovered one or more
+  tracked files deleted via reparse-point traversal (`RestoredTracked: N`, N>0),
+  the path now prints the same `WARNING: restored N tracked file(s)` message the
+  success path already emits under that condition. Previously the warning was
+  emitted only on the success path, so an operator hitting the failure path saw
+  the machine-readable `RestoredTracked: N` line but not the human-visible signal
+  that data-loss recovery fired — parity between both paths for this specific
+  signal. (#605)
+
 ## [0.4.0]
 
 ### Added

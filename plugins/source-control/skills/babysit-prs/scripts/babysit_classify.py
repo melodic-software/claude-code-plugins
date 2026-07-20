@@ -20,7 +20,9 @@ Three concern areas:
 * Finding (severity occurrence + lifetime-vs-open state): the blocking-text and
   structured-severity heuristics, and the finding/classification counting the
   readiness gate delegates here (`count_findings` discounts markers carried in a
-  resolved or outdated thread, so a lifetime badge no longer inflates the count).
+  resolved or outdated thread, so a lifetime badge no longer inflates the count;
+  `count_effective_classified` credits classifications per surface so a stale
+  PR-level row cannot offset an open-thread finding).
 * Approval verdict: the approval / non-approval / required-fix heuristics and the
   structural approval and review-skip downgrades.
 """
@@ -357,6 +359,50 @@ def thread_is_open(comment: dict[str, Any]) -> bool:
     )
 
 
+# The surface a comment lives on -- not just its resolution state -- is
+# load-bearing for classification credit (#642): a review thread can be resolved
+# (its findings and their in-thread classifications drop together), while a
+# PR-level comment never can, so a stale classification posted there would
+# otherwise count forever. Credit is bucketed by these surfaces and capped within
+# each, so a row on one surface cannot offset a finding on another.
+THREAD_SURFACE = "thread"
+PR_LEVEL_SURFACE = "pr_level"
+UNKNOWN_SURFACE = "unknown"
+
+
+def comment_surface(comment: dict[str, Any]) -> str:
+    """Classify the surface a comment lives on for per-surface credit (#642).
+
+    Two signals identify the surface, in order of authority:
+
+    * `in_review_thread` -- the explicit stamp the live entrypoint applies (true
+      for a review-thread comment, false for a PR-level one). When present it
+      decides, so a live PR-level comment is never re-inferred as a thread.
+    * `type` -- the `fetch-all-pr-comments.sh` schema tag on the
+      `--comments-json` reuse path: `inline` is a review thread, `general` /
+      `review` are the two PR-level surfaces. Honoring it keeps that path
+      surface-aware; without it an inline finding and a detached PR-level
+      classification share a bucket and the row cross-credits the finding -- the
+      #642 fail-open, on the reuse path.
+
+    A comment bearing neither signal (the bash-degrade shape and legacy
+    `{author, body}` fixtures) is `UNKNOWN_SURFACE`: isolated in its own bucket so
+    its rows cannot offset -- and its findings cannot be offset by -- a known
+    surface. That is the fail-closed direction for unknown provenance and it
+    preserves the "no signal = PR-level lifetime" model `thread_is_open`
+    documents; uniform unsignalled input collapses to one bucket, identical to a
+    flat count.
+    """
+    if "in_review_thread" in comment:
+        return THREAD_SURFACE if comment["in_review_thread"] else PR_LEVEL_SURFACE
+    comment_type = comment.get("type")
+    if comment_type == "inline":
+        return THREAD_SURFACE
+    if comment_type in ("general", "review"):
+        return PR_LEVEL_SURFACE
+    return UNKNOWN_SURFACE
+
+
 def _severity_occurrences(text: str) -> int:
     return (
         len(SEVERITY_WORDS_RE.findall(text))
@@ -424,3 +470,43 @@ def count_classified(
             if PIPE_ROW_RE.search(line) and CLASSIFY_TOKEN_RE.search(line):
                 total += 1
     return total
+
+
+def count_effective_classified(
+    comments: list[dict[str, Any]], self_logins: frozenset[str]
+) -> int:
+    """Classifications that effectively cover findings, credited per surface.
+
+    The readiness gate blocks while findings outnumber their classifications. A
+    raw global count lets a classification row on one surface offset a finding on
+    another: a stale pipe-row in a PR-level (non-thread) comment -- which can
+    never be thread-resolved -- would keep covering a finding raised fresh in an
+    open review thread, a fail-open past a live unclassified finding (#642).
+
+    Credit is therefore bucketed by surface (`comment_surface`: review-thread,
+    PR-level, or isolated unknown) and capped within each bucket -- a
+    classification can only offset a finding on its own surface. Resolved/outdated
+    thread comments are already discounted by `thread_is_open` inside both
+    counters, so they contribute to no bucket. On unsignalled input (every comment
+    in one bucket, the bash-degrade shape) this collapses to
+    `min(classified, findings)`, keeping the Python count convergent with the bash
+    degrade's own cap.
+    """
+    buckets: dict[str, list[dict[str, Any]]] = {
+        THREAD_SURFACE: [],
+        PR_LEVEL_SURFACE: [],
+        UNKNOWN_SURFACE: [],
+    }
+    for comment in comments:
+        if is_json_object(comment):
+            buckets[comment_surface(comment)].append(comment)
+    return sum(_capped_credit(bucket, self_logins) for bucket in buckets.values())
+
+
+def _capped_credit(
+    comments: list[dict[str, Any]], self_logins: frozenset[str]
+) -> int:
+    return min(
+        count_classified(comments, self_logins),
+        count_findings(comments, self_logins),
+    )

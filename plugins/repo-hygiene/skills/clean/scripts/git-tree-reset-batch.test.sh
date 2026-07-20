@@ -325,6 +325,36 @@ out="$(bash "$BATCH" --dry-run --repos-from "$NOEOL_REPOS" 2>&1)" || true
 assert_contains "unterminated repos-from still enumerates the repo" "$out" "Repos: 1"
 assert_contains "unterminated repos-from repo would reset" "$out" "would-reset"
 
+# --- 23. a single --repo consumes consecutive paths (shell-glob-after-expansion) ---
+# `--repo ~/repos/*` reaches the script as ONE --repo flag followed by N positional
+# paths (the shell expanded the glob before exec). A single --repo must ingest every
+# one of them, which the pre-fix single-arg arm could not: it took the first path and
+# the second hit the unknown-arg default (exit 2). Simulate the expanded glob with two
+# explicit consecutive paths after one --repo.
+out="$(bash "$BATCH" --dry-run --repo "$CLEAN_REPO" "$SKIP_REPO" 2>&1)" || true
+assert_contains "single --repo ingests both consecutive glob paths" "$out" "Repos: 2"
+
+# --- 24. consumption STOPS at the next flag (does not swallow it as a path) ---
+# The discriminating case: `--repo A B --skip keepme`. Repos: 2 alone would also pass
+# for an over-greedy loop that ate --skip and its value; the load-bearing assertion is
+# that --skip was still parsed AS A FLAG (skip-list fires on the keepme repo), proving
+# the greedy consumption halts at the `-`-prefixed boundary.
+out="$(bash "$BATCH" --dry-run --repo "$CLEAN_REPO" "$SKIP_REPO" --skip 'keepme' 2>&1)" || true
+assert_contains "greedy --repo still enumerates both paths" "$out" "Repos: 2"
+assert_contains "greedy --repo stops at --skip (parsed as a flag, not a path)" "$out" "skip-list"
+assert_not_contains "--skip value 'keepme' was not swallowed as a repo path" "$out" "UnmatchedSkip: keepme"
+
+# --- 25. --repo with no path (immediately at a flag or end of args) is a usage error ---
+# A bare --repo followed by another flag has no path to consume; it must fail loud
+# (exit 2), not silently absorb the following flag as a directory path (the pre-fix
+# single-arg arm did the latter, classifying e.g. `--skip` as a blocked non-directory).
+rc=0
+bash "$BATCH" --dry-run --repo --skip 'x' >/dev/null 2>&1 || rc=$?
+assert_exit "--repo immediately followed by a flag exits 2" 2 "$rc"
+rc=0
+bash "$BATCH" --dry-run --repo >/dev/null 2>&1 || rc=$?
+assert_exit "trailing --repo with no path exits 2" 2 "$rc"
+
 if [[ $FAILED -ne 0 ]]; then
   echo "FAILED: $FAILED test(s)"
   exit 1

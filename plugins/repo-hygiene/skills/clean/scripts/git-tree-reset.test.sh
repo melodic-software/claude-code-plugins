@@ -237,6 +237,47 @@ assert_contains "clean failure emits RestoredTracked label" "$out" "RestoredTrac
 assert_contains "clean failure emits Unremovable label (uniform apply-path contract)" "$out" "Unremovable: 0"
 assert_file_exists "clean failure leaves untracked intact (clean did not silently succeed)" "$R4/scratch.txt"
 
+# --- 12. clean failure with restore-guard activity emits the RESTORED>0 warning ---
+# Parity fix (#605): on the exit-7 failure path, when the restore guard recovers a
+# tracked file (a clean that deleted tracked files via reparse-point traversal
+# before erroring), the human-visible `WARNING: restored N tracked file(s)` message
+# the success path prints must also appear — not just the machine-readable
+# RestoredTracked: N line. Simulate a partial clean via a shim that deletes a
+# tracked file and THEN exits non-zero, so `git ls-files --deleted` reports it and
+# the restore guard recovers it (RESTORED>0) on the failure path.
+R5="$TEST_TMPDIR/repo-clean-fail-restore"
+git init "$R5" >/dev/null 2>&1
+git -C "$R5" config user.email "t@example.com"
+git -C "$R5" config user.name "Test"
+echo tracked >"$R5/tracked.txt"
+git -C "$R5" add -A
+git -C "$R5" commit -m "init" >/dev/null
+git -C "$R5" branch -M main
+git -C "$R5" checkout -b feat/clean-fail-restore >/dev/null 2>&1
+git -C "$R5" branch -u main >/dev/null 2>&1
+
+RESTORE_SHIM="$TEST_TMPDIR/git-clean-restore-shim"
+mkdir -p "$RESTORE_SHIM"
+cat >"$RESTORE_SHIM/git" <<SHIMEOF
+#!/usr/bin/env bash
+if [[ "\$1" == "clean" && "\$*" != *-n* ]]; then
+  # Simulate a clean that deleted a tracked file (reparse traversal) before failing.
+  rm -f "$R5/tracked.txt"
+  echo "fatal: simulated git clean failure after partial deletion" >&2
+  exit 1
+fi
+exec "$REAL_GIT" "\$@"
+SHIMEOF
+chmod +x "$RESTORE_SHIM/git"
+
+rc=0
+out="$(PATH="$RESTORE_SHIM:$PATH" bash -c "cd '$R5' && bash '$RESET' --apply" 2>&1)" || rc=$?
+assert_exit "clean failure with restore exits 7" 7 "$rc"
+assert_contains "clean failure emits AppliedClean: failed" "$out" "AppliedClean: failed"
+assert_contains "clean failure reports a positive RestoredTracked count" "$out" "RestoredTracked: 1"
+assert_contains "clean failure path emits the RESTORED>0 warning (parity with success path)" "$out" "WARNING: restored 1 tracked file(s) deleted via reparse-point traversal"
+assert_file_exists "restore guard recovered the tracked file on the failure path" "$R5/tracked.txt"
+
 if [[ $FAILED -ne 0 ]]; then
   echo "FAILED: $FAILED test(s)"
   exit 1

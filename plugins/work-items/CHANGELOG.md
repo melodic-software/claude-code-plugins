@@ -3,6 +3,71 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.1]
+
+### Fixed
+
+- **Open-linked-PR filter no longer wrongly drops issues from fenced examples (`#654`).** The GitHub
+  adapter's "Open linked PRs" mechanic (`#463`) matched a closing-keyword `jq` regex over the raw
+  PR body, so a PR body carrying a fenced `Closes #<N>` example spuriously reported issue `#<N>` as
+  having an open closing PR and dropped the still-pickable issue from the `/work-items:work`
+  frontier. The mechanic now reads GitHub's own computed close-linkage via the GraphQL
+  `Issue.closedByPullRequestsReferences` connection (open-state nodes only), which excludes fenced
+  code blocks and HTML comments, needs no word/number-boundary guards, and honors the default-branch
+  requirement — retiring the raw-body regex and its partial `gsub` fence-stripper (which recognized
+  only exactly-three backtick/tilde fences). Behavior change: an issue whose only `Closes #<N>` is on
+  a non-default-base PR now stays pickable, matching GitHub's real auto-close semantics.
+
+## [0.14.0]
+
+Absorb bullets 1–4 of the v4 loop-prompt routing rules into `/work-items:triage` so the skill owns
+them instead of a session prompt (`#478`). Bullet 5 stays deferred to `#459` (pointer only); bullet 6
+(`wayfind:*` label semantics) is cross-repo label policy noted on `github-iac#176` and untouched here.
+
+### Added
+
+- **Decision-defaulted ready route (`#478`).** "Triage states" now documents three briefed exits —
+  delegable, decision-defaulted, human-gated. A single-fork item whose brief carries a well-grounded
+  RECOMMENDED answer with only a maintainer-vetoable (reversible) alternative routes to the
+  autonomous-eligible role with `status:ready` plus a `Decision defaulted: X — veto before merge`
+  comment, instead of falling to human-gated. "Recommend category + state" carries the routing test
+  (reversible/maintainer-vetoable → defaulted; genuinely open → human-gated) and "Apply outcome" adds
+  the matching row.
+- **Cluster-aware routing (`#478`).** "Gather context" adds a cluster-detection cross-reference: when
+  several open items share one underlying decision, one representative becomes the decision carrier
+  (human-gated, member numbers in its body) and each member links to it via the native `blocked-by`
+  edge with a `blocked by #<carrier> decision` comment — no per-member human-gated label. One human
+  touch per decision. No new labels.
+- **Multi-surface T1 stub (`#478`).** "Apply outcome" adds a lightweight briefing variant: a trivial
+  (T1) fix spanning 3+ surfaces gets a one-line `sites + fix pattern` comment in place of a full brief
+  and still takes the autonomous-eligible role. The brief durability rule holds — name sites by
+  interface / symbol / domain concept, not file paths or line numbers (recommended default:
+  symbol-level naming).
+- **Severity sub-sort (`#478`).** The priority-label step now records the finding's self-labeled
+  severity in the triage comment (`priority set to pX by <rule>; reporter severity: <sev>`) when a
+  directive or category rule sets the `priority:` label above it, so implementers can sub-sort within
+  a priority band. No new labels.
+
+### Changed
+
+- **Human-gated narrowed (`#478`).** The human-gated briefed exit is reserved for a genuinely open
+  decision (open design space, product intent, cross-repo policy) or a capability blocker (external
+  access, manual QA), distinguishing it from the new decision-defaulted route.
+
+## [0.13.1]
+
+### Fixed
+
+- **`status: ready` issues with an open linked PR are no longer pickable (`#463`).** `/work-items:work`
+  selection now excludes a frontier candidate (tiers 2–3) that already has an open PR targeting it for
+  closure, closing the re-pick risk where an issue kept `status: ready` for its entire open-PR window and
+  a picker had to hand-cross-check `gh pr list` to avoid starting a duplicate branch. The check routes
+  through a new GitHub adapter *Open linked PRs* mechanic (closing-keyword linkage — the same `Closes #N`
+  signal `pr-issue-linkage` enforces — is authoritative; an intentional `Refs #N` opt-out does not
+  exclude), and fails open when the bound provider exposes no PR host (offline `local-markdown`). This
+  retires the interim in-flight heuristic that lived in the execute-step staleness pre-check. The durable
+  seam-level in-review state is deferred to the tracker-seam layer (`#416`/`#498`), not built here.
+
 ## [0.13.0]
 
 Absorb the v4 loop-prompt execution rules into `/work-items:work` so the execute step owns them

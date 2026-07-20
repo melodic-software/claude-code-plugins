@@ -19,7 +19,7 @@
 #
 # Usage:
 #   git-tree-reset-batch.sh [--dry-run|--apply]
-#                           [--repo DIR]... [--repos-from FILE|-]...
+#                           [--repo DIR...]... [--repos-from FILE|-]...
 #                           [--skip ENTRY]... [--skip-from FILE]...
 #                           [--include-dirty]
 #                           [--force-default-branch] [--include-deps]
@@ -27,8 +27,9 @@
 # Default: --dry-run.
 #
 # Repo sources (a `ghq list`, a shell glob, or an explicit list all reduce to a
-# path list): --repo (repeatable, and how a shell glob arrives after expansion),
-# and --repos-from FILE (or - for stdin; how `ghq list -p` output is ingested).
+# path list): --repo (repeatable, and consumes every consecutive non-flag path so
+# a shell glob — `--repo ~/repos/*` — arrives whole after expansion), and
+# --repos-from FILE (or - for stdin; how `ghq list -p` output is ingested).
 #
 # Skip list: --skip ENTRY (repeatable) / --skip-from FILE. An entry may be an
 # absolute path or a trailing owner/repo or repo segment; matching is separator-
@@ -59,7 +60,7 @@ with a separator-agnostic skip list and a dirty-by-default guard.
 
 Usage:
   git-tree-reset-batch.sh [--dry-run|--apply]
-                          [--repo DIR]... [--repos-from FILE|-]...
+                          [--repo DIR...]... [--repos-from FILE|-]...
                           [--skip ENTRY]... [--skip-from FILE]...
                           [--include-dirty]
                           [--force-default-branch] [--include-deps]
@@ -68,7 +69,10 @@ Usage:
 Default: --dry-run (inventory only; no mutations).
 
 Repo sources (combine freely; deduped by canonical toplevel):
-  --repo DIR         a repository (repeatable; a shell glob expands to these).
+  --repo DIR...      one or more repositories (repeatable). Consumes every
+                     consecutive non-flag path, so a shell glob (--repo
+                     ~/repos/*) is ingested whole; consumption stops at the
+                     next flag.
   --repos-from FILE  newline-delimited repo paths (FILE, or - for stdin; the way
                      `ghq list -p` output is ingested). Repeatable.
 
@@ -136,9 +140,21 @@ while [[ $# -gt 0 ]]; do
   --include-deps) INCLUDE_DEPS=1 ;;
   --include-secrets) INCLUDE_SECRETS=1 ;;
   --repo)
-    [[ $# -ge 2 ]] || fail_usage "--repo requires a directory"
-    REPO_INPUTS+=("$2")
+    # Consume every consecutive non-flag arg, not just the first, so a shell glob
+    # (`--repo ~/repos/*`) — which the shell expands to N positional paths behind a
+    # single --repo — is ingested whole. Consumption stops at the next recognized
+    # token (any `-`-prefixed flag) or end of args; every flag in this parser is
+    # `-`-prefixed and repo paths are directories that never start with `-`, so the
+    # boundary is unambiguous. The `$2 != -*` guard is set -u-safe: [[ ]] does not
+    # expand $2 when $# < 2. `continue` skips the loop's trailing shift because this
+    # arm has already shifted past the flag and all the paths it consumed.
+    [[ $# -ge 2 && "$2" != -* ]] || fail_usage "--repo requires a directory"
     shift
+    while [[ $# -gt 0 && "$1" != -* ]]; do
+      REPO_INPUTS+=("$1")
+      shift
+    done
+    continue
     ;;
   --repos-from)
     [[ $# -ge 2 ]] || fail_usage "--repos-from requires a file or -"
