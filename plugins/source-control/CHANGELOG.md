@@ -3,6 +3,35 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.0]
+
+### Fixed
+
+- **`babysit-prs` snapshot no longer classifies an Approve-with-nits bot review as blocking bot
+  feedback.** A `claude[bot]` PR review posted as an issue-level comment with an explicit
+  **Approve** verdict and only 🟡-nit findings (no `CRITICAL`/`IMPORTANT` or other severity
+  marker) was surfaced as a blocking, genuinely-fresh finding because the body's prose contained
+  the word "blocking" ("blocking criteria", "blocking checks", "No blocking issues"), which the
+  text heuristic matched. The classifier now parses the verdict and severity markers: an explicit
+  approval carrying no genuine severity marker is downgraded structurally (for any bot, not only a
+  configured login) to a non-blocking result, consistent with `babysit-readiness-gate.sh`
+  reporting `findings=0` for the same review. Detection of genuinely blocking feedback is
+  unweakened — in a comment or a non-`APPROVED`-state review, a `CRITICAL`/`IMPORTANT` finding or
+  a Request-changes verdict still classifies as blocking, and `CRITICAL`/`IMPORTANT` are now
+  recognized as blocking-severity markers in their own right. (A review submitted in the formal
+  `APPROVED`/`DISMISSED` state is routed to `ignored` before the severity check — pre-existing
+  behavior this change does not alter; whether such reviews should be severity-scanned first is
+  tracked as a follow-up in #621.) A negated severity conclusion — a clean approval stating `No CRITICAL or IMPORTANT
+  findings` — is redacted before the severity check, the structured-marker analogue of the
+  existing `no P1/P2 issues` redaction, so introducing severity-marker detection does not itself
+  re-create a false blocker for that common clean-verdict phrasing. A login named in
+  `babysit_approval_downgrade_logins` opts that bot's approval into the more-conservative
+  `material` bucket (surfaced but non-blocking) instead of `ignored` in the one case the
+  structural downgrade reaches — a review body carrying blocking-looking prose that still parses
+  as an approval verdict. It does not affect a review already in the APPROVED state or a plain
+  clean approval whose body carries no blocking-looking prose: both are ignored regardless of the
+  setting, since neither reaches the downgrade branch.
+
 ## [0.11.0]
 
 ### Added

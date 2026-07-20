@@ -518,8 +518,15 @@ def main() -> int:
         "--approval-downgrade-logins",
         default=None,
         help=(
-            "Comma-separated reviewer-bot logins whose blocking-looking text "
-            "may downgrade on an explicit approval verdict (ships empty)."
+            "Comma-separated reviewer-bot logins whose approval is surfaced as a "
+            "material finding rather than ignored in the one case the structural "
+            "downgrade reaches: a review body carrying blocking-looking prose that "
+            "still parses as an approval verdict (no CRITICAL/IMPORTANT or "
+            "required-fix marker). Every bot's such approval is downgraded to "
+            "non-blocking by default; naming a login opts its own into the "
+            "more-conservative material bucket instead of ignored. Does not affect "
+            "a review already in the APPROVED state or a plain clean approval with "
+            "no blocking-looking prose -- both are ignored regardless (ships empty)."
         ),
     )
     parser.add_argument(

@@ -147,6 +147,120 @@ class ResolveSelfLoginsTests(unittest.TestCase):
             self.assertEqual(snapshot.resolve_self_logins(["alice"]), ["alice"])
 
 
+HEAD = "a" * 40
+OBS = "2026-07-19T16:10:00Z"
+
+# Faithful abbreviation of the claude[bot] issue-comment review captured from
+# workflow run 29694104425: an explicit **Approve** verdict whose only findings
+# are two 🟡 nits, each self-deprioritized, and no CRITICAL/IMPORTANT/P-severity
+# marker anywhere. The load-bearing tokens are the descriptive occurrences of
+# the word "blocking" ("blocking criteria", "blocking checks", "No blocking
+# issues") that made the old text heuristic misfire.
+APPROVE_WITH_NITS_BODY = (
+    "**Claude finished @kyle-sexton's task** —— [View job](run/29694104425)\n\n"
+    "### PR Review\n\n"
+    "**Verdict: Approve** — clean, focused, well-reasoned patch. No blocking "
+    "issues. I checked each changed file against the REVIEW.md blocking "
+    "criteria — none of the security/authorization gates apply here.\n\n"
+    "### 🟡 Nit — parenthetical inside code fence\n"
+    "A first-time reader might misread the parenthetical. Not worth a change on "
+    "its own, but worth noting.\n\n"
+    "### 🟡 Nit — table cell verbosity\n"
+    "These files are AI-readable instruction documents, so this is low impact.\n\n"
+    "### No concerns on REVIEW.md blocking criteria\n"
+    "All six blocking checks (auth, tenancy, secrets, injection, audit logging, "
+    "atomicity) are inapplicable — a documentation-only change."
+)
+APPROVE_BUT_CRITICAL_BODY = (
+    "**Verdict: Approve** overall, but one item stands out.\n\n"
+    "### 🔴 CRITICAL — hardcoded secret\n"
+    "A live credential is committed in config; must fix before merge."
+)
+REQUEST_CHANGES_BODY = (
+    "**Verdict: Request changes** — the new endpoint skips the tenant scope "
+    "check, so cross-tenant reads are possible."
+)
+
+
+def _pr_with_claude_review(body: str) -> dict[str, object]:
+    return {
+        "repo": "melodic-software/claude-code-plugins",
+        "number": 492,
+        "url": "u",
+        "title": "docs patch",
+        "state": "OPEN",
+        "author": {"login": "kyle-sexton", "__typename": "User"},
+        "headRefName": "feature",
+        "headRefOid": HEAD,
+        "baseRefName": "main",
+        "baseRefOid": "b" * 40,
+        "headRepository": {"nameWithOwner": "melodic-software/claude-code-plugins"},
+        "headRepositoryOwner": {"login": "melodic-software"},
+        "isCrossRepository": False,
+        "isDraft": False,
+        "maintainerCanModify": True,
+        "baseRepositoryArchived": False,
+        "mergeStateStatus": "CLEAN",
+        "mergeable": "MERGEABLE",
+        "reviewDecision": "",
+        "reviews": [],
+        "latestReviews": [],
+        "comments": [
+            {"id": 1, "author": {"login": "claude", "__typename": "Bot"}, "body": body}
+        ],
+        "statusCheckRollup": [],
+        "updatedAt": "2026-07-19T16:00:00Z",
+    }
+
+
+class ApproveWithNitsClassification(unittest.TestCase):
+    """The snapshot classifier must agree with babysit-readiness-gate.sh.
+
+    Reproduces melodic-software/claude-code-plugins#499: the gate reports
+    `READINESS_OK findings=0` for #492's Approve-with-nits review (no severity
+    marker present), while the snapshot classified the same review as a blocking
+    bot-feedback item because its prose contains the word "blocking". After the
+    fix the two agree: an Approve verdict carrying only non-blocking nits is
+    non-blocking, and a genuine CRITICAL finding or a Request-changes verdict
+    still blocks.
+    """
+
+    _CONFIG = delta.ClassifyConfig(
+        allowed_owners=frozenset({"melodic-software"})
+    )
+
+    def _classify(self, body: str) -> dict[str, object]:
+        return delta.classify_pr(
+            _pr_with_claude_review(body), None, None, OBS, config=self._CONFIG
+        )
+
+    def test_approve_with_only_nits_is_not_blocking(self) -> None:
+        result = self._classify(APPROVE_WITH_NITS_BODY)
+        self.assertEqual(result["feedback"]["blocking"], [])
+        self.assertEqual(result["new_feedback"]["blocking"], [])
+        self.assertEqual(result["feedback"]["material"], [])
+        self.assertNotIn(
+            "1 blocking bot feedback item(s)", result["blockers"]
+        )
+        # Consistent with the gate's findings=0: a clean approval is fully
+        # non-blocking, so a worker is never dispatched for it and the PR routes
+        # straight to the direct merge gate.
+        self.assertFalse(result["needs_worker"])
+        self.assertTrue(result["pr_clean_ready_for_direct_gate"])
+
+    def test_approve_with_critical_finding_still_blocks(self) -> None:
+        result = self._classify(APPROVE_BUT_CRITICAL_BODY)
+        self.assertEqual(len(result["feedback"]["blocking"]), 1)
+        self.assertIn("1 blocking bot feedback item(s)", result["blockers"])
+        self.assertTrue(result["needs_worker"])
+
+    def test_request_changes_verdict_still_blocks(self) -> None:
+        result = self._classify(REQUEST_CHANGES_BODY)
+        self.assertEqual(len(result["feedback"]["blocking"]), 1)
+        self.assertIn("1 blocking bot feedback item(s)", result["blockers"])
+        self.assertTrue(result["needs_worker"])
+
+
 class BuildConfigSelfLoginsTests(unittest.TestCase):
     def test_resolved_self_logins_populate_config_self_logins(self) -> None:
         args = argparse.Namespace(
