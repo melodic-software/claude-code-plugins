@@ -3,6 +3,30 @@
 All notable changes to the `firecrawl` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0]
+
+### Changed
+
+- **Extracted the maintainer update/drift pipeline into its own sibling skill,
+  `/firecrawl:update`** (issue #261). `UPSTREAM.md`, `scripts/update.sh` (+ its
+  regression tests), `context/update-flow.md`, and the "Updating the skill and
+  CLI" / "Safety" / Preservation-rules sections move out of the user-facing
+  `/firecrawl:firecrawl` wrapper into a dedicated maintainer-facing skill
+  (`user-invocable`, `disable-model-invocation: true`), mirroring the
+  `playbooks:update` standalone pattern. The wrapper now carries only its
+  user-facing scrape/search/crawl surface plus a pointer to the update skill;
+  the invocation moves from `/firecrawl:firecrawl update` to `/firecrawl:update`.
+  No behavior change to the update flow itself.
+
+## [0.3.1]
+
+### Changed
+
+- Documentation-only: the License section now states the plugin's own MIT
+  license inline and no longer points at a `LICENSE` file at the repository
+  root, which an installed consumer running from the isolated plugin cache
+  cannot reach. No behavior change.
+
 ## [0.3.0]
 
 ### Added

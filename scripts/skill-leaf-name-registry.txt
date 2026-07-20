@@ -60,6 +60,13 @@ plan planning,testing
 # songwriting:workflow routes a writing session.
 workflow session-flow,songwriting
 
+# Fixed verb meaning: refreshes vendored upstream material (PLUGIN-PHILOSOPHY.md,
+# Naming verb table). firecrawl:update syncs the firecrawl wrapper skill against
+# the upstream firecrawl-cli release and SKILL.md source; playbooks:update syncs
+# each vendored pack against its own upstream. Same maintainer-facing sync
+# contract; the namespace supplies the object.
+update firecrawl,playbooks
+
 # Fixed verb meaning: produces an artifact. bug-report writes a report, testing
 # writes tests.
 write bug-report,testing

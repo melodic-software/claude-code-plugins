@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# /firecrawl:firecrawl update helper — drift detection and CLI upgrade for firecrawl-cli.
+# /firecrawl:update helper — drift detection and CLI upgrade for firecrawl-cli.
 #
 # Maintainer-facing: run against a working-tree checkout of this plugin (the
 # marketplace clone, or a directory loaded via --plugin-dir), never against an
@@ -169,9 +169,9 @@ run_check() {
     log "No drift. CLI and skill are in sync with upstream."
     return 0
   fi
-  log "Drift detected. Run '/firecrawl:firecrawl update' (without --check) to apply."
+  log "Drift detected. Run '/firecrawl:update' (without --check) to apply."
   log "Script alone cannot rewrite SKILL.md — that's Claude's integration step,"
-  log "governed by the Preservation rules in SKILL.md 'Updating the skill and CLI'."
+  log "governed by this update skill's SKILL.md Preservation rules."
   return 1
 }
 
@@ -215,7 +215,7 @@ run_apply() {
   section "Next step"
   log "Now invoke the skill's Gate-2 integration: review the upstream SKILL.md"
   log "changes (diff against the tmp-fetched content) and integrate under the"
-  log "Preservation rules. See SKILL.md 'Updating the skill and CLI'."
+  log "Preservation rules. See this update skill's SKILL.md."
   return 0
 }
 

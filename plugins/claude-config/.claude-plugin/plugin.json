@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "claude-config",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Three audit skills for a repo's Claude Code configuration: audit (settings.json / .mcp.json / hooks / plugins / permissions drift), audit-automation-gaps (evidence-gated verdicts on automation gaps), and audit-permission-grants (allow-rule / allowed-tools grants for auto-mode durability and portability).",
   "author": {
     "name": "Melodic Software",

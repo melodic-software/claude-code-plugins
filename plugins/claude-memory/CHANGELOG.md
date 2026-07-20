@@ -3,7 +3,7 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.2.2]
+## [0.2.3]
 
 ### Fixed
 
@@ -17,6 +17,15 @@ All notable changes to the `claude-memory` plugin are documented here. Format fo
   handling are unchanged. As a
   non-interactive detector it still degrades to the documented `.work` default when the
   seam is unset — the contract's inferred/interactive rungs stay the calling skill's job.
+
+## [0.2.2]
+
+### Changed
+
+- Documentation-only: the License section now states the plugin's own MIT
+  license inline and no longer points at a `LICENSE` file at the repository
+  root, which an installed consumer running from the isolated plugin cache
+  cannot reach. No behavior change.
 
 ## [0.2.1]
 
