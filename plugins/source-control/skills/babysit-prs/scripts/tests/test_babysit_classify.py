@@ -223,8 +223,8 @@ class EffectiveClassifiedTests(unittest.TestCase):
             {"type": "inline", "author": "codex[bot]", "body": "[CRITICAL] inline finding"},
             {"type": "review", "author": "me[bot]", "body": "| 1 | old | VALID | fixed |"},
         ]
-        self.assertTrue(bc.is_thread_comment(comments[0]))
-        self.assertFalse(bc.is_thread_comment(comments[1]))
+        self.assertEqual(bc.comment_surface(comments[0]), bc.THREAD_SURFACE)
+        self.assertEqual(bc.comment_surface(comments[1]), bc.PR_LEVEL_SURFACE)
         self.assertEqual(bc.count_findings(comments, self.SELF), 1)
         self.assertEqual(bc.count_effective_classified(comments, self.SELF), 0)
 
@@ -232,11 +232,25 @@ class EffectiveClassifiedTests(unittest.TestCase):
         # An explicit `in_review_thread: false` (a live PR-level comment) is
         # authoritative even if a stray `type` is present -- it is never
         # re-inferred as a thread.
-        self.assertFalse(
-            bc.is_thread_comment(
+        self.assertEqual(
+            bc.comment_surface(
                 {"in_review_thread": False, "type": "inline", "body": ""}
-            )
+            ),
+            bc.PR_LEVEL_SURFACE,
         )
+
+    def test_unsignalled_provenance_is_isolated_from_known_surfaces(self) -> None:
+        # Fail-closed defense: a finding bearing neither an `in_review_thread`
+        # stamp nor a `type` tag lands in the isolated unknown bucket, where a
+        # PR-level classification row cannot offset it, so the gate still blocks.
+        # (Production paths always signal; this guards a malformed snapshot.)
+        comments = [
+            {"author": "codex[bot]", "body": "[CRITICAL] unsignalled finding"},
+            {"type": "review", "author": "me[bot]", "body": "| 1 | x | VALID | y |"},
+        ]
+        self.assertEqual(bc.comment_surface(comments[0]), bc.UNKNOWN_SURFACE)
+        self.assertEqual(bc.count_findings(comments, self.SELF), 1)
+        self.assertEqual(bc.count_effective_classified(comments, self.SELF), 0)
 
     def test_resolved_thread_contributes_to_neither_bucket(self) -> None:
         # A resolved thread's finding and classification both drop (thread_is_open

@@ -327,6 +327,23 @@ else
   pass "#642 reuse-path inline tag skipped (no Python 3.11+; bash degrade is thread-blind)"
 fi
 
+# --- Case: #642 fail-closed on unsignalled provenance ------------------------
+# A finding bearing neither an `in_review_thread` stamp nor a `type` tag is
+# isolated in the unknown bucket, where a PR-level (`type:"review"`)
+# classification row cannot offset it -> classified=0 < findings=1 -> BLOCKED.
+# Defensive (production paths always signal); Python-gated like the cases above.
+if probe_py py -3 || probe_py python3 || probe_py python; then
+  F=$(mkjson unsignalled-provenance '[
+    {author:"codex[bot]", body:"[CRITICAL] unsignalled finding"},
+    {type:"review", author:"me[bot]", body:"| 1 | x | VALID | y |"}
+  ]')
+  r=$(run_gate "$F")
+  assert_contains "#642 unsignalled finding -> classified=0" "$r" "findings=1 classified=0"
+  assert_contains "#642 unsignalled finding -> BLOCKED" "$r" "READINESS_BLOCKED reason=under-decomposed"
+else
+  pass "#642 unsignalled-provenance isolation skipped (no Python 3.11+)"
+fi
+
 # --- Convergence: Python counter and bash degrade agree on thread-state-free input
 # The gate prefers the shared Python counter but keeps the bash grep counting as
 # the Python-free safe-tier degrade. The two must not drift: a severity marker is
