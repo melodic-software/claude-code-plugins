@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # reclaim <id> — CONTRACT.md "Lease protocol". Idempotent session-start reclaim:
-# expired lease + no activity → clear assignees, supersede lease, note; activity →
-# renew in place. Never touches a live lease or a manual (lease-less) assignment.
+# expired lease + no activity → unassign the lease holder only, supersede lease,
+# note; activity → renew in place. Never touches a live lease, a co-assignee that
+# does not hold the expired lease, or a manual (lease-less) assignment.
 set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
@@ -23,22 +24,14 @@ emit() {
 # is not misreported as "no lease record" (which would let reclaim proceed).
 leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" || exit "$?"
 
-# Select the ACTIVE lease = newest NON-superseded lease comment. Not blind
-# `last`: a claim that backs off supersedes its own newer comment, so the
-# highest-id comment can be a superseded back-off while an earlier comment is
-# the still-active lease — picking `last` there would falsely report "already
-# superseded" and never reclaim the genuinely expired active lease.
-lease_comment_id=""
-lease_json=""
-while IFS= read -r row; do
-  [[ -n "$row" ]] || continue
-  cand="$(wit_lease_json "$(jq -r '.body' <<<"$row")")"
-  [[ -n "$cand" ]] || continue
-  [[ "$(jq -r '.superseded_at // empty' <<<"$cand")" == "" ]] || continue
-  lease_comment_id="$(jq -r '.id' <<<"$row")"
-  lease_json="$cand"
-  break
-done < <(jq -c 'sort_by(.id) | reverse | .[]' <<<"$leases")
+# Select the ACTIVE lease = newest NON-superseded lease comment (not blind `last`:
+# a back-off supersedes its own newer comment, so the highest-id comment can be a
+# superseded back-off while an earlier comment is the still-active lease — picking
+# `last` there would falsely report "already superseded" and never reclaim the
+# genuinely expired active lease).
+wit_select_active_lease "$leases"
+lease_comment_id="$WIT_ACTIVE_LEASE_ID"
+lease_json="$WIT_ACTIVE_LEASE_JSON"
 
 [[ -n "$lease_json" ]] || emit false "no active lease record"
 
@@ -66,12 +59,31 @@ if ((comment_activity > 0 || pr_activity > 0)); then
   emit false "activity detected; lease renewed"
 fi
 
-# Expired + inactive: clear assignees, supersede, note.
+# Expired + inactive → reclaim. Revalidate first: the lease was selected before
+# the two activity round-trips above, a TOCTOU window in which a concurrent
+# claimer can renew or supersede it. Re-read leases and confirm THIS is still the
+# active lease and still expired; if another worker won the item in that window,
+# reclaim is a no-op for this idempotent session-start sweep (reclaimed:false) —
+# not a conflict, and emphatically not a mutation that would strip the new owner.
+leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" || exit "$?"
+wit_select_active_lease "$leases"
+if [[ "$WIT_ACTIVE_LEASE_ID" != "$lease_comment_id" ]]; then
+  emit false "lease superseded by a concurrent claim during reclaim"
+fi
+if wit_lease_is_live "$WIT_ACTIVE_LEASE_JSON" "$(date -u +%s)"; then
+  emit false "lease renewed during reclaim"
+fi
+
+# Remove ONLY the expired lease's holder — never a co-assignee a human added after
+# the lease or a concurrent claimer added before this snapshot. Removing all
+# assignees would strip a live claim and leave the frontier treating the item as
+# unassigned while that lease stays live: two workers on one item. Guard on a
+# fresh assignee read so a holder already unassigned (idempotent re-run) is a no-op.
+holder="$(jq -r '.holder' <<<"$lease_json")"
 wit_run_gh read issue view "$number" -R "$owner/$repo" --json assignees --jq '[.assignees[].login]'
-while IFS= read -r assignee; do
-  [[ -n "$assignee" ]] || continue
-  wit_run_gh write issue edit "$number" -R "$owner/$repo" --remove-assignee "$assignee"
-done < <(jq -r '.[]' <<<"$WIT_GH_OUT")
+if jq -e --arg h "$holder" 'any(.[]; . == $h)' <<<"$WIT_GH_OUT" >/dev/null; then
+  wit_run_gh write issue edit "$number" -R "$owner/$repo" --remove-assignee "$holder"
+fi
 
 superseded="$(jq -c --arg ts "$now" '. + {superseded_at: $ts}' <<<"$lease_json")"
 wit_run_gh write api --method PATCH "repos/$owner/$repo/issues/comments/$lease_comment_id" \

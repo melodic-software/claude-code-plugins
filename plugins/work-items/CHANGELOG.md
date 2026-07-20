@@ -3,6 +3,77 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.4]
+
+### Fixed
+
+- **`/work-items:work` Step 5 guards against loop-prompts that restate dispatch without the claim (`#581`).**
+  Step 5's sequence already put the seam `claim` (assignee + lease) first, but a hand-authored loop-prompt
+  standing-rule that restates "dispatch every picked issue to a subagent in its own out-of-tree worktree"
+  reads as a complete execution contract on its own and never mentions claiming — so an orchestrator
+  following that loop-prompt literally did the worktree isolation and skipped the seam's race-safe claim
+  entirely (observed twice on live loop-lane sessions, leaving actively-worked issues unassigned with no
+  lease). A prominent guard note at the head of Step 5 now states the claim-before-dispatch invariant the
+  skill enforces regardless of loop-prompt wording: worktree isolation is not the collision signal between
+  concurrent lanes, the seam claim is, and dispatching a subagent before the claim is held is a defect even
+  when the loop-prompt never named the claim step. Documentation/guidance only — no skill-code or seam
+  behavior change; eval 1 gains a matching expectation.
+
+## [0.14.3]
+
+### Fixed
+
+- **GitHub adapter `renew-lease` no longer revives an expired lease (`#370`).** `renew-lease` confirmed
+  the handle still matched the active (newest non-superseded) lease but never checked liveness, so a
+  crashed or delayed holder retaining its handle past `renewed_at + ttl_hours` — with no newer lease
+  comment — could PATCH a fresh `renewed_at` and reclaim an item another worker had reasonably treated
+  as expired, defeating TTL-based handoff. It now checks `wit_lease_is_live` immediately before
+  patching and returns a conflict (exit `7`) for an expired lease instead of reviving it.
+- **GitHub adapter `reclaim` unassigns only the expired lease's holder (`#370`).** On the expired-lease,
+  no-activity path `reclaim` read all assignees and removed every one, silently unassigning a user
+  added manually after the old lease or a concurrent claimer added before the snapshot — in the
+  concurrent case leaving that claimer's live lease in place while the frontier treated the item as
+  unassigned (two workers on one item). Removal is now scoped to the lease's `holder`, and ownership is
+  revalidated immediately before mutating (the lease must still be the active, expired lease) so a
+  concurrent claim during the activity-check window aborts the reclaim as a no-op rather than stripping
+  the new owner. The shared active-lease selection is extracted to `wit_select_active_lease`
+  (`lib/lease.sh`), reused by both verbs.
+
+## [0.14.2]
+
+### Fixed
+
+- **Local-markdown expired lease returns the item to the frontier (`#367`).** For the `local-markdown`
+  binding an expired lease still left `assignees` populated, and since `reclaim` is unsupported for
+  this offline adapter (no coordination surface to run an activity check over) and `list-frontier`
+  always excludes assigned items, any abandoned local claim was permanently absent from selection after
+  its TTL expired. `list-items` now projects the effective assignee of an expired-lease item as empty,
+  so the core frontier derivation returns it to the frontier — without inventing a new adapter
+  capability. The projection is scoped to list/frontier derivation; `get-item` still reports the stored
+  assignee verbatim (parity with the GitHub adapter, whose assignee persists until reclaim).
+- **Local-markdown claim no longer reports success on a failed assignee write (`#367`).** `claim`
+  appended the inline lease marker and then set `assignees` with no return-code check, so a failed
+  assignee write (store full or unwritable) was silently ignored and a successful claim JSON was still
+  emitted — leaving a live lease marker with an empty `assignees`, which `list-frontier` presents as
+  available while later claims conflict on the live lease until it expires. The two writes are now a
+  single consistent operation: a failed assignee write rolls the just-appended marker back and fails
+  the claim (exit `1`), emitting no success record for a half-applied write.
+
+## [0.14.1]
+
+### Fixed
+
+- **Open-linked-PR filter no longer wrongly drops issues from fenced examples (`#654`).** The GitHub
+  adapter's "Open linked PRs" mechanic (`#463`) matched a closing-keyword `jq` regex over the raw
+  PR body, so a PR body carrying a fenced `Closes #<N>` example spuriously reported issue `#<N>` as
+  having an open closing PR and dropped the still-pickable issue from the `/work-items:work`
+  frontier. The mechanic now reads GitHub's own computed close-linkage via the GraphQL
+  `Issue.closedByPullRequestsReferences` connection (open-state nodes only), which excludes fenced
+  code blocks and HTML comments, needs no word/number-boundary guards, and honors the default-branch
+  requirement — retiring the raw-body regex and its partial `gsub` fence-stripper (which recognized
+  only exactly-three backtick/tilde fences). Behavior change: an issue whose only `Closes #<N>` is on
+  a non-default-base PR now stays pickable, matching GitHub's real auto-close semantics.
+
 ## [0.14.0]
 
 Absorb bullets 1–4 of the v4 loop-prompt routing rules into `/work-items:triage` so the skill owns

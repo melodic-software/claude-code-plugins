@@ -3,6 +3,18 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.1]
+
+### Changed
+
+- Broadened the `interview` skill's "Facts are yours; decisions are the user's"
+  discipline: the environment an agent resolves facts from is not only the working
+  tree. When a task NAMES an external repo or resource — a sibling checkout under a
+  known repo root / workspace layout, or an `owner/repo` reachable through its host —
+  that is a resolvable fact too, so the agent checks the filesystem layout and queries
+  the repo host directly before defaulting to a user question. Kept as a cue, not a
+  mandate. Guidance only; no behavior change.
+
 ## [0.22.0]
 
 ### Added

@@ -49,6 +49,14 @@ import process from "node:process";
 
 const WORK_CLASSES = ["C1", "C2", "C3", "C4", "C5"];
 const LEVEL_TOKEN = /^L[0-3]$/;
+// Routine identity: <class-token> or <class-token>/<posture-token> — the
+// posture-qualified form is how a multi-posture routine class binds each
+// posture to its own class and emitting surface.
+const ROUTINE_IDENTITY = /^[a-z][a-z0-9-]*(\/[a-z][a-z0-9-]*)?$/;
+// Schemes that can never anchor a durable platform run-permalink namespace —
+// the same non-durable set the signal-envelope checker rejects for raw links
+// (a data:/javascript:/http: prefix could never match a durable permalink).
+const NON_DURABLE_PREFIX_SCHEMES = new Set(["data", "javascript", "blob", "about", "http", "mailto", "tel", "vbscript"]);
 const SURFACE_CLASSES = ["tracker-vcs-event", "temporal", "agent-internal", "channel-feed"];
 const PROVENANCES = ["human", "agent", "system"];
 const DISPOSITIONS = ["autonomous-eligible", "human-gated", "audited-rejection"];
@@ -60,6 +68,16 @@ const EVENT_CLASSES = [
   "structural-plan-approval",
   "untrusted-provenance",
 ];
+// The escalation event-class REGISTRY: the six inherited guardrail classes
+// above plus the two additive runner classes. escalation_routes keeps
+// REQUIRING only the six inherited classes (existing bindings validate
+// unchanged), while the two runner classes are legal OPTIONAL
+// escalation_routes keys — the binding accepts route and severity bindings
+// for them exactly as for any guardrail class; escalation_severity keys
+// validate against this full registry.
+const RUNNER_EVENT_CLASSES = ["runner-needs-human", "runner-cap-exceeded"];
+const ESCALATION_EVENT_CLASSES = [...EVENT_CLASSES, ...RUNNER_EVENT_CLASSES];
+const SEVERITY_TOKENS = ["notice", "attention", "urgent"];
 const LAYERS = ["deterministic", "ai-review"];
 const VERIFICATION_TOKENS = ["not-required", "advisory", "blocking"];
 const MERGE_TOKENS = ["auto", "human"];
@@ -394,6 +412,9 @@ function validateStructure(binding) {
       "verification_blocking",
       "promotion_state",
       "escalation_routes",
+      "escalation_severity",
+      "escalation_severity_routes",
+      "escalation_ack",
       "admission",
     ],
     "binding",
@@ -556,11 +577,109 @@ function validateStructure(binding) {
     if (!isPlainObject(binding.escalation_routes)) {
       findings.push("escalation_routes: must be an object keyed by escalation event class");
     } else {
-      checkAllowedKeys(binding.escalation_routes, EVENT_CLASSES, "escalation_routes");
+      checkAllowedKeys(binding.escalation_routes, ESCALATION_EVENT_CLASSES, "escalation_routes");
       for (const eventClass of EVENT_CLASSES) {
         if (!isNonEmptyString(binding.escalation_routes[eventClass])) {
           findings.push(`escalation_routes.${eventClass}: missing or empty — every event class has an org-bound route`);
         }
+      }
+      // The two runner classes are OPTIONAL escalation_routes keys — never
+      // required (existing bindings validate unchanged) — but a bound one
+      // must still carry a route.
+      for (const eventClass of RUNNER_EVENT_CLASSES) {
+        if (Object.hasOwn(binding.escalation_routes, eventClass) && !isNonEmptyString(binding.escalation_routes[eventClass])) {
+          findings.push(`escalation_routes.${eventClass}: present but empty — a bound runner event-class route carries an org-bound route like any other`);
+        }
+      }
+    }
+  }
+
+  if (Object.hasOwn(binding, "escalation_severity")) {
+    if (!isPlainObject(binding.escalation_severity)) {
+      findings.push("escalation_severity: must be an object mapping escalation event class to severity token");
+    } else {
+      const eventRoutes = isPlainObject(binding.escalation_routes) ? binding.escalation_routes : {};
+      for (const [eventClass, severity] of Object.entries(binding.escalation_severity)) {
+        const where = `escalation_severity.${eventClass}`;
+        if (!checkEnum(eventClass, ESCALATION_EVENT_CLASSES, `escalation_severity key ${JSON.stringify(eventClass)}`)) {
+          continue;
+        }
+        checkEnum(severity, SEVERITY_TOKENS, where);
+        // A severity-bound RUNNER class must carry its own queue destination:
+        // severity is notification depth on the FILED item, and unlike the six
+        // inherited classes (whose escalation_routes entries are required), a
+        // runner class with no escalation_routes entry has nowhere to file its
+        // human-gated handoff. Legacy bindings that never key a runner class
+        // stay untouched — no binding key says a runner is enabled, so the
+        // runner-side requirement (both runner routes bound, else no dispatch)
+        // is the runner escalation contract's LAUNCH precondition, not a
+        // static rule here.
+        if (RUNNER_EVENT_CLASSES.includes(eventClass) && !isNonEmptyString(eventRoutes[eventClass])) {
+          findings.push(
+            `${where}: severity is bound for a runner event class with no escalation_routes.${eventClass} entry — severity only selects notification fan-out on the filed item, so without a queue destination the class's human-gated handoff has nowhere to file (fail-closed); bind escalation_routes.${eventClass}`,
+          );
+        }
+      }
+    }
+  }
+
+  if (Object.hasOwn(binding, "escalation_severity_routes")) {
+    if (!isPlainObject(binding.escalation_severity_routes)) {
+      findings.push("escalation_severity_routes: must be an object mapping severity token to notification legs");
+    } else {
+      for (const [severity, legs] of Object.entries(binding.escalation_severity_routes)) {
+        if (!checkEnum(severity, SEVERITY_TOKENS, `escalation_severity_routes key ${JSON.stringify(severity)}`)) {
+          continue;
+        }
+        if (!isPlainObject(legs)) {
+          findings.push(
+            `escalation_severity_routes.${severity}: must be an object binding the notification legs separately ({channel, push}, at least one) — a bare route cannot say which leg it is, and an urgent fan-out carries both`,
+          );
+          continue;
+        }
+        checkAllowedKeys(legs, ["channel", "push"], `escalation_severity_routes.${severity}`);
+        if (Object.keys(legs).length === 0) {
+          findings.push(
+            `escalation_severity_routes.${severity}: empty — a bound severity entry carries at least one notification leg (channel or push)`,
+          );
+        }
+        for (const leg of ["channel", "push"]) {
+          if (Object.hasOwn(legs, leg) && !isNonEmptyString(legs[leg])) {
+            findings.push(`escalation_severity_routes.${severity}.${leg}: missing or empty — a bound leg carries an org-bound route`);
+          }
+        }
+        // The fan-out ladder is cumulative — the personal-push tier rides on
+        // top of the channel notification — so a push leg with no channel leg
+        // skips a rung and leaves the required channel notification unbound.
+        if (isNonEmptyString(legs.push) && !isNonEmptyString(legs.channel)) {
+          findings.push(
+            `escalation_severity_routes.${severity}: binds a push leg with no channel leg — the fan-out ladder is cumulative (tracker item, then channel notification, then the personal-push tier), so a push-only entry leaves the channel notification the contract requires at this tier unbound; bind the channel leg too`,
+          );
+        }
+      }
+    }
+  }
+
+  if (Object.hasOwn(binding, "escalation_ack")) {
+    if (!isPlainObject(binding.escalation_ack)) {
+      findings.push("escalation_ack: must be an object");
+    } else {
+      checkAllowedKeys(binding.escalation_ack, ["staleness_window", "reescalation_cap"], "escalation_ack");
+      for (const knob of ["staleness_window", "reescalation_cap"]) {
+        if (Object.hasOwn(binding.escalation_ack, knob) && (!Number.isInteger(binding.escalation_ack[knob]) || binding.escalation_ack[knob] < 1)) {
+          findings.push(
+            `escalation_ack.${knob}: must be a positive integer (>= 1) — a non-positive acknowledgment window or re-escalation cap is meaningless; contract defaults (72h staleness window, one re-escalation) live in the runner escalation contract, not here`,
+          );
+        }
+      }
+      // The escalation contract caps re-escalation at a single bump, never a
+      // loop — a cap above one would let the runner repeatedly re-escalate
+      // the same unacknowledged item, the notification loop the contract
+      // rules out.
+      if (Number.isInteger(binding.escalation_ack.reescalation_cap) && binding.escalation_ack.reescalation_cap > 1) {
+        findings.push(
+          `escalation_ack.reescalation_cap: ${binding.escalation_ack.reescalation_cap} exceeds the contract cap — the runner escalation contract allows a single stale-unacked re-escalation (one severity bump, never a loop), so 1 is the only bindable value`,
+        );
       }
     }
   }
@@ -587,6 +706,10 @@ function validateAdmissionStructure(admission) {
         const where = `admission.classification.${surfaceClass}`;
         if (!isPlainObject(ruleHome)) {
           findings.push(`${where}: must be an object mapping signal markers to work classes`);
+          continue;
+        }
+        if (surfaceClass === "temporal") {
+          validateTemporalClassificationHome(ruleHome, where);
           continue;
         }
         for (const [marker, workClass] of Object.entries(ruleHome)) {
@@ -625,6 +748,96 @@ function validateAdmissionStructure(admission) {
   for (const cap of ["autonomous_concurrency", "items_per_run"]) {
     if (Object.hasOwn(admission, cap) && (!Number.isInteger(admission[cap]) || admission[cap] < 1)) {
       findings.push(`admission.${cap}: must be an integer >= 1`);
+    }
+  }
+}
+
+// The TEMPORAL home is keyed by ROUTINE IDENTITY, and every entry must be the
+// surface-bound object form: the scheduled workflow that stamps a routine
+// identity is agent-writable in adopting repos, so the identity alone is an
+// unprotected selector — a bare class here would let a swapped selector
+// resolve high-risk scheduled work through a benign class. Only the
+// identity-to-surface association ratified on this agent-unwritable surface
+// lets admission stamp a class; anything less fails closed. Two anchors pin
+// the producing schedule together, because a run-permalink namespace may be
+// repo-scoped and SHARED across every schedule on the platform: the
+// run_link_prefix pins the platform-and-repository namespace (a relative or
+// non-durable prefix could never match a platform-assigned permalink), while
+// the producer_identity — the workflow/unit reference the platform injects
+// into the authenticated run context — pins WHICH schedule within that shared
+// namespace produced the run. Prefixes may therefore overlap or coincide
+// across entries (one shared namespace is the norm on repo-scoped platforms);
+// what must stay unique is the producer_identity, since two routine
+// identities sharing one producer cannot be distinguished at admission. The
+// other classification homes keep their bare-enum entries: their markers
+// arrive on attested event surfaces, not through an agent-writable selector.
+function validateTemporalClassificationHome(ruleHome, where) {
+  const identityBySurface = new Map();
+  const identityByProducer = new Map();
+  for (const [identity, entry] of Object.entries(ruleHome)) {
+    const entryWhere = `${where}.${JSON.stringify(identity)}`;
+    if (!ROUTINE_IDENTITY.test(identity)) {
+      findings.push(
+        `${entryWhere}: ${JSON.stringify(identity)} is not a routine identity — <class-token> or <class-token>/<posture-token>, each segment lowercase [a-z][a-z0-9-]*; an out-of-grammar key can never match a stamped signal.routine, so its classification is unreachable dead policy`,
+      );
+    }
+    if (!isPlainObject(entry)) {
+      findings.push(
+        `${entryWhere}: ${JSON.stringify(entry)} is a bare work class — a temporal classification with no bound emitting surface is an unprotected selector: the scheduled workflow (agent-writable in adopting repos) would pick the class; bind the object form {class, source_surface, run_link_prefix, producer_identity}`,
+      );
+      continue;
+    }
+    checkAllowedKeys(entry, ["class", "source_surface", "run_link_prefix", "producer_identity"], entryWhere);
+    if (Object.hasOwn(entry, "class")) {
+      checkEnum(entry.class, WORK_CLASSES, `${entryWhere}.class`);
+    } else {
+      findings.push(`${entryWhere}.class: required key missing`);
+    }
+    if (!isNonEmptyString(entry.source_surface)) {
+      findings.push(
+        `${entryWhere}.source_surface: missing or empty — the entry binds its routine identity to the ONE emitting surface admission attests; without the bound surface the classification is an unprotected selector, fail-closed`,
+      );
+    } else if (identityBySurface.has(entry.source_surface)) {
+      findings.push(
+        `${where}: routine identities ${JSON.stringify(identityBySurface.get(entry.source_surface))} and ${JSON.stringify(identity)} both bind source_surface ${JSON.stringify(entry.source_surface)} — one routine identity per emitting surface: on a shared surface a swapped selector still resolves a different class`,
+      );
+    } else {
+      identityBySurface.set(entry.source_surface, identity);
+    }
+    if (!isNonEmptyString(entry.producer_identity)) {
+      findings.push(
+        `${entryWhere}.producer_identity: missing or empty — with repo-scoped run-permalink namespaces shared across schedules, only the ratified producer identity (the workflow/unit reference the platform injects into the authenticated run context) pins WHICH schedule may emit this identity; without it the class association cannot be attested, fail-closed`,
+      );
+    } else if (identityByProducer.has(entry.producer_identity)) {
+      findings.push(
+        `${where}: routine identities ${JSON.stringify(identityByProducer.get(entry.producer_identity))} and ${JSON.stringify(identity)} both declare producer_identity ${JSON.stringify(entry.producer_identity)} — two routine identities sharing one producer cannot be distinguished at admission, so the producer that pins the schedule within the shared namespace must be unique per entry`,
+      );
+    } else {
+      identityByProducer.set(entry.producer_identity, identity);
+    }
+    const prefix = entry.run_link_prefix;
+    if (!isNonEmptyString(prefix)) {
+      findings.push(
+        `${entryWhere}.run_link_prefix: missing or empty — the ratified attestation anchor is required: it pins the platform-and-repository run-permalink namespace a raw link must fall under, and without it the producer identity cannot be located within a ratified namespace, so the class association cannot be attested, fail-closed`,
+      );
+      continue;
+    }
+    let prefixUrl = null;
+    if (!/\s/.test(prefix)) {
+      try {
+        prefixUrl = new URL(prefix);
+      } catch {
+        // Not an absolute URI — rejected below.
+      }
+    }
+    if (
+      prefixUrl === null ||
+      (prefixUrl.protocol === "https:" && prefixUrl.hostname.length === 0) ||
+      NON_DURABLE_PREFIX_SCHEMES.has(prefixUrl.protocol.slice(0, -1))
+    ) {
+      findings.push(
+        `${entryWhere}.run_link_prefix: ${JSON.stringify(prefix)} is not an attestable run-permalink namespace — an absolute https URL prefix (ci-cron) or a durable file:/artifact-scheme URI prefix (local-scheduler) is required: a relative or non-durable prefix can never match a platform-assigned run permalink, so it could never anchor the ratified namespace`,
+      );
     }
   }
 }
@@ -1317,6 +1530,15 @@ function checkSemantics(binding, probeRoot, egressAllowList) {
       }
     }
   }
+
+  // No notification-routability rule exists for escalation_severity on
+  // purpose: severity selects only the NOTIFICATION fan-out layered on the
+  // filed item — it never redirects the item, whose queue destination stays
+  // the event class's own escalation_routes entry — and the escalation
+  // contract makes tracker-item-only fan-out the legal degraded form when a
+  // severity has no bound notification legs. The one queue-side requirement
+  // (a severity-bound RUNNER class must carry its escalation_routes entry)
+  // is enforced where escalation_severity entries are walked above.
 
   if (isPlainObject(binding.admission) && Array.isArray(binding.admission.rules)) {
     checkAdmissionSemantics(binding.admission.rules);

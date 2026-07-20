@@ -40,6 +40,55 @@ All notable changes to the `source-control` plugin are documented here. Format f
   produce a meaningless verdict, or a confidently wrong one when the home directory is itself a
   repository.
 
+## [0.13.4]
+
+### Fixed
+
+- **`babysit-prs` dynamic `/loop` wakeups now map `recommended_cadence` to a concrete
+  `ScheduleWakeup.delaySeconds` instead of falling back to the generic `/loop` heuristic.** The
+  snapshot engine emits `recommended_cadence` (`reference/cadence.md`: active / normal / quiet /
+  idle) and `reference/loop.md` §5.3 told the orchestrator to "derive the wake interval" from it,
+  but never gave the string-to-seconds translation — so orchestrators silently fell back to the
+  generic `/loop` skill's own "lean 1200–1800s" fallback-heartbeat range, overriding the domain
+  skill's tighter adaptive-cadence contract and leaving PRs with pending CI or blocking feedback
+  unchecked 4–5x longer than intended. §5.3 now carries a deterministic mapping table
+  (`active`→300, `normal`→900, `quiet`→3600, `idle`→3600) and states plainly that this signal
+  ALWAYS wins over the generic heuristic whenever a snapshot supplies it — in babysit dynamic mode
+  the `ScheduleWakeup` delay is the primary cadence signal, not a fallback heartbeat. The `idle`
+  row is documented as a ceiling: `ScheduleWakeup` clamps `delaySeconds` to `[60, 3600]`, so
+  cadence.md's daily `idle` intent truncates to the 3600s hourly ceiling — a genuine daily cadence
+  needs the durable `/schedule` cron mechanism, not a single-session `/loop` wakeup.
+
+## [0.13.3]
+
+### Fixed
+
+- **`babysit-readiness-gate` now credits classification rows per comment surface, closing a
+  fail-open where a stale classification could pass the gate past a live unclassified finding
+  (#642).** The gate blocks while source findings outnumber their per-finding classification rows.
+  The shared classifier counted a self-authored classification pipe-row in ANY comment, including
+  PR-level review-summary comments that are never thread-resolved. Because a review thread's
+  findings drop when it resolves (the lifetime-vs-open discount) but a PR-level comment can never
+  resolve, a stale classification posted outside a thread kept counting after its finding was
+  discounted — inflating the classified count past a fresh, still-unclassified open-thread finding
+  and emitting a fail-open `READINESS_OK`. Classification credit is now bucketed by surface
+  (review-thread, PR-level, and an isolated bucket for comments bearing no surface signal) and
+  capped within each bucket, so a classification can only offset a finding on its own surface. The
+  Python-free bash degrade gains the thread-state-free analogue (`classified = min(classified,
+  findings)`); the per-surface refinement is Python-only, mirroring the existing lifetime discount,
+  and stays convergent with the degrade on unsignalled input.
+
+### Changed
+
+- **BEHAVIOR FLIP — a PR whose inline-thread findings are answered only by detached PR-level
+  classification replies now reports `READINESS_BLOCKED` where it previously passed.** With
+  per-surface credit, a PR-level classification row no longer offsets an inline-thread finding, so
+  the gate blocks until each inline finding is answered on its own thread. This enforces
+  `review-discipline.md` §D5's already-ratified reply routing (inline findings MUST reply threaded,
+  "NEVER a detached `pr comment`") mechanically rather than by prose. Runs that already follow §D5
+  routing are unaffected; only runs relying on the previously-tolerated detached-reply shape change
+  verdict, and the fix direction is fail-closed.
+
 ## [0.13.2]
 
 ### Fixed

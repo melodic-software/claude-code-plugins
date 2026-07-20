@@ -253,6 +253,14 @@ if [[ "$CLEAN_RC" -ne 0 && "${UNREMOVABLE:-0}" -eq 0 ]]; then
   printf 'AppliedClean: failed\n'
   printf 'RestoredTracked: %s\n' "${RESTORED:-0}"
   printf 'Unremovable: %s\n' "0"
+  # Surface restore-guard activity identically to the success path: a clean that
+  # errored mid-run may still have deleted tracked files (reparse-point traversal)
+  # before failing, and the machine-readable RestoredTracked line alone can be
+  # missed. Emit the same human-visible warning the success path prints so an
+  # operator is not left unaware that data-loss recovery fired on the failure path.
+  if [[ "${RESTORED:-0}" -gt 0 ]]; then
+    printf 'WARNING: restored %s tracked file(s) deleted via reparse-point traversal (junction/symlink into tracked dir).\n' "$RESTORED" >&2
+  fi
   exit 7
 fi
 

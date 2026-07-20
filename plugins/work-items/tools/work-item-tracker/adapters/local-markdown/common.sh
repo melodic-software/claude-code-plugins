@@ -146,6 +146,33 @@ wit_blocked_by_ids() {
   sed -n 's/^Blocked by: //p' "$1"
 }
 
+# wit_claim_write <file> <marker-line> <assignees-json> — append the inline lease
+# marker, then record the assignee, keeping the two writes consistent. A live lease
+# marker paired with an empty assignees would present the item as available (the
+# frontier filter keys on assignees) while the lease is live, letting a later claim
+# race the live lease until it expires. If the assignee write fails (store full or
+# unwritable), best-effort roll the just-appended marker back and return 1 so the
+# caller fails the claim instead of recording a half-applied success.
+wit_claim_write() {
+  local file="$1" marker_line="$2" assignees="$3" tmp
+  printf '%s\n' "$marker_line" >>"$file"
+  if wit_fm_set "$file" assignees "$assignees"; then
+    return 0
+  fi
+  # Compensate for the partial write by dropping the marker just appended. The
+  # marker line is unique in the file (lease_comment_id is store-monotonic), so
+  # removing every exact match removes only this one — grep has no portable
+  # "remove the last matching line" primitive. The rollback is best-effort: it can
+  # fail under the same store condition that failed the assignee write, so on that
+  # path warn about the orphaned marker rather than leave it silently stranded.
+  if tmp="$(mktemp)" && grep -vxF -- "$marker_line" "$file" >"$tmp" && mv "$tmp" "$file" 2>/dev/null; then
+    return 1
+  fi
+  [[ -n "${tmp:-}" ]] && rm -f "$tmp"
+  printf 'wit_claim_write: rollback of the lease marker failed — the store may hold an orphaned lease marker\n' >&2
+  return 1
+}
+
 # wit_lease_lines <file> — the raw lease marker lines of an item, in file order.
 wit_lease_lines() {
   grep -F "$WIT_LEASE_MARKER" "$1" 2>/dev/null || true
@@ -205,12 +232,15 @@ wit_find_lease_file() {
   return 1
 }
 
-# wit_emit_local_item <number> — emit the normalized item object
-# (CONTRACT.md "JSON output contract") for an existing item file. Returns 1 when
-# the file is absent (caller maps to exit 5). blocked_by_count counts only blockers
-# whose file exists and is open, mirroring the GitHub adapter's OPEN-only count.
+# wit_emit_local_item <number> [<unassign-expired:true|false>] — emit the
+# normalized item object (CONTRACT.md "JSON output contract") for an existing item
+# file. Returns 1 when the file is absent (caller maps to exit 5). blocked_by_count
+# counts only blockers whose file exists and is open, mirroring the GitHub adapter's
+# OPEN-only count. With unassign-expired=true the effective assignee of an item
+# whose lease has expired is projected empty (see the projection note below); the
+# default (false) reports the stored assignee verbatim.
 wit_emit_local_item() {
-  local number="$1" file
+  local number="$1" unassign_expired="${2:-false}" file
   file="$(wit_item_file "$number")"
   [[ -f "$file" ]] || return 1
   local id title state assignees labels type parent url
@@ -218,6 +248,19 @@ wit_emit_local_item() {
   title="$(wit_fm_field "$file" title)"
   state="$(wit_fm_field "$file" state)"
   assignees="$(wit_fm_field "$file" assignees)"
+  # An expired lease is an abandoned claim. This offline adapter has no reclaim to
+  # clear the assignee (CONTRACT.md local-markdown "Degradation"), so for frontier/
+  # list derivation the effective assignee is empty and the item returns to the
+  # frontier (the core filter keys on assignees). get-item keeps the stored
+  # assignee raw — parity with the GitHub adapter, whose assignee persists until
+  # reclaim — so this projection is opt-in per caller, never a stored mutation.
+  if [[ "$unassign_expired" == "true" && "$assignees" != "[]" ]]; then
+    local active_lease
+    active_lease="$(wit_active_lease_json "$file")"
+    if [[ -n "$active_lease" ]] && ! wit_lease_is_live "$active_lease" "$(date -u +%s)"; then
+      assignees='[]'
+    fi
+  fi
   labels="$(wit_fm_field "$file" labels)"
   # `type` is additive — items created before the field existed have none, so an
   # empty read projects as JSON null (parity with the GitHub adapter's untyped case).

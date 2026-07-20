@@ -43,7 +43,11 @@ import json
 import sys
 from typing import Any
 
-from babysit_classify import count_classified, count_findings, normalize_self_logins
+from babysit_classify import (
+    count_effective_classified,
+    count_findings,
+    normalize_self_logins,
+)
 from babysit_gh import (
     fetch_issue_comments,
     fetch_pull_request_reviews,
@@ -63,6 +67,7 @@ def _comment(author: Any, body: Any, thread: dict[str, Any] | None = None) -> di
     return {
         "author": _author_login(author),
         "body": str(body or ""),
+        "in_review_thread": thread is not None,
         "isResolved": bool(thread.get("isResolved")) if thread else False,
         "isOutdated": bool(thread.get("isOutdated")) if thread else False,
     }
@@ -86,8 +91,11 @@ def fetch_live_comments(repo: str, number: int) -> list[dict[str, Any]]:
     """Build the finding corpus for a live PR across all three feedback surfaces.
 
     Issue-level comments and review summaries are not review threads, so they
-    carry no resolution state and always count. Inline review-thread comments
-    inherit their thread's `isResolved` / `isOutdated` so an already-addressed
+    carry no resolution state and always count; they are stamped as the PR-level
+    surface (`in_review_thread` false) so a classification posted there is
+    credited only against PR-level findings, never a fresh open-thread one
+    (#642). Inline review-thread comments are stamped `in_review_thread` and
+    inherit their thread's `isResolved` / `isOutdated`, so an already-addressed
     thread's severity markers are discounted. Resolved threads are included
     (`include_resolved=True`) precisely so they can be discounted rather than
     silently dropped.
@@ -150,7 +158,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"babysit_findings: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 2
     findings = count_findings(comments, self_logins)
-    classified = count_classified(comments, self_logins)
+    classified = count_effective_classified(comments, self_logins)
     print(f"findings={findings} classified={classified}")
     return 0
 

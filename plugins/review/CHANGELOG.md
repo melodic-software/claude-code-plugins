@@ -3,6 +3,55 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.6]
+
+### Fixed
+
+- **`quality-gate` slash invocation no longer dies silently in headless
+  sessions.** The skill's *Pre-computed context* block injects dynamic context
+  via the `` !`<command>` `` syntax, which is preprocessing that runs during
+  prompt expansion — before the model turn — so the permission gate sits *above*
+  the shell. In a non-interactive session (`claude -p "/review:quality-gate …"`)
+  the `gh pr list` preflight was permission-denied during that preprocessing,
+  and the whole invocation aborted with empty output and exit 0 — total silent
+  failure with no model output. The in-command `|| echo "unknown"` guard is
+  structurally incapable of catching this: the denial happens a layer above the
+  shell, so the shell string (and its `||` fallback) never runs. Prose
+  invocation degraded gracefully only because it has no dynamic-context
+  preprocessing — the model issues `gh` as an ordinary Bash *tool* call whose
+  denial returns a handleable result. Fix: declare `allowed-tools` frontmatter
+  authorizing every segment of the three compound pre-computed lines
+  (`git branch --show-current`, `git status`, `head`, `echo`, `gh pr list`), the
+  documented canonical mechanism for dynamic-context bash, matching the
+  `pressure-test` and `wayfind` in-repo precedents. The existing `|| echo`
+  fallbacks are retained — they cover a different failure mode (`gh` missing /
+  unauthenticated / no PRs) that `allowed-tools` does not touch. The three
+  fixed pre-computed lines are granted as EXACT full-command rules (no
+  prefix wildcards), so neither mutating subcommands nor output-redirection
+  writes (`echo payload > file`, `head src > dst`) fall inside the grant;
+  the only wildcard kept is `Bash(gh pr list:*)` for the documented uncapped
+  fallback query.
+
+## [0.14.5]
+
+### Fixed
+
+- **Reviewer agents captured the wrong diff base in single-branch clones whose
+  branch is based off a non-default branch.** The diff-base resolution ladder in
+  all four change-set agents (`code-reviewer`, `security-reviewer`,
+  `architecture-guardian`, `ecosystem-specialist`) fetched the PR's real base
+  (`git fetch origin "$PR_BASE"`) into `FETCH_HEAD`, but rung 1 then referenced
+  `origin/$PR_BASE` — a ref that a `--single-branch` clone never creates — so the
+  rung failed and a later fallback rung fetched the default branch, overwriting
+  `FETCH_HEAD` before the real base was ever used. `merge-base` then ran against
+  the default branch, folding the base branch's own pre-existing commits into the
+  review as if they were the PR's (empirically: 3 commits reviewed where only 1
+  belonged to the PR). The base rev is now captured
+  (`BASE="$(git rev-parse FETCH_HEAD)"`) immediately after the base fetch and used
+  directly for `merge-base`, before any fallback fetch can clobber `FETCH_HEAD`;
+  the prior no-PR / fetch-failed behavior is preserved via
+  `${BASE:-origin/${PR_BASE:-HEAD}}`. Facet B of #625; #661.
+
 ## [0.14.4]
 
 ### Changed

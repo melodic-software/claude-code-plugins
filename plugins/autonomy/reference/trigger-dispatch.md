@@ -83,7 +83,15 @@ SECURITY governance surface — the adapter stamps, never defines, and no repo-l
 (agent-writable) surface may supply the class used for admission:
 
 - `tracker-vcs-event` resolves through the security-bound label→class rules.
-- `temporal` signals carry the class their bound routine/detector definition derives.
+- `temporal` signals split by producer. A ROUTINE-fired temporal signal — one carrying the
+  validated `signal.routine` identity of an enabled routine, whose `routines.enabled` entry
+  references the emitting surface (the surface record itself may live under `triggers` and be
+  REUSED by the routine) — carries the class its bound routine definition derives
+  ([routine contract](routines.md)), including woken routine runs, event or continuous feed,
+  which are `temporal` regardless of wake source. A temporal poll-fallback DETECTOR emission —
+  one claiming no routine identity — derives no class: it stays unclassified, and a stamped
+  `signal.work_class` (or a producer identity) on it is rejected fail-closed, as is a claimed
+  identity that no enabled routine records or whose recorded surface disagrees.
 - `agent-internal` items must PROVE protected provenance: the envelope serializes the
   emitting session's own admitted source item as `signal.parent_item`, and the admission
   seam verifies the session-to-parent association against protected dispatch data — the
@@ -93,9 +101,27 @@ SECURITY governance surface — the adapter stamps, never defines, and no repo-l
   provenance. Admission then resolves the verified parent's class from its own protected
   classification rather than trusting the stamped value: the effective class is the HIGHER
   of the inherited class and the class the security-surface rules derive for the target.
-- `channel-feed`, and any signal the rules cannot resolve, stays UNCLASSIFIED.
+- `channel-feed`, and any signal the rules cannot resolve, stays UNCLASSIFIED. `signal.routine`
+  identifies a routine-fired temporal run only — the envelope check rejects the stamp on a
+  detector-fired temporal signal and on every non-temporal class, so a `channel-feed` signal
+  never carries a routine run.
 
 Unclassified → fail-closed human-gated, always.
+
+**Authenticated run context.** Envelope fields are agent-claimable, so a temporal adapter
+resolves `signal.source_surface`, `signal.raw_link`, and `signal.producer_identity` from the
+platform's authenticated run context — the run identity, and the workflow-file or
+scheduler-unit reference, that the scheduling platform itself injects — never from job arguments
+or agent-writable configuration. The security binding's ratified entry pins each routine
+identity to a run-permalink namespace (`run_link_prefix`) AND to the platform-attested
+`producer_identity`. The namespace may be repo-scoped and SHARED across a repo's schedules, so
+it is no longer disjoint per entry: the prefix pins the platform-and-repo namespace, and the
+`producer_identity` pins WHICH schedule within it (producer identities are unique across
+entries). Attestation is therefore both — a raw link inside the ratified prefix AND a
+`producer_identity` equal to the ratified value; a raw link outside the namespace, or a producer
+identity that does not match, fails the identity-to-surface association check
+([routine contract](routines.md)) and the signal stays unclassified — fail-closed human-gated,
+like any claim the [admission seam](guardrails/admission-policy.md) cannot verify.
 
 ## Signal envelope
 
@@ -116,6 +142,8 @@ every contract schema. Keys:
 | `signal.work_class` | optional; the stamped risk class per the classification rules — absent = unclassified = human-gated |
 | `signal.parent_item` | REQUIRED when `signal.class` is `agent-internal`: canonical URL of the emitting session's admitted source item, verified against the queue's lease record |
 | `signal.source_surface` | REQUIRED when `signal.class` is `temporal`: the originating scheduling surface's id as recorded in the org's trigger/routine binding — the discriminator raw-link form validation branches on |
+| `signal.routine` | REQUIRED for a ROUTINE-fired `temporal` signal — one whose identity a `routines.enabled` entry records against the emitting surface (the surface record itself may live under `triggers` and be reused); FORBIDDEN on every non-temporal class, and absent on a detector-fired `temporal` signal. The routine identity the emitting schedule claims ([routine contract](routines.md)); a CLAIM validated against the enablement record and the security binding's protected identity-to-surface association (one identity per surface) before any `signal.work_class` stamp — an unvalidated or mismatched claim stays unclassified, fail-closed human-gated |
+| `signal.producer_identity` | REQUIRED for a ROUTINE-fired `temporal` signal; `temporal`-only. The platform-attested workflow-file or scheduler-unit reference resolved from the authenticated run context; checked for equality with the ratified `producer_identity` and unique across classification entries — the discriminator that pins WHICH schedule fired within a possibly-shared run-link namespace |
 
 ## Dispatch
 

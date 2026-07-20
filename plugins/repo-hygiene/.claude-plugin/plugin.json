@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "repo-hygiene",
-  "version": "0.4.0",
+  "version": "0.4.3",
   "description": "Repo hygiene action-router: /repo-hygiene:clean sweeps reclaimable caches, build artifacts, and stale git metadata, and can realign the working tree to a fresh-pull state — dry-run-first, with destructive tiers gated behind explicit confirmation and a session-scoped destructive-command guard. Ecosystem targets are detected at runtime; secrets, runtime dependencies, and skill data are preserved by default.",
   "author": {
     "name": "Melodic Software",
