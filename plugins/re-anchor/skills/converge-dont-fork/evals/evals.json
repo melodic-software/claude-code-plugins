@@ -48,6 +48,18 @@
         "Accepts a divergence whose rationale is recorded at the right blast-radius level",
         "Does not fabricate a finding or treat recorded divergence as a violation"
       ]
+    },
+    {
+      "id": 5,
+      "name": "durable-unrecorded-divergence-demands-an-adr-not-a-commit-note",
+      "prompt": "converge don't fork — I'm introducing a whole new architectural pattern for how our services talk to each other, different from the existing message-bus approach, and I'll just start using it in this one service.",
+      "expected_output": "Applies the proportionality half of the burden rule: this divergence is durable and architectural (a new cross-service communication pattern), so its rationale must be recorded where durable decisions live — the repo's ADR/docs convention — not merely a commit or PR note. With no recorded rationale it is a finding: a second parallel architectural way standing beside the message bus. Corrects forward by requiring the ADR and, if the new pattern genuinely supersedes the old, migrating the existing services and retiring the message-bus approach rather than running both. Contrasts this ADR-level burden with a small local divergence, whose recorded reason can live in a commit statement.",
+      "files": [],
+      "expectations": [
+        "Classifies the divergence as durable/architectural and therefore ADR/docs-level, not commit-level",
+        "Flags the missing recorded rationale as the finding — an unrecorded second architectural way",
+        "Requires recording at the ADR level and, if superseding, migrating and retiring the old way rather than coexisting"
+      ]
     }
   ]
 }
