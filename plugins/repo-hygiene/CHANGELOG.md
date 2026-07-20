@@ -3,6 +3,23 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.3]
+
+### Fixed
+
+- **`tree-batch` — `--repo` now consumes every consecutive path, so the documented
+  shell-glob form works.** `--repo ~/repos/*` reaches the script as one `--repo`
+  flag followed by N positional paths (the shell expands the glob before exec), but
+  the arg-parsing arm consumed only the first: the second expanded path hit the
+  unknown-argument default and the batch exited 2. The documented glob usage
+  therefore always failed whenever the glob matched more than one directory. The
+  `--repo` arm now greedily ingests every consecutive non-flag path, halting at the
+  next `-`-prefixed flag or end of args, so the advertised `--repo ~/repos/*` form
+  is ingested whole. Repeated `--repo` and `--repos-from -` are unchanged. A bare
+  `--repo` with no following path (end of args or immediately followed by a flag)
+  now fails loud with a usage error instead of silently absorbing the next flag as a
+  directory. (#650)
+
 ## [0.4.2]
 
 ### Fixed
