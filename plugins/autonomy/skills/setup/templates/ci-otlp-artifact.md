@@ -34,11 +34,24 @@ The registry pinned by the contract owns the standard attribute names; add the r
 
 ## Trace-context injection for agent steps
 
-Export W3C context before the headless agent step so its spans join the tree:
+Export W3C context before the headless agent step so every contract-authored emission in
+that step parents into the tree:
 
 ```sh
 export TRACEPARENT="00-$trace_id-$span_id-01"
 ```
+
+The agent CLI's own native session emissions may IGNORE inbound trace context and start a
+fresh root (current native surfaces do — verify against your agent CLI); that does not break
+the chain: the session attaches query-side through the `autonomy.work_item.url` resource
+attribute, which the dispatching step injects via `OTEL_RESOURCE_ATTRIBUTES`:
+
+```sh
+export OTEL_RESOURCE_ATTRIBUTES="autonomy.work_item.url=<canonical-item-url>"
+```
+
+Keep exporting `TRACEPARENT` regardless — a surface that honors inbound context joins the
+tree directly with no wiring change.
 
 ## Ephemeral per-job collector (agent-session capture)
 

@@ -31,6 +31,11 @@ on Claude Code **2.1.215**.
    contract's conforming session path was already native; what this audit adds is the
    empirically proven injection mechanism for the join attribute and the confirmation that
    the wrapper leg cannot be retired yet.
+4. **Contract text reconciled in this change**: the telemetry contract's Pillar 3 and the
+   setup CI template previously implied that exporting `traceparent` alone joins the agent
+   session's spans into the tree — contradicted by the probe. Both now state the
+   wrapper-joins / session-attaches-query-side model this audit proves, so an adopter
+   following the shipped wiring produces telemetry that matches the contract's words.
 
 ## Load-bearing empirical facts (version-pinned)
 
