@@ -15,6 +15,10 @@ All notable changes to the `desktop-notification` plugin are documented here. Fo
   left the fixed bound with a thin-to-negative margin and false-failed even with no
   leak. The differential form cancels ambient overhead, so the check holds under load
   while still catching a real fd1 leak (the sink's whole sleep lands in the delta).
+  The baseline is the minimum of several fast runs so that one unluckily-descheduled
+  baseline sample cannot inflate the subtracted overhead and let a real leak pass as a
+  false-negative under load; an inflated *slow* sample only re-fails a green run
+  (fail-safe), so only the baseline is sampled repeatedly.
 
 ## [0.4.2]
 

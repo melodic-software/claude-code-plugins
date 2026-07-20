@@ -228,15 +228,30 @@ rm -f "$TEL"
 # it cancels the overhead and isolates the leak signal. Under a leak the delta
 # is ~SINK_SLEEP; with no leak it is ~0 (± scheduling jitter). Threshold is half
 # the sleep: comfortably above jitter, comfortably below the leak signal.
+#
+# The baseline is the MINIMUM of several fast runs, not a single sample. A lone
+# baseline that happened to be descheduled longer than the slow run would shrink
+# DELTA_MS below the threshold and let a real fd1 leak PASS — a false-NEGATIVE,
+# the detector reporting "no leak" while one exists (fail-open). Only an
+# *inflated* baseline can mask a leak, so the minimum reflects true-minimal
+# overhead and keeps the leak signal (~SINK_SLEEP) in the delta regardless of one
+# unlucky sample. The opposite error — an inflated slow sample with no leak —
+# only re-fails a green run (fail-safe, re-runnable), so just the baseline needs
+# min-of-N; the slow run stays single (each slow sample costs SINK_SLEEP).
 SINK_SLEEP=6
+BASE_SAMPLES=3
 BASE_SINK="$(make_sink "cat >/dev/null")"
 SLOW_SINK="$(make_sink "cat >/dev/null; sleep $SINK_SLEEP")"
 
-_TS0=$EPOCHREALTIME
-# shellcheck disable=SC2034  # captured so $() blocks until fd1 closes (baseline overhead)
-_OUT_BASE="$(run "$(build_input permission_prompt)" HOOK_TELEMETRY_SINK="$BASE_SINK")"
-_TS1=$EPOCHREALTIME
-BASE_MS=$(epoch_delta_ms "$_TS0" "$_TS1")
+BASE_MS=""
+for ((_i = 0; _i < BASE_SAMPLES; _i++)); do
+  _TS0=$EPOCHREALTIME
+  # shellcheck disable=SC2034  # captured so $() blocks until fd1 closes (baseline overhead)
+  _OUT_BASE="$(run "$(build_input permission_prompt)" HOOK_TELEMETRY_SINK="$BASE_SINK")"
+  _TS1=$EPOCHREALTIME
+  _b=$(epoch_delta_ms "$_TS0" "$_TS1")
+  if [[ -z "$BASE_MS" || $_b -lt $BASE_MS ]]; then BASE_MS=$_b; fi
+done
 
 _TS0=$EPOCHREALTIME
 # shellcheck disable=SC2034  # captured so $() blocks until fd1 closes — proves no fd1 leak
@@ -247,7 +262,7 @@ SLOW_MS=$(epoch_delta_ms "$_TS0" "$_TS1")
 
 DELTA_MS=$((SLOW_MS - BASE_MS))
 THRESHOLD_MS=$((SINK_SLEEP * 1000 / 2))
-echo "  (C1 fd1-leak: base=${BASE_MS}ms slow=${SLOW_MS}ms delta=${DELTA_MS}ms, threshold <${THRESHOLD_MS}ms, sink sleeps ${SINK_SLEEP}s)"
+echo "  (C1 fd1-leak: base=${BASE_MS}ms (min of ${BASE_SAMPLES}) slow=${SLOW_MS}ms delta=${DELTA_MS}ms, threshold <${THRESHOLD_MS}ms, sink sleeps ${SINK_SLEEP}s)"
 if [[ $RC_SLOW -eq 0 ]]; then ok "telemetry/slow-sink: hook exit 0"; else fail "telemetry/slow-sink: hook exit $RC_SLOW"; fi
 if [[ $DELTA_MS -lt $THRESHOLD_MS ]]; then
   ok "telemetry/slow-sink: hook did not wait for the sink (delta ${DELTA_MS}ms << ${SINK_SLEEP}s sleep = no fd1 leak)"
