@@ -22,7 +22,10 @@
 #
 # NOT BLOCKED (no message-on-stdin form exists for these, and gating them would
 # break conflict resolution and history rewriting):
-#   --amend / --no-edit          reusing an existing message
+#   --amend                      reusing an existing message
+#     (--no-edit alone is NOT exempt: `git commit --no-edit -m x` is an
+#      ordinary commit. Amending is covered by --amend; a merge's --no-edit is
+#      covered by the sequencer branch.)
 #   -C / --reuse-message         "
 #   -c / --reedit-message        "
 #   --fixup / --squash           message derived from another commit
@@ -40,7 +43,8 @@
 #
 # Detection is ARGV-GRAMMAR-FAITHFUL via the shared parser in hook-utils.sh, so
 # a commit body merely MENTIONING `git commit -m` never fires, and `bash -lc`
-# wrappers plus git aliases are resolved. Static matching over the literal
+# wrappers plus git aliases are resolved (inline `-c` and persisted config
+# alike). Static matching over the literal
 # command string only: shell variable / command substitution is not evaluated.
 #
 # BLOCKING: exits 2 when a commit would take its message off the command line.
@@ -95,6 +99,29 @@ allowed() {
   [[ "$list" == *,"$tok",* ]]
 }
 
+# Effective repo directory for a segment: the hook payload's cwd, with any
+# `git -C <path>` applied (last wins, relative joined onto cwd). Without this a
+# conflict resolution driven at another repo via `-C` reads the WRONG repo's
+# state — the sequencer probe and the alias lookup would both answer for the
+# session cwd instead of the repo actually being committed to.
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+effective_dir() {
+  local base="${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}" i n=$# arg
+  local -a a=("$@")
+  for ((i = 0; i < n; i++)); do
+    arg="${a[i]}"
+    if [[ "$arg" == "-C" ]] && ((i + 1 < n)); then
+      if [[ "${a[i + 1]}" == /* || "${a[i + 1]}" =~ ^[A-Za-z]:[\/] ]]; then
+        base="${a[i + 1]}"
+      else
+        base="$base/${a[i + 1]}"
+      fi
+      ((i++))
+    fi
+  done
+  printf '%s' "$base"
+}
+
 # Is a merge / rebase / cherry-pick / revert in progress? Those commits carry a
 # prepared message git supplies, and `git commit` there is the documented way to
 # conclude the operation — gating it would strand a conflict resolution
@@ -102,11 +129,11 @@ allowed() {
 # an uncertain answer must not silently open the gate.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 sequencer_in_progress() {
-  local dir f
+  local dir f repo="$1"
   # --absolute-git-dir, not --git-dir: the latter answers relative to the repo,
   # which would resolve against the HOOK's cwd here and silently miss every
   # sequencer file.
-  dir=$(git -C "${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}" rev-parse --absolute-git-dir 2>/dev/null) || return 1
+  dir=$(git -C "$repo" rev-parse --absolute-git-dir 2>/dev/null) || return 1
   [[ -n "$dir" ]] || return 1
   for f in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD rebase-merge rebase-apply; do
     [[ -e "$dir/$f" ]] && return 0
@@ -163,6 +190,30 @@ check_segment() {
       fi
       break
     done
+
+    # An alias can also live in .git/config, ~/.gitconfig, or system config,
+    # where HOOK_GIT_CONFIG_VALUES cannot see it — `git config alias.c commit`
+    # then `git c -m x` would otherwise pass. Ask git for the resolved value
+    # (its own precedence applies) only when no inline alias already matched.
+    if ((${HOOK_NO_ALIAS:-0} == 0)) && [[ "$sub" != "commit" ]]; then
+      local pexp
+      pexp=$(git -C "$(effective_dir "${w[@]}")" config --get "alias.$sub" 2>/dev/null)
+      if [[ -n "$pexp" ]]; then
+        if [[ "$pexp" == '!'* ]]; then
+          local preparse pa
+          preparse="${pexp#!}"
+          for pa in "${w[@]:sub_idx+1}"; do preparse+=" $(printf '%q' "$pa")"; done
+          hook::bash_parse_segments "$preparse" check_segment
+        else
+          local -a pexpw=()
+          hook::env_s_split "$pexp"
+          pexpw=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"})
+          HOOK_NO_ALIAS=1
+          check_segment "${w[@]:0:gi+1}" ${pexpw[@]+"${pexpw[@]}"} "${w[@]:sub_idx+1}"
+          HOOK_NO_ALIAS=0
+        fi
+      fi
+    fi
   fi
 
   [[ "$sub" == "commit" ]] || return 0
@@ -191,7 +242,7 @@ check_segment() {
     -F*)
       exempt=1
       ;;
-    --amend | --no-edit | --fixup | --squash | -C | -c | --reuse-message | --reedit-message)
+    --amend | --fixup | --squash | -C | -c | --reuse-message | --reedit-message)
       exempt=1
       ;;
     --fixup=* | --squash=* | --reuse-message=* | --reedit-message=*)
@@ -210,7 +261,7 @@ check_segment() {
   ((saw_commit)) || return 0
   ((stdin_form || exempt)) && return 0
   allowed "message-flag" && return 0
-  sequencer_in_progress && return 0
+  sequencer_in_progress "$(effective_dir "${w[@]}")" && return 0
 
   echo "BLOCKED: \`git commit\` without \`-F -\` — the message must be piped via stdin." >&2
   echo "Use the /commit skill (source-control plugin), or its canonical form directly:" >&2

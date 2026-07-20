@@ -17,8 +17,10 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   revert is in progress. Kill switch `block_noncanonical_commit_enabled`; allow-list
   `block_noncanonical_commit_allow` (`message-flag` permits a bare `-m`). Detection reuses the
   argv-grammar-faithful parser, so `bash -lc` wrappers resolve and a commit body merely *mentioning*
-  `git commit -m` never fires. Inline aliases are expanded before the subcommand verdict, closing the
-  hole where `git -c alias.c=commit c -m x` reads as subcommand `c` and walks straight through.
+  `git commit -m` never fires. Aliases are expanded before the subcommand verdict — inline `-c` and
+  aliases persisted in git config alike — closing the hole where `git c -m x` reads as subcommand `c`
+  and walks straight through. `git -C <path>` is honored when probing sequencer state, so a conflict
+  resolution driven at another repo reads that repo's state rather than the session cwd's.
 
 ### Fixed
 

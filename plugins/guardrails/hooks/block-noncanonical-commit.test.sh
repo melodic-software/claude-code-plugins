@@ -15,6 +15,11 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
 
+# Isolate every git fixture below from ambient user/system config. Exported once
+# here rather than inside each subshell, so the setting is visibly process-wide
+# and the fixtures stay comparable.
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
+
 # run <label> <command> <expected-exit> [extra-env NAME=VAL ...]
 run() {
   local label="$1" command="$2" expected="$3"
@@ -46,6 +51,10 @@ run "git commit -F - without --trailer (allowed — trailer_policy none)" \
 
 # --- exempt operations (no message-on-stdin form exists) ----------------------
 run "git commit --amend --no-edit (allowed)" "git commit --amend --no-edit" 0
+# --no-edit is NOT an exemption on its own: git accepts it for an ordinary
+# commit, so exempting it unconditionally would let `--no-edit -m` straight past.
+run "git commit --no-edit -m (blocked — --no-edit is not an amend)" \
+  "git commit --no-edit -m subject" 2
 run "git commit --amend (allowed)" "git commit --amend" 0
 run "git commit -C HEAD (allowed)" "git commit -C HEAD" 0
 run "git commit --reuse-message=HEAD (allowed)" "git commit --reuse-message=HEAD" 0
@@ -108,7 +117,6 @@ SEQ="$TEST_TMPDIR/seq"
 mkdir -p "$SEQ"
 (
   cd "$SEQ" || exit 1
-  export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
   git init -q .
   git config user.email t@e.st
   git config user.name t
@@ -136,6 +144,47 @@ if [[ -d "$GITDIR" ]]; then
 else
   echo "ok: sequencer fixture skipped (git init unavailable)"
   PASS=$((PASS + 1))
+fi
+
+# --- `git -C <repo>` targets another repo's state ----------------------------
+# A conflict resolution driven at another repo must read THAT repo's sequencer
+# state, not the session cwd's.
+if [[ -d "$GITDIR" ]]; then
+  : >"$GITDIR/MERGE_HEAD"
+  MSYS_NO_PATHCONV=1 jq -n --arg c "git -C $SEQ commit -m 'merge fix'" \
+    '{tool_name:"Bash",tool_input:{command:$c},cwd:"/"}' |
+    bash "$HOOK" >/dev/null 2>&1
+  assert_exit "git -C honors the target repo's in-progress merge" 0 $?
+
+  rm -f "$GITDIR/MERGE_HEAD"
+  MSYS_NO_PATHCONV=1 jq -n --arg c "git -C $SEQ commit -m 'not a merge'" \
+    '{tool_name:"Bash",tool_input:{command:$c},cwd:"/"}' |
+    bash "$HOOK" >/dev/null 2>&1
+  assert_exit "git -C with no sequencer state in the target repo is blocked" 2 $?
+fi
+
+# --- aliases persisted in git config (not just inline -c) --------------------
+# `git config alias.c commit` lives in .git/config, where the parser's inline
+# -c capture cannot see it; the hook must ask git to resolve it.
+PCFG="$TEST_TMPDIR/persisted"
+mkdir -p "$PCFG"
+(
+  cd "$PCFG" || exit 1
+  git init -q .
+  git config user.email t@e.st
+  git config user.name t
+  git config alias.c commit
+) >/dev/null 2>&1
+
+if [[ -d "$PCFG/.git" ]]; then
+  for spec in "git c -m bypass:2" "git c -F -:0"; do
+    cmd="${spec%:*}"
+    want="${spec##*:}"
+    MSYS_NO_PATHCONV=1 jq -n --arg c "$cmd" --arg d "$PCFG" \
+      '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
+      bash "$HOOK" >/dev/null 2>&1
+    assert_exit "persisted config alias: $cmd" "$want" $?
+  done
 fi
 
 # --- the block message names the fix -----------------------------------------
