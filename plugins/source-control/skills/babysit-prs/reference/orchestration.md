@@ -12,8 +12,11 @@ subdirectory of the plugin data directory.
 
 Spawn a fresh 1:1 worker for a PR **only when the snapshot's `needs_worker` field for that PR is
 `true`**. This is a deterministic engine output, not something to re-derive by eyeballing
-`material_findings` text or the raw `classification`. Read it straight from the per-PR output of
-the snapshot engine (see `needs_worker_reasons` for why):
+`material_findings` text or the raw `classification`. The authorship, finding, and approval
+classification behind those fields is one shared classifier locked by golden fixtures — the same
+classifier the readiness gate and merge gate consume — so eyeballing it is strictly less reliable
+than the field it would second-guess, not a safety check on top of it. Read it straight from the
+per-PR output of the snapshot engine (see `needs_worker_reasons` for why):
 
 ```text
 python "${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/scripts/pr_queue_snapshot.py" --queue --author @me --owners <watched-owners> --state-dir <state-dir> --write-state

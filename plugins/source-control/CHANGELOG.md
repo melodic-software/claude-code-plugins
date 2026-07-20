@@ -3,6 +3,42 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.0]
+
+### Changed
+
+- **`babysit-prs` authorship / finding / approval classification is now one shared module.** The
+  self/bot/human authorship test, the finding severity + lifetime-vs-open counting, and the
+  approval-verdict heuristics were hand-rolled independently across the snapshot classifier, the
+  merge gate, the resolve-thread reporter, and the readiness gate, and the surfaces disagreed on
+  identical input — the six-issue misclassification class this refactor closes. They now consume
+  one classifier: `babysit_delta`, `babysit_feedback`, and `babysit_merge` import the self-login
+  membership test and authorship/finding/approval primitives directly instead of re-deriving them,
+  `babysit_resolve_thread` shares the same `is_bot` test, and `babysit-readiness-gate.sh` shells
+  out to the shared finding counter (mirroring the existing merge-gate wrapper) rather than
+  re-implementing the severity vocabulary in bash grep. Every surface stays a pure predicate with
+  no writes. Each formerly-divergent member issue is now a golden fixture, regression-proof by
+  construction.
+
+### Fixed
+
+- **`babysit-readiness-gate.sh` no longer over-counts lifetime findings as unaddressed.** The gate
+  counted every severity marker ever posted across a PR's lifetime — including markers in review
+  threads GitHub already reports resolved or outdated — so a fully-classified PR with re-review
+  history reported `READINESS_BLOCKED reason=under-decomposed` permanently even when every open
+  item was addressed. The shared finding counter discounts a marker carried in a resolved or
+  outdated thread, counting currently-open findings only. (De-duplicating the same concern restated
+  across re-review rounds within still-open threads is deliberately out of scope — there is no
+  reliable mechanical "same concern" signal — so restatements still count.) The bash counting is
+  retained only as the Python-free safe-tier degrade, which cannot see thread state; a convergence
+  test pins the two counts together on thread-state-free input.
+- **`source-control-babysit-resolve-thread` no longer reports `humanThreadsActed` for a
+  Bot-authored thread.** The counter incremented for any acted thread whose comments were not
+  *all* bots (`botOnly` false), so a bot-opened thread carrying a later human reply was reported as
+  a human-thread action that never happened, undermining the human-thread safety rail's own
+  telemetry. It now counts only threads whose opening author is human, via the shared authorship
+  classifier — the same author check the `--include-human` eligibility decision already uses.
+
 ## [0.12.0]
 
 ### Fixed

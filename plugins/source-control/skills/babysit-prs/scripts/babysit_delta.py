@@ -17,13 +17,15 @@ from babysit_checks import (
     classify_checks,
     persisted_check_identity_keys,
 )
-from babysit_feedback import (
+from babysit_classify import (
     DEFAULT_FEEDBACK_CONFIG,
     FeedbackConfig,
     actor_kind,
     author_login,
-    collect_feedback,
+    is_self_login,
+    normalize_self_logins,
 )
+from babysit_feedback import collect_feedback
 from babysit_gh import find_open_prs_for_head_ref
 from babysit_review_trigger import (
     DEFAULT_REVIEW_TRIGGER_CONFIG,
@@ -211,7 +213,7 @@ def detect_foreign_activity(
     the arm is dormant.
     """
     recognizer = trigger_regex(config.review_trigger.trigger_phrase)
-    self_logins = {login.casefold() for login in config.self_logins if login}
+    self_logins = normalize_self_logins(config.self_logins)
     if recognizer is None or not self_logins:
         return {"detected": False, "evidence": []}
     prior = json_object((previous or {}).get("review_trigger"))
@@ -224,7 +226,7 @@ def detect_foreign_activity(
     for comment in json_array(pr.get("comments")):
         if not is_json_object(comment):
             continue
-        if author_login(comment).casefold() not in self_logins:
+        if not is_self_login(author_login(comment), self_logins):
             continue
         if not recognizer.fullmatch(str(comment.get("body") or "")):
             continue
@@ -269,7 +271,7 @@ def detect_attribution_drift(
     unconfigured classifier never fires false positives.
     """
     intended = config.intended_write_identity.casefold()
-    self_logins = {login.casefold() for login in config.self_logins if login}
+    self_logins = normalize_self_logins(config.self_logins)
     if not intended or not self_logins:
         return {"detected": False, "evidence": []}
     prior = json_object((previous or {}).get("review_trigger"))
@@ -293,7 +295,7 @@ def detect_attribution_drift(
         # drift (the degrade case). A non-self author on a ledgered id is not
         # this arm's concern -- foreign-activity semantics, and structurally
         # unreachable for an immutable comment we posted.
-        if landed_cf == intended or landed_cf not in self_logins:
+        if landed_cf == intended or not is_self_login(landed, self_logins):
             continue
         evidence.append(
             {
@@ -436,7 +438,7 @@ def classify_pr(
     # gate. Filtering it there instead would silently strip the solo maintainer's
     # ability to human-stop their own PR. Here it only stops re-dispatching a
     # worker onto the engine's own prior output.
-    self_logins = {login.casefold() for login in config.self_logins if login}
+    self_logins = normalize_self_logins(config.self_logins)
     new_blocking_feedback = [
         item for item in feedback["blocking"] if item["id"] not in prev_blocking_ids
     ]
@@ -479,7 +481,7 @@ def classify_pr(
         item
         for item in (*feedback["human_blocking"], *feedback["human"])
         if item["id"] not in prev_human_ids
-        and str(item.get("author") or "").casefold() not in self_logins
+        and not is_self_login(item.get("author"), self_logins)
     ]
     changed = bool(prev) and (
         prev.get("head_sha") != head_sha or prev.get("updated_at") != updated_at
@@ -747,7 +749,7 @@ def classify_pr(
         item
         for item in feedback["human_blocking"]
         if item["id"] not in prev_human_blocking_ids
-        and str(item.get("author") or "").casefold() not in self_logins
+        and not is_self_login(item.get("author"), self_logins)
     ]
     # Symmetric to `resolved_failing_checks`: a PR previously blocked only by
     # human feedback (CHANGES_REQUESTED, an unresolved inline thread) that the

@@ -40,7 +40,7 @@ import re
 from typing import Any, cast
 
 from babysit_checks import check_identity_key, classify_checks
-from babysit_feedback import is_dependency_author
+from babysit_classify import is_dependency_author, is_self_login, normalize_self_logins
 from babysit_gh import (
     fetch_review_threads,
     gh_capture,
@@ -150,7 +150,7 @@ def evaluate(
     number: int,
     expected_head: str | None,
     allowed: set[str],
-    self_logins: set[str],
+    self_logins: frozenset[str],
     allow_dependency: bool,
     allow_unprotected: bool,
 ) -> dict[str, Any]:
@@ -284,7 +284,7 @@ def evaluate(
         )
     # On an unprotected base, CLEAN proves nothing (no required checks/reviews).
     # A non-self author's PR there is held unless explicitly allowed.
-    author_is_self = str(author_login or "").casefold() in self_logins
+    author_is_self = is_self_login(author_login, self_logins)
     if base_is_unprotected and not author_is_self and not allow_unprotected:
         blockers.append(
             "base branch is unprotected (0 required reviews AND 0 required "
@@ -458,16 +458,16 @@ def main() -> int:
     # resolution is a network call, and the guard's contract is that malformed
     # input is rejected before any network access.
     try:
-        self_logins = {login.casefold() for login in resolve_authors(args.self_logins)}
+        self_logins = normalize_self_logins(resolve_authors(args.self_logins))
     except RuntimeError:
         # '@me' could not be resolved to a gh login; fail closed by keeping only
         # the explicit non-'@me' logins -- an unresolved self identity holds own
         # PRs on an unprotected base rather than merging on a guessed identity.
-        self_logins = {
-            token.casefold()
+        self_logins = normalize_self_logins(
+            token
             for token in (args.self_logins or "").split(",")
-            if token.strip() and token.strip().casefold() != "@me"
-        }
+            if token.strip().casefold() != "@me"
+        )
 
     try:
         result = evaluate(
