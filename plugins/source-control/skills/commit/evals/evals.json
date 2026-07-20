@@ -101,6 +101,19 @@
         "Still honors the team file's trailer_policy: none, since the overlay declares no trailer_policy",
         "Does not treat the overlay as a replacement for the whole team config (keys absent from the overlay keep their team value)"
       ]
+    },
+    {
+      "id": 9,
+      "name": "inherited-type-list-drops-for-an-effective-custom-pattern",
+      "prompt": "Commit the null-user fix in src/api/me.js.",
+      "expected_output": "The team file declares Conventional Commits plus the bundled 11-type type_list; the personal overlay overrides subject_pattern with a ticket-prefix regex and says nothing about type_list. type_list is bound to the effective subject_pattern rather than merged per key on its own, so it is dropped: the drafted subject matches the ticket-prefix pattern and is not pre-checked against a Conventional-Commits type vocabulary the effective pattern does not use.",
+      "files": [".claude/source-control.md", ".claude/source-control.local.md"],
+      "expectations": [
+        "Drafts a subject matching the overlay's ticket-prefix subject_pattern",
+        "Drops the team layer's type_list because the effective subject_pattern is not Conventional-Commits-shaped",
+        "Does not retain type_list merely because no later layer overrode that key",
+        "Never pre-checks the subject against a type vocabulary the effective pattern does not use"
+      ]
     }
   ]
 }

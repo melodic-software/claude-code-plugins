@@ -57,6 +57,15 @@ Worked example — user-global sets `trailer_policy: none`, team sets `subject_p
 ticket-prefix regex and leaves `trailer_policy` unset, local overlay sets nothing: the effective
 config is the team `subject_pattern` with the user-global `trailer_policy: none`.
 
+**`type_list` is bound to the effective `subject_pattern`, not merged independently.** It is a
+property of a Conventional-Commits-shaped pattern, so after the layers merge, an inherited
+`type_list` is dropped whenever the *effective* `subject_pattern` is a custom regex — even when the
+layer supplying that pattern said nothing about `type_list`. A user-global `Conventional Commits`
+plus its type list, overridden by a team ticket-prefix regex, resolves to the team pattern with **no**
+`type_list`; retaining it per key would leave `/commit` pre-checking against a vocabulary the
+effective pattern does not use. The reverse also holds: an effective Conventional-Commits pattern with
+no `type_list` in any layer resolves to the bundled 11-type list.
+
 `pr_title_pattern` resolving to `Same as \`subject_pattern\`.` expands against the **effective**
 `subject_pattern` after all three layers merge, not against the pattern in its own layer.
 
