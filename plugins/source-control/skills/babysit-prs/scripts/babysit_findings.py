@@ -91,6 +91,16 @@ def fetch_live_comments(repo: str, number: int) -> list[dict[str, Any]]:
     thread's severity markers are discounted. Resolved threads are included
     (`include_resolved=True`) precisely so they can be discounted rather than
     silently dropped.
+
+    `fetch_review_threads` caps each thread's comment connection and flags an
+    oversized thread `comments_truncated` rather than raising, so one giant
+    thread cannot fail the whole snapshot for consumers that do not need every
+    comment. This counter DOES need every comment: a severity marker or
+    classification row past the cap that were dropped would under-count and let
+    the gate declare READINESS_OK while a later open finding sits unclassified.
+    So we honor that contract and fail closed on any truncated thread by
+    raising -- `main` maps this to exit 2, which emits no count line and leaves
+    the gate on its complete REST/bash degrade count (`reference/loop.md`).
     """
     comments: list[dict[str, Any]] = [
         _comment(row.get("author"), row.get("body"))
@@ -103,6 +113,12 @@ def fetch_live_comments(repo: str, number: int) -> list[dict[str, Any]]:
     for thread in fetch_review_threads(repo, number, include_resolved=True):
         if not is_json_object(thread):
             continue
+        if thread.get("comments_truncated"):
+            raise RuntimeError(
+                f"review thread {thread.get('id')} has "
+                f"{thread.get('comments_total_count')} comments exceeding the "
+                "per-thread fetch cap; failing closed to the bash finding count"
+            )
         for node in thread.get("comments") or []:
             if is_json_object(node):
                 comments.append(_comment(node.get("author"), node.get("body"), thread))
