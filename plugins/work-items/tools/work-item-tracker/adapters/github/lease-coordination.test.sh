@@ -41,6 +41,8 @@ gh() {
       done
       ;;
     *"--json assignees"*) cat "$d/assignees" ;;
+    # The timeline read also carries --paginate, so it must be matched by its path
+    # BEFORE the generic --paginate (/comments) branch below — order is load-bearing.
     *"/timeline"*) cat "$d/pr-activity" 2>/dev/null || printf '0\n' ;;
     *"--paginate"*)
       case "$args" in
