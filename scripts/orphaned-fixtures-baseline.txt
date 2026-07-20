@@ -21,10 +21,3 @@ plugins/autonomy/skills/setup/evals/fixtures/otlp-demo/pipeline.jsonl
 plugins/autonomy/skills/setup/evals/fixtures/otlp-demo/session-metrics.jsonl
 plugins/autonomy/skills/setup/evals/fixtures/otlp-demo/session-spans.jsonl
 plugins/autonomy/skills/setup/evals/fixtures/otlp-demo/trigger.jsonl
-
-# knowledge youtube-digest skill: this data file lives under evals/fixtures/ but
-# is named only from SKILL.md / vendor TUNING.md prose — no eval files[] entry
-# and no test consume it. Surfaced by this gate's initial discover run; tracked
-# by issue #688 (wire it into a grader, or move it out of evals/fixtures/ if it
-# is reference data rather than a fixture).
-plugins/knowledge/skills/youtube-digest/evals/fixtures/variation-matrix-backlog.json

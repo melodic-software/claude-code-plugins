@@ -2,7 +2,7 @@
 
 Starting values from RESEARCH lane 2 and `design-threads.md` D9. Host e2e on driver
 (`7zZy1QTvokM`, 2026-06-11): dynamic coverage plan replaces soft cap; stratified + cue-anchor
-frames merged with scene-detect. Variation smokes in `evals/fixtures/variation-matrix-backlog.json`.
+frames merged with scene-detect. Variation smokes in `skills/youtube-digest/reference/variation-matrix-backlog.json`.
 
 **ffmpeg spawn:** local file inputs must omit `-user_agent`/`-headers` (ffmpeg 8+); remote
 HLS/HTTP URLs keep them (`isRemoteVideoInput` in `frames/scene-detect.js`).

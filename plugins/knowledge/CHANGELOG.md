@@ -4,6 +4,18 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.8.1]
+
+### Changed
+
+- **youtube-digest: the `variation-matrix-backlog.json` manual smoke-test log is
+  demoted out of `evals/fixtures/`.** It is a tracking backlog of candidate videos
+  across footage variations (status notes, blocked-caption records), not an
+  input→expected-output graded fixture — no eval `files[]` entry or test consumed
+  it. Moved to the skill's `reference/`; `SKILL.md` and vendor `TUNING.md` prose now
+  point at the new path, and its grandfather line is removed from
+  `scripts/orphaned-fixtures-baseline.txt`.
+
 ## [0.8.0]
 
 ### Changed
