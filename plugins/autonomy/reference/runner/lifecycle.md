@@ -37,7 +37,8 @@ disposition is the `structural-plan-approval` item (the inherited class, on its 
 severity, with the produced plan attached), and it completes without touching the structure.
 The structural execution is a second run, admitted only from the human-approved item; its
 `leased → executing` transition requires that recorded approval, and absent one the run
-fail-closes to `escalated` rather than executing. No second approval channel exists — the
+fail-closes through the missing-plan-approval stop — a `runner-owned` stop reason resolving to
+`needs-human` in [the escalation leaf](escalation.md)'s mapping — rather than executing. No second approval channel exists — the
 approval item is ordinary human-gated queue work, and the terminal-handoff shape
 ([escalation leaf](escalation.md)) is untouched: neither phase pauses mid-run.
 

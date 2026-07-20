@@ -51,7 +51,9 @@ severity — severity is resolved by the mapping below.
 
 - **`runner-owned` (deterministic).** The runner detects these itself, without agent judgment:
   turn, budget, or wall-clock cap reached; execution error persisting after retries; model
-  refusal; verification-gate failure; isolation violation. Each is an observable runner
+  refusal; verification-gate failure; isolation violation; missing plan approval (a `C4`
+  structural run leased without its recorded approval —
+  [lifecycle leaf](lifecycle.md#c4-pre-execution-plan-approval)). Each is an observable runner
   condition, not a signal the agent has to raise.
 - **`agent-signaled` (judgment).** The executing agent raises these through the envelope's
   `stop_reason` field, because only the agent holds the context to recognize them: ambiguity
@@ -79,6 +81,7 @@ traces the full path stop reason → outcome → event class → severity → ro
 | `runner-owned` | execution error after retries | `needs-human` |
 | `runner-owned` | refusal | `needs-human` |
 | `runner-owned` | isolation violation | `needs-human` |
+| `runner-owned` | missing plan approval (`C4`) | `needs-human` |
 | `agent-signaled` | ambiguity | `needs-human` |
 | `agent-signaled` | design decision needing human judgment | `needs-human` |
 | `agent-signaled` | security/data-integrity event | `needs-human` |
