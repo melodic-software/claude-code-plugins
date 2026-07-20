@@ -2,6 +2,13 @@
 
 Specialized multi-aspect code feedback during development, before the formal PR gate.
 
+## Boundary — the bundled `/code-review` command
+
+Claude Code ships a built-in `/code-review` bundled skill that reviews the same target this mode does — the branch's commits ahead of upstream plus uncommitted working-tree changes — for correctness bugs and reuse, simplification, and efficiency cleanups. It is always available (no plugin install), honors effort levels, and its `ultra` argument runs a deeper cloud review. Because it overlaps this mode on the "code review" trigger and the current diff, choose deliberately:
+
+- **This mode** when the review must ground in the project's own standards and severity vocabulary (resolved through the standards index), stay report-only, and land in the gate's unified findings report alongside the other lenses. It dispatches convention-aware reviewers — the paths below.
+- **`/code-review`** for a fast zero-dependency pass, or its `ultra` cloud deep-dive, when project-standards grounding is not the point. It does not read `REVIEW.md`, and its `--fix` / `--comment` flags mutate the working tree or PR — outside this mode's report-only contract, so reach for those only on explicit user opt-in (the sibling `pr` mode gates the same side effect).
+
 ## Primary path — `pr-review-toolkit` orchestrator plugin (when installed)
 
 When the `pr-review-toolkit` plugin (from the `claude-plugins-official` marketplace) is available, invoke `/pr-review-toolkit:review-pr` with aspects detected from the changed files:
