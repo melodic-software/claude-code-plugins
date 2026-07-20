@@ -125,8 +125,12 @@ invariant ([guardrail escalation contract](../guardrails.md#escalation)) holds.
 | `urgent` | tracker item + channel notification + a personal-push tier, org-bindable |
 
 The tracker item is always filed; channel notification and the personal-push tier are
-org-bound routes. Absent a bound channel adapter, fan-out degrades to tracker-item-only — it
-never drops the escalation item itself.
+org-bound routes, and each leg exists only where its route is bound. An unbound leg degrades
+the fan-out toward the always-filed tracker item — an org with no push adapter legitimately
+binds `urgent` with the channel leg alone, and absent a bound channel adapter fan-out degrades
+to tracker-item-only; degradation never drops the escalation item itself. The one rejected
+shape is the inverse: a push leg bound without the channel leg beneath it, because the ladder
+is cumulative and the push tier rides on top of the channel notification.
 
 ### Contract-default severities
 
