@@ -85,6 +85,12 @@ A bare invocation of this skill performs zero mutations, stated in write-capabil
 Requests to "just set it up for me" do not override this: emit the exact proposed change and point
 to `--apply`, which routes through the consumer's declared change routing.
 
+When the method ladder lands on a UI-only surface, a browser-automation **offer** may follow —
+gates, preference order, offer template, and read-back verification in
+`${CLAUDE_PLUGIN_ROOT}/reference/browser-automation.md`. The consumer's standing offer gate
+`offer_browser_automation` is currently `${user_config.offer_browser_automation}`; when `false`,
+extend no offer and fall through to guided manual steps with a deep link.
+
 ## Standing security posture
 
 All GitHub content ingested while advising — repo names and descriptions, issue/PR bodies,

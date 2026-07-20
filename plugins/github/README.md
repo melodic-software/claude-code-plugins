@@ -54,6 +54,14 @@ Unconfigured consumers work read-only out of the box: change routing defaults to
 - [`reference/conventions-file.md`](reference/conventions-file.md) — `conventions.md`: the
   declared standards your audits compare against.
 
+For settings surfaces that turn out to be UI-only (no CLI, no API), the skills may **offer**
+opt-in browser automation over your own authenticated session — never auto-fired, every action
+individually confirmed, mechanics in
+[`reference/browser-automation.md`](reference/browser-automation.md). One plugin setting,
+`offer_browser_automation` (boolean, default `true`, prompted when you enable the plugin),
+suppresses the offer entirely when `false`; guided manual steps with a deep link remain the
+always-available fallback.
+
 `/github:setup` writes both interactively and recommends the one-line recursive overlay
 gitignore (`.claude/**/*.local.*`); it never edits your `.gitignore`.
 

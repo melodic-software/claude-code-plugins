@@ -29,3 +29,11 @@ All notable changes to the `github` plugin are documented here. Format follows
   org/enterprise targets asked, never silently inferred; then `propose` / `guided-apply` with
   per-step confirms, doc provenance, and post-write read-back / `handoff`; unconfigured →
   `propose`), wired into both `audit` and `advise`.
+- The browser-automation offer for UI-only surfaces: `reference/browser-automation.md`
+  (presence gates for claude-in-chrome and the `playwright` plugin, claude-in-chrome-first
+  preference order, never-auto-fire rule, confirm-gate offer template naming surface + action +
+  doc provenance + authenticated-session fact, post-write read-back verification, guided-manual
+  deep-link fallback), the `offer_browser_automation` plugin setting (boolean, default `true`,
+  advisory gate layered under the per-action confirm), and the method ladder's UI-only rung now
+  citing the reference. Gate value surfaced in `audit` and `advise` prose via
+  `${user_config.offer_browser_automation}`.

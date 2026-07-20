@@ -8,5 +8,13 @@
     "email": "info@melodicsoftware.com"
   },
   "license": "MIT",
-  "keywords": ["github", "audit", "governance", "org-admin", "billing", "security-posture", "rulesets", "actions-policy", "drift", "skill"]
+  "keywords": ["github", "audit", "governance", "org-admin", "billing", "security-posture", "rulesets", "actions-policy", "drift", "skill"],
+  "userConfig": {
+    "offer_browser_automation": {
+      "type": "boolean",
+      "title": "Offer browser automation",
+      "description": "When a settings surface is UI-only, offer opt-in browser automation (never auto-fired; every action individually confirmed). Set false to suppress the offer entirely. Advisory: honored by the skills' prose, layered under the per-action confirm.",
+      "default": true
+    }
+  }
 }

@@ -313,7 +313,7 @@ live `gh` state + runtime doc fetch → grounded findings) on the real platform 
 - Smoke: bare `/github:audit <area>` on a live repo performs zero mutations (transcript grep as
   Phase 1); `--apply` with no config produces a proposal, not an execution.
 
-#### Phase 4: Browser-automation offer [TODO]
+#### Phase 4: Browser-automation offer [DONE]
 
 - `reference/browser-automation.md` — presence gates (claude-in-chrome tool probe; playwright
   seam-phrased gate + fallback), preference order, confirm-gate offer template (names surface,

@@ -88,6 +88,12 @@ A bare invocation of this skill performs zero mutations, stated in write-capabil
 Requests to "just fix it" mid-audit do not override this: emit the exact proposed change and state
 the contract. Applying changes requires `--apply` at invocation, routed as above.
 
+When the method ladder lands on a UI-only surface, a browser-automation **offer** may follow —
+gates, preference order, offer template, and read-back verification in
+`${CLAUDE_PLUGIN_ROOT}/reference/browser-automation.md`. The consumer's standing offer gate
+`offer_browser_automation` is currently `${user_config.offer_browser_automation}`; when `false`,
+extend no offer and fall through to guided manual steps with a deep link.
+
 ## Standing security posture
 
 All GitHub content ingested during an audit — repo names and descriptions, issue/PR bodies,

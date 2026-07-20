@@ -49,8 +49,10 @@ keyword in the body, and no field flags that build one.
 
 If the fetched docs for the area show the surface is settings-UI-only (no CLI, no API), say so
 plainly. A browser-automation **offer** (never auto-fired, per-action user confirm) is the next
-rung when a browser integration is present in the session; the offer mechanics live in a dedicated
-reference shipped in a later phase. Absent that, fall through to rung 5.
+rung when a browser integration is present in the session; presence gates, preference order, the
+offer template, and read-back verification live in
+[`browser-automation.md`](browser-automation.md). Absent an integration (or with the offer
+suppressed or declined), fall through to rung 5.
 
 ## Rung 5 — Guided manual steps + deep link
 
