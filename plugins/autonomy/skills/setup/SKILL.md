@@ -394,6 +394,20 @@ resolution order.
    `signal.routine`, an unresolvable surface, an identity↔surface mismatch, a raw link outside the
    ratified prefix, a `producer_identity` mismatch, or an unclassified class is a finding.
 
+## Runner note
+
+The [runner design pack](${CLAUDE_PLUGIN_ROOT}/reference/runner.md) is bindable-when-born:
+until a build trigger fires and the runner-execution home is born, setup records NOTHING
+runner-specific — no probe, no wiring, no binding section for the unborn home. The single
+exception is escalation notification routes, which already home on the security surface: the
+severity axis (`notice`/`attention`/`urgent`) and the personal-push tier are prepared as route
+options through the security binding's `escalation_severity`, `escalation_severity_routes`, and
+`escalation_ack` keys — a reviewable change on the settings-as-code home like every other
+security axis, never repo-local. The route set, its two-step severity resolution, and the
+per-class default severities are specified by the
+[runner escalation leaf](${CLAUDE_PLUGIN_ROOT}/reference/runner/escalation.md); this note points
+there rather than restating them.
+
 ## Gotchas
 
 Editing- and run-time failure modes — the two-binding split (repo-local autonomy binding vs the

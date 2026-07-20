@@ -68,6 +68,16 @@ const EVENT_CLASSES = [
   "structural-plan-approval",
   "untrusted-provenance",
 ];
+// The escalation event-class REGISTRY: the six inherited guardrail classes
+// above plus the two additive runner classes. escalation_routes keeps
+// REQUIRING only the six inherited classes (existing bindings validate
+// unchanged), while the two runner classes are legal OPTIONAL
+// escalation_routes keys — the binding accepts route and severity bindings
+// for them exactly as for any guardrail class; escalation_severity keys
+// validate against this full registry.
+const RUNNER_EVENT_CLASSES = ["runner-needs-human", "runner-cap-exceeded"];
+const ESCALATION_EVENT_CLASSES = [...EVENT_CLASSES, ...RUNNER_EVENT_CLASSES];
+const SEVERITY_TOKENS = ["notice", "attention", "urgent"];
 const LAYERS = ["deterministic", "ai-review"];
 const VERIFICATION_TOKENS = ["not-required", "advisory", "blocking"];
 const MERGE_TOKENS = ["auto", "human"];
@@ -402,6 +412,9 @@ function validateStructure(binding) {
       "verification_blocking",
       "promotion_state",
       "escalation_routes",
+      "escalation_severity",
+      "escalation_severity_routes",
+      "escalation_ack",
       "admission",
     ],
     "binding",
@@ -564,10 +577,64 @@ function validateStructure(binding) {
     if (!isPlainObject(binding.escalation_routes)) {
       findings.push("escalation_routes: must be an object keyed by escalation event class");
     } else {
-      checkAllowedKeys(binding.escalation_routes, EVENT_CLASSES, "escalation_routes");
+      checkAllowedKeys(binding.escalation_routes, ESCALATION_EVENT_CLASSES, "escalation_routes");
       for (const eventClass of EVENT_CLASSES) {
         if (!isNonEmptyString(binding.escalation_routes[eventClass])) {
           findings.push(`escalation_routes.${eventClass}: missing or empty — every event class has an org-bound route`);
+        }
+      }
+      // The two runner classes are OPTIONAL escalation_routes keys — never
+      // required (existing bindings validate unchanged) — but a bound one
+      // must still carry a route.
+      for (const eventClass of RUNNER_EVENT_CLASSES) {
+        if (Object.hasOwn(binding.escalation_routes, eventClass) && !isNonEmptyString(binding.escalation_routes[eventClass])) {
+          findings.push(`escalation_routes.${eventClass}: present but empty — a bound runner event-class route carries an org-bound route like any other`);
+        }
+      }
+    }
+  }
+
+  if (Object.hasOwn(binding, "escalation_severity")) {
+    if (!isPlainObject(binding.escalation_severity)) {
+      findings.push("escalation_severity: must be an object mapping escalation event class to severity token");
+    } else {
+      for (const [eventClass, severity] of Object.entries(binding.escalation_severity)) {
+        const where = `escalation_severity.${eventClass}`;
+        if (!checkEnum(eventClass, ESCALATION_EVENT_CLASSES, `escalation_severity key ${JSON.stringify(eventClass)}`)) {
+          continue;
+        }
+        checkEnum(severity, SEVERITY_TOKENS, where);
+      }
+    }
+  }
+
+  if (Object.hasOwn(binding, "escalation_severity_routes")) {
+    if (!isPlainObject(binding.escalation_severity_routes)) {
+      findings.push("escalation_severity_routes: must be an object mapping severity token to route");
+    } else {
+      for (const [severity, route] of Object.entries(binding.escalation_severity_routes)) {
+        if (!checkEnum(severity, SEVERITY_TOKENS, `escalation_severity_routes key ${JSON.stringify(severity)}`)) {
+          continue;
+        }
+        if (!isNonEmptyString(route)) {
+          findings.push(
+            `escalation_severity_routes.${severity}: missing or empty — a bound severity must carry an org-bound route (personal-push is a legal route value at any tier)`,
+          );
+        }
+      }
+    }
+  }
+
+  if (Object.hasOwn(binding, "escalation_ack")) {
+    if (!isPlainObject(binding.escalation_ack)) {
+      findings.push("escalation_ack: must be an object");
+    } else {
+      checkAllowedKeys(binding.escalation_ack, ["staleness_window", "reescalation_cap"], "escalation_ack");
+      for (const knob of ["staleness_window", "reescalation_cap"]) {
+        if (Object.hasOwn(binding.escalation_ack, knob) && (!Number.isInteger(binding.escalation_ack[knob]) || binding.escalation_ack[knob] < 1)) {
+          findings.push(
+            `escalation_ack.${knob}: must be a positive integer (>= 1) — a non-positive acknowledgment window or re-escalation cap is meaningless; contract defaults (72h staleness window, one re-escalation) live in the runner escalation contract, not here`,
+          );
         }
       }
     }
@@ -1416,6 +1483,33 @@ function checkSemantics(binding, probeRoot, egressAllowList) {
             `verification_blocking.${layer}.${workClass}: ${JSON.stringify(knob)} weakens the shipped floor ${JSON.stringify(floor)} — floors may be tightened, never weakened (override_justification applies to admission rules only)`,
           );
         }
+      }
+    }
+  }
+
+  // Routability of every event class bound in escalation_severity, matching
+  // the severity-first resolution rule: an event class resolves to its
+  // severity, then to that severity's escalation_severity_routes entry,
+  // falling back to the event class's own escalation_routes entry only when
+  // no severity route is bound. Severity-only fan-out is legal — a legacy
+  // per-event route is the fallback, never a requirement — so an event class
+  // is routable when EITHER path yields a route. Only an event class bound to
+  // a severity with no severity route AND no escalation_routes entry is
+  // unroutable, a fail-closed finding: a filed escalation would have nowhere
+  // to go. (A runner class binds an escalation_routes entry optionally,
+  // exactly like any guardrail class — either path routes it.)
+  if (isPlainObject(binding.escalation_severity)) {
+    const severityRoutes = isPlainObject(binding.escalation_severity_routes) ? binding.escalation_severity_routes : {};
+    const eventRoutes = isPlainObject(binding.escalation_routes) ? binding.escalation_routes : {};
+    for (const [eventClass, severity] of Object.entries(binding.escalation_severity)) {
+      if (!ESCALATION_EVENT_CLASSES.includes(eventClass) || !SEVERITY_TOKENS.includes(severity)) continue;
+      const severityRouted = isNonEmptyString(severityRoutes[severity]);
+      const eventRouted = isNonEmptyString(eventRoutes[eventClass]);
+      if (!severityRouted && !eventRouted) {
+        const remedy = `bind escalation_severity_routes.${severity} or an escalation_routes.${eventClass} entry`;
+        findings.push(
+          `escalation_severity.${eventClass}: bound to severity ${JSON.stringify(severity)} with no escalation_severity_routes entry for that severity and no escalation_routes entry for the event class — the event class is unroutable, so a filed escalation would have nowhere to go (fail-closed); ${remedy}`,
+        );
       }
     }
   }

@@ -149,7 +149,7 @@ by citation). Design only — zero build artifacts; the runner-execution home st
 - `grep -c 'USER-RESERVED' plugins/autonomy/reference/runner/topology.md` ≥ 1
 - Vendor+fleet deny-list sweep exit 0
 
-### Phase 3: Setup note + WP5 escalation-route join [TODO]
+### Phase 3: Setup note + WP5 escalation-route join [DONE]
 
 | File | Action | What changes |
 |---|---|---|
