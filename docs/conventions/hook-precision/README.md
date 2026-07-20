@@ -72,8 +72,8 @@ Existing adopters conform by carrying the rule their over-fire needed:
 - `block-hook-bypass` strips quoted literal spans before its executable-token scan, so a command that only
   *mentions* `echo` / `>` inside an argument stays quiet (rule 2).
 - `cli-flag-verify` buffers stdin through `hook::buffer_stdin` instead of reading `fd0` directly (rule 3).
-- `flag-commit-pr-skill-bypass` gates on the canonical `-F -` marker alone, having dropped the `--trailer`
-  conjunct it once required (rule 4).
+- `block-noncanonical-commit` gates on the canonical `-F -` marker alone, dropping the `--trailer`
+  conjunct its advisory predecessor required (rule 4).
 
 The shared harness and a worked exemplar that co-locates both MUST-fire and MUST-stay-quiet cases:
 
