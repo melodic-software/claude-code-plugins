@@ -328,6 +328,47 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         self.assertFalse(result["ready"])
         self.assertTrue(any("could not verify" in b for b in result["blockers"]))
 
+    def test_unrelated_maintainer_comment_does_not_ratify(self) -> None:
+        # A later maintainer comment with no explicit ratification signal (a bare
+        # "thanks") must not clear the veto.
+        chatter = _comment(
+            "maintainer", "thanks, nice work here", association="OWNER",
+            created_at="2026-02-01T00:00:00Z",
+        )
+        result = self._evaluate(
+            _pr(), linked_issue_comments=[DECISION_MARKER, chatter]
+        )
+        self.assertFalse(result["ready"])
+        self.assertEqual(
+            result["autopilotMergeTier"]["decisionDefaultHeldIssues"], [LINKED_ISSUE]
+        )
+
+    def test_ratification_signal_before_marker_does_not_clear(self) -> None:
+        # A ratification signal that predates the marker is not a ratification of it.
+        early = _comment(
+            "maintainer", "approved", association="OWNER",
+            created_at="2025-12-01T00:00:00Z",
+        )
+        result = self._evaluate(
+            _pr(), linked_issue_comments=[early, DECISION_MARKER]
+        )
+        self.assertFalse(result["ready"])
+        self.assertEqual(
+            result["autopilotMergeTier"]["decisionDefaultHeldIssues"], [LINKED_ISSUE]
+        )
+
+    def test_negated_approval_does_not_ratify(self) -> None:
+        # A withheld/negated approval must not clear the veto even though it
+        # contains an approval token.
+        negated = _comment(
+            "maintainer", "not approved yet — hold this", association="OWNER",
+            created_at="2026-02-01T00:00:00Z",
+        )
+        result = self._evaluate(
+            _pr(), linked_issue_comments=[DECISION_MARKER, negated]
+        )
+        self.assertFalse(result["ready"])
+
     def test_bot_comment_with_blocking_prose_does_not_block(self) -> None:
         # A bot review body carrying blocking-looking prose is not a human stop.
         comment = {

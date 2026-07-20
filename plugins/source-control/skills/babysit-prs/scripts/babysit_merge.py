@@ -50,6 +50,7 @@ from typing import Any, cast
 
 from babysit_checks import check_identity_key, classify_checks
 from babysit_classify import (
+    NON_APPROVAL_RE,
     actor_kind,
     has_blocking_severity,
     has_blocking_text,
@@ -254,17 +255,30 @@ DECISION_DEFAULT_MARKER_RE = re.compile(r"decision[ -]defaulted", re.I)
 # from. COLLABORATOR is deliberately excluded -- it is granted per-repo push
 # access, not the maintainer role that owns the veto.
 RATIFYING_ASSOCIATIONS = frozenset({"OWNER", "MEMBER"})
+# A maintainer clears the veto only with an explicit ratification signal -- a
+# small, closed, whole-word token set -- not merely any later comment (an
+# unrelated "thanks" must not ratify). Matching is strict/fail-closed: a comment
+# without a signal (or carrying a withheld-approval negation) does not clear, so
+# an ambiguous maintainer comment over-holds to the human list. Keep this set in
+# sync with the contract documented in reference/safety.md.
+RATIFICATION_SIGNAL_RE = re.compile(
+    r"\b(?:ratif(?:y|ied)|approved?|confirmed?)\b", re.I
+)
 
 
 def _decision_default_ratified(comments: list[dict[str, Any]], marker_ts: str) -> bool:
-    """True when a human maintainer commented strictly after the marker.
+    """True when a human maintainer explicitly ratified strictly after the marker.
 
-    Reactions are deliberately not consulted: the reactions API carries no
+    Ratification requires an explicit signal (`RATIFICATION_SIGNAL_RE`) in a human
+    maintainer's comment posted after the marker -- an unrelated later comment
+    ("thanks", a status question) does not clear the veto, and a withheld-approval
+    negation (`NON_APPROVAL_RE`) never ratifies even when it contains an approval
+    token. Reactions are deliberately not consulted: the reactions API carries no
     author association, so a reaction cannot be attributed to a maintainer, and
     attributing it via the operator's own self-logins would let pipeline
     automation posting under that identity clear its own veto (the #450
     attribution-drift hazard). The fail-closed reading holds the marker until a
-    maintainer clears it with a comment.
+    maintainer clears it with an explicit ratification comment.
     """
     for comment in comments:
         if str(comment.get("createdAt") or "") <= marker_ts:
@@ -272,7 +286,12 @@ def _decision_default_ratified(comments: list[dict[str, Any]], marker_ts: str) -
         if actor_kind(comment) != "human":
             continue
         association = str(comment.get("authorAssociation") or "").upper()
-        if association in RATIFYING_ASSOCIATIONS:
+        if association not in RATIFYING_ASSOCIATIONS:
+            continue
+        body = str(comment.get("body") or "")
+        if NON_APPROVAL_RE.search(body):
+            continue  # a withheld/negated approval is not a ratification
+        if RATIFICATION_SIGNAL_RE.search(body):
             return True
     return False
 
