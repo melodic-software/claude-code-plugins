@@ -31,9 +31,10 @@ A faster main model running **without** a stronger advisor is not the recommende
 configuration for non-trivial work: the documented efficiency pairing is a faster
 main model that escalates planning, ambiguous failures, and completion checks to a
 stronger advisor, rather than paying for the stronger model on every routine turn.
-As of the contract this skill targets, that pairing is **Sonnet main + Opus
-advisor** — but the current model names and which pairings are accepted are exactly
-the values that drift, so source them live (below), never from this sentence.
+The concrete tier names that fill this **faster-main + stronger-advisor** shape are
+exactly the values that drift between versions — and which specific pairings are
+accepted drifts with them. Source them live (below), never pin them here: the durable
+fact is the *shape* of the pairing, not the names that fill it.
 
 When the recommendation is "keep the faster main model," pair it with the advisor
 recommendation. When it is "raise the main model to the top tier," the advisor adds
@@ -51,9 +52,9 @@ it degrades.
 
 Primary sources, fetched once when you form the recommendation (not per round):
 
-- `https://code.claude.com/docs/en/model-config.md` — model aliases and the effort setting
+- `https://code.claude.com/docs/en/model-config` — model aliases and the effort setting
 - `https://claude.com/blog/claude-model-and-effort-level-in-claude-code` — which model and effort fit which work
-- `https://code.claude.com/docs/en/advisor.md` — advisor enablement and accepted main+advisor pairings
+- `https://code.claude.com/docs/en/advisor` — advisor enablement and accepted main+advisor pairings
 - `https://claude.com/blog/the-advisor-strategy` — why a faster main + stronger advisor works
 
 **Fetch failure degrades, never halts.** The recommendation is an auxiliary output —
