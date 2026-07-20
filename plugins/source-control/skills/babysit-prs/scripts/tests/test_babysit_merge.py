@@ -207,6 +207,7 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
 
     def test_label_match_is_case_insensitive(self) -> None:
         result = self._evaluate(_pr(labels=[{"name": "Do-Not-Merge"}]))
+        self.assertFalse(result["ready"])
         self.assertEqual(
             result["autopilotMergeTier"]["blockingLabels"], ["do-not-merge"]
         )
