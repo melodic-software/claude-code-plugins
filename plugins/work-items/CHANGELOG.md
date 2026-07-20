@@ -22,6 +22,9 @@ a raw mid-flow `exit 3` instead of an actionable message (`#449`). The full remo
   Provider-mechanic operations (list/search/close, label/comment edits) run as raw `gh`, never read
   the binding, and proceed unbound. Caveat recorded: the gh-native path presumes a `gh`-backed
   provider — a `local-markdown` target with no binding cannot proceed and stays a hard stop.
+  `/work-items:work` gains an explicit binding preflight **before Step 0** — its `reclaim` is the
+  lane's first coordination verb, so the check is discharged before it runs rather than surfacing as a
+  raw mid-reclaim `exit 3`.
 
 ### Changed
 
@@ -29,9 +32,10 @@ a raw mid-flow `exit 3` instead of an actionable message (`#449`). The full remo
   documented default because `.work-item-tracker.json` or its `config.role_labels` entry is absent, the
   skills now warn loudly instead of substituting silently — a repo that remapped `config.role_labels`
   was previously queried under the wrong strings with no signal. Applied at every action-entry
-  resolution site that inlines it (`work`, `track` `due`/`recheck`/`audit`, `decompose`) and in the
-  shared invariants (`reference/tracker-seam.md`, `reference/label-taxonomy.md`). A present-but-malformed,
-  empty, or non-string configured value remains a hard stop, unchanged.
+  resolution site that inlines it (`work`, `triage`, `track` — `SKILL.md` summary plus
+  `due`/`recheck`/`audit` — and `decompose`) and in the shared invariants (`reference/tracker-seam.md`,
+  `reference/label-taxonomy.md`). A present-but-malformed, empty, or non-string configured value
+  remains a hard stop, unchanged.
 
 ### Deferred
 
