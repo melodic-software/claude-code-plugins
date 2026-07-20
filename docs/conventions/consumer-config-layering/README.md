@@ -161,14 +161,21 @@ does not by itself bless it. Ratifying one — as #649 did for the policy-floor 
 class above — moves it from observed to sanctioned. Ruling on each remaining deviation (correct the
 surface, or amend this contract) is a separate human-gated decision.
 
-**Ratified as a sanctioned exception class:**
+**Ratified as a sanctioned exception class — one axis only:**
 
-- **`standards` inverts precedence** — the exemplar of the policy-floor precedence-inversion class
+- **`standards` precedence inversion** — the exemplar of the policy-floor precedence-inversion class
   above (ratified by #649). Personal layers may add or tighten only; the team-tracked layer wins a
-  direct conflict, with provenance reported. It is conformant to that class, not a tolerated deviation.
+  direct conflict, with provenance reported. Conformant to that class, not a tolerated deviation.
+  **This ratification covers the precedence axis alone.** `standards` also diverges on layer *location*
+  (see Declared, below), which #649 did not rule on and which remains observed.
 
 **Declared** — the surface states its divergence and why:
 
+- **`standards` locates its layers outside `.claude/`.** Its team and overlay layers live at
+  `<standards_dir>/` (default `docs/standards/`) with a setup-owned in-directory `.gitignore`, rather
+  than the contract's `${CLAUDE_PROJECT_DIR}/.claude/<name>` and `*.local.*` paths — deliberately,
+  because writes under `.claude/` are permission-guarded. **Observed, not ratified:** #649 ruled the
+  precedence axis only; the location model is a separate, still-open ruling.
 - **`autonomy` exempts its security axes.** Layers refine additively as the contract requires, except
   that no repo-local value may supply or override a security axis at all — a stricter rule than this
   contract, in the direction of safety.
@@ -197,7 +204,7 @@ open.
 | `toolchain` / `ecosystem-commands` | `.claude/ecosystems/<ecosystem>.yaml` | all three | conforms |
 | `codebase-health` | `.claude/codebase-health.md` | all three | conforms (concatenating, with a declared empty-list opt-out) |
 | `autonomy` | `.claude/autonomy/binding.json` | all three, plus an org rung | declared deviation |
-| `standards` (`planning`, `review`) | `<standards_dir>/`, rooted by `.claude/standards.yaml` | all three | conforms via the policy-floor precedence-inversion class (ratified #649) |
+| `standards` (`planning`, `review`) | `<standards_dir>/`, rooted by `.claude/standards.yaml` | all three | precedence inversion ratified via policy-floor class (#649); layer location outside `.claude/` still observed, not ratified |
 | `disk-hygiene` | `.claude/disk-hygiene.json` | user-global + team | declared deviation; no overlay layer |
 | `ai-briefing` | `.claude/ai-briefing/` | team only | undeclared: overlay recommended, never resolved |
 | `code-tidying` | `.claude/tidy-lanes/<lane>.md` | team only | single-layer over a bundled default |
