@@ -54,17 +54,19 @@ contract's signal-surface classes — none is a second scheduling path.
 |---|---|---|
 | `schedule` | cron-fired cadence; the routine's defining shape | `temporal` surface class |
 | `event` | a source emission the routine rides in addition to its cadence | the routine's run is always `temporal` (rule below); the event itself may separately enqueue as an ordinary signal through its own surface class |
-| `continuous` | standing monitor; where the surface offers no push, the `temporal` poll-fallback detector is the conforming form | `temporal` (poll) or `channel-feed` |
+| `continuous` | standing monitor | the routine's run is always `temporal` (rule below); a push feed wakes the routine, and where the surface offers no push the `temporal` poll-fallback detector is the conforming form; the feed emission may separately enqueue as an ordinary `channel-feed` signal |
 
-**Event-riding stays temporal.** A routine run never enters the queue through a foreign
-adapter. Event-riding means the event WAKES the routine's own emitting scheduling surface —
-an event trigger on the same ratified schedule surface — and the run that surface emits is a
-`temporal`-class signal carrying `signal.routine` under the same ratified identity, surface,
-and run-link namespace as a schedule-tick run
+**Routine runs stay temporal — every wake source.** A routine run never enters the queue
+through a foreign adapter. Event-riding means the event WAKES the routine's own emitting
+scheduling surface — an event trigger on the same ratified schedule surface — and the run
+that surface emits is a `temporal`-class signal carrying `signal.routine` under the same
+ratified identity, surface, and run-link namespace as a schedule-tick run
 ([classification](trigger-dispatch.md#work-class-classification)). Only the wake source
 varies; identity, attestation namespace, and classification are invariant. The event itself
 may still flow through its own event adapter as an ordinary signal — an advisory landing as
-a tracker item is such a signal — but the routine's run is always `temporal`.
+a tracker item is such a signal — but the routine's run is always `temporal`. A continuous
+monitor's push feed likewise only wakes the ratified surface; the feed message may enqueue as
+an ordinary `channel-feed` signal, but the routine's run is always `temporal`.
 
 ## Output contract
 

@@ -307,6 +307,12 @@ function checkEnvelope(envelope, where, { surfaces, duplicates, securityBinding 
         }
       }
     }
+  } else if (routine !== undefined) {
+    // signal.routine is a temporal-only identity; stamped on any other class
+    // it fails closed rather than riding past the protected admission mapping.
+    findings.push(
+      `${where}: signal.routine is temporal-only — a routine identity stamped on a ${JSON.stringify(signalClass)} signal smuggles a routine run past the protected temporal admission mapping (a routine run always enters the queue as a temporal-class signal through its ratified scheduling surface; see routines.md)`,
+    );
   }
   if (typeof rawLink === "string" && rawLink.length > 0) {
     if (localScheduler ? !isDurableLocalUri(rawLink, surfaceEntry) : !isAbsoluteHttpsUrl(rawLink)) {

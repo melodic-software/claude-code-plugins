@@ -85,8 +85,8 @@ SECURITY governance surface — the adapter stamps, never defines, and no repo-l
 - `tracker-vcs-event` resolves through the security-bound label→class rules.
 - `temporal` signals carry the class their bound routine/detector definition derives,
   selected by the envelope's validated `signal.routine` identity for routine-fired signals
-  ([routine contract](routines.md)) — including event-woken routine runs, which are
-  `temporal` regardless of wake source.
+  ([routine contract](routines.md)) — including woken routine runs — event or continuous
+  feed — which are `temporal` regardless of wake source.
 - `agent-internal` items must PROVE protected provenance: the envelope serializes the
   emitting session's own admitted source item as `signal.parent_item`, and the admission
   seam verifies the session-to-parent association against protected dispatch data — the
@@ -96,7 +96,9 @@ SECURITY governance surface — the adapter stamps, never defines, and no repo-l
   provenance. Admission then resolves the verified parent's class from its own protected
   classification rather than trusting the stamped value: the effective class is the HIGHER
   of the inherited class and the class the security-surface rules derive for the target.
-- `channel-feed`, and any signal the rules cannot resolve, stays UNCLASSIFIED.
+- `channel-feed`, and any signal the rules cannot resolve, stays UNCLASSIFIED. A
+  `channel-feed` signal never carries a routine run — `signal.routine` is `temporal`-only and
+  the envelope check rejects the stamp on any other class.
 
 Unclassified → fail-closed human-gated, always.
 

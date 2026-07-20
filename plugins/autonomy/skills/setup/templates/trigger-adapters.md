@@ -106,3 +106,7 @@ vendor-hosted channel agents are advisory, plan-gated):
    human-gated) unless security-bound rules resolve it; `signal.raw_link` = the message/
    event permalink.
 4. Acknowledge in-thread per [`ack-reply.md`](ack-reply.md).
+
+A continuous routine never enqueues its RUN here: the feed emission may wake the routine's
+ratified temporal surface, and the run enters via the temporal adapter carrying
+`signal.routine`; `channel-feed` carries only the ordinary feed signal.
