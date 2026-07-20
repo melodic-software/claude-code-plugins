@@ -1,0 +1,66 @@
+{
+  "skill_name": "lanes",
+  "evals": [
+    {
+      "id": 1,
+      "name": "start-is-default-action",
+      "prompt": "launch my lanes",
+      "expected_output": "Routes to the default `start` action: runs lane-launcher.sh, which resolves the lane config (--config, else $CLAUDE_OPS_LANES_CONFIG, else <repo>/.work/lanes.json), pulls the repo and refreshes the plugin marketplace, then launches each configured lane NOT already running as a named background session (claude --bg -n <lane> [--model] [--effort] <prompt-file-contents>). Prints the script output verbatim.",
+      "files": [],
+      "expectations": [
+        "Output routes to the start action (lane-launcher.sh with no explicit action), not restart/stop/status",
+        "Output reflects that start pulls the repo and updates the plugin marketplace before launching",
+        "Output reflects that start launches only lanes not already running (a running lane is skipped), each seeded from its canonical prompt file with its per-lane model/effort",
+        "Output does not fabricate lane state — it reflects the config and the live 'claude agents --json' session list"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "restart-stops-then-relaunches",
+      "prompt": "restart the work lane",
+      "expected_output": "Routes to `restart work`: validates 'work' is a configured lane, stops it if running (claude stop <sessionId> resolved from claude agents --json), then relaunches it from its canonical prompt file with its model/effort. Restart discards the running lane's in-flight conversation; start would instead skip an already-running lane.",
+      "files": [],
+      "expectations": [
+        "Output routes to restart scoped to the named lane, not all lanes",
+        "Output reflects stop-then-relaunch (the running session is stopped first via claude stop, then a fresh background session is launched)",
+        "Output notes restart always relaunches (unlike start, which skips a running lane)"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "stop-only-touches-configured-lanes",
+      "prompt": "Will `lanes stop` ever stop a background session I started by hand that is not one of my configured lanes?",
+      "expected_output": "No. stop (and restart) act on a session ONLY when its name is a lane present in the resolved config. A hand-started session — an unrelated 'PR Babysit', or an interactive window named the same as a lane's ad-hoc twin — is matched by name against the config; names not in the config are never stopped. There is no 'claude agents stop' verb, so stop resolves the sessionId from 'claude agents --json' for a configured lane name only.",
+      "files": [],
+      "expectations": [
+        "Output states stop only ever targets sessions whose name is a configured lane",
+        "Output confirms a session whose name is not in the lane config is never stopped",
+        "Output does not claim a 'claude agents stop' verb exists — stop resolves the sessionId from claude agents --json"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "status-is-read-only",
+      "prompt": "which lanes are running",
+      "expected_output": "Routes to `status`: prints a per-lane table (lane, model, effort, running/stopped state, live sessionId) built from the config joined against 'claude agents --json'. It mutates nothing — no pull, no launch, no stop — and flags a lane whose prompt file is missing.",
+      "files": [],
+      "expectations": [
+        "Output routes to the status action and reports per-lane running/stopped state with the live sessionId",
+        "Output reflects that status is read-only (no pull, launch, or stop)",
+        "Output reflects that a lane with a missing prompt file is flagged"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "prompt-storage-defers-to-480",
+      "prompt": "Where does the launcher read a lane's canonical prompt from, and is that its permanent home?",
+      "expected_output": "It reads each lane's prompt from the file named by lanes[].prompt, resolved against prompt_dir (default '.work', a session-local dir). That is provisional, NOT the permanent home: issue #480 (loop-prompt authoring skill) is slated to own durable prompt storage. When #480 lands, prompt_dir (or the resolve_prompt_dir seam) is repointed at the durable location; this skill does not build that storage itself.",
+      "files": [],
+      "expectations": [
+        "Output identifies prompt_dir (default .work) as the current, session-local prompt source",
+        "Output states this is provisional and that durable prompt storage is issue #480's responsibility, not this skill's",
+        "Output does not claim this skill builds or owns durable prompt storage"
+      ]
+    }
+  ]
+}
