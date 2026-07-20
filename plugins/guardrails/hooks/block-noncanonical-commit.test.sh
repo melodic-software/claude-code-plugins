@@ -61,6 +61,20 @@ run "git -c user.name=x commit -m (config, still blocked)" \
 run "git -c user.name=x commit -F - (config, allowed)" \
   "git -c user.name=x commit -F -" 0
 
+# --- inline git aliases are expanded before the subcommand verdict -----------
+# `git -c alias.c=commit c -m x` commits. Without expansion the subcommand reads
+# as `c`, not `commit`, and the guard waves the whole thing through.
+run "inline git alias to commit -m (blocked)" \
+  "git -c alias.c=commit c -m bypass" 2
+run "inline git alias carrying -m in the expansion (blocked)" \
+  "git -c alias.ci='commit -m x' ci" 2
+run "inline shell alias (leading !) to commit -m (blocked)" \
+  "git -c alias.sh='!git commit -m x' sh" 2
+run "inline git alias to a canonical commit (allowed)" \
+  "git -c alias.c=commit c -F -" 0
+run "inline alias to an unrelated subcommand (allowed)" \
+  "git -c alias.st=status st" 0
+
 # --- other subcommands are untouched -----------------------------------------
 run "git log (allowed)" "git log --oneline -5" 0
 run "git push (allowed)" "git push origin main" 0

@@ -16,8 +16,9 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   `--fixup`/`--squash`, `-F <path>`, and any commit taken while a merge, rebase, cherry-pick, or
   revert is in progress. Kill switch `block_noncanonical_commit_enabled`; allow-list
   `block_noncanonical_commit_allow` (`message-flag` permits a bare `-m`). Detection reuses the
-  argv-grammar-faithful parser, so `bash -lc` wrappers and git aliases resolve and a commit body
-  merely *mentioning* `git commit -m` never fires.
+  argv-grammar-faithful parser, so `bash -lc` wrappers resolve and a commit body merely *mentioning*
+  `git commit -m` never fires. Inline aliases are expanded before the subcommand verdict, closing the
+  hole where `git -c alias.c=commit c -m x` reads as subcommand `c` and walks straight through.
 
 ### Fixed
 

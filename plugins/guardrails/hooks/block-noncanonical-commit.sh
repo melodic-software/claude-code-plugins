@@ -134,6 +134,37 @@ check_segment() {
   hook::git_resolve_subcommand "$gi" "${w[@]}" || return 0
   sub=$HOOK_GIT_SUB
   sub_idx=$HOOK_GIT_SUB_IDX
+
+  # An inline alias runs its expansion (`git -c alias.c=commit c -m x` commits),
+  # so re-check the expanded command BEFORE concluding the subcommand is not
+  # `commit` — otherwise the alias name is simply not "commit" and the guard
+  # waves it through. A shell alias (leading !) re-parses as a full shell
+  # command; a git alias splices its words in place of the alias name. One level
+  # only — git does not expand the first word of an expansion as another alias —
+  # enforced through HOOK_NO_ALIAS, which dynamic scoping carries into the
+  # recursive call.
+  if ((${HOOK_NO_ALIAS:-0} == 0)); then
+    local cv exp reparse a
+    local -a cfgv=() expw=()
+    cfgv=(${HOOK_GIT_CONFIG_VALUES[@]+"${HOOK_GIT_CONFIG_VALUES[@]}"})
+    for cv in ${cfgv[@]+"${cfgv[@]}"}; do
+      [[ "$cv" == "alias.${sub}="* ]] || continue
+      exp="${cv#*=}"
+      if [[ "$exp" == '!'* ]]; then
+        reparse="${exp#!}"
+        for a in "${w[@]:sub_idx+1}"; do reparse+=" $(printf '%q' "$a")"; done
+        hook::bash_parse_segments "$reparse" check_segment
+      else
+        hook::env_s_split "$exp"
+        expw=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"})
+        HOOK_NO_ALIAS=1
+        check_segment "${w[@]:0:gi+1}" ${expw[@]+"${expw[@]}"} "${w[@]:sub_idx+1}"
+        HOOK_NO_ALIAS=0
+      fi
+      break
+    done
+  fi
+
   [[ "$sub" == "commit" ]] || return 0
   saw_commit=1
 
