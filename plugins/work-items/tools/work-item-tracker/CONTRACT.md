@@ -72,7 +72,9 @@ search syntax never leaves the adapter. With `--parent <container-id>` the front
 to one container: core reads the adapter's `list-sub-items` for that container instead of the
 repo-global `list-items`, then applies the identical filter (so a nested sub-map among the
 children is likewise excluded). `--parent` gates on the adapter's `list-sub-items` capability,
-not `list-items`.
+not `list-items`. `--repo` is incompatible with `--parent`: a container is addressed by its
+qualified id, which already carries the repo, so `--repo` cannot re-target a container-scoped
+frontier. Passing both is a usage error (exit `2`), not a silent drop.
 
 ## Adapter contract
 

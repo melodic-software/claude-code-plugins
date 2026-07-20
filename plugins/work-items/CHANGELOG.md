@@ -33,6 +33,11 @@ container-based consumer (surfaced by the `#416` wayfind-routing planning pass).
   under `--autonomous` — fixing the correctness wart where an unassigned, unblocked container passed the
   frontier filter and surfaced itself. The container label is a named constant (`WIT_CONTAINER_LABEL`)
   matching the CONTRACT term; per-repo remapping is deferred to the `config.role_labels` convention.
+- **`list-frontier --parent` rejects `--repo` instead of silently dropping it (`#498`).** A container is
+  addressed by its qualified id, which already carries the repo, so `--repo` cannot re-target a
+  container-scoped frontier. The scoped path never threaded `list_args`, so a caller passing both flags
+  had `--repo` silently ignored. Passing both is now a usage error (exit `2`) with a clear message,
+  matching the seam's fail-loud convention for invalid arg combinations.
 
 ## [0.15.0]
 

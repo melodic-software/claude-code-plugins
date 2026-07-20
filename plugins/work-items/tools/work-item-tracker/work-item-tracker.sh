@@ -174,6 +174,14 @@ main() {
         ;;
       esac
     done
+    if [[ -n "$parent" && ${#list_args[@]} -gt 0 ]]; then
+      # --repo cannot re-target a container-scoped frontier (the container's own
+      # repo is carried by its qualified id), so accepting it would silently
+      # discard the flag. Reject the combination loudly instead — the repo's
+      # convention is fail-loud on invalid arg combinations, not silent-drop.
+      printf 'work-item-tracker: --repo is not valid with --parent (container id carries the repo)\n' >&2
+      exit "$EX_USAGE"
+    fi
     if [[ -n "$parent" ]]; then
       # Container-scoped frontier: enumerate the container's children (the
       # container's own repo is carried by its qualified id, so --repo does not
