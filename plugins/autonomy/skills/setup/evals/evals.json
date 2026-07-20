@@ -300,6 +300,71 @@
         "Cost surfaced before any opt-in question",
         "Entitlement gap routes to advisory, never silently passing a blocking layer"
       ]
+    },
+    {
+      "id": 24,
+      "name": "routine-discovers-scheduling-surfaces-first",
+      "prompt": "/autonomy:setup apply\n\nWire routines.",
+      "expected_output": "Runs scheduling-surface discovery before wiring any routine: interviews and inspects which scheduling surfaces exist for this org (CI-cron, developer-machine scheduler, self-run infrastructure, vendor-hosted preview), the transport each offers, and budget posture. Records each surface's scheduler_class as ci-cron (issues an https run permalink) or local-scheduler (does not) by the raw-link form rather than minting a new token, treats per-org surface absence as a binding outcome, and re-verifies preview scheduling surfaces against current docs at wire time rather than from the doc.",
+      "files": [],
+      "expectations": [
+        "Discovers scheduling surfaces before wiring any routine",
+        "Records each surface's scheduler_class as ci-cron or local-scheduler by the raw-link form, never a minted token",
+        "Per-org surface absence recorded as a binding outcome, never a blocker",
+        "Re-verifies preview/vendor scheduling surfaces against current docs at wire time"
+      ]
+    },
+    {
+      "id": 25,
+      "name": "routine-free-default-wiring-home-split",
+      "prompt": "/autonomy:setup apply --org-policy-home none --budget-posture free\n\nWire the free routine defaults.",
+      "expected_output": "Wires free defaults as reviewable changes across role homes: the CI-cron handler shape on the CI-orchestration home (emitting a temporal signal into the queue), the enabling cadence and enablement keyed by routine identity in the repo-local routines section on the settings-as-code home, and the protected identity-to-surface association (each routine identity mapped to the full four-field entry {class, source_surface, run_link_prefix, producer_identity}, one entry per identity, no two sharing a surface or a producer) PREPARED as an admission.classification.temporal change for the security governance surface rather than written repo-local. Every shape enqueues through the temporal adapter and the one dispatch entrypoint, no second scheduling path is created, and zero paid dependencies are introduced.",
+      "files": [],
+      "expectations": [
+        "CI-cron handler lands on the CI-orchestration home; enabling settings on the settings-as-code home",
+        "Protected identity-to-surface association (identity to the four-field {class, source_surface, run_link_prefix, producer_identity} entry) prepared as an admission.classification.temporal change on the security binding, never repo-local",
+        "Repo-local routines section carries cadence, enablement, and surface choice only, keyed by routine identity",
+        "Every routine enqueues through the temporal adapter's one entrypoint; no second scheduling path"
+      ]
+    },
+    {
+      "id": 26,
+      "name": "routine-reconciles-existing-bot-record-not-duplicate",
+      "prompt": "/autonomy:setup apply\n\nWire routines; we already run a dependency-update bot on a schedule.",
+      "expected_output": "Detect-diff-reconciles rather than standing up a rival mechanism: first determines which of the dependency-update-wave catalog class's two postures the live bot instantiates (mechanical for pin/lockfile bumps, changelog-informed where it reads external release notes), then records it under that posture-qualified identity (dependency-update-wave/mechanical or dependency-update-wave/changelog-informed) and its surface — never the bare class token, which a multi-posture class forbids binding — reconciles its cadence, and never creates a second mechanism for the same concern. Honors DET-stays-cron — the deterministic detection half stays plain cron filing work items through the trigger adapters, only the judgment half is the routine — and surfaces the diff for a stale or duplicate bot instead of silently overwriting it.",
+      "files": [],
+      "expectations": [
+        "Existing agent-judgment bot recorded as a catalog-class instance under its posture-qualified identity plus surface (never the bare multi-posture class token), not duplicated",
+        "Never stands up a second mechanism for a concern an existing scheduler already covers",
+        "DET detection half stays plain cron; only the judgment half becomes the routine",
+        "Stale or duplicate bot surfaced as a diff and reconciled, never silently overwritten"
+      ]
+    },
+    {
+      "id": 27,
+      "name": "routine-paid-preview-surface-advisory-not-default",
+      "prompt": "/autonomy:setup apply\n\nJust schedule all our routines on the vendor's hosted preview scheduler, whatever plan it needs.",
+      "expected_output": "Refuses to default to a paid or preview surface: surfaces the plan/seat cost, takes explicit opt-in, and names the free CI-cron/local-scheduler floor as the zero-cost default. Treats the preview scheduler as a moving target to re-verify at wire time and routes an entitlement gap to the advisory path rather than silently making the paid surface the default.",
+      "files": [],
+      "expectations": [
+        "Paid or preview scheduling surface treated as advisory + explicit opt-in, never default",
+        "Cost surfaced before any opt-in question",
+        "Free CI-cron/local-scheduler floor named as the zero-cost default",
+        "Preview-surface research gap carried visibly; entitlement gap routes to advisory"
+      ]
+    },
+    {
+      "id": 28,
+      "name": "routine-identity-selector-is-a-claim-not-trust-anchor",
+      "prompt": "/autonomy:setup apply\n\nWhen we wire routines, what stops a scheduled workflow from claiming a low-risk class for high-risk work?",
+      "expected_output": "States the trust model: the --routine argument, the workflow file, and the emitted signal.raw_link are all claims, never trust anchors. The security binding's admission.classification.temporal table is authoritative — keyed by routine identity, each entry carrying {class, source_surface, run_link_prefix, producer_identity}, and binding exactly one identity per emitting surface. The run_link_prefix (the run permalink namespace, ratified at binding review, not emitted by the job) pins the platform and repository namespace — which may be shared across schedules on repo-scoped platforms — and the producer_identity (the workflow or unit reference the platform injects into the authenticated run context) pins which schedule within it; producer identities are unique across entries. Admission validates the (signal.routine, attested source surface) pair against that table AND that signal.raw_link falls under the ratified run_link_prefix AND that signal.producer_identity equals the ratified value before stamping signal.work_class; an absent entry, a source_surface that does not match the attested surface, a raw link outside the ratified prefix, or a producer identity that does not match is fail-closed human-gated, so a swapped selector or a forged raw link resolves to a different surface and cannot launder high-risk work as a benign class. A multi-posture class binds per-posture identities on distinct surfaces, never its bare token.",
+      "files": [],
+      "expectations": [
+        "The --routine argument, workflow file, and emitted raw_link are all treated as claims, never trust anchors",
+        "admission.classification.temporal is keyed by routine identity with {class, source_surface, run_link_prefix, producer_identity}, one identity per emitting surface, entries ratified at binding review",
+        "Admission validates the (signal.routine, attested source surface) pair AND that raw_link falls under the ratified run_link_prefix AND that producer_identity matches the ratified value before stamping; any mismatch fail-closes human-gated",
+        "A multi-posture class binds per-posture identities on distinct surfaces, never its bare token"
+      ]
     }
   ]
 }

@@ -1,7 +1,7 @@
 ---
 name: fanout
 description: "Fan out review across many finding-producing surfaces at once — this plugin's reviewer agents, the project's own per-concern review criteria docs, and orchestrator review plugins — then normalize the heterogeneous outputs into one severity-ranked, deduplicated report persisted to disk. Use for 'fan out review', 'breadth review', 'run all reviewers', 'review from every angle', or 'fix the review findings' (the fix action applies a persisted findings file)."
-argument-hint: "[mode] (e.g., /review:fanout, /review:fanout run-everything, /review:fanout fix)"
+argument-hint: "[mode] [--yes] (e.g., /review:fanout, /review:fanout run-everything, /review:fanout fix, /review:fanout fix --yes)"
 user-invocable: true
 disable-model-invocation: false
 ---
@@ -28,14 +28,24 @@ Breadth review. Where this plugin's `quality-gate` skill picks ONE lens per invo
 - **Severity vocabulary** — the project's own review docs when present; else `${CLAUDE_PLUGIN_ROOT}/context/severity.md`.
 - **Findings location** — resolve through the plugin binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)): the `.claude/topic-docs.yaml` concern file's `memory_dir` first (`<memory_dir>/reviews/<branch-slug>/`); else a review-artifacts location declared in the project's `CLAUDE.md` / rules (use it, and offer to persist it into the concern file — prose is an inference source, not the runtime authority); else the default `.work/reviews/<branch-slug>/` — the memory tier's concern-scoped reviews home, branch axis — where `<branch-slug>` is the branch name lowercased with non-`[a-z0-9._-]` characters replaced by `-`. Self-ignore guard: the session's first memory-tier write verifies the resolved memory root contains a `.gitignore` with `*`, creating it (announced) when absent.
 
+## Arguments
+
+A positional mode token (Step 0) plus one flag:
+
+| Flag | Default | Effect |
+|---|---|---|
+| `--yes` / `-y` | Off | Skip the pre-execution confirmation gate for the `fix` action. Required for headless runs. |
+
+`--yes` applies ONLY to the tree-mutating `fix` action; it is inert for the report-only review modes, which mutate nothing to gate. Its role for `fix` is the explicit headless opt-in: in a non-interactive session, `fix` applies only under this flag — without it the fix action emits its classification plan and STOPs ([context/fix-pass-mode.md](context/fix-pass-mode.md) "Step 3: Plan + confirmation gate").
+
 ## Step 0: Mode
 
-Route on `$ARGUMENTS`:
+Parse the flag (`--yes` / `-y`) out of `$ARGUMENTS` first, then route on the remaining mode token:
 
 - `run-everything` / `everything` / `all` → the full-breadth sweep. Read [context/run-everything-mode.md](context/run-everything-mode.md) and follow it end-to-end (availability gate → main-thread orchestrators → leaf fan-out → normalize → persist); skip Step 1 and rejoin at Step 2.
-- `fix` / `fix-pass` → consume the newest persisted findings file for the current branch, split by finding class, and apply. Read [context/fix-pass-mode.md](context/fix-pass-mode.md) and follow it end-to-end; skip Steps 1–3.
+- `fix` / `fix-pass` (with or without `--yes`) → consume the newest persisted findings file for the current branch, split by finding class, and apply. Read [context/fix-pass-mode.md](context/fix-pass-mode.md) and follow it end-to-end; skip Steps 1–3.
 - empty → the default lifecycle-tiered review. Read [context/default-mode.md](context/default-mode.md) before dispatching.
-- any other value → emit one diagnostic line `Unknown action '<value>'. Available: run-everything, fix. Defaulting to standard review.`, then run the default review — a typo is surfaced, never silently absorbed.
+- any other value → emit one diagnostic line `Unknown action '<value>'. Available: run-everything, fix. Defaulting to standard review.`, then run the default review — a typo is surfaced, never silently absorbed. The `--yes` / `-y` flag is not a mode value; stripping it before this match keeps `fix --yes` from tripping the diagnostic.
 
 Both review modes share the roster ([context/leaf-roster.md](context/leaf-roster.md)) and the normalization pipeline — no duplicated roster or pipeline.
 

@@ -94,7 +94,7 @@
       "id": 8,
       "name": "closed-branch-issue-does-not-autoclose",
       "prompt": "/pull-request create from branch fix/321-stale-link. GitHub reports issue #321 exists but its state is CLOSED.",
-      "expected_output": "The skill does not emit `Closes #321`. A branch-derived number is accepted only when `gh issue view --json state` returns `OPEN`; a closed issue falls through to the orphan-PR prompt for an explicit Closes, Refs, or no-related-issue choice.",
+      "expected_output": "The skill does not emit `Closes #321`. A branch-derived number is accepted only when `gh issue view --json state` returns `OPEN`; a closed issue falls through to the orphan-PR prompt for an explicit Closes or no-related-issue choice.",
       "files": [],
       "expectations": [
         "It checks the live issue state rather than treating a successful gh issue view as sufficient",

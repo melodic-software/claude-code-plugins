@@ -155,6 +155,38 @@ Match GitHub's issue-closing keyword set (`close`/`closes`/`closed`/`fix`/`fixes
 `resolve`/`resolves`/`resolved`) followed by `#<num>`; the opt-out markers `Refs #<num>` /
 `No related issue:` leave the body untouched.
 
+## Open linked PRs
+
+For `/work-items:work` selection — report whether item `<N>` already has an open PR targeting it
+for closure, so a candidate whose work is in flight is dropped from the pickable frontier rather
+than re-picked. `--search "<N> in:body"` is a coarse prefilter: it returns every open PR whose
+body mentions the number — a superset, since a small `<N>` (e.g. `#5`) appears in many PR bodies
+and GitHub sorts search by relevance, not recency. `--limit` MUST therefore exceed the repo's
+open-PR count so the real closing PR is never truncated away before the precise filter runs
+(`--limit 1000` covers any realistic repo; page with `--search` date ranges if a repo ever holds
+more open PRs than that — see the `--limit` note under "List items"). The `jq` `test` over the
+returned bodies is the authoritative match, keeping only PRs that carry a real closing keyword for
+`#<N>` (bare read):
+
+```bash
+gh pr list --state open --search "<N> in:body" --json number,body --limit 1000 | tr -d '\r' \
+  | jq --arg n "<N>" 'any(.[]; (.body | gsub("(?s)(\\x60{3}|~{3}).*?\\1"; "")) | test(
+      "(?i)(?<!\\w)(?:close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved):?[ \t]+#\($n)(?![0-9])"))'
+```
+
+Emits `true` when at least one open PR closes `#<N>`, `false` otherwise. The **closing keyword is
+the authoritative signal**, not the head-branch name: the `pr-issue-linkage` pre-create gate
+guarantees a standard-flow PR carries a `Closes #<N>` keyword, so keyword-matching catches it,
+while an intentional opt-out (`Refs #<num>` / `No related issue:`) correctly does NOT match and so
+does not exclude its issue. This is the same keyword set the "PR closing-keyword mechanics" section
+matches. Three guards keep the match precise: the leading `gsub` strips fenced code blocks
+(triple-backtick or `~~~`) before matching, so a `Closes #<N>` shown only inside an example snippet
+does not spuriously exclude the issue — GitHub treats fenced blocks as inert, so such a snippet
+never auto-closes anything; the `(?<!\w)` lookbehind (Oniguruma, variable-width — valid in `jq`'s
+regex engine) stops a keyword matching inside a longer word, so a body reading `prefixes #<N>` /
+`suffix #<N>` does not spuriously exclude the issue; the trailing `(?![0-9])` number boundary keeps
+`#463` from matching `#4630` / `#1463` (the `#` anchor already prevents a match inside `#1463`).
+
 ## Aggregate / count (dashboard + hygiene)
 
 `gh issue list --json ... --jq` projections for `stats` and `audit` (bare `gh`).

@@ -64,6 +64,55 @@ class FetchLiveCommentsTruncationTests(unittest.TestCase):
         self.assertEqual([c["body"] for c in comments], ["[CRITICAL] open"])
 
 
+class SurfaceStampingTests(unittest.TestCase):
+    """#642: the corpus must record which surface a comment lives on so the
+    classifier can credit classifications per surface. Thread comments are
+    stamped `in_review_thread`; issue-level and review-summary comments are
+    not."""
+
+    def test_thread_comments_stamped_pr_level_comments_not(self) -> None:
+        with mock.patch.object(
+                bf, "fetch_issue_comments",
+                return_value=[{"author": "human", "body": "issue-level note"}]), \
+                mock.patch.object(
+                    bf, "fetch_pull_request_reviews",
+                    return_value=[{"author": "codex[bot]", "body": "review summary"}]), \
+                mock.patch.object(
+                    bf, "fetch_review_threads",
+                    return_value=[_thread([_comment(body="[CRITICAL] inline")])]):
+            comments = bf.fetch_live_comments("owner/repo", 1)
+        by_body = {c["body"]: c["in_review_thread"] for c in comments}
+        self.assertEqual(by_body["issue-level note"], False)
+        self.assertEqual(by_body["review summary"], False)
+        self.assertEqual(by_body["[CRITICAL] inline"], True)
+
+
+class Main642FailOpenTests(unittest.TestCase):
+    """End-to-end: a fresh finding in an OPEN review thread plus a stale
+    classification pipe-row in a PR-level review summary must BLOCK, not
+    false-pass. Before the per-surface credit the row inflated `classified` to
+    1 == findings and `main` printed a passing count."""
+
+    def test_stale_pr_level_row_blocks_open_thread_finding(self) -> None:
+        buffer = io.StringIO()
+        with mock.patch.object(bf, "resolve_repo", return_value="owner/repo"), \
+                mock.patch.object(bf, "fetch_issue_comments", return_value=[]), \
+                mock.patch.object(
+                    bf, "fetch_pull_request_reviews",
+                    return_value=[{
+                        "author": "me[bot]",
+                        "body": "| 1 | old resolved finding | VALID | fixed |",
+                    }]), \
+                mock.patch.object(
+                    bf, "fetch_review_threads",
+                    return_value=[_thread(
+                        [_comment(body="[CRITICAL] fresh unclassified finding")])]):
+            with redirect_stdout(buffer):
+                code = bf.main(["--pr", "1", "--self", "me[bot]"])
+        self.assertEqual(code, 0)
+        self.assertIn("findings=1 classified=0", buffer.getvalue())
+
+
 class MainTruncationContractTests(unittest.TestCase):
     """The gate parses stdout: on truncation `main` must exit 2 and print NO
     `findings=` line, so the gate's regex misses and the bash count stands."""
