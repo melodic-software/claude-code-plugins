@@ -1372,6 +1372,53 @@ class GuardTests(unittest.TestCase):
                 ]["permissionDecision"],
             )
 
+    def test_guard_authorizes_preview_data_root_from_hook_argv_without_env(
+        self,
+    ) -> None:
+        script = SCRIPT_DIR / "hygiene.py"
+        with tempfile.TemporaryDirectory() as temporary:
+            authorized = str(Path(temporary).resolve() / "plugin-data")
+            other = str(Path(temporary).resolve() / "elsewhere")
+            base = (
+                f'"{self.python_command()}" "{script}" preview --snapshot s --plan p'
+            )
+            self.assertEqual(
+                "allow",
+                self.run_guard_hook_argv(
+                    f'{base} --data-root "{authorized}"', authorized
+                )["hookSpecificOutput"]["permissionDecision"],
+            )
+            self.assertEqual(
+                "deny",
+                self.run_guard_hook_argv(f'{base} --data-root "{other}"', authorized)[
+                    "hookSpecificOutput"
+                ]["permissionDecision"],
+            )
+
+    def test_guard_authorizes_apply_data_root_from_hook_argv_without_env(
+        self,
+    ) -> None:
+        script = SCRIPT_DIR / "hygiene.py"
+        with tempfile.TemporaryDirectory() as temporary:
+            authorized = str(Path(temporary).resolve() / "plugin-data")
+            other = str(Path(temporary).resolve() / "elsewhere")
+            base = (
+                f'"{self.python_command()}" "{script}" apply --execute --snapshot s '
+                f'--plan p --confirm-tier high --approval-token {"a" * 24} --report r'
+            )
+            self.assertEqual(
+                "ask",
+                self.run_guard_hook_argv(
+                    f'{base} --data-root "{authorized}"', authorized
+                )["hookSpecificOutput"]["permissionDecision"],
+            )
+            self.assertEqual(
+                "deny",
+                self.run_guard_hook_argv(f'{base} --data-root "{other}"', authorized)[
+                    "hookSpecificOutput"
+                ]["permissionDecision"],
+            )
+
     def test_guard_denies_data_root_when_argv_and_env_both_absent(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         with tempfile.TemporaryDirectory() as temporary:
