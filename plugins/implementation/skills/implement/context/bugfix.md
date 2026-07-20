@@ -23,5 +23,7 @@ Bug fixes follow a bottom-up approach: reproduce, isolate, fix, prove. Temptatio
 
 ## Marketplace plugin skills (invoke only when installed)
 
+These are .NET-ecosystem plugin skills — invoke each only when your stack is .NET and its plugin is installed; otherwise fall back to the project's own diagnostic tooling:
+
 - **`dotnet-diag:analyzing-dotnet-performance`** — when the bug involves async deadlocks, memory pressure, or timing issues, invoke for systematic anti-pattern scanning (~50 patterns across async, memory, strings, collections)
 - **`dotnet-msbuild:binlog-failure-analysis`** — when a build system failure masquerades as a code bug (wrong assembly loaded, missing reference, analyzer conflict), invoke to replay the MSBuild binary log for diagnosis
