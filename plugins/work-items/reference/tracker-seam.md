@@ -45,8 +45,8 @@ routes rather than halting unconditionally.
   actionable, never a silent default and never a raw mid-flow `exit 3`** — but it does not halt the
   invocation unconditionally:
   - **Seam coordination verbs** (`create-item`, `get-item`, `claim`, `renew-lease`, `reclaim`,
-    `link-blocks`, `add-sub-item`, `list-frontier`, `capabilities`) cannot run without a binding —
-    the seam hard-errors `exit 3`
+    `link-blocks`, `add-sub-item`, `list-sub-items`, `list-frontier`, `capabilities`) cannot run
+    without a binding — the seam hard-errors `exit 3`
     (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Exit codes"). Before the first
     coordination verb, if no binding resolves, surface a message that distinguishes the two ways to
     arrive here rather than dead-ending on the raw `exit 3`: **(1) setup was never run** → run
@@ -71,7 +71,7 @@ routes rather than halting unconditionally.
 Adapters resolve the opposite way — **consumer-local-first, plugin-bundled fallback**
 (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Adapter resolution") — so a repo can add
 an unshipped provider or shadow a bundled one without forking the plugin. Coordination — create, claim
-(assignee + lease), lease renew/reclaim, dependency links, sub-items, frontier selection, single-item
+(assignee + lease), lease renew/reclaim, dependency links, sub-items, child enumeration, frontier selection, single-item
 fetch — uses seam verbs directly. Operations without a core verb (listing with arbitrary filters,
 search, aggregation, close, label/comment edits) are provider-specific; for the bound GitHub adapter
 their mechanics live in `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md`. The
@@ -84,7 +84,7 @@ ways:
 
 | Kind | Where |
 |------|-------|
-| **Coordination** — create, claim (assignee + lease), renew/reclaim lease, dependency links, sub-items, frontier selection, single-item fetch | Seam verbs: the resolved `"$TRACKER" <verb>` dispatcher — contract in `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` |
+| **Coordination** — create, claim (assignee + lease), renew/reclaim lease, dependency links, sub-items, child enumeration (`list-sub-items`), frontier selection (incl. `--parent`-scoped), single-item fetch | Seam verbs: the resolved `"$TRACKER" <verb>` dispatcher — contract in `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` |
 | **Provider mechanics** — list with filters, search, aggregate/count, close, label/assignee edits, comments | The bound adapter's operations reference (GitHub: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md`) |
 
 Coordination claims are race-safe at the seam (assignee + lease comment; `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Lease protocol") — the retired hold→verify→claim label dance is gone. Reads are non-mutating; writes route through the adapter's identity policy.

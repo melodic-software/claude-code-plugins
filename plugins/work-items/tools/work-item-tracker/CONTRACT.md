@@ -51,30 +51,55 @@ work-item-tracker.sh renew-lease <id> --lease-comment-id <n>
 work-item-tracker.sh reclaim <id>
 work-item-tracker.sh link-blocks <id> --blocked-by <id>
 work-item-tracker.sh add-sub-item <id> --parent <id>
-work-item-tracker.sh list-frontier [--autonomous] [--repo <o>/<r>]
+work-item-tracker.sh list-sub-items <parent-id> [--state open|closed|all]
+work-item-tracker.sh list-frontier [--autonomous] [--parent <container-id>] [--repo <o>/<r>]
 work-item-tracker.sh capabilities
 ```
 
+`list-sub-items` enumerates a container's **direct** children as full normalized item objects
+(same envelope as `list-items`), each carrying the container as its `parent_id`. It is a RAW
+enumeration — closed children and nested-container children are kept (the closed-children
+invariant check and sub-map traversal both need them); frontier filtering is the separate
+core-side step below. The container is addressed by its qualified id, which carries the repo, so
+there is no `--repo` flag. `--state` defaults to `all`.
+
 `list-frontier` is a CORE-side derivation (no provider has a native counterpart): it calls
 the adapter's `list-items` and filters `state == open` AND `blocked_by_count == 0` AND no
-assignee. With `--autonomous`, items labeled `needs-human` are additionally excluded —
-the filter runs core-side over the labels `list-items` already returns; provider search
-syntax never leaves the adapter.
+assignee AND not a container (a `work-map` item is never its own frontier item — see
+"Containers and state"). With `--autonomous`, items labeled `needs-human` are additionally
+excluded — the filter runs core-side over the labels `list-items` already returns; provider
+search syntax never leaves the adapter. With `--parent <container-id>` the frontier is scoped
+to one container: core reads the adapter's `list-sub-items` for that container instead of the
+repo-global `list-items`, then applies the identical filter (so a nested sub-map among the
+children is likewise excluded). `--parent` gates on the adapter's `list-sub-items` capability,
+not `list-items`. `--repo` is incompatible with `--parent`: a container is addressed by its
+qualified id, which already carries the repo, so `--repo` cannot re-target a container-scoped
+frontier. Passing both is a usage error (exit `2`), not a silent drop.
 
 ## Adapter contract
 
 Adapters live at `adapters/<provider>/` as verb-per-script (`<verb>.sh`) plus a
 `capabilities.json` manifest. Adapter verb set = core public set **minus `list-frontier`
-plus `list-items`**:
+plus `list-items`** (`list-sub-items` is both a core and an adapter verb — it has a native
+counterpart, unlike the core-derived `list-frontier`):
 
 ```text
 adapters/<provider>/list-items.sh [--state open|closed|all] [--repo <o>/<r>]
+adapters/<provider>/list-sub-items.sh <parent-id> [--state open|closed|all]
 ```
 
 - `list-items` returns RAW candidates (state, assignees, labels, open-blocker count) and
   MUST have explicit pagination semantics: fetch up to the `limits.list_items_max`
   declared in its `capabilities.json` (never a client default — `gh` truncates at 30
   silently). Exceeding the ceiling is a documented truncation, not an error.
+- `list-sub-items` returns the RAW children of `<parent-id>` in the same `{items:[…]}`
+  envelope, each item's `parent_id` set to the container. Where a provider's list surface
+  omits parent linkage (GitHub's does — see "JSON output contract"), the adapter resolves
+  children through the provider's native sub-item link (GitHub's `subIssues`) and intersects
+  with `list-items` output; its truncation bound is therefore `list-items`' own
+  (`limits.list_items_max`), safe while `sub_items_per_parent <= list_items_max`. A child in
+  another repo is out of scope for this repo-keyed intersect (documented truncation, not an
+  error). A parent with no children returns an empty `items` array, never an error.
 - An adapter MAY keep shared helpers (e.g. `common.sh`); only `<verb>.sh` files named in
   the manifest are contract surface.
 - A verb declared `false` in the manifest exits `6` with a clear stderr message when
@@ -139,7 +164,8 @@ Normalized item object:
   `parent_id: null` when the provider's list surface omits parent data (GitHub's does);
   `get-item` is authoritative for parent linkage.
 
-Envelopes: `list-items` and `list-frontier` emit `{"schema_version":"1.0","items":[…]}`.
+Envelopes: `list-items`, `list-sub-items`, and `list-frontier` emit
+`{"schema_version":"1.0","items":[…]}`.
 
 Per-verb result objects:
 
@@ -152,6 +178,7 @@ Per-verb result objects:
 | `reclaim` | `id, reclaimed` (bool), `reason` |
 | `link-blocks` | `id, blocked_by, linked: true` |
 | `add-sub-item` | `id, parent_id, linked: true` |
+| `list-sub-items` | `{items:[…]}` envelope of normalized item objects (each `parent_id` = the container) |
 | `capabilities` | manifest object (see below) |
 
 ## ID grammar
@@ -229,8 +256,15 @@ carry the check).
 Two axes, one item model: a **container** is an ordinary item carrying the `work-map`
 label (a navigable graph root — wayfind maps, decompose breakdowns); **state** is the
 provider's native open/closed. Containers are never claimable by workers (no
-`agent-ready`); frontier machinery is label-agnostic and simply never surfaces items that
-are assigned or blocked.
+`agent-ready`), so **a container is never its own frontier item**: `list-frontier` excludes
+any item carrying the container label, unconditionally (global and `--parent`-scoped alike).
+The container label is a named constant (`WIT_CONTAINER_LABEL`, default `work-map`) matching
+this contract term; making it a per-repo remap (a consumer wanting a different marker) is
+deferred to the `config.role_labels` convention (label-taxonomy.md "Canonical roles"), keyed
+off that same first request — not a parallel binding key. Read one container's children with
+`list-sub-items <container>`; read the workable frontier within one container with
+`list-frontier --parent <container>`. Aside from that exclusion the frontier is
+label-agnostic and simply never surfaces items that are assigned or blocked.
 
 ## Capabilities manifest
 
