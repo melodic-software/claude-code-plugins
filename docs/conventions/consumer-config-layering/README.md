@@ -159,11 +159,13 @@ human-gated decision.
 ## Implementers
 
 Conformance is tracked, not assumed. A surface is listed here whether or not it conforms — the gap is
-the point.
+the point. Each row states the surface's conformance **as it exists on `main`**, never as a
+migration intends it to be; a row that ran ahead of the code would report a closed gap that is still
+open.
 
 | Surface | Consumer config path | Layers | Conformance |
 |---|---|---|---|
-| `source-control` | `.claude/source-control.md` | all three | conforms (declared per-key override) |
+| `source-control` | `.claude/source-control.md` | team only | single-layer; migration to all three in flight (#647) |
 | `toolchain` / `ecosystem-commands` | `.claude/ecosystems/<ecosystem>.yaml` | all three | conforms |
 | `codebase-health` | `.claude/codebase-health.md` | all three | conforms (concatenating, with a declared empty-list opt-out) |
 | `autonomy` | `.claude/autonomy/binding.json` | all three, plus an org rung | declared deviation |
@@ -176,7 +178,7 @@ the point.
 | `work-items` | `.work-item-tracker.json` | team only | single-layer; resolves by CWD-to-root climb rather than anchoring at the repo root |
 
 Migrating a single-layer surface is one change against that surface's own plugin, not a fleet-wide
-sweep. `source-control` is the worked example.
+sweep — and each migration updates its own row in the same change.
 
 ### Overlay spelling drift
 
