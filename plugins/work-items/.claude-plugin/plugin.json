@@ -22,14 +22,14 @@
     "work_dispatch_concurrency_cap": {
       "type": "number",
       "title": "Autonomous dispatch concurrency cap",
-      "description": "Maximum concurrent dispatch waves the work skill orchestrates in one autonomous cycle. Mirrors /implementation:implement-dispatch's 3-5 wave cap; leave unset to apply the default.",
+      "description": "Intended maximum concurrent dispatch waves per autonomous cycle. Mirrors /implementation:implement-dispatch's 3-5 wave cap; leave unset to apply the default. Enforcement is not yet wired - implement-dispatch still applies its own internal cap and reads no userConfig; threading this value through is tracked in #573.",
       "default": 3,
       "min": 1
     },
     "work_cycle_batch_cap": {
       "type": "number",
       "title": "Autonomous per-cycle item budget",
-      "description": "Maximum work items one autonomous cycle processes before the cycle ends. Bounds a CYCLE, never the loop — reaching it ends the current cycle only, not autonomous operation, and a session prompt may override the concrete number. Leave unset to apply the default.",
+      "description": "Intended maximum work items one autonomous cycle processes before the cycle ends. Bounds a CYCLE, never the loop — reaching it ends the current cycle only, not autonomous operation, and a session prompt may override the concrete number. Enforcement is not yet wired to an in-repo consumer; tracked in #573. Leave unset to apply the default.",
       "default": 10,
       "min": 1
     }
