@@ -109,6 +109,28 @@ class ClassificationCountTests(unittest.TestCase):
         comments = [{"author": "codex[bot]", "body": "| 1 | a | VALID | x |"}]
         self.assertEqual(bc.count_classified(comments, self.SELF), 0)
 
+    def test_resolved_thread_classification_is_discounted(self) -> None:
+        """Mirrors `count_findings`'s #465 discount: a classification row
+        carried in a resolved thread is a lifetime artifact of an
+        already-addressed round, not evidence a fresh finding was classified.
+        Without the discount, this stale row would inflate the denominator
+        and let the gate's `classified >= findings` predicate pass despite
+        the new finding having no classification."""
+        comments = [
+            {
+                "author": "me[bot]",
+                "body": "| 1 | old finding | VALID | fixed |",
+                "isResolved": True,
+            },
+            {"author": "codex[bot]", "body": "[CRITICAL] new unclassified finding"},
+        ]
+        self.assertEqual(bc.count_classified(comments, self.SELF), 0)
+        self.assertEqual(bc.count_findings(comments, self.SELF), 1)
+        self.assertLess(
+            bc.count_classified(comments, self.SELF),
+            bc.count_findings(comments, self.SELF),
+        )
+
 
 class ApprovalVerdictTests(unittest.TestCase):
     """#499: an Approve-with-nits review carries no live finding."""

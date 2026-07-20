@@ -221,7 +221,7 @@ def actor_kind(
             or author.get("is_bot") is False
         ):
             return "human"
-    login = author_login(item).lower()
+    login = author_login(item).casefold()
     return "bot" if is_bot(login, None, config.extra_bot_logins) else "human"
 
 
@@ -408,10 +408,15 @@ def count_classified(
     VALID/INCORRECT/UNCERTAIN token, counted one per line so prose repetition
     never inflates the count. Only self authors' bodies contribute -- the
     classification reply is the self surface's mandated per-finding format.
+
+    A classification carried in a resolved or outdated thread is a lifetime
+    artifact of an already-addressed round (`thread_is_open`), mirroring
+    `count_findings`'s discount -- otherwise a stale classification could keep
+    inflating the denominator against a fresh, still-unclassified finding.
     """
     total = 0
     for comment in comments:
-        if not is_json_object(comment):
+        if not is_json_object(comment) or not thread_is_open(comment):
             continue
         if not is_self_login(str(comment.get("author") or ""), self_logins):
             continue
