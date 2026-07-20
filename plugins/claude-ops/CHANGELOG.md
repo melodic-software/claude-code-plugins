@@ -3,6 +3,23 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.0]
+
+### Added
+
+- **`morning-brief` skill** — a read-only, `gh`-based operator morning view for
+  the current repo, collapsing the daily hand-run queries into one 5-second
+  picture: open counts per queue label (`priority: needs-triage`, `status: ready`,
+  `status: needs-decision`, `needs-human`), the gh-native merge-ready PR list
+  (non-draft + `mergeStateStatus=CLEAN`), parked `status: needs-decision` issues
+  with their RECOMMENDED lines (uppercase marker preferred, case-insensitive
+  fallback), and loop-lane telemetry freshness (per-lane `last-cycle` age, marked
+  `STALE` past `--stale-hours`, plus any `flags:`). Owner/repo is derived from
+  `gh repo view`, never hardcoded; the telemetry issue is auto-discovered by title
+  (`--telemetry-issue` to pin) and degrades to "no telemetry issue found" where
+  absent. The authoritative PR merge gate remains `/source-control:babysit-prs`;
+  this list is a fast glance, not a substitute for that skill's classification.
+
 ## [0.13.1]
 
 ### Changed
