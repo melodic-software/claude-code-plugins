@@ -77,6 +77,13 @@ Prefer a built-in native mechanism — `userConfig`, a native component type, a 
 event — over any custom extensibility point. Build custom only on genuine misfit, and document the
 misfit where the custom mechanism lives.
 
+Built-in-first is a gate on every customization surface, not a preference. Before building
+any custom config surface — a YAML concern file, a bespoke seam — first verify against the *current*
+official Claude Code plugin documentation that no native mechanism (`userConfig`, environment
+variables, a built-in per-repo config surface) can host the need; the platform moves, so re-fetch
+the documentation rather than trusting memory or an old summary. A custom extensibility point is the
+fallback only where the built-in surface genuinely cannot support the need.
+
 Adoption gate, applied per mechanism: adopt a native mechanism when it
 
 1. fills a real existing gap — never adopt for novelty;
@@ -108,6 +115,25 @@ native one matures into fitness.
 | [Themes](https://code.claude.com/docs/en/plugins-reference) | Wait | Experimental (`experimental.themes`); schema may change between releases. Re-verify before each audit. | 2026-07-17 |
 | [Channels](https://code.claude.com/docs/en/plugins-reference) | Wait | No longer carries an official experimental label, but fails the adoption gate today: no fleet gap it fills. Re-verify before each audit. | 2026-07-17 |
 | [Dependencies](https://code.claude.com/docs/en/plugin-dependencies) | Adopt on need (hard requires only) | See the design boundary: hard requires only, semver-constrained, released via `{name}--v{version}` tags. None exist in this fleet today. | 2026-07-17 |
+
+## Two-lane convention posture
+
+A plugin must not arrive at an arbitrary consuming repo carrying pre-prescribed conventions. A
+convention baked in as a fixed default — a branch-naming grammar, a commit structure, a directory
+layout — is a hardcoded assumption that the consumer's practice will never differ from the plugin's;
+that is the definition of a dependency, and dependencies are externalized and abstracted, not shipped
+as defaults. This governs every plugin and every convention, not one class. Two lanes hold:
+
+1. **Non-conflicting good-practice defaults.** A shipped default is legitimate only when it is a
+   good-practice value that cannot conflict in *any* repo the plugin drops into. This lane is narrow:
+   most conventions a consumer already holds an opinion on (Conventional Commits in a repo that does
+   not use them, for instance) do not qualify, because dropping the plugin in would then impose the
+   wrong convention.
+2. **Discover via setup, externalize as configuration.** In the general case the plugin's setup
+   action or skill discovers the consuming repo's conventions — branch naming, commit structure,
+   patterns — and externalizes them as configuration extensibility points rather than coming to the
+   table assuming them. A convention a consumer could reasonably do differently belongs in lane 2, as
+   a discovered-and-externalized extensibility point, never as a lane-1 default.
 
 ## Configuration ownership and scope
 
