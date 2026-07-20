@@ -56,6 +56,8 @@ Aggregation derives avoided cost from the pair; the attestor never prorates.
 
 The band set and counterfactual enum are contract-stable: any change is a reviewed contract
 migration, never per-org variation (org-custom bands break cross-org aggregation).
+Per-work-class precision graduation (finer bands for a class the guardrail matrix names) is
+deferred with a trigger: aggregate data proving a class needs finer resolution.
 
 ## Record lifecycle — attestation is asynchronous
 

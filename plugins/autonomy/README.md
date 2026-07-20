@@ -64,6 +64,10 @@ locked (no step-skipping — trust before scale).
 | Capability | Trigger |
 |---|---|
 | Fleet adapter materializations (reusable workflows, labels, drain routine) | Work-item backlog, post trigger-package graduation. |
+| Fleet guardrail materializations (binding instances, workflow gates, scanner wiring) | Work-item backlog, post guardrail-package graduation. |
+| Fleet routine stand-up + existing-scheduler reconciliation | Work-item backlog, post routine-package graduation. |
+| Vendor-binding capability templates (routine/workflow files) | Build stage, post-architect. |
+| Cost enforcement (hard spend caps; cost tiers stay policy vocabulary until then) | 3→4 transition work begins. |
 | Runner charter execution pack (design pack shipped) | The runner build trigger fires (charter's own conditions). |
 
 ## Trigger register (plugin-scoped)
@@ -72,6 +76,7 @@ locked (no step-skipping — trust before scale).
 |---|---|
 | Role vocabulary changes in `reference/role-topology.md` | Update the org-policy home's binding instance doc to the new vocabulary version. |
 | A second plugin consumes `.claude/autonomy/` config | Graduate the binding schema to a versioned concern contract per the marketplace's concern-named-folder convention. |
+| A second repository consumes the security binding | Stand up a mechanical cross-repo binding drift check. |
 
 ## Configuration
 
