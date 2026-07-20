@@ -26,7 +26,7 @@ Read in order:
    review guides, CLAUDE.md, project rules for the changed file types).
 2. The change set: git diff <review-diff-base> (the dispatcher substitutes the
    resolved review diff base from SKILL.md "Shared inputs" — the PR's real base
-   when one exists, else the origin/HEAD -> origin/main -> HEAD fallback)
+   when one exists, else the origin/HEAD -> remote default branch -> origin/main -> HEAD fallback)
    plus untracked files from git ls-files --others --exclude-standard.
 
 Run the checklist below. Do not edit files. Return the findings table only.
