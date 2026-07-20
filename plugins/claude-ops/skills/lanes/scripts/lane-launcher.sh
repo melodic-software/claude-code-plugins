@@ -228,23 +228,50 @@ resolve_prompt_dir() {
 }
 
 # --- Session list (real CLI or fixture) --------------------------------------
-# Existence of the --agents-json fixture is validated once in main (main shell),
-# not here: sessions_json runs on the left of a `|`, i.e. a subshell, where an
-# `exit` would only kill the subshell and leave the script's status at 0.
-sessions_json() {
+# Loaded once, in the main shell, into SESSIONS_JSON — not lazily inside a
+# `$(...)`/pipe subshell where an `exit` would only kill the subshell and leave
+# the script's status at 0 (the same reason the --agents-json existence check
+# lives in main). Loading once also gives every lane a single, consistent
+# snapshot instead of re-shelling `claude agents --json` per lane.
+#
+# A genuine live-list failure must NOT be coerced to an empty list: doing so
+# makes every lane look stopped, so a real `start` would relaunch lanes that are
+# still alive (duplicate sessions) and `status` would report false "stopped".
+# load_sessions therefore fails on a live error and main aborts — except under
+# --dry-run, which mutates nothing, where previewing against an empty list is
+# harmless and preserves the documented offline-dry-run behaviour.
+#
+# `claude agents --json` (no --all) lists ACTIVE sessions only — interactive and
+# running background; completed/terminal background sessions are excluded by the
+# CLI (they surface only under --all, carrying a `state` like "done" rather than
+# an active `status`). A name match here is therefore already a live-lane match.
+# Do NOT add --all without also filtering terminal sessions out of this lookup.
+SESSIONS_JSON=""
+
+load_sessions() {
+  local raw
   if [[ -n "$AGENTS_JSON_FILE" ]]; then
-    cat "$AGENTS_JSON_FILE"
+    raw="$(cat "$AGENTS_JSON_FILE")" || return 1
   else
-    claude agents --json 2>/dev/null || echo '[]'
+    raw="$(claude agents --json)" || {
+      ((DRY_RUN)) && {
+        SESSIONS_JSON='[]'
+        return 0
+      }
+      return 1
+    }
   fi
+  jq -e 'type == "array"' >/dev/null 2>&1 <<<"$raw" || return 1
+  SESSIONS_JSON="$raw"
 }
 
 # sessionId of a running session with the given name (empty if none). If several
 # match, the most recently started wins.
 running_session_id() {
   local name="$1"
-  sessions_json | jq -r --arg n "$name" \
-    '[ .[] | select(.name == $n) ] | sort_by(.startedAt) | last | .sessionId // empty'
+  jq -r --arg n "$name" \
+    '[ .[] | select(.name == $n) ] | sort_by(.startedAt) | last | .sessionId // empty' \
+    <<<"$SESSIONS_JSON"
 }
 
 # --- Per-lane field extraction ------------------------------------------------
@@ -468,6 +495,14 @@ main() {
   resolve_config
   [[ -z "$AGENTS_JSON_FILE" || -f "$AGENTS_JSON_FILE" ]] || {
     err "agents-json file not found: $AGENTS_JSON_FILE"
+    exit 4
+  }
+  load_sessions || {
+    if [[ -n "$AGENTS_JSON_FILE" ]]; then
+      err "agents-json file is not a JSON array: $AGENTS_JSON_FILE"
+    else
+      err "could not list sessions: 'claude agents --json' failed — aborting so start/stop never act on fabricated state"
+    fi
     exit 4
   }
   case "$ACTION" in

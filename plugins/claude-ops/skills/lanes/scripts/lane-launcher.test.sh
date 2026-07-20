@@ -76,6 +76,14 @@ CLAUDE_LOG="$TMP/claude.log"
 cat >"$STUB_BIN/claude" <<STUB
 #!/usr/bin/env bash
 printf '%s\n' "\$*" >>"$CLAUDE_LOG"
+# A test can drive the live \`claude agents --json\` path (no --agents-json):
+# STUB_CLAUDE_AGENTS_RC forces a non-zero exit (transient-failure simulation);
+# STUB_CLAUDE_AGENTS_JSON supplies the emitted array (default []).
+if [[ "\$1" == "agents" ]]; then
+  [[ "\${STUB_CLAUDE_AGENTS_RC:-0}" != 0 ]] && exit "\$STUB_CLAUDE_AGENTS_RC"
+  printf '%s\n' "\${STUB_CLAUDE_AGENTS_JSON:-[]}"
+  exit 0
+fi
 # A test can force a failed \`claude stop\` via STUB_CLAUDE_STOP_RC to exercise
 # the stop-failure paths (no relaunch, non-zero exit).
 if [[ "\$1" == "stop" ]]; then exit "\${STUB_CLAUDE_STOP_RC:-0}"; fi
@@ -253,6 +261,29 @@ out="$(run_launcher stop --repo "$REPO" --config "$CONFIG" --agents-json "$AGENT
 rc=$?
 assert_eq "-- passthrough: known lane after -- is accepted (exit 0)" 0 "$rc"
 assert_contains "-- passthrough targets the named lane" "$out" "babysit — not running"
+
+# ============================================================================
+# Codex P1 — a failed live `claude agents --json` must abort a mutating action,
+# never fabricate an empty list (which would relaunch still-live lanes). These
+# omit --agents-json so the live listing path is exercised via the stub.
+# ============================================================================
+: >"$CLAUDE_LOG"
+out="$(STUB_CLAUDE_AGENTS_RC=1 run_launcher start --repo "$REPO" --config "$CONFIG" 2>&1)"
+rc=$?
+log="$(cat "$CLAUDE_LOG")"
+assert_eq "failed live session list aborts start (exit 4)" 4 "$rc"
+assert_contains "failed session list is reported" "$out" "could not list sessions"
+assert_not_contains "no lane is launched when the session list failed" "$log" "--bg -n"
+
+# A successful live list drives the same decisions as a fixture: empty → launch.
+out="$(STUB_CLAUDE_AGENTS_JSON='[]' run_launcher start --repo "$REPO" --config "$CONFIG" --dry-run 2>&1)"
+assert_contains "live empty session list → lanes launch" "$out" "claude --bg -n work"
+
+# --dry-run mutates nothing, so a failed live list is tolerated (preview, exit 0)
+# — preserving the documented offline-dry-run behaviour.
+out="$(STUB_CLAUDE_AGENTS_RC=1 run_launcher start --repo "$REPO" --config "$CONFIG" --dry-run 2>&1)"
+rc=$?
+assert_eq "dry-run tolerates a failed live list (exit 0)" 0 "$rc"
 
 # ============================================================================
 echo
