@@ -19,7 +19,9 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   authority from that argument, honoring `CLAUDE_PLUGIN_DATA` only as a fallback.
   The security property is unchanged: the authority is a runtime-substituted
   value the model cannot forge, validated against the model-supplied
-  `--data-root`.
+  `--data-root`. The unsubstituted-placeholder fallback matches only the exact
+  `${CLAUDE_PLUGIN_DATA}` token, so a real data-root path that merely contains
+  the `${` sequence is preserved as the authority instead of being discarded.
 
 ## [0.4.0]
 

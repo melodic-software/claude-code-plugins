@@ -109,6 +109,8 @@ def _data_root_key(value: str) -> str:
 
 
 _AUTHORIZED_DATA_ROOT_FLAG = "--authorized-data-root"
+_CLAUDE_PLUGIN_DATA_ENV = "CLAUDE_PLUGIN_DATA"
+_AUTHORIZED_DATA_ROOT_PLACEHOLDER = f"${{{_CLAUDE_PLUGIN_DATA_ENV}}}"
 
 
 def _argv_authorized_data_root(argv: list[str]) -> str | None:
@@ -135,9 +137,9 @@ def resolve_authorized_data_root() -> str | None:
     fallback still applies.
     """
     from_argv = _argv_authorized_data_root(sys.argv[1:])
-    if from_argv and "${" not in from_argv:
+    if from_argv and from_argv != _AUTHORIZED_DATA_ROOT_PLACEHOLDER:
         return from_argv
-    return os.environ.get("CLAUDE_PLUGIN_DATA")
+    return os.environ.get(_CLAUDE_PLUGIN_DATA_ENV)
 
 
 def _is_authorized_data_root(value: str, authority: str | None) -> bool:

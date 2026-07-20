@@ -1466,6 +1466,17 @@ class GuardTests(unittest.TestCase):
                     guard.resolve_authorized_data_root(),
                     "an unsubstituted placeholder must fall back to the environment",
                 )
+            with mock.patch.object(
+                guard.sys,
+                "argv",
+                [script, "--authorized-data-root", "/data/${weird}/root"],
+            ):
+                self.assertEqual(
+                    "/data/${weird}/root",
+                    guard.resolve_authorized_data_root(),
+                    "only the exact placeholder is rejected; a real path that merely "
+                    "contains ${ must be preserved as the argv authority",
+                )
 
     def test_skill_hook_passes_authorized_data_root_flag_matching_constant(
         self,
