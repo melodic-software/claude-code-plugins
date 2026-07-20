@@ -150,6 +150,33 @@ else
   fail "new collision should fail (rc=$rc): $out"
 fi
 
+# 7b. The zero-collision end state succeeds. Under `set -u` an associative array
+#     declared but never assigned is unbound, so a bare ${#a[@]}/${!a[@]} aborts
+#     here — and this is precisely the state the stale-entry guard exists to
+#     shepherd the repo into, so it must not be the one state that crashes.
+CLEAN="$(mktemp -d)"
+mkdir -p "$CLEAN/scripts" "$CLEAN/plugins/solo/skills/only"
+cp "$SUT_SRC" "$CLEAN/scripts/check-skill-leaf-names.sh"
+printf -- '---\nname: only\ndescription: "fixture"\n---\n' >"$CLEAN/plugins/solo/skills/only/SKILL.md"
+: >"$CLEAN/scripts/skill-leaf-name-registry.txt"
+
+out="$(bash "$CLEAN/scripts/check-skill-leaf-names.sh" --check 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'unbound variable' <<<"$out"; then
+  pass "zero collisions with an empty registry passes --check"
+else
+  fail "zero-collision state should pass (rc=$rc): $out"
+fi
+
+out="$(bash "$CLEAN/scripts/check-skill-leaf-names.sh" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'No cross-plugin skill leaf-name collisions' <<<"$out"; then
+  pass "zero collisions reports cleanly in discover mode"
+else
+  fail "zero-collision discover should report cleanly (rc=$rc): $out"
+fi
+rm -rf "$CLEAN"
+
 # 8. Unknown mode is a usage error, not a silent pass.
 bash "$SUT" --bogus >/dev/null 2>&1
 rc=$?

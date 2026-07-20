@@ -55,17 +55,28 @@ for plugin_dir in plugins/*/; do
 done
 
 # Collisions only: a leaf name owned by 2+ plugins.
+#
+# `collision_leaves` and `collision_count` shadow the associative array on
+# purpose: under `set -u` an associative array that was declared but never
+# assigned is UNBOUND, so `${#collisions[@]}` and `${!collisions[@]}` abort the
+# script in the zero-collision case -- which is exactly the state the stale-entry
+# guard is meant to shepherd the repo into.
 declare -A collisions
+collision_leaves=()
+collision_count=0
 for leaf in "${!leaf_owners[@]}"; do
   # shellcheck disable=SC2206  # plugin names are kebab-case; word-splitting is the intent
   owners=(${leaf_owners[$leaf]})
   ((${#owners[@]} >= 2)) || continue
   collisions["$leaf"]="${leaf_owners[$leaf]}"
+  collision_leaves+=("$leaf")
+  collision_count=$((collision_count + 1))
 done
 
 # leaf name -> accepted owner set: a sorted comma-separated plugin list, or `*`
 # for a name whose owner set is open by contract (see the registry header).
 declare -A registered
+registered_leaves=()
 if [[ -f "$registry" ]]; then
   while IFS= read -r line; do
     line="${line%%#*}"
@@ -75,6 +86,7 @@ if [[ -f "$registry" ]]; then
     # `read`, not array splitting: the owner field may be a literal `*`, which
     # unquoted word splitting would pathname-expand against the cwd.
     read -r leaf_key owner_field _ <<<"$line"
+    [[ -n "${registered[$leaf_key]+set}" ]] || registered_leaves+=("$leaf_key")
     registered["$leaf_key"]="${owner_field:-}"
   done <"$registry"
 fi
@@ -94,11 +106,11 @@ discover | --check) ;;
 esac
 
 if [[ "$mode" == "discover" ]]; then
-  if ((${#collisions[@]} == 0)); then
+  if ((collision_count == 0)); then
     echo "No cross-plugin skill leaf-name collisions."
     exit 0
   fi
-  for leaf in $(printf '%s\n' "${!collisions[@]}" | sort); do
+  for leaf in $(printf '%s\n' ${collision_leaves[@]+"${collision_leaves[@]}"} | sort); do
     # shellcheck disable=SC2206
     owners=(${collisions[$leaf]})
     # shellcheck disable=SC2310  # owner_set only sorts strings; nothing inside can fail
@@ -124,7 +136,7 @@ fi
 
 failed=0
 
-for leaf in $(printf '%s\n' "${!collisions[@]}" | sort); do
+for leaf in $(printf '%s\n' ${collision_leaves[@]+"${collision_leaves[@]}"} | sort); do
   # shellcheck disable=SC2206
   owners=(${collisions[$leaf]})
   # shellcheck disable=SC2310  # owner_set only sorts strings; nothing inside can fail
@@ -167,7 +179,7 @@ done
 
 # Stale guard: a registry entry that no longer collides has outlived its reason
 # and would otherwise silently pre-authorize a future collision on that name.
-for leaf in $(printf '%s\n' "${!registered[@]}" | sort); do
+for leaf in $(printf '%s\n' ${registered_leaves[@]+"${registered_leaves[@]}"} | sort); do
   [[ -n "${collisions[$leaf]:-}" ]] && continue
   printf 'FAIL: %s lists %s, but it is no longer carried by 2+ plugins. Drop the entry.\n' \
     "$registry" "$leaf" >&2
@@ -178,4 +190,4 @@ if ((failed)); then
   exit 1
 fi
 
-printf 'All %d cross-plugin skill leaf-name collisions are registered.\n' "${#collisions[@]}"
+printf 'All %d cross-plugin skill leaf-name collisions are registered.\n' "$collision_count"
