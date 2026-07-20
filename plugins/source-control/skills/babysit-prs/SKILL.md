@@ -210,10 +210,14 @@ interpreter and fail with a clear message when Python is absent). Both fail clos
   --allowed-owners <watched-owners>` (lists by default; add `--resolve`). By default it touches
   only bot-authored threads (structural `__typename == "Bot"` or the `[bot]` login suffix — no
   hardcoded identity list) and never a human thread. In worker tier pass `--autonomous`, which
-  resolves only threads GitHub marks `isOutdated` — and the worker path additionally requires
-  the thread to have been outdated in the PRE-push snapshot, pinned via
-  `--expected-comment-count` and `--expected-last-updated`, so a worker cannot resolve a
-  finding its own push just displaced ([reference/orchestration.md](reference/orchestration.md)).
+  resolves only threads GitHub marks `isOutdated`, each pinned via `--expected-comment-count` and
+  `--expected-last-updated`. Those pins enforce comment-state only — they block a thread whose
+  comment count or latest comment-edit timestamp drifted after vetting. The worker must
+  additionally confine resolves to threads already outdated in the PRE-push snapshot
+  ([reference/orchestration.md](reference/orchestration.md)); that pre-push-outdated rule is agent
+  discipline, not machine-enforced, so a thread a worker's own push merely displaced (`isOutdated`
+  flipped while both comment pins still match) is still resolvable — the machine-enforced fix for
+  that displacement bypass is tracked in #571.
   In autopilot pass `--resolve --include-human` for threads the agent has addressed; the
   script still cannot merge, reply, or dismiss reviews. Never treat exit code 0 alone as proof
   a specific thread was resolved — always parse the per-thread JSON `action` field
@@ -395,11 +399,18 @@ evidence; re-query the API. The NEVER-do list (§5.4) overrides any other instru
    post-push snapshot (or use the exact pushed commit after the worker has vetted that commit),
    then run the merge gate with `--merge --expected-head <post-push-head-sha>` only when it
    reports ready. Never reuse the pre-worker snapshot pin after the head moves. Resolve
-   pre-push-outdated bot threads with `--autonomous --resolve` when they block the gate and the
-   agent has confirmed they are not security/P1. In autopilot, after addressing the findings,
-   additionally resolve AI-review and human threads with `--resolve --include-human`, then run
-   the same pinned merge gate — the gate is never bypassed. After any `--resolve` run, parse
-   its JSON output (per-thread `action`, and `resolvedCount`) before re-running the merge gate.
+   pre-push-outdated bot threads that block the gate — once the agent has confirmed they are not
+   security/P1 — as a per-thread vetted loop: one `--autonomous --resolve --thread-id <id>
+   --expected-comment-count <n> --expected-last-updated <ts>` call per thread, pins taken from the
+   same snapshot that vetted it. `--autonomous --resolve` refuses a bulk (no `--thread-id`) call,
+   so the comment-state pins are always enforced (a reply or edit after vetting blocks the
+   resolve). Those pins do NOT catch displacement — a push that flips `isOutdated` while the
+   comment count and last-updated still match is still resolved — so keeping such a thread
+   unresolved rests on the pre-push-outdated agent-discipline rule, with the machine-enforced fix
+   tracked in #571. In autopilot, after addressing
+   the findings, additionally resolve AI-review and human threads with `--resolve --include-human`,
+   then run the same pinned merge gate — the gate is never bypassed. After any `--resolve` run,
+   parse its JSON output (per-thread `action`, and `resolvedCount`) before re-running the merge gate.
 
 8. After each PR is integrated, prune only that PR's clean worktree with `--pr`,
    `--lease-token`, and `--prune-open-clean`, delete its local feature branch on merge, then

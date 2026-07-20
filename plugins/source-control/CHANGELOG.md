@@ -3,6 +3,26 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0]
+
+### Changed
+
+- **`babysit-prs` requires per-thread pins for autonomous thread resolves — the bulk autonomous
+  path is refused.** `babysit_resolve_thread.py` now rejects a `--autonomous --resolve` call that
+  carries no `--thread-id`, forcing the unattended-worker path through a per-thread vetted loop
+  (each thread pinned with `--expected-comment-count` and `--expected-last-updated`, reusing the
+  existing TOCTOU pin guard). `--allow-unpinned-thread` is likewise refused in `--autonomous`
+  mode, so there is no unpinned autonomous resolve. A worker's own push marks a review thread
+  `isOutdated`, and the previous bulk path cleared such threads in one unpinned sweep with no
+  proof the finding was addressed; the per-thread pins now close the bulk and comment-drift gaps.
+  They do not close the displacement bypass — a push that flips `isOutdated` while the comment
+  pins still match is still resolvable — which is tracked as the root fix in #571. This is a
+  behavior change to the
+  autonomous-worker contract: `SKILL.md` Autopilot step 2 changes from one bulk call to a
+  per-thread loop, aligning it with the pinned form already documented in
+  `reference/orchestration.md` and `reference/safety.md`. Covered by a regression test in
+  `test_guards.py`.
+
 ## [0.9.3]
 
 ### Added
