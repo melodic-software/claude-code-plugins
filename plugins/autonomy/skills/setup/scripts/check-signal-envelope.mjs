@@ -152,11 +152,15 @@ function extractEnvelope(body, where) {
 // and routines both do). An id recorded by more than one section is AMBIGUOUS
 // — resolution refuses it rather than silently picking a winner whose
 // scheduler class may differ. Alongside the raw entry we record WHICH
-// top-level section recorded each id: the section discriminates a
-// routine-emitting `routines` surface (a routine identity and a ratified
-// classification home apply) from a non-routines detector surface (e.g. a
-// poll-fallback detector under `triggers`, which emits no routine run and has
-// no classification home).
+// top-level section recorded each id — but the section is NOT the
+// routine/detector discriminator: a routine may REUSE a surface the trigger
+// slice already recorded under `triggers` (the binding refuses duplicate ids,
+// so the reused record stays where it is and `routines.enabled` references
+// it). Routine-fired status is the envelope's own `signal.routine` claim,
+// validated against the `routines.enabled` map; the owning section decides
+// only the missing-claim case (a surface recorded under `routines` exists
+// solely to emit routine runs, so a claimless signal from it is
+// nonconformant).
 function collectSurfaces(binding) {
   const surfaces = new Map();
   const sections = new Map();
@@ -173,10 +177,13 @@ function collectSurfaces(binding) {
       }
     }
   }
-  return { surfaces, sections, duplicates };
+  const enabledMap = binding?.routines?.enabled;
+  const routinesEnabled =
+    typeof enabledMap === "object" && enabledMap !== null && !Array.isArray(enabledMap) ? enabledMap : null;
+  return { surfaces, sections, duplicates, routinesEnabled };
 }
 
-function checkEnvelope(envelope, where, { surfaces, sections, duplicates, securityBinding }, bindingSupplied, securityBindingSupplied) {
+function checkEnvelope(envelope, where, { surfaces, sections, duplicates, routinesEnabled, securityBinding }, bindingSupplied, securityBindingSupplied) {
   const version = envelope.schema_version;
   if (!SUPPORTED_SCHEMA_VERSIONS.has(version)) {
     findings.push(
@@ -267,47 +274,74 @@ function checkEnvelope(envelope, where, { surfaces, sections, duplicates, securi
 
     const stampedClass = typeof workClass === "string" && WORK_CLASSES.has(workClass);
 
-    if (surfaceEntry !== null && sourceSection !== "routines") {
-      // The source resolves to a NON-routines scheduling surface — a
-      // poll-fallback detector recorded under the autonomy binding's triggers
-      // section, not a routine emitter. Such a surface cannot emit routine
-      // runs, so a routine identity here is a category error; and it has no
-      // admission.classification.temporal home, so a stamped class can never
-      // be attested and fails closed. An envelope WITHOUT a class stays legal
-      // — an unclassified enqueue is human-gated downstream.
-      if (routine !== undefined) {
-        findings.push(
-          `${where}: signal.routine ${JSON.stringify(routine)} is stamped on a signal whose source_surface ${JSON.stringify(sourceSurface)} is a ${JSON.stringify(sourceSection)}-section (detector) surface — a detector surface cannot emit routine runs, so a routine identity here has no ratified classification home and fails closed`,
-        );
-      }
-      if (stampedClass) {
-        findings.push(
-          `${where}: signal.work_class ${JSON.stringify(workClass)} is stamped on a detector-fired temporal signal whose source_surface ${JSON.stringify(sourceSurface)} is a ${JSON.stringify(sourceSection)}-section (detector) surface — a detector surface has no admission.classification.temporal home, so the class cannot be attested and fails closed; omit the class (an unclassified enqueue is human-gated downstream)`,
-        );
+    if (surfaceEntry !== null && routine === undefined) {
+      // No routine identity claimed. From a routines-section surface that is
+      // nonconformant (such a surface exists solely to emit routine runs);
+      // from any other surface this is a detector-fired signal — legal, but
+      // it has no admission.classification.temporal home, so a stamped class
+      // can never be attested and fails closed, and a producer identity with
+      // no routine claim pins nothing. An envelope WITHOUT a class stays
+      // legal — an unclassified enqueue is human-gated downstream.
+      if (sourceSection === "routines") {
+        findings.push(`${where}: signal.routine missing (required for temporal signals from a routines-section surface)`);
+      } else {
+        if (stampedClass) {
+          findings.push(
+            `${where}: signal.work_class ${JSON.stringify(workClass)} is stamped on a detector-fired temporal signal (no routine identity claimed) — a detector emission has no admission.classification.temporal home, so the class cannot be attested and fails closed; omit the class (an unclassified enqueue is human-gated downstream)`,
+          );
+        }
+        if (producerIdentity !== undefined) {
+          findings.push(
+            `${where}: signal.producer_identity is stamped on a detector-fired temporal signal (no routine identity claimed) — the producer identity accompanies a routine claim, and with no routine identity it pins nothing; a detector emission carries neither`,
+          );
+        }
       }
     } else if (surfaceEntry !== null) {
-      // Routine-emitting (routines-section) surface: a routine identity and a
-      // producer identity are required, and a stamped class must trace to the
-      // SECURITY binding's admission.classification.temporal entry that
-      // ratifies the exact (routine, source_surface) association — the same
-      // rationale as the agent-internal provenance rule: a self-stamped or
-      // wrongly associated class bypasses admission, so the class rides the
-      // protected binding, never the agent-writable autonomy binding or the
-      // agent-writable scheduled workflow that stamped the identity. The
-      // routine, surface, and producer fields are agent-controlled claims, so
-      // consistency among them proves nothing on its own. Two ratified
-      // anchors pin the producing schedule together, because a run-permalink
-      // namespace may be repo-scoped and SHARED across every schedule: the
-      // run_link_prefix pins the platform-and-repository namespace a raw link
-      // must fall under, while the producer_identity — the workflow/unit
-      // reference the platform injects into the authenticated run context —
-      // pins WHICH schedule within that shared namespace produced the run. An
-      // envelope WITHOUT signal.work_class stays legal: an unclassified
-      // enqueue is human-gated downstream. The association check runs only
-      // once the source surface RESOLVED as a routines surface — an
-      // unresolved surface already carries its own finding above.
-      if (typeof routine !== "string" || routine.length === 0) {
-        findings.push(`${where}: signal.routine missing (required for temporal signals from a routines-section surface)`);
+      // A routine identity is CLAIMED (whatever section recorded the surface
+      // — a routine may reuse a triggers-recorded surface). The claim is
+      // validated against the binding's routines.enabled map (the repo-local
+      // enablement home: the identity must be an enabled routine whose
+      // recorded source_surface agrees), a producer identity is required, and
+      // a stamped class must trace to the SECURITY binding's
+      // admission.classification.temporal entry that ratifies the exact
+      // (routine, source_surface) association — the same rationale as the
+      // agent-internal provenance rule: a self-stamped or wrongly associated
+      // class bypasses admission, so the class rides the protected binding,
+      // never the agent-writable autonomy binding or the agent-writable
+      // scheduled workflow that stamped the identity. The routine, surface,
+      // and producer fields are agent-controlled claims, so consistency among
+      // them proves nothing on its own. Two ratified anchors pin the
+      // producing schedule together, because a run-permalink namespace may be
+      // repo-scoped and SHARED across every schedule: the run_link_prefix
+      // pins the platform-and-repository namespace a raw link must fall
+      // under, while the producer_identity — the workflow/unit reference the
+      // platform injects into the authenticated run context — pins WHICH
+      // schedule within that shared namespace produced the run. An envelope
+      // WITHOUT signal.work_class stays legal: an unclassified enqueue is
+      // human-gated downstream. The association check runs only once the
+      // source surface RESOLVED — an unresolved surface already carries its
+      // own finding above.
+      if (typeof routine === "string" && ROUTINE_IDENTITY.test(routine)) {
+        const enabledEntry =
+          routinesEnabled !== null && typeof routinesEnabled[routine] === "object" && routinesEnabled[routine] !== null
+            ? routinesEnabled[routine]
+            : null;
+        if (enabledEntry === null) {
+          findings.push(
+            `${where}: signal.routine ${JSON.stringify(routine)} has no routines.enabled entry in the autonomy binding — a claimed identity that no enabled routine records is either drift or a foreign claim, and it cannot be validated, fail-closed`,
+          );
+        } else {
+          if (enabledEntry.source_surface !== sourceSurface) {
+            findings.push(
+              `${where}: signal.source_surface ${JSON.stringify(sourceSurface)} is not the surface the binding's routines.enabled entry records for ${JSON.stringify(routine)} (${JSON.stringify(enabledEntry.source_surface)}) — the enablement record and the emitting surface must agree, or the claim is drift the binding review never saw`,
+            );
+          }
+          if (enabledEntry.enabled !== true) {
+            findings.push(
+              `${where}: signal.routine ${JSON.stringify(routine)} is not enabled in the binding's routines.enabled entry — a disabled routine emitting signals is a misconfiguration or a foreign claim, fail-closed`,
+            );
+          }
+        }
       }
       if (typeof producerIdentity !== "string" || producerIdentity.length === 0) {
         findings.push(
@@ -416,7 +450,7 @@ if (targets.length === 0) {
   process.exit(2);
 }
 
-let resolver = { surfaces: new Map(), sections: new Map(), duplicates: new Set(), securityBinding: null };
+let resolver = { surfaces: new Map(), sections: new Map(), duplicates: new Set(), routinesEnabled: null, securityBinding: null };
 if (bindingPath !== null) {
   try {
     resolver = { ...resolver, ...collectSurfaces(JSON.parse(readFileSync(bindingPath, "utf8"))) };

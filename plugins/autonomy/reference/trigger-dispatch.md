@@ -83,14 +83,15 @@ SECURITY governance surface — the adapter stamps, never defines, and no repo-l
 (agent-writable) surface may supply the class used for admission:
 
 - `tracker-vcs-event` resolves through the security-bound label→class rules.
-- `temporal` signals split by producer. A ROUTINE-fired temporal signal — its source surface
-  recorded under the autonomy binding's `routines` section — carries the class its bound routine
-  definition derives, selected by the envelope's validated `signal.routine` identity
+- `temporal` signals split by producer. A ROUTINE-fired temporal signal — one carrying the
+  validated `signal.routine` identity of an enabled routine, whose `routines.enabled` entry
+  references the emitting surface (the surface record itself may live under `triggers` and be
+  REUSED by the routine) — carries the class its bound routine definition derives
   ([routine contract](routines.md)), including woken routine runs, event or continuous feed,
-  which are `temporal` regardless of wake source. A temporal poll-fallback DETECTOR — its
-  surface recorded under `triggers` — derives no class and carries no routine identity: it stays
-  unclassified, and a stamped `signal.work_class` or a `signal.routine` on a detector-fired
-  temporal signal is rejected fail-closed.
+  which are `temporal` regardless of wake source. A temporal poll-fallback DETECTOR emission —
+  one claiming no routine identity — derives no class: it stays unclassified, and a stamped
+  `signal.work_class` (or a producer identity) on it is rejected fail-closed, as is a claimed
+  identity that no enabled routine records or whose recorded surface disagrees.
 - `agent-internal` items must PROVE protected provenance: the envelope serializes the
   emitting session's own admitted source item as `signal.parent_item`, and the admission
   seam verifies the session-to-parent association against protected dispatch data — the
@@ -141,7 +142,7 @@ every contract schema. Keys:
 | `signal.work_class` | optional; the stamped risk class per the classification rules — absent = unclassified = human-gated |
 | `signal.parent_item` | REQUIRED when `signal.class` is `agent-internal`: canonical URL of the emitting session's admitted source item, verified against the queue's lease record |
 | `signal.source_surface` | REQUIRED when `signal.class` is `temporal`: the originating scheduling surface's id as recorded in the org's trigger/routine binding — the discriminator raw-link form validation branches on |
-| `signal.routine` | REQUIRED for a ROUTINE-fired `temporal` signal (source surface recorded under the binding's `routines` section); FORBIDDEN on a detector-fired `temporal` signal and on every other class. The routine identity the emitting schedule claims ([routine contract](routines.md)); a CLAIM the admission seam validates against the security binding's protected identity-to-surface association (one identity per surface) before any `signal.work_class` stamp — an unvalidated or mismatched claim stays unclassified, fail-closed human-gated |
+| `signal.routine` | REQUIRED for a ROUTINE-fired `temporal` signal — one whose identity a `routines.enabled` entry records against the emitting surface (the surface record itself may live under `triggers` and be reused); FORBIDDEN on every non-temporal class, and absent on a detector-fired `temporal` signal. The routine identity the emitting schedule claims ([routine contract](routines.md)); a CLAIM validated against the enablement record and the security binding's protected identity-to-surface association (one identity per surface) before any `signal.work_class` stamp — an unvalidated or mismatched claim stays unclassified, fail-closed human-gated |
 | `signal.producer_identity` | REQUIRED for a ROUTINE-fired `temporal` signal; `temporal`-only. The platform-attested workflow-file or scheduler-unit reference resolved from the authenticated run context; checked for equality with the ratified `producer_identity` and unique across classification entries — the discriminator that pins WHICH schedule fired within a possibly-shared run-link namespace |
 
 ## Dispatch
