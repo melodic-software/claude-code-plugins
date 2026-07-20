@@ -22,8 +22,8 @@
 # so the wrapper can never stop an unrelated session (e.g. a hand-started one).
 #
 # PROMPT-FILE STORAGE IS PROVISIONAL. Today prompts live in a session-local
-# `.work` dir (the config's `prompt_dir`, default `.work`). Issue #480
-# (loop-prompt authoring skill) is slated to own durable prompt storage; when it
+# `.work` dir (the config's `prompt_dir`, default `.work`). A forthcoming
+# loop-prompt authoring skill is slated to own durable prompt storage; when it
 # lands, repoint `prompt_dir` at that home — the resolution seam is the single
 # `resolve_prompt_dir` function below and nothing else.
 #
@@ -202,7 +202,7 @@ resolve_config() {
   }
 }
 
-# The one prompt-storage seam. #480 will repoint this at a durable home.
+# The one prompt-storage seam — repoint here when a durable prompt home exists.
 resolve_prompt_dir() {
   local d
   d="$(jq -r '.prompt_dir // ".work"' "$CONFIG")"
