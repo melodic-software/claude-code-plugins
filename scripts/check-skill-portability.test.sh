@@ -206,6 +206,44 @@ else
 fi
 rm -rf "$fx"
 
+# --- diff-mode reads a Git-quoted (non-ASCII) changed path -----------------
+# A changed file whose pathname triggers Git's C-style quoting (here a non-ASCII
+# byte; core.quotePath defaults on) must still be gated. Without -z, git diff
+# emits `"plugins/.../caf\303\251.md"`, the leading quote misses the
+# plugins/*/skills/* glob, and the file is silently dropped — the silent
+# exclusion the contract forbids. The fixture commits one ASCII-named and one
+# non-ASCII-named coupling file, then diffs against the empty base commit: the
+# ASCII hit proves -z left the common path intact, and two COUPLING lines prove
+# the quoted path was read, not skipped. The non-ASCII name is built with octal
+# escapes so this test source stays pure ASCII.
+fx="$(mktemp -d)"
+mkdir -p "$fx/scripts"
+cp "$SCRIPT" "$fx/scripts/"
+quoted_name="$(printf 'caf\303\251.md')" # café.md in UTF-8 — non-ASCII, triggers Git quoting
+out="$(
+  cd "$fx" &&
+    git init -q &&
+    git config user.email test@example.com &&
+    git config user.name test &&
+    git commit -q --allow-empty -m base &&
+    base="$(git rev-parse HEAD)" &&
+    mkdir -p 'plugins/p/skills/s' &&
+    printf 'diff against origin/main\n' >'plugins/p/skills/s/plain.md' &&
+    printf 'diff against origin/main\n' >"plugins/p/skills/s/${quoted_name}" &&
+    git add -A >/dev/null 2>&1 &&
+    git commit -q -m add-skills &&
+    SKILL_PORTABILITY_TOKENS="$TEST_TOKENS" bash scripts/check-skill-portability.sh "$base" 2>&1
+)"
+rc=$?
+if [[ "$rc" -ne 0 ]] &&
+  echo "$out" | grep -q 'plain.md:1:' &&
+  [[ "$(echo "$out" | grep -c 'COUPLING:')" -eq 2 ]]; then
+  ok "diff-mode gates a Git-quoted (non-ASCII) changed path (not silently dropped)"
+else
+  fail "diff-mode should flag both the ASCII and non-ASCII coupling files (rc=$rc): $out"
+fi
+rm -rf "$fx"
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ "$FAIL" -eq 0 ]]

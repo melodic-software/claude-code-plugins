@@ -112,7 +112,11 @@ case "$mode" in
   fi
   # Diff on plugins/ then filter the skill path in-script: a `plugins/*/skills/`
   # git pathspec does not match under git's default (non-pathname) globbing.
-  while IFS= read -r f; do
+  # NUL-delimited (-z) so a pathname Git would C-quote (non-ASCII bytes under the
+  # default core.quotePath, or a literal quote/backslash) arrives verbatim: a
+  # quoted `"plugins/…"` would miss the glob below and the file would be silently
+  # dropped — the silent exclusion the contract forbids.
+  while IFS= read -r -d '' f; do
     case "$f" in
     plugins/*/skills/*) ;;
     *) continue ;;
@@ -120,7 +124,7 @@ case "$mode" in
     is_scannable "$f" || continue
     [[ -f "$f" ]] || continue # a rename-away/deletion leaves nothing to scan
     files+=("$f")
-  done < <(git diff --name-only --diff-filter=d "$base" -- 'plugins/' | sort -u)
+  done < <(git diff --name-only --diff-filter=d -z "$base" -- 'plugins/' | sort -z -u)
   ;;
 esac
 
