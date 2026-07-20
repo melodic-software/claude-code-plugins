@@ -3,6 +3,20 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.2]
+
+### Fixed
+
+- **`git-tree-reset` context doc — surfaces the `reset --hard` non-atomicity
+  caveat on the exit-5 gate.** The exit-5 bullet in
+  `skills/clean/context/git-tree-reset.md` accurately described the gating
+  contract (a failed `reset --hard` skips `clean` and the restore guard, so the
+  tree is never left cleaned-but-not-reset) but omitted that `reset --hard` is
+  not atomic and may have partially modified tracked files before it failed —
+  a caveat the runtime exit-5 stderr message already surfaces. The bullet now
+  carries that parenthetical, so the doc is consistent with the script's stderr
+  output. (#485)
+
 ## [0.4.1]
 
 ### Fixed
