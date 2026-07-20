@@ -40,8 +40,8 @@ All notable changes to the `review` plugin are documented here. Format follows
   shape) still degrades to the empty-diff terminal — after fetching the resolved
   branch at the same shallow depth, `merge-base FETCH_HEAD HEAD` finds no common
   ancestor. Resolving that requires deepening/unshallowing (or a convention-aligned
-  report-and-stop), a heavier tradeoff deferred to the #442 shared default-branch
-  helper rather than bolted onto every reviewer-agent invocation here.
+  report-and-stop) — a real design fork, tracked and deferred to #625 rather than
+  bolted onto every reviewer-agent invocation here.
 
 ## [0.14.2]
 
