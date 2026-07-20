@@ -70,8 +70,11 @@ creating it ([`../skills/track/actions/add.md`](../skills/track/actions/add.md) 
 gate"). On an **autonomous lane** — a `/loop` or `/schedule` session whose standing rules already
 authorize tracker mutations — those standing rules **are** the authorization, the same resolution
 triage's direction gate makes ([`../skills/triage/SKILL.md`](../skills/triage/SKILL.md) "Direction
-gate"). An autonomous lane prefixes every item and comment it creates with the AI disclaimer
-([`../skills/triage/SKILL.md`](../skills/triage/SKILL.md) "AI disclaimer").
+gate"). An autonomous lane prefixes every item and comment it creates with an AI disclaimer —
+triage's ([`../skills/triage/SKILL.md`](../skills/triage/SKILL.md) "AI disclaimer") section is the
+canonical form, but a non-triage lane names its own lane rather than inheriting triage's literal
+`during triage` wording, so the provenance phase stays accurate. A lane-neutral disclaimer SSOT that
+collapses this to a single pointer is tracked in `#768`.
 
 ## Reconciliation note
 
