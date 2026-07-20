@@ -13,8 +13,8 @@ Update a recurring item's `last_checked` and `next_due` dates after completing a
 1. **Resolve the recurring-maintenance role label before any tracker read.** Read
    `.work-item-tracker.json` at action entry and resolve
    `config.role_labels["recurring-maintenance"]`; use `recurring` only when the file or entry is
-   absent. Stop on a malformed, empty, or non-string configured value. Use the resolved string in
-   the search below.
+   absent — and warn loudly when it defaults for that reason (surface it, never silent). Stop on a
+   malformed, empty, or non-string configured value. Use the resolved string in the search below.
 
 1. **Find the item in the recurring schedule:**
 

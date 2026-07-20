@@ -3,6 +3,48 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.0]
+
+Close the work-items entry-invariant gap where a missing provider binding (`.work-item-tracker.json`)
+degraded silently — role labels fell to defaults with no signal, and seam coordination verbs surfaced
+a raw mid-flow `exit 3` instead of an actionable message (`#449`). The full remote / no-checkout mode
+(shallow-clone or `gh api`-backed codebase reads) stays deferred with a recorded trigger.
+
+### Added
+
+- **Binding presence is a third loud entry invariant (`#449`).** "Shared tracker context" now checks
+  the provider binding alongside `jq` and the seam script, but discharges it distinctly: the first two
+  have no recovery path and stop; a missing binding is loud and routable, never a silent default and
+  never a raw `exit 3`. Seam **coordination** verbs (`create-item`, `get-item`, `claim`, `renew-lease`,
+  `reclaim`, `link-blocks`, `add-sub-item`, `list-frontier`, `capabilities`) cannot run unbound, so
+  before the first one the skill surfaces a message distinguishing **setup was never run** (→
+  `/work-items:setup`) from a **deliberate gh-native
+  operating mode** (proceed for provider-mechanic operations only, accepting no race-safe claim/lease).
+  Provider-mechanic operations (list/search/close, label/comment edits) run as raw `gh`, never read
+  the binding, and proceed unbound. Caveat recorded: the gh-native path presumes a `gh`-backed
+  provider — a `local-markdown` target with no binding cannot proceed and stays a hard stop.
+  `/work-items:work` gains an explicit binding preflight **before Step 0** — its `reclaim` is the
+  lane's first coordination verb, so the check is discharged before it runs rather than surfacing as a
+  raw mid-reclaim `exit 3`.
+
+### Changed
+
+- **Silent role-label default becomes a loud warning (`#449`).** When a canonical role resolves to its
+  documented default because `.work-item-tracker.json` or its `config.role_labels` entry is absent, the
+  skills now warn loudly instead of substituting silently — a repo that remapped `config.role_labels`
+  was previously queried under the wrong strings with no signal. Applied at every action-entry
+  resolution site that inlines it (`work`, `triage`, `track` — `SKILL.md` summary plus
+  `due`/`recheck`/`audit` — and `decompose`) and in the shared invariants (`reference/tracker-seam.md`,
+  `reference/label-taxonomy.md`). A present-but-malformed, empty, or non-string configured value
+  remains a hard stop, unchanged.
+
+### Deferred
+
+- **A first-class gh-native no-lease claim path for coordination-*dependent* lanes (`/work-items:work`)
+  is parked, not built (`#449`).** Making those lanes runnable unbound (assignee-only claim, no lease,
+  races are the operator's problem) is claim-safety contract surface — deferred with the same trigger
+  as the full remote-repo mode: someone needs unattended coordination-dependent work at scale.
+
 ## [0.14.4]
 
 ### Fixed

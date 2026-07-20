@@ -135,6 +135,8 @@ For a PR, the outcome addresses the attached code explicitly: adopt the diff (br
 
 **Decision-carrier clusters.** When step 1's cluster detection found members sharing one decision, apply human-gated to the **carrier only** (its body lists the member numbers). Each other member instead gets a native `blocked-by` edge to the carrier plus a `blocked by #<carrier> decision` comment — **never a per-member human-gated label**. Resolving the carrier's decision unblocks the whole cluster in one human touch.
 
+The canonical-role labels applied by these outcomes (autonomous-eligible default `agent-ready`, human-gated default `needs-human`) are **resolved from the binding's `config.role_labels` at action entry**, never hardcoded — warn loudly when a role defaults because `.work-item-tracker.json` or the entry is absent rather than applying the default string silently (a repo that remapped roles would otherwise be mislabeled), and stop on a malformed/empty/non-string value ([`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md) "Canonical roles").
+
 Label edits, comments, and closes route through the adapter's write mechanics (adapter: "Edit labels / assignees", "Comment on item / edit a comment", "Close item"); the gather + attention-view reads are bare. Item creation, when triage spawns follow-up work, goes through the seam `create-item` verb (`/work-items:track add` is the canonical path).
 
 **Closing invariant — no outcome leaves a re-selectable raw item.** The attention view lists *open* items and re-selects anything still carrying the raw marker, so every outcome must leave the item unre-selectable:
