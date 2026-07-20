@@ -43,9 +43,15 @@
 #
 # Detection is ARGV-GRAMMAR-FAITHFUL via the shared parser in hook-utils.sh, so
 # a commit body merely MENTIONING `git commit -m` never fires, and `bash -lc`
-# wrappers plus git aliases are resolved (inline `-c` and persisted config
-# alike). Static matching over the literal
+# wrappers plus git aliases are resolved — inline `-c` (last value wins, as git
+# does) and aliases persisted in git config.
+#
+# RESIDUAL: `--config-env=alias.X=VAR` is not resolved. The shared parser stores
+# its value undifferentiated from `-c`, so the environment VARIABLE NAME reaches
+# this code in place of the expansion, and separating them needs a hook-utils
+# change that block-dangerous-git shares. Static matching over the literal
 # command string only: shell variable / command substitution is not evaluated.
+# This is a friction guard against the accidental anti-pattern, not a sandbox.
 #
 # BLOCKING: exits 2 when a commit would take its message off the command line.
 
@@ -145,6 +151,7 @@ sequencer_in_progress() {
 check_segment() {
   local -a w=()
   local gi sub sub_idx nseg k word next stdin_form=0 exempt=0 saw_commit=0
+  local inline_alias_handled=0
 
   # A shell -c wrapper (`bash -lc 'git commit -m x'`) executes its operand as a
   # full shell command — re-parse it with the same tokenizer.
@@ -174,9 +181,15 @@ check_segment() {
     local cv exp reparse a
     local -a cfgv=() expw=()
     cfgv=(${HOOK_GIT_CONFIG_VALUES[@]+"${HOOK_GIT_CONFIG_VALUES[@]}"})
+    # LAST value wins, matching git: `-c alias.c=status -c alias.c=commit`
+    # runs commit. Taking the first match would let a decoy earlier value
+    # (expanding to a harmless subcommand) mask the real one.
+    exp=""
     for cv in ${cfgv[@]+"${cfgv[@]}"}; do
-      [[ "$cv" == "alias.${sub}="* ]] || continue
-      exp="${cv#*=}"
+      [[ "$cv" == "alias.${sub}="* ]] && exp="${cv#*=}"
+    done
+    if [[ -n "$exp" ]]; then
+      inline_alias_handled=1
       if [[ "$exp" == '!'* ]]; then
         reparse="${exp#!}"
         for a in "${w[@]:sub_idx+1}"; do reparse+=" $(printf '%q' "$a")"; done
@@ -188,14 +201,13 @@ check_segment() {
         check_segment "${w[@]:0:gi+1}" ${expw[@]+"${expw[@]}"} "${w[@]:sub_idx+1}"
         HOOK_NO_ALIAS=0
       fi
-      break
-    done
+    fi
 
     # An alias can also live in .git/config, ~/.gitconfig, or system config,
     # where HOOK_GIT_CONFIG_VALUES cannot see it — `git config alias.c commit`
     # then `git c -m x` would otherwise pass. Ask git for the resolved value
     # (its own precedence applies) only when no inline alias already matched.
-    if ((${HOOK_NO_ALIAS:-0} == 0)) && [[ "$sub" != "commit" ]]; then
+    if ((${HOOK_NO_ALIAS:-0} == 0)) && ((inline_alias_handled == 0)) && [[ "$sub" != "commit" ]]; then
       local pexp
       pexp=$(git -C "$(effective_dir "${w[@]}")" config --get "alias.$sub" 2>/dev/null)
       if [[ -n "$pexp" ]]; then

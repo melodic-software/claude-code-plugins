@@ -83,6 +83,12 @@ run "inline git alias to a canonical commit (allowed)" \
   "git -c alias.c=commit c -F -" 0
 run "inline alias to an unrelated subcommand (allowed)" \
   "git -c alias.st=status st" 0
+# git applies the LAST -c value for a key; taking the first would let a decoy
+# earlier value expanding to a harmless subcommand mask the real one.
+run "last inline alias value wins (blocked)" \
+  "git -c alias.c=status -c alias.c=commit c -m x" 2
+run "last inline alias value wins (allowed when the last is harmless)" \
+  "git -c alias.c=commit -c alias.c=status c -m x" 0
 
 # --- other subcommands are untouched -----------------------------------------
 run "git log (allowed)" "git log --oneline -5" 0
