@@ -154,6 +154,20 @@ assert_contains "stop reports non-running lanes" "$out" "babysit — not running
 assert_not_contains "stop never targets a non-lane session" "$log" "sid-other"
 
 # ============================================================================
+# start (REAL dispatch via PATH-stub claude + git) — proves the launch path
+# actually shells out: pull, marketplace update, and `claude --bg` seeded with
+# the prompt-file BODY as a single trailing argument (not --dry-run).
+# ============================================================================
+: >"$CLAUDE_LOG"
+out="$(PATH="$STUB_BIN:$PATH" run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" 2>&1)"
+log="$(cat "$CLAUDE_LOG")"
+assert_contains "start really pulls the repo" "$log" "git -C $REPO pull --ff-only"
+assert_contains "start really updates the marketplace" "$log" "plugin marketplace update"
+assert_contains "start really launches work with model+effort" "$log" "--bg -n work --model opus --effort high"
+assert_contains "start seeds the prompt-file body as the trailing arg" "$log" "--effort high You are the work lane."
+assert_contains "start really launches babysit" "$log" "--bg -n babysit --model sonnet --effort medium"
+
+# ============================================================================
 # unknown lane rejected
 # ============================================================================
 out="$(run_launcher stop bogus --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" 2>&1)"
