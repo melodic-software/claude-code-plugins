@@ -128,8 +128,16 @@ When the invocation carries a `subject_pattern=` argument, write non-interactive
 `subject_pattern` (the literal `Conventional Commits` keyword, which resolves to the bundled 11-type
 anchored pattern and enables `type_list`, or an anchored regex), set `pr_title_pattern` to the same,
 and omit `trailer_policy`. Reject a `subject_pattern` that is not machine-checkable (a plain-language
-value) with the same message `check` gives, rather than persisting it. With no argument in an
-interactive session, run the interview:
+value) with the same message `check` gives, rather than persisting it.
+
+**Writing an overlay layer — `user` or `local` — this path still resolves the layers below first and
+omits any key already equal to that merge.** A non-interactive argument is not evidence of a genuine
+deviation: `apply layer=local subject_pattern=X` against a team file that already declares `X` would
+otherwise pin `X` locally, so a later team change would be silently ignored on this machine — the
+exact failure per-key override exists to prevent. Writing nothing is the correct outcome when the
+requested value already holds; say so rather than materializing an empty overlay.
+
+With no argument in an interactive session, run the interview:
 
 0. **Anchor at the repo root** exactly as `check` does — resolve `REPO_ROOT` once and reuse the
    literal resolved path for every read, write, and git command below; re-resolve it at the top of

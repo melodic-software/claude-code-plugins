@@ -116,6 +116,19 @@
         "Does not report the user-global write as staged or awaiting a commit",
         "Reports the resulting effective merge, noting that an existing team file or personal overlay still overrides these values per key"
       ]
+    },
+    {
+      "id": 10,
+      "name": "non-interactive-overlay-omits-keys-equal-to-lower-layers",
+      "prompt": "/source-control:setup apply layer=local subject_pattern=Conventional Commits",
+      "expected_output": "Resolves the layers below the overlay before writing. The team file already declares the same Conventional Commits subject_pattern and a pr_title_pattern of Same as subject_pattern, so neither key is a genuine deviation and neither is written — pinning them in the overlay would make a later team convention change silently ineffective on this machine. Reports that the requested value already holds and that no overlay was needed, rather than materializing an overlay that restates the team layer.",
+      "files": [".claude/source-control.md"],
+      "expectations": [
+        "Reads the team layer before writing, even though the invocation is non-interactive and names an explicit value",
+        "Omits subject_pattern and pr_title_pattern from the overlay because they already equal the effective lower-layer merge",
+        "Does not write an overlay whose keys restate the team layer",
+        "Tells the user the requested convention already holds instead of reporting a write it did not need to make"
+      ]
     }
   ]
 }
