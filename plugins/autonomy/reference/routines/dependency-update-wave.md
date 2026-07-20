@@ -16,9 +16,12 @@ policy instead of leaving updates to accumulate until a forced, high-risk catch-
 Trigger-taxonomy slot: schedule, entering the queue through the
 [trigger contract](../trigger-dispatch.md)'s `temporal` surface class. Suggested cadence
 default: weekly, WITH event-riding on advisories — a security-advisory event affecting a
-current dependency may fire the wave ahead of cadence rather than waiting for the next
-slot. Both the cadence and the event-riding wiring are org-bindable values; nothing here
-fixes a scheduling surface.
+current dependency may WAKE the routine's own ratified emitting surface ahead of cadence,
+and the resulting run is always a `temporal`-class signal under the routine's protected
+identity and run-link namespace, identical to a schedule-tick run (the
+[catalog](../routines.md)'s event-riding rule — the run never enters through an event
+adapter). Both the cadence and the event-riding wiring are org-bindable values; nothing
+here fixes a scheduling surface.
 
 ## Access scope
 

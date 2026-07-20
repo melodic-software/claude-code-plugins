@@ -357,12 +357,12 @@
       "id": 28,
       "name": "routine-identity-selector-is-a-claim-not-trust-anchor",
       "prompt": "/autonomy:setup apply\n\nWhen we wire routines, what stops a scheduled workflow from claiming a low-risk class for high-risk work?",
-      "expected_output": "States the trust model: the --routine argument and the workflow file are claims, never trust anchors. The security binding's admission.classification.temporal table is authoritative — keyed by routine identity, each entry carrying {class, source_surface}, and binding exactly one identity per emitting surface. Admission validates the (signal.routine, attested source surface) pair against that table before stamping signal.work_class; an absent entry, or a source_surface that does not match the attested surface, is fail-closed human-gated, so a swapped selector resolves to a different surface and cannot launder high-risk work as a benign class. A multi-posture class binds per-posture identities on distinct surfaces, never its bare token.",
+      "expected_output": "States the trust model: the --routine argument, the workflow file, and the emitted signal.raw_link are all claims, never trust anchors. The security binding's admission.classification.temporal table is authoritative — keyed by routine identity, each entry carrying {class, source_surface, run_link_prefix}, and binding exactly one identity per emitting surface. The run_link_prefix (the run permalink namespace of that one surface) is ratified at binding review, not emitted by the job. Admission validates the (signal.routine, attested source surface) pair against that table AND that signal.raw_link falls under the ratified run_link_prefix before stamping signal.work_class; an absent entry, a source_surface that does not match the attested surface, or a raw link outside the ratified prefix is fail-closed human-gated, so a swapped selector or a forged raw link resolves to a different surface and cannot launder high-risk work as a benign class. A multi-posture class binds per-posture identities on distinct surfaces, never its bare token.",
       "files": [],
       "expectations": [
-        "The --routine argument and workflow file are treated as claims, never trust anchors",
-        "admission.classification.temporal is keyed by routine identity with {class, source_surface}, one identity per emitting surface",
-        "Admission validates the (signal.routine, attested source surface) pair before stamping; a mismatch or absent entry fail-closes human-gated",
+        "The --routine argument, workflow file, and emitted raw_link are all treated as claims, never trust anchors",
+        "admission.classification.temporal is keyed by routine identity with {class, source_surface, run_link_prefix}, one identity per emitting surface, run_link_prefix ratified at binding review",
+        "Admission validates the (signal.routine, attested source surface) pair AND that raw_link falls under the ratified run_link_prefix before stamping; any mismatch fail-closes human-gated",
         "A multi-posture class binds per-posture identities on distinct surfaces, never its bare token"
       ]
     }

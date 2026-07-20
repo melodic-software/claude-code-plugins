@@ -56,11 +56,14 @@
         "autonomy:untrusted": "C5"
       },
       "temporal": {
-        "doc-freshness-sweep/advisory": "C1",
+        "doc-freshness-sweep/advisory": {
+          "class": "C1",
+          "source_surface": "ci-cron-doc-freshness-advisory",
+          "run_link_prefix": "https://ci.example.com/actions/workflows/doc-freshness-advisory"
+        },
         "ci-health-review": {
           "class": "C1",
-          "source_surface": "ci-cron-health-review",
-          "run_link_prefix": "https://ci.example.com/actions/workflows/health-review"
+          "source_surface": "ci-cron-health-review"
         }
       }
     },

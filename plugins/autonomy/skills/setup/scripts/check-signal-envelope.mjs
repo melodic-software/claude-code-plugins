@@ -5,16 +5,32 @@
 // body. This is the contract's enforcement surface — adopters and the
 // conforming-path demo run it against created queue items.
 //
-// Usage: node check-signal-envelope.mjs <item-body-file-or-dir> [...more] [--binding <binding.json>]
+// Usage: node check-signal-envelope.mjs <item-body-file-or-dir> [...more] [--binding <binding.json>] [--security-binding <security-binding.json>]
 // Exit 0 = conformant; 1 = findings; 2 = usage/environment error.
 //
-// The binding input is the resolved schema-versioned autonomy binding: a
-// temporal signal's `signal.source_surface` must resolve to a surface recorded
-// there, and the surface's `scheduler_class` deterministically branches the
-// `signal.raw_link` form (local-scheduler surfaces have no web origin, so a
-// durable local/artifact URI is legal there and only there). Every additive
-// binding section that records scheduling surfaces (triggers, routines) uses
-// the same `surfaces` map shape; the resolver reads them all uniformly.
+// TWO binding inputs, two governance homes — never one file:
+// --binding is the resolved schema-versioned AUTONOMY binding (repo-local,
+// agent-writable): a temporal signal's `signal.source_surface` must resolve
+// to a surface recorded there, and the surface's `scheduler_class`
+// deterministically branches the `signal.raw_link` form (local-scheduler
+// surfaces have no web origin, so a durable local/artifact URI is legal
+// there and only there). Every additive binding section that records
+// scheduling surfaces (triggers, routines) uses the same `surfaces` map
+// shape; the resolver reads them all uniformly.
+// --security-binding is the guardrails SECURITY binding (settings-as-code
+// home, outside the agents' blast radius): its
+// `admission.classification.temporal` table is where a temporal envelope's
+// stamped `signal.work_class` must trace to — classification can never live
+// in the agent-writable autonomy binding, or the agents it governs could
+// rewrite it. A stamped class without --security-binding fails closed:
+// unverifiable is never conformant.
+//
+// Honest boundary: this checker validates RECORDED evidence consistency —
+// the envelope against the two bindings as written. Resolving
+// `signal.source_surface` from the platform's authenticated run context at
+// emit time (rather than trusting the handler's stamp) is the adapter's
+// obligation under the trigger-dispatch contract, not something a static
+// checker can perform.
 
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -83,6 +99,13 @@ function isDurableLocalUri(value, surfaceEntry) {
   );
 }
 
+// Segment-boundary anchoring: the raw link equals the ratified prefix or
+// continues with "/" immediately after it — plain startsWith would let
+// ".../runs-evil" ride the ".../runs" namespace.
+function underRunLinkPrefix(link, prefix) {
+  return link === prefix || link.startsWith(prefix.endsWith("/") ? prefix : `${prefix}/`);
+}
+
 // The normalized canonical item URL per the telemetry contract's strip rule:
 // https, non-empty host, no query/fragment/trailing slash, parser round-trip.
 function isNormalizedCanonicalUrl(value) {
@@ -144,7 +167,7 @@ function collectSurfaces(binding) {
   return { surfaces, duplicates };
 }
 
-function checkEnvelope(envelope, where, { surfaces, duplicates, binding }, bindingSupplied) {
+function checkEnvelope(envelope, where, { surfaces, duplicates, securityBinding }, bindingSupplied, securityBindingSupplied) {
   const version = envelope.schema_version;
   if (!SUPPORTED_SCHEMA_VERSIONS.has(version)) {
     findings.push(
@@ -229,33 +252,57 @@ function checkEnvelope(envelope, where, { surfaces, duplicates, binding }, bindi
       }
     }
     // A temporal envelope carrying signal.work_class is conformant only when
-    // the binding's admission.classification.temporal ratifies the exact
-    // (routine, source_surface) -> class association — the same rationale as
-    // the agent-internal provenance rule: a self-stamped or wrongly associated
-    // class would bypass admission, so the class must trace to the protected
-    // binding, never to the agent-writable scheduled workflow that stamped
-    // the identity. An envelope WITHOUT signal.work_class stays legal:
-    // unclassified enqueues fail-closed human-gated downstream. The check
-    // runs only once the source surface RESOLVED — an unresolved surface
-    // already carries its own finding above.
+    // the SECURITY binding's admission.classification.temporal ratifies the
+    // exact (routine, source_surface) -> class association — the same
+    // rationale as the agent-internal provenance rule: a self-stamped or
+    // wrongly associated class would bypass admission, so the class must
+    // trace to the protected security binding, never to the agent-writable
+    // autonomy binding or the agent-writable scheduled workflow that stamped
+    // the identity. The routine and surface fields are themselves
+    // agent-controlled claims, so consistency among them proves nothing on
+    // its own: the ratified entry's run_link_prefix ties the claim to
+    // platform-issued run identity — the platform assigns each schedule its
+    // own run-permalink namespace, and an agent-writable schedule cannot
+    // mint run permalinks under another workflow's platform-assigned
+    // namespace, so a raw link outside the ratified prefix means the claimed
+    // schedule is not the platform-attested producer. An envelope WITHOUT
+    // signal.work_class stays legal: unclassified enqueues fail-closed
+    // human-gated downstream. The association check runs only once the
+    // source surface RESOLVED — an unresolved surface already carries its
+    // own finding above.
     const stampedClass = typeof workClass === "string" && WORK_CLASSES.has(workClass);
-    if (stampedClass && surfaceEntry !== null && typeof routine === "string" && ROUTINE_IDENTITY.test(routine)) {
-      const temporalHome = binding?.admission?.classification?.temporal;
+    if (stampedClass && !securityBindingSupplied) {
+      findings.push(
+        `${where}: signal.work_class ${JSON.stringify(workClass)} cannot be verified without --security-binding — the class association lives in the protected security binding, and an unverifiable class fails closed rather than certifying`,
+      );
+    }
+    if (stampedClass && securityBindingSupplied && surfaceEntry !== null && typeof routine === "string" && ROUTINE_IDENTITY.test(routine)) {
+      const temporalHome = securityBinding?.admission?.classification?.temporal;
       const classificationEntry =
         typeof temporalHome === "object" && temporalHome !== null ? temporalHome[routine] : undefined;
       if (typeof classificationEntry !== "object" || classificationEntry === null) {
         findings.push(
-          `${where}: signal.work_class ${JSON.stringify(workClass)} has no admission.classification.temporal object entry for routine ${JSON.stringify(routine)} in the binding — a class the protected binding never ratified is self-stamped and bypasses admission`,
+          `${where}: signal.work_class ${JSON.stringify(workClass)} has no admission.classification.temporal object entry for routine ${JSON.stringify(routine)} in the security binding — a class the protected binding never ratified is self-stamped and bypasses admission`,
         );
       } else {
         if (classificationEntry.source_surface !== sourceSurface) {
           findings.push(
-            `${where}: signal.source_surface ${JSON.stringify(sourceSurface)} is not the emitting surface the binding ratifies for routine ${JSON.stringify(routine)} (${JSON.stringify(classificationEntry.source_surface)}) — a wrongly associated identity/surface pair lets a swapped selector resolve a different class; the ratified association pins one surface per routine identity`,
+            `${where}: signal.source_surface ${JSON.stringify(sourceSurface)} is not the emitting surface the security binding ratifies for routine ${JSON.stringify(routine)} (${JSON.stringify(classificationEntry.source_surface)}) — a wrongly associated identity/surface pair lets a swapped selector resolve a different class; the ratified association pins one surface per routine identity`,
           );
         }
         if (classificationEntry.class !== workClass) {
           findings.push(
-            `${where}: signal.work_class ${JSON.stringify(workClass)} does not match the class the binding ratifies for routine ${JSON.stringify(routine)} (${JSON.stringify(classificationEntry.class)}) — the work class rides the protected binding, never the envelope's own stamp`,
+            `${where}: signal.work_class ${JSON.stringify(workClass)} does not match the class the security binding ratifies for routine ${JSON.stringify(routine)} (${JSON.stringify(classificationEntry.class)}) — the work class rides the protected binding, never the envelope's own stamp`,
+          );
+        }
+        const runLinkPrefix = classificationEntry.run_link_prefix;
+        if (typeof runLinkPrefix !== "string" || runLinkPrefix.length === 0) {
+          findings.push(
+            `${where}: the security binding ratifies no run_link_prefix for routine ${JSON.stringify(routine)} — without the ratified attestation anchor the producing schedule cannot be pinned, so the stamped class fails closed (repair the security binding; check-security-binding.mjs rejects the entry too)`,
+          );
+        } else if (typeof rawLink === "string" && rawLink.length > 0 && !underRunLinkPrefix(rawLink, runLinkPrefix)) {
+          findings.push(
+            `${where}: signal.raw_link ${JSON.stringify(rawLink)} is outside the run-link namespace the security binding ratifies for routine ${JSON.stringify(routine)} (${JSON.stringify(runLinkPrefix)}) — the platform assigns each schedule its own run-permalink namespace, and an agent-writable schedule cannot mint run permalinks under another workflow's platform-assigned namespace: a raw link outside the ratified prefix means the claimed schedule is not the platform-attested producer`,
           );
         }
       }
@@ -282,26 +329,39 @@ function filesUnder(target) {
 const args = process.argv.slice(2);
 const targets = [];
 let bindingPath = null;
+let securityBindingPath = null;
 for (let i = 0; i < args.length; i += 1) {
   if (args[i] === "--binding") {
     bindingPath = args[i + 1];
+    i += 1;
+  } else if (args[i] === "--security-binding") {
+    securityBindingPath = args[i + 1];
     i += 1;
   } else {
     targets.push(args[i]);
   }
 }
 if (targets.length === 0) {
-  console.error("usage: check-signal-envelope.mjs <item-body-file-or-dir> [...more] [--binding <binding.json>]");
+  console.error(
+    "usage: check-signal-envelope.mjs <item-body-file-or-dir> [...more] [--binding <binding.json>] [--security-binding <security-binding.json>]",
+  );
   process.exit(2);
 }
 
-let resolver = { surfaces: new Map(), duplicates: new Set(), binding: null };
+let resolver = { surfaces: new Map(), duplicates: new Set(), securityBinding: null };
 if (bindingPath !== null) {
   try {
-    const binding = JSON.parse(readFileSync(bindingPath, "utf8"));
-    resolver = { ...collectSurfaces(binding), binding };
+    resolver = { ...resolver, ...collectSurfaces(JSON.parse(readFileSync(bindingPath, "utf8"))) };
   } catch (error) {
     console.error(`cannot read binding ${bindingPath}: ${error.message}`);
+    process.exit(2);
+  }
+}
+if (securityBindingPath !== null) {
+  try {
+    resolver = { ...resolver, securityBinding: JSON.parse(readFileSync(securityBindingPath, "utf8")) };
+  } catch (error) {
+    console.error(`cannot read security binding ${securityBindingPath}: ${error.message}`);
     process.exit(2);
   }
 }
@@ -312,7 +372,7 @@ try {
     const envelope = extractEnvelope(readFileSync(target, "utf8"), target);
     if (envelope === null) continue;
     envelopesChecked += 1;
-    checkEnvelope(envelope, target, resolver, bindingPath !== null);
+    checkEnvelope(envelope, target, resolver, bindingPath !== null, securityBindingPath !== null);
   }
 } catch (error) {
   // A missing or unreadable target is an environment error (exit 2), never a

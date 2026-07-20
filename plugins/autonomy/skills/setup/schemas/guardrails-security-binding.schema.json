@@ -193,13 +193,14 @@
         "oneOf": [
           { "enum": ["C1", "C2", "C3", "C4", "C5"] },
           {
-            "description": "Surface-bound classification entry: binds the marker (a routine identity, for the temporal home) to its work class AND the one emitting surface admission attests. The protected identity-to-surface association lives here, on the agent-unwritable surface — without it the marker is an unprotected selector an agent-writable scheduled workflow could point at any class.",
+            "description": "Surface-bound classification entry: binds the marker (a routine identity, for the temporal home) to its work class, the one emitting surface admission attests, AND the ratified attestation anchor run_link_prefix — the platform run-permalink namespace of the ONE schedule allowed to emit this identity (ci-cron: absolute https prefix; local-scheduler: durable file:/artifact-scheme prefix). The protected associations live here, on the agent-unwritable surface — without them the marker is an unprotected selector an agent-writable scheduled workflow could point at any class, and an agent-writable schedule cannot mint run permalinks under another workflow's platform-assigned namespace.",
             "type": "object",
             "additionalProperties": false,
-            "required": ["class", "source_surface"],
+            "required": ["class", "source_surface", "run_link_prefix"],
             "properties": {
               "class": { "enum": ["C1", "C2", "C3", "C4", "C5"] },
-              "source_surface": { "type": "string", "minLength": 1 }
+              "source_surface": { "type": "string", "minLength": 1 },
+              "run_link_prefix": { "type": "string", "minLength": 1 }
             }
           }
         ]

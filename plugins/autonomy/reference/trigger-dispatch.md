@@ -85,7 +85,8 @@ SECURITY governance surface — the adapter stamps, never defines, and no repo-l
 - `tracker-vcs-event` resolves through the security-bound label→class rules.
 - `temporal` signals carry the class their bound routine/detector definition derives,
   selected by the envelope's validated `signal.routine` identity for routine-fired signals
-  ([routine contract](routines.md)).
+  ([routine contract](routines.md)) — including event-woken routine runs, which are
+  `temporal` regardless of wake source.
 - `agent-internal` items must PROVE protected provenance: the envelope serializes the
   emitting session's own admitted source item as `signal.parent_item`, and the admission
   seam verifies the session-to-parent association against protected dispatch data — the
@@ -98,6 +99,16 @@ SECURITY governance surface — the adapter stamps, never defines, and no repo-l
 - `channel-feed`, and any signal the rules cannot resolve, stays UNCLASSIFIED.
 
 Unclassified → fail-closed human-gated, always.
+
+**Authenticated run context.** Envelope fields are agent-claimable, so a temporal adapter
+resolves `signal.source_surface` and `signal.raw_link` from the platform's authenticated run
+context — the run identity the scheduling platform itself injects — never from job arguments
+or agent-writable configuration. The security binding's ratified entry additionally pins each
+routine identity to its schedule's platform-assigned run-permalink namespace
+(`run_link_prefix`): a claimed raw link outside that namespace fails the identity-to-surface
+association check ([routine contract](routines.md)) and the signal stays unclassified —
+fail-closed human-gated, like any claim the [admission seam](guardrails/admission-policy.md)
+cannot verify.
 
 ## Signal envelope
 
