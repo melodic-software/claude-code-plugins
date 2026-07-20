@@ -244,11 +244,15 @@ RESTORED="$(clean_restore_tracked_deletions "$REPO_ROOT")"
 # not regress that into a hard error. Only a non-zero exit with NO 'failed to
 # remove' warnings is a genuine clean failure; emit a distinct failure line and a
 # non-zero exit instead of a success line that misrepresents the outcome.
+# Known limitation: a non-zero exit mixing locked-file warnings AND an unrelated
+# error still falls through to the success path (UNREMOVABLE>0 wins) — the locked-
+# file heuristic predates this gate; a stricter classifier is deferred.
 if [[ "$CLEAN_RC" -ne 0 && "${UNREMOVABLE:-0}" -eq 0 ]]; then
   printf 'FAILED: git clean -fdx exited %s (non-locked-file cause) — untracked removal incomplete; reset --hard already applied.\n' "$CLEAN_RC" >&2
-  printf '%s\n' "$CLEAN_STDERR" >&2
+  [[ -n "$CLEAN_STDERR" ]] && printf '%s\n' "$CLEAN_STDERR" >&2
   printf 'AppliedClean: failed\n'
   printf 'RestoredTracked: %s\n' "${RESTORED:-0}"
+  printf 'Unremovable: %s\n' "0"
   exit 7
 fi
 

@@ -233,6 +233,8 @@ assert_contains "clean failure reports failure" "$out" "FAILED: git clean -fdx"
 assert_contains "clean failure emits AppliedClean: failed" "$out" "AppliedClean: failed"
 assert_not_contains "clean failure emits no clean success line" "$out" "AppliedClean: git clean"
 assert_contains "clean failure still reports the successful reset" "$out" "AppliedReset: git reset --hard"
+assert_contains "clean failure emits RestoredTracked label" "$out" "RestoredTracked: 0"
+assert_contains "clean failure emits Unremovable label (uniform apply-path contract)" "$out" "Unremovable: 0"
 assert_file_exists "clean failure leaves untracked intact (clean did not silently succeed)" "$R4/scratch.txt"
 
 if [[ $FAILED -ne 0 ]]; then
