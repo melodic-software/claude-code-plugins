@@ -29,6 +29,9 @@ on:
       - "**/*.cjs"
       - "**/.mcp.json"
       - "**/mcp.json"
+      - "**/package.json"
+      - "**/package-lock.json"
+      - "plugins/*/.claude-plugin/plugin.json"
 
 permissions:
   contents: read
