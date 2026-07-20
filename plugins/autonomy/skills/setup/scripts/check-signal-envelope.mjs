@@ -28,6 +28,10 @@ const SURFACE_CLASSES = new Set(["tracker-vcs-event", "temporal", "agent-interna
 const TRANSPORTS = new Set(["push", "push-lifecycle", "poll"]);
 const PROVENANCES = new Set(["human", "agent", "system"]);
 const WORK_CLASSES = new Set(["C1", "C2", "C3", "C4", "C5"]);
+// Routine identity: <class-token> or <class-token>/<posture-token> — the
+// posture-qualified form is how a multi-posture routine class stamps which
+// posture's classification the signal claims.
+const ROUTINE_IDENTITY = /^[a-z][a-z0-9-]*(\/[a-z][a-z0-9-]*)?$/;
 const REQUIRED_KEYS = [
   "signal.class",
   "signal.transport",
@@ -140,7 +144,7 @@ function collectSurfaces(binding) {
   return { surfaces, duplicates };
 }
 
-function checkEnvelope(envelope, where, { surfaces, duplicates }, bindingSupplied) {
+function checkEnvelope(envelope, where, { surfaces, duplicates, binding }, bindingSupplied) {
   const version = envelope.schema_version;
   if (!SUPPORTED_SCHEMA_VERSIONS.has(version)) {
     findings.push(
@@ -188,9 +192,17 @@ function checkEnvelope(envelope, where, { surfaces, duplicates }, bindingSupplie
   // raw_link form branches DETERMINISTICALLY on the serialized origin.
   const rawLink = envelope["signal.raw_link"];
   const sourceSurface = envelope["signal.source_surface"];
+  const routine = envelope["signal.routine"];
   let localScheduler = false;
   let surfaceEntry = null;
   if (signalClass === "temporal") {
+    if (typeof routine !== "string" || routine.length === 0) {
+      findings.push(`${where}: signal.routine missing (required for temporal signals)`);
+    } else if (!ROUTINE_IDENTITY.test(routine)) {
+      findings.push(
+        `${where}: signal.routine ${JSON.stringify(routine)} is not a routine identity — <class-token> or <class-token>/<posture-token>, each segment lowercase [a-z][a-z0-9-]*`,
+      );
+    }
     if (typeof sourceSurface !== "string" || sourceSurface.length === 0) {
       findings.push(`${where}: signal.source_surface missing (required for temporal signals)`);
     } else if (!bindingSupplied) {
@@ -214,6 +226,38 @@ function checkEnvelope(envelope, where, { surfaces, duplicates }, bindingSupplie
       } else {
         surfaceEntry = entry;
         localScheduler = entry.scheduler_class === "local-scheduler";
+      }
+    }
+    // A temporal envelope carrying signal.work_class is conformant only when
+    // the binding's admission.classification.temporal ratifies the exact
+    // (routine, source_surface) -> class association — the same rationale as
+    // the agent-internal provenance rule: a self-stamped or mis-associated
+    // class would bypass admission, so the class must trace to the protected
+    // binding, never to the agent-writable scheduled workflow that stamped
+    // the identity. An envelope WITHOUT signal.work_class stays legal:
+    // unclassified enqueues fail-closed human-gated downstream. The check
+    // runs only once the source surface RESOLVED — an unresolved surface
+    // already carries its own finding above.
+    const stampedClass = typeof workClass === "string" && WORK_CLASSES.has(workClass);
+    if (stampedClass && surfaceEntry !== null && typeof routine === "string" && ROUTINE_IDENTITY.test(routine)) {
+      const temporalHome = binding?.admission?.classification?.temporal;
+      const classificationEntry =
+        typeof temporalHome === "object" && temporalHome !== null ? temporalHome[routine] : undefined;
+      if (typeof classificationEntry !== "object" || classificationEntry === null) {
+        findings.push(
+          `${where}: signal.work_class ${JSON.stringify(workClass)} has no admission.classification.temporal object entry for routine ${JSON.stringify(routine)} in the binding — a class the protected binding never ratified is self-stamped and bypasses admission`,
+        );
+      } else {
+        if (classificationEntry.source_surface !== sourceSurface) {
+          findings.push(
+            `${where}: signal.source_surface ${JSON.stringify(sourceSurface)} is not the emitting surface the binding ratifies for routine ${JSON.stringify(routine)} (${JSON.stringify(classificationEntry.source_surface)}) — a mis-associated identity/surface pair lets a swapped selector resolve a different class; the ratified association pins one surface per routine identity`,
+          );
+        }
+        if (classificationEntry.class !== workClass) {
+          findings.push(
+            `${where}: signal.work_class ${JSON.stringify(workClass)} does not match the class the binding ratifies for routine ${JSON.stringify(routine)} (${JSON.stringify(classificationEntry.class)}) — the work class rides the protected binding, never the envelope's own stamp`,
+          );
+        }
       }
     }
   }
@@ -251,10 +295,11 @@ if (targets.length === 0) {
   process.exit(2);
 }
 
-let resolver = { surfaces: new Map(), duplicates: new Set() };
+let resolver = { surfaces: new Map(), duplicates: new Set(), binding: null };
 if (bindingPath !== null) {
   try {
-    resolver = collectSurfaces(JSON.parse(readFileSync(bindingPath, "utf8")));
+    const binding = JSON.parse(readFileSync(bindingPath, "utf8"));
+    resolver = { ...collectSurfaces(binding), binding };
   } catch (error) {
     console.error(`cannot read binding ${bindingPath}: ${error.message}`);
     process.exit(2);

@@ -318,12 +318,12 @@
       "id": 25,
       "name": "routine-free-default-wiring-home-split",
       "prompt": "/autonomy:setup apply --org-policy-home none --budget-posture free\n\nWire the free routine defaults.",
-      "expected_output": "Wires free defaults as reviewable changes across role homes: the CI-cron handler shape on the CI-orchestration home (emitting a temporal signal into the queue), the enabling cadence and enablement in the repo-local routines section on the settings-as-code home, and the routine to work-class mapping PREPARED as an admission.classification.temporal change for the security governance surface rather than written repo-local. Every shape enqueues through the temporal adapter and the one dispatch entrypoint, no second scheduling path is created, and zero paid dependencies are introduced.",
+      "expected_output": "Wires free defaults as reviewable changes across role homes: the CI-cron handler shape on the CI-orchestration home (emitting a temporal signal into the queue), the enabling cadence and enablement keyed by routine identity in the repo-local routines section on the settings-as-code home, and the protected identity-to-surface association (each routine identity mapped to {class, source_surface}, one entry per identity, no two sharing a surface) PREPARED as an admission.classification.temporal change for the security governance surface rather than written repo-local. Every shape enqueues through the temporal adapter and the one dispatch entrypoint, no second scheduling path is created, and zero paid dependencies are introduced.",
       "files": [],
       "expectations": [
         "CI-cron handler lands on the CI-orchestration home; enabling settings on the settings-as-code home",
-        "Routine work-class mapping prepared as an admission.classification.temporal change on the security binding, never repo-local",
-        "Repo-local routines section carries cadence, enablement, and surface choice only",
+        "Protected identity-to-surface association (identity to {class, source_surface}) prepared as an admission.classification.temporal change on the security binding, never repo-local",
+        "Repo-local routines section carries cadence, enablement, and surface choice only, keyed by routine identity",
         "Every routine enqueues through the temporal adapter's one entrypoint; no second scheduling path"
       ]
     },
@@ -351,6 +351,19 @@
         "Cost surfaced before any opt-in question",
         "Free CI-cron/local-scheduler floor named as the zero-cost default",
         "Preview-surface research gap carried visibly; entitlement gap routes to advisory"
+      ]
+    },
+    {
+      "id": 28,
+      "name": "routine-identity-selector-is-a-claim-not-trust-anchor",
+      "prompt": "/autonomy:setup apply\n\nWhen we wire routines, what stops a scheduled workflow from claiming a low-risk class for high-risk work?",
+      "expected_output": "States the trust model: the --routine argument and the workflow file are claims, never trust anchors. The security binding's admission.classification.temporal table is authoritative — keyed by routine identity, each entry carrying {class, source_surface}, and binding exactly one identity per emitting surface. Admission validates the (signal.routine, attested source surface) pair against that table before stamping signal.work_class; an absent entry, or a source_surface that does not match the attested surface, is fail-closed human-gated, so a swapped selector resolves to a different surface and cannot launder high-risk work as a benign class. A multi-posture class binds per-posture identities on distinct surfaces, never its bare token.",
+      "files": [],
+      "expectations": [
+        "The --routine argument and workflow file are treated as claims, never trust anchors",
+        "admission.classification.temporal is keyed by routine identity with {class, source_surface}, one identity per emitting surface",
+        "Admission validates the (signal.routine, attested source surface) pair before stamping; a mismatch or absent entry fail-closes human-gated",
+        "A multi-posture class binds per-posture identities on distinct surfaces, never its bare token"
       ]
     }
   ]

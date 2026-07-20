@@ -49,6 +49,10 @@ import process from "node:process";
 
 const WORK_CLASSES = ["C1", "C2", "C3", "C4", "C5"];
 const LEVEL_TOKEN = /^L[0-3]$/;
+// Routine identity: <class-token> or <class-token>/<posture-token> — the
+// posture-qualified form is how a multi-posture routine class binds each
+// posture to its own class and emitting surface.
+const ROUTINE_IDENTITY = /^[a-z][a-z0-9-]*(\/[a-z][a-z0-9-]*)?$/;
 const SURFACE_CLASSES = ["tracker-vcs-event", "temporal", "agent-internal", "channel-feed"];
 const PROVENANCES = ["human", "agent", "system"];
 const DISPOSITIONS = ["autonomous-eligible", "human-gated", "audited-rejection"];
@@ -589,6 +593,10 @@ function validateAdmissionStructure(admission) {
           findings.push(`${where}: must be an object mapping signal markers to work classes`);
           continue;
         }
+        if (surfaceClass === "temporal") {
+          validateTemporalClassificationHome(ruleHome, where);
+          continue;
+        }
         for (const [marker, workClass] of Object.entries(ruleHome)) {
           checkEnum(workClass, WORK_CLASSES, `${where}.${JSON.stringify(marker)}`);
         }
@@ -625,6 +633,52 @@ function validateAdmissionStructure(admission) {
   for (const cap of ["autonomous_concurrency", "items_per_run"]) {
     if (Object.hasOwn(admission, cap) && (!Number.isInteger(admission[cap]) || admission[cap] < 1)) {
       findings.push(`admission.${cap}: must be an integer >= 1`);
+    }
+  }
+}
+
+// The TEMPORAL home is keyed by ROUTINE IDENTITY, and every entry must be the
+// surface-bound object form: the scheduled workflow that stamps a routine
+// identity is agent-writable in adopting repos, so the identity alone is an
+// unprotected selector — a bare class here would let a swapped selector
+// resolve high-risk scheduled work through a benign class. Only the
+// identity-to-surface association ratified on this agent-unwritable surface
+// lets admission stamp a class; anything less fails closed. The other
+// classification homes keep their bare-enum entries: their markers arrive on
+// attested event surfaces, not through an agent-writable selector.
+function validateTemporalClassificationHome(ruleHome, where) {
+  const identityBySurface = new Map();
+  for (const [identity, entry] of Object.entries(ruleHome)) {
+    const entryWhere = `${where}.${JSON.stringify(identity)}`;
+    if (!ROUTINE_IDENTITY.test(identity)) {
+      findings.push(
+        `${entryWhere}: ${JSON.stringify(identity)} is not a routine identity — <class-token> or <class-token>/<posture-token>, each segment lowercase [a-z][a-z0-9-]*; an out-of-grammar key can never match a stamped signal.routine, so its classification is unreachable dead policy`,
+      );
+    }
+    if (!isPlainObject(entry)) {
+      findings.push(
+        `${entryWhere}: ${JSON.stringify(entry)} is a bare work class — a temporal classification with no bound emitting surface is an unprotected selector: the scheduled workflow (agent-writable in adopting repos) would pick the class; bind the object form {class, source_surface}`,
+      );
+      continue;
+    }
+    checkAllowedKeys(entry, ["class", "source_surface"], entryWhere);
+    if (Object.hasOwn(entry, "class")) {
+      checkEnum(entry.class, WORK_CLASSES, `${entryWhere}.class`);
+    } else {
+      findings.push(`${entryWhere}.class: required key missing`);
+    }
+    if (!isNonEmptyString(entry.source_surface)) {
+      findings.push(
+        `${entryWhere}.source_surface: missing or empty — the entry binds its routine identity to the ONE emitting surface admission attests; without the bound surface the classification is an unprotected selector, fail-closed`,
+      );
+      continue;
+    }
+    if (identityBySurface.has(entry.source_surface)) {
+      findings.push(
+        `${where}: routine identities ${JSON.stringify(identityBySurface.get(entry.source_surface))} and ${JSON.stringify(identity)} both bind source_surface ${JSON.stringify(entry.source_surface)} — one routine identity per emitting surface: on a shared surface a swapped selector still resolves a different class`,
+      );
+    } else {
+      identityBySurface.set(entry.source_surface, identity);
     }
   }
 }

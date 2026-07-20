@@ -83,7 +83,9 @@ SECURITY governance surface — the adapter stamps, never defines, and no repo-l
 (agent-writable) surface may supply the class used for admission:
 
 - `tracker-vcs-event` resolves through the security-bound label→class rules.
-- `temporal` signals carry the class their bound routine/detector definition derives.
+- `temporal` signals carry the class their bound routine/detector definition derives,
+  selected by the envelope's validated `signal.routine` identity for routine-fired signals
+  ([routine contract](routines.md)).
 - `agent-internal` items must PROVE protected provenance: the envelope serializes the
   emitting session's own admitted source item as `signal.parent_item`, and the admission
   seam verifies the session-to-parent association against protected dispatch data — the
@@ -116,6 +118,7 @@ every contract schema. Keys:
 | `signal.work_class` | optional; the stamped risk class per the classification rules — absent = unclassified = human-gated |
 | `signal.parent_item` | REQUIRED when `signal.class` is `agent-internal`: canonical URL of the emitting session's admitted source item, verified against the queue's lease record |
 | `signal.source_surface` | REQUIRED when `signal.class` is `temporal`: the originating scheduling surface's id as recorded in the org's trigger/routine binding — the discriminator raw-link form validation branches on |
+| `signal.routine` | REQUIRED when `signal.class` is `temporal`: the routine identity the emitting schedule claims ([routine contract](routines.md)); a CLAIM the admission seam validates against the security binding's protected identity-to-surface association (one identity per surface) before any `signal.work_class` stamp — an unvalidated or mismatched claim stays unclassified, fail-closed human-gated |
 
 ## Dispatch
 

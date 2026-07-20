@@ -110,6 +110,19 @@ class on the catalog's axes, then apply the rules below.
 - Unattended GUI actuation requires the highest
   [isolation-ladder](guardrails/isolation-ladder.md) tier.
 
+### Routine identity
+
+A routine binds under a routine identity: `<class-token>` for a single-posture class, and
+`<class-token>/<posture-token>` for each enabled posture of a class whose derivation yields
+portion-split rows (kebab-case segments). A multi-posture class never binds its bare class
+token; each posture-qualified identity carries that posture's derived class. The
+identity-to-class mapping is admission data on the security binding, each entry bound to its
+one emitting scheduling surface — one identity per surface — so the schedule-side selector is
+a claim the admission seam validates against the ratified binding, never a trust anchor, for
+the same agent-unwritable reason the
+[classification obligation](trigger-dispatch.md#work-class-classification) states. Posture
+tokens are owned by the class's definition leaf.
+
 ## The catalog
 
 One row per class. Judgment: `DET` deterministic · `AGT` agent judgment · `AGT/HUM` agent

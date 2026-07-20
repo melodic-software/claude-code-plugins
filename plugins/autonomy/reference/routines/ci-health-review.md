@@ -48,6 +48,13 @@ The row is derived through the catalog's mapping rules, never hand-assigned:
 
 Derived row: `C1` for the advisory portion; `C4` for the optional CI-config change.
 
+Each posture is a distinct protected routine identity: `ci-health-review/advisory`
+(report + work items, `C1`) and `ci-health-review/ci-config-change` (the optional gated
+CI-config path, `C4`). An org's security binding keys admission classification by these
+posture-qualified identities per the [catalog](../routines.md)'s binding rules — the bare
+class token is not bindable for a multi-posture class; the posture the org enables picks
+the identity it binds.
+
 ## Admission and escalation
 
 Admission disposition and fan-out caps for the derived class come from the

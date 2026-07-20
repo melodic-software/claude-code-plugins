@@ -53,6 +53,13 @@ The row is derived through the catalog's mapping rules, never hand-assigned:
 Derived row: `C2` for the mechanical-only posture; `C5` for the release-note-reading
 posture. The org binding picks one posture, and the bound posture's row governs.
 
+Each posture is a distinct protected routine identity: `dependency-update-wave/mechanical`
+(manifest bump + CI verdict, `C2`) and `dependency-update-wave/changelog-informed`
+(judgment reasons over attacker-writable upstream prose, `C5`). An org's security binding
+keys admission classification by these posture-qualified identities per the
+[catalog](../routines.md)'s binding rules — the bare class token is not bindable for a
+multi-posture class; the posture the org enables picks the identity it binds.
+
 ## Admission and escalation
 
 Admission disposition and fan-out caps for the derived class come from the

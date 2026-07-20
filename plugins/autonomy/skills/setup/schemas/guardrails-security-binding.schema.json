@@ -189,7 +189,21 @@
     "Route": { "type": "string", "minLength": 1 },
     "ClassificationRuleHome": {
       "type": "object",
-      "additionalProperties": { "enum": ["C1", "C2", "C3", "C4", "C5"] }
+      "additionalProperties": {
+        "oneOf": [
+          { "enum": ["C1", "C2", "C3", "C4", "C5"] },
+          {
+            "description": "Surface-bound classification entry: binds the marker (a routine identity, for the temporal home) to its work class AND the one emitting surface admission attests. The protected identity-to-surface association lives here, on the agent-unwritable surface — without it the marker is an unprotected selector an agent-writable scheduled workflow could point at any class.",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["class", "source_surface"],
+            "properties": {
+              "class": { "enum": ["C1", "C2", "C3", "C4", "C5"] },
+              "source_surface": { "type": "string", "minLength": 1 }
+            }
+          }
+        ]
+      }
     },
     "AdmissionRule": {
       "type": "object",

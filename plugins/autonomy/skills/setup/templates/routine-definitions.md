@@ -16,8 +16,9 @@ Constant across every shape — the routine handler does exactly this and no mor
 | Step | What the handler does |
 |---|---|
 | Emit | writes ONE `temporal` signal envelope onto a governed queue item (the `<!-- autonomy:signal:v1 -->` marker record); it never runs the routine's own work |
+| Stamp identity | sets `signal.routine` to the routine's IDENTITY — `<class-token>`, or `<class-token>/<posture-token>` for a multi-posture class — a CLAIM the handler makes, never a trust anchor |
 | Stamp source | sets `signal.source_surface` to the routine's recorded scheduling-surface id so the envelope check resolves it against the binding's `routines` (or `triggers`) `surfaces` map |
-| Carry class | leaves `signal.work_class` to the admission classification the security binding homes for the routine's class token — the handler never self-stamps a class |
+| Carry class | leaves `signal.work_class` to admission, which stamps it only after validating the `(signal.routine, attested source surface)` pair against the security binding's `admission.classification.temporal` table; the handler never self-stamps a class |
 | Raw link | `signal.raw_link` = the surface's durable reference: an https run permalink on a `ci-cron` surface, a durable `file:`/artifact URI on a `local-scheduler` surface |
 | Trace | injects `signal.traceparent` so the causal tree spans schedule → queue → agent session |
 | No dispatch | returns after enqueue; the standing drain claims and dispatches through the one entrypoint |
@@ -25,24 +26,31 @@ Constant across every shape — the routine handler does exactly this and no mor
 `scheduler_class` is a closed two-value discriminator (`ci-cron` \| `local-scheduler`); the surface
 classes below each RECORD as one of the two by the raw-link form, never as a new token.
 
+The `--routine` argument and the workflow file are CLAIMS, not trust anchors: the security
+binding's protected identity↔surface association is authoritative, and it binds exactly ONE
+routine identity per emitting surface. A shape below therefore emits for a SINGLE identity — a
+multi-posture class runs one shape per posture on its own surface — so the surface the platform
+attests pins the identity, and a swapped `--routine` cannot resolve a different class.
+
 ## CI-cron surface (marked example: a hosted CI scheduler)
 
 `scheduler_class: ci-cron`, `raw_link` an https run permalink. The scheduled handler lands on the
 CI-orchestration home; the enabling settings on the settings-as-code home.
 
 ```yaml
-# <ci-orchestration-home>: scheduled job — emits the routine signal, runs no routine work
+# <ci-orchestration-home>: scheduled job for ONE routine identity — emits the signal, runs no work.
+# The identity is a claim; the security binding's identity->surface table is the trust anchor.
 on:
   schedule:
-    - cron: "<cadence-for-class>"      # org-bound cadence for <routine-class-token>
+    - cron: "<cadence-for-identity>"    # org-bound cadence for <routine-identity>
   workflow_dispatch: {}                # manual kick
 jobs:
-  emit-<routine-class-token>:
+  emit-routine:
     steps:
       - run: <enqueue-command> \
           --surface "<ci-cron-surface-id>" \
           --class temporal \
-          --routine "<routine-class-token>" \
+          --routine "<routine-identity>" \
           --raw-link "<https-run-permalink>"
 ```
 
@@ -52,11 +60,11 @@ jobs:
 `artifact_schemes` on the surface entry when an org artifact store holds the run record).
 
 ```sh
-# <local scheduler>: periodic job — enqueue only, no routine work in the handler
+# <local scheduler>: periodic job for ONE routine identity — enqueue only, no routine work
 <enqueue-command> \
   --surface "<local-scheduler-surface-id>" \
   --class temporal \
-  --routine "<routine-class-token>" \
+  --routine "<routine-identity>" \
   --raw-link "file://<durable-run-record-path>"
 ```
 
@@ -75,8 +83,9 @@ current vendor docs at wire time, never from this template.
 
 ## Parameterization
 
-One shape per (routine class token × cadence × surface). The class token selects the catalog
-definition and the `admission.classification.temporal` entry the signal's work class is stamped
-from; cadence and surface choice come from the repo-local `routines` section. A reconciled existing
-bot reuses this table by recording its surface and class token — wiring nothing new — so the same
-concern never carries two mechanisms.
+One shape per (routine identity × cadence × surface), and — because the security binding permits
+one identity per surface — one identity per emitting surface. The identity selects the catalog
+definition (posture leaf for a multi-posture class) and the `admission.classification.temporal`
+entry the signal's work class is stamped from; cadence and surface choice come from the repo-local
+`routines` section. A reconciled existing bot reuses this table by recording its identity and its
+surface — wiring nothing new — so the same concern never carries two mechanisms.

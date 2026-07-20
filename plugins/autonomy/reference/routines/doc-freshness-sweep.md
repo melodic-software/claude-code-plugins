@@ -71,6 +71,13 @@ class has two output shapes:
 Derived row: `C1` advisory-only, `C3` with the docs-change path enabled — both in the
 [guardrail matrix](../guardrails.md).
 
+Each posture binds a distinct protected routine identity per the
+[routine catalog](../routines.md)'s posture-identity rule: `doc-freshness-sweep/advisory`
+(report + work items, `C1`) and `doc-freshness-sweep/docs-change` (the gated docs-change
+path, `C3`). An org's security binding keys admission classification by these
+posture-qualified identities — the bare class token is not bindable for a multi-posture
+class.
+
 ## Admission and escalation
 
 Admission disposition, caps, and fail-closed behavior are imported by citation from the

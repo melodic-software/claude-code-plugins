@@ -460,21 +460,41 @@ surfaces are advisory + explicit opt-in with cost surfaced. Like the
 routine's work-class mapping is admission data proposed as a reviewable change on the
 settings-as-code home, and nothing dispatches autonomously until a human lands it.
 
+**Routine identity.** A routine is addressed by its IDENTITY: the bare `<class-token>` for a
+single-posture class, or `<class-token>/<posture-token>` (kebab-case segments) for a
+multi-posture class whose catalog leaf defines more than one work-class posture — e.g.
+`doc-freshness-sweep/advisory` and `doc-freshness-sweep/docs-change`,
+`ci-health-review/advisory` and `ci-health-review/ci-config-change`,
+`dependency-update-wave/mechanical` and `dependency-update-wave/changelog-informed` (the
+canonical posture tokens live in the catalog leaves). A multi-posture class binds PER-POSTURE
+identities, never its bare token — each posture is a distinct work class and therefore a distinct
+identity on a distinct emitting surface. The handler serializes its identity as the envelope's
+`signal.routine`, required on every temporal routine signal.
+
 **Binding-home split by governance sensitivity (the guardrail contract's split).** A routine's
 `signal.work_class` is stamped, per
 [`${CLAUDE_PLUGIN_ROOT}/reference/trigger-dispatch.md`](${CLAUDE_PLUGIN_ROOT}/reference/trigger-dispatch.md)'s
-classification rules, from the routine→work-class mapping the routine's catalog-derived guardrail
-row fixes. That mapping is ADMISSION data: it binds ONLY in the security binding's
-`admission.classification.temporal` home
-([`schemas/guardrails-security-binding.schema.json`](schemas/guardrails-security-binding.schema.json),
-keyed by routine class token → `C1`–`C5`), on the settings-as-code home outside the agents'
-blast radius — for reconciled existing bots exactly as for freshly wired routines. A repo-local
-class source would be the precise agent-writable bypass the trigger contract's classification
-obligation forbids (an agent that could edit its own routine's work class could launder
-higher-risk work past admission). Only the NON-security keys — cadence, enablement, surface
-choice — land repo-local, in the additive `routines` section below; security axis resolves from
-the security binding always, non-security refinement repo-local, per the guardrail resolution
-order.
+classification rules, from the PROTECTED identity↔surface association the security binding homes —
+NOT from the `--routine` argument or the scheduled workflow file, which are CLAIMS an
+agent-writable job could forge and are never trust anchors. That association is ADMISSION data: it
+binds ONLY in the security binding's `admission.classification.temporal` home
+([`schemas/guardrails-security-binding.schema.json`](schemas/guardrails-security-binding.schema.json)),
+on the settings-as-code home outside the agents' blast radius — for reconciled existing bots
+exactly as for freshly wired routines. Each entry is keyed by routine identity and carries
+`{"class": "C1"–"C5", "source_surface": "<surfaces-map id>"}`: the class the identity's signals
+stamp AND the one scheduling surface permitted to emit them. **One identity per emitting
+surface** — no two `classification.temporal` entries may share a `source_surface`, so the surface
+the platform attests (through the execution-surface attestation and the signal's raw link) is
+bound to exactly ONE identity. Admission validates the envelope's `(signal.routine, resolved
+source surface)` pair against this table BEFORE stamping `signal.work_class`; an absent entry, or
+an entry whose `source_surface` does not equal the attested surface, is fail-closed human-gated. A
+swapped `--routine` selector therefore cannot launder high-risk work as a benign class — claiming
+a different identity resolves to THAT identity's own surface, which the attested surface will not
+match. A repo-local class source would be the precise agent-writable bypass the trigger contract's
+classification obligation forbids. Only the NON-security keys — cadence, enablement, surface
+choice — land repo-local, in the additive `routines` section below; the security axis resolves
+from the security binding always, non-security refinement repo-local, per the guardrail
+resolution order.
 
 1. **Discover scheduling surfaces + budget posture** — interview and inspect which scheduling
    surfaces this org has: CI-cron on the CI-orchestration home, a developer-machine scheduler,
@@ -488,8 +508,9 @@ order.
 2. **Detect-diff-reconcile existing schedulers and bots** — before wiring anything, read what
    already runs: org schedulers, dependency bots, scheduled scanners, existing cron. A live
    agent-judgment bot (a dependency-update bot, a triage bot) IS an instance of a catalog routine
-   class, not a rival mechanism: record it in the binding under its class token and its surface,
-   reconcile its cadence, and NEVER stand up a second mechanism for the same concern. The
+   class, not a rival mechanism: record it in the binding under its routine identity
+   (posture-qualified for a multi-posture class) and its surface, reconcile its cadence, and NEVER
+   stand up a second mechanism for the same concern. The
    DET-stays-cron rule holds through reconciliation — a plain deterministic scheduled check is not
    a routine and stays plain cron filing work items through the trigger adapters; only its
    judgment-bearing successor, where one exists, is the routine, and a hybrid class (e.g.
@@ -502,10 +523,11 @@ order.
      [`templates/routine-definitions.md`](templates/routine-definitions.md) lands on the
      CI-orchestration home (the scheduled job that emits the routine's `temporal` signal into the
      queue);
-   - the enabling settings — which routines are on, at what cadence — land as the repo-local
-     `routines` section on the settings-as-code home;
-   - the routine→work-class mapping lands as the `admission.classification.temporal` change
-     PREPARED for the security governance surface.
+   - the enabling settings — which routine identities are on, at what cadence — land as the
+     repo-local `routines` section on the settings-as-code home;
+   - the protected identity↔surface association — each routine identity →
+     `{class, source_surface}`, one entry per identity, no two sharing a surface — lands as the
+     `admission.classification.temporal` change PREPARED for the security governance surface.
 
    Every shape enqueues through the trigger contract's `temporal` adapter and the one dispatch
    entrypoint; no routine executes work in its own handler and no second scheduling path is
@@ -520,14 +542,16 @@ order.
    | Key | Value |
    |---|---|
    | `surfaces` | object keyed by scheduling-surface id, the SAME shape the [trigger slice](#triggerdispatch-slice)'s `surfaces` map uses (`{"class": "temporal", "transport": "poll"\|"push-lifecycle", "scheduler_class": "ci-cron"\|"local-scheduler", "execution_surface": "<recorded id>"}`; a `local-scheduler` surface using an org artifact store also declares `artifact_schemes`). Record a surface here ONLY when the trigger slice has not already recorded it — [`scripts/check-signal-envelope.mjs`](scripts/check-signal-envelope.mjs)'s resolver merges every section's `surfaces` map and refuses an id recorded in two sections as ambiguous; a routine riding an already-recorded surface REFERENCES its id, it does not re-declare it |
-   | `enabled` | object keyed by routine class token — each entry `{"source_surface": "<surfaces-map id>", "cadence": "<schedule expression or token>", "enabled": <bool>}`; cadence, enablement, and surface choice ONLY. The class token's work-class mapping is NOT here — it is admission data in the security binding's `admission.classification.temporal`, and a routine whose token has no such mapping stays unclassified and fail-closed human-gated |
+   | `enabled` | object keyed by the FULL routine identity (`<class-token>` or `<class-token>/<posture-token>`) — each entry `{"source_surface": "<surfaces-map id>", "cadence": "<schedule expression or token>", "enabled": <bool>}`; cadence, enablement, and surface choice ONLY. Its `source_surface` MUST agree with the same identity's `source_surface` in the security binding's `admission.classification.temporal` — binding review and the envelope checker catch drift. The class itself is NOT here; an identity with no protected classification entry, or one whose surface disagrees, stays unclassified and fail-closed human-gated |
 
 6. **Conformance** — the wired state is reached when
    [`scripts/check-signal-envelope.mjs`](scripts/check-signal-envelope.mjs), run with `--binding`
-   at the resolved binding against a routine-emitted queue item, resolves the item's
-   `signal.source_surface` to the routines-section surface and confirms the temporal raw-link
-   form; a routine signal with no resolvable source surface, or an unclassified work class, is a
-   finding.
+   at the resolved binding against a routine-emitted queue item, confirms `signal.routine` is
+   present, resolves `signal.source_surface` to the routines-section surface with its temporal
+   raw-link form, and verifies any stamped `signal.work_class` matches the protected
+   `admission.classification.temporal` entry for that `(identity, surface)` pair; a missing
+   `signal.routine`, an unresolvable surface, an identity↔surface mismatch, or an unclassified
+   class is a finding.
 
 ## What this skill does NOT do
 
