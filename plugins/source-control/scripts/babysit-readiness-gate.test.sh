@@ -262,4 +262,30 @@ r=$(run_gate "$F")
 assert_contains "out-of-range [P-num] -> findings=0" "$r" "findings=0"
 assert_contains "out-of-range [P-num] -> OK" "$r" "READINESS_OK"
 
+# --- Case: #465 lifetime findings in resolved/outdated threads are discounted -
+# A severity marker carried in a thread GitHub reports resolved or outdated is a
+# lifetime artifact of an already-addressed round, not a live finding. The shared
+# Python classifier (babysit_findings.py) discounts it (open-state aware) so a
+# fully-classified PR with re-review history no longer false-BLOCKs. The bash
+# degrade cannot see thread state and counts lifetime markers, so this enriched
+# behavior is asserted only when a Python 3.11+ interpreter is present -- the same
+# path the gate itself prefers. Three lifetime markers, only one open: findings=1.
+probe_py() {
+  "$@" -c 'import sys; raise SystemExit(0 if sys.version_info[:2] >= (3, 11) else 1)' \
+    >/dev/null 2>&1
+}
+if probe_py py -3 || probe_py python3 || probe_py python; then
+  F=$(mkjson lifetime-open '[
+    {author:"codex[bot]", body:"[CRITICAL] resolved earlier", isResolved:true},
+    {author:"codex[bot]", body:"[CRITICAL] outdated round", isOutdated:true},
+    {author:"codex[bot]", body:"[P1] still open null deref"},
+    {author:"me[bot]", body:"| 1 | null deref | VALID | fixed abc123 |"}
+  ]')
+  r=$(run_gate "$F")
+  assert_contains "#465 lifetime discount -> findings=1 (only open)" "$r" "findings=1"
+  assert_contains "#465 lifetime discount -> READINESS_OK" "$r" "READINESS_OK"
+else
+  pass "#465 lifetime discount skipped (no Python 3.11+; bash degrade counts lifetime)"
+fi
+
 [[ $FAILED -eq 0 ]] || exit 1

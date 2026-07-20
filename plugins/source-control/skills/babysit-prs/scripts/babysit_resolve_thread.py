@@ -74,17 +74,9 @@ import argparse
 import json
 from typing import Any, cast
 
+from babysit_classify import is_bot
 from babysit_gh import fetch_review_threads, gh_capture, parse_repo_number
 from babysit_util import configure_stdio, dig, is_json_object
-
-
-def is_bot(login: object, typename: object) -> bool:
-    """Bot iff GitHub's authoritative actor type says so, or the login carries
-    the structural `[bot]` suffix every GitHub App bot account uses. No hardcoded
-    identity list -- both signals come from the API and cannot go stale."""
-    if typename == "Bot":
-        return True
-    return isinstance(login, str) and login.endswith("[bot]")
 
 
 def _comment_author(comment: object) -> dict[str, object]:
@@ -471,11 +463,18 @@ def main() -> int:
                 "action": "resolve" if args.resolve else "list",
                 "onlyOutdated": args.only_outdated,
                 "includeHuman": args.include_human,
+                # Count only threads whose OPENING author is human. `botOnly`
+                # (every comment in the thread is a bot) is the wrong gate: a
+                # bot-opened thread carrying a later human reply is `botOnly:
+                # false` yet was never a human's thread, so counting it here
+                # reported a human-thread action that never happened (#512). The
+                # opening-author test matches the `--include-human` eligibility
+                # decision, via the shared `is_bot` authorship classifier.
                 "humanThreadsActed": len(
                     [
                         r
                         for r in results
-                        if not r["botOnly"]
+                        if not is_bot(r["author"], r["authorType"])
                         and r["action"] in ("would-resolve", "resolved")
                     ]
                 ),
