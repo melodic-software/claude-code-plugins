@@ -55,6 +55,10 @@ on:
 jobs:
   emit-routine:
     steps:
+      # signal.producer_identity is deliberately NOT a flag: <enqueue-command> resolves it
+      # from the run-context environment the platform injects into this job (the
+      # workflow-file reference) — a job argument would turn the attested producer into an
+      # agent-writable claim.
       - run: <enqueue-command> \
           --surface "<ci-cron-surface-id>" \
           --class temporal \
@@ -69,6 +73,9 @@ jobs:
 
 ```sh
 # <local scheduler>: periodic job for ONE routine identity — enqueue only, no routine work
+# signal.producer_identity is deliberately NOT a flag: <enqueue-command> resolves it from
+# the scheduler's own unit/job reference in the handler's environment — never a job
+# argument (the local attestation authority is weaker and stated as such, not capped).
 <enqueue-command> \
   --surface "<local-scheduler-surface-id>" \
   --class temporal \
