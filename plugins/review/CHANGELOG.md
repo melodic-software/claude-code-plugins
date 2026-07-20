@@ -3,6 +3,31 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.3]
+
+### Fixed
+
+- **Review diff base no longer bakes `main` as the terminal default-branch
+  fallback** (silent-empty-diff fix). Every base-resolution surface resolved the
+  default branch as `origin/HEAD`, then fell straight to the literal `origin/main`.
+  `origin/HEAD` is frequently unset in CI, shallow, single-branch, and fresh
+  clones, so a repository whose default branch is `master`/`develop` fell past a
+  non-existent `origin/main` all the way to the `echo HEAD` / `echo "unavailable"`
+  terminal — producing an EMPTY diff on a clean committed branch, i.e. a silent
+  no-op review with no error. This violated the convention-resolution ladder's
+  "No baked repo assumptions, ever". A dynamic resolution rung now sits BEFORE the
+  literal `origin/main`: `git ls-remote --symref origin HEAD` queries the remote's
+  own default branch over the same transport the clone used — host-agnostic,
+  needing neither a locally-set `origin/HEAD` symref nor `gh` — falling to
+  `origin/main` only as the terminal last resort. Applied identically across the
+  four reviewer agents (`code-reviewer`, `security-reviewer`, `architecture-guardian`,
+  `ecosystem-specialist`), the `fanout` pre-computed diff-size snippet, and the
+  `fanout`/`quality-gate` shared-input and subagent-prompt prose. The remote name
+  stays `origin` (de-hardcoding the remote is the cross-plugin shared default-branch
+  helper tracked separately by #442, out of scope here). Same bug shape as the
+  toolchain gap resolved in #411, using that fix's `git ls-remote --symref`
+  resolution mechanism.
+
 ## [0.14.2]
 
 ### Fixed

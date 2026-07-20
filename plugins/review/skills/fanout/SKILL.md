@@ -11,7 +11,7 @@ disable-model-invocation: false
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 Working tree status: !`git status --porcelain 2>/dev/null | head -20 || echo "unavailable"`
 Open PRs (match headRefName to current branch above; baseRefName is the PR's real base): !`gh pr list --json number,title,headRefName,baseRefName --limit 10 2>/dev/null || echo "unknown"`
-Committed diff size vs default-base merge base (recompute against the PR's baseRefName when it differs): !`git diff --shortstat origin/HEAD...HEAD 2>/dev/null || git diff --shortstat origin/main...HEAD 2>/dev/null || echo "unavailable"`
+Committed diff size vs default-base merge base (recompute against the PR's baseRefName when it differs): !`git diff --shortstat origin/HEAD...HEAD 2>/dev/null || git diff --shortstat "origin/$(git ls-remote --symref --end-of-options origin HEAD 2>/dev/null | awk '/^ref:/{sub(/refs\/heads\//,"",$2); print $2; exit}')...HEAD" 2>/dev/null || git diff --shortstat origin/main...HEAD 2>/dev/null || echo "unavailable"`
 Uncommitted diff size: !`git diff --shortstat HEAD 2>/dev/null || echo "unavailable"`
 
 ## Purpose
@@ -24,7 +24,7 @@ Breadth review. Where this plugin's `quality-gate` skill picks ONE lens per invo
 
 ## Shared inputs
 
-- **Review diff base** — when an open PR exists for the branch, its `baseRefName` is the base: dispatched surfaces diff `git merge-base origin/<baseRefName> HEAD`. The pre-computed PR list above is capped; when the current branch is absent from it, run `gh pr list --head <current-branch> --json number,baseRefName` before concluding no PR exists. Otherwise `git merge-base origin/HEAD HEAD` (falling back to `origin/main`, then `HEAD`). Never a hardcoded `git diff HEAD`, which is empty on a clean committed branch.
+- **Review diff base** — when an open PR exists for the branch, its `baseRefName` is the base: dispatched surfaces diff `git merge-base origin/<baseRefName> HEAD`. The pre-computed PR list above is capped; when the current branch is absent from it, run `gh pr list --head <current-branch> --json number,baseRefName` before concluding no PR exists. Otherwise `git merge-base origin/HEAD HEAD` (falling back to the remote's resolved default branch via `git ls-remote --symref`, then `origin/main`, then `HEAD`). Never a hardcoded `git diff HEAD`, which is empty on a clean committed branch.
 - **Severity vocabulary** — the project's own review docs when present; else `${CLAUDE_PLUGIN_ROOT}/context/severity.md`.
 - **Findings location** — resolve through the plugin binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)): the `.claude/topic-docs.yaml` concern file's `memory_dir` first (`<memory_dir>/reviews/<branch-slug>/`); else a review-artifacts location declared in the project's `CLAUDE.md` / rules (use it, and offer to persist it into the concern file — prose is an inference source, not the runtime authority); else the default `.work/reviews/<branch-slug>/` — the memory tier's concern-scoped reviews home, branch axis — where `<branch-slug>` is the branch name lowercased with non-`[a-z0-9._-]` characters replaced by `-`. Self-ignore guard: the session's first memory-tier write verifies the resolved memory root contains a `.gitignore` with `*`, creating it (announced) when absent.
 
