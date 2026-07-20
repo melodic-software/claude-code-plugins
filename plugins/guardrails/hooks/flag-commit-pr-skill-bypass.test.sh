@@ -50,20 +50,18 @@ run_hook() {
 }
 
 # --- source-control enabled: bypass shapes fire ------------------------------
-out=$(run_hook "$(command_json 'git commit -m "quick fix"')" "$ENABLED_PROJECT")
-assert_contains "git commit -m fires" "$out" "git commit"
-assert_contains "names the /commit skill" "$out" "/commit"
-
 out=$(run_hook "$(command_json 'gh pr create --title x --body y')" "$ENABLED_PROJECT")
 assert_contains "gh pr create fires" "$out" "gh pr create"
 assert_contains "names the /pull-request skill" "$out" "/pull-request create"
 
-# --- source-control enabled: canonical shape stays silent --------------------
-out=$(run_hook "$(command_json 'git commit -F - --cleanup=verbatim --trailer "Co-Authored-By: Claude <noreply@anthropic.com>"')" "$ENABLED_PROJECT")
-assert_silent "canonical -F - + --trailer stays silent" "$out"
+# --- git commit is no longer this hook's concern -----------------------------
+# It moved to block-noncanonical-commit.sh, which BLOCKS on the stdin-form
+# mechanic. A duplicate advisory here would double-fire on one command.
+out=$(run_hook "$(command_json 'git commit -m "quick fix"')" "$ENABLED_PROJECT")
+assert_silent "git commit -m is not flagged here (owned by block-noncanonical-commit)" "$out"
 
-out=$(run_hook "$(command_json 'git commit --file - --trailer "Co-Authored-By: Claude"')" "$ENABLED_PROJECT")
-assert_silent "canonical --file - + --trailer stays silent" "$out"
+out=$(run_hook "$(command_json 'git commit -F - --cleanup=verbatim')" "$ENABLED_PROJECT")
+assert_silent "canonical -F - without --trailer stays silent (trailer_policy none)" "$out"
 
 # --- non-bypass commands stay silent -----------------------------------------
 out=$(run_hook "$(command_json 'git status')" "$ENABLED_PROJECT")
@@ -73,27 +71,27 @@ out=$(run_hook "$(command_json "echo 'reminder: use git commit -m for quick fixe
 assert_silent "prose mentioning git commit -m stays silent" "$out"
 
 # --- source-control NOT available: stays silent regardless of shape ----------
-out=$(run_hook "$(command_json 'git commit -m "quick fix"')" "$DISABLED_PROJECT")
+out=$(run_hook "$(command_json 'gh pr create --title x --body y')" "$DISABLED_PROJECT")
 assert_silent "source-control explicitly disabled stays silent" "$out"
 
-out=$(run_hook "$(command_json 'git commit -m "quick fix"')" "$NO_KEY_PROJECT")
+out=$(run_hook "$(command_json 'gh pr create --title x --body y')" "$NO_KEY_PROJECT")
 assert_silent "source-control key absent stays silent" "$out"
 
 NO_SETTINGS_PROJECT="$(mktemp -d -p "$TEST_TMPDIR")"
-out=$(run_hook "$(command_json 'git commit -m "quick fix"')" "$NO_SETTINGS_PROJECT")
+out=$(run_hook "$(command_json 'gh pr create --title x --body y')" "$NO_SETTINGS_PROJECT")
 assert_silent "no .claude/settings.json at all stays silent" "$out"
 
 # --- settings.local.json override --------------------------------------------
 OVERRIDE_OFF="$(make_project true false)"
-out=$(run_hook "$(command_json 'git commit -m "quick fix"')" "$OVERRIDE_OFF")
+out=$(run_hook "$(command_json 'gh pr create --title x --body y')" "$OVERRIDE_OFF")
 assert_silent "settings.local.json false overrides settings.json true" "$out"
 
 OVERRIDE_ON="$(make_project false true)"
-out=$(run_hook "$(command_json 'git commit -m "quick fix"')" "$OVERRIDE_ON")
-assert_contains "settings.local.json true overrides settings.json false" "$out" "git commit"
+out=$(run_hook "$(command_json 'gh pr create --title x --body y')" "$OVERRIDE_ON")
+assert_contains "settings.local.json true overrides settings.json false" "$out" "gh pr create"
 
 # --- kill switch — disabled path is a clean no-op even on a bypass shape -----
-out=$(run_hook "$(command_json 'git commit -m "quick fix"')" "$ENABLED_PROJECT" \
+out=$(run_hook "$(command_json 'gh pr create --title x --body y')" "$ENABLED_PROJECT" \
   CLAUDE_PLUGIN_OPTION_FLAG_COMMIT_PR_SKILL_BYPASS_ENABLED=false)
 assert_silent "kill switch off → no-op despite bypass shape" "$out"
 
@@ -105,12 +103,12 @@ assert_silent "empty stdin is a no-op" "$out"
 TEL="$(mktemp -p "$TEST_TMPDIR")"
 SINK="$(make_sink "cat >>\"$TEL\"")"
 env HOOK_TELEMETRY_SINK="$SINK" CLAUDE_PROJECT_DIR="$ENABLED_PROJECT" \
-  bash "$HOOK" <<<"$(command_json 'git commit -m "quick fix"')" >/dev/null 2>&1 || true
+  bash "$HOOK" <<<"$(command_json 'gh pr create --title x --body y')" >/dev/null 2>&1 || true
 if wait_for_sink "$TEL"; then
   assert_contains "telemetry: hook id" "$(jq -r '.hook' "$TEL")" "flag-commit-pr-skill-bypass"
   assert_contains "telemetry: status ok (advisory never blocks)" "$(jq -r '.status' "$TEL")" "ok"
-  assert_contains "telemetry: subject Bash:git" "$(jq -r '.data.subject' "$TEL")" "Bash:git"
-  assert_contains "telemetry: form git-commit-bypass" "$(jq -r '.data.forms[0]' "$TEL")" "git-commit-bypass"
+  assert_contains "telemetry: subject Bash:gh" "$(jq -r '.data.subject' "$TEL")" "Bash:gh"
+  assert_contains "telemetry: form gh-pr-create-bypass" "$(jq -r '.data.forms[0]' "$TEL")" "gh-pr-create-bypass"
 else
   bad "telemetry: no envelope written on advisory fire"
 fi
