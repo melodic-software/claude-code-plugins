@@ -19,10 +19,11 @@ plain fetch is blocked by anti-bot protection or a page needs JS rendering.
   tempfiles the agent reads selectively; direct stdout is reserved for tiny
   results.
 - **Reference tables** for every flag and configuration knob under `context/`.
-- **A gated maintainer update flow** — `scripts/update.sh --check` reports CLI
+- **A gated maintainer update skill** — `/firecrawl:update --check` reports CLI
   version drift and upstream skill-source drift read-only; the full update
   path puts `npm install` and any skill-content integration behind explicit
-  approval gates, with a recorded rollback version in `UPSTREAM.md`.
+  approval gates, with a recorded rollback version in `UPSTREAM.md`. It lives
+  as a sibling skill so the wrapper stays user-facing.
 
 ## Revisit condition
 
@@ -59,5 +60,4 @@ additionally reaches `registry.npmjs.org` and `www.firecrawl.dev`.
 
 ## License
 
-MIT (SPDX-License-Identifier: MIT). See the LICENSE file at the root of the
-melodic-software/claude-code-plugins repository.
+MIT (SPDX-License-Identifier: MIT).

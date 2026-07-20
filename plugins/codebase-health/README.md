@@ -82,5 +82,4 @@ the audit reads and writes only the consumer's own files under the scope you giv
 
 ## License
 
-MIT (SPDX-License-Identifier: MIT). See the LICENSE file at the root of the
-melodic-software/claude-code-plugins repository.
+MIT (SPDX-License-Identifier: MIT).

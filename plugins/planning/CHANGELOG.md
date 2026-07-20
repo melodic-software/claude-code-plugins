@@ -25,6 +25,15 @@ All notable changes to the `planning` plugin are documented here. Format follows
   direction (surface "too complex for the current model/effort" when execution
   warrants). Detail in the new `skills/interview/context/session-config.md` (#231).
 
+## [0.22.3]
+
+### Changed
+
+- Documentation-only: the License section now states the plugin's own MIT
+  license inline and no longer points at a `LICENSE` file at the repository
+  root, which an installed consumer running from the isolated plugin cache
+  cannot reach. No behavior change.
+
 ## [0.22.2]
 
 ### Changed
