@@ -13,8 +13,9 @@ Show recurring items that are past their `next_due` date.
 1. **Resolve the recurring-maintenance role label before any tracker read.** Read
    `.work-item-tracker.json` at action entry and resolve
    `config.role_labels["recurring-maintenance"]`; use `recurring` only when the file or entry is
-   absent. Stop on a malformed, empty, or non-string configured value. Use the resolved string in
-   every adapter filter below.
+   absent — and warn loudly when it defaults for that reason (surface it, never silent). Stop on a
+   malformed, empty, or non-string configured value. Use the resolved string in every adapter filter
+   below.
 
 1. **Read the recurring schedule:**
 

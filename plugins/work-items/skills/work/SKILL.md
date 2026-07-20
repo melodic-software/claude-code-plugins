@@ -63,8 +63,9 @@ Exit `6` (capability-unsupported, CONTRACT.md "Exit codes") means the bound prov
 ### Role-label preflight
 
 Before any tracker read, resolve `recurring-maintenance` from `.work-item-tracker.json`
-`config.role_labels`, using `recurring` only when the file or entry is absent. Stop on a malformed,
-empty, or non-string configured value. Use the resolved string for every recurring/non-recurring
+`config.role_labels`, using `recurring` only when the file or entry is absent — and warn loudly when
+it defaults for that reason (surface it, never silent). Stop on a malformed, empty, or non-string
+configured value. Use the resolved string for every recurring/non-recurring
 filter and every adapter query in this action; do not compare labels against the default literal after
 a remap.
 
