@@ -271,6 +271,24 @@ assert_eq "stop with failed claude stop exits non-zero" 1 "$rc"
 assert_contains "stop failure reported" "$out" "work — stop failed"
 
 # ============================================================================
+# Codex P1 — restart must preflight launch inputs BEFORE stopping a running
+# lane: a recoverable prompt/effort error must not take the healthy session
+# down. `work` is running (sid-work-1) but its prompt file is missing, so the
+# stop must never fire and the session must stay up.
+# ============================================================================
+cat >"$TMP/restart-badprompt.json" <<'JSON'
+{ "prompt_dir": ".work",
+  "lanes": [ { "name": "work", "prompt": "missing.md" } ] }
+JSON
+: >"$CLAUDE_LOG"
+out="$(run_launcher restart work --repo "$REPO" --config "$TMP/restart-badprompt.json" --agents-json "$AGENTS_RUNNING" 2>&1)"
+rc=$?
+log="$(cat "$CLAUDE_LOG")"
+assert_eq "restart with a bad prompt exits non-zero" 1 "$rc"
+assert_contains "restart bad-prompt error surfaced" "$out" "prompt file not found"
+assert_not_contains "restart does not stop the healthy running lane" "$log" "stop sid-work-1"
+
+# ============================================================================
 # Low-priority carry-forwards — uncovered flag paths
 # ============================================================================
 out="$(run_launcher status --repo "$REPO" --config "$CONFIG" --agents-json "$TMP/no-such-agents.json" 2>&1)"

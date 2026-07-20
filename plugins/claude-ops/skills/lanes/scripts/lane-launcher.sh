@@ -316,9 +316,12 @@ run() {
 }
 
 # --- Lane launch --------------------------------------------------------------
-launch_lane() {
-  local name="$1" model="$2" effort="$3" prompt_path="$4"
-
+# Validates a lane's launch inputs (prompt present + non-empty, effort allowed);
+# returns 1 with a per-lane error on the first failure. Split out from launch_lane
+# so restart can preflight these BEFORE stopping a running lane — a recoverable
+# prompt/effort error must not take a healthy session down and fail to relaunch it.
+validate_launch_inputs() {
+  local name="$1" effort="$2" prompt_path="$3"
   if [[ ! -f "$prompt_path" ]]; then
     err "lane '$name': prompt file not found: $prompt_path — skipped"
     return 1
@@ -331,6 +334,11 @@ launch_lane() {
     err "lane '$name': invalid effort '$effort' (want: $VALID_EFFORTS) — skipped"
     return 1
   fi
+}
+
+launch_lane() {
+  local name="$1" model="$2" effort="$3" prompt_path="$4"
+  validate_launch_inputs "$name" "$effort" "$prompt_path" || return 1
 
   local -a cmd=(claude --bg -n "$name")
   [[ -n "$model" ]] && cmd+=(--model "$model")
@@ -435,6 +443,9 @@ _start_one() {
 
 _restart_one() {
   local name="$1" model="$2" effort="$3" prompt_path="$4"
+  # Preflight the launch inputs BEFORE stopping: a recoverable prompt/effort
+  # error must not take down a healthy running lane we would then fail to relaunch.
+  validate_launch_inputs "$name" "$effort" "$prompt_path" || return 1
   stop_lane_if_running "$name"
   local s=$?
   # A genuine stop failure (not the benign "was not running", 2) means the old
