@@ -5,6 +5,7 @@ argument-hint: "[audit] [target]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: Bash(bash *audit-noise/scripts/detect.sh*)
+shell: bash
 ---
 
 ## Pre-computed context
@@ -16,6 +17,29 @@ Noise findings (sample): !`bash "${CLAUDE_SKILL_DIR}/scripts/detect.sh" 2>/dev/n
 ## Purpose
 
 Tracked markdown — rules, skill bodies, instruction files (`CLAUDE.md`, `AGENTS.md`), `docs/`, READMEs — accumulates five NOISE shapes distinct from FLAVOR (owned by the sibling `/compress`). Each shape carries a maintenance tax plus a reader-facing tax that compounds across the corpus. This skill is a read-only classifier: it surfaces candidates with treatment guidance; the author hand-applies every edit.
+
+## Existence pre-check (before in-page noise)
+
+Before classifying in-page noise, ask the whole-page admission question first:
+**could a reader with repository search derive this page's content from the
+code itself?** A page failing admission is a deletion candidate — its finding
+recommends relocate-then-delete (salvage anything admissible first), never a
+line-level noise treatment, and never auto-delete (this skill stays
+read-only).
+
+Four categories always pass admission regardless of derivability: decisions,
+domain language, thin navigation, and policy/wiring. For the four-factor
+scoring behind a contested call, reuse `/docs-hygiene:audit-derivability`'s
+rubric by reference — namespaced skill invocation, optional: invoke it when
+available; otherwise apply the admission question above standalone.
+
+**Org override.** This pre-check is a portable-baseline default. When the
+consuming repository declares its own documentation-existence convention,
+resolve and defer to it via `/re-anchor:follow-our-standards`'s resolution
+ladder (repo-declared source → repo's own conventions → this portable
+baseline) instead of the default above.
+
+Only a page that passes admission proceeds to the five in-page NOISE shapes below.
 
 ## Noise shapes and treatments
 
@@ -58,7 +82,14 @@ Single action v1; `relocate` and `generalize` actions are deferred until real de
 
 ## Output schema
 
-Per target file:
+Per target file, the existence pre-check verdict precedes the in-page findings:
+
+```text
+<file>: admission PASS
+<file>: admission FAIL — deletion candidate (relocate-then-delete recommended)
+```
+
+A FAIL skips the in-page tier table below; a PASS proceeds to it:
 
 ```text
 <file>: N finding(s) — T1=<n>, T2=<n>, T3=<n>

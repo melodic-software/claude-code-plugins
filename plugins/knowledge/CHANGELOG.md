@@ -4,7 +4,7 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
-## [0.8.4]
+## [0.8.5]
 
 ### Changed
 
@@ -30,6 +30,14 @@ only after that version increases.
   not get that today either. Both are called out as tracked follow-ups rather
   than an unstated limitation a consumer discovers by hand. Doc-only; no
   pipeline behavior changes.
+
+## [0.8.4]
+
+### Changed
+
+- Skills with `!` dynamic-context injections now declare `shell: bash` explicitly, per
+  the pinned precompute convention — bash-only pipelines must not fall through to a
+  PowerShell host.
 
 ## [0.8.3]
 

@@ -3,6 +3,31 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.9]
+
+### Changed
+
+- Skills with `!` dynamic-context injections now declare `shell: bash` explicitly, per
+  the pinned precompute convention — bash-only pipelines must not fall through to a
+  PowerShell host.
+
+## [0.15.8]
+
+### Fixed
+
+- **`babysit-readiness-gate.sh` now emits an actionable diagnostic when the live comment fetch
+  fails, instead of an undifferentiated exit 4 (#475).** The gate shells out to
+  `fetch-all-pr-comments.sh`, which auto-derives owner/repo from the current directory via
+  `gh repo view`; from a cwd that is not a checkout of the target repo (e.g. a targeted-recheck
+  pass) that derivation returns empty and the fetch exits non-zero, which the gate previously
+  surfaced only as `fetch-all-pr-comments.sh failed for PR <N>` + exit 4 — the same exit code as a
+  missing `jq`. The gate's failure message now names the cwd it resolved from and the
+  `FETCH_COMMENTS_OWNER` / `FETCH_COMMENTS_REPO` override, `fetch-all-pr-comments.sh`'s own
+  "cannot resolve owner/repo" message names the cwd and the override, the gate's `--help` and
+  exit-code documentation cover the override, and the `babysit-prs` worker checklist (SKILL.md,
+  `reference/loop.md`) documents it as a prerequisite for out-of-checkout passes. No behavior
+  change to the readiness verdict or exit codes; only the diagnostics and docs.
+
 ## [0.15.7]
 
 ### Added

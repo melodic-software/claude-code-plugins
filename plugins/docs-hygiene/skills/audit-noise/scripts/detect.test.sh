@@ -269,6 +269,26 @@ assert_contains "configured contract root flags concrete slices" "$conf_out" "pr
 assert_contains "configured memory root flags concrete slices" "$conf_out" ".scratch/foo/"
 assert_not_contains "configured bare concern root stays exempt" "$conf_out" ".scratch/reviews/"
 
+# A quoted memory_dir with an interior '#' and a trailing comment: the old
+# hand-rolled `${val%%#*}`-first strip truncated this to `.scratch` (dropping
+# everything from the interior '#' on, including the closing quote), so the
+# configured root never matched. The shared parse-concern-value.sh helper
+# resolves quotes before stripping comments, keeping the interior '#'.
+CONF_ROOT_QUOTED="$TEST_TMPDIR/configured-repo-quoted"
+mkdir -p "$CONF_ROOT_QUOTED/.claude"
+cat >"$CONF_ROOT_QUOTED/.claude/topic-docs.yaml" <<'EOF'
+memory_dir: ".scratch#dir/"    # trailing comment must not eat the quoted value
+EOF
+CONFIGURED_QUOTED="$TEST_TMPDIR/configured-quoted.md"
+cat >"$CONFIGURED_QUOTED" <<'EOF'
+# Configured-roots quoted fixture
+
+Notes at .scratch#dir/foo/EXPLORE.md.
+EOF
+conf_quoted_out="$(AUDIT_NOISE_REPO_ROOT="$CONF_ROOT_QUOTED" bash "$DETECT" "$CONFIGURED_QUOTED")"
+assert_contains "quoted memory_dir with interior # and trailing comment flags concrete slice" \
+  "$conf_quoted_out" ".scratch#dir/foo/"
+
 # --- Final report --------------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then
