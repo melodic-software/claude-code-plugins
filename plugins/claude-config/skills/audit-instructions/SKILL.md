@@ -39,14 +39,15 @@ concerns its siblings already cover — route rather than re-answer:
   portability is `claude-config:audit-permission-grants`.
 
 On **memory-layer surfaces** (CLAUDE.md, CLAUDE.local.md, `.claude/rules/`, `~/.claude/rules/`),
-this skill runs only the model-era checks I6–I11. The hygiene checks I1–I5 (line-necessity,
-length, placement, inferable content, rule-to-hook) are the instruction-memory layer that the
-`claude-memory` plugin owns: when that plugin is installed, route memory-layer hygiene findings to
-its `audit` skill; when it is not installed, fall back to the one-line pointer to the official
-CLAUDE.md include/exclude guidance recorded with checks I1–I5 in
-[reference/criteria.md](reference/criteria.md) and report them here. On **non-memory surfaces**
-(skill bodies, agent definitions, prompt-type hooks, output styles) the full catalog I1–I11
-applies — no incumbent auditor covers instruction content there.
+this skill runs only the model-era checks I6–I11. It never runs or reports the hygiene checks
+I1–I5 (line-necessity, length, placement, inferable content, rule-to-hook) on these surfaces —
+that instruction-memory hygiene layer belongs to the `claude-memory` plugin. When that plugin is
+installed, route memory-layer hygiene to its `audit` skill; when it is not installed, emit a single
+one-line pointer to the official CLAUDE.md include/exclude guidance (recorded with I1–I5 in
+[reference/criteria.md](reference/criteria.md)) so the operator knows where that audit lives — this
+skill still does not perform it. Either way, no I1–I5 hygiene finding is ever produced here. On
+**non-memory surfaces** (skill bodies, agent definitions, prompt-type hooks, output styles) the
+full catalog I1–I11 applies — no incumbent auditor covers instruction content there.
 
 **Upstream-owned surfaces are excluded from the editable set.** Installed plugin-cache content is
 owned by the publishing repository, and a managed materialization is owned by whatever upstream
@@ -72,10 +73,13 @@ Parse `$ARGUMENTS` for an optional scope filter that narrows which surfaces the 
 Enumerate the locally-owned instruction surfaces in scope. All paths below are current per the
 official memory and `.claude`-directory docs (cited in the report's Sources line):
 
-- User: `~/.claude/CLAUDE.md`, `~/.claude/rules/`, `~/.claude/skills/`, `~/.claude/agents/`,
-  `~/.claude/output-styles/`.
-- Project: `./CLAUDE.md` or `./.claude/CLAUDE.md`, `./CLAUDE.local.md`, `.claude/rules/`,
-  `.claude/skills/`, `.claude/agents/`, `.claude/output-styles/`.
+- User — resolve the root as `${CLAUDE_CONFIG_DIR:-~/.claude}` (setting `CLAUDE_CONFIG_DIR`
+  relocates the whole `~/.claude` tree, so never hardcode `~/.claude`), then: `CLAUDE.md`,
+  `rules/`, `skills/`, `agents/`, `output-styles/` under that root.
+- Project: `./CLAUDE.md` or `./.claude/CLAUDE.md`, `./CLAUDE.local.md`, and every nested
+  `CLAUDE.md` / `CLAUDE.local.md` in subdirectories of the project tree (Claude loads these on
+  demand when it reads files in those directories, so walk the tree — do not stop at the root);
+  `.claude/rules/`, `.claude/skills/`, `.claude/agents/`, `.claude/output-styles/`.
 - Prompt-type hook text configured in the project or user `settings.json`.
 
 Exclude, and hold for the routing subsection instead of the editable set: auto-memory
