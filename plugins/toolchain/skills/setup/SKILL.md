@@ -81,7 +81,7 @@ then specialize it to the repo:
 - **markdown** — a markdownlint config present.
 - **yaml** — `.github/workflows/` present (lint-only surface — `/toolchain:lint` runs it,
   `/toolchain:check` does not).
-- **cross-cutting** — repo-root config for `typos`/`gitleaks`/editorconfig-checker present (lint-only).
+- **cross-cutting** — repo-root config for `typos`/`gitleaks`/editorconfig-checker/`lychee-offline` present (lint-only).
 
 Repo-specific CI-parity gates beyond plain build/test/lint (lockfile drift, generated-artifact
 freshness, schema regeneration) belong in the ecosystem file's `gates` array — draft one when the
