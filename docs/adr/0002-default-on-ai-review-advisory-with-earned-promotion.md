@@ -51,6 +51,13 @@ always-running workflow — never workflow-level `paths` filtering, which would 
 check **Pending** forever and wedge every prose PR. The required check proves the pass ran; it
 does not gate on the verdict.
 
+Implementation ordering is load-bearing: as of this addendum the caller still uses
+workflow-level `paths` filtering, so the ruleset must NOT mark this check required until the
+caller restructure (always-running workflow, job-level conditional) has landed — flipping the
+requirement first would wedge every prose PR exactly as described above. Sequence: caller
+restructure (this repo) → workflow always-report shape (ci-workflows) → required check
+(github-iac ruleset), each verifiable before the next.
+
 VERDICT gating is unchanged: the security lane stays **advisory** per the guardrail matrix's
 knob floors and this ADR's earned-promotion discipline (Decision §2). The ruling promotes
 *execution evidence to required*, not *findings to blocking* — flipping the verdict to blocking
