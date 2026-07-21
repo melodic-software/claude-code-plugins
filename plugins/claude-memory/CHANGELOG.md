@@ -3,6 +3,34 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.0]
+
+### Added
+
+- **New `stateless` skill (`/claude-memory:stateless`)** for inspecting and disabling Claude
+  Code auto memory — the notes Claude writes for itself per repo under
+  `~/.claude/projects/<project>/memory/` (relocatable via `autoMemoryDirectory`). Actions:
+  `status` (default, read-only — effective on/off state and store contents across all settings
+  scopes), `disable` (sets `autoMemoryEnabled: false` and `CLAUDE_CODE_DISABLE_AUTO_MEMORY` in a
+  confirmed scope, and flags a dotfile-manager backfill for a tracked `settings.json`), and
+  `purge` (destructive — reads `autoMemoryDirectory` at every scope, shows a deletion manifest,
+  and deletes auto-memory `*.md` files only after explicit confirmation). Scope is auto-memory
+  only; the instruction layer stays with `audit`, and transcripts/history are out of scope
+  (auto-cleaned by `cleanupPeriodDays`). Claude Desktop / claude.ai account memory is a
+  server-side store the skill gives direction for rather than deleting locally. Per the
+  env-vars doc, `CLAUDE_CODE_DISABLE_AUTO_MEMORY` overrides `autoMemoryEnabled` (the env var is
+  authoritative when set); `disable` writes the env var (`1`) plus `autoMemoryEnabled: false`,
+  and `status` treats a set env var as authoritative. The bundled `scope-report.sh` reuses the
+  plugin's single-source memory-dir resolver rather than re-deriving the path.
+
+### Fixed
+
+- **`resolve-memory-dir.sh` now honors `CLAUDE_CONFIG_DIR`.** The shared resolver (used by both
+  the `audit` and `stateless` skills) resolved the config root as `$HOME/.claude`, so a machine
+  that relocates its Claude Code config via `CLAUDE_CONFIG_DIR` had its memory directory resolved
+  to the wrong path. It now uses `${CLAUDE_CONFIG_DIR:-$HOME/.claude}`, per the official
+  `.claude-directory` doc, so the relocated `projects/<project>/memory/` tree resolves correctly.
+
 ## [0.2.3]
 
 ### Fixed

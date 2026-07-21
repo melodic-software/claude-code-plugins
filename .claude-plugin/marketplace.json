@@ -198,7 +198,7 @@
       "name": "claude-memory",
       "source": "./plugins/claude-memory",
       "category": "claude-code",
-      "tags": ["memory", "claude-md", "rules", "auto-memory", "health", "audit", "skill"]
+      "tags": ["memory", "claude-md", "rules", "auto-memory", "health", "audit", "stateless", "disable", "purge", "skill"]
     },
     {
       "name": "work-items",

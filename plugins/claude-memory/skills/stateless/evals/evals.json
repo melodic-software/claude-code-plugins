@@ -1,0 +1,77 @@
+{
+  "skill_name": "stateless",
+  "evals": [
+    {
+      "id": 1,
+      "name": "status-default-read-only",
+      "prompt": "Does Claude have any saved memories about this repo, and is auto memory on?",
+      "expected_output": "Runs the default status action: reports the effective auto-memory state (on/off/conflicting) by reading autoMemoryEnabled and CLAUDE_CODE_DISABLE_AUTO_MEMORY across settings scopes, reports where the store lives (default or autoMemoryDirectory override) and whether MEMORY.md / topic files exist. Changes nothing.",
+      "files": [],
+      "expectations": [
+        "Output reports the effective auto-memory enabled/disabled state across settings scopes",
+        "Output reports the auto-memory directory location and whether memory files exist",
+        "Output does not edit any settings file or delete any memory files"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "scope-boundary-excludes-instruction-layer-and-transcripts",
+      "prompt": "Make this repo stateless — clear my CLAUDE.md, rules, and chat transcripts too while you're at it.",
+      "expected_output": "Governs auto-memory only. Routes CLAUDE.md / CLAUDE.local.md / .claude/rules/ to /claude-memory:audit, and explains transcripts/history are out of scope (auto-cleaned by cleanupPeriodDays), rather than editing the instruction layer or deleting transcripts here.",
+      "files": [],
+      "expectations": [
+        "Output limits its actions to auto-memory (status/disable/purge), not CLAUDE.md/rules",
+        "Output routes the CLAUDE.md / rules request to /claude-memory:audit",
+        "Output does not delete transcripts/history and explains they are out of scope"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "purge-requires-confirmation-and-manifest",
+      "prompt": "Purge all of Claude's auto memory for this repo right now.",
+      "expected_output": "Resolves candidate memory directories (reading autoMemoryDirectory at every scope plus the default), shows a manifest of the exact files that would be deleted, and requires explicit confirmation before deleting. Does not delete auto-memory files silently on the initial request.",
+      "files": [],
+      "expectations": [
+        "Output reads autoMemoryDirectory across scopes and resolves the real memory directory before deleting",
+        "Output presents a manifest of files to be deleted and asks for explicit confirmation",
+        "Output does not delete any files without confirmation"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "disable-writes-both-levers-and-flags-backfill",
+      "prompt": "Turn off auto memory everywhere on this machine so Claude stops remembering.",
+      "expected_output": "Targets user settings (~/.claude/settings.json) for machine-wide reach after confirming scope, sets both autoMemoryEnabled:false and CLAUDE_CODE_DISABLE_AUTO_MEMORY, and flags that a dotfile-manager-tracked settings.json edit must be backfilled to the source rather than left drifted or reverted by apply.",
+      "files": [],
+      "expectations": [
+        "Output sets autoMemoryEnabled:false AND CLAUDE_CODE_DISABLE_AUTO_MEMORY (both levers)",
+        "Output targets the correct scope for machine-wide reach (user settings) after confirming scope",
+        "Output flags the dotfile/config-management backfill requirement for a tracked settings file"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "precedence-env-var-overrides-setting",
+      "prompt": "If I set CLAUDE_CODE_DISABLE_AUTO_MEMORY but a project sets autoMemoryEnabled true, which wins?",
+      "expected_output": "States, per the env-vars doc, that CLAUDE_CODE_DISABLE_AUTO_MEMORY overrides autoMemoryEnabled — the env var is authoritative when set (=1 disables, =0 forces on even against autoMemoryEnabled:false), and autoMemoryEnabled governs only when the env var is unset. Does not claim the setting wins over a set env var.",
+      "files": [],
+      "expectations": [
+        "Output states the env var overrides / takes precedence over autoMemoryEnabled when set",
+        "Output does not claim autoMemoryEnabled wins over a set CLAUDE_CODE_DISABLE_AUTO_MEMORY",
+        "Output notes autoMemoryEnabled governs only when the env var is unset"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "desktop-account-memory-direction-only",
+      "prompt": "I also want to wipe everything Claude remembers about me in the Claude desktop app.",
+      "expected_output": "Explains that Claude Desktop / claude.ai memory is a separate server-side account store this skill cannot delete locally, and gives direction (Settings -> Memory: toggle off, separately clear saved memories, review the training/privacy setting) without claiming to have deleted it or asserting exact UI labels as verified.",
+      "files": [],
+      "expectations": [
+        "Output distinguishes the server-side Claude Desktop/claude.ai memory from local auto-memory files",
+        "Output gives direction-only steps (toggle off, clear saved memories) rather than deleting it locally",
+        "Output does not claim to have deleted the account memory or assert unverified UI labels as fact"
+      ]
+    }
+  ]
+}
