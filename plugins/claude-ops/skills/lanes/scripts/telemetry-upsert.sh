@@ -5,8 +5,8 @@
 # The loop-lane contract "maintain ONE telemetry comment, EDIT it in place, never
 # post a second" is otherwise a prose warning every lane prompt has to carry — the
 # tell that marker-based edit-in-place is deterministic work that belongs in a
-# script, not repeated reasoning (issue #538, item 2; interim home of the #502
-# telemetry comment).
+# script, not repeated reasoning. It is the interim scripted home of the per-lane
+# telemetry-comment contract.
 #
 # MARKER / DETECTION CONVENTION (reusable across lanes and tracking issues):
 #   The script writes a machine-detectable sentinel as the FIRST line of the
@@ -43,7 +43,7 @@
 #   --help
 #
 # Output (stdout): one action line, e.g.
-#   telemetry-upsert: updated comment 12345 (marker=lane:triage) on <owner/repo>#502
+#   telemetry-upsert: updated comment 12345 (marker=lane:triage) on <owner/repo>#<issue>
 #   <html_url>
 #
 # Exit codes:

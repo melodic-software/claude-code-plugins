@@ -5,8 +5,7 @@
 # path, the worktree inventory (root + count + per-worktree branch), the gh
 # identity it acts as, and the versions of the plugins it runs on. That is pure
 # environment inspection with no reasoning, so it is scripted here and the lane
-# prompt references the script instead of re-deriving the block every cycle
-# (issue #538, item 1).
+# prompt references the script instead of re-deriving the block every cycle.
 #
 # DETERMINISM CONTRACT. This script emits ONLY mechanically unambiguous facts.
 # It deliberately does NOT compute "deviations from standing rules": the standing
