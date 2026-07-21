@@ -3,6 +3,23 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.1]
+
+### Fixed
+
+- **Check 8 (vendor/ byte-identical vs HEAD) no longer blocks a legitimate
+  maintainer-run sync.** It previously failed on ANY `vendor/` diff vs the
+  base ref, with no way to distinguish a hand-edit from a genuine upstream
+  refresh via a vendored skill's own `update` action — the exact workflow
+  those skills document as the sanctioned way to advance `vendor/`. The check
+  now passes a `vendor/` diff when it is paired with a bumped
+  `metadata.upstream-version` (the signal every such sync flow already
+  produces in the same change) and still fails an unpaired diff, preserving
+  the original hand-edit guard. Added `skill_frontmatter::metadata_field` (a
+  new indentation-tolerant reader for `metadata:` sub-keys) since the
+  existing `skill_frontmatter::field` anchors at column 0 and cannot see
+  them. Two new regression tests cover both branches.
+
 ## [0.7.0]
 
 ### Added
