@@ -1,5 +1,28 @@
 # Changelog — docs-hygiene plugin
 
+## [0.8.3]
+
+### Changed
+
+- Skills with `!` dynamic-context injections now declare `shell: bash` explicitly, per
+  the pinned precompute convention — bash-only pipelines must not fall through to a
+  PowerShell host.
+
+## [0.8.2] — 2026-07-21
+
+### Fixed
+
+- **`audit-noise`'s convention-roots scan no longer truncates a quoted
+  `memory_dir`/`contract_dir` at an interior `#`, collapses interior
+  whitespace, or leaves quotes unstripped.** The hand-rolled
+  `${val%%#*}` + `${val//[[:space:]]/}` + ad hoc quote-peel in
+  `scripts/lib/noise-shapes.sh`'s `audit_noise_convention_roots_pattern` is
+  gone; resolution now routes through the shared `parse-concern-value.sh`
+  helper (materialized from `lib/parse-concern-value.sh`), which resolves
+  surrounding quotes and a comment-aware strip in the correct order and
+  never mangles interior whitespace. Held behavior: trailing-slash
+  normalization, and the `.`/`.work`/`docs/topics` default-root exclusions.
+
 ## [0.8.1] — 2026-07-21
 
 ### Added

@@ -4,6 +4,7 @@ description: "Manage git worktree lifecycle for parallel-session isolation: crea
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "<action> [args] (e.g., /worktree create feat/my-feature, /worktree status, /worktree cleanup, /worktree audit)"
+shell: bash
 ---
 
 ## Pre-computed context

@@ -6,6 +6,7 @@ user-invocable: true
 disable-model-invocation: false
 context: fork
 agent: general-purpose
+shell: bash
 ---
 
 ## Pre-computed context

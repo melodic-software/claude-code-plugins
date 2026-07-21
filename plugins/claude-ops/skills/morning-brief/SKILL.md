@@ -4,6 +4,7 @@ description: "Prints the operator's read-only morning view for the current GitHu
 argument-hint: "[--repo owner/name] [--telemetry-issue N] [--stale-hours N] — read-only; omit to view the current repo"
 user-invocable: true
 disable-model-invocation: false
+shell: bash
 ---
 
 ## Pre-computed context

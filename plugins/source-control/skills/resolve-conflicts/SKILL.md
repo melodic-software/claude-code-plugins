@@ -4,6 +4,7 @@ description: "Resolve an in-progress merge/rebase/cherry-pick conflict by recove
 argument-hint: "[paths] (optional — start with specific conflicted paths; default is every unmerged path)"
 user-invocable: true
 disable-model-invocation: false
+shell: bash
 ---
 
 ## Pre-computed context

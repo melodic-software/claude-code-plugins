@@ -4,6 +4,7 @@ description: "Audit Claude Code configuration files — settings.json, settings.
 argument-hint: "[--fix] [scope] — scope: permissions|mcp|hooks|plugins|issues|all (default: all)"
 user-invocable: true
 disable-model-invocation: false
+shell: bash
 ---
 
 ## Pre-computed context
