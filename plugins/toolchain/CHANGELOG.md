@@ -3,6 +3,24 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0]
+
+### Added
+
+- **`go` batch ecosystem default** (`reference/ecosystems/go.yaml`, `skills/check/context/go.md`):
+  `golangci-lint run ./...` for lint (package-scope by design, always applies with no config
+  gate — golangci-lint's own default linter set governs absent a `.golangci.yml`), `gofmt -l`/
+  `-w <files>` for the zero-config format leg, and a default `go-mod-tidy` gate
+  (`go mod tidy -diff`, non-mutating verify). `/toolchain:check` and `/toolchain:lint` now cover
+  `go` (build + test + lint + format), with `golang` as an alias.
+  `golangci-lint fmt`/`golangci-lint fmt --diff` is documented as the opt-in route for
+  import-organizing (goimports) or stricter formatting (gofumpt) once a repo declares
+  `formatters.enable` in its own golangci-lint v2 config — verified empirically against
+  golangci-lint v2.12.2 that `golangci-lint fmt` runs zero formatters with no such config, so it
+  cannot be the shipped default. govulncheck is intentionally NOT part of the default (its
+  vulnerability-database fetch and scan time don't fit the batch entry's default contract) —
+  documented in the ecosystem file's `notes` as a consumer-added `gates` entry.
+
 ## [0.6.0]
 
 ### Added

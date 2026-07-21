@@ -1,0 +1,35 @@
+# Bundled portable default — go. Rung-4 fallback ONLY (consumer
+# .claude/ecosystems/go.yaml overrides key-by-key). Contract + schema:
+# https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/ecosystem-commands/README.md
+#
+# golangci-lint is package-scope by design, per its own formatters/linters
+# architecture (a single run loads and type-checks whole packages) — it never
+# streams single-file results the way a per-file hook needs, so it stays in
+# this batch entry only; the sibling `go-format` hook plugin owns the fast
+# per-file lane with gofmt.
+#
+# check-cmd/fix-cmd use `gofmt -l`/`-w` for the zero-config format leg rather
+# than `golangci-lint fmt`: verified empirically against golangci-lint v2.12.2
+# (pkg/config/config.go's NewDefault leaves Formatters.Enable empty when no
+# config file is loaded) that `golangci-lint fmt` runs zero formatters with no
+# `.golangci.yml`/`.golangci.yaml` — a silent no-op that would contradict this
+# being a shipped default. gofmt ships with the Go toolchain, has no
+# configuration surface (there is one canonical Go style), and needs none.
+# A repo that wants import-organizing (goimports) or stricter formatting
+# (gofumpt) enables them under `formatters.enable` in its own golangci-lint v2
+# config; that repo should override this file's check-cmd/fix-cmd to route
+# through `golangci-lint fmt` instead (see opt-in below).
+globs: ["*.go", "go.mod", "go.sum"]
+project-discovery: ["go.mod"]
+build-cmd: "go build ./..."
+test-cmd: "go test ./..."
+check-cmd: "golangci-lint run ./... && gofmt -l <files>"
+fix-cmd: "golangci-lint run --fix ./... && gofmt -w <files>"
+opt-in: "golangci-lint always applies (its own built-in default linter set governs with no config present); gofmt always applies (zero-config, no opt-in to check) — a repo wanting goimports/gofumpt/gci instead of bare gofmt configures `formatters.enable` in its own .golangci.yml/.golangci.yaml (golangci-lint v2 schema) and overrides check-cmd/fix-cmd to route the format leg through `golangci-lint fmt`/`golangci-lint fmt --diff`"
+install-hint: "winget install GoLang.Go golangci-lint.golangci-lint | brew install go golangci-lint"
+gates:
+  - name: go-mod-tidy
+    cmd: "go mod tidy -diff"
+    trigger-globs: ["go.mod", "go.sum", "*.go"]
+    remediation: "Run `go mod tidy` and commit the updated go.mod/go.sum."
+notes: "govulncheck (https://pkg.go.dev/golang.org/x/vuln/cmd/govulncheck) is optional and NOT run by default — its vulnerability-database fetch and scan time don't fit this batch entry's default contract. A consumer that wants it adds its own `gates` entry (e.g. cmd: \"govulncheck ./...\") in .claude/ecosystems/go.yaml, or wires it as a CI-only job."

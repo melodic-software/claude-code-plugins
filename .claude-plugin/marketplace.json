@@ -71,6 +71,19 @@
       }
     },
     {
+      "name": "go-format",
+      "source": "./plugins/go-format",
+      "category": "development",
+      "tags": ["go", "golang", "gofmt", "formatter", "hook"],
+      "relevance": {
+        "topic": "Go",
+        "signals": {
+          "filesRead": ["**/*.go", "**/go.mod"],
+          "cli": ["gofmt"]
+        }
+      }
+    },
+    {
       "name": "eol-normalizer",
       "displayName": "EOL Normalizer",
       "source": "./plugins/eol-normalizer",

@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/data/go-format.schema.json",
+  "title": "go-format telemetry data",
+  "description": "Per-hook `data` payload for the go-format hook. Discovered from the envelope `hook` value \"go-format\". Evolves additive-only.",
+  "type": "object",
+  "required": ["tool", "file", "findings"],
+  "additionalProperties": true,
+  "properties": {
+    "tool": {
+      "type": "string",
+      "description": "Claude Code tool that triggered the hook (Write or Edit)."
+    },
+    "file": {
+      "type": "string",
+      "description": "Path of the checked file, relative to the consuming repo root."
+    },
+    "findings": {
+      "type": "array",
+      "description": "Syntax diagnostics gofmt reported instead of reformatting (gofmt parses before writing, so a syntax error leaves the file untouched). Empty array = clean or successfully reformatted.",
+      "items": {
+        "type": "object",
+        "required": ["line", "col", "message"],
+        "additionalProperties": false,
+        "properties": {
+          "line": {
+            "type": "integer",
+            "description": "1-based line number of the diagnostic."
+          },
+          "col": {
+            "type": "integer",
+            "description": "1-based column number of the diagnostic."
+          },
+          "message": {
+            "type": "string",
+            "description": "gofmt's diagnostic message."
+          }
+        }
+      }
+    }
+  }
+}

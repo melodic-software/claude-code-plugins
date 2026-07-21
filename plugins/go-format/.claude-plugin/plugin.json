@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "go-format",
+  "version": "0.1.0",
+  "description": "Auto-format Go source files on edit via gofmt, unconditionally — gofmt ships with the Go toolchain and has no configuration surface.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT",
+  "keywords": [
+    "go",
+    "golang",
+    "gofmt",
+    "formatter",
+    "hook"
+  ],
+  "userConfig": {
+    "go_format_enabled": {
+      "type": "boolean",
+      "title": "go-format hook",
+      "description": "Run gofmt on edit of any Go source file, unconditionally",
+      "default": true
+    }
+  }
+}

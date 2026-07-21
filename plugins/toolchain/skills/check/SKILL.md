@@ -1,6 +1,6 @@
 ---
 name: check
-description: "Run build, test, and lint verification for changed files, auto-detecting affected ecosystems (.NET, Python, TypeScript, Bash, PowerShell, Markdown) from git status, with the consuming project's own documented commands overriding portable defaults. Use after any code edit or for 'does it compile' / 'run tests' checks; for lint-only use /toolchain:lint, for full outcome verification use /verification:confirm."
+description: "Run build, test, and lint verification for changed files, auto-detecting affected ecosystems (.NET, Python, TypeScript, Go, Bash, PowerShell, Markdown) from git status, with the consuming project's own documented commands overriding portable defaults. Use after any code edit or for 'does it compile' / 'run tests' checks; for lint-only use /toolchain:lint, for full outcome verification use /verification:confirm."
 user-invocable: true
 argument-hint: "[ecosystem] (e.g., /toolchain:check dotnet, /toolchain:check python, /toolchain:check all — default: auto-detect from git status)"
 shell: bash
@@ -24,11 +24,11 @@ Detects affected ecosystems from changed files and runs each one's build → tes
 
 `$ARGUMENTS` — optional ecosystem filter. If provided, run only that ecosystem. If omitted, auto-detect from changed files.
 
-Available ecosystem filters are the ecosystems `/toolchain:check` covers: `dotnet`, `python`, `typescript`, `bash`, `powershell`, `markdown` (resolved per the ladder). Common aliases: `ts`/`node` → `typescript`, `shell` → `bash`, `ps`/`pwsh` → `powershell`, `md` → `markdown`. Literal `all` runs every covered ecosystem. The lint-only `yaml` and `cross-cutting` surfaces are **not** run by `/toolchain:check` — use `/toolchain:lint` for those.
+Available ecosystem filters are the ecosystems `/toolchain:check` covers: `dotnet`, `python`, `typescript`, `go`, `bash`, `powershell`, `markdown` (resolved per the ladder). Common aliases: `ts`/`node` → `typescript`, `golang` → `go`, `shell` → `bash`, `ps`/`pwsh` → `powershell`, `md` → `markdown`. Literal `all` runs every covered ecosystem. The lint-only `yaml` and `cross-cutting` surfaces are **not** run by `/toolchain:check` — use `/toolchain:lint` for those.
 
 ## Ecosystem detection
 
-Each ecosystem declares a list of `globs` that classify changed files into that ecosystem (resolved per the ladder — consumer `.claude/ecosystems/<ecosystem>.yaml` when present, else the bundled default). The skill matches `git status --porcelain` output against each covered ecosystem's `globs` to determine which ecosystems are affected. `/toolchain:check` covers `dotnet`, `python`, `typescript`, `bash`, `powershell`, `markdown`; the lint-only `yaml` and `cross-cutting` surfaces are `/toolchain:lint`'s (in particular `cross-cutting`'s `**` glob is never matched here).
+Each ecosystem declares a list of `globs` that classify changed files into that ecosystem (resolved per the ladder — consumer `.claude/ecosystems/<ecosystem>.yaml` when present, else the bundled default). The skill matches `git status --porcelain` output against each covered ecosystem's `globs` to determine which ecosystems are affected. `/toolchain:check` covers `dotnet`, `python`, `typescript`, `go`, `bash`, `powershell`, `markdown`; the lint-only `yaml` and `cross-cutting` surfaces are `/toolchain:lint`'s (in particular `cross-cutting`'s `**` glob is never matched here).
 
 For ecosystem-specific gotchas, reference files, and primary-source detail, read the corresponding context file:
 
@@ -36,6 +36,7 @@ For ecosystem-specific gotchas, reference files, and primary-source detail, read
 - [context/sarif.md](context/sarif.md) — Roslyn SARIF output, jq parser patterns, AI consumption
 - [context/python.md](context/python.md) — Python lint, format, test
 - [context/typescript.md](context/typescript.md) — TypeScript compile, test, lint
+- [context/go.md](context/go.md) — golangci-lint, gofmt, go mod tidy
 - [context/bash.md](context/bash.md) — ShellCheck, shfmt
 - [context/powershell.md](context/powershell.md) — PSScriptAnalyzer
 
@@ -53,7 +54,7 @@ All commands use absolute paths. Never `cd` and lose context.
 
 ### 1. Detect ecosystems
 
-If `$ARGUMENTS` specifies an ecosystem, use it. If `all`, run every covered ecosystem. Otherwise, classify changed files from `git status --porcelain` against each covered ecosystem's `globs` (resolved per the ladder; `/toolchain:check` covers `dotnet`, `python`, `typescript`, `bash`, `powershell`, `markdown`). Skip any ecosystem whose resolved `enabled` is `false` (a consumer opt-out) — excluded even under `all`.
+If `$ARGUMENTS` specifies an ecosystem, use it. If `all`, run every covered ecosystem. Otherwise, classify changed files from `git status --porcelain` against each covered ecosystem's `globs` (resolved per the ladder; `/toolchain:check` covers `dotnet`, `python`, `typescript`, `go`, `bash`, `powershell`, `markdown`). Skip any ecosystem whose resolved `enabled` is `false` (a consumer opt-out) — excluded even under `all`.
 
 If the working tree is clean, fall back to the branch diff so checkpoint-committed work still gets classified (the common pre-PR case: every green block was already committed). Resolve the default branch by **detection, not assumption** — never a hardcoded `main`/`master` — and assign it before use:
 

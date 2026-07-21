@@ -2,7 +2,7 @@
 name: lint
 description: "Run polyglot linters and format checks across all affected ecosystems without a full build cycle — auto-detects ecosystems from changed files, honors each tool's config-file opt-in, and supports --fix mode to auto-correct where linters allow. Use for quick lint/format feedback during development; for build+test use /toolchain:check, for full outcome verification use /verification:confirm."
 user-invocable: true
-argument-hint: "[ecosystem] [--fix] (e.g., /toolchain:lint, /toolchain:lint dotnet, /toolchain:lint --fix, /toolchain:lint all)"
+argument-hint: "[ecosystem] [--fix] (e.g., /toolchain:lint, /toolchain:lint dotnet, /toolchain:lint go, /toolchain:lint --fix, /toolchain:lint all)"
 shell: bash
 ---
 
@@ -31,7 +31,7 @@ Use `/toolchain:lint` for quick feedback during development. Use `/verification:
 
 **Ecosystem filters** (if omitted, auto-detect from changed files):
 
-`/toolchain:lint` covers `dotnet`, `python`, `typescript`, `bash`, `powershell`, `markdown`, `yaml`, and `cross-cutting` (each resolved per the ladder); any with matching files is exposed as a filter. Aliases: `py` → `python`; `ts`/`node` → `typescript`; `shell` → `bash`; `ps`/`pwsh` → `powershell`; `md` → `markdown`; `xc`/`text` → `cross-cutting`. Literal `all` runs every applicable ecosystem.
+`/toolchain:lint` covers `dotnet`, `python`, `typescript`, `go`, `bash`, `powershell`, `markdown`, `yaml`, and `cross-cutting` (each resolved per the ladder); any with matching files is exposed as a filter. Aliases: `py` → `python`; `ts`/`node` → `typescript`; `golang` → `go`; `shell` → `bash`; `ps`/`pwsh` → `powershell`; `md` → `markdown`; `xc`/`text` → `cross-cutting`. Literal `all` runs every applicable ecosystem.
 
 **Mode flag:**
 
@@ -100,6 +100,9 @@ Per-project walking (ecosystems with `project-discovery`):
 
 - python: walk each `pyproject.toml` directory and run check/fix from there
 - typescript: walk each `package.json` directory and run check/fix from there
+- go: walk each `go.mod` directory and run check/fix from there (a multi-module repo has more than
+  one); golangci-lint's own `./...` scope inside that walk stays package-scope per module, never a
+  single file
 
 Tool presence: verify tools on `PATH` before each ecosystem; report `skip` with `install-hint` when missing.
 
@@ -130,7 +133,7 @@ fi
 Overall: FAIL (1 of 4 ecosystems failed)
 ```
 
-Use `pass`, `FAIL`, `skip` (tool not installed) or `skip (opt-in unmet: ...)` (config condition not met), or `—` (not applicable). Split lint and format into separate columns where the ecosystem has both (dotnet, python, bash). Use a single "Lint" column for ecosystems with only one tool (markdown, yaml, powershell). An opt-in-unmet skip fills every column that ecosystem's row has.
+Use `pass`, `FAIL`, `skip` (tool not installed) or `skip (opt-in unmet: ...)` (config condition not met), or `—` (not applicable). Split lint and format into separate columns where the ecosystem has both (dotnet, python, go, bash). Use a single "Lint" column for ecosystems with only one tool (markdown, yaml, powershell). An opt-in-unmet skip fills every column that ecosystem's row has.
 
 If fix mode was used, note which ecosystems were auto-fixed vs which have no auto-fix.
 
