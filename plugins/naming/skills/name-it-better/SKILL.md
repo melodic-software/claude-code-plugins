@@ -77,7 +77,11 @@ pre-scoring filters could not match.
 - **Claude Code skills are the sharp special case.** For a skill, the
   DESCRIPTION — not the name — is what drives model-side discovery. So
   optimise the name for human semantic accuracy, and put the trigger
-  phrases and example requests in the description, not the name.
+  phrases and example requests in the description, not the name. A skill
+  loadable as primed context at conversation start must also be
+  **temporally neutral**: the name has to read valid before any work
+  exists, so a candidate that presupposes completed output ("critique your
+  run") fails for a skill that can fire cold.
 
 ## Default pass
 
@@ -95,8 +99,17 @@ pre-scoring filters could not match.
      be confused with or blur into.
    - **Collision vocabulary** — the existing sibling names it must not
      duplicate.
+   - **Terms of art** — the established names the field or domain already
+     uses for this act or thing, with their ACTUAL researched meanings, not
+     recalled ones. Research them before the fan-out: a term whose field
+     meaning diverges from this target is misleading (criterion 1) and the
+     divergence belongs in the brief so generators neither borrow it blindly
+     nor miss the honest established term.
    - **Word-level blocklist** — individual words ruled out, each WITH its
-     reason (overloaded, misleading, collides, already rejected).
+     reason (overloaded, misleading, collides, already rejected) AND its
+     provenance: user-stated or agent-inferred. An agent-inferred entry is a
+     proposal to confirm with the user, never a silently hard constraint — an
+     assumed blocklist word can eliminate the honest winner.
 
    Rejected incumbent NAMES deliberately stay out of the brief — the main
    thread holds them as its reject list and disqualifies matches at merge
@@ -117,7 +130,12 @@ pre-scoring filters could not match.
 
    Running them blind and independent is deliberate anti-anchoring; the
    method grounding is in [`context/sources.md`](context/sources.md).
-3. **Merge and score.** Pool the candidates, dedupe, and disqualify any
+3. **Merge and score.** For a name used as an utterance — a skill, command,
+   or anything invoked by saying it — apply the **sentence-form test** as an
+   early filter before scoring: is the candidate the imperative you would
+   actually say, readable cold with no context? Contentless idioms (a bare
+   "check", "take stock") fail it even when they score well on the criteria
+   below. Then pool the candidates, dedupe, and disqualify any
    candidate that matches the rejected incumbent (if any) — carried by the
    main thread as an explicit reject list, never shared with the
    generators — that contains a word-level blocklist entry (a generator
