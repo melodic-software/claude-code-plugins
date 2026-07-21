@@ -118,33 +118,67 @@ class FatalRunReturnsTwo(unittest.TestCase):
 
 
 class ResolveSelfLoginsTests(unittest.TestCase):
-    def test_autopilot_empty_authors_still_yields_authenticated_login(self) -> None:
-        with mock.patch.object(gh, "resolve_author", return_value="kyle-sexton"):
-            self.assertEqual(snapshot.resolve_self_logins([]), ["kyle-sexton"])
+    """Mirrors babysit-readiness-gate.sh's --self/--extra-self semantics (#511).
 
-    def test_discovery_authors_are_unioned_with_the_self_login(self) -> None:
+    The self set is built from the dedicated flags, never the --author discovery
+    filter: --self is a full override; otherwise @me is unioned with --extra-self.
+    """
+
+    def test_no_flags_yields_the_authenticated_login(self) -> None:
         with mock.patch.object(gh, "resolve_author", return_value="kyle-sexton"):
             self.assertEqual(
-                snapshot.resolve_self_logins(["alice", "bob"]),
-                ["alice", "bob", "kyle-sexton"],
+                snapshot.resolve_self_logins(None, None), ["kyle-sexton"]
             )
 
-    def test_self_login_already_present_is_not_duplicated(self) -> None:
+    def test_extra_self_is_unioned_with_the_authenticated_login(self) -> None:
+        with mock.patch.object(gh, "resolve_author", return_value="kyle-sexton"):
+            self.assertEqual(
+                snapshot.resolve_self_logins(None, "bot1,bot2"),
+                ["bot1", "bot2", "kyle-sexton"],
+            )
+
+    def test_self_is_a_full_override_that_excludes_me(self) -> None:
+        # --self mirrors the gate: exactly the given logins, @me neither added nor
+        # even resolved.
+        with mock.patch.object(
+            gh, "resolve_author", side_effect=AssertionError("must not resolve @me")
+        ):
+            self.assertEqual(
+                snapshot.resolve_self_logins("bot-only", None), ["bot-only"]
+            )
+
+    def test_authenticated_login_not_duplicated_in_extra_self(self) -> None:
         with mock.patch.object(gh, "resolve_author", return_value="Kyle-Sexton"):
             self.assertEqual(
-                snapshot.resolve_self_logins(["alice", "kyle-sexton"]),
-                ["alice", "kyle-sexton"],
+                snapshot.resolve_self_logins(None, "kyle-sexton"), ["kyle-sexton"]
             )
 
-    def test_input_author_list_is_not_mutated(self) -> None:
-        authors = ["alice"]
-        with mock.patch.object(gh, "resolve_author", return_value="kyle-sexton"):
-            snapshot.resolve_self_logins(authors)
-        self.assertEqual(authors, ["alice"])
+    def test_self_takes_precedence_over_extra_self_when_both_supplied(self) -> None:
+        with mock.patch.object(
+            gh, "resolve_author", side_effect=AssertionError("must not resolve @me")
+        ):
+            self.assertEqual(
+                snapshot.resolve_self_logins("bot-only", "bot1,bot2"), ["bot-only"]
+            )
 
-    def test_unresolvable_self_login_leaves_discovery_authors_intact(self) -> None:
-        with mock.patch.object(gh, "resolve_author", return_value=None):
-            self.assertEqual(snapshot.resolve_self_logins(["alice"]), ["alice"])
+    def test_empty_self_is_a_full_override_yielding_no_logins(self) -> None:
+        # An explicit `--self ""` must still be treated as "the flag was supplied"
+        # (full override, empty set) -- not as "the flag was omitted" (which would
+        # fall through to resolving and adding @me).
+        with mock.patch.object(
+            gh, "resolve_author", side_effect=AssertionError("must not resolve @me")
+        ):
+            self.assertEqual(snapshot.resolve_self_logins("", None), [])
+
+    def test_unresolvable_authenticated_login_raises(self) -> None:
+        # In production `resolve_author("@me")` raises on broken auth rather than
+        # returning None, so the raise propagates (fail-loud, exit 2). This is the
+        # one edge where snapshot behavior diverges from the gate's degrade — #881.
+        with mock.patch.object(
+            gh, "resolve_author", side_effect=RuntimeError("no login")
+        ):
+            with self.assertRaises(RuntimeError):
+                snapshot.resolve_self_logins(None, "bot")
 
 
 HEAD = "a" * 40
@@ -270,22 +304,27 @@ class BuildConfigSelfLoginsTests(unittest.TestCase):
         config = snapshot.build_config(args)
         self.assertEqual(config.self_logins, frozenset({"kyle-sexton"}))
 
-    def test_resolved_self_logins_take_precedence_over_resolved_authors(self) -> None:
+    def test_resolved_authors_are_ignored_for_self_logins(self) -> None:
+        # There is no author->self precedence path anymore (#511): build_config
+        # never reads resolved_authors, so a stray one with no resolved_self_logins
+        # yields an empty self set, never the authors.
         args = argparse.Namespace(
             owners="melodic-software",
             resolved_authors=["alice"],
-            resolved_self_logins=["kyle-sexton"],
         )
         config = snapshot.build_config(args)
-        self.assertEqual(config.self_logins, frozenset({"kyle-sexton"}))
+        self.assertEqual(config.self_logins, frozenset())
 
-    def test_raw_author_fallback_drops_me_when_unresolved(self) -> None:
+    def test_missing_resolved_self_logins_yields_empty_not_author(self) -> None:
+        # build_config never derives the self set from --author (#511): a
+        # Namespace without resolved_self_logins yields an empty set, not the
+        # discovery authors.
         args = argparse.Namespace(
             owners="melodic-software",
             author="@me,alice",
         )
         config = snapshot.build_config(args)
-        self.assertEqual(config.self_logins, frozenset({"alice"}))
+        self.assertEqual(config.self_logins, frozenset())
 
 
 class SinglePrScopeSelfLoginTests(unittest.TestCase):
@@ -317,6 +356,60 @@ class SinglePrScopeSelfLoginTests(unittest.TestCase):
                  ):
                 snapshot.build_snapshot(args)
             self.assertIn("kyle-sexton", args.resolved_self_logins)
+
+
+class SelfIdentityDecouplingTests(unittest.TestCase):
+    """`self_logins` must resolve from the dedicated self flags, never `--author`.
+
+    Regression for #511: the posting identities whose comments self-classification
+    suppresses are a distinct concern from which authors' PRs discovery scans.
+    Deriving `self_logins` from `--author` broke in both directions —
+    under-inclusion (configured extras dropped when autopilot widening drops
+    `--author`) and over-inclusion (a discovery `--author` wrongly treated as
+    self). Both cases are asserted here against `build_snapshot`; both fail
+    against the pre-fix author-union behavior.
+    """
+
+    def _resolve_via_snapshot(self, args: argparse.Namespace) -> list[str]:
+        # view_pr raises so the per-PR loop is a no-op; the assertion is about
+        # the self-identity resolution that runs before it.
+        with mock.patch.object(gh, "resolve_author", return_value="kyle-sexton"), \
+             mock.patch.object(
+                 gh, "parse_repo_number", return_value=("owner/repo", 1)
+             ), \
+             mock.patch.object(gh, "view_pr", side_effect=RuntimeError("stop")):
+            snapshot.build_snapshot(args)
+        return list(args.resolved_self_logins)
+
+    def test_extra_self_survives_when_author_is_dropped(self) -> None:
+        # Autopilot widening drops --author; the configured extra identity must
+        # still be suppressed (under-inclusion regression).
+        with tempfile.TemporaryDirectory() as state_dir:
+            args = argparse.Namespace(
+                pr="owner/repo#1",
+                author=None,
+                extra_self_logins="bot-poster",
+                state_dir=state_dir,
+                write_state=False,
+            )
+            with mock.patch.object(gh, "resolve_authors", return_value=[]):
+                resolved = self._resolve_via_snapshot(args)
+        self.assertIn("bot-poster", resolved)
+        self.assertIn("kyle-sexton", resolved)
+
+    def test_discovery_author_is_not_treated_as_self(self) -> None:
+        # A discovery --author for someone other than the authenticated user must
+        # not enter the self set (over-inclusion regression).
+        with tempfile.TemporaryDirectory() as state_dir:
+            args = argparse.Namespace(
+                pr="owner/repo#1",
+                author="alice",
+                state_dir=state_dir,
+                write_state=False,
+            )
+            with mock.patch.object(gh, "resolve_authors", return_value=["alice"]):
+                resolved = self._resolve_via_snapshot(args)
+        self.assertEqual(resolved, ["kyle-sexton"])
 
 
 if __name__ == "__main__":

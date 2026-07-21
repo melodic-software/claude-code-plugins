@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "knowledge",
-  "version": "0.8.4",
+  "version": "0.9.0",
   "description": "Ingest external knowledge into durable, synthesized artifacts. Ships a book-distillation pipeline (PDF/EPUB into concept-organized, author-attributed skill reference files), a YouTube pipeline (watch, transcript, link harvest, and repo-applicability synthesis), and a course-digest pipeline (extract and synthesize online video courses — Dometrain, Teachable — into repo-applicable recommendations), plus a re-runnable setup action; a configurable library directory governs where synthesized artifacts land in the consuming repo.",
   "author": {
     "name": "Melodic Software",
@@ -30,7 +30,7 @@
     "library_dir": {
       "type": "directory",
       "title": "Knowledge library directory",
-      "description": "Project-relative directory in the consuming repo where synthesized knowledge artifacts land. Default is the repo root. A working-notes or artifacts convention declared in your own project's CLAUDE.md or rules takes precedence.",
+      "description": "Directory where synthesized knowledge artifacts land. Default is the consuming repo root; a relative value is resolved against the project directory. Portable non-project roots: an absolute path, a leading ~ (home-relative), or an environment-variable reference ${NAME} / %NAME% (e.g. ${KNOWLEDGE_CORPUS_DIR}) so a machine-varying root never needs a literal machine path in this stored value. A working-notes or artifacts convention declared in your own project's CLAUDE.md or rules takes precedence.",
       "default": "."
     },
     "yt_dlp_js_runtimes": {

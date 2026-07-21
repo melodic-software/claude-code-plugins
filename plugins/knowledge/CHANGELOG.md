@@ -4,6 +4,23 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.9.0]
+
+### Added
+
+- **`library_dir` portable value forms** (#798): the seam now accepts a leading `~`
+  (home-relative) and environment-variable references `${NAME}` / `%NAME%` (e.g.
+  `${KNOWLEDGE_CORPUS_DIR}`) alongside the existing relative and absolute literals, so a
+  machine-varying corpus root (a non-home drive, a per-machine checkout) never requires a
+  literal machine-specific path in stored configuration — the form guardrail hardcoded-path
+  checks block. The youtube-digest launcher (`run.mjs`) expands both forms in `--work-root`
+  (`expandPathValue` in `lib/run-args.js`), failing loud on an unset variable or a
+  non-absolute expansion; literal values pass through unchanged (back-compat). The
+  youtube-digest artifact-landing contract, README option table, plugin manifest option
+  description, and setup mismatch guidance document the forms. Env-var indirection was
+  chosen over a ghq-derived scheme, which would couple the seam to ghq presence; a ghq user
+  points the variable at the ghq-derived path instead.
+
 ## [0.8.4]
 
 ### Changed

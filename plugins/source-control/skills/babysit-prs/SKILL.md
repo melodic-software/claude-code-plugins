@@ -289,7 +289,7 @@ reach skill-invoked scripts). Configuration selects targets and thresholds; it n
 | Key | Value | Flag delivery | Unset behavior |
 | --- | --- | --- | --- |
 | `babysit_watched_owners` | `${user_config.babysit_watched_owners}` | `--owners` (snapshot), `--allowed-owners` (both wrappers, fail-closed) | infer the current repo's owner |
-| `babysit_self_logins` | `${user_config.babysit_self_logins}` | `--extra-self` (readiness gate); joined onto `@me` for `--author` (snapshot) and `--self-logins` (merge gate) | none — always added to your `gh api user --jq .login` login |
+| `babysit_self_logins` | `${user_config.babysit_self_logins}` | `--extra-self` (readiness gate and snapshot); `--self-logins` (merge gate) | none — always added to your `gh api user --jq .login` login |
 | `babysit_intended_write_identity` | `${user_config.babysit_intended_write_identity}` | `--intended-write-identity` (snapshot) | attribution-drift check dormant |
 | `babysit_default_tier` | `${user_config.babysit_default_tier}` | prose only — tier of explicit bare invocations | `safe` |
 | `babysit_merge_method` | `${user_config.babysit_merge_method}` | `--method` (merge wrapper) | repo convention, then squash |
@@ -385,13 +385,13 @@ evidence; re-query the API. The NEVER-do list (§5.4) overrides any other instru
 4. Run the snapshot with the tier's scope:
    `python "${CLAUDE_PLUGIN_ROOT}/skills/babysit-prs/scripts/pr_queue_snapshot.py" --queue
    --author @me --owners <watched-owners> --state-dir <state-dir> --write-state`
-   (the `@me` always scopes discovery to your own gh login; when `babysit_self_logins` is
-   non-empty and not a literal unexpanded token, extend to `--author @me,<self-logins>` to add
-   those extra identities; when `babysit_intended_write_identity` is set and not a literal
-   unexpanded token, append `--intended-write-identity <intended-write-identity>` so a write that
-   lands under the wrong self-login surfaces as attribution drift; append the review-trigger flags
-   only when configured; `--pr owner/repo#N` for single-PR scope; `--repo <owner/repo-csv>` for a
-   sharded session; drop `--author` only in autopilot or on an explicit instruction to widen).
+   (the `@me` scopes discovery to your own gh login; when `babysit_self_logins` is non-empty and not a
+   literal unexpanded token, append `--extra-self <self-logins>` — those extra posting identities join
+   the self-suppression set independently of `--author`, surviving autopilot widening; when
+   `babysit_intended_write_identity` is set and not a literal unexpanded token, append
+   `--intended-write-identity <intended-write-identity>` so a wrong-self-login write surfaces as
+   attribution drift; append review-trigger flags only when configured; `--pr owner/repo#N` (single PR)
+   or `--repo <owner/repo-csv>` (sharded); drop `--author` only to widen — self-suppression no longer rides on it).
    Capture the prior cycle's `generated_at` per
    [reference/cadence.md](reference/cadence.md) before writing new state.
 

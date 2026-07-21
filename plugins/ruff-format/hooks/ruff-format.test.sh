@@ -159,6 +159,22 @@ RC=$?
 if [[ $RC -eq 0 ]]; then ok "pyproject with [tool.ruff] -> exit 0"; else fail "pyproject opt-in exit $RC"; fi
 if grep -q 'x = 1' "$REPO_PT/opt.py"; then ok "pyproject with [tool.ruff] -> file formatted"; else fail "pyproject opt-in -> not formatted: $(cat "$REPO_PT/opt.py")"; fi
 
+# --- Case 1d: pyproject.toml with [tool] inline-table form does NOT opt in ---
+# Known limitation (documented in the hook and README): the line-anchored gate
+# only recognizes the `[tool.ruff]` header form. A bare `[tool]` header with
+# `ruff = { ... }` as an inline table is equivalent TOML that Ruff itself does
+# honor, but the gate does not detect it — fails safe (missed opt-in, not a
+# wrong edit) rather than heuristically pattern-matching it.
+REPO_PI="$WORK/pyproject-inline"
+new_ruff_repo "$REPO_PI" NO_CONFIG
+printf '[project]\nname = "t"\n\n[tool]\nruff = { line-length = 88 }\n' >"$REPO_PI/pyproject.toml"
+printf 'x=1\n' >"$REPO_PI/inline.py"
+BEFORE_PI="$(cat "$REPO_PI/inline.py")"
+OUT=$(run_hook "$REPO_PI/inline.py")
+RC=$?
+if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "pyproject with [tool] inline-table ruff -> exit 0, silent (known limitation)"; else fail "inline-table pyproject opted in (rc=$RC out=$OUT)"; fi
+if [[ "$(cat "$REPO_PI/inline.py")" == "$BEFORE_PI" ]]; then ok "pyproject with [tool] inline-table ruff -> file left untouched"; else fail "inline-table pyproject -> file was rewritten"; fi
+
 # --- Case 2: gate ON + clean file -> exit 0, empty stdout --------------------
 REPO="$WORK/consumer"
 new_ruff_repo "$REPO"
