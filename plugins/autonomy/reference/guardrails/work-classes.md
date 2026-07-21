@@ -45,6 +45,11 @@ any execution surface below `L3`, and the class's merge policy never promotes.
 
 ## Promotion and demotion
 
+This promotion apparatus — numeric predicate, human-ratified flip, automatic fail-closed
+demotion — is this contract's quantification of the Boris playbook's qualitative bar that no
+autonomy scales before the loop has "earned widespread trust": the trust requirement is the
+playbook's, the evidence predicate over telemetry that measures it is this contract's.
+
 Every promotable matrix cell carries a per-cell promotion trigger with one contract-fixed
 shape: an **evidence predicate over queryable telemetry** — verification outcomes recorded
 per the [telemetry contract](../telemetry.md) are the evidence base.

@@ -12,7 +12,9 @@ org-binding outcome on the binding seam.
 
 The matrix instantiates the Boris playbook's step-4 sentence verbatim — "enforcing the right
 guardrails for each type of work" — as a table: one row per work class, one column per
-guardrail axis.
+guardrail axis. That sentence is the playbook's; the five-class taxonomy, the per-layer
+blocking knobs, and the promotion predicates that fill the cells are this contract's own
+instantiation of it — the playbook names the obligation, this contract supplies the mechanism.
 
 | Class | Min isolation (unattended) | Verification | Merge policy | Cost tier | Escalation |
 |---|---|---|---|---|---|

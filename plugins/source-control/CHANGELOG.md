@@ -3,6 +3,21 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.5]
+
+### Changed
+
+- **`babysit-prs` autopilot merge tier (#476) gains a bot-review precision enabling precondition,
+  still shipped DISABLED.** `reference/safety.md` now documents a second operator enabling
+  precondition alongside the review-workflow requiredness one: the tier may be enabled only after
+  the fleet's bot-review lane has demonstrated recorded precision over a sustained window — the same
+  earned-promotion trigger ADR 0002 sets for flipping an advisory review lane to a blocking gate
+  (precision proven over a sustained window, ratified as a reviewed change citing the evidence,
+  never a calendar flip and never operator discretion alone). Because the tier lets a fleet-produced
+  approval satisfy a required-review ruleset, it promotes that lane from advisory to merge-deciding
+  and inherits the same evidence bar. Prose/contract change only — no behavioral shift to the merge
+  gate, which remains fail-closed and DISABLED absent `babysit_autopilot_merge_tier`.
+
 ## [0.15.4]
 
 ### Fixed
