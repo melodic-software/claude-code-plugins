@@ -4,6 +4,33 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.8.4]
+
+### Changed
+
+- **youtube-digest: synthesis is now framed against a resolved target, not an
+  implicit "the repo I'm in".** `templates/recommendations/menu.md`,
+  `templates/synthesis-item.md`, and `templates/readme-journey.md` referenced
+  the invoking repo by assumption; a session running from a separate corpus
+  checkout had no way to say which repo the menu was actually for. `SKILL.md`
+  now documents a "Synthesis target resolution" ladder — explicit `--target
+  <repo>` argument (any `watch` form) → the invoking project when run
+  standalone → ask — and the templates substitute `{target}` instead of
+  assuming the CWD. `recommendations/**` is documented as this skill's own
+  ephemeral, target-bound deliverable, expected to be superseded by the
+  designed-but-unbuilt `/knowledge:apply` report→diff→PR flow
+  (`docs/knowledge-integration-design.md`) once that skill ships.
+- **youtube-digest: two known agnosticism gaps are now named explicitly in
+  `SKILL.md` instead of left silent.** The `library_dir` seam relocates the
+  `.work/<watch-epic>/<video-slug>/` work *root* but not that sub-path's
+  *shape* — a corpus consumer whose own convention differs (e.g.
+  `sources/<type>/<slug>/`) does not get that shape today. Separately, raw
+  video, bulk frames, and contact sheets stay OS-temp-only by design; a
+  consumer that wants them retained as a durable, re-runnable substrate does
+  not get that today either. Both are called out as tracked follow-ups rather
+  than an unstated limitation a consumer discovers by hand. Doc-only; no
+  pipeline behavior changes.
+
 ## [0.8.3]
 
 ### Fixed

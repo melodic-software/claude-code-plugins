@@ -1,7 +1,7 @@
 ---
 name: youtube-digest
 description: "Watch YouTube videos, extract transcripts, harvest links, research claims, and synthesize repo-applicability recommendations. Use when: 'youtube', '/youtube-digest', 'watch this YouTube video', 'transcript for YouTube', user shares a youtube.com or youtu.be URL for a single public video (not a course platform). Actions: watch <url> (full pipeline), watch (dequeue epic queue), watch <n> (queue row), queue <url> (batch enqueue), transcript <url> (captions only), resume <video-slug>. Not for auth-walled course platforms — use /knowledge:course-digest."
-argument-hint: "watch <url> | watch | watch <n> | queue <url> | queue list | transcript <url> | resume <video-slug>"
+argument-hint: "watch <url> [--target <repo>] | watch [--target <repo>] | watch <n> [--target <repo>] | queue <url> | queue list | transcript <url> | resume <video-slug>"
 user-invocable: true
 disable-model-invocation: false
 ---
@@ -15,7 +15,7 @@ ImageMagick: !`magick -version 2>/dev/null | head -1 || echo "MISSING — instal
 
 # YouTube
 
-Absorb a single public YouTube video (transcript + visual frames), harvest reference links, fact-check claims through deeper external research, and produce a prioritized repo-applicability menu. Video download, bulk frames, contact sheets, and shallow git clones use the OS temp directory — durable artifacts live under `.work/<watch-epic>/<video-slug>/` per the video-digest slice convention.
+Absorb a single public YouTube video (transcript + visual frames), harvest reference links, fact-check claims through deeper external research, and produce a prioritized repo-applicability menu. Video download, bulk frames, contact sheets, and shallow git clones use the OS temp directory — durable artifacts live under `.work/<watch-epic>/<video-slug>/` per the video-digest slice convention. That temp-only handling is a fixed, non-configurable part of this contract: a consumer that wants the source video, bulk frames, or contact sheets retained as a durable, re-runnable substrate (rather than regenerable temp state) does not get that from this skill today — a documented, LFS-aware retention path is a tracked follow-up, not yet built.
 
 Where this skill says "deeper research," use whatever external-research capability your project provides — for example the discovery plugin's `/discovery:research` / `/discovery:research-deep` when installed. Treat those as the reference implementation, not a hard dependency.
 
@@ -53,6 +53,8 @@ Every extraction command in this skill runs through `run.mjs`, and each writes i
 
 The `setup-deps.mjs` install step is exempt — it installs node dependencies into `${CLAUDE_PLUGIN_DATA}`, not the work root.
 
+**Scope of the seam.** `library_dir` relocates the work *root*; it does not reshape the `<watch-epic>/<video-slug>/` sub-path itself. A consumer whose own convention lands source material at a differently-shaped path (for example `sources/<type>/<slug>/`) does not get that shape from this skill today — land under `library_dir` as-written and re-lay-out by hand, or fork the sub-path in your own automation. Templating the sub-path shape is a tracked follow-up, not yet built; this skill's contract is root relocation only.
+
 ## yt-dlp & throttle overrides
 
 Four more personal `userConfig` options tune YouTube acquisition. Each is wired the **same** cross-platform way as `--work-root` — a leading, double-quoted flag on the `run.mjs` invocation that the launcher forwards to the extraction child as an environment variable (these env vars are internal plumbing, not a channel to set by hand). Apply the **same guard** as `library_dir`: pass a flag only when its option holds a non-empty value other than the option default, and not still an unexpanded `${user_config.…}` token; otherwise omit it and the pipeline keeps its built-in default. All are leading and order-independent, so they combine with `--work-root` in any order:
@@ -84,6 +86,8 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" \
 | `watch <n>` | **Active** | Dequeue queue row `#n` only (parallel path across terminals). |
 | `watch <url>` | **Active** | Full pipeline: ≤1080p download → frame selection → vision absorption → link harvest → research agenda → repo-applicability synthesis. |
 | `resume <video-slug>` | **Active** | Continue interrupted watch from `watch.json` phase-map state in `.work/<watch-epic>/<video-slug>/`. |
+
+`--target <repo>` is an optional modifier on any `watch` form (not a dispatchable action of its own) — see "Synthesis target resolution".
 
 **Queue SSOT:** `context/watch-queue.md`. Template: `templates/queue.md`.
 
@@ -280,6 +284,9 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" evals/chec
 - WebFetch top harvested URLs; `analyze-harvested-repos.js` clones to **temp only**
 
 1. **Synthesis** (after research gate) — template: `templates/synthesis-item.md`
+
+   **Synthesis target resolution** — every menu item and `templates/readme-journey.md`'s TLDR are framed against one resolved target, never an implicit "the repo I'm in": explicit `--target <repo>` argument → the consuming project (`CLAUDE_PROJECT_DIR`) when `watch` is invoked directly inside a repo, with no separate corpus session → ask. Whichever rung resolves it, record the target name in `README.md`'s `**Target:**` line (`templates/readme-journey.md`) so a later `resume` or downstream consumer never has to re-infer it. This aligns with (but does not depend on) the `/knowledge:apply` design (`docs/knowledge-integration-design.md`), which will eventually take over repo-fitting via its own `--target` argument from a corpus session; when that skill is installed and built, prefer it for cross-repo fitting and treat this skill's menu as its input, not a replacement.
+
    - Materialize `recommendations/` from `templates/recommendations/` (hub README links all docs)
    - `recommendations/menu.md` — categories: `immediate-takeaway` | `worth-investigating` | `poc-candidate` | `full-slice` | `no-go`; P0–P2 + consensus notes
    - `recommendations/takeaways.md` — safe actions without further research
@@ -287,6 +294,7 @@ node "${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/run.mjs" evals/chec
    - Update `README.md` per `templates/readme-journey.md`
    - **Offer an HTML view** — optionally render a self-contained HTML dashboard of the prioritized recommendations menu (markdown stays the tracked record); follow your project's HTML-vs-markdown convention when one exists.
    - **No auto-implement** — `/interview` → `/planning:plan` → `/implement`
+   - **Ephemeral, target-bound deliverable** — `recommendations/**` is this skill's own terminal output for the resolved target, not a corpus-wide durable record; it is written fresh per watch and is expected to be superseded by `/knowledge:apply`'s report→diff→PR flow once that skill ships
 
 2. **Interview handoff** — write `recommendations/interview.md` with menu + *"Should we go further?"*; suggest `/interview` for POC/full-slice items.
 
