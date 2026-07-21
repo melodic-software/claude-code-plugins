@@ -17,7 +17,11 @@ own and runs only when your repo has opted into Ruff.
   same discovery Ruff itself uses (a `pyproject.toml` without `[tool.ruff]` is
   ignored, exactly as Ruff ignores it). A repo without a Ruff config is left
   untouched rather than rewritten to Ruff's built-in defaults, so the plugin
-  never imposes a style you did not choose.
+  never imposes a style you did not choose. **Known limitation:** a
+  `pyproject.toml` that expresses this as a bare `[tool]` header with an inline
+  table (`[tool]` + `ruff = { ... }`) is not recognized, even though Ruff
+  itself honors that form — such a repo is treated as un-configured and the
+  hook skips (fails safe: a missed opt-in, never a wrong edit).
 - **Fix + format on edit.** `ruff check --fix` applies safe fixes (never
   `--unsafe-fixes`) and `ruff format` formats in place. Residual diagnostics
   are reported but not auto-applied.
