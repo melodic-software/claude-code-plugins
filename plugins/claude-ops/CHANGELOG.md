@@ -3,6 +3,36 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.0]
+
+### Added
+
+- **`plugins` skill — `fleet-state.sh` now emits `missing_from_user_install`.**
+  A new user-scope completeness field (catalog ids not installed at `user`
+  scope, minus any explicitly opted out) alongside the existing all-scope
+  `missing_from_install`. `sync` Step 4 now keys its user-scope install offer
+  off this field: a plugin installed only at `project`/`local` scope was absent
+  from all-scope `missing_from_install` and so was never offered a user-scope
+  install, silently breaking the "usable from any directory" guarantee for it.
+  The existing `missing_from_install` field and its all-scope semantics are
+  unchanged; the report template (`SKILL.md`) references the new field for its
+  "needs install" action. (#254)
+
+### Fixed
+
+- **`plugins` skill — `fleet-state.sh` shape validation now checks each plugin
+  entry, not just the top-level type.** A drifted individual entry (a non-array
+  value) passed the `{plugins: {...}}` object check, then failed inside the
+  installed-flatten `jq` pipeline in a command substitution; with `set -uo
+  pipefail` but no `set -e` the failure was swallowed and the script exited 0
+  with `installed: []` instead of failing loud per its stated design. The check
+  now asserts every entry is an array and exits 2 on drift. (#254)
+- **`plugins` skill — `fleet-state.sh --marketplace` with no name now exits 2
+  instead of infinite-looping.** With one positional param left, `shift 2`
+  failed silently (no `set -e`), leaving `$1` unchanged so the arg loop re-read
+  `--marketplace` forever and the post-loop guard was never reached. The empty
+  check now runs inside the `--marketplace` branch, before `shift`. (#254)
+
 ## [0.15.4]
 
 ### Changed

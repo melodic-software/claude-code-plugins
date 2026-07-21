@@ -19,8 +19,13 @@
 #
 # Output (stdout): one JSON object.
 #   Single marketplace: {marketplace, catalog, installed, enabled,
-#     missing_from_install, missing_from_enabled, divergences}
+#     missing_from_install, missing_from_user_install, missing_from_enabled,
+#     divergences}
 #     — or {marketplace: {name, error}} on a resolvable per-marketplace failure.
+#   missing_from_install is all-scope (catalog minus installed anywhere);
+#   missing_from_user_install is user-scope only (catalog minus user-scope
+#   installed), the signal `sync` Step 4 uses to keep every plugin usable from
+#   any directory. Both exclude ids explicitly opted out (false) in any scope.
 #   --all: {marketplaces: {"<name>": <single-marketplace shape>, ...}}
 #
 # Exit codes:
@@ -97,8 +102,8 @@ require_json() {
 }
 
 require_json "$INSTALLED_JSON" "installed_plugins.json"
-if [[ "$(jq -r 'has("plugins") and (.plugins | type == "object")' "$INSTALLED_JSON")" != "true" ]]; then
-  echo "ERROR: installed_plugins.json does not match the expected {plugins: {...}} shape: $INSTALLED_JSON" >&2
+if [[ "$(jq -r 'has("plugins") and (.plugins | type == "object") and (.plugins | to_entries | all(.value | type == "array"))' "$INSTALLED_JSON")" != "true" ]]; then
+  echo "ERROR: installed_plugins.json does not match the expected {plugins: {<id>: [...]}} shape: $INSTALLED_JSON" >&2
   exit 2
 fi
 
@@ -281,6 +286,21 @@ emit_marketplace() {
     --argjson falseIds "$explicit_false_ids" \
     '($catalog - $installed) - $falseIds')
 
+  # User-scope completeness, distinct from all-scope missing_from_install: a
+  # plugin installed only at project/local scope is present all-scope but not
+  # usable from other directories, so `sync` Step 4 (which installs at user
+  # scope for the "usable from any directory" guarantee) must key off this, not
+  # missing_from_install. Same opt-out exclusion as above.
+  local user_installed_ids
+  user_installed_ids=$(jq -c '[.[] | select(.scope == "user") | .id] | unique' <<<"$installed")
+
+  local missing_from_user_install
+  missing_from_user_install=$(jq -cn \
+    --argjson catalog "$catalog_ids" \
+    --argjson userInstalled "$user_installed_ids" \
+    --argjson falseIds "$explicit_false_ids" \
+    '($catalog - $userInstalled) - $falseIds')
+
   local known_at_mp
   known_at_mp=$(jq -c --arg suffix "@$name" '[.[] | select(endswith($suffix))]' <<<"$known_ids")
 
@@ -327,6 +347,7 @@ emit_marketplace() {
     --argjson installed "$installed" \
     --argjson enabled "$enabled_at_mp" \
     --argjson missingInstall "$missing_from_install" \
+    --argjson missingUserInstall "$missing_from_user_install" \
     --argjson missingEnabled "$missing_from_enabled" \
     --argjson divergences "$divergences" \
     '{
@@ -335,6 +356,7 @@ emit_marketplace() {
       installed: $installed,
       enabled: $enabled,
       missing_from_install: $missingInstall,
+      missing_from_user_install: $missingUserInstall,
       missing_from_enabled: $missingEnabled,
       divergences: $divergences
     }'
@@ -349,6 +371,13 @@ while [[ $# -gt 0 ]]; do
   --marketplace)
     MODE="single"
     TARGET="${2:-}"
+    # Guard here, before `shift 2`: with no following arg only one positional
+    # param remains, `shift 2` fails (no set -e), $1 stays "--marketplace", and
+    # the loop spins forever — the post-loop empty check is never reached.
+    if [[ -z "$TARGET" ]]; then
+      echo "ERROR: --marketplace requires a name" >&2
+      exit 2
+    fi
     shift 2
     ;;
   --all)
@@ -372,10 +401,6 @@ default)
   emit_marketplace "$TARGET" || exit 1
   ;;
 single)
-  if [[ -z "$TARGET" ]]; then
-    echo "ERROR: --marketplace requires a name" >&2
-    exit 2
-  fi
   emit_marketplace "$TARGET" || exit 1
   ;;
 all)

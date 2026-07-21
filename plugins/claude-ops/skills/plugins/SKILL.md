@@ -95,7 +95,7 @@ Installed: <N> new catalog plugin(s) — <id>@<marketplace> (only when N > 0; pe
 Divergences: <N> project-scope install(s) behind user scope → run `/claude-ops:plugins converge`
   (N = actionable only — versionsMatch:false; same-version multi-scope installs are not counted
   or listed here)
-Action needed: <bulleted list — missing_from_install, missing_from_enabled, CLI failures,
+Action needed: <bulleted list — missing_from_user_install, missing_from_enabled, CLI failures,
   unknown/orphaned plugins> (omit section entirely when empty)
 ```
 
