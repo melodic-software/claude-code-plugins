@@ -66,12 +66,14 @@ told:
    / rate-limit headroom (thin headroom caps how many workers you run at once). Sizing is
    small/medium/large — a small ask stays single-agent, a medium one fans out a few, only a large
    genuinely-independent surface earns a wide or nested tree. Single-agent is the floor, not the
-   fallback. Per-worker model tier is part of sizing: match the tier to the SUBTASK, not the
-   parent session — high-volume mechanical work (search, extraction, per-item transforms,
-   formatting) runs on a cheaper tier; the parent tier is reserved for judgment-heavy synthesis,
-   verification, and adjudication. The wider the fan-out, the cheaper the default per-worker
-   tier — a wide fan-out on the parent's premium model is a decision to justify explicitly,
-   never a default to inherit.
+   fallback. Per-worker tier is part of sizing and scales with fan-out width: past a wide fan-out
+   the cheaper tier becomes the DEFAULT the whole fleet inherits — volume multiplies every notch
+   of over-provisioning — and the standing exception is an explicitly hard stage (verify,
+   judge/adjudicate, judgment-heavy synthesis), which keeps the parent tier. Tier is not only the
+   model: match the reasoning depth (effort) to the subtask too, not the parent session —
+   high-volume mechanical work (search, extraction, per-item transforms, formatting) runs cheaper
+   on both. A premium fan-out outside the hard stages is a per-stage decision to justify
+   explicitly, never a default to inherit.
 
 Discipline: trigger-evaluation is mandatory; the ACTION stays calibrated (delegate on value +
 parallelism, not convenience). Treat every worker's return as unverified synthesis — verify

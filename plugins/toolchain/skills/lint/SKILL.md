@@ -86,13 +86,13 @@ Auto-detection algorithm:
 
 1. Resolve each covered ecosystem's surface per [`${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md`](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md) (consumer `.claude/ecosystems/<ecosystem>.yaml` when present, else the bundled default; a malformed consumer file warns and degrades to inference, never a hard stop). Skip any ecosystem whose resolved `enabled` is `false` (a consumer opt-out) — excluded even under `all`
 2. For each ecosystem, match its `globs` against the changed-files list
-3. Run every ecosystem with ≥1 glob match whose `opt-in` condition holds, plus cross-cutting when any text file changed
+3. Run every ecosystem with ≥1 glob match whose `opt-in` condition holds, plus cross-cutting when any text file changed. This binary run/skip treatment applies cleanly when `opt-in` describes a SINGLE condition for the whole `check-cmd` (dotnet, python): unmet → excluded from the run but still reported (see sections 2 and 3 below, `skip (opt-in unmet: ...)`; never silently omitted). When `opt-in` instead describes MULTIPLE independent per-tool conditions bundled into one opaque command string (bash's shellcheck-always/shfmt-conditional split; cross-cutting's per-tool config-file list), this rule does not apply — `check-cmd`/`fix-cmd` is a single opaque string with no way to run one sub-tool's portion without the other, so run it as before (unchanged from prior behavior) and report its real output. See `/toolchain:check`'s Gotchas for the known atomicity limitation this leaves open.
 
 If neither detection path yields changes and no filter specified: report "No changes found (working tree clean, no branch diff vs the default branch). Use `/toolchain:lint all` to check the full repo, or `/toolchain:lint <ecosystem>` for a specific filter." and stop.
 
 ### 2. Run linters per ecosystem
 
-Run each ecosystem's resolved `check-cmd` (or `fix-cmd` with `--fix`). Honor each ecosystem's `opt-in` — skip tools the project hasn't configured.
+Run each ecosystem's resolved `check-cmd` (or `fix-cmd` with `--fix`). Honor each ecosystem's `opt-in`: for a single-condition ecosystem (dotnet, python), an unmet condition skips the whole ecosystem, reporting `skip (opt-in unmet: <condition, ≤10 words>)` visibly (never a silent omission) in every column that ecosystem's row has — this skip counts toward the table's total ecosystem count but never toward the FAIL count, the same precedent as a missing-tool skip. For a multi-tool ecosystem (bash, cross-cutting) whose `check-cmd` bundles multiple sub-tools into one opaque string, this binary treatment doesn't apply — run and report `check-cmd`/`fix-cmd` as before (unchanged from prior behavior); see `/toolchain:check`'s Gotchas for the known atomicity limitation.
 
 For ecosystem-specific gotchas, reference `/toolchain:check` — its `context/<ecosystem>.md` files own the per-ecosystem prose detail.
 
@@ -130,7 +130,7 @@ fi
 Overall: FAIL (1 of 4 ecosystems failed)
 ```
 
-Use `pass`, `FAIL`, `skip` (tool not installed), or `—` (not applicable). Split lint and format into separate columns where the ecosystem has both (dotnet, python, bash). Use a single "Lint" column for ecosystems with only one tool (markdown, yaml, powershell).
+Use `pass`, `FAIL`, `skip` (tool not installed) or `skip (opt-in unmet: ...)` (config condition not met), or `—` (not applicable). Split lint and format into separate columns where the ecosystem has both (dotnet, python, bash). Use a single "Lint" column for ecosystems with only one tool (markdown, yaml, powershell). An opt-in-unmet skip fills every column that ecosystem's row has.
 
 If fix mode was used, note which ecosystems were auto-fixed vs which have no auto-fix.
 
@@ -144,6 +144,7 @@ When `--fix` is used, auto-fix capability is derived from the config: an ecosyst
 
 - **No git changes but `/toolchain:lint all`**: run all applicable ecosystems (useful after rebase or pull)
 - **Missing tools**: report as `skip` with tool name and install hint, not as failure
+- **Opt-in unmet**: report as `skip (opt-in unmet: ...)` with the condition, not as failure and not a silent omission (e.g., dotnet with no C#-relevant `.editorconfig`)
 - **Multiple projects in same ecosystem**: run per-project (each `pyproject.toml`, each `package.json`)
 - **File outside any ecosystem**: silently skip (no noise for binary files, images, etc.)
 - **CWD drift**: always use absolute paths from `$REPO_ROOT`

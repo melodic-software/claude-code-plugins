@@ -2,10 +2,34 @@
 # .claude/ecosystems/dotnet.yaml overrides this key-by-key; this file is never
 # written into a consumer repo). Ecosystem-commands contract + schema:
 # https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/ecosystem-commands/README.md
+#
+# opt-in rationale: dotnet format's own docs state preferences are read from
+# .editorconfig "if present, otherwise a default set of preferences will be
+# used" (https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-format) —
+# verified empirically (dotnet SDK 10.0.302) that a project with NO
+# .editorconfig still gets `dotnet format --verify-no-changes` failures
+# (Roslyn's built-in whitespace conventions apply unconditionally). Gated on
+# a section that actually reaches .cs files (a universal `[*]`, or a
+# C#-specific glob like `[*.cs]`/`[*.{cs,vb}]`), not bare file presence,
+# mirroring bash.yaml's "shfmt only when .editorconfig declares shell style"
+# precision — a .editorconfig with ONLY unrelated globs (e.g. `[*.md]`, no
+# `[*]`) verifiably has zero effect on dotnet format's output (empirically
+# confirmed: exit 0, no diagnostics) and shouldn't count as configured .NET
+# style. EnableNETAnalyzers was considered and rejected as a signal: it
+# defaults to true for .NET 5+, so its presence is not meaningful.
+#
+# The walk stops at a `root = true` marker even when that file has no
+# C#-relevant section — EditorConfig discovery itself stops there (verified
+# empirically: an outer repo-root `[*]` section has zero effect on a nested
+# .cs file once a `root = true` .editorconfig sits between them), so a
+# parent section beyond that marker is never actually consulted by dotnet
+# format and must not count toward this opt-in either. Same discipline as
+# bash-format.sh's shell_editorconfig_opt_in() walk elsewhere in this repo.
 globs: ["*.cs", "*.csproj", "*.sln", "*.slnx", "*.props", "*.targets"]
 anchor: "the solution file at repo root (*.slnx or *.sln); when none exists, the nearest *.csproj above the changed files"
 build-cmd: 'dotnet build "<solution-or-project-file>"'
 test-cmd: 'dotnet test "<solution-or-project-file>" --no-build'
 check-cmd: 'dotnet format "<solution-or-project-file>" --verify-no-changes'
 fix-cmd: 'dotnet format "<solution-or-project-file>"'
+opt-in: ".editorconfig with a [*] or C#-glob section, walked from the changed file up to the repo root or a `root = true` marker (whichever comes first) — otherwise dotnet format applies Roslyn's built-in defaults unconditionally"
 install-hint: "Install .NET SDK from https://dot.net"

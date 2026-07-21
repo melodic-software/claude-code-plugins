@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "typos-format",
+  "version": "0.1.0",
+  "description": "Auto-fix spelling typos on edit via typos-cli, only when a typos config governs the repo — using the consuming repo's own typos configuration.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT",
+  "keywords": [
+    "typos",
+    "spelling",
+    "formatter",
+    "linter",
+    "hook"
+  ],
+  "userConfig": {
+    "typos_format_enabled": {
+      "type": "boolean",
+      "title": "typos-format hook",
+      "description": "Run typos --write-changes on edit of a file, when a typos config governs the repo",
+      "default": true
+    }
+  }
+}

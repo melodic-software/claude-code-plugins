@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/data/typos-format.schema.json",
+  "title": "typos-format telemetry data",
+  "description": "Per-hook `data` payload for the typos-format hook. Discovered from the envelope `hook` value \"typos-format\". Evolves additive-only.",
+  "type": "object",
+  "required": ["tool", "file", "findings"],
+  "additionalProperties": true,
+  "properties": {
+    "tool": {
+      "type": "string",
+      "description": "Claude Code tool that triggered the hook (Write or Edit)."
+    },
+    "file": {
+      "type": "string",
+      "description": "Path of the checked file, relative to the consuming repo root."
+    },
+    "findings": {
+      "type": "array",
+      "description": "Residual (unfixable) typos findings remaining after --write-changes. Empty array = clean or fully fixed.",
+      "items": {
+        "type": "object",
+        "required": ["typo", "corrections"],
+        "additionalProperties": false,
+        "properties": {
+          "typo": {
+            "type": "string",
+            "description": "The flagged typo token."
+          },
+          "corrections": {
+            "description": "Known correction candidates, or null when the term is disallowed with no known correction.",
+            "oneOf": [
+              { "type": "array", "items": { "type": "string" } },
+              { "type": "null" }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

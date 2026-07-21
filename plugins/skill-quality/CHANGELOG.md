@@ -3,6 +3,25 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0]
+
+### Added
+
+- **Check 19 (dynamic-context injection shell declaration) — FAIL/WARN.** A `` !`command` `` /
+  ` ```! ` injection defaults to `shell: bash`; on a host without Git Bash it falls through to
+  the PowerShell tool, so a bash-only pipeline silently breaks (a 2026-07-21 fleet census found
+  64 such skills across 26 plugins). When a skill carries injections and declares no `shell:`
+  frontmatter, the check FAILs on detectable bash-only syntax (`/dev/null`, `command -v`, a pipe
+  into a Unix text tool with no same-named PowerShell cmdlet) and WARNs on portable-looking
+  commands (portability is not statically provable). A `shell:` declaration is trusted as the
+  author's explicit choice — no per-shell syntax validation. The scan is scoped to injected
+  command text only, never prose or a plain ` ```bash ` example.
+- **Check 20 (injection defensive fallback) — WARN.** Injection failure/timeout/stderr semantics
+  are undocumented, so an unguarded command can inline an error string into the prompt. The check
+  WARNs on any injected command lacking a `|| <fallback>` continuation, per the pinned
+  precompute convention. It matches the `||` continuation, not the literal `echo` (`|| printf` /
+  `|| true` are valid fallbacks).
+
 ## [0.7.2]
 
 ### Changed

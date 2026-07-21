@@ -45,6 +45,10 @@
 #  17. Vendor-backed: metadata.synced not older than 180 days (WARN)
 #  18. Precompute opportunity: a fenced shell block gathers read-only context
 #      the skill could inline at load time via `!` injection (WARN; heuristic)
+#  19. shell: declared when `!` dynamic-context injections carry bash-only syntax
+#      (FAIL bash-only syntax + no shell:; WARN portable-looking but undeclared)
+#  20. `!`-injected commands carry a `|| <fallback>` (WARN; undocumented injection
+#      failure semantics — degrade to a known string, not a surprise)
 #
 # Notes (static, git-diff-based design):
 #   - Checks 3/8/9 diff the working tree against CHECK_SKILL_BASE_REF (default
@@ -547,6 +551,108 @@ fi
 if ((PRECOMPUTE_CANDIDATE == 1)); then
   # shellcheck disable=SC2016  # single quotes are deliberate: the backticks and ! in the advisory text are literal, not shell expansion
   warn 'precompute opportunity: a fenced shell block runs read-only context-gathering commands the skill could inline at load time via `!`command`` / ```! dynamic-context injection (preprocessed once at load, no per-invocation tool call). If the block runs on every invocation to gather context, convert it; if it is an illustrative example, ignore. Heuristic over fenced shell blocks — see https://code.claude.com/docs/en/skills#inject-dynamic-context'
+fi
+
+# --- Checks 19-20: dynamic-context injection portability + fallback ----------
+# Both checks scan the INJECTED command text only — never prose or a plain
+# ```bash example that merely shows the syntax. Collect it once: every inline
+# !`cmd` occurrence, plus the body lines of each ```! fenced block. Lines inside
+# a NON-injection fenced block are literal examples, so inline !` there is
+# skipped too (a general-fence state gates the inline scan). The inline form is
+# recognized only at line start or after whitespace (per the injection docs), so
+# a mid-token `!`` such as an inline `#!` code span in prose is not an injection.
+INJECTIONS=()
+inj_in_fence=0     # inside any fenced code block
+inj_fence_len=0
+inj_is_injection=0 # the current fence opened as a ```! injection block
+# shellcheck disable=SC2016  # single quotes deliberate: backticks and $ are literal regex, not shell expansion
+inj_fence_re='^(```+)([^`]*)$'
+while IFS= read -r il || [[ -n "$il" ]]; do
+  itrim="${il#"${il%%[![:space:]]*}"}"
+  if [[ "$itrim" =~ $inj_fence_re ]]; then
+    iticks="${BASH_REMATCH[1]}"
+    iinfo="${BASH_REMATCH[2]}"
+    ilen=${#iticks}
+    iinfo="${iinfo#"${iinfo%%[![:space:]]*}"}" # ltrim the info string
+    if ((inj_in_fence == 0)); then
+      inj_in_fence=1
+      inj_fence_len=$ilen
+      [[ "$iinfo" == '!'* ]] && inj_is_injection=1 || inj_is_injection=0
+    elif ((ilen >= inj_fence_len)) && [[ -z "$iinfo" ]]; then
+      inj_in_fence=0
+      inj_is_injection=0
+    fi
+    continue
+  fi
+  if ((inj_in_fence == 1)); then
+    if ((inj_is_injection == 1)) && [[ -n "$itrim" && "$itrim" != \#* ]]; then
+      INJECTIONS+=("$il")
+    fi
+    continue # inside a non-injection fence → literal example, skip inline scan
+  fi
+  # Outside any fence: collect every inline injection on the line. grep -oE
+  # emits each anchored `<boundary>!`cmd`` match on its own line; strip the
+  # boundary + opening !` and the closing backtick to leave the command. Fixed
+  # literals do the stripping (never the command text), so a command carrying
+  # glob metacharacters is captured verbatim.
+  # shellcheck disable=SC2016  # single quotes deliberate: the backticks are literal delimiters, not shell expansion
+  while IFS= read -r inj_match; do
+    inj_match="${inj_match#*'!`'}" # drop boundary + opening !`
+    inj_match="${inj_match%'`'}"   # drop closing backtick
+    INJECTIONS+=("$inj_match")
+  done < <(grep -oE '(^|[[:space:]])!`[^`]+`' <<<"$il")
+done <"$SKILL_MD"
+
+if ((${#INJECTIONS[@]} > 0)); then
+  # --- Check 19: shell declaration for bash-only injection syntax ------------
+  # A `!` injection defaults to bash; on a host without Git Bash it falls
+  # through to the PowerShell tool, so a bash-only pipeline silently breaks.
+  # Declaring `shell:` is the author taking explicit responsibility for the
+  # shell (we trust it — no per-shell syntax validation, so `shell: pwsh` with
+  # bash-only commands is out of scope). With no declaration, bash-only syntax
+  # is a FAIL; portable-looking commands are an unprovable WARN.
+  #
+  # Bash-only token set is deliberately narrow (tight avoids a false FAIL that
+  # blocks; anything missed degrades to the WARN path, never a false negative):
+  # `/dev/null` (PowerShell is `$null`), `command -v` (a bash builtin;
+  # PowerShell is `Get-Command`), and a pipe into a Unix text tool with no
+  # same-named PowerShell cmdlet. `sort`/`tee` are excluded — PowerShell aliases
+  # them, so a pipe there is not a clean break.
+  # shellcheck disable=SC2016  # single quotes deliberate: \| and $ are literal ERE, not shell expansion
+  bash_only_re='/dev/null|(^|[[:space:]])command[[:space:]]+-v([[:space:]]|$)|\|[[:space:]]*(head|tail|grep|sed|awk|cut|tr|wc|xargs|rev|nl|fold|paste|comm|join|column|uniq)([[:space:]]|$)'
+  if grep -qE '^shell:[[:space:]]*\S' <<<"$FRONTMATTER"; then
+    note "shell: declared — dynamic-context injection portability is the author's explicit choice"
+  else
+    bash_only_hit=""
+    for inj in "${INJECTIONS[@]}"; do
+      hit="$(grep -oE "$bash_only_re" <<<"$inj" | head -1 || true)"
+      if [[ -n "$hit" ]]; then
+        bash_only_hit="$hit"
+        break
+      fi
+    done
+    if [[ -n "$bash_only_hit" ]]; then
+      # shellcheck disable=SC2016  # single quotes deliberate: the backticked tokens in the message are literal
+      err "\`!\` dynamic-context injection uses bash-only syntax ('$bash_only_hit') with no \`shell:\` frontmatter — on a host without Git Bash the injection falls through to the PowerShell tool and breaks. Declare \`shell: bash\` (or write portable commands). See https://code.claude.com/docs/en/skills#inject-dynamic-context"
+    else
+      # shellcheck disable=SC2016  # single quotes deliberate: the backticked tokens in the message are literal
+      warn "\`!\` dynamic-context injection present with no \`shell:\` frontmatter — the commands look portable but static analysis can't prove it. Declare \`shell:\` explicitly, or confirm the commands run under the host's default shell"
+    fi
+  fi
+
+  # --- Check 20: injected commands carry a defensive fallback ----------------
+  # Injection failure/timeout/stderr semantics are undocumented, so an unguarded
+  # command can inline an error string (or nothing) into the prompt. The pinned
+  # convention is a `|| <fallback>` on every injected command; match the `||`
+  # continuation, not the literal `echo` (`|| printf`/`|| true` are valid too).
+  missing_fallback=0
+  for inj in "${INJECTIONS[@]}"; do
+    [[ "$inj" == *'||'* ]] || missing_fallback=$((missing_fallback + 1))
+  done
+  if ((missing_fallback > 0)); then
+    # shellcheck disable=SC2016  # single quotes deliberate: the backticked tokens in the message are literal
+    warn "$missing_fallback \`!\`-injected command(s) carry no \`|| <fallback>\` — injection failure/timeout/stderr semantics are undocumented, so an unguarded command can inline an error string into the prompt. Add a \`|| echo \"<fallback>\"\` (or shell-appropriate) continuation"
+  fi
 fi
 
 # --- Summary ---------------------------------------------------------------

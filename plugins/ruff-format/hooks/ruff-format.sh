@@ -128,6 +128,17 @@ root="$(cd "$REPO_ROOT" 2>/dev/null && pwd)" || root=""
 # pyproject.toml). A pyproject.toml counts only when it carries a [tool.ruff]
 # section (or a [tool.ruff.*] subtable) — Ruff skips it for discovery otherwise.
 # Absence of any config is the opt-out: the file is left untouched.
+#
+# Known limitation: this line-anchored grep only recognizes the `[tool.ruff]`
+# header form. TOML also allows the equivalent config as an inline table under
+# a bare `[tool]` header (`[tool]` + `ruff = { ... }`), which Ruff itself does
+# honor — a repo using that form is treated as un-configured here and the gate
+# skips it. Fails safe (a missed opt-in, never a wrong edit); left undetected
+# rather than heuristically matched because a robust check needs real TOML
+# parsing (inline tables span lines, nest arbitrarily, and the `ruff` key can
+# appear in any order under `[tool]`), and a multi-pass grep risks a false
+# positive from an unrelated `ruff = "..."` key in a different table or a
+# commented-out line.
 CONFIG_FOUND=""
 dir="$FILE_DIR_POSIX"
 while [[ -n "$dir" ]]; do
