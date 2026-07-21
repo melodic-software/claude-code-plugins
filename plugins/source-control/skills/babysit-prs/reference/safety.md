@@ -47,9 +47,11 @@ value and its unset fallback.
   <headRefName>` to reach the branch: when it is locked by a sibling worktree that command dead-ends
   (`fatal: '<branch>' is already used by worktree at ...`). Once the head assertion holds, push the
   integrated work with an explicit refspec to the remote `gh pr checkout` configured for the branch —
-  `git push "$PUSH_REMOTE" HEAD:<headRefName>`, where `PUSH_REMOTE` resolves **fail-closed**: `origin`
-  for a same-repo head; for a write-allowed cross-repo (in-owner fork) head, the fork's remote from
-  `git config --get branch.<headRefName>.remote`. Never hardcode `origin`, and never fall back to it
+  `git push "$PUSH_REMOTE" HEAD:<headRefName>`, where `PUSH_REMOTE` resolves **fail-closed**. Decide
+  same-repo vs fork from `gh pr view --json isCrossRepository`, never by whether `git config` happens
+  to resolve: `origin` for a same-repo head; for a write-allowed cross-repo (in-owner fork) head, the
+  fork's remote from `git config --get branch.<headRefName>.remote` (guarding a value that is empty,
+  `.`, or literally `origin`). Never hardcode `origin`, and never fall back to it
   when that remote is unresolved — a fork head reached via `--detach` leaves no branch config, and
   `origin` is then the base repo, so pushing there silently writes a same-named branch on base instead
   of updating the fork head; **stop (read-only) instead**. Because `HEAD` equalled the PR head and you only added
