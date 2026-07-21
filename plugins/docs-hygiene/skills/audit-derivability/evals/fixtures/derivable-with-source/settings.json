@@ -1,0 +1,14 @@
+{
+  "server": {
+    "port": 8080,
+    "request_timeout_seconds": 30,
+    "max_retries": 3
+  },
+  "health": {
+    "liveness": "/healthz",
+    "readiness": "/readyz"
+  },
+  "logging": {
+    "level": "info"
+  }
+}

@@ -3,6 +3,39 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.4]
+
+### Fixed
+
+- **`/pull-request` create flow no longer hardcodes the remote name `origin` (#442).** The
+  `create.md` reference had baked `git fetch origin` (§2.2 rebase) and `git push -u origin <branch>`
+  (§2.4.1), so a consumer whose remote is not named `origin` (a repo cloned with `git clone -o
+  <name>`, or a fork-based multi-remote setup) would break — a baked repo assumption the
+  convention-resolution ladder forbids. Both sites now delegate to a shared resolver
+  (`scripts/resolve-remote.sh`) that applies the same candidate-priority ordering the `toolchain`
+  linters already use: the current branch's configured remote (`branch.<name>.remote`, a local-only
+  `.` upstream treated as unset), else `origin`, else the sole OTHER configured remote when exactly
+  one exists. Two or more non-origin candidates with neither `branch.<name>.remote` nor `origin` set
+  is ambiguous and fails loudly with a diagnostic rather than silently resolving to `git remote |
+  head -1` and risking a rebase/push against the wrong base. The §2.2 substitution is complete —
+  every `origin/$DEFAULT_BRANCH` occurrence (fetch, `merge-base`, `rev-parse`, `rev-list`, `rebase`,
+  the progress echo, and the
+  merge-vs-rebase / skip-condition prose) now reads `$REMOTE/$DEFAULT_BRANCH`, and the
+  `ORIGIN_DEFAULT` variable is renamed `REMOTE_DEFAULT` to stay coherent. On the common path — a
+  single-remote repo, or a fresh feature branch with no `branch.<name>.remote` yet — both sites
+  still resolve to `origin`, preserving current behavior exactly. The §2.4.1 push step calls the
+  resolver in `--push` mode, which prepends Git's documented push precedence
+  (`branch.<name>.pushRemote`, else `remote.pushDefault`, else the fetch order above) per
+  git-config(1) / git-push(1), so a triangular fork flow — fetch from `upstream`, push to the fork —
+  resolves each side correctly instead of publishing the branch to `upstream`; the resolver's push
+  cases are covered by `resolve-remote.test.sh`. Relatedly, the §2.4.1 `git push` now sets upstream
+  (`-u`) only when the branch has no real `branch.<name>.remote` yet: `git push -u` rewrites that key
+  to the push target, so on a triangular fork an unconditional `-u` would silently repoint the FETCH
+  remote §2.2 reads to the fork and break the next rebase — the push now preserves an existing fetch
+  remote and bootstraps tracking only for a fresh (or local-only `.`) branch, where it still resolves
+  to `origin` as before. The same `origin` hardcoding still lives in `merge.md` and the `babysit-prs`
+  references, deferred to a follow-up.
+
 ## [0.15.3]
 
 ### Added
