@@ -41,8 +41,19 @@ with no human help, not autonomous merge.
   inference of class; unlabeled = skip. `.claude/autonomy/**` and label mutation are
   excluded from the run's allowlist.
 - #440 outward-write posture: report-only-compatible evidence.
-- Upstream recheck standing trigger (done 2026-07-21: desktop-scheduled-tasks doc — native
-  overlap-skip, single catch-up, worktree toggle, per-task model + permission pickers).
+- **Scheduler ruling (operator, 2026-07-21):** primary = Claude Code Desktop scheduled task
+  (per the native-first amendment on #778); fallback = OS scheduler + `claude -p` headless
+  (the amendment's "can't be easily managed" exit clause — a legitimate flip if running the
+  Desktop app continuously proves burdensome); excluded = session-scoped CLI scheduling
+  (`/loop` / cron tools), unfit for a standing unattended routine per its own documentation.
+  The WHY lives upstream, not here — surface properties, comparison table, and expiry
+  semantics are owned by the living docs:
+  <https://code.claude.com/docs/en/desktop-scheduled-tasks> and
+  <https://code.claude.com/docs/en/scheduled-tasks> (verified 2026-07-21). This ruling is
+  expected to be overtaken — a durable CLI-native surface may ship; the standing
+  recheck-against-upstream trigger (re-verify the scheduling landscape at every build
+  touchpoint) is the mechanism that catches it. Trust the fetched docs at each touchpoint,
+  never this note's recollection of them.
 - STANDING ORCHESTRATION CONTRACT: builders in worktrees, agents never touch git, main
   thread verifies empirically before every commit.
 
