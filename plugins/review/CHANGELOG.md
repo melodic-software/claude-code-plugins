@@ -3,6 +3,25 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.9]
+
+### Added
+
+- **`doc-drift-detector` gates classification behind an existence pre-check**
+  (#505). Before judging a page's accuracy, the agent now asks the admission
+  question first — could a reader with repository search derive this content
+  from the code itself? — and routes an admission failure to a new
+  **Deletion-candidate** category (recommend relocate-then-delete, never
+  auto-delete) instead of forcing it into Stale/Missing/Aspirational.
+  Decisions, domain language, thin navigation, and policy/wiring pages always
+  pass admission. The four-factor scoring behind a contested call reuses
+  `/docs-hygiene:audit-derivability`'s rubric by reference (optional
+  namespaced skill invocation, degrading to the admission question standalone
+  when that plugin is unavailable). Ships as a portable-baseline default;
+  a consuming repo's own declared documentation-existence convention overrides
+  it via `/re-anchor:follow-our-standards`'s resolution ladder. Report-only,
+  matching the agent's existing read-only contract.
+
 ## [0.14.8]
 
 ### Changed

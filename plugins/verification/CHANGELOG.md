@@ -3,6 +3,17 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.2]
+
+### Changed
+
+- Documentation-only: `/verification:confirm`'s live-app delegation section now
+  acknowledges the enriched `/testing:run-e2e` — subagent-isolated surface runs, an
+  optional recording / session-artifact evidence tier (config-driven, defaults off),
+  and a structured verification-environment gap report on prerequisite failure. The
+  bundled `/verify` + `/run` supplementary path and its presence gate are unchanged,
+  as are the stage and verdict machinery. No behavior change.
+
 ## [0.3.1]
 
 ### Changed

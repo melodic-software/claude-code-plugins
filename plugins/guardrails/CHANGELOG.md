@@ -3,6 +3,100 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.5]
+
+### Fixed
+
+- **`block-hook-bypass` no longer fails open when the redirect target is quoted.**
+  The producer-scoping narrowing dropped a quoted redirect TARGET along with inert
+  quoted prose, leaving the segment as `echo x >` with no surviving operand — so
+  the file-write check saw no target and `echo x > "$out"`, `echo x > 'out.txt'`,
+  and `printf y > "$file"` wrote real files while returning 0. A quoted span that
+  belongs to a redirect-operand word (the word began right after a `>`) is now kept
+  as literal content instead of dropped, so the write signal survives the strip;
+  partial quoting (`echo x > "$dir"/out.txt`) is covered too. Keeping the literal
+  content preserves the `/dev/null` exemption (`echo x > "/dev/null"` stays
+  allowed), so the fix adds no false positive, and a quoted span anywhere else
+  (prose, a `--body "…"` payload, a quoted echo argument) still drops.
+- **`block-hook-bypass` no longer false-fires when an `echo`/`printf` token and a
+  `>` redirect merely co-occur in one Bash command.** The `echo > file` heuristic
+  matched any command string containing both tokens, so capturing a subprocess's
+  stdout to a scratchpad data file (`bash fetch.sh 526 > pr526.json && echo
+  "EXIT: $?"`), a bounded poll loop with a status `echo`, or a `gh issue create
+  --body "…"` whose text merely mentions the tokens were all blocked. The check is
+  now producer-scoped: it splits the literal-stripped command into simple-command
+  segments and flags only a segment whose command word is `echo`/`printf` AND that
+  redirects stdout into a real file — so the redirect's producer must be the
+  echo/printf, not a co-located but unrelated one. It correctly fires inside loop,
+  conditional, and brace-group bodies (`for …; do echo x > f; done`). The
+  literal-strip now also carries an open quote across physical lines, so a
+  multi-line quoted argument (a `--body "…"` payload spanning newlines) stays
+  inert instead of leaking its tokens from the second line on. `printf … > file`
+  content-authoring is now caught alongside `echo … > file`.
+- **The producer scan now peels command prefixes, so a producer hidden behind a
+  valid shell prefix is no longer a trivial bypass.** The head-only producer match
+  looked only at a segment's first token, so `FOO=bar echo x > file`,
+  `command echo x > file`, `builtin printf x > file`, and `env echo x > file` all
+  slipped through even though their stdout is redirected into a real file — the
+  prior anywhere-in-command detector caught them. The segment head now peels
+  environment assignments and the command-name modifiers `command`/`builtin`/
+  `exec`/`env` before the echo/printf check, closing that hole. Peeling is
+  block-safe: the producer gate still requires echo/printf, so revealing a
+  non-producer command word never causes a block. External command-runner
+  utilities that carry their own options (`nohup`/`nice`/`time`/`timeout`/`sudo`/
+  `xargs`, non-bare `env`) remain an accepted, documented floor.
+- **An fd-duplication redirect before the stdout redirect no longer splits the
+  producer off from its `> file`.** Segmenting on every `&` cut `echo x 2>&1 >
+  file` and `echo x >&2 > file` at the dup's `&`, orphaning the trailing stdout
+  redirect so neither blocked. The `&` in a redirect (`>&`, `<&`, `&>`) is now
+  protected from the control-operator split, so the simple command stays one
+  segment and its `> file` is scanned as the echo's own; `&&` and a background
+  `&` still split as separators.
+- **Compound-command headers and pipeline negation before a producer are now
+  peeled.** `! echo x > file`, `if echo x > file; then …`, and the `while`/`until`/
+  `elif` forms wrote the file yet slipped past the head-only match, since only
+  `do`/`then`/`else`/`{` were peeled. The header set now also peels
+  `if`/`elif`/`while`/`until`/`!`, completing the before-command keyword class.
+- **An unmatched quote inside a `#` comment no longer leaks a quote span onto the
+  next line.** `strip_literals` carries an open quote across physical lines, so an
+  unclosed `"` in a trailing comment (`true # "`) previously stripped the following
+  line's real producer as a quoted span, and `true # "` + newline + `echo x > file`
+  returned 0. An unquoted `#` at a word boundary (line start, or after a blank or
+  one of `;|&()<>`) is now dropped to end-of-line WITHOUT touching the quote state,
+  so the comment cannot leak a span. A mid-word `#` (`echo a#b > file`) and a
+  parameter expansion (`${v#x}`) stay literal, so those real writes still block.
+- **A leading redirection before the command word no longer hides the producer.**
+  Bash permits redirections before the command word, so `> real.txt echo x` writes
+  the file, yet the segment-head producer match (anchored at `^(echo|printf)`) never
+  saw it and returned 0. A leading redirect is now peeled (operator + its target
+  word) to expose the producer, while the redirect itself stays in the segment so
+  `_echo_file_out`/`_echo_devnull` still decide whether a real write exists — a
+  leading input redirect or `/dev/null` discard stays allowed.
+- **The bare `coproc` header before a producer is now peeled.** `coproc echo x >
+  file` writes the file but `coproc` was absent from the peeled header set, so it
+  returned 0. `coproc` is added to the command-header peel. Only the bare keyword is
+  peeled; the named form `coproc NAME { … }` remains a documented floor (NAME is
+  indistinguishable from a command word by prefix-peeling, and its redirect is
+  group-level — the same brace-group floor).
+- **Options of the `command`/`exec` modifiers are now peeled too.** Both were
+  peeled but their options were not, so a producer behind a valid option leaked:
+  `command -p echo x > file` and `exec -a name echo x > file` wrote the file yet
+  returned 0. The producer scan now also peels the modifier options documented by
+  bash built-in help (`command [-pVv]`, `exec [-cl] [-a name]`, and a `--`
+  end-of-options marker), consuming the value word of the argument-taking
+  `exec -a name` so the echo/printf behind it is still seen. Option peeling applies
+  only to `command`/`exec` — `env`/`builtin` keep their bare-only floor. As an
+  exception, `command -v`/`-V` DESCRIBE their argument instead of running it, so
+  `command -v echo > file` (which writes the word "echo", not echo's output) stays
+  allowed — the guard blocks only a genuine echo/printf producer.
+- **Backslash-escaped separators no longer split a producer from its redirect.**
+  The segment split treated an escaped separator as a command boundary, so
+  `echo x \; > file` and an escaped-newline continuation (`echo x \` + newline +
+  `> file`) — both a single simple command in bash that writes the file — landed
+  the producer and its `> file` in different segments and returned 0. Escaped
+  separators (`\;`, `\|`, `\&`, `\(`, `\)`, and an escaped newline) are now
+  protected from the split so the simple command stays one segment.
+
 ## [0.9.4]
 
 ### Fixed

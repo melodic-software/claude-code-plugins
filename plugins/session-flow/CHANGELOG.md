@@ -1,5 +1,39 @@
 # Changelog — session-flow plugin
 
+## [0.12.0] — 2026-07-21
+
+Added:
+
+- orient: new skill. Read-only session orientation — answers "where do we stand,
+  what are we doing, and why" by synthesizing both the live conversation and the
+  durable, off-thread state a conversation does not hold: handoff save-points,
+  the workflow checklist, running-retro ledgers (resolved through the plugin's
+  topic-docs binding), plus git state, open PRs, open work-items, and a glance at
+  off-thread work. It complements the built-in `/recap` (conversation-only,
+  auto-fires) by adding the durable layer recap never sees; a skill cannot invoke
+  `/recap` (built-ins other than a small allowlist are not Skill-invocable), so it
+  synthesizes the conversation summary inline. Strictly read-only: it writes
+  nothing, ends nothing, and routes rather than acts — freshness verification to
+  `reanchor`, off-thread recovery to `keep-going`, next-stage to `workflow`,
+  learnings to `retro`. The plugin now bundles nine skills.
+
+Changed:
+
+- keep-going: hardened. (1) Broadened from "after an interruption" to also cover
+  a live-session poke — "check the monitor", "poke it", "is it stuck", "stop
+  staring at it" — with an active-verification protocol: read the real
+  monitor/subagent output first, treat progress-vs-elapsed as a suspicion-raiser
+  only, and act on evidence; killing or restarting off-thread work is now gated
+  as a side effect so live-but-slow work is not killed on a hunch. (2) Usage-limit
+  stall fix: once a limit lifts and the session is executing again the block is
+  already over, so it continues rather than summarizing-and-stalling; the
+  time-vs-reset check is scoped to the orchestration case (a limited worker),
+  reset information being available in-session only via the limit message text and
+  interactive `/usage`. While still blocked it hands back via `/session-flow:handoff`
+  rather than self-arming a scheduler. (3) Intent is inferred from the
+  conversation, arguments optional. Existing recovery behavior and all prior
+  trigger phrases are preserved.
+
 ## [0.11.0] — 2026-07-20
 
 Added:
