@@ -158,6 +158,25 @@ OUT=$(run_edit 'faketool sub --real' 'faketool sub --fake'); RC=$?
 assert_exit "diff-scope: unknown flag in the hunk → exit 0" 0 "$RC"
 ctx_contains "diff-scope: hunk flag reported" "$OUT" "UNKNOWN_FLAG: faketool sub --fake"
 
+# --------------- PARTIAL-REPLACEMENT (bare-flag hunk reconstruction) ---------
+# An Edit whose new_string is ONLY the swapped-in flag carries no binary or
+# subcommand, so the hunk yields no command candidate and a genuinely-introduced
+# unknown flag would be missed. The disk lines model POST-edit state (PostToolUse
+# runs after the edit applies), so the flag token is already on disk. Bounded
+# context reconstruction pulls the on-disk line carrying the hunk's flag token
+# and scans it. MUST-FIRE: fails against the pre-fix hook, passes after.
+OUT=$(run_edit 'faketool sub --fake' '--fake'); RC=$?
+assert_exit "partial-edit: bare-flag hunk reconstructs context → exit 0" 0 "$RC"
+ctx_contains "partial-edit: reconstructed hunk flag reported" "$OUT" "UNKNOWN_FLAG: faketool sub --fake"
+
+# MUST-STAY-QUIET: the same bare-flag shape where the disk line ALSO carries a
+# different pre-existing unknown flag NOT in new_string. Reconstruction keeps
+# only candidates whose flag appears in the hunk, so the unrelated --otherbogus
+# never re-fires — the diff-scope contract holds through reconstruction.
+OUT=$(run_edit 'faketool sub --real --otherbogus' '--real'); RC=$?
+assert_exit "partial-edit: unrelated pre-existing flag not re-fired → exit 0" 0 "$RC"
+assert_silent "partial-edit: only hunk-flag verified, --otherbogus stays quiet" "$OUT"
+
 # Kill switch — disabled path is a clean no-op despite a hallucinated flag.
 dis_dir="$TEST_TMPDIR/fake-disabled"
 mkdir -p "$dis_dir/cache"

@@ -17,7 +17,10 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   pre-existing-flag stay-quiet case fails against the prior hook and passes now, with
   a hunk-introduced-flag MUST-FIRE counterpart. Markdown fence state is derived from
   the hunk alone — a fence-straddling edit can misclassify in either direction, the
-  accepted trade of hunk scoping.
+  accepted trade of hunk scoping. A partial-replacement edit whose hunk is a bare
+  flag fragment (no binary in the changed region) reconstructs bounded on-disk
+  context — the lines carrying the hunk's flag tokens — so a swapped-in unknown flag
+  still fires, while a pre-existing unrelated flag sharing that line stays quiet.
 
 ## [0.9.3]
 

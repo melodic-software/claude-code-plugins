@@ -119,7 +119,11 @@ is_skipped() {
 # can misclassify in EITHER direction (a hunk inside a block whose ``` markers
 # fall outside it reads as prose and is under-scanned; a hunk that opens with a
 # closing ``` can over-scan). The convention trades this whole-file context away
-# for diff-scope precision; the residual is accepted, not reconstructed.
+# for diff-scope precision; this fence-straddling residual is accepted, not
+# reconstructed. A distinct residual — an Edit hunk that is a bare flag fragment
+# with no binary in the changed region — IS recovered downstream by
+# reconstruct_partial_edit, which pulls bounded on-disk context so a swapped-in
+# unknown flag is not missed.
 emit_fragments() {
   if [[ "$IS_MD" == "true" ]]; then
     # Inline-code spans (strip the delimiting backticks).
@@ -247,6 +251,55 @@ extract_candidates() {
 }
 
 extract_candidates
+
+# Partial-replacement context reconstruction (Edit only). When an Edit's hunk is
+# a bare flag fragment — a flag token swapped in with no binary/subcommand in the
+# changed region — the diff-scoped scan finds no command candidate and would
+# silently miss a genuinely-introduced unknown flag. Recover bounded context:
+# pull from the on-disk file only the lines carrying one of the hunk's flag
+# tokens (the edit has already been applied by PostToolUse time, so the swapped-in
+# flag is on disk), scan those, and keep only candidates whose flag appears in the
+# hunk. The flag-token filter is what preserves the diff-scope contract: a
+# pre-existing unrelated flag sharing one of those lines never re-fires. The
+# anchor is the flag token, not the line — a bare-flag hunk carries no positional
+# information — so a hunk flag that also occurs on an untouched line is scanned
+# there too; only a DIFFERENT pre-existing flag is excluded.
+reconstruct_partial_edit() {
+  [[ "$TOOL" == "Edit" && -f "$FILE" ]] || return 0
+  # Trigger only when the hunk produced no command candidate; a full-command hunk
+  # already scans correctly and must not re-scan from disk.
+  ((${#CANDIDATES[@]} == 0)) || return 0
+  local -a hunk_flags=()
+  mapfile -t hunk_flags < <(
+    printf '%s' "$SCAN_CONTENT" |
+      grep -oE '(^|[[:space:]])--?[A-Za-z0-9][A-Za-z0-9-]*' 2>/dev/null |
+      sed -E 's/^[[:space:]]*//' | sort -u
+  )
+  ((${#hunk_flags[@]})) || return 0
+  local tok ctx="" lines
+  for tok in "${hunk_flags[@]}"; do
+    lines=$(grep -F -- "$tok" "$FILE" 2>/dev/null)
+    [[ -n "$lines" ]] && ctx+="$lines"$'\n'
+  done
+  ctx=$(printf '%s' "$ctx" | grep -vE '^[[:space:]]*$' | head -20)
+  [[ -n "$ctx" ]] || return 0
+  SCAN_CONTENT="$ctx"
+  extract_candidates
+  local key flag t keep
+  for key in "${!CANDIDATES[@]}"; do
+    flag="${key##*|}"
+    keep=0
+    for t in "${hunk_flags[@]}"; do
+      [[ "$flag" == "$t" ]] && {
+        keep=1
+        break
+      }
+    done
+    ((keep)) || unset 'CANDIDATES[$key]'
+  done
+}
+
+reconstruct_partial_edit
 
 # Verify each unique (bin, chain, flag). Collect failures (keys, formatted later).
 FAILURES=()
