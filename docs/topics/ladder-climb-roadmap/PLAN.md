@@ -143,9 +143,17 @@ sub-topic plan.
 - 7/26 demonstrable bar: ≥1 scheduled fire + ≥1 complete evidence row (work-class stamp AND
   gate outcome AND merge/revert field populated).
 
-### Phase II: Enforcement rail (#509 implementation) [TODO]
+### Phase II: Enforcement rail (#509 implementation) [DOING]
 
 ADR-0002-guarded ordering, three repos, ownership seams respected:
+
+> Scope-change note (2026-07-21): steps 1–2 swapped and the caller shape corrected — the
+> job-level conditional lives INSIDE the reusable workflow (ci-workflows lands first with a
+> backward-compatible `paths` input; this caller then adopts it). A caller-side `if:` on the
+> `uses:` job registers a different check name when skipped and would wedge prose PRs under the
+> required check. Full rationale + evidence: ADR 0002 "ordering correction" addendum. Ruleset
+> flip stays LAST (unchanged). Step 0 ran as written: sole consumer = this repo's caller;
+> captured context `security-review / security-review`.
 
 0. Pre-flight consumer check (FIRST work item): enumerate every consumer of the ci-workflows
    reusable security workflow before reshaping it — org-wide
