@@ -84,6 +84,14 @@ emitted=0
       '{jql: $jql, fields: $fields, maxResults: $mr} + (if $tok == "" then {} else {nextPageToken: $tok} end)')"
     wit_jira_http POST "/search/jql" "$body"
     wit_jira_require_ok "list-items search"
+    # A 2xx body that is not an object with an `issues` array (malformed JSON, or an
+    # error envelope an intermediary returned with a 200) must fail loudly — otherwise
+    # the jq below yields nothing, page_count is empty, the loop breaks, and an empty
+    # success envelope is emitted, silently telling list-frontier there is no work.
+    [[ "$(jq -r 'if (type == "object" and (.issues | type) == "array") then "ok" else "bad" end' <<<"$WIT_JIRA_BODY" 2>/dev/null)" == "ok" ]] || {
+      printf 'jira: list-items search returned a %s response without an issues array\n' "$WIT_JIRA_STATUS" >&2
+      exit "$EX_UNAVAILABLE"
+    }
     page_count="$(jq -r '.issues | length' <<<"$WIT_JIRA_BODY")"
     jq -c --arg sv "$WIT_SCHEMA_VERSION" --arg site "$WIT_JIRA_SITE" \
       --argjson dk "$WIT_JIRA_DONE_KEYS" --arg blk "$WIT_JIRA_BLOCKED_BY_LINK_TYPE" \

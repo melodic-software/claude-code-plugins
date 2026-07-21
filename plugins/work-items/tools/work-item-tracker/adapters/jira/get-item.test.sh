@@ -126,6 +126,13 @@ printf '{"errorMessages":["Issue does not exist"]}' >"$FIX/1.body"
 run_get "jira:test.atlassian.net/SW2#999"
 assert_eq "404 → not-found (5)" "5" "$RC"
 
+# A 2xx response that is not an issue object (no .key) → fail loudly (exit 8), not a
+# misleading normalizer crash.
+printf '200' >"$FIX/1.status"
+printf '{"errorMessages":["boom"]}' >"$FIX/1.body"
+run_get "jira:test.atlassian.net/SW2#5"
+assert_eq "2xx without issue key → unavailable (8)" "8" "$RC"
+
 # Missing token env var → auth (4), before any curl call.
 rm -f "$FIX/.counter"
 OUT="$(WORK_ITEM_TRACKER_BINDING="$FIX/binding.json" WIT_JIRA_CURL="$FIX/curl" \

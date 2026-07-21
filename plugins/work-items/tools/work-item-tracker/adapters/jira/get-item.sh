@@ -35,6 +35,13 @@ key="$WIT_ID_REPO-$WIT_ID_NUMBER"
 
 wit_jira_http GET "/issue/$key?fields=$WIT_JIRA_FIELDS"
 wit_jira_require_ok "get-item $id"
+# A 2xx body that is not an issue object (malformed JSON, or an error envelope an
+# intermediary returned with a 200) must fail loudly rather than crash the normalizer's
+# key parser into a misleading exit 5.
+[[ "$(jq -r 'if (type == "object" and (.key | type) == "string") then "ok" else "bad" end' <<<"$WIT_JIRA_BODY" 2>/dev/null)" == "ok" ]] || {
+  printf 'get-item: %s response was not a Jira issue object\n' "$WIT_JIRA_STATUS" >&2
+  exit "$EX_UNAVAILABLE"
+}
 
 printf '%s\n' "$WIT_JIRA_BODY" | jq -c \
   --arg sv "$WIT_SCHEMA_VERSION" --arg site "$WIT_JIRA_SITE" \

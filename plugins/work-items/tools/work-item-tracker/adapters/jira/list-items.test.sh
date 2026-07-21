@@ -204,4 +204,11 @@ printf '{"errorMessages":["Unauthorized"]}' >"$FIX/1.body"
 run_list --state open
 assert_eq "401 on search → auth (4)" "4" "$RC"
 
+# A 2xx response lacking an issues array (e.g. an error envelope a proxy returned with
+# 200) must fail loudly (exit 8), never collapse to a silent empty frontier.
+printf '200' >"$FIX/1.status"
+printf '{"errorMessages":["boom"]}' >"$FIX/1.body"
+run_list --state open
+assert_eq "2xx without issues array → unavailable (8)" "8" "$RC"
+
 [[ $FAILED -eq 0 ]] || exit 1
