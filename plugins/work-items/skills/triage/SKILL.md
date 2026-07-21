@@ -1,6 +1,6 @@
 ---
 name: triage
-description: "Evaluate raw intake — items the team did not author (bug reports, incoming feature requests, unsolicited PRs) — through a small state machine: raw → verified → briefed → autonomous-eligible, with side exits to needs-info, human-gated, and close. A PR is an item with attached code and enters the same intake as an issue. Use when: 'triage', 'what needs triage', 'triage this issue', 'triage this PR', 'evaluate this bug report', 'is this bug real', 'should we merge this unsolicited PR', 'attention view', 'what intake needs attention'. No number = attention view (untriaged intake). Sibling skills: /work-items:track (backlog CRUD), /work-items:work (auto-select + execute), /work-items:decompose (plan → tickets), /work-items:scan-todos (TODO sweep)."
+description: "Evaluate raw intake — any untriaged item carrying the raw marker, whoever authored it (external bug reports, incoming feature requests, unsolicited PRs, and team-authored self-observation/dogfood issues) — through a small state machine: raw → verified → briefed → autonomous-eligible, with side exits to needs-info, human-gated, and close. A PR is an item with attached code and enters the same intake as an issue. Use when: 'triage', 'what needs triage', 'triage this issue', 'triage this PR', 'evaluate this bug report', 'is this bug real', 'should we merge this unsolicited PR', 'attention view', 'what intake needs attention'. No number = attention view (untriaged intake). Sibling skills: /work-items:track (backlog CRUD), /work-items:work (auto-select + execute), /work-items:decompose (plan → tickets), /work-items:scan-todos (TODO sweep)."
 argument-hint: "[<number>] — issue OR pull request number to triage; empty = attention view"
 user-invocable: true
 disable-model-invocation: false
@@ -21,7 +21,7 @@ closes route through the bound adapter's write mechanics; item creation goes thr
 
 ## Purpose
 
-Evaluate **raw intake** — items the team did not author (bug reports, incoming feature requests, unsolicited PRs) — through a small state machine: raw → verified → briefed → autonomous-eligible, with side exits to needs-info, human-gated, and close.
+Evaluate **raw intake** — any untriaged item carrying the raw marker, whoever authored it (external bug reports, incoming feature requests, unsolicited PRs, and team-authored self-observation/dogfood issues) — through a small state machine: raw → verified → briefed → autonomous-eligible, with side exits to needs-info, human-gated, and close.
 
 ## Usage
 
@@ -32,10 +32,12 @@ Evaluate **raw intake** — items the team did not author (bug reports, incoming
 
 ## Scope: raw intake only
 
+**Raw intake is defined by triage state, not authorship.** An item is raw intake when it is untriaged — unlabeled, or carrying the raw marker (`status:needs-triage` / `priority:needs-triage`, whichever axis the repo files it under) — regardless of who authored it. External bug reports, incoming feature requests, and unsolicited PRs are the common sources, but a **team-authored self-observation / dogfood issue** filed with only the raw marker ([`${CLAUDE_PLUGIN_ROOT}/reference/dogfood-filing.md`](${CLAUDE_PLUGIN_ROOT}/reference/dogfood-filing.md)) is raw intake too: it carries no routing decision yet, surfaces in the same attention view, and needs the same evaluation (priority normalization, tier routing, brief drafting). The boundary is *untriaged vs. already-triaged*, never *external vs. team-authored*.
+
 Two rules bound what enters this flow:
 
 - **A PR is an item with attached code.** An unsolicited or external PR enters the same intake as an issue: same states, same machine. Its diff is an **attachment to evaluate** — check it out, run the relevant tests — never an obligation to merge. Read the state names against the code: briefed means a brief exists for what to do with the diff; human-gated means a human should decide the merge.
-- **Never re-triage `decompose` output.** Items published by `/work-items:decompose` (and team-authored `/work-items:track add` items) are born triaged — classified, role-labeled, and briefed at creation. They never re-enter this flow, and the attention view excludes them by construction (they carry labels from birth). If someone names one explicitly, say it is already triaged and stop.
+- **Never re-triage already-triaged output.** Items born triaged — published by `/work-items:decompose`, or created by `/work-items:track add` with classification labels at creation — are classified, role-labeled, and briefed from birth. They never re-enter this flow, and the attention view excludes them by construction (they carry labels from birth). This exclusion keys on the **born-triaged state**, not authorship: a team-authored `track add` item that carries classification labels is out of scope for the same reason decompose output is, while a team-authored dogfood issue carrying *only* the raw marker is in scope (it is untriaged, per the definition above). If someone names an already-triaged item explicitly, say it is already triaged and stop.
 
 ## Triage states
 

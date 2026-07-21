@@ -3,6 +3,21 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.1]
+
+### Changed
+
+- **`triage` scope now keys on triage state, not authorship (`#486`).** The "Scope: raw intake
+  only" section, the Purpose, and the frontmatter `description` defined raw intake as "items the
+  team did not author," which contradicted the plugin's own self-observation filing contract: dogfood
+  issues the team files carry only the raw marker, surface in the same attention view, and genuinely
+  need triage. Raw intake is now defined as *any untriaged item carrying the raw marker, whoever
+  authored it*; the "did not author" phrasing is demoted to an illustrative list of common sources.
+  The paired exclusion is re-keyed too — "never re-triage already-triaged output" now turns on
+  classification-labels-at-creation (decompose output, or `track add` items born labeled) rather than
+  `track add` authorship, so a team-authored dogfood issue carrying only the raw marker is correctly
+  in scope while born-triaged items stay out. No routing-logic change.
+
 ## [0.18.0]
 
 Extract the cross-lane self-observation filing rule ("file what you will not fix: dedupe → categorize
