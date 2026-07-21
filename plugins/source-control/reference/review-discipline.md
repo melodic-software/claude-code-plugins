@@ -201,9 +201,10 @@ D1–D7 cycles. Exploration and validation must run on the PR's head branch.
   author = login of the THREAD-OPENING comment** (replying into it does not change the author).
   (The `source-control:babysit-prs` worker and autopilot tiers run their thread resolution through
   that skill's guarded `source-control-babysit-resolve-thread` wrapper — which adds an
-  `--allowed-owners` allowlist, bot-vs-human classification, and a JSON receipt — with this
-  author-conditional rule applied as that skill's tier discipline, rather than the raw-GraphQL form
-  below.)
+  `--allowed-owners` allowlist, bot-vs-human classification, and a JSON receipt — rather than the
+  raw-GraphQL form below. Each tier sets its own resolve author-scope: the worker tier matches this
+  bot-only rule; the autopilot tier deliberately extends to addressed human threads
+  (`--include-human`), as documented in that skill's `reference/safety.md`.)
   **Bot detection is API-surface-specific:** resolution runs via GraphQL (the threadId fetch),
   where bot authors have `author.__typename == "Bot"` and `login` omits the `[bot]` suffix;
   REST surfaces show the suffix. When fetching the threadId, also select
