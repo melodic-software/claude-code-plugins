@@ -56,6 +56,8 @@ Parse `$ARGUMENTS` in this order:
 2. **Mode.** If the next token is `incumbent`, enter **`incumbent` mode** (incumbent-target); the remainder identifies the incumbent — a tool, library, approach, or module — or is empty to take the incumbent from the current conversation. The keyword selects the mode only as this leading token; a plan that merely contains the word elsewhere is not a mode switch.
 3. **Plan-review mode (default).** Otherwise: if the remainder is a file path (ends in `.md`, `.txt`, or `.json`), read that file; if it is inline text, use it as the plan; if empty, work from the current conversation context — the most recent plan, proposal, or design being discussed.
 
+To review an inline plan whose text legitimately *begins* with `incumbent`, `deep`, or `shallow`, pass it as a file path so the leading word is not consumed as a mode or depth token.
+
 ### Research depth
 
 Both modes default to **risk-scaled** research (Round 2's high/medium/low scale). A leading `deep` token forces the heaviest tier — route load-bearing evaluations to `/discovery:research-deep` if installed; `shallow` restricts to codebase read/grep with no external research. Depth is a per-invocation choice, not a stored setting.
@@ -161,6 +163,8 @@ Runs in place of Rounds 1–4 when `incumbent` mode is selected. It inherits the
 **Scope guard.** This is pre-implementation decision support — should the plan adopt or keep X versus an alternative — not a post-hoc audit of a running system's health or correctness.
 
 ## Output Format
+
+**In `incumbent` mode**, the per-candidate **KEEP / MIGRATE / RESEARCH verdict** is the headline. The Risk Summary and finding bullets below still apply to the risks the sweep surfaces, with two field re-readings: **Assumption** becomes the claim under test (e.g. "the incumbent still fits" or "alternative X is better-maintained"), and **Failure scenario** becomes the cost of the wrong call (keeping a worse-fit incumbent, or paying an unpriced migration).
 
 ### Risk Summary
 
