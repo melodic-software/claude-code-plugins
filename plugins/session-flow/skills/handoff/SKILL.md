@@ -30,8 +30,8 @@ rediscovering dead ends.
 
 Handoffs are memory-tier save-points, concern-scoped by session — resolve the destination through
 the plugin binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)).
-A consumer-declared convention (the `.claude/topic-docs.yaml` concern file, or a save-point
-convention in `CLAUDE.md` / `.claude/rules/`) wins; otherwise default to
+A consumer-declared `memory_dir` (the `.claude/topic-docs.yaml` concern file, or a working-docs
+convention in `CLAUDE.md` / `.claude/rules/`) wins as the memory-tier ROOT; handoffs always live at
 **`<memory_dir>/handoffs/`** (default `.work/handoffs/`) — files named `<TS>-handoff-<topic>.md`
 with `TS = date -u +%Y%m%dT%H%M%SZ` (ISO basic, Windows-safe, sortable). On the session's first
 memory-tier write, verify the resolved memory root's `.gitignore` exists and contains `*` — create

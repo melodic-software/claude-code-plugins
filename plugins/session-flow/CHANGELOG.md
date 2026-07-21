@@ -1,5 +1,21 @@
 # Changelog — session-flow plugin
 
+## [0.12.4]
+
+### Fixed
+
+- retro / handoff: reconciled the "declared save-point" vocabulary mismatch between the
+  retro multi-session snippet and the handoff skill's "Where handoffs live". Both now
+  consistently name the CLAUDE.md/`.claude/rules`-inferred rung-2 value a **working-docs
+  convention** resolving the memory-tier ROOT (`memory_dir`) — never the full handoffs
+  path directly. Previously, a declared handoffs location such as `.claude/handoffs`
+  passed through retro's snippet doubled into `.claude/handoffs/handoffs` because the
+  snippet's "save-point convention" label implied a full location while its code appended
+  `/handoffs` to it. The snippet's env var is renamed `DECLARED_SAVEPOINT` ->
+  `DECLARED_MEMORY_DIR` to match. The snippet also no longer silently swallows a missing
+  handoff chain: an empty `ls` result now surfaces an explicit fallback message and drops
+  to the single-session parser form instead of passing an empty `--chain-from` value.
+
 ## [0.12.3]
 
 ### Changed
