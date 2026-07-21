@@ -3,6 +3,20 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.2]
+
+### Fixed
+
+- **GitHub adapter resolves a consumer-local `gh-bot.sh` wrapper independent of adapter location
+  (`#365`).** `common.sh` resolved the bot wrapper relative to the adapter's own directory
+  (`${CLAUDE_PLUGIN_ROOT}/tools/github-auth/gh-bot.sh` in the normal bundled path), so a consuming
+  repo's wrapper at `${CLAUDE_PROJECT_DIR}/tools/github-auth/gh-bot.sh` — the path CONTRACT.md's
+  "Identity routing" section already documented as the override — was never found, and tracker writes
+  silently fell back to the ambient `gh` (session-user) identity. `wit_gh_resolve_bot_wrapper` now
+  checks the consumer-local path first, falling back to the plugin-bundled path, mirroring the
+  adapter's own consumer-local-first/plugin-bundled-fallback resolution (CONTRACT.md "Adapter
+  resolution"). CONTRACT.md's "Identity routing" section is updated to match.
+
 ## [0.18.1]
 
 ### Changed

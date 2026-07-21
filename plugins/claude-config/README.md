@@ -1,6 +1,6 @@
 # claude-config
 
-A Claude Code plugin bundling three audit skills for one cohesive capability: keeping a repo's Claude
+A Claude Code plugin bundling four audit skills for one cohesive capability: keeping a repo's Claude
 Code configuration healthy. Each skill answers a different question about the same surface:
 
 | Skill | Question it answers |
@@ -8,13 +8,17 @@ Code configuration healthy. Each skill answers a different question about the sa
 | `/claude-config:audit` | Are the configuration FILES (`settings.json`, `settings.local.json`, `.mcp.json`, hooks, plugins, permissions) correct against upstream truth? |
 | `/claude-config:audit-automation-gaps` | Is the configured automation SET the right set — are there genuine gaps, judged against the enforcement hierarchy? |
 | `/claude-config:audit-permission-grants` | Are the permission GRANTS (`allowed-tools`, `permissions.allow`) portable and durable — do they survive auto mode, work across machines, and live where they can take effect? |
+| `/claude-config:audit-model-fit` | Do the instruction SURFACES (CLAUDE.md, skill bodies, agents, rules, prompt-type hooks) still fit the current model — or do they carry constraints a newer, more capable model no longer needs? |
 
-The instruction/memory layer (`CLAUDE.md`, `CLAUDE.local.md`, `.claude/rules/`, auto-memory) is audited
-by the `health` skill in the separate `claude-memory` plugin (see "Migrating from
-`claude-config-audit`" below if you relied on the old `memory-health` skill here).
+The instruction/memory layer's *health* (`CLAUDE.md`, `CLAUDE.local.md`, `.claude/rules/`, auto-memory)
+is audited by the `health` skill in the separate `claude-memory` plugin (see "Migrating from
+`claude-config-audit`" below if you relied on the old `memory-health` skill here). `audit-model-fit`
+reads the same instruction surfaces but asks a different question — model *fit*, not health: are their
+constraints still earning their place on a newer model?
 
 All default to report-only; mutations (`--fix`, `--implement`) require explicit opt-in and per-item
-user approval. `audit-permission-grants` is report-only (its correct remediation is operator-manual).
+user approval. `audit-permission-grants` and `audit-model-fit` are report-only (the former's remediation
+is operator-manual; the latter is human-gated by design — it proposes diffs, never applies them).
 
 ## What each skill does
 
@@ -61,6 +65,25 @@ Report-only.
 /claude-config:audit-permission-grants              # full grant audit
 /claude-config:audit-permission-grants frontmatter  # allowed-tools only
 /claude-config:audit-permission-grants settings     # permissions.allow only
+```
+
+### audit-model-fit
+
+Sweeps the local instruction surfaces (user + project `CLAUDE.md`, skill `SKILL.md` bodies + context
+files, agent definitions, `.claude/rules/**`, prompt-type hooks and output styles) for deterministic
+constraints that hobble newer, more capable models: bare prohibitions with no rationale,
+over-prescriptive step lists, over-constraining example blocks (kept to 3–5, not banned), and stale
+model-era workarounds. Each candidate is measured against "would removing this cause Claude to make
+mistakes?" A deterministic scan flags the grep-able smells; the judgment stays in the skill body.
+Report-only and human-gated — it proposes diffs, never applies them. Findings inside
+`melodic-software/standards`-managed materializations route upstream rather than being edited in place.
+Distinct from `skill-quality:check` (structure), `docs-hygiene:compress` (token brevity), and `audit`
+(config-file correctness).
+
+```shell
+/claude-config:audit-model-fit          # sweep all instruction surfaces
+/claude-config:audit-model-fit claude-md # CLAUDE.md only
+/claude-config:audit-model-fit skills    # skill bodies + context files only
 ```
 
 ## Consumer conventions

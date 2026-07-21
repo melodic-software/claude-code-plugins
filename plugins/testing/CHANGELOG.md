@@ -3,6 +3,37 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.0]
+
+### Added
+
+- `/testing:run-e2e` gains a consumer-project config surface, `.claude/testing/e2e.md`,
+  with two per-key-override keys: `recording` (`video | gif | off`, default `off`) and
+  `browser_mode` (`headed | headless`, default `headless`). Defaults preserve current
+  behavior. Keys, defaults, and precedence live in the skill's bundled
+  `run-e2e/context/e2e-config.md`; layers resolve per the marketplace
+  consumer-config-layering convention.
+- Optional recording evidence tier in the E2E evidence contract — video via the
+  playwright CLI for long flows, GIF via `gif_creator` for short demos — plus a
+  session-artifacts record (recording path, session ID, transcript pointer). Screenshots
+  remain the evidence floor.
+
+### Changed
+
+- `/testing:run-e2e` now resolves the config surface before driving — anchors at the
+  repo root, merges all three layers per key, and reports which layer supplied each
+  effective value — then passes the resolved `browser_mode` and `recording` values
+  through to the executor.
+- The drive loop is delegated to a subagent; the orchestrator consumes evidence paths
+  only.
+- The prerequisite hard-fail keeps its STOP and now also writes a structured
+  verification-environment gap report (what is missing, what the operator must provide)
+  to the run's evidence output.
+- Verification delegates to the bundled `/verify` command first when it is present
+  (Claude Code ≥2.1.145); the orchestrator fallback is unchanged when it is absent.
+- Eval #1 updated to assert the prerequisite hard-fail STOP plus the structured gap
+  report.
+
 ## [0.2.5]
 
 ### Changed

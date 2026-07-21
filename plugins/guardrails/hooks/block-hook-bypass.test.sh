@@ -55,6 +55,251 @@ run "echo append > file still blocked" "echo line >> real.txt" 2
 run "echo > file with 2>/dev/null still blocked" \
   "echo data > real.txt 2>/dev/null" 2
 
+# --- Producer-scoped redirect (false-fire regression) ------------------------
+# The guard must flag ONLY when the echo/printf is itself the producer whose
+# stdout is redirected into a file — not any compound command that merely
+# CO-MENTIONS an `echo` token and a `>` token. The three cases below are the
+# false positives observed during PR babysitting (a script's stdout captured
+# to a scratchpad data file, with an unrelated `echo` status line in the same
+# call), which must now be ALLOWED.
+# 1. Script stdout captured to a JSON sink + a trailing echo status line.
+run "script stdout capture + echo status (allowed)" \
+  'bash fetch-all-pr-comments.sh 526 > pr526.json && echo "EXIT: $?"' 0
+run "script stdout capture; echo status semicolon (allowed)" \
+  'bash fetch.sh 526 > pr526.json; echo "EXIT: $?"' 0
+# 2. Same capture inside a bounded poll loop whose body also echoes a summary.
+# shellcheck disable=SC2016  # literal loop is the command under test, not for expansion
+run "poll-loop redirect + echo summary (allowed)" \
+  'for i in 1 2 3; do bash fetch.sh 526 > poll.json; echo "poll $i"; done' 0
+# 3. echo/`>` tokens appearing ONLY inside a quoted --body argument (the
+#    `gh issue create` for the bug report itself). Single-line and multi-line
+#    quoted payloads both stay inert — the multi-line body is the exact form that
+#    forced the reporter to fall back to `--body-file`.
+run "gh issue create --body mentioning echo > file, single line (allowed)" \
+  'gh issue create --title t --body "echo > file write bypasses"' 0
+GH_MULTILINE_BODY=$(printf 'gh issue create --title t --body "The guard blocks:\necho > file write bypasses\nremove the echo statements"')
+run "gh issue create --body mentioning echo > file, multi-line (allowed)" \
+  "$GH_MULTILINE_BODY" 0
+
+# True positives must still block: the echo/printf IS the redirected producer,
+# including inside compound-command bodies (loops, conditionals, brace groups)
+# where the issue's false positives all lived.
+run "echo content > file still blocked" 'echo "some content" > file.txt' 2
+run "printf content > file (blocked)" 'printf "%s" "content" > file.txt' 2
+run "echo > file after an unrelated command (blocked)" \
+  'ls foo 2>/dev/null; echo "x" > real.txt' 2
+# shellcheck disable=SC2016  # literal loop is the command under test, not for expansion
+run "echo > file in for-loop body (blocked)" \
+  'for f in a b; do echo "$f" > out.txt; done' 2
+run "echo > file in if-then body (blocked)" \
+  'if true; then echo x > real.txt; fi' 2
+run "echo > file in brace group (blocked)" '{ echo x > real.txt; }' 2
+# Group-level redirect (`{ echo x; } > file`) is NOT caught — the closing `}`
+# and `)` are seps, so the redirect is a separate segment from the echo inside.
+# Accepted as the floor: this form is structurally unusual for LLM output.
+run "echo in brace group with group-level redirect (accepted floor — allowed)" \
+  '{ echo x; } > real.txt' 0
+
+# --- Command-prefix producers (bypass regression) ----------------------------
+# A producer preceded by a valid shell prefix — an env assignment or a
+# command-name modifier (`command`/`builtin`/`exec`/`env`) — must still be caught:
+# its stdout is redirected into a real file exactly like a bare `echo > file`.
+# The head-only producer match would otherwise skip these, making the Write/Edit
+# bypass trivial via `command echo` or `FOO=bar echo`.
+run "env-assignment prefix before echo > file (blocked)" \
+  'FOO=bar echo content > real.txt' 2
+run "command modifier before echo > file (blocked)" \
+  'command echo content > real.txt' 2
+run "builtin modifier before printf > file (blocked)" \
+  'builtin printf x > real.txt' 2
+run "exec modifier before echo > file (blocked)" 'exec echo x > real.txt' 2
+run "env modifier before echo > file (blocked)" 'env echo content > real.txt' 2
+# No new false positive: peeling a prefix only reveals the command word; a
+# NON-producer command word after the prefix is still allowed.
+run "command modifier before non-producer > file (allowed)" \
+  'command ls > out.txt' 0
+run "env-assignment before non-producer > file (allowed)" \
+  'FOO=bar make > log.txt' 0
+# Floor: external command-runner utilities (own options + a command arg) are NOT
+# peeled — each needs per-utility argument parsing. Accepted as the floor; these
+# forms are structurally unusual for LLM output.
+run "nohup wrapper before echo > file (accepted floor — allowed)" \
+  'nohup echo x > real.txt' 0
+
+# --- Options of command-name modifiers before the producer (bypass regression)
+# The peeled modifiers that take options — `command [-pVv]` and `exec [-cl]
+# [-a name]` (bash built-in help) — leave those options between the modifier and
+# the producer. They must be peeled too, else `-p`/`-a name` masks the echo/printf
+# and the redirect writes a real file unblocked.
+run "command -p before echo > file (blocked)" \
+  'command -p echo x > real.txt' 2
+run "exec -a name before echo > file (blocked)" \
+  'exec -a visible echo x > real.txt' 2
+run "exec -cl flags before printf > file (blocked)" \
+  'exec -cl printf x > real.txt' 2
+run "exec -- end-of-options before echo > file (blocked)" \
+  'exec -- echo x > real.txt' 2
+run "command -- end-of-options before printf > file (blocked)" \
+  'command -- printf x > real.txt' 2
+# No new false positive: the arg-taking `-a name` consumes its NAME word, so a
+# NON-producer command after it is still allowed; a modifier-lookup with no
+# redirect writes nothing.
+run "exec -a name before non-producer > file (allowed)" \
+  'exec -a visible ls > out.txt' 0
+run "command -v lookup, no redirect (allowed)" 'command -v echo' 0
+# `command -v`/`-V` DESCRIBE the argument (lookup) rather than run it, so the
+# redirect captures the builtin's lookup output, not echo/printf content — the
+# producer-scoped guard must NOT block these, even with a `>` redirect.
+run "command -v echo describe-lookup > file (allowed)" \
+  'command -v echo > out.txt' 0
+run "command -V echo describe-lookup > file (allowed)" \
+  'command -V echo > out.txt' 0
+run "command -pv cluster with describe flag > file (allowed)" \
+  'command -pv echo > out.txt' 0
+run "command -v printf describe-lookup >> file append (allowed)" \
+  'command -v printf >> out.txt' 0
+# The describe-skip drops ONLY the lookup segment: a real producer bypass in a
+# LATER segment of the same command must still block.
+run "command -v describe then real echo > file in next segment (blocked)" \
+  'command -v echo > a.txt; echo x > b.txt' 2
+# The describe-skip fires even when the modifier sits behind an env-assignment
+# prefix (`prev_mod` must survive the assignment peel into `command`).
+run "env-assignment before command -v describe > file (allowed)" \
+  'FOO=bar command -v echo > f' 0
+# exec's `-a` consumes its NAME word even when NAME is the letter `v`; the
+# describe-skip is command-only, so exec's echo producer still blocks.
+run "exec -a v name then echo > file (blocked)" \
+  'exec -a v echo x > f' 2
+# Option peeling is scoped to command/exec: `env` keeps its bare-only floor, so an
+# optioned `env` before a producer stays an accepted-floor miss (documented), not a
+# partial/inconsistent catch.
+run "env -i optioned before echo > file (accepted floor — allowed)" \
+  'env -i echo x > real.txt' 0
+
+# --- fd-duplication redirect before stdout redirect (bypass regression) ------
+# An fd-dup redirect (`2>&1`, `>&2`) before the real stdout redirect must not let
+# the `&` split cut the producer away from its `> file`. The whole simple command
+# stays one segment so the trailing stdout-to-file redirect is still the echo's.
+run "echo 2>&1 then > file (blocked)" 'echo x 2>&1 > real.txt' 2
+run "echo >&2 then > file (blocked)" 'echo x >&2 > real.txt' 2
+# The dup redirects themselves, with no stdout-to-file target, are NOT writes.
+run "echo piped with 2>&1 dup (allowed)" 'echo hi 2>&1 | cat' 0
+run "ls to stderr via >&2 dup (allowed)" 'ls foo >&2' 0
+
+# --- Compound-command headers / negation before a producer (bypass regression)
+# `if`/`elif`/`while`/`until` headers and `!` negation can precede the command
+# word just like `do`/`then`/`else`; the producer inside them must still be seen.
+run "echo > file after ! negation (blocked)" '! echo x > real.txt' 2
+run "echo > file in if header (blocked)" \
+  'if echo x > real.txt; then :; fi' 2
+run "echo > file in while header (blocked)" \
+  'while echo x > real.txt; do :; done' 2
+run "echo > file in until header (blocked)" \
+  'until echo x > real.txt; do :; done' 2
+# No new false positive: a non-producer command word after the header is allowed.
+run "non-producer in if header > file (allowed)" \
+  'if grep -q x file; then ls; fi' 0
+
+# --- Leading redirect before the producer word (bypass regression) -----------
+# Bash permits redirections before the command word, so a producer can hide
+# behind one. The leading redirect is peeled to expose echo/printf, while the
+# redirect itself still counts as the write signal.
+run "leading redirect before echo (blocked)" '> real.txt echo x' 2
+run "leading redirect before printf (blocked)" '> real.txt printf x' 2
+run "leading redirect glued to target before echo (blocked)" '>real.txt echo x' 2
+run "leading redirect + env-assignment before echo (blocked)" \
+  '> real.txt FOO=bar echo x' 2
+# No new false positive: a leading INPUT redirect writes nothing, a leading
+# stdout /dev/null discard is not a bypass, and a non-producer command word after
+# a leading redirect is allowed.
+run "leading input redirect before echo (allowed)" '< input.txt echo x' 0
+run "leading /dev/null redirect before echo (allowed)" '> /dev/null echo x' 0
+run "leading redirect before non-producer (allowed)" '> out.txt ls -la' 0
+
+# --- coproc header before the producer (bypass regression) -------------------
+# A bare `coproc` header can precede the producer of a simple command; it is
+# peeled like the other command headers so the producer inside is still seen.
+run "coproc before echo > file (blocked)" 'coproc echo x > real.txt' 2
+run "coproc before printf > file (blocked)" 'coproc printf x > real.txt' 2
+# No new false positive: a non-producer command word after coproc is allowed.
+run "coproc before non-producer > file (allowed)" 'coproc make > log.txt' 0
+
+# --- Escaped separators between producer and redirect (bypass regression) ----
+# A backslash-escaped separator is NOT a command boundary — bash keeps `\;` `\|`
+# `\&` as literal arguments and removes a `\<newline>` line continuation, all
+# within the SAME simple command. The segment split must not cut the producer
+# from its `> file` at an escaped separator, or the write slips through.
+run "escaped semicolon then echo > file (blocked)" \
+  'echo x \; > real.txt' 2
+run "escaped pipe then echo > file (blocked)" \
+  'echo x \| > real.txt' 2
+run "escaped ampersand then echo > file (blocked)" \
+  'echo x \& > real.txt' 2
+ESCAPED_NEWLINE=$(printf 'echo x \\\n> real.txt')
+run "escaped-newline continuation then echo > file (blocked)" \
+  "$ESCAPED_NEWLINE" 2
+# No new false positive: an UNescaped separator still splits, so a captured
+# subprocess stdout with an unrelated trailing echo stays allowed.
+run "unescaped separator, capture + echo status (allowed)" \
+  'bash fetch.sh > out.json; echo done' 0
+
+# --- Comment quote-state leak (bypass regression) ----------------------------
+# strip_literals carries an open quote across physical lines. An unmatched quote
+# inside a `#` comment must NOT leak a quote span onto the next line — otherwise
+# the next line's real producer gets stripped away and the write slips through.
+COMMENT_QUOTE_LEAK=$(printf 'true # "\necho x > real.txt')
+run "unmatched quote in comment, next-line bypass (blocked)" \
+  "$COMMENT_QUOTE_LEAK" 2
+# Same leak reachable via an operator-preceded comment (`;#`), a word boundary too.
+COMMENT_QUOTE_LEAK_SEMI=$(printf 'true;# "\necho x > real.txt')
+run "unmatched quote in operator-preceded comment, next-line bypass (blocked)" \
+  "$COMMENT_QUOTE_LEAK_SEMI" 2
+# Discriminating: a `#` mid-word is literal, not a comment introducer, so a real
+# `echo a#b > file` write must STILL block (the comment strip must not over-reach).
+run "mid-word # is literal, real write still blocked" 'echo a#b > real.txt' 2
+# A parameter expansion `${v#x}` carries a `#` that is not a comment either — the
+# producer + redirect after it must still block.
+# shellcheck disable=SC2016  # literal ${v#x} is the command under test, not for expansion
+run "parameter-expansion # then echo > file (blocked)" \
+  'echo "${v#x}" > real.txt' 2
+# A genuine trailing comment on an allowed command stays allowed and does not
+# swallow a following unrelated line via a leaked quote.
+COMMENT_BENIGN=$(printf 'ls -la # list files\ngit status')
+run "benign trailing comment, no leak (allowed)" "$COMMENT_BENIGN" 0
+
+# --- Quoted redirect operands (bypass regression) ----------------------------
+# strip_literals drops quoted spans so their tokens stay inert, but a quoted
+# redirect TARGET is not inert prose — it is the write's destination. Dropping it
+# left the segment as `echo x > ` with no surviving operand, so _echo_file_out
+# (which needs a non-space target) did not match and the write slipped through.
+# A quoted operand word is now kept as literal content (quote marks dropped) so
+# the write signal survives; a quoted span anywhere else still drops.
+# shellcheck disable=SC2016  # literal $out path is the command under test, not for expansion
+run "echo > double-quoted var target (blocked)" 'echo x > "$out"' 2
+run "echo > single-quoted literal target (blocked)" "echo x > 'out.txt'" 2
+run "echo > double-quoted literal target (blocked)" 'echo x > "out.txt"' 2
+run "echo>quoted target no space (blocked)" 'echo hi>"foo.txt"' 2
+# shellcheck disable=SC2016  # literal $out path is the command under test, not for expansion
+run "printf > quoted var target (blocked)" 'printf y > "$out"' 2
+# shellcheck disable=SC2016  # literal $out path is the command under test, not for expansion
+run "echo >> quoted target append (blocked)" 'echo x >> "$out"' 2
+# Partial quoting is the common real form — a quoted segment inside an otherwise
+# unquoted operand word must still count as the target.
+# shellcheck disable=SC2016  # literal $dir path is the command under test, not for expansion
+run "echo > partially-quoted target (blocked)" 'echo x > "$dir"/out.txt' 2
+# The dropped quote marks must NOT strand the /dev/null exemption: a quoted (or
+# partially-quoted) /dev/null discard is not a Write/Edit bypass and stays allowed.
+run "echo > fully-quoted /dev/null (allowed)" 'echo x > "/dev/null"' 0
+run "echo > partially-quoted /dev/null (allowed)" 'echo x > /dev/"null"' 0
+# No new false positive: a NON-producer whose stdout is captured to a quoted data
+# sink is the original false-positive report's form and must stay allowed — the
+# producer is the script, not an echo.
+run "script stdout to quoted sink (allowed)" \
+  'bash fetch.sh 526 > "pr526.json"' 0
+# A quoted span that is NOT a redirect operand (a quoted echo ARGUMENT) still
+# drops — only the following real `> file` write drives the block, not the arg.
+run "echo quoted arg then > quoted file (blocked)" 'echo "done" > "log.txt"' 2
+
 # --- Executable-token vs quoted-argument detection --------------------------
 # Prose or a commit message merely MENTIONING a bypass in a quoted span is
 # documentation, not a Write/Edit bypass. The python write-indicator scan stays

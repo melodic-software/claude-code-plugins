@@ -34,6 +34,9 @@ mkjson() { # mkjson <name> <jq-array-expr>
 help_out=$(bash "$GATE" --help 2>&1)
 assert_exit "--help exit 0" 0 "$?"
 assert_contains "--help describes the gate" "$help_out" "readiness pre-gate"
+# --help must surface the owner/repo override so a worker whose cwd is not the
+# target repo can fix the fetch-failure exit 4 without trial-and-error.
+assert_contains "--help documents the env-var override" "$help_out" "FETCH_COMMENTS_OWNER"
 
 # --- Case: unknown flag ---
 bash "$GATE" 123 --bogus >/dev/null 2>&1
@@ -394,5 +397,25 @@ F=$(mkjson conv-overclassified '[
   {author:"me[bot]", body:"| 1 | a | VALID | x |\n| 2 | spurious | INCORRECT | y |"}
 ]')
 converge "over-classified-cap" "$F"
+
+# --- Case: live fetch failure emits an actionable owner/repo diagnostic ------
+# Run WITHOUT --comments-json from a cwd `gh repo view` cannot resolve: the gate's
+# fetch shell-out fails, and the gate must exit 4 with stderr naming the
+# FETCH_COMMENTS_OWNER/FETCH_COMMENTS_REPO override — not a bare failure line that
+# leaves a worker guessing (the exit-4-without-context report this gate fixes).
+NOREPO_BIN="$TEST_TMPDIR/bin-norepo"
+mkdir -p "$NOREPO_BIN"
+cat >"$NOREPO_BIN/gh" <<'STUB'
+#!/usr/bin/env bash
+case "$*" in
+  *"repo view"*) printf '' ;;
+  *) printf '[]' ;;
+esac
+STUB
+chmod +x "$NOREPO_BIN/gh"
+fetch_rc=$(PATH="$NOREPO_BIN:$PATH" bash "$GATE" 123 >/dev/null 2>&1; echo $?)
+assert_exit "live-fetch-failure exit 4" 4 "$fetch_rc"
+fetch_err=$(PATH="$NOREPO_BIN:$PATH" bash "$GATE" 123 2>&1 1>/dev/null)
+assert_contains "live-fetch-failure names the env-var override" "$fetch_err" "FETCH_COMMENTS_OWNER"
 
 [[ $FAILED -eq 0 ]] || exit 1

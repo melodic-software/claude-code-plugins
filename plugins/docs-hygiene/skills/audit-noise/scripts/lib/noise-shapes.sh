@@ -18,13 +18,12 @@ audit_noise_trim_excerpt() {
 # scan (a doc may cite the defaults regardless of local config).
 audit_noise_convention_roots_pattern() {
   if [[ -z "${AUDIT_NOISE_ROOTS_PATTERN:-}" ]]; then
-    local pattern='\.work|docs/topics' key val yaml
+    local pattern='\.work|docs/topics' key val yaml lib_dir
     yaml="${AUDIT_NOISE_REPO_ROOT:-.}/.claude/topic-docs.yaml"
+    lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     if [[ -f "$yaml" ]]; then
       for key in memory_dir contract_dir; do
-        val=$(sed -n "s/^${key}:[[:space:]]*//p" "$yaml" | head -1)
-        val="${val%%#*}"; val="${val//[[:space:]]/}"; val="${val%/}"
-        val="${val#\"}"; val="${val%\"}"; val="${val#\'}"; val="${val%\'}"
+        val=$("$lib_dir/parse-concern-value.sh" "$yaml" "$key")
         if [[ "$key" == 'contract_dir' && -n "$val" ]]; then
           AUDIT_NOISE_CONTRACT_ROOT="$val"
         fi
