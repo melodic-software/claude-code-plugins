@@ -89,8 +89,8 @@ defaults that preserve zero-config behavior:
 
 Configure them through the `/plugin` dialog, or headless at install time with
 `claude plugin install --config quiz_policy=always`. A literal non-home
-`report_library_dir` may be rejected by hardcoded-path guardrails until the
-shared library-path indirection (issue #798) lands.
+`report_library_dir` may be rejected by the hardcoded-path guardrails until
+the #798 path-indirection work lands.
 
 ## License
 

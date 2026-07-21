@@ -41,9 +41,9 @@ documented unset behavior.
 | `report_library_dir` | `${user_config.report_library_dir}` | unset → artifacts land under `${CLAUDE_PLUGIN_DATA}` (see "Retention mechanics"). Set to a corpus checkout to redirect the library root there. |
 
 Configure via the `/plugin` dialog, or headless with `claude plugin install --config
-KEY=VALUE`. A literal non-home `report_library_dir` may be blocked by hardcoded-path
-guardrails (same class as knowledge's `library_dir`, tracked in #798); adopt that issue's
-indirection scheme for literal-path overrides once it lands.
+KEY=VALUE`. A literal non-home `report_library_dir` may be blocked by the hardcoded-path
+guardrails — the same collision knowledge's `library_dir` hits (#798); adopt that issue's
+path-indirection scheme for literal-path overrides once it lands.
 
 ## Action router
 
@@ -82,12 +82,15 @@ pattern ("a quiz at the bottom on the changes that I must pass").
 Artifacts NEVER land in the consuming repo's working tree. They land under a per-repo
 library keyed on **repo identity, not checkout path** — this repo's per-ticket worktrees
 are pruned after merge, so a path-keyed slug would strand every report under a dead slug
-and leave `recall` from the main clone empty. Derive the slug and destination:
+and leave `recall` from the main clone empty. The remote is normalized to a
+protocol-agnostic `host/org/repo` form before hashing, so the SSH and HTTPS remotes of one
+repo resolve to the same library. Derive the slug and destination:
 
 ```bash
 url="$(git remote get-url origin 2>/dev/null)"
 if [ -n "$url" ]; then
-  canon="$(printf '%s' "$url" | sed -e 's/\.git$//' -e 's#/$##')"
+  canon="$(printf '%s' "$url" | sed -e 's/\.git$//' -e 's#/$##' \
+          -e 's#^[a-z+]*://##' -e 's#^[^@/]*@##' -e 's#:#/#')"
   base="$(printf '%s' "$canon" | sed -e 's#^.*[/:]##' | tr '[:upper:]' '[:lower:]' \
           | tr -cs 'a-z0-9' '-' | sed 's/^-*//;s/-*$//')"
   hash="$(printf '%s' "$canon" | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-8)"

@@ -72,6 +72,30 @@
         "Does not generate a quiz for it and instead routes to verification:confirm as the owner, presence-gated with 'if installed'",
         "Preserves the boundary: quiz-me verifies the human's comprehension, not whether the artifact is correct"
       ]
+    },
+    {
+      "id": 7,
+      "name": "above-threshold-offers-but-waits-for-acceptance",
+      "prompt": "I just finished the change. [quiz_policy is set to above-threshold; the diff touches 9 files and ~350 changed LOC]",
+      "expected_output": "The change exceeds the above-threshold bar (more than 5 files, more than 200 changed LOC, or blast radius HIGH/CRITICAL), so the skill OFFERS a comprehension quiz. It does not auto-generate the report — generation still waits for the user to accept the offer. Judged from git diff --stat against the merge-base at offer time.",
+      "files": [],
+      "expectations": [
+        "Recognizes the change meets the above-threshold bar (more than 5 files or more than 200 changed LOC or blast radius HIGH/CRITICAL) and offers a quiz",
+        "Offers rather than auto-generating — no report is produced until the user accepts the offer",
+        "Does not gate or block the merge; above-threshold governs offer cadence only"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "always-offers-after-change-declining-produces-no-report",
+      "prompt": "That's the refactor wrapped up. [quiz_policy is set to always]",
+      "expected_output": "With quiz_policy always, the skill offers a comprehension quiz after the completed change. If the user declines the offer, no report is generated — generation is always user-confirmed, so a declined offer leaves nothing written to the retention library.",
+      "files": [],
+      "expectations": [
+        "Offers a quiz after the completed change because quiz_policy is always",
+        "Produces no report when the user declines the offer — generation requires explicit acceptance",
+        "Treats the offer as best-effort and non-gating, never blocking the merge"
+      ]
     }
   ]
 }
