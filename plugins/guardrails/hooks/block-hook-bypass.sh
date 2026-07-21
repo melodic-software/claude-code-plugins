@@ -100,8 +100,11 @@ emit_tel() {
 strip_literals() {
   local cmd="$1" line result="" in_heredoc=0 delim="" trimmed
   # `open_quote` carries a single- or double-quote span across lines: "" outside
-  # any quote, "'" or '"' inside one that opened on an earlier line.
-  local open_quote="" out i n c prev
+  # any quote, "'" or '"' inside one that opened on an earlier line. `open_keep`
+  # carries, alongside it, whether that span is a REDIRECT OPERAND (a quoted
+  # target: the char before the opening quote is `>`) — those are kept as literal
+  # content instead of dropped, so a quoted write target survives the strip.
+  local open_quote="" open_keep="" out i n c prev tail
   # `(^|[^<])` before `<<` excludes a here-string `<<<` — matching `<<` inside
   # `<<<` would capture a bogus delimiter and strand the stripper in-heredoc,
   # swallowing every later line (a here-string bypass). The delimiter body
@@ -152,23 +155,44 @@ strip_literals() {
     while ((i < n)); do
       c="${line:i:1}"
       if [[ "$open_quote" == "'" ]]; then
-        [[ "$c" == "'" ]] && open_quote=""
+        if [[ "$c" == "'" ]]; then
+          open_quote=""
+          open_keep=""
+        elif [[ -n "$open_keep" ]]; then
+          out+="$c"
+        fi
         ((i += 1))
       elif [[ "$open_quote" == '"' ]]; then
         if [[ "$c" == $'\\' ]]; then
+          # Inside double quotes a backslash escapes the next char; when this span
+          # is a kept redirect operand, keep that escaped char literally.
+          [[ -n "$open_keep" ]] && out+="${line:i+1:1}"
           ((i += 2))
         else
-          [[ "$c" == '"' ]] && open_quote=""
+          if [[ "$c" == '"' ]]; then
+            open_quote=""
+            open_keep=""
+          elif [[ -n "$open_keep" ]]; then
+            out+="$c"
+          fi
           ((i += 1))
         fi
       else
         case "$c" in
-        "'")
-          open_quote="'"
-          ((i += 1))
-          ;;
-        '"')
-          open_quote='"'
+        "'" | '"')
+          # Open a quote span. Keep its inner content (as a literal, quote marks
+          # dropped) ONLY when it belongs to a REDIRECT-OPERAND word — the word the
+          # quote sits in began right after a `>`. This preserves a quoted write
+          # target (`echo x > "$out"` -> `echo x > $out`, still a detectable write;
+          # partial `echo x > /dev/"null"` -> `echo x > /dev/null`, still exempt),
+          # while a quoted span anywhere else (prose, `--body "..."`, a quoted echo
+          # argument) is dropped as before so its tokens stay inert. Boundary: strip
+          # the current trailing operand word (chars up to the last whitespace or
+          # shell metachar), then the whitespace before it, and test for `>`.
+          open_quote="$c"
+          tail="${out%"${out##*[[:space:]<>|&\;()]}"}"
+          tail="${tail%"${tail##*[![:space:]]}"}"
+          [[ "${tail: -1}" == ">" ]] && open_keep=1 || open_keep=""
           ((i += 1))
           ;;
         '#')

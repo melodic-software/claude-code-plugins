@@ -267,6 +267,39 @@ run "parameter-expansion # then echo > file (blocked)" \
 COMMENT_BENIGN=$(printf 'ls -la # list files\ngit status')
 run "benign trailing comment, no leak (allowed)" "$COMMENT_BENIGN" 0
 
+# --- Quoted redirect operands (bypass regression) ----------------------------
+# strip_literals drops quoted spans so their tokens stay inert, but a quoted
+# redirect TARGET is not inert prose — it is the write's destination. Dropping it
+# left the segment as `echo x > ` with no surviving operand, so _echo_file_out
+# (which needs a non-space target) did not match and the write slipped through.
+# A quoted operand word is now kept as literal content (quote marks dropped) so
+# the write signal survives; a quoted span anywhere else still drops.
+# shellcheck disable=SC2016  # literal $out path is the command under test, not for expansion
+run "echo > double-quoted var target (blocked)" 'echo x > "$out"' 2
+run "echo > single-quoted literal target (blocked)" "echo x > 'out.txt'" 2
+run "echo > double-quoted literal target (blocked)" 'echo x > "out.txt"' 2
+run "echo>quoted target no space (blocked)" 'echo hi>"foo.txt"' 2
+# shellcheck disable=SC2016  # literal $out path is the command under test, not for expansion
+run "printf > quoted var target (blocked)" 'printf y > "$out"' 2
+# shellcheck disable=SC2016  # literal $out path is the command under test, not for expansion
+run "echo >> quoted target append (blocked)" 'echo x >> "$out"' 2
+# Partial quoting is the common real form — a quoted segment inside an otherwise
+# unquoted operand word must still count as the target.
+# shellcheck disable=SC2016  # literal $dir path is the command under test, not for expansion
+run "echo > partially-quoted target (blocked)" 'echo x > "$dir"/out.txt' 2
+# The dropped quote marks must NOT strand the /dev/null exemption: a quoted (or
+# partially-quoted) /dev/null discard is not a Write/Edit bypass and stays allowed.
+run "echo > fully-quoted /dev/null (allowed)" 'echo x > "/dev/null"' 0
+run "echo > partially-quoted /dev/null (allowed)" 'echo x > /dev/"null"' 0
+# No new false positive: a NON-producer whose stdout is captured to a quoted data
+# sink is the original false-positive report's form and must stay allowed — the
+# producer is the script, not an echo.
+run "script stdout to quoted sink (allowed)" \
+  'bash fetch.sh 526 > "pr526.json"' 0
+# A quoted span that is NOT a redirect operand (a quoted echo ARGUMENT) still
+# drops — only the following real `> file` write drives the block, not the arg.
+run "echo quoted arg then > quoted file (blocked)" 'echo "done" > "log.txt"' 2
+
 # --- Executable-token vs quoted-argument detection --------------------------
 # Prose or a commit message merely MENTIONING a bypass in a quoted span is
 # documentation, not a Write/Edit bypass. The python write-indicator scan stays
