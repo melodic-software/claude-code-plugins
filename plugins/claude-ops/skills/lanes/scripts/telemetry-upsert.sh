@@ -88,7 +88,11 @@ DRY_RUN=0
 while (($#)); do
   case "$1" in
   --issue)
-    ISSUE="${2:-}"
+    [[ $# -ge 2 ]] || {
+      err "--issue requires a value"
+      exit 3
+    }
+    ISSUE="$2"
     shift 2
     ;;
   --issue=*)
@@ -96,7 +100,11 @@ while (($#)); do
     shift
     ;;
   --marker)
-    MARKER="${2:-}"
+    [[ $# -ge 2 ]] || {
+      err "--marker requires a value"
+      exit 3
+    }
+    MARKER="$2"
     shift 2
     ;;
   --marker=*)
@@ -104,7 +112,11 @@ while (($#)); do
     shift
     ;;
   --body-file)
-    BODY_FILE="${2:-}"
+    [[ $# -ge 2 ]] || {
+      err "--body-file requires a value"
+      exit 3
+    }
+    BODY_FILE="$2"
     shift 2
     ;;
   --body-file=*)
@@ -112,7 +124,11 @@ while (($#)); do
     shift
     ;;
   --body-dir)
-    BODY_DIR="${2:-}"
+    [[ $# -ge 2 ]] || {
+      err "--body-dir requires a value"
+      exit 3
+    }
+    BODY_DIR="$2"
     shift 2
     ;;
   --body-dir=*)
@@ -120,7 +136,11 @@ while (($#)); do
     shift
     ;;
   --repo)
-    REPO="${2:-}"
+    [[ $# -ge 2 ]] || {
+      err "--repo requires a value"
+      exit 3
+    }
+    REPO="$2"
     shift 2
     ;;
   --repo=*)
@@ -252,12 +272,21 @@ target_id="$(jq -r --arg s "$SENTINEL" '
 ' <<<"$comments")"
 detect="sentinel"
 
-# Fallback: no sentinel yet — the newest of MY comments containing the raw marker.
+# Fallback: no sentinel yet — the newest of MY comments carrying the raw marker
+# as a whole token. A plain substring match would let a shorter marker adopt a
+# longer lane's comment: `lane:triage` is a prefix of `lane:triage-old`, so
+# `contains("lane:triage")` matches the other lane's comment and this run would
+# PATCH it — overwriting that lane's only telemetry comment. The lookaround
+# boundaries (marker charset [A-Za-z0-9:._-]) require the marker not abut another
+# marker-charset char on either side; `.` is escaped so it stays a literal.
 if [[ -z "$target_id" ]]; then
   me="$(gh api user --jq '.login' 2>/dev/null | tr -d '\r')"
   if [[ -n "$me" ]]; then
     target_id="$(jq -r --arg m "$MARKER" --arg me "$me" '
-      [ .[] | select((.user.login // "") == $me and ((.body // "") | contains($m))) ]
+      ($m | gsub("[.]"; "\\.")) as $mre
+      | [ .[]
+          | select((.user.login // "") == $me
+              and ((.body // "") | test("(?<![A-Za-z0-9:._-])" + $mre + "(?![A-Za-z0-9:._-])"))) ]
       | sort_by(.created_at) | last | .id // empty
     ' <<<"$comments")"
     [[ -n "$target_id" ]] && detect="marker-fallback"

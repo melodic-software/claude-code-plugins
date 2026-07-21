@@ -159,6 +159,23 @@ assert_contains "creates via POST" "$log" "method=POST"
 assert_not_contains "never PATCHes another user's comment" "$log" "method=PATCH"
 
 # ============================================================================
+# fallback never adopts a comment whose marker is a longer superstring of mine
+# -> `lane:triage` must not PATCH a `lane:triage-old` comment (prefix collision);
+# it creates its own instead.
+# ============================================================================
+cat >"$TMP/prefix-collision.json" <<'JSON'
+[
+  { "id": 555, "created_at": "2026-07-19T00:00:00Z", "user": {"login": "octocat"},
+    "body": "<!-- claude-ops:lane-telemetry marker=lane:triage-old -->\nother lane" }
+]
+JSON
+: >"$LOG"
+out="$(STUB_ME="octocat" run "$TMP/prefix-collision.json" 2>&1)"
+log="$(cat "$LOG")"
+assert_contains "prefix-collision marker does not adopt the longer lane — creates" "$out" "created comment 999"
+assert_not_contains "never PATCHes the longer lane's comment" "$log" "method=PATCH url=repos/$REPO/issues/comments/555"
+
+# ============================================================================
 # pagination — sentinel comment on a SECOND page is still found (no duplicate)
 # --paginate concatenates one array per page; the script slurps them.
 # ============================================================================
@@ -194,6 +211,20 @@ out="$(bash "$SCRIPT" --repo "$REPO" --issue 502 --marker "lane:x" --body-file "
 rc=$?
 assert_eq "missing body-file rejected exit 3" 3 "$rc"
 assert_contains "missing body-file message" "$out" "body file not found"
+
+# A space-form option given as the FINAL argument (no value) must exit 3, not
+# spin the parse loop forever — `shift 2` on a lone arg does not consume it.
+# Guarded with `timeout` where available so a regression fails the case instead
+# of hanging CI.
+if command -v timeout >/dev/null 2>&1; then
+  out="$(timeout 10 bash "$SCRIPT" --repo "$REPO" --marker "lane:x" --body-file "$BODY" --issue 2>&1)"
+  rc=$?
+else
+  out="$(bash "$SCRIPT" --repo "$REPO" --marker "lane:x" --body-file "$BODY" --issue 2>&1)"
+  rc=$?
+fi
+assert_eq "trailing value-option with no value rejected exit 3 (no hang)" 3 "$rc"
+assert_contains "missing option-value message" "$out" "--issue requires a value"
 
 # ============================================================================
 # SECURITY — a traversal --repo is rejected before any URL interpolation
