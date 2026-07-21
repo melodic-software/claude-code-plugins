@@ -62,7 +62,7 @@ branch touches target files — verified).
   branch; `gh issue view 778` shows the comment; PLAN.md exists in the
   worktree at `docs/topics/boris-video-absorption/PLAN.md`.
 
-### Phase 2: run-e2e enrichment [TODO]
+### Phase 2: run-e2e enrichment [DONE]
 
 Files: `plugins/testing/skills/run-e2e/SKILL.md`,
 `plugins/testing/skills/run-e2e/context/e2e.md`,
@@ -124,7 +124,7 @@ assumes it).
   markdownlint exit 0 on changed files; `/skill-quality:check run-e2e`
   PASS.
 
-### Phase 3: confirm delegation touch-up [TODO]
+### Phase 3: confirm delegation touch-up [DONE]
 
 Files: `plugins/verification/skills/confirm/SKILL.md`,
 `plugins/verification/README.md` (only if wording drifts),
@@ -140,7 +140,7 @@ Files: `plugins/verification/skills/confirm/SKILL.md`,
   (`rg -c "Stage" plugins/verification/skills/confirm/SKILL.md` equal
   before/after); markdownlint exit 0.
 
-### Phase 4: routines.md thin-pointer clause [TODO]
+### Phase 4: routines.md thin-pointer clause [DONE]
 
 Files: `plugins/autonomy/reference/routines.md`,
 `plugins/autonomy/CHANGELOG.md` (**minor** bump — new normative clause).
@@ -166,7 +166,7 @@ Files: `plugins/autonomy/reference/routines.md`,
   `rg -c "deployment-owned" plugins/autonomy/reference/routines.md`
   count increases by ≥1; markdownlint exit 0; CHANGELOG entry present.
 
-### Phase 5: digest-slice deferred items + through-line [TODO]
+### Phase 5: digest-slice deferred items + through-line [DONE]
 
 Files (home slice, not repo):
 `~/.work/youtube-watch/the-4-levels-of-agentic-coding-how-to-sh-XLA-sTSJ-Wc/recommendations/menu.md`,
