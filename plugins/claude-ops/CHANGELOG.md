@@ -3,6 +3,40 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.0]
+
+### Added
+
+- **`lanes` skill — scripted two per-cycle lane mechanics that need no reasoning.**
+  A `/loop` lane otherwise hand-assembles both every session; now the prompt
+  references a script and the output is deterministic and testable.
+  - **`machine-behavior.sh`** emits the MACHINE-BEHAVIOR block — gh identity, clone
+    path, worktree inventory (root + count + per-worktree branch), and installed
+    plugin versions — as a verbatim-printable text block. It emits only
+    mechanically unambiguous facts: it deliberately does NOT compute "deviations
+    from standing rules" (a model judgment over prose rules, not a scripted field).
+    Plugin versions are the INSTALLED runtime versions (read from
+    `installed_plugins.json`), which can lag repo HEAD mid-session per
+    `context/refresh.md` — the honest number for a running lane. `--plugin <id>`
+    (repeatable) scopes the block to the plugins a lane runs.
+  - **`telemetry-upsert.sh`** maintains exactly ONE marker-identified telemetry
+    comment on a tracking issue, editing it in place instead of posting a second
+    (the interim home of the #502 telemetry contract). It writes a
+    machine-detectable sentinel `<!-- claude-ops:lane-telemetry marker=STR -->`,
+    finds it across all comments (paginated, so a match on any page prevents a
+    duplicate) and PATCHes it; failing that, adopts the most recent comment by the
+    authenticated user carrying the raw marker as a whole token (boundary-matched,
+    so a shorter marker never adopts a longer lane's comment); else creates one. The marker
+    charset excludes `>` so it can never close the HTML comment early. Because the
+    script is prompt-driven, inputs are hardened against exfiltration: `--repo` is
+    validated as `owner/repo` before URL interpolation, a real `--body-file` must
+    resolve under `--body-dir`/`$CLAUDE_PLUGIN_DATA` and may not be a symlink
+    (pipe an in-memory body via `-`), and the body is capped at 64 KiB.
+
+  Both ship with a sibling `.test.sh` (PATH-stubbed `gh`/`git`, fixture
+  `installed_plugins.json` and comment lists — no network) and are documented in
+  the skill's `SKILL.md`. (#538)
+
 ## [0.16.0]
 
 ### Added

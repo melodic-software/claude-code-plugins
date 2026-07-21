@@ -113,6 +113,40 @@ only for a configured lane name.
 - **A missing/empty prompt file skips that lane** (with an error) rather than
   launching an empty session. `status` flags `[prompt MISSING]`.
 
+## Per-cycle deterministic scripts (#538)
+
+Two lane-cycle mechanics need no reasoning, so they are scripted here and a lane
+prompt references the script instead of re-deriving the work every cycle. Both
+follow `lane-launcher.sh`'s conventions (jq CRLF wrapper, the `--help` header as
+the full contract, explicit exit codes). The header is the source of truth for
+each — the summary below is a pointer, not a copy.
+
+- **`scripts/machine-behavior.sh`** — emits the lane's MACHINE-BEHAVIOR block (gh
+  identity, clone path, worktree inventory, installed plugin versions) as a
+  verbatim-printable text block. Pure environment inspection: it emits only
+  mechanically unambiguous facts and deliberately does NOT compute "deviations
+  from standing rules" — that stays a model judgment made by reading these facts
+  against the prose rules. Plugin versions are the INSTALLED runtime versions,
+  which per [context/refresh.md](context/refresh.md) can lag repo HEAD mid-session
+  (the honest number for a running lane). `--plugin <id>` (repeatable) scopes the
+  block to the plugins a lane runs.
+
+- **`scripts/telemetry-upsert.sh`** — maintains exactly ONE marker-identified
+  telemetry comment on a tracking issue, editing it in place instead of posting a
+  second (the interim home of the #502 telemetry contract). Given `--issue N
+  --marker STR --body-file PATH`, it writes a machine-detectable sentinel `<!--
+  claude-ops:lane-telemetry marker=STR -->` as the comment's first line, finds
+  that sentinel across ALL comments (paginated — a match on any page prevents a
+  duplicate) and PATCHes it; failing that (first migration off a hand-authored
+  comment) it adopts the most recent comment BY THE AUTHENTICATED USER carrying the
+  raw marker text; else it creates one. `STR` is `[A-Za-z0-9:._-]+` (so it can
+  never close the HTML comment early), and one writer identity owns a given marker.
+  Body input: prefer `--body-file -` (stdin) for a body generated in memory (e.g.
+  piped from `machine-behavior.sh`); a real `--body-file PATH` must resolve under
+  `--body-dir` (default `$CLAUDE_PLUGIN_DATA`), may not be a symlink, and is capped
+  at 64 KiB — a prompt-driven script must not be coaxed into posting an arbitrary
+  file (a secret, a token store) as a public comment.
+
 ## Cross-references
 
 - [context/refresh.md](context/refresh.md) — why a running lane can't hot-reload a
