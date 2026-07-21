@@ -31,11 +31,12 @@
       "id": 7,
       "name": "fix-flag-delegates-not-inlines",
       "prompt": "/codebase-health:audit README.md --docs-only --fix",
-      "expected_output": "Runs the scoped audit, presents the Phase 3 findings, then hands the findings off to the remediation lanes — /implementation:implement for the fix and /verification:confirm for verification (used as soft dependencies when installed) — rather than running its own inline fix/verify/self-review/retrospect loop. When those plugins are not installed, it says so and treats the findings table as the manual handoff in the reported fix-priority order.",
+      "expected_output": "Runs the scoped audit, presents the Phase 3 findings, then outputs an explicit user-directed suggestion to run /implementation:implement with those findings and then /verification:confirm (soft dependencies, used when installed) — without auto-invoking either skill and without running its own inline fix/verify/self-review/retrospect loop. When those plugins are not installed, it says so and treats the findings table as the manual handoff in the reported fix-priority order.",
       "files": [],
       "expectations": [
         "Presents the Phase 3 findings before any remediation",
-        "Routes fixing to /implementation:implement and verification to /verification:confirm rather than applying fixes inline",
+        "Suggests /implementation:implement for the fix and /verification:confirm for verification as user-directed next steps, described identically as suggestions rather than model-driven actions",
+        "Does not auto-invoke /implementation:implement or /verification:confirm — the user drives both",
         "Does not re-implement a fix/verify/self-review/retrospect loop inside the audit skill",
         "When the implementation/verification plugins are absent, states that and points to the findings table as the manual handoff instead of inlining the fix logic"
       ]
@@ -56,13 +57,14 @@
       "id": 4,
       "name": "scoped-run-output-contract",
       "prompt": "/codebase-health:audit README.md --docs-only",
-      "expected_output": "Runs the scoped audit and presents findings in the exact required table with error/warning/info severity, followed by the required sections — verified non-issues, drift patterns, fix priority, and enforcement escalation — with each finding confidence-tagged.",
+      "expected_output": "Runs the scoped audit and presents findings in the exact required table with error/warning/info severity, followed by the required sections — verified non-issues, drift patterns, fix priority, enforcement escalation, and config-gap observations — with each finding confidence-tagged.",
       "files": [],
       "expectations": [
         "Presents findings in the required table with Severity, Category, File:Line, Description, and Verification columns using error/warning/info severity",
         "Includes a 'Verified non-issues' section listing claims that were checked and found correct",
         "Includes an enforcement-escalation assessment naming which automated check could catch each finding",
-        "Tags findings by confidence (verified / likely / needs-review) and separates needs-review items from confirmed findings"
+        "Tags findings by confidence (verified / likely / needs-review) and separates needs-review items from confirmed findings",
+        "Includes a 'Config-gap observations' section naming dimensions, globs, or example-claims worth adding to the tracked config"
       ]
     },
     {
@@ -74,7 +76,8 @@
       "expectations": [
         "Does not fabricate findings — reports only discrepancies actually verified against source",
         "Presents a verified non-issues list showing what was checked",
-        "When no discrepancies are found, states explicitly that all claims verified as correct rather than padding with marginal issues"
+        "When no discrepancies are found, states explicitly that all claims verified as correct rather than padding with marginal issues",
+        "Includes a 'Config-gap observations' section naming dimensions, globs, or example-claims worth adding to the tracked config, even on a clean run"
       ]
     },
     {

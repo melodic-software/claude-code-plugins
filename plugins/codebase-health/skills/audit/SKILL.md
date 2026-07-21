@@ -260,8 +260,8 @@ Route remediation to the dedicated lanes (soft dependencies — use when the plu
   fixes against the repo's own build/test/lint gates with no regressions, and covers the self-review
   and retrospective that the fix lane hands it.
 
-**With `--fix`**, present the Phase 3 summary count and hand the findings to `/implementation:implement`,
-then suggest `/verification:confirm` afterwards — a pointer into each lane, NOT an auto-run pipeline;
-the user drives them. When those plugins are not installed, say so and stop: the Phase 3 findings
-table is the handoff, to be remediated manually in the reported fix-priority order. Never re-inline a
-fix/verify/review/retro loop here.
+**With `--fix`**, present the Phase 3 findings and output an explicit user-directed suggestion to run
+`/implementation:implement` with those findings, then `/verification:confirm`. Do NOT auto-invoke
+either skill — the user drives both. When those plugins are not installed, say so and stop: the
+Phase 3 findings table is the handoff, to be remediated manually in the reported fix-priority order.
+Never re-inline a fix/verify/review/retro loop here.
