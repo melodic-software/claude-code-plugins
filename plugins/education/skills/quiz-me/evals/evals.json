@@ -1,0 +1,77 @@
+{
+  "skill_name": "quiz-me",
+  "evals": [
+    {
+      "id": 1,
+      "name": "canonical-prompt-produces-report-and-quiz",
+      "prompt": "I want to make sure I understand everything that's happened in this change. Give me a HTML report on the changes for me to read and understand with context, intuition, what was done, etc. and a quiz at the bottom on the changes that I must pass.",
+      "expected_output": "Generates a self-contained single-file HTML report of the completed change with context, intuition, decisions, and what-was-done sections, then a quiz at the bottom the user answers. The object under test is the human's comprehension, not the artifact. The answer key is embedded in the report (a collapsed details block) so it can be graded now or in a later session.",
+      "files": [],
+      "expectations": [
+        "Produces a self-contained HTML report (inline CSS/JS, no remote fetch) with context/intuition/decisions/what-was-done sections and a quiz at the bottom",
+        "Treats the human's comprehension of the completed work as the object under test — not whether the artifact is correct or works",
+        "Embeds the answer key in the artifact (collapsed details in HTML) rather than leaving grading impossible for a later session"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "default-policy-is-non-gating",
+      "prompt": "/education:quiz-me",
+      "expected_output": "With quiz_policy unset (default on-request), the skill acts as a comprehension aid and never blocks the merge. A quiz is generated because the user invoked it directly (invocation is acceptance), but a wrong answer is surfaced as a possible intent mismatch to resolve, not as a gate that stops the work.",
+      "files": [],
+      "expectations": [
+        "Does not gate or block the merge by default — a failed quiz is surfaced as a signal, not a hard stop",
+        "Generates the report only because the user invoked it directly, treating invocation as the required confirmation",
+        "Frames a wrong answer as a possible intent mismatch to resolve before merge rather than an enforcement action"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "quiz-policy-off-suppresses-offers",
+      "prompt": "I just finished the auth refactor. [quiz_policy is set to off]",
+      "expected_output": "With quiz_policy off, the skill never offers a quiz on its own after a completed change. It stays silent about quizzing unless the user explicitly asks, in which case a direct invocation still works. off governs offer cadence, not the ability to invoke.",
+      "files": [],
+      "expectations": [
+        "Does not proactively offer a quiz when quiz_policy is off, even though a change just completed",
+        "Understands off as an offer-cadence setting — a direct user invocation would still be honored",
+        "Does not auto-generate a report; generation always requires the user's confirmation"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "artifact-never-written-to-repo-tree",
+      "prompt": "/education:quiz-me on the changes in this worktree",
+      "expected_output": "The generated report and quiz are written to the retention library keyed on repo identity (under CLAUDE_PLUGIN_DATA, or report_library_dir when set), never into the consuming repo's working tree. Repo-identity keying rather than checkout-path keying is used so reports from pruned per-ticket worktrees still resolve from the main clone.",
+      "files": [],
+      "expectations": [
+        "Writes the report to the retention library, never into the consuming repo's working tree",
+        "Keys the library on repo identity (basename plus a hash of the origin remote), not the checkout path, so pruned worktrees do not strand reports",
+        "Uses CLAUDE_PLUGIN_DATA by default and report_library_dir only when that userConfig is set"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "recall-queries-library-before-archaeology",
+      "prompt": "/education:quiz-me recall what did we do on ticket #742",
+      "expected_output": "The recall action searches the retained report library first and answers from it when a matching quizzed report exists, stating that the library was the source. If the work was never quizzed, it says so — naming the coverage boundary — and falls back to git and tracker archaeology rather than implying the library is a complete work history.",
+      "files": [],
+      "expectations": [
+        "Searches the retained report library first and states which source answered",
+        "Falls back to git/tracker archaeology only when the library has no matching quizzed report",
+        "Names the coverage boundary — only quizzed work is retained — instead of implying the library is a complete work-history engine"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "boundary-artifact-verification-routes-to-confirm",
+      "prompt": "Can you verify this change actually works and does what we intended before I merge?",
+      "expected_output": "This is artifact verification — did we build the right thing and does it work — whose object is the artifact, not the human. The skill does not quiz the user for it; it distinguishes itself and points to verification:confirm (if installed) as the owner of artifact verification, reserving quiz-me for checking the human's comprehension of completed work.",
+      "files": [],
+      "expectations": [
+        "Recognizes the request as artifact verification (object = the artifact) rather than a comprehension check of the human",
+        "Does not generate a quiz for it and instead routes to verification:confirm as the owner, presence-gated with 'if installed'",
+        "Preserves the boundary: quiz-me verifies the human's comprehension, not whether the artifact is correct"
+      ]
+    }
+  ]
+}
