@@ -29,7 +29,7 @@ first-class use, and the audit may honestly return clean.
 | `/re-anchor:mind-your-maxims` | Cooperative communication — Grice's maxims plus the AI-augmented transparency maxim |
 | `/re-anchor:script-the-deterministic-work` | Script deterministic sub-work — run it, then reason over the output |
 | `/re-anchor:use-your-skills` | Actually use the skills in context — scan the listing, invoke the fitting skill, name skills when delegating |
-| `/re-anchor:converge-dont-fork` | Anti-fragmentation — follow the established way or openly replace it, never silently fork a second parallel way |
+| `/re-anchor:reuse-or-replace` | Anti-fragmentation — reuse the established way or openly replace it, never silently stand up a second parallel way |
 
 The shared method — re-anchor, audit the work in flight, correct forward,
 report — lives once at plugin scope in
@@ -245,26 +245,26 @@ quality routes to `/skill-quality:check` and listing-budget overflow to
 /re-anchor:use-your-skills         # re-anchor + audit + correct
 ```
 
-### converge-dont-fork
+### reuse-or-replace
 
 Re-anchors anti-fragmentation discipline: when an established way of doing
-something already exists, new work either follows it or openly challenges and
-replaces it (migrate the uses, record the decision) — it never silently stands
-up a second, parallel way alongside. The sin is the silent fork, not divergence:
-challenging the established way is first-class when evidence backs an
-improvement or its rationale is missing, incumbency-only, or stale, and blind
-trust in the status quo is explicitly bad. Divergence is allowed but owes a
-recorded rationale proportional to blast radius — an ADR/docs entry for durable
-changes, a PR/commit note for small ones; no recorded reason is the finding.
-Scope is the unlintable approach level (idioms, structure, naming shapes, error
-handling, doc formats, process); mechanical style belongs to linters. Distinct
-from `reason-dont-recite` (evaluation-side — is the inherited convention
-justified?) and carved out from `pick-for-the-problem` (which owns tool and
-dependency selection, where matching the incumbent is a selection sin, not a
-convergence win).
+something already exists, new work reuses it or openly replaces it (migrate the
+uses, record the decision) — it never silently stands up a second, parallel way
+alongside. The sin is the silent second way, not divergence: replacing the
+established way is first-class when evidence backs an improvement or its
+rationale is missing, incumbency-only, or stale, and blind trust in the status
+quo is explicitly bad. Divergence is allowed but owes a recorded rationale
+proportional to blast radius — an ADR/docs entry for durable changes, a
+PR/commit note for small ones; no recorded reason is the finding. Scope is the
+unlintable approach level (idioms, structure, naming shapes, error handling,
+doc formats, process); mechanical style belongs to linters. Distinct from
+`reason-dont-recite` (evaluation-side — is the inherited convention justified?)
+and carved out from `pick-for-the-problem` (which owns tool and dependency
+selection, where matching the incumbent is a selection sin, not a consistency
+win).
 
 ```shell
-/re-anchor:converge-dont-fork      # re-anchor + audit + correct
+/re-anchor:reuse-or-replace        # re-anchor + audit + correct
 ```
 
 ## Consumer conventions

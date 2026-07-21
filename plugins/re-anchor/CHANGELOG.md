@@ -21,11 +21,11 @@ All notable changes to the `re-anchor` plugin are documented here. Format follow
   hook is deliberately deferred (trigger: audits repeatedly show a skill
   existed but its description never surfaced it, or skills repeatedly fail to
   fire).
-- **`converge-dont-fork`** — a corrector for anti-fragmentation discipline.
-  When an established way of doing something already exists, new work follows it
-  or openly challenges and replaces it (migrate the uses, record the decision)
-  — it never silently forks a second parallel way. The mandatory misconstrual
-  guard states this is NOT straight conformity: challenging the established way
+- **`reuse-or-replace`** — a corrector for anti-fragmentation discipline.
+  When an established way of doing something already exists, new work reuses it
+  or openly replaces it (migrate the uses, record the decision) — it never
+  silently stands up a second parallel way. The mandatory misconstrual
+  guard states this is NOT straight conformity: replacing the established way
   is first-class when evidence backs an improvement or its rationale is missing,
   incumbency-only, or stale; the sin is the silent second way, not divergence.
   Divergence owes a recorded rationale proportional to blast radius (ADR/docs
