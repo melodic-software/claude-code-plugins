@@ -16,15 +16,15 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
 
 ### Removed
 
-- **`/toolchain:setup` no longer offers the topic-docs concern file â€” relocated to the lifecycle
+- **`/toolchain:setup` no longer offers the topic-docs concern file — relocated to the lifecycle
   plugins that own it.** Setup step 6 wrote `.claude/topic-docs.yaml`, a consumer config resolved by
   the `implementation` and `verification` plugins for artifact placement; no `/toolchain:*` skill reads
   it, so this build/test/lint plugin was writing another plugin's consumer config. Setup is now scoped
   solely to the ecosystem command surface it owns (the tracked `.claude/ecosystems/*.yaml` files):
   `check` no longer reports the topic-docs concern and `apply` no longer offers it, and the orphaned
   `reference/topic-docs.md` binding that only step 6 read is removed. The shared concern file is offered
-  by each lifecycle plugin's own setup â€” `/discovery:setup`, `/planning:setup`, and the new
-  `/verification:setup` â€” independent of whether the others are installed. Closes #263.
+  by each lifecycle plugin's own setup — `/discovery:setup`, `/planning:setup`, and the new
+  `/verification:setup` — independent of whether the others are installed. Closes #263.
 
 ## [0.4.3]
 
@@ -33,7 +33,7 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
 - **Presence-gated `dotnet-msbuild:*` build-diagnostics references in `context/dotnet.md` reframed as
   .NET-ecosystem forward references.** The `## Marketplace plugin skills for build diagnostics (invoke
   only when installed)` list gains a lead-in that frames its `dotnet-msbuild:*` skills as applicable
-  when your stack is .NET and as forward references to the planned `dotnet-*` plugin family â€” invoked
+  when your stack is .NET and as forward references to the planned `dotnet-*` plugin family — invoked
   only when the plugin is installed, otherwise falling back to the section's own prose remediation and
   binlog gotcha (the generic path stays first-class). Framing only: no skill reference was removed,
   renamed, or genericized, and no command string was altered. Aligns this file with the presence-gated
@@ -50,10 +50,10 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
   `branch.<name>.remote`, but when that was unset (an unpushed feature branch) it forced `REMOTE=origin`
   unconditionally. In a clone made with a differently named remote (`git clone -o vendor`) that has no
   `origin` and no pushed upstream, `origin` does not exist, so `git symbolic-ref refs/remotes/origin/HEAD`
-  and every subsequent probe failed and the branch diff was skipped ("branch diff unavailable") â€” the
+  and every subsequent probe failed and the branch diff was skipped ("branch diff unavailable") — the
   `origin` fallback the 0.4.1 note claimed "still resolves" a `git clone -o vendor` did not hold for the
-  not-yet-pushed case. Both call sites now probe candidate remotes in priority order â€” the branch's
-  tracking remote, then `origin` if present, then the rest â€” and select the first whose default branch
+  not-yet-pushed case. Both call sites now probe candidate remotes in priority order — the branch's
+  tracking remote, then `origin` if present, then the rest — and select the first whose default branch
   resolves to a locally available `refs/remotes/<remote>/<branch>` tracking ref. This also skips a remote
   that was added but never fetched (whose `git ls-remote` default-branch query succeeds over the network
   but leaves no local ref for `git merge-base`) in favor of a later remote that has one, rather than
@@ -77,9 +77,9 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
 
 - **Default branch resolved by detection, not assumption.** The clean-working-tree branch-diff
   fallback in `/toolchain:check` and `/toolchain:lint` carried a bare `<default-branch>` placeholder
-  with no resolution guidance, so the model would likely guess `main`/`master` â€” a baked repo
+  with no resolution guidance, so the model would likely guess `main`/`master` — a baked repo
   assumption the convention-resolution discipline forbids. Both call sites now resolve the tracked
-  remote (`branch.<name>.remote`, falling back to `origin` â€” never a hardcoded remote name, so a repo
+  remote (`branch.<name>.remote`, falling back to `origin` — never a hardcoded remote name, so a repo
   cloned with a different remote name still resolves), then the default branch via
   `git symbolic-ref --short refs/remotes/$REMOTE/HEAD` (with the `$REMOTE/` prefix stripped), falling
   back to a `git ls-remote --symref "$REMOTE" HEAD` query of that remote's own default branch, matching
@@ -94,13 +94,13 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
 
 ### Changed
 
-- **`/toolchain:setup` adopts the uniform setup contract** (fleet conformance wave) â€” delivering the
+- **`/toolchain:setup` adopts the uniform setup contract** (fleet conformance wave) — delivering the
   `apply` action the 0.3.0 topic-docs note recorded as the contract's follow-on. The skill now splits
   into a read-only `check` action (default) that reports which ecosystems are configured, each one's
-  resolved build/test/lint command surface, and the topic-docs concern file â€” validating the tracked
+  resolved build/test/lint command surface, and the topic-docs concern file — validating the tracked
   files against the contract's `ecosystem.schema.json`, treating an unconfigured ecosystem as INFO
   (the bundled rung-4 default resolves) and FAILing only a configured-but-broken file (schema-invalid,
-  or excluded by `.gitignore`) â€” and an `apply` action that infers and writes the tracked config. The
+  or excluded by `.gitignore`) — and an `apply` action that infers and writes the tracked config. The
   previous interview (infer per-ecosystem commands, write `.claude/ecosystems/*.yaml`, offer
   `.claude/topic-docs.yaml`) becomes `apply`'s interview path; `apply <ecosystem>` scopes the run to
   one ecosystem and writes an unambiguous inference non-interactively. The per-ecosystem inference,
@@ -140,7 +140,7 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
 
 ### Added
 
-- Initial release â€” three skills extracted from the `implementation` plugin (skill names unchanged):
+- Initial release — three skills extracted from the `implementation` plugin (skill names unchanged):
   `/toolchain:build` (polyglot build + test + lint for changed files, resolved through the four-rung
   ecosystem-commands ladder), `/toolchain:lint` (lint + format only, plus the `yaml` and `cross-cutting`
   surfaces), and `/toolchain:setup` (re-runnable writer of the tracked `.claude/ecosystems/*.yaml`
@@ -149,4 +149,4 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
   `reference/ecosystems/`, and the plugin-local `reference/topic-docs.md` binding that `/toolchain:setup`
   reads to offer the topic-docs concern file.
 - Cross-plugin references to the `verification` plugin's `/verification:confirm` are informational and
-  degrade gracefully â€” this plugin never hard-depends on any other plugin.
+  degrade gracefully — this plugin never hard-depends on any other plugin.

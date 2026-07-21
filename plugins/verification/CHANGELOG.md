@@ -16,11 +16,11 @@ All notable changes to the `verification` plugin are documented here. Format fol
 
 ### Added
 
-- **`/verification:setup` â€” settles the topic-docs seam for the consuming repo.** Offers the tracked
+- **`/verification:setup` — settles the topic-docs seam for the consuming repo.** Offers the tracked
   `.claude/topic-docs.yaml` concern file that governs where `/verification:confirm` lands its manifests
   (contract tier) and `/verification:measure` lands its baselines and raw captures (memory tier). `check`
-  (default) reports the effective concern read-only; `apply` persists it â€” non-interactively from
-  complete `<key>=<value>` arguments or via a one-question, recommendation-first interview â€” running the
+  (default) reports the effective concern read-only; `apply` persists it — non-interactively from
+  complete `<key>=<value>` arguments or via a one-question, recommendation-first interview — running the
   committed-tier `git check-ignore` guard before writing and never editing the consumer's root
   `.gitignore`. Mirrors the `/discovery:setup` and `/planning:setup` pattern, offering the shared file
   independent of whether the sibling lifecycle plugins are installed. This concern was previously offered
@@ -35,7 +35,7 @@ All notable changes to the `verification` plugin are documented here. Format fol
   `## Marketplace plugin skills (invoke only when installed)` guard heading (matching the `testing`
   plugin's gated lists) plus a lead-in that frames the `dotnet-*` skills as .NET-only and
   `cloudflare:web-perf` as web-frontend-only, each invoked only when its plugin is installed and
-  otherwise falling back to the project's own tooling â€” the generic complexity/coverage or
+  otherwise falling back to the project's own tooling — the generic complexity/coverage or
   benchmark/profiling harness where that fits, with a tailored per-bullet fallback where the
   evidence type differs (query logging / database profiling / ORM diagnostics for EF-query
   analysis, a test-quality analyzer or test-smell review checklist for test-quality analysis,
@@ -70,7 +70,7 @@ All notable changes to the `verification` plugin are documented here. Format fol
 ### Changed
 
 - **Freshness rider on the bundled `/verify` + `/run` availability claim**
-  (fleet conformance wave). The â‰¥ 2.1.145 floor is re-verified against the
+  (fleet conformance wave). The ≥ 2.1.145 floor is re-verified against the
   official bundled-skills docs and now carries a verified-date + link.
 
 ## [0.2.0]
@@ -79,7 +79,7 @@ All notable changes to the `verification` plugin are documented here. Format fol
 
 - Adopt topic-docs contract 2.0.0 (visibility semantics): `reference/topic-docs.md` states
   baselines and raw captures are checkout-local, and `/verification:measure` writes distilled
-  values only into `PLAN.md` â€” never a memory-slice capture path (pointer discipline).
+  values only into `PLAN.md` — never a memory-slice capture path (pointer discipline).
 
 ## [0.1.1]
 
@@ -91,9 +91,9 @@ All notable changes to the `verification` plugin are documented here. Format fol
 
 ### Added
 
-- Initial release â€” two skills extracted and renamed from the `implementation` plugin's `verify-*`
-  skills: `/verification:confirm` (was `verify-changes` â€” the mechanical prerequisite gate then
-  intent-match + evidence + verdict) and `/verification:measure` (was `verify-improvement` â€”
+- Initial release — two skills extracted and renamed from the `implementation` plugin's `verify-*`
+  skills: `/verification:confirm` (was `verify-changes` — the mechanical prerequisite gate then
+  intent-match + evidence + verdict) and `/verification:measure` (was `verify-improvement` —
   baseline/compare measurable-improvement verification). Skill trigger phrases and evals are preserved;
   only the namespace and leaf names changed.
 - Bundled reference: the plugin-local `reference/topic-docs.md` binding (verification manifests and
@@ -102,4 +102,4 @@ All notable changes to the `verification` plugin are documented here. Format fol
 - Cross-plugin delegation degrades gracefully: the Stage-1 mechanical pass delegates to
   `/toolchain:build` and `/toolchain:lint` when the `toolchain` plugin is installed (else the project's
   ecosystem-native commands), and live-app verification prefers `/testing:run-e2e` when the `testing` plugin
-  is installed (else bundled `/verify` + `/run` or a manual orchestrator launch) â€” no hard dependencies.
+  is installed (else bundled `/verify` + `/run` or a manual orchestrator launch) — no hard dependencies.
