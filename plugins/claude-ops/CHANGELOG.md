@@ -3,6 +3,17 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.1]
+
+### Fixed
+
+- **`install_new` userConfig had no `default` key.** SKILL.md's `plugins` skill renders
+  `${user_config.install_new}` expecting Claude Code to substitute the configured value, falling
+  back to `"ask"` when unset; with no declared default, the literal placeholder leaked through
+  unrendered instead. Added `"default": "ask"` to the `install_new` entry in `plugin.json`,
+  matching what the entry's own description already documented and the pattern every boolean
+  option in the manifest already follows (e.g. `api_error_audit_enabled`).
+
 ## [0.17.0]
 
 ### Added

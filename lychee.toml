@@ -29,6 +29,7 @@ exclude = [
   '^https?://help\.miro\.com/hc/en-us/articles/31624028247058/?([?#].*)?$',
   '^https?://isdown\.app/status/anthropic/?([?#].*)?$',
   '^https?://(www\.)?npmjs\.com/package/(firecrawl-cli|@mirohq/miro-api)/?([?#].*)?$',
+  '^https?://www\.w3\.org/International/wiki/WorkingWithTimeZones/?([?#].*)?$',
   '^https?://localhost',
   '^https?://127\.0\.0\.1',
   '^https?://example\.(com|org)',

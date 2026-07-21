@@ -3,6 +3,26 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.0]
+
+### Added
+
+- **`devils-advocate` gains an `incumbent` mode — adversarial review of the status
+  quo.** Alongside stress-testing a plan you hand it, the skill can now turn the same
+  discipline on an **incumbent** tool, library, or approach already in place:
+  `/planning:devils-advocate incumbent <target>`. A new **Alternatives Sweep** replaces
+  the assumption-driven rounds — it explores the incumbent first-hand (a fresh
+  sub-agent runs `/discovery:explore`, never trusting a parent digest), names the
+  problem the incumbent actually solves, surveys alternatives on the
+  native > official > vetted-third-party ladder with coupling priced, and reaches a
+  **KEEP / MIGRATE / RESEARCH** verdict. It inherits the skill's evidence mandate (no
+  training-data-only findings) and routes load-bearing evaluations to
+  `/discovery:research` (`/re-anchor:pick-for-the-problem` supplies the full selection
+  discipline when installed). Research depth is a per-invocation `deep` / `shallow`
+  token, defaulting to the existing risk-scaled behavior. Scope is pre-implementation
+  decision support — keep-or-replace before a plan commits — not a post-hoc audit of a
+  running system. Additive; plan-review mode is unchanged.
+
 ## [0.23.1]
 
 ### Changed
