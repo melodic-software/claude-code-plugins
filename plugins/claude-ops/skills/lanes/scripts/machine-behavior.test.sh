@@ -11,6 +11,7 @@
 #   - missing / malformed installed_plugins.json degrades to `unavailable`
 #   - a --plugin naming no installed plugin is reported, not silently empty
 #   - argument + repo validation exit codes
+#   - missing jq BINARY (not just the in-script wrapper function) exits 4
 #
 # PATH-stubs `gh` and `git` and env-overrides the installed_plugins.json path so
 # no real CLI, network, or on-disk plugin state is touched.
@@ -186,6 +187,22 @@ assert_eq "--plugin with no value exits 3" 3 "$rc"
 out="$(MACHINE_BEHAVIOR_INSTALLED_JSON="$INSTALLED" bash "$SCRIPT" --repo "$TMP/does-not-exist" 2>&1)"
 rc=$?
 assert_eq "--repo non-directory exits 4" 4 "$rc"
+
+# ============================================================================
+# jq binary missing exits 4 — regression guard for the jq() wrapper (defined
+# before this prereq check) shadowing `command -v jq` and fail-opening the
+# guard. A PATH with no jq binary must still be caught by `type -P jq`, which
+# looks at PATH executables only and ignores the wrapper function.
+# ============================================================================
+# Resolve bash's own absolute path first so invoking it below needs no PATH
+# lookup; then restrict the child's PATH to just STUB_BIN (the git/gh stubs),
+# which never contains jq — reaching the prereq check without an external jq
+# binary anywhere in PATH, on any platform.
+BASH_BIN="$(command -v bash)"
+out="$(PATH="$STUB_BIN" MACHINE_BEHAVIOR_INSTALLED_JSON="$INSTALLED" "$BASH_BIN" "$SCRIPT" --repo "$TMP" 2>&1)"
+rc=$?
+assert_eq "missing jq binary exits 4" 4 "$rc"
+assert_contains "missing jq binary message" "$out" "jq not found"
 
 # ============================================================================
 echo

@@ -60,7 +60,7 @@ err() { printf 'ERROR: %s\n' "$*" >&2; }
 
 usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "${BASH_SOURCE[0]}"; }
 
-command -v jq >/dev/null 2>&1 || {
+type -P jq >/dev/null 2>&1 || {
   err "jq not found (required)"
   exit 4
 }
