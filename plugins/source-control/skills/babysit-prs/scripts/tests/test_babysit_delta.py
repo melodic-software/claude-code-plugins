@@ -236,6 +236,53 @@ class AttributionDriftTests(unittest.TestCase):
         )
 
 
+STUCK_ORPHAN = {"__typename": "StatusContext", "context": "codex-review",
+                "state": "PENDING", "targetUrl": ""}
+
+
+class StuckCheckSignalTests(unittest.TestCase):
+    """A stuck check reports as a material finding, never a new blocker."""
+
+    def test_stuck_check_is_material_never_a_blocker(self) -> None:
+        pr = make_pr(mergeStateStatus="UNSTABLE", statusCheckRollup=[STUCK_ORPHAN])
+        result = classify(pr, None)
+        stuck = result["checks"]["stuck"]
+        self.assertEqual(len(stuck), 1)
+        self.assertEqual(stuck[0]["class"], "orphaned_status")
+        self.assertTrue(
+            any("UNSTABLE without completing" in finding
+                for finding in result["material_findings"]),
+            result["material_findings"],
+        )
+        # The stuck signal must never introduce a blocker string: a blocker
+        # would re-pin the PR active and re-dispatch a worker every cycle.
+        self.assertFalse(
+            any("UNSTABLE without completing" in blocker
+                or "orphan" in blocker.lower()
+                for blocker in result["blockers"]),
+            result["blockers"],
+        )
+        # The pre-existing pending-check blocker is left untouched.
+        self.assertTrue(
+            any("pending check" in blocker for blocker in result["blockers"]),
+            result["blockers"],
+        )
+
+    def test_stuck_absent_when_not_unstable(self) -> None:
+        pr = make_pr(mergeStateStatus="CLEAN", statusCheckRollup=[STUCK_ORPHAN])
+        result = classify(pr, None)
+        self.assertEqual(result["checks"]["stuck"], [])
+        self.assertFalse(
+            any("UNSTABLE without completing" in finding
+                for finding in result["material_findings"])
+        )
+
+    def test_checks_stuck_field_always_present(self) -> None:
+        result = classify(make_pr(), None)
+        self.assertIn("stuck", result["checks"])
+        self.assertEqual(result["checks"]["stuck"], [])
+
+
 class SuppressibleDeltaArmTests(unittest.TestCase):
     """Each suppressible arm: reason present only when NOT direct-gate-ready."""
 

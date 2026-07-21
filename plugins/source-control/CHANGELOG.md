@@ -3,6 +3,27 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.7]
+
+### Added
+
+- **`babysit-prs` now detects checks that degrade `mergeStateStatus` to `UNSTABLE` without ever
+  completing (#374).** The snapshot engine classifies three stuck-check classes from data it already
+  normalizes — no new GitHub fetch — and emits them as a per-PR `checks.stuck[]` field (always
+  present, empty when none): `orphaned_status` (a pending `StatusContext` with no backing run to
+  cancel), `stuck_queued` (a `CheckRun` still `QUEUED` past an age threshold, e.g. an unmatched
+  self-hosted runner label), and `never_settling` (any other non-required pending check past the
+  threshold). Detection fires only under `UNSTABLE`, so normal in-flight CI and pending required
+  checks are never flagged; the age threshold is configurable via
+  `babysit_stuck_check_age_seconds` / `--stuck-check-age-seconds` (default 1800s), and orphaned
+  status contexts are detected structurally without an age gate. The signal surfaces as a
+  `material_findings` entry, **never a `blockers` string** — a sticky blocker would re-pin the PR
+  `active` and re-dispatch a worker every cycle for a check no branch action can clear. New
+  `reference/stuck-checks.md` routes remediation (branch CI / `ci-workflows` for config-fixable
+  cases; `github-iac` / app config for runner-pool and orphaned-status cases) and points at
+  `safety.md`'s Stop-and-Ask / Never-Do-Automatically rules; the shared `babysit_checks` classifier
+  means the guarded merge gate sees the same normalization.
+
 ## [0.15.6]
 
 ### Changed

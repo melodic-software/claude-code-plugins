@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "source-control",
-  "version": "0.15.6",
+  "version": "0.15.7",
   "description": "Git and GitHub delivery workflow: /commit (Conventional Commits + Co-Authored-By trailer via safe heredoc mechanics), /pull-request (prep, create, CI monitoring, review-comment triage, merge, CI-log fetch), /babysit-prs (self-pacing fleet loop — safe by default; opt-in worker/autopilot tiers add gate-checked merge and thread resolution behind a deterministic Python engine), /worktree (create, status, cleanup, audit for parallel-session isolation), /setup (check the effective commit-subject / PR-title convention merged across its config layers and the babysit-prs config, or apply — interview the repo and write the convention config to a chosen layer), and /resolve-conflicts (intent-first merge/rebase conflict resolution with a semantic-conflict sweep — never --abort). The commit-subject / PR-title convention is configurable via a source-control.md config written by a re-runnable setup skill, layered across a ~/.claude user-global file, the tracked team file, and a gitignored .claude/source-control.local.md personal overlay merged per key; Conventional Commits is the default when no convention is declared.",
   "author": {
     "name": "Melodic Software",
@@ -119,6 +119,12 @@
       "title": "Babysit max quiet recheck seconds",
       "description": "Longest a quiet PR may go without a worker recheck.",
       "default": 14400
+    },
+    "babysit_stuck_check_age_seconds": {
+      "type": "number",
+      "title": "Babysit stuck-check age threshold (seconds)",
+      "description": "Minimum age before a pending non-required check under UNSTABLE is reported stuck (stuck_queued / never_settling material finding). Orphaned status contexts with no backing run are detected structurally and ignore this threshold.",
+      "default": 1800
     },
     "babysit_advisory_fix_round_cap": {
       "type": "number",
