@@ -139,7 +139,7 @@ user opts in with `/plugin enable`; an existing install is never flipped by cata
 
 ### Learning
 
-- [`education`](plugins/education) — Interactive multi-session learning coach: teaches a general subject or a concept grounded in the consuming repo through the Knowledge-Skills-Wisdom progression, with persistent per-topic learning state. Also a single-session domain primer, and a one-shot plain-language explainer that drops anything to genuinely plain words.
+- [`education`](plugins/education) — Interactive multi-session learning coach: teaches a general subject or a concept grounded in the consuming repo through the Knowledge-Skills-Wisdom progression, with persistent per-topic learning state. Also a single-session domain primer, a one-shot plain-language explainer that drops anything to genuinely plain words, and a post-work comprehension check that quizzes the human on a completed change.
 
 ### Music
 
