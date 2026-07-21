@@ -4,8 +4,8 @@
 #
 # resolve-remote.test.sh exercises the resolver in ISOLATION; it cannot catch a
 # gate that resolves correctly yet still writes the branch's upstream to the
-# wrong place. That gap is exactly how the #442 pushDefault-only triangular
-# clobber survived PR #763. These cases drive REAL pushes into REAL bare remotes
+# wrong place — the pushDefault-only triangular clobber lived in exactly that
+# gap. These cases drive REAL pushes into REAL bare remotes
 # and assert the destination that received the branch AND whether the conditional
 # `-u` rewrote the branch's upstream (branch.<name>.remote AND branch.<name>.merge
 # — `git push -u` writes both), the observables a clobber would corrupt.
