@@ -122,7 +122,7 @@ describe("expandPathValue", () => {
   it("expands a bare tilde and a tilde prefix to the home directory", () => {
     expect(expandPathValue("~", {}, home)).toBe(home);
     expect(expandPathValue("~/corpus", {}, home)).toBe("/srv/dev-home/corpus");
-    expect(expandPathValue("~\\corpus", {}, "C:\\Users\\dev")).toBe("C:\\Users\\dev\\corpus");
+    expect(expandPathValue("~\\corpus", {}, "C:\\dev-home")).toBe("C:\\dev-home\\corpus");
   });
 
   it("does not treat a ~user form as expandable", () => {
