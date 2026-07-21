@@ -390,7 +390,10 @@ PR `SW2-*` linkage and the opt-in-write mechanism are sequenced follow-ups.
   project is not in `project_keys`, and `--repo` may only narrow within them — never widen to an
   undeclared project the token can otherwise see (exit `2` on an out-of-scope project).
   `blocked_by_link_type` (default
-  `"Blocks"`) and `done_category_keys` (default `["done","completed"]`) are the override seams
+  `"Blocks"`; when overridden it must be a non-empty string — an empty/non-string value matches
+  no issuelink and would silently zero `blocked_by_count`, exit `3`) and `done_category_keys`
+  (default `["done","completed"]`; a present value must be a non-empty array, exit `3`) are the
+  override seams
   for two facts deferred to a live-instance pass: the authoritative blocker link type and the
   exact `statusCategory` key for the "Done" category (the official spec's own example disagrees
   with real instances — both known keys are defaulted so the adapter is independent of that

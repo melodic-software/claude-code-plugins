@@ -177,6 +177,13 @@ wit_need_jira_config() {
   # read — reject it here (exit 3) with a clear message instead.
   [[ "$WIT_JIRA_AUTH_ENV" =~ $WIT_JIRA_ENV_NAME_RE ]] ||
     bad+=" auth_env:'$WIT_JIRA_AUTH_ENV'(not a valid env var name)"
+  # blocked_by_link_type, when present, must be a non-empty string: an empty or
+  # non-string override matches no issuelink, so blocked_by_count is silently 0 for
+  # every issue and list-frontier would surface actually-blocked tickets. Absent →
+  # the documented default (validated as a jq raw type, since the // $d read above
+  # already collapsed null into the default string).
+  [[ "$(jq -r '(.config.jira.blocked_by_link_type) as $b | if $b == null then "default" elif (($b|type)=="string" and ($b|length)>0) then "ok" else "bad" end' "$binding")" != "bad" ]] ||
+    bad+=" blocked_by_link_type(must be a non-empty string)"
   keys="$(jq -r '.[]' <<<"$WIT_JIRA_PROJECT_KEYS" | wit_strip_cr)"
   while IFS= read -r k; do
     [[ -n "$k" ]] || continue

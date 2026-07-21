@@ -167,6 +167,19 @@ rc_for_jira "invalid auth_env name → config (3)" "3" \
 rc_for_jira "empty done_category_keys → config (3)" "3" \
   '{site:"test.atlassian.net", project_keys:["SW2"], auth_email:"a@b", auth_env:"JIRA_TEST_TOKEN", done_category_keys:[]}'
 
+# blocked_by_link_type, if present, must be a non-empty string: an empty or non-string
+# override matches no issuelink → blocked_by_count silently 0 → the frontier surfaces
+# actually-blocked tickets. Reject at config load (exit 3).
+rc_for_jira "empty blocked_by_link_type → config (3)" "3" \
+  '{site:"test.atlassian.net", project_keys:["SW2"], auth_email:"a@b", auth_env:"JIRA_TEST_TOKEN", blocked_by_link_type:""}'
+rc_for_jira "non-string blocked_by_link_type → config (3)" "3" \
+  '{site:"test.atlassian.net", project_keys:["SW2"], auth_email:"a@b", auth_env:"JIRA_TEST_TOKEN", blocked_by_link_type:[]}'
+# A valid non-empty override is accepted (proceeds past config to the request).
+printf '{"issues":[],"nextPageToken":null,"isLast":true}' >"$FIX/1.body"
+printf '200' >"$FIX/1.status"
+rc_for_jira "valid blocked_by_link_type accepted" "0" \
+  '{site:"test.atlassian.net", project_keys:["SW2"], auth_email:"a@b", auth_env:"JIRA_TEST_TOKEN", blocked_by_link_type:"Blocked By"}'
+
 # A single empty page (no token) terminates cleanly with an empty envelope.
 rm -f "$FIX/1.body" "$FIX/2.body" "$FIX/1.status" "$FIX/2.status" "$FIX/.counter"
 printf '{"issues":[],"nextPageToken":null,"isLast":true}' >"$FIX/1.body"
