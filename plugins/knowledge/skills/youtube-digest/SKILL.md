@@ -4,6 +4,7 @@ description: "Watch YouTube videos, extract transcripts, harvest links, research
 argument-hint: "watch <url> | watch | watch <n> | queue <url> | queue list | transcript <url> | resume <video-slug>"
 user-invocable: true
 disable-model-invocation: false
+shell: bash
 ---
 
 ## Pre-computed context

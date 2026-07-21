@@ -4,6 +4,7 @@ description: "Extract and synthesize online video courses into repo-applicable r
 argument-hint: "[action] [url|slug] (e.g., /knowledge:course-digest <url>, /knowledge:course-digest extract <url>, /knowledge:course-digest resume <slug>, /knowledge:course-digest status)"
 user-invocable: true
 disable-model-invocation: false
+shell: bash
 ---
 
 ## Pre-computed context

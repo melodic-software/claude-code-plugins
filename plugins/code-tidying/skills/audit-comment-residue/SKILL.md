@@ -5,6 +5,7 @@ argument-hint: "[audit] [target]"
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: Bash(bash *audit-comment-residue/scripts/detect.sh*)
+shell: bash
 ---
 
 ## Pre-computed context
