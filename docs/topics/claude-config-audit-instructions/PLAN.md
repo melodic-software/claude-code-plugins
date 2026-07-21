@@ -131,7 +131,7 @@ changelog-parity. Precedent map: memory slice `EXPLORE.md` (canonical checkout,
   deletion test, C1 = line budget, C3 = placement, C5 = inferable content, C8 = enforcement
   hierarchy). Partition, not overlap-with-disclaimer:
   - Memory-layer surfaces (CLAUDE.md, CLAUDE.local.md, `.claude/rules`): this skill runs ONLY
-    the model-era checks (I6–I10); hygiene checks route out to `claude-memory:audit` (gated
+    the model-era checks (I6–I11); hygiene checks route out to `claude-memory:audit` (gated
     "when installed", fallback = one-line pointer to the official include/exclude table).
   - Non-memory surfaces (skill bodies + context files, agent definitions, prompt-type hooks,
     output styles): FULL catalog applies — no incumbent auditor (`skill-quality:check` is
@@ -170,7 +170,7 @@ changelog-parity. Precedent map: memory slice `EXPLORE.md` (canonical checkout,
   exists for "model changed"; a consumer can pair with /loop or a scheduled routine —
   documented as a one-line note, not built).
 
-### Phase 1: Skill core — SKILL.md [TODO]
+### Phase 1: Skill core — SKILL.md [DONE]
 
 Create `plugins/claude-config/skills/audit-instructions/SKILL.md`:
 
@@ -221,7 +221,7 @@ plugins/skill-quality/scripts/check-skill.sh audit-instructions` exits 0 with no
 `grep -c "Scope boundary" plugins/claude-config/skills/audit-instructions/SKILL.md` ≥ 1;
 `grep -Ec "^## Gotchas" SKILL.md` = 1.
 
-### Phase 2: Check catalog — reference/criteria.md [TODO]
+### Phase 2: Check catalog — reference/criteria.md [DONE]
 
 Create `plugins/claude-config/skills/audit-instructions/reference/criteria.md`:
 
@@ -244,7 +244,7 @@ Create `plugins/claude-config/skills/audit-instructions/reference/criteria.md`:
 "https://" reference/criteria.md` ≥ 5; check-skill.sh check 5 resolves the SKILL.md →
 criteria.md reference (exit 0 overall).
 
-### Phase 3: Deterministic spine — scripts [TODO]
+### Phase 3: Deterministic spine — scripts [DONE]
 
 Create `plugins/claude-config/skills/audit-instructions/scripts/instruction-scan.sh` +
 `…/scripts/instruction-scan.test.sh` (skill-local, sibling idiom — NOT repo-root
