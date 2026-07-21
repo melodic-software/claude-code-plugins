@@ -14,9 +14,11 @@
 # passes:
 #   * bootstrap POSITIVELY asserts `-u` fired (branch.remote set from unset) —
 #     rejects an always-plain-push implementation.
-#   * non-triangular and local-only `.` assert an EXISTING upstream's merge ref
-#     survives the push — rejects an always-`-u` implementation (and the
-#     resolved-name-only gate that shipped `-u` whenever fetch==push).
+#   * non-triangular, local-only `.`, and merge-only tracking assert an EXISTING
+#     upstream's merge ref survives the push — rejects an always-`-u`
+#     implementation, the resolved-name-only gate that shipped `-u` whenever
+#     fetch==push, and a remote-only "no upstream" probe that misses a branch
+#     tracking origin/<ref> via branch.<name>.merge with the remote unset.
 #   * the fetch-ambiguous case proves a failed fetch resolution degrades to a
 #     plain push (no clobber), never an abort.
 
@@ -154,6 +156,19 @@ git -C "$wc" config "branch.${BRANCH}.merge" refs/heads/main
 check "dot-upstream: branch.remote stays '.' (local-only preserved)" "$(fetch_config "$wc")" "."
 check "dot-upstream: merge ref preserved (not rewritten by -u)" "$(merge_config "$wc")" "refs/heads/main"
 check "dot-upstream: origin received the branch" "$(has_branch "$WORKDIR/dot-upstream/origin")" "yes"
+
+# 7. Merge-only tracking: branch.merge set, branch.remote UNSET (valid — Git
+#    defaults the remote to origin, so the branch tracks origin/main). Both
+#    resolvers fall back to origin, so a remote-only "no existing upstream" probe
+#    reads the branch as fresh and fires `-u`, replacing the merge ref. The gate
+#    must treat a set merge ref as an existing upstream too -> plain push -> the
+#    merge ref survives.
+wc=$(make_clone merge-only)
+git -C "$wc" config "branch.${BRANCH}.merge" refs/heads/main
+(cd "$wc" && bash "$PUSH_BRANCH") >/dev/null 2>&1
+check "merge-only: branch.remote not written (stays unset)" "$(fetch_config "$wc")" "UNSET"
+check "merge-only: merge ref preserved (not rewritten by -u)" "$(merge_config "$wc")" "refs/heads/main"
+check "merge-only: origin received the branch" "$(has_branch "$WORKDIR/merge-only/origin")" "yes"
 
 echo
 echo "Results: ${PASS} passed, ${FAIL} failed"

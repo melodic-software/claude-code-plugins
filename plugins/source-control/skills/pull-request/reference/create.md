@@ -174,15 +174,16 @@ Persist chosen line(s) into `${CLOSES_LINE}`. NEVER wrap a closing keyword in an
 ```bash
 # Push via push-branch.sh, which resolves the push and fetch/rebase remotes
 # independently (resolve-remote.sh --push vs plain) and sets upstream (`-u`)
-# ONLY for a branch with NO existing upstream whose fetch and push both resolve
-# to the same remote (a fresh feature branch's first push). `git push -u`
-# rewrites the branch's whole upstream — both branch.<name>.remote AND
-# branch.<name>.merge — so any existing upstream (a real remote, or a deliberate
-# local-only `.`) is preserved by a plain push instead. This closes two silent
+# ONLY for a branch with NO existing upstream — branch.<name>.remote AND
+# branch.<name>.merge both unset — whose fetch and push resolve to the same
+# remote (a fresh feature branch's first push). `git push -u` rewrites the
+# branch's whole upstream — both keys — so any existing upstream (a real remote,
+# a deliberate local-only `.`, or a merge ref set with the remote defaulting to
+# `origin`) is preserved by a plain push instead. This closes two silent
 # corruptions: a triangular fork (push a fork via pushRemote/pushDefault, fetch
-# `origin`/`upstream`) no longer repoints the fetch remote to the fork, and an
-# already-tracked branch no longer has its merge ref overwritten. See the script
-# header for the full rationale.
+# `origin`/`upstream`) no longer repoints the fetch remote to the fork, and a
+# branch with any configured tracking no longer has its merge ref overwritten.
+# See the script header for the full rationale.
 bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/push-branch.sh" || exit 1
 ```
 
