@@ -208,10 +208,11 @@ if grep -q ' the ' "$REPO/mixed.txt" && grep -q 'disallowme' "$REPO/mixed.txt"; 
 else
   fail "mixed case wrong: $(cat "$REPO/mixed.txt")"
 fi
-if printf '%s' "$OUT" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null | grep -q 'disallowme'; then
-  ok "mixed fixable+unfixable -> only unfixable reported"
+CTX_MIXED=$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null)
+if printf '%s' "$CTX_MIXED" | grep -q 'disallowme' && ! printf '%s' "$CTX_MIXED" | grep -q '"teh"'; then
+  ok "mixed fixable+unfixable -> only unfixable reported (fixed 'teh' absent)"
 else
-  fail "mixed case: unfixable not reported: $OUT"
+  fail "mixed case: reporting wrong: $CTX_MIXED"
 fi
 
 # --- Case 5: config excludes the edited file -> untouched, no nag ------------

@@ -61,7 +61,14 @@
       "name": "typos-format",
       "source": "./plugins/typos-format",
       "category": "development",
-      "tags": ["typos", "spelling", "formatter", "linter", "hook"]
+      "tags": ["typos", "spelling", "formatter", "linter", "hook"],
+      "relevance": {
+        "topic": "Spelling / typo fixing",
+        "signals": {
+          "filesRead": ["**/typos.toml", "**/_typos.toml", "**/.typos.toml"],
+          "cli": ["typos"]
+        }
+      }
     },
     {
       "name": "eol-normalizer",
