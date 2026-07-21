@@ -28,7 +28,7 @@ with no human help, not autonomous merge.
 | Model per run | Sonnet 5, pinned explicitly on the task AND on the inner dispatch invocation (Max `default` resolves to Opus — never leave unpinned; current `dispatch-item.sh` hardcodes `--model opus` and MUST change). Escalation via native seams; no routing build now. Revisit trigger: drain-PR failure rate exceeding weekly triage. |
 | Schedule | Hourly preset + Desktop **Keep computer awake** ON (Settings → Desktop app → General). Lid-close still sleeps (accepted). |
 | Failure handling | Reconcile-first, no auto-retry. Failure path files a durable human-gated tracker item (desktop notification is garnish — toasts evaporate during an unattended week). |
-| Budget bound | Native task + plan-window backstop at the session level, PLUS a mechanical per-run bound on the inner invocation (`--max-turns` + wrapper timeout kill) — a number in a doc bounds nothing (roadmap requirement). |
+| Budget bound | Native task + plan-window backstop at the session level, PLUS a mechanical per-run bound on the inner invocation (`--max-budget-usd` + wrapper timeout kill; `--max-turns` absent from the installed CLI — verified 2026-07-21) — a number in a doc bounds nothing (roadmap requirement). |
 
 ### Constraints (inherited + build-time)
 
@@ -60,7 +60,20 @@ with no human help, not autonomous merge.
 
 ## Plan
 
-### Phase 1: Scratch-repo drain + evidence upgrade [TODO]
+### Phase 1: Scratch-repo drain + evidence upgrade [DOING]
+
+> **Status note (2026-07-21):** built and PR'd — `autonomy-demo-scratch#5` (branch
+> `feat/ignition-phase1`). Dry-run, unlabeled-skip, C2-claim, and model/bound greps verified
+> PASS; `work-class: c2` label created and seed item scratch#6 filed. Two dated deviations:
+> (1) `--max-turns` does not exist in the installed CLI (verified `claude --help`) — the
+> mechanical per-run bound is `--max-budget-usd` (default placeholder $5.00, operator
+> ratifies at Phase 2) + `timeout 3300` wrapper kill; the sanity-check grep below reads
+> `--max-budget-usd` accordingly. (2) BLOCKER: the gate check-run exists and fires but the
+> job fails at startup — GitHub Actions billing on the personal account ("recent account
+> payments have failed or your spending limit needs to be increased"); operator fixes
+> billing or makes the repo public, then the gate rerun must go green before scratch#5
+> merges. Open verify-at-smoke: nested `claude -p` under a scheduled session; run-worktree
+> nesting under the Desktop worktree toggle (one isolation layer may be disabled).
 
 Repo: `kyle-sexton/autonomy-demo-scratch` (Opus builder in worktree; main thread commits).
 Work items:
@@ -101,8 +114,9 @@ Work items:
   row carries work_class + check-run gate outcome + merge SHA + scheduled-fire identity.
 - `gh api repos/kyle-sexton/autonomy-demo-scratch/commits/<sha>/check-runs` returns the gate
   check for a test PR (gate is real, independent).
-- Inner invocation greps: `--model sonnet` present, `--max-turns` present, `--model opus`
-  absent from the drain path.
+- Inner invocation greps: `--model sonnet` present, `--max-budget-usd` present (supersedes
+  `--max-turns` — absent from the installed CLI, see status note), `--model opus` absent
+  from the drain path.
 - Predicate stub runs and returns the four inputs filtered to scheduled-run rows.
 
 ### Phase 2: Native task + machine posture [TODO]
