@@ -1,0 +1,53 @@
+{
+  "skill_name": "use-your-skills",
+  "evals": [
+    {
+      "id": 1,
+      "name": "names-the-skill-that-should-have-fired-and-invokes-it",
+      "prompt": "use your skills — you just hand-wrote a whole commit-message procedure, but there's a skill for that in the listing.",
+      "expected_output": "Re-anchors skill-use discipline, audits the recent turn, and names the concrete finding: a listed skill already owned the procedure that was reinvented by hand. Corrects forward by invoking that skill this turn and letting it govern the work, rather than merely acknowledging it existed. Treats firing the skill as a re-anchor, not an accusation.",
+      "files": [],
+      "expectations": [
+        "Names the specific reinvented procedure and the listed skill that already owns it",
+        "Corrects forward by invoking the fitting skill now rather than only noting it",
+        "Treats a clean re-use as a valid outcome and does not manufacture a finding"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "names-skills-in-the-delegation-prompt-for-a-subagent",
+      "prompt": "use your skills — I'm about to spin up a subagent to do the research pass; the delegation prompt names no skills.",
+      "expected_output": "Flags that a fresh non-fork subagent does not inherit the parent's skill listing and discovers skills on disk via the Skill tool, so the delegation prompt must name the relevant skills. Re-issues the prompt naming the fitting skills, and where the subagent should always carry a discipline, recommends its `skills:` frontmatter to preload the full skill content at startup — as guidance routed to the user, not a config change the skill performs.",
+      "files": [],
+      "expectations": [
+        "States that a fresh subagent does not see the parent's listing and must be told which skills to use",
+        "Re-issues the delegation prompt naming the relevant skills",
+        "Recommends the `skills:` preload for a recurring discipline as guidance, not an automatic config change"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "routes-description-and-budget-concerns-out-of-scope",
+      "prompt": "use your skills — I think the skill didn't fire because its description is too thin and I have a hundred skills installed eating the budget.",
+      "expected_output": "Distinguishes session-behavior (a skill in the listing went unused — this skill's territory) from surfaceability (a skill could not surface). Routes description quality to /skill-quality:check and machine-level listing-budget overflow to /claude-config:audit (noting /doctor estimates the listing cost), degrading to prose guidance when those are not installed, rather than tuning descriptions or budgets itself.",
+      "files": [],
+      "expectations": [
+        "Separates 'skill went unused' from 'skill could not surface'",
+        "Routes description hygiene to /skill-quality:check and budget overflow to /claude-config:audit",
+        "Does not itself edit descriptions or change the listing budget"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "clean-audit-when-skills-were-used",
+      "prompt": "use your skills — quick check before I move on.",
+      "expected_output": "Runs as a posture-setting / mid-work re-anchor. Scans the recent work against the in-context listing and, finding the fitting skills were in fact invoked (or that no listed skill fit the work done), reports clean rather than forcing an ill-fitting skill or inventing a finding.",
+      "files": [],
+      "expectations": [
+        "Audits recent work against the listing without manufacturing a finding",
+        "Reports clean when the fitting skills were already used or none fit",
+        "Does not force-invoke an ill-fitting skill for its own sake"
+      ]
+    }
+  ]
+}

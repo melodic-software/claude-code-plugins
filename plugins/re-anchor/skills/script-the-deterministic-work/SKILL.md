@@ -89,13 +89,23 @@ Name concrete, located findings (per the method doc's step 2):
 - arithmetic or a mechanical transform worked through by hand mid-answer;
 - a deterministic scaffold — a PR body, an issue, a report, config
   boilerplate — hand-typed frame and all, where a script or a native template
-  would emit the structure and leave only the judgment slots to fill.
+  would emit the structure and leave only the judgment slots to fill;
+- **the reverse over-reach** — an existing script or tool that *decides a
+  judgement call*: a detect-then-judge script's flag consumed as the verdict,
+  or reasoning-only work (meaning, intent, fit, abstraction quality) handed to
+  a script — so a judgement is dressed as a computed fact. This is the same
+  boundary crossed in the other direction; the audit hunts both ways, not just
+  hand-work that should have been scripted.
 
 Correct each forward now: write and run the script or tool, read its real
 output, and re-derive the conclusion from that output — do not keep the
 hand-computed figure alongside it. Where the sub-work is detect-then-judge,
 script the detection and keep the verdict; where it is reasoning-only, leave
-it un-scripted and say why.
+it un-scripted and say why. Where an **existing** script already over-reaches
+into judgement, correct in the other direction — **de-script it**: demote a
+detect-then-judge flag back to a candidate the model rules on, and return
+reasoning-only work to reasoning rather than letting the script's output stand
+as the answer.
 
 ## Distinct from standing automation
 

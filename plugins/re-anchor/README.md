@@ -28,6 +28,8 @@ first-class use, and the audit may honestly return clean.
 | `/re-anchor:pick-for-the-problem` | Selection fitted to the problem — not reached for out of habit, availability, incumbency, or preconception |
 | `/re-anchor:mind-your-maxims` | Cooperative communication — Grice's maxims plus the AI-augmented transparency maxim |
 | `/re-anchor:script-the-deterministic-work` | Script deterministic sub-work — run it, then reason over the output |
+| `/re-anchor:use-your-skills` | Actually use the skills in context — scan the listing, invoke the fitting skill, name skills when delegating |
+| `/re-anchor:reuse-or-replace` | Anti-fragmentation — reuse the established way or openly replace it, never silently stand up a second parallel way |
 
 The shared method — re-anchor, audit the work in flight, correct forward,
 report — lives once at plugin scope in
@@ -223,6 +225,46 @@ session-time script.
 
 ```shell
 /re-anchor:script-the-deterministic-work   # re-anchor + audit + correct
+```
+
+### use-your-skills
+
+Re-anchors skill-use discipline: the skill listing (every skill's name and
+description) is in context so the fitting skill gets invoked, not reinvented.
+Scans the listing against the conversation and the task, invokes the skill that
+already owns a procedure rather than improvising it, and — because a fresh
+non-fork subagent does not inherit the parent's listing — names the relevant
+skills in a delegation prompt, recommending a custom subagent's `skills:`
+preload for a discipline it should always carry. Audits recent work for a skill
+that should have fired and did not, and corrects by invoking it now. Description
+quality routes to `/skill-quality:check` and listing-budget overflow to
+`/claude-config:audit`; this skill audits use, not surfaceability. A per-prompt
+`UserPromptSubmit` routing hook is deliberately deferred.
+
+```shell
+/re-anchor:use-your-skills         # re-anchor + audit + correct
+```
+
+### reuse-or-replace
+
+Re-anchors anti-fragmentation discipline: when an established way of doing
+something already exists, new work reuses it or openly replaces it (migrate the
+uses, record the decision) — it never silently stands up a second, parallel way
+alongside. The sin is the silent second way, not divergence: replacing the
+established way is first-class when evidence backs an improvement or its
+rationale is missing, incumbency-only, or stale, and blind trust in the status
+quo is explicitly bad. Divergence is allowed but owes a recorded rationale
+proportional to blast radius — an ADR/docs entry for durable changes, a
+PR/commit note for small ones; no recorded reason is the finding. Scope is the
+unlintable approach level (idioms, structure, naming shapes, error handling,
+doc formats, process); mechanical style belongs to linters. Distinct from
+`reason-dont-recite` (evaluation-side — is the inherited convention justified?)
+and carved out from `pick-for-the-problem` (which owns tool and dependency
+selection, where matching the incumbent is a selection sin, not a consistency
+win).
+
+```shell
+/re-anchor:reuse-or-replace        # re-anchor + audit + correct
 ```
 
 ## Consumer conventions

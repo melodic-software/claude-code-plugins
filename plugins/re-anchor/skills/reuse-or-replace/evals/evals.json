@@ -1,0 +1,65 @@
+{
+  "skill_name": "reuse-or-replace",
+  "evals": [
+    {
+      "id": 1,
+      "name": "catches-the-silent-parallel-way-and-keeps-one-way",
+      "prompt": "reuse or replace — this new module handles errors with its own result-object pattern; the rest of the codebase throws typed exceptions.",
+      "expected_output": "Names the concrete finding: a second, parallel error-handling way standing beside the established one with no stated reason — the silent second way. Corrects forward by reusing the established typed-exception approach for the new module, or, if the result-object way is genuinely better, requiring an open replacement that migrates the existing uses and records the decision — never both ways left standing. Treats firing as a re-anchor, not an accusation.",
+      "files": [],
+      "expectations": [
+        "Identifies two coexisting ways for the same job as the fragmentation finding",
+        "Reuses the established way, or requires an open replace-and-migrate, not a silent second way",
+        "Does not accept the parallel way merely because it is individually defensible"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "replacing-is-first-class-not-straight-conformity",
+      "prompt": "reuse or replace — I was going to copy the existing retry approach, but honestly nobody knows why it retries five times and it looks outdated.",
+      "expected_output": "Applies the misconstrual guard: this is not a mandate to conform blindly. Because the established way's rationale is missing and it may be stale, replacing it is first-class and encouraged — routes the interrogation to /re-anchor:reason-dont-recite and the evidence-gathering for a better way to /re-anchor:do-your-research (fresh research, not recall, for the staleness claim). If replacement is warranted, replace and migrate the established way rather than standing up a silent second one; the sin is the silent parallel way, not the divergence.",
+      "files": [],
+      "expectations": [
+        "Does not demand blind conformity to the incumbent way",
+        "Treats missing rationale / staleness as first-class grounds to replace and routes to reason-dont-recite / do-your-research",
+        "Requires replace-and-migrate over a silent second way when replacement is warranted"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "carve-out-does-not-govern-tool-selection",
+      "prompt": "reuse or replace — we already use one HTTP client everywhere, so I'll just add the same one to the new service to stay consistent.",
+      "expected_output": "Recognizes the carve-out: choosing which library or dependency to adopt is /re-anchor:pick-for-the-problem's territory, not a reuse-or-replace consistency call, and matching the incumbent choice for consistency's sake is exactly the selection reflex (incumbency) that skill names as a sin. Declines to ratify the choice on consistency grounds and routes the build-vs-buy / which-library decision to pick-for-the-problem, where it must be re-derived from the problem.",
+      "files": [],
+      "expectations": [
+        "Identifies the decision as tool/dependency selection, outside this skill's scope",
+        "Routes to /re-anchor:pick-for-the-problem rather than approving on consistency grounds",
+        "Notes that matching the incumbent tool is a selection sin there, not a consistency win"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "reused-way-and-recorded-divergence-audit-clean",
+      "prompt": "reuse or replace — the new endpoint follows the same pagination and error shape as the others, and where it differs it's noted in the ADR.",
+      "expected_output": "Finds the new work reuses the established way where it can, and the one divergence carries a recorded rationale at the blast-radius-appropriate level (the ADR for a durable change), so it audits clean. Does not manufacture a finding, and does not treat a well-recorded divergence as a violation — the burden is a stated reason, which was met.",
+      "files": [],
+      "expectations": [
+        "Confirms new work that reuses the established way audits clean",
+        "Accepts a divergence whose rationale is recorded at the right blast-radius level",
+        "Does not fabricate a finding or treat recorded divergence as a violation"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "durable-unrecorded-divergence-demands-an-adr-not-a-commit-note",
+      "prompt": "reuse or replace — I'm introducing a whole new architectural pattern for how our services talk to each other, different from the existing message-bus approach, and I'll just start using it in this one service.",
+      "expected_output": "Applies the proportionality half of the burden rule: this divergence is durable and architectural (a new cross-service communication pattern), so its rationale must be recorded where durable decisions live — the repo's ADR/docs convention — not merely a commit or PR note. With no recorded rationale it is a finding: a second parallel architectural way standing beside the message bus. Corrects forward by requiring the ADR and, if the new pattern genuinely supersedes the old, migrating the existing services and retiring the message-bus approach rather than running both. Contrasts this ADR-level burden with a small local divergence, whose recorded reason can live in a commit statement.",
+      "files": [],
+      "expectations": [
+        "Classifies the divergence as durable/architectural and therefore ADR/docs-level, not commit-level",
+        "Flags the missing recorded rationale as the finding — an unrecorded second architectural way",
+        "Requires recording at the ADR level and, if superseding, migrating and retiring the old way rather than coexisting"
+      ]
+    }
+  ]
+}
