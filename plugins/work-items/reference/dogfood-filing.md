@@ -31,8 +31,12 @@ Four beats, in order. The two **mechanical** beats reuse existing machinery verb
    search-before-create pre-flight — the bound adapter's *Search items* operation over `--state all`,
    the same read `track add` performs ([`../skills/track/actions/add.md`](../skills/track/actions/add.md)
    "Duplicate check"). Whether a hit is *the same problem* is a model judgment, not a string match:
-   compare by underlying cause, not wording. A match means comment on the existing item instead of
-   opening a second one. Where the consuming repo keeps a rejected-concept ledger
+   compare by underlying cause, not wording. A match against an **open** item means comment on it
+   instead of opening a second one. A match against a **closed** item is different: closed items are
+   absent from the triage attention view, so commenting there buries a still-live or regressed
+   observation where no lane will pick it up — reopen the closed item (or open a fresh active item
+   that links it) so the problem re-enters the queue. Where the consuming repo keeps a rejected-concept
+   ledger
    (`docs/out-of-scope/`), the same step's ledger check applies — do not re-file a settled rejection.
 
 2. **Categorize (model judgment).** Classify bug vs enhancement first — it steers everything
