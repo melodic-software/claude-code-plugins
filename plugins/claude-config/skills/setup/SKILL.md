@@ -26,6 +26,7 @@ table with one remediation line per FAIL. Do not modify anything. The runtime sc
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-structure.sh` and `fix-plugin-drift.sh` — jq
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit-automation-gaps/scripts/inventory.sh` — jq
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-grants/scripts/permission-rule-check.sh` — jq
+- `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.sh` — grep only (POSIX; no jq)
 
 1. **`jq`** — `command -v jq`. FAIL if absent: every audit script needs it (`inventory.sh` degrades to
    an empty inventory; the others `exit 2` with an install remediation). Missing `jq` blocks all three
