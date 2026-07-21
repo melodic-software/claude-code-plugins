@@ -4,6 +4,7 @@ description: "Orchestrate the full PR lifecycle: prep (review + verify), create,
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "<action> [args] (e.g., /pull-request prep, /pull-request create, /pull-request monitor, /pull-request merge, /pull-request full, /pull-request status)"
+shell: bash
 ---
 
 ## Pre-computed context

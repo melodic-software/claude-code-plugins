@@ -1,5 +1,13 @@
 # Changelog — docs-hygiene plugin
 
+## [0.8.3]
+
+### Changed
+
+- Skills with `!` dynamic-context injections now declare `shell: bash` explicitly, per
+  the pinned precompute convention — bash-only pipelines must not fall through to a
+  PowerShell host.
+
 ## [0.8.2] — 2026-07-21
 
 ### Fixed

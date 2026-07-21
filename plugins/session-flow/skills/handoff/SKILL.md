@@ -4,6 +4,7 @@ description: "Write a mid-session save-point for /clear-and-resume — a durable
 argument-hint: "[file|prompt] [topic] [--bg] (e.g., /handoff, /handoff prompt, /handoff file phase-3, /handoff --bg)"
 user-invocable: true
 disable-model-invocation: false
+shell: bash
 ---
 
 ## Pre-computed context

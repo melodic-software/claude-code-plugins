@@ -4,6 +4,7 @@ description: "Debug and diagnose broken behavior via a disciplined six-phase loo
 argument-hint: "[bug description or observation] (e.g., /debugging:debug checkout times out for orders over $1k)"
 user-invocable: true
 disable-model-invocation: false
+shell: bash
 ---
 
 ## Pre-computed context

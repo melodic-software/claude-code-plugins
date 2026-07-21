@@ -4,6 +4,7 @@ description: "Prove a change achieved its intended outcome: a mechanical build+t
 user-invocable: true
 argument-hint: "[mode] [ecosystem] (e.g., /verification:confirm, /verification:confirm outcome, /verification:confirm fix, /verification:confirm refactor, /verification:confirm dotnet)"
 disable-model-invocation: false
+shell: bash
 ---
 
 ## Pre-computed context

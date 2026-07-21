@@ -4,6 +4,7 @@ description: "Audit whether a documentation file earns its existence — could a
 argument-hint: "[audit] [target] | sweep <dir>"
 user-invocable: true
 disable-model-invocation: false
+shell: bash
 ---
 
 ## Pre-computed context

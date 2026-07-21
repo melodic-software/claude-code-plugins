@@ -1,12 +1,18 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "context7",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Looks up current library documentation, API references, and code examples via Context7 (ctx7 CLI or the Context7 MCP server) with a two-step resolve-then-query workflow: a lookup skill (default lookup plus an upstream drift-check action) and a setup skill for CLI install, auth, and MCP configuration.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
   "license": "MIT",
-  "keywords": ["context7", "documentation", "library-docs", "api-reference", "tooling"]
+  "keywords": [
+    "context7",
+    "documentation",
+    "library-docs",
+    "api-reference",
+    "tooling"
+  ]
 }

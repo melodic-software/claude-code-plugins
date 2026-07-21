@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.15.9]
+## [0.15.10]
 
 ### Fixed
 
@@ -27,6 +27,14 @@ All notable changes to the `source-control` plugin are documented here. Format f
   entries no longer auto-approve these calls; and the root gap — Claude Code documents a plugin's
   `bin/` as on the Bash tool's `PATH` while enabled, yet it is empirically absent here — is an
   upstream/harness matter. Only closing that gap restores bare-name invocation.
+
+## [0.15.9]
+
+### Changed
+
+- Skills with `!` dynamic-context injections now declare `shell: bash` explicitly, per
+  the pinned precompute convention — bash-only pipelines must not fall through to a
+  PowerShell host.
 
 ## [0.15.8]
 

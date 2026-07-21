@@ -1,12 +1,20 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "naming",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Generates and evaluates fresh name candidates for anything — an identifier, file, module, skill, repo, or domain term — by distilling a structured context brief, fanning out blind, fresh-context generators from distinct lenses (responsibility-literal, moment-of-use, domain-lore), then scoring a shortlist against a research-ordered criteria priority resolved from the consuming org's naming criteria. The human always picks; it never auto-locks a name. An optional tournament mode adds elimination rounds with independent judges for high-stakes, hard-to-refactor names.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
   "license": "MIT",
-  "keywords": ["naming", "name", "rename", "identifier", "candidates", "anti-anchoring", "skill"]
+  "keywords": [
+    "naming",
+    "name",
+    "rename",
+    "identifier",
+    "candidates",
+    "anti-anchoring",
+    "skill"
+  ]
 }

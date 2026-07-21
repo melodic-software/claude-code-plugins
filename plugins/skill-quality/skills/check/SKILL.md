@@ -4,6 +4,7 @@ description: "Skill-authoring QA for Claude Code skills. Use when: 'check this s
 argument-hint: "[check|validate-evals] [<skill-name>] — omit the action for check; omit the skill name to run over every skill"
 user-invocable: true
 disable-model-invocation: false
+shell: bash
 ---
 
 ## Purpose
