@@ -65,12 +65,13 @@
       "id": 6,
       "name": "step-list-culled-not-preserved",
       "prompt": "/claude-config:audit-instructions one of my skills spells out a 9-step numbered procedure for opening a PR — 'run git status, then git add, then write the message, then...'. Should a capable model keep all the steps?",
-      "expected_output": "Flags the mechanical numbered procedure as an I8 model-era finding (over-prescriptive step list) and proposes culling it to the intent plus the hard constraints — ordering that genuinely matters, safety gates, external contracts — removing steps that only narrate a procedure a current model already sequences correctly. It does not preserve all 9 steps verbatim, and it keeps any step that encodes a real ordering, safety, or contract requirement.",
+      "expected_output": "Flags the mechanical numbered procedure as an I8 model-era finding (over-prescriptive step list) and proposes culling it to the intent plus the hard constraints — ordering that genuinely matters, safety gates, external contracts — removing steps that only narrate a procedure a current model already sequences correctly. It does not preserve all 9 steps verbatim, and it keeps any step that encodes a real ordering, safety, or contract requirement. Because I8 is behavioral-tier, the cull reaches the report as a verify-pass-vetted behavioral proposal, not an unverified confident removal.",
       "files": [],
       "expectations": [
         "Identifies the numbered step list as an I8 over-prescriptive finding",
         "Proposes culling to intent plus hard constraints rather than keeping all steps verbatim",
-        "Keeps steps that encode a genuine ordering, safety-gate, or external-contract requirement"
+        "Keeps steps that encode a genuine ordering, safety-gate, or external-contract requirement",
+        "Surfaces the cull as a behavioral proposal that passed the fresh-context verify pass, not an unverified confident removal"
       ]
     }
   ]
