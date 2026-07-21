@@ -31,7 +31,7 @@ This skill is self-contained. Where a phase names an adjacent capability — a r
 implementation-planning skill, a work-item tracker, an outcome verifier — treat it as optional: if
 your setup provides an equivalent, use it; otherwise follow the inline guidance, which stands on its
 own. Adjacent skills cover neighboring questions: the sibling `audit` skill (are the config FILES
-correct?) and the `health` skill in the `claude-memory` plugin (is the instruction layer healthy?).
+correct?) and the `audit` skill in the `claude-memory` plugin (is the instruction layer healthy?).
 
 ## Arguments
 
