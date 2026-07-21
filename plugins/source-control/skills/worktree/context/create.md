@@ -22,7 +22,7 @@ The name (branch and, via the helper's slug, directory) has these constraints (t
 - Max **64 characters** total
 - `/` is a valid segment separator (enables `feat/my-feature` format)
 
-Validate the name against these rules. If invalid, explain what's wrong and ask for correction. The branch keeps the name verbatim; the helper derives the **directory slug** from it (`/` and any other unsafe character → `-`).
+Validate the name against these rules. If invalid, explain what's wrong and ask for correction. The helper re-validates defensively and **refuses** a name that violates them (exit 2) rather than let `git worktree add` fail opaquely. The branch keeps the name verbatim; the helper derives the **directory slug** from it (each `/` → `-`).
 
 ## Base branch
 

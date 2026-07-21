@@ -64,12 +64,22 @@ root=""
 base_ref=""
 repo_dir="."
 
+# need_value <flag> — guard against a value-taking flag given as the last token
+# with no argument. Without this, `shift 2` on a single remaining positional
+# fails and leaves $# unchanged, spinning the loop forever.
+need_value() {
+  if [[ $# -lt 2 ]]; then
+    printf '%s: %s requires a value\n' "$PROG" "$1" >&2
+    exit 2
+  fi
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --name) name="${2:-}"; shift 2 ;;
-    --root) root="${2:-}"; shift 2 ;;
-    --base-ref) base_ref="${2:-}"; shift 2 ;;
-    --repo-dir) repo_dir="${2:-}"; shift 2 ;;
+    --name) need_value "$@"; name="$2"; shift 2 ;;
+    --root) need_value "$@"; root="$2"; shift 2 ;;
+    --base-ref) need_value "$@"; base_ref="$2"; shift 2 ;;
+    --repo-dir) need_value "$@"; repo_dir="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) printf '%s: unknown argument: %s\n' "$PROG" "$1" >&2; usage; exit 2 ;;
   esac
@@ -77,6 +87,21 @@ done
 
 if [[ -z "$name" ]]; then
   printf '%s: --name is required\n' "$PROG" >&2
+  exit 2
+fi
+
+# Validate the name up front against the EnterWorktree schema: max 64 chars, and
+# each '/'-separated segment contains only letters, digits, dots, underscores,
+# and dashes. This is a strict subset of what git refs allow, so a validated name
+# is always a creatable branch — reject invalid names loudly (exit 2) here rather
+# than let `git worktree add` fail opaquely downstream. The branch is used
+# verbatim; only the directory slug transforms it.
+if (( ${#name} > 64 )); then
+  printf '%s: --name %q exceeds 64 characters\n' "$PROG" "$name" >&2
+  exit 2
+fi
+if [[ ! "$name" =~ ^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$ ]]; then
+  printf '%s: --name %q is not a valid worktree/branch name (each /-separated segment: letters, digits, dots, underscores, dashes only)\n' "$PROG" "$name" >&2
   exit 2
 fi
 
@@ -105,19 +130,53 @@ if ! toplevel=$(git -C "$repo_dir" rev-parse --show-toplevel 2>/dev/null); then
   exit 4
 fi
 
+# parse_owner_repo <url> — derive an `owner<TAB>repo` pair from a remote URL for
+# the directory name. Sets globals `owner` and `repo`. Handles the shapes we see:
+#   git@host:owner/repo.git · https://host/owner/repo.git · ssh://git@host/owner/repo
+#   GitLab subgroups (group/subgroup/repo → owner=subgroup)
+#   Azure DevOps (…/org/project/_git/repo and v3/org/project/repo → owner=project)
+# It never fails: with fewer than two usable path segments, owner is left empty
+# and the caller falls back to the repo-dir name.
+parse_owner_repo() {
+  local url="$1" path
+  owner=""; repo=""
+  # Reduce to the path portion. Scheme URLs (scheme://host/path) and scp syntax
+  # (git@host:path) delimit the host differently, so branch on which is present.
+  path="$url"
+  if [[ "$path" == *"://"* ]]; then
+    path="${path#*://}"        # strip scheme://
+    path="${path#*/}"          # strip host[:port] up to the first '/'
+  elif [[ "$path" == *:* ]]; then
+    path="${path#*:}"          # scp-like git@host:owner/repo -> owner/repo
+  fi
+  path="${path%.git}"
+  path="${path%/}"
+
+  # Split into non-empty segments, dropping Azure's `_git` marker and a leading
+  # `v3` (Azure SSH) so the meaningful org/project/repo tail remains.
+  local -a seg=() parts
+  IFS='/' read -r -a parts <<<"$path"
+  local p
+  for p in "${parts[@]}"; do
+    [[ -z "$p" || "$p" == "_git" || "$p" == "v3" ]] && continue
+    seg+=("$p")
+  done
+
+  local n=${#seg[@]}
+  if (( n >= 2 )); then
+    repo="${seg[n-1]}"
+    owner="${seg[n-2]}"
+  elif (( n == 1 )); then
+    repo="${seg[0]}"
+  fi
+}
+
 # owner/repo from the origin remote when present; otherwise fall back to the
 # repository directory name (owner omitted).
 owner=""
 repo=""
 if origin_url=$(git -C "$toplevel" remote get-url origin 2>/dev/null); then
-  # Strip a trailing .git and any trailing slash, then take the last two
-  # path/colon-separated segments as owner/repo. Handles:
-  #   git@host:owner/repo.git · https://host/owner/repo.git · ssh://git@host/owner/repo
-  stripped="${origin_url%.git}"
-  stripped="${stripped%/}"
-  repo="${stripped##*/}"
-  rest="${stripped%/*}"
-  owner="${rest##*[:/]}"
+  parse_owner_repo "$origin_url"
 fi
 if [[ -z "$repo" ]]; then
   repo="${toplevel##*/}"
@@ -161,12 +220,16 @@ case "$base_ref" in
     ;;
   fresh)
     # Resolve the remote's default branch symbolically (never hardcode
-    # origin/main — portability-lint #531). Fall back to local HEAD when the
-    # remote default is not cached, matching Claude Code's documented behavior.
+    # origin/main — portability-lint #531). When origin/HEAD is not cached
+    # locally, fall back to local HEAD (matching Claude Code's documented
+    # behavior) but warn loudly: "fresh" promises the remote default branch, so a
+    # silent fall-through to HEAD could carry unpushed local commits the caller
+    # did not want.
     if head_ref=$(git -C "$toplevel" symbolic-ref -q refs/remotes/origin/HEAD 2>/dev/null); then
       base_commit="$head_ref"
     else
       base_commit="HEAD"
+      printf '%s: warning: --base-ref fresh could not resolve the remote default branch (origin/HEAD not set); branching from local HEAD instead. Run: git remote set-head origin --auto  to cache it.\n' "$PROG" >&2
     fi
     ;;
   *)
@@ -184,21 +247,32 @@ fi
 # .worktreeinclude pattern AND are also gitignored are copied one-way into the
 # new worktree. `ls-files -o -i --exclude-from` yields untracked files matching
 # the include patterns; `check-ignore -q` filters that down to the ones the
-# real .gitignore also ignores (the documented intersection).
+# real .gitignore also ignores (the documented intersection). NUL-delimited
+# (`-z` / `read -d ''`) so paths with spaces, newlines, or quote-triggering
+# characters are not dropped or mangled.
 include_file="$toplevel/.worktreeinclude"
 copied=0
+copy_failed=0
 if [[ -f "$include_file" ]]; then
-  while IFS= read -r rel; do
+  while IFS= read -r -d '' rel; do
     [[ -z "$rel" ]] && continue
     git -C "$toplevel" check-ignore -q -- "$rel" || continue
     src="$toplevel/$rel"
     [[ -f "$src" ]] || continue
     dest="$worktree_path/$rel"
-    mkdir -p "$(dirname "$dest")"
-    cp -p "$src" "$dest"
-    copied=$((copied + 1))
-  done < <(git -C "$toplevel" ls-files -o -i --exclude-from="$include_file")
+    if mkdir -p "$(dirname "$dest")" && cp -p "$src" "$dest"; then
+      copied=$((copied + 1))
+    else
+      copy_failed=$((copy_failed + 1))
+      printf '%s: warning: failed to copy .worktreeinclude file: %s\n' "$PROG" "$rel" >&2
+    fi
+  done < <(git -C "$toplevel" ls-files -o -i -z --exclude-from="$include_file")
   printf '%s: copied %d .worktreeinclude file(s) into the worktree\n' "$PROG" "$copied" >&2
+  if (( copy_failed > 0 )); then
+    printf '%s: %d .worktreeinclude file(s) failed to copy — the worktree at %s exists but is missing expected local files\n' \
+      "$PROG" "$copy_failed" "$worktree_path" >&2
+    exit 4
+  fi
 fi
 
 printf '%s: created worktree on branch %q (base %s)\n' "$PROG" "$name" "$base_ref" >&2

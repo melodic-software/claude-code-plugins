@@ -18,14 +18,21 @@ command -v git >/dev/null 2>&1 || skip_suite "git not available"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
-# mkrepo [--origin <url>] — create a fresh git repo fixture with one commit,
-# origin/HEAD pointed at the default branch. Echoes the repo path (the sole
-# stdout line; all git noise is discarded so command substitution captures only
-# the path). Each call gets a unique dir — the function body runs in a
-# command-substitution subshell, so a mutating counter would not persist.
+# mkrepo [--origin <url>] [--no-head] — create a fresh git repo fixture with one
+# commit; unless --no-head, origin/HEAD is pointed at the default branch. Echoes
+# the repo path (the sole stdout line; all git noise is discarded so command
+# substitution captures only the path). Each call gets a unique dir — the
+# function body runs in a command-substitution subshell, so a mutating counter
+# would not persist.
 mkrepo() {
-  local origin_url=""
-  [[ "${1:-}" == "--origin" ]] && { origin_url="$2"; shift 2; }
+  local origin_url="" seed_head=1
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --origin) origin_url="$2"; shift 2 ;;
+      --no-head) seed_head=0; shift ;;
+      *) shift ;;
+    esac
+  done
   local repo
   repo="$(mktemp -d "$TEST_TMPDIR/repoXXXXXX")"
   {
@@ -37,9 +44,11 @@ mkrepo() {
     git -C "$repo" commit -qm init
     if [[ -n "$origin_url" ]]; then
       git -C "$repo" remote add origin "$origin_url"
-      # Point origin/HEAD at main without a network fetch so `fresh` resolves.
-      git -C "$repo" update-ref refs/remotes/origin/main "$(git -C "$repo" rev-parse HEAD)"
-      git -C "$repo" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+      if [[ "$seed_head" == 1 ]]; then
+        # Point origin/HEAD at main without a network fetch so `fresh` resolves.
+        git -C "$repo" update-ref refs/remotes/origin/main "$(git -C "$repo" rev-parse HEAD)"
+        git -C "$repo" symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
+      fi
     fi
   } >/dev/null 2>&1
   printf '%s' "$repo"
@@ -127,5 +136,61 @@ assert_file_exists "worktreeinclude: matched+ignored nested copied (mkdir -p)" "
 assert_file_exists "worktreeinclude: matched+ignored env copied" "$out/secrets.env"
 assert_file_absent "worktreeinclude: gitignored-but-unmatched skipped" "$out/.work/task1/OTHER.md"
 assert_file_absent "worktreeinclude: unignored file never copied" "$out/loose.txt"
+
+# --- Case: a value-taking flag as the last token errors, does not hang (exit 2) ---
+# Regression guard: a failed `shift 2` on a lone positional once spun forever.
+for flag in --name --root --base-ref --repo-dir; do
+  code=0
+  bash "$HELPER" "$flag" >/dev/null 2>&1 || code=$?
+  assert_exit "trailing valueless $flag errors (no hang)" 2 "$code"
+done
+
+# --- Case: --base-ref fresh with uncached origin/HEAD warns and falls back ---
+repo=$(mkrepo --origin "git@github.com:acme/widget.git" --no-head)
+root="$TEST_TMPDIR/wtroot7"
+err=$(bash "$HELPER" --name feat/nohead --root "$root" --base-ref fresh --repo-dir "$repo" 2>&1 >/dev/null)
+assert_exit "fresh w/o origin/HEAD still succeeds" 0 "$?"
+assert_contains "fresh w/o origin/HEAD warns about fallback" "$err" "could not resolve the remote default branch"
+assert_file_exists "fresh fallback still creates the worktree" "$root/acme-widget-feat-nohead/README.md"
+
+# --- Case: 3+-segment URLs — Azure DevOps (_git) and GitLab subgroup ---
+repo=$(mkrepo --origin "https://dev.azure.com/myorg/myproject/_git/widget")
+root="$TEST_TMPDIR/wtroot8"
+out=$(bash "$HELPER" --name feat/az --root "$root" --repo-dir "$repo" 2>/dev/null)
+assert_eq "Azure _git URL -> project as owner, repo last" "$root/myproject-widget-feat-az" "$out"
+
+repo=$(mkrepo --origin "https://gitlab.com/group/subgroup/widget.git")
+root="$TEST_TMPDIR/wtroot9"
+out=$(bash "$HELPER" --name feat/gl --root "$root" --repo-dir "$repo" 2>/dev/null)
+assert_eq "GitLab subgroup URL -> subgroup as owner" "$root/subgroup-widget-feat-gl" "$out"
+
+# --- Case: a name with characters git refs reject is refused up front (exit 2) ---
+# The branch is used verbatim, so an unsafe name must fail loudly here rather
+# than opaquely inside `git worktree add`.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+err=$(bash "$HELPER" --name 'feat/weird @name#v2' --root "$TEST_TMPDIR/wtroot10" --repo-dir "$repo" 2>&1 >/dev/null)
+assert_exit "unsafe-char name refused (exit 2)" 2 "$?"
+assert_contains "unsafe-char refusal explains the rule" "$err" "not a valid worktree/branch name"
+# An over-long name (>64 chars) is likewise refused.
+bash "$HELPER" --name "feat/$(printf 'a%.0s' {1..70})" --root "$TEST_TMPDIR/wtroot10" --repo-dir "$repo" >/dev/null 2>&1
+assert_exit "over-64-char name refused (exit 2)" 2 "$?"
+# A valid multi-segment name keeps the branch verbatim but transforms the slug.
+root="$TEST_TMPDIR/wtroot10b"
+out=$(bash "$HELPER" --name "feat/scope.v2_final-1" --root "$root" --repo-dir "$repo" 2>/dev/null)
+assert_eq "valid name: '/' -> '-' in the dir slug" "$root/acme-widget-feat-scope.v2_final-1" "$out"
+assert_eq "valid name: branch kept verbatim" "feat/scope.v2_final-1" \
+  "$(git -C "$out" rev-parse --abbrev-ref HEAD)"
+
+# --- Case: --repo-dir outside any git repo -> environment error (exit 4) ---
+nonrepo="$(mktemp -d "$TEST_TMPDIR/plainXXXXXX")"
+bash "$HELPER" --name feat/x --root "$TEST_TMPDIR/wtroot11" --repo-dir "$nonrepo" >/dev/null 2>&1
+assert_exit "--repo-dir outside a git repo exits 4" 4 "$?"
+
+# --- Case: a trailing slash on --root does not double the separator ---
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+root="$TEST_TMPDIR/wtroot12"
+out=$(bash "$HELPER" --name feat/trail --root "$root/" --repo-dir "$repo" 2>/dev/null)
+assert_eq "trailing-slash root yields a single separator" \
+  "$root/acme-widget-feat-trail" "$out"
 
 [[ $FAILED -eq 0 ]] || exit 1
