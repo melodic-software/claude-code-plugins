@@ -192,6 +192,28 @@ in telemetry = Sonnet; live checkout clean; any fire-without-row = Phase 1 defec
 
 ### Phase 4: Accumulation watch [DOING — standing]
 
+> **Status note (2026-07-21, day 0-1):** Both DEADLINE items LANDED well before day 14 —
+> scratch#14 (merge `c12e172`): gate substance (deterministic behavioural test step, 15
+> assertions, shared production filter under test) and revert detection (`reverted` from
+> origin/main revert-commit scan, fail-closed at three layers — undeterminable status
+> aborts loud, never reads as clean). Same PR: accumulation-window lower bound codified
+> (`DRAIN_WINDOW_START_UTC = 2026-07-21T08:05:40Z`, first genuine scheduled fire 41a51d66;
+> warm-up/manual rows never count — predicate corrected 2→1 completions), claimed-line
+> `\r` fixed at the writer, idempotent merged-but-open reconcile guard added. Residual
+> Phase-3 check DONE: inner drain run 41a51d66 ran `claude-sonnet-5` (session transcript).
+> Incident (recorded for audit honesty, window unaffected — the predicate is span-based):
+> operator paused the task 09:30–16:31Z (8 fires missed while paused); one catch-up fired
+> on re-enable per the documented missed-run semantics; hourly cadence verified healthy
+> across 4+ subsequent fires. Hook gap evidence posted on #811 (scheduled sessions run all
+> node hooks as no-ops — `node: command not found` on SessionStart AND Stop).
+>
+> **Known gap — fire-kind self-stamp:** the task SKILL.md hardcodes
+> `--fire-kind scheduled`, so a manual **Run now** records as a scheduled fire in
+> evidence (how the 07:36Z warm-up row got its stamp). Fences: the window-start bound
+> excludes historic warm-up; operator discipline — no Run-now during the accumulation
+> window. Revisit trigger: the Desktop surface exposing a native fire-origin signal the
+> script can read instead of self-declaration.
+
 Standing lane: missed-fire detector + failure tracker items are the automated signal; human
 merges the day's drain PRs (this is the pre-promotion policy, not a kick); weekly usage
 review (budget revisit trigger); predicate inputs accumulate toward 14-day/20-completion.
