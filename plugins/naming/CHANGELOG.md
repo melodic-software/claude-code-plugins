@@ -3,6 +3,23 @@
 All notable changes to the `naming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.0]
+
+### Added
+
+- **Four tournament lessons from the running-retro naming round** folded into
+  `name-it-better`:
+  - a **terms-of-art brief field** — the field's established names for the act,
+    with researched (not recalled) meanings, so generators neither borrow a
+    divergent term blindly nor miss the honest established one;
+  - **blocklist provenance** — every word-level blocklist entry records
+    user-stated vs agent-inferred origin; agent-inferred entries are proposals
+    to confirm, never silently hard constraints;
+  - the **sentence-form test** as an early merge filter for utterance names
+    (skills, commands): the imperative you would actually say, cold-readable;
+  - a **temporal-neutrality constraint** for skills loadable as primed context:
+    the name must read valid before any work exists.
+
 ## [0.2.0]
 
 ### Changed

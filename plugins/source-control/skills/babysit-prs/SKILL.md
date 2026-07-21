@@ -4,6 +4,7 @@ description: "Babysit your own open GitHub pull requests as a tiered fleet loop.
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[worker|autopilot|help] [owner/repo | #n | owner/repo#n] · default: configured default_tier (safe) over your own PRs; worker=fix+resolve-outdated+merge-ready; autopilot=max autonomy all authors; 'help' lists flows"
+shell: bash
 ---
 
 ## Pre-computed context
@@ -283,8 +284,7 @@ The values below substitute from this plugin's stored configuration when this sk
 A surviving literal `${user_config.…}` placeholder means that key is unset — apply its
 documented unset behavior. Reference files use `<angle-bracket>` slots; fill every slot from
 this block. Values reach scripts ONLY as explicit CLI flags (option environment variables never
-reach skill-invoked scripts). Configuration selects targets and thresholds; it never widens
-tier authority.
+reach skill-invoked scripts). Configuration selects targets and thresholds; it never widens tier authority.
 
 | Key | Value | Flag delivery | Unset behavior |
 | --- | --- | --- | --- |
@@ -334,7 +334,7 @@ Execute for EACH PR discovered, oldest first. Detailed mechanics:
 - [ ] **Step 0 — PR discovery:** open PRs in scope (tier-scoped author filter), oldest-first
   FIFO (§5.0.2). Zero PRs → report and schedule the idle wake
 - [ ] **Step 0.1 — Evidence-based fresh rescan:** fetch ALL comments via the bundled
-  `${CLAUDE_PLUGIN_ROOT}/scripts/fetch-all-pr-comments.sh`, filter own prior replies, classify
+  `${CLAUDE_PLUGIN_ROOT}/scripts/fetch-all-pr-comments.sh` (derives owner/repo from the current directory; from a cwd that is not a checkout of the target repo, export `FETCH_COMMENTS_OWNER`/`FETCH_COMMENTS_REPO` first — also unblocks the readiness gate's exit 4), filter own prior replies, classify
   addressed/unaddressed from GitHub evidence (§5.0.3). GitHub is the source of truth, not model
   memory
 - [ ] **Step 0.2 — Branch checkout:** `gh pr checkout <N>` with worktree/dirty-tree pre-checks;

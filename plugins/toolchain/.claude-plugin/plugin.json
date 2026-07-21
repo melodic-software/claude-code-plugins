@@ -8,5 +8,14 @@
     "email": "info@melodicsoftware.com"
   },
   "license": "MIT",
-  "keywords": ["toolchain", "build", "lint", "test", "ecosystem", "polyglot", "verification", "skill"]
+  "keywords": [
+    "toolchain",
+    "build",
+    "lint",
+    "test",
+    "ecosystem",
+    "polyglot",
+    "verification",
+    "skill"
+  ]
 }

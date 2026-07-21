@@ -5,6 +5,7 @@ argument-hint: "[scope] (e.g., /prototype:pressure-test scheduling state machine
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(git branch:*)", "Bash(git status:*)", "Bash(head:*)", "Bash(echo:*)", "Bash(bash ${CLAUDE_PLUGIN_ROOT}/scripts/detect-ecosystems.sh:*)"]
+shell: bash
 ---
 
 ## Pre-computed context

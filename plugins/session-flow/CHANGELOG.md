@@ -1,5 +1,23 @@
 # Changelog — session-flow plugin
 
+## [0.12.2]
+
+### Changed
+
+- Skills with `!` dynamic-context injections now declare `shell: bash` explicitly, per
+  the pinned precompute convention — bash-only pipelines must not fall through to a
+  PowerShell host.
+
+## [0.12.1] — 2026-07-21
+
+Changed:
+
+- handoff: the "Full-path write procedure" doc's `MEMORY_ROOT` placeholder
+  note now points at the shared `parse-concern-value.sh` helper (the
+  retro skill's Phase 1.1 snippet is the worked call form) instead of a
+  bare "resolve it first" reminder with no mechanism named. Doc pointer
+  only — the handoff skill has no script of its own to rewire.
+
 ## [0.12.0] — 2026-07-21
 
 Added:

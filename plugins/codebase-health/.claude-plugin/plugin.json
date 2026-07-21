@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "codebase-health",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Repo-wide drift audit between docs, config, code, and architecture: verifies every factual claim against reality via parallel subagent fan-out, severity-rates findings, and reports read-only, delegating remediation to the implementation/verification lanes. Audit dimensions are configurable through a tracked .claude/codebase-health.md config file written by the setup skill.",
   "author": {
     "name": "Melodic Software",

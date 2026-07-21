@@ -14,6 +14,14 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
   unchanged (pyright has no fix mode). `context/python.md` documents the default basic-mode gotcha
   for untyped projects.
 
+## [0.5.2]
+
+### Changed
+
+- Skills with `!` dynamic-context injections now declare `shell: bash` explicitly, per
+  the pinned precompute convention — bash-only pipelines must not fall through to a
+  PowerShell host.
+
 ## [0.5.1]
 
 ### Changed

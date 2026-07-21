@@ -4,6 +4,7 @@ description: "Gate and package a finished design for /planning:plan: binary chec
 argument-hint: "(no args — reads the design-threads artifact in the topic's contract slice)"
 user-invocable: true
 disable-model-invocation: false
+shell: bash
 ---
 
 ## Pre-computed context

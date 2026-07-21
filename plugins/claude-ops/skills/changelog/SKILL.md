@@ -4,6 +4,7 @@ description: "Ingest Claude Code changelog entries and integrate them into the c
 argument-hint: "<action> [version|text] — actions: fetch (default on passive mention), diff, status, apply (explicit only)"
 user-invocable: true
 disable-model-invocation: false
+shell: bash
 ---
 
 ## Variables

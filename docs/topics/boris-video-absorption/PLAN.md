@@ -200,7 +200,7 @@ Files (home slice, not repo):
 - **Sanity Check:** CI green on PR; `gh pr view` shows mergeable; all
   phase tags [DONE].
 
-### Phase 8: trial run (post-merge validation) [TODO]
+### Phase 8: trial run (post-merge validation) [DONE]
 
 - After plugins update, run the enriched flow end-to-end on a real UI
   change in a consumer repo: config surface resolved + reported,
@@ -208,6 +208,11 @@ Files (home slice, not repo):
   deliberately), evidence table carries session artifacts.
 - **Sanity Check:** recording artifact exists on disk; gap report emitted
   on induced prereq failure; operator reviews the recording.
+- Ran 2026-07-21 in medley (identity-server login-page change, Aspire
+  orchestrator, local-only): all sanity checks passed, plus the
+  prompt-over-config precedence bonus assertion (explicit headed
+  instruction beat the local overlay's `browser_mode: headless`).
+  Evidence stayed on disk (gitignored) in the consumer repo.
 
 ## Blast radius
 

@@ -27,4 +27,28 @@ assert_eq "lease marker constant" "<!-- work-item-lease v1 " "$WIT_LEASE_MARKER"
 assert_eq "404 → not-found (5)" "5" "$(wit_map_gh_error 'HTTP 404 Not Found')"
 assert_eq "rate limit → unavailable (8)" "8" "$(wit_map_gh_error 'API rate limit exceeded')"
 
+# Bot-wrapper resolution (CONTRACT.md "Identity routing (GitHub adapter)"):
+# consumer-local-first, plugin-bundled fallback, regardless of adapter location.
+CONSUMER_ROOT="$(mktemp -d)"
+mkdir -p "$CONSUMER_ROOT/tools/github-auth"
+CONSUMER_WRAPPER="$CONSUMER_ROOT/tools/github-auth/gh-bot.sh"
+: >"$CONSUMER_WRAPPER"
+EMPTY_ROOT="$(mktemp -d)"
+BUNDLED="$WIT_GH_ADAPTER_DIR/../../../github-auth/gh-bot.sh"
+
+RESOLVED="$(CLAUDE_PROJECT_DIR="$CONSUMER_ROOT" wit_gh_resolve_bot_wrapper)"
+if [[ "$RESOLVED" -ef "$CONSUMER_WRAPPER" ]]; then
+  pass "resolves consumer-local wrapper first when present"
+else
+  fail "resolves consumer-local wrapper first when present" "$CONSUMER_WRAPPER" "$RESOLVED"
+fi
+
+RESOLVED_EMPTY_PROJECT="$(CLAUDE_PROJECT_DIR="$EMPTY_ROOT" wit_gh_resolve_bot_wrapper)"
+assert_eq "falls back to bundled path when consumer has none" "$BUNDLED" "$RESOLVED_EMPTY_PROJECT"
+
+RESOLVED_UNSET="$(unset CLAUDE_PROJECT_DIR; wit_gh_resolve_bot_wrapper)"
+assert_eq "falls back to bundled path when CLAUDE_PROJECT_DIR unset" "$BUNDLED" "$RESOLVED_UNSET"
+
+rm -rf "$CONSUMER_ROOT" "$EMPTY_ROOT"
+
 [[ $FAILED -eq 0 ]] || exit 1

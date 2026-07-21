@@ -1,5 +1,46 @@
 # Changelog — docs-hygiene plugin
 
+## [0.8.3]
+
+### Changed
+
+- Skills with `!` dynamic-context injections now declare `shell: bash` explicitly, per
+  the pinned precompute convention — bash-only pipelines must not fall through to a
+  PowerShell host.
+
+## [0.8.2] — 2026-07-21
+
+### Fixed
+
+- **`audit-noise`'s convention-roots scan no longer truncates a quoted
+  `memory_dir`/`contract_dir` at an interior `#`, collapses interior
+  whitespace, or leaves quotes unstripped.** The hand-rolled
+  `${val%%#*}` + `${val//[[:space:]]/}` + ad hoc quote-peel in
+  `scripts/lib/noise-shapes.sh`'s `audit_noise_convention_roots_pattern` is
+  gone; resolution now routes through the shared `parse-concern-value.sh`
+  helper (materialized from `lib/parse-concern-value.sh`), which resolves
+  surrounding quotes and a comment-aware strip in the correct order and
+  never mangles interior whitespace. Held behavior: trailing-slash
+  normalization, and the `.`/`.work`/`docs/topics` default-root exclusions.
+
+## [0.8.1] — 2026-07-21
+
+### Added
+
+- **`audit-noise` gates its five in-page NOISE shapes behind a whole-page
+  existence pre-check** (#505). Before line-level classification, the skill
+  now asks whether a reader with repository search could derive the page's
+  content from the code itself; a FAIL is a deletion candidate (recommend
+  relocate-then-delete, never auto-delete) and skips the in-page tier table.
+  Decisions, domain language, thin navigation, and policy/wiring pages always
+  pass admission. Reuses `/docs-hygiene:audit-derivability`'s rubric by
+  reference for contested calls (optional namespaced skill invocation,
+  degrading to the admission question standalone when unavailable). Ships as
+  a portable-baseline default; a consuming repo's own declared
+  documentation-existence convention overrides it via
+  `/re-anchor:follow-our-standards`'s resolution ladder. Read-only, matching
+  the skill's existing contract.
+
 ## [0.8.0] — 2026-07-20
 
 ### Added

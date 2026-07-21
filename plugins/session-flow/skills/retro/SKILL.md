@@ -4,6 +4,7 @@ description: "Run a structured session retrospective: extract transcript metrics
 argument-hint: "[mode] (e.g., /retro, /retro session, /retro codify, /retro trends, /retro quick)"
 user-invocable: true
 disable-model-invocation: false
+shell: bash
 ---
 
 ## Pre-computed context
