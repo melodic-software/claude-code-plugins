@@ -113,8 +113,9 @@ Write the file into the handoff location (SKILL.md "Where handoffs live"):
 ```bash
 TS=$(date -u +%Y%m%dT%H%M%SZ)              # ISO basic — Windows-safe, no colons
 TOPIC=<short-kebab-topic>                  # e.g. plan-rev2, retry-loop, post-merge
-MEMORY_ROOT=.work                          # the concern file's memory_dir when set — resolve it
-                                           # first, never assume the literal .work
+MEMORY_ROOT=.work                          # resolve via the shared parse-concern-value.sh helper
+                                           # (retro skill's Phase 1.1 is the worked call form) —
+                                           # never assume the literal .work
 SESSION_ID="${CLAUDE_CODE_SESSION_ID:-unknown}"
 
 # Refuse a memory root at/above the repo root before the self-ignore guard can
