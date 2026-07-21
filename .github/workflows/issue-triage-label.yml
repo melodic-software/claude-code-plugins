@@ -1,0 +1,23 @@
+name: issue-triage-label
+
+# Applies the `priority: needs-triage` floor label to an issue opened or
+# reopened with no `priority:*` label, via the shared issue-triage-label
+# reusable from ci-workflows. Non-gating: never blocks a merge, only guards
+# intake so a forgotten priority label doesn't drop an issue from the triage
+# queue. `reopened` is included so a reopened issue re-acquires the floor if
+# its tier was cleared while closed. See ci-workflows' issue-triage-label.yml
+# for the mechanism, loop-safety, and fail-closed label-existence contract.
+# Settled per #506.
+on:
+  issues:
+    types: [opened, reopened]
+
+permissions: {}
+
+jobs:
+  issue-triage-label:
+    permissions:
+      issues: write # passed to the reusable, which reads and adds issue labels
+    uses: melodic-software/ci-workflows/.github/workflows/issue-triage-label.yml@c5e729c0af0e55ffed4675ec85c1b57356fef79e # c5e729c 2026-07-21
+    with:
+      runner: ubuntu-24.04

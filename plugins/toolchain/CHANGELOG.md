@@ -3,7 +3,7 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.6.0]
+## [0.8.0]
 
 ### Added
 
@@ -13,6 +13,41 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
   `.claude/ecosystems/python.yaml` overrides `check-cmd` key-by-key and is unaffected. `fix-cmd` is
   unchanged (pyright has no fix mode). `context/python.md` documents the default basic-mode gotcha
   for untyped projects.
+
+## [0.6.0]
+
+### Added
+
+- **dotnet ecosystem `opt-in` key** (`.editorconfig` with a `[*]` or C#-glob
+  section, walked from the changed file up to the repo root or a
+  `root = true` marker, whichever comes first — empirically verified against
+  dotnet SDK 10.0.302 that a universal `[*]` section governs `dotnet format`'s
+  output on `.cs` files just as a `[*.cs]` section would, that a
+  `.editorconfig` with only unrelated globs has zero effect, and that a
+  nested `root = true` marker genuinely stops EditorConfig discovery before
+  it reaches an outer section) — closes the one lint-bearing ecosystem gap
+  where a config-presence opt-in didn't exist.
+- **`/toolchain:check` now honors `opt-in`** for the lint phase (it never did
+  before — `dotnet format --verify-no-changes` ran unconditionally whenever
+  `.cs`/`.csproj`/etc. files changed, regardless of whether the repo
+  configured any style/analyzer preferences). Build and test are unaffected;
+  only the lint phase is gated. This binary run/skip treatment applies to
+  single-condition ecosystems (dotnet, python); multi-tool ecosystems whose
+  `opt-in` bundles several sub-tools into one opaque command string (bash,
+  cross-cutting) are unchanged from prior behavior — a bundled command
+  cannot be partially suppressed, a known limitation documented in
+  `check/SKILL.md`'s Gotchas.
+- **Visible `skip (opt-in unmet: ...)` status** in both `/toolchain:check`
+  and `/toolchain:lint` results tables — a single-condition ecosystem whose
+  `opt-in` isn't met is now reported, not silently dropped from output as
+  it previously was in `/toolchain:lint` for every opt-in-bearing ecosystem.
+
+### Fixed
+
+- dotnet's lint/format check no longer imposes Roslyn's built-in formatting
+  defaults on a repo that never configured `.editorconfig`/analyzer
+  preferences — matching the same "never impose an unconfigured opinion"
+  posture already applied at the hook layer by `ruff-format`/`typos-format`.
 
 ## [0.5.2]
 

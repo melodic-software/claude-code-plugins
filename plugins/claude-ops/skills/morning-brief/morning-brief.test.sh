@@ -100,6 +100,15 @@ EOF
 
 printf '[]\n' >"$TMP/empty.json"
 
+# Non-empty telemetry array with zero lane-tagged comments (only scope notes) —
+# the any=0 branch, distinct from the null/no-issue-found case above.
+cat >"$TMP/telemetry-no-lanes.json" <<'EOF'
+[
+  {"body": "Scope note: this issue is the interim telemetry surface."},
+  {"body": "Another housekeeping comment with no lane field."}
+]
+EOF
+
 # --- Full render --------------------------------------------------------------
 OUT="$(bash "$BRIEF" --now "$NOW" --stale-hours 6 \
   --counts-json "$TMP/counts.json" \
@@ -154,6 +163,23 @@ OUT_TRUNC="$(bash "$BRIEF" --now "$NOW" --rec-maxlen 30 \
   --telemetry-json "$TMP/empty.json" 2>&1)"
 assert_contains "long rec is truncated with ellipsis" "$OUT_TRUNC" "alpha beta gamma delta epsilon…"
 assert_not_contains "long rec tail is dropped" "$OUT_TRUNC" "omicron pi"
+
+# --- RECOMMENDED preview: 0 = full (no truncation) ---------------------------
+OUT_FULL="$(bash "$BRIEF" --now "$NOW" --rec-maxlen 0 \
+  --counts-json "$TMP/counts.json" \
+  --pr-json "$TMP/empty.json" \
+  --decisions-json "$TMP/decisions.json" \
+  --telemetry-json "$TMP/empty.json" 2>&1)"
+assert_contains "rec-maxlen 0 keeps the full tail untruncated" "$OUT_FULL" "omicron pi"
+assert_not_contains "rec-maxlen 0 never inserts an ellipsis" "$OUT_FULL" "…"
+
+# --- Telemetry: non-empty array with no lane-tagged comments (any=0) ---------
+OUT_NO_LANES="$(bash "$BRIEF" --now "$NOW" \
+  --counts-json "$TMP/counts.json" \
+  --pr-json "$TMP/empty.json" \
+  --decisions-json "$TMP/empty.json" \
+  --telemetry-json "$TMP/telemetry-no-lanes.json" 2>&1)"
+assert_contains "telemetry with no lane-tagged comments reports none found" "$OUT_NO_LANES" "(no per-lane comments found on the telemetry issue)"
 
 # --- Graceful: no telemetry issue found --------------------------------------
 printf 'null\n' >"$TMP/no-telemetry.json"

@@ -1,6 +1,6 @@
 ---
 name: setup
-description: "Verify claude-config's external CLI prerequisites for this repository — jq (all audit scripts) and curl (the plugin-drift check) — so the audit skills run instead of failing. Use when: 'set up claude-config', 'configure claude-config', 'is claude-config working', or an audit skill reported a missing prerequisite. Actions: check (read-only verification, default) | apply (resolve what check found). Re-runnable and safe."
+description: "Verify claude-config's external CLI prerequisites for this repository — jq (the JSON-parsing audit scripts) and curl (the plugin-drift check) — so the audit skills run instead of failing. Use when: 'set up claude-config', 'configure claude-config', 'is claude-config working', or an audit skill reported a missing prerequisite. Actions: check (read-only verification, default) | apply (resolve what check found). Re-runnable and safe."
 argument-hint: "check | apply"
 user-invocable: true
 disable-model-invocation: true
@@ -26,12 +26,14 @@ table with one remediation line per FAIL. Do not modify anything. The runtime sc
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/check-structure.sh` and `fix-plugin-drift.sh` — jq
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit-automation-gaps/scripts/inventory.sh` — jq
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-grants/scripts/permission-rule-check.sh` — jq
+- `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.sh` — grep only (POSIX; no jq)
 
-1. **`jq`** — `command -v jq`. FAIL if absent: every audit script needs it (`inventory.sh` degrades to
-   an empty inventory; the others `exit 2` with an install remediation). Missing `jq` blocks all three
-   skills.
+1. **`jq`** — `command -v jq`. FAIL if absent: the JSON-parsing scripts need it (`inventory.sh` degrades
+   to an empty inventory; the others `exit 2` with an install remediation). Missing `jq` blocks the three
+   JSON-parsing audit skills (`audit`, `audit-automation-gaps`, `audit-permission-grants`);
+   `audit-instructions` scans markdown with grep only and is unaffected.
 2. **`curl`** — `command -v curl`. FAIL if absent, but scoped: only the plugin-drift check
-   (`check-plugin-drift.sh`) uses it and `exit 2`s without it. The rest of `audit` and the other two
+   (`check-plugin-drift.sh`) uses it and `exit 2`s without it. The rest of `audit` and the other three
    skills still run — say so in the remediation line.
 3. **Bash shell** — INFO: the scripts are bash (arrays, `[[ ]]`, process substitution, `BASH_SOURCE`),
    run through Claude Code's Bash tool — the bash shell on every platform, Git Bash on native Windows.
@@ -56,8 +58,8 @@ reports "already configured".
 
 ## What this skill does NOT do
 
-- Run an audit — that is `/claude-config:audit`, `/claude-config:audit-automation-gaps`, and
-  `/claude-config:audit-permission-grants`.
+- Run an audit — that is `/claude-config:audit`, `/claude-config:audit-automation-gaps`,
+  `/claude-config:audit-permission-grants`, and `/claude-config:audit-instructions`.
 - Install system packages, write Claude Code settings or `pluginConfigs`, or touch the plugin cache.
 - Download anything — `check` makes no network call; the audit skills' own doc/marketplace fetches are
   theirs, not setup's.

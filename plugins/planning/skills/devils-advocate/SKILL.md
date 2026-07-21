@@ -106,6 +106,8 @@ Present findings:
 | 1 | `transcript_path` in stdin | YES | Official docs confirm base field | None — assumption holds |
 | 2 | `if` field fires under skip-perms | NO | silently no-ops (known issue) | CRITICAL — use explicit guards |
 
+**Incumbency-only support fails this check.** An assumption whose *only* backing is that the status quo already relies on the thing — "we already use X", with no requirement, benchmark, or doc behind the original choice — is unverified by definition (per Purpose: incumbency is evidence of what is, never proof it still fits). It flows to a Round 3 finding whose **Mitigation names the follow-up**: `/planning:devils-advocate incumbent <target>` — the Alternatives Sweep on that incumbent. Suggest it; never auto-run it — scope stays one mode per invocation. An assumption *also* backed by a requirement, benchmark, or doc is verified on that evidence and does not trigger this.
+
 ### Round 3: Failure Scenarios and Mitigations
 
 For each unverified or partially verified assumption, propose:
@@ -205,6 +207,7 @@ Based on findings, suggest relevant follow-up actions:
 
 - Verifying the changes end-to-end (`/verification:confirm` if installed) if code changes were involved
 - Targeted research rounds (`/discovery:research` if installed, or the strongest research capability available) if critical assumptions remain unverified
+- Running the Alternatives Sweep on any incumbent a Round 2 finding flagged as supported only by incumbency — the finding's Mitigation already names the invocation
 - Filing deferred research or monitoring items in the project's work-item tracker (`/work-items:track` if installed)
 
 ## What This Skill Does NOT Do

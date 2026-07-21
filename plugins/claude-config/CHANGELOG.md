@@ -3,6 +3,41 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.0]
+
+### Added
+
+- **`audit-instructions` skill** (`/claude-config:audit-instructions`). A read-only audit of the
+  locally-owned Claude Code instruction surfaces — user + project `CLAUDE.md`, `.claude/rules`,
+  skill bodies, agent definitions, prompt-type hooks, output styles — for instructions current
+  models no longer need: prior-model workarounds, over-prescriptive scaffolding, bare prohibitions,
+  reasoning-echo directives, and approach-pinning example blocks. It ships an eleven-check catalog
+  (`reference/criteria.md`) cited to current official prompting doctrine, tiers every finding
+  mechanical vs behavioral, and packages proposed removals/rewrites as human-gated diffs — never
+  auto-applied. An advisory grep-only scanner (`scripts/instruction-scan.sh`) seeds the mechanical
+  tier. It partitions with `claude-memory`'s `audit` skill: on memory-layer surfaces it runs only
+  the model-era checks and routes hygiene findings there; on non-memory surfaces the full catalog
+  applies. Upstream-owned plugin-cache and managed-materialization findings route to the owning
+  repository rather than being edited in place.
+
+### Fixed
+
+- Corrected stale `claude-memory` skill-name references (`health` → its current name `audit`)
+  across the plugin's skills and README — the `audit`, `audit-automation-gaps`, and
+  `audit-permission-grants` route-out notes and the README's instruction-layer and migration
+  sections. The `claude-memory` memory-layer skill was renamed `health` → `audit`; the old
+  `/claude-memory:health` invocation no longer resolves.
+
+### Removed
+
+- **`audit-model-fit` skill superseded by `audit-instructions`.** Both audits answer the same
+  question — locally-owned instruction surfaces vs current model capability — and repo doctrine
+  admits only one skill per question. `audit-instructions` carries the fuller catalog (eleven checks
+  I1–I11 with authority tags and evidence tiers), the `claude-memory` hygiene partition, and the
+  adversarial fresh-context verify pass, so it strictly covers `audit-model-fit`'s four checks and
+  supersedes it. Both were built concurrently from the same underlying issue (#800); `audit-model-fit`
+  (added in 0.8.0 below) is removed here.
+
 ## [0.8.1]
 
 ### Changed

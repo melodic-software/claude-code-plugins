@@ -45,7 +45,7 @@
     },
     "opt-in": {
       "type": "string",
-      "description": "The config file or condition whose presence signals the repo uses this toolchain (e.g. 'biome.json'). Informational for resolvers deciding applicability."
+      "description": "A condition resolvers evaluate to decide whether to run this ecosystem's lint phase — either a single condition governing the whole check-cmd (e.g. 'a ruff config (ruff.toml, .ruff.toml, or pyproject.toml [tool.ruff])'), or a multi-clause value where each clause names a sub-tool and its own condition (e.g. 'shellcheck always applies to shell files; shfmt only when .editorconfig declares shell style'). Unmet -> resolvers report a visible skip rather than silently omitting the ecosystem, and never impose the tool's built-in defaults on a repo that hasn't configured it."
     },
     "install-hint": {
       "type": "string",
