@@ -89,7 +89,7 @@ Work items:
    label (skip everything else, including unlabeled), dispatch, exit clean on empty queue
    (no-work run = valid fire). Failure path files a human-gated tracker item.
 3. **`dispatch-item.sh` rework**: PR-flow WITHOUT merge (open PR, stop); `--model sonnet
-   --max-turns <N>` + wrapper timeout kill (per-run mechanical bound); per-run
+   --max-budget-usd <USD>` + wrapper timeout kill (per-run mechanical bound); per-run
    `--session-id`; drain-lease TTL ~2h; merge SHA recorded later by the join from GitHub
    events (human merge), not by the run.
 4. **Evidence sources into the join**: work_class stamp (from the label, governance-sourced)
@@ -187,7 +187,7 @@ Devils-advocate pass 2026-07-21 (fresh-context): 4 CRITICAL / 4 HIGH / 5 MEDIUM 
 all folded. Load-bearing reversals: human-merge during accumulation (kills evidence
 circularity + step-skip), real CI gate with API-read outcomes (kills self-reported pass),
 native worktree toggle (kills live-checkout collision), governance-sourced C2 label as the
-only claim key (kills agent-writable classification), Sonnet + max-turns on the inner
+only claim key (kills agent-writable classification), Sonnet + max-budget-usd on the inner
 invocation (kills the Opus hardcode leak + unbounded runs), availability trio restored
 (autostart, missed-fire detector, reboot survival), durable tracker-item failure signal,
 nightly evidence backup, per-run session-id + 2h drain lease TTL, predicate filtered to
