@@ -44,7 +44,9 @@ states a self-scrutiny / verify-before-acting discipline in its own `CLAUDE.md` 
 This corrector runs the shared re-anchor / audit / correct-forward loop with two
 specific modifications, both flagged here rather than left to diverge silently:
 
-1. **Stop first.** Before the audit, halt the current trajectory. The failure mode
+1. **Stop first.** An inserted step between the loop's step 1 and step 2:
+   re-anchoring happens on skill load as always, then the current trajectory
+   halts before the audit runs. The failure mode
    this addresses is over-confident forward momentum, so the first move is to take
    the foot off the gas — do not push the in-flight action one step further before
    the re-examination has run. No other corrector prepends a stop; this one does,

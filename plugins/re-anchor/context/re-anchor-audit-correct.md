@@ -61,10 +61,12 @@ Run these in order. Skip a step only when its input is genuinely absent
 
 ## Declared step deltas
 
-A corrector may modify a step of this loop when the discipline it
-re-anchors demands it — but only as a **declared delta**: stated in that
-skill's own `SKILL.md` alongside the reason, so the divergence is part of
-the skill's contract rather than silent drift from this method. A skill
+A corrector may modify, insert, or reorder a step of this loop when the
+discipline it re-anchors demands it — but only as a **declared delta**:
+stated in that skill's own `SKILL.md` alongside the reason and, for an
+inserted step, where it sits relative to the numbered steps, so the
+divergence is part of the skill's contract rather than silent drift from
+this method. A skill
 that diverges without declaring the delta is in violation of this doc, not
 exercising this allowance. The Non-negotiables below are never
 overridable.
