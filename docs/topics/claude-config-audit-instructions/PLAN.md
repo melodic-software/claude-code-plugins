@@ -259,7 +259,7 @@ inventory.
 **Sanity Check:** `bash plugins/claude-config/skills/audit-instructions/scripts/instruction-scan.test.sh`
 exits 0; `bash …/instruction-scan.sh --count <fixture>` prints an integer and exits 0.
 
-### Phase 4: Evals [TODO]
+### Phase 4: Evals [DONE]
 
 Create `evals/evals.json` (schema `plugins/skill-quality/reference/evals.schema.json`): cases —
 (1) bare invocation stays read-only (expectations: no Edit/Write of audited files, report
@@ -272,7 +272,7 @@ plugins/skill-quality/reference/evals.schema.json
 plugins/claude-config/skills/audit-instructions/evals/evals.json` exits 0 — the Python tool
 CI uses (`check-jsonschema` is NOT an npm package; prior session verified npx form fails).
 
-### Phase 5: Plugin integration [TODO]
+### Phase 5: Plugin integration [DOING]
 
 - `plugins/claude-config/.claude-plugin/plugin.json`: version → 0.8.0; description string
   extended to four skills.
