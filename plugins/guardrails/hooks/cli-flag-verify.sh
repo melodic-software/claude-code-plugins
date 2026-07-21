@@ -59,6 +59,22 @@ case "$FILE" in
 *) exit 0 ;;
 esac
 
+# Diff-scope: verify only the content THIS tool call wrote, never re-read the
+# whole file from disk. An Edit's pre-existing lines outside the changed hunk are
+# not this call's claims; scanning the whole file re-flags an unknown flag on
+# every later unrelated edit. Edit -> the changed hunk (new_string); Write -> the
+# full payload content (a PostToolUse Write payload cannot distinguish a new file
+# from an overwrite, so "whole-file only for new files" degrades to whole-content
+# here — still the payload, never disk). The live matcher is Write|Edit; any
+# other tool carries nothing this call wrote that we can scope a scan to.
+TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null | tr -d '\r')
+case "$TOOL" in
+Edit) SCAN_CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.new_string // empty' 2>/dev/null | tr -d '\r') ;;
+Write) SCAN_CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.content // empty' 2>/dev/null | tr -d '\r') ;;
+*) exit 0 ;;
+esac
+[[ -n "$SCAN_CONTENT" ]] || exit 0
+
 [[ -x "$VERIFIER" ]] || exit 0 # Verifier not present — fail open, don't block
 
 # Repo root for telemetry data.file + relative sink resolution (file-anchored).
@@ -93,30 +109,36 @@ is_skipped() {
   return 1
 }
 
-# Emit candidate command fragments (one per line) from the file.
+# Emit candidate command fragments (one per line) from the scanned payload
+# content ($SCAN_CONTENT — the changed hunk for Edit, full content for Write).
 #   - Markdown: scan CODE only — inline-code spans (one combined grep, then
 #     strip the delimiting backticks) + fenced code-block bodies. Fenced content
 #     carries no inline backticks, so the inline grep naturally excludes it.
 #   - Shell/PowerShell: every line is code.
+# Fence state is derived from the hunk alone, so a fence-straddling markdown edit
+# can mis-classify in EITHER direction (a hunk inside a block whose ``` markers
+# fall outside it reads as prose and is under-scanned; a hunk that opens with a
+# closing ``` can over-scan). The convention trades this whole-file context away
+# for diff-scope precision; the residual is accepted, not reconstructed.
 emit_fragments() {
   if [[ "$IS_MD" == "true" ]]; then
     # Inline-code spans (strip the delimiting backticks).
     # shellcheck disable=SC2016  # backticks are literal ERE/sed data, not expansions
-    grep -oE '`[^`]+`' "$FILE" 2>/dev/null | sed -E 's/^`+//; s/`+$//'
+    printf '%s' "$SCAN_CONTENT" | grep -oE '`[^`]+`' 2>/dev/null | sed -E 's/^`+//; s/`+$//'
     # Fenced code-block bodies, skipping in-fence comment lines (a backtick-
     # wrapped example inside a `#` comment would otherwise split into a segment).
-    awk '
+    printf '%s' "$SCAN_CONTENT" | awk '
       /^[[:space:]]*```/ { f = !f; next }
       /^[[:space:]]*~~~/ { f = !f; next }
       f && $0 !~ /^[[:space:]]*#/ { print }
-    ' "$FILE" 2>/dev/null
+    ' 2>/dev/null
   else
     # Shell/PowerShell: every non-comment line is code. Drop full-line comments
     # BEFORE separator-splitting — otherwise a backtick-wrapped CLI example in a
     # comment is split on its backticks into a spurious bin-led command segment
     # (the comment's leading `#` lands in a different segment). `|| true`: grep
     # exits 1 when every line is a comment.
-    grep -vE '^[[:space:]]*#' "$FILE" 2>/dev/null || true
+    printf '%s' "$SCAN_CONTENT" | grep -vE '^[[:space:]]*#' 2>/dev/null || true
   fi
 }
 

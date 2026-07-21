@@ -46,6 +46,11 @@ chmod +x "$FAKE_BIN_DIR/faketool"
 
 # run_fake: invoke the hook with faketool as the only scanned bin and an
 # isolated per-case verifier cache so a stale 24h --help cache never leaks.
+# Models a Write: the content goes into the payload's `content` (what the hook
+# now scans) AND to disk (so the file existence + extension checks pass). Keeping
+# disk == payload means the pre-fix hook — which read the file — scans the same
+# bytes, so this conversion is behavior-preserving and every existing case stays
+# green across the diff-scope fix.
 run_fake() {
   local content="$1" ext="${2:-sh}"
   local case_dir="$TEST_TMPDIR/fake-$((PASS + FAIL + 1))"
@@ -56,7 +61,24 @@ run_fake() {
     CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS=faketool \
     LOCALAPPDATA="$case_dir/cache" \
     XDG_CACHE_HOME="$case_dir/cache" \
-    bash "$HOOK" <<<"$(MSYS_NO_PATHCONV=1 jq -n --arg fp "$target" '{tool_input:{file_path:$fp}}')" 2>&1
+    bash "$HOOK" <<<"$(MSYS_NO_PATHCONV=1 jq -n --arg fp "$target" --arg c "$content" '{tool_name:"Write",tool_input:{file_path:$fp,content:$c}}')" 2>&1
+}
+
+# run_edit <disk-body> <new-hunk> [ext]: models an Edit — the file on disk
+# carries <disk-body> (pre-existing lines), the payload's new_string is the
+# changed hunk. The hook must scan ONLY the hunk, never the disk body. Isolates
+# the diff-scope contract: disk and payload deliberately differ.
+run_edit() {
+  local disk="$1" hunk="$2" ext="${3:-sh}"
+  local case_dir="$TEST_TMPDIR/edit-$((PASS + FAIL + 1))"
+  mkdir -p "$case_dir/cache"
+  local target="$case_dir/target.$ext"
+  printf '%s\n' "$disk" >"$target"
+  PATH="$FAKE_BIN_DIR:$PATH" \
+    CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS=faketool \
+    LOCALAPPDATA="$case_dir/cache" \
+    XDG_CACHE_HOME="$case_dir/cache" \
+    bash "$HOOK" <<<"$(MSYS_NO_PATHCONV=1 jq -n --arg fp "$target" --arg s "$hunk" '{tool_name:"Edit",tool_input:{file_path:$fp,new_string:$s}}')" 2>&1
 }
 
 OUT=$(run_fake 'faketool sub --real'); RC=$?
@@ -122,11 +144,25 @@ assert_exit "--version universally skipped → exit 0" 0 "$RC"
 OUT=$(run_fake 'faketool sub --fake' cs); RC=$?
 assert_exit "non-target ext (.cs) → exit 0" 0 "$RC"
 
+# ======================= DIFF-SCOPE (edit hunk only) =======================
+# An Edit must verify only its changed hunk, never the whole file on disk. Repro
+# shape: a file already carrying an unknown flag, edited elsewhere with a clean
+# hunk, must stay quiet — the pre-fix whole-file scan re-flagged the untouched
+# line on every unrelated edit.
+OUT=$(run_edit 'faketool sub --fake' 'faketool sub --real'); RC=$?
+assert_exit "diff-scope: unknown flag on disk, clean hunk → exit 0" 0 "$RC"
+assert_silent "diff-scope: pre-existing flag outside the hunk not re-flagged" "$OUT"
+
+# Counterpart MUST-fire: an unknown flag introduced BY the edit's hunk fires.
+OUT=$(run_edit 'faketool sub --real' 'faketool sub --fake'); RC=$?
+assert_exit "diff-scope: unknown flag in the hunk → exit 0" 0 "$RC"
+ctx_contains "diff-scope: hunk flag reported" "$OUT" "UNKNOWN_FLAG: faketool sub --fake"
+
 # Kill switch — disabled path is a clean no-op despite a hallucinated flag.
 dis_dir="$TEST_TMPDIR/fake-disabled"
 mkdir -p "$dis_dir/cache"
 printf 'faketool sub --fake\n' >"$dis_dir/target.sh"
-dis_input=$(MSYS_NO_PATHCONV=1 jq -n --arg fp "$dis_dir/target.sh" '{tool_input:{file_path:$fp}}')
+dis_input=$(MSYS_NO_PATHCONV=1 jq -n --arg fp "$dis_dir/target.sh" --arg c 'faketool sub --fake' '{tool_name:"Write",tool_input:{file_path:$fp,content:$c}}')
 OUT=$(PATH="$FAKE_BIN_DIR:$PATH" CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS=faketool \
   LOCALAPPDATA="$dis_dir/cache" XDG_CACHE_HOME="$dis_dir/cache" \
   CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_ENABLED=false bash "$HOOK" <<<"$dis_input" 2>&1); RC=$?
@@ -155,7 +191,7 @@ SINK="$(make_sink "cat >\"$TEL\"")"
 tel_dir="$TEST_TMPDIR/fake-tel"
 mkdir -p "$tel_dir/cache"
 printf 'faketool sub --fake\n' >"$tel_dir/target.sh"
-tel_input=$(MSYS_NO_PATHCONV=1 jq -n --arg fp "$tel_dir/target.sh" '{tool_input:{file_path:$fp}}')
+tel_input=$(MSYS_NO_PATHCONV=1 jq -n --arg fp "$tel_dir/target.sh" --arg c 'faketool sub --fake' '{tool_name:"Write",tool_input:{file_path:$fp,content:$c}}')
 PATH="$FAKE_BIN_DIR:$PATH" CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS=faketool \
   LOCALAPPDATA="$tel_dir/cache" XDG_CACHE_HOME="$tel_dir/cache" \
   HOOK_TELEMETRY_SINK="$SINK" bash "$HOOK" <<<"$tel_input" >/dev/null 2>&1 || true
