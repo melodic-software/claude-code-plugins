@@ -120,6 +120,19 @@
         "Prefers enabling the OS mechanism over manual cleanup of the OS-owned zone",
         "Still performs the read-only audit and never treats the advisory as deletion authority"
       ]
+    },
+    {
+      "id": 11,
+      "name": "home-root-unhinted-session-files-enter-triage",
+      "prompt": "/disk-hygiene:clean C:\\Users\\me — the bounded snapshot has tmp_comment_hygiene/, five melo-lap-001-*.json files, and org_usage.json as direct children; only the tmp directory has a baseline hint.",
+      "expected_output": "Accounts for all seven direct children. The hinted tmp directory and all six unhinted JSON files enter ownership triage and appear in the report at least as Low unless evidence establishes a recognized owner or durable work-product purpose.",
+      "files": [],
+      "expectations": [
+        "Does not use an empty hints list to exclude the six root-level JSON files",
+        "Reports each of the seven exact entries rather than summarizing only the hinted directory",
+        "Investigates provenance and ownership before raising confidence or offering any cleanup",
+        "Does not invent a tool-specific melo-lap/org_usage or broad *.json baseline hint"
+      ]
     }
   ]
 }

@@ -3,6 +3,16 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.2]
+
+### Fixed
+
+- **Home-root audits now triage unhinted loose entries.** An empty `hints` list no longer leaves
+  "suspicious" undefined: the clean skill accounts for every unprotected direct child in a bounded
+  user-home snapshot and sends entries without a recognized configuration, managed-state owner, or
+  user-work-product purpose through ownership triage. This surfaces session status snapshots and
+  one-off exports without adding tool-specific or unsafe broad `*.json` filename hints.
+
 ## [0.4.1]
 
 ### Fixed

@@ -86,6 +86,13 @@ rule below.
 
 ## 2. Establish evidence and ownership
 
+An empty `hints` list never excludes an entry from review. For a user-home target, account for every
+unprotected direct child in the bounded root snapshot. Treat a loose root-level file or directory as
+suspicious when it has no recognized shell/system/application configuration convention, managed-state
+owner, or user-work-product purpose. Put each such entry into ownership triage and report it at least
+as Low until provenance resolves it; do not require a filename hint. This positional rule catches
+session status snapshots and one-off exports without unsafe tool-specific or broad `*.json` globs.
+
 For each hinted or suspicious entry, inspect enough neighboring content and metadata to answer:
 
 1. What created it? Prefer a manifest, log, documented naming contract, sibling structure, or owning
