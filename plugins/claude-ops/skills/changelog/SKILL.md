@@ -29,11 +29,9 @@ Three ways to provide changelog content (priority order):
 
 ## Version awareness
 
-On every `apply` or `diff` invocation, check the active terminal's CC version:
+On every `apply` or `diff` invocation, compare the target version against the active terminal's CC version, captured at load:
 
-```bash
-claude --version 2>/dev/null
-```
+- Installed CC version: !`claude --version || echo "(CC version unavailable)"`
 
 - If target version > installed version: **warn user** — "You're applying v2.1.152 changes but running v2.1.150. Update CC first (`claude update`) or changes may reference features not yet available in your session."
 - If target version = installed version: proceed normally

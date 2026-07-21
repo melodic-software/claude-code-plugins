@@ -3,6 +3,20 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.3]
+
+### Changed
+
+- **`changelog` skill — installed CC version is now precomputed via `!`
+  dynamic-context injection.** The version-awareness step previously told Claude
+  to run `claude --version` as a body instruction (a per-invocation tool
+  round-trip); it now inlines the probe at load time with
+  `` !`claude --version || echo "(CC version unavailable)"` ``. The probe is
+  deterministic and read-only, carries the mandated `|| echo` defensive
+  fallback, and drops the bash-only `2>/dev/null` redirect so the command and
+  its fallback stay valid on both the bash default and the Windows PowerShell
+  host. No behavior change.
+
 ## [0.15.2]
 
 ### Changed
