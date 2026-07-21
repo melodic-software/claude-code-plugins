@@ -25,9 +25,11 @@ only after that version increases.
   `.work/<watch-epic>/<video-slug>/` work *root* but not that sub-path's
   *shape* — a corpus consumer whose own convention differs (e.g.
   `sources/<type>/<slug>/`) does not get that shape today. Separately, raw
-  video, bulk frames, and contact sheets stay OS-temp-only by design; a
-  consumer that wants them retained as a durable, re-runnable substrate does
-  not get that today either. Both are called out as tracked follow-ups rather
+  video, bulk frames, and working contact sheets stay OS-temp-only by design
+  (contact sheets do get a gitignored, slice-local disaster-recovery snapshot
+  at `key-frames/contact-sheets/`, but that is not committed durable
+  retention); a consumer that wants these retained as a committed,
+  re-runnable substrate does not get that today either. Both are called out as tracked follow-ups rather
   than an unstated limitation a consumer discovers by hand. Doc-only; no
   pipeline behavior changes.
 

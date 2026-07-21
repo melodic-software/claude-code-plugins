@@ -16,7 +16,7 @@ ImageMagick: !`magick -version 2>/dev/null | head -1 || echo "MISSING — instal
 
 # YouTube
 
-Absorb a single public YouTube video (transcript + visual frames), harvest reference links, fact-check claims through deeper external research, and produce a prioritized repo-applicability menu. Video download, bulk frames, contact sheets, and shallow git clones use the OS temp directory — durable artifacts live under `.work/<watch-epic>/<video-slug>/` per the video-digest slice convention. That temp-only handling is a fixed, non-configurable part of this contract: a consumer that wants the source video, bulk frames, or contact sheets retained as a durable, re-runnable substrate (rather than regenerable temp state) does not get that from this skill today — a documented, LFS-aware retention path is a tracked follow-up, not yet built.
+Absorb a single public YouTube video (transcript + visual frames), harvest reference links, fact-check claims through deeper external research, and produce a prioritized repo-applicability menu. Video download, bulk frames, working contact sheets, and shallow git clones use the OS temp directory — durable artifacts live under `.work/<watch-epic>/<video-slug>/` per the video-digest slice convention. One contact-sheet exception: `snapshot-bootstrap.js` copies the sheets into the slice at `key-frames/contact-sheets/*.jpg` as a **local disaster-recovery snapshot** — durable on disk (it survives `tempSession` cleanup, so recovering the sheets does not require re-running acquisition) but gitignored, so it is never committed (see the Output contract). That temp-only handling is otherwise a fixed, non-configurable part of this contract: a consumer that wants the source video, bulk frames, or contact sheets retained as a **committed**, re-runnable substrate (rather than regenerable temp state or a gitignored local snapshot) does not get that from this skill today — a documented, LFS-aware retention path is a tracked follow-up, not yet built.
 
 Where this skill says "deeper research," use whatever external-research capability your project provides — for example the discovery plugin's `/discovery:research` / `/discovery:research-deep` when installed. Treat those as the reference implementation, not a hard dependency.
 
@@ -196,7 +196,7 @@ Runs acquire (retry + throttle) → transcript → dynamic coverage watching →
 - `.work/<watch-epic>/<video-slug>/source/harvested-links.json`
 - `.work/<watch-epic>/<video-slug>/run-state/continuation-prompt.md`
 
-Bulk frames and contact sheets stay in `tempSession` dirs. Re-run `run-watch.js` when temp expired. `highVolume: true` in output → fan out vision subagents; no hard frame cap.
+Bulk frames and working contact sheets stay in `tempSession` dirs (the sheets are additionally snapshotted to `key-frames/contact-sheets/` for local disaster recovery — see the Output contract); re-run `run-watch.js` to regenerate bulk frames when temp expired. `highVolume: true` in output → fan out vision subagents; no hard frame cap.
 
 ### Prerequisites gate (watch / resume)
 
