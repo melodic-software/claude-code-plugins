@@ -9,6 +9,9 @@
 #
 # Param order: subject (haystack/actual) BEFORE expected (needle), except
 # assert_eq / assert_exit which take (label, expected, actual).
+#
+# Duplicated across plugins by design, not drift — see
+# docs/conventions/shell-test-helpers/README.md at the repo root.
 
 [[ -n "${_TESTS_LIB_LOADED:-}" ]] && return 0
 readonly _TESTS_LIB_LOADED=1

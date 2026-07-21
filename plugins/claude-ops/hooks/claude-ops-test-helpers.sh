@@ -3,6 +3,9 @@
 # Sourced (never *.test.sh-named, so the test runner's glob ignores it) by each
 # hook's *.test.sh after that file sets up its own TEST_TMPDIR + trap. No
 # dependency on any host-repo assertion library — the plugin is standalone.
+#
+# Duplicated across plugins by design, not drift — see
+# docs/conventions/shell-test-helpers/README.md at the repo root.
 
 : "${PASS:=0}"
 : "${FAIL:=0}"
