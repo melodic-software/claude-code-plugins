@@ -699,6 +699,106 @@ else
   fail "|| echo fallback block should warn precompute (rc=$rc): $out"
 fi
 
+# 18j. A command-launching primary (`find -exec`) is not read-only — it runs an
+#      arbitrary command — so a block using it is not a candidate.
+make_skill precompute-findexec '---
+name: precompute-findexec
+description: "Runs cleanup. Use when: '"'"'running find exec'"'"'."
+---
+
+## Steps
+
+```bash
+find . -name "*.tmp" -exec ./cleanup.sh {} +
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run precompute-findexec 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'precompute opportunity' <<<"$out"; then
+  pass "command-launching find -exec is not a precompute candidate"
+else
+  fail "find -exec block should not warn precompute (rc=$rc): $out"
+fi
+
+# 18k. A shell continuation after a read-only command (`&&`, `;`) chains a
+#      mutation, so the line fails closed.
+make_skill precompute-chain '---
+name: precompute-chain
+description: "Marks state. Use when: '"'"'chaining a marker'"'"'."
+---
+
+## Steps
+
+```bash
+git status --short && touch marker
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run precompute-chain 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'precompute opportunity' <<<"$out"; then
+  pass "shell continuation (&&) after a read-only command fails closed"
+else
+  fail "&& continuation block should not warn precompute (rc=$rc): $out"
+fi
+
+# 18l. A command substitution (`$(...)`) executes during expansion, so a line
+#      carrying one is not read-only.
+make_skill precompute-cmdsubst '---
+name: precompute-cmdsubst
+description: "Expands a subst. Use when: '"'"'expanding a substitution'"'"'."
+---
+
+## Steps
+
+```bash
+git status --short "$(touch marker)"
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run precompute-cmdsubst 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'precompute opportunity' <<<"$out"; then
+  pass "command substitution in the line fails closed"
+else
+  fail "command-substitution block should not warn precompute (rc=$rc): $out"
+fi
+
+# 18m. A file-output option on an allowlisted git reader (`git diff --output`)
+#      writes a file, bypassing the redirection guard, so it fails closed.
+make_skill precompute-gitoutput '---
+name: precompute-gitoutput
+description: "Writes a patch. Use when: '"'"'writing a patch file'"'"'."
+---
+
+## Steps
+
+```bash
+git diff --output=changes.patch
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run precompute-gitoutput 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'precompute opportunity' <<<"$out"; then
+  pass "file-output option on a git reader (--output) fails closed"
+else
+  fail "git diff --output block should not warn precompute (rc=$rc): $out"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1

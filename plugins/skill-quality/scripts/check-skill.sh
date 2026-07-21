@@ -406,38 +406,45 @@ fi
 # is deliberate — it suppresses per-block opportunities in a skill that already
 # precomputes something, an accepted recall limit for an advisory check.
 
-# Read-only context-gathering command line? A redirection disqualifies any line.
-# git and gh are matched by a read-only SUBCOMMAND allowlist (not wholesale) so
-# an unlisted mutation — `git clean`, `git stash`, `git branch -D`, `gh pr merge`
-# — is never mistaken for read-only; that keeps the miss on the safe side (a
-# missed opportunity, never advice to auto-run a mutation every invocation).
-# Pure readers are additionally screened for an embedded mutating token.
+# Read-only context-gathering command line? The design FAILS CLOSED: the
+# first-token check below only sees the head of the line, so any shell construct
+# that can hide a second command or a write disqualifies the line up front —
+# redirection (`>`/`<`), command/process substitution (`$(...)`, backticks),
+# backgrounding/chaining (`&`, `&&`, `;`), and a bare pipe (`| tee`) — as does a
+# side-effecting option that survives an allowlisted reader (`find -exec`,
+# `find -delete`, `git diff --output`). `|| echo` is the one sanctioned
+# continuation (our fallback form), so `||` is stripped before the pipe test.
+# git/gh are matched by a read-only subcommand/verb allowlist, never wholesale,
+# so an unlisted mutation (`git stash`, `gh pr merge`) is never read-only. Every
+# miss lands on the safe side — a missed opportunity, never advice to auto-run a
+# mutation at load time.
 precompute_readonly_line() {
   local line="$1"
   line="${line#"${line%%[![:space:]]*}"}"   # ltrim
   line="${line#\$ }"                          # strip a leading `$ ` prompt
+
+  # Shell metacharacters that can introduce a second command or a write. `<(`
+  # and `>(` process substitution are caught by the `<`/`>` tests.
   case "$line" in
-    *'>'*) return 1 ;; # redirection = write
+    *'>'* | *'<'* | *';'* | *'&'*) return 1 ;;
     *) ;;
   esac
-  # A pipe sink can mutate (`git status | tee f`, `... | xargs rm`); the
-  # first-token check below only sees the head of the pipeline, so disqualify
-  # any real pipe. A logical `||` — our recommended `|| echo` fallback form — is
-  # not a pipe, so strip it before testing.
+  # shellcheck disable=SC2016  # single quotes are deliberate: '$(' is a literal glob, not a shell expansion
+  case "$line" in *'$('*) return 1 ;; *) ;; esac   # $(...) command substitution
+  case "$line" in *'`'*) return 1 ;; *) ;; esac     # backtick command substitution
+  # A bare pipe chains into a possibly-mutating sink; `||` (our `|| echo`
+  # fallback form) is not a pipe, so strip it before the test.
   local no_or="${line//||/}"
-  case "$no_or" in
-    *'|'*) return 1 ;;
-    *) ;;
-  esac
+  case "$no_or" in *'|'*) return 1 ;; *) ;; esac
+
+  # Side-effecting options that survive the head-command allowlist: command- or
+  # file-writing find primaries, and a git reader's file-output flag.
+  # shellcheck disable=SC2016  # single quotes are deliberate: $ is an ERE end anchor, not a shell expansion
+  grep -qE '(^|[[:space:]])(-exec|-execdir|-ok|-okdir|-delete|-fprintf|-fprint|-fls|--output|rm|mv|cp|tee|sed|mkdir|touch)([[:space:]=]|$)' <<<"$line" && return 1
+
   local cmd="${line%%[[:space:]]*}"
   case "$cmd" in
-    ls | pwd | cat | find | date | uname | whoami | hostname | wc | head | tail | echo | printf | id | stat | du | df | basename | dirname | realpath | readlink | env | groups | tree | sw_vers)
-      # A pure reader can still mutate (`find -delete`, `cat ... | tee`): reject
-      # an embedded mutating token.
-      # shellcheck disable=SC2016  # single quotes are deliberate: $ is an ERE end anchor, not a shell expansion
-      grep -qE '(^|[[:space:]])(rm|mv|cp|tee|sed|mkdir|touch|delete|-delete)([[:space:]]|$)' <<<"$line" && return 1
-      return 0
-      ;;
+    ls | pwd | cat | find | date | uname | whoami | hostname | wc | head | tail | echo | printf | id | stat | du | df | basename | dirname | realpath | readlink | groups | tree | sw_vers) return 0 ;;
     git)
       local sub="${line#git}"
       sub="${sub#"${sub%%[![:space:]]*}"}"
