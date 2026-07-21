@@ -28,6 +28,15 @@ of each absorbing a private, drift-prone copy (`#540`).
   and the `scan-todos` "file a work item" branch each point at `reference/dogfood-filing.md` for the
   dedupe → categorize → fixed shape → `needs-triage` sequence instead of leaving it implicit.
 
+## [0.17.2]
+
+### Changed
+
+- Documentation-only: the License section now states the plugin's own MIT
+  license inline and no longer points at a `LICENSE` file at the repository
+  root, which an installed consumer running from the isolated plugin cache
+  cannot reach. No behavior change.
+
 ## [0.17.1]
 
 Paginate the github adapter's *open linked PRs* signal so the `/work-items:work` frontier filter

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "toolchain",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Repo-agnostic polyglot verification toolchain: build + test + lint for changed files across .NET, Python, TypeScript, Bash, PowerShell, Markdown, YAML, and cross-cutting surfaces (`/toolchain:check`, `/toolchain:lint`), plus a re-runnable `/toolchain:setup` with check (report the configured ecosystems and their command surface) and apply (interview, infer, and write the tracked per-ecosystem command config those skills resolve first).",
   "author": {
     "name": "Melodic Software",
