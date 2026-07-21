@@ -127,6 +127,7 @@ sub-topic plan.
 
 **Sanity Check:** (binding-specific — these checks pin the ratified proving-ground machine,
 `demo-local-session`; they move with the binding, not the concept)
+
 - `ls ~/.claude/scheduled-tasks/` lists the drain task's folder and its `SKILL.md` names the
   drain routine (native path), OR the documented fallback scheduler entry exists
   (`schtasks /query` match) with the fallback decision recorded in the sub-topic plan.
@@ -142,6 +143,7 @@ sub-topic plan.
 ### Phase II: Enforcement rail (#509 implementation) [TODO]
 
 ADR-0002-guarded ordering, three repos, ownership seams respected:
+
 0. Pre-flight consumer check (FIRST work item): enumerate every consumer of the ci-workflows
    reusable security workflow before reshaping it — org-wide
    `gh search code --owner melodic-software "uses: melodic-software/ci-workflows"` sweep;
@@ -158,6 +160,7 @@ ADR-0002-guarded ordering, three repos, ownership seams respected:
    opens; check context name from step 0 verified unchanged post-restructure.
 
 **Sanity Check:**
+
 - Step 0: consumer inventory + captured check context name recorded in the Phase II PR body.
 - Step 1: `gh pr checks` on a docs-only test PR in claude-code-plugins shows the security-pass
   check reporting Success with a not-applicable verdict (not Pending, not absent).

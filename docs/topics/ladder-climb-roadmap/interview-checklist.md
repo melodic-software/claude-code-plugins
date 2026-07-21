@@ -7,6 +7,7 @@ sec-verify); all surviving RECs locked. Five items await explicit operator answe
 ## Resolved (Round 1 + verification, 2026-07-21)
 
 ### A — #509 enforcement design (locked per verified REC)
+
 - [x] Q1 forcing mechanism = GitHub required status check + workflow-applied evidence label; no
       dedicated review loop. ATTRIBUTION: enforcement is the OPERATOR's mandate + consensus
       practice (OpenSSF Scorecard branch-protection; GitHub protected-branch docs; NIST
@@ -29,6 +30,7 @@ sec-verify); all surviving RECs locked. Five items await explicit operator answe
   (workflow always-report shape), claude-code-plugins (caller moves path filter to job level).
 
 ### B — proving-ground routine + evidence drain
+
 - [x] Q7 routine identity = hourly-drain of C2-classed items on autonomy-demo-scratch
       (binding-ratified surfaces; extends #352 dispatch seam).
 - [x] Q8 RULED (2026-07-21): direction locked = local scheduled headless run (Desktop
@@ -62,6 +64,7 @@ sec-verify); all surviving RECs locked. Five items await explicit operator answe
       plugin's contract-vs-org-binding shape is the template; roadmap items carry it.
 
 ### C — #607 batch (locked)
+
 - [x] Q12 folded members stay open + land #552 native sub-issues.
 - [x] Q13 close #280 as completed.
 - [x] Q14 fold additions into #552 review; ratify early high→medium flips retroactively.
@@ -70,10 +73,12 @@ sec-verify); all surviving RECs locked. Five items await explicit operator answe
 - [x] Q17 #524 confirmed ready.
 
 ### D
+
 - [x] Q18 RULED: promote #380–#382 (area:security) into the 7/26 set; rest of disk-hygiene
       stays C. (Label/gauge update = tower execution item.)
 
 ### E
+
 - [x] Q19 RULED + EXECUTED (2026-07-21): (a) #304 INCLUDED on roadmap (not parked) —
       trust-loop hardening, org-standard basis (Boris silent on fresh-eyes; recorded on
       #304); (b) underspecification DONE (acceptance criteria live in shipped planning
@@ -86,6 +91,7 @@ sec-verify); all surviving RECs locked. Five items await explicit operator answe
       github-lane coordination note; #554 pointer.)
 
 ### F — roadmap shape (locked)
+
 - [x] Q20 snowball criterion ratified: compounding builds outrank linear burn in every pick-order.
 - [x] Q21 github-plugin lane: finish phase 6–7, no new scope until ignition.
 - [x] Q22 A1/A2 burn = parallel fodder only.
