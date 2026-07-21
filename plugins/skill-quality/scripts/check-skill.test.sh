@@ -649,6 +649,56 @@ else
   fail "gh read-only block should warn precompute (rc=$rc): $out"
 fi
 
+# 18h. A read-only head piped into a mutating sink (`git status | tee f`) is NOT
+#      a candidate — the first token is read-only but the pipeline sink writes.
+make_skill precompute-pipesink '---
+name: precompute-pipesink
+description: "Snapshots the tree. Use when: '"'"'snapshotting the tree'"'"'."
+---
+
+## Steps
+
+```bash
+git status --short | tee snapshot.txt
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run precompute-pipesink 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'precompute opportunity' <<<"$out"; then
+  pass "read-only command piped into a mutating sink (| tee) is not a candidate"
+else
+  fail "piped mutation should not warn precompute (rc=$rc): $out"
+fi
+
+# 18i. A logical `|| echo` fallback (our recommended defensive form) is not a
+#      pipe, so a read-only block using it is still a candidate.
+make_skill precompute-orfallback '---
+name: precompute-orfallback
+description: "Reads status. Use when: '"'"'reading tree status'"'"'."
+---
+
+## Steps
+
+```bash
+git status --short || echo "(status unavailable)"
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run precompute-orfallback 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'precompute opportunity' <<<"$out"; then
+  pass "read-only command with a || echo fallback is still a candidate"
+else
+  fail "|| echo fallback block should warn precompute (rc=$rc): $out"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1

@@ -13,8 +13,9 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   preprocessing pass, no per-invocation tool round-trip). It is a heuristic, never a FAIL: it scans
   fenced shell blocks whose command lines are all read-only context-gatherers (pure-reader allowlist
   plus a read-only-subcommand allowlist for `git`/`gh`, so an unlisted mutation like `git stash` or
-  `gh pr merge` is never mistaken for read-only), and stays silent when the skill already uses any
-  `!` injection. A static scan cannot tell an instruction-to-run block from
+  `gh pr merge` is never mistaken for read-only; a redirection or a pipe into a mutating sink such as
+  `git status | tee f` also disqualifies the line, while the `|| echo` fallback form is preserved),
+  and stays silent when the skill already uses any `!` injection. A static scan cannot tell an instruction-to-run block from
   an illustrative example, so the WARN is a candidate to hand-verify, not a defect; it reads fenced
   blocks only (not prose) and under-reports by design. Points at the official
   `#inject-dynamic-context` docs rather than any other plugin, so it stays valid in any consumer repo.

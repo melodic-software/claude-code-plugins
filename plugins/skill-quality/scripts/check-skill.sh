@@ -420,6 +420,15 @@ precompute_readonly_line() {
     *'>'*) return 1 ;; # redirection = write
     *) ;;
   esac
+  # A pipe sink can mutate (`git status | tee f`, `... | xargs rm`); the
+  # first-token check below only sees the head of the pipeline, so disqualify
+  # any real pipe. A logical `||` — our recommended `|| echo` fallback form — is
+  # not a pipe, so strip it before testing.
+  local no_or="${line//||/}"
+  case "$no_or" in
+    *'|'*) return 1 ;;
+    *) ;;
+  esac
   local cmd="${line%%[[:space:]]*}"
   case "$cmd" in
     ls | pwd | cat | find | date | uname | whoami | hostname | wc | head | tail | echo | printf | id | stat | du | df | basename | dirname | realpath | readlink | env | groups | tree | sw_vers)
