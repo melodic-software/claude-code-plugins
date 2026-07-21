@@ -3,7 +3,7 @@
 A Claude Code plugin for repo-wide drift auditing: it verifies that a codebase's **factual claims** —
 in docs, config, code, and architecture notes — still match reality. Every claim is checked against
 ground truth via a parallel per-file subagent fan-out, findings are severity-rated, and the audit
-either fixes them or presents them for review.
+reports them read-only — remediation is delegated to the implementation/verification lanes.
 
 Distinct from diff/PR review (which judges a change) and from Claude Code configuration audits (which
 check `settings.json` / hooks / permissions): this plugin verifies whether the repo's own written
