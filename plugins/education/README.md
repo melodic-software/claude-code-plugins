@@ -37,8 +37,8 @@ verifies you absorbed a completed change.
   complete, it generates a self-contained HTML report of what was done (context,
   intuition, decisions) with a quiz at the bottom you answer — verifying that
   *you* absorbed the work, not just that the artifact is correct. It is
-  non-gating by default; the `quiz_policy` setting opts into offer cadences or
-  gating. Its `recall <query>` action answers "what did we do on `<ticket>`" from
+  non-gating by default; the `quiz_policy` setting tunes how often a quiz is
+  offered. Its `recall <query>` action answers "what did we do on `<ticket>`" from
   a retained report library first, git and tracker history second.
 - Supporting `teach` actions: `mission`, `glossary`, `resources`, `explain`,
   `exercise`, `assess`, `resume`, `status`.

@@ -11,9 +11,10 @@ All notable changes to the `education` plugin are documented here. Format follow
   check. After a change is complete it generates a self-contained HTML
   report of what was done (context, intuition, decisions) with a quiz at
   the bottom the user answers, verifying that the HUMAN absorbed the work
-  rather than the artifact. Non-gating by default; opt-in gating via the
-  new `quiz_policy` userConfig (`off`, `on-request`, `always`,
-  `above-threshold`). A `recall <query>` action answers "what did we do
+  rather than the artifact. Non-gating by default; the new `quiz_policy`
+  userConfig (`off`, `on-request`, `always`, `above-threshold`) tunes how
+  often a quiz is offered, never whether the merge is blocked. A
+  `recall <query>` action answers "what did we do
   on <ticket>" from a retained report library first, git/tracker
   archaeology second. Reports are keyed on repo identity and stored under
   `${CLAUDE_PLUGIN_DATA}` (or the new `report_library_dir` userConfig),

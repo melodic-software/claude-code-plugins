@@ -1,6 +1,6 @@
 ---
 name: quiz-me
-description: "Post-work comprehension check: after a change is complete, generate a self-contained HTML report of what was done (context, intuition, decisions) with a quiz at the bottom that you answer — verifying the HUMAN absorbed the work, not the artifact. Non-gating by default; opt-in gating via the quiz_policy userConfig. Also recalls prior work from the retained report library. Use when: 'quiz me', 'quiz me on this change', 'do I understand this change', 'comprehension check', 'a quiz at the bottom that I must pass', 'I want to make sure I understand everything that happened', 'what did we do on <ticket>'. Sibling to education:teach (multi-session coach) and education:explain (one-shot explainer); this verifies comprehension of COMPLETED WORK. Not artifact verification — that is verification:confirm (if installed)."
+description: "Post-work comprehension check: after a change is complete, generate a self-contained HTML report of what was done (context, intuition, decisions) with a quiz at the bottom that you answer — verifying the HUMAN absorbed the work, not the artifact. Non-gating by default; the quiz_policy userConfig tunes offer cadence. Also recalls prior work from the retained report library. Use when: 'quiz me', 'quiz me on this change', 'do I understand this change', 'comprehension check', 'a quiz at the bottom that I must pass', 'I want to make sure I understand everything that happened', 'what did we do on <ticket>'. Sibling to education:teach (multi-session coach) and education:explain (one-shot explainer); this verifies comprehension of COMPLETED WORK. Not artifact verification — that is verification:confirm (if installed)."
 argument-hint: "[recall <query>] (empty = quiz me on the change just completed)"
 user-invocable: true
 ---
@@ -171,6 +171,6 @@ here and in that consumer's own on-ramps, not by mutating a shared stage list.
   `/education:teach exercise` quiz the learner on LEARNING CONTENT inside a teach workspace.
   `/education:quiz-me`'s object is the COMPLETED WORK of a change, with no learning
   workspace. Namespacing keeps them distinct.
-- **Not a merge gate.** Non-gating by default — a failed quiz is a signal to resolve, not a
-  block. Gating is opt-in only through `quiz_policy`, and even then no report generates
-  without the user's confirmation.
+- **Not a merge gate.** A failed quiz is a signal to resolve, not a block — `quiz_policy`
+  only tunes how often a quiz is OFFERED, never whether the merge proceeds, and no report
+  generates without the user's confirmation.
