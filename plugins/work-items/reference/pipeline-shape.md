@@ -21,14 +21,18 @@ form. **If promoted to a skill, flag the naming collision** with `session-flow:o
 ## Principle — variation in depth, never in shape
 
 Every item traverses the **same** lanes in the same order. A trivial item and a sprawling one differ
-only in the **depth** each lane runs at — never in which lanes run. A lane is never skipped; it
-collapses (a dispatched fresh-context subagent → an inline lightweight check; N rounds → one) down to
-its minimum depth, but it always runs. Depth is the throughput lever; shape is invariant.
+only in the **depth** each lane runs at — never in which lanes run. A lane is never skipped; what
+collapses is its *realization* (a dispatched fresh-context subagent → an inline lightweight check →
+the consumer's own workflow step for that stage when no lane skill is installed; N rounds → one) down
+to its minimum, but the lane itself always runs. Depth is the throughput lever; shape is invariant.
 
 ## The lane catalog
 
 Each lane runs once per item, in this order. A lane is *composed from* the installed skill catalog —
-the skills named are the intended realization of each lane, not a re-specification of their contracts.
+the skills named are its reference realization (published as sibling plugins in this marketplace), not
+a re-specification of their contracts. `work-items` installs standalone and hard-depends on none of
+them: where a lane's skill is not installed, the lane is to degrade to the consumer's own workflow for
+that stage (the Step 5 anchor) rather than dead-end.
 
 | Lane | Composed from | What the lane owns |
 |---|---|---|
