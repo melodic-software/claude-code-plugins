@@ -58,6 +58,12 @@
       }
     },
     {
+      "name": "typos-format",
+      "source": "./plugins/typos-format",
+      "category": "development",
+      "tags": ["typos", "spelling", "formatter", "linter", "hook"]
+    },
+    {
       "name": "eol-normalizer",
       "displayName": "EOL Normalizer",
       "source": "./plugins/eol-normalizer",
