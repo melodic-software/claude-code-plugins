@@ -93,4 +93,7 @@ how an assistant shapes its output.
 
 ## License
 
-MIT — see the marketplace root `LICENSE`.
+MIT. Because this is a derivative reauthor, the plugin ships its own
+[`LICENSE`](LICENSE) retaining the upstream copyright notice (Ayoub Ghriss)
+alongside Melodic Software's, per the MIT requirement that the original
+copyright and permission notice travel with substantial portions of the work.
