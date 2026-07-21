@@ -34,7 +34,26 @@ wit_gh_require_seam_lib "$WIT_GH_ADAPTER_DIR/../../lib/lease.sh"
 # shellcheck source=../../lib/lease.sh
 source "$WIT_GH_ADAPTER_DIR/../../lib/lease.sh"
 
-readonly WIT_GH_BOT="$WIT_GH_ADAPTER_DIR/../../../github-auth/gh-bot.sh"
+# wit_gh_resolve_bot_wrapper — echo the bot wrapper path using consumer-local-first
+# resolution (CONTRACT.md "Identity routing (GitHub adapter)"), mirroring the
+# adapter two-root resolution (CONTRACT.md "Adapter resolution"): a consuming
+# repo's own wrapper at ${CLAUDE_PROJECT_DIR}/tools/github-auth/gh-bot.sh wins,
+# independent of where the adapter itself resolved from (a shadowed
+# consumer-local adapter must still find the consumer's wrapper, not miss it via
+# its own directory); otherwise the plugin-bundled path beside this adapter tree.
+wit_gh_resolve_bot_wrapper() {
+  if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
+    local consumer_wrapper="$CLAUDE_PROJECT_DIR/tools/github-auth/gh-bot.sh"
+    if [[ -f "$consumer_wrapper" ]]; then
+      printf '%s\n' "$consumer_wrapper"
+      return 0
+    fi
+  fi
+  printf '%s\n' "$WIT_GH_ADAPTER_DIR/../../../github-auth/gh-bot.sh"
+}
+
+WIT_GH_BOT="$(wit_gh_resolve_bot_wrapper)"
+readonly WIT_GH_BOT
 
 readonly EX_INTERNAL=1
 readonly EX_USAGE=2
