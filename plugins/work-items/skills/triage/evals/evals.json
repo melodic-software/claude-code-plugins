@@ -33,13 +33,13 @@
       "id": 3,
       "name": "triage-never-reprocesses-decompose-output",
       "prompt": "/work-items:triage 53 — #53 was created last week by /work-items:decompose from our approved PLAN.md",
-      "expected_output": "Declines to re-triage: items published by decompose are born triaged — classified, role-labeled, and briefed at creation — and never re-enter the intake flow. Explains that triage covers raw intake only (items the team did not author) and points at the item's existing role label/brief instead of re-running the state machine.",
+      "expected_output": "Declines to re-triage: items published by decompose are born triaged — classified, role-labeled, and briefed at creation, leaving no raw marker — and never re-enter the intake flow. Explains that triage covers raw intake only (untriaged items carrying the raw marker, regardless of authorship) and that the exclusion keys on absence of the raw marker, then points at the item's existing role label/brief instead of re-running the state machine.",
       "files": [],
       "expectations": [
         "Does NOT re-run the triage state machine on a decompose-published item — such items are born triaged (classified, role-labeled, briefed at creation)",
-        "States the exclusion rule: triage covers raw intake only — items the team did not author",
+        "States the exclusion rule: triage covers raw intake only — untriaged items carrying the raw marker; the exclusion keys on absence of the raw marker (born triaged), not authorship and not the mere presence of classification labels",
         "Performs no triage writes on the item — no label changes, no needs-info comment, no close",
-        "Notes the attention view excludes decompose output by construction (born-labeled items never land in the unlabeled or needs-triage buckets)"
+        "Notes the attention view excludes decompose output by construction — it carries a routing decision and no raw marker, so being neither unlabeled nor raw-marked it falls in none of the view's buckets"
       ]
     },
     {
