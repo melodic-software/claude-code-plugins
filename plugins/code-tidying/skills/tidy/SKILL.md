@@ -53,10 +53,15 @@ Parse `$ARGUMENTS` to determine the action:
 
 A lane is a discrete glob-scoped slice of the repo, defined in a lane file that specifies scope globs, watch-for tidyings, lane-specific exclusions, verification commands, default Conventional Commits type, and preferred research sources.
 
-**Lane resolution order — consumer lanes first.** A lane named `<lane>` resolves to:
+**Lane resolution — read both layers, merge per the lane's declared semantics.** A lane named `<lane>` has up to two layers:
 
 1. `${CLAUDE_PROJECT_DIR}/.claude/tidy-lanes/<lane>.md` — the consuming project's own lane definition, if present
 2. `${CLAUDE_PLUGIN_ROOT}/skills/tidy/lanes/<lane>.md` — the bundled generic lane
+
+When the project layer is absent, resolution is the bundled lane alone. When it is present, how the two layers combine is governed by the **project layer's own `## Merge semantics` section** (per the [consumer-config layering contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/consumer-config-layering/README.md)):
+
+- The project layer declares a `## Merge semantics` section → **read both layers and merge per that declaration** (typically: `Scope` and most sections per-section override, watch-for patterns additive). A section absent from the project layer keeps the bundled value; the bundled generic patterns are never frozen out. The bundled `docs-prose` lane declares this shape.
+- The project layer declares no such section → it resolves **project-only** (the bundled lane is not read). This is the legacy first-match path; lanes still on it are migrated one at a time.
 
 Lane files are project-specific **by design** — the bundled lanes cover surfaces that look the same in most repos, and the bundled templates scaffold the ones that don't. To define a project lane, copy the closest template from `${CLAUDE_PLUGIN_ROOT}/skills/tidy/templates/` into `.claude/tidy-lanes/<lane>.md` and fill in the scope globs and watch-for patterns for your stack. The catalog is the union of both locations — list `.claude/tidy-lanes/*.md` (if the directory exists) plus the bundled lanes when printing `help`.
 
@@ -86,7 +91,7 @@ Run in order. Each phase has one job. Don't skip phases for "small" tidyings —
 ### Phase A — Triage
 
 1. Resolve lane from `$ARGUMENTS` per Action Router. Empty arg → infer from current branch / recent commits / git status; if ambiguous, ask the user.
-2. Load the resolved lane file — read the full file. The lane file owns scope globs, watch-for list, lane-specific exclusions, verification commands, Conventional Commits type, and preferred research sources.
+2. Load the lane per **Lane resolution** above — read the full file(s). When a project lane declares `## Merge semantics`, read **both** the project and bundled layers and merge per that declaration (e.g. project `Scope` replaces bundled globs; project watch-for entries append to the bundled P-1..P-6); otherwise read the single resolved file. The resolved lane owns scope globs, watch-for list, lane-specific exclusions, verification commands, Conventional Commits type, and preferred research sources.
 3. Backlog throttle — if ≥3 open PRs match `chore/tidy-*` (see pre-computed context above), STOP. Surface a one-line note to the user and exit cleanly. Do NOT pile on.
 4. Find anchor commit: the most recent merged `chore/tidy-<lane>-` PR for this lane (or `git log --grep` if no merged PRs yet). The anchor establishes the "what's drifted since last sweep" baseline.
 

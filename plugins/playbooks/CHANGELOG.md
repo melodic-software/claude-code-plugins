@@ -17,6 +17,15 @@ only after that version increases.
   `!` failure semantics. Points at the official `#inject-dynamic-context` docs for syntax rather than
   restating it. The vendored `vendor/SKILL.md` baseline is untouched.
 
+## [0.2.1]
+
+### Changed
+
+- Documentation-only: the License section now states the plugin's own MIT
+  license inline and no longer points at a `LICENSE` file at the repository
+  root, which an installed consumer running from the isolated plugin cache
+  cannot reach. No behavior change.
+
 ## [0.2.0]
 
 ### Changed

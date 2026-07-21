@@ -44,16 +44,14 @@ done
 "$PY" "$PARSER" --sessions "${CLAUDE_CODE_SESSION_ID}" --base "$SESSION_DATA_DIR"
 
 # Multi-session form (handoff chain exists). Derive HANDOFF_DIR from the resolved
-# memory_dir — the concern file's memory_dir key, else the plugin default .work.
-# For the full resolution order (documented save-point locations, no-project-root
-# fallback) see the handoff skill's "Where handoffs live".
-MEMORY_DIR=.work
-if [[ -f .claude/topic-docs.yaml ]]; then
-  VAL=$(sed -n 's/^memory_dir:[[:space:]]*//p' .claude/topic-docs.yaml | head -1)
-  VAL="${VAL%%#*}"; VAL="${VAL%"${VAL##*[![:space:]]}"}"; VAL="${VAL%/}"
-  VAL="${VAL#\"}"; VAL="${VAL%\"}"; VAL="${VAL#\'}"; VAL="${VAL%\'}"
-  [[ -n "$VAL" ]] && MEMORY_DIR="$VAL"
-fi
+# memory_dir via the shared parser (quote-aware, comment-safe). Resolution:
+# concern-file memory_dir key -> a save-point convention you inferred from
+# CLAUDE.md / .claude/rules (rung 2 — pass it as DECLARED_SAVEPOINT; prose is an
+# inference source, not a machine key) -> the plugin default .work. For the full
+# resolution order see the handoff skill's "Where handoffs live".
+MEMORY_DIR=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/retro/scripts/parse-concern-value.sh" \
+  .claude/topic-docs.yaml memory_dir "${DECLARED_SAVEPOINT:-}")
+MEMORY_DIR="${MEMORY_DIR:-.work}"
 HANDOFF_DIR="$MEMORY_DIR/handoffs"
 NEWEST=$(ls -1 "$HANDOFF_DIR"/*-handoff-*.md 2>/dev/null | sort | tail -1)
 "$PY" "$PARSER" --chain-from "$NEWEST" --current-session "${CLAUDE_CODE_SESSION_ID}" --base "$SESSION_DATA_DIR"

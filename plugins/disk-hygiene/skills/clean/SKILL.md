@@ -10,7 +10,7 @@ hooks:
       hooks:
         - type: command
           command: "python"
-          args: ["${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py"]
+          args: ["${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--authorized-data-root", "${CLAUDE_PLUGIN_DATA}"]
 ---
 
 # Disk hygiene
@@ -56,9 +56,9 @@ stay there, never in the target or `${CLAUDE_PLUGIN_ROOT}`. Run:
   --project-dir "${CLAUDE_PROJECT_DIR}" --data-root "${CLAUDE_PLUGIN_DATA}"
 ```
 
-The guard validates `--data-root` against the value its own hook process received, so generated
-state provably lands in the plugin data directory even when the shell environment lacks
-`CLAUDE_PLUGIN_DATA`.
+The guard validates `--data-root` against the authorized data root it receives as a
+runtime-substituted hook argument (`${CLAUDE_PLUGIN_DATA}`), so generated state provably lands in the
+plugin data directory even when the shell environment lacks `CLAUDE_PLUGIN_DATA`.
 
 For a large root (a home directory, anything whose recursive walk could exceed the engine's entry
 cap), start with a bounded pass: add `--max-depth 1` to inventory the target's loose files and
