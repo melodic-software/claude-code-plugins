@@ -372,6 +372,12 @@
       "allowedInputs": ["runner", "paths"],
       "allowedSecrets": {}
     },
+    "melodic-software/ci-workflows/.github/workflows/zizmor.yml@31a5b76c4a0b663023dc1c944e2bcfc01d6f6c46": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner", "paths", "fail-on-severity"],
+      "allowedSecrets": {}
+    },
     "melodic-software/ci-workflows/.github/workflows/osv-scanner.yml@90f1c54935203fa31b5b3d1f41531228be2c2b7f": {
       "routing": "runner-input",
       "runnerInput": "runner",
