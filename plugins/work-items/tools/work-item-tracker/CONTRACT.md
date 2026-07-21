@@ -284,10 +284,13 @@ runtime (e.g. GitHub: 100 sub-issues/parent, 8 nesting levels, 50 dependencies/t
 ## Identity routing (GitHub adapter)
 
 Tracker WRITES (item create, lease comments, reclaim notes) route through an optional bot wrapper
-(`gh-bot.sh`) when the consuming repo provides one, and fall back to bare `gh` when it is absent. The
-shipped adapter resolves the wrapper relative to its own location (`…/github-auth/gh-bot.sh` beside the
-seam tree): a plugin install bundles no wrapper, so writes use bare `gh` (plugin-lift portability); a
-repo that wants bot-attributed writes provides the wrapper at that path in its own tree. CLAIMS always
+(`gh-bot.sh`) when a wrapper is found, and fall back to bare `gh` when neither location has one.
+Resolution is consumer-local-first, plugin-bundled fallback — mirroring "Adapter resolution": the
+adapter checks `${CLAUDE_PROJECT_DIR}/tools/github-auth/gh-bot.sh` first, independent of where the
+adapter itself resolved from (so a shadowed consumer-local adapter still finds the consumer's wrapper),
+then falls back to `…/github-auth/gh-bot.sh` bundled beside the seam tree. A plugin install ships no
+wrapper at either path, so writes use bare `gh` by default (plugin-lift portability); a repo that wants
+bot-attributed writes provides the wrapper at its own project root, with zero vendoring. CLAIMS always
 assign the authenticated human user via bare `gh` (`@me` must resolve to the session identity, not the
 bot). Reads are bare `gh`.
 
