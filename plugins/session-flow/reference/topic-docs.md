@@ -1,8 +1,8 @@
 # Topic-docs placement — where session-flow artifacts land
 
-How `/session-flow:handoff`, `/session-flow:workflow`, and `/session-flow:retro` resolve where
-session save-points land in a consuming repo. These skills read this one document; none bakes its
-own paths.
+How `/session-flow:handoff`, `/session-flow:workflow`, `/session-flow:retro`, and
+`/session-flow:running-retro` resolve where session save-points and ledgers land in a consuming
+repo. These skills read this one document; none bakes its own paths.
 
 Implements the topic-docs convention:
 <https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>.
@@ -17,15 +17,17 @@ Session-flow writes **memory tier only**:
 |---|---|
 | `<TS>-handoff-<topic>.md` save-points (handoff skill) | `<memory_dir>/handoffs/` (default `.work/handoffs/`) — never committed. The axis is the session, not a topic, so save-points sit outside topic slices (`handoffs` is a reserved first-level name under the memory root) |
 | `workflow-checklist.md` (workflow skill) | `<memory_dir>/<slug>/` (default `.work/<slug>/`) — the topic's per-slice stage ledger, never committed. Its axis is the topic: a fixed filename in the shared handoffs directory would clobber across two in-flight topics |
+| `<TS>-running-retro-<topic>.md` cumulative ledger (running-retro skill) | `<memory_dir>/running-retros/` (default `.work/running-retros/`) — never committed. The axis is the session, like handoffs (`running-retros` is a reserved first-level name under the memory root). Lifecycle: **one file per session, appended** — later checkpoints discover this session's file by matching the current `session_id` in frontmatter (never a new file per checkpoint); resumed sessions in a handoff chain open their own ledger and link back via `previous_running_retro` / `previous_session_id` pointers the skill walks (never the parser), forming the cumulative running-retro chain |
 
 Timestamps are ISO-basic UTC `YYYYMMDDTHHMMSSZ` per the contract's filename spec. The memory root
 is configurable via the concern file's `memory_dir` key; session-flow never writes the contract
 tier.
 
-Both artifacts are memory-tier and therefore checkout-local (contract ≥ 2.0.0): a handoff written
-in one worktree is invisible to a session resuming in another. The workflow checklist is a stage
-ledger the contract's `.worktreeinclude` template carries into new worktrees where the consuming
-repo materializes it; handoffs are session-scoped and deliberately not carried.
+All three artifacts are memory-tier and therefore checkout-local (contract ≥ 2.0.0): a handoff
+written in one worktree is invisible to a session resuming in another. The workflow checklist is a
+stage ledger the contract's `.worktreeinclude` template carries into new worktrees where the
+consuming repo materializes it; handoffs and running-retro ledgers are session-scoped and
+deliberately not carried.
 
 ## Resolution and runtime guards
 

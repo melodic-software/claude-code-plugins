@@ -1,5 +1,29 @@
 # Changelog — session-flow plugin
 
+## [0.11.0] — 2026-07-20
+
+Added:
+
+- running-retro: new skill. Takes an in-flight retrospective checkpoint
+  mid-session — the live counterpart to `retro`'s end-of-session pass. Zero-arm:
+  nothing to set up in advance, because the session transcript on disk is
+  lossless across compaction (the same record `retro`'s parser already reads in
+  production). The main agent contributes a 2-3 line subjective-state note — the
+  one signal disk cannot hold — then delegates the analysis to a fresh subagent
+  that runs `retro`'s parser and selectively reads flagged transcript spans,
+  classifies each finding by category and suggested resolution route (CLAUDE.md
+  fix / rule fix / skill change / new-skill candidate / tracker issue), and
+  returns a compact findings block. Findings append to a cumulative running
+  ledger — one stable file per session chain — resolved through the plugin's
+  topic-docs binding (`<memory_dir>/running-retros/`, default
+  `.work/running-retros/`, memory-tier, never committed). It captures and routes
+  only: codification stays with `/session-flow:retro codify`, tracker filing is
+  offered never automatic, the session is never scored, and the skill is
+  non-terminating (unlike `handoff`, it does not `/clear`). A mandatory redaction
+  pass runs on both the subagent findings and the ledger write. Composes with
+  `/loop` for periodic checkpoints; ships no scheduler of its own. The plugin now
+  bundles eight skills.
+
 ## [0.10.4] — 2026-07-20
 
 Fixed:
