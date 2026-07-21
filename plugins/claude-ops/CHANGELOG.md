@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.15.3]
+## [0.15.4]
 
 ### Changed
 
@@ -16,6 +16,24 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   fallback, and drops the bash-only `2>/dev/null` redirect so the command and
   its fallback stay valid on both the bash default and the Windows PowerShell
   host. No behavior change.
+
+## [0.15.3]
+
+### Added
+
+- **`lanes` skill — mid-session staleness & restart-cadence guidance
+  (`context/refresh.md`).** Loop lanes merge fixes to the very plugins they run on,
+  but a running lane keeps the skill versions it loaded at launch. New
+  documentation establishes, against current Claude Code docs, that a true
+  mid-session hot-reload of a running loop lane is not achievable — a live session
+  retains its launch-time plugin versions, `/loop` never re-reads a skill's body on
+  later cycles, and a loop cannot self-trigger `/reload-plugins` — so restart is the
+  honest refresh mechanism (composing with the #496 context-reset cadence). Adds a
+  read-only git probe to detect an unconsumed self-fix on `origin/main` and a
+  trigger-based + periodic-floor restart cadence keyed to `/claude-ops:lanes
+  restart`. The probe resolves the repo's default branch rather than assuming
+  `main`. SKILL.md gains a summary section, a cross-reference, and an eval. No
+  script or behavior change. (#514)
 
 ## [0.15.2]
 
