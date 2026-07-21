@@ -4,6 +4,7 @@ description: "Dispatch deep external research to the heaviest isolated execution
 argument-hint: "[topic] (e.g., /discovery:research-deep <library> <version> best practices, /discovery:research-deep <framework> <feature> migration guide)"
 user-invocable: true
 disable-model-invocation: false
+shell: bash
 ---
 
 ## Pre-computed context

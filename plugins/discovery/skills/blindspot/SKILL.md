@@ -4,6 +4,7 @@ description: "Surface the USER's unknown-unknowns before they work in unfamiliar
 argument-hint: "[area-or-domain] (e.g., /discovery:blindspot geofencing, /discovery:blindspot payments module, /discovery:blindspot <domain-vocabulary>)"
 user-invocable: true
 disable-model-invocation: false
+shell: bash
 ---
 
 ## Pre-computed context

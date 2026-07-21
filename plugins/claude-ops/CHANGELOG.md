@@ -3,7 +3,7 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.17.2]
+## [0.17.4]
 
 ### Fixed
 
@@ -15,6 +15,14 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   range with a sentinel-based extraction (shebang to first blank line) so the
   header comment can grow or shrink without silently truncating or over-running
   `--help` output.
+
+## [0.17.2]
+
+### Changed
+
+- Skills with `!` dynamic-context injections now declare `shell: bash` explicitly, per
+  the pinned precompute convention — bash-only pipelines must not fall through to a
+  PowerShell host.
 
 ## [0.17.1]
 

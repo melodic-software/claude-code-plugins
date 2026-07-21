@@ -4,6 +4,7 @@ description: "Scan an existing codebase for module-level friction and architectu
 argument-hint: "[action] (e.g., deepening)"
 user-invocable: true
 disable-model-invocation: false
+shell: bash
 ---
 
 ## Pre-computed context

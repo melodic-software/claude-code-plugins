@@ -4,6 +4,7 @@ description: "Stress-test plans and proposals via systematic adversarial review 
 argument-hint: "[incumbent [target]] or [plan text or file path] — an optional leading deep/shallow sets research depth; works from conversation context if no argument given"
 user-invocable: true
 disable-model-invocation: false
+shell: bash
 ---
 
 ## Pre-computed context

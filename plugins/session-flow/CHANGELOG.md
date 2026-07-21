@@ -1,5 +1,13 @@
 # Changelog — session-flow plugin
 
+## [0.12.2]
+
+### Changed
+
+- Skills with `!` dynamic-context injections now declare `shell: bash` explicitly, per
+  the pinned precompute convention — bash-only pipelines must not fall through to a
+  PowerShell host.
+
 ## [0.12.1] — 2026-07-21
 
 Changed:

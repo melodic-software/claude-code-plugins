@@ -4,6 +4,7 @@ description: "Audit local Claude Code instruction surfaces (user + project CLAUD
 argument-hint: "[scope] — scope: claude-md|skills|agents|rules|hooks|all (default: all)"
 user-invocable: true
 disable-model-invocation: false
+shell: bash
 ---
 
 ## Pre-computed context

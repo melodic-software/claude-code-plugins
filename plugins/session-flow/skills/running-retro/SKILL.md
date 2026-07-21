@@ -4,6 +4,7 @@ description: "Take an in-flight retrospective checkpoint mid-session: spawn a su
 argument-hint: "[topic] (e.g., /running-retro, /running-retro phase-3)"
 user-invocable: true
 disable-model-invocation: false
+shell: bash
 ---
 
 ## Pre-computed context
