@@ -3,6 +3,19 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.4]
+
+### Fixed
+
+- **`morning-brief` test coverage gaps and `usage()` fragility.** Three non-blocking
+  nits deferred from the PR #569 review: added a regression test for the
+  `any=0` telemetry path (a non-empty comments array where none carry a `lane:`
+  field), added a regression test for `--rec-maxlen 0` (full, untruncated
+  RECOMMENDED preview), and replaced `usage()`'s hardcoded `sed -n '2,35p'` line
+  range with a sentinel-based extraction (shebang to first blank line) so the
+  header comment can grow or shrink without silently truncating or over-running
+  `--help` output.
+
 ## [0.17.3]
 
 ### Changed
