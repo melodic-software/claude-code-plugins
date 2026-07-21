@@ -153,4 +153,13 @@ Reference other skills by name. Claude invokes them if installed. Native depende
 
 ---
 
+## Precomputed context (Melodic Software addition)
+
+Deterministic, read-only context a skill needs on every invocation can be inlined at load time
+with `` !`command` `` / ` ```! ` [dynamic-context injection](https://code.claude.com/docs/en/skills#inject-dynamic-context)
+instead of costing a per-invocation tool call. For when that pays off, and the defensive-fallback
+and `shell:` conventions we pin, see [`reference/precompute-context.md`](reference/precompute-context.md).
+
+---
+
 Source: [@trq212's March 17, 2026 post](https://x.com/trq212/status/2033949937936085378)

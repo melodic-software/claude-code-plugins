@@ -73,6 +73,18 @@
         "Output does NOT characterize the run as a clean PASS when it is run outside a git repo",
         "Output attributes the exit-2 gate to the git repo-root detection that runs before skills-root resolution, not to a skills directory merely living outside the repo"
       ]
+    },
+    {
+      "id": 7,
+      "name": "precompute-warn-is-advisory-candidate",
+      "prompt": "The skill-quality check on skill Y returned: `WARN: precompute opportunity: a fenced shell block runs read-only context-gathering commands the skill could inline at load time via !-injection ...`. What does it mean and what should I do?",
+      "expected_output": "It is check 18, an advisory WARN, not a FAIL — the skill did not fail. It flags a fenced shell block of read-only context-gathering commands that could be inlined at load time via `!` dynamic-context injection instead of a per-invocation tool call. Because a static scan cannot tell an instruction-to-run block from an illustrative example, treat it as a candidate to judge: hand-verify the block, convert it to `!` injection only if it runs every invocation to gather context, and ignore it if it is illustrative. It does not block shipping.",
+      "files": [],
+      "expectations": [
+        "Output identifies the line as an advisory WARN (not a FAIL) that does not block shipping the skill",
+        "Output explains the opportunity is to inline read-only context via `!` dynamic-context injection instead of a per-invocation tool call",
+        "Output treats the WARN as a candidate to hand-verify (convert only if the block runs every invocation to gather context; ignore if illustrative) rather than an automatic defect to fix"
+      ]
     }
   ]
 }
