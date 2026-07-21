@@ -9,11 +9,13 @@ Invoke `/education:teach` with an action for coached, multi-session learning, fo
 example `/education:teach topic rust-ownership`,
 `/education:teach codebase auth-flow`, or `/education:teach primer color-grading`.
 For a one-shot plain-language explanation, invoke `/education:explain` — or just
-say "I don't get it" and let it auto-invoke.
+say "I don't get it" and let it auto-invoke. After Claude finishes a change,
+invoke `/education:quiz-me` to be quizzed on what was done.
 
 ## What it does
 
-`teach` is the multi-session coach; `explain` is its one-shot sibling.
+`teach` is the multi-session coach; `explain` is its one-shot sibling; `quiz-me`
+verifies you absorbed a completed change.
 
 - **`/education:teach topic <subject>`** — learn a general subject from external
   high-trust sources (books, courses, docs, communities).
@@ -31,6 +33,13 @@ say "I don't get it" and let it auto-invoke.
   explains the previous assistant response, so "I don't get it" needs no topic.
   It closes by offering `/education:teach` when you want ongoing coaching rather
   than a single explanation.
+- **`/education:quiz-me`** — a post-work comprehension check. After a change is
+  complete, it generates a self-contained HTML report of what was done (context,
+  intuition, decisions) with a quiz at the bottom you answer — verifying that
+  *you* absorbed the work, not just that the artifact is correct. It is
+  non-gating by default; the `quiz_policy` setting tunes how often a quiz is
+  offered. Its `recall <query>` action answers "what did we do on `<ticket>`" from
+  a retained report library first, git and tracker history second.
 - Supporting `teach` actions: `mission`, `glossary`, `resources`, `explain`,
   `exercise`, `assess`, `resume`, `status`.
 
@@ -69,10 +78,19 @@ before they're taught. See the skill body for the full pedagogy.
 
 ## Configuration
 
-This plugin has no `userConfig`. Everything it needs comes from the action you
-invoke, and its cross-session learning state persists automatically under
-`${CLAUDE_PLUGIN_DATA}`. There is nothing to configure and nothing to edit in the
-plugin itself.
+`teach` and `explain` need no configuration; their state persists automatically
+under `${CLAUDE_PLUGIN_DATA}`. `quiz-me` adds two optional settings, both with
+defaults that preserve zero-config behavior:
+
+| Setting | Type | Default | What it does |
+| --- | --- | --- | --- |
+| `quiz_policy` | string | `on-request` | When `quiz-me` offers a quiz: `off` (never), `on-request` (only when asked), `always` (after each completed change), `above-threshold` (when the change is large). Offer cadence only — a report is never generated without your confirmation. Unknown values act as `on-request`. |
+| `report_library_dir` | directory | *(unset)* | Where `quiz-me` stores reports. Unset uses the plugin's own `${CLAUDE_PLUGIN_DATA}`; set it to a corpus checkout to redirect the library root there. Reports never land in the repo you are working in. |
+
+Configure them through the `/plugin` dialog, or headless at install time with
+`claude plugin install education@melodic-software --config quiz_policy=always`. A literal
+non-home `report_library_dir` may be rejected by the hardcoded-path guardrails until
+the #798 path-indirection work lands.
 
 ## License
 

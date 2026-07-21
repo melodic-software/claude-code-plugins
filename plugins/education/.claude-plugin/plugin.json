@@ -1,8 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "education",
-  "version": "0.4.0",
-  "description": "Interactive multi-session learning coach: teaches a general subject or a concept grounded in the consuming repo through the Knowledge-Skills-Wisdom progression, with persistent per-topic learning state. Also a single-session domain primer, and a one-shot plain-language explainer that drops anything to genuinely plain words.",
+  "version": "0.5.0",
+  "description": "Interactive multi-session learning coach: teaches a general subject or a concept grounded in the consuming repo through the Knowledge-Skills-Wisdom progression, with persistent per-topic learning state. Also a single-session domain primer, a one-shot plain-language explainer that drops anything to genuinely plain words, and a post-work comprehension check that quizzes the human on a completed change.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -19,6 +19,21 @@
     "explain",
     "eli5",
     "onboarding",
+    "quiz",
+    "comprehension",
     "skill"
-  ]
+  ],
+  "userConfig": {
+    "quiz_policy": {
+      "type": "string",
+      "title": "Quiz offer policy",
+      "description": "When quiz-me offers a post-work comprehension quiz. One of: off (never offers), on-request (only when asked), always (after each completed change), above-threshold (when the change is large). Governs offer cadence only — a report is never generated without your confirmation. Unknown values are treated as on-request.",
+      "default": "on-request"
+    },
+    "report_library_dir": {
+      "type": "directory",
+      "title": "Quiz report library directory",
+      "description": "Where quiz-me stores generated reports and quizzes. Unset uses the plugin's own persistent data directory; set it to a corpus checkout to redirect the library root there. Artifacts never land in the consuming repo's tree."
+    }
+  }
 }
