@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Regression tests for worktree-create.sh (issue #399, Phase A).
+# Regression tests for worktree-create.sh (Phase A).
 # Black-box: build throwaway git fixtures under a mktemp dir, exercise path
 # computation, the refuse-when-unconfigured contract, slug sanitization,
 # base-ref resolution, and the .worktreeinclude copy intersection. No network.

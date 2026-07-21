@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# worktree-create.sh — shared worktree-creation helper (issue #399, Phase A).
+# worktree-create.sh — shared worktree-creation helper (Phase A).
 #
 # Single owner of worktree creation for this plugin: external-root path
 # computation `<root>/<owner>-<repo>-<slug>`, slug sanitization, base-ref
@@ -11,14 +11,15 @@
 # Consumers:
 #   - Phase A (now): the `/worktree create` skill routes through this helper,
 #     then calls EnterWorktree(path:) on the printed path to enter the worktree.
-#   - Phase B (gated on upstream #77566 + #78212): the `WorktreeCreate` hook
-#     becomes a thin stdin adapter (parse `.name`) that calls this same helper.
+#   - Phase B (gated on two upstream Claude Code behaviors still being verified):
+#     the `WorktreeCreate` hook becomes a thin stdin adapter (parse `.name`) that
+#     calls this same helper.
 # The flag CLI is the stable seam both consumers share.
 #
 # Refuse-with-guidance contract: when the external root is unconfigured the
 # helper refuses (exit 3) and never falls back to Claude Code's in-repo
-# `.claude/worktrees/`, whose nested placement triggers the CLAUDE.md/rules
-# double-load bug (#400, upstream anthropics/claude-code #29599 / #23565).
+# `.claude/worktrees/`, whose nested placement triggers the confirmed, unfixed
+# CLAUDE.md/rules double-load bug.
 #
 # Output contract: on success the created worktree path is the SOLE stdout line
 # (machine-parseable); all diagnostics go to stderr.
@@ -35,7 +36,7 @@ PROG=${0##*/}
 
 usage() {
   cat >&2 <<EOF
-$PROG — shared worktree-creation helper (issue #399).
+$PROG — shared worktree-creation helper.
 
 Usage:
   $PROG --name <name> --root <dir> [--base-ref fresh|head] [--repo-dir <dir>]
@@ -45,7 +46,8 @@ Options:
   --root <dir>        External worktree root. Required and must be configured;
                       an empty value or an unexpanded \${user_config.*} token
                       makes the helper refuse (exit 3) rather than fall back to
-                      the in-repo .claude/worktrees/ default (#400).
+                      the in-repo .claude/worktrees/ default (a known Claude
+                      Code double-load bug).
   --base-ref <ref>    fresh (default) branches from the remote default branch;
                       head branches from the repo's current HEAD. When omitted,
                       the repo's worktree.baseRef git config is used, else fresh.
@@ -119,7 +121,7 @@ root (a path OUTSIDE every repository, on the same drive as the repo on Windows)
 then retry. Run the worktree setup skill, or configure it via \`/plugin\`.
 
 Not falling back to the in-repo .claude/worktrees/ default: that nested
-placement triggers Claude Code's CLAUDE.md/rules double-load bug (#400).
+placement triggers Claude Code's CLAUDE.md/rules double-load bug.
 EOF
   exit 3
 fi
@@ -220,7 +222,7 @@ case "$base_ref" in
     ;;
   fresh)
     # Resolve the remote's default branch symbolically (never hardcode
-    # origin/main — portability-lint #531). When origin/HEAD is not cached
+    # origin/main — the portability lint forbids it). When origin/HEAD is not cached
     # locally, fall back to local HEAD (matching Claude Code's documented
     # behavior) but warn loudly: "fresh" promises the remote default branch, so a
     # silent fall-through to HEAD could carry unpushed local commits the caller
