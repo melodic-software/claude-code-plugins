@@ -3,6 +3,16 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.1]
+
+### Added
+
+- **`audit-instructions` eval: `step-list-culled-not-preserved`.** Exercises check I8's
+  step-list nuance: a mechanical numbered procedure is culled to intent plus hard constraints
+  (genuine ordering, safety gates, external contracts kept) rather than preserved verbatim.
+  Absorbed from the superseded `audit-model-fit` suite (its C2 analog), per the follow-up
+  material recorded when 0.9.0 removed that skill.
+
 ## [0.9.0]
 
 ### Added
