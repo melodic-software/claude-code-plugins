@@ -13,6 +13,11 @@ All notable changes to the `source-control` plugin are documented here. Format f
   of being overloaded onto the `--author` discovery filter. `--self` is a full override (exactly the given logins, `@me` not added);
   `--extra-self` adds identities on top of the authenticated `@me`. The skill's step-4 invocation and
   the `babysit_self_logins` userConfig mapping now route the configured extras through `--extra-self`.
+  The `babysit_self_logins` userConfig `description` is corrected to match: it is a
+  suppression/classification/merge-exemption set, **not** a discovery filter — which authors' PRs the
+  queue discovers stays `--author`'s job, independent of this set. This resolves the discovery-contract
+  fork (`#897`): the pre-`#511` `--author @me,<self-logins>` widening was an incidental side effect of
+  the old author-derived self set, not a stated goal, so it is intentionally dropped, not restored.
 
 ### Fixed
 
