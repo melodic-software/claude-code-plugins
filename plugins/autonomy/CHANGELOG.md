@@ -17,10 +17,10 @@ merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
   the repository state each run executes on. The clause is surface-agnostic — its rationale is
   that a scheduling surface holding the prompt centrally exposes no prompt history, diff, or
   rollback, so behavior change is auditable only where the pointed-to artifact is versioned.
-  Surface-specific mappings (cloud routines → a skill committed to a repository's
-  `.claude/skills/`; Claude Desktop scheduled tasks → `~/.claude/scheduled-tasks/<task>/SKILL.md`
-  under the deployment's dotfiles) appear only as illustrative deployment-owned bindings,
-  consistent with the contract's Hosting stance.
+  Surface-class mappings (a cloud scheduling surface → a skill committed to a selected
+  repository's skills directory; a desktop scheduling surface → a per-task instruction
+  file under the deployment's version-controlled dotfiles) appear only as illustrative
+  deployment-owned bindings, consistent with the contract's Hosting stance.
 
 ## [0.7.4]
 

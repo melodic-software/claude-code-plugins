@@ -291,14 +291,14 @@ pointer, not the prompt, is the conforming shape.
 Which artifact, and where it lives, is a deployment-owned binding, consistent with the
 Hosting stance below. The following are illustrative bindings, not fixed requirements:
 
-- Cloud routines: the artifact is a skill committed to a selected repository's
-  `.claude/skills/`, and the stored prompt points to it. The transfer path is a documented
-  clone-and-load: each run clones the selected repositories from their default branch and
-  loads their committed skills, so a skill living only in a personal store does not reach
-  the run and must be committed to the repository (or declared as a repository plugin) to
-  bind.
-- Claude Desktop scheduled tasks: the artifact is
-  `~/.claude/scheduled-tasks/<task>/SKILL.md` tracked under the deployment's dotfiles, and
+- A cloud scheduling surface whose runs clone selected repositories: the artifact is a
+  skill committed to a selected repository's skills directory, and the stored prompt
+  points to it. The transfer path is the surface's documented clone-and-load: each run
+  clones the selected repositories from their default branch and loads their committed
+  skills, so a skill living only in a personal store does not reach the run and must be
+  committed to the repository (or declared as a repository plugin) to bind.
+- A desktop scheduling surface with per-task instruction files: the artifact is the
+  task's instruction file tracked under the deployment's version-controlled dotfiles, and
   the task's prompt points to it.
 
 ## Hosting stance
