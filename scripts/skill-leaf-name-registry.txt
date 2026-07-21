@@ -37,7 +37,7 @@ setup *
 # verb table). The namespace supplies the object in every case. Qualifying the
 # verb per plugin would say the same thing twice; a topic qualifier is reserved
 # for siblings WITHIN one namespace (audit-noise beside audit-encapsulation).
-audit claude-config,claude-memory,codebase-health,machine-health,mcp-tools,repo-fleet-hygiene
+audit claude-config,claude-memory,codebase-health,github,machine-health,mcp-tools,repo-fleet-hygiene
 
 # Fixed verb meaning: deterministic pass/fail gate. skill-quality checks a
 # skill, toolchain checks a build.

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "github",
+  "version": "0.1.0",
+  "description": "GitHub admin-plane audit, advice, and guided setup over the authenticated user's own gh CLI: billing and cost control, security posture, rulesets and settings drift, Actions policy, and every other org/repo/enterprise settings area. Grounded in live state and current official GitHub docs (zero vendored knowledge); read-only by default, every mutation user-in-loop.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT",
+  "keywords": ["github", "audit", "governance", "org-admin", "billing", "security-posture", "rulesets", "actions-policy", "drift", "skill"],
+  "userConfig": {
+    "offer_browser_automation": {
+      "type": "boolean",
+      "title": "Offer browser automation",
+      "description": "When a settings surface is UI-only, offer opt-in browser automation (never auto-fired; every action individually confirmed). Set false to suppress the offer entirely. Advisory: honored by the skills' prose, layered under the per-action confirm.",
+      "default": true
+    }
+  }
+}
