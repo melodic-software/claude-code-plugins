@@ -134,8 +134,8 @@ user opts in with `/plugin enable`; an existing install is never flipped by cata
 
 ### Operations
 
-- [`github`](plugins/github) — GitHub admin-plane audit, advice, and guided setup over the consumer's own authenticated `gh` CLI: billing and cost control, security posture, rulesets and settings drift, Actions policy, and every other org/repo/enterprise settings area. Zero vendored GitHub knowledge — grounded in live `gh` state and runtime-fetched official docs; read-only by default, every mutation user-in-loop and routed per consumer-declared change routing (`.claude/github/`).
 - [`machine-health`](plugins/machine-health) — Workstation health audit: OS-specific checks (disk, OS updates, security posture, CISA KEV correlation) run from a versioned catalog with trend-aware severity, approval-gated remediations, and dated markdown reports. Windows fully implemented; macOS/Linux scaffolded (report UNKNOWN and stop). Machine state persists in the plugin data directory; the report directory and check catalog are configurable.
+- [`github`](plugins/github) — GitHub admin-plane audit, advice, and guided setup over the authenticated user's own gh CLI: billing and cost control, security posture, rulesets and settings drift, Actions policy, and every other org/repo/enterprise settings area. Grounded in live state and current official GitHub docs (zero vendored knowledge); read-only by default, every mutation user-in-loop.
 
 ### Learning
 

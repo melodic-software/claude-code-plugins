@@ -93,7 +93,7 @@ exact mechanism behind each is resolved live.
   promoted to enforcing is protection theater — surface it as such.
 - **Consistency classes, not one global baseline.** Production, sandbox, and archived repos are
   legitimately held to different declared baselines. Compare each repo against its own class's
-  expectation, and treat a repo that appears mis-classed (a sandbox setting on a production repo)
+  expectation, and treat a repo that appears misclassified (a sandbox setting on a production repo)
   as its own finding.
 - **Prefer declarative governance where the consumer routes for it.** When the consumer's routing
   declares that governance is managed as code, hand-drift away from that source is itself the

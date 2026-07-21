@@ -45,7 +45,7 @@ fi
 # --- D4 sweep: no scope names shipped as guidance ---------------------------
 # Scope tokens in shipped prose (*.md) would be a vendored mechanics table; eval
 # scenario prompts (*.json) may legitimately posit a scope by name.
-hits=$(grep -rEin "admin:(org|enterprise)|read:(org|user|packages)|write:(org|packages)|manage_billing|repo:status" \
+hits=$(grep -r -E -i -n "admin:(org|enterprise)|read:(org|user|packages)|write:(org|packages)|manage_billing|repo:status" \
   "$PLUGIN_DIR" --include='*.md' || true)
 if [[ -z "$hits" ]]; then
   ok "D4: no scope names in shipped prose"
