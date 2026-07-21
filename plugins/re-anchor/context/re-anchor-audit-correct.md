@@ -59,6 +59,16 @@ Run these in order. Skip a step only when its input is genuinely absent
 4. **Report.** One short list: what was corrected, what remains open, and
    an honest "clean" where the audit found nothing.
 
+## Declared step deltas
+
+A corrector may modify a step of this loop when the discipline it
+re-anchors demands it — but only as a **declared delta**: stated in that
+skill's own `SKILL.md` alongside the reason, so the divergence is part of
+the skill's contract rather than silent drift from this method. A skill
+that diverges without declaring the delta is in violation of this doc, not
+exercising this allowance. The Non-negotiables below are never
+overridable.
+
 ## Conversation-start case
 
 Fired before any work exists, do only step 1: acknowledge the discipline

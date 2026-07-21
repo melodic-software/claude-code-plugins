@@ -5,6 +5,14 @@ All notable changes to the `re-anchor` plugin are documented here. Format follow
 
 ## [0.5.0]
 
+### Changed
+
+- Shared method doc (`context/re-anchor-audit-correct.md`) now sanctions
+  **declared step deltas**: a corrector may modify a loop step when its
+  discipline demands it, provided the delta and its reason are stated in that
+  skill's `SKILL.md`. Undeclared divergence remains a violation; the
+  Non-negotiables are never overridable.
+
 ### Added
 
 - **`scrutinize-dont-coast`** — a corrector for adversarial self-scrutiny. It re-anchors a
