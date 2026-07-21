@@ -45,6 +45,10 @@ if [[ -n "$repo_override" ]]; then
     wit_usage_error "--repo must be <site>/<PROJECTKEY> with site matching config.jira.site '$WIT_JIRA_SITE'"
   [[ "$repo_project" =~ $WIT_JIRA_PROJECT_KEY_RE ]] ||
     wit_usage_error "--repo project key '$repo_project' is outside the allowed charset ($WIT_JIRA_PROJECT_KEY_RE)"
+  # --repo may only narrow WITHIN the declared scope, never widen to an undeclared
+  # project the token can see (config.jira.project_keys is the read boundary).
+  wit_jira_project_in_scope "$repo_project" ||
+    wit_usage_error "--repo project '$repo_project' is not in the binding's config.jira.project_keys (declared read scope)"
   projects_json="$(jq -cn --arg p "$repo_project" '[$p]')"
 else
   projects_json="$WIT_JIRA_PROJECT_KEYS"

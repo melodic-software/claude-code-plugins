@@ -110,6 +110,16 @@ else
   fail "malformed key made no HTTP call" "no curl call" "curl invoked"
 fi
 
+# A well-formed id for a project NOT in the binding's project_keys (binding declares
+# only SW2) must be refused before any fetch — reads are bounded to the declared scope.
+run_get "jira:test.atlassian.net/OTHER#1"
+assert_eq "out-of-scope project id → usage (2)" "2" "$RC"
+if [[ ! -e "$FIX/.counter" ]]; then
+  pass "out-of-scope id made no HTTP call"
+else
+  fail "out-of-scope id made no HTTP call" "no curl call" "curl invoked"
+fi
+
 # 404 from Jira → not-found (5).
 printf '404' >"$FIX/1.status"
 printf '{"errorMessages":["Issue does not exist"]}' >"$FIX/1.body"

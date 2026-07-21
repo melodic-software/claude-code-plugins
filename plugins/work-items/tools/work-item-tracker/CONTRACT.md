@@ -373,7 +373,12 @@ PR `SW2-*` linkage and the opt-in-write mechanism are sequenced follow-ups.
   ```
 
   `list-items`/`list-frontier` build JQL scope from `project_keys`; `--repo <site>/<PROJECTKEY>`
-  narrows to one project (site must match the bound site). `blocked_by_link_type` (default
+  narrows to one project (site must match the bound site, and the project must be one of the
+  declared `project_keys`). `project_keys` is both the read scope and the authorization
+  boundary: **every read is confined to the declared projects.** `get-item` refuses an id whose
+  project is not in `project_keys`, and `--repo` may only narrow within them — never widen to an
+  undeclared project the token can otherwise see (exit `2` on an out-of-scope project).
+  `blocked_by_link_type` (default
   `"Blocks"`) and `done_category_keys` (default `["done","completed"]`) are the override seams
   for two facts deferred to a live-instance pass: the authoritative blocker link type and the
   exact `statusCategory` key for the "Done" category (the official spec's own example disagrees

@@ -31,7 +31,10 @@ injection — spans two plugins' source and is the sequenced follow-up, out of s
 
 `work-item-tracker.sh list-items` (and the core-derived `list-frontier`) scope a JQL query to the
 binding's `config.jira.project_keys`; `--repo <site>/<PROJECTKEY>` narrows to one project (its
-site must match the bound site). `list-frontier` filters core-side to open, unassigned,
+site must match the bound site, and the project must be one of the declared `project_keys` —
+`--repo` narrows within the scope, it cannot widen to an undeclared project, exit `2` otherwise).
+`project_keys` is the read/authorization boundary: `get-item` likewise refuses an id whose
+project is outside it. `list-frontier` filters core-side to open, unassigned,
 unblocked, non-container items (`--autonomous` additionally drops `needs-human`); Jira search
 syntax never leaves the adapter. Pagination is by `nextPageToken` up to
 `capabilities.json` `limits.list_items_max` (a documented truncation past the ceiling, not an

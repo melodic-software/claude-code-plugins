@@ -128,9 +128,19 @@ wit_need_jira_config() {
   [[ -n "$WIT_JIRA_SITE" ]] || missing+=" config.jira.site"
   [[ -n "$WIT_JIRA_AUTH_EMAIL" ]] || missing+=" config.jira.auth_email"
   [[ -n "$WIT_JIRA_AUTH_ENV" ]] || missing+=" config.jira.auth_env"
-  [[ "$(jq -r 'length' <<<"$WIT_JIRA_PROJECT_KEYS")" -gt 0 ]] || missing+=" config.jira.project_keys[]"
+  # project_keys must be a non-empty ARRAY, not merely truthy: a scalar such as
+  # "project_keys":"ABC" would satisfy a bare `length > 0` (string length 3), then
+  # `.[]`/`map(...)` would jq-error into an empty clause (`project in ()`) that this
+  # non-`set -e` script would otherwise ignore. Type-check first, then length.
+  [[ "$(jq -r 'type' <<<"$WIT_JIRA_PROJECT_KEYS")" == "array" ]] &&
+    [[ "$(jq -r 'length' <<<"$WIT_JIRA_PROJECT_KEYS")" -gt 0 ]] ||
+    missing+=" config.jira.project_keys[](non-empty array)"
+  # done_category_keys defaults when absent, but a present non-array value is a
+  # misconfiguration, not a silent fall-through to the default.
+  [[ "$(jq -r 'type' <<<"$WIT_JIRA_DONE_KEYS")" == "array" ]] ||
+    missing+=" config.jira.done_category_keys(array)"
   if [[ -n "$missing" ]]; then
-    printf '%s: jira binding missing required config:%s — see CONTRACT.md "jira adapter"\n' "$name" "$missing" >&2
+    printf '%s: jira binding missing/invalid required config:%s — see CONTRACT.md "jira adapter"\n' "$name" "$missing" >&2
     exit "$EX_CONFIG"
   fi
   # Every JQL-interpolated value from config is allowlist-validated here (a bad
@@ -162,6 +172,16 @@ wit_need_jira_config() {
     }
   export WIT_JIRA_SITE WIT_JIRA_AUTH_EMAIL WIT_JIRA_AUTH_ENV WIT_JIRA_PROJECT_KEYS \
     WIT_JIRA_BLOCKED_BY_LINK_TYPE WIT_JIRA_DONE_KEYS
+}
+
+# wit_jira_project_in_scope <project-key> — 0 when the key is in the binding's
+# config.jira.project_keys. That list is the declared read scope AND the authorization
+# boundary: a bound workflow must not read tickets from a project it did not declare,
+# even when the token can see them. get-item enforces this on the id's project,
+# list-items on --repo — each maps a miss to its own usage error (exit 2) before any
+# request, so the diagnostic names the calling verb.
+wit_jira_project_in_scope() {
+  [[ "$(jq -r --arg k "$1" 'if (index($k) != null) then "in" else "out" end' <<<"$WIT_JIRA_PROJECT_KEYS")" == "in" ]]
 }
 
 # wit_jira_token — echo the API token from the env var named by config.jira.auth_env.

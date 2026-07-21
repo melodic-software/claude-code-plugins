@@ -25,6 +25,11 @@ wit_need_jira_config
 [[ "$WIT_ID_REPO" =~ $WIT_JIRA_PROJECT_KEY_RE ]] ||
   wit_usage_error "project key '$WIT_ID_REPO' is outside the allowed charset ($WIT_JIRA_PROJECT_KEY_RE)"
 
+# The binding's project_keys is the declared read scope: refuse an id whose project is
+# not in it, rather than fetch an unrelated project the token merely happens to see.
+wit_jira_project_in_scope "$WIT_ID_REPO" ||
+  wit_usage_error "project '$WIT_ID_REPO' is not in the binding's config.jira.project_keys (declared read scope)"
+
 # Reconstruct the native Jira key (PROJECTKEY-number) from the qualified id parts.
 key="$WIT_ID_REPO-$WIT_ID_NUMBER"
 
