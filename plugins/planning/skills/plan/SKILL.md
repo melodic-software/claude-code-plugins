@@ -32,7 +32,7 @@ For multi-step planning sessions (almost always — Steps 1-5 of this skill), co
 
 **Skip when:** mid-flight `review` replan only — append a dated scope-change note and revise the PLAN phases instead; do not spawn a second checklist file.
 
-For **non-trivial / multi-layer** plans, also walk the design-default axes during Step 2 — configurability, extension points, observability, testability, magic-literal hygiene, type-collaboration shape — against the consuming project's own review conventions when it declares them.
+For **non-trivial / multi-layer** plans, Step 2 walks its design-default checklist **against the plan** — confirming the plan reflects the design artifact's resolved threads rather than re-deriving the axes inline. Configurability, extension points, observability, and testability are design threads owned by `/planning:design`'s "Design defaults"; type-collaboration shape is its type modeling — audit that the plan carries their resolutions, don't re-open them here. Magic-literal hygiene stays plan's own review check against the consuming project's review conventions when it declares them.
 
 ## Action Router
 
@@ -116,7 +116,7 @@ Per-scale calibration examples live in [context/plan-template.md](context/plan-t
 
 **Sanity-check verifiable-criterion enforcement** — every phase ends with at least one `**Sanity Check:**` bullet. Criteria MUST be mechanically verifiable (a specific grep, file Read assertion, build exit code, test exit code, or runtime probe) — never vague (~~"documented appropriately"~~, ~~"behaves as expected"~~, ~~"all cases covered"~~). Rewrite vague criteria as exact commands a fresh session can execute without inferential judgement. Full format guide in [context/plan-template.md](context/plan-template.md) "Sanity-Check Format".
 
-**Build-technique selection** — BEFORE ordering phases, pick the de-risking technique by the task's *uncertainty type*: a throwaway spike / prototype / PoC when the unknown is feasibility, design, or viability (*might abandon*); a kept tracer bullet / walking skeleton when you are committed to ship and the risk is integration. Choose by uncertainty, not habit; when BOTH a feasibility unknown and ship-commitment hold, spike first (throwaway — `/prototype:pressure-test` if installed, or research) then tracer-bullet the kept slice. Trivial / pure-horizontal work skips all techniques.
+**Build-technique selection** — BEFORE ordering phases, pick the de-risking technique by the task's *uncertainty type*, not by habit. A design or viability unknown (*might abandon*) resolves **upstream** — `/planning:design` for design-significant questions, a throwaway `/prototype:pressure-test` spike (if installed) or research for raw feasibility — and plan **consumes that outcome** rather than re-deriving it inline. Plan's own call is the *kept* slice: a tracer bullet / walking skeleton when you are committed to ship and the risk is integration. When an upstream feasibility spike and ship-commitment both hold, sequence the kept tracer-bullet slice after the spike's outcome lands. Trivial / pure-horizontal work skips all techniques.
 
 **Integration-first phase ordering** — once the technique is the kept branch (tracer bullet / walking skeleton), for multi-layer features sequence the FIRST phase as the integration slice and make its `**Sanity Check:**` an end-to-end runtime probe. Skip for pure-horizontal work (migration, lint, doc pass).
 

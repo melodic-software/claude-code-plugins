@@ -3,6 +3,25 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.1]
+
+### Changed
+
+- **`plan` Step 2 no longer re-derives design inline.** The design-default axes
+  walk and build-technique selection edged into `/planning:design` territory,
+  contradicting the skill's own "consume design artifacts — do not re-derive
+  design inline" rule. The design-default checklist is now framed as an **audit
+  against the plan** (confirming the plan carries design's resolved
+  configurability / extension-point / observability / testability threads and
+  type-collaboration shape, owned by `design`'s "Design defaults") rather than a
+  fresh derivation — matching `design-handoff`'s existing "walks its
+  design-default checklist against the plan" handoff language. Magic-literal
+  hygiene stays plan's own review check. Build-technique selection now routes
+  design / viability / raw-feasibility uncertainty **upstream** (`/planning:design`
+  or a `/prototype:pressure-test` spike) and has plan consume the outcome,
+  keeping only the kept-slice integration sequencing as plan's own call.
+  Documentation-only; no behavior change (#265).
+
 ## [0.23.0]
 
 ### Added
