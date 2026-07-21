@@ -4,6 +4,7 @@ description: "Audit a repo's Claude Code automation landscape (hooks, MCP server
 argument-hint: "[--recommend-only] [--implement] [category] — category: hooks|mcp|skills|subagents|scheduled|all (default: all)"
 user-invocable: true
 disable-model-invocation: false
+shell: bash
 ---
 
 ## Pre-computed context

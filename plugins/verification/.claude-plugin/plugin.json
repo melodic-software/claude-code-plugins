@@ -1,8 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "verification",
-  "version": "0.3.1",
-  "description": "Outcome-verification stage: prove a change achieved its intended outcome (`/verification:confirm` \u2014 a mechanical build/test/lint prerequisite gate, then intent-match + evidence + verdict with the criterion auto-detected by change type), and verify measurable-improvement claims against a planning-time baseline (`/verification:measure`), never fabricating numbers.",
+  "version": "0.3.3",
+  "description": "Outcome-verification stage: prove a change achieved its intended outcome (`/verification:confirm` — a mechanical build/test/lint prerequisite gate, then intent-match + evidence + verdict with the criterion auto-detected by change type), and verify measurable-improvement claims against a planning-time baseline (`/verification:measure`), never fabricating numbers.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"

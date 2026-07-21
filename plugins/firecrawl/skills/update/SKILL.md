@@ -5,6 +5,7 @@ argument-hint: "[--check] (bare = full gated update pipeline)"
 user-invocable: true
 disable-model-invocation: true
 allowed-tools: Bash(grep -m1 *UPSTREAM.md*)
+shell: bash
 ---
 
 ## Pre-computed context

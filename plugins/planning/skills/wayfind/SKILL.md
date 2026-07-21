@@ -9,6 +9,7 @@ allowed-tools:
   - "Bash(gh issue view*)"
   - "Bash(gh api user*)"
   - "Bash(gh label list*)"
+shell: bash
 ---
 
 ## Pre-computed context

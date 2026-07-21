@@ -3,6 +3,34 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.1]
+
+### Changed
+
+- Skills with `!` dynamic-context injections now declare `shell: bash` explicitly, per
+  the pinned precompute convention — bash-only pipelines must not fall through to a
+  PowerShell host.
+
+## [0.8.0]
+
+### Added
+
+- **`audit-model-fit` skill** (`/claude-config:audit-model-fit`). A fourth audit that sweeps the local
+  Claude Code instruction surfaces — user + project `CLAUDE.md`, skill `SKILL.md` bodies + context
+  files, agent definitions, `.claude/rules/**`, prompt-type hooks and output styles — for deterministic
+  constraints that hobble newer, more capable models, and proposes removals/rewrites. Check catalog:
+  bare prohibitions with no rationale (rewrite to add the *why*, never blanket-delete), over-prescriptive
+  step lists (cull to intent + hard constraints), over-constraining example blocks (trim toward the
+  recommended 3–5, not a blanket ban), and stale model-era workarounds — each measured against "would
+  removing this cause Claude to make mistakes?". A bundled `instruction-surface-scan.sh` enumerates the
+  surfaces and flags the two grep-able smells as candidates; the judgment stays in the skill body.
+  **Report-only and human-gated**: it presents findings plus proposed diffs and never edits any
+  instruction file itself (no `--fix`). Findings inside `melodic-software/standards`-managed
+  materializations route upstream per the sync-manifest rather than being edited in place. Composes with
+  (distinct intents, pointers only) `claude-memory:audit` (instruction-layer *health*, same surfaces),
+  `skill-quality:check` (structure), `docs-hygiene:compress` (token brevity), and the sibling `audit`
+  (config-file correctness). The plugin `description` now reads "Four audit skills".
+
 ## [0.7.1]
 
 ### Changed

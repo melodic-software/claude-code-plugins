@@ -71,7 +71,7 @@ err() { printf 'ERROR: %s\n' "$*" >&2; }
 usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "${BASH_SOURCE[0]}"; }
 
 for bin in gh jq; do
-  command -v "$bin" >/dev/null 2>&1 || {
+  type -P "$bin" >/dev/null 2>&1 || {
     err "$bin not found (required)"
     exit 4
   }

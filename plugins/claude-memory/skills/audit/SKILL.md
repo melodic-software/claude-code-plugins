@@ -4,6 +4,7 @@ description: "Audit the Claude Code instruction/memory layer — CLAUDE.md, CLAU
 argument-hint: "[audit|fix|update|report] — default: audit"
 user-invocable: true
 disable-model-invocation: false
+shell: bash
 ---
 
 ## Pre-computed context

@@ -4,6 +4,7 @@ description: "Compress (tighten, shorten, trim) markdown files by dropping flavo
 argument-hint: "[audit] [target] [--force] [--keep-snapshot]"
 user-invocable: true
 disable-model-invocation: false
+shell: bash
 ---
 
 ## Pre-computed context

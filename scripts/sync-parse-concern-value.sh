@@ -19,6 +19,7 @@ src="lib/parse-concern-value.sh"
 copies=(
   plugins/claude-memory/skills/audit/scripts/parse-concern-value.sh
   plugins/session-flow/skills/retro/scripts/parse-concern-value.sh
+  plugins/docs-hygiene/skills/audit-noise/scripts/lib/parse-concern-value.sh
 )
 
 mode="${1:-sync}"

@@ -4,6 +4,7 @@ description: "Produce structured implementation plans with goal, approach, test 
 argument-hint: "[task description, 'review', or 'close-out'] (e.g., /planning:plan add caching to query handlers, /planning:plan review, /planning:plan close-out)"
 user-invocable: true
 disable-model-invocation: false
+shell: bash
 ---
 
 ## Pre-computed context

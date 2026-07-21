@@ -11,6 +11,7 @@
 #     missing body-file
 #   - --dry-run resolves the action but performs no write
 #   - `-` reads the body from stdin
+#   - missing jq BINARY (not just the in-script wrapper function) exits 4
 #
 # PATH-stubs `gh`; the stub logs every mutating call and serves a fixture
 # comment list, so no network or real issue is touched.
@@ -295,6 +296,22 @@ out="$(printf 'lane: from-stdin\n' | STUB_COMMENTS_FILE="$TMP/empty.json" bash "
 rc=$?
 assert_eq "stdin body exits 0" 0 "$rc"
 assert_contains "stdin body creates a comment" "$out" "created comment 999"
+
+# ============================================================================
+# jq binary missing exits 4 — regression guard for the jq() wrapper (defined
+# before this prereq check) shadowing `command -v jq` and fail-opening the
+# guard. A PATH with no jq binary (only the gh stub) must still be caught by
+# `type -P jq`, which looks at PATH executables only and ignores the wrapper.
+# ============================================================================
+# Resolve bash's own absolute path first so invoking it below needs no PATH
+# lookup; then restrict the child's PATH to just STUB_BIN (the gh stub),
+# which never contains jq — reaching the prereq check without an external jq
+# binary anywhere in PATH, on any platform.
+BASH_BIN="$(command -v bash)"
+out="$(PATH="$STUB_BIN" "$BASH_BIN" "$SCRIPT" --repo "$REPO" --issue 502 --marker "lane:triage" --body-file "$BODY" --body-dir "$SAFE_DIR" 2>&1)"
+rc=$?
+assert_eq "missing jq binary exits 4" 4 "$rc"
+assert_contains "missing jq binary message" "$out" "jq not found"
 
 # ============================================================================
 echo

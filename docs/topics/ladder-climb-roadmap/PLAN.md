@@ -143,7 +143,7 @@ sub-topic plan.
 - 7/26 demonstrable bar: ≥1 scheduled fire + ≥1 complete evidence row (work-class stamp AND
   gate outcome AND merge/revert field populated).
 
-### Phase II: Enforcement rail (#509 implementation) [DOING]
+### Phase II: Enforcement rail (#509 implementation) [DONE]
 
 ADR-0002-guarded ordering, three repos, ownership seams respected:
 
@@ -157,8 +157,16 @@ ADR-0002-guarded ordering, three repos, ownership seams respected:
 >
 > Status (2026-07-21): steps 1–2 LANDED — ci-workflows#189 (reusable always-report shape,
 > pin `99cb082`), standards#229 + sync #827 (reviewed runner-input contract for the new pin),
-> #825 (this caller adopts `paths`, context verified unchanged live). Remaining: docs-only
-> skip-path verification PR, then step 3 (github-iac required check) behind its user gate.
+> #825 (this caller adopts `paths`, context verified unchanged live). Skip path proven on
+> docs-only #828 (context reported, conclusion=skipped, name-stable).
+>
+> Step 3 COMPLETE (2026-07-21, operator-approved at the gate): github-iac#193 added the
+> `requires-security-review` property + property-gated `security-review-gate` org ruleset
+> (this repo sole opt-in); github-iac#194 widened the governance App to
+> `organization_administration: write` (org-ruleset mutations 403'd at read — surface had
+> been frozen under App auth). Applied via the production deploy; `security-review /
+> security-review` verified in `required_status_checks` on main. Skip-actor exception
+> recorded in ADR 0002's step-3 addendum.
 
 0. Pre-flight consumer check (FIRST work item): enumerate every consumer of the ci-workflows
    reusable security workflow before reshaping it — org-wide

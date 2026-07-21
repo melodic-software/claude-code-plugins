@@ -49,6 +49,26 @@ Browser-adjacent surfaces with overlapping but distinct fit. Pick by what eviden
 
 For UI changes, capture verifiable evidence rather than asserting "looks right": pre/post accessibility snapshots, screenshots of the changed state, a console check (no new errors), and network verification (correct calls, status codes). An authored E2E/integration test asserting the user-visible behavior also satisfies the contract. When the consuming project documents its own evidence requirements, those govern.
 
+### Recording tier (optional)
+
+Recording is off by default — the screenshot evidence above is the floor. When the `recording` key ([e2e-config.md](e2e-config.md)) is set, a run also captures a moving record; it supplements the screenshots, never replaces them.
+
+| `recording` | Capture path | Fits |
+|---|---|---|
+| `video` | playwright CLI video | long or multi-page flows where a screenshot set loses the sequence |
+| `gif` | `gif_creator` | short demos — a few steps worth showing inline |
+| `off` | none (screenshots only) | default |
+
+### Session artifacts
+
+When a run produces a recording or drives a named session, record its artifacts in the evidence output so a reviewer can retrace it:
+
+| Artifact | Points to |
+|---|---|
+| Recording path | the video/GIF file on disk (gitignored, alongside the other capture artifacts) |
+| Session ID | the playwright CLI / browser session name the run drove |
+| Transcript pointer | the run's evidence output — console/network capture and snapshot files |
+
 ## E2E Testing Workflow
 
 ### 1. Plan what to verify
