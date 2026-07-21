@@ -322,7 +322,10 @@ PLAN.md edits stay main-session-only; workers report back.
 - DEFERRED with trigger (devils-advocate #5): check-18 fleet pass is authoring-time only — no CI
   or fleet-audit wiring exists, so WARN-clean state decays with the first un-gated edit. Trigger:
   first observed regression after wave 2 merges → wire a fleet check-18 pass into ci.yml or the
-  fleet-hygiene audit cadence. Until then the recheck mechanism is the repo-fleet-hygiene audit.
+  fleet-hygiene audit cadence. (Rescue-time correction: no interim recheck mechanism exists —
+  the repo-fleet-hygiene audit inventories git/GitHub state only and never invokes the skill
+  gate, so until the trigger fires the WARN-clean invariant is unmonitored; the resuming
+  implementer picks the recheck mechanism.)
 
 ## Handoff to implementation
 
