@@ -6,6 +6,21 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 Versions 0.1.0–0.7.0 predate this file (introduced with 0.7.1); their history lives in the
 merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
 
+## [0.7.4]
+
+### Changed
+
+- **Boris-intent attribution seams marked across the guardrail contract.** Three surgical
+  attributions distinguish this contract's own instantiation from the source playbook's posture,
+  closing UNMARKED-EXTENSION seams a Boris-intent audit found (zero violations, three seams). The
+  guardrail hub now states that the step-4 sentence it quotes verbatim is the playbook's while the
+  five-class taxonomy, blocking knobs, and promotion predicates are this contract's mechanism; the
+  security-review leaf marks review-as-merge-gate (the `blocking` knob) as this contract's own
+  layer over the playbook's advisory-review-feeding-a-human-merge posture; and the work-classes
+  leaf attributes the numeric-predicate promotion/demotion apparatus as this contract's
+  quantification of the playbook's qualitative "earned widespread trust" bar. Documentation only —
+  no contract semantics change.
+
 ## [0.7.3]
 
 ### Added

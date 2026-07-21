@@ -217,6 +217,17 @@ it, and any later gate-off flip, is a separate announced operator step.
   is an operator enabling precondition, verified before the flip, not something the merge gate can
   self-enforce.
 
+- **Bot-review precision precondition (enabling).** Enable the tier ONLY after the fleet's bot-review
+  lane has demonstrated recorded precision over a sustained window — the same earned-promotion trigger
+  ADR 0002 sets for flipping an advisory review lane to a blocking gate. The tier lets a
+  fleet-produced approval satisfy a required-review ruleset, which promotes that lane from advisory to
+  merge-deciding, so it is earned on that same evidence bar: precision proven over a sustained window
+  and ratified as a reviewed change citing that evidence — never a calendar flip, and operator
+  discretion alone is insufficient. Absent a recorded precision window for the reviewing bot, do not
+  enable the tier. The requiredness precondition above governs whether the review workflow ran; this
+  one governs whether its verdicts have earned the authority to stand in for a human approval, and
+  like requiredness it is an operator enabling precondition the merge gate cannot self-enforce.
+
 ## Harness Permission Layer
 
 A permission denial can come from two different layers. Tell them apart before deciding how to
