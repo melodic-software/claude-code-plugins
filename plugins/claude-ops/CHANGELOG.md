@@ -17,7 +17,8 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   honest refresh mechanism (composing with the #496 context-reset cadence). Adds a
   read-only git probe to detect an unconsumed self-fix on `origin/main` and a
   trigger-based + periodic-floor restart cadence keyed to `/claude-ops:lanes
-  restart`. SKILL.md gains a summary section, a cross-reference, and an eval. No
+  restart`. The probe resolves the repo's default branch rather than assuming
+  `main`. SKILL.md gains a summary section, a cross-reference, and an eval. No
   script or behavior change. (#514)
 
 ## [0.15.2]

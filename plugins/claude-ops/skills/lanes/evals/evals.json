@@ -66,7 +66,7 @@
       "id": 6,
       "name": "running-lane-cannot-hot-reload-own-fix",
       "prompt": "I merged a fix to the babysit skill. My babysit loop lane is still running the old behavior. Will it pick up the fix on its own, or do I have to restart it?",
-      "expected_output": "It will NOT pick up the fix on its own — a running lane keeps the skill versions it loaded at launch, /loop never re-reads a skill's body on later cycles, and a loop cannot self-trigger /reload-plugins. Restart is the honest refresh mechanism (the same restart that clears context bloat). Detect the unconsumed self-fix with a read-only git probe (origin/main commits touching the plugin path since the lane's launch commit), then `/claude-ops:lanes restart <lane>` at the next cycle boundary to re-pull, refresh the marketplace, and relaunch. See context/refresh.md.",
+      "expected_output": "It will NOT pick up the fix on its own — a running lane keeps the skill versions it loaded at launch, /loop never re-reads a skill's body on later cycles, and a loop cannot self-trigger /reload-plugins. Restart is the honest refresh mechanism (the same restart that clears context bloat). Detect the unconsumed self-fix with a read-only git probe (default-branch commits touching the plugin path since the lane's launch commit, resolving the default branch rather than assuming main), then `/claude-ops:lanes restart <lane>` at the next cycle boundary to re-pull, refresh the marketplace, and relaunch. See context/refresh.md.",
       "files": [],
       "expectations": [
         "Output states the running lane will NOT auto-consume the merged fix and explains restart is required",

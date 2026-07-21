@@ -39,14 +39,16 @@ skill body is already fixed in context.
 
 ## Detecting that a self-fix landed (checkable git probe)
 
-Don't restart blindly. A lane is stale for one of its plugins when `origin/main`
-carries commits touching that plugin's path since the lane launched. Read-only,
-pure git:
+Don't restart blindly. A lane is stale for one of its plugins when the repo's
+default branch carries commits touching that plugin's path since the lane launched.
+Read-only, pure git — resolve the default branch rather than assuming `main`:
 
 ```bash
-git fetch origin main -q
+git fetch origin -q
+# default branch of this repo — never hardcode main/master
+default="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || echo origin/main)"
 # merged changes to the claude-ops plugin the running lane has NOT consumed
-git log --oneline <lane-launch-commit>..origin/main -- plugins/claude-ops/
+git log --oneline "<lane-launch-commit>..${default}" -- plugins/claude-ops/
 ```
 
 `<lane-launch-commit>` is the repo HEAD when `lanes start`/`restart` last ran (the

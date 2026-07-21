@@ -80,8 +80,8 @@ feature to build around — it is verified Claude Code behavior (a live session 
 its launch-time plugin versions, `/loop` never re-reads a skill's body on later
 cycles, and a loop can't self-trigger `/reload-plugins`). Restart is the honest
 refresh mechanism — the same `restart` that clears context bloat (#496). Detect an
-unconsumed self-fix with a read-only git probe against `origin/main`, then restart
-that lane at its next cycle boundary. Full reasoning, the probe, and the cadence
+unconsumed self-fix with a read-only git probe against the repo's default branch,
+then restart that lane at its next cycle boundary. Full reasoning, the probe, and the cadence
 live in [context/refresh.md](context/refresh.md) — read it before answering "why is
 my merged fix not live in the lane?" or setting a restart frequency.
 
