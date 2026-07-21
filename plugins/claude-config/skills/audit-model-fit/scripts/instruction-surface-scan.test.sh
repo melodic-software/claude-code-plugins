@@ -22,8 +22,8 @@ assert_exit() {
 }
 assert_contains() {
   case "$2" in
-    *"$3"*) pass "$1" ;;
-    *) fail "$1" "expected to contain: $3" ;;
+  *"$3"*) pass "$1" ;;
+  *) fail "$1" "expected to contain: $3" ;;
   esac
 }
 assert_equals() {
@@ -89,9 +89,10 @@ MD
   printf 'a rule\n' >.claude/rules/y.md
 )
 
-# Isolate HOME so the real user ~/.claude/CLAUDE.md never leaks into the fixture scan.
+# Isolate HOME and CLAUDE_CONFIG_DIR so the real user CLAUDE.md never leaks into
+# the fixture scan (CLAUDE_CONFIG_DIR points at a fixture path with no CLAUDE.md).
 rc=0
-out="$(cd "$FIX" && HOME="$FIX" bash "$SCAN" 2>/dev/null)" || rc=$?
+out="$(cd "$FIX" && HOME="$FIX" CLAUDE_CONFIG_DIR="$FIX/.claude" bash "$SCAN" 2>/dev/null)" || rc=$?
 assert_exit "default mode exits 0" 0 "$rc"
 assert_contains "reports CLAUDE.md surface" "$out" "CLAUDE.md files: 1"
 assert_contains "reports agent surface" "$out" "Agent definitions: 1"
@@ -101,22 +102,32 @@ assert_contains "flags example-dense file" "$out" "Example-dense files (>5"
 # Only the 6-block file counts — the 5-block file at the ceiling is NOT flagged (C3 boundary).
 assert_contains "5-block file not flagged; only the 6-block one" "$out" "blocks): 1 files"
 
-cnt="$(cd "$FIX" && HOME="$FIX" bash "$SCAN" --count 2>/dev/null)"
+cnt="$(cd "$FIX" && HOME="$FIX" CLAUDE_CONFIG_DIR="$FIX/.claude" bash "$SCAN" --count 2>/dev/null)"
 assert_equals "count matches seeded prohibitions" "2" "$cnt"
 
-cand="$(cd "$FIX" && HOME="$FIX" bash "$SCAN" --candidates 2>/dev/null)"
+# CLAUDE_CONFIG_DIR relocates the user config tree — the scan must read the
+# user-global CLAUDE.md from there, not a hardcoded $HOME/.claude.
+CFG="$(mktemp -d)"
+printf 'Never bypass the config-dir override.\n' >"$CFG/CLAUDE.md"
+rc=0
+out="$(cd "$FIX" && HOME="$FIX" CLAUDE_CONFIG_DIR="$CFG" bash "$SCAN" 2>/dev/null)" || rc=$?
+assert_exit "CLAUDE_CONFIG_DIR mode exits 0" 0 "$rc"
+assert_contains "honors CLAUDE_CONFIG_DIR for user CLAUDE.md" "$out" "CLAUDE.md files: 2"
+rm -rf "$CFG"
+
+cand="$(cd "$FIX" && HOME="$FIX" CLAUDE_CONFIG_DIR="$FIX/.claude" bash "$SCAN" --candidates 2>/dev/null)"
 assert_contains "candidates list the CLAUDE.md prohibition line" "$cand" "CLAUDE.md:1"
 assert_contains "candidates flag the example-dense file" "$cand" "examples.md:0: EXAMPLE-DENSE"
 case "$cand" in
-  *at-threshold.md*EXAMPLE-DENSE*) fail "5-block at-threshold.md must not be flagged" "found in candidates" ;;
-  *) pass "5-block at-threshold.md absent from candidates" ;;
+*at-threshold.md*EXAMPLE-DENSE*) fail "5-block at-threshold.md must not be flagged" "found in candidates" ;;
+*) pass "5-block at-threshold.md absent from candidates" ;;
 esac
 
 # Empty repo: still exits 0 with a clean inventory (no crash on no surfaces).
 EMPTY="$(mktemp -d)"
 (cd "$EMPTY" && git init -q)
 rc=0
-out="$(cd "$EMPTY" && HOME="$EMPTY" bash "$SCAN" 2>/dev/null)" || rc=$?
+out="$(cd "$EMPTY" && HOME="$EMPTY" CLAUDE_CONFIG_DIR="$EMPTY/.claude" bash "$SCAN" 2>/dev/null)" || rc=$?
 assert_exit "empty repo exits 0" 0 "$rc"
 assert_contains "empty repo zero prohibitions" "$out" "0 across 0 files"
 rm -rf "$EMPTY"

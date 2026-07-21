@@ -59,8 +59,11 @@ EXAMPLE_BLOCK_THRESHOLD=5
 # Collect the prose surface files (NUL-safe) into an array to grep for smells.
 surfaces=()
 
+# CLAUDE_CONFIG_DIR relocates the whole ~/.claude tree; honor it so the scan
+# reads the user-global CLAUDE.md actually loaded into the session.
+user_config_dir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 claude_md_count=0
-for f in CLAUDE.md .claude/CLAUDE.md CLAUDE.local.md "$HOME/.claude/CLAUDE.md"; do
+for f in CLAUDE.md .claude/CLAUDE.md CLAUDE.local.md "$user_config_dir/CLAUDE.md"; do
   if [[ -f "$f" ]]; then
     surfaces+=("$f")
     claude_md_count=$((claude_md_count + 1))
