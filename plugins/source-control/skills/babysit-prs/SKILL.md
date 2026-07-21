@@ -284,8 +284,7 @@ The values below substitute from this plugin's stored configuration when this sk
 A surviving literal `${user_config.…}` placeholder means that key is unset — apply its
 documented unset behavior. Reference files use `<angle-bracket>` slots; fill every slot from
 this block. Values reach scripts ONLY as explicit CLI flags (option environment variables never
-reach skill-invoked scripts). Configuration selects targets and thresholds; it never widens
-tier authority.
+reach skill-invoked scripts). Configuration selects targets and thresholds; it never widens tier authority.
 
 | Key | Value | Flag delivery | Unset behavior |
 | --- | --- | --- | --- |
