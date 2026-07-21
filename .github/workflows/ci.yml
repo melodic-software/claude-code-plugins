@@ -526,7 +526,9 @@ jobs:
   # (install-links via the package's .npmrc), so manifest/lockfile drift breaks
   # `npm ci` only on a clean install — without this lane that breakage stays
   # latent until a consumer's machine hits it. Same never-skip, self-test-first,
-  # fail-closed docs-only gate as plugin-gate and miro-plugin.
+  # fail-closed docs-only gate as plugin-gate and miro-plugin. (Scoping this
+  # lane to its own paths — skipping it on unrelated diffs — is the same
+  # separately-tracked optimization noted on miro-plugin.)
   youtube-extraction:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
