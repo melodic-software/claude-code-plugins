@@ -3,6 +3,25 @@
 All notable changes to the `re-anchor` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0]
+
+### Added
+
+- **`scrutinize-dont-coast`** — a corrector for adversarial self-scrutiny. It re-anchors a
+  *meta* discipline rather than a single content axis: don't coast on your own
+  recent output — confidence that work is sound is not evidence that it is. The
+  load-bearing adversarial re-examination is delegated to a fresh-context
+  (non-fork) subagent blind to the reasoning that produced the output, satisfying
+  the fresh-eyes rule that a same-context self-check cannot. It makes two
+  deliberate deltas to the shared re-anchor loop, both documented in the skill:
+  it **stops the trajectory first** (the failure mode is over-confident forward
+  momentum) and **remediates *with* the user** instead of autonomously (the
+  remedy for runaway momentum can't be more unilateral momentum). An optional
+  focus scopes the pass without suppressing a serious out-of-focus flaw. Negative
+  routing is explicit: pre-implementation plan stress-tests go to
+  `/planning:devils-advocate`, review checkpoints to `/review:quality-gate`, and
+  single-axis flaws to the sibling that owns them.
+
 ## [0.4.0]
 
 ### Added

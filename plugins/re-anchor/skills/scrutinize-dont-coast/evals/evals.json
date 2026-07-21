@@ -1,0 +1,65 @@
+{
+  "skill_name": "scrutinize-dont-coast",
+  "evals": [
+    {
+      "id": 1,
+      "name": "stop-and-run-fresh-context-adversarial-pass",
+      "prompt": "scrutinize don't coast — wait, stop. You just wrote the whole cache-invalidation function and moved straight on. Are you sure that's actually right?",
+      "expected_output": "The skill re-anchors adversarial self-scrutiny, halts the current trajectory (delta 1: stop first), and delegates the adversarial re-examination of the just-produced function to a fresh-context non-fork subagent blind to the reasoning that produced it, then surfaces the findings and remediates WITH the user (delta 2) rather than silently re-reading the code in the same context or barrelling into an autonomous rewrite.",
+      "files": [],
+      "expectations": [
+        "Stops the in-flight trajectory before auditing rather than pushing the work one step further",
+        "Delegates the adversarial pass to a fresh-context (non-fork) subagent blind to the producing reasoning, not a same-context self-read",
+        "Remediates collaboratively with the user rather than launching an autonomous rewrite"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "clean-pass-reported-not-fabricated",
+      "prompt": "scrutinize don't coast — second-guess the migration script you just produced. (It was already checked against the schema and the rollback path, and both were confirmed.)",
+      "expected_output": "The fresh-context adversarial pass finds the work sound, so the skill reports clean. It does not manufacture a flaw to look diligent, and it does not downgrade a genuine non-finding into a vague caveat.",
+      "files": [],
+      "expectations": [
+        "Reports clean when the adversarial pass finds the work sound",
+        "Does NOT invent a fault to appear diligent",
+        "States the clean outcome plainly instead of hedging with a vague caveat"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "routes-pre-implementation-plan-to-devils-advocate",
+      "prompt": "scrutinize don't coast — before we build any of this, poke holes in the whole migration plan I just laid out.",
+      "expected_output": "The skill recognizes this as stress-testing a plan BEFORE implementation, which is /planning:devils-advocate's axis, not adversarial re-examination of output already produced. It routes to devils-advocate (degrading to prose if that skill is absent) rather than treating the not-yet-built plan as produced output.",
+      "files": [],
+      "expectations": [
+        "Distinguishes 'stress-test a plan before building' from re-examining already-produced output",
+        "Routes to /planning:devils-advocate (or degrades to prose guidance when it is not installed)",
+        "Does not misclassify a pre-implementation plan as finished output to scrutinize"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "focus-scopes-but-does-not-suppress-outside-flaw",
+      "prompt": "scrutinize don't coast the security assumptions — re-examine what you just wrote, focused on the auth checks.",
+      "expected_output": "The skill aims the adversarial pass at the named focus (the auth/security assumptions) but still surfaces a serious flaw found outside that focus rather than suppressing it because it fell out of scope.",
+      "files": [],
+      "expectations": [
+        "Scopes the adversarial re-examination to the named focus (the security/auth assumptions)",
+        "Still surfaces a serious flaw found outside the focus rather than suppressing it",
+        "Delegates the scoped pass to a fresh-context subagent, not a same-context re-read"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "posture-set-at-conversation-start-no-fabricated-findings",
+      "prompt": "scrutinize don't coast",
+      "expected_output": "Fired with no prior work to examine, the skill does only the re-anchor step: it acknowledges adversarial self-scrutiny as active for the session and stops. It manufactures no findings and runs no adversarial pass, because there is no produced output yet — matching the shared method doc's conversation-start case and the temporal-neutrality of the discipline.",
+      "files": [],
+      "expectations": [
+        "Treats a no-work-yet invocation as posture-setting, not an audit",
+        "Does not manufacture findings or spawn an adversarial pass when there is nothing produced to examine",
+        "Acknowledges the discipline as active for the rest of the session"
+      ]
+    }
+  ]
+}
