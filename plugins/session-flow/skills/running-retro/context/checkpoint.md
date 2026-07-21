@@ -24,6 +24,10 @@ none of this conversation).
 
 ## Finding categories
 
+These are the deliberately lighter in-flight analog of `retro`'s end-of-session Phase 2 dimensions
+and Phase 3 improvement targets (`${CLAUDE_PLUGIN_ROOT}/skills/retro/context/session.md`) — a
+mid-flight checkpoint captures and routes, it does not score or codify.
+
 | Category | What it captures |
 |---|---|
 | Error / rework | A mistake made and corrected, a failed approach, a wrong assumption revised, a build/test failure caused by a change |

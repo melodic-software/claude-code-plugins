@@ -1,7 +1,7 @@
 ---
 name: running-retro
 description: "Take an in-flight retrospective checkpoint mid-session: spawn a subagent to analyze the session transcript so far (reusing retro's parser), classify each finding by category and suggested resolution route (CLAUDE.md fix / rule fix / skill change / new-skill candidate / tracker issue), and append it to a cumulative running ledger — capture and route only, never auto-applied. The live counterpart to /session-flow:retro, which is the end-of-session full scoring + codification pass. Use when: 'running retro', 'live retro', 'in-flight retro', 'checkpoint this session', 'how is this session going', 'observe the session so far', partway through a long skill loop, or on a /loop interval. Does NOT score the session, codify learnings (that is /session-flow:retro codify), auto-file issues, or /clear the session."
-argument-hint: "[topic] (e.g., /session-flow:running-retro, /session-flow:running-retro phase-3)"
+argument-hint: "[topic] (e.g., /running-retro, /running-retro phase-3)"
 user-invocable: true
 disable-model-invocation: false
 ---
@@ -81,12 +81,23 @@ a compact findings block only; the verbose transcript stays in its context.
 
 Resolve the ledger location through the plugin binding
 ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)) —
-`<memory_dir>/running-retros/` (default `.work/running-retros/`). On the session's first checkpoint,
-create `<TS>-running-retro-<topic>.md` (`TS = date -u +%Y%m%dT%H%M%SZ`, topic = argument or
-inferred). On later checkpoints re-read that file from disk and **append** a new checkpoint section —
-one running file per session chain, never a new file per checkpoint. Frontmatter carries `session_id`
-and, when this session continued a prior checkpoint's chain, `previous_running_retro` /
-`previous_session_id`. Honor the contract's runtime guards from the binding (the once-per-session
+`<memory_dir>/running-retros/` (default `.work/running-retros/`).
+
+**One ledger file per session, appended — discover before creating.** Name it
+`<TS>-running-retro-<topic>.md` (`TS = date -u +%Y%m%dT%H%M%SZ`, topic = argument or inferred),
+created on this session's FIRST checkpoint with frontmatter `session_id: $CLAUDE_CODE_SESSION_ID`. On
+every LATER checkpoint do NOT create a second file: locate this session's existing ledger by globbing
+`<memory_dir>/running-retros/*-running-retro-*.md` and matching the one whose frontmatter `session_id`
+equals the current `$CLAUDE_CODE_SESSION_ID`, then re-read it from disk and **append** a new
+`## Checkpoint <TS>` section. Create a new file only when no such match exists. This session-id match
+is the discovery rule that keeps one file per session rather than one per checkpoint.
+
+**Chaining across `/clear`.** When this session resumed a prior one through a handoff chain (retro's
+Phase 1.0 continuity gate), record `previous_running_retro` (the prior session's ledger path) and
+`previous_session_id` in this ledger's frontmatter. These are ledger-continuity pointers THIS skill
+walks to present the cumulative running history; they are NOT parser input — the parser's
+`--chain-from` consumes handoff files only (it reads `session_id` / `previous_handoff`), never
+running-retro ledgers. Honor the contract's runtime guards from the binding (the once-per-session
 self-ignore guard on the resolved memory root; never edit the consumer's root `.gitignore`).
 
 **Redact before writing.** Re-sweep the findings for secrets, tokens, credentials, connection
@@ -110,8 +121,8 @@ Tick each in the response so the exit shape is verifiable:
 - [ ] Subjective-state note written before delegating (step 1)
 - [ ] Analysis delegated to a fresh subagent with resolved absolute inputs (step 2-3)
 - [ ] **Redaction swept the subagent findings AND the ledger append** (both hops — step 3 and step 4)
-- [ ] Findings appended to the one running-ledger file for this chain (self-ignore guard verified on
-  the first memory-tier write)
+- [ ] Findings appended to this session's single ledger file (located by `session_id` match, not a
+  new per-checkpoint file; self-ignore guard verified on the first memory-tier write)
 - [ ] Routes offered, nothing auto-applied (step 5); the task continues in this same session
 
 ## Cadence
@@ -137,7 +148,9 @@ task continues in this same session.
   and inherits none of this conversation's paths.
 - **Redact on both hops** — the subagent's findings pass AND the ledger write; memory-tier output
   outlives the session.
-- **One ledger file per session chain, appended** — re-read from disk before appending; never
-  rewrite the whole file from an in-context copy that may be stale.
+- **One ledger file per session, appended** — discover this session's file by matching `session_id`
+  in frontmatter before writing (never create a second file per checkpoint); re-read from disk before
+  appending, never rewriting from a possibly-stale in-context copy. Cross-`/clear` history is linked
+  by the `previous_running_retro` pointer, which the skill walks — not the parser.
 - **Non-terminating** — a checkpoint is an observation, not a stop point; do not treat it like a
   handoff.
