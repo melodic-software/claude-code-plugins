@@ -208,8 +208,9 @@ degrades to reporting what it could not verify when that authenticated egress is
 `clean-stop` pushes unpushed commits and creates or updates PRs and issues over the network via
 `git push` and `gh` — routing through whatever pull-request / work-item capabilities are installed
 and falling back to direct `git`/`gh` — to make session work durable on the remote. `orient`
-optionally runs `gh pr list` (read-only) to include open pull requests in its briefing, degrading
-gracefully when `gh` is absent or unauthenticated. The other six
+optionally runs `gh pr list` (read-only) to include open pull requests in its briefing and, when a
+work-item tracker capability is installed, reads its open items (which may reach a remote tracker) —
+degrading to local git state alone when `gh` or the tracker is absent or unauthenticated. The other six
 skills — workflow, handoff, keep-going, retro, running-retro, and orchestrate — are network-free
 (both retro and running-retro use the same stdlib-only Python 3.10+ parser reading local
 `~/.claude/projects/` transcripts).
