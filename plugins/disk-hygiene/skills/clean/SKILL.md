@@ -86,6 +86,13 @@ rule below.
 
 ## 2. Establish evidence and ownership
 
+A hint annotation is not the only trigger for triage: at a user-home target, treat any loose
+root-level entry that is not in `protected_exact_names` and does not belong to a recognizable
+app/config convention as suspicious too — the snapshot already carries it (every walked entry is
+recorded with a possibly-empty `hints` list), so nothing further needs discovering, only judging.
+This positional read is how session-state droppings that share no common name (a runner-controller
+status snapshot, a one-off data export) surface for ownership triage even without a matching hint.
+
 For each hinted or suspicious entry, inspect enough neighboring content and metadata to answer:
 
 1. What created it? Prefer a manifest, log, documented naming contract, sibling structure, or owning
