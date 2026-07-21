@@ -33,6 +33,12 @@ dotnet test --project "$REPO_ROOT/path/to/Project.Tests.csproj"
 
 ## Lint / Format
 
+Opt-in gated: only runs when a governing `.editorconfig` is present (see the
+`opt-in` key and its header-comment rationale in
+`reference/ecosystems/dotnet.yaml`) — otherwise skipped visibly rather than
+imposing Roslyn's built-in formatting defaults on a repo that never
+configured any.
+
 ```bash
 # Check formatting (CI mode — fails on violations)
 dotnet format "$REPO_ROOT/<solution>" --verify-no-changes
