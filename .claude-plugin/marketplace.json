@@ -410,6 +410,12 @@
       "source": "./plugins/adhd",
       "category": "personal",
       "tags": ["adhd", "output", "accessibility", "action-first", "focus", "response-style", "brevity", "skill"]
+    },
+    {
+      "name": "github",
+      "source": "./plugins/github",
+      "category": "operations",
+      "tags": ["github", "audit", "advise", "governance", "org-admin", "billing", "security-posture", "rulesets", "actions-policy", "drift", "skill"]
     }
   ],
   "renames": {
