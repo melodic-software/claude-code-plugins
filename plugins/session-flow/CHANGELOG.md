@@ -1,5 +1,38 @@
 # Changelog — session-flow plugin
 
+## [0.12.3]
+
+### Changed
+
+- orchestrate: sharpened imperative 7's per-worker tiering into an explicit volume-based default.
+  Past a wide fan-out the cheaper tier is now the DEFAULT the whole fleet inherits (volume
+  multiplies every notch of over-provisioning), with an explicitly-hard stage (verify,
+  judge/adjudicate, judgment-heavy synthesis) as the standing exception that keeps the parent
+  tier — closing the residual enhancement from the spawn-inherit fix. Tier is also broadened
+  beyond model to reasoning effort: the doc-confirmed per-worker `effort` lever means a cheaper
+  tier can be a cheaper model, a lower effort, or both. Guidance stays model-/tool-agnostic in the
+  imperatives and export brief; the version-pinned platform specifics behind it (the fleet-model
+  inherit mechanism, the platform's own wide-run threshold, and the `effort` enum) are recorded as
+  citations in the skill's `context/sources.md`.
+
+## [0.12.2]
+
+### Changed
+
+- Skills with `!` dynamic-context injections now declare `shell: bash` explicitly, per
+  the pinned precompute convention — bash-only pipelines must not fall through to a
+  PowerShell host.
+
+## [0.12.1] — 2026-07-21
+
+Changed:
+
+- handoff: the "Full-path write procedure" doc's `MEMORY_ROOT` placeholder
+  note now points at the shared `parse-concern-value.sh` helper (the
+  retro skill's Phase 1.1 snippet is the worked call form) instead of a
+  bare "resolve it first" reminder with no mechanism named. Doc pointer
+  only — the handoff skill has no script of its own to rewire.
+
 ## [0.12.0] — 2026-07-21
 
 Added:

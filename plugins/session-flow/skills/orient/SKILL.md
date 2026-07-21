@@ -3,6 +3,7 @@ name: orient
 description: "Read-only session orientation from durable + off-thread state — synthesize where we stand, what we are doing, and why, from the ledger files, handoff save-points, workflow checklists, running-retro ledgers, open PRs and work-items, and git state, not just the conversation. Complements the built-in /recap (conversation-only, auto-fires) by adding the durable state recap never sees. Use when: 'where were we', 'catch me up', 'orient me', 'get my bearings', 'what's the state', 'brief me', 'situation report', 'where do we stand', 'lay of the land'. Read-only: writes nothing, ends nothing, and does not verify freshness, recover off-thread work, or prescribe the next stage — it points at the sibling that does."
 user-invocable: true
 disable-model-invocation: false
+shell: bash
 ---
 
 ## Pre-computed context

@@ -1,12 +1,24 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "claude-memory",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Keeps a repo's Claude Code memory layer healthy and under your control, against criteria derived from official Claude Code documentation. The audit skill checks the instruction/memory layer (CLAUDE.md, CLAUDE.local.md, .claude/rules/, auto-memory) with a deterministic script-backed spine plus judgment-tier checks. The stateless skill inspects, disables, and (confirm-gated) purges Claude-written auto memory across all settings scopes.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
   "license": "MIT",
-  "keywords": ["memory", "claude-md", "rules", "auto-memory", "instructions", "audit", "stateless", "disable", "purge", "maintenance", "skill"]
+  "keywords": [
+    "memory",
+    "claude-md",
+    "rules",
+    "auto-memory",
+    "instructions",
+    "audit",
+    "stateless",
+    "disable",
+    "purge",
+    "maintenance",
+    "skill"
+  ]
 }

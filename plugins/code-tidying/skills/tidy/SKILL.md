@@ -5,6 +5,7 @@ argument-hint: "[<lane> | dry-run [<lane>] | self-update | help]"
 disable-model-invocation: false
 user-invocable: true
 allowed-tools: Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/tidy/scripts/open-pr-count.sh:*)
+shell: bash
 ---
 
 ## Pre-computed context

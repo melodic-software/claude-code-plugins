@@ -56,6 +56,16 @@ launch pulls first, so a running lane's skills correspond to that commit). Any
 output = an unconsumed merge. Swap the pathspec for whichever installed plugin a
 lane runs.
 
+**Not an `!` injection candidate.** This probe is deliberately a body instruction,
+not `!` dynamic-context injection — it fails every condition of the precompute
+convention (playbooks skill-authoring `reference/precompute-context.md`). It is
+**conditional**, consulted only when weighing a restart rather than up front on
+every `lanes` invocation; it needs a **computed argument** (`<lane-launch-commit>`,
+plus the pathspec of whichever plugin a lane runs) that a single-pass injection
+cannot supply; and its `git fetch` is **neither bounded nor pure-read** — a network
+round-trip that also updates remote-tracking refs. Safe to run by hand (it touches
+no branch or worktree), wrong to inline at load time.
+
 Getting those changes onto disk on restart (marketplace refresh + per-scope
 update) is the `plugins` skill's job — see its
 [context/sync.md](../../plugins/context/sync.md); the lanes launch already runs

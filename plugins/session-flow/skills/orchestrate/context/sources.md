@@ -120,3 +120,24 @@ Part-sourced, part authoring convention — the boundary is called out per facto
   *(verbatim, verified)*. A spawn that never states a tier therefore runs every worker on the
   parent session's model — the mechanism behind premium-model fan-outs (imperatives 2 and 7's
   tiering clauses). — <https://code.claude.com/docs/en/sub-agents>
+- **Tier is model AND effort — effort is a per-worker lever, not only the model.** The `effort`
+  frontmatter field: "Effort level when this subagent is active. Overrides the session effort
+  level. Default: inherits from session. Options: `low`, `medium`, `high`, `xhigh`, `max`;
+  available levels depend on the model." *(verbatim, verified)* — this backs imperative 7's
+  "match the reasoning depth (effort) to the subtask too" clause: a cheaper tier is a cheaper
+  model, a lower effort, or both. — <https://code.claude.com/docs/en/sub-agents>
+- **Volume-driven default: a fleet inherits the session model unless explicitly routed.** "Every
+  agent in a workflow uses your session's model unless the script routes a stage to a different one
+  or the `CLAUDE_CODE_SUBAGENT_MODEL` environment variable is set, which overrides both"; cost
+  guidance: "Ask Claude to use a smaller model for stages that don't need the strongest one when
+  you describe the task." *(verbatim, verified)* — this is the same inherit mechanism as the
+  subagent path, at fan-out scale: the premium-fleet default imperative 7 flips. —
+  <https://code.claude.com/docs/en/workflows>
+- **The platform itself treats width as a volume threshold — the empirical anchor for
+  "wide fan-out."** A run is flagged `Large workflow` "When a workflow schedules more than 25
+  agents, or its projected token total passes 1.5 million" (min-version 2.1.203); the `/config`
+  size guideline sets the agent count Claude aims for (`small` "fewer than 5", `medium` "fewer
+  than 15", `large` "fewer than 50"), and the runtime caps a run at up to 16 concurrent / 1,000
+  total agents. *(verbatim, verified)* — these concrete numbers are version-pinned and stay in
+  this sources file, NOT the model-/tool-agnostic brief, which speaks of a "wide fan-out"
+  abstractly. — <https://code.claude.com/docs/en/workflows>

@@ -12,6 +12,7 @@ hooks:
         - type: command
           command: "bash"
           args: ["${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive-guard.sh"]
+shell: bash
 ---
 
 ## Pre-computed context

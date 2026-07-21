@@ -4,6 +4,7 @@ description: "Read and report on locally captured Claude Code telemetry — OTEL
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[scope|action] — week (default), session, day, month, since:YYYY-MM-DD, all, clean [--keep-days N] [--dry-run]"
+shell: bash
 ---
 
 ## Pre-computed context
