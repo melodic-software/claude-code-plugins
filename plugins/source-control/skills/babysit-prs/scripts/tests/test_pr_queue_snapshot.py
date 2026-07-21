@@ -153,6 +153,23 @@ class ResolveSelfLoginsTests(unittest.TestCase):
                 snapshot.resolve_self_logins(None, "kyle-sexton"), ["kyle-sexton"]
             )
 
+    def test_self_takes_precedence_over_extra_self_when_both_supplied(self) -> None:
+        with mock.patch.object(
+            gh, "resolve_author", side_effect=AssertionError("must not resolve @me")
+        ):
+            self.assertEqual(
+                snapshot.resolve_self_logins("bot-only", "bot1,bot2"), ["bot-only"]
+            )
+
+    def test_empty_self_is_a_full_override_yielding_no_logins(self) -> None:
+        # An explicit `--self ""` must still be treated as "the flag was supplied"
+        # (full override, empty set) -- not as "the flag was omitted" (which would
+        # fall through to resolving and adding @me).
+        with mock.patch.object(
+            gh, "resolve_author", side_effect=AssertionError("must not resolve @me")
+        ):
+            self.assertEqual(snapshot.resolve_self_logins("", None), [])
+
     def test_unresolvable_authenticated_login_raises(self) -> None:
         # In production `resolve_author("@me")` raises on broken auth rather than
         # returning None, so the raise propagates (fail-loud, exit 2). This is the

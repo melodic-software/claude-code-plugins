@@ -113,7 +113,7 @@ def resolve_self_logins(
     unresolvable `@me` raises here (via `resolve_author`) rather than degrading to the
     extras as the gate does — fail-loud on broken auth; parity tracked in #881.
     """
-    if self_csv:
+    if self_csv is not None:
         source = _csv_list(self_csv)
     else:
         source = _csv_list(extra_self_csv)
@@ -461,7 +461,8 @@ def main() -> int:
             "suppresses and whose activity gates the same-login checks). '@me' is "
             "NOT added. Resolved independently of --author. Mirrors "
             "babysit-readiness-gate.sh --self; prefer --extra-self unless you must "
-            "exclude the authenticated login."
+            "exclude the authenticated login. Ignored (with --self taking full "
+            "precedence) when --extra-self is also supplied."
         ),
     )
     parser.add_argument(
@@ -475,7 +476,7 @@ def main() -> int:
             "--author discovery filter, so these survive autopilot widening that "
             "drops --author. The invoking skill wires the babysit_self_logins "
             "userConfig option here. Mirrors babysit-readiness-gate.sh "
-            "--extra-self."
+            "--extra-self. Ignored when --self is also supplied."
         ),
     )
     parser.add_argument(

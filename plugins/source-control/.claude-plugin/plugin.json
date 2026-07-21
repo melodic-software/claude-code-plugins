@@ -33,7 +33,7 @@
       "type": "string",
       "multiple": true,
       "title": "Babysit extra self identities",
-      "description": "Extra GitHub posting identities (e.g. a project bot account) added to your `gh api user` login — the self set babysit-prs uses for discovery scope, readiness-gate classification rows, and the merge-gate self-exemption. Absent: your gh login alone."
+      "description": "Extra GitHub posting identities (e.g. a project bot account) added to your `gh api user` login — the self set babysit-prs uses for readiness-gate classification rows and the merge-gate self-exemption. Absent: your gh login alone."
     },
     "babysit_intended_write_identity": {
       "type": "string",
