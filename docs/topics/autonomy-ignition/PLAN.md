@@ -201,18 +201,24 @@ in telemetry = Sonnet; live checkout clean; any fire-without-row = Phase 1 defec
 > warm-up/manual rows never count — predicate corrected 2→1 completions), claimed-line
 > `\r` fixed at the writer, idempotent merged-but-open reconcile guard added. Residual
 > Phase-3 check DONE: inner drain run 41a51d66 ran `claude-sonnet-5` (session transcript).
-> Incident (recorded for audit honesty, window unaffected — the predicate is span-based):
-> operator paused the task 09:30–16:31Z (8 fires missed while paused); one catch-up fired
-> on re-enable per the documented missed-run semantics; hourly cadence verified healthy
-> across 4+ subsequent fires. Hook gap evidence posted on #811 (scheduled sessions run all
-> node hooks as no-ops — `node: command not found` on SessionStart AND Stop).
+> Incident (recorded for audit honesty): operator paused the task 09:30–16:31Z (8 hourly
+> fires missed while paused). Post-re-enable fires, from run history/state at the time of
+> this note: catch-up 16:31:26Z (one, per the documented missed-run semantics), then
+> scheduled 17:05Z and 18:05:23Z — cadence recovered. Consequence split: the C2 PREDICATE
+> window (span-based evidence accumulation) continues from 08:05:40Z, but the roadmap
+> ACCEPTANCE check ("fires on schedule with zero manual kicks for ≥1 week") cannot count
+> a stretch containing a scheduler outage — that ≥1-week clock restarts at the 16:31Z
+> re-enable. Hook gap evidence posted on #811 (scheduled sessions run all node hooks as
+> no-ops — `node: command not found` on SessionStart AND Stop).
 >
 > **Known gap — fire-kind self-stamp:** the task SKILL.md hardcodes
 > `--fire-kind scheduled`, so a manual **Run now** records as a scheduled fire in
 > evidence (how the 07:36Z warm-up row got its stamp). Fences: the window-start bound
 > excludes historic warm-up; operator discipline — no Run-now during the accumulation
-> window. Revisit trigger: the Desktop surface exposing a native fire-origin signal the
-> script can read instead of self-declaration.
+> window. Mechanical fix filed as kyle-sexton/autonomy-demo-scratch#15 (fire-origin
+> attestation from the inner session transcript's scheduled-task enqueue marker,
+> fail-closed) — land before any eligibility claim relies on the zero-manual-kicks
+> input.
 
 Standing lane: missed-fire detector + failure tracker items are the automated signal; human
 merges the day's drain PRs (this is the pre-promotion policy, not a kick); weekly usage
