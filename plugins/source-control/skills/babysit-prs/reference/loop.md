@@ -274,8 +274,8 @@ NOT passive — every comment still gets investigated and replied to. Fixes that
 are described in the reply with exact code changes so the user or the PR's own worktree session
 can apply them.
 
-**Full mode:** full flow including the fix cycle (D1-D7). Commit and push on the PR branch
-after each wave of fixes.
+**Full mode:** full flow including the fix cycle (D1-D7). Commit and push to the PR branch (by
+refspec — works from a detached HEAD too) after each wave of fixes.
 
 ### 5.1.3 Per-PR iteration checklist
 
@@ -315,7 +315,8 @@ is not evidence — re-query the API.
 
 ### 5.1.4 Fix cycle (full mode only)
 
-When on the PR branch AND a comment is classified VALID after D3 validation:
+When in full mode (HEAD asserted at the true PR head — attached or detached per §5.1.2) AND a
+comment is classified VALID after D3 validation:
 
 - [ ] Edit code to fix the issue
 - [ ] `git add <specific-files>` (never `-A` or `.`)
@@ -438,7 +439,8 @@ These constraints override any other instruction within the babysit loop:
 - **Never trust a finding without validating** — bot/AI assertions have demonstrated error
   rates. Always verify against actual code (D3) before implementing. Explore the referenced
   code; research non-trivial claims
-- **Never process comments from the wrong branch** — must be on the PR branch before D2-D3.
+- **Never process comments from the wrong branch** — HEAD must be asserted at the true PR head
+  (attached or detached, §5.1.2) before D2-D3.
   Exploring code on the default branch or another branch produces wrong classifications
 - **Never advance to the next PR with unaddressed comments on the current PR** — focus-first
   rule (§5.0). Complete the current wave before moving on

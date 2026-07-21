@@ -448,8 +448,9 @@ The dedicated conflict-resolution worker's contract:
   update that actually caused it — and push or report success without resolving anything. Fetch
   first, unconditionally, then merge.
 - **Assert the head, merge, never rebase.** Before merging, assert the worktree's `HEAD` equals the
-  true PR head (`gh pr view --json headRefOid`) — refuse to resolve onto a stale or detached tip
-  (`reference/safety.md`, Checkout And Push Invariants). Resolve with `git merge origin/<base-branch>`
+  true PR head (`gh pr view --json headRefOid`) — refuse to resolve onto a stale or head-mismatched
+  tip (a detached HEAD that equals the head is fine — the sibling-locked case; `reference/safety.md`,
+  Checkout And Push Invariants). Resolve with `git merge origin/<base-branch>`
   into the PR branch. This is deliberate: a rebase rewrites the branch's commit history and would
   require a force-push to update the remote PR branch, violating this skill's absolute
   never-force-push cross-tier invariant. The merge commit is pushed by refspec to the branch's

@@ -350,7 +350,7 @@ Execute for EACH PR discovered, oldest first. Detailed mechanics:
   the configured extra self identities are `${user_config.babysit_self_logins}` — when that value
   is non-empty and not a literal unexpanded token, append `--extra-self "<value>"`),
   report
-- [ ] **Step 5 — Commit + push** fixes on the PR branch; clean working tree; follow-up replies
+- [ ] **Step 5 — Commit + push** fixes to the PR branch (refspec; works from a detached HEAD); clean working tree; follow-up replies
   cite commit SHAs
 - [ ] **Step 6 — PR transition:** next-oldest PR needing attention (§5.1.6)
 - [ ] **Step 7 — Self-pace:** schedule the next wake per the cadence contract (§5.3)
