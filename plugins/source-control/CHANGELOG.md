@@ -3,6 +3,28 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.0]
+
+### Added
+
+- **`pr_queue_snapshot.py` gains dedicated `--self` / `--extra-self` self-identity flags (`#511`).**
+  The posting identities whose comments self-classification suppresses are now resolved from their
+  own flags — mirroring `babysit-readiness-gate.sh`'s `--self`/`--extra-self` flag semantics — instead
+  of being overloaded onto the `--author` discovery filter. `--self` is a full override (exactly the given logins, `@me` not added);
+  `--extra-self` adds identities on top of the authenticated `@me`. The skill's step-4 invocation and
+  the `babysit_self_logins` userConfig mapping now route the configured extras through `--extra-self`.
+
+### Fixed
+
+- **Babysit self-comment suppression no longer rides on `--author` (`#511`).** Deriving `self_logins`
+  from the discovery `--author` filter broke in both directions: configured extra self identities were
+  dropped whenever autopilot widening drops `--author` (so a bot poster's own comments re-fired
+  `new_human_blocking_feedback` every cycle), and a discovery `--author` for a different login was
+  wrongly treated as self (suppressing that author's genuine feedback from the worker-dispatch arm).
+  Self-identity is now resolved independently of `--author` for both `--queue` and `--pr` scope,
+  superseding the `@me`-only union from `#494`; the author-derived self fallback in `build_config` is
+  removed so no discovery author can leak into the self set.
+
 ## [0.15.9]
 
 ### Changed
