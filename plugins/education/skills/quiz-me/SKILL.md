@@ -40,8 +40,9 @@ documented unset behavior.
 | `quiz_policy` | `${user_config.quiz_policy}` | `on-request` — act only when invoked. Values govern OFFER CADENCE only (see "Non-gating posture"). Unknown value → treat as `on-request`. |
 | `report_library_dir` | `${user_config.report_library_dir}` | unset → artifacts land under `${CLAUDE_PLUGIN_DATA}` (see "Retention mechanics"). Set to a corpus checkout to redirect the library root there. |
 
-Configure via the `/plugin` dialog, or headless with `claude plugin install --config
-KEY=VALUE`. A literal non-home `report_library_dir` may be blocked by the hardcoded-path
+Configure via the `/plugin` dialog, or headless with `claude plugin install
+education@melodic-software --config KEY=VALUE`. A literal non-home `report_library_dir` may
+be blocked by the hardcoded-path
 guardrails — the same collision knowledge's `library_dir` hits (#798); adopt that issue's
 path-indirection scheme for literal-path overrides once it lands.
 
@@ -51,8 +52,14 @@ Parse `$ARGUMENTS`: first token selects the action.
 
 | Action | Purpose |
 | --- | --- |
-| *(default, no args)* | Generate a report + quiz for the change just completed. |
+| *(default, no args)* | Offer or generate a report + quiz for the change just completed — which one depends on who invoked it (below). |
 | `recall <query>` | Answer "what did we do on X" from the retained report library first, git/tracker archaeology second — stating which source answered (see "Recall"). |
+
+The default action branches on **who invoked it**: a **user-initiated** invocation
+(`/education:quiz-me`, or "quiz me") is itself acceptance — generate the report + quiz
+immediately. A **model-initiated** invocation that fires to satisfy `quiz_policy`
+`always`/`above-threshold` is an OFFER — present it and wait for the user to accept before
+generating anything (see "Non-gating posture"; generation is always user-confirmed).
 
 ## Report contract
 
@@ -107,6 +114,10 @@ repo_slug="$base-$hash"
   `<report_library_dir>/$repo_slug/quiz-me/reports/` when that userConfig is set. The
   `quiz-me/` segment fences these artifacts off from teach's path-keyed workspaces in the
   shared per-plugin data directory.
+- **Repo-tree guard:** resolve `report_library_dir` to an absolute path before writing; if
+  it is `${CLAUDE_PROJECT_DIR}` or nested under it, refuse it, warn the user, and fall back
+  to the `${CLAUDE_PLUGIN_DATA}` default — reports must never land in the consuming repo's
+  working tree, regardless of how the userConfig is set.
 - **Filename:** `<date>-<change-slug>-<short-hash>.html` (or `.md`) — `<date>` is
   `YYYY-MM-DD`, `<change-slug>` a kebab slug of the change (from the PR/ticket title),
   `<short-hash>` the short HEAD commit hash, so reports stay unique and sortable.
@@ -126,8 +137,9 @@ accepts an offer, and a direct invocation ("quiz me") is itself that acceptance.
 
 - **Threshold** (`above-threshold`): the change meets ANY of — more than 5 files touched,
   more than 200 changed LOC, or the governing plan records blast radius HIGH/CRITICAL.
-  Judge from `git diff --stat "$(git merge-base HEAD <default-branch>)"..HEAD` at offer
-  time (well-defined even after commits).
+  Resolve the default branch first, then judge from the merge-base diff at offer time
+  (well-defined even after commits): `d="$(git remote show origin 2>/dev/null | awk '/HEAD
+  branch/ {print $NF}')"; git diff --stat "$(git merge-base HEAD "$d")"..HEAD`.
 - Offers are **best-effort**, model-initiated from the description triggers and this
   posture — there is no hook. An unknown `quiz_policy` value falls back to `on-request`.
 
@@ -154,7 +166,8 @@ here and in that consumer's own on-ramps, not by mutating a shared stage list.
 - **The object is the human, not the artifact.** If you find yourself checking whether the
   code works, you are in the wrong skill (see "What this skill does NOT do").
 - **Never write to the consuming repo's tree.** Reports go to the retention library only;
-  a report committed into the product repo is a defect.
+  a report committed into the product repo is a defect — and a `report_library_dir` pointing
+  inside the repo tree is refused and defaulted, not honored.
 - **Embed the answer key in the artifact.** A report with no key cannot be graded in a
   later session — the retention use case depends on it.
 - **Don't imply library completeness on `recall`.** Only quizzed work is retained; name

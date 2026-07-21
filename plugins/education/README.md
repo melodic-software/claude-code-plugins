@@ -88,8 +88,8 @@ defaults that preserve zero-config behavior:
 | `report_library_dir` | directory | *(unset)* | Where `quiz-me` stores reports. Unset uses the plugin's own `${CLAUDE_PLUGIN_DATA}`; set it to a corpus checkout to redirect the library root there. Reports never land in the repo you are working in. |
 
 Configure them through the `/plugin` dialog, or headless at install time with
-`claude plugin install --config quiz_policy=always`. A literal non-home
-`report_library_dir` may be rejected by the hardcoded-path guardrails until
+`claude plugin install education@melodic-software --config quiz_policy=always`. A literal
+non-home `report_library_dir` may be rejected by the hardcoded-path guardrails until
 the #798 path-indirection work lands.
 
 ## License
