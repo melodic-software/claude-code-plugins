@@ -9,6 +9,13 @@
 #     and a >=10-question audit checklist
 set -uo pipefail
 
+# mapfile (area oracle below) needs bash >= 4; on bash 3.x it fails silently under
+# this set posture and the oracle would spuriously pass on empty arrays.
+[[ "${BASH_VERSINFO[0]}" -ge 4 ]] || {
+  echo "SKIP: bash 4+ required (mapfile)" >&2
+  exit 0
+}
+
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AREAS="$PLUGIN_DIR/reference/areas.md"
 RECIPES_DIR="$PLUGIN_DIR/reference/recipes"
