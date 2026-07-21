@@ -178,7 +178,7 @@ Files (home slice, not repo):
 - **Sanity Check:** `rg -c "deferred" menu.md` ≥ 3; each adopted item
   carries a PR/branch reference.
 
-### Phase 6: dotfiles tracking proposal [TODO — user gate]
+### Phase 6: dotfiles tracking proposal [DONE — approved 2026-07-21, dotfiles PR #270]
 
 - Run the dotfiles repo's `add-dotfile` flow for
   `~/.claude/scheduled-tasks/` (dir exists with live
@@ -189,7 +189,7 @@ Files (home slice, not repo):
   in PLAN.
 - **User gate:** surfaces before executing (cross-repo write).
 
-### Phase 7: verify + ship [TODO]
+### Phase 7: verify + ship [DONE]
 
 - Empirical verification in worktree: markdownlint sweep, typos gate,
   `/skill-quality:check` per touched skill, eval validation.
