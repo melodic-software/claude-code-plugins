@@ -1,0 +1,143 @@
+---
+name: running-retro
+description: "Take an in-flight retrospective checkpoint mid-session: spawn a subagent to analyze the session transcript so far (reusing retro's parser), classify each finding by category and suggested resolution route (CLAUDE.md fix / rule fix / skill change / new-skill candidate / tracker issue), and append it to a cumulative running ledger — capture and route only, never auto-applied. The live counterpart to /session-flow:retro, which is the end-of-session full scoring + codification pass. Use when: 'running retro', 'live retro', 'in-flight retro', 'checkpoint this session', 'how is this session going', 'observe the session so far', partway through a long skill loop, or on a /loop interval. Does NOT score the session, codify learnings (that is /session-flow:retro codify), auto-file issues, or /clear the session."
+argument-hint: "[topic] (e.g., /session-flow:running-retro, /session-flow:running-retro phase-3)"
+user-invocable: true
+disable-model-invocation: false
+---
+
+## Pre-computed context
+
+Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
+Claude session: !`echo "${CLAUDE_CODE_SESSION_ID:-unknown}"`
+Recent commits: !`git log --oneline -5 2>/dev/null || echo "no commits"`
+Working tree status: !`git status --porcelain 2>/dev/null | head -20 || echo "clean"`
+
+## Purpose
+
+The self-improvement loop, run **while the work is still in flight** — not after it. Answers, at a
+mid-session checkpoint: "How is this session actually going, what is drifting, and what should
+change before it costs more?" Each checkpoint appends to a cumulative **running ledger** for the
+session, so observations accumulate across a long session or a `/loop` interval rather than waiting
+for a single end-of-session pass.
+
+It **captures and routes** findings; it does not apply them. Codification (editing `CLAUDE.md`,
+rules, or memory) stays with `/session-flow:retro codify`. Tracker filing is offered, never
+performed automatically.
+
+## Siblings — pick the right one
+
+- **`/session-flow:retro`** — end-of-session full retrospective: five scored dimensions, feedback
+  regression check, codification of approved learnings. running-retro is its live counterpart:
+  same act (retrospective), different cadence (mid-flight, cumulative), and it deliberately drops
+  scoring and codification.
+- **`/session-flow:handoff`** — a save-point that ends the session for `/clear`. running-retro is
+  **non-terminating**: it observes and the session keeps going.
+
+## Zero-arm — nothing to set up in advance
+
+No arming at session start. The session transcript on disk (`<session-id>.jsonl`) is the lossless
+record — it survives compaction, so a checkpoint reconstructs the full session from disk even after
+the live context was compacted. That is exactly what `/session-flow:retro`'s parser already reads in
+production; running-retro reuses it rather than parsing anew. Invoke a checkpoint any time.
+
+## The checkpoint flow
+
+### 1. Subjective-state note (main agent — the one thing disk cannot capture)
+
+Before delegating, write **2-3 lines** of your own in-flight state: what you are uncertain about,
+what feels off, where you are stuck or repeating, any correction you sense coming. The transcript on
+disk holds what *happened*; it does not hold the acting agent's present read of it. This note is the
+only signal the analysis subagent cannot get for itself — it seeds the analysis.
+
+### 2. Resolve inputs for the subagent
+
+The analysis runs in a **fresh subagent** (own context window; it sees none of this conversation,
+the skills invoked, or files read — per the sub-agents doc "what loads at startup"). So resolve
+every input to a concrete value and pass it in the delegation prompt — a `${CLAUDE_PLUGIN_ROOT}`
+token will NOT expand there:
+
+- **Session data dir + transcript + subagents dir** — resolve per the retro skill's "Paths"
+  (`${CLAUDE_PLUGIN_ROOT}/skills/retro/SKILL.md`); transcript is `<SESSION_DATA_DIR>/<session-id>.jsonl`,
+  subagents `<SESSION_DATA_DIR>/<session-id>/subagents/`.
+- **Parser (absolute path)** — resolve `${CLAUDE_PLUGIN_ROOT}/skills/retro/scripts/parse_transcript.py`
+  to its absolute form and pass that; the invocation + Python-3.10+ interpreter detection live in
+  retro's Phase 1.1 (`${CLAUDE_PLUGIN_ROOT}/skills/retro/context/session.md`) — point the subagent
+  there, do not restate them.
+- **Handoff-chain pointers** — if this session resumed from a handoff or a prior checkpoint, pass
+  the chain so the subagent analyzes the whole chain, subject to the continuity gate in retro's
+  Phase 1.0 (`${CLAUDE_PLUGIN_ROOT}/skills/retro/context/session.md`).
+- **The subjective-state note** from step 1.
+
+### 3. Delegate the analysis
+
+Spawn a general-purpose subagent with the delegation prompt from
+[`context/checkpoint.md`](${CLAUDE_PLUGIN_ROOT}/skills/running-retro/context/checkpoint.md) — it
+carries the parser-first-then-selective-read method, the finding categories, the resolution-route
+classification, and the **mandatory redaction pass** on the returned findings. The subagent returns
+a compact findings block only; the verbose transcript stays in its context.
+
+### 4. Append to the running ledger
+
+Resolve the ledger location through the plugin binding
+([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)) —
+`<memory_dir>/running-retros/` (default `.work/running-retros/`). On the session's first checkpoint,
+create `<TS>-running-retro-<topic>.md` (`TS = date -u +%Y%m%dT%H%M%SZ`, topic = argument or
+inferred). On later checkpoints re-read that file from disk and **append** a new checkpoint section —
+one running file per session chain, never a new file per checkpoint. Frontmatter carries `session_id`
+and, when this session continued a prior checkpoint's chain, `previous_running_retro` /
+`previous_session_id`. Honor the contract's runtime guards from the binding (the once-per-session
+self-ignore guard on the resolved memory root; never edit the consumer's root `.gitignore`).
+
+**Redact before writing.** Re-sweep the findings for secrets, tokens, credentials, connection
+strings, and PII, replacing each with a shape marker (`<REDACTED: API key>`) — defense in depth over
+the subagent's own pass. The ledger is memory-tier disk output: it outlives the session, sits
+uncommitted-but-readable, and travels to other sessions and machines.
+
+### 5. Offer routing — never auto-apply
+
+Present the checkpoint findings, then OFFER the forward routes; act only on the ones the user picks:
+
+- **Codify a durable learning** → `/session-flow:retro codify` (running-retro never edits
+  `CLAUDE.md`, rules, or memory itself).
+- **File follow-up work** → offer the consumer's work-item tracker; never file automatically.
+- **Nothing actionable** → say so and continue the task.
+
+## Post-checkpoint checklist
+
+Tick each in the response so the exit shape is verifiable:
+
+- [ ] Subjective-state note written before delegating (step 1)
+- [ ] Analysis delegated to a fresh subagent with resolved absolute inputs (step 2-3)
+- [ ] **Redaction swept the subagent findings AND the ledger append** (both hops — step 3 and step 4)
+- [ ] Findings appended to the one running-ledger file for this chain (self-ignore guard verified on
+  the first memory-tier write)
+- [ ] Routes offered, nothing auto-applied (step 5); the task continues in this same session
+
+## Cadence
+
+Manual checkpoint by default. Composes with `/loop` for periodic checkpoints across a long session;
+running-retro ships no scheduler of its own. It is non-terminating — after routing, the underlying
+task continues in this same session.
+
+## What this skill does NOT do
+
+- **Does not score the session** — the five scored dimensions are `/session-flow:retro`'s.
+- **Does not codify learnings** — capture + route only; codification is `/session-flow:retro codify`.
+- **Does not auto-file tracker issues** — it offers routing; the user decides.
+- **Does not `/clear` or end the session** — unlike `handoff`; the session continues.
+- **Does not run builds, tests, or a code review**, and does not write into the consumer's repo
+  beyond the memory-tier ledger and any routing the user approves.
+
+## Gotchas
+
+- **The subjective-state note is mandatory** — skipping it discards the one input the subagent
+  cannot reconstruct from disk.
+- **Pass resolved absolute paths to the subagent** — its fresh context expands no plugin variables
+  and inherits none of this conversation's paths.
+- **Redact on both hops** — the subagent's findings pass AND the ledger write; memory-tier output
+  outlives the session.
+- **One ledger file per session chain, appended** — re-read from disk before appending; never
+  rewrite the whole file from an in-context copy that may be stale.
+- **Non-terminating** — a checkpoint is an observation, not a stop point; do not treat it like a
+  handoff.
