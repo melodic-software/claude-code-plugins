@@ -279,9 +279,10 @@ after each wave of fixes.
 
 ### 5.1.3 Per-PR iteration checklist
 
-Must hold a full-mode checkout — HEAD asserted equal to the true PR head (`gh pr view --json
-headRefOid`), on the branch or in detached HEAD (§5.1.2) — before starting. D steps run **per-finding** with
-verification gates per [review-discipline.md](../../../reference/review-discipline.md) §3.
+Must hold a HEAD-asserted checkout — HEAD equal to the true PR head (`gh pr view --json
+headRefOid`), on the branch or in detached HEAD (§5.1.2) — before starting. Read-only mode still runs
+D1-D5 (investigate/classify/reply); only the D6-D7 fix cycle requires full mode. D steps run
+**per-finding** with verification gates per [review-discipline.md](../../../reference/review-discipline.md) §3.
 
 - [ ] **A** — Terminal state check (`gh pr view <N> --json state`)
 - [ ] **B** — CI checks — classify every non-pending check (pass/fail/skipped)

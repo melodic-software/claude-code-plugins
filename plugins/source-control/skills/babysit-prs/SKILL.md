@@ -340,7 +340,7 @@ Execute for EACH PR discovered, oldest first. Detailed mechanics:
 - [ ] **Step 0.2 — Branch checkout:** put this worktree's HEAD at the true PR head (`gh pr view --json headRefOid`) — `gh pr checkout <N>`, or `--detach` when the branch is locked in a sibling worktree (never `git checkout` the locked branch);
   assert HEAD == that head before any mutate, read-only on mismatch or dirty tree (§5.1.2)
 - [ ] **Step 0.3 — Branch freshness:** fetch + `git merge-base --is-ancestor`; integrate
-  (merge vs rebase per the branch's own history), graduated conflict handling (§5.1.2)
+  merge-only (never rebase — rebasing a PR branch needs a forbidden force-push), graduated conflict handling (§5.1.2)
 - [ ] **Step 1 — Event-delivery gate:** cloud poll / push channel / Monitor watch, re-armed
   per PR (§5.1.1)
 - [ ] **Steps A–F — Per-PR iteration checklist** (§5.1.3): terminal check, CI classification,
