@@ -72,6 +72,19 @@ authoring skill) is slated to own durable prompt storage. When it lands, repoint
 `prompt_dir` at that home; the launcher resolves the prompt dir in exactly one place
 (`resolve_prompt_dir` in the script), which is the single seam to update.
 
+## Mid-session staleness & restart cadence
+
+A **running** lane keeps the skill versions it loaded at launch: a fix merged to a
+plugin the lane runs does **not** reach that lane mid-session. This is not a missing
+feature to build around — it is verified Claude Code behavior (a live session keeps
+its launch-time plugin versions, `/loop` never re-reads a skill's body on later
+cycles, and a loop can't self-trigger `/reload-plugins`). Restart is the honest
+refresh mechanism — the same `restart` that clears context bloat (#496). Detect an
+unconsumed self-fix with a read-only git probe against the repo's default branch,
+then restart that lane at its next cycle boundary. Full reasoning, the probe, and the cadence
+live in [context/refresh.md](context/refresh.md) — read it before answering "why is
+my merged fix not live in the lane?" or setting a restart frequency.
+
 ## Verified CLI surface
 
 The launcher shells out only to primitives confirmed on this machine's `claude`
@@ -102,6 +115,9 @@ only for a configured lane name.
 
 ## Cross-references
 
+- [context/refresh.md](context/refresh.md) — why a running lane can't hot-reload a
+  merged fix to its own skills, the git staleness probe, and the restart cadence
+  (#514).
 - `/claude-ops:plugins` — the authoritative, richer plugin-fleet sync (scope
   divergence, new-catalog installs). This skill's marketplace refresh is the light
   `claude plugin marketplace update` step of a launch, not a substitute.
