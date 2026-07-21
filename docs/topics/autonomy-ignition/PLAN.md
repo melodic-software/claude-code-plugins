@@ -201,7 +201,7 @@ Sequential 1→2→3; 4 standing.
 
 ### Mechanical work
 
-- Builder scope-fence: ALLOWED `D:\repos\github.com\kyle-sexton\autonomy-demo-scratch\tools\**`,
+- Builder scope-fence: ALLOWED `<scratch-repo-root>/tools/**`,
   `.github/workflows/**` (new gate), `.claude/autonomy/binding.json` (build-time conformance
   edit only — excluded from the RUN's allowlist); FORBIDDEN: git commands, this PLAN.md,
   anything in claude-code-plugins.
