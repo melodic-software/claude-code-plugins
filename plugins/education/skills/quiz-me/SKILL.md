@@ -48,11 +48,13 @@ path-indirection scheme for literal-path overrides once it lands.
 
 ## Action router
 
-Parse `$ARGUMENTS`: first token selects the action.
+Parse `$ARGUMENTS`: `recall` is the ONLY reserved first token. Anything else — including no
+arguments — is the default action, with any argument text taken as context describing the
+change to quiz on.
 
 | Action | Purpose |
 | --- | --- |
-| *(default, no args)* | Offer or generate a report + quiz for the change just completed — which one depends on who invoked it (below). |
+| *(default — empty, or any first token other than `recall`)* | Offer or generate a report + quiz for the change just completed; any argument text is context describing the change. Offer vs generate depends on who invoked it (below). |
 | `recall <query>` | Answer "what did we do on X" from the retained report library first, git/tracker archaeology second — stating which source answered (see "Recall"). |
 
 The default action branches on **who invoked it**: a **user-initiated** invocation
@@ -137,9 +139,11 @@ accepts an offer, and a direct invocation ("quiz me") is itself that acceptance.
 
 - **Threshold** (`above-threshold`): the change meets ANY of — more than 5 files touched,
   more than 200 changed LOC, or the governing plan records blast radius HIGH/CRITICAL.
-  Resolve the default branch first, then judge from the merge-base diff at offer time
-  (well-defined even after commits): `d="$(git remote show origin 2>/dev/null | awk '/HEAD
-  branch/ {print $NF}')"; git diff --stat "$(git merge-base HEAD "$d")"..HEAD`.
+  Resolve the default branch first, then judge from the merge-base diff against its
+  remote-tracking ref at offer time (well-defined even after commits, and correct in a PR
+  worktree with no local branch): `d="$(git remote show origin 2>/dev/null | awk '/HEAD
+  branch/ {print $NF}')"; git diff --stat "$(git merge-base HEAD "origin/$d")"..HEAD`. If
+  `origin` is absent the threshold is unjudgeable — offer nothing.
 - Offers are **best-effort**, model-initiated from the description triggers and this
   posture — there is no hook. An unknown `quiz_policy` value falls back to `on-request`.
 
