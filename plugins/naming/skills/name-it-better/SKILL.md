@@ -138,9 +138,12 @@ pre-scoring filters could not match.
    below. Then pool the candidates, dedupe, and disqualify any
    candidate that matches the rejected incumbent (if any) — carried by the
    main thread as an explicit reject list, never shared with the
-   generators — that contains a word-level blocklist entry (a generator
-   can miss the brief's constraint; the merge step enforces it), or that
-   collides with the existing vocabulary. Score every
+   generators — that contains a USER-STATED word-level blocklist entry (a
+   generator can miss the brief's constraint; the merge step enforces it),
+   or that collides with the existing vocabulary. A candidate containing
+   only an AGENT-INFERRED blocklist word is not disqualified — it stays in,
+   flagged with the inferred concern, so the user's pick confirms or
+   overrides the inference (provenance rule above). Score every
    surviving candidate against the criteria resolved above, breaking ties
    by their declared priority order.
 4. **Shortlist + recommend.** Present a short ranked list with a
@@ -180,11 +183,13 @@ models), then run elimination rounds with independent scoring judges until
 one candidate remains, and present it plus the runners-up for the human
 choice.
 
-The reject-list, word-level-blocklist, and collision disqualification from
-the default pass's merge step still apply: pool the widened candidates and
-disqualify any that match the rejected incumbent, contain a blocklisted
-word, or collide with the existing vocabulary BEFORE the elimination
-rounds begin — a rejected, blocklisted, or colliding name must never enter
+The default pass's merge filters still apply BEFORE the elimination rounds
+begin — including the sentence-form test for utterance names and the
+blocklist provenance rule: pool the widened candidates, fail contentless
+idioms early, and disqualify any that match the rejected incumbent, contain
+a user-stated blocklisted word, or collide with the existing vocabulary
+(agent-inferred blocklist matches enter the bracket flagged, not
+disqualified). A rejected, blocklisted, or colliding name must never enter
 the bracket, let alone reach the finalist.
 
 HONEST FRAMING: a "naming tournament / bracket" is NOT a documented
