@@ -37,6 +37,14 @@ All notable changes to the `github` plugin are documented here. Format follows
   advisory gate layered under the per-action confirm), and the method ladder's UI-only rung now
   citing the reference. Gate value surfaced in `audit` and `advise` prose via
   `${user_config.offer_browser_automation}`.
+- Evals and QA surface: completed eval suites for all three skills (trigger routing, happy path,
+  refusal branches, and both anti-pattern contracts — injected instructions in fetched GitHub
+  content cause no write/browser/routing action; browser automation is offered and confirm-gated,
+  never auto-fired), schema-validated. Committed contract test `github.test.sh` (runs under the
+  repo's plugin-test runner) durably enforcing the zero-vendored-knowledge sweeps (no endpoints,
+  no scope names in shipped prose, no prices), the agnosticism sweep, the area-coverage oracle
+  (canonical area-key fixture diffed against `reference/areas.md`), and the recipe non-hollow
+  contract (six sections plus a ≥10-question checklist per recipe).
 - Primary-tier method recipes under `reference/recipes/` — `billing.md`,
   `security-posture.md` (authentication, advanced security, GitHub Apps, OAuth app policy,
   PATs), `rulesets-repo-drift.md`, `actions-policy.md`. Each carries a credential-and-gate

@@ -343,7 +343,7 @@ live `gh` state + runtime doc fetch → grounded findings) on the real platform 
 - `grep -rEn "api\.github\.com|/orgs/\{|\\$[0-9]" plugins/github/reference/recipes/` returns empty
   (no endpoints, no prices).
 
-#### Phase 6: Evals + QA [TODO]
+#### Phase 6: Evals + QA [DONE]
 
 - `evals/evals.json` for `audit`, `advise`, `setup` (all three warrant evals: judgment-bearing
   trigger/routing/refusal contracts). Cases per skill: trigger/routing, happy path, refusal
