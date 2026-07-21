@@ -56,7 +56,7 @@ fi
 
 # statusCategory scope mirrors the state cut in the normalizer: open == not a
 # done-category, closed == a done-category, all == unconstrained. The done keys are
-# the configurable set (#4 override seam), allowlist-validated at config load; JQL
+# the configurable done-key set (override seam), allowlist-validated at config load; JQL
 # matches them via `statusCategory in`.
 case "$state" in
 open) status_clause=" AND statusCategory not in ($(jq -r 'map("\"\(.)\"") | join(",")' <<<"$WIT_JIRA_DONE_KEYS"))" ;;

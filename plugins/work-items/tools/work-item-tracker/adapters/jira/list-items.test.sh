@@ -176,6 +176,10 @@ rc_for_jira "empty-string project key element → config (3)" "3" \
   '{site:"test.atlassian.net", project_keys:[""], auth_email:"a@b", auth_env:"JIRA_TEST_TOKEN"}'
 rc_for_jira "non-string project key element → config (3)" "3" \
   '{site:"test.atlassian.net", project_keys:[123], auth_email:"a@b", auth_env:"JIRA_TEST_TOKEN"}'
+# A present-but-false/null done_category_keys must NOT silently collapse to the default
+# (jq `//` would) — a typo'd override is a config error, not a filtering change.
+rc_for_jira "false done_category_keys → config (3)" "3" \
+  '{site:"test.atlassian.net", project_keys:["SW2"], auth_email:"a@b", auth_env:"JIRA_TEST_TOKEN", done_category_keys:false}'
 
 # blocked_by_link_type, if present, must be a non-empty string: an empty or non-string
 # override matches no issuelink → blocked_by_count silently 0 → the frontier surfaces

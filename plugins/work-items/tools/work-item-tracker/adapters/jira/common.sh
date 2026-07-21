@@ -3,7 +3,7 @@
 # CONTRACT.md "jira adapter". Read/resolve-only surface: get-item, list-items,
 # capabilities are supported; every write verb (create/claim/lease/link/sub-item)
 # and list-sub-items are declared false in the manifest and exit 6 at the core gate,
-# so no code path here mutates a Jira ticket (issue #379 hard constraint).
+# so no code path here mutates a Jira ticket (the consume-only hard constraint).
 #
 # Provider: Jira Cloud REST API v3. Auth: Basic (Atlassian account email + API
 # token) — the token is read from the env var named by config.jira.auth_env, never
@@ -58,12 +58,15 @@ readonly EX_UNAVAILABLE=8
 readonly WIT_JIRA_CURL_BIN="${WIT_JIRA_CURL:-curl}"
 
 # Blocker link type + done-category keys default to the documented Jira standards but
-# are configurable: they are the override seams for the two facts issue #379 deferred
-# to a live-instance pass (#6 blocker link type, #4 the exact statusCategory "done"
-# key — the spec's own example disagrees with real instances, so both known keys are
-# defaulted here). The adapter is therefore independent of those deferred facts.
+# are configurable: they are the override seams for the two facts deferred to a
+# live-instance pass — the authoritative blocker link type, and the exact statusCategory
+# "done" key (the official spec's own example disagrees with real instances, so both
+# known keys are defaulted here). The adapter is therefore independent of those facts.
 readonly WIT_JIRA_DEFAULT_BLOCKED_BY_LINK_TYPE="Blocks"
-readonly WIT_JIRA_DEFAULT_DONE_KEYS='["done","completed"]'
+# Built via jq at load rather than a quote-carrying shell literal so the JSON array
+# does not flow into an exported variable as shell-quoted text (would trip SC2089/2090).
+WIT_JIRA_DEFAULT_DONE_KEYS="$(jq -cn '["done","completed"]')"
+readonly WIT_JIRA_DEFAULT_DONE_KEYS
 
 # Values interpolated into a JQL query (project keys, statusCategory keys) are
 # constrained to a strict allowlist BEFORE interpolation — the seam builds JQL by
@@ -135,7 +138,15 @@ wit_need_jira_config() {
   WIT_JIRA_AUTH_ENV="$(jq -r '.config.jira.auth_env // empty' "$binding")"
   WIT_JIRA_PROJECT_KEYS="$(jq -c '.config.jira.project_keys // []' "$binding")"
   WIT_JIRA_BLOCKED_BY_LINK_TYPE="$(jq -r --arg d "$WIT_JIRA_DEFAULT_BLOCKED_BY_LINK_TYPE" '.config.jira.blocked_by_link_type // $d' "$binding")"
-  WIT_JIRA_DONE_KEYS="$(jq -c --argjson d "$WIT_JIRA_DEFAULT_DONE_KEYS" '.config.jira.done_category_keys // $d' "$binding")"
+  # Read done_category_keys by PRESENCE, not `// default`: jq's `//` collapses an
+  # explicit `false`/`null` into the default, which would silently apply the default
+  # classification for a typo'd override instead of the required config error. Absent →
+  # default; present → taken verbatim so the type/non-empty/element checks below judge it.
+  if [[ "$(jq -r '.config.jira | has("done_category_keys")' "$binding")" == "true" ]]; then
+    WIT_JIRA_DONE_KEYS="$(jq -c '.config.jira.done_category_keys' "$binding")"
+  else
+    WIT_JIRA_DONE_KEYS="$WIT_JIRA_DEFAULT_DONE_KEYS"
+  fi
   local allow_custom_domain
   allow_custom_domain="$(jq -r '.config.jira.allow_custom_domain // false' "$binding")"
   local missing=""
