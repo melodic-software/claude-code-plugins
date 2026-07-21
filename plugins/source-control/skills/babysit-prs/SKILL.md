@@ -143,9 +143,9 @@ a human. Per PR, in its own fresh worker, autopilot:
 1. Fixes every issue it can — failing CI, mergeability, actionable review findings —
    researching a fix from authoritative sources before conceding, and pushing to the PR branch.
 
-2. Addresses each open review thread, then resolves it via
-   `source-control-babysit-resolve-thread owner/repo#N --allowed-owners <watched-owners>
-   --resolve --include-human` — bot, AI-review, and human threads alike. The order is
+2. Addresses each open review thread, then resolves it through the guarded resolve-thread wrapper
+   (`--resolve --include-human` — bot, AI-review, and human threads alike); the exact command is
+   the single home in [reference/safety.md](reference/safety.md). The order is
    load-bearing: **address the finding first, then resolve.** A thread is resolved only because
    its concern is fixed or confirmed stale — never to clear the merge gate over a live concern.
    After running, parse the JSON output and confirm each addressed thread's entry shows
@@ -184,9 +184,9 @@ That gate merges **only when every criterion holds** — the criteria and the sa
 
 ## Guarded mutations: deterministic gates, agent judgment
 
-The two mutation gates are invoked ONLY by their bare wrapper names (they resolve their own
-interpreter and fail with a clear message when Python is absent). Both fail closed without
-`--allowed-owners`.
+The two mutation gates are invoked ONLY through their wrapper scripts, by the bundled `bin/`-path form —
+never the bare command name nor the raw Python behind them. Each `source-control-babysit-<x> …` spelled in the bullets below is that wrapper launched by its `bin/`-path form; the exact form is the single
+home in [reference/safety.md](reference/safety.md). Both fail closed without `--allowed-owners`.
 
 - **Merge readiness** — `source-control-babysit-merge owner/repo#N --allowed-owners
   <watched-owners> --self-logins @me,<self-logins>` (read-only; add `--merge --expected-head
