@@ -88,6 +88,31 @@ on every prose PR in the interim. The load-bearing constraint is unchanged — t
 stays LAST, after this caller restructure is verified
 ([troubleshooting-required-status-checks](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/troubleshooting-required-status-checks)).
 
+## Addendum (2026-07-21): step 3 applied — required check live; skip-actor exception
+
+The execution check is live: the `security-review-gate` org ruleset (github-iac, property-gated
+on `requires-security-review`; this repo is the sole opt-in) requires the
+`security-review / security-review` context on main. Verified end-to-end before the flip: the
+context name was captured before the restructure and unchanged after; a docs-only PR reported
+the context with conclusion=skipped (name-stable, treated as passing), so prose PRs cannot
+wedge.
+
+**Skip-actor exception (operator-ratified 2026-07-21):** actors in the caller's `skip-actors`
+list — `dependabot[bot]`, `melodic-standards-sync[bot]` — skip the review job, so their PRs
+satisfy the required check with no review run, including changes under security-sensitive
+paths. Accepted deliberately: Dependabot pin bumps are already forced through the reviewed
+runner-policy contract (an input-surface change declines auto-approval and requires a
+standards-reviewed policy entry), and standards-sync PRs materialize byte-exact content
+reviewed upstream. Bounded scope: the exception covers exactly the listed actors; adding an
+actor to `skip-actors` widens the exception and warrants the same deliberation.
+
+Two structural bounds on what the required check proves: it evidences that the workflow-side
+gate ran (or judged not-applicable) — and because `pull_request` workflows execute the PR
+branch's caller file, a PR can alter its own `paths` input or `skip-actors` on its head; the
+mitigation is that workflow-file diffs are themselves security-review surface and the caller
+file is human-reviewed. This is the consensus-accepted bound of Actions-based required checks,
+not a defect introduced here.
+
 ## Revisit triggers
 
 - The security lane's findings prove precise over a sustained window → open the promotion
@@ -99,3 +124,5 @@ stays LAST, after this caller restructure is verified
 - A merge queue is enabled on the base → the security workflow must add the `merge_group`
   trigger, or its required check is never reported for queued PRs (a required check that never
   runs blocks the merge).
+- An actor is added to the caller's `skip-actors` list → the step-3 skip-actor exception
+  widens; re-deliberate before landing, and record the rationale beside the addendum above.
