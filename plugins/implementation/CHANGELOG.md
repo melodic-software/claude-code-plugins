@@ -3,7 +3,7 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.7.6]
+## [0.7.7]
 
 ### Changed
 
@@ -24,6 +24,14 @@ All notable changes to the `implementation` plugin are documented here. Format f
   after every worker return is verified and the build/test gate passes. Reinforced as Gotchas-section
   reminders, matching the worktree-cwd clause's existing pattern. Closes #819, where fresh dispatched
   workers repeatedly learned these same PR-contract constraints via red CI instead of the brief.
+
+## [0.7.6]
+
+### Changed
+
+- Skills with `!` dynamic-context injections now declare `shell: bash` explicitly, per
+  the pinned precompute convention — bash-only pipelines must not fall through to a
+  PowerShell host.
 
 ## [0.7.5]
 

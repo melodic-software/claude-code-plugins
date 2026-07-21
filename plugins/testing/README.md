@@ -41,6 +41,13 @@ behavior with tests.
 Test structure and conventions come from your own project's `CLAUDE.md` and rules.
 This plugin declares no userConfig options.
 
+`/testing:run-e2e` reads one optional consumer-project config surface,
+`.claude/testing/e2e.md` — `recording` (`video | gif | off`, default `off`) and
+`browser_mode` (`headed | headless`, default `headless`). Both defaults preserve current
+behavior, so the file is optional. Its keys, defaults, and precedence are documented in
+the skill's bundled `run-e2e/context/e2e-config.md`; it layers per the marketplace
+consumer-config-layering convention.
+
 ## License
 
 MIT (SPDX-License-Identifier: MIT).

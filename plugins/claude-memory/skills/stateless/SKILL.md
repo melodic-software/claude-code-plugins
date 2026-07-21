@@ -4,6 +4,7 @@ description: "Inspect and turn off Claude Code's auto memory — the notes Claud
 argument-hint: "[status|disable|purge] — default: status"
 user-invocable: true
 disable-model-invocation: false
+shell: bash
 ---
 
 ## Auto-memory snapshot

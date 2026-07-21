@@ -4,6 +4,7 @@ description: "Prove a change achieved its intended outcome: a mechanical build+t
 user-invocable: true
 argument-hint: "[mode] [ecosystem] (e.g., /verification:confirm, /verification:confirm outcome, /verification:confirm fix, /verification:confirm refactor, /verification:confirm dotnet)"
 disable-model-invocation: false
+shell: bash
 ---
 
 ## Pre-computed context
@@ -104,7 +105,7 @@ When `/testing:run-e2e` ran, persist an assertion-only evidence manifest (what w
 
 For "run the live app and watch it behave" — beyond automated `/testing:run-e2e` — `/verification:confirm` delegates rather than reimplementing app-launch:
 
-- **Primary: `/testing:run-e2e`** (when the `testing` plugin is installed) — the reliable path for orchestrated apps (Aspire, docker-compose, tilt) via the project's orchestrator tooling + Playwright CLI.
+- **Primary: `/testing:run-e2e`** (when the `testing` plugin is installed) — the reliable path for orchestrated apps (Aspire, docker-compose, tilt) via the project's orchestrator tooling + Playwright CLI. It can isolate the drive loop in a subagent so the orchestrator consumes only evidence paths, emit an optional recording / session-artifact evidence tier (config-driven, defaults off — screenshots stay the evidence floor), and on a failed prerequisite return a structured verification-environment gap report rather than a bare stop. Carry any recording and session-artifact pointers it produces into the evidence table.
 - **Supplementary: Claude Code's bundled `/verify` + `/run`** — when a quick interactive run is enough and the orchestrated harness is overkill (requires Claude Code ≥2.1.145 — verified 2026-07-18 against [bundled skills](https://code.claude.com/docs/en/skills#bundled-skills)).
 - **Graceful fallback** — if the bundled skills cannot infer the project's launch (or the CC version lacks them), fall back to `/testing:run-e2e` when the `testing` plugin is installed, or a manual orchestrator launch otherwise. Never silently downgrade live-app verification to a static check — surface the gap.
 

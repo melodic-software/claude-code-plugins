@@ -4,6 +4,7 @@ description: "Analyze code changes and produce a test plan — classify changed 
 argument-hint: "[range or scope] (e.g., /testing:plan, /testing:plan HEAD~3, /testing:plan the auth module)"
 user-invocable: true
 disable-model-invocation: false
+shell: bash
 ---
 
 ## Pre-computed context
