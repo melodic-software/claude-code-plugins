@@ -135,7 +135,10 @@ pre-scoring filters could not match.
    early filter before scoring: is the candidate the imperative you would
    actually say, readable cold with no context? Contentless idioms (a bare
    "check", "take stock") fail it even when they score well on the criteria
-   below. Then pool the candidates, dedupe, and disqualify any
+   below. For a skill loadable as primed context, apply the
+   **temporal-neutrality test** in the same early filter: a candidate that
+   presupposes completed work fails before scoring, however accurate it is
+   once work exists. Then pool the candidates, dedupe, and disqualify any
    candidate that matches the rejected incumbent (if any) — carried by the
    main thread as an explicit reject list, never shared with the
    generators — that contains a USER-STATED word-level blocklist entry (a
@@ -184,9 +187,10 @@ one candidate remains, and present it plus the runners-up for the human
 choice.
 
 The default pass's merge filters still apply BEFORE the elimination rounds
-begin — including the sentence-form test for utterance names and the
-blocklist provenance rule: pool the widened candidates, fail contentless
-idioms early, and disqualify any that match the rejected incumbent, contain
+begin — including the sentence-form and temporal-neutrality tests for
+utterance and cold-loadable names and the blocklist provenance rule: pool
+the widened candidates, fail contentless idioms and
+completed-work-presupposing names early, and disqualify any that match the rejected incumbent, contain
 a user-stated blocklisted word, or collide with the existing vocabulary
 (agent-inferred blocklist matches enter the bracket flagged, not
 disqualified). A rejected, blocklisted, or colliding name must never enter
