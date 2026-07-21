@@ -75,6 +75,19 @@ NIST SP 800-218A's same-bar-for-agent-and-human principle — **not** the source
 never prescribes a merge gate. The playbook grounds default-on invocation (Boris step-2); the
 required-check enforcement is ours. A merge-queue revisit trigger is recorded below.
 
+## Addendum (2026-07-21): ordering correction
+
+Implementation order is corrected to ci-workflows-first: the reusable workflow gains a
+backward-compatible `paths` input plus an internal job-level gate, then this caller adopts that
+input (dropping its workflow-level `paths` filter), then the github-iac ruleset flips the
+execution check to required. A caller-side job-level `if:` on the `uses:` job is not viable — a
+skipped `uses:` job registers a *different* check name, so the child context stays "Expected"
+and wedges prose PRs (community discussion 72708); the gate must live inside the reusable
+workflow. Caller-first against the old pin was also rejected: it would run a full security pass
+on every prose PR in the interim. The load-bearing constraint is unchanged — the ruleset flip
+stays LAST, after this caller restructure is verified
+([troubleshooting-required-status-checks](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/troubleshooting-required-status-checks)).
+
 ## Revisit triggers
 
 - The security lane's findings prove precise over a sustained window → open the promotion
