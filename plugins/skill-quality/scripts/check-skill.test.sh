@@ -824,6 +824,56 @@ else
   fail "git diff --ext-diff block should not warn precompute (rc=$rc): $out"
 fi
 
+# 18o. Only `|| echo` is a sanctioned continuation; a `||` into any other command
+#      (`|| bash x`) is a real operator that fails closed.
+make_skill precompute-ornonecho '---
+name: precompute-ornonecho
+description: "Runs a fallback. Use when: '"'"'running an or fallback'"'"'."
+---
+
+## Steps
+
+```bash
+git status --short || bash ./recover.sh
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run precompute-ornonecho 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'precompute opportunity' <<<"$out"; then
+  pass "a || continuation into a non-echo command fails closed"
+else
+  fail "|| bash continuation block should not warn precompute (rc=$rc): $out"
+fi
+
+# 18p. find's null-separated file-output primary (`-fprint0`) writes a file, like
+#      -fprint/-fprintf, so it fails closed.
+make_skill precompute-fprint0 '---
+name: precompute-fprint0
+description: "Writes a file list. Use when: '"'"'writing a file list'"'"'."
+---
+
+## Steps
+
+```bash
+find . -name "*.md" -fprint0 files.txt
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run precompute-fprint0 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'precompute opportunity' <<<"$out"; then
+  pass "find -fprint0 file-output primary fails closed"
+else
+  fail "find -fprint0 block should not warn precompute (rc=$rc): $out"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1

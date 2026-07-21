@@ -432,10 +432,13 @@ precompute_readonly_line() {
   # shellcheck disable=SC2016  # single quotes are deliberate: '$(' is a literal glob, not a shell expansion
   case "$line" in *'$('*) return 1 ;; *) ;; esac   # $(...) command substitution
   case "$line" in *'`'*) return 1 ;; *) ;; esac     # backtick command substitution
-  # A bare pipe chains into a possibly-mutating sink; `||` (our `|| echo`
-  # fallback form) is not a pipe, so strip it before the test.
-  local no_or="${line//||/}"
-  case "$no_or" in *'|'*) return 1 ;; *) ;; esac
+  # `|| echo <fallback>` is the one sanctioned continuation. Remove those, then
+  # any residual pipe disqualifies the line — a bare `| sink`, or a `||`
+  # continuation into a non-echo command such as `|| bash x`.
+  # shellcheck disable=SC2016  # single quotes deliberate: \|\| and $ are literal regex, not a shell expansion
+  local sanitized
+  sanitized="$(sed -E 's/\|\|[[:space:]]*echo([[:space:]]|$)/ /g' <<<"$line")"
+  case "$sanitized" in *'|'*) return 1 ;; *) ;; esac
 
   # Side-effecting options that survive the head-command allowlist: command- or
   # file-writing find primaries, a git reader's file-output flag, and git's
@@ -444,7 +447,7 @@ precompute_readonly_line() {
   # still attach programs to a plain `git diff` (default diff.external / textconv
   # on configured paths) — that is inherent to git and beyond a static line scan.
   # shellcheck disable=SC2016  # single quotes are deliberate: $ is an ERE end anchor, not a shell expansion
-  grep -qE '(^|[[:space:]])(-exec|-execdir|-ok|-okdir|-delete|-fprintf|-fprint|-fls|--output|--ext-diff|--textconv|rm|mv|cp|tee|sed|mkdir|touch)([[:space:]=]|$)' <<<"$line" && return 1
+  grep -qE '(^|[[:space:]])(-exec|-execdir|-ok|-okdir|-delete|-fprintf|-fprint0|-fprint|-fls|--output|--ext-diff|--textconv|rm|mv|cp|tee|sed|mkdir|touch)([[:space:]=]|$)' <<<"$line" && return 1
 
   local cmd="${line%%[[:space:]]*}"
   case "$cmd" in
