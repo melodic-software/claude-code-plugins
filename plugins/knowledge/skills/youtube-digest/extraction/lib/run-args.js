@@ -97,3 +97,58 @@ export function buildChildEnv(baseEnv, flags = {}) {
   }
   return { ...baseEnv, ...overlay };
 }
+
+const ENV_REF = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}|%([A-Za-z_][A-Za-z0-9_]*)%/g;
+
+/**
+ * Expand the portable `library_dir` value forms in a `--work-root` value:
+ * a leading `~` (the invoking user's home directory) and `${NAME}` / `%NAME%`
+ * environment-variable references anywhere in the value. These forms let a
+ * consumer point the seam at a machine-varying root while keeping the stored
+ * configuration value portable.
+ *
+ * Fail-loud contract: an unset or empty referenced variable throws (a silent
+ * literal or empty substitution would land artifacts in a wrong directory),
+ * and a value that used either form must expand to an absolute path. Values
+ * without either form pass through untouched, preserving the existing
+ * literal-path behavior.
+ *
+ * @param {string} value
+ * @param {NodeJS.ProcessEnv} env
+ * @param {string} homedir
+ * @returns {string}
+ */
+export function expandPathValue(value, env, homedir) {
+  let expanded = value;
+  let sawForm = false;
+  if (expanded === "~" || expanded.startsWith("~/") || expanded.startsWith("~\\")) {
+    sawForm = true;
+    expanded = homedir + expanded.slice(1);
+  }
+  expanded = expanded.replace(ENV_REF, (reference, braced, percent) => {
+    sawForm = true;
+    const name = braced ?? percent;
+    const resolved = env[name];
+    if (!resolved) {
+      throw new Error(
+        `\`${reference}\` in work-root value \`${value}\` references an unset or empty environment variable`,
+      );
+    }
+    return resolved;
+  });
+  if (sawForm && !isAbsolutePath(expanded)) {
+    throw new Error(`work-root value \`${value}\` expanded to a non-absolute path: \`${expanded}\``);
+  }
+  return expanded;
+}
+
+/**
+ * POSIX/Windows absolute-path test without importing node:path, keeping this
+ * module dependency-free and pure for unit tests.
+ *
+ * @param {string} p
+ * @returns {boolean}
+ */
+function isAbsolutePath(p) {
+  return p.startsWith("/") || p.startsWith("\\\\") || /^[A-Za-z]:[\\/]/.test(p);
+}

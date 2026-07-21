@@ -33,6 +33,18 @@ the `audit` and `automation-gaps` skills in the `claude-config` plugin).
 | Auto-memory | `~/.claude/projects/<project>/memory/` | First 200 lines of MEMORY.md | Yes |
 | Settings, hooks, MCP, agents, skills | Various | Various | No — use `claude-config`'s `audit` / `automation-gaps` |
 
+## Scope boundary (route out)
+
+This audit owns instruction-layer **health**: structure, size, placement, and index integrity of
+the memory files against the codified checklist. Whether an instruction's *content* is still
+needed by the current model — prior-model workarounds, over-prescriptive scaffolding, bare
+prohibitions without rationale, reasoning-echo directives, stale example scaffolding — is the
+model-era fit question, owned by the `claude-config` plugin's `audit-instructions` skill. When
+that plugin is installed, route such findings to `/claude-config:audit-instructions` rather than
+judging them against this checklist; when it is not installed, keep each as a criteria-free
+observation in this audit's report (never a checklist finding, never silently dropped) so the
+operator can weigh it against current official prompting guidance.
+
 ## Argument parsing
 
 | Argument | Action |

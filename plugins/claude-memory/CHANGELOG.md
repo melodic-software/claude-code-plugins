@@ -3,6 +3,17 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.2]
+
+### Added
+
+- **`audit` skill: reciprocal scope-boundary note.** Model-era instruction-content findings
+  (prior-model workarounds, over-prescriptive scaffolding, bare prohibitions, reasoning-echo
+  directives, stale example scaffolding) now route to the `claude-config` plugin's
+  `audit-instructions` skill when that plugin is installed; absent it, such observations stay
+  in the audit report criteria-free rather than being judged against this checklist or
+  silently dropped. Completes the partition that skill declared toward this one.
+
 ## [0.3.1]
 
 ### Changed

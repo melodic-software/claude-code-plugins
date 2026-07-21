@@ -60,6 +60,20 @@
         "Demotes a proposal the verifier defends to info or drops it, rather than presenting it as a confident removal",
         "Does not present a refuted or behavioral-tier removal as an error or an applied change"
       ]
+    },
+    {
+      "id": 6,
+      "name": "step-list-culled-not-preserved",
+      "prompt": "/claude-config:audit-instructions one of my skills spells out a 9-step numbered procedure for opening a PR: 1. run git status to see what changed; 2. run git diff to review the changes; 3. stage the files with git add; 4. write a commit message; 5. run the test suite and stop if it fails; 6. commit; 7. push the branch; 8. title the PR per Conventional Commits (CI rejects other titles); 9. open the PR with gh pr create. Should a capable model keep all the steps?",
+      "expected_output": "Flags the mechanical numbered procedure as an I8 model-era finding (over-prescriptive step list) and proposes culling it to the intent plus the hard constraints, removing the narration steps (status/diff/add/message/commit/push — a procedure a current model already sequences correctly) while keeping the steps that encode a real safety gate or external contract: run-tests-and-stop-on-failure (step 5) and the Conventional Commits PR-title requirement CI enforces (step 8). It does not preserve all 9 steps verbatim. Because I8 is behavioral-tier, the cull reaches the report as a verify-pass-vetted behavioral proposal, not an unverified confident removal.",
+      "files": [],
+      "expectations": [
+        "Identifies the numbered step list as an I8 over-prescriptive finding",
+        "Proposes culling to intent plus hard constraints rather than keeping all 9 steps verbatim",
+        "Keeps the test-gate step (run tests, stop on failure) and the CI-enforced Conventional Commits PR-title step as load-bearing",
+        "Culls narration steps (git status/diff/add/commit/push) that a current model sequences correctly from intent",
+        "Surfaces the cull as a behavioral proposal that passed the fresh-context verify pass, not an unverified confident removal"
+      ]
     }
   ]
 }

@@ -17,15 +17,19 @@
  * env var the extraction child reads — `--work-root` → `YOUTUBE_WORK_ROOT`
  * (`resolveWorkRoot()`), plus the yt-dlp / throttle scalars. Omit a flag to keep
  * the child's own default; for `--work-root` the repo-root fallback chain applies.
+ * The `--work-root` value may use the portable `library_dir` forms — a leading `~`
+ * or `${NAME}` / `%NAME%` env-var references — expanded here (`expandPathValue`)
+ * so machine-varying roots never require a literal path in stored configuration.
  *
  * Usage: node run.mjs [--work-root <dir>] [--js-runtimes <v>] [--cookies-file <path>]
  *   [--cookies-from-browser <name>] [--max-concurrent-acquires <n>] <relative-script.js> [args…]
  */
 import { spawnSync } from "node:child_process";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { buildChildEnv, parseRunArgs } from "./lib/run-args.js";
+import { buildChildEnv, expandPathValue, parseRunArgs } from "./lib/run-args.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -36,6 +40,9 @@ const usage =
 
 try {
   parsed = parseRunArgs(process.argv.slice(2));
+  if (parsed.workRoot) {
+    parsed.workRoot = expandPathValue(parsed.workRoot, process.env, os.homedir());
+  }
 } catch (error) {
   process.stderr.write(`${error.message}\n${usage}`);
   process.exit(2);

@@ -109,6 +109,14 @@ Run build → test → lint in order per ecosystem. Stop that ecosystem on first
 
 Tool presence: before each ecosystem runs, verify the tool is on `PATH`. If missing, report `skip` with the ecosystem's `install-hint` from the ecosystem config — never report `FAIL` for a missing tool.
 
+**Opt-in gate (lint phase only)**: before running an ecosystem's `check-cmd`, evaluate its resolved `opt-in` condition (if present) against the repo. Build and test always run regardless of `opt-in` — only the lint phase is gated, since compiling and testing don't depend on style configuration.
+
+This binary gate applies cleanly when `opt-in` describes ONE condition governing the whole `check-cmd` (e.g. dotnet, python): unmet → report the ecosystem's Lint column as `skip (opt-in unmet: <condition, ≤10 words>)` — visible, not silently omitted — and do not run `check-cmd`. Met → run `check-cmd` normally.
+
+When `opt-in` instead describes MULTIPLE independent per-tool conditions bundled into one opaque command string (e.g. bash's `"shellcheck always applies to shell files; shfmt only when .editorconfig declares shell style"`, where `check-cmd` is `shellcheck ... && shfmt -d <files>`), this gate does NOT apply — `check-cmd` is a single opaque string (per the ecosystem-commands contract) with no way to run one sub-tool's portion without the other. Run `check-cmd` as before (unchanged from prior behavior) and report its real output; do not attempt a partial skip. See Gotchas below for the known atomicity limitation this leaves open.
+
+An opt-in-unmet skip (single-condition case) counts toward the table's total ecosystem count but never toward the FAIL count, the same precedent as a missing-tool skip. This is ecosystem-generic (reads the resolved `opt-in` key), not dotnet-specific — it applies to every current and future single-condition opt-in-bearing ecosystem `/toolchain:check` covers. Project-declared CI-parity gates (below) are unaffected — they already run independent of `check-cmd`.
+
 **Project-declared CI-parity gates** — when the consuming project documents extra local checks that mirror CI gates plain build / test / lint don't catch (lockfile drift, generated-artifact freshness, schema regeneration), run the ones whose trigger files changed. These live in the consumer's own conventions (its `CLAUDE.md` / rules / commands reference) — this plugin ships none of its own.
 
 For ecosystem-specific gotchas (xUnit `--nologo` trap, `dotnet test --project`, etc.), read the corresponding `context/<ecosystem>.md` file.
@@ -126,7 +134,7 @@ For ecosystem-specific gotchas (xUnit `--nologo` trap, `dotnet test --project`, 
 Overall: FAIL (1 of 2 ecosystems failed)
 ```
 
-Use `pass`, `FAIL`, `skip`, or `—` (not applicable — for ecosystems where the corresponding command is null in the ecosystem config). Show failing command output below the table.
+Use `pass`, `FAIL`, `skip` (tool missing) or `skip (opt-in unmet: ...)` (config condition not met), or `—` (not applicable — for ecosystems where the corresponding command is null in the ecosystem config). Show failing command output below the table.
 
 If any project-declared CI-parity gates fired, summarize each by name + outcome below the per-ecosystem block, with the remediation pointer on failure.
 
@@ -143,4 +151,6 @@ When composing `/toolchain:check` from another skill (like `/verification:confir
 
 - **CWD drift** — the #1 source of false failures. Always use absolute paths
 - **Missing tools** — report as `skip` with reason, not as failure (e.g., `uv` not installed)
+- **Opt-in unmet** — report as `skip (opt-in unmet: ...)` with the condition, not as failure and not silently omitted (e.g., dotnet with no C#-relevant `.editorconfig`)
+- **Multi-tool `check-cmd` atomicity** — when a multi-tool ecosystem's `check-cmd` bundles a gated sub-tool and an unconditional sub-tool in one shell string (e.g. bash's `shellcheck ... && shfmt -d <files>`), the opt-in gate cannot suppress just the gated sub-tool's contribution — both run whenever the unconditional sub-tool's condition holds, per the ecosystem-commands contract's own "opaque shell string" rule. Splitting a multi-tool `check-cmd` into separately gateable ecosystem keys would need a schema change; not addressed here
 - **Multiple projects in same ecosystem** — ecosystems with an `anchor` use that as the scoping anchor; ecosystems with `project-discovery` patterns walk each discovered project root
