@@ -4,7 +4,47 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
-## 0.8.0
+## [0.8.3]
+
+### Fixed
+
+- **youtube-digest: resolved a self-contradiction in `SKILL.md` about `.work/`
+  commit behavior.** The video-slug carve-out prose claimed the `.work/` root
+  "self-ignores (a `.gitignore` containing `*`) and is never committed" — an
+  unimplemented statement (no code writes a root `*` ignore) that directly
+  contradicted the Output contract, where ~35 slice artifacts are marked
+  `Staged: yes`. The prose now states the committed reality: slice artifacts are
+  the durable substrate, staged and committed per the Output contract *when the
+  resolved work root is not itself gitignored*, with the contact-sheet JPGs held
+  out of git in every case by the per-directory `.gitignore` (`*.jpg`) that
+  `snapshot-bootstrap.js` writes. It also surfaces the precondition the old text
+  elided: a co-resident topic-docs convention self-ignores the shared repo-root
+  `.work/` (default `memory_dir`), leaving slices local until the work root is
+  relocated (e.g. a non-default `library_dir`). Doc-only; no pipeline behavior
+  changes.
+
+## [0.8.2]
+
+### Changed
+
+- Documentation-only: the License section now states the plugin's own MIT
+  license inline and no longer points at a `LICENSE` file at the repository
+  root, which an installed consumer running from the isolated plugin cache
+  cannot reach. No behavior change.
+
+## [0.8.1]
+
+### Changed
+
+- **youtube-digest: the `variation-matrix-backlog.json` manual smoke-test log is
+  demoted out of `evals/fixtures/`.** It is a tracking backlog of candidate videos
+  across footage variations (status notes, blocked-caption records), not an
+  input→expected-output graded fixture — no eval `files[]` entry or test consumed
+  it. Moved to the skill's `reference/`; `SKILL.md` and vendor `TUNING.md` prose now
+  point at the new path, and its grandfather line is removed from
+  `scripts/orphaned-fixtures-baseline.txt`.
+
+## [0.8.0]
 
 ### Changed
 
@@ -18,7 +58,7 @@ only after that version increases.
   scripts the ingest skills already run — pulling the prerequisite/provisioning surface onto
   the setup contract. The personal env-channel scalars are unchanged.
 
-## 0.7.1
+## [0.7.1]
 
 ### Changed
 
@@ -27,7 +67,7 @@ only after that version increases.
   the EPUB branch's `unzip` requirement (not bundled with Git Bash) —
   cross-platform declaration wave. PDF-only use needs neither extra install.
 
-## 0.7.0
+## [0.7.0]
 
 ### Changed
 
@@ -54,13 +94,13 @@ only after that version increases.
   plaintext in `~/.claude/.credentials.json` on Windows, so those secrets stay in shell env until
   keychain-backed sensitive storage lands there (documented at the course-digest auth-env site).
 
-## 0.6.1
+## [0.6.1]
 
 ### Changed
 
 - References to the renamed `/planning:plan` skill (was `/planning:architect`, planning 0.13.0 breaking rename) retargeted. Version bumped so existing installs receive the rewritten prompts.
 
-## 0.6.0
+## [0.6.0]
 
 ### Changed
 
@@ -72,7 +112,7 @@ only after that version increases.
   unaffected (`.work/<watch-epic>/...` layout is unchanged); resume with
   `/knowledge:youtube-digest resume <video-slug>`.
 
-## 0.5.6
+## [0.5.6]
 
 ### Added
 
@@ -80,7 +120,7 @@ only after that version increases.
   graduate into a standalone plugin (once its vendored `video-digestion` package is
   independently distributable).
 
-## 0.5.5
+## [0.5.5]
 
 ### Fixed
 
@@ -88,7 +128,7 @@ only after that version increases.
   linear pass, but now preserves an unmatched literal less-than tail instead of truncating the rest
   of programming, mathematics, or other tolerant transcript text.
 
-## 0.5.4
+## [0.5.4]
 
 ### Fixed
 
@@ -101,7 +141,7 @@ only after that version increases.
   clone option parsing is terminated explicitly; and WebVTT/entity cleanup uses bounded,
   single-pass transformations that cannot turn nested malformed input into active markup.
 
-## 0.5.3
+## [0.5.3]
 
 ### Changed
 
@@ -115,7 +155,7 @@ only after that version increases.
   now records that the `verification/` lane name matches the convention's canon. Docs-only —
   no paths or behavior change; the `library_dir` seam is untouched.
 
-## 0.5.2
+## [0.5.2]
 
 ### Fixed
 
@@ -141,7 +181,7 @@ only after that version increases.
   forces `--no-playlist`; and a passing key-frame quality-audit row now requires a
   substantive evidence note (an omitted note no longer bypasses the gate).
 
-## 0.5.1
+## [0.5.1]
 
 ### Changed
 
@@ -153,7 +193,7 @@ only after that version increases.
   into `${CLAUDE_PLUGIN_DATA}` is unchanged. Internal restructure — no consumer-facing behavior
   change; the version bump delivers the moved source (and the new install fingerprint) to consumers.
 
-## 0.5.0
+## [0.5.0]
 
 ### Added
 
@@ -189,7 +229,7 @@ only after that version increases.
 - `repo-analysis` and `video-digestion` are now vendored by both the youtube and
   course-digest skills. Deduplication of the two copies is tracked separately.
 
-## 0.4.0
+## [0.4.0]
 
 ### Changed
 
@@ -208,7 +248,7 @@ only after that version increases.
   land, restoring the stronger wording softened while the seam was unwired
   (`book-distill` remains the documented exception).
 
-## 0.3.0
+## [0.3.0]
 
 ### Changed
 
@@ -216,7 +256,7 @@ only after that version increases.
   hardening so synthesized artifacts land at the configured library directory in the
   consuming repo.
 
-## 0.2.0
+## [0.2.0]
 
 ### Added
 
@@ -237,6 +277,6 @@ only after that version increases.
   dependencies resolve from `${CLAUDE_PLUGIN_DATA}` (NODE_PATH is CommonJS-only and
   does not apply).
 
-## 0.1.1
+## [0.1.1]
 
 - Prior baseline: `book-distill` and `setup` skills.

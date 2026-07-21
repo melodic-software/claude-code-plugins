@@ -46,6 +46,11 @@ chmod +x "$FAKE_BIN_DIR/faketool"
 
 # run_fake: invoke the hook with faketool as the only scanned bin and an
 # isolated per-case verifier cache so a stale 24h --help cache never leaks.
+# Models a Write: the content goes into the payload's `content` (what the hook
+# now scans) AND to disk (so the file existence + extension checks pass). Keeping
+# disk == payload means the pre-fix hook — which read the file — scans the same
+# bytes, so this conversion is behavior-preserving and every existing case stays
+# green across the diff-scope fix.
 run_fake() {
   local content="$1" ext="${2:-sh}"
   local case_dir="$TEST_TMPDIR/fake-$((PASS + FAIL + 1))"
@@ -56,7 +61,24 @@ run_fake() {
     CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS=faketool \
     LOCALAPPDATA="$case_dir/cache" \
     XDG_CACHE_HOME="$case_dir/cache" \
-    bash "$HOOK" <<<"$(MSYS_NO_PATHCONV=1 jq -n --arg fp "$target" '{tool_input:{file_path:$fp}}')" 2>&1
+    bash "$HOOK" <<<"$(MSYS_NO_PATHCONV=1 jq -n --arg fp "$target" --arg c "$content" '{tool_name:"Write",tool_input:{file_path:$fp,content:$c}}')" 2>&1
+}
+
+# run_edit <disk-body> <new-hunk> [ext]: models an Edit — the file on disk
+# carries <disk-body> (pre-existing lines), the payload's new_string is the
+# changed hunk. The hook must scan ONLY the hunk, never the disk body. Isolates
+# the diff-scope contract: disk and payload deliberately differ.
+run_edit() {
+  local disk="$1" hunk="$2" ext="${3:-sh}"
+  local case_dir="$TEST_TMPDIR/edit-$((PASS + FAIL + 1))"
+  mkdir -p "$case_dir/cache"
+  local target="$case_dir/target.$ext"
+  printf '%s\n' "$disk" >"$target"
+  PATH="$FAKE_BIN_DIR:$PATH" \
+    CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS=faketool \
+    LOCALAPPDATA="$case_dir/cache" \
+    XDG_CACHE_HOME="$case_dir/cache" \
+    bash "$HOOK" <<<"$(MSYS_NO_PATHCONV=1 jq -n --arg fp "$target" --arg s "$hunk" '{tool_name:"Edit",tool_input:{file_path:$fp,new_string:$s}}')" 2>&1
 }
 
 OUT=$(run_fake 'faketool sub --real'); RC=$?
@@ -122,11 +144,44 @@ assert_exit "--version universally skipped → exit 0" 0 "$RC"
 OUT=$(run_fake 'faketool sub --fake' cs); RC=$?
 assert_exit "non-target ext (.cs) → exit 0" 0 "$RC"
 
+# ======================= DIFF-SCOPE (edit hunk only) =======================
+# An Edit must verify only its changed hunk, never the whole file on disk. Repro
+# shape: a file already carrying an unknown flag, edited elsewhere with a clean
+# hunk, must stay quiet — the pre-fix whole-file scan re-flagged the untouched
+# line on every unrelated edit.
+OUT=$(run_edit 'faketool sub --fake' 'faketool sub --real'); RC=$?
+assert_exit "diff-scope: unknown flag on disk, clean hunk → exit 0" 0 "$RC"
+assert_silent "diff-scope: pre-existing flag outside the hunk not re-flagged" "$OUT"
+
+# Counterpart MUST-fire: an unknown flag introduced BY the edit's hunk fires.
+OUT=$(run_edit 'faketool sub --real' 'faketool sub --fake'); RC=$?
+assert_exit "diff-scope: unknown flag in the hunk → exit 0" 0 "$RC"
+ctx_contains "diff-scope: hunk flag reported" "$OUT" "UNKNOWN_FLAG: faketool sub --fake"
+
+# --------------- PARTIAL-REPLACEMENT (bare-flag hunk reconstruction) ---------
+# An Edit whose new_string is ONLY the swapped-in flag carries no binary or
+# subcommand, so the hunk yields no command candidate and a genuinely-introduced
+# unknown flag would be missed. The disk lines model POST-edit state (PostToolUse
+# runs after the edit applies), so the flag token is already on disk. Bounded
+# context reconstruction pulls the on-disk line carrying the hunk's flag token
+# and scans it. MUST-FIRE: fails against the pre-fix hook, passes after.
+OUT=$(run_edit 'faketool sub --fake' '--fake'); RC=$?
+assert_exit "partial-edit: bare-flag hunk reconstructs context → exit 0" 0 "$RC"
+ctx_contains "partial-edit: reconstructed hunk flag reported" "$OUT" "UNKNOWN_FLAG: faketool sub --fake"
+
+# MUST-STAY-QUIET: the same bare-flag shape where the disk line ALSO carries a
+# different pre-existing unknown flag NOT in new_string. Reconstruction keeps
+# only candidates whose flag appears in the hunk, so the unrelated --otherbogus
+# never re-fires — the diff-scope contract holds through reconstruction.
+OUT=$(run_edit 'faketool sub --real --otherbogus' '--real'); RC=$?
+assert_exit "partial-edit: unrelated pre-existing flag not re-fired → exit 0" 0 "$RC"
+assert_silent "partial-edit: only hunk-flag verified, --otherbogus stays quiet" "$OUT"
+
 # Kill switch — disabled path is a clean no-op despite a hallucinated flag.
 dis_dir="$TEST_TMPDIR/fake-disabled"
 mkdir -p "$dis_dir/cache"
 printf 'faketool sub --fake\n' >"$dis_dir/target.sh"
-dis_input=$(MSYS_NO_PATHCONV=1 jq -n --arg fp "$dis_dir/target.sh" '{tool_input:{file_path:$fp}}')
+dis_input=$(MSYS_NO_PATHCONV=1 jq -n --arg fp "$dis_dir/target.sh" --arg c 'faketool sub --fake' '{tool_name:"Write",tool_input:{file_path:$fp,content:$c}}')
 OUT=$(PATH="$FAKE_BIN_DIR:$PATH" CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS=faketool \
   LOCALAPPDATA="$dis_dir/cache" XDG_CACHE_HOME="$dis_dir/cache" \
   CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_ENABLED=false bash "$HOOK" <<<"$dis_input" 2>&1); RC=$?
@@ -138,13 +193,24 @@ OUT=$(PATH="$FAKE_BIN_DIR:$PATH" CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS=faket
   CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_SKIP_BINS=faketool bash "$HOOK" <<<"$dis_input" 2>&1); RC=$?
 assert_exit "per-binary skip → exit 0" 0 "$RC"
 
+# Empty stdin: hook::buffer_stdin returns 1 (no payload) → this advisory hook
+# skips silently. Guards the skip contract through the migrated buffered-read
+# path. NOTE: a here-string / /dev/null cannot reproduce the Win32
+# late-EOF pipe stall the fix targets, and rc-2 (timeout) collapses to the same
+# silent exit 0 as rc-1 for an advisory hook — so this asserts the skip contract,
+# not the stall itself.
+OUT=$(PATH="$FAKE_BIN_DIR:$PATH" CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS=faketool \
+  bash "$HOOK" </dev/null 2>&1); RC=$?
+assert_exit "empty stdin → exit 0" 0 "$RC"
+assert_silent "empty stdin → no output" "$OUT"
+
 # ============================ TELEMETRY ====================================
 TEL="$(mktemp -p "$TEST_TMPDIR")"
 SINK="$(make_sink "cat >\"$TEL\"")"
 tel_dir="$TEST_TMPDIR/fake-tel"
 mkdir -p "$tel_dir/cache"
 printf 'faketool sub --fake\n' >"$tel_dir/target.sh"
-tel_input=$(MSYS_NO_PATHCONV=1 jq -n --arg fp "$tel_dir/target.sh" '{tool_input:{file_path:$fp}}')
+tel_input=$(MSYS_NO_PATHCONV=1 jq -n --arg fp "$tel_dir/target.sh" --arg c 'faketool sub --fake' '{tool_name:"Write",tool_input:{file_path:$fp,content:$c}}')
 PATH="$FAKE_BIN_DIR:$PATH" CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS=faketool \
   LOCALAPPDATA="$tel_dir/cache" XDG_CACHE_HOME="$tel_dir/cache" \
   HOOK_TELEMETRY_SINK="$SINK" bash "$HOOK" <<<"$tel_input" >/dev/null 2>&1 || true

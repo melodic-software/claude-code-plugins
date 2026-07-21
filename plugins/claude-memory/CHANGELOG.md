@@ -3,6 +3,65 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.0]
+
+### Added
+
+- **New `stateless` skill (`/claude-memory:stateless`)** for inspecting and disabling Claude
+  Code auto memory — the notes Claude writes for itself per repo under
+  `~/.claude/projects/<project>/memory/` (relocatable via `autoMemoryDirectory`). Actions:
+  `status` (default, read-only — effective on/off state and store contents across all settings
+  scopes), `disable` (sets `autoMemoryEnabled: false` and `CLAUDE_CODE_DISABLE_AUTO_MEMORY` in a
+  confirmed scope, and flags a dotfile-manager backfill for a tracked `settings.json`), and
+  `purge` (destructive — reads `autoMemoryDirectory` at every scope, shows a deletion manifest,
+  and deletes auto-memory `*.md` files only after explicit confirmation). Scope is auto-memory
+  only; the instruction layer stays with `audit`, and transcripts/history are out of scope
+  (auto-cleaned by `cleanupPeriodDays`). Claude Desktop / claude.ai account memory is a
+  server-side store the skill gives direction for rather than deleting locally. Per the
+  env-vars doc, `CLAUDE_CODE_DISABLE_AUTO_MEMORY` overrides `autoMemoryEnabled` (the env var is
+  authoritative when set); `disable` writes the env var (`1`) plus `autoMemoryEnabled: false`,
+  and `status` treats a set env var as authoritative. The bundled `scope-report.sh` reuses the
+  plugin's single-source memory-dir resolver rather than re-deriving the path.
+
+### Fixed
+
+- **`resolve-memory-dir.sh` now honors `CLAUDE_CONFIG_DIR`.** The shared resolver (used by both
+  the `audit` and `stateless` skills) resolved the config root as `$HOME/.claude`, so a machine
+  that relocates its Claude Code config via `CLAUDE_CONFIG_DIR` had its memory directory resolved
+  to the wrong path. It now uses `${CLAUDE_CONFIG_DIR:-$HOME/.claude}`, per the official
+  `.claude-directory` doc, so the relocated `projects/<project>/memory/` tree resolves correctly.
+
+## [0.2.3]
+
+### Fixed
+
+- **`orphan-rule-check` no longer truncates a quoted `memory_dir` at an interior `#`.**
+  Seam resolution now routes through the shared `parse-concern-value.sh` helper
+  (materialized from `lib/parse-concern-value.sh`), which resolves surrounding quotes
+  *before* stripping comments: `memory_dir: ".scratch#dir"` keeps its `#` and the correct
+  tier is excluded from the reference search, rather than collapsing to `.scratch` and
+  masking an orphan rule. The naive `${seam%%#*}`-first strip is gone; an unquoted
+  whitespace-preceded trailing `# comment`, surrounding whitespace, and trailing-slash
+  handling are unchanged. As a
+  non-interactive detector it still degrades to the documented `.work` default when the
+  seam is unset — the contract's inferred/interactive rungs stay the calling skill's job.
+- **A comment-only `memory_dir` now resolves to the fallback, not a literal directory.**
+  `memory_dir: # use default` is YAML-null; the parser previously kept `# use default`
+  as the value (its comment strip only fired on a whitespace-*preceded* `#`), so the
+  detector searched `# use default/` and stopped excluding the default `.work/` tier —
+  letting a `.work` reference mask an orphan. A `#` that starts the unquoted value is now
+  treated as a comment, so resolution falls through to the caller's fallback / documented
+  default.
+
+## [0.2.2]
+
+### Changed
+
+- Documentation-only: the License section now states the plugin's own MIT
+  license inline and no longer points at a `LICENSE` file at the repository
+  root, which an installed consumer running from the isolated plugin cache
+  cannot reach. No behavior change.
+
 ## [0.2.1]
 
 ### Fixed

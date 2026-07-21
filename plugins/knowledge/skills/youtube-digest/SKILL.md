@@ -33,7 +33,7 @@ Derive `.work/<watch-epic>/<video-slug>/` from metadata title + video id:
 
 Implementation: `${CLAUDE_PLUGIN_ROOT}/skills/youtube-digest/extraction/transcript/derive-video-slug.js`
 
-This skill's `.work/` root is **formally carved out** of the marketplace topic-docs convention (<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>): the work root resolves through the knowledge plugin's own `library_dir` seam, not the concern file's `memory_dir`; slug conformance is form-only (kebab-case `[a-z0-9-]`, ≤ 40 chars, Windows-reserved base names take an `-x` suffix); and nested `<epic>/<slug>/` sub-slices are sanctioned. The root still self-ignores (a `.gitignore` containing `*`) and is never committed.
+This skill's `.work/` root is **formally carved out** of the marketplace topic-docs convention (<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>): the work root resolves through the knowledge plugin's own `library_dir` seam, not the concern file's `memory_dir`; slug conformance is form-only (kebab-case `[a-z0-9-]`, ≤ 40 chars, Windows-reserved base names take an `-x` suffix); and nested `<epic>/<slug>/` sub-slices are sanctioned. Unlike the convention's never-committed memory tier, this skill writes no root `*` `.gitignore` of its own: its slice artifacts are the durable substrate, staged and committed per the Output contract — **provided the resolved work root is not itself gitignored**. That precondition is not automatic. Because the default work root and the convention's default `memory_dir` both resolve to repo-root `.work/`, a consumer that *also* adopts the topic-docs convention self-ignores that shared root (a `.gitignore` containing `*`), leaving these slices local until the work root is moved off it (e.g. a non-default `library_dir`); the skill does not force-add. The contact-sheet JPGs stay out of git in either case: `snapshot-bootstrap.js` writes a per-directory `.gitignore` (`*.jpg`) into `key-frames/contact-sheets/`, so staging a committable slice never sweeps them in.
 
 ## Artifact landing (work root)
 
@@ -394,6 +394,7 @@ Driver video: `https://www.youtube.com/watch?v=7zZy1QTvokM` — slug `stop-promp
 | --- | --- |
 | `evals/evals.json` | Skill behavior + driver golden eval cases |
 | `evals/fixtures/driver-video-goldens.json` | Q&A bank (≥1 `frame_only` question) |
-| `evals/fixtures/variation-matrix-backlog.json` | Code screencast / slide talk / talking-head / mixed — backlog only |
+
+Manual variation smoke-test backlog (code screencast / slide talk / talking-head / mixed — tracking only, not a graded fixture): `reference/variation-matrix-backlog.json`.
 
 D9 starting defaults: `${CLAUDE_PLUGIN_ROOT}/vendor/video-digestion/TUNING.md`. Retune after first host watch.

@@ -56,13 +56,17 @@ topic qualifier follows the verb with a hyphen (`audit-noise` beside `audit-enca
 `scan-todos` under `work-items`); the verb keeps its fixed meaning from the table.
 
 Nouns are reserved for knowledge routers (`principles`, `methodology`) and lifecycle-object routers
-(`worktree`, `pull-request`). Four further documented exceptions: a single-skill vendor-CLI wrapper
+(`worktree`, `pull-request`). Five further documented exceptions: a single-skill vendor-CLI wrapper
 repeats its tool name (`firecrawl:firecrawl`); a `-deep` suffix marks the heavier
 isolated-execution tier of a sibling skill (`explore`/`explore-deep`); a knowledge router named by
 its method's own literature term keeps that term when renaming would destroy recognized craft
-vocabulary (`songwriting:object-writing`, `meter-prosody`, `song-form` — Pattison's terms); and a
+vocabulary (`songwriting:object-writing`, `meter-prosody`, `song-form` — Pattison's terms); a
 playbook router named by its source keeps the source's own identifier, because provenance is the
-content's identity (`playbooks:boris`, `playbooks:fable-5` — one scheme, person or model alike).
+content's identity (`playbooks:boris`, `playbooks:fable-5` — one scheme, person or model alike);
+and an object-pronoun qualifier is kept when the skill's defining boundary IS that the object under
+test is the user themself (`education:quiz-me` — the `-me` distinguishes quizzing the human on
+completed work from teach's in-workspace content quizzing, where a bare `quiz` would under-specify
+the object the grammar normally delegates to the namespace).
 Every exception is an entry on this list, decided per name — a name class is never
 blanket-sanctioned.
 
@@ -71,11 +75,30 @@ Skills specification allows. Never degrade a name to dodge a built-in command: p
 namespaced and cannot collide with other levels. When a name matches a built-in, the bare token
 still belongs to the built-in; the namespaced form is the plugin skill's only command.
 
+That guarantee is about **resolution**, and it does not extend to **display**. The slash-command
+picker lists a skill by its short name and registers the namespaced form as a hidden alias — so
+`/planning:` still filters to that plugin's skills, but `planning:plan` is not what the row is
+labelled. Origin travels in the description instead: a plugin skill renders as
+`(<plugin-name>) <description>`, a personal skill as `<description> (user)`, a project skill as
+`(project)` or `(project, gitignored)` depending on whether it came from shared or local settings,
+and a built-in, bundled, or MCP entry carries no marker at all. So sibling short names
+across different plugins are unambiguous to *invoke* and identical to *read* — a shared leaf name
+costs legibility in the description column, never correctness. Weigh it there; never rename to buy
+display uniqueness, and keep the description's first clause carrying the distinguishing object,
+since that column is what a reader actually scans.
+
 ## Native-first
 
 Prefer a built-in native mechanism — `userConfig`, a native component type, a native lifecycle
 event — over any custom extensibility point. Build custom only on genuine misfit, and document the
 misfit where the custom mechanism lives.
+
+Built-in-first is a gate on every customization surface, not a preference. Before building
+any custom config surface — a YAML concern file, a bespoke seam — first verify against the *current*
+official Claude Code plugin documentation that no native mechanism (`userConfig`, a built-in
+per-repo config surface) can host the need; the platform moves, so re-fetch
+the documentation rather than trusting memory or an old summary. A custom extensibility point is the
+fallback only where the built-in surface genuinely cannot support the need.
 
 Adoption gate, applied per mechanism: adopt a native mechanism when it
 
@@ -108,6 +131,33 @@ native one matures into fitness.
 | [Themes](https://code.claude.com/docs/en/plugins-reference) | Wait | Experimental (`experimental.themes`); schema may change between releases. Re-verify before each audit. | 2026-07-17 |
 | [Channels](https://code.claude.com/docs/en/plugins-reference) | Wait | No longer carries an official experimental label, but fails the adoption gate today: no fleet gap it fills. Re-verify before each audit. | 2026-07-17 |
 | [Dependencies](https://code.claude.com/docs/en/plugin-dependencies) | Adopt on need (hard requires only) | See the design boundary: hard requires only, semver-constrained, released via `{name}--v{version}` tags. None exist in this fleet today. | 2026-07-17 |
+
+## Two-lane convention posture
+
+A plugin must not arrive at an arbitrary consuming repo carrying pre-prescribed conventions. A
+convention baked in as a fixed default — a branch-naming grammar, a commit structure, a directory
+layout — is a hardcoded assumption that the consumer's practice will never differ from the plugin's;
+that is the definition of a dependency, and dependencies are externalized and abstracted, not shipped
+as defaults. This governs every plugin and every convention, not one class. Two lanes hold:
+
+1. **Non-conflicting good-practice defaults.** A shipped default is legitimate only when it is a
+   good-practice value that cannot conflict in *any* repo the plugin drops into. This lane is narrow:
+   most conventions a consumer already holds an opinion on (Conventional Commits in a repo that does
+   not use them, for instance) do not qualify, because dropping the plugin in would then impose the
+   wrong convention.
+2. **Discover via setup, externalize as configuration.** In the general case the plugin's setup
+   action or skill discovers the consuming repo's conventions — branch naming, commit structure,
+   patterns — and externalizes them as configuration extensibility points rather than coming to the
+   table assuming them. A convention a consumer could reasonably do differently belongs in lane 2, as
+   a discovered-and-externalized extensibility point, never as a lane-1 default.
+
+A bare lane-1 hardcode in a skill declared agnostic — a fixed default branch, forge, ecosystem, or
+tracker where the consuming repo could reasonably differ — is a defect, mechanically caught rather
+than asserted only in prose. A detection-first or presence-gated use is compliant. A capability
+genuinely and inherently locked to one branch, forge, ecosystem, or tracker declares that narrower,
+inherent scope at the coupling site — the same declared-narrower-boundary allowance the
+cross-platform contract makes for OS platform — rather than shipping the assumption bare under a
+neutral name.
 
 ## Configuration ownership and scope
 
@@ -229,8 +279,10 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Lifecycle artifact protocol | [`docs/PLUGIN-ARTIFACT-PROTOCOL.md`](PLUGIN-ARTIFACT-PROTOCOL.md) |
 | Shared hook utility library | `lib/hook-utils.sh`, synced by `scripts/sync-hook-utils.sh` |
 | Cross-plugin shared-source clusters | `scripts/cross-plugin-source-registry.txt` |
+| Consumer-config layering and precedence | [`docs/conventions/consumer-config-layering/`](conventions/consumer-config-layering/README.md) |
 | Ecosystem command resolution | [`docs/conventions/ecosystem-commands/`](conventions/ecosystem-commands/README.md) |
 | Hook telemetry | [`docs/conventions/hook-telemetry/`](conventions/hook-telemetry/README.md) |
+| Hook precision (false-positive discipline) | [`docs/conventions/hook-precision/`](conventions/hook-precision/README.md) |
 | Permission-rule hygiene | [`docs/conventions/permission-rule-hygiene/`](conventions/permission-rule-hygiene/README.md) |
 | Repository standards index | [`docs/conventions/standards/`](conventions/standards/README.md) |
 | Skill layout contract and evals schema | `skill-quality` plugin (contract gate + bundled schema) |

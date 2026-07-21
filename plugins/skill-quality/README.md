@@ -2,7 +2,7 @@
 
 A Claude Code plugin for **skill-authoring QA**: it runs a static, deterministic contract gate over a
 skill directory and validates a skill's `evals.json` against a bundled schema. No model invocation in
-the gate — the same seventeen checks run identically in a session, a pre-commit hook, or CI.
+the gate — the same eighteen checks run identically in a session, a pre-commit hook, or CI.
 
 The one failure static analysis catches best is a rewrite silently dropping a `description` trigger
 phrase, which quietly degrades a skill's auto-invocation. Check 3 compares the trigger phrases against
@@ -15,7 +15,7 @@ phrase, which quietly degrades a skill's auto-invocation. Check 3 compares the t
 
 ## Checks
 
-`check` runs `check-skill.sh` — seventeen checks, reported as `FAIL:` (blocking) or `WARN:` (advisory):
+`check` runs `check-skill.sh` — eighteen checks, reported as `FAIL:` (blocking) or `WARN:` (advisory):
 
 - Frontmatter parses; `name` + `description` present.
 - `description` + `when_to_use` within the 1536-char listing budget (overflow truncates the listing).
@@ -27,6 +27,9 @@ phrase, which quietly degrades a skill's auto-invocation. Check 3 compares the t
 - Vendored `vendor/` byte-identical vs `HEAD`; stale-tracking metadata keys preserved; sync age.
 - Gotchas surface present; `description` carries `Use when` phrasing; no committed cache artifacts;
   action-router skills ship `evals/evals.json`; companion spoke dirs are referenced.
+- Precompute opportunity (advisory) — a fenced shell block gathers read-only context the skill could
+  inline at load time via [`!` injection](https://code.claude.com/docs/en/skills#inject-dynamic-context)
+  instead of a per-invocation tool call.
 
 ```shell
 /skill-quality:check my-skill          # gate one skill
@@ -62,4 +65,4 @@ Evals are warranted, not mandatory — a skill shipping none is not a failure.
 - A git repository — several checks read `git show HEAD:` / `git ls-files`; outside a repo the script
   exits 2.
 - `npx` (Node) is optional; without it the markdownlint check downgrades to a warning and the other
-  sixteen still gate.
+  seventeen still gate.

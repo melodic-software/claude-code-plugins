@@ -1,6 +1,6 @@
 # guardrails
 
-A Claude Code plugin bundling eight **safety guards** that catch risky agent
+A Claude Code plugin bundling nine **safety guards** that catch risky agent
 actions the moment they happen — before a write lands or a bash command runs.
 Each guard is independently toggleable, so you run exactly the subset you want.
 
@@ -15,9 +15,10 @@ Each guard is independently toggleable, so you run exactly the subset you want.
 | **block-hook-bypass** | PreToolUse · Bash | **Blocks** (exit 2) | Bash file-write workarounds that circumvent the Write/Edit hook gates — `cat > file`, `echo … > file`, and `python3 -c` with file-write indicators. Executable-token detection ignores quoted prose/commit text that merely mentions the pattern. |
 | **cli-flag-verify** | PostToolUse · Write \| Edit | **Advisory** (exit 0) | Hallucinated CLI flags — a `--flag` written as a command that does not exist in the binary's actual `--help` output. Surfaces via `additionalContext`, never blocks. |
 | **workflow-resilience-check** | PreToolUse · Workflow | **Advisory** (exit 0) | Un-throttled Workflow fan-out — a script calling `parallel()` / `pipeline()` with no wave-cap throttle (`inWaves` / `inWavesPipeline`) and no retry wrapper (`agentRetry`), which risks a burst 529 under wide Opus fan-out. Surfaces a resilience checklist via `additionalContext`, never blocks. |
-| **flag-commit-pr-skill-bypass** | PreToolUse · Bash | **Advisory** (exit 0) | Direct `git commit` (missing the canonical `-F -` stdin form + `--trailer` Co-Authored-By line) or any `gh pr create`, bypassing this marketplace's own `/commit` / `/pull-request create` skills. Only fires when the consuming project's own `.claude/settings.json` enables the `source-control` plugin — silent otherwise. Surfaces via `additionalContext`, never blocks. |
+| **block-noncanonical-commit** | PreToolUse · Bash | **Blocks** (exit 2) | `git commit` that does not pipe its message via `-F -` / `--file -` — `-m` flattens newlines unpredictably across shells. Exempt: `--amend`, `-C`/`-c`/`--reuse-message`/`--reedit-message`, `--fixup`/`--squash`, `-F <path>`, and any commit taken while a merge/rebase/cherry-pick/revert is in progress. Resolves `bash -lc` wrappers and git aliases (inline `-c` and persisted config alike). |
+| **flag-commit-pr-skill-bypass** | PreToolUse · Bash | **Advisory** (exit 0) | Any `gh pr create`, bypassing this marketplace's own `/pull-request create` skill. Only fires when the consuming project's own `.claude/settings.json` enables the `source-control` plugin — silent otherwise. Surfaces via `additionalContext`, never blocks. |
 
-The five blocking guards feed their stderr message back to Claude as
+The six blocking guards feed their stderr message back to Claude as
 actionable fix guidance. The three advisory guards surface their findings the same
 way but always allow the operation.
 
@@ -56,12 +57,20 @@ way but always allow the operation.
   literal-stripped top-level regex match, not a full argv-grammar parser — it
   does not evaluate shell variable / command substitution, and a determined
   author can construct a form that evades it. It cannot tell "the skill ran
-  this exact command" from "someone hand-typed the same shape" — for
-  `git commit` it targets the anti-pattern (`-m` without the canonical
-  `-F -` + `--trailer`), not literal `/commit` invocation; for `gh pr create`
-  there is no command-shape signature at all, so every direct call is flagged.
-  Always advisory (never blocks) — `create.md` itself documents a legitimate
+  this exact command" from "someone hand-typed the same shape", and for
+  `gh pr create` there is no command-shape signature at all, so every direct
+  call is flagged. It stays advisory and cannot become otherwise:
+  `/pull-request create` issues that exact command itself, so blocking it would
+  deadlock the skill being advertised. `create.md` also documents a legitimate
   inline fallback when skill discovery is broken.
+
+- **`block-noncanonical-commit` gates shape, not skill invocation.** No hook can
+  see which skill (if any) originated a Bash call, so "did you run `/commit`" is
+  not an available condition — and shape is the better target regardless, since
+  it enforces an outcome verifiable in `git log`. It deliberately does not
+  require `--trailer`: `/commit` omits the trailer under a resolved
+  `trailer_policy` of `none`, so demanding it would block the skill's own
+  conformant output in repos whose convention forbids co-author trailers.
 
 ## Per-hook kill switches
 
@@ -76,6 +85,7 @@ contract — disable one guard without touching the others.
 | block-no-verify | `block_no_verify_enabled` |
 | block-dangerous-git | `block_dangerous_git_enabled` |
 | block-hook-bypass | `block_hook_bypass_enabled` |
+| block-noncanonical-commit | `block_noncanonical_commit_enabled` |
 | cli-flag-verify | `cli_flag_verify_enabled` |
 | workflow-resilience-check | `workflow_resilience_check_enabled` |
 | flag-commit-pr-skill-bypass | `flag_commit_pr_skill_bypass_enabled` |
@@ -152,5 +162,4 @@ check reports with guidance.
 
 ## License
 
-MIT (SPDX-License-Identifier: MIT). See the `LICENSE` file at the root of the
-melodic-software/claude-code-plugins repository.
+MIT (SPDX-License-Identifier: MIT).

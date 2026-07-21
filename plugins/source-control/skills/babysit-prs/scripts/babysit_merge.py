@@ -20,6 +20,15 @@ Contract enforced here (encoded as code, not convention):
 - A PR on an unprotected base (zero required reviews AND zero required contexts)
   authored by someone other than a configured self login is held unless
   `--allow-unprotected` is passed: on such a base `CLEAN` proves nothing.
+- The #476 autopilot merge tier (`--autopilot-merge-tier`) layers five extra
+  criteria on top of the base gate -- issue-linked, lane-authored, no blocking
+  label, a distinct-bot approving review on the live head (author != approver via
+  bot identity, unchanged since review, no blocking finding in its own body), and
+  no human blocking comment. It is
+  fail-closed: the umbrella flag refuses to run unless `--lane-logins`,
+  `--approver-bot-logins`, and `--block-labels` are all non-empty. Any criterion
+  failing is just another blocker, so the caller falls back to the human
+  merge-ready list. Absent the flag the gate is byte-for-byte its prior self.
 
 Readiness is gated on GitHub's own `mergeStateStatus == CLEAN` (which integrates
 required checks, up-to-date, approvals, and conversation resolution) plus
@@ -37,18 +46,45 @@ from __future__ import annotations
 import argparse
 import json
 import re
+from dataclasses import dataclass
 from typing import Any, cast
 
 from babysit_checks import check_identity_key, classify_checks
-from babysit_feedback import is_dependency_author
+from babysit_classify import (
+    DEFAULT_FEEDBACK_CONFIG,
+    NON_APPROVAL_RE,
+    SEVERITY_BADGE_RE,
+    SEVERITY_PLAIN_RE,
+    FeedbackConfig,
+    actor_kind,
+    has_blocking_severity,
+    has_blocking_text,
+    is_bot,
+    is_dependency_author,
+    is_self_login,
+    normalize_login_set,
+    normalize_self_logins,
+)
+from babysit_feedback import latest_reviews_by_author
 from babysit_gh import (
+    fetch_issue_comments,
+    fetch_pull_request_review_comments,
+    fetch_pull_request_reviews,
     fetch_review_threads,
     gh_capture,
     gh_json,
+    normalized_rest_author,
     parse_repo_number,
     resolve_authors,
 )
 from babysit_util import MIN_HEAD_SHA_PREFIX_LENGTH, configure_stdio, is_json_object
+
+# A plain human "do not merge" veto that is neither a formal CHANGES_REQUESTED
+# review nor the configured label: the shared blocking-text predicate does not
+# carry a do-not-merge pattern, so the tier's "no human blocking comment"
+# criterion matches it here. Bounded to the merge-veto sense (do/don't/do-not
+# merge) so ordinary prose does not false-block.
+HUMAN_MERGE_VETO_RE = re.compile(r"\bdo(?:n['’]?t| not|-not)[\s-]*merge\b", re.I)
 
 EXPECTED_HEAD_RE = re.compile(rf"^[0-9a-fA-F]{{{MIN_HEAD_SHA_PREFIX_LENGTH},64}}$")
 
@@ -56,6 +92,48 @@ EXPECTED_HEAD_RE = re.compile(rf"^[0-9a-fA-F]{{{MIN_HEAD_SHA_PREFIX_LENGTH},64}}
 # all commit status passing": CLEAN on github.com, HAS_HOOKS when the repo has
 # pre-receive hooks (GHES) -- GitHub returns one OR the other, so both are ready.
 READY_MERGE_STATES = {"CLEAN", "HAS_HOOKS"}
+
+
+@dataclass(frozen=True)
+class AutopilotMergeTierConfig:
+    """The extra criteria the #476 autopilot merge tier gates on, over the base
+    readiness gate that every tier already shares.
+
+    Present only when the caller passes `--autopilot-merge-tier`; absent (None)
+    the gate behaves exactly as it always has, so worker/autopilot's existing
+    gate-proven merges are unchanged. Every field is caller-supplied and the
+    umbrella flag refuses to run with any of the three required sets empty, so
+    the tier is fail-closed: it can never merge without knowing which authors are
+    pipeline lanes, which login the distinct bot approver posts under, and which
+    labels veto a merge.
+    """
+
+    lane_logins: frozenset[str]
+    approver_bot_logins: frozenset[str]
+    block_labels: frozenset[str]
+
+    @property
+    def automation_actor_config(self) -> FeedbackConfig:
+        """Classify every configured pipeline identity as a bot for the veto and
+        ratification scans.
+
+        A lane or approver account GitHub misreports as a `User` (no `[bot]`
+        suffix) passes the structural `is_bot` fallback in
+        `find_distinct_bot_approval` but would otherwise read as a human here: a
+        configured identity is *always* automation for these scans -- never a
+        human merge veto, never a maintainer ratifying its own decision-default
+        marker (the #450 attribution-drift hazard the ratification design
+        excludes).
+        """
+        return FeedbackConfig(
+            extra_bot_logins=self.approver_bot_logins | self.lane_logins
+        )
+
+
+def parse_csv_set(raw: str | None) -> set[str]:
+    if not raw:
+        return set()
+    return {part.strip() for part in raw.split(",") if part.strip()}
 
 
 def split_owner(repo: str) -> str:
@@ -145,14 +223,370 @@ def branch_rules(repo: str, branch: str) -> dict[str, object]:
     return summary
 
 
+def approval_reports_blocking(body: str) -> bool:
+    """True when an approving review's own body reports a live blocking finding.
+
+    A distinct-bot approval can ratify the live head while its body raises a
+    structured high-severity finding; the human-blocking corpus scan deliberately
+    skips bot-authored items and GitHub can still return `reviewDecision=APPROVED`,
+    so without this check an approve-with-blocking-findings verdict would merge.
+    Only the shared classifier's *structured* severity vocabulary counts -- a
+    CRITICAL/IMPORTANT marker surviving negation redaction (`has_blocking_severity`),
+    or a P0-P3 severity badge / bracketed `[P0-P3]` marker. Prose severity words
+    (`has_blocking_text`'s "blocking"/"regression"/"must fix") are intentionally not
+    scanned: a clean approval routinely describes the fix it signs off ("resolves
+    the blocking regression"), so keying on prose would over-hold legitimate
+    approvals. This is the autopilot-tier answer to the open #621 question of
+    whether formal APPROVED-state reviews should be severity-scanned.
+    """
+    return (
+        has_blocking_severity(body)
+        or bool(SEVERITY_BADGE_RE.search(body))
+        or bool(SEVERITY_PLAIN_RE.search(body))
+    )
+
+
+def find_distinct_bot_approval(
+    reviews: list[dict[str, Any]],
+    author_login: str | None,
+    head: str | None,
+    approver_bot_logins: frozenset[str],
+) -> dict[str, Any] | None:
+    """The most recent APPROVED review by a distinct bot identity on the live head.
+
+    Enforces two #476 criteria at once: author != approver (via bot identity) and
+    head SHA unchanged since review. An approval is eligible only when its author
+    is a bot (structural `[bot]`/`Bot` type, or a caller-named approver login), is
+    not the PR author (normalized login compare), and was submitted against the
+    exact live head commit — a stale approval left on a since-superseded commit is
+    not "unchanged since review". Reviews arrive oldest-first; the last eligible
+    one wins so a re-approval on the current head is honored.
+    """
+    author_norm = normalize_login_set([author_login] if author_login else [])
+    approver_norm = normalize_login_set(approver_bot_logins)
+    match: dict[str, Any] | None = None
+    for review in reviews:
+        if str(review.get("state") or "") != "APPROVED":
+            continue
+        review_author = review.get("author")
+        login = (
+            review_author.get("login")
+            if is_json_object(review_author)
+            else review_author
+        )
+        typename = (
+            review_author.get("__typename") if is_json_object(review_author) else None
+        )
+        if normalize_login_set([login]) & author_norm:
+            continue  # same identity as the PR author -- not a distinct approver
+        if not is_bot(login, typename, approver_bot_logins):
+            continue
+        # A bot, but it must be the configured approver identity: `is_bot` accepts
+        # any `[bot]`/Bot-typed login, so without this an arbitrary installed
+        # App's approval would authorize a tier merge past the configured boundary.
+        if not (normalize_login_set([login]) & approver_norm):
+            continue
+        commit = review.get("commit")
+        commit_oid = commit.get("oid") if is_json_object(commit) else None
+        if not (head and commit_oid and str(commit_oid) == str(head)):
+            continue  # approval is on a superseded commit -- head moved since review
+        match = review
+    return match
+
+
+DECISION_DEFAULT_MARKER_RE = re.compile(r"decision[ -]defaulted", re.I)
+# GitHub author associations that identify a maintainer able to exercise the
+# "veto before merge" window: the operators the ratification signal must come
+# from. COLLABORATOR is deliberately excluded -- it is granted per-repo push
+# access, not the maintainer role that owns the veto.
+RATIFYING_ASSOCIATIONS = frozenset({"OWNER", "MEMBER"})
+# A maintainer clears the veto only with an explicit ratification signal -- a
+# small, closed, whole-word token set -- not merely any later comment (an
+# unrelated "thanks" must not ratify). Matching is strict/fail-closed: a comment
+# without a signal (or carrying a withheld-approval negation) does not clear, so
+# an ambiguous maintainer comment over-holds to the human list. Keep this set in
+# sync with the contract documented in reference/safety.md.
+RATIFICATION_SIGNAL_RE = re.compile(
+    r"\b(?:ratif(?:y|ied)|approved?|confirmed?)\b", re.I
+)
+
+
+def _decision_default_ratified(
+    comments: list[dict[str, Any]],
+    marker_ts: str,
+    config: FeedbackConfig = DEFAULT_FEEDBACK_CONFIG,
+) -> bool:
+    """True when a maintainer's latest decisive comment after the marker ratifies.
+
+    Every human-maintainer comment posted strictly after the marker is scanned and
+    the latest *decisive* signal wins: a single early ratification no longer
+    settles the question, so a maintainer who ratifies and then revokes ("not
+    approved", "do not merge") re-holds the PR for the human list. A comment is
+    decisive when it carries either an explicit ratification signal
+    (`RATIFICATION_SIGNAL_RE`) or an explicit revocation signal reusing the shared
+    veto vocabulary (`NON_APPROVAL_RE`, or `HUMAN_MERGE_VETO_RE`). Revocation is
+    tested first, so a comment mixing both reads as a revoke (fail closed). An
+    unrelated later comment ("thanks", a status question) is non-decisive and
+    leaves any prior decisive signal standing.
+
+    Ratification clears the veto only when a ratifying comment is strictly newer
+    than every revoking one, so a ratify/revoke tie at the same timestamp -- like a
+    bare marker with no decisive comment -- holds. Reactions are deliberately not
+    consulted: the reactions API carries no author association, so a reaction
+    cannot be attributed to a maintainer, and attributing it via the operator's own
+    self-logins would let pipeline automation posting under that identity clear its
+    own veto (the #450 attribution-drift hazard).
+    """
+    latest_ratify = ""
+    latest_revoke = ""
+    for comment in comments:
+        created_at = str(comment.get("createdAt") or "")
+        if created_at <= marker_ts:
+            continue
+        if actor_kind(comment, config) != "human":
+            continue
+        association = str(comment.get("authorAssociation") or "").upper()
+        if association not in RATIFYING_ASSOCIATIONS:
+            continue
+        body = str(comment.get("body") or "")
+        if NON_APPROVAL_RE.search(body) or HUMAN_MERGE_VETO_RE.search(body):
+            latest_revoke = max(latest_revoke, created_at)
+        elif RATIFICATION_SIGNAL_RE.search(body):
+            latest_ratify = max(latest_ratify, created_at)
+    return bool(latest_ratify) and latest_ratify > latest_revoke
+
+
+def _ref_repo(ref: dict[str, Any]) -> str | None:
+    """`owner/name` of a closing-issue reference's own repository, if present.
+
+    A PR may close an issue in a different repository; the reference carries that
+    repository, so the veto scan must read comments from it rather than assuming
+    the PR's repo (where a same-numbered issue could carry no marker).
+    """
+    repository = ref.get("repository")
+    if not is_json_object(repository):
+        return None
+    name = repository.get("name")
+    owner = repository.get("owner")
+    login = owner.get("login") if is_json_object(owner) else None
+    return f"{login}/{name}" if login and name else None
+
+
+def evaluate_decision_default_veto(
+    repo: str,
+    closing_issues: list[Any],
+    config: FeedbackConfig = DEFAULT_FEEDBACK_CONFIG,
+) -> tuple[list[str], list[str]]:
+    """Hold when a linked issue carries an unratified 'Decision defaulted' marker.
+
+    The triage lane records a defaulted (maintainer-vetoable) decision only as a
+    `Decision defaulted: X -- veto before merge` issue comment, which a
+    deterministic merge gate cannot see; the default may ride into an autopilot
+    merge only once a maintainer has ratified it. Each linked issue is read from
+    its own repository (a PR may close an issue in another repo). Marker matching
+    is deliberately loose (over-matching merely holds more for the human). Fail
+    closed: a comment-fetch failure holds the PR for the human list rather than
+    merging on an unverifiable issue.
+    """
+    blockers: list[str] = []
+    held: list[str] = []
+    for ref in closing_issues:
+        if is_json_object(ref):
+            number = ref.get("number")
+            issue_repo = _ref_repo(ref) or repo
+        else:
+            number = ref
+            issue_repo = repo
+        try:
+            issue_number = int(number)
+        except (TypeError, ValueError):
+            continue
+        target = f"{issue_repo}#{issue_number}"
+        try:
+            comments = fetch_issue_comments(issue_repo, issue_number)
+        except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
+            blockers.append(
+                f"could not verify the decision-default veto on {target} "
+                f"({type(exc).__name__}) -- holding for the human merge-ready list"
+            )
+            held.append(target)
+            continue
+        marker_timestamps = [
+            str(c.get("createdAt") or "")
+            for c in comments
+            if is_json_object(c)
+            and DECISION_DEFAULT_MARKER_RE.search(str(c.get("body") or ""))
+        ]
+        if not marker_timestamps:
+            continue
+        if _decision_default_ratified(comments, max(marker_timestamps), config):
+            continue
+        blockers.append(
+            f"linked issue {target} carries an unratified 'Decision defaulted' "
+            "marker -- a maintainer must ratify or veto before an autopilot merge"
+        )
+        held.append(target)
+    return blockers, held
+
+
+def evaluate_autopilot_tier(
+    repo: str,
+    number: int,
+    head: str | None,
+    author_login: str | None,
+    labels: list[Any],
+    closing_issues: list[Any],
+    tier: AutopilotMergeTierConfig,
+) -> tuple[list[str], dict[str, Any]]:
+    """Evaluate the #476 tier criteria that ride on top of the base gate.
+
+    Returns the tier's own blockers plus a self-documenting per-criterion record.
+    Every predicate is imported from the shared classifier (`babysit_classify`) so
+    the tier never re-implements authorship, bot, or blocking-text detection. Any
+    criterion failing simply adds a blocker; the caller falls back to reporting the
+    PR on the human merge-ready list, never routing around the gate.
+    """
+    blockers: list[str] = []
+
+    issue_linked = bool(closing_issues)
+    if not issue_linked:
+        blockers.append(
+            "not issue-linked -- no closing-issue reference (autopilot merge tier)"
+        )
+
+    label_names = {str(name).casefold() for name in labels if name}
+    blocking_labels = sorted(
+        label
+        for label in tier.block_labels
+        if label.casefold() in label_names
+    )
+    if blocking_labels:
+        blockers.append(
+            "blocked by label(s) " + ", ".join(repr(b) for b in blocking_labels)
+        )
+
+    lane_authored = bool(
+        normalize_login_set([author_login] if author_login else [])
+        & normalize_login_set(tier.lane_logins)
+    )
+    if not lane_authored:
+        blockers.append(
+            f"author {author_login!r} is not a configured pipeline lane "
+            "(autopilot merge tier requires a lane-authored PR)"
+        )
+
+    reviews = fetch_pull_request_reviews(repo, number)
+    # Collapse to each actor's latest decisive review before accepting a tier
+    # approval: a bot that approved and then submitted CHANGES_REQUESTED (or had
+    # its approval dismissed) on the same head must no longer count as the
+    # approver, even when another approval keeps the base reviewDecision APPROVED.
+    decisive_reviews = latest_reviews_by_author({"reviews": reviews}, decisive_only=True)
+    approval = find_distinct_bot_approval(
+        decisive_reviews, author_login, head, tier.approver_bot_logins
+    )
+    if approval is not None and approval_reports_blocking(
+        str(approval.get("body") or "")
+    ):
+        # The latest distinct-bot approval ratifies the live head but its own body
+        # raises a structured high-severity finding. An approve-with-blocking-
+        # findings verdict is not a clean tier approval, so it counts as no
+        # approval (not a human blocker) -- a since-superseded earlier clean
+        # approval must not be honored past the latest blocking verdict. See #621.
+        blockers.append(
+            "distinct-bot approving review reports blocking findings in its body "
+            "(CRITICAL/IMPORTANT or a P0-P3 severity marker) -- an "
+            "approve-with-blocking-findings verdict is not a clean tier approval, "
+            "so it is treated as no approval"
+        )
+        approval = None
+    elif approval is None:
+        blockers.append(
+            "no distinct-bot approving review on the live head "
+            "(need author != approver via bot identity, approval unchanged since head)"
+        )
+
+    # A human "do not merge"/blocking comment that is not a formal
+    # CHANGES_REQUESTED and not an unresolved inline thread (both already gated
+    # above) still halts the tier. Reuse the shared blocking-text/severity
+    # predicates over every human-authored issue comment and review summary.
+    human_blocking: list[str] = []
+    corpus: list[dict[str, Any]] = list(fetch_issue_comments(repo, number))
+    corpus.extend(reviews)
+    # Inline review-thread comments are neither issue comments nor review
+    # summaries; a human veto left inline whose thread is later resolved would
+    # otherwise escape both the base unresolved-thread gate and this scan.
+    corpus.extend(
+        {"author": normalized_rest_author(row), "body": row.get("body")}
+        for row in fetch_pull_request_review_comments(repo, number)
+    )
+    # A configured approver/lane account GitHub misreports as a `User` classifies
+    # as a bot here, so its clean review body ("no blocking issues") no longer
+    # self-blocks the very approval `find_distinct_bot_approval` accepted --
+    # extending the existing "a bot's blocking-looking prose is not a human stop"
+    # rule to configured bots that lack a `[bot]` suffix.
+    for item in corpus:
+        if actor_kind(item, tier.automation_actor_config) != "human":
+            continue
+        body = str(item.get("body") or "")
+        if (
+            has_blocking_text(body)
+            or has_blocking_severity(body)
+            or HUMAN_MERGE_VETO_RE.search(body)
+        ):
+            login = item.get("author")
+            login = login.get("login") if is_json_object(login) else login
+            human_blocking.append(str(login or "unknown"))
+    if human_blocking:
+        blockers.append(
+            "human blocking comment(s) from "
+            + ", ".join(sorted(set(human_blocking)))
+            + " -- resolve before an autopilot merge"
+        )
+
+    veto_blockers, decision_default_held = evaluate_decision_default_veto(
+        repo, closing_issues, tier.automation_actor_config
+    )
+    blockers.extend(veto_blockers)
+
+    tier_result = {
+        "enabled": True,
+        "issueLinked": issue_linked,
+        "closingIssues": [
+            c.get("number") if is_json_object(c) else c for c in closing_issues
+        ],
+        "laneAuthored": lane_authored,
+        "blockingLabels": blocking_labels,
+        "distinctBotApproval": (
+            {
+                "author": (
+                    approval.get("author", {}).get("login")
+                    if is_json_object(approval.get("author"))
+                    else None
+                ),
+                "commit": (
+                    approval.get("commit", {}).get("oid")
+                    if is_json_object(approval.get("commit"))
+                    else None
+                ),
+            }
+            if approval
+            else None
+        ),
+        "humanBlockingComments": sorted(set(human_blocking)),
+        "decisionDefaultHeldIssues": decision_default_held,
+    }
+    return blockers, tier_result
+
+
 def evaluate(
     repo: str,
     number: int,
     expected_head: str | None,
     allowed: set[str],
-    self_logins: set[str],
+    self_logins: frozenset[str],
     allow_dependency: bool,
     allow_unprotected: bool,
+    tier: AutopilotMergeTierConfig | None = None,
 ) -> dict[str, Any]:
     owner = split_owner(repo)
     pr_data = gh_json(
@@ -164,7 +598,8 @@ def evaluate(
             repo,
             "--json",
             "state,isDraft,mergeable,mergeStateStatus,reviewDecision,"
-            "headRefOid,baseRefName,author,url,title,labels,statusCheckRollup",
+            "headRefOid,baseRefName,author,url,title,labels,statusCheckRollup,"
+            "closingIssuesReferences",
         ]
     )
     pr = cast(dict[str, Any], pr_data) if isinstance(pr_data, dict) else {}
@@ -284,7 +719,7 @@ def evaluate(
         )
     # On an unprotected base, CLEAN proves nothing (no required checks/reviews).
     # A non-self author's PR there is held unless explicitly allowed.
-    author_is_self = str(author_login or "").casefold() in self_logins
+    author_is_self = is_self_login(author_login, self_logins)
     if base_is_unprotected and not author_is_self and not allow_unprotected:
         blockers.append(
             "base branch is unprotected (0 required reviews AND 0 required "
@@ -292,9 +727,21 @@ def evaluate(
             "login -- held (pass --allow-unprotected to override)"
         )
 
+    closing_issues = cast(
+        list[Any], pr.get("closingIssuesReferences") or []
+    )
+    tier_result: dict[str, Any] = {"enabled": False}
+    if tier is not None:
+        tier_blockers, tier_result = evaluate_autopilot_tier(
+            repo, number, str(head) if head else None, author_login, labels,
+            closing_issues, tier,
+        )
+        blockers.extend(tier_blockers)
+
     ready = not blockers
     return {
         "pr": f"{repo}#{number}",
+        "autopilotMergeTier": tier_result,
         "url": pr.get("url"),
         "title": pr.get("title"),
         "author": author_login,
@@ -402,6 +849,38 @@ def main() -> int:
             "the TOCTOU guard that pins the vetted head SHA"
         ),
     )
+    parser.add_argument(
+        "--autopilot-merge-tier",
+        action="store_true",
+        help=(
+            "gate on the #476 autopilot-merge-tier criteria in addition to the "
+            "base readiness gate: issue-linked, lane-authored, no blocking label, "
+            "a distinct-bot approving review on the live head, and no human "
+            "blocking comment. Fail-closed: requires --lane-logins, "
+            "--approver-bot-logins, and --block-labels to be non-empty"
+        ),
+    )
+    parser.add_argument(
+        "--lane-logins",
+        default=None,
+        help="comma-separated pipeline lane author logins (autopilot merge tier)",
+    )
+    parser.add_argument(
+        "--approver-bot-logins",
+        default=None,
+        help=(
+            "comma-separated bot logins whose approving review satisfies the "
+            "author != approver criterion (autopilot merge tier)"
+        ),
+    )
+    parser.add_argument(
+        "--block-labels",
+        default=None,
+        help=(
+            "comma-separated labels that veto a tier merge, e.g. do-not-merge "
+            "(autopilot merge tier)"
+        ),
+    )
     args = parser.parse_args()
 
     allowed = parse_allowed_owners(args.allowed_owners)
@@ -454,20 +933,73 @@ def main() -> int:
         )
         return 3
 
+    # Build the autopilot-merge-tier config before any network access, failing
+    # closed on a partial configuration: the tier's whole point is that the three
+    # sets are all supplied deliberately, so an umbrella flag with any of them
+    # empty is a refusal, never a merge on an under-specified tier.
+    tier: AutopilotMergeTierConfig | None = None
+    if args.autopilot_merge_tier:
+        lane = parse_csv_set(args.lane_logins)
+        approver = parse_csv_set(args.approver_bot_logins)
+        block = parse_csv_set(args.block_labels)
+        missing = [
+            name
+            for name, value in (
+                ("--lane-logins", lane),
+                ("--approver-bot-logins", approver),
+                ("--block-labels", block),
+            )
+            if not value
+        ]
+        if missing:
+            print(
+                json.dumps(
+                    {
+                        "pr": args.pr,
+                        "error": (
+                            "--autopilot-merge-tier requires non-empty "
+                            + ", ".join(missing)
+                            + "; refusing to run the tier under-specified"
+                        ),
+                    }
+                )
+            )
+            return 3
+        tier = AutopilotMergeTierConfig(
+            lane_logins=frozenset(lane),
+            approver_bot_logins=frozenset(approver),
+            block_labels=frozenset(block),
+        )
+    elif any(
+        (args.lane_logins, args.approver_bot_logins, args.block_labels)
+    ):
+        print(
+            json.dumps(
+                {
+                    "pr": args.pr,
+                    "error": (
+                        "--lane-logins / --approver-bot-logins / --block-labels "
+                        "are only meaningful with --autopilot-merge-tier"
+                    ),
+                }
+            )
+        )
+        return 2
+
     # Resolve self logins only after every argument-shape refusal above: '@me'
     # resolution is a network call, and the guard's contract is that malformed
     # input is rejected before any network access.
     try:
-        self_logins = {login.casefold() for login in resolve_authors(args.self_logins)}
+        self_logins = normalize_self_logins(resolve_authors(args.self_logins))
     except RuntimeError:
         # '@me' could not be resolved to a gh login; fail closed by keeping only
         # the explicit non-'@me' logins -- an unresolved self identity holds own
         # PRs on an unprotected base rather than merging on a guessed identity.
-        self_logins = {
-            token.casefold()
+        self_logins = normalize_self_logins(
+            token
             for token in (args.self_logins or "").split(",")
-            if token.strip() and token.strip().casefold() != "@me"
-        }
+            if token.strip().casefold() != "@me"
+        )
 
     try:
         result = evaluate(
@@ -478,6 +1010,7 @@ def main() -> int:
             self_logins,
             args.allow_dependency,
             args.allow_unprotected,
+            tier,
         )
     except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
         # Surface any gh/parse failure as JSON rather than a traceback.

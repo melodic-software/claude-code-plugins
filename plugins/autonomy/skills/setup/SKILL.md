@@ -112,9 +112,11 @@ paid sinks are advisory + explicit opt-in with cost surfaced first.
    `OTEL_RESOURCE_ATTRIBUTES` carrying `autonomy.work_item.url=<canonical item URL>` (the
    vendor attaches resource attributes to every metric datapoint and event — verified against
    the official monitoring doc). Headless `-p` sessions inherit `TRACEPARENT`/`TRACESTATE`
-   from the environment; interactive sessions deliberately ignore inbound trace context.
-   Traces stay beta behind `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1`; the slice treats spans as
-   optional and never depends on beta span shapes.
+   from the environment only under the enhanced-telemetry beta — the default surface starts
+   a fresh root and joins query-side via the resource attribute (verified empirically) — and
+   interactive sessions deliberately ignore inbound trace context. Traces stay beta behind
+   `CLAUDE_CODE_ENHANCED_TELEMETRY_BETA=1`; the slice treats spans as optional and never
+   depends on beta span shapes.
 4. **Record the binding** — sink class, endpoint or artifact path, and the semconv pin land
    as the `telemetry` section of the schema-versioned binding.
 5. **Conformance** — run
@@ -126,214 +128,299 @@ paid sinks are advisory + explicit opt-in with cost surfaced first.
 
 Wires the capture-enabled state of
 [`${CLAUDE_PLUGIN_ROOT}/reference/return-accounting.md`](${CLAUDE_PLUGIN_ROOT}/reference/return-accounting.md),
-discovery-first. Everything wireable lands as reviewable changes; GUI-only or
-entitlement-gated surfaces get advisory steps with cost surfaced.
-
-1. **Detect the tracker class and close-flow surface** — which tracker the org's work items
-   live in, whether it supports native custom fields at the org's entitlement, and where the
-   task-boundary close flow is machine-editable (close-triggered workflow, tracker
-   automation).
-2. **WIRE where machine-editable + reviewable** — a close-triggered snippet
-   ([`templates/return-capture.md`](templates/return-capture.md)) posting the UNATTESTED
-   record + the attestation request addressed to the accountable human; the close flow never
-   blocks. Native-field write where entitled AND provenance-verifiable per the contract's
-   record-integrity rule — setup verifies, before selecting `native_fields`, that record-field
-   writes are ACL-restricted to the bound automation identity or that the tracker exposes a
-   queryable field-audit trail attributing writes; entitlement alone never selects the
-   surface, because unverifiable field authorship would let a manual edit pass as an
-   authentic attestation — the marker-keyed structured comment otherwise (the universal
-   floor, which carries authorship structurally). Entitlement is
-   detected at the org's plan level and does NOT confirm the complete v1 record field set is
-   provisioned and attached on the item surface — a disclosed v1 limitation this slice does
-   not detect: a tracker entitled for custom fields yet missing one or more of the v1 record
-   fields cannot hold a conforming record on native fields, so full-field-set
-   discovery/provisioning is future work; the universal comment floor stays conforming
-   regardless. The trigger is
-   GATED to autonomous-class work (the convention's capture scope): the snippet fires only
-   when ALL THREE hold — the closing item carries the tracker binding's autonomous-eligible
-   role label (the class-scope discriminator; the label marks pickup eligibility, not that
-   the work was actually executed autonomously), AND the close event's actor is the bound
-   automation identity (the execution-evidence discriminator; proves the closing action
-   itself was autonomous), AND the closure outcome is COMPLETED/delivered — a not-planned,
-   cancelled, or duplicate closure never captures, even when the automation performs it
-   (nothing was delivered, so a record would assert autonomous completion of undone work). Neither alone suffices: the label without automation-actor
-   closure would let a human who completes and closes an eligible item post a false
-   autonomous record; the automation actor without the label would let interactive items
-   the bot closes leak into capture. An unlabeled item, or one closed by any other actor,
-   never enters capture (interactive work, and human-closed eligible work, both stay
-   exempt). Label-plus-automation-actor closure is itself a PROXY for execution evidence,
-   not a bound dispatch record: a close action run by the automation identity after a human
-   performed the underlying work is not distinguished from one following genuine autonomous
-   work by this gate alone. A first-class dispatch/execution-provenance signal is future
-   work the guardrail matrix owns — this interim gate is deliberately the cheapest signal
-   available today, not a claim of proof, and the discriminator recorded here is the interim
-   boundary, not a parallel class vocabulary. The class-scope label gate resolves the
-   autonomous-eligible label from the work-items tracker binding; the standalone path (no
-   such binding) has no source for that label and the `capture` binding carries no
-   label-mapping key — a disclosed v1 limitation: on that path setup neither assumes a
-   default label nor silently omits the gate, so standalone gated capture stays advisory
-   until an equivalent label/marker convention is bound, which is future work.
-3. **WIRE the reply-triggered attestation handler where machine-editable** — a companion
-   comment-created event handler, wired the same reviewable way as the close trigger (a
-   native-field-change trigger surface is NOT a substitute: the only defined human input is
-   the reply — `partial, 1-4h` or the `attest:` form — and v1 defines no native field-edit
-   submission protocol carrying the two values, so a tracker with field-change automation
-   but no comment-created surface routes to the ADVISE step like any other
-   reply-triggerless tracker): on a new reply, check the reply's actor against the record's
-   `attestation_owner` snapshot (resolved once at close; never re-resolved from a mutable
-   source, per the contract), require the contract's reply-correlation rule (the event responds to the
-   recorded `attestation_request`, or carries the flat-tracker `attest:` token — an
-   incidental parseable comment never attests), and on a parseable reply carrying both
-   values, upsert the SAME attested record
-   (not a second contract — this is the one attestation upsert, wired from its own trigger
-   surface) — branched by `record_surface`: on the comment floor, find the marker comment
-   AUTHORED BY THE BOUND AUTOMATION IDENTITY and edit it in place (the lookup filters by
-   author per the record-integrity rule — a foreign-posted marker is ignored, never
-   selected or allowed to shadow the real record — and the bot-authored marker's absence
-   enforces the contract's attestation-never-creates rule structurally: no close-time
-   record, nothing to edit); on native fields there is no
-   marker, but the same rule binds — the handler MUST first verify the close-time
-   UNATTESTED v1 record is already present on the item's fields (written by the close
-   trigger, which owns the eligibility gate) and treat its absence as inadmissible; where
-   the surface was selected on the audit-trail alternative (fields not ACL-restricted),
-   presence is not enough — the handler confirms through the trail that the bound
-   automation identity created the record AND authored every subsequent revision of the
-   record fields (any field-writer could forge a conforming unattested set, or alter an
-   existing one — `attestation_owner`, `counterfactual` — after creation; a record with any
-   non-automation revision is non-conforming and rejected before the owner snapshot is
-   trusted) — only then writing the attested fields directly on that same item (the
-   fields are scoped 1:1 to the closing item, so no lookup beyond that verification is
-   needed). Where the tracker offers no reply-triggered surface (no comment webhook, a
-   plan/tier limit), this step routes through the ADVISE step below instead of silently
-   wiring only the close half and calling capture complete.
-4. **Route comment writes through the bound tracker adapter's documented comment mechanics
-   where a work-item-tracker binding is present** (comments are provider-specific mechanics
-   there, not a race-safe seam — only coordination claims are race-safe; no marker upsert
-   primitive exists to reuse). The marker-keyed upsert and its attestation-preserving dedupe
-   rule are THIS contract's own obligations and apply identically on both paths; the
-   standalone snippet differs only in posting directly, and both paths carry the contract's
-   stated create-create race rule.
-5. **ADVISE where GUI-only or entitlement-gated** — org-gated native fields, plan-gated
-   automation: steps + cost surfaced, explicit opt-in. Private-repo close- and
-   reply-triggered runs draw metered CI minutes — surfaced on the wire path.
-6. **Attestation routing** — the binding records the accountable-human routing per class:
-   the requester-identity source for ordinary (requester-carrying) items — which
-   tracker-class-specific identity IS the requester (item author, a named custom field);
-   never guessed from `tracker_class` alone — and the standing attestation owner (or
-   attestation-exempt marking) for requester-less classes. Setup VALIDATES that every
-   declared `standing_owner` is a human platform account distinct from
-   `automation_identity`, and the close trigger applies the contract's human-owner rule to
-   each resolution: a bot/app or automation-matching identity produces no owned record —
-   route to the class's standing owner, else that item's capture stays advisory
-   (self-attestation would bypass the never-estimate rule). An attestation-exempt class's close trigger posts NEITHER the
-   unattested record NOR the attestation request — `return-accounting.md` forbids a
-   perpetually-unattested default, so an exempt class's cost is reported separately,
-   outside this record schema entirely.
-7. **Record the binding** — the `capture` section of the schema-versioned binding (additive,
-   like the telemetry section), with these serialized keys:
-
-   | Key | Value |
-   |---|---|
-   | `tracker_class` | string, the detected tracker class |
-   | `record_surface` | `native_fields` \| `comment` — which surface step 2 wired |
-   | `automation_identity` | the bound automation's platform identity — checked by step 2's trigger gate and by `return-accounting.md`'s record-integrity rule; MAY be null (undiscoverable and not yet interviewed — never invented, same as `roles`) |
-   | `requester_source` | how the accountable requester's platform identity resolves from an ordinary (requester-carrying) item in this tracker class — a tracker-specific identity source such as the item-author field or a named custom field; step 3's reply handler addresses the attestation request to it and validates the attesting actor against it; MAY be null (same ladder) — unbound means the actor check for ordinary items cannot be wired, so their attestation stays unwired and reported, never guessed |
-   | `routing` | object keyed by a per-surface identifier for each requester-less recurring surface (standing routines, scheduled sweeps) — the bound work-item tracker's own recurring-schedule row id where that binding exists, else an identifier the setup interview asks for and persists. The key must be resolvable FROM THE CLOSING ITEM per the contract's routing rule: setup verifies the surface's filing template stamps the identifier on each item it files (item-body marker, label, or field — the stamp mechanism recorded alongside the entry), wires the stamp in as a reviewable change where the template lacks it, and leaves the entry unwired-and-reported where the surface cannot stamp (never title-match correlation); each entry is `{"standing_owner": "<platform-identity>", "role": "reviewer" \| "maintainer" \| "other"}` (`role` optional, default `other` — the value the reply handler derives `attestor_role` from on a standing-owner match, per the contract's derivation rule) or `{"attestation_exempt": true}`. A class with a requester needs no entry — the requester IS the routing, resolved through `requester_source`; the whole key MAY be absent when the org has no requester-less autonomous-eligible class yet |
-
-   A binding missing the `capture` section has not wired this slice (absent-section
-   tolerance, same as telemetry). `tracker_class` and `record_surface` land once step 1
-   detects them; `automation_identity`, `requester_source`, and `routing` follow the SAME
-   convention-resolution ladder as every other binding value (config present → use it;
-   absent → infer, but ONLY from a signal that verifies the value's defining property;
-   cannot infer → interview when `apply` runs interactively, else record null/unbound) —
-   NEVER invented. For `requester_source` the tracker's documented item-author semantics
-   qualify as such a signal. For `automation_identity` — a TRUST ANCHOR — usage history
-   never qualifies: a recent close-event actor may be a human maintainer or an unrelated
-   integration, and persisting it would make the close-actor gate pass for human-closed
-   items, asserting autonomous completion falsely; only provider-verifiable identity
-   metadata (the platform marks the account as an app/bot identity) or an explicit
-   configured/interviewed value binds it. Unbound values are never a reason to block a
-   non-interactive run or leave the section silently unwired: an unbound
-   `automation_identity` means step 2's trigger gate cannot fire yet, and an unbound
-   `requester_source` means ordinary-item capture stays ADVISORY on BOTH halves — the close
-   trigger too, not just the reply handler, since a close-time record requires the resolved
-   `attestation_owner` snapshot and an addressed request (an unowned record could never be
-   attested); requester-less surfaces with resolved routing entries may still wire — each
-   unbound value is reported, not hidden.
+discovery-first: detect the tracker class and close-flow surface, WIRE the close- and
+reply-triggered attestation handlers where machine-editable (the marker-keyed comment floor, or
+provenance-verifiable native fields), ADVISE where GUI-only or entitlement-gated, and record the
+`capture` section of the repo-local autonomy binding. The autonomous-class capture gate, the
+record-integrity rule, the attestation-routing rule, and every serialized `capture` key are
+specified in [`context/capture-slice.md`](context/capture-slice.md). Agents prompt and aggregate;
+they never estimate the two human-attested return fields.
 
 ## Trigger/dispatch slice
 
 Wires the signal-adapter and dispatch state of
 [`${CLAUDE_PLUGIN_ROOT}/reference/trigger-dispatch.md`](${CLAUDE_PLUGIN_ROOT}/reference/trigger-dispatch.md),
-discovery-first. Everything lands as reviewable changes; plan-gated surfaces are advisory +
-explicit opt-in with cost surfaced. Vendor event names and invocation flags live in THIS
-slice and its templates — the contract stays surface-class vocabulary only.
+discovery-first: discover the four signal-surface classes and their transports, wire the DIY floor
+(event kick + scheduled drain) as reviewable changes through the one queue-drain entrypoint, advise
+plan-gated integrations, and record the `triggers` section (the `surfaces` map + drain cadence) of
+the repo-local autonomy binding. Vendor event names and invocation flags live in this slice's
+templates, never the contract. The per-surface adapter obligations, the execution-surface
+attestation caveat, the admission fail-closed rule, every serialized `triggers` key, and the
+[`scripts/check-signal-envelope.mjs`](scripts/check-signal-envelope.mjs) conformance step are
+specified in [`context/trigger-dispatch-slice.md`](context/trigger-dispatch-slice.md).
 
-1. **Discover signal surfaces per class** — interview + repo/org inspection for which of the
-   contract's four surface classes exist here, the transport each surface actually offers
-   (`push` / `push-lifecycle` / `poll`), and entitlements. Per-org absence of a class is a
-   binding outcome, never a blocker; an entitlement gap routes that surface to the advisory
-   step. The contract's carried research gaps are re-verified at wire time against current
-   vendor docs (fresh-docs mandate), not assumed still true.
-2. **Wire the DIY floor as reviewable changes** — the kick and the drain:
-   - *Kick* (`tracker-vcs-event`): a platform event workflow on the tracker/VCS host running
-     the adapter shape from
-     [`templates/trigger-adapters.md`](templates/trigger-adapters.md). Marked example, on
-     the GitHub Actions class of CI: `issues` (types `labeled`, `assigned`),
-     `issue_comment` (type `created`) for @-mention forms, `pull_request` for PR events —
-     all verified against the official events reference at wire time; event-trigger
-     workflows must exist on the default branch to fire.
-   - *Drain* (`temporal`): a scheduled workflow invoking the queue drain. Marked example:
-     `schedule` cron (shortest interval 5 minutes; runs may be delayed under load; public
-     repos auto-disable schedules after 60 days without activity — surface both caveats)
-     plus `workflow_dispatch` for manual kicks. Poll-detector backstops for
-     `push-lifecycle` wirings ride the same scheduled surface.
-   - *`channel-feed`* (where wanted): a chat-platform bot + events subscription, or a plain
-     inbound webhook receiver, normalizing into the same adapter shape — DIY floor only;
-     vendor-hosted channel agents are step 3's advisory path.
-   - *`agent-internal`*: no wiring — sessions file follow-up work through the queue seam
-     directly; the slice records the surface as active and states the `signal.parent_item`
-     provenance obligation.
-   - *Executor invocation* (marked example, self-operated CLI class): headless `claude -p`
-     with `--bare` for deterministic CI context, tool allowlisting via `--allowedTools` /
-     `--permission-mode` — verified against the official headless reference at wire time.
-3. **Advise plan-gated native integrations** — vendor-hosted channel agents and native
-   tracker automations that carry a plan/seat cost: steps + cost surfaced, explicit opt-in,
-   never the default path. Zero paid dependencies on the default path.
-4. **Bind the drain cadence** — default hourly, org override recorded in the binding. The
-   drain funnels into the work-item queue capability's autonomous drain mode via the
-   invocation-adapter seam — one entrypoint, no second dispatch mechanism; the seam's
-   race-safe lease makes concurrent kicks harmless.
-5. **Record execution surfaces** — EVERY kick/drain wiring records its named execution
-   surface id, the same id the guardrail security binding's per-surface isolation entries
-   key on. The recorded id is repo-local (agent-writable) convenience only: per the
-   contract's execution-surface attestation rule, the admission/executor seam derives the
-   ACTUAL surface identity from platform-attested runtime metadata and verifies it against
-   the recorded id — a mismatch, an unattestable surface, or a surface without an L2+
-   isolation binding fail-closes to human-gated. The slice states this next to every
-   recorded id so no reader mistakes the record for the enforcement.
-6. **Admission enforcement wiring** — every adapter shape points at the guardrail admission
-   seam (the admission policy bound on the org's security governance surface). With NO
-   admission binding present the wiring fail-closes: every signal enqueues human-gated,
-   never dropped, never auto-dispatched. This slice wires the enforcement point; it never
-   defines policy content.
-7. **Record the binding** — the `triggers` section of the schema-versioned binding
-   (additive, absent-section tolerance, no major bump), with these serialized keys:
+## Guardrail binding resolution
+
+How guardrail policy resolves across the TWO governance surfaces the guardrail contract
+splits policy into. This section owns resolution; the [guardrail slice below](#guardrail-slice)
+(detect → bind → live-validate → fail-closed) is the action that produces the security binding
+this order resolves.
+
+**Two-surface split.** Security-sensitive guardrail axes — isolation bindings with their
+runtime markers, merge policy, verification blocking knobs, promotion state, escalation
+routes, admission rules and caps — bind ONLY in the security binding document in the
+settings-as-code home, outside the blast radius of the agents it governs. Its schema is
+contract-owned and ships at
+[`schemas/guardrails-security-binding.schema.json`](schemas/guardrails-security-binding.schema.json);
+[`scripts/check-security-binding.mjs`](scripts/check-security-binding.mjs) validates a
+document (schema shape + the semantic rules the schema cannot express) and, with
+`--evidence`, resolves each promotion cell's EFFECTIVE state against a promotion-evidence
+source — the bound state is a ceiling contrary evidence lowers without writing the
+binding. Non-security axes remap in the additive `guardrails` section of the repo-local
+binding: class→label strings (which local label means which work class) and
+cost-tier→model names — vocabulary remaps only, never policy content.
+
+**Layered resolution order.** Org-policy-home defaults → settings-as-code per-repo
+security binding → repo-local non-security remaps. Later layers refine earlier ones for
+NON-SECURITY axes only; no repo-local (agent-writable) value ever supplies or overrides a
+security axis.
+
+**Security-binding locator registry.** When settings-as-code is a separate repository,
+the org-policy home carries the repo→security-binding-document registry the dispatch seam
+resolves each repository's security binding through — one registry, resolvable per repo,
+on the org governance surface.
+
+**Agent-unwritable bootstrap for security resolution.** The repo-local `org_policy_home`
+pointer is tolerable for non-security defaults only — a repo-writable pointer would let
+an agent redirect the whole chain to a forged policy repository carrying a forged
+registry, binding, and matching runtime markers. For SECURITY resolution the seam pins
+the org-policy-home identity from an agent-unwritable bootstrap: org-level platform
+configuration outside repo blast radius (an org-level setting or variable repo agents
+cannot write) or the executor's trusted deployment config. Any security resolution that
+would depend on a repo-writable pointer — or an unresolvable locator — fail-closes
+autonomous dispatch, naming the compliant path (pin the home in org-level configuration
+or the executor's deployment config).
+
+**Fail-closed.** An absent or invalid security binding blocks autonomous dispatch —
+every signal enqueues human-gated. Documented defaults exist only for non-security axes;
+no security axis ever resolves from a documented default or a repo-local surface.
+
+## Guardrail slice
+
+Wires the enforced state of the [guardrail contract](${CLAUDE_PLUGIN_ROOT}/reference/guardrails.md):
+detect → bind → live-validate → fail-closed, always detect-diff-reconciling against the org's
+EXISTING guardrail surfaces. The [resolution section above](#guardrail-binding-resolution) owns
+how bound policy resolves across the two governance surfaces; this slice is the action that
+produces the security binding it resolves. Everything lands as reviewable changes; paid scanner
+SKUs are advisory + explicit opt-in with cost surfaced.
+
+**This slice PREPARES, never writes the security surface directly.** The security binding lives
+in the settings-as-code home, outside the blast radius of the agents it governs — a surface the
+running agent cannot write (that is the whole point of the split). So the slice produces the
+binding document and its locator-registry entry as REVIEWABLE CHANGES a human lands on the
+governance surface (a proposed change on the settings-as-code home, a registry entry on the
+org-policy home) — it never mutates the agent-unwritable surface in place. Nothing autonomous
+depends on the binding until that human-landed change exists.
+
+1. **Detect substrates per level per machine surface** — for each execution surface the
+   trigger/dispatch slice recorded (the same surface ids the security binding's
+   `isolation_bindings` key on), inspect what isolation substrates are available at each ladder
+   level per the [isolation-ladder leaf](${CLAUDE_PLUGIN_ROOT}/reference/guardrails/isolation-ladder.md):
+   an `L2` whole-process OS-sandbox wrap or default-deny-egress container, an `L3` kernel-separated
+   VM/microVM or hosted ephemeral executor. Detection is PER SURFACE — a substrate present on one
+   surface says nothing about another, and the flat "some surface has L2" answer never satisfies a
+   different dispatch surface.
+2. **Detect-diff-reconcile against existing guardrail surfaces** — never greenfield-assume, never
+   silently overwrite. Before proposing any binding value, read the org's EXISTING guardrail
+   surfaces — sandbox/runner configurations, branch protections, review workflows and scanner
+   configuration — and DIFF the detected state against them. Where an existing surface already
+   encodes a policy (a branch protection rule, a configured scanner, an isolation setting), the
+   slice reconciles: it surfaces the diff and proposes the binding that matches or tightens the
+   existing surface, and it never overwrites an existing surface as a side effect of binding. A
+   pre-existing surface is authoritative input to reconcile against, not a blank field to fill.
+3. **Live-validate BEFORE recording** — the empirical probe per substrate class (recipe in
+   [`templates/isolation-probe.md`](templates/isolation-probe.md)). A candidate `L2`/`L3`
+   substrate is validated by running, INSIDE the boundary, two probes that MUST both fail:
+   - a **denied-egress smoke test** — a network fetch to a well-known external host MUST fail
+     (a boundary that lets egress through is not an `L2` boundary);
+   - a **host-credential-path read attempt** — a read of a host credential path MUST be absent or
+     denied (a boundary that leaks host secrets is not an `L2` boundary).
+
+   Only when the probe transcript proves BOTH failures does the binding for that level on that
+   surface land; the transcript's reference is recorded in the level binding's `probe_evidence`
+   field (schema-required — a binding without probe evidence is invalid per
+   [`scripts/check-security-binding.mjs`](scripts/check-security-binding.mjs)). A binding never
+   lands ahead of the probe that proves its boundary.
+4. **Bind level → substrate per surface** — record each validated substrate under its surface in
+   `isolation_bindings` (surface id → level token → substrate instance + the human-ratified
+   `substrate_class` + `probe_evidence` + the non-forgeable `runtime_markers` the dispatch seam
+   attests against), plus the merge policy,
+   verification-blocking knobs, escalation routes, and admission rules and caps — all on the
+   prepared security-binding change, validated by
+   [`scripts/check-security-binding.mjs`](scripts/check-security-binding.mjs) against
+   [`schemas/guardrails-security-binding.schema.json`](schemas/guardrails-security-binding.schema.json)
+   before it is proposed.
+5. **Security-review wiring folds in here (no separate capability)** — the security-review policy
+   is one part of this single guardrail slice, never a near-duplicate setup capability. Wire the
+   [security-review leaf's](${CLAUDE_PLUGIN_ROOT}/reference/guardrails/security-review.md) two
+   layers (deterministic scanners + AI security review) into the binding's `verification_blocking`
+   knobs, detect-diff-reconciling against the org's existing scanners, review workflows, and branch
+   protections. Free-path scanner classes satisfy every blocking obligation on the DEFAULT path —
+   zero paid dependencies. Entitlement-gated paid code-scanning SKUs stay advisory + explicit
+   opt-in with cost surfaced at opt-in time; an entitlement gap routes the tool to the advisory
+   path, never silently passing a blocking layer.
+6. **Fail-closed verify** — when NO substrate on a surface reaches the `L2` floor, autonomous
+   dispatch is BLOCKED for that surface and the slice names the compliant paths (provision an
+   `L2`-capable substrate on the surface, or route the surface's work to a surface that has one,
+   or keep the surface human-gated). Silent degrade to a lower level is never conforming. Under
+   `dispatch_posture: human-gated-only` a surface with no `L2` binding is the org's DECLARED
+   posture, not a defect — the verify reports blocked autonomous dispatch as declared, and the
+   binding still validates.
+
+## Routine slice
+
+Wires the standing-routine state of the
+[routine catalog](${CLAUDE_PLUGIN_ROOT}/reference/routines.md): a routine is a scheduled
+`temporal`-class signal adapter behind the governed queue — never a private execution or merge
+path. This slice is discovery-first and detect-diff-reconciles against the org's EXISTING
+schedulers and bots. Everything free lands as reviewable changes; paid or preview scheduling
+surfaces are advisory + explicit opt-in with cost surfaced. Like the
+[guardrail slice](#guardrail-slice) it PREPARES the security surface, never writes it — a
+routine's work-class mapping is admission data proposed as a reviewable change on the
+settings-as-code home, and nothing dispatches autonomously until a human lands it.
+
+**Routine identity.** A routine is addressed by its IDENTITY: the bare `<class-token>` for a
+single-posture class, or `<class-token>/<posture-token>` (kebab-case segments) for a
+multi-posture class whose catalog leaf defines more than one work-class posture — e.g.
+`doc-freshness-sweep/advisory` and `doc-freshness-sweep/docs-change`,
+`ci-health-review/advisory` and `ci-health-review/ci-config-change`,
+`dependency-update-wave/mechanical` and `dependency-update-wave/changelog-informed` (the
+canonical posture tokens live in the catalog leaves). A multi-posture class binds PER-POSTURE
+identities, never its bare token — each posture is a distinct work class and therefore a distinct
+identity on a distinct emitting surface. The handler serializes its identity as the envelope's
+`signal.routine`, and its platform-attested producer as `signal.producer_identity`, required on
+every routine-fired temporal signal.
+
+**Binding-home split by governance sensitivity (the guardrail contract's split).** A routine's
+`signal.work_class` is stamped, per
+[`${CLAUDE_PLUGIN_ROOT}/reference/trigger-dispatch.md`](${CLAUDE_PLUGIN_ROOT}/reference/trigger-dispatch.md)'s
+classification rules, from the PROTECTED identity↔surface association the security binding homes —
+NOT from the `--routine` argument, the scheduled workflow file, or the emitted `signal.raw_link`,
+all of which are CLAIMS an agent-writable job could forge and are never trust anchors. That
+association is ADMISSION data: it binds ONLY in the security binding's
+`admission.classification.temporal` home
+([`schemas/guardrails-security-binding.schema.json`](schemas/guardrails-security-binding.schema.json)),
+on the settings-as-code home outside the agents' blast radius — for reconciled existing bots
+exactly as for freshly wired routines. Each entry is keyed by routine identity and carries
+`{"class": "C1"–"C5", "source_surface": "<surfaces-map id>", "run_link_prefix": "<prefix>",
+"producer_identity": "<platform-attested producer ref>"}`: the class the identity's signals
+stamp, the one scheduling surface permitted to emit them, the run permalink namespace ratified
+for that surface — a platform run URL prefix (`https://…`) for a `ci-cron` surface, or a durable
+`file:` or artifact-store URI prefix for a `local-scheduler` surface (weaker authority — a
+developer-machine run record or the org's artifact store), which may be repo-scoped and SHARED
+across the repo's schedules rather than disjoint per entry — AND the `producer_identity`, the
+platform-attested workflow-file or scheduler-unit reference that pins WHICH schedule fired within
+that namespace. **One identity per emitting surface** — no two `classification.temporal` entries
+may share a `source_surface`, and **producer identities are unique across entries**, so the
+producer the platform attests (through the execution-surface attestation and the signal's raw
+link and producer reference) is bound to exactly ONE identity. Admission validates the envelope's `(signal.routine, resolved source surface)` pair
+against this table AND that `signal.raw_link` falls under the ratified `run_link_prefix` AND that
+the attested `signal.producer_identity` equals the entry's ratified `producer_identity` BEFORE
+stamping `signal.work_class`; an absent entry, a `source_surface` that does not equal the attested
+surface, a raw link outside the ratified prefix, or a producer identity that does not match is
+fail-closed human-gated. A swapped `--routine` selector therefore cannot launder high-risk work as
+a benign class — claiming a different identity resolves to THAT identity's own surface and
+producer, which the platform-attested producer will not match (a shared run-link namespace no
+longer distinguishes schedules on its own). A repo-local class source would be the precise agent-writable bypass
+the trigger contract's classification obligation forbids. The NON-security keys — cadence,
+enablement, surface choice — are the ONLY routine data that lands repo-local: they go in the
+additive `routines` section of the repo-local autonomy binding under `.claude/autonomy/` (the same
+artifact the `triggers` section lives in), NEVER in the security binding, whose schema carries only
+the `admission.classification.temporal` entries. Two artifacts, two validators; the security axis
+resolves from the security binding always, non-security refinement repo-local, per the guardrail
+resolution order.
+
+1. **Discover scheduling surfaces + budget posture** — interview and inspect which scheduling
+   surfaces this org has: CI-cron on the CI-orchestration home, a developer-machine scheduler,
+   self-run infrastructure, a vendor-hosted preview scheduler (marked examples, not a closed
+   list — research the live surfaces at setup time, never from this doc; preview schedulers are
+   moving targets). Record each surface's transport (`poll`, or `push-lifecycle` where the
+   surface renews subscriptions) and its `scheduler_class` — the closed discriminator the
+   signal-envelope check branches on: `ci-cron` where the surface issues an https run permalink,
+   `local-scheduler` where it does not (a durable `file:`/artifact URI stands in). Per-org
+   absence of a surface is a binding outcome, never a blocker; budget posture defaults `free`.
+2. **Detect-diff-reconcile existing schedulers and bots** — before wiring anything, read what
+   already runs: org schedulers, dependency bots, scheduled scanners, existing cron. A live
+   agent-judgment bot (a dependency-update bot, a triage bot) IS an instance of a catalog routine
+   class, not a rival mechanism: record it in the binding under its routine identity
+   (posture-qualified for a multi-posture class) and its surface, reconcile its cadence, and NEVER
+   stand up a second mechanism for the same concern. The
+   DET-stays-cron rule holds through reconciliation — a plain deterministic scheduled check is not
+   a routine and stays plain cron filing work items through the trigger adapters; only its
+   judgment-bearing successor, where one exists, is the routine, and a hybrid class (e.g.
+   `dependency-update-wave`) reconciles as its split: detection half cron, judgment half the
+   routine. A stale or duplicate bot is surfaced as the diff and reconciled, never silently
+   overwritten.
+3. **Wire free defaults as reviewable changes** — for each enabled routine on a free surface the
+   wiring is reviewable changes across role homes, never one agent-written file:
+   - the CI-cron handler shape from
+     [`templates/routine-definitions.md`](templates/routine-definitions.md) lands on the
+     CI-orchestration home (the scheduled job that emits the routine's `temporal` signal into the
+     queue);
+   - the enabling settings — which routine identities are on, at what cadence, on which surface —
+     land as the `routines` section of the repo-local autonomy binding under `.claude/autonomy/`
+     (the same artifact as the `triggers` section);
+   - the protected identity↔surface association — each routine identity →
+     `{class, source_surface, run_link_prefix, producer_identity}`, one entry per identity, no two
+     sharing a surface and no two sharing a `producer_identity` —
+     lands as the `admission.classification.temporal` change PREPARED for the security binding on
+     the settings-as-code home (a separate artifact from the autonomy binding above).
+
+   Every shape enqueues through the trigger contract's `temporal` adapter and the one dispatch
+   entrypoint; no routine executes work in its own handler and no second scheduling path is
+   created.
+4. **Advise paid/preview surfaces** — a vendor-hosted or preview scheduler that carries a
+   plan/seat cost is advisory + explicit opt-in, cost surfaced first, never the default path. An
+   entitlement gap routes the surface to the advisory step; the free CI-cron/local-scheduler floor
+   covers the default path with zero paid dependencies.
+5. **Record the binding** — the `routines` section of the repo-local autonomy binding under
+   `.claude/autonomy/` (additive, absent-section tolerance, no major bump — the SAME artifact and
+   shape as the `triggers` section), NON-security keys only. This section NEVER enters the security
+   binding; the ratified `admission.classification.temporal` entries are a separate artifact under
+   the security schema and checker.
 
    | Key | Value |
    |---|---|
-   | `surfaces` | object keyed by surface id — each entry `{"class": "<surface-class token>", "transport": "push"\|"push-lifecycle"\|"poll", "scheduler_class": "ci-cron"\|"local-scheduler", "execution_surface": "<recorded execution-surface id>"}`; `scheduler_class` is REQUIRED on temporal surfaces (and only there) — the discriminator `signal.raw_link` form validation branches on; a `local-scheduler` surface using an org artifact store additionally declares `artifact_schemes` (array of URI schemes) — undeclared non-`file:`/non-`https:` schemes never conform. Any later additive section that records scheduling surfaces (routines) uses the same `surfaces` map shape, so envelope validation resolves `signal.source_surface` against every section uniformly |
-   | `drain` | `{"cadence": "<schedule expression or token, default hourly>", "execution_surface": "<recorded execution-surface id>"}` |
+   | `surfaces` | object keyed by scheduling-surface id, the SAME shape the [trigger slice](#triggerdispatch-slice)'s `surfaces` map uses (`{"class": "temporal", "transport": "poll"\|"push-lifecycle", "scheduler_class": "ci-cron"\|"local-scheduler", "execution_surface": "<recorded id>"}`; a `local-scheduler` surface using an org artifact store also declares `artifact_schemes`). Record a surface here ONLY when the trigger slice has not already recorded it — [`scripts/check-signal-envelope.mjs`](scripts/check-signal-envelope.mjs)'s resolver merges every section's `surfaces` map and refuses an id recorded in two sections as ambiguous; a routine riding an already-recorded surface REFERENCES its id, it does not re-declare it |
+   | `enabled` | object keyed by the FULL routine identity (`<class-token>` or `<class-token>/<posture-token>`) — each entry `{"source_surface": "<surfaces-map id>", "cadence": "<schedule expression or token>", "enabled": <bool>}`; cadence, enablement, and surface choice ONLY. Its `source_surface` MUST agree with the same identity's `source_surface` in the security binding's `admission.classification.temporal` — binding review and the envelope checker catch drift. The class, its `run_link_prefix`, and its `producer_identity` are NOT here; an identity with no protected classification entry, or one whose surface disagrees, stays unclassified and fail-closed human-gated |
 
-8. **Conformance** — run
-   [`scripts/check-signal-envelope.mjs`](scripts/check-signal-envelope.mjs) against a queued
-   item's body (with `--binding` pointing at the resolved binding) to verify the envelope
-   marker record before declaring the wired state reached.
+6. **Conformance** — the wired state is reached when
+   [`scripts/check-signal-envelope.mjs`](scripts/check-signal-envelope.mjs), run with BOTH
+   `--binding` at the repo-local autonomy binding (the `routines`/`triggers` surfaces) AND
+   `--security-binding` at the security binding (the `admission.classification.temporal` entries),
+   confirms `signal.routine` is present, resolves `signal.source_surface` to a recorded surface
+   with its temporal raw-link form, and verifies any stamped `signal.work_class` matches the
+   protected classification entry for that `(identity, surface)` pair AND that `signal.raw_link`
+   falls under that entry's ratified `run_link_prefix` AND that the attested
+   `signal.producer_identity` equals that entry's ratified `producer_identity`; a missing
+   `signal.routine`, an unresolvable surface, an identity↔surface mismatch, a raw link outside the
+   ratified prefix, a `producer_identity` mismatch, or an unclassified class is a finding.
+
+## Runner note
+
+The [runner design pack](${CLAUDE_PLUGIN_ROOT}/reference/runner.md) is bindable-when-born:
+until a build trigger fires and the runner-execution home is born, setup records NOTHING
+runner-specific — no probe, no wiring, no binding section for the unborn home. The single
+exception is escalation notification routes, which already home on the security surface: the
+severity axis (`notice`/`attention`/`urgent`) and the personal-push tier are prepared as route
+options through the security binding's `escalation_severity`, `escalation_severity_routes`, and
+`escalation_ack` keys — a reviewable change on the settings-as-code home like every other
+security axis, never repo-local. The route set, its two-step severity resolution, and the
+per-class default severities are specified by the
+[runner escalation leaf](${CLAUDE_PLUGIN_ROOT}/reference/runner/escalation.md); this note points
+there rather than restating them.
+
+## Gotchas
+
+Editing- and run-time failure modes — the two-binding split (repo-local autonomy binding vs the
+separate security binding), the spell gate splitting coined hyphenated compounds, and a scheduling
+surface recorded in two `surfaces` maps resolving as ambiguous — are catalogued in
+[`context/gotchas.md`](context/gotchas.md).
 
 ## What this skill does NOT do
 
-- Wire capability slices that have not shipped yet (guardrail matrix, routines) — each lands
-  with its own work package and extends this skill.
+- Wire capability slices that have not shipped yet — each lands with its own work package and
+  extends this skill (the runner charter execution pack is the next such slice).
 - Estimate, impute, or backfill the two human-attested return fields — ever.
 - Mutate platform settings, user settings, or `pluginConfigs`.
 - Assume the shape of any particular org or fleet — a run against an unknown repo asks or

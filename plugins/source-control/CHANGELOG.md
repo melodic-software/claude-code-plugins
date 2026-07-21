@@ -3,6 +3,436 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.7]
+
+### Added
+
+- **`babysit-prs` now detects checks that degrade `mergeStateStatus` to `UNSTABLE` without ever
+  completing (#374).** The snapshot engine classifies three stuck-check classes from data it already
+  normalizes — no new GitHub fetch — and emits them as a per-PR `checks.stuck[]` field (always
+  present, empty when none): `orphaned_status` (a pending `StatusContext` with no backing run to
+  cancel), `stuck_queued` (a `CheckRun` still `QUEUED` past an age threshold, e.g. an unmatched
+  self-hosted runner label), and `never_settling` (any other non-required pending check past the
+  threshold). Detection fires only under `UNSTABLE`, so normal in-flight CI and pending required
+  checks are never flagged; the age threshold is configurable via
+  `babysit_stuck_check_age_seconds` / `--stuck-check-age-seconds` (default 1800s), and orphaned
+  status contexts are detected structurally without an age gate. The signal surfaces as a
+  `material_findings` entry, **never a `blockers` string** — a sticky blocker would re-pin the PR
+  `active` and re-dispatch a worker every cycle for a check no branch action can clear. New
+  `reference/stuck-checks.md` routes remediation (branch CI / `ci-workflows` for config-fixable
+  cases; `github-iac` / app config for runner-pool and orphaned-status cases) and points at
+  `safety.md`'s Stop-and-Ask / Never-Do-Automatically rules; the shared `babysit_checks` classifier
+  means the guarded merge gate sees the same normalization.
+
+## [0.15.6]
+
+### Changed
+
+- **`babysit-prs` autopilot merge tier (#476) gains a bot-review precision enabling precondition,
+  still shipped DISABLED.** `reference/safety.md` now documents a second operator enabling
+  precondition alongside the review-workflow requiredness one: the tier may be enabled only after
+  the fleet's bot-review lane has demonstrated recorded precision over a sustained window — the same
+  earned-promotion trigger ADR 0002 sets for flipping an advisory review lane to a blocking gate
+  (precision proven over a sustained window, ratified as a reviewed change citing the evidence,
+  never a calendar flip and never operator discretion alone). Because the tier lets a fleet-produced
+  approval satisfy a required-review ruleset, it promotes that lane from advisory to merge-deciding
+  and inherits the same evidence bar. Prose/contract change only — no behavioral shift to the merge
+  gate, which remains fail-closed and DISABLED absent `babysit_autopilot_merge_tier`.
+
+## [0.15.5]
+
+### Fixed
+
+- **`/pull-request` create flow no longer silently corrupts a branch's fetch/rebase upstream when
+  publishing it for a PR (#442, residual finding from PR #763).** A post-merge review empirically
+  reproduced a residual silent clobber: §2.4.1's conditional `-u` gate keyed on the LITERAL
+  `branch.<name>.remote` config being set. In the triangular shape where `remote.pushDefault` names a
+  fork globally but `branch.<name>.remote` is unset (so fetch/rebase falls back to `origin`), the gate
+  read "unset", took the `-u` bootstrap path, and `git push -u <fork>` rewrote `branch.<name>.remote`
+  to the fork — so the next fetch/rebase silently targeted the fork instead of `origin`. The gate now
+  fires `-u` only when the branch has NO existing upstream (`branch.<name>.remote` AND
+  `branch.<name>.merge` both literally unset) AND its fetch and push remotes resolve to the same name
+  (`resolve-remote.sh` fetch-mode vs `--push`); otherwise it pushes plain and writes no branch config.
+  This closes the reported `pushDefault`-only clobber (fetch resolves `origin`, push resolves the fork →
+  they differ → plain push, upstream untouched) and a broader corruption family the fix surfaced:
+  `git push -u` rewrites the branch's WHOLE upstream — both `branch.<name>.remote` and
+  `branch.<name>.merge` — so a branch with any configured tracking kept its merge ref overwritten under
+  a resolved-name-only comparison. Three such shapes: an already-tracked branch; a deliberate local-only
+  `.` upstream (`git branch --track . <ref>`); and merge-only tracking (`branch.<name>.merge` set with
+  `branch.<name>.remote` unset — valid, since Git defaults the remote to `origin`, so the branch tracks
+  `origin/<merge-ref>`). Requiring BOTH upstream keys to be absent before bootstrapping preserves any
+  existing tracking via plain push. This also changes #763's behavior for the `.` case (it took the
+  `-u` path); publishing a branch for a PR no longer mutates a deliberate local-only or merge-only
+  upstream — a strict improvement. An ambiguous fetch resolution (empty) is unequal to any push remote →
+  plain push, never an abort. The conditional moved out of the `create.md` prose into a new co-located
+  `scripts/push-branch.sh` (§2.4.1 now delegates to it), so the gate sequence is executable and testable
+  rather than living only in markdown; the normalized `.`-as-unset / `\r`-strip handling stays solely in
+  `resolve-remote.sh` and is not duplicated (the upstream-absent probe reads both keys raw — any
+  non-empty value means "has an upstream"). New `push-branch.test.sh` drives the full resolve-fetch →
+  resolve-push → conditional-push → re-resolve-fetch sequence against real bare remotes across the
+  pushRemote-triangular, `pushDefault`-only triangular, non-triangular (asserting the merge ref is
+  preserved), fresh-branch bootstrap, local-only `.`, merge-only tracking, and fetch-ambiguous shapes —
+  the integration coverage whose absence let this escape `resolve-remote.test.sh`'s resolver-only cases.
+
+## [0.15.4]
+
+### Fixed
+
+- **`/pull-request` create flow no longer hardcodes the remote name `origin` (#442).** The
+  `create.md` reference had baked `git fetch origin` (§2.2 rebase) and `git push -u origin <branch>`
+  (§2.4.1), so a consumer whose remote is not named `origin` (a repo cloned with `git clone -o
+  <name>`, or a fork-based multi-remote setup) would break — a baked repo assumption the
+  convention-resolution ladder forbids. Both sites now delegate to a shared resolver
+  (`scripts/resolve-remote.sh`) that applies the same candidate-priority ordering the `toolchain`
+  linters already use: the current branch's configured remote (`branch.<name>.remote`, a local-only
+  `.` upstream treated as unset), else `origin`, else the sole OTHER configured remote when exactly
+  one exists. Two or more non-origin candidates with neither `branch.<name>.remote` nor `origin` set
+  is ambiguous and fails loudly with a diagnostic rather than silently resolving to `git remote |
+  head -1` and risking a rebase/push against the wrong base. The §2.2 substitution is complete —
+  every `origin/$DEFAULT_BRANCH` occurrence (fetch, `merge-base`, `rev-parse`, `rev-list`, `rebase`,
+  the progress echo, and the
+  merge-vs-rebase / skip-condition prose) now reads `$REMOTE/$DEFAULT_BRANCH`, and the
+  `ORIGIN_DEFAULT` variable is renamed `REMOTE_DEFAULT` to stay coherent. On the common path — a
+  single-remote repo, or a fresh feature branch with no `branch.<name>.remote` yet — both sites
+  still resolve to `origin`, preserving current behavior exactly. The §2.4.1 push step calls the
+  resolver in `--push` mode, which prepends Git's documented push precedence
+  (`branch.<name>.pushRemote`, else `remote.pushDefault`, else the fetch order above) per
+  git-config(1) / git-push(1), so a triangular fork flow — fetch from `upstream`, push to the fork —
+  resolves each side correctly instead of publishing the branch to `upstream`; the resolver's push
+  cases are covered by `resolve-remote.test.sh`. Relatedly, the §2.4.1 `git push` now sets upstream
+  (`-u`) only when the branch has no real `branch.<name>.remote` yet: `git push -u` rewrites that key
+  to the push target, so on a triangular fork an unconditional `-u` would silently repoint the FETCH
+  remote §2.2 reads to the fork and break the next rebase — the push now preserves an existing fetch
+  remote and bootstraps tracking only for a fresh (or local-only `.`) branch, where it still resolves
+  to `origin` as before. The same `origin` hardcoding still lives in `merge.md` and the `babysit-prs`
+  references, deferred to a follow-up.
+
+## [0.15.3]
+
+### Added
+
+- **`pull-request` create flow gates the PR-body "Generated with Claude Code" attribution line behind
+  a config seam (#439).** The `🤖 Generated with [Claude Code](https://claude.com/claude-code)` line
+  was hardcoded into the PR-body heredoc `/pull-request create` appends to every skill-created PR, with
+  no config key to change or suppress it — asymmetric with the commit trailer, which `/commit` already
+  externalizes via `.claude/source-control.md`'s `trailer_policy`. A consumer wanting no Claude
+  attribution in PR bodies (or a different line) had to fork or hand-edit the plugin, violating the
+  repo's "configurable without editing the plugin" convention. The line now resolves from a new
+  `pr_body_attribution` key across the same three `source-control.md` layers (per
+  `reference/config-resolution.md`): **absent → the default line (unchanged current behavior, so
+  existing consumers are unaffected)**, `none` → the line is omitted, any other value → that literal
+  line. A **sibling key rather than a reuse of `trailer_policy`** was chosen deliberately: the two
+  govern different surfaces (a commit `Co-Authored-By:` trailer vs a Markdown PR-body line), and
+  overloading `trailer_policy` would have silently stripped the PR-body line from every consumer who
+  already set `trailer_policy: none` (the plugin's own commit eval fixture is one) — a behavior change
+  the opt-in-only requirement forbids. `create.md` §2.4.1 resolves the effective value at the model
+  level and splices it in as literal text *outside* the quoted heredoc via the same
+  parameter-expansion concat `${CLOSES_LINE}` uses, preserving the section's shell-injection safety
+  (a custom `$`-bearing line stays inert). `/source-control:setup`'s interview, config template, and
+  `check` render the new key; `pull-request` `SKILL.md` and `config-resolution.md` document it. New
+  evals pin both the default-present and `pr_body_attribution: none` opt-out paths.
+
+## [0.15.2]
+
+### Fixed
+
+- **`babysit-prs` worktree pruner no longer hard-depends on `ghq` (#438).** The engine-backed
+  pruner (`prune_babysit_worktrees.py`) resolved a linked worktree's main checkout by shelling out
+  to `ghq` — the plugin author's personal repo-layout tool — and raised a hard `RuntimeError`
+  ("install ghq or set ghq.root") for any consumer without it, an undeclared prerequisite absent
+  from the README's "runs on `git`, `gh`, `jq`" contract. `repo_path` now resolves the main
+  checkout natively from the worktree's own gitdir/commondir pointer via
+  `git rev-parse --git-common-dir` (parent of the shared `.git` for a standard clone, the git
+  directory itself for a bare-clone hub), so cleanup works with only `git` present regardless of
+  repo layout. `ghq` is removed from the executable allowlist entirely — native resolution is
+  strictly more correct than ghq's guess from a configured root plus an assumed
+  `<root>/github.com/owner/repo` layout, so no optional ghq path is retained. Adds a hermetic
+  regression test that exercises resolution and removal against a real linked worktree with no
+  `ghq` on `PATH`.
+
+## [0.15.1]
+
+### Changed
+
+- **`babysit-prs` autopilot merge tier (#476) — completed the gate-off flip precondition (#675),
+  still shipped DISABLED.** Three coherence gaps that had to close before the tier can ever be
+  flipped on are now resolved, all as prose/contract changes with no behavioral shift to the
+  merge gate. (1) **Merge-surface wiring:** every autopilot merge surface is swept so an ENABLED
+  config can no longer merge via the flagless base path — autopilot's step 3 in `SKILL.md` and the
+  zero-blocker direct-gate path both point at `reference/safety.md`, now the single home for both
+  the base and the enabled-tier merge paths, and the Pinned-Command Degradation operator handoff
+  reproduces the tier-flagged command when the tier is enabled. (2) **Second-account approve mechanic:** the concrete
+  out-of-band approval the gate's distinct-bot criterion requires is specified — `gh pr review
+  … --approve` submitted under a distinct `<approver-bot-logins>` identity (`GH_TOKEN` or `gh
+  auth switch`, never the PR author or a lane identity), only after a genuine clean review pass,
+  on the live head so the `--expected-head` pin holds. (3) **Review-workflow requiredness
+  precondition:** enabling the tier now carries a documented operator precondition — the base
+  branch's ruleset must make the review workflow a **required** status context *and* that workflow
+  must always run to a non-skipped conclusion on every PR to the base (requiredness is necessary
+  but not sufficient: a required-but-skipped review still reads `mergeStateStatus == CLEAN` without
+  having gated anything). Where the review workflow is not required, or can conditionally skip on
+  the tier's PRs, the tier must not be enabled. Chosen over a merge-gate review-context config
+  (rejected option b) to keep the gate deterministic with nothing new to wire. The skill-contract
+  tests are extended to pin all three contracts against drift.
+
+## [0.15.0]
+
+### Added
+
+- **`babysit-prs` autopilot merge tier (#476), shipped DISABLED behind an explicit operator
+  flag.** At day-scale throughput, human approve-and-merge is the pipeline bottleneck. The new
+  tier lets the fleet satisfy the branch ruleset instead of bypassing it: a second bot account
+  (author ≠ approver) runs a genuine review pass through the review plugin and submits an
+  approving review only when clean, after which the pinned merge gate merges **only when every
+  criterion holds** — required checks green including the review workflow (`mergeStateStatus`
+  CLEAN, ruleset untouched), issue-linked, authored by a configured pipeline lane, no human
+  `CHANGES_REQUESTED` / blocking comment / unresolved thread, no configured do-not-merge label,
+  no unratified `Decision defaulted` marker on the linked issue (the triage lane's maintainer
+  veto window, which a maintainer ratifies by comment before the default rides into a merge),
+  and a distinct-bot approval on the live head (head SHA unchanged since review). Any criterion
+  failing falls back to today's behavior: the PR is reported on the human merge-ready list. The
+  gate flag `--autopilot-merge-tier` is **fail-closed** — it refuses unless `--lane-logins`,
+  `--approver-bot-logins`, and `--block-labels` are all supplied — and every criterion predicate
+  is reused from the shared `babysit_classify` module rather than re-implemented. The tier exists
+  only while `babysit_autopilot_merge_tier` is enabled (new boolean userConfig, default off);
+  enabling it and any later gate-off flip is a separate, announced operator step. New userConfig:
+  `babysit_autopilot_merge_tier`, `babysit_lane_logins`, `babysit_approver_bot_logins`,
+  `babysit_merge_block_labels`. Absent the flag the merge gate is byte-for-byte its prior self, so
+  worker/autopilot's existing gate-proven merges are unchanged. `safety.md`'s "Never do
+  automatically: merge" contract is updated deliberately to codify the tier and its criteria.
+
+## [0.14.0]
+
+### Added
+
+- **The convention config is now three layers, not one.** `source-control.md` was resolved as a
+  single project-level file, so a commit convention could not follow an operator across repos or
+  machines and a personal deviation from team policy had nowhere to live — per-machine
+  reconfiguration meant editing the team-tracked file. It now resolves
+  `~/.claude/source-control.md` (user-global) → `.claude/source-control.md` (team, tracked) →
+  `.claude/source-control.local.md` (gitignored personal overlay), the order the tracked-rich-config
+  seam mandates. `/commit`, `/pull-request`, and `/setup` all read the layering rules from one new
+  bundled reference instead of restating them.
+- **`/setup apply` takes a `layer=user|team|local` target**, defaulting to `team`, and infers the
+  layer from a request that names one ("my personal convention", "for all my repos"). `/setup check`
+  now renders the effective merge as a row per key with the layer that supplied it, rather than
+  reporting the team file's values as if they were the whole convention.
+
+### Changed
+
+- **Merge semantics are per-key override, a recorded deviation from the seam's concatenating
+  default.** A later layer replaces an earlier layer's value key by key and never drops the base
+  layer wholesale; a key absent from a later layer keeps the earlier value. Concatenation is right
+  for the first-party `security-guidance` precedent, whose layers are prose blocks that genuinely
+  accumulate. Every key here is a scalar or a closed list: two `subject_pattern` regexes cannot
+  concatenate into a third valid regex, and a concatenated `trailer_policy` would emit two trailers.
+
+### Fixed
+
+- **`/setup`'s gitignore guard no longer applies one verdict to layers that need opposite ones.** A
+  gitignored *team* file remains a hard STOP — teammates would never receive the shared convention.
+  A gitignored *personal overlay* is the success condition, and the overlay is never staged; when it
+  is not ignored, `/setup` surfaces the `.claude/*.local.*` line for the consumer to add rather than
+  editing their `.gitignore`. The user-global file is outside the worktree, so no git command runs
+  against it at all — `git check-ignore` and `git status` on a path outside the repository would
+  produce a meaningless verdict, or a confidently wrong one when the home directory is itself a
+  repository.
+
+## [0.13.4]
+
+### Fixed
+
+- **`babysit-prs` dynamic `/loop` wakeups now map `recommended_cadence` to a concrete
+  `ScheduleWakeup.delaySeconds` instead of falling back to the generic `/loop` heuristic.** The
+  snapshot engine emits `recommended_cadence` (`reference/cadence.md`: active / normal / quiet /
+  idle) and `reference/loop.md` §5.3 told the orchestrator to "derive the wake interval" from it,
+  but never gave the string-to-seconds translation — so orchestrators silently fell back to the
+  generic `/loop` skill's own "lean 1200–1800s" fallback-heartbeat range, overriding the domain
+  skill's tighter adaptive-cadence contract and leaving PRs with pending CI or blocking feedback
+  unchecked 4–5x longer than intended. §5.3 now carries a deterministic mapping table
+  (`active`→300, `normal`→900, `quiet`→3600, `idle`→3600) and states plainly that this signal
+  ALWAYS wins over the generic heuristic whenever a snapshot supplies it — in babysit dynamic mode
+  the `ScheduleWakeup` delay is the primary cadence signal, not a fallback heartbeat. The `idle`
+  row is documented as a ceiling: `ScheduleWakeup` clamps `delaySeconds` to `[60, 3600]`, so
+  cadence.md's daily `idle` intent truncates to the 3600s hourly ceiling — a genuine daily cadence
+  needs the durable `/schedule` cron mechanism, not a single-session `/loop` wakeup.
+
+## [0.13.3]
+
+### Fixed
+
+- **`babysit-readiness-gate` now credits classification rows per comment surface, closing a
+  fail-open where a stale classification could pass the gate past a live unclassified finding
+  (#642).** The gate blocks while source findings outnumber their per-finding classification rows.
+  The shared classifier counted a self-authored classification pipe-row in ANY comment, including
+  PR-level review-summary comments that are never thread-resolved. Because a review thread's
+  findings drop when it resolves (the lifetime-vs-open discount) but a PR-level comment can never
+  resolve, a stale classification posted outside a thread kept counting after its finding was
+  discounted — inflating the classified count past a fresh, still-unclassified open-thread finding
+  and emitting a fail-open `READINESS_OK`. Classification credit is now bucketed by surface
+  (review-thread, PR-level, and an isolated bucket for comments bearing no surface signal) and
+  capped within each bucket, so a classification can only offset a finding on its own surface. The
+  Python-free bash degrade gains the thread-state-free analogue (`classified = min(classified,
+  findings)`); the per-surface refinement is Python-only, mirroring the existing lifetime discount,
+  and stays convergent with the degrade on unsignalled input.
+
+### Changed
+
+- **BEHAVIOR FLIP — a PR whose inline-thread findings are answered only by detached PR-level
+  classification replies now reports `READINESS_BLOCKED` where it previously passed.** With
+  per-surface credit, a PR-level classification row no longer offsets an inline-thread finding, so
+  the gate blocks until each inline finding is answered on its own thread. This enforces
+  `review-discipline.md` §D5's already-ratified reply routing (inline findings MUST reply threaded,
+  "NEVER a detached `pr comment`") mechanically rather than by prose. Runs that already follow §D5
+  routing are unaffected; only runs relying on the previously-tolerated detached-reply shape change
+  verdict, and the fix direction is fail-closed.
+
+## [0.13.2]
+
+### Fixed
+
+- **`pull-request` create flow no longer treats a bare `Refs #N` as a closing-keyword opt-out in its
+  §2.4.2 pre-create gate.** The local gate's `OPTOUT_REGEX` accepted `Refs #N`, but the real
+  `pr-issue-linkage` reusable CI workflow (`melodic-software/ci-workflows` `pr-issue-linkage.yml`,
+  the SHA this repo pins) accepts only a native closing keyword (`Closes`/`Fixes`/`Resolves #N`) or a
+  literal `No linked issue` / `No related issue:` phrase for its closing-keyword half — `Refs #N` is
+  not in that set. A `Refs #N`-only body therefore cleared the skill's own gate yet still failed the
+  CI gate on push. The regex now drops `Refs #N` (`^No related issue:` only), so any body the local
+  gate passes the validator also passes (a strict safe subset). `Refs #N` remains a valid
+  link-without-close reference in the `## Related` section; the §2.4.0 orphan-PR prompt, the §2.4.1
+  asymmetry note, and the §2.4.2 gate messages were reconciled to match. The §2.4.0 multi-issue
+  prompt still offers `Refs #Y`, but its accepted `Refs` lines now route into `## Related` rather
+  than onto the closing-keyword line, and the `closed-branch-issue-does-not-autoclose` eval's
+  expected output was aligned to the two-option orphan prompt (`Closes` or `No related issue:`).
+  Narrow same-repo fix (option 1); extending the upstream validator to accept `Refs #N` was out of
+  scope.
+
+## [0.13.1]
+
+### Fixed
+
+- **`pull-request` create flow now scaffolds a non-empty `## Related` section in the assembled PR
+  body.** The create flow builds the PR body from its own template and passes it via `gh pr create
+  --body`, which fully overrides `.github/pull_request_template.md` (cli/cli#10751) — so
+  skill-driven PRs never see a repo PR template. The assembled skeleton had `## Summary` /
+  `## Test plan` but no `## Related` section, so PRs in a repo whose CI enforces a
+  `pr-issue-linkage`-style contract (non-empty `## Related` + a native closing keyword) failed the
+  gate on first push and burned a red-CI round-trip. The template now emits a `## Related` section
+  defaulting to the literal `N/A` (non-empty by default; replace with `Refs #N` references to
+  related-but-not-closed PRs/ADRs/decisions when they exist), pairing with the always-present
+  `${CLOSES_LINE}` closing keyword so both halves of the contract are scaffolded up front. This is
+  the create-flow half of the same gap the repo PR template covers for the web/editor authoring
+  path. The §2.4.1 prose documents both scaffolds and flags that a bare `Refs #N` opt-out does not
+  satisfy a validator's closing-keyword half (only a real keyword or a `No linked issue` /
+  `No related issue:` phrase does).
+
+## [0.13.0]
+
+### Changed
+
+- **`babysit-prs` authorship / finding / approval classification is now one shared module.** The
+  self/bot/human authorship test, the finding severity + lifetime-vs-open counting, and the
+  approval-verdict heuristics were hand-rolled independently across the snapshot classifier, the
+  merge gate, the resolve-thread reporter, and the readiness gate, and the surfaces disagreed on
+  identical input — the six-issue misclassification class this refactor closes. They now consume
+  one classifier: `babysit_delta`, `babysit_feedback`, and `babysit_merge` import the self-login
+  membership test and authorship/finding/approval primitives directly instead of re-deriving them,
+  `babysit_resolve_thread` shares the same `is_bot` test, and `babysit-readiness-gate.sh` shells
+  out to the shared finding counter (mirroring the existing merge-gate wrapper) rather than
+  re-implementing the severity vocabulary in bash grep. Every surface stays a pure predicate with
+  no writes. Each formerly-divergent member issue is now a golden fixture, regression-proof by
+  construction.
+
+### Fixed
+
+- **`babysit-readiness-gate.sh` no longer over-counts lifetime findings as unaddressed.** The gate
+  counted every severity marker ever posted across a PR's lifetime — including markers in review
+  threads GitHub already reports resolved or outdated — so a fully-classified PR with re-review
+  history reported `READINESS_BLOCKED reason=under-decomposed` permanently even when every open
+  item was addressed. The shared finding counter discounts a marker carried in a resolved or
+  outdated thread, counting currently-open findings only. (De-duplicating the same concern restated
+  across re-review rounds within still-open threads is deliberately out of scope — there is no
+  reliable mechanical "same concern" signal — so restatements still count.) The bash counting is
+  retained only as the Python-free safe-tier degrade, which cannot see thread state; a convergence
+  test pins the two counts together on thread-state-free input.
+- **`source-control-babysit-resolve-thread` no longer reports `humanThreadsActed` for a
+  Bot-authored thread.** The counter incremented for any acted thread whose comments were not
+  *all* bots (`botOnly` false), so a bot-opened thread carrying a later human reply was reported as
+  a human-thread action that never happened, undermining the human-thread safety rail's own
+  telemetry. It now counts only threads whose opening author is human, via the shared authorship
+  classifier — the same author check the `--include-human` eligibility decision already uses.
+
+## [0.12.0]
+
+### Fixed
+
+- **`babysit-prs` snapshot no longer classifies an Approve-with-nits bot review as blocking bot
+  feedback.** A `claude[bot]` PR review posted as an issue-level comment with an explicit
+  **Approve** verdict and only 🟡-nit findings (no `CRITICAL`/`IMPORTANT` or other severity
+  marker) was surfaced as a blocking, genuinely-fresh finding because the body's prose contained
+  the word "blocking" ("blocking criteria", "blocking checks", "No blocking issues"), which the
+  text heuristic matched. The classifier now parses the verdict and severity markers: an explicit
+  approval carrying no genuine severity marker is downgraded structurally (for any bot, not only a
+  configured login) to a non-blocking result, consistent with `babysit-readiness-gate.sh`
+  reporting `findings=0` for the same review. Detection of genuinely blocking feedback is
+  unweakened — in a comment or a non-`APPROVED`-state review, a `CRITICAL`/`IMPORTANT` finding or
+  a Request-changes verdict still classifies as blocking, and `CRITICAL`/`IMPORTANT` are now
+  recognized as blocking-severity markers in their own right. (A review submitted in the formal
+  `APPROVED`/`DISMISSED` state is routed to `ignored` before the severity check — pre-existing
+  behavior this change does not alter; whether such reviews should be severity-scanned first is
+  tracked as a follow-up in #621.) A negated severity conclusion — a clean approval stating `No CRITICAL or IMPORTANT
+  findings` — is redacted before the severity check, the structured-marker analogue of the
+  existing `no P1/P2 issues` redaction, so introducing severity-marker detection does not itself
+  re-create a false blocker for that common clean-verdict phrasing. A login named in
+  `babysit_approval_downgrade_logins` opts that bot's approval into the more-conservative
+  `material` bucket (surfaced but non-blocking) instead of `ignored` in the one case the
+  structural downgrade reaches — a review body carrying blocking-looking prose that still parses
+  as an approval verdict. It does not affect a review already in the APPROVED state or a plain
+  clean approval whose body carries no blocking-looking prose: both are ignored regardless of the
+  setting, since neither reaches the downgrade branch.
+
+## [0.11.0]
+
+### Added
+
+- **`babysit-prs` surfaces a silent bot→personal identity fallback as an attribution-drift material
+  finding.** The snapshot engine gains an `attribution_drift` reconciliation arm: for each write the
+  mutation ledger recorded performing, it verifies the landed timeline author is the configured
+  intended write-identity, not merely *some* accepted self-login. A recorded write that landed under
+  a different self-login — the canonical case being a bot write-identity that degraded to the
+  operator's personal login when a token mint failed — becomes a first-class material finding on that
+  PR's cycle-status line instead of drifting silently. It is the complement of `foreign_activity`
+  (which reconciles same-login events the ledger *cannot* account for) and is mutually exclusive with
+  it per comment; unlike `foreign_activity` it reports without suppressing dispatch, since the PR is
+  still ours to babysit. The intended identity is configured via the new `babysit_intended_write_identity`
+  userConfig key (threaded as `--intended-write-identity` to the snapshot); absent it, the arm is
+  dormant. This is pure plugin-side authorship verification — the token-generation root cause is a
+  cross-repo concern (medley `gh-bot.sh`) and no change there is needed for the finding to fire.
+  Coverage is bounded to the write class the ledger records with a recoverable author (review-trigger
+  comments); drift on reactions, classification replies, and branch pushes awaits ledgering their
+  identifiers with authorship. Covered by unit and full-classify regression tests in
+  `test_babysit_delta.py`. Closes #450.
+
+## [0.10.0]
+
+### Changed
+
+- **`babysit-prs` requires per-thread pins for autonomous thread resolves — the bulk autonomous
+  path is refused.** `babysit_resolve_thread.py` now rejects a `--autonomous --resolve` call that
+  carries no `--thread-id`, forcing the unattended-worker path through a per-thread vetted loop
+  (each thread pinned with `--expected-comment-count` and `--expected-last-updated`, reusing the
+  existing TOCTOU pin guard). `--allow-unpinned-thread` is likewise refused in `--autonomous`
+  mode, so there is no unpinned autonomous resolve. A worker's own push marks a review thread
+  `isOutdated`, and the previous bulk path cleared such threads in one unpinned sweep with no
+  proof the finding was addressed; the per-thread pins now close the bulk and comment-drift gaps.
+  They do not close the displacement bypass — a push that flips `isOutdated` while the comment
+  pins still match is still resolvable — which is tracked as the root fix in #571. This is a
+  behavior change to the
+  autonomous-worker contract: `SKILL.md` Autopilot step 2 changes from one bulk call to a
+  per-thread loop, aligning it with the pinned form already documented in
+  `reference/orchestration.md` and `reference/safety.md`. Covered by a regression test in
+  `test_guards.py`.
+
 ## [0.9.3]
 
 ### Added

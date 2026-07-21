@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "guardrails",
-  "version": "0.8.1",
+  "version": "0.9.5",
   "description": "Eight safety guards that block secret/credential writes, hardcoded machine-specific paths, git hook-bypass attempts, irreversible git operations (force-push, reset --hard, worktree-wide checkout/restore discards), Bash file-write workarounds that circumvent Write/Edit hooks, (advisory) hallucinated CLI flags, (advisory) un-throttled Workflow fan-out that risks burst 529s, and (advisory) direct git commit/gh pr create calls bypassing this marketplace's own commit/pull-request skills — each independently toggleable.",
   "author": {
     "name": "Melodic Software",
@@ -50,6 +50,12 @@
       "description": "Block Bash file-write workarounds that circumvent Write/Edit hook gates",
       "default": true
     },
+    "block_noncanonical_commit_enabled": {
+      "type": "boolean",
+      "title": "block-noncanonical-commit guard",
+      "description": "Block `git commit` that does not pipe its message via `-F -`; --amend, -C/-c, --fixup/--squash, -F <path>, and an in-progress merge/rebase are exempt",
+      "default": true
+    },
     "cli_flag_verify_enabled": {
       "type": "boolean",
       "title": "cli-flag-verify guard",
@@ -84,6 +90,12 @@
       "type": "string",
       "title": "block-dangerous-git allow-list",
       "description": "Comma-separated forms block-dangerous-git permits: push-force, reset-hard, clean-force, checkout-dot, restore-dot, checkout-force; empty blocks all",
+      "default": ""
+    },
+    "block_noncanonical_commit_allow": {
+      "type": "string",
+      "title": "block-noncanonical-commit allow-list",
+      "description": "Comma-separated form tokens to allow (currently: message-flag, which permits a bare `-m`)",
       "default": ""
     }
   }

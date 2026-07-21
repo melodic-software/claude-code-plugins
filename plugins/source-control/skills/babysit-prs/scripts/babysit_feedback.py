@@ -4,16 +4,39 @@
 Actor typing is structural first (`__typename`/`is_bot`/`[bot]` suffix); any
 login-based fallback comes from caller-supplied configuration and ships empty.
 Downgrade heuristics likewise apply only to reviewer logins the caller names.
+
+The authorship / finding / approval primitives live in the shared
+`babysit_classify` module (extracted per #534 so every babysit surface agrees);
+this module orchestrates them into the snapshot's feedback buckets. The moved
+names are re-exported here so existing consumers keep importing them from
+`babysit_feedback`.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
-import re
-from dataclasses import dataclass, field
 from typing import Any
 
+from babysit_classify import (
+    BOT_ERROR_RE,
+    DEFAULT_FEEDBACK_CONFIG,
+    DEPENDENCY_MANAGER_LOGINS,
+    FeedbackConfig,
+    actor_kind,
+    approval_downgrade,
+    author_login,
+    body_text,
+    has_blocking_severity,
+    has_blocking_text,
+    is_bot,
+    is_dependency_author,
+    is_self_login,
+    normalize_login_set,
+    normalize_self_logins,
+    normalized_bot_login,
+    skip_downgrade,
+)
 from babysit_gh import (
     fetch_issue_comments,
     fetch_pull_request_reviews,
@@ -21,139 +44,31 @@ from babysit_gh import (
 )
 from babysit_util import is_json_object, json_array, json_object
 
-BLOCKING_TEXT_RE = re.compile(
-    r"\b(p0|p1|p2|high[- ]severity|not approving|changes requested|"
-    + r"required fix|must fix|blocking|regression|vulnerability)\b",
-    re.I,
-)
-BOT_ERROR_RE = re.compile(
-    r"(encountered an error|could not|unable to|failed to run)", re.I
-)
-NEGATED_SEVERITY_LIST_RE = re.compile(
-    r"\b(?:no|zero|without)\s+(?:actionable\s+)?p[012]"
-    + r"(?:\s*,?\s*(?:(?:and|or)\s+)?p[012])*\s+"
-    + r"(?:issues?|findings?|defects?|problems?|regressions?|vulnerabilities?)\b",
-    re.I,
-)
-NEGATED_BLOCKING_TERM_RE = re.compile(
-    r"\b(?:no|zero|without)\s+(?:actionable\s+)?(?:p[012]|high[- ]severity|"
-    + r"blocking|regressions?|vulnerabilities?|required fixes?|changes requested)\b|"
-    + r"\bnot\s+(?:an?\s+)?(?:blocking|regression|vulnerability)\b",
-    re.I,
-)
-APPROVAL_VERDICT_RE = re.compile(
-    r"\bapproved?\b|\blgtm\b|\bready (?:for|to) merge\b|"
-    + r"\b(?:pr|change|changes|implementation|code) (?:is|are|looks?) sound\b|"
-    + r"\bnone of (?:the|these|my) (?:observations|findings|issues|comments|"
-    + r"suggestions) (?:is|are) blocking\b|"
-    + r"\bno blocking (?:issues?|findings?|defects?|problems?|concerns?)\b|"
-    + r"\bnothing blocking\b",
-    re.I,
-)
-NON_APPROVAL_RE = re.compile(
-    r"\b(?:not?|cannot|can't|won't|wouldn't|unable to|refus\w+|declin\w+|"
-    + r"do(?:es)?n't|isn't|aren't)\s+(?:be\s+|yet\s+)?"
-    + r"(?:approv\w+|ready|sound|mergeable)\b|\bnot ready\b",
-    re.I,
-)
-REQUIRED_FIX_RE = re.compile(
-    r"\b(?:p0|p1|required fix(?:es)?|must fix|fix required|changes requested|"
-    + r"request(?:s|ing)? changes|regression|vulnerability|high[- ]severity)\b",
-    re.I,
-)
-REVIEW_SKIP_RE = re.compile(
-    r"\bbugbot\b[^\n.]{0,80}?\b(?:skipped|did(?:n't| not) run|"
-    + r"could(?:n't| not) run|was not run|unable to run|usage limit)\b"
-    + r"|\busage limit (?:reached|hit|exceeded)\b",
-    re.I,
-)
-NOT_APPROVING_RE = re.compile(r"\bnot approving\b", re.I)
-# Dependency-manager product bots (a tool taxonomy, not a tenant identity):
-# their PRs feed the cross-tier hold-merge rule.
-DEPENDENCY_MANAGER_LOGINS = frozenset(
-    {
-        "dependabot",
-        "dependabot-preview",
-        "renovate",
-        "renovate-bot",
-    }
-)
-
-
-@dataclass(frozen=True)
-class FeedbackConfig:
-    """Caller-supplied identity configuration; every set ships empty.
-
-    `extra_bot_logins` supplements structural bot detection for accounts whose
-    metadata misreports them as users. `approval_downgrade_logins` and
-    `skip_downgrade_logins` name the reviewer logins whose blocking-looking
-    text may be downgraded by the approval-verdict and review-skip heuristics.
-    """
-
-    extra_bot_logins: frozenset[str] = field(default_factory=frozenset)
-    approval_downgrade_logins: frozenset[str] = field(default_factory=frozenset)
-    skip_downgrade_logins: frozenset[str] = field(default_factory=frozenset)
-
-
-DEFAULT_FEEDBACK_CONFIG = FeedbackConfig()
-
-
-def normalize_login_set(logins: Any) -> frozenset[str]:
-    """Normalize a login collection for comparison: casefold, strip `[bot]`."""
-    return frozenset(
-        str(login).casefold().removesuffix("[bot]")
-        for login in (logins or [])
-        if str(login).strip()
-    )
-
-
-def author_login(item: dict[str, Any]) -> str:
-    author = item.get("author")
-    if is_json_object(author):
-        return str(author.get("login") or author.get("name") or "")
-    return str(author or "")
-
-
-def actor_kind(
-    item: dict[str, Any], config: FeedbackConfig = DEFAULT_FEEDBACK_CONFIG
-) -> str:
-    """Classify actors from authoritative type metadata, then exact fallbacks."""
-    author = item.get("author")
-    if is_json_object(author):
-        typename = str(author.get("__typename") or "")
-        if typename == "Bot" or author.get("is_bot") is True:
-            return "bot"
-        if (
-            typename in {"Mannequin", "Organization", "User"}
-            or author.get("is_bot") is False
-        ):
-            return "human"
-    login = author_login(item).lower()
-    normalized = login.removesuffix("[bot]")
-    if login.endswith("[bot]") or normalized in normalize_login_set(
-        config.extra_bot_logins
-    ):
-        return "bot"
-    return "human"
-
-
-def normalized_bot_login(item: dict[str, Any]) -> str:
-    return author_login(item).casefold().removesuffix("[bot]")
-
-
-def is_dependency_author(login: str) -> bool:
-    """Pure dependency-manager author test feeding the cross-tier hold-merge rule."""
-    normalized = str(login or "").casefold().removeprefix("app/").removesuffix("[bot]")
-    return normalized in DEPENDENCY_MANAGER_LOGINS
-
-
-def body_text(item: dict[str, Any]) -> str:
-    parts: list[str] = []
-    for key in ("body", "bodyText", "state", "comment", "message"):
-        value = item.get(key)
-        if isinstance(value, str):
-            parts.append(value)
-    return "\n".join(parts)
+__all__ = [
+    "BOT_ERROR_RE",
+    "DEFAULT_FEEDBACK_CONFIG",
+    "DEPENDENCY_MANAGER_LOGINS",
+    "FeedbackConfig",
+    "actor_kind",
+    "approval_downgrade",
+    "author_login",
+    "body_text",
+    "collect_feedback",
+    "fetch_current_human_stop",
+    "has_blocking_severity",
+    "has_blocking_text",
+    "human_stop_state",
+    "is_bot",
+    "is_dependency_author",
+    "is_self_login",
+    "item_id",
+    "latest_reviews_by_author",
+    "normalize_login_set",
+    "normalize_self_logins",
+    "normalized_bot_login",
+    "review_commit_oid",
+    "skip_downgrade",
+]
 
 
 def item_id(prefix: str, item: dict[str, Any]) -> str:
@@ -219,45 +134,6 @@ def latest_reviews_by_author(
             if login not in latest or rank > latest[login][0]:
                 latest[login] = (rank, review)
     return [entry[1] for entry in latest.values()] + anonymous
-
-
-def has_blocking_text(text: str) -> bool:
-    """Apply blocking heuristics after redacting common negated findings."""
-    redacted = NEGATED_SEVERITY_LIST_RE.sub("", text)
-    redacted = NEGATED_BLOCKING_TERM_RE.sub("", redacted)
-    return bool(BLOCKING_TEXT_RE.search(redacted))
-
-
-def approval_downgrade(text: str) -> bool:
-    """True when a reviewer bot states an explicit approval verdict.
-
-    Requires a clear approval/non-blocking conclusion, no negated approval
-    language, and no required-fix language surviving negation redaction.
-    Anything ambiguous stays blocking.
-    """
-    if NON_APPROVAL_RE.search(text):
-        return False
-    if not APPROVAL_VERDICT_RE.search(text):
-        return False
-    redacted = NEGATED_SEVERITY_LIST_RE.sub("", text)
-    redacted = NEGATED_BLOCKING_TERM_RE.sub("", redacted)
-    return not REQUIRED_FIX_RE.search(redacted)
-
-
-def skip_downgrade(text: str) -> bool:
-    """True when a reviewer bot withholds approval only because its review
-    could not run.
-
-    A not-approving comment whose stated reason is a skipped review run (for
-    example a usage limit) and which carries no findings of its own is a
-    user-triage item, not a code blocker. Any residual blocking language keeps
-    it blocking.
-    """
-    if not REVIEW_SKIP_RE.search(text):
-        return False
-    remainder = NOT_APPROVING_RE.sub("", text)
-    remainder = REVIEW_SKIP_RE.sub("", remainder)
-    return not has_blocking_text(remainder)
 
 
 def collect_feedback(
@@ -326,7 +202,7 @@ def collect_feedback(
             blocking.append(record)
         elif state in {"APPROVED", "DISMISSED"}:
             ignored.append(record)
-        elif has_blocking_text(text):
+        elif has_blocking_text(text) or has_blocking_severity(text):
             disposition = json_object((dispositions or {}).get(fid))
             current_head = str(pr.get("headRefOid") or "")
             # Only honor a disposition recorded at the current head. If the PR has
@@ -340,11 +216,24 @@ def collect_feedback(
             if disposition_applies:
                 record["disposed_reason"] = str(disposition.get("reason") or "")
                 material.append(record)
-            elif normalized_bot_login(
-                item
-            ) in approval_downgrade_logins and approval_downgrade(text):
+            elif approval_downgrade(text):
+                # An explicit approval verdict with no genuine severity marker
+                # (no CRITICAL/IMPORTANT, no required-fix term surviving negation
+                # redaction): the blocking-looking text is descriptive prose --
+                # e.g. "blocking criteria", "blocking checks", "no blocking
+                # issues" -- not a live finding. This is structural, not
+                # login-gated: a clean approval reads the same from any bot, and
+                # this keeps the snapshot consistent with
+                # babysit-readiness-gate.sh reporting findings=0 for the very
+                # same review. A login named in `approval_downgrade_logins` opts
+                # that bot's clean approvals into the more-conservative `material`
+                # bucket (surfaced but non-blocking) instead of being fully
+                # ignored; the safe default for every other bot is `ignored`.
                 record["downgrade"] = "approval_verdict"
-                material.append(record)
+                if normalized_bot_login(item) in approval_downgrade_logins:
+                    material.append(record)
+                else:
+                    ignored.append(record)
             elif normalized_bot_login(
                 item
             ) in skip_downgrade_logins and skip_downgrade(text):

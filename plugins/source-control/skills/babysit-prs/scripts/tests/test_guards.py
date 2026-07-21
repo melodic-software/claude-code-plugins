@@ -68,6 +68,38 @@ class MergeGuardFailsClosed(unittest.TestCase):
         code, _ = run(MERGE, "not-a-ref", "--allowed-owners", "owner")
         self.assertEqual(code, 2)
 
+    def test_autopilot_tier_without_required_sets_refuses_exit_3(self):
+        # The tier's fail-closed core: the umbrella flag alone, with none of its
+        # three required sets, refuses before any network access.
+        code, payload = run(
+            MERGE, "owner/repo#1", "--allowed-owners", "owner",
+            "--autopilot-merge-tier",
+        )
+        self.assertEqual(code, 3)
+        error = payload.get("error", "")
+        for flag in ("--lane-logins", "--approver-bot-logins", "--block-labels"):
+            self.assertIn(flag, error)
+
+    def test_autopilot_tier_partial_config_refuses_exit_3(self):
+        # Two of three supplied still refuses, naming only the missing set.
+        code, payload = run(
+            MERGE, "owner/repo#1", "--allowed-owners", "owner",
+            "--autopilot-merge-tier", "--lane-logins", "lane",
+            "--approver-bot-logins", "bot",
+        )
+        self.assertEqual(code, 3)
+        self.assertIn("--block-labels", payload.get("error", ""))
+
+    def test_tier_params_without_umbrella_are_usage_error_exit_2(self):
+        # The parameter sets are meaningless without the umbrella flag; supplying
+        # them alone is a usage error, never a silent no-op.
+        code, payload = run(
+            MERGE, "owner/repo#1", "--allowed-owners", "owner",
+            "--lane-logins", "lane",
+        )
+        self.assertEqual(code, 2)
+        self.assertIn("--autopilot-merge-tier", payload.get("error", ""))
+
 
 class ResolveGuardFailsClosed(unittest.TestCase):
     def test_absent_allowlist_refuses_exit_3(self):
@@ -99,6 +131,31 @@ class ResolveGuardFailsClosed(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertIn("expected-comment-count", payload.get("error", ""))
         self.assertIn("expected-last-updated", payload.get("error", ""))
+
+    def test_autonomous_bulk_resolve_without_thread_id_is_refused(self):
+        # The bug this guard closes: an unattended worker's own push marks a
+        # thread isOutdated, and a bulk (no --thread-id) autonomous resolve would
+        # clear it with no proof the finding was addressed. Refused before any
+        # network fetch -- the fix-closed contract the docs already describe.
+        code, payload = run(
+            RESOLVE, "owner/repo#1", "--allowed-owners", "owner",
+            "--autonomous", "--resolve",
+        )
+        self.assertEqual(code, 2)
+        self.assertIn("thread-id", payload.get("error", ""))
+        self.assertIn("bulk-resolve", payload.get("error", ""))
+
+    def test_autonomous_allow_unpinned_thread_is_refused(self):
+        # There is no unpinned autonomous resolve: --allow-unpinned-thread is an
+        # interactive-only override and must not open a bypass around the pins in
+        # unattended mode, even with a single --thread-id.
+        code, payload = run(
+            RESOLVE, "owner/repo#1", "--allowed-owners", "owner",
+            "--autonomous", "--resolve", "--thread-id", "PRRT_abc",
+            "--allow-unpinned-thread",
+        )
+        self.assertEqual(code, 2)
+        self.assertIn("allow-unpinned-thread", payload.get("error", ""))
 
 
 if __name__ == "__main__":

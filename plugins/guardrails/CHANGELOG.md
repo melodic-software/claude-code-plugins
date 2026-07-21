@@ -3,10 +3,21 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.8.1]
+## [0.9.5]
 
 ### Fixed
 
+- **`block-hook-bypass` no longer fails open when the redirect target is quoted.**
+  The producer-scoping narrowing dropped a quoted redirect TARGET along with inert
+  quoted prose, leaving the segment as `echo x >` with no surviving operand — so
+  the file-write check saw no target and `echo x > "$out"`, `echo x > 'out.txt'`,
+  and `printf y > "$file"` wrote real files while returning 0. A quoted span that
+  belongs to a redirect-operand word (the word began right after a `>`) is now kept
+  as literal content instead of dropped, so the write signal survives the strip;
+  partial quoting (`echo x > "$dir"/out.txt`) is covered too. Keeping the literal
+  content preserves the `/dev/null` exemption (`echo x > "/dev/null"` stays
+  allowed), so the fix adds no false positive, and a quoted span anywhere else
+  (prose, a `--body "…"` payload, a quoted echo argument) still drops.
 - **`block-hook-bypass` no longer false-fires when an `echo`/`printf` token and a
   `>` redirect merely co-occur in one Bash command.** The `echo > file` heuristic
   matched any command string containing both tokens, so capturing a subprocess's
@@ -85,6 +96,101 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   the producer and its `> file` in different segments and returned 0. Escaped
   separators (`\;`, `\|`, `\&`, `\(`, `\)`, and an escaped newline) are now
   protected from the split so the simple command stays one segment.
+
+## [0.9.4]
+
+### Fixed
+
+- **`cli-flag-verify` scans only the content the tool call wrote, never the whole file
+  from disk.** The PostToolUse check re-read the entire edited file, so any edit to a
+  file already containing an unrecognized flag elsewhere re-fired the advisory about
+  lines the edit never touched. The hook now scans the tool payload — an Edit's
+  changed hunk, a Write's full content (a PostToolUse Write payload cannot distinguish
+  a new file from an overwrite, so whole-content is the closest the payload allows) —
+  per the hook-precision convention's diff-scoping rule. Repro-first: the
+  pre-existing-flag stay-quiet case fails against the prior hook and passes now, with
+  a hunk-introduced-flag MUST-FIRE counterpart. Markdown fence state is derived from
+  the hunk alone — a fence-straddling edit can misclassify in either direction, the
+  accepted trade of hunk scoping. A partial-replacement edit whose hunk is a bare
+  flag fragment (no binary in the changed region) reconstructs bounded on-disk
+  context — the lines carrying the hunk's flag tokens — so a swapped-in unknown flag
+  still fires, while a pre-existing unrelated flag sharing that line stays quiet.
+
+## [0.9.3]
+
+### Changed
+
+- Documentation-only: the License section now states the plugin's own MIT
+  license inline and no longer points at a `LICENSE` file at the repository
+  root, which an installed consumer running from the isolated plugin cache
+  cannot reach. No behavior change.
+
+## [0.9.2]
+
+### Fixed
+
+- **`hardcoded-path-check` no longer hard-denies every absolute path under a home-rooted
+  project.** The repo-path branch matched `PROJECT_ROOT` as a bare substring with no
+  context gate, so a session rooted at the user home flagged any real path under it
+  (`AppData\...`, `Desktop\...`) as a checkout-root leak. The branch now engages only
+  when the resolved project root is a real git checkout that is neither the home
+  directory nor one of its ancestors; a missing home resolution leaves the branch
+  active (fail toward detection). Adds the branch's first MUST-FIRE regression case
+  plus two stay-quiet repros (non-git home project; checkout equal to home). The
+  sibling percent-env false positive lives in the upstream-owned pattern library and
+  ships separately via the standards distribution.
+
+## [0.9.1]
+
+### Fixed
+
+- **`cli-flag-verify` now buffers stdin via `hook::buffer_stdin` instead of reading fd0
+  directly.** It was the last hook entry script whose stdin parse ran `jq` against the
+  inherited, unbounded fd0 — `hook::read_file_path` — leaving it exposed to the Windows
+  Win32-pipe late-EOF stall the [0.8.0] migration closed for every other hook. The payload
+  is now buffered once through the bounded `read -t` helper and piped into
+  `hook::read_file_path`. As an advisory hook it skips silently on any read failure — empty
+  stdin (rc 1) and read timeout (rc 2) alike — matching its advisory siblings
+  `flag-commit-pr-skill-bypass` and `workflow-resilience-check`.
+
+## [0.9.0]
+
+### Added
+
+- **`block-noncanonical-commit` — `git commit` must pipe its message via `-F -`.** The advisory that
+  previously covered this was overridden 11 times in a single session; an advisory that is always
+  overridden trains the reader to filter it out. The guard enforces the *mechanic*, not the ritual:
+  `git commit -m "<multi-line>"` flattens newlines unpredictably across shells, and the stdin form is
+  what prevents it. Exempt, because no message-on-stdin form exists for them and gating them would
+  strand real work: `--amend`/`--no-edit`, `-C`/`-c`/`--reuse-message`/`--reedit-message`,
+  `--fixup`/`--squash`, `-F <path>`, and any commit taken while a merge, rebase, cherry-pick, or
+  revert is in progress. Kill switch `block_noncanonical_commit_enabled`; allow-list
+  `block_noncanonical_commit_allow` (`message-flag` permits a bare `-m`). Detection reuses the
+  argv-grammar-faithful parser, so `bash -lc` wrappers resolve and a commit body merely *mentioning*
+  `git commit -m` never fires. Aliases are expanded before the subcommand verdict — inline `-c`
+  (last value wins, as git applies it) and aliases persisted in git config alike — closing the hole
+  where `git c -m x` reads as subcommand `c` and walks straight through. `--config-env` aliases are a
+  documented residual: the shared parser stores their value undifferentiated from `-c`, so the
+  environment variable *name* arrives in place of the expansion (tracked separately). `git -C <path>` is honored when probing sequencer state, so a conflict
+  resolution driven at another repo reads that repo's state rather than the session cwd's.
+
+### Fixed
+
+- **`flag-commit-pr-skill-bypass` no longer demands `--trailer`.** The old condition required both
+  `-F -` **and** `--trailer`, but `/commit` omits the trailer when the resolved `trailer_policy` is
+  `none` — so in a repo whose convention forbids a co-author trailer, the skill's own conformant
+  output was flagged on every commit. The trailer is policy; only the stdin form is mechanic. This
+  also had to be settled before the new guard could block on the same condition: requiring
+  `--trailer` to pass would have permanently blocked `/commit` in that configuration.
+
+### Changed
+
+- **`flag-commit-pr-skill-bypass` is now `gh pr create`-only.** The `git commit` branch moved to
+  `block-noncanonical-commit`, so the two never double-fire on one command. `gh pr create` stays
+  advisory and cannot become otherwise: `/pull-request create` issues that exact command itself, and
+  [anthropics/claude-code#22655](https://github.com/anthropics/claude-code/issues/22655) (expose
+  `skill_name` to hooks) is closed as not planned — a hook cannot tell a skill-driven call from an
+  ad hoc one, so blocking it would deadlock the skill.
 
 ## [0.8.0]
 

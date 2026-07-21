@@ -492,6 +492,84 @@ rc=$?
 assert_exit "jq missing: exit 2" 2 "$rc"
 assert_contains "jq missing: actionable notice" "$out" "jq required"
 
+# ============================================================================
+# Case: missing_from_user_install is user-scope completeness, distinct from
+# all-scope missing_from_install. A plugin installed ONLY at project/local
+# scope is present all-scope (absent from missing_from_install) yet absent at
+# user scope, so it MUST surface in missing_from_user_install — otherwise sync
+# Step 4 never offers to install it at user scope and the "usable from any
+# directory" guarantee silently fails for it. A user-scope install is excluded
+# from both; an opt-out (false, any scope) is excluded from both.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+write "$case_dir/installed_plugins.json" '{
+  "version": 1,
+  "plugins": {
+    "alpha@market1": [{"scope": "project", "projectPath": "<PROJECT_ROOT>/sample-repo", "installPath": "x", "version": "0.1.0"}],
+    "gamma@market1": [{"scope": "user", "installPath": "y", "version": "0.1.0"}]
+  }
+}'
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha"}, {"name": "beta"}, {"name": "gamma"}]}'
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir")
+missing_install=$(jq -cS '.missing_from_install' <<<"$out" 2>/dev/null)
+assert_eq "user-scope: project-only install is present all-scope, absent from missing_from_install" '["beta@market1"]' "$missing_install"
+missing_user_install=$(jq -cS '.missing_from_user_install' <<<"$out" 2>/dev/null)
+assert_eq "user-scope: project-only + never-installed both surface, user-scope install excluded" '["alpha@market1","beta@market1"]' "$missing_user_install"
+
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha"}, {"name": "beta"}]}'
+write "$case_dir/user_settings.json" '{"enabledPlugins": {"alpha@market1": false}}'
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir")
+missing_user_install=$(jq -cS '.missing_from_user_install' <<<"$out" 2>/dev/null)
+assert_eq "user-scope: opt-out excluded from missing_from_user_install too" '["beta@market1"]' "$missing_user_install"
+
+# ============================================================================
+# Case: a drifted individual plugin entry (non-array value) must fail loud —
+# the top-level shape check alone passed it through, and the non-array then
+# broke the installed-flatten pipeline inside a command substitution, which
+# (no set -e) was swallowed and exited 0 with installed:[] instead of failing
+# per the file's stated fail-loud-on-drift design.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+write "$case_dir/installed_plugins.json" '{"version": 1, "plugins": {"alpha@market1": "not-an-array"}}'
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha"}]}'
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir")
+rc=$?
+assert_exit "non-array plugin entry: exit 2" 2 "$rc"
+assert_contains "non-array plugin entry: error names the file" "$out" "installed_plugins.json"
+
+# ============================================================================
+# Case: --marketplace with no following name must exit 2 immediately, NOT
+# infinite-loop. `shift 2` with one positional param left fails silently (no
+# set -e), leaving $1 unchanged so the arg loop re-reads --marketplace forever;
+# the in-branch guard exits before shift. timeout catches a regression (a hang
+# returns 124, failing the assertion) instead of hanging the whole suite.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+write "$case_dir/installed_plugins.json" '{"version":1,"plugins":{}}'
+write "$case_dir/known_marketplaces.json" '{}'
+write "$case_dir/user_settings.json" '{"enabledPlugins":{}}'
+out=$(timeout 10 env \
+  FLEET_STATE_INSTALLED_JSON="$case_dir/installed_plugins.json" \
+  FLEET_STATE_MARKETPLACES_JSON="$case_dir/known_marketplaces.json" \
+  FLEET_STATE_USER_SETTINGS="$case_dir/user_settings.json" \
+  FLEET_STATE_CATALOG_DIR="$case_dir/catalog" \
+  FLEET_STATE_HOOK_UTILS="$SCRIPT_DIR/../../../hooks/hook-utils.sh" \
+  bash "$SCRIPT" --marketplace 2>&1)
+rc=$?
+assert_exit "--marketplace no arg: exit 2, not an infinite loop" 2 "$rc"
+assert_contains "--marketplace no arg: actionable error" "$out" "requires a name"
+
 # --- Summary -------------------------------------------------------------
 printf '\n%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
 [[ "$FAILED" -eq 0 ]] && exit 0

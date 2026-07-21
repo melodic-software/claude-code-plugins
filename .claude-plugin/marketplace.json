@@ -198,7 +198,7 @@
       "name": "claude-memory",
       "source": "./plugins/claude-memory",
       "category": "claude-code",
-      "tags": ["memory", "claude-md", "rules", "auto-memory", "health", "audit", "skill"]
+      "tags": ["memory", "claude-md", "rules", "auto-memory", "health", "audit", "stateless", "disable", "purge", "skill"]
     },
     {
       "name": "work-items",
@@ -253,7 +253,7 @@
       "name": "claude-ops",
       "source": "./plugins/claude-ops",
       "category": "claude-code",
-      "tags": ["operations", "observability", "otel", "telemetry", "troubleshooting", "changelog", "claude-code", "skill"]
+      "tags": ["operations", "observability", "otel", "telemetry", "troubleshooting", "changelog", "dashboard", "claude-code", "skill"]
     },
     {
       "name": "songwriting",
@@ -334,13 +334,13 @@
       "name": "re-anchor",
       "source": "./plugins/re-anchor",
       "category": "quality",
-      "tags": ["re-anchor", "discipline", "corrector", "research", "standards", "duplication", "incumbency", "terseness", "upstream", "conformance", "selection", "communication", "determinism", "audit", "skill"]
+      "tags": ["re-anchor", "discipline", "corrector", "research", "standards", "duplication", "incumbency", "terseness", "upstream", "conformance", "selection", "communication", "determinism", "consistency", "skills", "audit", "skill"]
     },
     {
       "name": "education",
       "source": "./plugins/education",
       "category": "learning",
-      "tags": ["teach", "learn", "learning", "coach", "tutor", "pedagogy", "primer", "onboarding", "skill"]
+      "tags": ["teach", "learn", "learning", "coach", "tutor", "pedagogy", "primer", "explain", "eli5", "onboarding", "quiz", "comprehension", "skill"]
     },
     {
       "name": "repo-hygiene",
@@ -404,6 +404,18 @@
       "source": "./plugins/autonomy",
       "category": "autonomy",
       "tags": ["autonomy", "adoption", "governance", "topology", "binding", "guided-setup"]
+    },
+    {
+      "name": "adhd",
+      "source": "./plugins/adhd",
+      "category": "personal",
+      "tags": ["adhd", "output", "accessibility", "action-first", "focus", "response-style", "brevity", "skill"]
+    },
+    {
+      "name": "github",
+      "source": "./plugins/github",
+      "category": "operations",
+      "tags": ["github", "audit", "advise", "governance", "org-admin", "billing", "security-posture", "rulesets", "actions-policy", "drift", "skill"]
     }
   ],
   "renames": {

@@ -3,6 +3,169 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.0]
+
+### Added
+
+- **`lanes` skill — scripted two per-cycle lane mechanics that need no reasoning.**
+  A `/loop` lane otherwise hand-assembles both every session; now the prompt
+  references a script and the output is deterministic and testable.
+  - **`machine-behavior.sh`** emits the MACHINE-BEHAVIOR block — gh identity, clone
+    path, worktree inventory (root + count + per-worktree branch), and installed
+    plugin versions — as a verbatim-printable text block. It emits only
+    mechanically unambiguous facts: it deliberately does NOT compute "deviations
+    from standing rules" (a model judgment over prose rules, not a scripted field).
+    Plugin versions are the INSTALLED runtime versions (read from
+    `installed_plugins.json`), which can lag repo HEAD mid-session per
+    `context/refresh.md` — the honest number for a running lane. `--plugin <id>`
+    (repeatable) scopes the block to the plugins a lane runs.
+  - **`telemetry-upsert.sh`** maintains exactly ONE marker-identified telemetry
+    comment on a tracking issue, editing it in place instead of posting a second
+    (the interim home of the #502 telemetry contract). It writes a
+    machine-detectable sentinel `<!-- claude-ops:lane-telemetry marker=STR -->`,
+    finds it across all comments (paginated, so a match on any page prevents a
+    duplicate) and PATCHes it; failing that, adopts the most recent comment by the
+    authenticated user carrying the raw marker as a whole token (boundary-matched,
+    so a shorter marker never adopts a longer lane's comment); else creates one. The marker
+    charset excludes `>` so it can never close the HTML comment early. Because the
+    script is prompt-driven, inputs are hardened against exfiltration: `--repo` is
+    validated as `owner/repo` before URL interpolation, a real `--body-file` must
+    resolve under `--body-dir`/`$CLAUDE_PLUGIN_DATA` and may not be a symlink
+    (pipe an in-memory body via `-`), and the body is capped at 64 KiB.
+
+  Both ship with a sibling `.test.sh` (PATH-stubbed `gh`/`git`, fixture
+  `installed_plugins.json` and comment lists — no network) and are documented in
+  the skill's `SKILL.md`. (#538)
+
+## [0.16.0]
+
+### Added
+
+- **`plugins` skill — `fleet-state.sh` now emits `missing_from_user_install`.**
+  A new user-scope completeness field (catalog ids not installed at `user`
+  scope, minus any explicitly opted out) alongside the existing all-scope
+  `missing_from_install`. `sync` Step 4 now keys its user-scope install offer
+  off this field: a plugin installed only at `project`/`local` scope was absent
+  from all-scope `missing_from_install` and so was never offered a user-scope
+  install, silently breaking the "usable from any directory" guarantee for it.
+  The existing `missing_from_install` field and its all-scope semantics are
+  unchanged; the report template (`SKILL.md`) references the new field for its
+  "needs install" action. (#254)
+
+### Fixed
+
+- **`plugins` skill — `fleet-state.sh` shape validation now checks each plugin
+  entry, not just the top-level type.** A drifted individual entry (a non-array
+  value) passed the `{plugins: {...}}` object check, then failed inside the
+  installed-flatten `jq` pipeline in a command substitution; with `set -uo
+  pipefail` but no `set -e` the failure was swallowed and the script exited 0
+  with `installed: []` instead of failing loud per its stated design. The check
+  now asserts every entry is an array and exits 2 on drift. (#254)
+- **`plugins` skill — `fleet-state.sh --marketplace` with no name now exits 2
+  instead of infinite-looping.** With one positional param left, `shift 2`
+  failed silently (no `set -e`), leaving `$1` unchanged so the arg loop re-read
+  `--marketplace` forever and the post-loop guard was never reached. The empty
+  check now runs inside the `--marketplace` branch, before `shift`. (#254)
+
+## [0.15.4]
+
+### Changed
+
+- **`changelog` skill — installed CC version is now precomputed via `!`
+  dynamic-context injection.** The version-awareness step previously told Claude
+  to run `claude --version` as a body instruction (a per-invocation tool
+  round-trip); it now inlines the probe at load time with
+  `` !`claude --version || echo "(CC version unavailable)"` ``. The probe is
+  deterministic and read-only, carries the mandated `|| echo` defensive
+  fallback, and drops the bash-only `2>/dev/null` redirect so the command and
+  its fallback stay valid on both the bash default and the Windows PowerShell
+  host. No behavior change.
+
+## [0.15.3]
+
+### Added
+
+- **`lanes` skill — mid-session staleness & restart-cadence guidance
+  (`context/refresh.md`).** Loop lanes merge fixes to the very plugins they run on,
+  but a running lane keeps the skill versions it loaded at launch. New
+  documentation establishes, against current Claude Code docs, that a true
+  mid-session hot-reload of a running loop lane is not achievable — a live session
+  retains its launch-time plugin versions, `/loop` never re-reads a skill's body on
+  later cycles, and a loop cannot self-trigger `/reload-plugins` — so restart is the
+  honest refresh mechanism (composing with the #496 context-reset cadence). Adds a
+  read-only git probe to detect an unconsumed self-fix on `origin/main` and a
+  trigger-based + periodic-floor restart cadence keyed to `/claude-ops:lanes
+  restart`. The probe resolves the repo's default branch rather than assuming
+  `main`. SKILL.md gains a summary section, a cross-reference, and an eval. No
+  script or behavior change. (#514)
+
+## [0.15.2]
+
+### Changed
+
+- Documentation-only: the License section now states the plugin's own MIT
+  license inline and no longer points at a `LICENSE` file at the repository
+  root, which an installed consumer running from the isolated plugin cache
+  cannot reach. No behavior change.
+
+## [0.15.1]
+
+### Fixed
+
+- **`lanes` skill — launch aborts on a failed pre-launch refresh.** `start` /
+  `restart` previously ran `refresh_repo_and_plugins || rc=1` and launched lanes
+  regardless, so a failed `git pull --ff-only` (divergent/dirty checkout) or
+  `claude plugin marketplace update` still seeded background lanes from stale
+  repo/plugin state. The refresh is a documented launch prerequisite, so an
+  unexpected failure now hard-stops the launch (exit non-zero) with an actionable
+  message; `--no-pull` / `--no-update` remain the intentional-skip path (a
+  skipped step is not a failure). (#639)
+
+- **`lanes` skill — unknown restart/stop targets are rejected before any refresh
+  mutation.** `restart does-not-exist` ran `git pull --ff-only` +
+  `claude plugin marketplace update` before discovering the target was unknown.
+  The `TARGET_LANES` existence check now runs up front in `main`, ahead of the
+  refresh step, so a misspelled target fails fast (exit 3) with no repo/plugin
+  mutation — matching `stop`'s fail-first behaviour. (#639)
+
+## [0.15.0]
+
+### Added
+
+- **`lanes` skill** — a scripted launcher that starts, restarts, stops, and
+  reports loop lanes as **named background Claude Code sessions** seeded from
+  canonical prompt files, replacing the manual morning refresh (cancel loop,
+  clear, re-paste the canonical prompt) across N lanes. `start` (default) and
+  `restart` first `git pull --ff-only` and `claude plugin marketplace update`,
+  then launch each configured lane with `claude --bg -n <lane>` mirroring the
+  lane's `model`/`effort`; `status` prints a per-lane running/stopped table with
+  the live sessionId; `stop` ends a lane via `claude stop <sessionId>` (resolved
+  from `claude agents --json` — there is no `claude agents stop` verb). Acts on a
+  session **only** when its name is a configured lane, so a hand-started session
+  is never touched. Lanes come from a JSON config (`--config`, else
+  `$CLAUDE_OPS_LANES_CONFIG`, else `<repo>/.work/lanes.json`); `--dry-run`,
+  `--no-pull`, `--no-update`, and `--agents-json` support previewing and offline
+  reuse. Prompt files are read from a session-local `.work` dir today via the
+  single `prompt_dir`/`resolve_prompt_dir` seam, which composes with #480
+  (loop-prompt authoring skill) when durable prompt storage lands.
+
+## [0.14.0]
+
+### Added
+
+- **`morning-brief` skill** — a read-only, `gh`-based operator morning view for
+  the current repo, collapsing the daily hand-run queries into one 5-second
+  picture: open counts per queue label (`priority: needs-triage`, `status: ready`,
+  `status: needs-decision`, `needs-human`), the gh-native merge-ready PR list
+  (non-draft + `mergeStateStatus=CLEAN`), parked `status: needs-decision` issues
+  with their RECOMMENDED lines (uppercase marker preferred, case-insensitive
+  fallback), and loop-lane telemetry freshness (per-lane `last-cycle` age, marked
+  `STALE` past `--stale-hours`, plus any `flags:`). Owner/repo is derived from
+  `gh repo view`, never hardcoded; the telemetry issue is auto-discovered by title
+  (`--telemetry-issue` to pin) and degrades to "no telemetry issue found" where
+  absent. The authoritative PR merge gate remains `/source-control:babysit-prs`;
+  this list is a fast glance, not a substitute for that skill's classification.
+
 ## [0.13.1]
 
 ### Changed

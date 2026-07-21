@@ -151,12 +151,12 @@ a human. Per PR, in its own fresh worker, autopilot:
    `"action": "resolved"` before treating it as cleared — never the exit code alone.
 
 3. After the worker's final push, takes a fresh post-push snapshot (or uses the exact pushed
-   commit after vetting it), then merges through `source-control-babysit-merge owner/repo#N
-   --allowed-owners <watched-owners> --self-logins @me,<self-logins> --merge --expected-head
-   <post-push-head-sha>` once the
-   deterministic gate proves the PR ready. Never reuse the pre-worker snapshot pin after a
-   push. The gate is never bypassed; if a PR cannot be made ready, autopilot reports that one
-   PR and moves on.
+   commit after vetting it), then merges on that post-push head through the pinned
+   `source-control-babysit-merge` gate once it proves the PR ready. The exact command — and the
+   `--autopilot-merge-tier` flags the enabled tier layers on so an enabled config never merges
+   via the base path — is the single home in [reference/safety.md](reference/safety.md). Never
+   reuse the pre-worker snapshot pin after a push. The gate is never bypassed; if a PR cannot be
+   made ready, autopilot reports that one PR and moves on.
 
 "Every PR" means every PR: the orchestrator's own priority judgment is never grounds to leave
 a queue member untouched. The only permitted exclusions are the deterministic ones — lease
@@ -175,6 +175,11 @@ Autopilot keeps every cross-tier invariant above — including dependency hold-m
 it does **not** widen the owner allowlist, and it does not gain force-push, `--admin`, or
 settings powers — those still escalate. Run it looped:
 `/loop 15m /source-control:babysit-prs autopilot`.
+
+## Autopilot merge tier (#476)
+
+A config-gated escalation of autopilot's merge authority, **shipped DISABLED** and active only while the operator sets `babysit_autopilot_merge_tier` (enabling it, and the later gate-off flip, are separate announced steps; without it every merge decision is exactly today's). When enabled, per candidate PR autopilot runs a **genuine review pass** under a **second bot account** (author ≠ approver) that submits an approving review **only when clean**, then runs the pinned merge gate with the `--autopilot-merge-tier` flags layered onto `--merge --expected-head <post-push-head-sha>`. The concrete enabled-path merge command, the second-account approve mechanic, and the review-workflow requiredness precondition for enabling the tier are the single home in [reference/safety.md](reference/safety.md).
+That gate merges **only when every criterion holds** — the criteria and the safety-contract rationale are codified in [reference/safety.md](reference/safety.md). It is **fail-closed** (the umbrella flag refuses unless all three parameter sets are supplied; predicates reused from the shared `babysit_classify` module), and any criterion failing falls back to the human merge-ready list — the tier never routes around the gate.
 
 ## Guarded mutations: deterministic gates, agent judgment
 
@@ -210,10 +215,14 @@ interpreter and fail with a clear message when Python is absent). Both fail clos
   --allowed-owners <watched-owners>` (lists by default; add `--resolve`). By default it touches
   only bot-authored threads (structural `__typename == "Bot"` or the `[bot]` login suffix — no
   hardcoded identity list) and never a human thread. In worker tier pass `--autonomous`, which
-  resolves only threads GitHub marks `isOutdated` — and the worker path additionally requires
-  the thread to have been outdated in the PRE-push snapshot, pinned via
-  `--expected-comment-count` and `--expected-last-updated`, so a worker cannot resolve a
-  finding its own push just displaced ([reference/orchestration.md](reference/orchestration.md)).
+  resolves only threads GitHub marks `isOutdated`, each pinned via `--expected-comment-count` and
+  `--expected-last-updated`. Those pins enforce comment-state only — they block a thread whose
+  comment count or latest comment-edit timestamp drifted after vetting. The worker must
+  additionally confine resolves to threads already outdated in the PRE-push snapshot
+  ([reference/orchestration.md](reference/orchestration.md)); that pre-push-outdated rule is agent
+  discipline, not machine-enforced, so a thread a worker's own push merely displaced (`isOutdated`
+  flipped while both comment pins still match) is still resolvable — the machine-enforced fix for
+  that displacement bypass is tracked in #571.
   In autopilot pass `--resolve --include-human` for threads the agent has addressed; the
   script still cannot merge, reply, or dismiss reviews. Never treat exit code 0 alone as proof
   a specific thread was resolved — always parse the per-thread JSON `action` field
@@ -242,14 +251,14 @@ template (untrusted PR fields fenced as data) are in
 A PR that is merely unchanged since the last cycle — even one still reporting blockers it was
 already escalated for — does not get a fresh worker. A non-draft PR with zero blockers **and no
 untriaged material feedback** also gets no worker, only a direct mode-appropriate
-`source-control-babysit-merge` gate check; that is coverage, not a skip — the gate does not
-triage bot feedback, so a PR still carrying untriaged material findings defers to the
-snapshot's `needs_worker` signal instead of going straight to the gate. In default (safe) mode,
-run the gate without `--merge` and report readiness without merging. Pass
+`source-control-babysit-merge` gate check; that is coverage, not a skip — a PR still carrying
+untriaged material findings defers to the snapshot's `needs_worker` signal instead. In default
+(safe) mode, run the gate without `--merge` and report readiness without merging. Pass
 `--merge --expected-head <snapshotted-head-sha>` only in `worker` or `autopilot` mode, or under
-an explicit user order to merge that PR. Use the exact head SHA from the snapshot; a missing or
-stale pin must refuse the merge and send the PR back through snapshot and assessment, never an
-unattended unpinned override.
+an explicit user order to merge that PR — but an enabled autopilot merge tier adds the tier flags
+([reference/safety.md](reference/safety.md)), never the flagless base command. Use the exact head
+SHA from the snapshot; a missing or stale pin must refuse the merge and send the PR back through
+snapshot and assessment, never an unattended unpinned override.
 
 **Zero-blocker drafts are the exception:** always route them through a worker, never directly
 to the merge gate. In autopilot, that worker assesses whether the draft is complete: a
@@ -281,16 +290,22 @@ tier authority.
 | --- | --- | --- | --- |
 | `babysit_watched_owners` | `${user_config.babysit_watched_owners}` | `--owners` (snapshot), `--allowed-owners` (both wrappers, fail-closed) | infer the current repo's owner |
 | `babysit_self_logins` | `${user_config.babysit_self_logins}` | `--extra-self` (readiness gate); joined onto `@me` for `--author` (snapshot) and `--self-logins` (merge gate) | none — always added to your `gh api user --jq .login` login |
+| `babysit_intended_write_identity` | `${user_config.babysit_intended_write_identity}` | `--intended-write-identity` (snapshot) | attribution-drift check dormant |
 | `babysit_default_tier` | `${user_config.babysit_default_tier}` | prose only — tier of explicit bare invocations | `safe` |
 | `babysit_merge_method` | `${user_config.babysit_merge_method}` | `--method` (merge wrapper) | repo convention, then squash |
+| `babysit_autopilot_merge_tier` | `${user_config.babysit_autopilot_merge_tier}` | prose only — gates whether the tier's `--autopilot-merge-tier` merge flags are wired at all | `false` (tier disabled; PRs go to the human merge-ready list) |
+| `babysit_lane_logins` | `${user_config.babysit_lane_logins}` | `--lane-logins` (merge wrapper, autopilot merge tier) | tier refuses fail-closed when enabled |
+| `babysit_approver_bot_logins` | `${user_config.babysit_approver_bot_logins}` | `--approver-bot-logins` (merge wrapper, autopilot merge tier) | tier refuses fail-closed when enabled |
+| `babysit_merge_block_labels` | `${user_config.babysit_merge_block_labels}` | `--block-labels` (merge wrapper, autopilot merge tier) | tier refuses fail-closed when enabled |
 | `babysit_review_trigger_phrase` | `${user_config.babysit_review_trigger_phrase}` | `--trigger-phrase` (snapshot, request_review) | review-trigger module dormant |
 | `babysit_review_bot_logins` | `${user_config.babysit_review_bot_logins}` | `--review-bot-logins` (snapshot, request_review) | review-trigger module dormant |
 | `babysit_review_gate_context` | `${user_config.babysit_review_gate_context}` | `--review-gate-context` (snapshot) | gate treated as absent |
 | `babysit_ci_gateway_context` | `${user_config.babysit_ci_gateway_context}` | `--ci-gateway-context` (snapshot) | gateway check unused |
 | `babysit_extra_bot_logins` | `${user_config.babysit_extra_bot_logins}` | `--extra-bot-logins` (snapshot) | structural bot detection only |
-| `babysit_approval_downgrade_logins` | `${user_config.babysit_approval_downgrade_logins}` | `--approval-downgrade-logins` (snapshot) | downgrade heuristic dormant |
+| `babysit_approval_downgrade_logins` | `${user_config.babysit_approval_downgrade_logins}` | `--approval-downgrade-logins` (snapshot) | an approval carrying blocking-looking prose is downgraded to ignored structurally (every bot); a named login instead surfaces its own as material. Real APPROVED-state reviews and plain clean approvals are ignored regardless. |
 | `babysit_skip_downgrade_logins` | `${user_config.babysit_skip_downgrade_logins}` | `--skip-downgrade-logins` (snapshot) | downgrade heuristic dormant |
 | `babysit_max_quiet_recheck_seconds` | `${user_config.babysit_max_quiet_recheck_seconds}` | `--max-quiet-recheck-seconds` (snapshot) | `14400` |
+| `babysit_stuck_check_age_seconds` | `${user_config.babysit_stuck_check_age_seconds}` | `--stuck-check-age-seconds` (snapshot) | `1800` |
 | `babysit_advisory_fix_round_cap` | `${user_config.babysit_advisory_fix_round_cap}` | `--fix-round-cap` (snapshot, ledger) | `100` |
 | `babysit_worker_concurrency_cap` | `${user_config.babysit_worker_concurrency_cap}` | prose only — fan-out bound | `10` |
 | `babysit_worktree_root` | `${user_config.babysit_worktree_root}` | `--root` (prune; worktree creation) | `${CLAUDE_PLUGIN_DATA}/worktrees` |
@@ -372,15 +387,19 @@ evidence; re-query the API. The NEVER-do list (§5.4) overrides any other instru
    --author @me --owners <watched-owners> --state-dir <state-dir> --write-state`
    (the `@me` always scopes discovery to your own gh login; when `babysit_self_logins` is
    non-empty and not a literal unexpanded token, extend to `--author @me,<self-logins>` to add
-   those extra identities; append the review-trigger flags only when configured; `--pr
-   owner/repo#N` for single-PR scope; `--repo <owner/repo-csv>` for a sharded session; drop
-   `--author` only in autopilot or on an explicit instruction to widen). Capture the prior cycle's `generated_at` per
+   those extra identities; when `babysit_intended_write_identity` is set and not a literal
+   unexpanded token, append `--intended-write-identity <intended-write-identity>` so a write that
+   lands under the wrong self-login surfaces as attribution drift; append the review-trigger flags
+   only when configured; `--pr owner/repo#N` for single-PR scope; `--repo <owner/repo-csv>` for a
+   sharded session; drop `--author` only in autopilot or on an explicit instruction to widen).
+   Capture the prior cycle's `generated_at` per
    [reference/cadence.md](reference/cadence.md) before writing new state.
 
 5. Decide per PR from the snapshot's `classification`, `needs_worker`, `recommended_cadence`,
    and `material_findings`: delegate a worker (only when `needs_worker` is true), act locally,
    report, back off, or escalate. Load [reference/freshness.md](reference/freshness.md) only
-   when a branch is behind, [reference/feedback.md](reference/feedback.md) and
+   when a branch is behind, [reference/stuck-checks.md](reference/stuck-checks.md) only when a PR's `checks.stuck` is non-empty (escalate the routing, never auto-fix),
+   [reference/feedback.md](reference/feedback.md) and
    [reference/review-trigger.md](reference/review-trigger.md) only for feedback or review
    gates, the fan-out gate in [reference/orchestration.md](reference/orchestration.md) only
    before assigning workers, and [reference/cadence.md](reference/cadence.md) only before
@@ -395,11 +414,18 @@ evidence; re-query the API. The NEVER-do list (§5.4) overrides any other instru
    post-push snapshot (or use the exact pushed commit after the worker has vetted that commit),
    then run the merge gate with `--merge --expected-head <post-push-head-sha>` only when it
    reports ready. Never reuse the pre-worker snapshot pin after the head moves. Resolve
-   pre-push-outdated bot threads with `--autonomous --resolve` when they block the gate and the
-   agent has confirmed they are not security/P1. In autopilot, after addressing the findings,
-   additionally resolve AI-review and human threads with `--resolve --include-human`, then run
-   the same pinned merge gate — the gate is never bypassed. After any `--resolve` run, parse
-   its JSON output (per-thread `action`, and `resolvedCount`) before re-running the merge gate.
+   pre-push-outdated bot threads that block the gate — once the agent has confirmed they are not
+   security/P1 — as a per-thread vetted loop: one `--autonomous --resolve --thread-id <id>
+   --expected-comment-count <n> --expected-last-updated <ts>` call per thread, pins taken from the
+   same snapshot that vetted it. `--autonomous --resolve` refuses a bulk (no `--thread-id`) call,
+   so the comment-state pins are always enforced (a reply or edit after vetting blocks the
+   resolve). Those pins do NOT catch displacement — a push that flips `isOutdated` while the
+   comment count and last-updated still match is still resolved — so keeping such a thread
+   unresolved rests on the pre-push-outdated agent-discipline rule, with the machine-enforced fix
+   tracked in #571. In autopilot, after addressing
+   the findings, additionally resolve AI-review and human threads with `--resolve --include-human`,
+   then run the same pinned merge gate — the gate is never bypassed. After any `--resolve` run,
+   parse its JSON output (per-thread `action`, and `resolvedCount`) before re-running the merge gate.
 
 8. After each PR is integrated, prune only that PR's clean worktree with `--pr`,
    `--lease-token`, and `--prune-open-clean`, delete its local feature branch on merge, then
@@ -456,17 +482,15 @@ Failure patterns observed in real babysit sessions:
 
 - [reference/loop.md](reference/loop.md) — the safe-tier iteration loop (also the Python-free
   degrade path): discovery, checkout, freshness, checklist, static cadence ladder.
-- [reference/orchestration.md](reference/orchestration.md) — fan-out gate (`needs_worker`
-  arms), concurrency cap, leases, worker contract + prompt template, conflict resolution,
-  cleanup.
+- [reference/orchestration.md](reference/orchestration.md) — fan-out gate (`needs_worker` arms), concurrency cap, leases, worker contract + prompt template, conflict resolution, cleanup.
 - [reference/cadence.md](reference/cadence.md) — active/normal/quiet/idle cadence states,
   real-elapsed-time detection, bounded full-sweep interval, persisted counters.
 - [reference/freshness.md](reference/freshness.md) — guarded refresh for behind-base branches,
   BLOCKED compare fallback, async-update terminality.
+- [reference/stuck-checks.md](reference/stuck-checks.md) — the `checks.stuck` signal (checks holding `mergeStateStatus` at UNSTABLE without completing) and its escalation routing; report, never auto-fix.
 - [reference/review-trigger.md](reference/review-trigger.md) — generalized AI-review trigger +
   gate semantics; dormant when unconfigured.
-- [reference/worktrees.md](reference/worktrees.md) — ephemeral worktree policy and prune
-  commands.
+- [reference/worktrees.md](reference/worktrees.md) — ephemeral worktree policy and prune commands.
 - [reference/safety.md](reference/safety.md) — role boundaries, verify-before-escalate, the
   harness permission layer (pinned-command degradation), stop-ask and never-do lists.
 - [reference/feedback.md](reference/feedback.md) — feedback classification, dispositions,

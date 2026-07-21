@@ -1,10 +1,12 @@
 # claude-ops
 
 A Claude Code plugin for running Claude Code well over time — one cohesive
-capability across five skills and a family of telemetry-emitter hooks.
+capability across seven skills and a family of telemetry-emitter hooks.
 Observability reads what your sessions actually did, known-issues tracks what
 upstream has broken, changelog integration keeps your repo current with what
-upstream has shipped, the plugins skill keeps your own plugin fleet current, a
+upstream has shipped, the plugins skill keeps your own plugin fleet current,
+morning-brief prints your read-only operator morning view, lanes launches and
+manages your loop lanes as background sessions, a
 re-runnable `setup` action settles where the known-issues registry lives,
 and the `*-audit` hooks feed observability with per-hook execution telemetry
 Claude Code's native OTEL cannot see.
@@ -17,6 +19,8 @@ Claude Code's native OTEL cannot see.
 | `/claude-ops:known-issues` | Searches known Claude product GitHub bugs before you build on a feature, checks service health and model quality, and maintains a persistent registry of tracked issues (what they block, workarounds, follow-ups when fixed). Actions: `status` (default), `search`, `check-all`, `scan`, `list`, `quality`, `create`. |
 | `/claude-ops:changelog` | Ingests Claude Code changelog entries and integrates them into the current repo: `fetch` (read-only display), `diff` (impact triage, no edits), `status` (applied versions from git history), and `apply` (full explore → research → interview → implement pipeline, explicit user intent only). |
 | `/claude-ops:plugins` | Brings a machine's plugin fleet current on demand: marketplace refresh, updates for the plugins that actually load (including in-repo project/local-scope installs), new-catalog-plugin install per policy, and scope-divergence detection. Actions: `sync` (default, CLI-mediated mutations only), `audit` (read-only dry run), `converge` (the one action that can touch a committed `.claude/settings.json` — previews and confirms per plugin first). |
+| `/claude-ops:morning-brief` | Prints the read-only, `gh`-based operator morning view for the current repo in one pass: open counts per queue label (`priority: needs-triage`, `status: ready`, `status: needs-decision`, `needs-human`), the gh-native merge-ready PR list (non-draft + `mergeStateStatus=CLEAN`), parked `status: needs-decision` issues with their RECOMMENDED lines, and loop-lane telemetry freshness (per-lane `last-cycle` age + `flags:`). Never mutates anything; the authoritative PR merge gate stays `/source-control:babysit-prs`. |
+| `/claude-ops:lanes` | Starts, restarts, stops, and reports loop lanes as named background Claude Code sessions seeded from canonical prompt files. `start` (default) / `restart` pull the repo and refresh the plugin marketplace, then launch each configured lane (`claude --bg -n <lane>`) with its per-lane `model`/`effort`; `status` shows per-lane running state and live sessionId; `stop` ends a lane via `claude stop`. Acts only on sessions whose name is a configured lane. Lanes come from a JSON config (`--config`, else `$CLAUDE_OPS_LANES_CONFIG`, else `<repo>/.work/lanes.json`); prompt storage is session-local `.work` today and composes with #480 for a durable home. |
 | `/claude-ops:setup` | `check` (default) reports the effective known-issues-registry and skill-usage-log destinations, their defaults, and path containment; `apply` routes personal option changes through Claude Code's plugin configuration prompt. |
 
 ## The audit hooks
@@ -194,5 +198,4 @@ known-issues skill.
 
 ## License
 
-MIT (SPDX-License-Identifier: MIT). See the LICENSE file at the root of the
-melodic-software/claude-code-plugins repository.
+MIT (SPDX-License-Identifier: MIT).

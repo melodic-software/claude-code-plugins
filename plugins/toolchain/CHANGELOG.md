@@ -3,6 +3,44 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.1]
+
+### Changed
+
+- Documentation-only: the License section now states the plugin's own MIT
+  license inline and no longer points at a `LICENSE` file at the repository
+  root, which an installed consumer running from the isolated plugin cache
+  cannot reach. No behavior change.
+
+## [0.5.0]
+
+### Removed
+
+- **`/toolchain:setup` no longer offers the topic-docs concern file — relocated to the lifecycle
+  plugins that own it.** Setup step 6 wrote `.claude/topic-docs.yaml`, a consumer config resolved by
+  the `implementation` and `verification` plugins for artifact placement; no `/toolchain:*` skill reads
+  it, so this build/test/lint plugin was writing another plugin's consumer config. Setup is now scoped
+  solely to the ecosystem command surface it owns (the tracked `.claude/ecosystems/*.yaml` files):
+  `check` no longer reports the topic-docs concern and `apply` no longer offers it, and the orphaned
+  `reference/topic-docs.md` binding that only step 6 read is removed. The shared concern file is offered
+  by each lifecycle plugin's own setup — `/discovery:setup`, `/planning:setup`, and the new
+  `/verification:setup` — independent of whether the others are installed. Closes #263.
+
+## [0.4.3]
+
+### Changed
+
+- **Presence-gated `dotnet-msbuild:*` build-diagnostics references in `context/dotnet.md` reframed as
+  .NET-ecosystem forward references.** The `## Marketplace plugin skills for build diagnostics (invoke
+  only when installed)` list gains a lead-in that frames its `dotnet-msbuild:*` skills as applicable
+  when your stack is .NET and as forward references to the planned `dotnet-*` plugin family — invoked
+  only when the plugin is installed, otherwise falling back to the section's own prose remediation and
+  binlog gotcha (the generic path stays first-class). Framing only: no skill reference was removed,
+  renamed, or genericized, and no command string was altered. Aligns this file with the presence-gated
+  forward-reference convention the merged `testing` (#491) and `verification` (#526) siblings adopted,
+  per the ratified #412 disposition. Addresses #412; the sibling `implementation` finding (#405) tracks
+  the same pattern separately.
+
 ## [0.4.2]
 
 ### Fixed

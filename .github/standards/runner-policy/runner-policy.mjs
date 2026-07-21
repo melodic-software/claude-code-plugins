@@ -263,6 +263,18 @@ function validatePolicy(value) {
       "policy.governedReusableRunnerInput.default must be in policy.fallbackLabelAllowlist",
     );
   }
+  // Every allowlist member is an executable selector-failure route, so each
+  // must be a label this policy already recognizes as routable.
+  for (const label of value.fallbackLabelAllowlist) {
+    if (
+      !approvedHostedRunnerLabels.has(label) &&
+      !managedLabelRegexes.some((pattern) => pattern.test(label))
+    ) {
+      throw new ConfigurationError(
+        `policy.fallbackLabelAllowlist entry ${JSON.stringify(label)} must be an approved hosted runner label or match a managed label pattern`,
+      );
+    }
+  }
   if (
     approvedHostedRunnerLabels.has(value.governedReusableRunnerInput.failureSentinel) ||
     forbiddenHostedRunnerLabels.has(
@@ -1024,6 +1036,18 @@ function normalizeStructuralValue(value) {
   return value;
 }
 
+function normalizedWorkflowJobs(workflow) {
+  return workflow.jobs !== null &&
+    typeof workflow.jobs === "object" &&
+    !Array.isArray(workflow.jobs)
+    ? workflow.jobs
+    : {};
+}
+
+function isValidJobRecord(job) {
+  return job !== null && typeof job === "object" && !Array.isArray(job);
+}
+
 function normalizePermissionsSurface(permissions) {
   if (permissions === undefined) {
     return { declaration: "omitted" };
@@ -1070,13 +1094,10 @@ function normalizeDeclarationSurface(declaration) {
 // a bumped SHA that adds or widens a job-level permissions grant is not
 // silently treated as an unchanged security surface.
 function jobPermissionsSurface(workflow) {
-  const jobs =
-    workflow.jobs !== null && typeof workflow.jobs === "object" && !Array.isArray(workflow.jobs)
-      ? workflow.jobs
-      : {};
+  const jobs = normalizedWorkflowJobs(workflow);
   return Object.fromEntries(
     Object.entries(jobs)
-      .filter(([, job]) => job !== null && typeof job === "object" && !Array.isArray(job))
+      .filter(([, job]) => isValidJobRecord(job))
       .map(([jobId, job]) => [
         jobId,
         normalizePermissionsSurface(effectivePermissions(workflow, job)),
@@ -1104,13 +1125,10 @@ function declaredValueSurface(mapping, key) {
 }
 
 function jobRoutingSurface(workflow) {
-  const jobs =
-    workflow.jobs !== null && typeof workflow.jobs === "object" && !Array.isArray(workflow.jobs)
-      ? workflow.jobs
-      : {};
+  const jobs = normalizedWorkflowJobs(workflow);
   return Object.fromEntries(
     Object.entries(jobs)
-      .filter(([, job]) => job !== null && typeof job === "object" && !Array.isArray(job))
+      .filter(([, job]) => isValidJobRecord(job))
       .map(([jobId, job]) => [
         jobId,
         {
@@ -1169,13 +1187,10 @@ function workflowCallSurface(workflow) {
 // checks are not skipped), closes that gap using the exact same detection
 // logic already trusted for direct/local jobs.
 function jobCredentialSurface(workflow, policy) {
-  const jobs =
-    workflow.jobs !== null && typeof workflow.jobs === "object" && !Array.isArray(workflow.jobs)
-      ? workflow.jobs
-      : {};
+  const jobs = normalizedWorkflowJobs(workflow);
   return Object.fromEntries(
     Object.entries(jobs)
-      .filter(([, job]) => job !== null && typeof job === "object" && !Array.isArray(job))
+      .filter(([, job]) => isValidJobRecord(job))
       .map(([jobId, job]) => [
         jobId,
         privilegedHostedRequirement(
@@ -1325,13 +1340,10 @@ function jobCredentialReferenceSurface(workflow, job, policy) {
 }
 
 function jobCredentialReferencesSurface(workflow, policy) {
-  const jobs =
-    workflow.jobs !== null && typeof workflow.jobs === "object" && !Array.isArray(workflow.jobs)
-      ? workflow.jobs
-      : {};
+  const jobs = normalizedWorkflowJobs(workflow);
   return Object.fromEntries(
     Object.entries(jobs)
-      .filter(([, job]) => job !== null && typeof job === "object" && !Array.isArray(job))
+      .filter(([, job]) => isValidJobRecord(job))
       .map(([jobId, job]) => [jobId, jobCredentialReferenceSurface(workflow, job, policy)])
       .sort(([left], [right]) => left.localeCompare(right)),
   );
@@ -1373,10 +1385,7 @@ function malformedWorkflowCallMappingField(surface) {
 // its own, on both the candidate and every reviewed basis, before the
 // per-job surfaces are ever computed or diffed.
 function malformedJobIds(workflow) {
-  const jobs =
-    workflow.jobs !== null && typeof workflow.jobs === "object" && !Array.isArray(workflow.jobs)
-      ? workflow.jobs
-      : {};
+  const jobs = normalizedWorkflowJobs(workflow);
   return Object.keys(jobs)
     .filter((jobId) => {
       const job = jobs[jobId];
@@ -1459,10 +1468,7 @@ const DYNAMIC_ROUTING_FIELDS = [
 ];
 
 function dynamicRoutingReferenceJobIds(workflow) {
-  const jobs =
-    workflow.jobs !== null && typeof workflow.jobs === "object" && !Array.isArray(workflow.jobs)
-      ? workflow.jobs
-      : {};
+  const jobs = normalizedWorkflowJobs(workflow);
   return Object.keys(jobs)
     .filter((jobId) => {
       const job = jobs[jobId];
@@ -1493,10 +1499,7 @@ function dynamicRoutingReferenceJobIds(workflow) {
 // or a reviewed basis, therefore makes the revision ineligible for
 // surface-diff auto-approval and requires a human contract entry instead.
 function localReferenceJobIds(workflow) {
-  const jobs =
-    workflow.jobs !== null && typeof workflow.jobs === "object" && !Array.isArray(workflow.jobs)
-      ? workflow.jobs
-      : {};
+  const jobs = normalizedWorkflowJobs(workflow);
   return Object.keys(jobs)
     .filter((jobId) => {
       const job = jobs[jobId];
@@ -1979,15 +1982,15 @@ function unroutableFailureStatus(jobId, target, job, jobs, policy) {
 function routeStatus(jobId, target, job, jobs, policy, reusableContract, localRunnerInputMode) {
   const fallbackMatch = RUNNER_OUTPUT.exec(target);
   const requiredMatch = REQUIRED_RUNNER_OUTPUT.exec(target);
-  const configuredDefault = policy.governedReusableRunnerInput.default;
+  const allowedFallbacks = new Set(policy.fallbackLabelAllowlist);
   const usesOptionalDefault =
-    fallbackMatch !== null && fallbackMatch.groups.fallback === configuredDefault;
+    fallbackMatch !== null && allowedFallbacks.has(fallbackMatch.groups.fallback);
   const usesRequiredInput = requiredMatch !== null && localRunnerInputMode === "required";
   if (!usesOptionalDefault && !usesRequiredInput) {
     return {
       attempted: target.includes("outputs.runner"),
       approved: false,
-      reason: `runner routing must use exactly needs.<selector-job>.outputs.runner || '${configuredDefault}', or a raw selector output passed to a required no-default repository-local runner input`,
+      reason: `runner routing must use exactly needs.<selector-job>.outputs.runner || '<fallback>' with a fallback from policy.fallbackLabelAllowlist (${[...policy.fallbackLabelAllowlist].map((label) => `'${label}'`).join(", ")}), or a raw selector output passed to a required no-default repository-local runner input`,
     };
   }
 
@@ -3284,6 +3287,16 @@ export async function auditRepository({
       }
 
       for (const runner of runnerStrings) {
+        // A governed selector-output expression may carry an allowlisted
+        // managed fallback; the literal inside it is the reviewed recovery
+        // label, not a raw self-hosted pin.
+        const governedRoute = RUNNER_OUTPUT.exec(runner);
+        if (
+          governedRoute !== null &&
+          new Set(policy.fallbackLabelAllowlist).has(governedRoute.groups.fallback)
+        ) {
+          continue;
+        }
         if (rawManagedLabel(runner, policy)) {
           hasRawManagedLabel = true;
           findings.push(

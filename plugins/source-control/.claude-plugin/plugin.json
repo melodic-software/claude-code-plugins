@@ -1,8 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "source-control",
-  "version": "0.9.3",
-  "description": "Git and GitHub delivery workflow: /commit (Conventional Commits + Co-Authored-By trailer via safe heredoc mechanics), /pull-request (prep, create, CI monitoring, review-comment triage, merge, CI-log fetch), /babysit-prs (self-pacing fleet loop — safe by default; opt-in worker/autopilot tiers add gate-checked merge and thread resolution behind a deterministic Python engine), /worktree (create, status, cleanup, audit for parallel-session isolation), /setup (check the effective commit-subject / PR-title convention and babysit-prs config, or apply — interview the repo and write the tracked convention config), and /resolve-conflicts (intent-first merge/rebase conflict resolution with a semantic-conflict sweep — never --abort). The commit-subject / PR-title convention is configurable per repo via a tracked .claude/source-control.md config written by a re-runnable setup skill; Conventional Commits is the default when no convention is declared.",
+  "version": "0.15.7",
+  "description": "Git and GitHub delivery workflow: /commit (Conventional Commits + Co-Authored-By trailer via safe heredoc mechanics), /pull-request (prep, create, CI monitoring, review-comment triage, merge, CI-log fetch), /babysit-prs (self-pacing fleet loop — safe by default; opt-in worker/autopilot tiers add gate-checked merge and thread resolution behind a deterministic Python engine), /worktree (create, status, cleanup, audit for parallel-session isolation), /setup (check the effective commit-subject / PR-title convention merged across its config layers and the babysit-prs config, or apply — interview the repo and write the convention config to a chosen layer), and /resolve-conflicts (intent-first merge/rebase conflict resolution with a semantic-conflict sweep — never --abort). The commit-subject / PR-title convention is configurable via a source-control.md config written by a re-runnable setup skill, layered across a ~/.claude user-global file, the tracked team file, and a gitignored .claude/source-control.local.md personal overlay merged per key; Conventional Commits is the default when no convention is declared.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -35,6 +35,11 @@
       "title": "Babysit extra self identities",
       "description": "Extra GitHub posting identities (e.g. a project bot account) added to your `gh api user` login — the self set babysit-prs uses for discovery scope, readiness-gate classification rows, and the merge-gate self-exemption. Absent: your gh login alone."
     },
+    "babysit_intended_write_identity": {
+      "type": "string",
+      "title": "Babysit intended write identity",
+      "description": "The single GitHub login babysit-prs's own writes are intended to land under — typically the bot posting identity. When a write the orchestrator recorded performing lands under a different `babysit_self_logins` identity (e.g. a bot-token mint failed and the write silently fell back to your personal login), the cycle status surfaces an attribution-drift material finding instead of proceeding silently. Set it to one of your self logins; a value that is not actually a posting identity would flag every write. Absent: the check is dormant."
+    },
     "babysit_default_tier": {
       "type": "string",
       "title": "Babysit default tier",
@@ -45,6 +50,30 @@
       "type": "string",
       "title": "Babysit merge method",
       "description": "Merge method for gate-proven merges: merge, squash, or rebase. Absent: repo convention, then squash."
+    },
+    "babysit_autopilot_merge_tier": {
+      "type": "boolean",
+      "title": "Babysit autopilot merge tier",
+      "description": "Enable the #476 autopilot merge tier: a distinct bot account submits a genuine approving review, then the gate merges only when every criterion holds (issue-linked, lane-authored, no do-not-merge label, distinct-bot approval on the live head, no human blocking comment). Ships DISABLED; a deliberate operator opt-in. Requires babysit_lane_logins, babysit_approver_bot_logins, and babysit_merge_block_labels to be set. Absent/false: the tier does not exist and PRs go to the human merge-ready list.",
+      "default": false
+    },
+    "babysit_lane_logins": {
+      "type": "string",
+      "multiple": true,
+      "title": "Babysit pipeline lane logins",
+      "description": "Author logins recognized as pipeline lanes for the autopilot merge tier's lane-authored criterion. Absent: the tier (when enabled) refuses fail-closed."
+    },
+    "babysit_approver_bot_logins": {
+      "type": "string",
+      "multiple": true,
+      "title": "Babysit approver bot logins",
+      "description": "Bot logins whose approving review satisfies the autopilot merge tier's author != approver criterion. Absent: the tier (when enabled) refuses fail-closed."
+    },
+    "babysit_merge_block_labels": {
+      "type": "string",
+      "multiple": true,
+      "title": "Babysit merge block labels",
+      "description": "Labels that veto an autopilot-merge-tier merge, e.g. do-not-merge. Absent: the tier (when enabled) refuses fail-closed."
     },
     "babysit_review_trigger_phrase": {
       "type": "string",
@@ -77,7 +106,7 @@
       "type": "string",
       "multiple": true,
       "title": "Babysit approval-downgrade reviewer logins",
-      "description": "AI reviewer logins whose APPROVED verdict is downgraded when the review body still carries blocking language. Absent: the downgrade heuristic stays dormant."
+      "description": "AI reviewer logins whose approval is surfaced as a `material` finding instead of `ignored` in the one case the structural approval-downgrade reaches: a review body carrying blocking-looking prose that still parses as an approval verdict (no CRITICAL/IMPORTANT or required-fix marker). Every bot's such approval is downgraded to non-blocking regardless; naming a login opts its own into the more-conservative `material` bucket rather than being ignored. Does not affect a review already in the APPROVED state or a plain clean approval with no blocking-looking prose — both are ignored regardless. Absent: such approvals are ignored for every bot."
     },
     "babysit_skip_downgrade_logins": {
       "type": "string",
@@ -90,6 +119,12 @@
       "title": "Babysit max quiet recheck seconds",
       "description": "Longest a quiet PR may go without a worker recheck.",
       "default": 14400
+    },
+    "babysit_stuck_check_age_seconds": {
+      "type": "number",
+      "title": "Babysit stuck-check age threshold (seconds)",
+      "description": "Minimum age before a pending non-required check under UNSTABLE is reported stuck (stuck_queued / never_settling material finding). Orphaned status contexts with no backing run are detected structurally and ignore this threshold.",
+      "default": 1800
     },
     "babysit_advisory_fix_round_cap": {
       "type": "number",

@@ -20,11 +20,26 @@ the conversation, or presents a menu and falls back to the safe `scan`.
 | `build` | Remove build artifacts (`bin`/`obj`/`build`/`dist`/`out`/`target`/`TestResults`, `*.binlog`), includes caches; runs a runtime-detected `dotnet clean` when a `*.slnx`/`*.sln` and `dotnet` are present | Low |
 | `git` | Prune stale worktree/remote metadata and gc; audit branches (merged / PR-merged / stale) and delete only on per-branch opt-in | Low |
 | `tree` | Reset the working tree like a fresh pull — `git reset --hard` + `git clean -fdx` | **Destructive** |
+| `tree-batch` | Run `tree` across many repos (`ghq list`, a glob, or an explicit list) behind one confirmation gate, with a separator-agnostic skip list and a dirty-by-default guard | **Destructive** |
 | `all` | Sweep `caches` + `build` + `git` — **never** the `tree` reset | Medium |
 
 Tiers are cumulative (`build` includes `caches`; `all` = `build` + `git`), and
-`tree` is never composed into `all` — one mistaken sweep cannot trigger a
-`reset --hard`.
+neither `tree` nor `tree-batch` is composed into `all` — one mistaken sweep cannot
+trigger a `reset --hard`.
+
+### Multi-repo reset (`tree-batch`)
+
+`tree-batch` is the supported way to reset a fleet of repos to a fresh-pull state
+without hand-rolling a loop. It skips any repo with uncommitted/untracked changes
+or unpushed commits **by default** (opt in with `--include-dirty`), and its skip
+list is matched separator-agnostically, so a `\`-path skip entry reliably protects
+a repo enumerated with `/` paths — the failure that lost an uncommitted edit in an
+ad-hoc loop. A skip entry that matches nothing is reported, never silently ignored.
+
+```shell
+# Dry-run the whole ghq tree, skipping one repo (the agent shows the plan first):
+ghq list -p | /repo-hygiene:clean tree-batch --repos-from - --skip melodic-software/standards
+```
 
 ## Safety model
 
@@ -77,5 +92,4 @@ extension point, not yet exposed as configuration.
 
 ## License
 
-MIT (SPDX-License-Identifier: MIT). See the LICENSE file at the root of the
-melodic-software/claude-code-plugins repository.
+MIT (SPDX-License-Identifier: MIT).

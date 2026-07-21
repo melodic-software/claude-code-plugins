@@ -33,13 +33,13 @@
       "id": 3,
       "name": "triage-never-reprocesses-decompose-output",
       "prompt": "/work-items:triage 53 — #53 was created last week by /work-items:decompose from our approved PLAN.md",
-      "expected_output": "Declines to re-triage: items published by decompose are born triaged — classified, role-labeled, and briefed at creation — and never re-enter the intake flow. Explains that triage covers raw intake only (items the team did not author) and points at the item's existing role label/brief instead of re-running the state machine.",
+      "expected_output": "Declines to re-triage: items published by decompose are born triaged — classified, role-labeled, and briefed at creation, leaving no raw marker — and never re-enter the intake flow. Explains that triage covers raw intake only (untriaged items carrying the raw marker, regardless of authorship) and that the exclusion keys on absence of the raw marker, then points at the item's existing role label/brief instead of re-running the state machine.",
       "files": [],
       "expectations": [
         "Does NOT re-run the triage state machine on a decompose-published item — such items are born triaged (classified, role-labeled, briefed at creation)",
-        "States the exclusion rule: triage covers raw intake only — items the team did not author",
+        "States the exclusion rule: triage covers raw intake only — untriaged items carrying the raw marker; the exclusion keys on absence of the raw marker (born triaged), not authorship and not the mere presence of classification labels",
         "Performs no triage writes on the item — no label changes, no needs-info comment, no close",
-        "Notes the attention view excludes decompose output by construction (born-labeled items never land in the unlabeled or needs-triage buckets)"
+        "Notes the attention view excludes decompose output by construction — it carries a routing decision and no raw marker, so being neither unlabeled nor raw-marked it falls in none of the view's buckets"
       ]
     },
     {
@@ -66,6 +66,19 @@
         "Leaves the open item carrying `status:needs-info` alone, without `status:needs-triage` still attached",
         "Recognizes that clearing the raw marker does not orphan the item — it re-enters the attention view through the needs-info-with-reporter-activity bucket on reporter reply, not the raw-marker bucket",
         "Distinguishes this desired re-entry (needs-info bucket on re-engagement) from the silent-loop re-selection that a leftover raw marker would cause every cycle"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "triage-autonomous-lane-treats-standing-rules-as-direction",
+      "prompt": "/work-items:triage 71 — running unattended as a /loop AFK lane whose standing rules authorize triage label and comment mutations; #71 is an external bug report you have just reproduced",
+      "expected_output": "Recognizes the autonomous branch of the direction gate: the lane's standing rules ARE the direction the gate requires, so it proceeds through verification and outcome without waiting for a human turn rather than blocking (which would deadlock the lane). Applies the outcome's label and comment writes and prefixes every comment and item it creates with the AI disclaimer. Does not fall back to the interactive wait-gate, which applies only when a human operator is present and no standing lane rules were supplied.",
+      "files": [],
+      "expectations": [
+        "Selects the autonomous-lane branch of the direction gate — the /loop standing rules satisfy the direction requirement, so mutation proceeds without a human turn",
+        "Does NOT wait for explicit user direction — that gate is the interactive-session default, not the autonomous-lane path; blocking here would deadlock the lane",
+        "Prefixes every comment and item it creates with the AI disclaimer during the autonomous session",
+        "Routes the label/comment writes through the bound adapter's mechanics and any item creation through the seam `create-item` — no inline provider commands"
       ]
     }
   ]

@@ -1,6 +1,6 @@
 ---
 name: triage
-description: "Evaluate raw intake — items the team did not author (bug reports, incoming feature requests, unsolicited PRs) — through a small state machine: raw → verified → briefed → autonomous-eligible, with side exits to needs-info, human-gated, and close. A PR is an item with attached code and enters the same intake as an issue. Use when: 'triage', 'what needs triage', 'triage this issue', 'triage this PR', 'evaluate this bug report', 'is this bug real', 'should we merge this unsolicited PR', 'attention view', 'what intake needs attention'. No number = attention view (untriaged intake). Sibling skills: /work-items:track (backlog CRUD), /work-items:work (auto-select + execute), /work-items:decompose (plan → tickets), /work-items:scan-todos (TODO sweep)."
+description: "Evaluate raw intake — any untriaged item carrying the raw marker, whoever authored it (external bug reports, incoming feature requests, unsolicited PRs, and team-authored self-observation/dogfood issues) — through a small state machine: raw → verified → briefed → autonomous-eligible, with side exits to needs-info, human-gated, and close. A PR is an item with attached code and enters the same intake as an issue. Use when: 'triage', 'what needs triage', 'triage this issue', 'triage this PR', 'evaluate this bug report', 'is this bug real', 'should we merge this unsolicited PR', 'attention view', 'what intake needs attention'. No number = attention view (untriaged intake). Sibling skills: /work-items:track (backlog CRUD), /work-items:work (auto-select + execute), /work-items:decompose (plan → tickets), /work-items:scan-todos (TODO sweep)."
 argument-hint: "[<number>] — issue OR pull request number to triage; empty = attention view"
 user-invocable: true
 disable-model-invocation: false
@@ -21,7 +21,7 @@ closes route through the bound adapter's write mechanics; item creation goes thr
 
 ## Purpose
 
-Evaluate **raw intake** — items the team did not author (bug reports, incoming feature requests, unsolicited PRs) — through a small state machine: raw → verified → briefed → autonomous-eligible, with side exits to needs-info, human-gated, and close.
+Evaluate **raw intake** — any untriaged item carrying the raw marker, whoever authored it (external bug reports, incoming feature requests, unsolicited PRs, and team-authored self-observation/dogfood issues) — through a small state machine: raw → verified → briefed → autonomous-eligible, with side exits to needs-info, human-gated, and close.
 
 ## Usage
 
@@ -32,10 +32,12 @@ Evaluate **raw intake** — items the team did not author (bug reports, incoming
 
 ## Scope: raw intake only
 
+**Raw intake is defined by triage state, not authorship.** An item is raw intake when it is untriaged — unlabeled, or carrying the raw marker (`status:needs-triage` / `priority:needs-triage`, whichever axis the repo files it under) — regardless of who authored it. External bug reports, incoming feature requests, and unsolicited PRs are the common sources, but a **team-authored self-observation / dogfood issue** filed with only the raw marker ([`${CLAUDE_PLUGIN_ROOT}/reference/dogfood-filing.md`](${CLAUDE_PLUGIN_ROOT}/reference/dogfood-filing.md)) is raw intake too: it carries no routing decision yet, surfaces in the same attention view, and needs the same evaluation (priority normalization, tier routing, brief drafting). The boundary is *untriaged vs. already-triaged*, never *external vs. team-authored*.
+
 Two rules bound what enters this flow:
 
 - **A PR is an item with attached code.** An unsolicited or external PR enters the same intake as an issue: same states, same machine. Its diff is an **attachment to evaluate** — check it out, run the relevant tests — never an obligation to merge. Read the state names against the code: briefed means a brief exists for what to do with the diff; human-gated means a human should decide the merge.
-- **Never re-triage `decompose` output.** Items published by `/work-items:decompose` (and team-authored `/work-items:track add` items) are born triaged — classified, role-labeled, and briefed at creation. They never re-enter this flow, and the attention view excludes them by construction (they carry labels from birth). If someone names one explicitly, say it is already triaged and stop.
+- **Never re-triage already-triaged output.** Items born triaged — published by `/work-items:decompose`, or created by a `/work-items:track add` that leaves no raw marker — already carry a routing decision. They never re-enter this flow, and the attention view excludes them by construction (being neither unlabeled nor marked with the raw marker, they fall in none of its buckets). This exclusion keys on **absence of the raw marker**, not authorship and not the mere presence of classification labels: the raw marker (`status:needs-triage`, or being unlabeled) puts an item in scope even alongside default labels, so a team-authored dogfood issue filed with a default `priority:` label *and* the raw marker is in scope (the marker wins), while a `track add` item that carries classification labels but no raw marker is out of scope for the same reason decompose output is. If someone names an already-triaged item explicitly, say it is already triaged and stop.
 
 ## Triage states
 
@@ -48,10 +50,18 @@ State names follow the plugin's vocabulary and the canonical roles ([`${CLAUDE_P
 | **briefed** | brief posted + `status:ready` | Fully specified as a behavioral contract (per [`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md)) |
 | **autonomous-eligible** | role label (default `agent-ready`) | Briefed AND delegable — eligible for autonomous pickup from the frontier |
 
-Side exits from any state: `status:needs-info` (returns to raw when the reporter replies), the human-gated role label (default `needs-human`) when the work is briefed but needs human judgment, or close (wontfix / duplicate / already implemented).
+Side exits from any state: `status:needs-info` (returns to raw when the reporter replies), the human-gated role label (default `needs-human`), or close (wontfix / duplicate / already implemented).
+
+**A briefed item takes one of three exits**, distinguished by the decision its brief carries:
+
+- **delegable** — fully specified with no open decision → autonomous-eligible role (default `agent-ready`).
+- **decision-defaulted** — a single-fork item whose brief carries a well-grounded RECOMMENDED answer with only a maintainer-vetoable (reversible) alternative → autonomous-eligible role with `status:ready`, plus a `Decision defaulted: X — veto before merge` comment. The default rides in; a maintainer vetoes before merge if it is wrong.
+- **human-gated** — reserved for a genuinely open decision (open design space, product intent, or cross-repo policy), or work that cannot be delegated for a capability reason (external access, manual QA) → human-gated role (default `needs-human`).
 
 ```text
-raw → verified → briefed → autonomous-eligible (role label, default agent-ready)
+raw → verified → briefed
+ |        |          ├→ delegable → autonomous-eligible (role label, default agent-ready)
+ |        |          ├→ decision-defaulted → autonomous-eligible + status:ready + "Decision defaulted: … — veto before merge"
  |        |          └→ human-gated (role label, default needs-human) — briefed for a human
  |        └→ status:needs-info → raw (on reporter reply)
  └→ close: wontfix | duplicate | already implemented
@@ -77,16 +87,22 @@ Read the item body, comments, and any linked PRs; for a PR, the diff too (adapte
 
 - **Redundancy** — search the codebase for an existing implementation of the requested behavior by domain concept (not the request's wording), and report where you looked. Found → it's an already-implemented close (step 5).
 - **Rejected-concept ledger** — when the consuming repo keeps one (`docs/out-of-scope/`, one file per concept), match the request against the concept files by **concept similarity, not keyword**. On a match, answer from the ledger instead of re-litigating: "Rejected before — `docs/out-of-scope/<concept>.md`: <reason>. Still stand?" Confirmed → append this request to the file's "Prior requests" log (re-read the file from disk first; append a line, never rewrite) and close (step 5). Reconsidered → the ledger file gets updated or removed and triage proceeds. No `docs/out-of-scope/` directory → skip the check entirely.
+- **Cluster detection** — cross-reference other open intake: when this item shares **one underlying decision** with other open items, do not human-gate each member individually. Designate one representative as the **decision carrier** (human-gated, with the member numbers listed in its body) and link every other member to it via the native `blocked-by` edge with a `blocked by #<carrier> decision` comment (applied in step 5). One human touch on the carrier resolves the decision for the whole cluster.
 
 ### 2. Recommend category + state
 
 Classify **bug vs enhancement** first — it steers the rest of the flow (bugs get reproduced; rejected enhancements get ledgered). Then recommend:
 
 - **Type** — bug → `Bug`; enhancement → `Feature` (or `Task` for tracked non-feature work). Native GitHub Issue Type on org repos, set through the seam; `type:` label on personal / non-org repos
-- **Priority label** (`priority:p0-critical` through `priority:p3-low`)
-- **Target state** — from the state machine above: needs-info, briefed for human-gated, or on track to autonomous-eligible
+- **Priority label** (`priority:p0-critical` through `priority:p3-low`) — when a directive or category rule sets this label **above** the finding's self-labeled severity, record the original severity in the triage comment (e.g. `priority set to pX by <rule>; reporter severity: <sev>`) so implementers can sub-sort within a priority band. No new labels
+- **Target state** — from the state machine above: needs-info, or one of the three briefed exits (delegable, decision-defaulted, human-gated). For a briefed item that carries a decision, apply the **routing test**: is the alternative reversible/maintainer-vetoable (→ **decision-defaulted**: autonomous-eligible role + `status:ready`, recorded with a `Decision defaulted: X — veto before merge` comment) or genuinely open — open design space, product intent, or cross-repo policy (→ **human-gated**)?
 
-Wait for the user's direction before mutating anything.
+**Direction gate.** Recommending is read-only; the gate governs *mutation* — labels, comments, closes, item creation — and which side of it you are on is fixed by how triage was invoked:
+
+- **Interactive session** — a human operator is present and no standing lane rules were supplied. Present the recommendation and **wait for the user's explicit direction** before mutating anything. This is the default whenever the invocation carries no autonomous mandate.
+- **Autonomous lane** — triage is running unattended as a `/loop` or `/schedule` AFK session whose standing rules — the directive supplied with its `/loop` / `/schedule` invocation — already authorize triage mutations. Those standing rules **are** the direction this gate requires: treat the gate as satisfied and proceed through verification and outcome without a human turn, prefixing every comment and item you create with the AI disclaimer. There is no operator turn to wait for, so blocking here would deadlock the lane — the gate is met by the lane's mandate, not skipped.
+
+The autonomous branch is the mode the AI disclaimer already anticipates: a session that mutates without a human turn. The two are one mode, not a contradiction. Formalizing this as the autonomous-mode contract — codifying that standing-lane rules constitute direction — is tracked in #459.
 
 ### 3. Verify — BEFORE any interview
 
@@ -103,12 +119,14 @@ Only after verification (or for enhancements, where the open question is scope, 
 
 ### 5. Apply outcome
 
-Every outcome is a **transition off raw**, not a layer on top of it. Applying an outcome **clears the raw-intake marker**: remove `status:needs-triage` (and the item leaves the unlabeled raw state) in the same edit that applies the labels below. The label sets in the table are the item's **resulting** state, not deltas stacked over `status:needs-triage` — normalization replaces the raw marker, it never adds to it.
+Every outcome is a **transition off raw**, not a layer on top of it. Applying an outcome **clears the raw-intake marker** — the default `needs-triage` label a fresh item carries before triage, resolved from the live set (whichever axis the repo files it under) — in the same edit that applies the labels below, and the item leaves the unlabeled raw state. The label sets in the table are the item's **resulting** state, not deltas stacked over the raw marker — normalization replaces the raw marker, it never adds to it.
 
 | Outcome | Action |
 |---------|--------|
 | Briefed, delegable | Write the brief per [`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md) — durability over precision: behavioral contracts and named interfaces, **no file paths or line numbers** — apply labels + the autonomous-eligible role label (default `agent-ready`) |
-| Briefed, needs human judgment | Same brief structure, plus why it can't be delegated (design decision, external access, manual QA); apply labels + the human-gated role label (default `needs-human`) |
+| Briefed, decision-defaulted | Same brief structure and durability rules; the brief states the RECOMMENDED answer and its maintainer-vetoable alternative. Apply labels + the autonomous-eligible role label (default `agent-ready`) + `status:ready`, and post a `Decision defaulted: X — veto before merge` comment |
+| Briefed, T1 multi-surface stub | For a trivial (T1) fix spanning 3+ surfaces: in place of a full brief, post a one-line `sites + fix pattern` comment and apply the autonomous-eligible role label (default `agent-ready`) + `status:ready` — the stub replaces the full brief but not the ready-to-work state, so the item is picked up like any other autonomous-eligible outcome. The brief durability rule still holds — name sites by interface / symbol / domain concept, **not file paths or line numbers** (recommended default: symbol-level naming) |
+| Briefed, human-gated | Same brief structure, plus why a human must act: a genuinely open decision (open design space, product intent, cross-repo policy) or a capability blocker (external access, manual QA); apply labels + the human-gated role label (default `needs-human`) |
 | Needs more info | `status:needs-info` + needs-info template comment |
 | Already implemented | Close pointing to where the behavior lives; do NOT ledger it (`docs/out-of-scope/` records rejections, not built features) |
 | Won't fix (bug) | Close with rationale comment |
@@ -117,11 +135,15 @@ Every outcome is a **transition off raw**, not a layer on top of it. Applying an
 
 For a PR, the outcome addresses the attached code explicitly: adopt the diff (briefed for an agent or human to carry forward), rework it (brief describes the gap between the diff and the verified requirement), or decline it (close with rationale — and the ledger entry when it's a rejected enhancement).
 
-Label edits, comments, and closes route through the adapter's write mechanics (adapter: "Edit labels / assignees", "Comment on item / edit a comment", "Close item"); the gather + attention-view reads are bare. Item creation, when triage spawns follow-up work, goes through the seam `create-item` verb (`/work-items:track add` is the canonical path).
+**Decision-carrier clusters.** When step 1's cluster detection found members sharing one decision, apply human-gated to the **carrier only** (its body lists the member numbers). Each other member instead gets a native `blocked-by` edge to the carrier plus a `blocked by #<carrier> decision` comment — **never a per-member human-gated label**. Resolving the carrier's decision unblocks the whole cluster in one human touch.
+
+The canonical-role labels applied by these outcomes (autonomous-eligible default `agent-ready`, human-gated default `needs-human`) are **resolved from the binding's `config.role_labels` at action entry**, never hardcoded — warn loudly when a role defaults because `.work-item-tracker.json` or the entry is absent rather than applying the default string silently (a repo that remapped roles would otherwise be mislabeled), and stop on a malformed/empty/non-string value ([`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md) "Canonical roles").
+
+Label edits, comments, and closes route through the adapter's write mechanics (adapter: "Edit labels / assignees", "Comment on item / edit a comment", "Close item"); the gather + attention-view reads are bare. When triage spawns follow-up work — a fresh, orthogonal problem it surfaces but will not fix this pass, distinct from the item under evaluation and from work it has already scoped and routed — item creation goes through the seam `create-item` verb (`/work-items:track add` is the canonical path) and follows the shared self-observation contract ([`${CLAUDE_PLUGIN_ROOT}/reference/dogfood-filing.md`](${CLAUDE_PLUGIN_ROOT}/reference/dogfood-filing.md): dedupe → categorize → fixed shape → `needs-triage`). That new item is genuinely raw intake, so `needs-triage` is correct for it; the item triage is *evaluating* is never sent back to raw intake — its raw marker is cleared by the closing invariant below — and follow-up whose scope triage has already decided is routed through the outcome labels above, not filed as a self-observation.
 
 **Closing invariant — no outcome leaves a re-selectable raw item.** The attention view lists *open* items and re-selects anything still carrying the raw marker, so every outcome must leave the item unre-selectable:
 
-- Outcomes that keep the item **open** (briefed/ready, a role label, or `status:needs-info`) **clear `status:needs-triage`**. A raw marker alongside `status:ready`, the autonomous-eligible role label, or the human-gated role label is a contradiction — the attention view reads it as still-raw and re-triages it every cycle. If an item shows both, the briefed state is the truth; clear the stale raw marker.
+- **Every routing outcome that keeps the item open clears the raw-intake marker in the same edit that applies the outcome's labels — no exceptions across the routing space.** `status:ready` (briefed/ready and decision-defaulted), the autonomous-eligible role label, the human-gated role label (default `needs-human`), `status:needs-decision`, and `status:needs-info` each **remove the raw marker**; never leave both the raw marker and a routing label present. A raw marker alongside any routing label is a contradiction — the open-only attention view reads it as still-raw and re-triages it every cycle, so an already-decided item re-enters the needs-triage queue as if it were unrouted intake and wastes a read-and-confirm pass. If an item shows both, the routed state is the truth; clear the stale raw marker.
 - **Close** (already implemented / wontfix / duplicate) drops the item from the open-only attention frontier, so the raw marker is moot — a closed item never re-triages.
 
 ## Needs-info template

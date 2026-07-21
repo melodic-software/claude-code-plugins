@@ -3,6 +3,30 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0]
+
+### Changed
+
+- **`docs-prose` lane decomposed to conform with the consumer-config layering contract (#701).**
+  A project lane at `.claude/tidy-lanes/docs-prose.md` no longer replaces the bundled lane wholesale.
+  It now merges **per section** via a declared `## Merge semantics` block: the `Scope` block is a
+  per-section override (retargets doc globs), while the generic watch-for patterns (P-1..P-6) are
+  **additive** (a project's entries append to the bundled set), so bundled pattern improvements keep
+  reaching consuming repos instead of being frozen out. The `tidy` lane-resolution engine now reads
+  **both** the project and bundled layers and merges per the project lane's declared semantics; a lane
+  with no `## Merge semantics` declaration still resolves project-only (legacy path), so lanes not yet
+  migrated (`shell-tooling`, tracked in #724) are unchanged. Follow-up: the single-layer gap — no
+  user-global or `*.local.*` overlay — is tracked in #723, not folded in here.
+
+## [0.6.1]
+
+### Changed
+
+- Documentation-only: the License section now states the plugin's own MIT
+  license inline and no longer points at a `LICENSE` file at the repository
+  root, which an installed consumer running from the isolated plugin cache
+  cannot reach. No behavior change.
+
 ## [0.6.0]
 
 ### Changed

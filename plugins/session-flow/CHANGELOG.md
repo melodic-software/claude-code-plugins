@@ -1,6 +1,60 @@
 # Changelog — session-flow plugin
 
-## 0.10.2 — 2026-07-19
+## [0.11.0] — 2026-07-20
+
+Added:
+
+- running-retro: new skill. Takes an in-flight retrospective checkpoint
+  mid-session — the live counterpart to `retro`'s end-of-session pass. Zero-arm:
+  nothing to set up in advance, because the session transcript on disk is
+  lossless across compaction (the same record `retro`'s parser already reads in
+  production). The main agent contributes a 2-3 line subjective-state note — the
+  one signal disk cannot hold — then delegates the analysis to a fresh subagent
+  that runs `retro`'s parser and selectively reads flagged transcript spans,
+  classifies each finding by category and suggested resolution route (CLAUDE.md
+  fix / rule fix / skill change / new-skill candidate / tracker issue), and
+  returns a compact findings block. Findings append to a cumulative running
+  ledger — one stable file per session chain — resolved through the plugin's
+  topic-docs binding (`<memory_dir>/running-retros/`, default
+  `.work/running-retros/`, memory-tier, never committed). It captures and routes
+  only: codification stays with `/session-flow:retro codify`, tracker filing is
+  offered never automatic, the session is never scored, and the skill is
+  non-terminating (unlike `handoff`, it does not `/clear`). A mandatory redaction
+  pass runs on both the subagent findings and the ledger write. Composes with
+  `/loop` for periodic checkpoints; ships no scheduler of its own. The plugin now
+  bundles eight skills.
+
+## [0.10.4] — 2026-07-20
+
+Fixed:
+
+- retro: the Phase 1.1 multi-session snippet no longer truncates a quoted
+  `memory_dir` at an interior `#`. `HANDOFF_DIR` resolution now routes through the
+  shared `parse-concern-value.sh` helper (materialized from
+  `lib/parse-concern-value.sh`), which peels surrounding quotes *before* stripping
+  comments, so `memory_dir: "a#b"` resolves to `a#b` rather than `a`. The snippet
+  also surfaces resolution rung 2 — a save-point convention inferred from
+  `CLAUDE.md` / `.claude/rules`, passed as `DECLARED_SAVEPOINT` — instead of
+  collapsing straight from an absent concern file to `.work`; prose stays an
+  inference source the agent resolves, not a machine key.
+- retro: a comment-only `memory_dir` (e.g. `memory_dir: # use default`, YAML-null)
+  now resolves through the fallback instead of being taken literally as
+  `# use default/handoffs`, so the handoff-chain search degrades to the declared
+  save-point / `.work` default rather than a bogus directory.
+
+## [0.10.3] — 2026-07-19
+
+Changed:
+
+- workflow / retro: the override boundary is now explicit. The stage taxonomy
+  and the pre-PR sequence skeleton (workflow) and the five scoring dimensions
+  (retro) are documented as fixed plugin identity with no consumer-config seam
+  to swap them — what adapts is stage execution, gate commands, and the
+  conventions each dimension scores against, all flowing through the consumer
+  conventions the skills already name, never by editing the plugin. Documents
+  the existing boundary per the extensibility contract; no behavior change.
+
+## [0.10.2] — 2026-07-19
 
 Fixed:
 
@@ -10,7 +64,7 @@ Fixed:
   copy-as-is run of the snippet previously bypassed the memory_dir seam, missing
   the handoff chain in any repo that relocates its memory tier.
 
-## 0.10.1 — 2026-07-19
+## [0.10.1] — 2026-07-19
 
 Changed:
 
@@ -20,7 +74,7 @@ Changed:
   own sections and keeps only the plugin-specific no-project-root fallback
   detail.
 
-## 0.10.0 — 2026-07-18
+## [0.10.0] — 2026-07-18
 
 Added:
 
@@ -38,7 +92,7 @@ Added:
   worktree mechanics route to whatever capabilities are installed, falling back
   to direct git / gh. The plugin now bundles seven skills.
 
-## 0.9.1 — 2026-07-18
+## [0.9.1] — 2026-07-18
 
 Fixed:
 
@@ -50,7 +104,7 @@ Fixed:
   model defaults to `inherit` per the subagents doc (resolution order and cost-control quote
   now cited in `context/sources.md`).
 
-## 0.9.0 — 2026-07-18
+## [0.9.0] — 2026-07-18
 
 Added:
 
@@ -63,7 +117,7 @@ Added:
   re-anchors; it does not resume the work (the keep-going sibling), enumerate
   worktrees, or triage PR feedback. The plugin now bundles six skills.
 
-## 0.8.0 — 2026-07-17
+## [0.8.0] — 2026-07-17
 
 Changed:
 
@@ -72,13 +126,13 @@ Changed:
   the contract's `.worktreeinclude` template carries into new worktrees, while handoffs are
   session-scoped and deliberately not carried.
 
-## 0.7.1
+## [0.7.1]
 
 ### Changed
 
 - References to the renamed `/planning:plan` skill (was `/planning:architect`, planning 0.13.0 breaking rename) retargeted. Version bumped so existing installs receive the rewritten prompts.
 
-## 0.7.0 — 2026-07-17
+## [0.7.0] — 2026-07-17
 
 Added:
 
@@ -93,7 +147,7 @@ Added:
   the interruption cause is deliberately not diagnosed (recovery is
   identical regardless). The plugin now bundles five skills.
 
-## 0.6.0 — 2026-07-16
+## [0.6.0] — 2026-07-16
 
 Changed:
 
@@ -113,7 +167,7 @@ Added:
   pressure, and concurrent-session / rate-limit headroom, with
   small/medium/large fan-out sizing and single-agent as the floor.
 
-## 0.5.0 — 2026-07-15
+## [0.5.0] — 2026-07-15
 
 Added:
 
@@ -145,7 +199,7 @@ Added:
   actual capability inventory whenever capabilities are added, renamed,
   or retired.
 
-## 0.4.0 — 2026-07-15
+## [0.4.0] — 2026-07-15
 
 Added:
 
@@ -159,7 +213,7 @@ Added:
   handoff without verifiable sanity-check evidence, continuing past an
   explicit stop). Loaded on demand from the SKILL.md checklist.
 
-## 0.3.0 — 2026-07-14
+## [0.3.0] — 2026-07-14
 
 Adopt the marketplace topic-docs convention
 (`docs/conventions/topic-docs/`, contract v1.0.0):

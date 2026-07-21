@@ -1,0 +1,73 @@
+{
+  "skill_name": "running-retro",
+  "evals": [
+    {
+      "id": 1,
+      "name": "in-flight-checkpoint-not-end-of-session-retro",
+      "prompt": "We're partway through this build — do a running retro checkpoint on how it's going so far.",
+      "expected_output": "The skill takes an in-flight checkpoint: the main agent records a short subjective-state note, delegates transcript analysis to a fresh subagent (reusing retro's parser), and appends the classified findings to a cumulative running ledger. It does NOT run the end-of-session full 5-phase scored retrospective (that is /session-flow:retro).",
+      "files": [],
+      "expectations": [
+        "The skill runs an in-flight checkpoint, not the end-of-session 5-phase scored retrospective",
+        "The main agent contributes a 2-3 line subjective-state note and delegates the transcript analysis to a fresh subagent",
+        "Findings are appended to a running ledger resolved through the plugin's topic-docs binding (<memory_dir>/running-retros/), one file per session chain"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "no-session-scoring",
+      "prompt": "Running-retro this session and give me the health scores out of 10 for each dimension.",
+      "expected_output": "The skill does not score the session. Numeric health scoring across the five dimensions is /session-flow:retro's job; running-retro captures and routes findings only, and points at retro for scored analysis.",
+      "files": [],
+      "expectations": [
+        "The skill does NOT produce per-dimension /10 session health scores",
+        "It captures and routes findings instead, and attributes scoring to /session-flow:retro"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "capture-and-route-no-codification",
+      "prompt": "/session-flow:running-retro — and any learnings you find, just write them straight into CLAUDE.md and my rules files.",
+      "expected_output": "The skill captures findings and OFFERS routing but does not codify. It never edits CLAUDE.md, .claude/rules, or memory itself — durable codification is routed to /session-flow:retro codify. It presents the findings and the forward routes and waits for the user to pick.",
+      "files": [],
+      "expectations": [
+        "The skill does NOT edit CLAUDE.md, rules, or memory to codify learnings",
+        "It routes codification to /session-flow:retro codify and offers routes rather than applying them"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "offers-tracker-routing-never-auto-files",
+      "prompt": "Do a live retro and file every follow-up you find as an issue in my tracker.",
+      "expected_output": "The skill offers work-item routing for follow-up findings but never files automatically — it presents the candidates and lets the user decide which to file.",
+      "files": [],
+      "expectations": [
+        "The skill does NOT auto-file tracker issues",
+        "It presents follow-up candidates and offers routing to the consumer's work-item tracker for the user to choose"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "non-terminating-not-a-handoff",
+      "prompt": "running retro checkpoint, then keep working on the task.",
+      "expected_output": "The checkpoint is non-terminating: after presenting findings and offering routes, the skill continues the underlying task in the same session. It does not emit a /clear resume prompt or stop the session the way /session-flow:handoff does.",
+      "files": [],
+      "expectations": [
+        "The skill continues the task in the same session after the checkpoint",
+        "It does NOT terminate the session or emit a /clear-and-resume prompt (that is /session-flow:handoff)"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "fresh-subagent-resolved-paths",
+      "prompt": "Run a running-retro checkpoint.",
+      "expected_output": "The analysis is delegated to a fresh subagent that inherits none of the live conversation, so the delegation prompt carries resolved concrete inputs — the absolute parser path, session data dir, transcript and subagents paths, any handoff-chain pointers, and the main agent's subjective-state note. A ${CLAUDE_PLUGIN_ROOT} token is resolved before it is passed.",
+      "files": [],
+      "expectations": [
+        "The transcript analysis is delegated to a fresh (non-fork) subagent, not run inline in the main context",
+        "The delegation passes resolved absolute paths (parser, session data dir, transcript) plus the subjective-state note, not unexpanded plugin variables",
+        "A mandatory redaction pass runs on the subagent findings and again on the ledger write"
+      ]
+    }
+  ]
+}

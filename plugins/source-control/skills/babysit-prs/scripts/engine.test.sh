@@ -65,5 +65,9 @@ check_exit "merge wrapper reaches fail-closed CLI (no allowlist)" 3 \
   bash "$MERGE_WRAPPER" "owner/repo#1"
 check_exit "resolve wrapper reaches fail-closed CLI (no allowlist)" 3 \
   bash "$RESOLVE_WRAPPER" "owner/repo#1"
+# The autopilot merge tier is fail-closed at the wrapper: the umbrella flag
+# without its three required sets refuses before any network access.
+check_exit "merge wrapper rejects --autopilot-merge-tier without required sets" 3 \
+  bash "$MERGE_WRAPPER" "owner/repo#1" --allowed-owners owner --autopilot-merge-tier
 
 exit "$FAILED"

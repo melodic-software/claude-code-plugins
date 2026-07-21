@@ -51,6 +51,17 @@ Add chapter markers for section transitions:
 playwright-cli video-chapter "Login" --description="Entering credentials" --duration=2000
 ```
 
+Auto-annotate subsequent actions (click, type, ...) with a callout naming the action and highlighting the target — cheaper than hand-building overlays via `run-code` for simple demos:
+
+```bash
+playwright-cli video-show-actions --duration=600 --position=top-right --cursor=pointer
+playwright-cli click e1
+playwright-cli fill e2 "test"
+playwright-cli video-hide-actions
+```
+
+`--position` accepts `top-left|top|top-right|bottom-left|bottom|bottom-right` (default `top-right`); `--cursor=pointer` (default) animates a mouse pointer between action points, `--cursor=none` disables it.
+
 ## Video — hero scripts (via `run-code`)
 
 For polished recordings (demos, PR evidence), build a single `run-code` script with typing delays, overlays, and chapter cards. See [running-code.md](running-code.md) for execution mechanism. Upstream ships a detailed pattern at `../vendor/references/video-recording.md` covering:

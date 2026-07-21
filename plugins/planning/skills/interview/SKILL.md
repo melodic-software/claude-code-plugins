@@ -67,7 +67,7 @@ The Q&A path of this skill is one engine wrapped in a stop condition and an outp
    same response. A general session writes no repo docs — it drives to a shared-understanding summary
    only
 
-**Intake the starting point.** Early in the loop (or before it), establish where the user is — one intake question that discloses their starting point; questions and recommendations calibrate to that disclosure. When the territory itself is unfamiliar to the USER — they can't yet evaluate options because they don't know the domain or codebase area — route to a blindspot-surfacing exploration FIRST (`/discovery:explore blindspot <area>` if installed, otherwise a guided walkthrough of the area); an interview over unknown territory locks a contract the user can't assess.
+**Intake the starting point.** Early in the loop (or before it), establish where the user is — one intake question that discloses their starting point; questions and recommendations calibrate to that disclosure. When the territory itself is unfamiliar to the USER — they can't yet evaluate options because they don't know the domain or codebase area — route to a blindspot-surfacing exploration FIRST (`/discovery:blindspot <area>` if installed, otherwise a guided walkthrough of the area); an interview over unknown territory locks a contract the user can't assess.
 
 When the effort is too big to hold at once AND still too foggy to phrase as sharp questions — the user can't yet list the decisions, let alone lock them — that is upstream of `/interview`. Name `/planning:wayfind` to the user (it charts the fog as a decision map and works the frontier down decision by decision, graduating to a Brief once it clears); recommend, never auto-switch.
 
@@ -102,7 +102,7 @@ Alternatives to consider:
 
 **Dialogue — the user drives too.** They may push back or reframe a decision (e.g. "what's hardest to roll back from?"). When they introduce a new axis — **reversibility** is the most common for V1 — re-rank the options on it and REVISE your recommendation out loud. Default V1 lens: prefer the most *reversible* start; defer the irreversible/expensive as an explicit out-of-scope decision, never a silent assumption.
 
-**Facts are yours; decisions are the user's.** A *fact* — a path, a current value, an existing pattern, what a file already does — is resolved from the environment (Grep/Read/Glob) and STATED, never asked; spending a question on what the code already answers is friction, not interview. A *decision* — real tradeoffs, no environment answer — ALWAYS goes to the user; never resolve one on their behalf, however obvious the answer looks. When a fact lookup is slow (deep exploration, external research), dispatch it to a sub-agent and DON'T block the round: a running lookup is an unsettled prerequisite, so only the questions downstream of it wait for the next round — ask the rest of the frontier now.
+**Facts are yours; decisions are the user's.** A *fact* — a path, a current value, an existing pattern, what a file already does — is resolved from the environment (Grep/Read/Glob) and STATED, never asked; spending a question on what the code already answers is friction, not interview. The environment is not only the working tree: when a task NAMES an external repo or resource — a sibling checkout under a known repo root / workspace layout, or an `owner/repo` reachable through its host — that is a resolvable fact too, so check the filesystem layout and query the repo host directly (e.g. `gh` for a named `owner/repo`) before defaulting to a user question. Cue, not mandate — resolve what's cheaply resolvable, don't turn every named mention into a research project. A *decision* — real tradeoffs, no environment answer — ALWAYS goes to the user; never resolve one on their behalf, however obvious the answer looks. When a fact lookup is slow (deep exploration, external research), dispatch it to a sub-agent and DON'T block the round: a running lookup is an unsettled prerequisite, so only the questions downstream of it wait for the next round — ask the rest of the frontier now.
 
 **Ground before recommending.** Lightweight codebase gate per question (Grep/Read/Glob). If a recommendation needs more — external best-practice, a library API, deeper exploration — dispatch or do the lookup (research/exploration capability, or inline), then recommend grounded. Never recommend a load-bearing technical choice from training recall alone — ground it in code read this session or an official source fetched this session.
 
@@ -196,6 +196,36 @@ Route the handoff by what the session produced. **A general (non-engineering) se
 - **Interview outgrew one session (many branches, context filling)** → handoff now (`/session-flow:handoff` if installed, otherwise write a resume note), clear, resume — the ledger + Brief survive; resume continues from the first open branch
 
 Do NOT auto-clear or auto-invoke. Recommend; let the user pull the trigger.
+
+## Session-config recommendation (model, effort, advisor)
+
+The interview already reads task complexity and ambiguity to drive its rounds — so at
+the stop/handoff boundary, turn that read into a recommendation for how the
+**downstream execution session** should be configured. Two orthogonal knobs, picked
+per the official distinction:
+
+- **Model tier (capability)** — raise the model when the assistant would be
+  *confidently wrong despite full context* (a reasoning ceiling, not missing input).
+- **Effort level (thoroughness)** — raise effort when the assistant would
+  *under-explore or under-verify* (right answer reachable, but it stops short).
+
+When the recommendation keeps a faster main model, pair it with the **advisor**: a
+faster main without a stronger advisor is not the recommended config for non-trivial
+work — the documented efficiency pairing escalates planning, ambiguous failures, and
+completion checks to a stronger advisor instead of paying for the top model every
+turn.
+
+**Source the current names live, never pin them.** Model names, tiers, effort levels,
+and accepted advisor pairings drift between versions; the durable *distinction* above
+is stable, the *names* are not. Fetch them once when you form the recommendation from
+the official docs (mirror `draft-goal-condition`'s never-pin discipline). A doc-fetch
+failure **degrades, never halts** — fall back to the durable distinction and tell the
+user the current names could not be verified live so they confirm against `/model` /
+`/advisor`. Frame the whole thing as advisory (the skill cannot read the current
+effort/advisor state) and applicable to engineering and general sessions alike. The
+same signals run **mid-task** in the inverse direction — surface "too complex for the
+current model/effort" when execution warrants. Full detail, sources, and the
+knob-picking signals in [`context/session-config.md`](context/session-config.md).
 
 ## What this skill does NOT do
 

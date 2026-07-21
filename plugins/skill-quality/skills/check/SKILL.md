@@ -1,6 +1,6 @@
 ---
 name: check
-description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', or before shipping a skill or plugin. Actions: `check [<skill-name>]` runs a seventeen-check static contract gate (frontmatter, listing-budget cap, trigger-keyword preservation vs HEAD, line caps, broken internal refs, markdownlint, gotchas surface, evals presence) and reports PASS/FAIL with warnings; `validate-evals [<skill-name>]` checks a skill's evals/evals.json against the bundled schema. Not for: writing new skills, or running model-graded evals."
+description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', or before shipping a skill or plugin. Actions: `check [<skill-name>]` runs an eighteen-check static contract gate (frontmatter, listing-budget cap, trigger-keyword preservation vs HEAD, line caps, broken internal refs, markdownlint, gotchas surface, evals presence, precompute opportunity) and reports PASS/FAIL with warnings; `validate-evals [<skill-name>]` checks a skill's evals/evals.json against the bundled schema. Not for: writing new skills, or running model-graded evals."
 argument-hint: "[check|validate-evals] [<skill-name>] — omit the action for check; omit the skill name to run over every skill"
 user-invocable: true
 disable-model-invocation: false
@@ -9,7 +9,7 @@ disable-model-invocation: false
 ## Purpose
 
 Static, deterministic quality gate for skill authoring. The `check` action runs the bundled
-`check-skill.sh` — seventeen checks with no model invocation, so results are reproducible in CI or a
+`check-skill.sh` — eighteen checks with no model invocation, so results are reproducible in CI or a
 pre-commit hook. The `validate-evals` action checks a skill's `<skill>/evals/evals.json` against the bundled
 JSON schema. Catches the failure that static analysis catches best: a rewrite silently dropping a
 `description` trigger phrase, which degrades auto-invocation.
@@ -91,3 +91,8 @@ that line before editing, since it may be an illustrative example path rather th
   ref before the change (e.g. `HEAD^` or a merge-base) and run on a clean tree; it reroutes checks 3/8/9.
 - Trigger-drop protection tracks single-quoted `'phrase'` triggers. An unquoted `Use when:` list is not
   tracked by check 3; check 12 warns so those phrases get quoted and covered.
+- Check 18 (precompute opportunity) is an advisory heuristic, never a FAIL. It cannot tell an
+  instruction-to-run shell block from an illustrative example, so a WARN is a candidate to judge, not a
+  defect — like a check-5 ref, hand-verify the block before converting it. It reads only fenced shell
+  blocks (not prose "run `git status` first") and stays silent whenever the skill already uses any `!`
+  injection, so it under-reports by design; a clean run is not proof there is no precompute opportunity.

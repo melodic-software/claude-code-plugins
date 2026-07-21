@@ -11,6 +11,10 @@
 # Single source of truth for memory-dir resolution within this plugin — sibling
 # scripts and the audit workflow call this rather than inlining the glob.
 #
+# Config root honors CLAUDE_CONFIG_DIR: per the official .claude-directory doc,
+# setting it relocates every `~/.claude` path (settings AND the projects/ memory
+# tree) under that directory, so the memory dir moves with it.
+#
 # Usage (CWD-independent within the target repo):
 #   MEMORY_DIR=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/resolve-memory-dir.sh")
 #
@@ -47,9 +51,12 @@ if [[ -z "$repo_root" ]]; then
   exit 1
 fi
 
+# Config root: CLAUDE_CONFIG_DIR relocates the whole `~/.claude` tree when set.
+config_root="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+
 # sed (not tr) for path-char replacement — tr mishandles backslashes on Git Bash.
 project_slug=$(printf '%s' "$repo_root" | sed 's/[:\\/.]/-/g')
-session_data_dir="$HOME/.claude/projects/$project_slug"
+session_data_dir="$config_root/projects/$project_slug"
 
 # Bare-clone-hub worktree: transcripts are keyed by the worktree cwd, but auto-memory
 # is shared at the HUB (keyed by git-common-dir). HUB_SLUG also maps '.' (e.g. a
@@ -60,7 +67,7 @@ hub_raw=$(cygpath -w "$git_common" 2>/dev/null || printf '%s' "$git_common")
 hub_slug=$(printf '%s' "$hub_raw" | sed 's/[:\\/.]/-/g')
 
 memory_dir=""
-for cand in "$session_data_dir/memory" "$HOME/.claude/projects/$hub_slug/memory"; do
+for cand in "$session_data_dir/memory" "$config_root/projects/$hub_slug/memory"; do
   if [[ -f "$cand/MEMORY.md" ]]; then
     memory_dir="$cand"
     break

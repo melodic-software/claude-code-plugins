@@ -68,22 +68,37 @@ Ensure the branch is current with the default branch before pushing. Prevents me
 
 ```bash
 DEFAULT_BRANCH=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name)
-git fetch origin "$DEFAULT_BRANCH"
-MERGE_BASE=$(git merge-base HEAD "origin/$DEFAULT_BRANCH")
-ORIGIN_DEFAULT=$(git rev-parse "origin/$DEFAULT_BRANCH")
 
-if [ "$MERGE_BASE" != "$ORIGIN_DEFAULT" ]; then
-  BEHIND=$(git rev-list --count HEAD.."origin/$DEFAULT_BRANCH")
-  echo "Branch is $BEHIND commit(s) behind origin/$DEFAULT_BRANCH. Rebasing..."
-  git rebase "origin/$DEFAULT_BRANCH"
+# Resolve the FETCH remote that hosts the default branch via the shared resolver
+# (scripts/resolve-remote.sh): the current branch's configured remote
+# (branch.<name>.remote), else `origin`, else the sole OTHER configured remote
+# when exactly one exists — never a hardcoded `origin`, so a repo cloned with a
+# different remote name (`git clone -o vendor`) still resolves. A local-only
+# upstream (`.`) is treated as unset. Two or more non-origin candidates with
+# neither branch.<name>.remote nor `origin` set is ambiguous and the resolver
+# fails loudly rather than silently picking one. The §2.4.1 push step calls the
+# same resolver with `--push`, which prepends Git's push precedence
+# (branch.<name>.pushRemote / remote.pushDefault) so a triangular fork flow —
+# fetch from `upstream`, push to the fork — resolves each side correctly instead
+# of pushing to the fetch remote.
+REMOTE=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/resolve-remote.sh") || exit 1
+
+git fetch "$REMOTE" "$DEFAULT_BRANCH"
+MERGE_BASE=$(git merge-base HEAD "$REMOTE/$DEFAULT_BRANCH")
+REMOTE_DEFAULT=$(git rev-parse "$REMOTE/$DEFAULT_BRANCH")
+
+if [ "$MERGE_BASE" != "$REMOTE_DEFAULT" ]; then
+  BEHIND=$(git rev-list --count HEAD.."$REMOTE/$DEFAULT_BRANCH")
+  echo "Branch is $BEHIND commit(s) behind $REMOTE/$DEFAULT_BRANCH. Rebasing..."
+  git rebase "$REMOTE/$DEFAULT_BRANCH"
 fi
 ```
 
-**Prefer `git merge origin/$DEFAULT_BRANCH` over rebase when the branch already contains a merge commit** (`git log --merges origin/$DEFAULT_BRANCH..HEAD` non-empty) — replaying pre-merge commits produces avoidable conflict slogs, and under squash-merge linear branch history buys nothing.
+**Prefer `git merge $REMOTE/$DEFAULT_BRANCH` over rebase when the branch already contains a merge commit** (`git log --merges $REMOTE/$DEFAULT_BRANCH..HEAD` non-empty) — replaying pre-merge commits produces avoidable conflict slogs, and under squash-merge linear branch history buys nothing.
 
 **If conflicts occur:** resolve conservatively — take both sides where independent, pause and present to the user whenever intent is unclear. `git rebase --abort` / `git merge --abort` when resolution needs judgment you don't have.
 
-**Skip conditions:** branch has zero commits ahead (nothing to rebase), or merge-base already equals `origin/$DEFAULT_BRANCH` (branch is current).
+**Skip conditions:** branch has zero commits ahead (nothing to rebase), or merge-base already equals `$REMOTE/$DEFAULT_BRANCH` (branch is current).
 
 ## 2.3 Stage and commit
 
@@ -131,7 +146,7 @@ if [[ -n "$ISSUE_NUM" ]]; then
     CLOSES_LINE="Closes #${ISSUE_NUM}"
   else
     echo "⚠ Branch suggests Closes #${ISSUE_NUM}, but that issue is missing or not open in this repo. Falling back to interactive prompt." >&2
-    ISSUE_NUM=""   # fall through to orphan-PR 3-option prompt below
+    ISSUE_NUM=""   # fall through to orphan-PR 2-option prompt below
   fi
 fi
 # If still empty, the orphan-PR prompt populates CLOSES_LINE below.
@@ -143,23 +158,36 @@ fi
 
 > *"This PR closes #N. Any other issues to close on merge? List them one per line (`Closes #X`), use `Refs #Y` to link without closing, or `no` to skip."*
 
-Append each accepted line to `${CLOSES_LINE}` (newline-separated). GitHub accepts one keyword per issue, comma- or newline-separated.
+Append each accepted `Closes #X` line to `${CLOSES_LINE}` (newline-separated); route each `Refs #Y` line into the `## Related` section instead (§2.4.1, replacing its `N/A`), never onto the closing-keyword line — the same rule the orphan-PR and `## Related` guidance below apply to every non-closing reference. GitHub accepts one keyword per issue, comma- or newline-separated.
 
-**Branch lacks issue number (orphan PR — drift sweep, hotfix, refactor):** prompt with three options:
+**Branch lacks issue number (orphan PR — drift sweep, hotfix, refactor):** prompt with two options:
 
 1. `Closes #<N>` — provide a number to auto-close on merge
-2. `Refs #<N>` — link without closing
-3. `No related issue: <reason>` — orphan PR, no linkage
+2. `No related issue: <reason>` — orphan PR, no linkage
+
+To reference an issue this PR does **not** close, put a `Refs #N — <why>` line in the `## Related` section (§2.4.1), not on the closing-keyword line: a bare `Refs #N` satisfies neither the §2.4.2 pre-create gate nor the real `pr-issue-linkage` validator's closing-keyword half, so such a PR still picks one of the two options above.
 
 Persist chosen line(s) into `${CLOSES_LINE}`. NEVER wrap a closing keyword in an HTML comment — `<!-- Closes #N -->` is parsed as a valid keyword and will auto-close the issue on merge. Fenced code blocks ARE inert, so example snippets are safe.
 
 ### 2.4.1 Push and assemble PR body
 
 ```bash
-git push -u origin <branch-name>
+# Push via push-branch.sh, which resolves the push and fetch/rebase remotes
+# independently (resolve-remote.sh --push vs plain) and sets upstream (`-u`)
+# ONLY for a branch with NO existing upstream — branch.<name>.remote AND
+# branch.<name>.merge both unset — whose fetch and push resolve to the same
+# remote (a fresh feature branch's first push). `git push -u` rewrites the
+# branch's whole upstream — both keys — so any existing upstream (a real remote,
+# a deliberate local-only `.`, or a merge ref set with the remote defaulting to
+# `origin`) is preserved by a plain push instead. This closes two silent
+# corruptions: a triangular fork (push a fork via pushRemote/pushDefault, fetch
+# `origin`/`upstream`) no longer repoints the fetch remote to the fork, and a
+# branch with any configured tracking no longer has its merge ref overwritten.
+# See the script header for the full rationale.
+bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/push-branch.sh" || exit 1
 ```
 
-Derive PR title from the commit subject, shaped to satisfy the resolved subject/title convention (SKILL.md §"PR title format" ladder: `.claude/source-control.md` → project convention → Conventional Commits default). Build body with `${CLOSES_LINE}` at top, followed by Summary + Test plan + Claude Code attribution:
+Derive PR title from the commit subject, shaped to satisfy the resolved subject/title convention (the ladder in [SKILL.md](../SKILL.md): layered `source-control.md` config → project convention → Conventional Commits default). Build body with `${CLOSES_LINE}` at top, followed by Summary + Test plan + a `## Related` section + a config-gated attribution line:
 
 ```bash
 # Quoted heredoc — body template is inert; nothing inside expands.
@@ -171,24 +199,55 @@ TEMPLATE=$(cat <<'EOF'
 ## Test plan
 - ...
 
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
+## Related
+N/A
 EOF
 )
 
-# Concat CLOSES_LINE in front of TEMPLATE via bash parameter expansion.
-# Parameter expansion of "${VAR}" does NOT re-evaluate the expanded value
-# — if CLOSES_LINE contains literal "$(rm -rf ~)" (e.g. user typed it into
-# the orphan-PR or multi-issue prompt), it stays a literal string and is
-# never executed. This is the defense against shell injection through
-# user-supplied prompt input.
+# Resolve the PR-body attribution line from the `pr_body_attribution` key across
+# the three source-control.md layers (../../reference/config-resolution.md), the
+# same seam `/commit`'s `trailer_policy` uses for the commit trailer. Absent → the
+# default line (current behavior — existing consumers are unaffected); a value of
+# `none` → omit the line; any other value → that literal line. Resolve the effective
+# value at the model level and bake it in as literal text below; do NOT reference it
+# as an unexpanded shell var inside the quoted heredoc (a quoted heredoc emits
+# `${ATTRIBUTION}` verbatim), and do NOT switch the heredoc to unquoted `<<EOF` to
+# force expansion — that would re-evaluate the whole body and reopen the injection
+# hole this section is built to close.
+ATTRIBUTION='🤖 Generated with [Claude Code](https://claude.com/claude-code)'  # key absent → default
+# pr_body_attribution: none         -> ATTRIBUTION=""            (omit the line)
+# pr_body_attribution: <custom text> -> ATTRIBUTION='<that text>'  (SINGLE-quoted, NEVER
+#                                       double-quoted: bash command-substitutes $(…) inside a
+#                                       double-quoted assignment RHS at assignment time, so a
+#                                       $()-bearing custom value would execute here — single-
+#                                       quoting keeps it inert at the assignment site. Escape any
+#                                       literal single quote as '\'' — e.g. ATTRIBUTION='it'\''s ok'.
+#                                       The concat below is also inert, but assignment is the
+#                                       first line of defense.)
+
+# Concat CLOSES_LINE in front of TEMPLATE and ATTRIBUTION after it, via bash
+# parameter expansion. Parameter expansion of "${VAR}" does NOT re-evaluate the
+# expanded value — if CLOSES_LINE contains literal "$(rm -rf ~)" (e.g. user typed
+# it into the orphan-PR or multi-issue prompt), or ATTRIBUTION carries a configured
+# `$`-bearing custom line, it stays a literal string and is never executed. This is
+# the defense against shell injection through user-supplied prompt input and
+# configured text.
 BODY=""
 [[ -n "$CLOSES_LINE" ]] && BODY="${CLOSES_LINE}"$'\n\n'
 BODY+="$TEMPLATE"
+[[ -n "$ATTRIBUTION" ]] && BODY+=$'\n\n'"$ATTRIBUTION"
 ```
 
-**Why quoted heredoc + concat (not `<<EOF`):** unquoted heredoc `<<EOF` evaluates `$(...)`, `${...}`, and `` `...` `` *inside the body content itself* (POSIX heredoc semantics — `<<EOF` is treated as if double-quoted). If `${CLOSES_LINE}` ever contains shell-meta from interactive prompt input, an unquoted heredoc would execute it. Quoted `<<'EOF'` is inert; splicing `${CLOSES_LINE}` via parameter expansion + concat keeps user input as literal text.
+**Why quoted heredoc + concat (not `<<EOF`):** unquoted heredoc `<<EOF` evaluates `$(...)`, `${...}`, and `` `...` `` *inside the body content itself* (POSIX heredoc semantics — `<<EOF` is treated as if double-quoted). If `${CLOSES_LINE}` ever contains shell-meta from interactive prompt input, or `${ATTRIBUTION}` carries a configured custom line, an unquoted heredoc would execute it. Quoted `<<'EOF'` is inert; splicing `${CLOSES_LINE}` and `${ATTRIBUTION}` via parameter expansion + concat keeps both as literal text. The attribution line is deliberately spliced *outside* the heredoc rather than embedded inside it so that a `pr_body_attribution` value resolved from config never re-enters shell evaluation.
 
 `gh pr create --body` fully overrides `.github/PULL_REQUEST_TEMPLATE.md` (cli/cli #10751) — body assembly above is the canonical path for skill-driven PRs; the template is the web-UI backstop. When the consuming project ships a PR template, mirror its section shape in the assembled body.
+
+**Linkage scaffolds — always emitted.** Two scaffolds mirror the two-part contract a `pr-issue-linkage`-style gate enforces (a non-empty `## Related` section AND a native GitHub closing keyword or `No related issue:` opt-out), so a skill-driven PR clears that gate on first push instead of burning a red-CI round-trip:
+
+- **Closing-keyword line** (`${CLOSES_LINE}` at top): always populated by §2.4.0 (branch-derived `Closes #N`, the multi-issue prompt, or the orphan-PR opt-out) and asserted by the §2.4.2 gate before create — a required, always-present scaffold, not a conditional decoration.
+- **`## Related` section**: defaults to the literal `N/A` so the section is non-empty by default. Replace `N/A` with genuinely related-but-not-closed references — sibling PRs, ADRs, or decision-log entries (`Refs #N — <why>`, matching the repo's own `## Related` convention) — whenever they exist; leave `N/A` only when nothing else applies. The issue this PR *closes* belongs on the closing-keyword line, not here.
+
+A `Refs #N` line links an issue without closing it and belongs in the `## Related` section, never on the closing-keyword line: it satisfies the closing-keyword half of **neither** the §2.4.2 pre-create gate nor the real `pr-issue-linkage` validator — only a real closing keyword or a literal `No linked issue` / `No related issue:` phrase does. When the branch resolves a real `Closes #N` (the common path) both halves pass; a PR that closes nothing needs a `No related issue:` line to clear the gate.
 
 ### 2.4.2 Verify closing-keyword line (pre-create gate)
 
@@ -200,7 +259,10 @@ Before invoking `gh pr create`, grep assembled `$BODY` for a valid closing keywo
 # linked-issues docs. The 3-keyword shortcut (Closes|Fixes|Resolves)
 # misses 6 valid forms GitHub auto-close honors.
 KEYWORD_REGEX='^(close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved):? #[0-9]+'
-OPTOUT_REGEX='^(Refs #[0-9]+|No related issue:)'
+# Only `No related issue:` — a bare `Refs #N` links without closing and does NOT
+# satisfy the real pr-issue-linkage validator's closing-keyword half, so accepting
+# it here would clear a body the CI gate then rejects.
+OPTOUT_REGEX='^No related issue:'
 
 if printf '%s\n' "$BODY" | grep -iE "$KEYWORD_REGEX" >/dev/null; then
   :  # closing keyword present — gate passes
@@ -210,14 +272,14 @@ else
   # No closing keyword AND no opt-out marker. §2.4.0's orphan-PR prompt
   # should have populated one. If we reach here, either the prompt was
   # skipped or `$CLOSES_LINE` is empty.
-  echo "⚠ PR body lacks a closing keyword (Closes/Fixes/Resolves #N, case-insensitive, optional colon) AND no opt-out marker (Refs #N / No related issue:)." >&2
-  echo "  Re-run §2.4.0's orphan-PR prompt to choose: Closes #N | Refs #N | No related issue: <reason>" >&2
+  echo "⚠ PR body lacks a closing keyword (Closes/Fixes/Resolves #N, case-insensitive, optional colon) AND no opt-out marker (No related issue:)." >&2
+  echo "  Re-run §2.4.0's orphan-PR prompt to choose: Closes #N | No related issue: <reason>" >&2
   echo "  Aborting PR creation. (Silent proceed would orphan the PR from any tracked issue.)" >&2
   exit 1
 fi
 ```
 
-When user explicitly selected `Refs #<N>` or `No related issue: <reason>` in §2.4.0, gate passes silently — opt-out is a legitimate path for refactors, drift sweeps, and hotfixes. Gate exists to catch the case where §2.4.0 fell through without populating `$CLOSES_LINE`.
+When user explicitly selected `No related issue: <reason>` in §2.4.0, the gate passes silently — the opt-out is a legitimate path for refactors, drift sweeps, and hotfixes. Gate exists to catch the case where §2.4.0 fell through without populating `$CLOSES_LINE`.
 
 ### 2.4.3 Create PR
 
@@ -230,8 +292,8 @@ When user explicitly selected `Refs #<N>` or `No related issue: <reason>` in §2
 # `--reviewer`. Reviews come from whatever AI reviewers the repo wires up
 # and any humans who opt in.
 # Title shape: whatever the resolved subject/title convention requires
-# (Conventional Commits default shown; a custom .claude/source-control.md
-# pattern or the project's own convention overrides this).
+# (Conventional Commits default shown; a custom resolved pr_title_pattern
+# or the project's own convention overrides this).
 PR_URL=$(gh pr create --title "<type>: <description>" --body "$BODY")
 
 # Extract PR number from URL (gh pr create outputs the URL on success).

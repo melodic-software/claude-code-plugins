@@ -372,10 +372,36 @@
       "allowedInputs": ["runner", "paths"],
       "allowedSecrets": {}
     },
+    "melodic-software/ci-workflows/.github/workflows/zizmor.yml@31a5b76c4a0b663023dc1c944e2bcfc01d6f6c46": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner", "paths", "fail-on-severity"],
+      "allowedSecrets": {}
+    },
     "melodic-software/ci-workflows/.github/workflows/osv-scanner.yml@90f1c54935203fa31b5b3d1f41531228be2c2b7f": {
       "routing": "runner-input",
       "runnerInput": "runner",
       "allowedInputs": ["runner"],
+      "allowedSecrets": {}
+    },
+    "melodic-software/ci-workflows/.github/workflows/claude-security-review.yml@0a5fd4c578f2a6278fdc0e586b8e08392e64299a": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner", "skip-actors"],
+      "allowedSecrets": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}"
+      },
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "pull-requests": "write",
+        "id-token": "write"
+      }
+    },
+    "melodic-software/ci-workflows/.github/workflows/pr-issue-linkage.yml@d7734df8c557084edc2df7cf578cf62ad2f261e4": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "selectorResultInput": "prerequisite-result",
+      "allowedInputs": ["runner", "prerequisite-result", "exempt-authors"],
       "allowedSecrets": {}
     }
   },
@@ -404,7 +430,7 @@
     "default": "ubuntu-24.04",
     "failureSentinel": "ci-runner-selection-failed"
   },
-  "fallbackLabelAllowlist": ["ubuntu-24.04"],
+  "fallbackLabelAllowlist": ["ubuntu-24.04", "melodic-ubuntu-24.04-x64"],
   "forbiddenHostedRunnerLabels": ["macos-latest", "ubuntu-latest", "windows-latest"],
   "managedLabelPatterns": [
     "(?:^|[^a-z0-9-])(?:melodic|kyle)-(?:[a-z0-9]+-)*ubuntu-24\\.04-x64(?:-[a-z0-9-]+)?(?:$|[^a-z0-9-])"

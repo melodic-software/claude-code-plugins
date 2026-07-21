@@ -362,9 +362,30 @@ git checkout "$PARKING_BRANCH"
 At the end of each iteration, schedule the next wake. Cadence has one owner: the engine
 recommends, this loop schedules.
 
-**Engine-backed runs (Python present):** derive the wake interval from the snapshot's
-`recommended_cadence` — `active` 5 minutes, `normal` 15 minutes, `quiet` hourly, `idle` daily —
-per [cadence.md](cadence.md)'s states and thresholds.
+**Engine-backed runs (Python present):** the snapshot's `recommended_cadence` is the cadence
+signal — map it directly to a concrete `ScheduleWakeup.delaySeconds`. The states behind each value
+live in [cadence.md](cadence.md); this table owns the seconds:
+
+| `recommended_cadence` | `ScheduleWakeup.delaySeconds` |
+|-----------------------|-------------------------------|
+| `active`              | 300                           |
+| `normal`              | 900                           |
+| `quiet`               | 3600                          |
+| `idle`                | 3600 (ceiling — see caveat)   |
+
+**This mapping ALWAYS wins** over the generic `/loop` skill's own delay-picking heuristic whenever
+a snapshot supplies `recommended_cadence`. Read the field out of the snapshot/state JSON and
+schedule from this table — do not fall back to the generic skill's "lean 1200–1800s" range. In
+babysit dynamic mode the `ScheduleWakeup` delay **is** the primary cadence signal, not a fallback
+heartbeat sitting behind some other armed wake event, so the generic skill's heartbeat framing does
+not apply here: an `active` cycle schedules at 300s, never 1200–1800s.
+
+**Idle ceiling (a true daily cadence cannot run in single-session `/loop`).** `ScheduleWakeup`
+clamps `delaySeconds` to `[60, 3600]`, so cadence.md's `idle` = daily (86400s) truncates to the
+3600s ceiling — the same wake interval as `quiet`. This is a documented limitation, not a silent
+truncation: within `/loop`, `idle` and `quiet` both wake hourly. A genuine daily babysit cadence
+needs the durable `/schedule` cron mechanism (a scheduled routine on a real cron interval), not a
+single-session `/loop` wakeup — reach for `/schedule` when that is what is wanted.
 
 **Python-free degrade ladder** (no snapshot available this iteration):
 

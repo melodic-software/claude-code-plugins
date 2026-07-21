@@ -1,6 +1,34 @@
 # Changelog — discovery plugin
 
-## 0.7.3 — 2026-07-19
+## [0.8.1] — 2026-07-20
+
+### Changed
+
+- Documentation-only: the License section now states the plugin's own MIT
+  license inline and no longer points at a `LICENSE` file at the repository
+  root, which an installed consumer running from the isolated plugin cache
+  cannot reach. No behavior change.
+
+## [0.8.0] — 2026-07-20
+
+### Added
+
+- **`/discovery:blindspot` — blindspot mode extracted from `/discovery:explore` into its own skill.**
+  Surfacing the USER's unknown-unknowns before they work in unfamiliar territory (a codebase area or a
+  domain vocabulary) is a distinct responsibility with a distinct output contract — blindspot cards and
+  one improved prompt, no `EXPLORE.md`, and the explore outcome gate skipped — that had been grafted onto
+  explore. It now lives in `skills/blindspot/` with its own frontmatter, workflow, and evals.
+
+### Changed
+
+- **`/discovery:explore` is trimmed back to its core responsibility** — codebase investigation, the
+  `EXPLORE.md` handoff artifact, and the outcome gate. The blindspot mode/table row, its two artifact-skip
+  clauses in the outcome gate and final step, and the blindspot domain-lane research carve-out are removed;
+  a one-line pointer to the sibling `/discovery:blindspot` skill replaces the extracted section. Cross-plugin
+  references (`plugins/discovery/README.md`, `plugins/planning/skills/interview/SKILL.md`) now point at the
+  new skill.
+
+## [0.7.3] — 2026-07-19
 
 ### Fixed
 
@@ -11,7 +39,7 @@
   current working directory when no repo root exists. The live root stays available for resolving
   files while working; it is never echoed into the handoff, so `EXPLORE.md` stays machine-agnostic.
 
-## 0.7.2 — 2026-07-19
+## [0.7.2] — 2026-07-19
 
 ### Changed
 
@@ -21,7 +49,7 @@
   write path — replacing the dead `docs/adr/…` reference that resolves to nothing in the
   cache-isolated installed plugin. Behavior is unchanged; gitbook stays deferred and non-writable.
 
-## 0.7.0 — 2026-07-18
+## [0.7.0] — 2026-07-18
 
 ### Changed
 
@@ -34,7 +62,7 @@
   interview, so headless and CI use are possible. The ignore guard, the gitbook-deferred
   handling, and the never-edit-root-`.gitignore` rule are unchanged.
 
-## 0.6.0 — 2026-07-17
+## [0.6.0] — 2026-07-17
 
 ### Changed
 
@@ -45,7 +73,7 @@
   artifacts there directly; only workers dispatched into their own checkout return findings by
   value for the parent to write.
 
-## 0.5.1 — 2026-07-15
+## [0.5.1] — 2026-07-15
 
 ### Fixed
 
@@ -54,7 +82,7 @@
   and states that durable writes still target `docs`; the skill never configures or tests a GitBook
   API, MCP, or Git Sync writer.
 
-## 0.5.0 — 2026-07-15
+## [0.5.0] — 2026-07-15
 
 ### Added
 
@@ -65,7 +93,7 @@
   doubled phase/query/source minimums (SKILL.md item 8, discipline.md's "Broad-topic
   auto-detect").
 
-## 0.4.0 — 2026-07-14
+## [0.4.0] — 2026-07-14
 
 Adopt the marketplace topic-docs convention, contract v1.0.0
 (<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>):

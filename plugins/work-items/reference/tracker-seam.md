@@ -25,9 +25,12 @@ TRACKER="${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/work-item-tracker.sh"
 "$TRACKER" <verb>
 ```
 
-The executable snippets in each action resolve `"$TRACKER"` that way, then invoke it. Two entry-point
-presence checks are required for correctness before an invocation's first verb, each stopping with its
-remediation rather than failing mid-action:
+The executable snippets in each action resolve `"$TRACKER"` that way, then invoke it. Three entry
+invariants are checked before an invocation's first verb. The first two — `jq` and the seam script —
+have **no recovery path**, so each stops with its remediation rather than failing mid-action. The
+third — the provider **binding** — is discharged differently: a missing binding blocks only seam
+**coordination** verbs, never the provider-mechanic operations that run as raw `gh`, so it warns and
+routes rather than halting unconditionally.
 
 - **`jq`** (`command -v jq`) — the actions' snippets parse with it unconditionally. Missing: stop
   and surface the install remediation (<https://jqlang.org/download/>; a separate install under Git
@@ -37,12 +40,38 @@ remediation rather than failing mid-action:
   plugin install is incomplete — stop and surface that the plugin must be reinstalled or repaired,
   rather than improvising provider commands. `/work-items:setup` binds the provider and configures the
   recurring schedule and label remaps but does NOT create the seam.
+- **The provider binding** (`.work-item-tracker.json` at the project root — `/work-items:setup` seeds
+  it). Unlike the two above, a missing binding has a legitimate recovery path, so it is **loud and
+  actionable, never a silent default and never a raw mid-flow `exit 3`** — but it does not halt the
+  invocation unconditionally:
+  - **Seam coordination verbs** (`create-item`, `get-item`, `claim`, `renew-lease`, `reclaim`,
+    `link-blocks`, `add-sub-item`, `list-sub-items`, `list-frontier`, `capabilities`) cannot run
+    without a binding — the seam hard-errors `exit 3`
+    (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Exit codes"). Before the first
+    coordination verb, if no binding resolves, surface a message that distinguishes the two ways to
+    arrive here rather than dead-ending on the raw `exit 3`: **(1) setup was never run** → run
+    `/work-items:setup` to bind the provider; **(2) a deliberate gh-native operating mode** → the lane
+    may proceed for provider-mechanic operations only, accepting that **no race-safe claim/lease is
+    available** — the seam coordination verbs stay unavailable and claim collisions become the
+    operator's responsibility.
+  - **Provider-mechanic operations** (list/search/aggregate, close, label/assignee/comment edits) run
+    as raw `gh` per the bound adapter's operations reference and never read the binding, so they
+    proceed unbound. Their only degradation is canonical-role resolution, which falls to defaults
+    **with a loud warning** ("Role-label resolution is an action-entry invariant" below).
+  - **Caveat — the gh-native path presumes a `gh`-backed provider.** A `local-markdown` target with no
+    binding has no `config.storage_dir` and cannot proceed at all; there a missing binding is a hard
+    stop, not a gh-native fallback.
 
-The repo's active provider is bound in `.work-item-tracker.json` at the project root — the setup skill
-seeds it. Adapters resolve the opposite way — **consumer-local-first, plugin-bundled fallback**
+  Formally documenting a first-class gh-native **claim** path (assignee-only, no lease) for
+  coordination-*dependent* lanes such as `/work-items:work` — so they too can run unbound instead of
+  stopping at the coordination check — is a separate decision deferred with the same trigger as the
+  full remote-repo mode (someone needs unattended coordination-dependent work at scale). This
+  invariant's job is only to make a missing binding loud and routable, never silent.
+
+Adapters resolve the opposite way — **consumer-local-first, plugin-bundled fallback**
 (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Adapter resolution") — so a repo can add
 an unshipped provider or shadow a bundled one without forking the plugin. Coordination — create, claim
-(assignee + lease), lease renew/reclaim, dependency links, sub-items, frontier selection, single-item
+(assignee + lease), lease renew/reclaim, dependency links, sub-items, child enumeration, frontier selection, single-item
 fetch — uses seam verbs directly. Operations without a core verb (listing with arbitrary filters,
 search, aggregation, close, label/comment edits) are provider-specific; for the bound GitHub adapter
 their mechanics live in `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md`. The
@@ -55,7 +84,7 @@ ways:
 
 | Kind | Where |
 |------|-------|
-| **Coordination** — create, claim (assignee + lease), renew/reclaim lease, dependency links, sub-items, frontier selection, single-item fetch | Seam verbs: the resolved `"$TRACKER" <verb>` dispatcher — contract in `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` |
+| **Coordination** — create, claim (assignee + lease), renew/reclaim lease, dependency links, sub-items, child enumeration (`list-sub-items`), frontier selection (incl. `--parent`-scoped), single-item fetch | Seam verbs: the resolved `"$TRACKER" <verb>` dispatcher — contract in `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` |
 | **Provider mechanics** — list with filters, search, aggregate/count, close, label/assignee edits, comments | The bound adapter's operations reference (GitHub: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md`) |
 
 Coordination claims are race-safe at the seam (assignee + lease comment; `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Lease protocol") — the retired hold→verify→claim label dance is gone. Reads are non-mutating; writes route through the adapter's identity policy.
@@ -99,7 +128,10 @@ from the tracker binding's `config.role_labels` (defaults `agent-ready` / `needs
 
 At the start of every action that queries, creates, or filters items by a canonical role, read
 `.work-item-tracker.json` and resolve each role the action uses from `config.role_labels`; an absent
-file or absent entry uses the documented default. Keep those resolved strings for that invocation and
+file or absent entry falls back to the documented default **with a loud warning** — surface that the
+binding (or that role's entry) is absent and the role is running under its default, a real correctness
+risk when the consuming repo remapped `config.role_labels`, rather than substituting silently. Keep
+those resolved strings for that invocation and
 use them in every adapter query and core-side label comparison. Never put a default literal such as
 `recurring` into a provider query after the role has been remapped. A present binding with invalid
 JSON, a non-string role value, or an empty role value is a configuration error: stop and report it

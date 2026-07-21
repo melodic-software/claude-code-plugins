@@ -28,5 +28,7 @@ Commit after each of these milestones:
 
 ## Marketplace plugin skills (invoke only when installed)
 
+These are .NET-ecosystem plugin skills — invoke each only when your stack is .NET and its plugin is installed; otherwise fall back to the project's own scaffolding tooling:
+
 - **`dotnet-ai:mcp-csharp-create`** — when implementing a new C# MCP server, invoke for scaffolding guidance (project templates, tool/prompt/resource implementation, stdio and HTTP transport configuration)
 - **`dotnet-template-engine:template-instantiation`** — when creating a new .NET project, invoke for template selection with CPM adaptation and latest NuGet version resolution

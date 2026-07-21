@@ -3,6 +3,97 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.1]
+
+### Changed
+
+- **`plan` Step 2 no longer re-derives design inline.** The design-default axes
+  walk and build-technique selection edged into `/planning:design` territory,
+  contradicting the skill's own "consume design artifacts — do not re-derive
+  design inline" rule. The design-default checklist is now framed as an **audit
+  against the plan** (confirming the plan carries design's resolved
+  configurability / extension-point / observability / testability threads and
+  type-collaboration shape, owned by `design`'s "Design defaults") rather than a
+  fresh derivation — matching `design-handoff`'s existing "walks its
+  design-default checklist against the plan" handoff language. Magic-literal
+  hygiene stays plan's own review check. Build-technique selection now routes
+  design / viability / raw-feasibility uncertainty **upstream** (`/planning:design`
+  or a `/prototype:pressure-test` spike) and has plan consume the outcome,
+  keeping only the kept-slice integration sequencing as plan's own call.
+  Documentation-only; no behavior change (#265).
+
+## [0.23.0]
+
+### Added
+
+- **`interview` recommends the downstream session's model, effort, and advisor.**
+  The interview already reads task complexity and ambiguity to drive its rounds; at
+  the stop/handoff boundary it now turns that read into a recommendation for how the
+  execution session should be configured — a **model tier** (capability: raise when
+  the assistant would be confidently wrong despite full context) and an **effort
+  level** (thoroughness: raise when it would under-explore or under-verify) picked per
+  the official distinction, plus the **advisor** pairing when the main model is a
+  faster tier (a faster main without a stronger advisor is not the recommended config
+  for non-trivial work). The current model names, tiers, and accepted pairings are
+  read **live** from the official docs each run and never pinned in the skill (the
+  durable distinction is stable; the names drift) — mirroring `draft-goal-condition`'s
+  live-doc discipline. A doc-fetch failure **degrades, never halts**: it falls back to
+  the durable distinction with a visible note rather than guessing a model name. The
+  recommendation is advisory (applied via `/model`, `/advisor`, the effort setting),
+  fires for engineering and general sessions alike, and carries an inverse mid-task
+  direction (surface "too complex for the current model/effort" when execution
+  warrants). Detail in the new `skills/interview/context/session-config.md` (#231).
+
+## [0.22.3]
+
+### Changed
+
+- Documentation-only: the License section now states the plugin's own MIT
+  license inline and no longer points at a `LICENSE` file at the repository
+  root, which an installed consumer running from the isolated plugin cache
+  cannot reach. No behavior change.
+
+## [0.22.2]
+
+### Changed
+
+- Cited `/testing:plan`'s test-type classification table as the single source of
+  truth for which test type a given change needs (unit / integration / e2e /
+  architecture / analyzer). The `plan` skill's Step 2 test-strategy guidance (and its
+  `plan-template.md`) and the `design` skill's test-seam posture thread now point at
+  that table instead of letting a competing test-type take grow in each site. Pointer
+  only; no restated table, no behavior change (#264).
+
+## [0.22.1]
+
+### Changed
+
+- Broadened the `interview` skill's "Facts are yours; decisions are the user's"
+  discipline: the environment an agent resolves facts from is not only the working
+  tree. When a task NAMES an external repo or resource — a sibling checkout under a
+  known repo root / workspace layout, or an `owner/repo` reachable through its host —
+  that is a resolvable fact too, so the agent checks the filesystem layout and queries
+  the repo host directly before defaulting to a user question. Kept as a cue, not a
+  mandate. Guidance only; no behavior change.
+
+## [0.22.0]
+
+### Added
+
+- **New skill `draft-goal-condition`** — crafts a paste-ready `/goal` completion
+  condition from a stated intent. It reads the **current** official `/goal` docs
+  live for the condition shape and character limit (nothing is hardcoded, so the
+  skill does not rot when the documented contract changes between Claude Code
+  versions), gates the draft to the doc's transcript-demonstrable effective-condition
+  shape, and — because a model cannot reliably count characters — proves the draft
+  fits the limit with a deterministic counter rather than estimation. Includes a
+  lever-fit gate (step 0) that routes interval-shaped work to `/loop` and
+  cloud/sessionless work to routines/`/schedule` instead of authoring a goal.
+- **New plugin-root script `scripts/goal-condition-length.sh`** (with companion
+  `goal-condition-length.test.sh`) — a mechanical, model-free character-length
+  gate. The limit is passed in by the caller (read live from the docs), never
+  baked into the script; exit `0` within limit, `1` over, `2` usage/env error.
+
 ## [0.21.2]
 
 ### Added

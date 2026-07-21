@@ -3,6 +3,30 @@
 All notable changes to the `codebase-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0]
+
+### Changed
+
+- **BREAKING: `audit` stops at the Phase 3 report and delegates remediation.** The
+  inline fix/verify/self-review/retrospect phases (formerly Phases 4–7) are removed —
+  they duplicated lanes owned end-to-end by other plugins. Fixing now routes to
+  `/implementation:implement` and verification to `/verification:confirm`, referenced as
+  soft dependencies (used when installed). `--fix` no longer fixes inline; it hands the
+  Phase 3 findings off to those lanes, and when they are absent the findings table is the
+  manual handoff (never re-inlined). The audit's codebase-health-specific outputs are
+  preserved: the Config Drift → Missing Enforcement → Code Quality → Doc Drift fix order
+  travels with the Phase 3 "Fix priority" section, and post-audit config-gap observations
+  worth persisting via `/codebase-health:setup` fold into Phase 3's required sections.
+
+## [0.6.2]
+
+### Changed
+
+- Documentation-only: the License section now states the plugin's own MIT
+  license inline and no longer points at a `LICENSE` file at the repository
+  root, which an installed consumer running from the isolated plugin cache
+  cannot reach. No behavior change.
+
 ## [0.6.1]
 
 ### Changed

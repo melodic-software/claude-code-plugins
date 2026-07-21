@@ -1,9 +1,10 @@
 # session-flow
 
-A Claude Code plugin bundling seven skills for one cohesive capability: managing the lifecycle of a
+A Claude Code plugin bundling eight skills for one cohesive capability: managing the lifecycle of a
 working session — where you are in the work, how to pause and resume it, how to recover it after an
 interruption, how to leave it durable before the machine goes away, whether its assumptions are
-still current, what to learn from it, and how to arm it for delegation-heavy tasks.
+still current, what to learn from it while it runs and after, and how to arm it for delegation-heavy
+tasks.
 
 | Skill | Question it answers |
 |---|---|
@@ -12,6 +13,7 @@ still current, what to learn from it, and how to arm it for delegation-heavy tas
 | `/session-flow:keep-going` | We were interrupted — what was running, what survived, and where does the main task continue? |
 | `/session-flow:clean-stop` | Before I lose this machine — is everything durable and linked, or is something stranded? |
 | `/session-flow:retro` | What happened this session, what did we learn, and how do we codify it? |
+| `/session-flow:running-retro` | Mid-flight: how is this session going, what is drifting, and what should change before it costs more? |
 | `/session-flow:orchestrate` | How do I arm this session (or a spawned worker) with proactive-orchestration imperatives? |
 | `/session-flow:reanchor` | Are this session's assumptions still true, or has reality moved under them? |
 
@@ -87,16 +89,36 @@ to direct `git` / `gh`.
 
 ### retro
 
-Structured session retrospective: extracts transcript metrics via a bundled stdlib-only parser
-(multi-session-aware — walks the handoff chain), assesses quality across five dimensions against
-the consuming repo's own conventions, checks Claude Code auto-memory for feedback regressions, and
-codifies user-approved learnings. Health scores persist across sessions for trend analysis.
+Structured end-of-session retrospective: extracts transcript metrics via a bundled stdlib-only
+parser (multi-session-aware — walks the handoff chain), assesses quality across five dimensions
+against the consuming repo's own conventions, checks Claude Code auto-memory for feedback
+regressions, and codifies user-approved learnings. Health scores persist across sessions for trend
+analysis.
 
 ```shell
 /session-flow:retro            # full 5-phase analysis (default)
 /session-flow:retro codify     # persist a specific mid-session learning
 /session-flow:retro trends     # cross-session score history
 /session-flow:retro quick      # abbreviated, for limited context
+```
+
+### running-retro
+
+The live counterpart to `retro`: an in-flight retrospective checkpoint taken *while the work is
+still going*, rather than after. Zero-arm — nothing to set up in advance, because the on-disk
+transcript is lossless across compaction (the same record `retro`'s parser reads). The main agent
+adds a 2-3 line subjective-state note (the one signal disk cannot hold), then delegates the analysis
+to a fresh subagent that runs `retro`'s parser, selectively reads the flagged transcript spans, and
+classifies each finding by category and suggested resolution route (CLAUDE.md fix / rule fix / skill
+change / new-skill candidate / tracker issue). Findings append to a cumulative running ledger — one
+stable file per session chain, memory-tier, never committed (`.work/running-retros/` by default via
+`reference/topic-docs.md`). It captures and routes only: codification stays with `retro codify`,
+tracker filing is offered not automatic, the session is never scored, and it is non-terminating
+(unlike `handoff`, it does not `/clear`). Composes with `/loop` for periodic checkpoints.
+
+```shell
+/session-flow:running-retro            # checkpoint: note → delegate → classify → append → offer routes
+/session-flow:running-retro phase-3    # same, naming the ledger topic slug
 ```
 
 ### orchestrate
@@ -154,13 +176,15 @@ The skills adapt to the consuming repo rather than imposing structure:
 ## Configuration
 
 No `userConfig`. State: retro score history persists under the plugin's `${CLAUDE_PLUGIN_DATA}`
-directory (per-project files) — never in the consumer's repo. Handoff save-points are memory-tier
-working files in the consumer's project (`.work/handoffs/` by default) — machine-local, never
-committed. Network: two skills reach the network. `reanchor` queries live host state via `git`/`gh`
+directory (per-project files) — never in the consumer's repo. Handoff save-points
+(`.work/handoffs/` by default) and running-retro ledgers (`.work/running-retros/` by default) are
+memory-tier working files in the consumer's project — machine-local, never committed. Network: two
+skills reach the network. `reanchor` queries live host state via `git`/`gh`
 to verify a session's referenced PRs/issues/branches and installed-vs-repo plugin versions, and
 degrades to reporting what it could not verify when that authenticated egress is unavailable.
 `clean-stop` pushes unpushed commits and creates or updates PRs and issues over the network via
 `git push` and `gh` — routing through whatever pull-request / work-item capabilities are installed
-and falling back to direct `git`/`gh` — to make session work durable on the remote. The other five
-skills — workflow, handoff, keep-going, retro, and orchestrate — are network-free (the retro
-transcript parser is stdlib-only Python 3.10+ reading local `~/.claude/projects/` transcripts).
+and falling back to direct `git`/`gh` — to make session work durable on the remote. The other six
+skills — workflow, handoff, keep-going, retro, running-retro, and orchestrate — are network-free
+(both retro and running-retro use the same stdlib-only Python 3.10+ parser reading local
+`~/.claude/projects/` transcripts).

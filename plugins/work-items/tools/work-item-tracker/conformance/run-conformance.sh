@@ -117,6 +117,10 @@ done
 if ! verb_supported list-items; then
   wit_case "unsupported list-items gates list-frontier → exit 6" 6 list-frontier
 fi
+if ! verb_supported list-sub-items; then
+  wit_case "unsupported list-sub-items → exit 6" 6 list-sub-items "$FAKE_ID"
+  wit_case "unsupported list-sub-items gates list-frontier --parent → exit 6" 6 list-frontier --parent "$FAKE_ID"
+fi
 
 # --- create-item ---
 
@@ -169,6 +173,24 @@ if verb_supported add-sub-item && [[ -n "$ITEM_A_ID" && -n "$ITEM_B_ID" ]]; then
   wit_case "add-sub-item B under A" 0 add-sub-item "$ITEM_B_ID" --parent "$ITEM_A_ID"
   wit_case "get-item B sees parent" 0 get-item "$ITEM_B_ID"
   assert_eq "B parent_id" "$ITEM_A_ID" "$(jq -r '.parent_id' <<<"$WIT_OUT")"
+fi
+
+# --- sub-item enumeration + container-scoped frontier ---
+# B is now a child of A (add-sub-item above) and blocked by A (link-blocks
+# above), so it enumerates as A's child but is filtered out of A's scoped
+# frontier while still blocked.
+if verb_supported list-sub-items && verb_supported add-sub-item && [[ -n "$ITEM_A_ID" && -n "$ITEM_B_ID" ]]; then
+  wit_case "list-sub-items A" 0 list-sub-items "$ITEM_A_ID"
+  assert_schema_version "list-sub-items A"
+  assert_contains "A's children hold B" "$(jq -c '[.items[].id]' <<<"$WIT_OUT")" "$ITEM_B_ID"
+  assert_eq "enumerated child B is re-parented to A" "$ITEM_A_ID" \
+    "$(jq -r '.items[0].parent_id' <<<"$WIT_OUT")"
+  wit_case "list-sub-items malformed parent id → usage" 2 list-sub-items "not-an-id"
+
+  wit_case "list-frontier --parent A" 0 list-frontier --parent "$ITEM_A_ID"
+  assert_schema_version "list-frontier --parent A"
+  assert_not_contains "scoped frontier drops blocked child B" \
+    "$(jq -c '[.items[].id]' <<<"$WIT_OUT")" "$ITEM_B_ID"
 fi
 
 # --- frontier ---

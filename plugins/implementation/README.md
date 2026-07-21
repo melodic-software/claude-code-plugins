@@ -33,7 +33,8 @@ gracefully when absent — no hard dependencies:
   `<contract_dir>/<slug>/` (default `docs/topics/`), committed on the task branch and
   pruned before merge; working memory in the self-ignoring `<memory_dir>/` (default
   `.work/`). The tracked `.claude/topic-docs.yaml` concern file is the consumer-side
-  source of truth — the `toolchain` plugin's `/toolchain:setup` offers to write it.
+  source of truth — each lifecycle plugin's own setup (`/discovery:setup`,
+  `/planning:setup`, `/verification:setup`) offers to write it.
 - **Reads your conventions, assumes none.** Testing structure, commit conventions,
   branch policy, and project invariants come from your own `CLAUDE.md` and rules.
 - **Cross-plugin refs degrade gracefully.** Companion plugins (`toolchain`, `testing`,
@@ -72,10 +73,10 @@ self-verification — but installing the companion plugins restores the full for
 ## Configuration
 
 Artifact placement is governed by the tracked `.claude/topic-docs.yaml` concern file
-(see the topic-docs seam above); the `toolchain` plugin's `/toolchain:setup` interviews
-for and persists it. This plugin declares no userConfig options.
+(see the topic-docs seam above); each lifecycle plugin's own setup (`/discovery:setup`,
+`/planning:setup`, `/verification:setup`) interviews for and persists it. This plugin
+declares no userConfig options.
 
 ## License
 
-MIT (SPDX-License-Identifier: MIT). See the `LICENSE` file at the root of the
-melodic-software/claude-code-plugins repository.
+MIT (SPDX-License-Identifier: MIT).

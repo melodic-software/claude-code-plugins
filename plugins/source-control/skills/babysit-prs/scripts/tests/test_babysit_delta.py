@@ -178,6 +178,111 @@ class ForeignActivityTests(unittest.TestCase):
         self.assertFalse(result["detected"])
 
 
+class AttributionDriftTests(unittest.TestCase):
+    """A recorded write landing under a self-login other than the intended one."""
+
+    def _config(self, intended: str = "bot") -> delta.ClassifyConfig:
+        return delta.ClassifyConfig(
+            allowed_owners=frozenset({"owner"}),
+            self_logins=frozenset({"bot", "personal"}),
+            intended_write_identity=intended,
+        )
+
+    def _ledger_prev(self) -> dict[str, object]:
+        return {"review_trigger": {"request_history": {HEAD: {"comment_id": "100"}}}}
+
+    def _recorded_write(self, author: str) -> dict[str, object]:
+        return make_pr(comments=[{"author": {"login": author},
+                                  "body": "please review", "databaseId": 100}])
+
+    def test_dormant_without_intended_identity(self) -> None:
+        pr = self._recorded_write("personal")
+        result = delta.detect_attribution_drift(pr, self._ledger_prev(),
+                                                self._config(intended=""))
+        self.assertFalse(result["detected"])
+
+    def test_detects_recorded_write_landed_under_other_self_login(self) -> None:
+        pr = self._recorded_write("personal")
+        result = delta.detect_attribution_drift(pr, self._ledger_prev(),
+                                                self._config())
+        self.assertTrue(result["detected"])
+        self.assertEqual(result["evidence"][0]["landed_author"], "personal")
+        self.assertEqual(result["evidence"][0]["intended_author"], "bot")
+
+    def test_no_drift_when_landed_under_intended_identity(self) -> None:
+        pr = self._recorded_write("bot")
+        result = delta.detect_attribution_drift(pr, self._ledger_prev(),
+                                                self._config())
+        self.assertFalse(result["detected"])
+
+    def test_unledgered_write_is_not_drift(self) -> None:
+        pr = self._recorded_write("personal")
+        result = delta.detect_attribution_drift(pr, None, self._config())
+        self.assertFalse(result["detected"])
+
+    def test_drift_surfaces_as_material_finding_via_classify(self) -> None:
+        # Acceptance path: the finding must ride the cycle-status material
+        # channel, not merely the raw detector return -- and with no gh-bot.sh
+        # (token wrapper) in the loop at all.
+        pr = self._recorded_write("personal")
+        prev = make_prev(review_trigger={"request_history":
+                                         {HEAD: {"comment_id": "100"}}})
+        result = delta.classify_pr(pr, prev, None, OBS, config=self._config())
+        self.assertTrue(result["attribution_drift"]["detected"])
+        self.assertTrue(
+            any("attribution drift" in finding
+                for finding in result["material_findings"]),
+            result["material_findings"],
+        )
+
+
+STUCK_ORPHAN = {"__typename": "StatusContext", "context": "codex-review",
+                "state": "PENDING", "targetUrl": ""}
+
+
+class StuckCheckSignalTests(unittest.TestCase):
+    """A stuck check reports as a material finding, never a new blocker."""
+
+    def test_stuck_check_is_material_never_a_blocker(self) -> None:
+        pr = make_pr(mergeStateStatus="UNSTABLE", statusCheckRollup=[STUCK_ORPHAN])
+        result = classify(pr, None)
+        stuck = result["checks"]["stuck"]
+        self.assertEqual(len(stuck), 1)
+        self.assertEqual(stuck[0]["class"], "orphaned_status")
+        self.assertTrue(
+            any("UNSTABLE without completing" in finding
+                for finding in result["material_findings"]),
+            result["material_findings"],
+        )
+        # The stuck signal must never introduce a blocker string: a blocker
+        # would re-pin the PR active and re-dispatch a worker every cycle.
+        self.assertFalse(
+            any("UNSTABLE without completing" in blocker
+                or "orphan" in blocker.lower()
+                for blocker in result["blockers"]),
+            result["blockers"],
+        )
+        # The pre-existing pending-check blocker is left untouched.
+        self.assertTrue(
+            any("pending check" in blocker for blocker in result["blockers"]),
+            result["blockers"],
+        )
+
+    def test_stuck_absent_when_not_unstable(self) -> None:
+        pr = make_pr(mergeStateStatus="CLEAN", statusCheckRollup=[STUCK_ORPHAN])
+        result = classify(pr, None)
+        self.assertEqual(result["checks"]["stuck"], [])
+        self.assertFalse(
+            any("UNSTABLE without completing" in finding
+                for finding in result["material_findings"])
+        )
+
+    def test_checks_stuck_field_always_present(self) -> None:
+        result = classify(make_pr(), None)
+        self.assertIn("stuck", result["checks"])
+        self.assertEqual(result["checks"]["stuck"], [])
+
+
 class SuppressibleDeltaArmTests(unittest.TestCase):
     """Each suppressible arm: reason present only when NOT direct-gate-ready."""
 
