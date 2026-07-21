@@ -74,7 +74,6 @@ internal rhyme generation.
 
 ## License
 
-MIT (SPDX-License-Identifier: MIT). See the LICENSE file at the root of the
-melodic-software/claude-code-plugins repository. Pat Pattison's books are cited as methodology
+MIT (SPDX-License-Identifier: MIT). Pat Pattison's books are cited as methodology
 sources; the plugin contains distilled craft guidance and short verified anchor quotes, not book
 text.
