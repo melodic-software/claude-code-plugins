@@ -1,5 +1,36 @@
 # Changelog — session-flow plugin
 
+## [0.12.4]
+
+### Fixed
+
+- retro / handoff: reconciled the "declared save-point" vocabulary mismatch between the
+  retro multi-session snippet and the handoff skill's "Where handoffs live". Both now
+  consistently name the CLAUDE.md/`.claude/rules`-inferred rung-2 value a **working-docs
+  convention** resolving the memory-tier ROOT (`memory_dir`) — never the full handoffs
+  path directly. Previously, a declared handoffs location such as `.claude/handoffs`
+  passed through retro's snippet doubled into `.claude/handoffs/handoffs` because the
+  snippet's "save-point convention" label implied a full location while its code appended
+  `/handoffs` to it. The snippet's env var is renamed `DECLARED_SAVEPOINT` ->
+  `DECLARED_MEMORY_DIR` to match. The snippet also no longer silently swallows a missing
+  handoff chain: an empty `ls` result now surfaces an explicit fallback message and drops
+  to the single-session parser form instead of passing an empty `--chain-from` value.
+
+## [0.12.3]
+
+### Changed
+
+- orchestrate: sharpened imperative 7's per-worker tiering into an explicit volume-based default.
+  Past a wide fan-out the cheaper tier is now the DEFAULT the whole fleet inherits (volume
+  multiplies every notch of over-provisioning), with an explicitly-hard stage (verify,
+  judge/adjudicate, judgment-heavy synthesis) as the standing exception that keeps the parent
+  tier — closing the residual enhancement from the spawn-inherit fix. Tier is also broadened
+  beyond model to reasoning effort: the doc-confirmed per-worker `effort` lever means a cheaper
+  tier can be a cheaper model, a lower effort, or both. Guidance stays model-/tool-agnostic in the
+  imperatives and export brief; the version-pinned platform specifics behind it (the fleet-model
+  inherit mechanism, the platform's own wide-run threshold, and the `effort` enum) are recorded as
+  citations in the skill's `context/sources.md`.
+
 ## [0.12.2]
 
 ### Changed

@@ -45,16 +45,22 @@ done
 
 # Multi-session form (handoff chain exists). Derive HANDOFF_DIR from the resolved
 # memory_dir via the shared parser (quote-aware, comment-safe). Resolution:
-# concern-file memory_dir key -> a save-point convention you inferred from
-# CLAUDE.md / .claude/rules (rung 2 — pass it as DECLARED_SAVEPOINT; prose is an
-# inference source, not a machine key) -> the plugin default .work. For the full
-# resolution order see the handoff skill's "Where handoffs live".
+# concern-file memory_dir key -> a working-docs convention you inferred from
+# CLAUDE.md / .claude/rules (rung 2 — pass it as DECLARED_MEMORY_DIR; prose is an
+# inference source, not a machine key) -> the plugin default .work. DECLARED_MEMORY_DIR
+# is a memory-tier ROOT, never a handoffs path directly — HANDOFF_DIR always appends
+# /handoffs below, at every rung, matching the handoff skill's "Where handoffs live".
 MEMORY_DIR=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/retro/scripts/parse-concern-value.sh" \
-  .claude/topic-docs.yaml memory_dir "${DECLARED_SAVEPOINT:-}")
+  .claude/topic-docs.yaml memory_dir "${DECLARED_MEMORY_DIR:-}")
 MEMORY_DIR="${MEMORY_DIR:-.work}"
 HANDOFF_DIR="$MEMORY_DIR/handoffs"
 NEWEST=$(ls -1 "$HANDOFF_DIR"/*-handoff-*.md 2>/dev/null | sort | tail -1)
-"$PY" "$PARSER" --chain-from "$NEWEST" --current-session "${CLAUDE_CODE_SESSION_ID}" --base "$SESSION_DATA_DIR"
+if [[ -z "$NEWEST" ]]; then
+  echo "No handoff files found under $HANDOFF_DIR — falling back to single-session form." >&2
+  "$PY" "$PARSER" --sessions "${CLAUDE_CODE_SESSION_ID}" --base "$SESSION_DATA_DIR"
+else
+  "$PY" "$PARSER" --chain-from "$NEWEST" --current-session "${CLAUDE_CODE_SESSION_ID}" --base "$SESSION_DATA_DIR"
+fi
 ```
 
 If `PY` resolves empty (no Python 3.10+ available), skip metrics extraction and note why. The

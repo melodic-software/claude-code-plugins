@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildChildEnv, parseRunArgs } from "./run-args.js";
+import { buildChildEnv, expandPathValue, parseRunArgs } from "./run-args.js";
 
 describe("parseRunArgs", () => {
   it("returns no flags when none are present", () => {
@@ -107,5 +107,54 @@ describe("buildChildEnv", () => {
     const base = { PATH: "/usr/bin" };
     buildChildEnv(base, { workRoot: "/proj" });
     expect(base).toEqual({ PATH: "/usr/bin" });
+  });
+});
+
+describe("expandPathValue", () => {
+  const home = "/srv/dev-home";
+
+  it("passes literal values through untouched", () => {
+    expect(expandPathValue("/data/corpus", {}, home)).toBe("/data/corpus");
+    expect(expandPathValue("docs/knowledge", {}, home)).toBe("docs/knowledge");
+    expect(expandPathValue("C:\\corpus", {}, home)).toBe("C:\\corpus");
+  });
+
+  it("expands a bare tilde and a tilde prefix to the home directory", () => {
+    expect(expandPathValue("~", {}, home)).toBe(home);
+    expect(expandPathValue("~/corpus", {}, home)).toBe("/srv/dev-home/corpus");
+    expect(expandPathValue("~\\corpus", {}, "C:\\dev-home")).toBe("C:\\dev-home\\corpus");
+  });
+
+  it("does not treat a ~user form as expandable", () => {
+    expect(expandPathValue("~other/corpus", {}, home)).toBe("~other/corpus");
+  });
+
+  it("expands ${NAME} and %NAME% references from the supplied env", () => {
+    const env = { KNOWLEDGE_CORPUS_DIR: "/data/knowledge-corpus" };
+    expect(expandPathValue("${KNOWLEDGE_CORPUS_DIR}", env, home)).toBe("/data/knowledge-corpus");
+    expect(expandPathValue("%KNOWLEDGE_CORPUS_DIR%", env, home)).toBe("/data/knowledge-corpus");
+    expect(expandPathValue("${KNOWLEDGE_CORPUS_DIR}/youtube", env, home)).toBe(
+      "/data/knowledge-corpus/youtube",
+    );
+    expect(expandPathValue("/mnt/${KNOWLEDGE_CORPUS_DIR}", { KNOWLEDGE_CORPUS_DIR: "kc" }, home)).toBe(
+      "/mnt/kc",
+    );
+  });
+
+  it("keeps Windows backslashes intact in substituted values", () => {
+    const env = { KNOWLEDGE_CORPUS_DIR: "D:\\repos\\knowledge-corpus" };
+    expect(expandPathValue("${KNOWLEDGE_CORPUS_DIR}", env, home)).toBe("D:\\repos\\knowledge-corpus");
+  });
+
+  it("throws on an unset or empty referenced variable", () => {
+    expect(() => expandPathValue("${MISSING_DIR}", {}, home)).toThrow(/unset or empty/);
+    expect(() => expandPathValue("%MISSING_DIR%", { MISSING_DIR: "" }, home)).toThrow(/unset or empty/);
+  });
+
+  it("throws when an expanded form yields a non-absolute path", () => {
+    expect(() => expandPathValue("${REL_DIR}", { REL_DIR: "relative/corpus" }, home)).toThrow(
+      /non-absolute/,
+    );
+    expect(() => expandPathValue("~/corpus", {}, "relative-home")).toThrow(/non-absolute/);
   });
 });

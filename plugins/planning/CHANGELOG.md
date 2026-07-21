@@ -3,6 +3,19 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.3]
+
+### Changed
+
+- `devils-advocate` plan-review mode now routes incumbency-driven assumptions to the
+  `incumbent` mode instead of leaving them as prose. When Round 2's evidence check finds
+  an assumption whose *only* support is that the status quo already uses the thing
+  ("we already use X"), the resulting finding's Mitigation names the follow-up —
+  `/planning:devils-advocate incumbent <target>`, the Alternatives Sweep on that
+  incumbent. Suggestion only: it is never auto-run, so scope stays one mode per
+  invocation. An assumption also backed by a requirement, benchmark, or doc is verified
+  on that evidence and does not trigger the routing.
+
 ## [0.24.2]
 
 ### Changed

@@ -56,7 +56,14 @@ DECISIONS_JSON=""
 TELEMETRY_JSON=""
 
 usage() {
-  sed -n '2,35p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  # Sentinel-based, not a hardcoded line range: prints every comment line after
+  # the shebang up to the first non-comment (blank) line, so the header can
+  # grow or shrink without silently truncating or over-running --help output.
+  awk '
+    NR == 1 { next }
+    /^#/ { sub(/^# ?/, ""); print; next }
+    { exit }
+  ' "${BASH_SOURCE[0]}"
   exit 0
 }
 

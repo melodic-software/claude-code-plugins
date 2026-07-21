@@ -95,7 +95,7 @@ defaults keep every pipeline working):
 
 | Option | Type | Default | Purpose |
 |---|---|---|---|
-| `library_dir` | directory | `.` (repo root) | Project-relative directory where the plugin's ingestion pipelines land synthesized artifacts. `book-distill` is unaffected — it writes to the target skill you name at invocation — so today this is a reserved seam. A working-notes or artifacts convention declared in your own project's `CLAUDE.md` or rules takes precedence. |
+| `library_dir` | directory | `.` (repo root) | Directory where the plugin's ingestion pipelines land synthesized artifacts; a relative value resolves against the project directory. Portable non-project roots: an absolute path, a leading `~` (home-relative), or an env-var reference `${NAME}` / `%NAME%` (e.g. `${KNOWLEDGE_CORPUS_DIR}`) so a machine-varying root never needs a literal machine path in the stored value — expanded when a pipeline resolves the root (the `youtube-digest` launcher today), failing loud on an unset variable. `book-distill` is unaffected — it writes to the target skill you name at invocation. A working-notes or artifacts convention declared in your own project's `CLAUDE.md` or rules takes precedence. |
 | `yt_dlp_js_runtimes` | string | `node` | `youtube-digest`: JavaScript runtime yt-dlp uses for YouTube signature deciphering. Set to `off` to omit the flag entirely. |
 | `yt_dlp_cookies_file` | string | (empty) | `youtube-digest`: path to a Netscape cookies.txt for authenticated acquisition. Never commit cookie files. |
 | `yt_dlp_cookies_from_browser` | string | (empty) | `youtube-digest`: browser to pull YouTube cookies from (`chrome`, `firefox`, `edge`, …), forcing one instead of the automatic fallback. A cookies file wins over this. |

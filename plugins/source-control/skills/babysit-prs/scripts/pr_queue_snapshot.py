@@ -47,23 +47,23 @@ def _csv(value: str | None) -> frozenset[str]:
     )
 
 
+def _csv_list(value: str | None) -> list[str]:
+    return [part.strip() for part in (value or "").split(",") if part.strip()]
+
+
 def build_config(args: argparse.Namespace) -> delta.ClassifyConfig:
     owners = _csv(getattr(args, "owners", None))
+    # `self_logins` (the posting identities whose comments to suppress) is resolved
+    # by `resolve_self_logins` from the dedicated self flags, never from the
+    # `--author` discovery filter (#511). A hand-built Namespace that omits
+    # `resolved_self_logins` supplies no self set; `--author` is deliberately not
+    # consulted as a fallback, so no discovery author can leak in.
     resolved_self_logins = getattr(args, "resolved_self_logins", None)
-    if resolved_self_logins is not None:
-        self_logins = frozenset(resolved_self_logins)
-    else:
-        resolved_authors = getattr(args, "resolved_authors", None)
-        if resolved_authors is None:
-            # Hand-built Namespaces (tests, callers) may skip resolution; derive
-            # the self set from the raw --author, dropping the unresolvable '@me'.
-            self_logins = frozenset(
-                login
-                for login in _csv(getattr(args, "author", None))
-                if login != "@me"
-            )
-        else:
-            self_logins = frozenset(resolved_authors)
+    self_logins = (
+        frozenset(resolved_self_logins)
+        if resolved_self_logins is not None
+        else frozenset()
+    )
     return delta.ClassifyConfig(
         allowed_owners=owners,
         self_logins=self_logins,
@@ -97,21 +97,36 @@ def build_config(args: argparse.Namespace) -> delta.ClassifyConfig:
     )
 
 
-def resolve_self_logins(authors: list[str]) -> list[str]:
-    """Self-identity suppression must not ride on the discovery author filter.
+def resolve_self_logins(
+    self_csv: str | None, extra_self_csv: str | None
+) -> list[str]:
+    """Resolve the posting identities whose comments self-classification suppresses.
 
-    Autopilot (and explicit widening) deliberately drops `--author`, so `authors`
-    is empty and `ClassifyConfig.self_logins` derived from it would be empty too —
-    leaving the worker's own comments free to re-fire `new_human_blocking_feedback`
-    every cycle. Resolve the authenticated posting identity independently and union
-    it with any discovery authors, so suppression holds regardless of scope.
+    Independent of the `--author` discovery filter (#511): which authors' PRs to
+    discover is a distinct concern from whose comments to suppress, so the self set
+    must never ride on `--author`. Mirrors `babysit-readiness-gate.sh`'s
+    `--self`/`--extra-self` flag semantics: `--self` is a full override (exactly the
+    given logins, `@me` not added); otherwise the authenticated `@me` is unioned with
+    any `--extra-self` logins. Autopilot widening drops `--author` but keeps
+    `--extra-self`, so configured extra identities still survive, and a discovery
+    `--author` never leaks in. Structural parity, not exact on one edge: an
+    unresolvable `@me` raises here (via `resolve_author`) rather than degrading to the
+    extras as the gate does — fail-loud on broken auth; parity tracked in #881.
     """
-    self_login = gh.resolve_author("@me")
-    resolved = list(authors)
-    if self_login and self_login.casefold() not in {
-        login.casefold() for login in resolved
-    }:
-        resolved.append(self_login)
+    if self_csv is not None:
+        source = _csv_list(self_csv)
+    else:
+        source = _csv_list(extra_self_csv)
+        self_login = gh.resolve_author("@me")
+        if self_login:
+            source.append(self_login)
+    resolved: list[str] = []
+    seen: set[str] = set()
+    for login in source:
+        key = login.casefold()
+        if key not in seen:
+            seen.add(key)
+            resolved.append(login)
     return resolved
 
 
@@ -158,18 +173,20 @@ def build_snapshot(args: argparse.Namespace) -> dict[str, Any]:
     previous_prs = json_object(state.get("prs"))
     mutation_ledger = json_object(state.get("mutation_ledger"))
 
-    # Resolve @me to the authenticated posting identity for EITHER scope, before
-    # building the config. `self_logins` gates same-login classification
-    # (foreign-activity and attribution-drift) whether or not discovery runs, so
-    # a single-PR (`--pr`) run must resolve it too: deriving `self_logins` from
-    # raw `--author` alone drops the resolved `@me`, leaving the personal
-    # fallback identity out of the set and silently no-opping those checks for
-    # single-PR scope. build_snapshot also runs from hand-built Namespaces
-    # (tests, callers) that may omit optional flags; default the optional
-    # --author/--repo rather than require them.
+    # Resolve the self-identity set from the dedicated `--self`/`--extra-self`
+    # flags, independent of the `--author` discovery filter and of `--pr` vs
+    # `--queue` scope (#511). `self_logins` gates same-login classification
+    # (foreign-activity and attribution-drift) and self-comment suppression
+    # whether or not discovery runs; resolving it here (before the scope split)
+    # covers single-PR scope too and never inherits a discovery author. Autopilot
+    # widening drops `--author` but keeps `--extra-self`, so configured extra
+    # identities still hold. build_snapshot also runs from hand-built Namespaces
+    # (tests, callers) that may omit optional flags; default them rather than
+    # require them.
     authors = gh.resolve_authors(getattr(args, "author", None))
-    args.resolved_authors = authors
-    args.resolved_self_logins = resolve_self_logins(authors)
+    args.resolved_self_logins = resolve_self_logins(
+        getattr(args, "self_logins", None), getattr(args, "extra_self_logins", None)
+    )
     config = build_config(args)
 
     targets: list[tuple[str, int]]
@@ -430,7 +447,36 @@ def main() -> int:
             "scope gate). Accepts a comma-separated list of GitHub logins and/or "
             "'@me' (resolved to the authenticated user); each login is queried "
             "separately and the results unioned. Omit to include every author "
-            "under the watched owners."
+            "under the watched owners. Discovery only: it never sets the "
+            "self-identity set -- use --self / --extra-self for that."
+        ),
+    )
+    parser.add_argument(
+        "--self",
+        dest="self_logins",
+        default=None,
+        help=(
+            "Full override of the self-identity set: exactly these comma-separated "
+            "logins are treated as self (whose comments self-classification "
+            "suppresses and whose activity gates the same-login checks). '@me' is "
+            "NOT added. Resolved independently of --author. Mirrors "
+            "babysit-readiness-gate.sh --self; prefer --extra-self unless you must "
+            "exclude the authenticated login. Ignored (with --self taking full "
+            "precedence) when --extra-self is also supplied."
+        ),
+    )
+    parser.add_argument(
+        "--extra-self",
+        dest="extra_self_logins",
+        default=None,
+        help=(
+            "Extra self posting identities added on top of the authenticated "
+            "'@me' login (e.g. a project bot account whose comments the babysit "
+            "worker posts). Comma-separated. Resolved independently of the "
+            "--author discovery filter, so these survive autopilot widening that "
+            "drops --author. The invoking skill wires the babysit_self_logins "
+            "userConfig option here. Mirrors babysit-readiness-gate.sh "
+            "--extra-self. Ignored when --self is also supplied."
         ),
     )
     parser.add_argument(

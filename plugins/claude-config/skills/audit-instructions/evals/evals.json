@@ -1,0 +1,79 @@
+{
+  "skill_name": "audit-instructions",
+  "evals": [
+    {
+      "id": 1,
+      "name": "bare-invocation-stays-read-only",
+      "prompt": "/claude-config:audit-instructions",
+      "expected_output": "Runs the read-only sweep of the locally-owned instruction surfaces and produces a findings report plus proposed diffs, persisted to CLAUDE_PLUGIN_DATA and summarized in chat. It never edits an audited instruction file: there is no --fix, diffs are proposed artifacts the human applies, and a clean audit is a valid outcome.",
+      "files": [],
+      "expectations": [
+        "Produces a findings report with proposed diffs and does not Edit or Write any audited instruction file",
+        "Treats the proposed diffs as artifacts the human applies (no --fix), never applying a change itself",
+        "Treats a clean audit as a valid outcome rather than manufacturing findings"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "scope-boundary-routes-out",
+      "prompt": "/claude-config:audit-instructions is my CLAUDE.md too long, and can you prune the always-loaded hygiene lines out of it?",
+      "expected_output": "Recognizes memory-layer hygiene — line budget, whether CLAUDE.md is too long, pruning always-loaded content — as the claude-memory plugin's audit skill's concern. On memory-layer surfaces (CLAUDE.md, CLAUDE.local.md, .claude/rules) this skill runs only the model-era checks I6-I11 and routes the I1-I5 hygiene findings to claude-memory:audit when that plugin is installed, falling back to the official CLAUDE.md include/exclude guidance pointer when it is not, rather than answering the hygiene question itself.",
+      "files": [],
+      "expectations": [
+        "Routes memory-layer hygiene (line budget, 'CLAUDE.md too long', pruning) to the claude-memory plugin's audit skill when installed",
+        "On memory-layer surfaces runs only the model-era checks I6-I11, not the I1-I5 hygiene checks",
+        "Falls back to the official CLAUDE.md include/exclude guidance pointer when claude-memory is not installed instead of silently skipping"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "plugin-cache-finding-routed-not-edited",
+      "prompt": "/claude-config:audit-instructions also audit the instruction files inside my installed plugins' cache and fix anything stale there.",
+      "expected_output": "Excludes installed plugin-cache content from the editable set because it is owned by the publishing repository. Any finding on plugin-cache instructions is emitted as a routing recommendation to the owning repository's tracker, never applied as an in-place edit to the cache.",
+      "files": [],
+      "expectations": [
+        "Excludes installed plugin-cache content from the editable set as upstream-owned by the publishing repository",
+        "Emits any plugin-cache finding as a routing recommendation to the owning repository's tracker",
+        "Does not edit files under the plugin cache in place"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "example-block-nuance",
+      "prompt": "/claude-config:audit-instructions one of my skills includes three short examples showing the exact output format and tone I want — flag those as bloat to cut.",
+      "expected_output": "Does not flag format/tone/structure-steering example blocks: check I9 keeps 3-5 such examples as officially recommended. It flags an example block only when it pins the model's approach to a task (behavioral scaffolding), and does not treat the mere presence of examples as a finding.",
+      "files": [],
+      "expectations": [
+        "Does not flag example blocks that steer output format, tone, or structure (I9 keeps 3-5 such examples)",
+        "Flags an example block only when it pins the model's approach to a task (behavioral scaffolding)",
+        "Does not treat the presence of examples as itself a finding"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "verify-pass-demotion",
+      "prompt": "/claude-config:audit-instructions you proposed removing a prior-model instruction, but the verify pass argued it is still load-bearing — how does that show up in the report?",
+      "expected_output": "Every removal or rewrite proposal passes a fresh-context, non-fork verify pass before it reaches the report. A proposal the verifier successfully defends is demoted to info or dropped, not surfaced as a confident removal, and a refuted or behavioral-tier removal is never presented as an error or an applied change.",
+      "files": [],
+      "expectations": [
+        "Runs each removal proposal through a fresh-context, non-fork verify pass before surfacing it",
+        "Demotes a proposal the verifier defends to info or drops it, rather than presenting it as a confident removal",
+        "Does not present a refuted or behavioral-tier removal as an error or an applied change"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "step-list-culled-not-preserved",
+      "prompt": "/claude-config:audit-instructions one of my skills spells out a 9-step numbered procedure for opening a PR: 1. run git status to see what changed; 2. run git diff to review the changes; 3. stage the files with git add; 4. write a commit message; 5. run the test suite and stop if it fails; 6. commit; 7. push the branch; 8. title the PR per Conventional Commits (CI rejects other titles); 9. open the PR with gh pr create. Should a capable model keep all the steps?",
+      "expected_output": "Flags the mechanical numbered procedure as an I8 model-era finding (over-prescriptive step list) and proposes culling it to the intent plus the hard constraints, removing the narration steps (status/diff/add/message/commit/push — a procedure a current model already sequences correctly) while keeping the steps that encode a real safety gate or external contract: run-tests-and-stop-on-failure (step 5) and the Conventional Commits PR-title requirement CI enforces (step 8). It does not preserve all 9 steps verbatim. Because I8 is behavioral-tier, the cull reaches the report as a verify-pass-vetted behavioral proposal, not an unverified confident removal.",
+      "files": [],
+      "expectations": [
+        "Identifies the numbered step list as an I8 over-prescriptive finding",
+        "Proposes culling to intent plus hard constraints rather than keeping all 9 steps verbatim",
+        "Keeps the test-gate step (run tests, stop on failure) and the CI-enforced Conventional Commits PR-title step as load-bearing",
+        "Culls narration steps (git status/diff/add/commit/push) that a current model sequences correctly from intent",
+        "Surfaces the cull as a behavioral proposal that passed the fresh-context verify pass, not an unverified confident removal"
+      ]
+    }
+  ]
+}
