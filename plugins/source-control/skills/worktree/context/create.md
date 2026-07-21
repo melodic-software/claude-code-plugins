@@ -1,6 +1,8 @@
 # Worktree `create` — pre-flight, naming, base-ref, setup verification
 
-Full detail for the `/worktree create [name]` action. SKILL.md carries the headline plus the `EnterWorktree`-as-final-action safety invariant; this file carries the pre-flight guards, name validation, base-ref selection, the explain-before-create block, the directory-rename caveats, and the post-create setup checks.
+Full detail for the `/worktree create [name]` action. SKILL.md carries the headline plus the shared-helper safety invariant; this file carries the pre-flight guards, name validation, base-ref selection, the explain-before-create block, the directory-rename caveats, and the post-create setup checks.
+
+`create` does **not** call `EnterWorktree(name:)` (which lands in the in-repo `.claude/worktrees/`, triggering Claude Code's CLAUDE.md/rules double-load bug — #400, upstream anthropics/claude-code #29599 / #23565). It routes through the shared helper `${CLAUDE_PLUGIN_ROOT}/scripts/worktree-create.sh`, which places the worktree at an **external root** (`<root>/<owner>-<repo>-<slug>`), copies `.worktreeinclude` files, and prints the path; the skill then calls `EnterWorktree(path:)` on that path.
 
 Create a new worktree with guided naming and setup verification.
 
@@ -14,29 +16,32 @@ Create a new worktree with guided naming and setup verification.
 
 ## Name validation
 
-The name passed to `EnterWorktree` has these constraints (from the tool schema):
+The name (branch and, via the helper's slug, directory) has these constraints (the `EnterWorktree` schema plus the helper's slug rules):
 
 - Each `/`-separated segment may contain only **letters, digits, dots, underscores, and dashes**
 - Max **64 characters** total
 - `/` is a valid segment separator (enables `feat/my-feature` format)
 
-Validate the name against these rules. If invalid, explain what's wrong and ask for correction.
+Validate the name against these rules. If invalid, explain what's wrong and ask for correction. The branch keeps the name verbatim; the helper derives the **directory slug** from it (`/` and any other unsafe character → `-`).
 
 ## Base branch
 
-By default, Claude Code's `worktree.baseRef` setting governs the base: `fresh` (default) branches new worktrees from `origin/<default-branch>`; `head` branches from the local `HEAD` so unpushed commits carry in. Consuming projects may override worktree creation with their own `WorktreeCreate` hook (custom path layout, branch derivation) — when such a hook exists, its behavior wins; read the project's docs. To start from a different base explicitly, create manually: `git worktree add -b <type>/<desc> <path> <base>`.
+The shared helper resolves the base the same way Claude Code's `worktree.baseRef` setting does: `fresh` (default) branches from the remote default branch (resolved symbolically via `origin/HEAD`, with a local-`HEAD` fallback); `head` branches from the repo's current `HEAD` so unpushed commits carry in. The helper reads `worktree.baseRef` from git config unless a `--base-ref` override is passed. To start from a different, specific branch, create manually instead: `git worktree add -b <type>/<desc> <path> <base>`, then `EnterWorktree(path: <path>)`.
 
 ## Explain what will happen
 
-Before calling EnterWorktree, tell the user:
+Before creating, tell the user:
 
 ```text
-Creating worktree:
-  Directory: <worktree-path>/          (Claude Code default, or your project's
-                                        WorktreeCreate-hook layout)
-  Branch: <name>                       (derived from the name you pass)
+Creating worktree (shared helper — external root, avoids the #400 double-load bug):
+  Directory: <root>/<owner>-<repo>-<slug>   (root = the worktree_root config key)
+  Branch: <name>                            (kept verbatim; slug derived for the dir)
+  Local files: .worktreeinclude matches copied in (gitignored ones only)
+  Entering: EnterWorktree(path:) switches the session in. Because the path is
+            OUTSIDE .claude/worktrees/, Claude Code asks you to APPROVE the move
+            (not suppressible except in bypassPermissions mode) — approve it.
   Setup: your project's session-start hooks (if any) run on next SessionStart;
-         mid-session EnterWorktree may need a manual setup re-run
+         a mid-session entry may need a manual setup re-run
 
 Optional renames after creation:
   git branch -m <old> <type>/<description>          # sharpen the branch name
@@ -52,15 +57,28 @@ Optional renames after creation:
 
 ## Create the worktree
 
-Call `EnterWorktree(name: "<validated-name>")` as the **final action**. Nothing should execute after this call because the working directory changes and session state transitions.
+Two steps — the helper creates and places the worktree; `EnterWorktree(path:)` enters it.
 
-If the project has session-start setup hooks, they run on the next SessionStart; for mid-session `EnterWorktree`, SessionStart may not fire — run the project's setup steps manually if the checks below fail.
+1. **Run the shared helper** (it computes the external path, runs `git worktree add`, and copies `.worktreeinclude` files):
+
+   ```bash
+   bash "${CLAUDE_PLUGIN_ROOT}/scripts/worktree-create.sh" \
+     --name "<validated-name>" --root "${user_config.worktree_root}"
+   ```
+
+   The helper prints the created worktree path as its **sole stdout line**; capture it.
+
+2. **On a non-zero exit, STOP — do not create anything else, and never fall back to `EnterWorktree(name:)`** (that would re-create the in-repo `.claude/worktrees/` path and re-trigger #400). The important refusal is **exit 3 (root unconfigured)**: the `worktree_root` key is unset, so the helper declined and printed guidance on stderr. Surface that guidance to the user verbatim — they need to set `worktree_root` (run the worktree setup skill, or `/plugin` configure) — then stop. Other non-zero exits (2 usage, 4 environment — e.g. the branch already exists) surface the helper's stderr and stop likewise.
+
+3. **Enter the worktree** — call `EnterWorktree(path: "<printed-path>")` as the **final action**. Nothing may execute after it: the working directory changes and session state transitions. Because the path is outside `.claude/worktrees/`, Claude Code prompts for approval first (see the explain block); if the user **declines**, the worktree already exists on disk but the session did not enter it — tell them they can retry (approve the prompt) or `cd` into `<printed-path>` in a new session.
+
+If the project has session-start setup hooks, they run on the next SessionStart; for a mid-session entry, SessionStart may not fire — run the project's setup steps manually if the checks below fail.
 
 **Universal checks** (apply in every worktree regardless of ecosystem):
 
 | Check | Command | Fix hint |
 |-------|---------|----------|
-| Local settings/secrets present | e.g. `test -f .claude/settings.local.json` (when the project uses one) | Copy from the main repo checkout, or rely on the project's `.worktreeinclude` (Claude Code copies matching gitignored files at creation) |
+| Local settings/secrets present | e.g. `test -f .claude/settings.local.json` (when the project uses one) | The helper already copied `.worktreeinclude`-matched gitignored files at creation; for anything not covered by `.worktreeinclude`, copy from the main repo checkout (or add it to `.worktreeinclude`) |
 | Git hooks installed | Depends on the project's hook manager (e.g. `lefthook list`, `husky` install state) | Run the project's hook-install command |
 
 **Ecosystem checks** (each gated on a trigger glob — skip silently if no matching files exist in the worktree root):
