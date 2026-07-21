@@ -272,7 +272,7 @@ plugins/skill-quality/reference/evals.schema.json
 plugins/claude-config/skills/audit-instructions/evals/evals.json` exits 0 — the Python tool
 CI uses (`check-jsonschema` is NOT an npm package; prior session verified npx form fails).
 
-### Phase 5: Plugin integration [DOING]
+### Phase 5: Plugin integration [DONE]
 
 - `plugins/claude-config/.claude-plugin/plugin.json`: version → 0.8.0; description string
   extended to four skills.
@@ -292,7 +292,7 @@ scripts/validate-plugin-contracts.mjs` exits 0; `node scripts/generate-catalog.m
 exits 0; `grep -c "health" plugins/claude-config/skills/audit-permission-grants/SKILL.md`
 returns 0 for the stale-reference form.
 
-### Phase 6: Gates, review, PR [TODO]
+### Phase 6: Gates, review, PR [DOING]
 
 Full local gate run (check-skill, contracts, portability, markdownlint, changelog parity,
 plugin tests), independent review pass (fresh-context reviewer per repo doctrine), then PR:
