@@ -3,6 +3,31 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.8]
+
+### Fixed
+
+- **`babysit-prs` worker/autopilot contract now invokes the guarded mutation wrappers by their
+  bundled `bin/` path, not by bare command name (#484).** The bare wrapper names
+  (`source-control-babysit-merge`, `source-control-babysit-resolve-thread`) are not on the Bash
+  tool's `PATH`, so every bare invocation the contract prescribed failed `command not found`
+  (exit 127), forcing workers to hand-roll raw `gh api graphql resolveReviewThread` calls and lose
+  the wrapper's `--allowed-owners` guardrail and JSON `action` receipt. `SKILL.md`,
+  `reference/orchestration.md` (including the worker prompt template), and `reference/safety.md`
+  now invoke each wrapper as `bash "${CLAUDE_PLUGIN_ROOT}/bin/<wrapper>" …` — the same form the
+  read-only sibling scripts under `${CLAUDE_PLUGIN_ROOT}/scripts/` already use. The Guarded
+  Mutation Wrappers posture in `safety.md` is refined to match: launching a wrapper by path runs
+  the wrapper with every guard intact (the merge wrapper still rejects `--allow-unpinned-head`;
+  both still fail closed without `--allowed-owners`), so the only forbidden re-spelling is the raw
+  Python behind them — which bypasses those guards — and piping a wrapper into an interpreter. A
+  one-line pointer in `reference/review-discipline.md` records that the babysit tiers resolve
+  through the wrapper, while its D7.5 keeps the general raw-GraphQL policy for `/pull-request`.
+- **Known residuals, not fixed here.** The `bin/`-path form does not match a pre-approved
+  bare-name `Bash(source-control-babysit-merge:*)` allow rule, so an operator's narrow allowlist
+  entries no longer auto-approve these calls; and the root gap — Claude Code documents a plugin's
+  `bin/` as on the Bash tool's `PATH` while enabled, yet it is empirically absent here — is an
+  upstream/harness matter. Only closing that gap restores bare-name invocation.
+
 ## [0.15.7]
 
 ### Added

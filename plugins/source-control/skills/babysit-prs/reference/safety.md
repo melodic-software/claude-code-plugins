@@ -114,10 +114,26 @@ escalate on unresolved-thread count or round number alone.
 
 ## Guarded Mutation Wrappers
 
-The two guarded mutations are invoked only by their pinned bare wrapper names —
-`source-control-babysit-merge` and `source-control-babysit-resolve-thread` — never through an
-interpreter-prefixed path. They are this skill's own deterministic authorization layer: they
-encode exactly what worker and autopilot are allowed to do.
+The two guarded mutations run **only through their wrapper scripts** —
+`source-control-babysit-merge` and `source-control-babysit-resolve-thread` — never through the
+raw Python behind them (`python … babysit_merge.py`), which would bypass the wrapper's own guards
+(such as the merge wrapper's `--allow-unpinned-head` rejection). The wrappers are this skill's own
+deterministic authorization layer: they encode exactly what worker and autopilot are allowed to do.
+
+Invoke each wrapper **by its bundled path**, the same form the read-only sibling scripts under
+`${CLAUDE_PLUGIN_ROOT}/scripts/` use:
+
+```text
+bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-merge" <args>
+bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" <args>
+```
+
+Launching the wrapper by path still runs the wrapper itself, so every wrapper guard stays intact
+— it is not a guard-dodging re-spelling (only invoking the raw Python is). The bundled wrappers'
+bare names are not on the Bash tool's `PATH`, so a bare `source-control-babysit-merge …` fails
+`command not found`; the `${CLAUDE_PLUGIN_ROOT}/bin/` path — resolved exactly as the sibling
+`${CLAUDE_PLUGIN_ROOT}/scripts/` invocations are — is the reliable form. Every command spelled
+below as `source-control-babysit-<x> …` is launched this way.
 
 Capture the wrapper's output first, then parse its JSON in a *separate* step — never pipe the
 wrapper into an interpreter (`… | python`, `… | jq`): an interpreter-in-pipeline trips the
@@ -174,7 +190,7 @@ it, and any later gate-off flip, is a separate announced operator step.
   never the four-flagless base command, which would ignore every tier criterion:
 
   ```text
-  source-control-babysit-merge owner/repo#N --allowed-owners <watched-owners> --self-logins @me,<self-logins> --merge --expected-head <post-push-head-sha> --autopilot-merge-tier --lane-logins <lane-logins> --approver-bot-logins <approver-bot-logins> --block-labels <merge-block-labels>
+  bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-merge" owner/repo#N --allowed-owners <watched-owners> --self-logins @me,<self-logins> --merge --expected-head <post-push-head-sha> --autopilot-merge-tier --lane-logins <lane-logins> --approver-bot-logins <approver-bot-logins> --block-labels <merge-block-labels>
   ```
 
   The umbrella `--autopilot-merge-tier` is fail-closed: it refuses (exit `3`) unless
@@ -257,14 +273,15 @@ When the runtime denies a guarded mutation that this skill's own gate already pr
 distinguishable because the wrapper itself never ran, so there is no wrapper exit code and no
 `blockers` output to react to — degrade that one PR to the same outcome default (safe) mode
 reports for a ready PR: mark it **"ready, awaiting human execution"** and surface the exact,
-fully-argument-pinned command for the operator to run, using the bare wrapper name — never a
-workaround, and never an interpreter-prefixed re-spelling of the command to dodge a narrow allow
-rule.
+fully-argument-pinned command for the operator to run — in the `bin/`-path wrapper form
+(§Guarded Mutation Wrappers), which runs the wrapper with every guard intact — never a workaround,
+and never a raw-Python re-spelling of the command that would dodge the wrapper's guards and the
+narrow allow rule.
 
 For a merge:
 
 ```text
-source-control-babysit-merge owner/repo#42 --allowed-owners <watched-owners> --merge --expected-head <post-push-head-sha> --method <merge-method>
+bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-merge" owner/repo#42 --allowed-owners <watched-owners> --merge --expected-head <post-push-head-sha> --method <merge-method>
 ```
 
 When the autopilot merge tier is enabled, this degraded handoff carries the tier flags too:
@@ -279,13 +296,13 @@ assessment. Pin each vetted thread individually (the wrapper accepts exactly one
 per invocation; issue one pinned command per thread) with the thread-pin pair rule above:
 
 ```text
-source-control-babysit-resolve-thread owner/repo#42 --allowed-owners <watched-owners> --autonomous --resolve --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
+bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --autonomous --resolve --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
 ```
 
 for the unattended-worker case, or
 
 ```text
-source-control-babysit-resolve-thread owner/repo#42 --allowed-owners <watched-owners> --resolve --include-human --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
+bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --resolve --include-human --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
 ```
 
 for the autopilot case. This degradation is a successful, material finding to report, not a

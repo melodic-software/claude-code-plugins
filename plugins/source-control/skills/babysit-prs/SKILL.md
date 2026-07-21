@@ -183,9 +183,12 @@ That gate merges **only when every criterion holds** — the criteria and the sa
 
 ## Guarded mutations: deterministic gates, agent judgment
 
-The two mutation gates are invoked ONLY by their bare wrapper names (they resolve their own
-interpreter and fail with a clear message when Python is absent). Both fail closed without
-`--allowed-owners`.
+The two mutation gates are invoked ONLY through their wrapper scripts, by their bundled `bin/`
+path (they resolve their own interpreter and fail with a clear message when Python is absent) —
+never through the raw Python behind them, which bypasses the wrappers' guards. The exact invocation
+form and its rationale are the single home in [reference/safety.md](reference/safety.md); every
+command written as `source-control-babysit-<x> …` in this skill and its reference files is launched
+by that `bin/`-path form. Both fail closed without `--allowed-owners`.
 
 - **Merge readiness** — `source-control-babysit-merge owner/repo#N --allowed-owners
   <watched-owners> --self-logins @me,<self-logins>` (read-only; add `--merge --expected-head
