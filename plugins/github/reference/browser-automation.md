@@ -33,6 +33,17 @@ live authenticated browser session, which org-admin UI surfaces typically requir
 is second (it relies on saved authentication state, which may not carry an admin session).
 When the user names an integration, their choice is honored over this order.
 
+## The routing precondition: resolved `guided-apply` only
+
+An **executable** browser offer is the guided-apply execution channel for UI-only surfaces —
+it may only be extended when the consumer's resolved change routing for the target scope/area
+(per `${CLAUDE_PLUGIN_ROOT}/reference/change-routing.md`) is `guided-apply`. Under `propose`
+or `handoff` — including the unconfigured default, which resolves to `propose` — those
+postures execute nothing: report the UI-only status and route per the declared posture
+(proposed guided-manual steps, or a handoff change request). A per-action confirm is consent
+to a step, not a substitute for the consumer's routing policy — it never overrides a
+`propose`/`handoff` posture or a team-declared floor.
+
 ## The advisory gate: `offer_browser_automation`
 
 The plugin's `offer_browser_automation` setting (boolean, default `true`) is a standing
@@ -41,8 +52,8 @@ all — the ladder reports the UI-only status and moves straight to the guided-m
 
 Honest framing: this gate is **advisory** — its value is substituted into skill prose and
 honored by the model, not enforced by the runtime. The hard gate is, and remains, the
-per-action user confirm above. The two layer: the advisory gate suppresses the *offer*, the
-confirm gate protects every *action*.
+per-action user confirm above. The three layers: the routing precondition selects the channel,
+the advisory gate suppresses the *offer*, the confirm gate protects every *action*.
 
 ## The offer template (confirm gate)
 

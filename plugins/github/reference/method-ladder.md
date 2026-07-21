@@ -32,7 +32,9 @@ Resolve the endpoint from the freshly fetched official docs for the area (REST h
 **Read-only contract (bare invocations).** On any invocation without an explicit apply override,
 requests must be incapable of writing:
 
-- no `-f`/`-F`/`--field`/`--raw-field`/`--input` (these imply a POST body),
+- no `-f`/`-F`/`--field`/`--raw-field`/`--input` (these imply a POST body) — with one carve-out:
+  `gh api graphql` requires field flags to supply the GraphQL document and its variables, so there
+  the guard is the document itself (rung 3: `query` documents only, never `mutation`),
 - no `--method`/`-X` with anything other than `GET`,
 - no pagination or preview flag workaround that smuggles a body.
 

@@ -61,8 +61,9 @@ opt-in browser automation over your own authenticated session — never auto-fir
 individually confirmed, mechanics in
 [`reference/browser-automation.md`](reference/browser-automation.md). One plugin setting,
 `offer_browser_automation` (boolean, default `true`, prompted when you enable the plugin),
-suppresses the offer entirely when `false`; guided manual steps with a deep link remain the
-always-available fallback.
+suppresses the offer when `false` — an advisory gate honored by the skills, not a runtime
+kill-switch; the hard gate is the per-action user confirm. Guided manual steps with a deep link
+remain the always-available fallback.
 
 `/github:setup` writes both interactively and recommends the one-line recursive overlay
 gitignore (`.claude/**/*.local.*`); it never edits your `.gitignore`.

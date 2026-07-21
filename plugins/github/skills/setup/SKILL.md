@@ -51,7 +51,11 @@ config). No action given: run `check`, then offer `apply` if anything is missing
    Unanswered postures fall back to `propose`. When the invocation already supplies complete
    answers, skip the interview and run non-interactively.
 3. **Write** to the team layer (`${CLAUDE_PROJECT_DIR}/.claude/github/`), or the layer the user
-   explicitly chooses:
+   explicitly chooses. Local-layer precondition: before writing any `*.local.*` overlay, verify
+   the target path is ignored (`git check-ignore -q <path>`); when it is not, surface the
+   recommended gitignore line first and wait for the user to either add it themselves or
+   explicitly accept writing an unignored overlay — never write silently, never stage it, and
+   never edit their `.gitignore`.
    - `routing.yaml` conforming to the schema in
      `${CLAUDE_PLUGIN_ROOT}/reference/change-routing.md` — `default: propose` unless the user
      chose otherwise.

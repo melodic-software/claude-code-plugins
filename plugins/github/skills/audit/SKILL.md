@@ -79,9 +79,10 @@ path keeps the user in the loop.
 
 A bare invocation of this skill performs zero mutations, stated in write-capability terms:
 
-- No `gh api` call carries `-f`/`-F`/`--field`/`--raw-field`/`--input`.
+- No `gh api` call carries `-f`/`-F`/`--field`/`--raw-field`/`--input` — except `gh api graphql`,
+  where field flags supply the query document and variables.
 - No `--method`/`-X` with any value other than `GET`.
-- No `gh api graphql` body containing a `mutation` document.
+- No `gh api graphql` body containing a `mutation` document — `query` documents only.
 - No `gh` native subcommand that writes (create/edit/delete/enable/disable verbs).
 - No browser automation fires from this skill on a bare invocation.
 
@@ -92,7 +93,10 @@ When the method ladder lands on a UI-only surface, a browser-automation **offer*
 gates, preference order, offer template, and read-back verification in
 `${CLAUDE_PLUGIN_ROOT}/reference/browser-automation.md`. The consumer's standing offer gate
 `offer_browser_automation` is currently `${user_config.offer_browser_automation}`; when `false`,
-extend no offer and fall through to guided manual steps with a deep link.
+extend no offer and fall through to guided manual steps with a deep link. An executable offer
+additionally requires the consumer's resolved change routing for the target to be `guided-apply`
+— under `propose` or `handoff` (including the unconfigured default), report the UI-only status
+and route per that posture instead; never execute.
 
 ## Standing security posture
 
