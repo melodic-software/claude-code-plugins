@@ -75,6 +75,10 @@ playwright-cli click e3 | tee -a capture.log
 
 Not as clean as hand-curating, but useful for rapid iteration.
 
+## Spec-driven workflow (plan → generate → heal)
+
+For a whole feature rather than one ad-hoc session: explore the app and write a scenario spec (`specs/<feature>.plan.md`), generate one test file per scenario by walking the spec against the live app, then heal failures by debugging with `--debug=cli` + `attach` and reconciling the spec with reality. See upstream `../vendor/references/test-generation.md` for the full workflow — seed tests, spec file format, generation rules, healing loop.
+
 ## Running generated tests
 
 See upstream `../vendor/references/playwright-tests.md` for `npx playwright test --debug=cli` debugging flow — attach `playwright-cli` to a paused test and step through interactively.

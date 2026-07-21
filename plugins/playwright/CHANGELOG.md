@@ -3,6 +3,19 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0]
+
+### Added
+
+- Synced vendored upstream baseline from `@playwright/cli@0.1.13` to `0.1.17`
+  and folded the genuine new commands/flags into the distilled reference
+  files: `find` (context-search a snapshot without capturing it all),
+  `--hires` screenshots, `--mobile`/`--device=` emulation, and Windows
+  `&`-in-URL shell-escaping guidance, all in `reference/commands.md`;
+  `video-show-actions`/`video-hide-actions` auto-annotated video overlays in
+  `reference/tracing-and-video.md`; and a pointer to the (now-merged)
+  spec-driven plan/generate/heal workflow in `reference/test-generation.md`.
+
 ## [0.3.2]
 
 ### Changed
