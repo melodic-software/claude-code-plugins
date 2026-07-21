@@ -59,7 +59,7 @@ git -C "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}" grep -nE '\b(TO
 1. **For each marker**, read context (10 lines before/after), then classify:
 
 - **Resolve now** — small fix; do the work, remove the marker
-- **File a work item + remove marker** — significant work; create via `/work-items:track add`, remove the inline marker (do not leave `TODO` as a stand-in for the item)
+- **File a work item + remove marker** — significant work; create via `/work-items:track add` following the shared self-observation contract ([`${CLAUDE_PLUGIN_ROOT}/reference/dogfood-filing.md`](${CLAUDE_PLUGIN_ROOT}/reference/dogfood-filing.md): dedupe → categorize → fixed shape → `needs-triage`), remove the inline marker (do not leave `TODO` as a stand-in for the item)
 - **Remove (already done)** — work completed; delete the comment
 - **False positive** — structured grammar or external upstream citation misclassified; fix the exclusion if systemic, otherwise note it in the PR
 
