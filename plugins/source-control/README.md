@@ -166,6 +166,7 @@ repo's owner.
 | `babysit_approval_downgrade_logins` | string (multiple) | an approval carrying blocking-looking prose is downgraded to ignored structurally (every bot); a named login instead surfaces its own as material. Real APPROVED-state reviews and plain clean approvals are ignored regardless. |
 | `babysit_skip_downgrade_logins` | string (multiple) | downgrade heuristic dormant |
 | `babysit_max_quiet_recheck_seconds` | number | 14400 |
+| `babysit_stuck_check_age_seconds` | number | 1800 (min age before a pending non-required check under UNSTABLE reports stuck) |
 | `babysit_advisory_fix_round_cap` | number | 100 |
 | `babysit_worker_concurrency_cap` | number | 10 |
 | `babysit_worktree_root` | directory | `worktrees/` under the plugin data dir |

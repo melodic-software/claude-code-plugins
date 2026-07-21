@@ -340,7 +340,7 @@
       "name": "education",
       "source": "./plugins/education",
       "category": "learning",
-      "tags": ["teach", "learn", "learning", "coach", "tutor", "pedagogy", "primer", "explain", "eli5", "onboarding", "skill"]
+      "tags": ["teach", "learn", "learning", "coach", "tutor", "pedagogy", "primer", "explain", "eli5", "onboarding", "quiz", "comprehension", "skill"]
     },
     {
       "name": "repo-hygiene",

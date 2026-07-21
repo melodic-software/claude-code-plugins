@@ -25,7 +25,8 @@ The delivered WP1–7 contracts become a LIVE closed loop: Claude kicks off Clau
 every completion emits predicate-grade evidence, security-pass execution is machine-enforced on
 every PR, and trust promotions (C2 auto-merge eligibility, C3 review blocking, #476 tier
 enablement) fire from recorded evidence — human-ratified, never calendar- or discretion-based.
-End-state of this roadmap: step 3 operating ("maintenance runs continuously in the background"),
+End-state of this roadmap: step 3 operating (maintenance that "runs continuously in the
+background" — capture doc, verbatim fragment),
 step 4 triggers armed.
 
 ### Constraints
@@ -103,14 +104,16 @@ permission preflight.
 Unattended-execution design surfaces the sub-topic plan MUST cover (fresh-context review
 2026-07-21):
 
-- **Machine availability**: Desktop tasks run only while the app is open and the machine is
-  awake (doc-verified 2026-07-21). Work items: app autostart on login, power/keep-awake
-  configuration (operator choice), reboot/Windows-update survival, missed-fire detection.
-- **Catch-up + overlap**: natively bounded — exactly one catch-up run for the most recent
-  missed time (older discarded), and an in-progress run causes the next fire to be SKIPPED
-  (both doc-verified 2026-07-21). Residual design work: prompt guardrails for stale-time
-  catch-up runs, and drain idempotency (claim discipline on the dispatch seam so a catch-up +
-  manual run can never double-drain an item).
+- **Machine availability**: the Desktop surface's run conditions (app/machine state) are
+  owned by <https://code.claude.com/docs/en/desktop-scheduled-tasks> — read them there at
+  build time. Design consequence (verified against that page 2026-07-21): work items for app
+  autostart on login, power/keep-awake configuration (operator choice), reboot/Windows-update
+  survival, missed-fire detection.
+- **Catch-up + overlap**: the surface's native catch-up and overlap semantics are owned by
+  the same page — verify them at each touchpoint, don't trust a recap. Residual design work
+  regardless of those semantics: prompt guardrails for stale-time catch-up runs, and drain
+  idempotency (claim discipline on the dispatch seam so a catch-up + manual run can never
+  double-drain an item).
 - **Partial-run reconciliation**: `dontAsk` denies out-of-allowlist calls mid-run — plan for
   branch-without-PR, PR-without-evidence-row, claimed-but-not-drained states: named retry /
   orphan-cleanup / reconciliation items, not a single "failure handling" tap.

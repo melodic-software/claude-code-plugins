@@ -9,9 +9,9 @@ allowed-tools: Bash(playwright-cli:*)
 metadata:
   source: https://github.com/microsoft/playwright-cli
   upstream-package: "@playwright/cli"
-  upstream-version: 0.1.13
-  upstream-sha: 1307e5741b26397dffcbe4e1ecb9f479d4b4c8e1
-  synced: 2026-05-22
+  upstream-version: 0.1.17
+  upstream-sha: abfd43bec9e9fca2628ba98f7061a81cde7ec6bb
+  synced: 2026-07-21
 ---
 
 # Playwright CLI — live browser automation
