@@ -1,5 +1,10 @@
 # Underspecification — planning-pipeline vocabulary
 
+> **COMPLETED (recorded 2026-07-21).** Every acceptance criterion below shipped before this
+> Brief was committed: the planning skills (interview, design, prd) and the planning
+> CHANGELOG name "underspecification"/"underspecified" as first-class vocabulary. Preserved
+> as the program's historical contract; no further work.
+
 ## Brief
 
 ### TLDR

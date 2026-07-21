@@ -346,7 +346,9 @@ PLAN.md edits stay main-session-only; workers report back.
   `context/*.md`).
 - [EXEC-SHAPE] Fresh-eyes section wording reconciliation folded into Phase 1 (doctrine
   self-consistency with generic-dispatch default).
-- [EXEC-SHAPE] re-anchor's four skills = one PR; one PR per plugin otherwise (#280 precedent).
+- [EXEC-SHAPE] re-anchor's shared spoke + all 11 skills = one PR (matching the Phase 2 row
+  above; an earlier draft said four — corrected at rescue time); one PR per plugin otherwise
+  (#280 precedent).
 - [EXEC-SHAPE] Directive token `fresh-eyes-exempt`, namespaced per linter precedent.
 - [EXEC-SHAPE] Canonical delegation wording matches both `fresh-context` and `fresh context`
   (POSIX ERE `fresh[- ]context`) — already-compliant skills use both forms; matching beats a
