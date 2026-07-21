@@ -73,17 +73,28 @@ prior-model-era scar tissue.
 
 ### Captured assumptions
 
-- The 11-seed catalog reflects official doctrine as of 2026-07-21 — revisit on next frontier
-  model release or when either prompting page changes (recheck trigger recorded in the skill's
-  sources).
-- Boris Cherny's documented practice is additive (add rule on observed mistake) plus a per-line
-  delete test; the "periodically delete the whole file and regrow" ritual is secondary-coverage
-  spirit, not a primary-source quote — a live research pass (this session) may sharpen this;
-  revisit before the skill's report text cites it.
+- The 11-seed catalog reflects official doctrine as of 2026-07-21, re-verified against live
+  docs this session (research pass) — revisit on next frontier model release or when either
+  prompting page changes (recheck trigger recorded in the skill's sources).
+- Attribution (research-verified 2026-07-21): the pruning bar "Would removing this cause
+  Claude to make mistakes?" and the delete-and-watch loop ("test changes by observing whether
+  Claude's behavior actually shifts") are Anthropic best-practices doctrine. Boris Cherny's
+  documented practice is the additive write-it-down loop plus `/checkup` (dedup, split big
+  CLAUDE.md into nested files + skills); a periodic full-delete ritual is unconfirmed in any
+  primary source — the skill must not cite it as his.
+- Bare-prohibition remediation (research-verified): the docs' primary target form is positive
+  reframing ("tell Claude what to do instead of what not to do"); adding rationale is
+  separately supported ("give the reason, not only the request"). The check offers positive
+  rewrite first, prohibition-plus-rationale as the fallback where a genuine hard "never"
+  survives.
 - Examples remain officially recommended (3–5, format/tone/structure steering) for all current
-  models including Fable-class — the audit flags example blocks for review only when they are
-  behavioral scripts rather than format steering; revisit if the best-practices page drops the
-  recommendation.
+  models including Fable-class — the audit flags example blocks only when they are behavioral
+  scaffolding pinning the model's approach, never format steering; revisit if the
+  best-practices page drops the recommendation.
+- Behavioral-tier caution is itself sourced: Anthropic's postmortem on the ~80% system-prompt
+  cut (InfoQ/VentureBeat coverage) records that narrow evals missed a ~3% regression —
+  grounding why behavioral findings ship as proposals with the delete-and-watch loop, never
+  as confident removals.
 
 ### Out-of-scope
 
