@@ -63,19 +63,19 @@ a PR, issue, or published comment without the user's explicit opt-in.
 
 ## The adversarial pass runs in a fresh context (mandatory)
 
-The core action — adversarially re-examining output the same context just produced
-— is precisely the bias a same-context self-check cannot catch: the check is weak
-by construction, because the reasoning that made the flaw plausible is still active.
-So the load-bearing adversarial pass is **delegated to a fresh-context (non-fork)
-subagent, blind to the reasoning that produced the output.** It is handed the
-artifact and the requirement, not the story of how the work was reached, and told
-to find what is wrong. A fork inherits the parent conversation and carries the same
-bias forward, so it does not satisfy this — the subagent must start clean. This is
-mandatory in the skill, not left to the invoker to remember.
+The method doc already owns the rule: where your own judgement is the suspected
+source of the drift, re-derive in a fresh-context subagent rather than self-checking
+in the context that produced it. For every other corrector that is an escalation;
+for this one it is the **core step** — adversarially re-examining output the same
+context just produced is exactly the bias that rule targets, so the pass is not
+optional here. It **must** run as a fresh-context (non-fork) subagent, blind to the
+reasoning that produced the output: handed the artifact and the requirement, not the
+story of how the work was reached, and told to find what is wrong. A fork inherits
+the parent conversation and carries the bias forward, so it does not satisfy this.
 
 The findings return to this thread, and remediation proceeds *with* the user (delta
-2). This composes both constraints: the fresh context supplies the unbiased
-critique, and the user stays in the loop on the fix.
+2): the fresh context supplies the unbiased critique, the user stays in the loop on
+the fix.
 
 ## Optional focus
 
@@ -87,8 +87,10 @@ that too.
 
 ## Audit — what to look for
 
-Name concrete, located findings (per the method doc's step 2), from a stance that
-is actively trying to break the work:
+This is the brief handed to the fresh-context pass — the questions it is told to
+answer from a stance actively trying to break the work. It is the method doc's step
+2 (self-audit) run in the fresh context rather than here, so the findings come back
+concrete and located, not as a generic mea culpa:
 
 - an output presented as finished that was never tested against its actual
   requirement;
@@ -99,9 +101,8 @@ is actively trying to break the work:
   output;
 - a leap where the reasoning skipped a step and momentum carried it past.
 
-Correct each per the two deltas: surface it, and work the fix WITH the user (fixing
-trivial mechanical items directly). Where your own judgement is the suspected source
-of the miss, that is exactly what the fresh-context pass above is for.
+Correct each per the two deltas: surface what the pass returns, and work the fix WITH
+the user (fixing trivial mechanical items directly).
 
 ## What this skill does NOT do
 
@@ -111,8 +112,8 @@ of the miss, that is exactly what the fresh-context pass above is for.
   on the timeline. Route "poke holes in this plan before we start" to
   devils-advocate; degrade to prose when it is not installed.
 - **Not a review checkpoint.** A structured review pass between "code works" and
-  "code is ready" is `/review:quality-gate`. This is a re-anchor of a discipline,
-  not a review mode.
+  "code is ready" routes to `/review:quality-gate` (degrade to prose when it is not
+  installed); this corrector is a re-anchor of a discipline, not a review mode.
 - **Not a single-axis corrector.** It does not own research, incumbency, terseness,
   or any one discipline a sibling owns — it is the *general* adversarial re-look.
   When a flaw is squarely one axis (an unverified claim), hand that part to the

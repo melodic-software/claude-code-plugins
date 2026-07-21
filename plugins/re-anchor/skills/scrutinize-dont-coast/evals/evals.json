@@ -41,11 +41,11 @@
       "id": 4,
       "name": "focus-scopes-but-does-not-suppress-outside-flaw",
       "prompt": "scrutinize don't coast the security assumptions — re-examine what you just wrote, focused on the auth checks.",
-      "expected_output": "The skill aims the adversarial pass at the named focus (the auth/security assumptions) but still surfaces a serious flaw found outside that focus rather than suppressing it because it fell out of scope.",
+      "expected_output": "The skill aims the adversarial pass at the named focus (the auth/security assumptions) and treats the focus as narrowing aim, not a hard filter — it states that a serious flaw found outside the focus would still be surfaced rather than scoped out. The scoped pass runs in a fresh-context subagent.",
       "files": [],
       "expectations": [
         "Scopes the adversarial re-examination to the named focus (the security/auth assumptions)",
-        "Still surfaces a serious flaw found outside the focus rather than suppressing it",
+        "Treats the focus as narrowing aim, not a hard filter — states that a serious out-of-focus flaw would still be surfaced rather than suppressed",
         "Delegates the scoped pass to a fresh-context subagent, not a same-context re-read"
       ]
     },
