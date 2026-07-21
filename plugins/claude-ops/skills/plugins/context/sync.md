@@ -74,8 +74,12 @@ One call per plugin — `claude plugin update` takes a single `<plugin>` argumen
 
 ## Step 4 — Install new catalog plugins (per `install_new` policy)
 
-Take `fleet-state.sh`'s `missing_from_install` (already excludes anything explicitly opted out with
-`enabledPlugins: false` in any scope — never re-offer a deliberate decline). Apply the configured
+Take `fleet-state.sh`'s `missing_from_user_install` — catalog ids not installed at `user` scope
+(already excludes anything explicitly opted out with `enabledPlugins: false` in any scope — never
+re-offer a deliberate decline). This is deliberately user-scope, not the all-scope `missing_from_install`:
+a plugin installed only at `project`/`local` scope is absent from `missing_from_install` yet still not
+usable from other directories, so installing at `user` scope below (the "usable from any directory"
+guarantee) must key off user-scope completeness. Apply the configured
 policy — SKILL.md's `${user_config.install_new}` line renders the actual value; that render, not this
 step's prose, is what to branch on:
 
@@ -85,12 +89,12 @@ step's prose, is what to branch on:
 - **`none`** — install nothing; list the entries under "Action needed" in the report only
 
 **Caveat (document, don't silently absorb):** with `install_new: all`, a catalog plugin that's
-installed and then *disabled* (not uninstalled — `enabledPlugins: false` still recorded, install
-record still present) is correctly excluded (it's not in `missing_from_install`, it's an installed,
-opted-out plugin). But a plugin that's *uninstalled entirely* without ever setting `false` reappears
-in `missing_from_install` on the very next sync and gets reinstalled — `install_new: all` has no
-memory of "I removed this on purpose." If that's not the intent, uninstall AND disable
-(`enabledPlugins: false`), or switch the policy to `ask`/`none`.
+installed at `user` scope and then *disabled* (not uninstalled — `enabledPlugins: false` still
+recorded, install record still present) is correctly excluded (it's not in `missing_from_user_install`,
+it's an installed, opted-out plugin). But a plugin that's *uninstalled entirely* without ever setting
+`false` reappears in `missing_from_user_install` on the very next sync and gets reinstalled —
+`install_new: all` has no memory of "I removed this on purpose." If that's not the intent, uninstall
+AND disable (`enabledPlugins: false`), or switch the policy to `ask`/`none`.
 
 ## Step 5 — `enabledPlugins` completeness
 
