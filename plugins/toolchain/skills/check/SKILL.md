@@ -109,6 +109,15 @@ Run build → test → lint in order per ecosystem. Stop that ecosystem on first
 
 Tool presence: before each ecosystem runs, verify the tool is on `PATH`. If missing, report `skip` with the ecosystem's `install-hint` from the ecosystem config — never report `FAIL` for a missing tool.
 
+**Opt-in gate (lint phase only)**: before running an ecosystem's `check-cmd`, evaluate its resolved `opt-in` condition (if present) against the repo. Build and test always run regardless of `opt-in` — only the lint phase is gated, since compiling and testing don't depend on style configuration.
+
+An `opt-in` value describes either ONE condition governing the whole `check-cmd` (e.g. dotnet, python), or MULTIPLE independent per-tool conditions bundled into one command string (e.g. bash's `"shellcheck always applies to shell files; shfmt only when .editorconfig declares shell style"` — shellcheck is unconditional, shfmt is gated). Read the `opt-in` text to tell which shape it is:
+
+- **Single condition**: unmet → report the ecosystem's Lint column as `skip (opt-in unmet: <condition, ≤10 words>)` — visible, not silently omitted — and do not run `check-cmd`.
+- **Multiple per-tool conditions**: never suppress a sub-tool whose own condition already holds unconditionally (e.g. shellcheck) just because a different sub-tool's condition (shfmt) is unmet — still run `check-cmd` and report its real output. Only report the whole Lint column as `skip (opt-in unmet: ...)` when EVERY sub-tool's condition is unmet (nothing in the command can meaningfully run).
+
+Either way, an opt-in-unmet skip counts toward the table's total ecosystem count but never toward the FAIL count, the same precedent as a missing-tool skip. This is ecosystem-generic (reads the resolved `opt-in` key), not dotnet-specific — it applies to every current and future opt-in-bearing ecosystem `/toolchain:check` covers. Project-declared CI-parity gates (below) are unaffected — they already run independent of `check-cmd`.
+
 **Project-declared CI-parity gates** — when the consuming project documents extra local checks that mirror CI gates plain build / test / lint don't catch (lockfile drift, generated-artifact freshness, schema regeneration), run the ones whose trigger files changed. These live in the consumer's own conventions (its `CLAUDE.md` / rules / commands reference) — this plugin ships none of its own.
 
 For ecosystem-specific gotchas (xUnit `--nologo` trap, `dotnet test --project`, etc.), read the corresponding `context/<ecosystem>.md` file.
@@ -126,7 +135,7 @@ For ecosystem-specific gotchas (xUnit `--nologo` trap, `dotnet test --project`, 
 Overall: FAIL (1 of 2 ecosystems failed)
 ```
 
-Use `pass`, `FAIL`, `skip`, or `—` (not applicable — for ecosystems where the corresponding command is null in the ecosystem config). Show failing command output below the table.
+Use `pass`, `FAIL`, `skip` (tool missing) or `skip (opt-in unmet: ...)` (config condition not met), or `—` (not applicable — for ecosystems where the corresponding command is null in the ecosystem config). Show failing command output below the table.
 
 If any project-declared CI-parity gates fired, summarize each by name + outcome below the per-ecosystem block, with the remediation pointer on failure.
 
@@ -143,4 +152,5 @@ When composing `/toolchain:check` from another skill (like `/verification:confir
 
 - **CWD drift** — the #1 source of false failures. Always use absolute paths
 - **Missing tools** — report as `skip` with reason, not as failure (e.g., `uv` not installed)
+- **Opt-in unmet** — report as `skip (opt-in unmet: ...)` with the condition, not as failure and not silently omitted (e.g., dotnet with no C#-relevant `.editorconfig`)
 - **Multiple projects in same ecosystem** — ecosystems with an `anchor` use that as the scoping anchor; ecosystems with `project-discovery` patterns walk each discovered project root

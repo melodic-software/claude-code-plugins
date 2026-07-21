@@ -3,6 +3,39 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.0]
+
+### Added
+
+- **dotnet ecosystem `opt-in` key** (`.editorconfig` with a `[*]` or C#-glob
+  section, walked from the changed file up to the repo root — empirically
+  verified against dotnet SDK 10.0.302 that a universal `[*]` section governs
+  `dotnet format`'s output on `.cs` files just as a `[*.cs]` section would,
+  while a `.editorconfig` with only unrelated globs has zero effect) —
+  closes the one lint-bearing ecosystem gap where a config-presence opt-in
+  didn't exist.
+- **`/toolchain:check` now honors `opt-in`** for the lint phase (it never did
+  before — `dotnet format --verify-no-changes` ran unconditionally whenever
+  `.cs`/`.csproj`/etc. files changed, regardless of whether the repo
+  configured any style/analyzer preferences). Build and test are unaffected;
+  only the lint phase is gated.
+- **Visible `skip (opt-in unmet: ...)` status** in both `/toolchain:check`
+  and `/toolchain:lint` results tables — an ecosystem whose `opt-in`
+  condition isn't met is now reported, not silently dropped from output as
+  it previously was in `/toolchain:lint` for every opt-in-bearing ecosystem.
+  Multi-tool ecosystems (bash's shellcheck-always/shfmt-conditional split,
+  cross-cutting's per-tool config list) are only whole-row-skipped when
+  every sub-tool's condition is unmet — an unconditionally-applicable
+  sub-tool (e.g. shellcheck) still runs and reports even when a sibling
+  sub-tool in the same ecosystem is gated.
+
+### Fixed
+
+- dotnet's lint/format check no longer imposes Roslyn's built-in formatting
+  defaults on a repo that never configured `.editorconfig`/analyzer
+  preferences — matching the same "never impose an unconfigured opinion"
+  posture already applied at the hook layer by `ruff-format`/`typos-format`.
+
 ## [0.5.2]
 
 ### Changed
