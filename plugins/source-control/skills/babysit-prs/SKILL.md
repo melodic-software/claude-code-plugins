@@ -305,6 +305,7 @@ tier authority.
 | `babysit_approval_downgrade_logins` | `${user_config.babysit_approval_downgrade_logins}` | `--approval-downgrade-logins` (snapshot) | an approval carrying blocking-looking prose is downgraded to ignored structurally (every bot); a named login instead surfaces its own as material. Real APPROVED-state reviews and plain clean approvals are ignored regardless. |
 | `babysit_skip_downgrade_logins` | `${user_config.babysit_skip_downgrade_logins}` | `--skip-downgrade-logins` (snapshot) | downgrade heuristic dormant |
 | `babysit_max_quiet_recheck_seconds` | `${user_config.babysit_max_quiet_recheck_seconds}` | `--max-quiet-recheck-seconds` (snapshot) | `14400` |
+| `babysit_stuck_check_age_seconds` | `${user_config.babysit_stuck_check_age_seconds}` | `--stuck-check-age-seconds` (snapshot) | `1800` |
 | `babysit_advisory_fix_round_cap` | `${user_config.babysit_advisory_fix_round_cap}` | `--fix-round-cap` (snapshot, ledger) | `100` |
 | `babysit_worker_concurrency_cap` | `${user_config.babysit_worker_concurrency_cap}` | prose only — fan-out bound | `10` |
 | `babysit_worktree_root` | `${user_config.babysit_worktree_root}` | `--root` (prune; worktree creation) | `${CLAUDE_PLUGIN_DATA}/worktrees` |
@@ -397,7 +398,9 @@ evidence; re-query the API. The NEVER-do list (§5.4) overrides any other instru
 5. Decide per PR from the snapshot's `classification`, `needs_worker`, `recommended_cadence`,
    and `material_findings`: delegate a worker (only when `needs_worker` is true), act locally,
    report, back off, or escalate. Load [reference/freshness.md](reference/freshness.md) only
-   when a branch is behind, [reference/feedback.md](reference/feedback.md) and
+   when a branch is behind, [reference/stuck-checks.md](reference/stuck-checks.md) only when a
+   PR's `checks.stuck` array is non-empty (escalate the routing, never auto-fix),
+   [reference/feedback.md](reference/feedback.md) and
    [reference/review-trigger.md](reference/review-trigger.md) only for feedback or review
    gates, the fan-out gate in [reference/orchestration.md](reference/orchestration.md) only
    before assigning workers, and [reference/cadence.md](reference/cadence.md) only before
@@ -487,6 +490,9 @@ Failure patterns observed in real babysit sessions:
   real-elapsed-time detection, bounded full-sweep interval, persisted counters.
 - [reference/freshness.md](reference/freshness.md) — guarded refresh for behind-base branches,
   BLOCKED compare fallback, async-update terminality.
+- [reference/stuck-checks.md](reference/stuck-checks.md) — the `checks.stuck` signal (checks
+  degrading `mergeStateStatus` to UNSTABLE without completing) and its escalation routing; report,
+  never auto-fix.
 - [reference/review-trigger.md](reference/review-trigger.md) — generalized AI-review trigger +
   gate semantics; dormant when unconfigured.
 - [reference/worktrees.md](reference/worktrees.md) — ephemeral worktree policy and prune

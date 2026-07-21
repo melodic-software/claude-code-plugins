@@ -153,5 +153,80 @@ class PersistedIdentityValidationTests(unittest.TestCase):
             )
 
 
+GEN = "2026-07-10T00:00:00Z"
+OLD_TS = "2026-07-09T00:00:00Z"  # 24h before GEN -> aged out
+NOW_TS = "2026-07-10T00:00:00Z"  # age 0 -> not aged out
+THRESHOLD = 1800.0
+
+
+def _norm(**fields: object) -> dict[str, object]:
+    return checks.normalize_check(fields)
+
+
+class NormalizeCreatedAtTests(unittest.TestCase):
+    def test_check_run_created_at_from_started_at(self) -> None:
+        normalized = checks.normalize_check(
+            {"__typename": "CheckRun", "name": "x", "startedAt": OLD_TS}
+        )
+        self.assertEqual(normalized["created_at"], OLD_TS)
+
+    def test_status_context_created_at_from_created_at(self) -> None:
+        normalized = checks.normalize_check(
+            {"__typename": "StatusContext", "context": "x", "state": "PENDING",
+             "createdAt": OLD_TS}
+        )
+        self.assertEqual(normalized["created_at"], OLD_TS)
+
+
+class ClassifyStuckChecksTests(unittest.TestCase):
+    def _stuck(self, rows: list[dict[str, object]], merge_state: str = "UNSTABLE"):
+        return checks.classify_stuck_checks(
+            rows, GEN, merge_state=merge_state, age_threshold_seconds=THRESHOLD
+        )
+
+    def test_only_fires_under_unstable(self) -> None:
+        orphan = _norm(__typename="StatusContext", context="x", state="PENDING",
+                       targetUrl="")
+        self.assertEqual(self._stuck([orphan], merge_state="CLEAN"), [])
+        self.assertEqual(self._stuck([orphan], merge_state="BLOCKED"), [])
+
+    def test_orphaned_status_is_not_age_gated(self) -> None:
+        orphan = _norm(__typename="StatusContext", context="codex-review",
+                       state="PENDING", targetUrl="", createdAt=NOW_TS)
+        stuck = self._stuck([orphan])
+        self.assertEqual([s["class"] for s in stuck], [checks.STUCK_ORPHANED_STATUS])
+        self.assertEqual(stuck[0]["name"], "codex-review")
+        self.assertEqual(stuck[0]["type"], "StatusContext")
+
+    def test_stuck_queued_is_age_gated(self) -> None:
+        young = _norm(__typename="CheckRun", name="build", status="QUEUED",
+                      startedAt=NOW_TS)
+        old = _norm(__typename="CheckRun", name="build", status="QUEUED",
+                    startedAt=OLD_TS)
+        self.assertEqual(self._stuck([young]), [])
+        stuck = self._stuck([old])
+        self.assertEqual([s["class"] for s in stuck], [checks.STUCK_QUEUED])
+        self.assertGreater(stuck[0]["age_seconds"], THRESHOLD)
+
+    def test_queued_without_start_time_is_unflagged(self) -> None:
+        # A QUEUED CheckRun gh reports without startedAt has no provable age.
+        no_ts = _norm(__typename="CheckRun", name="build", status="QUEUED")
+        self.assertEqual(self._stuck([no_ts]), [])
+
+    def test_never_settling_pending_past_threshold(self) -> None:
+        old = _norm(__typename="StatusContext", context="ext", state="PENDING",
+                    targetUrl="https://ci.example/run", createdAt=OLD_TS)
+        stuck = self._stuck([old])
+        self.assertEqual([s["class"] for s in stuck], [checks.STUCK_NEVER_SETTLING])
+        self.assertEqual(stuck[0]["target_url"], "https://ci.example/run")
+
+    def test_settled_and_success_checks_are_never_stuck(self) -> None:
+        failed = _norm(__typename="CheckRun", name="build", status="COMPLETED",
+                       conclusion="FAILURE", startedAt=OLD_TS)
+        passed = _norm(__typename="CheckRun", name="build", status="COMPLETED",
+                       conclusion="SUCCESS", startedAt=OLD_TS)
+        self.assertEqual(self._stuck([failed, passed]), [])
+
+
 if __name__ == "__main__":
     unittest.main()
