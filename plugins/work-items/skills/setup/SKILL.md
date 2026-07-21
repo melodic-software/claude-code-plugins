@@ -45,8 +45,8 @@ directory or any machine-local state.
 `check` binding probe validates it read-only. The tracker seam runs against exactly one provider per
 repo, declared in the tracked `.work-item-tracker.json` at the project root (resolved as `BINDING`
 above); every seam verb resolves the bound provider from it, and with no binding the seam hard-errors
-(exit 3). The seam **ships with this plugin** and bundles the `github` and `local-markdown` adapters —
-installing the plugin is enough; a repo only declares which one it uses. Binding shape, discovery, and
+(exit 3). The seam **ships with this plugin** and bundles the `github`, `local-markdown`, and `jira`
+adapters — installing the plugin is enough; a repo only declares which one it uses. Binding shape, discovery, and
 adapter resolution are the seam contract's
 [`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md`](${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md)
 "Setup (binding file)" and "Adapter resolution".
@@ -61,6 +61,12 @@ adapter resolution are the seam contract's
    - **`local-markdown`** — the offline reference provider (one markdown file per item); never a
      coordination surface. Requires `config.storage_dir` (no baked default) — a tracked directory the
      items live in (e.g. `.work-items`).
+   - **`jira`** — read/resolve-only against a Jira Cloud project set (consume-only: no ticket
+     creation/claim/mutation; write verbs exit `6`). Requires `config.jira` (`site`, non-empty
+     `project_keys[]`, `auth_email`, `auth_env`) and `curl`; the API token is referenced by env-var
+     name only, never stored. Binding shape and the deferred live-instance facts are the seam
+     contract's "jira adapter". Selecting it does not enable `/work-items:work` or `track start`
+     (both need writes) — an accepted gap.
    - **another provider** — supply its adapter consumer-local at
      `${CLAUDE_PROJECT_DIR}/tools/work-item-tracker/adapters/<provider>/` (the seam resolves
      consumer-local adapters ahead of the bundled set, so a repo can add an unshipped provider or
@@ -68,9 +74,15 @@ adapter resolution are the seam contract's
 3. **Settle the config — all non-secret:**
    - `lease_ttl_hours` (REQUIRED, every provider) — claim-lease lifetime in hours. RECOMMENDED `24`.
    - `storage_dir` (REQUIRED for `local-markdown` only) — the item-store directory.
+   - `jira` (REQUIRED for `jira` only) — an object with `site` (Cloud host), non-empty
+     `project_keys[]`, `auth_email`, and `auth_env` (the env-var NAME holding the API token);
+     optional `blocked_by_link_type` / `done_category_keys` override the deferred live-instance
+     defaults. Interview for these; probe that the token resolves in-env at bind time (never store
+     it). Per the operator secret-binding classification, the token's durable home is the OS-native
+     credential store, with the env var as the CI/headless fallback — never a plaintext file.
    - **Secrets never go in this file** — it is tracked in git. A provider that needs an API token
      references it by env-var name / the repo's secret-store convention from inside its adapter, never
-     as a literal here. `github` needs none (ambient `gh`).
+     as a literal here. `github` needs none (ambient `gh`); `jira` references its token by `auth_env` name.
 4. **Write the binding.** Re-read `.work-item-tracker.json` from disk immediately before writing and
    merge: preserve any existing `config.role_labels` (owned by the role-label pass below) and any other
    keys. Write `schema_version: "1.0"`, the chosen `provider`, and the `config`. Confirm the file is
@@ -110,9 +122,10 @@ check.
    bound, so every seam verb hard-errors (exit 3) until `apply` seeds it, and the role remap has nothing
    to configure; the remediation is `/work-items:setup apply`. Present → validate without mutating: it
    parses as JSON, carries `schema_version` and a `provider`, and that provider resolves to a bundled
-   adapter (`github`, `local-markdown`) or a consumer-local one at
+   adapter (`github`, `local-markdown`, `jira`) or a consumer-local one at
    `${CLAUDE_PROJECT_DIR}/tools/work-item-tracker/adapters/<provider>/`; `config.lease_ttl_hours` is
-   present, and `local-markdown` additionally carries `config.storage_dir`. A malformed shape, an
+   present, `local-markdown` additionally carries `config.storage_dir`, and `jira` additionally carries
+   `config.jira` (`site`, non-empty `project_keys[]`, `auth_email`, `auth_env`). A malformed shape, an
    unknown/unresolvable provider, or a missing required config key is FAIL, naming what is wrong.
 3. **Schedule presence** — resolve `SCHEDULE` (above). Absent → INFO: `due` / `recheck` / `work`
    degrade to "no recurring schedule configured"; `apply` seeds it. Present → continue.
@@ -279,8 +292,8 @@ nothing.
   only inspects config; `apply` seeds the binding, schedule, and optional role→label remap.
 - Duplicate the per-item `add --recurring` path — that path stays for filing a single recurring item;
   setup is the bulk / initial-config path that seeds or reshapes the whole schedule.
-- Author or vendor a provider adapter — the seam ships the `github` and `local-markdown` adapters; a
-  consumer-supplied adapter lives in the consuming repo at
+- Author or vendor a provider adapter — the seam ships the `github`, `local-markdown`, and `jira`
+  adapters; a consumer-supplied adapter lives in the consuming repo at
   `${CLAUDE_PROJECT_DIR}/tools/work-item-tracker/adapters/<provider>/`, not written by setup.
 - Store secrets — the binding is tracked in git and carries non-secret config only (a provider token is
   referenced by name from inside its adapter, never written here).

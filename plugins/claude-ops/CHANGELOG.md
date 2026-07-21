@@ -16,6 +16,20 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   header comment can grow or shrink without silently truncating or over-running
   `--help` output.
 
+## [0.17.3]
+
+### Changed
+
+- **lanes: recorded why the mid-session staleness git probe is not `!`-injected.**
+  Evaluated the lanes skill's git probes against the precompute convention (#864).
+  The two `git rev-parse --show-toplevel` probes in `SKILL.md`'s front matter are
+  already `!` dynamic-context injections (fallback + `shell: bash`), so nothing to
+  convert there. The `context/refresh.md` staleness probe correctly stays a body
+  instruction — it fails all four conditions: conditional (only when weighing a
+  restart), needs a computed `<lane-launch-commit>` argument, and its `git fetch`
+  is an unbounded network round-trip that mutates remote-tracking refs. Added that
+  reason inline so a future reader does not re-litigate the decision.
+
 ## [0.17.2]
 
 ### Changed
