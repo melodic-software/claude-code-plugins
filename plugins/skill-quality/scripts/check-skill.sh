@@ -406,25 +406,47 @@ fi
 # is deliberate — it suppresses per-block opportunities in a skill that already
 # precomputes something, an accepted recall limit for an advisory check.
 
-# Read-only context-gathering command line? A mutation/side-effect token
-# anywhere in the line, or a redirection, disqualifies the whole block; then the
-# leading command word must be a known reader. git/gh are allowed wholesale and
-# guarded by the write-token denylist rather than a subcommand allowlist.
+# Read-only context-gathering command line? A redirection disqualifies any line.
+# git and gh are matched by a read-only SUBCOMMAND allowlist (not wholesale) so
+# an unlisted mutation — `git clean`, `git stash`, `git branch -D`, `gh pr merge`
+# — is never mistaken for read-only; that keeps the miss on the safe side (a
+# missed opportunity, never advice to auto-run a mutation every invocation).
+# Pure readers are additionally screened for an embedded mutating token.
 precompute_readonly_line() {
   local line="$1"
   line="${line#"${line%%[![:space:]]*}"}"   # ltrim
   line="${line#\$ }"                          # strip a leading `$ ` prompt
-  # shellcheck disable=SC2016  # single quotes are deliberate: this is an ERE with $ as an end anchor, not a shell expansion
-  if grep -qE '(^|[[:space:]])(commit|push|add|rm|mv|cp|checkout|reset|merge|rebase|pull|fetch|clone|create|edit|delete|close|init|install|build|deploy|apply|mkdir|touch|tee|sed|write|publish|run)([[:space:]]|$)' <<<"$line"; then
-    return 1
-  fi
   case "$line" in
     *'>'*) return 1 ;; # redirection = write
     *) ;;
   esac
   local cmd="${line%%[[:space:]]*}"
   case "$cmd" in
-    ls | pwd | cat | find | date | uname | whoami | hostname | wc | head | tail | echo | printf | id | stat | du | df | basename | dirname | realpath | readlink | env | groups | tree | sw_vers | git | gh) return 0 ;;
+    ls | pwd | cat | find | date | uname | whoami | hostname | wc | head | tail | echo | printf | id | stat | du | df | basename | dirname | realpath | readlink | env | groups | tree | sw_vers)
+      # A pure reader can still mutate (`find -delete`, `cat ... | tee`): reject
+      # an embedded mutating token.
+      # shellcheck disable=SC2016  # single quotes are deliberate: $ is an ERE end anchor, not a shell expansion
+      grep -qE '(^|[[:space:]])(rm|mv|cp|tee|sed|mkdir|touch|delete|-delete)([[:space:]]|$)' <<<"$line" && return 1
+      return 0
+      ;;
+    git)
+      local sub="${line#git}"
+      sub="${sub#"${sub%%[![:space:]]*}"}"
+      sub="${sub%%[[:space:]]*}"
+      case "$sub" in
+        status | log | diff | show | rev-parse | rev-list | describe | ls-files | ls-tree | symbolic-ref | shortlog | blame | cat-file | for-each-ref | name-rev | whatchanged) return 0 ;;
+        *) return 1 ;;
+      esac
+      ;;
+    gh)
+      # gh nests the read verb after the object (gh pr diff, gh run view). Allow
+      # only a known read verb, and never when a write verb is also present.
+      case " $line " in
+        *" create "* | *" edit "* | *" delete "* | *" merge "* | *" close "* | *" comment "*) return 1 ;;
+        *" view "* | *" diff "* | *" list "* | *" status "* | *" checks "*) return 0 ;;
+        *) return 1 ;;
+      esac
+      ;;
     *) return 1 ;;
   esac
 }

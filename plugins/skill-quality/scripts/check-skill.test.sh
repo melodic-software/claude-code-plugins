@@ -568,9 +568,85 @@ None known.
 out="$(run precompute-gitwrite 2>&1)"
 rc=$?
 if [[ $rc -eq 0 ]] && ! grep -q 'precompute opportunity' <<<"$out"; then
-  pass "git write block is disqualified by the write-token denylist"
+  pass "git write block is not classified read-only (subcommand allowlist)"
 else
   fail "git add/commit block should not warn precompute (rc=$rc): $out"
+fi
+
+# 18e. A mutating git subcommand outside the read-only allowlist (git stash /
+#      git clean) is not classified read-only, so no injection is suggested.
+make_skill precompute-gitmutate '---
+name: precompute-gitmutate
+description: "Cleans the tree. Use when: '"'"'cleaning the worktree'"'"'."
+---
+
+## Steps
+
+```bash
+git stash
+git clean -fd
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run precompute-gitmutate 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'precompute opportunity' <<<"$out"; then
+  pass "unlisted mutating git subcommand (stash/clean) is not a precompute candidate"
+else
+  fail "git stash/clean block should not warn precompute (rc=$rc): $out"
+fi
+
+# 18f. A non-shell fenced block (json) is never scanned, so it is not flagged.
+make_skill precompute-jsonfence '---
+name: precompute-jsonfence
+description: "Returns JSON. Use when: '"'"'shaping json output'"'"'."
+---
+
+## Example
+
+```json
+{"key": "value"}
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run precompute-jsonfence 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'precompute opportunity' <<<"$out"; then
+  pass "non-shell fenced block (json) is not flagged as a precompute opportunity"
+else
+  fail "json block should not warn precompute (rc=$rc): $out"
+fi
+
+# 18g. A read-only gh subcommand nested after the object (gh pr diff, gh run
+#      list) is a valid candidate — the object/verb allowlist, not a flat token.
+make_skill precompute-ghread '---
+name: precompute-ghread
+description: "Reads PR state. Use when: '"'"'reading pr context'"'"'."
+---
+
+## Context
+
+```bash
+gh pr diff
+gh run list
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run precompute-ghread 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'precompute opportunity' <<<"$out"; then
+  pass "read-only gh subcommand (pr diff / run list) is a precompute candidate"
+else
+  fail "gh read-only block should warn precompute (rc=$rc): $out"
 fi
 
 if [[ $fails -ne 0 ]]; then
