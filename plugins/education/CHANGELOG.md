@@ -3,6 +3,29 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0]
+
+### Added
+
+- New `quiz-me` skill (`/education:quiz-me`) — a post-work comprehension
+  check. After a change is complete it generates a self-contained HTML
+  report of what was done (context, intuition, decisions) with a quiz at
+  the bottom the user answers, verifying that the HUMAN absorbed the work
+  rather than the artifact. Non-gating by default; the new `quiz_policy`
+  userConfig (`off`, `on-request`, `always`, `above-threshold`) tunes how
+  often a quiz is offered, never whether the merge is blocked. A
+  `recall <query>` action answers "what did we do
+  on <ticket>" from a retained report library first, git/tracker
+  archaeology second. Reports are keyed on repo identity and stored under
+  `${CLAUDE_PLUGIN_DATA}` (or the new `report_library_dir` userConfig),
+  never in the consuming repo's tree.
+
+### Changed
+
+- The plugin now declares `userConfig` (`quiz_policy`,
+  `report_library_dir`), both optional with defaults that preserve
+  zero-config behavior. The README Configuration section documents them.
+
 ## [0.4.0]
 
 ### Added

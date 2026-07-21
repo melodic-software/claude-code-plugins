@@ -11,7 +11,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from babysit_util import is_json_array, is_json_object, json_array
+from babysit_util import (
+    is_json_array,
+    is_json_object,
+    json_array,
+    parse_timestamp,
+)
 
 CHECK_FAILURE_STATES = {
     "ACTION_REQUIRED",
@@ -68,6 +73,12 @@ def normalize_check(check: dict[str, Any]) -> dict[str, Any]:
         or check.get("createdAt")
         or ""
     )
+    # Inception timestamp for stuck-check ageing -- distinct from `_sort_key`,
+    # which prefers `completedAt` for latest-wins dedupe. Here we want when the
+    # check began, so a still-running/queued check can be aged against the
+    # snapshot's `generated_at`. gh's `statusCheckRollup` exposes `startedAt`
+    # on a CheckRun (no `createdAt`) and `createdAt` on a StatusContext.
+    created_at = str(check.get("startedAt") or check.get("createdAt") or "")
 
     return {
         "name": name,
@@ -80,6 +91,7 @@ def normalize_check(check: dict[str, Any]) -> dict[str, Any]:
         "details_url": str(check.get("detailsUrl") or ""),
         "target_url": str(check.get("targetUrl") or ""),
         "workflow_name": str(check.get("workflowName") or ""),
+        "created_at": created_at,
         "_sort_key": sort_key,
     }
 
@@ -196,3 +208,92 @@ def classify_checks(status_rollup: Any) -> dict[str, Any]:
         "pending_identities": pending_identities,
         "checks": checks,
     }
+
+
+STUCK_ORPHANED_STATUS = "orphaned_status"
+STUCK_QUEUED = "stuck_queued"
+STUCK_NEVER_SETTLING = "never_settling"
+
+
+def _check_age_seconds(check: dict[str, Any], observed: Any) -> float | None:
+    """Age of one normalized check at snapshot time, or None if unknowable."""
+    if observed is None:
+        return None
+    created = parse_timestamp(check.get("created_at"))
+    if created is None:
+        return None
+    return (observed - created).total_seconds()
+
+
+def classify_stuck_checks(
+    checks: list[dict[str, Any]],
+    generated_at: str,
+    *,
+    merge_state: str,
+    age_threshold_seconds: float,
+) -> list[dict[str, Any]]:
+    """Classify checks holding `mergeStateStatus` at UNSTABLE without settling.
+
+    Pure over already-normalized checks -- no new fetch. Fires only under
+    `UNSTABLE`, whose GitHub contract is "mergeable, every REQUIRED gate
+    satisfied, a non-required commit status not passing": so every pending
+    check reaching here is non-required by construction, and the merge-state
+    gate supplies the required/non-required split without any per-check flag.
+    All three classes are `pending`-category (a QUEUED CheckRun categorises as
+    pending); a *settled* failing check is deliberately excluded -- it is a
+    completed failure, not a never-settling one.
+
+    The result is a report/escalation signal only. Callers surface it as a
+    material finding, never a blocker: a blocker would re-pin the PR `active`
+    and re-dispatch a worker every cycle for a check no branch action clears.
+
+    Classes:
+      * `orphaned_status` -- a StatusContext posted `pending` with no backing
+        run to cancel (empty `target_url`); no backing run means no start time
+        to age against, so this class is not age-gated.
+      * `stuck_queued` -- a CheckRun still `QUEUED` past the age threshold
+        (e.g. a job on an unmatched self-hosted runner label).
+      * `never_settling` -- any other pending check past the age threshold not
+        already matched above.
+
+    A pending check whose inception time is unknown (empty/unparseable
+    `created_at`, e.g. a QUEUED CheckRun gh reports without `startedAt`) is
+    left unflagged for the age-gated classes: without a start time its age
+    cannot be proven past the threshold, so it fails toward silence rather
+    than a false stuck report.
+    """
+    if merge_state != "UNSTABLE":
+        return []
+    observed = parse_timestamp(generated_at)
+    stuck: list[dict[str, Any]] = []
+    for check in checks:
+        if check.get("category") != "pending":
+            continue
+        age = _check_age_seconds(check, observed)
+        aged_out = age is not None and age >= age_threshold_seconds
+        if (
+            check.get("type") == "StatusContext"
+            and not check.get("target_url")
+        ):
+            stuck_class = STUCK_ORPHANED_STATUS
+        elif (
+            check.get("type") == "CheckRun"
+            and check.get("effective_state") == "QUEUED"
+            and aged_out
+        ):
+            stuck_class = STUCK_QUEUED
+        elif aged_out:
+            stuck_class = STUCK_NEVER_SETTLING
+        else:
+            continue
+        stuck.append(
+            {
+                "name": str(check.get("name") or ""),
+                "type": str(check.get("type") or ""),
+                "class": stuck_class,
+                "target_url": str(check.get("target_url") or ""),
+                "details_url": str(check.get("details_url") or ""),
+                "age_seconds": age,
+            }
+        )
+    return stuck

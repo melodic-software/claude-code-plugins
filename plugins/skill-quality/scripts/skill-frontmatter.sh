@@ -57,6 +57,30 @@ skill_frontmatter::field() {
   '
 }
 
+# Extract the value of an indented `metadata:` sub-key (quotes stripped) from
+# stdin frontmatter text, e.g. the `upstream-version` in:
+#   metadata:
+#     upstream-version: 0.1.17
+# `skill_frontmatter::field` anchors at column 0 and cannot see this — it's
+# for top-level keys only. Prints nothing if the key is absent.
+#
+# `key` is spliced into an awk regex uninterpreted — safe only for plain
+# identifier-shaped keys (letters/digits/hyphen, e.g. `upstream-version`).
+# A key containing awk regex metacharacters (`.`, `[`, `*`, ...) would silently
+# mismatch, not error. All current call sites pass literal identifier keys.
+skill_frontmatter::metadata_field() {
+  local key="$1"
+  awk -v k="$key" '
+    $0 ~ "^[[:space:]]+" k ":[[:space:]]*" {
+      val = $0
+      sub("^[[:space:]]+" k ":[[:space:]]*", "", val)
+      sub("[[:space:]]+#.*$", "", val)
+      print val
+      exit
+    }
+  '
+}
+
 # Strip ONE outer quote layer — double OR single, not both.
 skill_frontmatter::strip_quotes() {
   local s="$1"

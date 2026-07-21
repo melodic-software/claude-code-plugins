@@ -87,6 +87,10 @@ def build_config(args: argparse.Namespace) -> delta.ClassifyConfig:
             getattr(args, "max_quiet_recheck_seconds", None)
             or delta.DEFAULT_MAX_QUIET_RECHECK_SECONDS
         ),
+        stuck_check_age_seconds=float(
+            getattr(args, "stuck_check_age_seconds", None)
+            or delta.DEFAULT_STUCK_CHECK_AGE_SECONDS
+        ),
         advisory_fix_round_cap=int(
             getattr(args, "fix_round_cap", None) or delta.ADVISORY_FIX_ROUND_CAP
         ),
@@ -475,6 +479,17 @@ def main() -> int:
         ),
     )
     parser.add_argument(
+        "--stuck-check-age-seconds",
+        type=float,
+        default=delta.DEFAULT_STUCK_CHECK_AGE_SECONDS,
+        help=(
+            "Minimum age before a pending non-required check under UNSTABLE is "
+            "reported as stuck (stuck_queued / never_settling). Orphaned "
+            "StatusContexts are detected structurally and ignore this "
+            f"threshold (default {delta.DEFAULT_STUCK_CHECK_AGE_SECONDS})."
+        ),
+    )
+    parser.add_argument(
         "--fix-round-cap",
         type=int,
         default=delta.ADVISORY_FIX_ROUND_CAP,
@@ -554,6 +569,7 @@ def main() -> int:
         if args.gh_timeout_seconds is not None:
             gh.set_gh_timeout_seconds(args.gh_timeout_seconds)
         delta.validated_max_quiet_recheck_seconds(args.max_quiet_recheck_seconds)
+        delta.validated_stuck_check_age_seconds(args.stuck_check_age_seconds)
         snapshot = build_snapshot(args)
     except Exception as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

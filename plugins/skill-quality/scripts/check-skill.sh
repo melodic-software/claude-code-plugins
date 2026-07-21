@@ -32,7 +32,8 @@
 #   5. Backtick-cited skill-internal supporting files resolve
 #   6. markdownlint clean (markdownlint-cli2; WARN-skip if npx absent)
 #   7. scripts/*.test.sh pass where present
-#   8. vendor/ byte-identical vs HEAD (vendor-backed skills only)
+#   8. vendor/ byte-identical vs HEAD, unless paired with an upstream-version
+#      bump (a legitimate maintainer-run sync) (vendor-backed skills only)
 #   9. Stale-tracking metadata keys preserved vs HEAD (upstream-version/synced/upstream-sha)
 #  10. SKILL.md <= 200 lines soft target (WARN; progressive disclosure)
 #  11. Gotchas surface present (WARN; inline `## Gotchas` or context|reference/gotchas.md)
@@ -313,7 +314,20 @@ if [[ -d "$SKILL_DIR/vendor" ]] && git -C "$REPO_ROOT" cat-file -e "$BASE_REF:$S
   if git -C "$REPO_ROOT" diff --quiet "$BASE_REF" -- "$SKILL_REL/vendor/" 2>/dev/null; then
     note "vendor/ unchanged vs $BASE_REF"
   else
-    err "vendor/ changed vs $BASE_REF — vendored content carries a byte-identical guarantee; rewrites must not touch vendor/"
+    # A vendor/ diff is legitimate exactly when paired with a bumped
+    # metadata.upstream-version: the maintainer-run sync flow (the skill's own
+    # `update` action) always replaces vendor/ wholesale from a fresh upstream
+    # release AND bumps this key in the same change. A vendor/ diff with no
+    # accompanying version bump means vendor/ was hand-edited, which the
+    # byte-identical guarantee forbids.
+    BASE_FM_V8="$(git -C "$REPO_ROOT" show "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null | skill_frontmatter::extract)"
+    BASE_UPSTREAM_VERSION="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::metadata_field upstream-version <<<"$BASE_FM_V8")")"
+    CUR_UPSTREAM_VERSION="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::metadata_field upstream-version <<<"$FRONTMATTER")")"
+    if [[ -n "$CUR_UPSTREAM_VERSION" && "$CUR_UPSTREAM_VERSION" != "$BASE_UPSTREAM_VERSION" ]]; then
+      note "vendor/ changed vs $BASE_REF, paired with an upstream-version bump ($BASE_UPSTREAM_VERSION -> $CUR_UPSTREAM_VERSION) — legitimate sync"
+    else
+      err "vendor/ changed vs $BASE_REF — vendored content carries a byte-identical guarantee; rewrites must not touch vendor/ (no accompanying metadata.upstream-version bump)"
+    fi
   fi
 fi
 

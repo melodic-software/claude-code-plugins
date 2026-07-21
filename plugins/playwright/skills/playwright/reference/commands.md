@@ -1,6 +1,6 @@
 # Command reference
 
-Distilled from upstream `@playwright/cli@0.1.13` SKILL.md. For verbatim upstream, see `vendor/SKILL.md` beside this skill.
+Distilled from upstream `@playwright/cli@0.1.17` SKILL.md. For verbatim upstream, see `vendor/SKILL.md` beside this skill.
 
 ## Core interaction
 
@@ -23,6 +23,16 @@ playwright-cli resize <w> <h>
 playwright-cli close
 ```
 
+On Windows, `cmd.exe` and PowerShell treat `&` as a command separator, so a `goto`/`open` URL with multiple `&`-joined query params gets truncated before it reaches `playwright-cli` unless escaped:
+
+```powershell
+playwright-cli --% goto "https://example.com/?a=1&b=2"    # PowerShell: stop-parsing token
+```
+
+```batch
+playwright-cli goto "https://example.com/?a=1^&b=2"        # cmd.exe: caret-escape
+```
+
 ## Snapshots & eval
 
 ```bash
@@ -32,7 +42,12 @@ playwright-cli snapshot --depth=4              # limit depth for efficiency
 playwright-cli snapshot e34                    # partial — one element
 playwright-cli eval "document.title"           # JS on page
 playwright-cli eval "el => el.id" e7           # JS on an element by ref
+playwright-cli find "Sign in"                  # search a large snapshot for text, with surrounding context
+playwright-cli find --regex "Sign (in|up)"
+playwright-cli find --regex "/sign (in|up)/i"  # wrap in slashes for flags, e.g. case-insensitive
 ```
+
+`find` is cheaper than a full `snapshot` when you only need to locate one or two elements on a large page — it returns matching nodes with a few lines of context, like `grep -C`.
 
 See [snapshots-and-refs.md](snapshots-and-refs.md) for ref system.
 
@@ -63,6 +78,7 @@ playwright-cli mousewheel 0 100                               # scroll
 playwright-cli screenshot                      # writes .playwright-cli/page-<ts>.png
 playwright-cli screenshot e5                   # element-scoped
 playwright-cli screenshot --filename=evidence.png
+playwright-cli screenshot --hires              # higher pixel density, larger file
 playwright-cli pdf --filename=page.pdf
 ```
 
@@ -103,6 +119,8 @@ playwright-cli open --headed                   # visible window (default: headle
 playwright-cli open --persistent               # profile to disk (default: in-memory)
 playwright-cli open --profile=/path/to/profile
 playwright-cli open --config=cli.config.json
+playwright-cli open --mobile                   # generic mobile device (Pixel 10 / iPhone 17); lighter pages, cheaper snapshots
+playwright-cli open --device="iPhone 15"       # specific device profile
 playwright-cli attach --cdp=chrome             # attach to running Chrome
 playwright-cli attach --cdp=http://localhost:9222
 playwright-cli attach --extension              # via Playwright MCP Bridge extension

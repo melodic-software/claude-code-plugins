@@ -15,6 +15,7 @@ from typing import Any
 from babysit_checks import (
     check_identity_key,
     classify_checks,
+    classify_stuck_checks,
     persisted_check_identity_keys,
 )
 from babysit_classify import (
@@ -62,6 +63,12 @@ HEAD_REF_ALIAS_ERROR_MARKER = "head-ref alias check:"
 # already runs every cadence cycle regardless; this bounds only the coarser,
 # expensive fresh-worker dispatch. Override with --max-quiet-recheck-seconds.
 DEFAULT_MAX_QUIET_RECHECK_SECONDS = 4 * 60 * 60
+# A pending check must be at least this old before a stuck-check class that
+# ages out (`stuck_queued`, `never_settling`) fires, so normal in-flight CI and
+# freshly-started non-required checks are never reported stuck. Override with
+# --stuck-check-age-seconds. Orphaned StatusContexts (no backing run) are
+# detected structurally and are not subject to this threshold.
+DEFAULT_STUCK_CHECK_AGE_SECONDS = 30 * 60
 ADVISORY_FIX_ROUND_CAP = 100
 
 
@@ -80,6 +87,7 @@ class ClassifyConfig:
     feedback: FeedbackConfig = DEFAULT_FEEDBACK_CONFIG
     review_trigger: ReviewTriggerConfig = DEFAULT_REVIEW_TRIGGER_CONFIG
     max_quiet_recheck_seconds: float = DEFAULT_MAX_QUIET_RECHECK_SECONDS
+    stuck_check_age_seconds: float = DEFAULT_STUCK_CHECK_AGE_SECONDS
     advisory_fix_round_cap: int = ADVISORY_FIX_ROUND_CAP
 
 
@@ -96,6 +104,20 @@ def validated_max_quiet_recheck_seconds(value: float) -> float:
     if not math.isfinite(seconds) or seconds <= 0:
         raise ValueError(
             "--max-quiet-recheck-seconds must be a finite number greater than zero"
+        )
+    return seconds
+
+
+def validated_stuck_check_age_seconds(value: float) -> float:
+    try:
+        seconds = float(value)
+    except (TypeError, ValueError) as error:
+        raise ValueError(
+            "--stuck-check-age-seconds must be a finite number greater than zero"
+        ) from error
+    if not math.isfinite(seconds) or seconds <= 0:
+        raise ValueError(
+            "--stuck-check-age-seconds must be a finite number greater than zero"
         )
     return seconds
 
@@ -324,6 +346,9 @@ def classify_pr(
     quiet_recheck_seconds = validated_max_quiet_recheck_seconds(
         config.max_quiet_recheck_seconds
     )
+    stuck_age_seconds = validated_stuck_check_age_seconds(
+        config.stuck_check_age_seconds
+    )
     repo = pr["repo"]
     number = int(pr["number"])
     key = f"{repo}#{number}"
@@ -343,6 +368,16 @@ def classify_pr(
         "human_blocking_count": len(feedback["human_blocking"]),
     }
     merge_state = str(pr.get("mergeStateStatus") or "").upper()
+    # Stuck-check detection reuses the already-normalized checks (no new fetch).
+    # Attached to the same `checks` dict returned below as `checks["stuck"]`,
+    # always present (empty when none) for a stable consumer contract. Surfaced
+    # only as a material finding below -- never a blocker.
+    checks["stuck"] = classify_stuck_checks(
+        checks["checks"],
+        observed_at,
+        merge_state=merge_state,
+        age_threshold_seconds=stuck_age_seconds,
+    )
     mergeable = str(pr.get("mergeable") or "").upper()
     head_sha = str(pr.get("headRefOid") or "")
     updated_at = str(pr.get("updatedAt") or "")
@@ -575,6 +610,17 @@ def classify_pr(
         material.append("merge state unknown")
     elif merge_state not in {"BEHIND", "CLEAN", "HAS_HOOKS"}:
         material.append(f"merge state {merge_state}")
+    # Report-only escalation signal: a non-required check degrading
+    # mergeStateStatus to UNSTABLE without completing. Deliberately material,
+    # never a blocker -- a blocker would re-pin the PR active and re-dispatch a
+    # worker every cycle for a check no branch action clears. The runbook routes
+    # remediation (branch CI vs org/settings); the engine only reports.
+    if checks["stuck"]:
+        material.append(
+            f"{len(checks['stuck'])} check(s) holding mergeStateStatus at "
+            "UNSTABLE without completing (stuck/orphaned/never-settling); "
+            "escalate for routing rather than auto-fix"
+        )
     review_attempt_for_head = json_object(
         json_object(review_trigger.get("request_attempt_history")).get(head_sha)
     )

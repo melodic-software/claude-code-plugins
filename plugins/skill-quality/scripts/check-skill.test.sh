@@ -874,6 +874,85 @@ else
   fail "find -fprint0 block should not warn precompute (rc=$rc): $out"
 fi
 
+# 19. vendor/ diff paired with an upstream-version bump is a legitimate sync
+#     (check 8's exception, exercised via the maintainer-run `update` flow) —
+#     passes rather than tripping the byte-identical guarantee.
+mkdir -p "$SKILLS/vendor-skill-ok/vendor"
+printf 'v1\n' >"$SKILLS/vendor-skill-ok/vendor/UPSTREAM.txt"
+make_skill vendor-skill-ok '---
+name: vendor-skill-ok
+description: "Vendor sync fixture. Use when: '"'"'vendor sync passes'"'"'."
+metadata:
+  upstream-version: 1.0.0
+  synced: 2026-01-01
+---
+
+## Purpose
+
+Vendor-backed fixture for the version-paired sync exception.
+
+## Gotchas
+
+None known.
+'
+git -C "$TMP" add -A
+git -C "$TMP" commit -qm 'add vendor-skill-ok'
+printf 'v2\n' >"$SKILLS/vendor-skill-ok/vendor/UPSTREAM.txt"
+make_skill vendor-skill-ok '---
+name: vendor-skill-ok
+description: "Vendor sync fixture. Use when: '"'"'vendor sync passes'"'"'."
+metadata:
+  upstream-version: 1.1.0
+  synced: 2026-02-01
+---
+
+## Purpose
+
+Vendor-backed fixture for the version-paired sync exception.
+
+## Gotchas
+
+None known.
+'
+out="$(run vendor-skill-ok 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'legitimate sync' <<<"$out" && ! grep -q 'byte-identical guarantee' <<<"$out"; then
+  pass "vendor/ diff paired with an upstream-version bump passes (legitimate sync)"
+else
+  fail "version-paired vendor/ diff should pass (rc=$rc): $out"
+fi
+
+# 20. vendor/ diff WITHOUT an upstream-version bump still fails — regression
+#     guard for the original hand-edit protection check 8 exists for.
+mkdir -p "$SKILLS/vendor-skill-bad/vendor"
+printf 'v1\n' >"$SKILLS/vendor-skill-bad/vendor/UPSTREAM.txt"
+make_skill vendor-skill-bad '---
+name: vendor-skill-bad
+description: "Vendor sync fixture. Use when: '"'"'vendor sync fails'"'"'."
+metadata:
+  upstream-version: 1.0.0
+  synced: 2026-01-01
+---
+
+## Purpose
+
+Vendor-backed fixture for the unpaired-edit regression guard.
+
+## Gotchas
+
+None known.
+'
+git -C "$TMP" add -A
+git -C "$TMP" commit -qm 'add vendor-skill-bad'
+printf 'v2 - hand edited\n' >"$SKILLS/vendor-skill-bad/vendor/UPSTREAM.txt"
+out="$(run vendor-skill-bad 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'byte-identical guarantee' <<<"$out"; then
+  pass "vendor/ diff without an upstream-version bump still fails (hand-edit guard)"
+else
+  fail "unpaired vendor/ diff should still fail (rc=$rc): $out"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1
