@@ -26,7 +26,11 @@ Validate the name against these rules. If invalid, explain what's wrong and ask 
 
 ## Base branch
 
-The shared helper resolves the base the same way Claude Code's `worktree.baseRef` setting does: `fresh` (default) branches from the remote default branch (resolved symbolically via `origin/HEAD`, with a local-`HEAD` fallback); `head` branches from the repo's current `HEAD` so unpushed commits carry in. The helper reads `worktree.baseRef` from git config unless a `--base-ref` override is passed. To start from a different, specific branch, create manually instead: `git worktree add -b <type>/<desc> <path> <base>`, then `EnterWorktree(path: <path>)`.
+The helper's `--base-ref` selects the base: `fresh` (default) branches from the remote default branch (resolved symbolically via `origin/HEAD`, with a local-`HEAD` fallback); `head` branches from the repo's current `HEAD` so unpushed commits carry in.
+
+**The caller owns this choice** — `worktree.baseRef` is a Claude Code **settings.json** key (`{"worktree": {"baseRef": "head"}}`, governing native `EnterWorktree`/`--worktree`), **not** a git config key, so the helper cannot read it. Since this skill bypasses native creation, it must honor the setting itself: read the effective `worktree.baseRef` (project `.claude/settings.json` wins over user `~/.claude/settings.json`); if it is `head`, pass `--base-ref head` to the helper; otherwise omit it (the helper defaults to `fresh`). Skipping this read silently forces `fresh` for a user who configured `head`.
+
+To start from a different, specific branch, create manually instead: `git worktree add -b <type>/<desc> <path> <base>`, then `EnterWorktree(path: <path>)`.
 
 ## Explain what will happen
 
@@ -59,7 +63,7 @@ Optional renames after creation:
 
 Two steps — the helper creates and places the worktree; `EnterWorktree(path:)` enters it.
 
-1. **Run the shared helper** (it computes the external path, runs `git worktree add`, and copies `.worktreeinclude` files):
+1. **Run the shared helper** (it computes the external path, runs `git worktree add`, and copies `.worktreeinclude` files). Add `--base-ref head` only when the effective Claude `worktree.baseRef` setting is `head` (see [Base branch](#base-branch)); otherwise omit it:
 
    ```bash
    bash "${CLAUDE_PLUGIN_ROOT}/scripts/worktree-create.sh" \

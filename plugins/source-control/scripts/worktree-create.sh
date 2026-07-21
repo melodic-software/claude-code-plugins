@@ -49,8 +49,9 @@ Options:
                       the in-repo .claude/worktrees/ default (a known Claude
                       Code double-load bug).
   --base-ref <ref>    fresh (default) branches from the remote default branch;
-                      head branches from the repo's current HEAD. When omitted,
-                      the repo's worktree.baseRef git config is used, else fresh.
+                      head branches from the repo's current HEAD. Omitted
+                      defaults to fresh; the caller passes the effective Claude
+                      worktree.baseRef setting (a settings.json key, not git config).
   --repo-dir <dir>    Source repository directory. Default: current directory.
   -h, --help          Show this help.
 
@@ -209,11 +210,10 @@ if [[ -e "$worktree_path" ]]; then
   exit 4
 fi
 
-# Base-ref resolution. Precedence: explicit --base-ref, then the repo's
-# worktree.baseRef config, then the "fresh" default.
-if [[ -z "$base_ref" ]]; then
-  base_ref=$(git -C "$toplevel" config worktree.baseRef 2>/dev/null || true)
-fi
+# Base-ref resolution. The caller owns policy: pass --base-ref (fresh|head),
+# defaulting to fresh when omitted. Claude Code's `worktree.baseRef` lives in
+# settings.json (not git config), so the helper does not probe it — the skill
+# reads the effective setting and passes it through this flag.
 [[ -z "$base_ref" ]] && base_ref="fresh"
 
 case "$base_ref" in
