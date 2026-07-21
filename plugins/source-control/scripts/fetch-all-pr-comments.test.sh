@@ -196,6 +196,36 @@ assert_eq "empty PR exits 0" "0" "$rc"
 empty_count=$(printf '%s' "$out" | jq 'length')
 assert_eq "empty PR returns empty array" "0" "$empty_count"
 
+# Case 9: unresolvable owner/repo (empty `gh repo view`, no env override) — the
+# root cause of the babysit gate's exit-4 failure mode. Must exit 2 with an
+# actionable message that names the FETCH_COMMENTS_OWNER/FETCH_COMMENTS_REPO
+# override, not a bare "cannot resolve".
+NOREPO_STUB="$TEST_TMPDIR/bin-norepo/gh"
+mkdir -p "$TEST_TMPDIR/bin-norepo"
+cat >"$NOREPO_STUB" <<'STUB'
+#!/usr/bin/env bash
+case "$*" in
+  *"repo view"*) printf '' ;;
+  *) printf '[]' ;;
+esac
+STUB
+chmod +x "$NOREPO_STUB"
+
+rc=$(
+  PATH="$TEST_TMPDIR/bin-norepo:$PATH" bash "$SCRIPT" "$PR_NUM" >/dev/null 2>&1
+  echo $?
+)
+assert_eq "unresolvable owner/repo exits 2" "2" "$rc"
+err=$(PATH="$TEST_TMPDIR/bin-norepo:$PATH" bash "$SCRIPT" "$PR_NUM" 2>&1 1>/dev/null)
+assert_contains "unresolvable owner/repo names the env-var override" "$err" "FETCH_COMMENTS_OWNER"
+
+# Case 10: env-var override resolves owner/repo even when `gh repo view` is empty,
+# so a worker whose cwd is not the target repo has a documented escape hatch.
+out=$(FETCH_COMMENTS_OWNER=o FETCH_COMMENTS_REPO=r \
+  PATH="$TEST_TMPDIR/bin-norepo:$PATH" bash "$SCRIPT" "$PR_NUM" 2>/dev/null)
+rc=$?
+assert_eq "env-var override resolves owner/repo (exit 0)" "0" "$rc"
+
 # ---- Summary ----------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then

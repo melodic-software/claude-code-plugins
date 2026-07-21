@@ -1,0 +1,56 @@
+{
+  "skill_name": "orient",
+  "evals": [
+    {
+      "id": 1,
+      "name": "synthesize-from-durable-state",
+      "prompt": "Where were we? Catch me up on this session.",
+      "expected_output": "The skill produces a read-only briefing that goes beyond the conversation: it resolves and reads the durable memory-tier state (handoff save-points, workflow checklist, running-retro ledgers) plus git and any open PRs/work-items, then synthesizes a goal/why, where-we-stand, decisions-made, and direction briefing. It writes nothing.",
+      "files": [],
+      "expectations": [
+        "Reads durable state (handoffs / workflow checklist / running-retro / git / PRs), not just the conversation",
+        "Synthesizes a briefing covering goal-why, where-we-stand, decisions-made, and direction",
+        "Grounds claims in reads made this turn rather than remembered state",
+        "Writes nothing and does not /clear or end the session"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "adds-durable-layer-beyond-recap",
+      "prompt": "Give me the state of play — and I already ran /recap, so don't just repeat the conversation.",
+      "expected_output": "The skill explains it complements /recap by adding the durable + off-thread layer /recap cannot see (on-disk ledgers/handoffs, open PRs, off-thread work), rather than re-summarizing only the conversation. It does not attempt to invoke the built-in /recap (built-ins are not Skill-invocable).",
+      "files": [],
+      "expectations": [
+        "Adds durable + off-thread state beyond a conversation-only summary",
+        "Does not attempt to call the built-in /recap from the skill",
+        "Delivers a distinct value (on-disk state, PRs, in-flight work), not a recap echo"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "read-only-routes-not-acts",
+      "prompt": "Where do we stand? And there were some background jobs running — pick them back up while you're at it.",
+      "expected_output": "The skill gives the read-only orientation and reports the off-thread work at a glance, but does NOT recover or resume it — it routes recovery to /session-flow:keep-going. It also does not prescribe the next stage (that is /session-flow:workflow) or write anything.",
+      "files": [],
+      "expectations": [
+        "Delivers the read-only briefing and names the off-thread work",
+        "Does NOT itself inspect, resume, or restart the background jobs",
+        "Routes recovery to /session-flow:keep-going rather than acting",
+        "Writes nothing"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "freshness-doubt-routes-to-reanchor",
+      "prompt": "Brief me on where we are — but this session is resuming a plan from three days ago, some of it may be out of date.",
+      "expected_output": "The skill synthesizes the current-state briefing from the durable state, reports those claims AS claims (e.g. 'the handoff says X'), and because freshness is in doubt it points to /session-flow:reanchor to verify the assumptions still hold rather than asserting the stale state as current fact. It does not run the drift verification itself.",
+      "files": [],
+      "expectations": [
+        "Reports durable-state claims as claims, not as verified current fact",
+        "Points to /session-flow:reanchor to verify freshness when it is in doubt",
+        "Does not itself perform the freshness/drift verification",
+        "Still delivers the orientation briefing"
+      ]
+    }
+  ]
+}
