@@ -11,6 +11,9 @@ canonical with a project-root fallback (see "Adapter resolution"). Direction loc
 - `gh` ≥ 2.94 on PATH when the bound provider is `github` (native sub-issue/dependency
   flags: `--parent`, `--blocked-by`, `--add-blocked-by`). Missing or too old → exit `3`
   naming the minimum. The dispatcher gates on both binaries before dispatch.
+- `curl` on PATH when the bound provider is `jira` (Cloud REST v3 over HTTPS). The jira
+  adapter gates on it at call time (exit `3`), not the dispatcher — minimal shared-code
+  blast radius.
 
 ## Setup (binding file)
 
@@ -326,6 +329,70 @@ network tool (`gh`, `curl`); the conformance suite runs it in CI, offline.
   provider is used when a repo's binding names it, never as an automatic fallback
   from a network failure of another provider.
 
+## jira adapter
+
+The `jira` adapter binds a Jira Cloud project set behind the seam. It is **read/resolve-only
+by default** (issue #379 hard constraint): `get-item`, `list-items`, and `capabilities` are
+supported; `create-item`, `claim`, `renew-lease`, `reclaim`, `link-blocks`, `add-sub-item`,
+and `list-sub-items` are declared `false` in the manifest and exit `6` at the core capability
+gate — **no code path creates, claims, or mutates a Jira ticket by default.** Consequently
+`/work-items:work`, `track start`, and `list-frontier --parent` (which needs `list-sub-items`)
+cannot operate on a Jira binding until writes are explicitly enabled — an accepted gap; branch/
+PR `SW2-*` linkage and the opt-in-write mechanism are sequenced follow-ups.
+
+- **API.** Jira Cloud REST v3 over HTTPS via `curl`. Reads use `GET /rest/api/3/issue/{key}`
+  and enhanced JQL search `POST /rest/api/3/search/jql` (token pagination via `nextPageToken`
+  up to `limits.list_items_max`). ID grammar: `jira:<site>/<PROJECTKEY>#<number>` maps to the
+  native key `PROJECTKEY-number` (e.g. `jira:acme.atlassian.net/SW2#12345` ⇄ `SW2-12345`);
+  `owner` is the Cloud host, `repo` the project key, `number` the issue number.
+- **Auth.** Basic auth — Atlassian account email + API token (passwords are deprecated). The
+  token is read from the env var **named** by `config.jira.auth_env` (never stored in the
+  tracked binding) and passed to curl via a stdin config (`-K -`) so it never appears in argv.
+  Missing/empty token env var → exit `4`. Tokens expire (1-year default since Dec 2024) — the
+  adapter treats rotation as a normal lifecycle event (a clear exit-`4` surface, re-bind in setup).
+- **Binding config.** Jira has no `gh repo view` equivalent to derive scope at runtime, so
+  `config.jira` is required (a binding missing `site`, non-empty `project_keys[]`, `auth_email`,
+  or `auth_env` → exit `3`):
+
+  ```json
+  {
+    "schema_version": "1.0",
+    "provider": "jira",
+    "config": {
+      "lease_ttl_hours": 24,
+      "jira": {
+        "site": "company.atlassian.net",
+        "project_keys": ["SW2", "ABC"],
+        "auth_email": "ci@company.com",
+        "auth_env": "JIRA_API_TOKEN",
+        "blocked_by_link_type": "Blocks",
+        "done_category_keys": ["done", "completed"]
+      }
+    }
+  }
+  ```
+
+  `list-items`/`list-frontier` build JQL scope from `project_keys`; `--repo <site>/<PROJECTKEY>`
+  narrows to one project (site must match the bound site). `blocked_by_link_type` (default
+  `"Blocks"`) and `done_category_keys` (default `["done","completed"]`) are the override seams
+  for two facts deferred to a live-instance pass: the authoritative blocker link type and the
+  exact `statusCategory` key for the "Done" category (the official spec's own example disagrees
+  with real instances — both known keys are defaulted so the adapter is independent of that
+  deferred fact).
+- **Read-path normalization** (CONTRACT.md "JSON output contract"): `state` — `statusCategory`
+  key in `done_category_keys` → `closed`, else `open`; `assignees` — the single `assignee`'s
+  `accountId` as a one-element array (empty when unassigned); `labels` — Jira `labels[]`
+  verbatim (canonical role labels ride as ordinary labels; `list-frontier --autonomous` filters
+  them core-side); `type` — issue-type name; `blocked_by_count` — **open** inward
+  `blocked_by_link_type` links only (parity with the GitHub adapter's open-only count; the
+  linked issue's status is inlined in `issuelinks`, so no second round-trip); `parent_id` — from
+  `fields.parent` (subtask→parent universally, story→epic where the instance uses the unified
+  parent field rather than the legacy Epic-Link custom field — a documented best-effort
+  limitation deferred with the sub-item link-type question); `url` — `https://<site>/browse/<KEY>`.
+- **Never a bot surface.** Reads carry the token owner's identity; project Browse permission
+  governs visibility. There is no lease/claim machinery (writes are off), so `features.leases`
+  and `features.sub_items` are `false`.
+
 ## Conformance
 
 `conformance/run-conformance.sh --binding <name>` runs the SAME abstract suite over any
@@ -334,4 +401,11 @@ adapter through the core CLI only: every verb, valid + invalid input, exit-code 
 capability-gated skips (declared-unsupported verbs asserted to exit `6`). Bindings live
 at `conformance/bindings/<name>.sh` and provide setup (clean-at-start), target context,
 and teardown. The GitHub binding targets a throwaway sandbox repo and is on-demand; it is
-never pointed at a coordination repo.
+never pointed at a coordination repo. The `local-markdown` and `jira` bindings run offline
+in CI: local-markdown against a temp store, and jira because its consume-only manifest means
+every suite-exercised path is pre-network (capabilities cats the manifest, write verbs +
+`list-sub-items` exit `6` at the gate, and no read verb is seeded since `create-item` is
+`false`) — both are additionally re-run under a `gh`/`curl`-blocking PATH shim to prove they
+touch no network tool. The jira read verbs are covered offline by the adapter's own
+`*.test.sh` with a mocked curl; a live-Jira conformance pass is deferred to the work-laptop
+pass that settles the exact `statusCategory` "done" key and blocker link type.
