@@ -162,9 +162,8 @@ wit_need_jira_config() {
   # Value-level validation (all exit 3): the JQL-interpolated keys against their
   # allowlist charset (the query builders assemble by string concat, so an unvalidated
   # token could inject), plus the credential-bearing site host and the token env-var
-  # name. Captured then iterated via here-string (MSYS process-sub gotcha); the loop
-  # body only runs a regex, no fork.
-  local bad="" k keys
+  # name.
+  local bad=""
   # site is the host the Basic-auth token is sent to: require a bare hostname (block
   # scheme/path/userinfo/port smuggling) and an Atlassian Cloud host unless the binding
   # explicitly opts into a custom domain (deny-by-default credential egress).
@@ -184,16 +183,16 @@ wit_need_jira_config() {
   # already collapsed null into the default string).
   [[ "$(jq -r '(.config.jira.blocked_by_link_type) as $b | if $b == null then "default" elif (($b|type)=="string" and ($b|length)>0) then "ok" else "bad" end' "$binding")" != "bad" ]] ||
     bad+=" blocked_by_link_type(must be a non-empty string)"
-  keys="$(jq -r '.[]' <<<"$WIT_JIRA_PROJECT_KEYS" | wit_strip_cr)"
-  while IFS= read -r k; do
-    [[ -n "$k" ]] || continue
-    [[ "$k" =~ $WIT_JIRA_PROJECT_KEY_RE ]] || bad+=" project_keys:'$k'"
-  done <<<"$keys"
-  keys="$(jq -r '.[]' <<<"$WIT_JIRA_DONE_KEYS" | wit_strip_cr)"
-  while IFS= read -r k; do
-    [[ -n "$k" ]] || continue
-    [[ "$k" =~ $WIT_JIRA_CATEGORY_KEY_RE ]] || bad+=" done_category_keys:'$k'"
-  done <<<"$keys"
+  # Every element (each project key, each done key) is checked IN jq so an empty or
+  # non-string element cannot slip through — a bash line-loop loses trailing empty
+  # elements to command-substitution newline stripping, so `[""]` would evade it.
+  # jq's test() uses the same anchored allowlist; a non-string element fails the
+  # type guard. Bad elements are echoed back for the diagnostic.
+  local bad_pk bad_dk
+  bad_pk="$(jq -rc --arg re "$WIT_JIRA_PROJECT_KEY_RE" '[.[] | select((type != "string") or (test($re) | not))]' <<<"$WIT_JIRA_PROJECT_KEYS")"
+  [[ "$bad_pk" == "[]" ]] || bad+=" project_keys:$bad_pk"
+  bad_dk="$(jq -rc --arg re "$WIT_JIRA_CATEGORY_KEY_RE" '[.[] | select((type != "string") or (test($re) | not))]' <<<"$WIT_JIRA_DONE_KEYS")"
+  [[ "$bad_dk" == "[]" ]] || bad+=" done_category_keys:$bad_dk"
   if [[ -n "$bad" ]]; then
     printf '%s: invalid jira config value(s):%s — see CONTRACT.md "jira adapter"\n' "$name" "$bad" >&2
     exit "$EX_CONFIG"
