@@ -73,6 +73,7 @@ user opts in with `/plugin enable`; an existing install is never flipped by cata
 - [`bash-format`](plugins/bash-format) — Auto-format and lint shell scripts on edit via shfmt + ShellCheck, using the consuming repo's own .editorconfig and .shellcheckrc.
 - [`biome-format`](plugins/biome-format) — Auto-format and lint JS/TS/JSX/JSON on edit via Biome, only when a biome.json governs the repo — using the consuming repo's own Biome config.
 - [`ruff-format`](plugins/ruff-format) — Auto-format and lint Python on edit via Ruff, only when a Ruff config governs the repo — using the consuming repo's own Ruff config.
+- [`typos-format`](plugins/typos-format) — Auto-fix source-code spelling mistakes on edit via typos, using the consuming repo's own _typos.toml allowlist.
 - [`eol-normalizer`](plugins/eol-normalizer) — Normalize a written file's working-tree line endings to its .gitattributes eol value on edit — symmetric CRLF/LF driven by git check-attr, advisory and never blocking.
 - [`powershell-format`](plugins/powershell-format) — Auto-format and lint PowerShell on edit via PSScriptAnalyzer, only when a PSScriptAnalyzerSettings.psd1 governs the repo — using the consuming repo's own analyzer settings.
 - [`actionlint`](plugins/actionlint) — Lint GitHub Actions workflow files on edit via actionlint, surfacing findings as advisory context.
