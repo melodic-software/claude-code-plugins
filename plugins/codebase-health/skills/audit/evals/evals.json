@@ -17,13 +17,27 @@
       "id": 2,
       "name": "review-only-gate-stops",
       "prompt": "/codebase-health:audit README.md --docs-only --review-only",
-      "expected_output": "Runs claim-extraction scoped to the single named file, presents the full findings report, then STOPS at the review-only gate without applying any fixes (Phases 4-7 skipped).",
+      "expected_output": "Runs claim-extraction scoped to the single named file, presents the full Phase 3 findings report, then STOPS at the read-only gate without applying any fixes and without handing off to a remediation lane (no --fix given).",
       "files": [],
       "expectations": [
         "Presents the findings report and STOPS without applying any fixes",
         "Does not modify, edit, or write any files",
+        "Does not hand off to /implementation:implement or /verification:confirm when --fix was not given",
         "Scopes the audit to the named file only, not the whole repository",
-        "Includes the required 'Verified non-issues' section even in review-only mode"
+        "Includes the required 'Verified non-issues' section even in read-only mode"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "fix-flag-delegates-not-inlines",
+      "prompt": "/codebase-health:audit README.md --docs-only --fix",
+      "expected_output": "Runs the scoped audit, presents the Phase 3 findings, then hands the findings off to the remediation lanes — /implementation:implement for the fix and /verification:confirm for verification (used as soft dependencies when installed) — rather than running its own inline fix/verify/self-review/retrospect loop. When those plugins are not installed, it says so and treats the findings table as the manual handoff in the reported fix-priority order.",
+      "files": [],
+      "expectations": [
+        "Presents the Phase 3 findings before any remediation",
+        "Routes fixing to /implementation:implement and verification to /verification:confirm rather than applying fixes inline",
+        "Does not re-implement a fix/verify/self-review/retrospect loop inside the audit skill",
+        "When the implementation/verification plugins are absent, states that and points to the findings table as the manual handoff instead of inlining the fix logic"
       ]
     },
     {

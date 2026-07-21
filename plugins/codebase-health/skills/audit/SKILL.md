@@ -1,6 +1,6 @@
 ---
 name: audit
-description: "Audit a codebase for drift between docs, config, code, and architecture. Verifies every factual claim against reality via parallel subagent fan-out, severity-rates findings and reports read-only; `--fix` applies the auto-fixes. Use when: 'audit codebase', 'check for drift', 'verify docs', 'full audit'. Flags: `--fix` (apply auto-fixes after reporting), `--docs-only`, `--code-only`, `--config-only`, `--arch-only`."
+description: "Audit a codebase for drift between docs, config, code, and architecture. Verifies every factual claim against reality via parallel subagent fan-out, severity-rates findings and reports read-only; remediation is delegated to the implementation/verification lanes (`--fix` hands the findings to `/implementation:implement` then `/verification:confirm`). Use when: 'audit codebase', 'check for drift', 'verify docs', 'full audit'. Flags: `--fix` (hand findings to the remediation lanes after reporting), `--docs-only`, `--code-only`, `--config-only`, `--arch-only`."
 argument-hint: "[scope] [--fix] [--docs-only|--code-only|--config-only|--arch-only]"
 user-invocable: true
 disable-model-invocation: false
@@ -21,9 +21,11 @@ Arguments: `$ARGUMENTS`
 Parse `$ARGUMENTS` for:
 
 - **Scope** (optional): directory or file path to limit the audit (default: entire repo)
-- **`--fix`**: apply the auto-fixes after reporting. Per the naming doctrine's verb
-  contract, bare `audit` is READ-ONLY — it reports and stops; every mutation sits behind
-  this explicit override. (`--review-only` is accepted as a legacy alias for the bare
+- **`--fix`**: after reporting, hand the findings off to the remediation lanes
+  (`/implementation:implement` then `/verification:confirm`) rather than fixing inline — see
+  [Remediation](#remediation-delegated-to-other-plugins). Per the naming doctrine's verb
+  contract, bare `audit` is READ-ONLY — it reports at Phase 3 and stops; remediation intent sits
+  behind this explicit override. (`--review-only` is accepted as a legacy alias for the bare
   read-only default.)
 - **Dimension filters** (optional, mutually exclusive):
   - `--docs-only`: only documentation checks
@@ -37,18 +39,25 @@ active dimensions and dispatch per file.
 
 ## Read-only default
 
-Bare invocation — by the user or the model — reports and stops. Phases 4–6 (auto-fix) and
-Phase 7 (retrospective) run only under an explicit `--fix` from the user (or an equally
-explicit "fix what you find" instruction in their prose); model auto-invocation never
-supplies `--fix` on its own.
+Bare invocation — by the user or the model — runs the audit (Phases 0–3) and stops at the Phase 3
+report. Remediation is never inlined here; it is delegated to the `implementation`/`verification`
+lanes and hands off only under an explicit `--fix` from the user (or an equally explicit "fix what
+you find" instruction in their prose). Model auto-invocation never supplies `--fix` on its own.
 
 ---
 
 ## Adapting to your environment (graceful degrade)
 
-This skill is self-contained. Where a phase names an adjacent capability — a build/verify skill, a
-code-simplification pass, a quality-gate review — treat it as optional: if your setup provides an
-equivalent skill or tool, use it; otherwise follow the inline guidance, which stands on its own.
+The audit itself (Phases 0–3) is self-contained. Where Phase 2 names an adjacent capability —
+documentation-research tools (MCP docs servers, library-docs lookers-up, web search) — treat it as
+optional: use it if your setup provides one, otherwise follow the inline graceful-degrade guidance,
+which confidence-tags the externally-unverifiable part `needs-review` rather than guessing.
+
+Remediation is different: it is **delegated**, not inlined. Fixing, verifying, self-reviewing, and
+retrospecting are owned end-to-end by the `implementation`/`verification` lanes (see
+[Remediation](#remediation-delegated-to-other-plugins)). When those plugins are absent the
+Phase 3 findings table is the handoff — remediate manually in the reported fix-priority order — NOT
+a cue to re-inline a fix/verify/review loop here.
 
 Scope boundary with adjacent audit lanes: this skill verifies **factual claims** in docs/config
 against code state. Claude Code configuration files (`settings.json`, `.mcp.json`, hooks,
@@ -94,10 +103,10 @@ Never hardcode a repo layout; read a declared value, infer-and-record, or ask.
 
 ## Emit checklist
 
-For any audit run (Phases 0-7), copy
+For any audit run (Phases 0–3), copy
 `${CLAUDE_PLUGIN_ROOT}/skills/audit/templates/checklist.md` into wherever the consuming
-repo keeps working task notes (or keep it in-response). Tick each phase as completed. Phases 4-7 may
-SKIP unless `--fix` was given.
+repo keeps working task notes (or keep it in-response). Tick each phase as completed. Remediation is
+delegated to the `implementation`/`verification` lanes and is not part of this checklist.
 
 ---
 
@@ -208,6 +217,10 @@ Use this exact table with consistent `error`/`warning`/`info` severity:
 3. **Fix priority** — recommended fix order per the category playbook
 4. **Enforcement escalation** — for each finding, what automated enforcement (formatter, linter,
    analyzer, type check, test, git hook, CI gate) could catch this class automatically?
+5. **Config-gap observations** — dimensions, globs, or `example-claims` this run showed are worth
+   adding to the tracked `.claude/codebase-health.md` (e.g. a source tree that held drift but wasn't
+   a configured `primary-source`). Offer to persist them via `/codebase-health:setup apply` so the
+   next run covers them deterministically.
 
 ### Zero-findings outcome
 
@@ -218,47 +231,37 @@ If the audit finds no discrepancies, report a clean bill of health:
 - State explicitly: "No findings. All claims verified as correct."
 - Do NOT invent findings to justify the audit. A clean codebase is the goal, not a guaranteed list
   of issues.
-- Skip Phases 4-6 (nothing to fix). With `--fix`, proceed to Phase 7 (Retrospective) with
-  scope/coverage observations.
+- Nothing to remediate, so no handoff. Still include the config-gap observations (§5) — a clean run
+  is the best time to note coverage gaps worth persisting via `/codebase-health:setup apply`.
 
 ### Fix gate
 
 **Without `--fix`** (the default, including every model auto-invocation): present the full
-report and **STOP**.
-**With `--fix`**: present the summary count and continue to Phase 4.
+report and **STOP** — the Phase 3 report is the deliverable.
+**With `--fix`**: present the summary count, then hand off to the remediation lanes below.
 
 ---
 
-## Phase 4: Implement / Fix
+## Remediation (delegated to other plugins)
 
-Execute fixes in priority order: Config Drift → Missing Enforcement → Code Quality → Doc Drift.
+The audit ends at the Phase 3 report: the findings table, verified-non-issues proof, drift patterns,
+fix priority, enforcement escalation, and config-gap observations ARE the deliverable. Fixing,
+verifying, self-reviewing, and retrospecting are separate lanes owned end-to-end by other plugins —
+re-implementing them here would duplicate those skills, so this skill delegates instead.
 
-For code changes: TDD (write/update a failing test first, implement, verify).
-For config/doc changes: apply the change, verify the repo's build still passes.
+Route remediation to the dedicated lanes (soft dependencies — use when the plugin is installed):
 
-After all fixes, run a simplification pass over the changed files (via a code-simplification skill
-when your setup provides one, otherwise a manual read-through for reuse and altitude cleanups).
+- **Fix** → `/implementation:implement` (when the `implementation` plugin is installed). Hand it the
+  Phase 3 findings, whose "Fix priority" section already carries the Config Drift → Missing
+  Enforcement → Code Quality → Doc Drift order (see
+  [`reference/category-playbook.md`](reference/category-playbook.md)); that lane owns the fix cadence
+  — TDD, build/test at each checkpoint, and the post-fix simplification pass.
+- **Verify** → `/verification:confirm` (when the `verification` plugin is installed). Confirms the
+  fixes against the repo's own build/test/lint gates with no regressions, and covers the self-review
+  and retrospective that the fix lane hands it.
 
----
-
-## Phase 5: Verify
-
-Run the consuming repo's own verification commands — build, tests, linters — as documented in its
-`CLAUDE.md` / contributing docs (or a verify/build skill when installed).
-
-If any gate fails: diagnose, fix, re-verify. Max 3 iterations.
-
----
-
-## Phase 6: Review
-
-Self-review: every planned fix applied, no regressions, new tests cover new behavior, docs match
-code, cross-references valid.
-
----
-
-## Phase 7: Retrospective
-
-Summary table, enforcement escalation recommendations, process observations (recurring patterns,
-healthy areas, scope suggestions — including config gaps worth persisting via
-`/codebase-health:setup`).
+**With `--fix`**, present the Phase 3 summary count and hand the findings to `/implementation:implement`,
+then suggest `/verification:confirm` afterwards — a pointer into each lane, NOT an auto-run pipeline;
+the user drives them. When those plugins are not installed, say so and stop: the Phase 3 findings
+table is the handoff, to be remediated manually in the reported fix-priority order. Never re-inline a
+fix/verify/review/retro loop here.

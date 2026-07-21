@@ -11,21 +11,27 @@ claims about itself are true.
 
 | Skill | What it does |
 |---|---|
-| `/codebase-health:audit` | Runs the audit — prime conventions, fan out claim-extraction per file, independently validate, severity-rate, then fix or report. |
+| `/codebase-health:audit` | Runs the audit — prime conventions, fan out claim-extraction per file, independently validate, severity-rate, and report read-only; remediation is delegated to the implementation/verification lanes. |
 | `/codebase-health:setup` | `check` inspects the tracked `.claude/codebase-health.md` config read-only across its merge layers; `apply` interviews the user, infers targets from the layout, and writes the config. |
 
 ## The audit
 
-Eight phases (0–7): prime the repo's conventions, discover via per-file fan-out, independently
-validate each finding (a separate agent re-verifies — never self-review), categorize and present in a
-severity-rated table with a verified-non-issues proof-of-thoroughness list. Bare invocation is
-read-only — it reports and stops; with the explicit `--fix` flag it continues: fix in priority
-order, verify against the repo's own gates, self-review, and retrospect.
+Four phases (0–3): prime the repo's conventions, discover via per-file fan-out, independently
+validate each finding (a separate agent re-verifies — never self-review), then categorize and present
+in a severity-rated table with a verified-non-issues proof-of-thoroughness list, drift patterns, fix
+priority, enforcement escalation, and config-gap observations. Bare invocation is read-only — it
+reports and stops.
+
+Remediation is not owned here — fixing, verifying, self-reviewing, and retrospecting are delegated to
+the dedicated lanes: `/implementation:implement` (fix) and `/verification:confirm` (verify), used as
+soft dependencies when those plugins are installed. The explicit `--fix` flag hands the Phase 3
+findings off to those lanes rather than fixing inline; when they are absent, the findings table is the
+handoff and remediation is manual in the reported fix-priority order.
 
 ```shell
 /codebase-health:audit                      # report-only audit of every configured dimension (scope-gated)
 /codebase-health:audit docs/ --docs-only    # one dimension, scoped to a subtree, report-only
-/codebase-health:audit README.md --fix      # scoped, then apply the auto-fixes
+/codebase-health:audit README.md --fix      # scoped, then hand findings to the remediation lanes
 ```
 
 Dimension filters (`--docs-only`, `--code-only`, `--config-only`, `--arch-only`) are mutually
