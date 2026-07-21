@@ -14,9 +14,10 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   need triage. Raw intake is now defined as *any untriaged item carrying the raw marker, whoever
   authored it*; the "did not author" phrasing is demoted to an illustrative list of common sources.
   The paired exclusion is re-keyed too — "never re-triage already-triaged output" now turns on
-  classification-labels-at-creation (decompose output, or `track add` items born labeled) rather than
-  `track add` authorship, so a team-authored dogfood issue carrying only the raw marker is correctly
-  in scope while born-triaged items stay out. No routing-logic change.
+  absence of the raw marker (decompose output, or a `track add` that leaves no raw marker) rather than
+  `track add` authorship. The raw marker wins over coexisting default labels, so a team-authored dogfood
+  issue filed with a default `priority:` label *and* the raw marker is correctly in scope while
+  born-triaged items stay out. No routing-logic change.
 
 ## [0.18.0]
 
