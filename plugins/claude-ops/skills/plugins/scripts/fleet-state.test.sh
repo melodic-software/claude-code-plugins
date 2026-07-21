@@ -68,7 +68,6 @@ run_state() {
     FLEET_STATE_MARKETPLACES_JSON="$case_dir/known_marketplaces.json" \
     FLEET_STATE_USER_SETTINGS="$case_dir/user_settings.json" \
     FLEET_STATE_CATALOG_DIR="$case_dir/catalog" \
-    FLEET_STATE_HOOK_UTILS="$SCRIPT_DIR/../../../hooks/hook-utils.sh" \
     "$@" \
     bash "$SCRIPT" "${ARGS[@]}" 2>&1
 }
@@ -365,7 +364,6 @@ out=$(
     FLEET_STATE_MARKETPLACES_JSON="$case_dir/known_marketplaces.json" \
     FLEET_STATE_USER_SETTINGS="$case_dir/user_settings.json" \
     FLEET_STATE_CATALOG_DIR="$case_dir/catalog" \
-    FLEET_STATE_HOOK_UTILS="$SCRIPT_DIR/../../../hooks/hook-utils.sh" \
     bash "$SCRIPT" --marketplace market1 2>&1
 )
 current_flag=$(jq -r '.installed[0].currentProject' <<<"$out" 2>/dev/null)
@@ -564,7 +562,6 @@ out=$(timeout 10 env \
   FLEET_STATE_MARKETPLACES_JSON="$case_dir/known_marketplaces.json" \
   FLEET_STATE_USER_SETTINGS="$case_dir/user_settings.json" \
   FLEET_STATE_CATALOG_DIR="$case_dir/catalog" \
-  FLEET_STATE_HOOK_UTILS="$SCRIPT_DIR/../../../hooks/hook-utils.sh" \
   bash "$SCRIPT" --marketplace 2>&1)
 rc=$?
 assert_exit "--marketplace no arg: exit 2, not an infinite loop" 2 "$rc"

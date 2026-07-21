@@ -43,7 +43,6 @@
 #   FLEET_STATE_CATALOG_DIR        — dir of <marketplace>.json catalog
 #                                     fixtures, read instead of each
 #                                     marketplace's installLocation clone
-#   FLEET_STATE_HOOK_UTILS         — path to hook-utils.sh
 #
 # Real env vars this script honors (set by Claude Code, not test-only):
 #   CLAUDE_PLUGIN_ROOT   — this plugin's own install dir; used to self-resolve
@@ -59,7 +58,13 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT_DEFAULT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
-HOOK_UTILS="${FLEET_STATE_HOOK_UTILS:-${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT_DEFAULT}/hooks/hook-utils.sh}"
+# hook-utils.sh is a fixed sibling shipped with this plugin. Resolve it only
+# from this script's own location — never from a caller-supplied env var — so
+# no inherited or hostile environment can redirect `source` at an arbitrary
+# file. CLAUDE_PLUGIN_ROOT is deliberately not consulted here (it equals the
+# script-relative root in production, and is set to a fake value by tests
+# exercising marketplace self-resolution).
+HOOK_UTILS="$PLUGIN_ROOT_DEFAULT/hooks/hook-utils.sh"
 if [[ -f "$HOOK_UTILS" ]]; then
   # shellcheck source=/dev/null
   source "$HOOK_UTILS"

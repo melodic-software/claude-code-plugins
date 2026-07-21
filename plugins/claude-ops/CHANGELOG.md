@@ -3,6 +3,25 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.5]
+
+### Security
+
+- **`plugins` fleet-state: hook-utils.sh is now resolved only from the script's
+  own location, closing an arbitrary-file `source` via `FLEET_STATE_HOOK_UTILS`.**
+  The test-only `FLEET_STATE_HOOK_UTILS` env override let any caller able to set
+  an environment variable (a project `.claude/settings.json` env block, an
+  inherited shell, another hook) redirect the `source` at an attacker-controlled
+  file, executed with the script's ambient permissions — the existing guard only
+  checked the path existed, not that it was trusted. `hook-utils.sh` is a fixed
+  sibling shipped with the plugin, so it is now loaded unconditionally from the
+  script-relative plugin root; the override was removed rather than gated because,
+  once the path is script-relative, an override can only ever equal that trusted
+  default (both test call sites already resolved to it). `CLAUDE_PLUGIN_ROOT` is
+  no longer consulted for this sibling file (it equals the script-relative root
+  in production); it is still used for marketplace self-resolution. No behavior
+  change in production.
+
 ## [0.17.4]
 
 ### Fixed
