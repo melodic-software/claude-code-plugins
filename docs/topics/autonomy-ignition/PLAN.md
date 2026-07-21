@@ -151,7 +151,11 @@ Main thread empirical verification (no builder):
 
 1. Confirm a SCHEDULED (non-manual) fire past the next hour boundary.
 2. Verify the run executed in an isolated worktree (live checkout untouched — `git status`
-   clean before/after), on Sonnet (session telemetry model check), within the turn bound.
+   clean before/after), on Sonnet (session telemetry model check), within the bound.
+2b. Verify `--max-budget-usd` actually enforces under subscription auth (alignment audit
+   2026-07-21): warm-up run with `DRAIN_INNER_MAX_BUDGET_USD=0.01` must be KILLED by the
+   flag; if it is a no-op under subscription billing, the timeout is the only per-run bound
+   — record that at the bound site and revisit the budget ruling.
 3. Evidence completeness: distinct (item URL, run id) rows match fired runs; row carries all
    sources; PR open awaiting human merge; after merge, merge SHA appears in the join.
 4. Record the 7/26 demonstrable bar: ≥1 scheduled fire + ≥1 complete evidence row.
@@ -165,6 +169,17 @@ Standing lane: missed-fire detector + failure tracker items are the automated si
 merges the day's drain PRs (this is the pre-promotion policy, not a kick); weekly usage
 review (budget revisit trigger); predicate inputs accumulate toward 14-day/20-completion.
 Demotion events fire fail-closed per work-classes.
+
+Two DEADLINE work items (alignment audit 2026-07-21 — both must land BEFORE day 14 of the
+accumulation window or the first eligibility claim is hollow and the window re-accumulates):
+
+1. **Gate substance**: extend `gate.yml` beyond shellcheck+JSON validity so it exercises the
+   changed surface of drain PRs (minimal test step at least) — a near-vacuous gate makes
+   "100% deterministic-gate pass" weak promotion evidence (Boris 1→2: "a self-verification
+   loop you trust").
+2. **Revert detection**: `human_revert_count` is currently 0 by construction
+   (`TODO(#778)` in verify-join) — the predicate's "0 human-reverted merges" input cannot
+   fail until this lands.
 
 **Sanity Check:** at day 7: predicate stub shows ≥1 week of scheduled fires with zero manual
 INITIATIONS (run history: no manual entries post-warm-up; human merges expected and fine);
