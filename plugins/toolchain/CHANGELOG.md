@@ -3,6 +3,17 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0]
+
+### Added
+
+- **`pyright` added to the bundled Python ecosystem default's `check-cmd`.** Local `/toolchain:check`
+  now runs `uv run pyright` alongside the existing ruff lint/format check, closing the gap where CI
+  gated pyright but the local batch was ruff-only. Rung-4 fallback only — a consumer's own
+  `.claude/ecosystems/python.yaml` overrides `check-cmd` key-by-key and is unaffected. `fix-cmd` is
+  unchanged (pyright has no fix mode). `context/python.md` documents the default standard-mode gotcha
+  for untyped projects.
+
 ## [0.6.0]
 
 ### Added
