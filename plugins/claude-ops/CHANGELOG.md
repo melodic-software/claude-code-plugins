@@ -3,15 +3,15 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.17.4]
+## [0.17.5]
 
 ### Documentation
 
 - `hooks/claude-ops-test-helpers.sh` now points at
   `docs/conventions/shell-test-helpers/README.md`, the repo's owner doc recording that per-plugin
   shell assert-helper duplication and per-script exit-code taxonomies are deliberate, not drift. No
-  behavior change. Version bumped past `#877`'s `0.17.3` claim (merged) and `#844`'s open `0.17.2`
-  claim to avoid a collision.
+  behavior change. Version re-bumped past `#844`'s current `0.17.4` claim (re-derived after
+  `#877` merged) to avoid a collision.
 
 ## [0.17.3]
 

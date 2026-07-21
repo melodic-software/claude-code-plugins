@@ -3,14 +3,14 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.15.11]
+## [0.16.1]
 
 ### Documentation
 
 - `scripts/test-helpers.sh` now points at `docs/conventions/shell-test-helpers/README.md`, the
   repo's owner doc recording that per-plugin shell assert-helper duplication and per-script exit-code
-  taxonomies are deliberate, not drift. No behavior change. Version re-bumped past `#840`'s
-  current `0.15.10` claim (re-derived after `#860` merged) to avoid a collision.
+  taxonomies are deliberate, not drift. No behavior change. Version re-bumped past `#882`'s open
+  `0.16.0` claim (also above `#840`'s `0.15.10`) to avoid a collision.
 
 ## [0.15.9]
 
