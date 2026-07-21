@@ -1,7 +1,7 @@
 ---
 name: devils-advocate
-description: "Stress-test plans and proposals via systematic adversarial review — assumption extraction, evidence check, failure scenarios, operational gotchas — before implementation begins. Use for 'devil's advocate', 'stress test', 'poke holes', 'what could go wrong', new dependencies, infrastructure/CI/build changes, or any architecture decision with cross-module blast radius; not for code correctness bugs or pre-PR verification."
-argument-hint: "[plan text or file path] — works from conversation context if no argument given"
+description: "Stress-test plans and proposals via systematic adversarial review — assumption extraction, evidence check, failure scenarios, operational gotchas — before implementation begins. Use for 'devil's advocate', 'stress test', 'poke holes', 'what could go wrong', new dependencies, infrastructure/CI/build changes, or any architecture decision with cross-module blast radius. An `incumbent` mode turns the same adversarial lens on the status quo — 'is there a better way now', 'should we still use X', 'reconsider the current approach', 'is the incumbent still the right choice' — surveying alternatives before a plan commits to keeping an existing tool or approach. Not for code correctness bugs or pre-PR verification."
+argument-hint: "[incumbent [target]] or [plan text or file path] — an optional leading deep/shallow sets research depth; works from conversation context if no argument given"
 user-invocable: true
 disable-model-invocation: false
 ---
@@ -21,9 +21,16 @@ Plans fail for predictable reasons: unchecked assumptions, undiscovered bugs in 
 
 Not a rubber stamp. Find real issues that would cause rework, not generic warnings. Every finding must be backed by evidence — a specific bug number, doc reference, code path, or logical argument. "This might break" without evidence is not a finding.
 
+The same discipline runs against the status quo. An incumbent tool, library, or approach already in place is a decision too, and "we already use it" is evidence of what is, never proof it still fits. The `incumbent` mode stress-tests that choice — naming the problem the incumbent actually solves, surveying alternatives, and asking whether a better fit exists now — before a plan commits to keeping or replacing it.
+
 ## Fresh-context requirement
 
-If the plan or proposal under review was produced in THIS context/session, dispatch this stress-test to a fresh-context sub-agent rather than running it inline — the producing context shares the assumptions that created the plan's blind spots and drifts toward approving its own work. When you were invoked on an artifact this context did not author (a file, a plan from another session, a diff), you are already the fresh pair of eyes — proceed directly.
+This stress-test runs from a fresh pair of eyes, and dispatches to a fresh-context sub-agent in two cases:
+
+- **Plan-review mode** — if the plan under review was produced in THIS context/session, the producing context shares the assumptions that created the plan's blind spots and drifts toward approving its own work; dispatch the stress-test to a fresh-context sub-agent. When you were invoked on an artifact this context did not author (a file, a plan from another session, a diff), you are already the fresh pair of eyes — proceed directly.
+- **`incumbent` mode** — always dispatch. The incumbent lives in the current codebase, so any read of it you already hold is a digest; a first-hand exploration is what forms an independent view. The sub-agent runs `/discovery:explore` (if installed, else explores directly) on the incumbent itself (Alternatives Sweep, Step 1).
+
+In both cases the dispatch prompt carries only WHAT to investigate — the plan artifact, or the incumbent's identity and where it lives — never your conclusions about it: "here is the target; go look yourself," not "here is what I found; confirm it." A sub-agent handed the parent's verdict inherits the parent's blind spot.
 
 ## When to Use
 
@@ -39,14 +46,25 @@ If the plan or proposal under review was produced in THIS context/session, dispa
 - `/planning:devils-advocate` — review the plan currently being discussed in conversation
 - `/planning:devils-advocate <file-path>` — review a plan from a specific file
 - `/planning:devils-advocate <inline text>` — review the provided text directly
+- `/planning:devils-advocate incumbent <target>` — stress-test the incumbent tool/approach against alternatives (target empty ⇒ take it from conversation context)
 
 ## Input Resolution
 
-1. If `$ARGUMENTS` contains a file path (ends in `.md`, `.txt`, or `.json`), read that file
-2. If `$ARGUMENTS` contains inline text, use that as the plan
-3. If `$ARGUMENTS` is empty, work from the current conversation context — identify the most recent plan, proposal, or design being discussed
+Parse `$ARGUMENTS` in this order:
+
+1. **Depth token (optional).** If the first token is `deep` or `shallow`, consume it as the research-depth override (see "Research depth" below) and continue with the rest.
+2. **Mode.** If the next token is `incumbent`, enter **`incumbent` mode** (incumbent-target); the remainder identifies the incumbent — a tool, library, approach, or module — or is empty to take the incumbent from the current conversation. The keyword selects the mode only as this leading token; a plan that merely contains the word elsewhere is not a mode switch.
+3. **Plan-review mode (default).** Otherwise: if the remainder is a file path (ends in `.md`, `.txt`, or `.json`), read that file; if it is inline text, use it as the plan; if empty, work from the current conversation context — the most recent plan, proposal, or design being discussed.
+
+To review an inline plan whose text legitimately *begins* with `incumbent`, `deep`, or `shallow`, pass it as a file path so the leading word is not consumed as a mode or depth token.
+
+### Research depth
+
+Both modes default to **risk-scaled** research (Round 2's high/medium/low scale). A leading `deep` token forces the heaviest tier — route load-bearing evaluations to `/discovery:research-deep` if installed; `shallow` restricts to codebase read/grep with no external research. Depth is a per-invocation choice, not a stored setting.
 
 ## Analysis Process
+
+**Mode branch.** In plan-review mode, run Rounds 1–4 below. In `incumbent` mode, run the **Alternatives Sweep** instead (it reuses Round 2's evidence discipline and Round 3's mitigation / residual-risk format); Rounds 1–4 do not apply.
 
 Run the rounds below (up to 4). Stop early if a round produces no new critical or high findings — except Round 4, which runs whenever its multi-layer / multi-context trigger matches, regardless of how quiet Rounds 1-3 were.
 
@@ -127,7 +145,26 @@ Findings use the same severity / failure-scenario / mitigation / residual-risk f
 
 **When to run Round 4:** plans involving multi-layer composition (config layering, plugin extension points, hook chains, override mechanisms), or any plan whose blast radius spans multiple contexts (local + CI + cloud). Skip Round 4 for single-context single-mechanism plans where Round 3 already covers the failure surface.
 
+### Alternatives Sweep (`incumbent` mode)
+
+Runs in place of Rounds 1–4 when `incumbent` mode is selected. It inherits the evidence mandate — every finding is backed by a specific bug number, doc reference, code path, or concrete logical argument, never training-data recall.
+
+1. **Explore the incumbent first-hand.** Dispatch the fresh sub-agent (see Fresh-context requirement) to run `/discovery:explore` on the incumbent — what it is, where it is used, what it is coupled to, and any recorded reason it was chosen. The sub-agent forms its own read; it receives the incumbent's identity, never a parent conclusion about it.
+2. **Name the actual problem.** State what the incumbent solves — the real requirements, present and plausible-future — before any alternative is on the table. Do not let the incumbent's shape define the problem.
+3. **Survey the field.** Judge candidate alternatives against those requirements, walking the preference ladder — **native** (what the platform / language / framework already provides) > **official / authoritative** > **vetted third-party** (well-maintained, known, safe, secure) — where an earlier rung wins when it covers the requirements. Price each dependency's coupling: abandonment, a pricing pivot, a license change, security posture, exit cost. The full selection discipline lives in `/re-anchor:pick-for-the-problem` (apply it if installed); this baseline is enough to run the sweep without it.
+4. **"Is there a better way now?" — evidence, not memory.** The research-heavy step; scale to risk (Round 2) or the depth token. Route load-bearing evaluations to `/discovery:research` (or `/discovery:research-deep`) if installed — a tool's maintenance, security, licensing, and native-alternative landscape drift constantly since the training cutoff. Look especially for what changed since the incumbent was chosen: a new native capability, a shifted dependency, a since-published better-fit option.
+5. **Verdict per candidate.** One of:
+   - **KEEP** — re-derived from the problem and still the best fit; the duty is to re-derive, not to switch for switching's sake. An incumbent that audits clean is a clean finding — say so.
+   - **MIGRATE** — a better-fit alternative exists; state the coupling price and the migration cost, not just the upside.
+   - **RESEARCH** — the evaluation is load-bearing and unverified; route it (step 4), never a verdict from recall.
+
+   Findings use the same severity / failure-scenario / mitigation / residual-risk format as Round 3.
+
+**Scope guard.** This is pre-implementation decision support — should the plan adopt or keep X versus an alternative — not a post-hoc audit of a running system's health or correctness.
+
 ## Output Format
+
+**In `incumbent` mode**, the per-candidate **KEEP / MIGRATE / RESEARCH verdict** is the headline. The Risk Summary and finding bullets below still apply to the risks the sweep surfaces, with two field re-readings: **Assumption** becomes the claim under test (e.g. "the incumbent still fits" or "alternative X is better-maintained"), and **Failure scenario** becomes the cost of the wrong call (keeping a worse-fit incumbent, or paying an unpriced migration).
 
 ### Risk Summary
 
@@ -158,6 +195,8 @@ If critical or high findings exist, present specific plan modifications:
 - What to add (new steps, new checks, new graceful degradation)
 - What to remove (mechanisms that don't work)
 
+In `incumbent` mode, this is the KEEP / MIGRATE / RESEARCH verdict with its coupling price and, for a MIGRATE, the migration cost — not just the upside.
+
 ### Suggested Next Steps
 
 Based on findings, suggest relevant follow-up actions:
@@ -172,6 +211,7 @@ Based on findings, suggest relevant follow-up actions:
 - **Does not replace code review** — it reviews plans, not code (use your code-review tooling for code)
 - **Does not do exhaustive security analysis** — it finds design-level risks, not vulnerability scanning (use dedicated security tools for that)
 - **Does not generate generic warnings** — every finding must have specific evidence. "This might break" without a bug number, doc reference, or logical argument is not acceptable
+- **Does not audit a running system's health** — `incumbent` mode is a pre-implementation keep-or-replace decision against alternatives, not a runtime performance / correctness audit of production
 
 ## Workflow position
 

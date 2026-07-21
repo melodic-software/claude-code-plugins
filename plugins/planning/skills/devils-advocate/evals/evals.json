@@ -60,6 +60,54 @@
         "Output suggests a targeted follow-up (research the flag, or file a deferred research/monitoring item) instead of declaring the plan verified",
         "Output does not fabricate a definitive claim about the undocumented behavior it did not verify"
       ]
+    },
+    {
+      "id": 6,
+      "name": "incumbent-mode-triggers-alternatives-sweep",
+      "prompt": "/planning:devils-advocate incumbent our logging — we built a custom JSON log formatter a year ago and everything uses it. Before the new service plan commits to it, is there a better way now?",
+      "expected_output": "The skill enters incumbent-target mode and runs the Alternatives Sweep: names the problem the custom formatter solves, surveys alternatives against the native > official > vetted-third-party ladder, prices coupling, and reaches a KEEP / MIGRATE / RESEARCH verdict — rather than treating the message as a plan to poke holes in.",
+      "files": [],
+      "expectations": [
+        "Output evaluates the incumbent (the custom log formatter) against alternatives rather than only extracting assumptions from a plan",
+        "Output names the actual problem the incumbent solves before proposing alternatives, and considers native / first-party options, not only third-party",
+        "Output reaches a keep / migrate / research verdict, and treats 'we already use it' as not by itself a reason to keep"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "incumbent-first-hand-not-parent-digest",
+      "prompt": "/planning:devils-advocate incumbent the auth middleware. I'm pretty sure it's fine and we should keep it, but check whether a better option exists before the rewrite plan assumes it.",
+      "expected_output": "The skill investigates the incumbent first-hand (explores what it is and how it is used) and evaluates alternatives on evidence, rather than rubber-stamping the user's stated 'it's fine, keep it' conclusion.",
+      "files": [],
+      "expectations": [
+        "Output forms its own read of the incumbent (explores / inspects it) instead of accepting the user's 'it's fine' conclusion at face value",
+        "Any keep-or-migrate verdict is backed by evidence (code path, doc, bug number, or concrete argument), not by the user's assertion",
+        "Output does not simply confirm the pre-stated conclusion without independent investigation"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "keep-verdict-is-legitimate-not-forced-switch",
+      "prompt": "/planning:devils-advocate incumbent we use the platform's built-in fetch for HTTP; a plan proposes swapping to a third-party client. Is the incumbent still the right call?",
+      "expected_output": "When the incumbent is re-derived from the problem and still fits (a native option covering the requirements), the skill returns a clean KEEP verdict and does not manufacture a migration for its own sake; it may flag the proposed third-party swap as a downgrade on the preference ladder.",
+      "files": [],
+      "expectations": [
+        "Output can conclude KEEP when the incumbent (a native capability) still fits, rather than forcing a switch",
+        "Output does not fabricate a better alternative or a migration recommendation without evidence it is a better fit",
+        "Output weighs the native incumbent above an unjustified third-party dependency and prices the coupling of adopting one"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "incumbent-mode-not-post-hoc-system-audit",
+      "prompt": "/planning:devils-advocate incumbent our database — go audit production for slow queries and tell me what's unhealthy right now.",
+      "expected_output": "The skill clarifies that incumbent-target mode is pre-implementation decision support — whether to keep or replace the database choice against alternatives — not a post-hoc health / performance audit of the running system, and reframes or declines the runtime-audit request.",
+      "files": [],
+      "expectations": [
+        "Output clarifies its scope is a keep-vs-alternative decision, not a runtime health / performance audit of the live system",
+        "Output does not attempt to diagnose production slow queries or current system health",
+        "Output reframes toward the pre-implementation choice (is this database still the right fit vs alternatives) or points elsewhere for the runtime audit"
+      ]
     }
   ]
 }
