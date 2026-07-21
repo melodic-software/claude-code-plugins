@@ -64,9 +64,19 @@ token will NOT expand there:
   to its absolute form and pass that; the invocation + Python-3.10+ interpreter detection live in
   retro's Phase 1.1 (`${CLAUDE_PLUGIN_ROOT}/skills/retro/context/session.md`) — point the subagent
   there, do not restate them.
-- **Handoff-chain pointers** — if this session resumed from a handoff or a prior checkpoint, pass
-  the chain so the subagent analyzes the whole chain, subject to the continuity gate in retro's
+- **Handoff-chain pointers** — if this session resumed from a handoff, pass the chain so the
+  subagent's parser run spans the whole transcript chain, subject to the continuity gate in retro's
   Phase 1.0 (`${CLAUDE_PLUGIN_ROOT}/skills/retro/context/session.md`).
+- **Prior running-retro ledger** — if this session's ledger (or its chain) carries a
+  `previous_running_retro` pointer, resolve that prior ledger's absolute path and pass it so the
+  subagent carries forward earlier checkpoints' findings (the "running" = cumulative guarantee). This
+  is the ledger's OWN continuity chain — walked by reading the ledger files, NOT the parser's
+  `--chain-from` — so a session continued from an earlier checkpoint without a handoff still keeps
+  its prior findings.
+- **Repo convention docs** — the consuming repo's `CLAUDE.md`, the relevant `.claude/rules/` files,
+  and any convention READMEs, so the subagent judges convention/workflow drift against the repo's
+  documented rules. These are trusted local reads; transcript content is not (see checkpoint.md's
+  trust boundary).
 - **The subjective-state note** from step 1.
 
 ### 3. Delegate the analysis
