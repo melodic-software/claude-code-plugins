@@ -16,14 +16,21 @@ skills already available.
 
 ## The discipline this re-anchors
 
-A skill listing — every skill's name and description — is loaded into context
-so the model knows what is available; the full skill body loads only when the
-skill is invoked
+A skill listing is loaded into context so the model knows what is available:
+every **model-invocable** skill's name (always) and its description (subject to
+the listing budget), with the full body loading only when the skill is invoked
 ([Skills docs](https://code.claude.com/docs/en/skills), fetched 2026-07-20).
-The failure this corrects is behavioral: the relevant skill was sitting in the
-listing the whole time, and the work reinvented its procedure — or skipped it —
-instead of invoking it. Over a long session the listing loses salience the same
-way a standing rule does; this re-anchors the habit of consulting it.
+The listing covers only what the MODEL can reach — a skill set to
+`disable-model-invocation: true` is **manual-only**: its description is not in
+the model's context and the model never auto-invokes it, so it surfaces only
+when a user types `/name` (the inverse, `user-invocable: false`, stays in the
+model's listing but is hidden from the `/` menu). This corrector therefore
+audits only what the model could actually have reached: a **model-visible**
+skill that sat in the listing and went unused, its procedure reinvented — or
+skipped — instead of invoked. It does not fault the model for not
+auto-firing a manual-only skill that was never in its listing. Over a long
+session the listing loses salience the same way a standing rule does; this
+re-anchors the habit of consulting it.
 
 The discipline, at each of the three surfaces where skills apply:
 
@@ -41,9 +48,14 @@ The discipline, at each of the three surfaces where skills apply:
   2026-07-20). So **name the relevant skills in the delegation prompt** so the
   subagent knows to reach for them. For a custom subagent that should always
   carry a discipline, recommend its `skills:` frontmatter, which **preloads the
-  full skill content** into the subagent at startup (not merely access — the
-  Skill tool is already available unless removed via `tools` / `disallowedTools`).
-  This is guidance, not a config change the skill performs.
+  full skill content** into the subagent at startup (preload, not access — the
+  Skill tool is already available to the subagent unless removed via `tools` /
+  `disallowedTools`). One caveat, doc-confirmed: `skills:` can preload only a
+  **model-invocable** skill; a skill set to `disable-model-invocation: true`
+  cannot be preloaded (Claude Code skips it and logs a warning), because
+  preloading draws from the same set the model can invoke — for a manual-only
+  discipline, put its guidance in the prompt directly rather than expecting a
+  preload. This is guidance, not a config change the skill performs.
 
 ## Audit — what to look for
 
