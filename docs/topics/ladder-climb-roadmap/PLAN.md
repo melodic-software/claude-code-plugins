@@ -25,7 +25,8 @@ The delivered WP1–7 contracts become a LIVE closed loop: Claude kicks off Clau
 every completion emits predicate-grade evidence, security-pass execution is machine-enforced on
 every PR, and trust promotions (C2 auto-merge eligibility, C3 review blocking, #476 tier
 enablement) fire from recorded evidence — human-ratified, never calendar- or discretion-based.
-End-state of this roadmap: step 3 operating ("maintenance runs continuously in the background"),
+End-state of this roadmap: step 3 operating (maintenance that "runs continuously in the
+background" — capture doc, verbatim fragment),
 step 4 triggers armed.
 
 ### Constraints
