@@ -6,6 +6,22 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 Versions 0.1.0–0.7.0 predate this file (introduced with 0.7.1); their history lives in the
 merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
 
+## [0.8.0]
+
+### Added
+
+- **Instruction-provenance clause added to the routines contract.** A new normative clause in
+  `reference/routines.md` fixes that a routine's instruction content lives in a
+  version-controlled, reviewable artifact and the stored prompt is a thin pointer to it;
+  pasted-prose prompts are non-compliant, retaining no history and drifting invisibly against
+  the repository state each run executes on. The clause is surface-agnostic — its rationale is
+  that a scheduling surface holding the prompt centrally exposes no prompt history, diff, or
+  rollback, so behavior change is auditable only where the pointed-to artifact is versioned.
+  Surface-specific mappings (cloud routines → a skill committed to a repository's
+  `.claude/skills/`; Claude Desktop scheduled tasks → `~/.claude/scheduled-tasks/<task>/SKILL.md`
+  under the deployment's dotfiles) appear only as illustrative deployment-owned bindings,
+  consistent with the contract's Hosting stance.
+
 ## [0.7.4]
 
 ### Changed

@@ -274,6 +274,33 @@ their leaf documents.
 - `competitive-ecosystem-watch` — continuous external-signal monitoring in
   competitive-intelligence platforms; weekly research samples in agentic-workflow packs
 
+## Instruction provenance
+
+A routine's instruction content lives in a version-controlled, reviewable artifact; the
+stored prompt is a thin pointer to that artifact, never the instruction body itself. A
+prompt carrying pasted prose is non-compliant: it retains no history, and it drifts
+invisibly against the repository state each run executes on. The thin pointer names the
+artifact and directs the run to execute it; the artifact holds the substance, and its
+version-controlled home owns the diff, review, and rollback the stored prompt does not.
+
+The stored prompt is not itself a versioned artifact. Where a scheduling surface holds the
+prompt centrally it exposes no prompt history, diff, or rollback, so a routine's behavior
+change is auditable only where the pointed-to artifact is versioned — which is why the thin
+pointer, not the prompt, is the conforming shape.
+
+Which artifact, and where it lives, is a deployment-owned binding, consistent with the
+Hosting stance below. The following are illustrative bindings, not fixed requirements:
+
+- Cloud routines: the artifact is a skill committed to a selected repository's
+  `.claude/skills/`, and the stored prompt points to it. The transfer path is a documented
+  clone-and-load: each run clones the selected repositories from their default branch and
+  loads their committed skills, so a skill living only in a personal store does not reach
+  the run and must be committed to the repository (or declared as a repository plugin) to
+  bind.
+- Claude Desktop scheduled tasks: the artifact is
+  `~/.claude/scheduled-tasks/<task>/SKILL.md` tracked under the deployment's dotfiles, and
+  the task's prompt points to it.
+
 ## Hosting stance
 
 Hosting is a deployment-owned binding. This contract fixes invariants only:
