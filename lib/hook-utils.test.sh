@@ -623,6 +623,64 @@ else
 fi
 rm -rf "$DATA17" "$FAKEBIN17"
 
+# --- git config value kinds + effective resolution ---------------------------
+# The option walk must tag each collected -c/--config/--config-env value with its
+# origin, and the effective-value projection must resolve a --config-env entry
+# (an env-var NAME) to the variable's value the way git does at runtime.
+join_a() {
+  local IFS='|'
+  echo "$*"
+}
+
+hook::git_resolve_subcommand 0 git -c foo.bar=baz --config-env=alias.c=AVAR c
+if [[ "$(join_a "${HOOK_GIT_CONFIG_VALUES[@]}")" == "foo.bar=baz|alias.c=AVAR" &&
+"$(join_a "${HOOK_GIT_CONFIG_VALUE_KINDS[@]}")" == "inline|env" ]]; then
+  ok "git config: =-forms tag inline vs env"
+else
+  fail "git config kinds (=-forms): values=($(join_a "${HOOK_GIT_CONFIG_VALUES[@]}")) kinds=($(join_a "${HOOK_GIT_CONFIG_VALUE_KINDS[@]}"))"
+fi
+
+hook::git_resolve_subcommand 0 git -c a.b=c --config-env alias.d=AVAR d
+if [[ "$(join_a "${HOOK_GIT_CONFIG_VALUE_KINDS[@]}")" == "inline|env" ]]; then
+  ok "git config: two-word forms tag inline vs env"
+else
+  fail "git config kinds (two-word): kinds=($(join_a "${HOOK_GIT_CONFIG_VALUE_KINDS[@]}"))"
+fi
+
+export WIT_TEST_CFG_ENV=commit
+hook::git_resolve_subcommand 0 git --config-env=alias.c=WIT_TEST_CFG_ENV c
+hook::git_effective_config_values
+if [[ "$(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")" == "alias.c=commit" ]]; then
+  ok "git config: env value resolves to the variable's value"
+else
+  fail "git config effective (env set): $(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")"
+fi
+
+hook::git_resolve_subcommand 0 git -c alias.c=commit c
+hook::git_effective_config_values
+if [[ "$(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")" == "alias.c=commit" ]]; then
+  ok "git config: inline value passes through unchanged"
+else
+  fail "git config effective (inline): $(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")"
+fi
+
+unset WIT_TEST_CFG_ENV
+hook::git_resolve_subcommand 0 git --config-env=alias.c=WIT_TEST_CFG_ENV c
+hook::git_effective_config_values
+if [[ "$(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")" == "alias.c=" ]]; then
+  ok "git config: unset env var projects to an empty value"
+else
+  fail "git config effective (env unset): $(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")"
+fi
+
+hook::git_resolve_subcommand 0 git --config-env=alias.c=not-an-identifier c
+hook::git_effective_config_values
+if [[ "$(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")" == "alias.c=" ]]; then
+  ok "git config: invalid env var name projects to an empty value"
+else
+  fail "git config effective (invalid name): $(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

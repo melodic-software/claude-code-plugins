@@ -213,7 +213,12 @@ check_segment() {
   if ((${HOOK_NO_ALIAS:-0} == 0)); then
     local cv exp reparse a
     local -a cfgv=() expw=()
-    cfgv=(${HOOK_GIT_CONFIG_VALUES[@]+"${HOOK_GIT_CONFIG_VALUES[@]}"})
+    # Effective values: --config-env entries carry an env-var NAME, not the value,
+    # so resolve them (hook-utils) before matching an alias expansion — otherwise
+    # `git --config-env=alias.<sub>=VAR <sub>` (VAR=commit) reads the literal "VAR"
+    # as the expansion and the real subcommand slips past this guard.
+    hook::git_effective_config_values
+    cfgv=(${HOOK_GIT_CONFIG_EFFECTIVE[@]+"${HOOK_GIT_CONFIG_EFFECTIVE[@]}"})
     # LAST value wins, matching git: `-c alias.c=status -c alias.c=commit`
     # runs commit. Taking the first match would let a decoy earlier value
     # (expanding to a harmless subcommand) mask the real one.

@@ -226,7 +226,12 @@ check_segment() {
   if ((${HOOK_NO_ALIAS:-0} == 0)); then
     local cv exp reparse a
     local -a cfgv=() expw=()
-    cfgv=(${HOOK_GIT_CONFIG_VALUES[@]+"${HOOK_GIT_CONFIG_VALUES[@]}"})
+    # Effective values: resolve --config-env entries (which carry an env-var NAME,
+    # not the value) before matching an alias expansion, so a dangerous subcommand
+    # smuggled through `git --config-env=alias.<sub>=VAR <sub>` is not read as the
+    # literal "VAR" and waved through. See hook::git_effective_config_values.
+    hook::git_effective_config_values
+    cfgv=(${HOOK_GIT_CONFIG_EFFECTIVE[@]+"${HOOK_GIT_CONFIG_EFFECTIVE[@]}"})
     for cv in ${cfgv[@]+"${cfgv[@]}"}; do
       [[ "$cv" == "alias.${sub}="* ]] || continue
       exp="${cv#*=}"

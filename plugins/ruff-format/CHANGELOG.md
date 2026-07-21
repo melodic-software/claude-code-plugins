@@ -3,37 +3,15 @@
 All notable changes to the `ruff-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.5.0]
-
-### Added
-
-- **`statusMessage` declared on the hook's `hooks.json` handler** (hook-observability
-  convention, `docs/conventions/hook-observability/`): a spinner label ("Formatting
-  Python with Ruff...") now shows while the hook runs. Config-only — no runtime
-  behavior change.
-
-## [0.4.4]
-
-### Documented
-
-- Documented a known limitation of the pyproject.toml opt-in gate: the
-  line-anchored `[tool.ruff]` header check does not recognize the equivalent
-  TOML inline-table form (`[tool]` + `ruff = { ... }`), which Ruff itself
-  honors. Such a repo is treated as un-configured and the hook skips — fails
-  safe (a missed opt-in, never a wrong edit). Added a test case locking in the
-  documented (skip) behavior. No gate logic change: a robust fix needs real
-  TOML parsing, which is out of scope for this hook (see the hook's inline
-  comment for the full rationale).
-
 ## [0.4.3]
 
-### Fixed
+### Changed
 
-- Published `data/ruff-format.schema.json` in the hook-telemetry convention and
-  registered `ruff-format` in its Implementers table, closing the gap where the
-  hook's `hook::emit_telemetry("ruff-format", ...)` envelope had no per-hook
-  `data` schema for a consuming sink to validate against — unlike the sibling
-  `markdown-format` and `typos-format` producers. No hook behavior change.
+- Sync of the shared `hook-utils.sh`: the git-option parser now distinguishes
+  `--config-env` (an env-var name) from `-c`/`--config` (an inline value) and adds the
+  `hook::git_effective_config_values` resolver (`#740`). No behavior change for this
+  plugin — it does not read git config values; shipped so consumers receive the shared
+  library update.
 
 ## [0.4.2]
 

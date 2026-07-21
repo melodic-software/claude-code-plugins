@@ -778,6 +778,14 @@ hook::git_resolve_index() {
 #                            order, so a guard can inspect config assignments
 #                            without re-walking (commit messages and pathspecs
 #                            are never collected here)
+#   HOOK_GIT_CONFIG_VALUE_KINDS — parallel to HOOK_GIT_CONFIG_VALUES (1:1 by
+#                            index): "inline" for a -c/--config value (the literal
+#                            assignment) or "env" for a --config-env value (whose
+#                            operand is `<key>=<envvar>`, an environment-variable
+#                            NAME, not the value). A consumer that reads the actual
+#                            assignment MUST resolve env-kind entries — see
+#                            hook::git_effective_config_values — rather than treat
+#                            the env-var name as the value.
 # Call as: hook::git_resolve_subcommand <git-index> <argv words...>
 # shellcheck disable=SC2034  # result globals are consumed by the sourcing guard, not this file
 hook::git_resolve_subcommand() {
@@ -788,17 +796,34 @@ hook::git_resolve_subcommand() {
   HOOK_GIT_SUB=""
   HOOK_GIT_SUB_IDX=-1
   HOOK_GIT_CONFIG_VALUES=()
+  HOOK_GIT_CONFIG_VALUE_KINDS=()
 
   j=$((gi + 1))
   while ((j < nseg)); do
     gw="${w[j]}"
     case "$gw" in
-    -c | --config | --config-env)
-      ((j + 1 < nseg)) && HOOK_GIT_CONFIG_VALUES+=("${w[j + 1]}")
+    -c | --config)
+      ((j + 1 < nseg)) && {
+        HOOK_GIT_CONFIG_VALUES+=("${w[j + 1]}")
+        HOOK_GIT_CONFIG_VALUE_KINDS+=("inline")
+      }
       ((j += 2))
       ;;
-    --config=* | --config-env=*)
+    --config-env)
+      ((j + 1 < nseg)) && {
+        HOOK_GIT_CONFIG_VALUES+=("${w[j + 1]}")
+        HOOK_GIT_CONFIG_VALUE_KINDS+=("env")
+      }
+      ((j += 2))
+      ;;
+    --config=*)
       HOOK_GIT_CONFIG_VALUES+=("${gw#*=}")
+      HOOK_GIT_CONFIG_VALUE_KINDS+=("inline")
+      ((j++))
+      ;;
+    --config-env=*)
+      HOOK_GIT_CONFIG_VALUES+=("${gw#*=}")
+      HOOK_GIT_CONFIG_VALUE_KINDS+=("env")
       ((j++))
       ;;
     -C | --git-dir | --work-tree | --namespace | --super-prefix | --attr-source | --exec-path)
@@ -815,6 +840,40 @@ hook::git_resolve_subcommand() {
     esac
   done
   return 1
+}
+
+# Project the collected git config values to their EFFECTIVE assignments for a
+# consumer that reads the actual value (e.g. resolving `alias.<sub>=<expansion>`).
+# An "inline" value (-c/--config) passes through unchanged. An "env" value
+# (--config-env) is `<key>=<envvar>`, where <envvar> NAMES an environment variable
+# holding the value; git reads that variable at runtime, and the hook shares git's
+# process environment, so resolve it the same way to `<key>=<value>`. A named
+# variable that is unset — or a name that is not a valid shell identifier — resolves
+# to an empty value: git rejects an unset --config-env variable (fatal), so the
+# assignment never takes effect and an empty value is the safe projection (a
+# value-keyed consumer gets no spurious match; a key-keyed consumer still sees the
+# key). A malformed operand with no '=' is passed through untouched. Fills
+# HOOK_GIT_CONFIG_EFFECTIVE, aligned 1:1 with HOOK_GIT_CONFIG_VALUES. Call after
+# hook::git_resolve_subcommand.
+# shellcheck disable=SC2034  # HOOK_GIT_CONFIG_EFFECTIVE is consumed by the sourcing guard
+hook::git_effective_config_values() {
+  HOOK_GIT_CONFIG_EFFECTIVE=()
+  local i entry kind key envvar
+  for i in "${!HOOK_GIT_CONFIG_VALUES[@]}"; do
+    entry="${HOOK_GIT_CONFIG_VALUES[i]}"
+    kind="${HOOK_GIT_CONFIG_VALUE_KINDS[i]:-inline}"
+    if [[ "$kind" == "env" && "$entry" == *=* ]]; then
+      key="${entry%%=*}"
+      envvar="${entry#*=}"
+      if [[ "$envvar" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+        HOOK_GIT_CONFIG_EFFECTIVE+=("${key}=${!envvar-}")
+      else
+        HOOK_GIT_CONFIG_EFFECTIVE+=("${key}=")
+      fi
+    else
+      HOOK_GIT_CONFIG_EFFECTIVE+=("$entry")
+    fi
+  done
 }
 
 # Single linear pass: read the command into a char array once (O(n)), then walk
@@ -934,8 +993,8 @@ hook::bash_parse_segments() {
       # following lines is the command's stdin, so record the delimiter and
       # let the newline handler skip the body. A quoted/backslashed delimiter
       # (`<<'EOF'`, `<<\EOF`) still terminates on a line reading `EOF`.
-      if [[ "$c" == '<' ]] && ((i + 1 < n)) && [[ "${chars[i + 1]}" == '<' ]] \
-        && { ((i + 2 >= n)) || [[ "${chars[i + 2]}" != '<' ]]; }; then
+      if [[ "$c" == '<' ]] && ((i + 1 < n)) && [[ "${chars[i + 1]}" == '<' ]] &&
+        { ((i + 2 >= n)) || [[ "${chars[i + 2]}" != '<' ]]; }; then
         ((i++))
         local hstrip=0
         if ((i + 1 < n)) && [[ "${chars[i + 1]}" == '-' ]]; then

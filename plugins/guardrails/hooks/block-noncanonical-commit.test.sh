@@ -90,6 +90,21 @@ run "last inline alias value wins (blocked)" \
 run "last inline alias value wins (allowed when the last is harmless)" \
   "git -c alias.c=commit -c alias.c=status c -m x" 0
 
+# --- --config-env aliases resolve through the named env var -------------------
+# `--config-env=<key>=<envvar>` supplies the NAME of an env var holding the value,
+# not the value; the guard must resolve it (as git does) before matching an alias,
+# else the env-var name reads as the expansion and a real commit slips past.
+run "config-env alias to commit (env-sourced, blocked)" \
+  "git --config-env=alias.c=AV c" 2 AV=commit
+run "config-env alias two-word form (env-sourced, blocked)" \
+  "git --config-env alias.c=AV c" 2 AV=commit
+run "config-env alias to a harmless subcommand (allowed)" \
+  "git --config-env=alias.st=AV st" 0 AV=status
+# An unset named var: git rejects the invocation (fatal), so no commit runs and the
+# empty projection correctly does not match an alias — allowed here, git blocks it.
+run "config-env alias with an unset env var (allowed — git rejects)" \
+  "git --config-env=alias.c=MISSINGVAR c" 0
+
 # --- other subcommands are untouched -----------------------------------------
 run "git log (allowed)" "git log --oneline -5" 0
 run "git push (allowed)" "git push origin main" 0

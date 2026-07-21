@@ -3,14 +3,15 @@
 All notable changes to the `desktop-notification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.5.0]
+## [0.4.4]
 
-### Added
+### Changed
 
-- **`statusMessage` declared on the hook's `hooks.json` handler** (hook-observability
-  convention, `docs/conventions/hook-observability/`): a spinner label ("Sending
-  desktop notification...") now shows while the hook runs. Config-only — no
-  runtime behavior change.
+- Sync of the shared `hook-utils.sh`: the git-option parser now distinguishes
+  `--config-env` (an env-var name) from `-c`/`--config` (an inline value) and adds the
+  `hook::git_effective_config_values` resolver (`#740`). No behavior change for this
+  plugin — it does not read git config values; shipped so consumers receive the shared
+  library update.
 
 ## [0.4.3]
 

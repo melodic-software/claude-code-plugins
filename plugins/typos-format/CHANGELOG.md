@@ -3,29 +3,15 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.3.0]
-
-### Added
-
-- **`statusMessage` declared on the hook's `hooks.json` handler** (hook-observability
-  convention, `docs/conventions/hook-observability/`): a spinner label ("Fixing
-  typos...") now shows while the hook runs. Config-only — no runtime behavior
-  change.
-
-## [0.2.0]
+## [0.1.1]
 
 ### Changed
 
-- **Removed the opt-in config-gate.** The hook now runs `typos --write-changes`
-  unconditionally on every `Write`/`Edit`, matching `markdown-format`'s existing
-  unconditional pattern — typos ships a built-in spelling dictionary and needs
-  no configuration to be useful. Previously the hook silently no-op'd on any
-  repo without a hand-authored `typos.toml`/`_typos.toml`/`.typos.toml`/
-  `Cargo.toml`/`pyproject.toml`, defeating the plugin's zero-config auto-fix
-  purpose on exactly the repos it was meant to help. A consumer typos config,
-  when present, is still discovered and honored automatically by typos itself
-  (allowlist/exclude) — this hook never re-implemented that discovery and
-  still doesn't; only the activation gate is removed.
+- Sync of the shared `hook-utils.sh`: the git-option parser now distinguishes
+  `--config-env` (an env-var name) from `-c`/`--config` (an inline value) and adds the
+  `hook::git_effective_config_values` resolver (`#740`). No behavior change for this
+  plugin — it does not read git config values; shipped so consumers receive the shared
+  library update.
 
 ## [0.1.0]
 

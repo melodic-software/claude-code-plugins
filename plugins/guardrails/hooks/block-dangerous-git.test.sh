@@ -203,6 +203,12 @@ run "git -c alias.rh='reset --hard' rh (inline git alias, blocked)" "git -c alia
 run "git -c alias.nuke='!git reset --hard' nuke (inline shell alias, blocked)" "git -c alias.nuke='!git reset --hard' nuke" 2
 run "git -c alias.st=status st (safe alias, allowed)" "git -c alias.st=status st" 0
 run "git -c alias.rh='reset --hard' status (alias defined, not run, allowed)" "git -c alias.rh='reset --hard' status" 0
+# --config-env supplies the NAME of an env var holding the value; the guard must
+# resolve it (as git does) before matching an alias, else a dangerous op smuggled
+# through the named var reads as the literal var name and is waved through.
+run "git --config-env=alias.rh=AV rh (env-sourced git alias, blocked)" "git --config-env=alias.rh=AV rh" 2 "AV=reset --hard"
+run "git --config-env alias.rh=AV rh (two-word form, blocked)" "git --config-env alias.rh=AV rh" 2 "AV=reset --hard"
+run "git --config-env=alias.st=AV st (safe env alias, allowed)" "git --config-env=alias.st=AV st" 0 AV=status
 run "command -p git reset --hard (command wrapper option, blocked)" "command -p git reset --hard" 2
 run "command -- git reset --hard (command end-of-options, blocked)" "command -- git reset --hard" 2
 run "exec -c git reset --hard (exec wrapper option, blocked)" "exec -c git reset --hard" 2

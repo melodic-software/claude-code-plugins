@@ -3,83 +3,25 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.10.0]
-
-### Added
-
-- **`statusMessage` declared on every hook's `hooks.json` handler** (9 handlers)
-  and **telemetry added to `workflow-resilience-check`**, which previously
-  emitted none — it now emits at every meaningful outcome (no-fan-out /
-  already-throttled / advisory finding), matching every sibling guardrails
-  hook (hook-observability convention, `docs/conventions/hook-observability/`).
-
-### Fixed
-
-- **Missing-`jq` degraded state is now user-visible.** `block-dangerous-git`,
-  `block-hook-bypass`, `block-no-verify`, `block-noncanonical-commit`,
-  `cli-flag-verify`, `flag-commit-pr-skill-bypass`, `hardcoded-path-check`,
-  `secret-pattern-detection`, and `workflow-resilience-check` previously wrote
-  their jq-missing notice to stderr on an exit-0 path — per the official Claude
-  Code hooks reference, exit-0 stderr is discarded entirely and was never shown
-  to the user or Claude. Each now routes through the shared `hook::require_jq`
-  helper (once-per-session `systemMessage` + `additionalContext`, matching the
-  fleet's formatter-hook convention). `cli-flag-verify`'s separate
-  bundled-verifier-missing path (install corruption) gets the same treatment,
-  previously fully silent (not even stderr).
-- **`scripts/check-silent-skips.sh` tightened**: a bare `>&2` write no longer
-  satisfies the gate's visibility requirement (it never actually satisfied the
-  doctrine — exit-0 stderr is invisible; the gate's own assumption was wrong).
-  The 9 hooks above were the only fleet sites relying on that leniency.
-
-## [0.9.8]
-
-### Fixed
-
-- **`hardcoded-path-check` pre-filter no longer fails open on the broadened
-  checkout roots.** 0.9.7 widened the detailed drive-letter bodies to accept
-  `Projects` and `Dev` (both capitalizations), but the cheap `scan_text`
-  pre-filter gate still tripped only on `Users|/home/|repos`. Content whose
-  sole machine path used a widened root (e.g. `C:\Projects\…`, `C:\Dev\…`)
-  early-returned before the detailed scan ever ran — a fail-open in a security
-  gate. The gate now lists every root token the detailed bodies accept, keeping
-  it a strict superset; a `Projects`-root regression test guards it.
-
-### Changed
-
-- **`block-no-verify` guard description broadened to match shipped behavior.**
-  The `block_no_verify_enabled` userConfig description still enumerated
-  "lefthook disables" only; it now states the actual configurable default set
-  (lefthook, husky, pre-commit, simple-git-hooks).
-
-## [0.9.7]
-
-### Changed
-
-- **`block-no-verify` hook-manager bypass detection is now configurable and
-  covers more managers by default.** The env-var disable check matched only
-  `lefthook*`, silently missing `HUSKY=0` and other managers. It now resolves a
-  configurable prefix set (`block_no_verify_hook_manager_prefixes` userConfig)
-  defaulting to `lefthook, husky, pre_commit, simple_git_hooks`; consumer values
-  are reduced to identifier characters before use, so a value can never inject
-  regex metacharacters.
-- **`hardcoded-path-check` machine-path detection broadened past `repos`.** The
-  drive-letter-anchored checkout-parent pattern matched only `X:\repos\…`, so a
-  hardcoded `C:\Projects\…` or `C:\Dev\…` path went undetected. It now also
-  matches `Projects` and `Dev` (both capitalizations); a consumer's own checkout
-  root was and remains caught by the driver's project-root literal scan.
-
 ## [0.9.6]
 
 ### Fixed
 
-- **`flag-commit-pr-skill-bypass` advisory now honors user-global plugin
-  enablement.** The `source_control_enabled` probe read only the consuming
-  project's `.claude/settings.json` (plus its local override), so when
-  source-control was enabled solely at user-global scope (`~/.claude/settings.json`)
-  — a common install — the probe false-negatived and the `gh pr create` advisory
-  never fired. Enablement now resolves across user-global, project, and local
-  scopes in Claude Code's precedence order (user-global base, project overrides,
-  local overrides), matching how the platform actually merges `enabledPlugins`.
+- **`--config-env` git aliases no longer bypass `block-noncanonical-commit` and
+  `block-dangerous-git` (`#740`).** The shared git-option parser
+  (`hook::git_resolve_subcommand`) collected `-c`/`--config`/`--config-env` values into
+  one array undifferentiated, but `--config-env=<key>=<envvar>` supplies the NAME of an
+  environment variable holding the value, not the value itself. Both guards read the
+  env-var name as the literal alias expansion, so `git --config-env=alias.z=AV z` (with
+  `AV=commit` or `AV='reset --hard'`) resolved the alias to the harmless-looking token
+  `AV` and waved the real subcommand through — a verified fail-open. The parser now tags
+  each value's origin (`HOOK_GIT_CONFIG_VALUE_KINDS`), and a new
+  `hook::git_effective_config_values` resolver projects `--config-env` entries to their
+  actual `<key>=<value>` against the hook's inherited environment (as git does at
+  runtime); both guards match aliases against the resolved values. An unset or
+  invalid-name env var projects to an empty value — git itself rejects an unset
+  `--config-env` variable, so the assignment never takes effect. Inline shell
+  env-assignment prefixes (`AV=commit git …`) remain out of scope (documented residual).
 
 ## [0.9.5]
 
