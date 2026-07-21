@@ -3,15 +3,15 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.19.1]
+## [0.20.1]
 
 ### Documentation
 
 - `tools/work-item-tracker/tests/lib.sh` now points at
   `docs/conventions/shell-test-helpers/README.md`, the repo's owner doc recording that per-plugin
   shell assert-helper duplication and per-script exit-code taxonomies are deliberate, not drift. No
-  behavior change. Version bumped past `#857`'s `0.19.0` claim (merged, Jira adapter) and #861's
-  matching open `0.19.0` claim to avoid a collision.
+  behavior change. Version re-bumped past `#861`'s current `0.20.0` claim (re-derived after
+  `#857` merged) to avoid a collision.
 
 ## [0.19.0]
 

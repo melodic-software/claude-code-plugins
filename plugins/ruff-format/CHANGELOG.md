@@ -3,6 +3,16 @@
 All notable changes to the `ruff-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.3]
+
+### Fixed
+
+- Published `data/ruff-format.schema.json` in the hook-telemetry convention and
+  registered `ruff-format` in its Implementers table, closing the gap where the
+  hook's `hook::emit_telemetry("ruff-format", ...)` envelope had no per-hook
+  `data` schema for a consuming sink to validate against — unlike the sibling
+  `markdown-format` and `typos-format` producers. No hook behavior change.
+
 ## [0.4.2]
 
 ### Changed
