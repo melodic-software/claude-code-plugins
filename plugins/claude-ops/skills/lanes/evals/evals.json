@@ -61,6 +61,19 @@
         "Output states this is provisional and that durable prompt storage is issue #480's responsibility, not this skill's",
         "Output does not claim this skill builds or owns durable prompt storage"
       ]
+    },
+    {
+      "id": 6,
+      "name": "running-lane-cannot-hot-reload-own-fix",
+      "prompt": "I merged a fix to the babysit skill. My babysit loop lane is still running the old behavior. Will it pick up the fix on its own, or do I have to restart it?",
+      "expected_output": "It will NOT pick up the fix on its own — a running lane keeps the skill versions it loaded at launch, /loop never re-reads a skill's body on later cycles, and a loop cannot self-trigger /reload-plugins. Restart is the honest refresh mechanism (the same restart that clears context bloat). Detect the unconsumed self-fix with a read-only git probe (origin/main commits touching the plugin path since the lane's launch commit), then `/claude-ops:lanes restart <lane>` at the next cycle boundary to re-pull, refresh the marketplace, and relaunch. See context/refresh.md.",
+      "files": [],
+      "expectations": [
+        "Output states the running lane will NOT auto-consume the merged fix and explains restart is required",
+        "Output attributes this to verified Claude Code behavior (launch-time versions retained, /loop does not re-read the skill body, loop can't self-trigger /reload-plugins) rather than a fixable gap in this skill",
+        "Output points to the git staleness probe and `lanes restart` at a cycle boundary as the mechanism",
+        "Output does not claim a true mid-session hot-reload of a running loop lane is achievable"
+      ]
     }
   ]
 }
