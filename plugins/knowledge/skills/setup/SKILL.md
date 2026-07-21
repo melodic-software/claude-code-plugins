@@ -65,6 +65,9 @@ reports "already configured".
    then `claude plugin install knowledge@<marketplace> --config library_dir=<value>`. The rendered
    value is injected at skill load, so a change takes effect in a fresh session — report the
    observed value and defer verification to that fresh session; do not claim a change this session.
+   For a root outside the project and home directories, recommend the portable value forms from the
+   README's option table (`~` prefix or `${NAME}` / `%NAME%` env-var reference) instead of a literal
+   machine path, which guardrail hardcoded-path checks rightly block.
 2. **`apply install-deps` — provision the extraction dependencies.** Only with this subaction, run
    both idempotent provisioners (each installs the vendored node dependencies into
    `${CLAUDE_PLUGIN_DATA}`, and course-digest additionally provisions Chromium into
