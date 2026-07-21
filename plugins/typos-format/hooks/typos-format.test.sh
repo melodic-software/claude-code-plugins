@@ -209,8 +209,9 @@ else
   fail "mixed case wrong: $(cat "$REPO/mixed.txt")"
 fi
 CTX_MIXED=$(printf '%s' "$OUT" | jq -r '.hookSpecificOutput.additionalContext' 2>/dev/null)
-if printf '%s' "$CTX_MIXED" | grep -q 'disallowme' && ! printf '%s' "$CTX_MIXED" | grep -q '"teh"'; then
-  ok "mixed fixable+unfixable -> only unfixable reported (fixed 'teh' absent)"
+FIXED_TYPO='teh' # spellchecker:disable-line
+if printf '%s' "$CTX_MIXED" | grep -q 'disallowme' && ! printf '%s' "$CTX_MIXED" | grep -qF "\"$FIXED_TYPO\""; then
+  ok "mixed fixable+unfixable -> only unfixable reported (fixed typo absent)"
 else
   fail "mixed case: reporting wrong: $CTX_MIXED"
 fi
