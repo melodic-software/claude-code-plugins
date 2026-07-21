@@ -3,6 +3,26 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.1]
+
+### Fixed
+
+- **The skill-frontmatter guard now receives its authorized data root.**
+  `destructive_guard.py` read the authoritative data root only from the
+  `CLAUDE_PLUGIN_DATA` environment variable, which the runtime does not inject
+  into a skill-frontmatter hook's process environment. As a result `--data-root`
+  never validated and the `scan`/`preview`/`apply` engine lane failed closed on
+  every guarded invocation, on all platforms. The `clean` skill's hook now
+  passes the root as a runtime-substituted `--authorized-data-root
+  ${CLAUDE_PLUGIN_DATA}` argument — inline placeholder substitution resolves in
+  hook arguments where environment injection does not — and the guard reads its
+  authority from that argument, honoring `CLAUDE_PLUGIN_DATA` only as a fallback.
+  The security property is unchanged: the authority is a runtime-substituted
+  value the model cannot forge, validated against the model-supplied
+  `--data-root`. The unsubstituted-placeholder fallback matches only the exact
+  `${CLAUDE_PLUGIN_DATA}` token, so a real data-root path that merely contains
+  the `${` sequence is preserved as the authority instead of being discarded.
+
 ## [0.4.0]
 
 ### Added
