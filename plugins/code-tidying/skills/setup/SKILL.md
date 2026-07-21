@@ -11,8 +11,10 @@ disable-model-invocation: true
 Verify and scaffold the consuming repo's tracked lane definitions at `.claude/tidy-lanes/<lane>.md`
 so `/code-tidying:tidy` resolves project-specific scope globs and watch-for patterns deterministically
 instead of falling back to the generic bundled lanes every run. A project lane at
-`${CLAUDE_PROJECT_DIR}/.claude/tidy-lanes/<lane>.md` takes precedence over the bundled lane of the
-same name — this is the plugin's seam-2 extension surface.
+`${CLAUDE_PROJECT_DIR}/.claude/tidy-lanes/<lane>.md` layers over the bundled lane of the same name —
+this is the plugin's seam-2 extension surface. How the two combine is governed by the project lane's
+own `## Merge semantics` section (see the `tidy` skill's Lane resolution): a lane declaring it merges
+per-section with the bundled lane; a lane without it resolves project-only.
 
 Project lanes are optional: with none, `/code-tidying:tidy` uses the bundled lanes, so their absence is
 a reported INFO, never a FAIL. `check` inspects read-only; `apply` scaffolds or retunes lanes, then
@@ -109,7 +111,9 @@ only where a lane's scope genuinely needs the user's call.
    `.claude/tidy-lanes/*.md` — there is no personal/local-overlay resolution. Every scaffolded lane is a
    tracked, team-shared file; do not point developers at a `*.local.*` variant the tidy skill would never
    load. A developer who wants a private lane keeps a normal `.claude/tidy-lanes/<lane>.md` and gitignores
-   that one path, accepting it stays local-only.
+   that one path, accepting it stays local-only. This single-layer gap (no user-global or gitignored
+   `*.local.*` overlay, diverging from the consumer-config layering contract's three-layer shape) is a
+   distinct axis from lane merge granularity and is tracked in TODO(#723).
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".
 

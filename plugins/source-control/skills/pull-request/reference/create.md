@@ -68,22 +68,37 @@ Ensure the branch is current with the default branch before pushing. Prevents me
 
 ```bash
 DEFAULT_BRANCH=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name)
-git fetch origin "$DEFAULT_BRANCH"
-MERGE_BASE=$(git merge-base HEAD "origin/$DEFAULT_BRANCH")
-ORIGIN_DEFAULT=$(git rev-parse "origin/$DEFAULT_BRANCH")
 
-if [ "$MERGE_BASE" != "$ORIGIN_DEFAULT" ]; then
-  BEHIND=$(git rev-list --count HEAD.."origin/$DEFAULT_BRANCH")
-  echo "Branch is $BEHIND commit(s) behind origin/$DEFAULT_BRANCH. Rebasing..."
-  git rebase "origin/$DEFAULT_BRANCH"
+# Resolve the FETCH remote that hosts the default branch via the shared resolver
+# (scripts/resolve-remote.sh): the current branch's configured remote
+# (branch.<name>.remote), else `origin`, else the sole OTHER configured remote
+# when exactly one exists — never a hardcoded `origin`, so a repo cloned with a
+# different remote name (`git clone -o vendor`) still resolves. A local-only
+# upstream (`.`) is treated as unset. Two or more non-origin candidates with
+# neither branch.<name>.remote nor `origin` set is ambiguous and the resolver
+# fails loudly rather than silently picking one. The §2.4.1 push step calls the
+# same resolver with `--push`, which prepends Git's push precedence
+# (branch.<name>.pushRemote / remote.pushDefault) so a triangular fork flow —
+# fetch from `upstream`, push to the fork — resolves each side correctly instead
+# of pushing to the fetch remote.
+REMOTE=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/resolve-remote.sh") || exit 1
+
+git fetch "$REMOTE" "$DEFAULT_BRANCH"
+MERGE_BASE=$(git merge-base HEAD "$REMOTE/$DEFAULT_BRANCH")
+REMOTE_DEFAULT=$(git rev-parse "$REMOTE/$DEFAULT_BRANCH")
+
+if [ "$MERGE_BASE" != "$REMOTE_DEFAULT" ]; then
+  BEHIND=$(git rev-list --count HEAD.."$REMOTE/$DEFAULT_BRANCH")
+  echo "Branch is $BEHIND commit(s) behind $REMOTE/$DEFAULT_BRANCH. Rebasing..."
+  git rebase "$REMOTE/$DEFAULT_BRANCH"
 fi
 ```
 
-**Prefer `git merge origin/$DEFAULT_BRANCH` over rebase when the branch already contains a merge commit** (`git log --merges origin/$DEFAULT_BRANCH..HEAD` non-empty) — replaying pre-merge commits produces avoidable conflict slogs, and under squash-merge linear branch history buys nothing.
+**Prefer `git merge $REMOTE/$DEFAULT_BRANCH` over rebase when the branch already contains a merge commit** (`git log --merges $REMOTE/$DEFAULT_BRANCH..HEAD` non-empty) — replaying pre-merge commits produces avoidable conflict slogs, and under squash-merge linear branch history buys nothing.
 
 **If conflicts occur:** resolve conservatively — take both sides where independent, pause and present to the user whenever intent is unclear. `git rebase --abort` / `git merge --abort` when resolution needs judgment you don't have.
 
-**Skip conditions:** branch has zero commits ahead (nothing to rebase), or merge-base already equals `origin/$DEFAULT_BRANCH` (branch is current).
+**Skip conditions:** branch has zero commits ahead (nothing to rebase), or merge-base already equals `$REMOTE/$DEFAULT_BRANCH` (branch is current).
 
 ## 2.3 Stage and commit
 
@@ -157,7 +172,19 @@ Persist chosen line(s) into `${CLOSES_LINE}`. NEVER wrap a closing keyword in an
 ### 2.4.1 Push and assemble PR body
 
 ```bash
-git push -u origin <branch-name>
+# Push via push-branch.sh, which resolves the push and fetch/rebase remotes
+# independently (resolve-remote.sh --push vs plain) and sets upstream (`-u`)
+# ONLY for a branch with NO existing upstream — branch.<name>.remote AND
+# branch.<name>.merge both unset — whose fetch and push resolve to the same
+# remote (a fresh feature branch's first push). `git push -u` rewrites the
+# branch's whole upstream — both keys — so any existing upstream (a real remote,
+# a deliberate local-only `.`, or a merge ref set with the remote defaulting to
+# `origin`) is preserved by a plain push instead. This closes two silent
+# corruptions: a triangular fork (push a fork via pushRemote/pushDefault, fetch
+# `origin`/`upstream`) no longer repoints the fetch remote to the fork, and a
+# branch with any configured tracking no longer has its merge ref overwritten.
+# See the script header for the full rationale.
+bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/push-branch.sh" || exit 1
 ```
 
 Derive PR title from the commit subject, shaped to satisfy the resolved subject/title convention (the ladder in [SKILL.md](../SKILL.md): layered `source-control.md` config → project convention → Conventional Commits default). Build body with `${CLOSES_LINE}` at top, followed by Summary + Test plan + a `## Related` section + a config-gated attribution line:

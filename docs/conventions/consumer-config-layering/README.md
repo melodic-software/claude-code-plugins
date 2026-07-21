@@ -203,11 +203,12 @@ open.
 | `source-control` | `.claude/source-control.md` | team only | single-layer; migration to all three in flight (#647) |
 | `toolchain` / `ecosystem-commands` | `.claude/ecosystems/<ecosystem>.yaml` | all three | conforms |
 | `codebase-health` | `.claude/codebase-health.md` | all three | conforms (concatenating, with a declared empty-list opt-out) |
+| `github` | `.claude/github/` (`routing.yaml` per-key override, `conventions.md` concatenating) | all three | conforms; policy-floor inversion on write-posture routing keys, declared in the plugin's `change-routing.md` |
 | `autonomy` | `.claude/autonomy/binding.json` | all three, plus an org rung | declared deviation |
 | `standards` (`planning`, `review`) | `<standards_dir>/`, rooted by `.claude/standards.yaml` | all three | precedence inversion ratified via policy-floor class (#649); layer location outside `.claude/` still observed, not ratified |
 | `disk-hygiene` | `.claude/disk-hygiene.json` | user-global + team | declared deviation; no overlay layer |
 | `ai-briefing` | `.claude/ai-briefing/` | team only | undeclared: overlay recommended, never resolved |
-| `code-tidying` | `.claude/tidy-lanes/<lane>.md` | team only | single-layer over a bundled default |
+| `code-tidying` | `.claude/tidy-lanes/<lane>.md` | team only | team layer over a bundled default. A project lane declaring `## Merge semantics` merges per-section with its bundled lane (`docs-prose` decomposed: `Scope` per-section override, watch-for patterns additive — #701); lanes without the declaration still resolve project-only wholesale (`shell-tooling` — #724). No user-global or `*.local.*` overlay (#723) |
 | `topic-docs` | `.claude/topic-docs.yaml` | team only | single-layer |
 | `repo-fleet-hygiene` | `.claude/repo-fleet-hygiene.conf` | team only | single-layer |
 | `work-items` | `.work-item-tracker.json` | team only | single-layer; resolves by CWD-to-root climb rather than anchoring at the repo root |

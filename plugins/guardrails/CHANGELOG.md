@@ -3,6 +3,34 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.4]
+
+### Fixed
+
+- **`cli-flag-verify` scans only the content the tool call wrote, never the whole file
+  from disk.** The PostToolUse check re-read the entire edited file, so any edit to a
+  file already containing an unrecognized flag elsewhere re-fired the advisory about
+  lines the edit never touched. The hook now scans the tool payload — an Edit's
+  changed hunk, a Write's full content (a PostToolUse Write payload cannot distinguish
+  a new file from an overwrite, so whole-content is the closest the payload allows) —
+  per the hook-precision convention's diff-scoping rule. Repro-first: the
+  pre-existing-flag stay-quiet case fails against the prior hook and passes now, with
+  a hunk-introduced-flag MUST-FIRE counterpart. Markdown fence state is derived from
+  the hunk alone — a fence-straddling edit can misclassify in either direction, the
+  accepted trade of hunk scoping. A partial-replacement edit whose hunk is a bare
+  flag fragment (no binary in the changed region) reconstructs bounded on-disk
+  context — the lines carrying the hunk's flag tokens — so a swapped-in unknown flag
+  still fires, while a pre-existing unrelated flag sharing that line stays quiet.
+
+## [0.9.3]
+
+### Changed
+
+- Documentation-only: the License section now states the plugin's own MIT
+  license inline and no longer points at a `LICENSE` file at the repository
+  root, which an installed consumer running from the isolated plugin cache
+  cannot reach. No behavior change.
+
 ## [0.9.2]
 
 ### Fixed

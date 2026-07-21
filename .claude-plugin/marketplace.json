@@ -340,7 +340,7 @@
       "name": "education",
       "source": "./plugins/education",
       "category": "learning",
-      "tags": ["teach", "learn", "learning", "coach", "tutor", "pedagogy", "primer", "onboarding", "skill"]
+      "tags": ["teach", "learn", "learning", "coach", "tutor", "pedagogy", "primer", "explain", "eli5", "onboarding", "skill"]
     },
     {
       "name": "repo-hygiene",
@@ -404,6 +404,18 @@
       "source": "./plugins/autonomy",
       "category": "autonomy",
       "tags": ["autonomy", "adoption", "governance", "topology", "binding", "guided-setup"]
+    },
+    {
+      "name": "adhd",
+      "source": "./plugins/adhd",
+      "category": "personal",
+      "tags": ["adhd", "output", "accessibility", "action-first", "focus", "response-style", "brevity", "skill"]
+    },
+    {
+      "name": "github",
+      "source": "./plugins/github",
+      "category": "operations",
+      "tags": ["github", "audit", "advise", "governance", "org-admin", "billing", "security-posture", "rulesets", "actions-policy", "drift", "skill"]
     }
   ],
   "renames": {

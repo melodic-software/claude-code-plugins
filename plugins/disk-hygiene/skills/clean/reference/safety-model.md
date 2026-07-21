@@ -54,9 +54,10 @@ The skill-scoped Bash guard accepts only complete literal words in the three dec
 shapes. It rejects every Bash expansion family, glob/word-splitting input, redirection, operator,
 escape, and compound-command form before validating arguments. Canonical script-path comparison uses
 the host platform's path case rules; POSIX path identity is never case-folded. A `--data-root` value
-is accepted only when it matches the `CLAUDE_PLUGIN_DATA` the guard's own hook process received from
-the runtime — the shell environment is never trusted for it, and absent hook authority the flag fails
-closed. `--max-depth` accepts only a bare positive-integer literal.
+is accepted only when it matches the authorized data root the guard receives as a runtime-substituted
+hook argument (`${CLAUDE_PLUGIN_DATA}`) — the shell environment is never trusted for it (an env var is
+honored only as a fallback), and absent that authority the flag fails closed. `--max-depth` accepts
+only a bare positive-integer literal.
 
 The same guard also covers the PowerShell tool with the inverse tradeoff: PowerShell stays open for
 read-only support work, while engine invocations are hard-denied (Bash is the only engine lane) and

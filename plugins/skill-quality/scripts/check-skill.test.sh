@@ -5,6 +5,8 @@
 # skills, runs the checker, and asserts on exit code + output. Mutates only its
 # own mktemp dir. markdownlint (check 6) is skipped via the documented test seam
 # so the suite needs no Node/npx.
+#
+# shellcheck disable=SC2016  # fixture SKILL.md bodies are literal bytes passed in single quotes (backticks and ! are content, never shell expansion)
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -461,6 +463,415 @@ if [[ $rc -eq 1 ]] && grep -q "frontmatter name 'wrong-name' does not match" <<<
   pass "comment stripping does not mask a real mismatch"
 else
   fail "commented misnamed skill should still fail (rc=$rc): $out"
+fi
+
+# 18a. A fenced shell block of read-only context-gathering commands, with no `!`
+#      injection anywhere, warns (precompute opportunity) but passes.
+make_skill precompute-cand '---
+name: precompute-cand
+description: "Gather repo context. Use when: '"'"'gathering repo context'"'"'."
+---
+
+## Steps
+
+Inspect the working tree first:
+
+```bash
+git status --short
+git diff HEAD
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run precompute-cand 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'precompute opportunity' <<<"$out"; then
+  pass "read-only shell block without !-injection warns (precompute opportunity)"
+else
+  fail "read-only context block should warn as a precompute opportunity (rc=$rc): $out"
+fi
+
+# 18b. A skill that already injects context with inline `!` is silent even when
+#      it also carries a qualifying shell block (the whole-file gate).
+make_skill precompute-injects '---
+name: precompute-injects
+description: "Already precomputes. Use when: '"'"'already injecting context'"'"'."
+---
+
+## Context
+- Tree: !`git status --short`
+
+## Steps
+
+```bash
+git diff HEAD
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run precompute-injects 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'precompute opportunity' <<<"$out"; then
+  pass "skill already using !-injection is silent (whole-file gate)"
+else
+  fail "skill already injecting with ! should not warn precompute (rc=$rc): $out"
+fi
+
+# 18c. A shell block that builds / runs a script is not a read-only context
+#      block, so it is not flagged.
+make_skill precompute-sideeffect '---
+name: precompute-sideeffect
+description: "Builds things. Use when: '"'"'building the project'"'"'."
+---
+
+## Steps
+
+```bash
+npm run build
+bash ./scripts/deploy.sh prod
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run precompute-sideeffect 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'precompute opportunity' <<<"$out"; then
+  pass "side-effecting shell block is not flagged as a precompute opportunity"
+else
+  fail "build/deploy block should not warn precompute (rc=$rc): $out"
+fi
+
+# 18d. A git block with write subcommands is disqualified by the write-token
+#      denylist even though `git` leads every line.
+make_skill precompute-gitwrite '---
+name: precompute-gitwrite
+description: "Commits work. Use when: '"'"'committing changes'"'"'."
+---
+
+## Steps
+
+```bash
+git add -A
+git commit -m "wip"
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run precompute-gitwrite 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'precompute opportunity' <<<"$out"; then
+  pass "git write block is not classified read-only (subcommand allowlist)"
+else
+  fail "git add/commit block should not warn precompute (rc=$rc): $out"
+fi
+
+# 18e. A mutating git subcommand outside the read-only allowlist (git stash /
+#      git clean) is not classified read-only, so no injection is suggested.
+make_skill precompute-gitmutate '---
+name: precompute-gitmutate
+description: "Cleans the tree. Use when: '"'"'cleaning the worktree'"'"'."
+---
+
+## Steps
+
+```bash
+git stash
+git clean -fd
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run precompute-gitmutate 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'precompute opportunity' <<<"$out"; then
+  pass "unlisted mutating git subcommand (stash/clean) is not a precompute candidate"
+else
+  fail "git stash/clean block should not warn precompute (rc=$rc): $out"
+fi
+
+# 18f. A non-shell fenced block (json) is never scanned, so it is not flagged.
+make_skill precompute-jsonfence '---
+name: precompute-jsonfence
+description: "Returns JSON. Use when: '"'"'shaping json output'"'"'."
+---
+
+## Example
+
+```json
+{"key": "value"}
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run precompute-jsonfence 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'precompute opportunity' <<<"$out"; then
+  pass "non-shell fenced block (json) is not flagged as a precompute opportunity"
+else
+  fail "json block should not warn precompute (rc=$rc): $out"
+fi
+
+# 18g. A read-only gh subcommand nested after the object (gh pr diff, gh run
+#      list) is a valid candidate — the object/verb allowlist, not a flat token.
+make_skill precompute-ghread '---
+name: precompute-ghread
+description: "Reads PR state. Use when: '"'"'reading pr context'"'"'."
+---
+
+## Context
+
+```bash
+gh pr diff
+gh run list
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run precompute-ghread 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'precompute opportunity' <<<"$out"; then
+  pass "read-only gh subcommand (pr diff / run list) is a precompute candidate"
+else
+  fail "gh read-only block should warn precompute (rc=$rc): $out"
+fi
+
+# 18h. A read-only head piped into a mutating sink (`git status | tee f`) is NOT
+#      a candidate — the first token is read-only but the pipeline sink writes.
+make_skill precompute-pipesink '---
+name: precompute-pipesink
+description: "Snapshots the tree. Use when: '"'"'snapshotting the tree'"'"'."
+---
+
+## Steps
+
+```bash
+git status --short | tee snapshot.txt
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run precompute-pipesink 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'precompute opportunity' <<<"$out"; then
+  pass "read-only command piped into a mutating sink (| tee) is not a candidate"
+else
+  fail "piped mutation should not warn precompute (rc=$rc): $out"
+fi
+
+# 18i. A logical `|| echo` fallback (our recommended defensive form) is not a
+#      pipe, so a read-only block using it is still a candidate.
+make_skill precompute-orfallback '---
+name: precompute-orfallback
+description: "Reads status. Use when: '"'"'reading tree status'"'"'."
+---
+
+## Steps
+
+```bash
+git status --short || echo "(status unavailable)"
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run precompute-orfallback 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'precompute opportunity' <<<"$out"; then
+  pass "read-only command with a || echo fallback is still a candidate"
+else
+  fail "|| echo fallback block should warn precompute (rc=$rc): $out"
+fi
+
+# 18j. A command-launching primary (`find -exec`) is not read-only — it runs an
+#      arbitrary command — so a block using it is not a candidate.
+make_skill precompute-findexec '---
+name: precompute-findexec
+description: "Runs cleanup. Use when: '"'"'running find exec'"'"'."
+---
+
+## Steps
+
+```bash
+find . -name "*.tmp" -exec ./cleanup.sh {} +
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run precompute-findexec 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'precompute opportunity' <<<"$out"; then
+  pass "command-launching find -exec is not a precompute candidate"
+else
+  fail "find -exec block should not warn precompute (rc=$rc): $out"
+fi
+
+# 18k. A shell continuation after a read-only command (`&&`, `;`) chains a
+#      mutation, so the line fails closed.
+make_skill precompute-chain '---
+name: precompute-chain
+description: "Marks state. Use when: '"'"'chaining a marker'"'"'."
+---
+
+## Steps
+
+```bash
+git status --short && touch marker
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run precompute-chain 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'precompute opportunity' <<<"$out"; then
+  pass "shell continuation (&&) after a read-only command fails closed"
+else
+  fail "&& continuation block should not warn precompute (rc=$rc): $out"
+fi
+
+# 18l. A command substitution (`$(...)`) executes during expansion, so a line
+#      carrying one is not read-only.
+make_skill precompute-cmdsubst '---
+name: precompute-cmdsubst
+description: "Expands a subst. Use when: '"'"'expanding a substitution'"'"'."
+---
+
+## Steps
+
+```bash
+git status --short "$(touch marker)"
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run precompute-cmdsubst 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'precompute opportunity' <<<"$out"; then
+  pass "command substitution in the line fails closed"
+else
+  fail "command-substitution block should not warn precompute (rc=$rc): $out"
+fi
+
+# 18m. A file-output option on an allowlisted git reader (`git diff --output`)
+#      writes a file, bypassing the redirection guard, so it fails closed.
+make_skill precompute-gitoutput '---
+name: precompute-gitoutput
+description: "Writes a patch. Use when: '"'"'writing a patch file'"'"'."
+---
+
+## Steps
+
+```bash
+git diff --output=changes.patch
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run precompute-gitoutput 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'precompute opportunity' <<<"$out"; then
+  pass "file-output option on a git reader (--output) fails closed"
+else
+  fail "git diff --output block should not warn precompute (rc=$rc): $out"
+fi
+
+# 18n. An external-program diff option (`git diff --ext-diff`) can run a
+#      configured diff.external helper, so it fails closed.
+make_skill precompute-extdiff '---
+name: precompute-extdiff
+description: "External diff. Use when: '"'"'running an external diff'"'"'."
+---
+
+## Steps
+
+```bash
+git diff --ext-diff
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run precompute-extdiff 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'precompute opportunity' <<<"$out"; then
+  pass "external-diff option on a git reader (--ext-diff) fails closed"
+else
+  fail "git diff --ext-diff block should not warn precompute (rc=$rc): $out"
+fi
+
+# 18o. Only `|| echo` is a sanctioned continuation; a `||` into any other command
+#      (`|| bash x`) is a real operator that fails closed.
+make_skill precompute-ornonecho '---
+name: precompute-ornonecho
+description: "Runs a fallback. Use when: '"'"'running an or fallback'"'"'."
+---
+
+## Steps
+
+```bash
+git status --short || bash ./recover.sh
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run precompute-ornonecho 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'precompute opportunity' <<<"$out"; then
+  pass "a || continuation into a non-echo command fails closed"
+else
+  fail "|| bash continuation block should not warn precompute (rc=$rc): $out"
+fi
+
+# 18p. find's null-separated file-output primary (`-fprint0`) writes a file, like
+#      -fprint/-fprintf, so it fails closed.
+make_skill precompute-fprint0 '---
+name: precompute-fprint0
+description: "Writes a file list. Use when: '"'"'writing a file list'"'"'."
+---
+
+## Steps
+
+```bash
+find . -name "*.md" -fprint0 files.txt
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run precompute-fprint0 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'precompute opportunity' <<<"$out"; then
+  pass "find -fprint0 file-output primary fails closed"
+else
+  fail "find -fprint0 block should not warn precompute (rc=$rc): $out"
 fi
 
 if [[ $fails -ne 0 ]]; then

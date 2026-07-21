@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "code-tidying",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "description": "Code tidying and comment hygiene: /code-tidying:tidy proactively hunts a rotated, glob-scoped lane for Beck-style tidyings under a research-backed scope budget and ships one tight PR; /code-tidying:batch-simplify sweeps recently changed files through grouped, dependency-ordered simplification waves with a never-drop deferred-items contract; /code-tidying:audit-comment-residue is a read-only classifier that flags history, plan, conversational, and ticket/PR residue in code comments for author-applied deletion. Project-specific tidy lanes are scaffolded into a tracked .claude/tidy-lanes/ config folder by a re-runnable setup skill.",
   "author": {
     "name": "Melodic Software",

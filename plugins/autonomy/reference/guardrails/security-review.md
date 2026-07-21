@@ -32,6 +32,10 @@ Every layer × class cell carries one knob: `advisory` | `blocking`.
 - `advisory` — findings are recorded on the item's verification record and surfaced to
   the human merge gate; they never block on their own.
 
+That a failing verdict can gate the merge at all is this contract's own instantiation: the
+Boris playbook keeps automated review a default feeding a human merge, never a gate, so the
+`blocking` knob layers a gate onto that advisory posture rather than inheriting it.
+
 Knobs are security-sensitive and bind ONLY on the org's security governance surface (the
 settings-as-code home, outside the blast radius of the agents they govern — an
 agent-writable blocking knob is a bypass channel). Shipped defaults:

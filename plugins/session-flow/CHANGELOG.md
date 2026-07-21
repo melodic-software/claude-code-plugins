@@ -1,5 +1,23 @@
 # Changelog — session-flow plugin
 
+## [0.10.4] — 2026-07-20
+
+Fixed:
+
+- retro: the Phase 1.1 multi-session snippet no longer truncates a quoted
+  `memory_dir` at an interior `#`. `HANDOFF_DIR` resolution now routes through the
+  shared `parse-concern-value.sh` helper (materialized from
+  `lib/parse-concern-value.sh`), which peels surrounding quotes *before* stripping
+  comments, so `memory_dir: "a#b"` resolves to `a#b` rather than `a`. The snippet
+  also surfaces resolution rung 2 — a save-point convention inferred from
+  `CLAUDE.md` / `.claude/rules`, passed as `DECLARED_SAVEPOINT` — instead of
+  collapsing straight from an absent concern file to `.work`; prose stays an
+  inference source the agent resolves, not a machine key.
+- retro: a comment-only `memory_dir` (e.g. `memory_dir: # use default`, YAML-null)
+  now resolves through the fallback instead of being taken literally as
+  `# use default/handoffs`, so the handoff-chain search degrades to the declared
+  save-point / `.work` default rather than a bogus directory.
+
 ## [0.10.3] — 2026-07-19
 
 Changed:

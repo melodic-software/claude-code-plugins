@@ -3,6 +3,89 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.6]
+
+### Changed
+
+- **`babysit-prs` autopilot merge tier (#476) gains a bot-review precision enabling precondition,
+  still shipped DISABLED.** `reference/safety.md` now documents a second operator enabling
+  precondition alongside the review-workflow requiredness one: the tier may be enabled only after
+  the fleet's bot-review lane has demonstrated recorded precision over a sustained window — the same
+  earned-promotion trigger ADR 0002 sets for flipping an advisory review lane to a blocking gate
+  (precision proven over a sustained window, ratified as a reviewed change citing the evidence,
+  never a calendar flip and never operator discretion alone). Because the tier lets a fleet-produced
+  approval satisfy a required-review ruleset, it promotes that lane from advisory to merge-deciding
+  and inherits the same evidence bar. Prose/contract change only — no behavioral shift to the merge
+  gate, which remains fail-closed and DISABLED absent `babysit_autopilot_merge_tier`.
+
+## [0.15.5]
+
+### Fixed
+
+- **`/pull-request` create flow no longer silently corrupts a branch's fetch/rebase upstream when
+  publishing it for a PR (#442, residual finding from PR #763).** A post-merge review empirically
+  reproduced a residual silent clobber: §2.4.1's conditional `-u` gate keyed on the LITERAL
+  `branch.<name>.remote` config being set. In the triangular shape where `remote.pushDefault` names a
+  fork globally but `branch.<name>.remote` is unset (so fetch/rebase falls back to `origin`), the gate
+  read "unset", took the `-u` bootstrap path, and `git push -u <fork>` rewrote `branch.<name>.remote`
+  to the fork — so the next fetch/rebase silently targeted the fork instead of `origin`. The gate now
+  fires `-u` only when the branch has NO existing upstream (`branch.<name>.remote` AND
+  `branch.<name>.merge` both literally unset) AND its fetch and push remotes resolve to the same name
+  (`resolve-remote.sh` fetch-mode vs `--push`); otherwise it pushes plain and writes no branch config.
+  This closes the reported `pushDefault`-only clobber (fetch resolves `origin`, push resolves the fork →
+  they differ → plain push, upstream untouched) and a broader corruption family the fix surfaced:
+  `git push -u` rewrites the branch's WHOLE upstream — both `branch.<name>.remote` and
+  `branch.<name>.merge` — so a branch with any configured tracking kept its merge ref overwritten under
+  a resolved-name-only comparison. Three such shapes: an already-tracked branch; a deliberate local-only
+  `.` upstream (`git branch --track . <ref>`); and merge-only tracking (`branch.<name>.merge` set with
+  `branch.<name>.remote` unset — valid, since Git defaults the remote to `origin`, so the branch tracks
+  `origin/<merge-ref>`). Requiring BOTH upstream keys to be absent before bootstrapping preserves any
+  existing tracking via plain push. This also changes #763's behavior for the `.` case (it took the
+  `-u` path); publishing a branch for a PR no longer mutates a deliberate local-only or merge-only
+  upstream — a strict improvement. An ambiguous fetch resolution (empty) is unequal to any push remote →
+  plain push, never an abort. The conditional moved out of the `create.md` prose into a new co-located
+  `scripts/push-branch.sh` (§2.4.1 now delegates to it), so the gate sequence is executable and testable
+  rather than living only in markdown; the normalized `.`-as-unset / `\r`-strip handling stays solely in
+  `resolve-remote.sh` and is not duplicated (the upstream-absent probe reads both keys raw — any
+  non-empty value means "has an upstream"). New `push-branch.test.sh` drives the full resolve-fetch →
+  resolve-push → conditional-push → re-resolve-fetch sequence against real bare remotes across the
+  pushRemote-triangular, `pushDefault`-only triangular, non-triangular (asserting the merge ref is
+  preserved), fresh-branch bootstrap, local-only `.`, merge-only tracking, and fetch-ambiguous shapes —
+  the integration coverage whose absence let this escape `resolve-remote.test.sh`'s resolver-only cases.
+
+## [0.15.4]
+
+### Fixed
+
+- **`/pull-request` create flow no longer hardcodes the remote name `origin` (#442).** The
+  `create.md` reference had baked `git fetch origin` (§2.2 rebase) and `git push -u origin <branch>`
+  (§2.4.1), so a consumer whose remote is not named `origin` (a repo cloned with `git clone -o
+  <name>`, or a fork-based multi-remote setup) would break — a baked repo assumption the
+  convention-resolution ladder forbids. Both sites now delegate to a shared resolver
+  (`scripts/resolve-remote.sh`) that applies the same candidate-priority ordering the `toolchain`
+  linters already use: the current branch's configured remote (`branch.<name>.remote`, a local-only
+  `.` upstream treated as unset), else `origin`, else the sole OTHER configured remote when exactly
+  one exists. Two or more non-origin candidates with neither `branch.<name>.remote` nor `origin` set
+  is ambiguous and fails loudly with a diagnostic rather than silently resolving to `git remote |
+  head -1` and risking a rebase/push against the wrong base. The §2.2 substitution is complete —
+  every `origin/$DEFAULT_BRANCH` occurrence (fetch, `merge-base`, `rev-parse`, `rev-list`, `rebase`,
+  the progress echo, and the
+  merge-vs-rebase / skip-condition prose) now reads `$REMOTE/$DEFAULT_BRANCH`, and the
+  `ORIGIN_DEFAULT` variable is renamed `REMOTE_DEFAULT` to stay coherent. On the common path — a
+  single-remote repo, or a fresh feature branch with no `branch.<name>.remote` yet — both sites
+  still resolve to `origin`, preserving current behavior exactly. The §2.4.1 push step calls the
+  resolver in `--push` mode, which prepends Git's documented push precedence
+  (`branch.<name>.pushRemote`, else `remote.pushDefault`, else the fetch order above) per
+  git-config(1) / git-push(1), so a triangular fork flow — fetch from `upstream`, push to the fork —
+  resolves each side correctly instead of publishing the branch to `upstream`; the resolver's push
+  cases are covered by `resolve-remote.test.sh`. Relatedly, the §2.4.1 `git push` now sets upstream
+  (`-u`) only when the branch has no real `branch.<name>.remote` yet: `git push -u` rewrites that key
+  to the push target, so on a triangular fork an unconditional `-u` would silently repoint the FETCH
+  remote §2.2 reads to the fork and break the next rebase — the push now preserves an existing fetch
+  remote and bootstraps tracking only for a fresh (or local-only `.`) branch, where it still resolves
+  to `origin` as before. The same `origin` hardcoding still lives in `merge.md` and the `babysit-prs`
+  references, deferred to a follow-up.
+
 ## [0.15.3]
 
 ### Added

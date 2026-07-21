@@ -1,6 +1,6 @@
 # Default-on AI review: advisory lanes with earned promotion to blocking
 
-- Status: accepted (interim — pending the #509 enforcement design ruling)
+- Status: accepted
 - Date: 2026-07-20
 
 ## Context
@@ -41,6 +41,40 @@ This is the interim posture pending #509's enforcement design session (operator-
 that session's question, and it may promote the security lane to a required gate on its own
 terms without a further precision window.
 
+## Addendum (2026-07-21): #509 enforcement ruling
+
+The #509 enforcement design session ruled. Execution evidence — proof that the security pass
+RAN on every PR — is promoted to a **required status check** on the protected base, so a PR
+cannot merge without the security workflow having reported. A diff with no security-sensitive
+surface gets an explicit not-applicable verdict from a **job-level conditional** inside the
+always-running workflow — never workflow-level `paths` filtering, which would leave the required
+check **Pending** forever and wedge every prose PR. The required check proves the pass ran; it
+does not gate on the verdict.
+
+Implementation ordering is load-bearing: as of this addendum the caller still uses
+workflow-level `paths` filtering, so the ruleset must NOT mark this check required until the
+caller restructure (always-running workflow, job-level conditional) has landed — flipping the
+requirement first would wedge every prose PR exactly as described above. Sequence: caller
+restructure (this repo) → workflow always-report shape (ci-workflows) → required check
+(github-iac ruleset), each verifiable before the next.
+
+VERDICT gating is unchanged: the security lane stays **advisory** per the guardrail matrix's
+knob floors and this ADR's earned-promotion discipline (Decision §2). The ruling promotes
+*execution evidence to required*, not *findings to blocking* — flipping the verdict to blocking
+still requires the earned precision window.
+
+Evidence model: the **check run** is canonical — API-queryable, and creatable only by the App
+that runs the pass, so a branch cannot forge it. A workflow-applied **label** is a glance layer
+only; labels are Triage-flippable — any actor with Triage access or above can add or remove one,
+a lower bar than the App-only check creation — so a label is never evidence that the pass ran;
+the required check is.
+
+Attribution: this enforcement is the operator's mandate backed by verified consensus practice —
+OpenSSF Scorecard's branch-protection criteria, GitHub's protected-branch documentation, and
+NIST SP 800-218A's same-bar-for-agent-and-human principle — **not** the source playbook, which
+never prescribes a merge gate. The playbook grounds default-on invocation (Boris step-2); the
+required-check enforcement is ours. A merge-queue revisit trigger is recorded below.
+
 ## Revisit triggers
 
 - The security lane's findings prove precise over a sustained window → open the promotion
@@ -49,3 +83,6 @@ terms without a further precision window.
   scope before considering demotion.
 - ci-workflows ships a release changing either reusable workflow's contract → re-pin the
   callers through the ordinary Dependabot/SHA-bump path.
+- A merge queue is enabled on the base → the security workflow must add the `merge_group`
+  trigger, or its required check is never reported for queued PRs (a required check that never
+  runs blocks the merge).

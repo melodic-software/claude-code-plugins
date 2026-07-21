@@ -42,6 +42,8 @@
 #  15. Companion spoke dirs referenced from SKILL.md (WARN; orphan-spoke direction)
 #  16. metadata.category present (INFO only)
 #  17. Vendor-backed: metadata.synced not older than 180 days (WARN)
+#  18. Precompute opportunity: a fenced shell block gathers read-only context
+#      the skill could inline at load time via `!` injection (WARN; heuristic)
 #
 # Notes (static, git-diff-based design):
 #   - Checks 3/8/9 diff the working tree against CHECK_SKILL_BASE_REF (default
@@ -391,6 +393,146 @@ if [[ -d "$SKILL_DIR/vendor" ]]; then
       fi
     fi
   fi
+fi
+
+# --- Check 18: precompute opportunity (WARN; advisory heuristic) --------------
+# Flags a SKILL.md that gathers deterministic, read-only context by telling
+# Claude to run shell commands at invocation, when that output could instead be
+# inlined at load time via `!`command`` / ```! dynamic-context injection (one
+# preprocessing pass, no per-invocation tool round-trip). Advisory only: a
+# static scan cannot tell an instruction-to-run block from an illustrative
+# example, and it reads fenced shell blocks only (not prose "run `git status`").
+# The whole-file gate below (silent when the skill already injects with `!`)
+# is deliberate — it suppresses per-block opportunities in a skill that already
+# precomputes something, an accepted recall limit for an advisory check.
+
+# Read-only context-gathering command line? The design FAILS CLOSED: the
+# first-token check below only sees the head of the line, so any shell construct
+# that can hide a second command or a write disqualifies the line up front —
+# redirection (`>`/`<`), command/process substitution (`$(...)`, backticks),
+# backgrounding/chaining (`&`, `&&`, `;`), and a bare pipe (`| tee`) — as does a
+# side-effecting option that survives an allowlisted reader (`find -exec`,
+# `find -delete`, `git diff --output`). `|| echo` is the one sanctioned
+# continuation (our fallback form), so `||` is stripped before the pipe test.
+# git/gh are matched by a read-only subcommand/verb allowlist, never wholesale,
+# so an unlisted mutation (`git stash`, `gh pr merge`) is never read-only. Every
+# miss lands on the safe side — a missed opportunity, never advice to auto-run a
+# mutation at load time.
+precompute_readonly_line() {
+  local line="$1"
+  line="${line#"${line%%[![:space:]]*}"}"   # ltrim
+  line="${line#\$ }"                          # strip a leading `$ ` prompt
+
+  # Shell metacharacters that can introduce a second command or a write. `<(`
+  # and `>(` process substitution are caught by the `<`/`>` tests.
+  case "$line" in
+    *'>'* | *'<'* | *';'* | *'&'*) return 1 ;;
+    *) ;;
+  esac
+  # shellcheck disable=SC2016  # single quotes are deliberate: '$(' is a literal glob, not a shell expansion
+  case "$line" in *'$('*) return 1 ;; *) ;; esac   # $(...) command substitution
+  case "$line" in *'`'*) return 1 ;; *) ;; esac     # backtick command substitution
+  # `|| echo <fallback>` is the one sanctioned continuation. Remove those, then
+  # any residual pipe disqualifies the line — a bare `| sink`, or a `||`
+  # continuation into a non-echo command such as `|| bash x`.
+  # shellcheck disable=SC2016  # single quotes deliberate: \|\| and $ are literal regex, not a shell expansion
+  local sanitized
+  sanitized="$(sed -E 's/\|\|[[:space:]]*echo([[:space:]]|$)/ /g' <<<"$line")"
+  case "$sanitized" in *'|'*) return 1 ;; *) ;; esac
+
+  # Side-effecting options that survive the head-command allowlist: command- or
+  # file-writing find primaries, a git reader's file-output flag, and git's
+  # external-program diff options (`--ext-diff` runs a configured diff.external
+  # helper; `--textconv` runs a configured textconv filter). Repo config can
+  # still attach programs to a plain `git diff` (default diff.external / textconv
+  # on configured paths) — that is inherent to git and beyond a static line scan.
+  # shellcheck disable=SC2016  # single quotes are deliberate: $ is an ERE end anchor, not a shell expansion
+  grep -qE '(^|[[:space:]])(-exec|-execdir|-ok|-okdir|-delete|-fprintf|-fprint0|-fprint|-fls|--output|--ext-diff|--textconv|rm|mv|cp|tee|sed|mkdir|touch)([[:space:]=]|$)' <<<"$line" && return 1
+
+  local cmd="${line%%[[:space:]]*}"
+  case "$cmd" in
+    ls | pwd | cat | find | date | uname | whoami | hostname | wc | head | tail | echo | printf | id | stat | du | df | basename | dirname | realpath | readlink | groups | tree | sw_vers) return 0 ;;
+    git)
+      local sub="${line#git}"
+      sub="${sub#"${sub%%[![:space:]]*}"}"
+      sub="${sub%%[[:space:]]*}"
+      case "$sub" in
+        status | log | diff | show | rev-parse | rev-list | describe | ls-files | ls-tree | symbolic-ref | shortlog | blame | cat-file | for-each-ref | name-rev | whatchanged) return 0 ;;
+        *) return 1 ;;
+      esac
+      ;;
+    gh)
+      # gh nests the read verb after the object (gh pr diff, gh run view). Allow
+      # only a known read verb, and never when a write verb is also present.
+      case " $line " in
+        *" create "* | *" edit "* | *" delete "* | *" merge "* | *" close "* | *" comment "*) return 1 ;;
+        *" view "* | *" diff "* | *" list "* | *" status "* | *" checks "*) return 0 ;;
+        *) return 1 ;;
+      esac
+      ;;
+    *) return 1 ;;
+  esac
+}
+
+# Does the skill already use `!` dynamic-context injection anywhere? Inline form
+# is recognized only at line start or after whitespace (per the skills docs); a
+# ```! opening fence is the multi-line form. Either presence silences check 18.
+PRECOMPUTE_INJECTS=0
+if grep -qE '(^|[[:space:]])!`' "$SKILL_MD" || grep -qE '^[[:space:]]*```+!' "$SKILL_MD"; then
+  PRECOMPUTE_INJECTS=1
+fi
+
+PRECOMPUTE_CANDIDATE=0
+if ((PRECOMPUTE_INJECTS == 0)); then
+  # Single-level fence scan. A fenced code block is opened by a run of >=3
+  # backticks and closes on a bare fence of at least that many; content inside
+  # never opens a nested block (CommonMark), so inner ``` examples inside a
+  # wider ```` wrapper are treated as literal content, not scanned as commands.
+  # shellcheck disable=SC2016  # single quotes are deliberate: backticks and $ are literal regex, not shell expansion
+  fence_open_re='^(```+)([^`]*)$'
+  in_block=0
+  fence_len=0
+  is_shell=0
+  block_ok=1
+  block_has_cmd=0
+  while IFS= read -r bl || [[ -n "$bl" ]]; do
+    trimmed="${bl#"${bl%%[![:space:]]*}"}"
+    if [[ "$trimmed" =~ $fence_open_re ]]; then
+      ticks="${BASH_REMATCH[1]}"
+      info="${BASH_REMATCH[2]}"
+      n=${#ticks}
+      info="${info#"${info%%[![:space:]]*}"}"
+      info_first="${info%%[[:space:]]*}"
+      if ((in_block == 0)); then
+        in_block=1
+        fence_len=$n
+        block_ok=1
+        block_has_cmd=0
+        case "$info_first" in
+          bash | sh | shell | zsh | console | shell-session | shellsession | sh-session) is_shell=1 ;;
+          *) is_shell=0 ;;
+        esac
+      elif ((n >= fence_len)) && [[ -z "$info" ]]; then
+        if ((is_shell == 1 && block_ok == 1 && block_has_cmd == 1)); then
+          PRECOMPUTE_CANDIDATE=1
+        fi
+        in_block=0
+        is_shell=0
+      fi
+      continue
+    fi
+    if ((in_block == 1 && is_shell == 1)); then
+      if [[ -n "$trimmed" && "$trimmed" != \#* ]]; then
+        block_has_cmd=1
+        precompute_readonly_line "$bl" || block_ok=0
+      fi
+    fi
+  done <"$SKILL_MD"
+fi
+
+if ((PRECOMPUTE_CANDIDATE == 1)); then
+  # shellcheck disable=SC2016  # single quotes are deliberate: the backticks and ! in the advisory text are literal, not shell expansion
+  warn 'precompute opportunity: a fenced shell block runs read-only context-gathering commands the skill could inline at load time via `!`command`` / ```! dynamic-context injection (preprocessed once at load, no per-invocation tool call). If the block runs on every invocation to gather context, convert it; if it is an illustrative example, ignore. Heuristic over fenced shell blocks — see https://code.claude.com/docs/en/skills#inject-dynamic-context'
 fi
 
 # --- Summary ---------------------------------------------------------------
