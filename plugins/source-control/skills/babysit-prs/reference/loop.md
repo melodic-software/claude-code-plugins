@@ -74,7 +74,10 @@ not model memory, not prior-iteration state, not comment counts (why:
 2. **CI check** — `gh pr checks <N> --json bucket -q '[.[] | .bucket] | unique'`
 3. **Fetch ALL comments** — run
    `bash "${CLAUDE_PLUGIN_ROOT}/scripts/fetch-all-pr-comments.sh" <N>` to retrieve every comment
-   from all 3 API surfaces (review-thread, issue-level, PR reviews). Full bodies, not counts
+   from all 3 API surfaces (review-thread, issue-level, PR reviews). Full bodies, not counts. The
+   script derives owner/repo from the current directory via `gh repo view`; from a cwd that is not
+   a checkout of the target repo (e.g. a targeted-recheck pass), export `FETCH_COMMENTS_OWNER` and
+   `FETCH_COMMENTS_REPO` first, else it exits with "cannot resolve owner/repo"
 4. **Filter own prior replies + classify addressed/unaddressed** per
    [review-discipline.md](../../../reference/review-discipline.md) §1
 5. **Extract findings** per [review-discipline.md](../../../reference/review-discipline.md) §2 —
@@ -287,7 +290,10 @@ verification gates per [review-discipline.md](../../../reference/review-discipli
   append `--extra-self "${user_config.babysit_self_logins}"`. Exit 0 `READINESS_OK`
   is REQUIRED to proceed. Exit 1 `READINESS_BLOCKED reason=under-decomposed` means
   classification rows < source findings → decompose + classify the missing findings, then
-  re-run. THEN confirm: all checks terminal + 2-min cooldown
+  re-run. Exit 4 means jq is missing or the comment fetch failed — the stderr names the fix; the
+  common cause is owner/repo unresolved from a cwd that is not a checkout of the target repo, fixed
+  by exporting `FETCH_COMMENTS_OWNER`/`FETCH_COMMENTS_REPO` (inherited into
+  `fetch-all-pr-comments.sh`). THEN confirm: all checks terminal + 2-min cooldown
 - [ ] **F** — Per-finding classification table + readiness report (see §5.5)
 
 **"Done" means GitHub shows evidence.** A per-finding work item is addressed only when the
