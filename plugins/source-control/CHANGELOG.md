@@ -9,7 +9,25 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - `scripts/test-helpers.sh` now points at `docs/conventions/shell-test-helpers/README.md`, the
   repo's owner doc recording that per-plugin shell assert-helper duplication and per-script exit-code
-  taxonomies are deliberate, not drift. No behavior change.
+  taxonomies are deliberate, not drift. No behavior change. Version bumped past `#840`'s and `#860`'s
+  open `0.15.9` claims to avoid a collision.
+
+## [0.15.8]
+
+### Fixed
+
+- **`babysit-readiness-gate.sh` now emits an actionable diagnostic when the live comment fetch
+  fails, instead of an undifferentiated exit 4 (#475).** The gate shells out to
+  `fetch-all-pr-comments.sh`, which auto-derives owner/repo from the current directory via
+  `gh repo view`; from a cwd that is not a checkout of the target repo (e.g. a targeted-recheck
+  pass) that derivation returns empty and the fetch exits non-zero, which the gate previously
+  surfaced only as `fetch-all-pr-comments.sh failed for PR <N>` + exit 4 — the same exit code as a
+  missing `jq`. The gate's failure message now names the cwd it resolved from and the
+  `FETCH_COMMENTS_OWNER` / `FETCH_COMMENTS_REPO` override, `fetch-all-pr-comments.sh`'s own
+  "cannot resolve owner/repo" message names the cwd and the override, the gate's `--help` and
+  exit-code documentation cover the override, and the `babysit-prs` worker checklist (SKILL.md,
+  `reference/loop.md`) documents it as a prerequisite for out-of-checkout passes. No behavior
+  change to the readiness verdict or exit codes; only the diagnostics and docs.
 
 ## [0.15.7]
 

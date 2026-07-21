@@ -39,12 +39,47 @@ Cross-reference the project's instruction surfaces (`CLAUDE.md`, project rules, 
 - External URLs — spot-check for 404s, not exhaustively
 - Version numbers hardcoded in docs vs actual versions in config
 
+## Existence pre-check (before accuracy)
+
+Before evaluating a page's accuracy, ask the admission question first: **could
+a reader with repository search derive this content from the code itself?** A
+page that fails admission is drift by construction — its finding is a
+deletion-candidate recommendation, not an accuracy fix, and the page never
+enters the Stale/Missing/Aspirational classification below.
+
+Four categories always pass admission, regardless of how derivable the
+surrounding page reads:
+
+- **Decisions** — a chosen option erases the record of alternatives rejected
+- **Domain language** — ubiquitous-language definitions the code enforces but
+  does not narrate
+- **Thin navigation** — index/wayfinding pages whose value is curation, not
+  restated content
+- **Policy and wiring** — cross-cutting rules and integration seams no single
+  file states
+
+For the four-factor scoring behind a contested admission call, reuse
+`/docs-hygiene:audit-derivability`'s rubric by reference — namespaced skill
+invocation, optional: invoke it when the `docs-hygiene` plugin is available;
+otherwise apply the admission question above standalone, which stands on its
+own for a pass/fail call.
+
+An admission failure recommends **relocate-then-delete** (salvage anything
+admissible first) — this agent is report-only and never deletes.
+
+**Org override.** This pre-check is a portable-baseline default. When the
+consuming repository declares its own documentation-existence convention,
+resolve and defer to it via `/re-anchor:follow-our-standards`'s resolution
+ladder (repo-declared source → repo's own conventions → this portable
+baseline) instead of the default above.
+
 ## Workflow
 
 1. Pick a documentation area to audit (or audit all when invoked without scope)
-2. Read the documentation file
-3. Cross-reference each factual claim against the actual code/config
-4. Report discrepancies with specific `file:line` references
+2. For each candidate page, run the existence pre-check above before anything else
+3. Read the documentation file
+4. Cross-reference each factual claim against the actual code/config
+5. Report discrepancies with specific `file:line` references
 
 ## Output format
 
@@ -54,11 +89,12 @@ Cross-reference the project's instruction surfaces (`CLAUDE.md`, project rules, 
 
 Categorize findings:
 
-1. **Stale** — documentation contradicts current code (fix immediately)
-2. **Missing** — code exists that documentation doesn't cover (add docs)
-3. **Aspirational** — documentation describes planned features as if implemented (clarify status)
+1. **Deletion-candidate** — failed the existence pre-check (recommend relocate-then-delete, never auto-delete)
+2. **Stale** — documentation contradicts current code (fix immediately)
+3. **Missing** — code exists that documentation doesn't cover (add docs)
+4. **Aspirational** — documentation describes planned features as if implemented (clarify status)
 
-Severity baseline when the caller needs tiers: `${CLAUDE_PLUGIN_ROOT}/context/severity.md` — Stale maps to IMPORTANT; Missing and Aspirational map to SUGGESTION.
+Severity baseline when the caller needs tiers: `${CLAUDE_PLUGIN_ROOT}/context/severity.md` — Deletion-candidate and Stale map to IMPORTANT; Missing and Aspirational map to SUGGESTION.
 
 You are a subagent and cannot ask the user questions. Flag ambiguities explicitly in your report instead.
 

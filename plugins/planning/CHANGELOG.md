@@ -3,6 +3,16 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.1]
+
+### Changed
+
+- `devils-advocate` names the seam with `/re-anchor:pick-for-the-problem` (light
+  in-session nudge vs this formal, dispatched, verdict-producing review before a
+  plan commits) and documents the leading-depth-token order with a usage example
+  (`deep incumbent <target>`; `incumbent deep <target>` folds the token into the
+  target).
+
 ## [0.24.0]
 
 ### Added
