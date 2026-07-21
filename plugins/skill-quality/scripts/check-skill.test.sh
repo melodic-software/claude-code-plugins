@@ -953,6 +953,193 @@ else
   fail "unpaired vendor/ diff should still fail (rc=$rc): $out"
 fi
 
+# 21. A `!` injection with a `shell:` declaration is silent — the author has
+#     taken explicit responsibility for the shell (check 19).
+make_skill inj-shell-ok '---
+name: inj-shell-ok
+description: "Injects context. Use when: '"'"'injecting with a shell decl'"'"'."
+shell: bash
+---
+
+## Context
+- Tree: !`git status --short 2>/dev/null || echo "(clean)"`
+
+## Gotchas
+
+None known.
+'
+out="$(run inj-shell-ok 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'falls through to the PowerShell tool' <<<"$out" && ! grep -q 'look portable but static analysis' <<<"$out"; then
+  pass "injection with a shell: declaration is silent (check 19)"
+else
+  fail "injection + shell: decl should not warn/fail check 19 (rc=$rc): $out"
+fi
+
+# 22. A `!` injection with bash-only syntax (/dev/null) and NO `shell:` fails
+#     (check 19 — the census regression this gate exists for).
+make_skill inj-bashonly-fail '---
+name: inj-bashonly-fail
+description: "Injects context. Use when: '"'"'injecting bash-only syntax'"'"'."
+---
+
+## Context
+- Tree: !`git status --short 2>/dev/null || echo "(clean)"`
+
+## Gotchas
+
+None known.
+'
+out="$(run inj-bashonly-fail 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'falls through to the PowerShell tool' <<<"$out"; then
+  pass "bash-only injection without shell: fails (check 19)"
+else
+  fail "bash-only injection + no shell: should fail check 19 (rc=$rc): $out"
+fi
+
+# 23. A `!` injection whose commands look portable, with no `shell:`, WARNs
+#     (portability is not statically provable) but passes (check 19).
+make_skill inj-portable-warn '---
+name: inj-portable-warn
+description: "Injects context. Use when: '"'"'injecting portable commands'"'"'."
+---
+
+## Context
+- Branch: !`git branch --show-current`
+
+## Gotchas
+
+None known.
+'
+out="$(run inj-portable-warn 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'look portable but static analysis' <<<"$out"; then
+  pass "portable-looking injection without shell: warns without failing (check 19)"
+else
+  fail "portable injection + no shell: should warn not fail (rc=$rc): $out"
+fi
+
+# 24. A ```! FENCED injection with bash-only syntax (| head) and no `shell:`
+#     fails — exercises the fenced-block extraction feeding check 19.
+make_skill inj-fenced-fail '---
+name: inj-fenced-fail
+description: "Injects a block. Use when: '"'"'injecting a fenced block'"'"'."
+---
+
+## Snapshot
+
+```!
+git log --oneline | head -5
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run inj-fenced-fail 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'falls through to the PowerShell tool' <<<"$out"; then
+  pass "fenced injection block with bash-only syntax fails (check 19 fence extraction)"
+else
+  fail "bash-only fenced injection should fail check 19 (rc=$rc): $out"
+fi
+
+# 25. The over-reach guard: a bash-only token in a PLAIN ```bash block (not an
+#     injection) must NOT flag check 19/20 — the scan is scoped to injected text.
+make_skill inj-plainblock-safe '---
+name: inj-plainblock-safe
+description: "Shows an example. Use when: '"'"'showing a plain shell example'"'"'."
+---
+
+## Example
+
+```bash
+git status --short 2>/dev/null | head -5
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run inj-plainblock-safe 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'falls through to the PowerShell tool' <<<"$out" && ! grep -q 'look portable but static analysis' <<<"$out"; then
+  pass "bash-only tokens in a plain bash code block do not flag check 19 (scoped to injections)"
+else
+  fail "plain bash code block should not trip the injection checks (rc=$rc): $out"
+fi
+
+# 26. An injected command with no `|| <fallback>` warns (check 20), isolated
+#     from check 19 by a `shell:` declaration.
+make_skill inj-nofallback-warn '---
+name: inj-nofallback-warn
+description: "Injects context. Use when: '"'"'injecting without a fallback'"'"'."
+shell: bash
+---
+
+## Context
+- Tree: !`git status --short`
+
+## Gotchas
+
+None known.
+'
+out="$(run inj-nofallback-warn 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'carry no' <<<"$out"; then
+  pass "injected command without a || fallback warns (check 20)"
+else
+  fail "missing || fallback should warn (rc=$rc): $out"
+fi
+
+# 27. A `|| printf` fallback satisfies check 20 — the gate matches the `||`
+#     continuation, not the literal `echo`.
+make_skill inj-printf-fallback '---
+name: inj-printf-fallback
+description: "Injects context. Use when: '"'"'injecting with a printf fallback'"'"'."
+shell: bash
+---
+
+## Context
+- Tree: !`git status --short || printf "(clean)"`
+
+## Gotchas
+
+None known.
+'
+out="$(run inj-printf-fallback 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'carry no' <<<"$out"; then
+  pass "a || printf fallback satisfies check 20 (matches || not echo)"
+else
+  fail "|| printf should count as a fallback (rc=$rc): $out"
+fi
+
+# 28. Anchor guard: a mid-token `!`` in prose (an inline `#!` code span) is NOT
+#     an injection, so a no-shell skill carrying one is not scanned (checks 19/20
+#     stay silent). The inline form is recognized only at start / after space.
+make_skill inj-prose-hashbang '---
+name: inj-prose-hashbang
+description: "Mentions a shebang. Use when: '"'"'mentioning a shebang in prose'"'"'."
+---
+
+## Notes
+
+For a file whose first line is a shebang (`#!`), confirm the recorded mode.
+
+## Gotchas
+
+None known.
+'
+out="$(run inj-prose-hashbang 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'falls through to the PowerShell tool' <<<"$out" && ! grep -q 'look portable but static analysis' <<<"$out" && ! grep -q 'carry no' <<<"$out"; then
+  pass "a mid-token !\` in prose (inline #! code span) is not treated as an injection"
+else
+  fail "prose #! code span should not trip the injection checks (rc=$rc): $out"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1
