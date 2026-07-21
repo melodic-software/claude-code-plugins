@@ -520,6 +520,54 @@ jobs:
         if: steps.scope.outputs.docs_only == 'true'
         run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the miro plugin build cannot be affected — reporting success."
 
+  # The knowledge plugin's youtube-digest extraction pipeline is a Node package
+  # with a typecheck and vitest suite no other lane installs or runs. Its
+  # committed lockfile pins the shared vendor/ packages as packed installs
+  # (install-links via the package's .npmrc), so manifest/lockfile drift breaks
+  # `npm ci` only on a clean install — without this lane that breakage stays
+  # latent until a consumer's machine hits it. Same never-skip, self-test-first,
+  # fail-closed docs-only gate as plugin-gate and miro-plugin.
+  youtube-extraction:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          # Full history so the PR base ref resolves for the docs-only diff.
+          fetch-depth: 0
+      - name: Test the docs-only detector
+        run: bash scripts/check-docs-only.test.sh
+      - name: Detect a docs-only diff
+        id: scope
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/check-docs-only.sh "origin/$BASE_REF"
+      - name: Set up Node
+        if: steps.scope.outputs.docs_only != 'true'
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: plugins/knowledge/skills/youtube-digest/extraction/package-lock.json
+      - name: Install dependencies
+        if: steps.scope.outputs.docs_only != 'true'
+        run: npm ci
+        working-directory: plugins/knowledge/skills/youtube-digest/extraction
+      - name: Typecheck
+        if: steps.scope.outputs.docs_only != 'true'
+        run: npm run build
+        working-directory: plugins/knowledge/skills/youtube-digest/extraction
+      - name: Test
+        if: steps.scope.outputs.docs_only != 'true'
+        run: npm test
+        working-directory: plugins/knowledge/skills/youtube-digest/extraction
+      - name: Report not applicable to a docs-only diff
+        if: steps.scope.outputs.docs_only == 'true'
+        run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the youtube extraction suite cannot be affected — reporting success."
+
   # Skill-regression net: the only lane that invokes the skill-quality checker.
   # On a PR it runs the static contract gate (trigger-keyword preservation vs
   # the base ref, frontmatter, line caps, broken refs, evals presence) over each
@@ -619,6 +667,7 @@ jobs:
       - changelog-parity-gate
       - plugin-gate
       - miro-plugin
+      - youtube-extraction
       - runner-policy
       - skill-quality-gate
       - portability-lint
