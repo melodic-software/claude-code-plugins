@@ -334,7 +334,7 @@ Execute for EACH PR discovered, oldest first. Detailed mechanics:
 - [ ] **Step 0 — PR discovery:** open PRs in scope (tier-scoped author filter), oldest-first
   FIFO (§5.0.2). Zero PRs → report and schedule the idle wake
 - [ ] **Step 0.1 — Evidence-based fresh rescan:** fetch ALL comments via the bundled
-  `${CLAUDE_PLUGIN_ROOT}/scripts/fetch-all-pr-comments.sh`, filter own prior replies, classify
+  `${CLAUDE_PLUGIN_ROOT}/scripts/fetch-all-pr-comments.sh` (derives owner/repo from the current directory; from a cwd that is not a checkout of the target repo, export `FETCH_COMMENTS_OWNER`/`FETCH_COMMENTS_REPO` first — also unblocks the readiness gate's exit 4), filter own prior replies, classify
   addressed/unaddressed from GitHub evidence (§5.0.3). GitHub is the source of truth, not model
   memory
 - [ ] **Step 0.2 — Branch checkout:** `gh pr checkout <N>` with worktree/dirty-tree pre-checks;

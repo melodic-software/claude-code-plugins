@@ -4,7 +4,7 @@
     {
       "id": 1,
       "prompt": "/testing:run-e2e",
-      "expected_output": "Routes to context/e2e.md. FIRST runs prerequisite check: verifies the project's orchestrator tooling is available, Playwright CLI available (@playwright/cli installed — primary browser automation path; MCP is disabled by default), app running. If prerequisites missing, hard-fails with clear report and remediation steps (e.g., 'npm install -g @playwright/cli@latest'). If available, proceeds with health check, endpoint verification, and screenshot capture. References the playwright plugin's skill for browser mechanics when installed.",
+      "expected_output": "Routes to context/e2e.md. FIRST runs prerequisite check: verifies the project's orchestrator tooling is available, Playwright CLI available (@playwright/cli installed — primary browser automation path; MCP is disabled by default), app running. If prerequisites are missing, hard-fails: STOPs (does not attempt workarounds) AND writes a structured verification-environment gap report to the run's evidence output naming what is missing (keys, CLIs, MCPs, or environments) and what the operator must provide, with remediation steps (e.g., 'npm install -g @playwright/cli@latest'). If available, resolves the config surface (recording, browser_mode) across its layers, then proceeds with health check, endpoint verification, and evidence capture. References the playwright plugin's skill for browser mechanics when installed.",
       "files": []
     },
     {

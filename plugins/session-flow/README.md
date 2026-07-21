@@ -1,10 +1,10 @@
 # session-flow
 
-A Claude Code plugin bundling eight skills for one cohesive capability: managing the lifecycle of a
+A Claude Code plugin bundling nine skills for one cohesive capability: managing the lifecycle of a
 working session — where you are in the work, how to pause and resume it, how to recover it after an
-interruption, how to leave it durable before the machine goes away, whether its assumptions are
-still current, what to learn from it while it runs and after, and how to arm it for delegation-heavy
-tasks.
+interruption, how to leave it durable before the machine goes away, where things stand and why,
+whether its assumptions are still current, what to learn from it while it runs and after, and how to
+arm it for delegation-heavy tasks.
 
 | Skill | Question it answers |
 |---|---|
@@ -14,6 +14,7 @@ tasks.
 | `/session-flow:clean-stop` | Before I lose this machine — is everything durable and linked, or is something stranded? |
 | `/session-flow:retro` | What happened this session, what did we learn, and how do we codify it? |
 | `/session-flow:running-retro` | Mid-flight: how is this session going, what is drifting, and what should change before it costs more? |
+| `/session-flow:orient` | Where do we stand, what are we doing, and why — from the durable + off-thread state, not just the conversation? |
 | `/session-flow:orchestrate` | How do I arm this session (or a spawned worker) with proactive-orchestration imperatives? |
 | `/session-flow:reanchor` | Are this session's assumptions still true, or has reality moved under them? |
 
@@ -56,12 +57,18 @@ skill always STOPS after emitting the save-point — continuing would defeat the
 ### keep-going
 
 The resume counterpart to `handoff`: recovers a session after any interruption — a rate limit, a
-crash, a disconnect, or a long gap. Inventories the off-thread work (background tasks, shells,
-monitors, scheduled tasks, workflows, subagents — whatever the current harness exposes), inspects
-each item's real state from its own artifact rather than assuming it finished or died, resumes the
-resumable and restarts the dead, then reconciles the main thread from a fresh read of its backing
-plan or handoff file and continues. Safe, idempotent work auto-resumes; re-running anything with
-external side effects (a push, a PR comment, a deploy) is gated so a re-fire cannot double-apply.
+crash, a disconnect, or a long gap — and, mid-session, verifies off-thread work that *looks* stalled
+when you ask it to ("check the monitor", "poke it", "is it stuck"). Inventories the off-thread work
+(background tasks, shells, monitors, scheduled tasks, workflows, subagents — whatever the current
+harness exposes), inspects each item's real output rather than assuming it finished or died, and
+acts on evidence: work that is progressing (even slowly) is left alive, the resumable is resumed,
+the provably-dead is restarted, then it reconciles the main thread from a fresh read of its backing
+plan or handoff file and continues. Progress-vs-elapsed only raises suspicion — it never authorizes
+a kill on a hunch. Safe, idempotent work auto-resumes; re-running side-effectful work (a push, a PR
+comment, a deploy) *and* killing or restarting work it cannot prove is dead are gated. After a usage
+limit lifts it continues rather than summarizing-and-stalling (the block is already over if it is
+running again); while a limit still holds it hands back via `handoff` rather than self-arming a
+scheduler. Intent is inferred from the conversation; arguments are optional.
 
 ```shell
 /session-flow:keep-going              # inventory → inspect → recover → reconcile → report
@@ -121,6 +128,22 @@ tracker filing is offered not automatic, the session is never scored, and it is 
 /session-flow:running-retro phase-3    # same, naming the ledger topic slug
 ```
 
+### orient
+
+A read-only orientation briefing: *where do we stand, what are we doing, and why.* Unlike the
+built-in `/recap` (which summarizes the conversation only and auto-fires on an idle terminal),
+`orient` also reads the durable, off-thread state a conversation does not hold — handoff
+save-points, the workflow checklist, running-retro ledgers (resolved through
+`reference/topic-docs.md`), plus git state, open PRs, and open work-items — and synthesizes a
+goal/why, where-we-stand, decisions-made, and direction briefing. A skill cannot invoke the built-in
+`/recap`, so it synthesizes the conversation summary inline and adds the durable layer on top. It is
+strictly read-only: it writes nothing and routes rather than acts — freshness verification to
+`reanchor`, off-thread recovery to `keep-going`, next-stage to `workflow`, learnings to `retro`.
+
+```shell
+/session-flow:orient              # read-only briefing: goal/why → where-we-stand → decisions → direction
+```
+
 ### orchestrate
 
 Arms the current session for an orchestration-heavy task by loading seven proactive-orchestration
@@ -178,13 +201,16 @@ The skills adapt to the consuming repo rather than imposing structure:
 No `userConfig`. State: retro score history persists under the plugin's `${CLAUDE_PLUGIN_DATA}`
 directory (per-project files) — never in the consumer's repo. Handoff save-points
 (`.work/handoffs/` by default) and running-retro ledgers (`.work/running-retros/` by default) are
-memory-tier working files in the consumer's project — machine-local, never committed. Network: two
+memory-tier working files in the consumer's project — machine-local, never committed. Network: three
 skills reach the network. `reanchor` queries live host state via `git`/`gh`
 to verify a session's referenced PRs/issues/branches and installed-vs-repo plugin versions, and
 degrades to reporting what it could not verify when that authenticated egress is unavailable.
 `clean-stop` pushes unpushed commits and creates or updates PRs and issues over the network via
 `git push` and `gh` — routing through whatever pull-request / work-item capabilities are installed
-and falling back to direct `git`/`gh` — to make session work durable on the remote. The other six
+and falling back to direct `git`/`gh` — to make session work durable on the remote. `orient`
+optionally runs `gh pr list` (read-only) to include open pull requests in its briefing and, when a
+work-item tracker capability is installed, reads its open items (which may reach a remote tracker) —
+degrading to local git state alone when `gh` or the tracker is absent or unauthenticated. The other six
 skills — workflow, handoff, keep-going, retro, running-retro, and orchestrate — are network-free
 (both retro and running-retro use the same stdlib-only Python 3.10+ parser reading local
 `~/.claude/projects/` transcripts).
