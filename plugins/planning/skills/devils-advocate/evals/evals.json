@@ -108,6 +108,18 @@
         "Output does not attempt to diagnose production slow queries or current system health",
         "Output reframes toward the pre-implementation choice (is this database still the right fit vs alternatives) or points elsewhere for the runtime audit"
       ]
+    },
+    {
+      "id": 10,
+      "name": "plan-review-incumbency-assumption-suggests-incumbent-mode",
+      "prompt": "/planning:devils-advocate stress-test this plan before we build it: the new metrics service will serialize every payload with our in-house YAML encoder — we already use it across the other services, so we'll wire it in here too. Poke holes.",
+      "expected_output": "Running in plan-review (default) mode, the skill detects that the plan's choice of the in-house encoder is supported only by incumbency ('we already use it'), treats that assumption as unverified rather than accepting it, and its finding names `/planning:devils-advocate incumbent <target>` as the suggested follow-up (the Alternatives Sweep on that incumbent) — without switching modes or auto-running the sweep, keeping scope to one mode per invocation.",
+      "files": [],
+      "expectations": [
+        "Output stays in plan-review mode (extracts assumptions / runs the rounds) and does NOT itself run the Alternatives Sweep on the in-house encoder in this invocation",
+        "Output flags the in-house-encoder choice as supported only by incumbency ('we already use it') and therefore unverified, rather than accepting it as evidence the choice still fits",
+        "Output's finding names the exact follow-up `/planning:devils-advocate incumbent <target>` (the Alternatives Sweep on that incumbent) as a suggestion, not as an action it performs now"
+      ]
     }
   ]
 }

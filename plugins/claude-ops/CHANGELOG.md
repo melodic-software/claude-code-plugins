@@ -3,14 +3,29 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.17.3]
+## [0.17.4]
 
 ### Documentation
 
 - `hooks/claude-ops-test-helpers.sh` now points at
   `docs/conventions/shell-test-helpers/README.md`, the repo's owner doc recording that per-plugin
   shell assert-helper duplication and per-script exit-code taxonomies are deliberate, not drift. No
-  behavior change. Version bumped past `#844`'s open `0.17.2` claim to avoid a collision.
+  behavior change. Version bumped past `#877`'s `0.17.3` claim (merged) and `#844`'s open `0.17.2`
+  claim to avoid a collision.
+
+## [0.17.3]
+
+### Changed
+
+- **lanes: recorded why the mid-session staleness git probe is not `!`-injected.**
+  Evaluated the lanes skill's git probes against the precompute convention (#864).
+  The two `git rev-parse --show-toplevel` probes in `SKILL.md`'s front matter are
+  already `!` dynamic-context injections (fallback + `shell: bash`), so nothing to
+  convert there. The `context/refresh.md` staleness probe correctly stays a body
+  instruction — it fails all four conditions: conditional (only when weighing a
+  restart), needs a computed `<lane-launch-commit>` argument, and its `git fetch`
+  is an unbounded network round-trip that mutates remote-tracking refs. Added that
+  reason inline so a future reader does not re-litigate the decision.
 
 ## [0.17.2]
 
