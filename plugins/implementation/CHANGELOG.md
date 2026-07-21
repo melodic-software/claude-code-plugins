@@ -3,6 +3,20 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.6]
+
+### Changed
+
+- `implement-dispatch`'s "Compose the brief" step (`skills/implement-dispatch/SKILL.md`) now front-loads
+  CI-hygiene and early-push clauses alongside the existing worktree-cwd clause: no issue-number back-references
+  in code comments (the `comment-hygiene` check flags them; `TODO(#issue)` is the sanctioned exception);
+  any new shebang file must be marked executable via `git update-index --chmod=+x` before the commit
+  that introduces it (the `exec-bit` check flags a tracked shebang file recorded non-executable); and
+  commit, push, and open the PR as early as practical — before the CI-poll tail — so a mid-flight worker
+  session-limit death never orphans unpushed work. Reinforced as Gotchas-section reminders, matching the
+  worktree-cwd clause's existing pattern. Closes #819, where fresh dispatched workers repeatedly learned
+  these same PR-contract constraints via red CI instead of the brief.
+
 ## [0.7.5]
 
 ### Changed
