@@ -111,7 +111,7 @@ describe("buildChildEnv", () => {
 });
 
 describe("expandPathValue", () => {
-  const home = "/home/dev";
+  const home = "/srv/dev-home";
 
   it("passes literal values through untouched", () => {
     expect(expandPathValue("/data/corpus", {}, home)).toBe("/data/corpus");
@@ -121,7 +121,7 @@ describe("expandPathValue", () => {
 
   it("expands a bare tilde and a tilde prefix to the home directory", () => {
     expect(expandPathValue("~", {}, home)).toBe(home);
-    expect(expandPathValue("~/corpus", {}, home)).toBe("/home/dev/corpus");
+    expect(expandPathValue("~/corpus", {}, home)).toBe("/srv/dev-home/corpus");
     expect(expandPathValue("~\\corpus", {}, "C:\\Users\\dev")).toBe("C:\\Users\\dev\\corpus");
   });
 
