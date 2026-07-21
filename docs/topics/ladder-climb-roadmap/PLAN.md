@@ -154,6 +154,11 @@ ADR-0002-guarded ordering, three repos, ownership seams respected:
 > required check. Full rationale + evidence: ADR 0002 "ordering correction" addendum. Ruleset
 > flip stays LAST (unchanged). Step 0 ran as written: sole consumer = this repo's caller;
 > captured context `security-review / security-review`.
+>
+> Status (2026-07-21): steps 1–2 LANDED — ci-workflows#189 (reusable always-report shape,
+> pin `99cb082`), standards#229 + sync #827 (reviewed runner-input contract for the new pin),
+> #825 (this caller adopts `paths`, context verified unchanged live). Remaining: docs-only
+> skip-path verification PR, then step 3 (github-iac required check) behind its user gate.
 
 0. Pre-flight consumer check (FIRST work item): enumerate every consumer of the ci-workflows
    reusable security workflow before reshaping it — org-wide
