@@ -142,9 +142,9 @@ a human. Per PR, in its own fresh worker, autopilot:
 1. Fixes every issue it can — failing CI, mergeability, actionable review findings —
    researching a fix from authoritative sources before conceding, and pushing to the PR branch.
 
-2. Addresses each open review thread, then resolves it via
-   `source-control-babysit-resolve-thread owner/repo#N --allowed-owners <watched-owners>
-   --resolve --include-human` — bot, AI-review, and human threads alike. The order is
+2. Addresses each open review thread, then resolves it through the guarded resolve-thread wrapper
+   (`--resolve --include-human` — bot, AI-review, and human threads alike); the exact command is
+   the single home in [reference/safety.md](reference/safety.md). The order is
    load-bearing: **address the finding first, then resolve.** A thread is resolved only because
    its concern is fixed or confirmed stale — never to clear the merge gate over a live concern.
    After running, parse the JSON output and confirm each addressed thread's entry shows
