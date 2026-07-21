@@ -10,8 +10,10 @@
 #
 # Self-contained: builds throwaway git repos with runtime-generated fixtures.
 # The hook is invoked from an UNRELATED cwd so any reliance on the caller's
-# working directory would surface (typos' config discovery is CWD-anchored;
-# the hook cd's to the repo root before running).
+# own working directory would surface (typos resolves config relative to the
+# target path passed on the command line, not the process CWD — Case 3b below
+# locks this in — so the hook's own cd to the repo root does not change which
+# config governs).
 #
 # Requires a real typos binary: $TYPOS_TEST_BIN if set, else `typos` on PATH.
 # Without one the behavioral assertions cannot run, so the suite skips.
