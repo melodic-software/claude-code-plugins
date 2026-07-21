@@ -397,6 +397,19 @@
         "id-token": "write"
       }
     },
+    "melodic-software/ci-workflows/.github/workflows/claude-security-review.yml@99cb082ebb942b9da08e8345a851be5bf252ad79": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner", "skip-actors", "paths"],
+      "allowedSecrets": {
+        "CLAUDE_CODE_OAUTH_TOKEN": "${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}"
+      },
+      "allowedCallerPermissions": {
+        "contents": "read",
+        "pull-requests": "write",
+        "id-token": "write"
+      }
+    },
     "melodic-software/ci-workflows/.github/workflows/pr-issue-linkage.yml@d7734df8c557084edc2df7cf578cf62ad2f261e4": {
       "routing": "runner-input",
       "runnerInput": "runner",
