@@ -117,7 +117,10 @@ ownership + native-first, version single-home), `docs/MIGRATION-PLAYBOOK.md` (us
 3. **Retrieval flow: `recall` action in the same skill** — action router with two actions:
    default (generate report + quiz for the change just completed) and `recall <query>`
    (answer "what did we do on ticket X" from the retained library first, git/tracker
-   archaeology second, stating which source answered).
+   archaeology second, stating which source answered). *Approval-round bound (2026-07-21):*
+   recall's coverage is only work that WAS quizzed — retention-at-write, not a general
+   work-history engine; the skill states that boundary when answering and routes unquizzed
+   work to the archaeology fallback rather than implying library completeness.
 4. **Retention default: `${CLAUDE_PLUGIN_DATA}`** — artifacts land under
    `${CLAUDE_PLUGIN_DATA}/<repo-slug>/quiz-me/reports/<date>-<change-slug>-<short-hash>.html`.
    `report_library_dir` (type `directory`) userConfig overrides toward a corpus checkout;
@@ -143,7 +146,12 @@ ownership + native-first, version single-home), `docs/MIGRATION-PLAYBOOK.md` (us
    zero-config behavior, below PLUGIN-PHILOSOPHY's "non-trivial" bar (knowledge's setup
    skill exists for its external prerequisites, not merely for `library_dir`). Recorded
    so the conformance audit doesn't read silence as a gap.
-8. **Offer mechanism is best-effort, no hook** — `always`/`above-threshold` offers are
+8. **Offer mechanism is best-effort, no hook; generation ALWAYS user-confirmed** —
+   *approval-round bound (2026-07-21):* every `quiz_policy` value governs offer cadence
+   only (`off` never offers, `on-request` only when asked, `always` suggests after each
+   completed change, `above-threshold` suggests when the bar is met); no value
+   auto-generates — the report+quiz is produced only after the user accepts the offer,
+   and a direct invocation ("quiz me") is itself that acceptance. Offers are
    model-initiated via description triggers + documented posture, explicitly best-effort
    in SKILL.md. A Stop/skill-scoped hook was evaluated and rejected: it would add a code
    trust surface (re-triggering the acceptance security review) and a kill-switch config
@@ -151,6 +159,14 @@ ownership + native-first, version single-home), `docs/MIGRATION-PLAYBOOK.md` (us
    against `git diff --stat $(git merge-base HEAD <default-branch>)..HEAD` at offer time
    (well-defined even after commits). `quiz_policy` unknown values fall back to
    `on-request`, documented in the userConfig description (claude-ops precedent).
+9. **Report reference discipline (approval-round bound, 2026-07-21)** — reports are
+   self-contained; external references restricted to durable, checkout-independent
+   pointers: PR/issue URLs, commit SHAs/permalinks, promoted docs reachable on the
+   default branch. Never memory-tier paths (`.work/…` never leaves its checkout) and
+   never contract-slice paths (`docs/topics/…` is pruned before merge) — both dangle.
+   Ephemeral inputs (exploration/research artifacts, session context) are distilled
+   inline instead of linked. This is the topic-docs pointer discipline applied to the
+   report artifact; no new linking mechanism.
 
 ### Phase 1: SKILL.md authoring [TODO]
 
@@ -170,10 +186,12 @@ cite URLs in the PR. Then author `plugins/education/skills/quiz-me/SKILL.md`:
   teach `context/lessons.md` precedent; markdown fallback; quiz at bottom per canonical
   prompt; answer key embedded collapsed in the artifact per decision 6, grading
   in-conversation same-session or key-read later; failed quiz surfaces possible intent
-  mismatch pre-merge); Retention mechanics (repo-identity slug per decision 5, filename
-  short-hash, never writes the consuming repo's tree); Non-gating posture + policy
-  semantics (best-effort offers, threshold base, unknown-value fallback per decision 8);
-  Boundaries ("What this
+  mismatch pre-merge; reference discipline per decision 9 — durable pointers only,
+  ephemeral inputs distilled inline); Retention mechanics (repo-identity slug per
+  decision 5, filename short-hash, never writes the consuming repo's tree); Non-gating
+  posture + policy semantics (offer-cadence-only policies, generation always
+  user-confirmed, best-effort offers, threshold base, unknown-value fallback per
+  decision 8); `recall` coverage boundary (decision 3); Boundaries ("What this
   skill does NOT do": verification:confirm, planning:interview, teach `assess`/`exercise`
   disambiguation); Gotchas.
 - Pointer-composition only: any cross-plugin mention presence-gated ("if installed").
