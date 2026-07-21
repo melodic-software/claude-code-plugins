@@ -174,21 +174,29 @@ fi
 # Resolve the push destination ONCE, here, for EVERY full-mode push path — the
 # freshness push, the conflict-continue push, and the §5.1.4 fix-cycle push all
 # read $PUSH_REMOTE. FAIL CLOSED: a same-repo head pushes to origin; a fork head
-# pushes to the remote `gh pr checkout` configured for the branch. If a fork
-# remote cannot be validated — a fork head reached via `--detach` leaves no
-# branch config — degrade to read-only rather than defaulting to origin, which
-# is the BASE repo and would write a same-named branch there instead of updating
-# the fork head (the cross-repo regression this guards; safety.md).
+# pushes to the destination whose URL resolves to the PR HEAD repository.
+# Validate the fork destination by URL, NOT by name: `gh pr checkout` wires the
+# branch to whatever remote (or bare URL) reaches the head, and when it cannot
+# create a writable fork remote it may point the branch at the base checkout
+# remote — commonly named `upstream`, but any name — so accepting any non-origin
+# name would push to the BASE repo, writing a same-named branch there instead of
+# updating the fork head (the cross-repo regression this guards; safety.md).
+# `branch.<b>.pushRemote`/`remote` may hold a remote name OR a URL; resolve
+# either to owner/repo and require it to equal the PR head repo, else read-only.
 if [ "$CHECKOUT_MODE" = "full" ]; then
   if [ "$(gh pr view "$PR_NUMBER" --json isCrossRepository -q .isCrossRepository)" = "false" ]; then
     PUSH_REMOTE=origin
   else
-    PUSH_REMOTE=$(git config --get "branch.$BRANCH.remote" || true)
-    case "$PUSH_REMOTE" in
-      ""|.|origin)
-        echo "Fork head with no validated fork remote (detached or unmodifiable) — read-only"
-        CHECKOUT_MODE="read-only" ;;
-    esac
+    HEAD_REPO=$(gh pr view "$PR_NUMBER" --json headRepository -q .headRepository.nameWithOwner)
+    # git push consults pushRemote before remote; either may be a remote NAME or a URL.
+    PUSH_REMOTE=$(git config --get "branch.$BRANCH.pushRemote" \
+      || git config --get "branch.$BRANCH.remote" || true)
+    REMOTE_URL=$(git remote get-url "$PUSH_REMOTE" 2>/dev/null || printf '%s' "$PUSH_REMOTE")
+    REMOTE_SLUG=$(printf '%s\n' "$REMOTE_URL" | sed -E 's#^[^/]+://[^/]+/##; s#^[^@]+@[^:]+:##; s#\.git$##')
+    if [ -z "$PUSH_REMOTE" ] || [ -z "$HEAD_REPO" ] || [ "$REMOTE_SLUG" != "$HEAD_REPO" ]; then
+      echo "Fork push remote does not resolve to the PR head repo ($HEAD_REPO) — read-only"
+      CHECKOUT_MODE="read-only"
+    fi
   fi
 fi
 

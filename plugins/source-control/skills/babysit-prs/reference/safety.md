@@ -50,11 +50,13 @@ value and its unset fallback.
   `git push "$PUSH_REMOTE" HEAD:<headRefName>`, where `PUSH_REMOTE` resolves **fail-closed**. Decide
   same-repo vs fork from `gh pr view --json isCrossRepository`, never by whether `git config` happens
   to resolve: `origin` for a same-repo head; for a write-allowed cross-repo (in-owner fork) head, the
-  fork's remote from `git config --get branch.<headRefName>.remote` (guarding a value that is empty,
-  `.`, or literally `origin`). Never hardcode `origin`, and never fall back to it
-  when that remote is unresolved — a fork head reached via `--detach` leaves no branch config, and
-  `origin` is then the base repo, so pushing there silently writes a same-named branch on base instead
-  of updating the fork head; **stop (read-only) instead**. Because `HEAD` equalled the PR head and you only added
+  fork destination from `branch.<headRefName>.pushRemote` or `branch.<headRefName>.remote`, validated
+  by URL — resolve that value (a remote name or a bare URL) to owner/repo and require it to equal the
+  PR head repository (`gh pr view --json headRepository`), not merely reject the literal `origin` name.
+  Never hardcode `origin`, and never fall back to it when the destination cannot be validated — a fork
+  head reached via `--detach` leaves no branch config, and a remote named `upstream` (or any name) can
+  point at the base repo, so pushing there silently writes a same-named branch on base instead of
+  updating the fork head; **stop (read-only) instead**. Because `HEAD` equalled the PR head and you only added
   commits on top, this push is a fast-forward; never `--force` or `--force-with-lease`. A rejected
   non-fast-forward push means the assertion no longer holds — re-fetch and stop, never force past it.
   (An external-fork head outside `<watched-owners>` remains the read-only stop-and-ask case below.)
