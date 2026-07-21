@@ -27,10 +27,33 @@ value and its unset fallback.
 ## Checkout And Push Invariants
 
 - Reuse an existing clean worktree for a PR rather than creating a second checkout — reuse only
-  when it is already on the target PR branch and `git status --porcelain` is clean; otherwise
-  report it (`worktrees.md`).
+  when `git status --porcelain` is clean and its `HEAD` is the true PR head (the head assertion
+  below), whether it is checked out on the PR branch or in detached HEAD because the branch is
+  locked elsewhere; otherwise report it (`worktrees.md`).
+- **Assigned-worktree head assertion.** Before any merge, edit, or push, resolve the assigned
+  worktree's `HEAD` to a commit and assert it equals the true PR head — `gh pr view <N> --json
+  headRefOid` (authoritative for same-repo and fork PRs; equal to a freshly re-fetched
+  `origin/<headRefName>` for a same-repo PR). This holds whether the worktree is on the PR branch,
+  in **detached HEAD** (the branch is checked out in a sibling worktree, or lives in a foreign dev
+  worktree outside `<worktree-root>`), or on a **stale local branch tip** behind the PR head. If
+  `HEAD` differs from that head, **stop** — never merge, edit, or push onto a stale tip: a naive
+  `git merge origin/<baseRefName>` + push from a behind-head tip silently reverts the newest branch
+  commit(s). Safety comes from this assertion, not from the assigned `HEAD` happening to match. This
+  extends the head-SHA re-check below — which covered only the head moving *mid-work* — to the moment
+  the worktree is first assigned.
 - Re-check the PR head SHA immediately before editing and again immediately before pushing. Stop
   if it changed unexpectedly — someone else moved the branch.
+- **Refspec push to the branch's upstream, never branch checkout.** Do not depend on `git checkout
+  <headRefName>` to reach the branch: when it is locked by a sibling worktree that command dead-ends
+  (`fatal: '<branch>' is already used by worktree at ...`). Once the head assertion holds, push the
+  integrated work with an explicit refspec to the remote `gh pr checkout` configured for the branch —
+  `git push "$(git config --get branch.<headRefName>.remote)" HEAD:<headRefName>` — which resolves to
+  `origin` for a same-repo head and to the fork's remote for a write-allowed cross-repo (in-owner
+  fork) head. Never hardcode `origin`: for a fork head that silently writes a same-named branch on the
+  base repo instead of updating the fork head. Because `HEAD` equalled the PR head and you only added
+  commits on top, this push is a fast-forward; never `--force` or `--force-with-lease`. A rejected
+  non-fast-forward push means the assertion no longer holds — re-fetch and stop, never force past it.
+  (An external-fork head outside `<watched-owners>` remains the read-only stop-and-ask case below.)
 - Honor `mutation_policy.branch_write_allowed`: never push, and never create a write-capable
   worker or refresh a PR head, when it is false.
 - Head-ref uniqueness guard: two open PRs sharing one head repository/branch is a stop-and-ask —

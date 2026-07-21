@@ -134,123 +134,117 @@ A push channel arms for ONE PR at a time. Re-arm for each new PR in the loop.
 (`main` below — substitute the repo's default branch.)
 
 ```bash
-# Pre-check 0: already on the PR branch? This session owns it — no checkout
-# needed (the current worktree also shows up in `git worktree list`, so the
-# other-worktree grep below would otherwise false-trip to read-only).
-# Pre-check 1: is the branch checked out in ANOTHER worktree?
-# Pre-check 2: does THIS worktree have uncommitted changes? They may be
-# another session's WIP — never reset/clean work this loop did not create.
+# Decide checkout mode by asserting this worktree's HEAD against the TRUE PR head
+# — `gh pr view … headRefOid`, queried live, authoritative for same-repo and
+# fork PRs alike (never a possibly-stale `origin/<branch>` remote-tracking ref,
+# which is itself the silent-revert vector this guards; safety.md, Checkout And
+# Push Invariants). Acquire the head with `gh pr checkout`, never a bare
+# fetch/checkout by branch name. Mutate only when HEAD == the PR head; otherwise
+# read-only. Only the fetch of the default branch (always on origin) is done up
+# front, for the freshness merge below.
 BRANCH="<headRefName>"
-CUR_BRANCH=$(git branch --show-current)
+PR_HEAD=$(gh pr view "$PR_NUMBER" --json headRefOid -q .headRefOid)
 CUR_WT=$(git rev-parse --show-toplevel)
 DEFAULT_BRANCH=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name)
-if [ "$CUR_BRANCH" = "$BRANCH" ]; then
-  # Already own the branch — no checkout; freshness check below still runs.
-  # The dirty-tree guard still applies: uncommitted changes may be another
-  # session's WIP even on this branch — full mode only on a clean tree.
-  git fetch origin "$DEFAULT_BRANCH"
-  if [ -n "$(git status --porcelain)" ]; then
-    echo "Working tree has uncommitted changes — processing read-only"
-    CHECKOUT_MODE="read-only"
-  else
-    CHECKOUT_MODE="full"
-  fi
-elif git worktree list | grep -vF "$CUR_WT " | grep -q "\[$BRANCH\]"; then
-  echo "Branch $BRANCH checked out in another worktree — processing read-only"
+git fetch origin "$DEFAULT_BRANCH"
+if [ -n "$(git status --porcelain)" ]; then
+  # Uncommitted changes may be another session's WIP — never reset/clean work
+  # this loop did not create.
+  echo "Working tree has uncommitted changes (possibly another session's WIP) — processing read-only"
   CHECKOUT_MODE="read-only"
-elif [ -n "$(git status --porcelain)" ]; then
-  echo "Working tree has uncommitted changes (possibly another session's WIP) — no checkout, processing read-only"
-  CHECKOUT_MODE="read-only"
-else
-  git fetch origin "$DEFAULT_BRANCH"
-  # gh pr checkout handles fork-sourced PRs (head branch not fetchable from
-  # origin) and same-repo branches alike — never bare fetch/checkout by name.
-  gh pr checkout "$PR_NUMBER"
+elif [ "$(git rev-parse HEAD)" = "$PR_HEAD" ]; then
+  # HEAD already IS the true PR head — on the branch and current, or already
+  # detached at it. Safe to mutate.
   CHECKOUT_MODE="full"
+elif git worktree list | grep -vF "$CUR_WT " | grep -q "\[$BRANCH\]"; then
+  # Branch locked in a sibling worktree — `git checkout $BRANCH` here dead-ends
+  # (`already used by worktree at ...`). `gh pr checkout --detach` resolves the
+  # head for same-repo AND fork PRs; operate in detached HEAD at it and push by
+  # refspec below.
+  gh pr checkout "$PR_NUMBER" --detach
+  [ "$(git rev-parse HEAD)" = "$PR_HEAD" ] && CHECKOUT_MODE="full" || CHECKOUT_MODE="read-only"
+else
+  # gh pr checkout heals a behind-origin local branch up to the true head and
+  # handles fork-sourced PRs; a genuinely divergent local (unpushed commits)
+  # leaves HEAD != PR_HEAD and correctly falls to read-only.
+  gh pr checkout "$PR_NUMBER"
+  [ "$(git rev-parse HEAD)" = "$PR_HEAD" ] && CHECKOUT_MODE="full" || CHECKOUT_MODE="read-only"
 fi
 
-# Branch freshness — preserve the branch's integration workflow (full mode only)
+# Branch freshness — MERGE-ONLY (full mode only). Rebasing would rewrite history
+# and require a force-push, which safety.md ("Never Do Automatically") and
+# orchestration.md's never-force-push invariant forbid; the final squash merge
+# flattens interim history, so a merge commit here costs nothing the skill cares
+# about.
 if [ "$CHECKOUT_MODE" = "full" ]; then
   if ! git merge-base --is-ancestor "origin/$DEFAULT_BRANCH" HEAD; then
-    if git log --merges --format='%H' "origin/$DEFAULT_BRANCH..HEAD" | grep -q .; then
-      INTEGRATION_MODE="merge"
-      echo "Branch $BRANCH uses merge commits — merging origin/$DEFAULT_BRANCH"
-      git merge --no-edit "origin/$DEFAULT_BRANCH"
-      INTEGRATION_EXIT=$?
-    else
-      INTEGRATION_MODE="rebase"
-      echo "Branch $BRANCH is behind origin/$DEFAULT_BRANCH — rebasing"
-      git rebase "origin/$DEFAULT_BRANCH"
-      INTEGRATION_EXIT=$?
-    fi
-
-    if [ "$INTEGRATION_EXIT" -eq 0 ]; then
-      REBASE_STATUS="integrated"
-      # A merge preserves existing commits and pushes normally. A rebase
-      # rewrites them and therefore needs a lease-protected force push.
-      if [ "$INTEGRATION_MODE" = "merge" ]; then
-        git push
-      else
-        git push --force-with-lease
-      fi
+    echo "Branch $BRANCH is behind origin/$DEFAULT_BRANCH — merging"
+    git merge --no-edit "origin/$DEFAULT_BRANCH"
+    MERGE_EXIT=$?
+    if [ "$MERGE_EXIT" -eq 0 ]; then
+      INTEGRATION_STATUS="integrated"
+      # Push to the remote gh pr checkout configured for this branch — origin for
+      # a same-repo head, the fork's remote for a write-allowed cross-repo (fork)
+      # head — never hardcoded origin, which would write a same-named branch on
+      # the base repo instead of the fork head. Refspec form works from detached
+      # HEAD too; fast-forward given the head assertion, never force. A rejected
+      # non-fast-forward push means the head moved: re-fetch and stop.
+      PUSH_REMOTE=$(git config --get "branch.$BRANCH.remote" || echo origin)
+      git push "$PUSH_REMOTE" "HEAD:$BRANCH"
     else
       # Graduated conflict handling — attempt simple, abort complex.
-      # conflict-attempting is a TRANSIENT state: resolve it (merge/rebase
+      # conflict-attempting is a TRANSIENT state: resolve it (git merge
       # --continue) or abort BEFORE any further processing — never leave an
       # integration in progress (unmerged paths break later checkouts + parking).
       CONFLICT_COUNT=$(git diff --name-only --diff-filter=U | grep -c . || true)
       if [ "$CONFLICT_COUNT" -le 3 ]; then
         echo "Simple conflict ($CONFLICT_COUNT files) — attempting resolution"
-        REBASE_STATUS="conflict-attempting"
+        INTEGRATION_STATUS="conflict-attempting"
       else
-        echo "Complex conflict ($CONFLICT_COUNT files) — aborting $INTEGRATION_MODE"
-        if [ "$INTEGRATION_MODE" = "merge" ]; then
-          git merge --abort
-        else
-          git rebase --abort
-        fi
-        REBASE_STATUS="conflict-aborted"
+        echo "Complex conflict ($CONFLICT_COUNT files) — aborting merge"
+        git merge --abort
+        INTEGRATION_STATUS="conflict-aborted"
       fi
     fi
   else
-    REBASE_STATUS="current"
+    INTEGRATION_STATUS="current"
   fi
 
-  # conflict-attempting: resolve NOW — per file, take the mechanical
-  # resolution; if ANY file needs intent judgment, abort the active merge or
-  # rebase and set REBASE_STATUS="conflict-aborted". On success: `git add
-  # <files>` + the matching `git merge --continue` / `git rebase --continue`,
-  # then plain `git push` for a merge or `git push --force-with-lease` for a
-  # rebase. Set REBASE_STATUS="integrated". Only terminal states pass this point.
+  # conflict-attempting: resolve NOW — per file, take the mechanical resolution;
+  # if ANY file needs intent judgment, `git merge --abort` and set
+  # INTEGRATION_STATUS="conflict-aborted". On success: `git add <files>` +
+  # `git merge --continue`, then `git push "$PUSH_REMOTE" HEAD:$BRANCH` (fast-forward,
+  # never force). Set INTEGRATION_STATUS="integrated". Only terminal states pass here.
 
   # Safe fallback: ONLY the terminal success states keep full mode. A
   # lingering conflict-attempting (resolution skipped) degrades to read-only
-  # rather than granting write access mid-rebase.
-  if [ "$REBASE_STATUS" != "integrated" ] && [ "$REBASE_STATUS" != "current" ]; then
+  # rather than granting write access mid-merge.
+  if [ "$INTEGRATION_STATUS" != "integrated" ] && [ "$INTEGRATION_STATUS" != "current" ]; then
     CHECKOUT_MODE="read-only"
   fi
 fi
 ```
 
-**Integration conflict handling (graduated).** Check for merge commits first
-(`git log --merges origin/$DEFAULT_BRANCH..HEAD`) — a branch that previously merged the default
-branch integrates via `git merge origin/$DEFAULT_BRANCH` plus a plain push; other branches
-rebase and force-push with lease. Then:
+**Integration conflict handling (graduated).** Freshness is merge-only: integrate a behind-default
+branch via `git merge origin/$DEFAULT_BRANCH` and push by refspec to the branch's configured upstream
+(`git push "$PUSH_REMOTE" HEAD:$BRANCH` — `origin` for a same-repo head, the fork's remote for a
+write-allowed cross-repo head; fast-forward, never force — rebasing or force-pushing a PR branch as
+freshness maintenance is forbidden, safety.md and orchestration.md). Then:
 
-- **Zero conflicts** (`REBASE_STATUS=integrated`) — merge or rebase succeeded, push with the
-  mode-appropriate command, continue normally
-- **Simple conflicts** (≤3 files, `REBASE_STATUS=conflict-attempting`) — TRANSIENT: attempt
-  resolution immediately; on success continue the active merge/rebase and push with the
-  mode-appropriate command → `integrated`; if ANY file requires intent judgment, abort the
-  active integration → `conflict-aborted`. Never proceed to comment processing, parking, or the
-  next PR with an integration in progress. Resolve via `/source-control:resolve-conflicts`
-  discipline (understand both sides' intent; compose, don't side-pick)
-- **Complex conflicts** (>3 files, `REBASE_STATUS=conflict-aborted`) — abort the merge/rebase,
+- **Zero conflicts** (`INTEGRATION_STATUS=integrated`) — the merge succeeded; push
+  `git push "$PUSH_REMOTE" HEAD:$BRANCH` and continue normally
+- **Simple conflicts** (≤3 files, `INTEGRATION_STATUS=conflict-attempting`) — TRANSIENT: attempt
+  resolution immediately; on success continue the merge and push `git push "$PUSH_REMOTE" HEAD:$BRANCH`
+  → `integrated`; if ANY file requires intent judgment, abort the merge → `conflict-aborted`.
+  Never proceed to comment processing, parking, or the next PR with an integration in progress.
+  Resolve via `/source-control:resolve-conflicts` discipline (understand both sides' intent;
+  compose, don't side-pick)
+- **Complex conflicts** (>3 files, `INTEGRATION_STATUS=conflict-aborted`) — abort the merge,
   post a PR comment: `"⚠️ Branch is behind $DEFAULT_BRANCH with integration conflicts ({N}
   files). Manual resolution is required before CI will trigger."`. If an interactive terminal,
   also surface to the user directly. Process comments read-only (classification + reply, no
   fixes — the code may be stale)
-- **Already current** (`REBASE_STATUS=current`) — no action needed
+- **Already current** (`INTEGRATION_STATUS=current`) — no action needed
 
 **Why mandatory:** exploration and research read files from the working tree. Without checkout,
 findings are validated against the wrong code. Branch freshness prevents CI failures from stale
@@ -268,7 +262,8 @@ after each wave of fixes.
 
 ### 5.1.3 Per-PR iteration checklist
 
-Must be on the PR branch (§5.1.2) before starting. D steps run **per-finding** with
+Must hold a full-mode checkout — HEAD asserted equal to the true PR head (`gh pr view --json
+headRefOid`), on the branch or in detached HEAD (§5.1.2) — before starting. D steps run **per-finding** with
 verification gates per [review-discipline.md](../../../reference/review-discipline.md) §3.
 
 - [ ] **A** — Terminal state check (`gh pr view <N> --json state`)
