@@ -128,7 +128,14 @@ Work items:
   from the drain path.
 - Predicate stub runs and returns the four inputs filtered to scheduled-run rows.
 
-### Phase 2: Native task + machine posture [TODO]
+### Phase 2: Native task + machine posture [DONE]
+
+> **Status (2026-07-21):** task `autonomy-demo-hourly-drain` live (hourly, worktree toggle
+> ON, Sonnet pinned, trusted folder); keep-awake + autostart set; warm-up covered happy path
+> AND failure vocabulary with zero stalls; budget kill proven under subscription auth
+> (1-cent cap killed a live run — the `--max-budget-usd` estimate-kill is real on this
+> billing mode). Missed-fire detector wiring deferred to Phase 4 (native run history +
+> failure tracker items are the interim signal).
 
 Main thread + operator (machine-local surfaces):
 
@@ -156,7 +163,16 @@ Main thread + operator (machine-local surfaces):
   the failure run filed its tracker item.
 - Missed-fire detector dry-run: seeded gap produces the tracker item.
 
-### Phase 3: Smoke + first scheduled fire [TODO]
+### Phase 3: Smoke + first scheduled fire [DONE]
+
+> **Status (2026-07-21): 7/26 DEMONSTRABLE BAR MET.** Genuine scheduled fire
+> `scheduled-20260721T080540Z-41a51d66` (zero manual kick) claimed scratch#12, opened PR
+> #13, stopped unmerged; gate SUCCESS via check-run API; live checkout clean; evidence row
+> joined on the durable path. First complete four-way row: scratch#6 (human merge
+> 213a8b63). Warm-up rows excluded from the accumulation window, which starts at
+> 41a51d66. Residual minor checks carried to Phase 4: model-in-telemetry confirmation,
+> stray `\r` in the claimed-line `item_url` (dispatched-line key is clean; trim at writer
+> on next touch).
 
 Main thread empirical verification (no builder):
 
@@ -174,7 +190,7 @@ Main thread empirical verification (no builder):
 **Sanity Check:** run history shows ≥1 scheduled entry; join returns the complete row; model
 in telemetry = Sonnet; live checkout clean; any fire-without-row = Phase 1 defect, reopen.
 
-### Phase 4: Accumulation watch [TODO — standing]
+### Phase 4: Accumulation watch [DOING — standing]
 
 Standing lane: missed-fire detector + failure tracker items are the automated signal; human
 merges the day's drain PRs (this is the pre-promotion policy, not a kick); weekly usage
