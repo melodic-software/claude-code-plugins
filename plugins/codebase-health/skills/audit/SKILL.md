@@ -238,7 +238,7 @@ If the audit finds no discrepancies, report a clean bill of health:
 
 **Without `--fix`** (the default, including every model auto-invocation): present the full
 report and **STOP** — the Phase 3 report is the deliverable.
-**With `--fix`**: present the summary count, then hand off to the remediation lanes below.
+**With `--fix`**: present the full Phase 3 report, then hand off to the remediation lanes below.
 
 ---
 
