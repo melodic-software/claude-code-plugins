@@ -184,8 +184,8 @@ That gate merges **only when every criterion holds** — the criteria and the sa
 
 ## Guarded mutations: deterministic gates, agent judgment
 
-The two mutation gates are invoked ONLY through their wrapper scripts, by the bundled `bin/`-path
-form — never the bare command name nor the raw Python behind them. The exact form is the single
+The two mutation gates are invoked ONLY through their wrapper scripts, by the bundled `bin/`-path form —
+never the bare command name nor the raw Python behind them. Each `source-control-babysit-<x> …` spelled in the bullets below is that wrapper launched by its `bin/`-path form; the exact form is the single
 home in [reference/safety.md](reference/safety.md). Both fail closed without `--allowed-owners`.
 
 - **Merge readiness** — `source-control-babysit-merge owner/repo#N --allowed-owners
