@@ -5,6 +5,7 @@ argument-hint: "<command> [args] — commands: scrape, search, crawl, map, parse
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: Bash(command -v firecrawl*) Bash(firecrawl --status*)
+shell: bash
 ---
 
 ## Pre-computed context

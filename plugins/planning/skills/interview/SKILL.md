@@ -4,6 +4,7 @@ description: "Interview relentlessly to reach shared understanding on a plan, de
 argument-hint: "[action] [topic] (e.g., /planning:interview, /planning:interview me, /planning:interview lock, /planning:interview <topic>)"
 user-invocable: true
 disable-model-invocation: false
+shell: bash
 ---
 
 ## Pre-computed context

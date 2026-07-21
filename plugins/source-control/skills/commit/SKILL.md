@@ -3,6 +3,7 @@ name: commit
 description: "Create a git commit with a subject matching the resolved convention (layered `source-control.md` config → project convention → Conventional Commits default), a Claude Co-Authored-By trailer, and surgical staging (never `git add -A`), feeding the message to git via Bash heredoc. Use when: 'commit this', 'make a commit', 'commit with message <hint>' — not for push, branch creation, or PR creation (use /pull-request)."
 argument-hint: "[message-hint]"
 user-invocable: true
+shell: bash
 ---
 
 ## Pre-computed context

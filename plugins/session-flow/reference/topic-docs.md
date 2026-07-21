@@ -2,7 +2,9 @@
 
 How `/session-flow:handoff`, `/session-flow:workflow`, `/session-flow:retro`, and
 `/session-flow:running-retro` resolve where session save-points and ledgers land in a consuming
-repo. These skills read this one document; none bakes its own paths.
+repo. These skills read this one document; none bakes its own paths. The read-only
+`/session-flow:orient` skill also reads this binding to *locate* those artifacts for its briefing —
+it resolves the paths, never writes them.
 
 Implements the topic-docs convention:
 <https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>.

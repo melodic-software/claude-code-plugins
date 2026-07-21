@@ -1,0 +1,113 @@
+{
+  "skill_name": "audit-model-fit",
+  "evals": [
+    {
+      "id": 1,
+      "name": "sweep-happy-path",
+      "prompt": "I just upgraded my model. Audit my CLAUDE.md and skills for instructions that are hobbling it and tell me what to prune.",
+      "expected_output": "Runs the instruction-surface-scan to enumerate CLAUDE.md, skills, agents, rules, and hooks/output-styles, classifies candidates against the check catalog (bare prohibitions, over-prescriptive step lists, example-dense blocks, stale model-era workarounds), measures each against 'would removing this cause Claude to make mistakes?', and presents a findings report plus proposed diffs.",
+      "files": [],
+      "expectations": [
+        "Output runs the instruction-surface-scan.sh scan rather than eyeballing the files",
+        "Output classifies findings against the check catalog and applies the 'would removing this cause mistakes?' pruning bar",
+        "Output presents findings plus proposed diffs rather than applying any change"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "bare-prohibition-rewrite-not-delete",
+      "prompt": "My CLAUDE.md says 'Never commit directly to main.' with no reason given. Is that a finding, and if so should I just delete it?",
+      "expected_output": "Flags it as a bare-prohibition (C1) smell but recommends a prohibition-plus-rationale REWRITE, not deletion — the constraint may still be needed; only the missing rationale is the defect. Deletion applies only if the pruning bar says removing it changes nothing.",
+      "files": [],
+      "expectations": [
+        "Output identifies the bare prohibition as a C1 finding",
+        "Output recommends rewriting it to add a rationale, NOT deleting the prohibition",
+        "Output does not treat every 'never'/'do not' as a delete candidate"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "examples-not-blanket-flagged",
+      "prompt": "My skill has 4 example blocks steering the output format. Flag them as over-constraining and tell me to remove them.",
+      "expected_output": "Does NOT blanket-flag the examples: current guidance still recommends keeping 3-5 format-steering examples, so 4 is within range and not a finding. Only example volume well beyond that range is flagged as over-constraining (C3), and the treatment is trimming toward 3-5, never a blanket removal.",
+      "files": [],
+      "expectations": [
+        "Output states that 3-5 format-steering examples are recommended to keep and 4 is within range",
+        "Output does NOT flag the 4 example blocks as a finding or recommend removing them",
+        "Output explains only example volume well beyond 3-5 is the C3 over-constraining smell"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "standards-managed-routes-upstream",
+      "prompt": "One of the over-prescriptive rule files I want pruned is a copy synced from melodic-software/standards. Just edit it in place to loosen it.",
+      "expected_output": "Explains a standards-managed materialization is owned upstream per the sync-manifest and the next sync overwrites a local edit, so it is never edited in place. Routes the change upstream to melodic-software/standards and proposes no in-place diff for that file.",
+      "files": [],
+      "expectations": [
+        "Output explains the file is a standards-managed materialization that a sync would overwrite",
+        "Output routes the change upstream to melodic-software/standards instead of editing in place",
+        "Output does not propose an in-place diff for the standards-managed file"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "never-auto-applies",
+      "prompt": "Audit my instruction surfaces and just auto-apply every loosening you find so I don't have to review them.",
+      "expected_output": "The skill is report-only and human-gated: it runs the audit and presents findings plus proposed diffs, but does not edit any CLAUDE.md, SKILL.md, agent, rule, hook, or output style itself. There is no --fix; applying the diffs is a human action.",
+      "files": [],
+      "expectations": [
+        "Output does not edit any instruction file itself",
+        "Output presents proposed diffs for human review rather than auto-applying them",
+        "Output states the skill is report-only / human-gated with no --fix"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "route-out-to-siblings",
+      "prompt": "While auditing model fit, also validate my SKILL.md frontmatter and line caps, shorten the verbose prose, and check my settings.json permissions for drift.",
+      "expected_output": "Audits only instruction content-fit and routes the adjacent concerns to their owning skills: structural frontmatter/line-cap lint to skill-quality:check, prose-length shortening to docs-hygiene:compress, and settings.json/permissions drift to claude-config:audit — without restating their logic.",
+      "files": [],
+      "expectations": [
+        "Output audits only the content-fit question it owns",
+        "Output routes structural SKILL.md lint to skill-quality:check and config/permissions drift to claude-config:audit",
+        "Output routes prose shortening to docs-hygiene:compress and distinguishes removing constraints from shortening words"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "step-list-culled-not-preserved",
+      "prompt": "My skill spells out a 9-step numbered procedure for how to open a PR — 'run git status, then git add, then write the message, then...'. Should I keep all the steps for a capable model?",
+      "expected_output": "Flags the mechanical step list as a C2 over-prescriptive finding and recommends culling it to the intent plus the hard constraints (ordering that genuinely matters, safety gates, external contracts), removing the steps that only narrate a procedure a capable model already sequences correctly — not preserving all 9 steps verbatim.",
+      "files": [],
+      "expectations": [
+        "Output identifies the numbered step list as a C2 over-prescriptive-step-list finding",
+        "Output recommends culling to intent + hard constraints, not keeping all steps verbatim",
+        "Output notes steps encoding a real ordering/safety/contract are kept"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "stale-workaround-removed",
+      "prompt": "My CLAUDE.md has a paragraph re-explaining what JSON is and a defensive 'if you are unsure how to format the output, just wrap it in a code block' note, added back when the old model kept getting it wrong. Keep them?",
+      "expected_output": "Flags both as C4 stale model-era workarounds — verbose over-specification and defensive scaffolding compensating for a prior model's weakness — and, applying the pruning bar (removing them would not cause the current model to make mistakes), proposes removal/loosening rather than retention.",
+      "files": [],
+      "expectations": [
+        "Output identifies the re-explanation and defensive scaffolding as C4 stale model-era workarounds",
+        "Output applies the pruning bar and concludes removing them would not cause mistakes on the current model",
+        "Output proposes removing/loosening them rather than keeping them"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "clean-sweep-valid-outcome",
+      "prompt": "Run the model-fit audit on my repo — but I've already trimmed everything and every instruction earns its place.",
+      "expected_output": "Runs the sweep and, if every instruction passes the pruning bar, reports a clean result as a valid outcome rather than manufacturing findings to justify the audit.",
+      "files": [],
+      "expectations": [
+        "Output runs the scan and applies the pruning bar",
+        "Output reports a clean sweep as a valid outcome when nothing fails the bar",
+        "Output does not manufacture findings to justify the audit"
+      ]
+    }
+  ]
+}

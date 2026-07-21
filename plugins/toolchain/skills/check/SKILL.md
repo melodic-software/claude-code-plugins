@@ -3,6 +3,7 @@ name: check
 description: "Run build, test, and lint verification for changed files, auto-detecting affected ecosystems (.NET, Python, TypeScript, Bash, PowerShell, Markdown) from git status, with the consuming project's own documented commands overriding portable defaults. Use after any code edit or for 'does it compile' / 'run tests' checks; for lint-only use /toolchain:lint, for full outcome verification use /verification:confirm."
 user-invocable: true
 argument-hint: "[ecosystem] (e.g., /toolchain:check dotnet, /toolchain:check python, /toolchain:check all — default: auto-detect from git status)"
+shell: bash
 ---
 
 ## Pre-computed context

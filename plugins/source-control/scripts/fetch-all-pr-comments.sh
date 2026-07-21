@@ -98,7 +98,7 @@ else
 fi
 
 if [[ -z "$OWNER" || -z "$REPO" ]]; then
-  printf 'fetch-all-pr-comments: cannot resolve owner/repo (set FETCH_COMMENTS_OWNER + FETCH_COMMENTS_REPO)\n' >&2
+  printf 'fetch-all-pr-comments: cannot resolve owner/repo - gh repo view found no repository for the current directory (%s). Run from a checkout of the target repo, or set FETCH_COMMENTS_OWNER + FETCH_COMMENTS_REPO.\n' "$PWD" >&2
   exit 2
 fi
 

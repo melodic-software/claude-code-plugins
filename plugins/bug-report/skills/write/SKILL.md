@@ -4,6 +4,7 @@ description: "Produce a structured 5-field bug report (title, steps to reproduce
 argument-hint: "[--file] [--quick|--full] [--no-survey] <bug description>"
 user-invocable: true
 disable-model-invocation: false
+shell: bash
 ---
 
 ## Pre-computed context

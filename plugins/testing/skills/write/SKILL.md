@@ -4,6 +4,7 @@ description: "Write and place tests across all ecosystems â€” TDD cadence (Redâ†
 argument-hint: "[task] (e.g., /testing:write, /testing:write the new handler, /testing:write organize)"
 user-invocable: true
 disable-model-invocation: false
+shell: bash
 ---
 
 ## Pre-computed context
