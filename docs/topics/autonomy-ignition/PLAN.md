@@ -60,20 +60,18 @@ with no human help, not autonomous merge.
 
 ## Plan
 
-### Phase 1: Scratch-repo drain + evidence upgrade [DOING]
+### Phase 1: Scratch-repo drain + evidence upgrade [DONE]
 
-> **Status note (2026-07-21):** built and PR'd — `autonomy-demo-scratch#5` (branch
-> `feat/ignition-phase1`). Dry-run, unlabeled-skip, C2-claim, and model/bound greps verified
-> PASS; `work-class: c2` label created and seed item scratch#6 filed. Two dated deviations:
-> (1) `--max-turns` does not exist in the installed CLI (verified `claude --help`) — the
-> mechanical per-run bound is `--max-budget-usd` (default placeholder $5.00, operator
-> ratifies at Phase 2) + `timeout 3300` wrapper kill; the sanity-check grep below reads
-> `--max-budget-usd` accordingly. (2) BLOCKER: the gate check-run exists and fires but the
-> job fails at startup — GitHub Actions billing on the personal account ("recent account
-> payments have failed or your spending limit needs to be increased"); operator fixes
-> billing or makes the repo public, then the gate rerun must go green before scratch#5
-> merges. Open verify-at-smoke: nested `claude -p` under a scheduled session; run-worktree
-> nesting under the Desktop worktree toggle (one isolation layer may be disabled).
+> **Status note (2026-07-21, final):** MERGED — `autonomy-demo-scratch#5` (main `2ce16e8`).
+> Sanity checks all PASS: dry-run (no-work before seeding; claims C2 seed scratch#6 after;
+> unlabeled items skipped), model/bound greps, deterministic-gate real and GREEN (operator
+> made the repo public, clearing the Actions-billing startup failure), predicate stub
+> returns the four inputs (correctly zero, eligibility false). Dated deviation stands:
+> `--max-turns` absent from the installed CLI (verified `claude --help`) — mechanical
+> per-run bound is `--max-budget-usd` (placeholder $5.00, operator ratifies at Phase 2) +
+> `timeout 3300` wrapper kill. Deferred to Phase 3 smoke: full item run through human merge
+> into the four-way join; nested `claude -p` under a scheduled session; run-worktree nesting
+> under the Desktop worktree toggle (one isolation layer may be disabled).
 
 Repo: `kyle-sexton/autonomy-demo-scratch` (Opus builder in worktree; main thread commits).
 Work items:
