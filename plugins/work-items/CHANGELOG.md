@@ -10,8 +10,33 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 - `tools/work-item-tracker/tests/lib.sh` now points at
   `docs/conventions/shell-test-helpers/README.md`, the repo's owner doc recording that per-plugin
   shell assert-helper duplication and per-script exit-code taxonomies are deliberate, not drift. No
-  behavior change. Version re-bumped past `#857`'s open `0.19.0` claim (Jira adapter) to avoid a
-  collision.
+  behavior change. Version bumped past `#857`'s `0.19.0` claim (merged, Jira adapter) and #861's
+  matching open `0.19.0` claim to avoid a collision.
+
+## [0.19.0]
+
+### Added
+
+- **Jira Cloud adapter for the work-item-tracker seam (`#379`).** A new bundled `jira` adapter
+  (`tools/work-item-tracker/adapters/jira/`) binds a Jira Cloud project set behind the seam,
+  alongside the shipped `github` and `local-markdown` adapters; GitHub stays the default. The
+  adapter is **read/resolve-only by default** (issue #379 hard constraint): `get-item`,
+  `list-items`, and `capabilities` are supported; every coordination write verb
+  (`create-item`/`claim`/`renew-lease`/`reclaim`/`link-blocks`/`add-sub-item`) and
+  `list-sub-items` are declared `false` in the manifest and exit `6` at the core gate — no code
+  path creates, claims, or mutates a Jira ticket. Reads use Jira Cloud REST v3
+  (`GET /rest/api/3/issue/{key}`, `POST /rest/api/3/search/jql` with `nextPageToken` pagination)
+  over `curl`; Basic auth email + API token, the token referenced by env-var name only (never
+  stored in the tracked binding, never placed in argv). Normalization maps `statusCategory` →
+  open/closed, single assignee → `accountId`, labels verbatim, issue type, open-only
+  `blocked_by_count` under the configured link type, `fields.parent` → `parent_id`, and the
+  browse URL. The blocker link type and the exact "done" `statusCategory` key are configurable
+  override seams (`config.jira.blocked_by_link_type`, `config.jira.done_category_keys`),
+  defaulting to the documented standards so the adapter is independent of the two live-instance
+  facts deferred to the work-laptop pass. `/work-items:setup` gains `jira` as a selectable
+  provider. Contract: `tools/work-item-tracker/CONTRACT.md` "jira adapter"; operations reference:
+  `tools/work-item-tracker/adapters/jira/README.md`. Branch/PR `SW2-*` linkage and opt-in writes
+  are sequenced follow-ups.
 
 ## [0.18.2]
 
