@@ -104,6 +104,25 @@ run "config-env alias to a harmless subcommand (allowed)" \
 # empty projection correctly does not match an alias — allowed here, git blocks it.
 run "config-env alias with an unset env var (allowed — git rejects)" \
   "git --config-env=alias.c=MISSINGVAR c" 0
+# The named var can be supplied ON the command line (inline prefix or the env
+# wrapper), where it lives only in git's environment — the guard must read those, not
+# just the hook's ambient env, or this self-contained one-liner slips past.
+run "config-env alias with an inline-prefix env var (blocked)" \
+  "AV=commit git --config-env=alias.c=AV c" 2
+run "config-env alias with an env-wrapper env var (blocked)" \
+  "env AV=commit git --config-env=alias.c=AV c" 2
+# The env-var NAME is resolved through bash indirect expansion, gated to valid shell
+# identifiers — an injection-shaped name must neither match nor be evaluated (the gate
+# is load-bearing: dropping it would be an RCE). Allowed (git rejects it); no exec.
+rm -f "$TEST_TMPDIR/pwned-nc"
+run "injection-shaped config-env var name (allowed — not an identifier)" \
+  "git --config-env=alias.c=\$(touch $TEST_TMPDIR/pwned-nc) c" 0
+assert_file_absent "identifier gate: no exec for a non-identifier env-var name" "$TEST_TMPDIR/pwned-nc"
+
+# --- case-insensitive alias resolution (git folds config names) --------------
+run "inline alias, uppercase subcommand (blocked)" "git -c alias.c=commit C -m x" 2
+run "inline alias, uppercase alias key (blocked)" "git -c alias.C=commit c -m x" 2
+run "inline alias, uppercase both, to canonical form (allowed)" "git -c alias.C=commit C -F -" 0
 
 # --- other subcommands are untouched -----------------------------------------
 run "git log (allowed)" "git log --oneline -5" 0

@@ -224,7 +224,10 @@ check_segment() {
     # (expanding to a harmless subcommand) mask the real one.
     exp=""
     for cv in ${cfgv[@]+"${cfgv[@]}"}; do
-      [[ "$cv" == "alias.${sub}="* ]] && exp="${cv#*=}"
+      # git config names are case-insensitive: `-c alias.RH=… rh` and `-c
+      # alias.rh=… RH` both resolve, so fold both sides of the key match (the
+      # expansion value keeps its case — it is extracted from the original entry).
+      [[ "${cv,,}" == "alias.${sub,,}="* ]] && exp="${cv#*=}"
     done
     if [[ -n "$exp" ]]; then
       inline_alias_handled=1

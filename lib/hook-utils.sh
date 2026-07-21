@@ -628,11 +628,18 @@ hook::git_is_bin() {
 # must match on the rewritten words, so the index alone is not enough.
 #   HOOK_GIT_RESOLVED_GI    — index of git in HOOK_GIT_RESOLVED_WORDS
 #   HOOK_GIT_RESOLVED_WORDS — the (possibly rewritten) segment argv
+#   HOOK_GIT_ENV_ASSIGNMENTS — the `NAME=value` assignments the resolver walked past
+#                            before the git token (an inline `VAR=val git …` prefix
+#                            or an `env VAR=val git …` wrapper), in order. git sets
+#                            these in its own environment, so a consumer resolving a
+#                            --config-env value (which names an env var) MUST prefer
+#                            them over the hook's ambient environment.
 # shellcheck disable=SC1003  # '\' compares a literal backslash char, not a quote escape
 # shellcheck disable=SC2034  # result globals are consumed by the sourcing guard, not this file
 hook::git_resolve_index() {
   HOOK_GIT_RESOLVED_WORDS=("$@")
   HOOK_GIT_RESOLVED_GI=-1
+  HOOK_GIT_ENV_ASSIGNMENTS=()
   # shellcheck disable=SC2178  # nameref to the array result global, not a string assignment
   local -n w=HOOK_GIT_RESOLVED_WORDS
   local n=${#w[@]} i=0 tok
@@ -640,6 +647,11 @@ hook::git_resolve_index() {
   while ((i < n)); do
     tok="${w[i]}"
     if [[ "$tok" == *=* ]]; then
+      # A leading NAME=value token is a command-line env assignment git will see;
+      # keep the valid-identifier ones so --config-env resolution can prefer them
+      # over the hook's ambient environment (the shell treats only a valid-name
+      # assignment as an assignment; a non-identifier `1x=y` is a command word).
+      [[ "$tok" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] && HOOK_GIT_ENV_ASSIGNMENTS+=("$tok")
       ((i++))
       continue
     fi
@@ -846,19 +858,24 @@ hook::git_resolve_subcommand() {
 # consumer that reads the actual value (e.g. resolving `alias.<sub>=<expansion>`).
 # An "inline" value (-c/--config) passes through unchanged. An "env" value
 # (--config-env) is `<key>=<envvar>`, where <envvar> NAMES an environment variable
-# holding the value; git reads that variable at runtime, and the hook shares git's
-# process environment, so resolve it the same way to `<key>=<value>`. A named
-# variable that is unset — or a name that is not a valid shell identifier — resolves
-# to an empty value: git rejects an unset --config-env variable (fatal), so the
-# assignment never takes effect and an empty value is the safe projection (a
-# value-keyed consumer gets no spurious match; a key-keyed consumer still sees the
-# key). A malformed operand with no '=' is passed through untouched. Fills
-# HOOK_GIT_CONFIG_EFFECTIVE, aligned 1:1 with HOOK_GIT_CONFIG_VALUES. Call after
-# hook::git_resolve_subcommand.
+# holding the value; git reads that variable at runtime, so resolve it the same way
+# to `<key>=<value>`. The value comes from git's environment as git sees it: a
+# command-line assignment on THIS invocation (an inline `VAR=val git …` prefix or an
+# `env VAR=val git …` wrapper — collected in HOOK_GIT_ENV_ASSIGNMENTS by
+# hook::git_resolve_index) sets the variable for git and wins (last assignment wins,
+# as in the shell); otherwise the hook's inherited ambient environment is read.
+# Reading the command-line assignment is essential: it is a self-contained one-liner
+# that would otherwise pass an ambient-only check. A named variable that is unset, or
+# a name that is not a valid shell identifier, resolves to an empty value: git rejects
+# an unset --config-env variable (fatal), so the assignment never takes effect and an
+# empty value is the safe projection (a value-keyed consumer gets no spurious match; a
+# key-keyed consumer still sees the key). A malformed operand with no '=' is passed
+# through untouched. Fills HOOK_GIT_CONFIG_EFFECTIVE, aligned 1:1 with
+# HOOK_GIT_CONFIG_VALUES. Call after hook::git_resolve_index + git_resolve_subcommand.
 # shellcheck disable=SC2034  # HOOK_GIT_CONFIG_EFFECTIVE is consumed by the sourcing guard
 hook::git_effective_config_values() {
   HOOK_GIT_CONFIG_EFFECTIVE=()
-  local i entry kind key envvar
+  local i entry kind key envvar val a
   for i in "${!HOOK_GIT_CONFIG_VALUES[@]}"; do
     entry="${HOOK_GIT_CONFIG_VALUES[i]}"
     kind="${HOOK_GIT_CONFIG_VALUE_KINDS[i]:-inline}"
@@ -866,7 +883,15 @@ hook::git_effective_config_values() {
       key="${entry%%=*}"
       envvar="${entry#*=}"
       if [[ "$envvar" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
-        HOOK_GIT_CONFIG_EFFECTIVE+=("${key}=${!envvar-}")
+        val="${!envvar-}"
+        # A command-line assignment for this variable overrides the ambient value,
+        # matching what git's process actually sees; last one wins.
+        if [[ -n "${HOOK_GIT_ENV_ASSIGNMENTS+x}" ]]; then
+          for a in "${HOOK_GIT_ENV_ASSIGNMENTS[@]}"; do
+            [[ "$a" == "$envvar="* ]] && val="${a#*=}"
+          done
+        fi
+        HOOK_GIT_CONFIG_EFFECTIVE+=("${key}=${val}")
       else
         HOOK_GIT_CONFIG_EFFECTIVE+=("${key}=")
       fi

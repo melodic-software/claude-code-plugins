@@ -233,7 +233,10 @@ check_segment() {
     hook::git_effective_config_values
     cfgv=(${HOOK_GIT_CONFIG_EFFECTIVE[@]+"${HOOK_GIT_CONFIG_EFFECTIVE[@]}"})
     for cv in ${cfgv[@]+"${cfgv[@]}"}; do
-      [[ "$cv" == "alias.${sub}="* ]] || continue
+      # git config names are case-insensitive, so fold both sides of the key match
+      # (`alias.RH` vs subcommand `rh` and vice versa); the expansion value keeps its
+      # case — it is extracted from the original entry below.
+      [[ "${cv,,}" == "alias.${sub,,}="* ]] || continue
       exp="${cv#*=}"
       if [[ "$exp" == '!'* ]]; then
         # Shell alias: git runs the expansion as a shell command with the

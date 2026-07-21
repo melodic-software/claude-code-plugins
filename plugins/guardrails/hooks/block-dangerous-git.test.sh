@@ -209,6 +209,20 @@ run "git -c alias.rh='reset --hard' status (alias defined, not run, allowed)" "g
 run "git --config-env=alias.rh=AV rh (env-sourced git alias, blocked)" "git --config-env=alias.rh=AV rh" 2 "AV=reset --hard"
 run "git --config-env alias.rh=AV rh (two-word form, blocked)" "git --config-env alias.rh=AV rh" 2 "AV=reset --hard"
 run "git --config-env=alias.st=AV st (safe env alias, allowed)" "git --config-env=alias.st=AV st" 0 AV=status
+# The named var can be supplied ON the command line (inline prefix / env wrapper),
+# where it lives only in git's environment — the guard must read those, not just the
+# hook's ambient env, or this self-contained one-liner slips past.
+run "inline-prefix env var (blocked)" "AV='reset --hard' git --config-env=alias.rh=AV rh" 2
+run "env-wrapper env var (blocked)" "env AV='reset --hard' git --config-env=alias.rh=AV rh" 2
+# git config names are case-insensitive: fold both sides of the alias-key match.
+run "case-folded inline alias, uppercase subcommand (blocked)" "git -c alias.rh='reset --hard' RH" 2
+run "case-folded inline alias, uppercase key (blocked)" "git -c alias.RH='reset --hard' rh" 2
+# The env-var NAME resolves via bash indirect expansion, gated to valid shell
+# identifiers — an injection-shaped name must neither match nor be evaluated.
+rm -f "$TEST_TMPDIR/pwned-dg"
+run "injection-shaped config-env var name (allowed — not an identifier)" \
+  "git --config-env=alias.rh=\$(touch $TEST_TMPDIR/pwned-dg) rh" 0
+assert_file_absent "identifier gate: no exec for a non-identifier env-var name" "$TEST_TMPDIR/pwned-dg"
 run "command -p git reset --hard (command wrapper option, blocked)" "command -p git reset --hard" 2
 run "command -- git reset --hard (command end-of-options, blocked)" "command -- git reset --hard" 2
 run "exec -c git reset --hard (exec wrapper option, blocked)" "exec -c git reset --hard" 2

@@ -681,6 +681,55 @@ else
   fail "git config effective (invalid name): $(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")"
 fi
 
+# An injection-shaped env-var name must never reach bash indirect expansion: the
+# identifier gate rejects it (empty projection), and no evaluation occurs. Pins the
+# gate — a future refactor dropping it would be an RCE.
+rm -f "$HOOK_DIR/../pwned-lib"
+# shellcheck disable=SC2016  # the literal $(…) is the injection payload under test — must NOT expand
+hook::git_resolve_subcommand 0 git '--config-env=alias.c=$(touch pwned-lib)' c
+hook::git_effective_config_values
+if [[ "$(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")" == "alias.c=" && ! -e pwned-lib ]]; then
+  ok "git config: injection-shaped env name → empty, no evaluation"
+else
+  fail "git config effective (injection name): $(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}") file=$([[ -e pwned-lib ]] && echo present || echo absent)"
+fi
+rm -f pwned-lib
+
+# A command-line env assignment (inline `VAR=val git …`) is preferred over ambient,
+# resolved through hook::git_resolve_index's collected HOOK_GIT_ENV_ASSIGNMENTS.
+unset WIT_TEST_CFG_ENV 2>/dev/null || true
+hook::git_resolve_index WIT_TEST_CFG_ENV=commit git --config-env=alias.c=WIT_TEST_CFG_ENV c
+hook::git_resolve_subcommand "$HOOK_GIT_RESOLVED_GI" "${HOOK_GIT_RESOLVED_WORDS[@]}"
+hook::git_effective_config_values
+if [[ "$(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")" == "alias.c=commit" ]]; then
+  ok "git config: inline-prefix assignment resolves (ambient unset)"
+else
+  fail "git config effective (inline prefix): $(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")"
+fi
+
+# The env wrapper carries the assignment the same way.
+hook::git_resolve_index env WIT_TEST_CFG_ENV=commit git --config-env=alias.c=WIT_TEST_CFG_ENV c
+hook::git_resolve_subcommand "$HOOK_GIT_RESOLVED_GI" "${HOOK_GIT_RESOLVED_WORDS[@]}"
+hook::git_effective_config_values
+if [[ "$(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")" == "alias.c=commit" ]]; then
+  ok "git config: env-wrapper assignment resolves"
+else
+  fail "git config effective (env wrapper): $(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")"
+fi
+
+# A command-line assignment overrides an ambient value of the same name (git sees the
+# command-line one).
+export WIT_TEST_CFG_ENV=status
+hook::git_resolve_index WIT_TEST_CFG_ENV=commit git --config-env=alias.c=WIT_TEST_CFG_ENV c
+hook::git_resolve_subcommand "$HOOK_GIT_RESOLVED_GI" "${HOOK_GIT_RESOLVED_WORDS[@]}"
+hook::git_effective_config_values
+if [[ "$(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")" == "alias.c=commit" ]]; then
+  ok "git config: command-line assignment overrides ambient"
+else
+  fail "git config effective (override): $(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")"
+fi
+unset WIT_TEST_CFG_ENV
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

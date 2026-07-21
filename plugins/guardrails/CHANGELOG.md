@@ -17,11 +17,22 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   `AV` and waved the real subcommand through — a verified fail-open. The parser now tags
   each value's origin (`HOOK_GIT_CONFIG_VALUE_KINDS`), and a new
   `hook::git_effective_config_values` resolver projects `--config-env` entries to their
-  actual `<key>=<value>` against the hook's inherited environment (as git does at
-  runtime); both guards match aliases against the resolved values. An unset or
-  invalid-name env var projects to an empty value — git itself rejects an unset
-  `--config-env` variable, so the assignment never takes effect. Inline shell
-  env-assignment prefixes (`AV=commit git …`) remain out of scope (documented residual).
+  actual `<key>=<value>`; both guards match aliases against the resolved values. An unset
+  or invalid-identifier env var projects to an empty value — git itself rejects an unset
+  `--config-env` variable, so the assignment never takes effect (the identifier gate on
+  the indirect expansion also prevents an injection-shaped name from being evaluated).
+- **The `--config-env` value is resolved from the environment git actually sees.** The
+  named variable is read preferring a command-line assignment on the same invocation — an
+  inline `VAR=val git …` prefix or an `env VAR=val git …` wrapper (collected by
+  `hook::git_resolve_index`) — over the hook's ambient environment, since that
+  self-contained one-liner (`AV=commit git --config-env=alias.c=AV c`) sets the variable
+  only in git's environment and would otherwise pass an ambient-only check. (An inline
+  env-assignment prefix in front of an ordinary command remains out of scope for the
+  parser generally; this covers specifically the `--config-env` resolution.)
+- **Case-insensitive alias matching.** git config names are case-insensitive, so
+  `git -c alias.RH='reset --hard' rh` and `git -c alias.rh=… RH` both run the alias; the
+  guards' inline-alias re-check now folds both sides of the key match (the expansion value
+  keeps its case), matching git.
 
 ## [0.9.5]
 
