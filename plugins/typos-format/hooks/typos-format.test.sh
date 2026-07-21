@@ -178,6 +178,23 @@ else
   fail "gate ON -> file not fixed: $(cat "$REPO/src/fix.txt")"
 fi
 
+# --- Case 3b: config nested BELOW repo root (root itself has no config) -----
+# The hook runs typos from the repo root (RUN_DIR), never from the config's
+# own directory. This proves that does not matter: typos resolves config
+# relative to the target path passed on the command line, not the process
+# CWD, so a config nested arbitrarily deep is still discovered and honored.
+REPO_NEST="$WORK/nested-config"
+new_typos_repo "$REPO_NEST" NO_CONFIG
+mkdir -p "$REPO_NEST/packages/pkg"
+printf '[default.extend-words]\npkgword = "correctword"\n' >"$REPO_NEST/packages/pkg/_typos.toml"
+printf 'this has pkgword in it\n' >"$REPO_NEST/packages/pkg/file.txt" # spellchecker:disable-line
+run_hook "$REPO_NEST/packages/pkg/file.txt" >/dev/null
+if grep -q 'correctword' "$REPO_NEST/packages/pkg/file.txt"; then
+  ok "nested config (no root config) -> discovered and applied from repo root RUN_DIR"
+else
+  fail "nested config not applied: $(cat "$REPO_NEST/packages/pkg/file.txt")"
+fi
+
 # --- Case 4: gate ON + unfixable finding -> advisory context with remediation
 mkdir -p "$REPO/lib"
 printf 'this has a disallowme term\n' >"$REPO/lib/lint.txt"

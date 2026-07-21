@@ -174,7 +174,11 @@ fi
 
 # Pass the file as a path relative to the repo root (the CWD typos runs in) so
 # concise diagnostics echo a clean repo-relative path instead of an absolute
-# one, and so typos' own CWD-anchored config discovery matches the walk above.
+# one. typos resolves config relative to the TARGET PATH passed on the command
+# line, not the process CWD (verified empirically: running from the repo root
+# with a relative subdirectory path still discovers and honors that
+# subdirectory's own config) — so running from repo root here does not change
+# which config governs; it matches the walk above regardless of nesting depth.
 # Falls back to the absolute path when the repo root did not resolve or the
 # file is outside it.
 TYPOS_ARG="$FILE"
