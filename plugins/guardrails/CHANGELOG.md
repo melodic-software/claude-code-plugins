@@ -16,7 +16,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   per the hook-precision convention's diff-scoping rule. Repro-first: the
   pre-existing-flag stay-quiet case fails against the prior hook and passes now, with
   a hunk-introduced-flag MUST-FIRE counterpart. Markdown fence state is derived from
-  the hunk alone — a fence-straddling edit can mis-classify in either direction, the
+  the hunk alone — a fence-straddling edit can misclassify in either direction, the
   accepted trade of hunk scoping.
 
 ## [0.9.3]

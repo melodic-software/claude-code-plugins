@@ -116,7 +116,7 @@ is_skipped() {
 #     carries no inline backticks, so the inline grep naturally excludes it.
 #   - Shell/PowerShell: every line is code.
 # Fence state is derived from the hunk alone, so a fence-straddling markdown edit
-# can mis-classify in EITHER direction (a hunk inside a block whose ``` markers
+# can misclassify in EITHER direction (a hunk inside a block whose ``` markers
 # fall outside it reads as prose and is under-scanned; a hunk that opens with a
 # closing ``` can over-scan). The convention trades this whole-file context away
 # for diff-scope precision; the residual is accepted, not reconstructed.
