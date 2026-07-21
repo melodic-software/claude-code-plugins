@@ -3,6 +3,7 @@ name: batch-simplify
 description: "Batch-run simplification across all recently changed files, grouped by ecosystem and dependency order. Use when: 'batch simplify', 'simplify recent changes', 'simplify everything', 'forgot to run simplify', 'catch up on simplify', 'simplify my branch changes', or after a multi-session sprint. Accepts a time window (`24h`, `7d`) or `branch` to diff the current branch vs the default branch; optional `docs` flag includes .md files for post-migration or post-refactor doc sweeps. Skip for single-file cleanup — use /simplify instead."
 user-invocable: true
 argument-hint: "[time-window | branch] [docs] (e.g., /batch-simplify 72h, /batch-simplify branch docs — default: 48h)"
+shell: bash
 ---
 
 ## Pre-computed context

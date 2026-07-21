@@ -4,6 +4,7 @@ description: "Audit a codebase for drift between docs, config, code, and archite
 argument-hint: "[scope] [--fix] [--docs-only|--code-only|--config-only|--arch-only]"
 user-invocable: true
 disable-model-invocation: false
+shell: bash
 ---
 
 ## Pre-computed context

@@ -9,8 +9,16 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - `scripts/test-helpers.sh` now points at `docs/conventions/shell-test-helpers/README.md`, the
   repo's owner doc recording that per-plugin shell assert-helper duplication and per-script exit-code
-  taxonomies are deliberate, not drift. No behavior change. Version bumped past `#840`'s and `#860`'s
-  open `0.15.9` claims to avoid a collision.
+  taxonomies are deliberate, not drift. No behavior change. Version bumped past `#840`'s open
+  `0.15.9` claim and `#860`'s `0.15.9` claim (merged) to avoid a collision.
+
+## [0.15.9]
+
+### Changed
+
+- Skills with `!` dynamic-context injections now declare `shell: bash` explicitly, per
+  the pinned precompute convention — bash-only pipelines must not fall through to a
+  PowerShell host.
 
 ## [0.15.8]
 

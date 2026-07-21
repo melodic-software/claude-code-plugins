@@ -4,6 +4,7 @@ description: "Explore the local codebase before making changes — read code, tr
 argument-hint: "[scope] (e.g., /discovery:explore payments module dependencies, /discovery:explore tests, /discovery:explore git, /discovery:explore config)"
 user-invocable: true
 disable-model-invocation: false
+shell: bash
 ---
 
 ## Pre-computed context
