@@ -26,7 +26,11 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
     finds it across all comments (paginated, so a match on any page prevents a
     duplicate) and PATCHes it; failing that, adopts the most recent comment by the
     authenticated user carrying the raw marker text; else creates one. The marker
-    charset excludes `>` so it can never close the HTML comment early.
+    charset excludes `>` so it can never close the HTML comment early. Because the
+    script is prompt-driven, inputs are hardened against exfiltration: `--repo` is
+    validated as `owner/repo` before URL interpolation, a real `--body-file` must
+    resolve under `--body-dir`/`$CLAUDE_PLUGIN_DATA` and may not be a symlink
+    (pipe an in-memory body via `-`), and the body is capped at 64 KiB.
 
   Both ship with a sibling `.test.sh` (PATH-stubbed `gh`/`git`, fixture
   `installed_plugins.json` and comment lists — no network) and are documented in

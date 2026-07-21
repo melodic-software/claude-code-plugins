@@ -80,7 +80,7 @@ detached
 
 WT
     ;;
-  "rev-parse --git-common-dir") echo "/repos/claude-code-plugins/.git" ;;
+  "rev-parse --git-common-dir") echo "${STUB_COMMON_DIR:-/repos/claude-code-plugins/.git}" ;;
   "rev-parse --show-toplevel") echo "/repos/wt-538" ;;
   *) exit 0 ;;
 esac
@@ -126,6 +126,18 @@ assert_contains "selected plugin version" "$out" "claude-ops  0.15.4"
 assert_contains "scope-divergent plugin shows both + marker" "$out" "work-items  0.17.1, 0.17.2  (scope-divergent)"
 assert_not_contains "unselected plugin omitted" "$out" "caveman"
 assert_contains "deviations left to the model, not scripted" "$out" "not scripted"
+
+# ============================================================================
+# clone-path from a RELATIVE git-common-dir (the main-worktree case, where
+# `rev-parse --git-common-dir` returns a bare `.git`) must be the absolute repo
+# path, not "." — regression guard for the dirname(".git") == "." bug.
+# ============================================================================
+export STUB_COMMON_DIR=".git"
+expected_clone="$(cd "$TMP" && pwd)"
+out="$(run 2>&1)"
+assert_contains "relative git-common-dir yields the absolute clone-path" "$out" "clone-path: $expected_clone"
+assert_not_contains "relative git-common-dir is not rendered as '.'" "$out" "clone-path: ."
+unset STUB_COMMON_DIR
 
 # ============================================================================
 # gh unavailable degrades (not a failure)

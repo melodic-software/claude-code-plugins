@@ -52,7 +52,7 @@ for ((i = 0; i < ${#args[@]}; i++)); do
   case "${args[$i]}" in
     --method) method="${args[$((i + 1))]}" ;;
     api) seen_api=1 ;;
-    repos/*|user) [[ -n "$seen_api" && -z "$url" ]] && url="${args[$i]}" ;;
+    repos/*|user) ((seen_api)) && [[ -z "$url" ]] && url="${args[$i]}" ;;
   esac
 done
 
@@ -86,11 +86,14 @@ chmod +x "$STUB_BIN/gh"
 export PATH="$STUB_BIN:$PATH"
 export STUB_LOG="$LOG"
 
-BODY="$TMP/body.txt"
+# The safe body dir the containment check keys off; BODY lives under it.
+SAFE_DIR="$TMP/safe"
+mkdir -p "$SAFE_DIR"
+BODY="$SAFE_DIR/body.txt"
 printf 'lane: triage\nlast-cycle: 2026-07-21T06:00:00Z\nflags: none\n' >"$BODY"
 
 REPO="melodic-software/claude-code-plugins"
-run() { STUB_COMMENTS_FILE="$1" bash "$SCRIPT" --repo "$REPO" --issue 502 --marker "lane:triage" --body-file "$BODY" "${@:2}"; }
+run() { STUB_COMMENTS_FILE="$1" bash "$SCRIPT" --repo "$REPO" --issue 502 --marker "lane:triage" --body-file "$BODY" --body-dir "$SAFE_DIR" "${@:2}"; }
 
 SENT='<!-- claude-ops:lane-telemetry marker=lane:triage -->'
 
@@ -191,6 +194,67 @@ out="$(bash "$SCRIPT" --repo "$REPO" --issue 502 --marker "lane:x" --body-file "
 rc=$?
 assert_eq "missing body-file rejected exit 3" 3 "$rc"
 assert_contains "missing body-file message" "$out" "body file not found"
+
+# ============================================================================
+# SECURITY — a traversal --repo is rejected before any URL interpolation
+# ============================================================================
+out="$(bash "$SCRIPT" --repo 'foo/bar/../../org2/target' --issue 502 --marker "lane:triage" --body-file "$BODY" --body-dir "$SAFE_DIR" 2>&1)"
+rc=$?
+assert_eq "traversal --repo rejected exit 3" 3 "$rc"
+assert_contains "traversal --repo message" "$out" "--repo must be owner/repo"
+
+# ============================================================================
+# SECURITY — a --body-file OUTSIDE the safe dir is refused (no arbitrary read):
+# a prompt-injected secret path must never be cat'd into a public comment.
+# ============================================================================
+mkdir -p "$TMP/outside"
+SECRET="$TMP/outside/secret.txt"
+printf 'PRIVATE-KEY-MATERIAL\n' >"$SECRET"
+out="$(bash "$SCRIPT" --repo "$REPO" --issue 502 --marker "lane:triage" --body-file "$SECRET" --body-dir "$SAFE_DIR" 2>&1)"
+rc=$?
+assert_eq "body-file outside the safe dir rejected exit 3" 3 "$rc"
+assert_contains "containment message names the safe dir" "$out" "must resolve under the safe dir"
+assert_not_contains "the secret's content is never read or echoed" "$out" "PRIVATE-KEY-MATERIAL"
+
+# A traversal body-file that escapes the safe dir via `..` is refused too
+# (canonicalization resolves the `..` before the prefix check).
+out="$(bash "$SCRIPT" --repo "$REPO" --issue 502 --marker "lane:triage" --body-file "$SAFE_DIR/../outside/secret.txt" --body-dir "$SAFE_DIR" 2>&1)"
+rc=$?
+assert_eq "traversal body-file escaping the safe dir rejected exit 3" 3 "$rc"
+
+# A SYMLINK leaf under the safe dir pointing at a secret is refused by the -L
+# guard — containment (parent-dir canonicalization) alone would pass it. Skipped
+# where the platform can't create symlinks (Windows without privilege); CI is
+# Linux and exercises it.
+LINK="$SAFE_DIR/link-to-secret.txt"
+# MSYS `ln -s` silently makes a COPY, not a symlink, and returns 0 — so gate on
+# the result actually being a symlink, not on ln's exit status.
+if ln -s "$SECRET" "$LINK" 2>/dev/null && [[ -L "$LINK" ]]; then
+  out="$(bash "$SCRIPT" --repo "$REPO" --issue 502 --marker "lane:triage" --body-file "$LINK" --body-dir "$SAFE_DIR" 2>&1)"
+  rc=$?
+  assert_eq "symlinked body-file leaf rejected exit 3" 3 "$rc"
+  assert_contains "symlink rejection message" "$out" "must not be a symlink"
+  assert_not_contains "symlinked secret content never read" "$out" "PRIVATE-KEY-MATERIAL"
+else
+  pass "symlink leaf test skipped (platform cannot create symlinks)"
+fi
+rm -f "$LINK" 2>/dev/null
+
+# No safe dir configured (no --body-dir, no CLAUDE_PLUGIN_DATA) fails closed.
+out="$(env -u CLAUDE_PLUGIN_DATA bash "$SCRIPT" --repo "$REPO" --issue 502 --marker "lane:triage" --body-file "$BODY" 2>&1)"
+rc=$?
+assert_eq "no safe body dir configured exits 4" 4 "$rc"
+assert_contains "no safe body dir message" "$out" "no safe body dir"
+
+# ============================================================================
+# SECURITY (defense in depth) — an oversized body is refused
+# ============================================================================
+BIG="$SAFE_DIR/big.txt"
+head -c 70000 /dev/zero | tr '\0' 'x' >"$BIG"
+out="$(bash "$SCRIPT" --repo "$REPO" --issue 502 --marker "lane:triage" --body-file "$BIG" --body-dir "$SAFE_DIR" 2>&1)"
+rc=$?
+assert_eq "oversized body rejected exit 3" 3 "$rc"
+assert_contains "oversized body message" "$out" "over the"
 
 # ============================================================================
 # `-` reads body from stdin

@@ -154,8 +154,16 @@ read_worktrees() {
   local porcelain common_dir
   porcelain="$(git -C "$REPO" worktree list --porcelain 2>/dev/null | tr -d '\r')" || return
   common_dir="$(git -C "$REPO" rev-parse --git-common-dir 2>/dev/null | tr -d '\r')"
-  # Main worktree = the dir that owns the common git dir.
+  # Main worktree = the dir that owns the common git dir. `rev-parse
+  # --git-common-dir` returns a RELATIVE path (bare `.git`) when run from the
+  # main worktree, and an absolute path from a linked worktree. Anchor a relative
+  # value to $REPO first, or `dirname .git` = `.` would emit "." as the clone
+  # path from the main worktree.
   if [[ -n "$common_dir" ]]; then
+    case "$common_dir" in
+    /* | [A-Za-z]:[\\/]*) : ;;           # already absolute (POSIX or Windows drive)
+    *) common_dir="$REPO/$common_dir" ;; # relative → anchor to the repo root
+    esac
     case "$common_dir" in
     */.git) CLONE_PATH="${common_dir%/.git}" ;;
     *) CLONE_PATH="$(dirname "$common_dir")" ;;

@@ -29,15 +29,26 @@
 #        intended, and a single writer identity owns a given marker.
 #
 # Usage:
-#   telemetry-upsert.sh --issue N --marker STR --body-file PATH [--repo owner/name]
-#                       [--dry-run]
+#   telemetry-upsert.sh --issue N --marker STR --body-file PATH
+#                       [--body-dir DIR] [--repo owner/name] [--dry-run]
 #
 #   --issue N        Tracking issue number (required).
 #   --marker STR     Marker id, [A-Za-z0-9:._-]+ (required).
 #   --body-file PATH File whose contents become the comment body BELOW the
 #                    sentinel (required; `-` reads stdin). Kept small — a
-#                    telemetry block, not an essay.
+#                    telemetry block, not an essay (hard cap: 64 KiB).
+#                    SECURITY: a real path (not `-`) MUST resolve under the safe
+#                    body dir (--body-dir, else $CLAUDE_PLUGIN_DATA). This script
+#                    is driven by AI lane prompts; an unconstrained path read
+#                    would let a prompt-injected `--body-file ~/.ssh/id_rsa` (or a
+#                    token store / .env) be posted verbatim as a public comment —
+#                    silent credential exfiltration. Containment blocks that; pipe
+#                    via `-` for a body generated in memory.
+#   --body-dir DIR   Directory a real --body-file must resolve under
+#                    (default: $CLAUDE_PLUGIN_DATA).
 #   --repo owner/name  Target repo (default: `gh repo view` for the cwd's repo).
+#                    Validated as owner/repo before URL interpolation so a
+#                    traversal value can't redirect the API to another repo.
 #   --dry-run        Resolve + report the action (create/update + target id) but
 #                    perform no write.
 #   --help
@@ -48,8 +59,9 @@
 #
 # Exit codes:
 #   0  upserted (or, with --dry-run, resolved)
-#   3  invalid argument
-#   4  prerequisite missing (gh or jq) or repo could not be resolved
+#   3  invalid argument (bad issue/marker/repo, body-file outside the safe dir,
+#      or a body over the size cap)
+#   4  prerequisite missing (gh or jq), or the repo / safe body dir unresolved
 #   5  a gh API call (list / create / update) failed
 
 set -uo pipefail
@@ -65,9 +77,12 @@ for bin in gh jq; do
   }
 done
 
+MAX_BODY_BYTES=65536 # 64 KiB — a telemetry body, not an essay
+
 ISSUE=""
 MARKER=""
 BODY_FILE=""
+BODY_DIR=""
 REPO=""
 DRY_RUN=0
 while (($#)); do
@@ -94,6 +109,14 @@ while (($#)); do
     ;;
   --body-file=*)
     BODY_FILE="${1#*=}"
+    shift
+    ;;
+  --body-dir)
+    BODY_DIR="${2:-}"
+    shift 2
+    ;;
+  --body-dir=*)
+    BODY_DIR="${1#*=}"
     shift
     ;;
   --repo)
@@ -132,7 +155,10 @@ done
   exit 3
 }
 
-# Read the body (a `-` reads stdin, matching common CLI convention).
+# Read the body. `-` reads stdin (a body generated in memory — no arbitrary-file
+# read, so it is exempt from the containment check below). A real path must
+# resolve UNDER the safe dir: this script is prompt-driven, and an unconstrained
+# read would turn `--body-file <any-secret>` into public-comment exfiltration.
 if [[ "$BODY_FILE" == "-" ]]; then
   body_text="$(cat)"
 else
@@ -140,7 +166,50 @@ else
     err "body file not found: $BODY_FILE"
     exit 3
   }
+  # Reject a symlink leaf outright. Containment below canonicalizes the PARENT
+  # dir but re-appends the basename raw, so a symlink whose link file sits under
+  # the safe dir but targets a secret elsewhere would otherwise pass and `cat`
+  # would follow it. A telemetry body has no reason to be a symlink; use `-`
+  # (stdin) for an in-memory body.
+  [[ -L "$BODY_FILE" ]] && {
+    err "body file must not be a symlink: $BODY_FILE"
+    exit 3
+  }
+  safe_dir="${BODY_DIR:-${CLAUDE_PLUGIN_DATA:-}}"
+  [[ -n "$safe_dir" ]] || {
+    err "no safe body dir: set \$CLAUDE_PLUGIN_DATA or pass --body-dir DIR (or pipe the body via --body-file -)"
+    exit 4
+  }
+  # Canonicalize the PARENT dir of each side to a physical path via the same
+  # `cd … && pwd -P` (resolving any `..` and symlinked ancestor), then compare
+  # prefixes. The leaf is guarded separately by the symlink check above, so
+  # re-appending basename raw is safe.
+  safe_canon="$(cd "$safe_dir" 2>/dev/null && pwd -P)" || {
+    err "safe body dir not found: $safe_dir"
+    exit 4
+  }
+  body_parent="$(cd "$(dirname "$BODY_FILE")" 2>/dev/null && pwd -P)" || {
+    err "cannot resolve body file directory: $BODY_FILE"
+    exit 3
+  }
+  body_canon="$body_parent/$(basename "$BODY_FILE")"
+  # The trailing slash in the pattern forces a path-segment boundary, so
+  # `/safe` never matches a sibling `/safe-evil/...`.
+  case "$body_canon" in
+  "$safe_canon"/*) : ;;
+  *)
+    err "body file must resolve under the safe dir ($safe_canon); refusing to read $body_canon"
+    exit 3
+    ;;
+  esac
   body_text="$(cat "$BODY_FILE")"
+fi
+
+# Size guard (defense in depth), applied to file AND stdin bodies alike.
+body_bytes="$(printf '%s' "$body_text" | wc -c | tr -d ' ')"
+if ((body_bytes > MAX_BODY_BYTES)); then
+  err "body is ${body_bytes} bytes, over the ${MAX_BODY_BYTES}-byte cap — telemetry bodies are small"
+  exit 3
 fi
 
 SENTINEL="<!-- claude-ops:lane-telemetry marker=$MARKER -->"
@@ -154,6 +223,16 @@ if [[ -z "$REPO" ]]; then
     exit 4
   }
 fi
+
+# Validate BEFORE interpolating $REPO into any gh api URL path. Both the explicit
+# --repo value and the auto-detected one flow through here. Without this, a value
+# like `foo/bar/../../org/target` injects `..` segments that GitHub's API routing
+# normalizes, redirecting the GET/PATCH/POST to a different repo the token can
+# reach. A single owner/repo pair (one slash, no traversal) is the only shape.
+[[ "$REPO" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] || {
+  err "--repo must be owner/repo (got: '$REPO')"
+  exit 3
+}
 
 # --- List existing comments (paginated, raw) ---------------------------------
 # Fetch raw JSON and select in-script rather than via `gh --jq`, so the whole

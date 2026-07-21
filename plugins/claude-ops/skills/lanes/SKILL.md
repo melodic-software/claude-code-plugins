@@ -141,6 +141,11 @@ each — the summary below is a pointer, not a copy.
   comment) it adopts the most recent comment BY THE AUTHENTICATED USER carrying the
   raw marker text; else it creates one. `STR` is `[A-Za-z0-9:._-]+` (so it can
   never close the HTML comment early), and one writer identity owns a given marker.
+  Body input: prefer `--body-file -` (stdin) for a body generated in memory (e.g.
+  piped from `machine-behavior.sh`); a real `--body-file PATH` must resolve under
+  `--body-dir` (default `$CLAUDE_PLUGIN_DATA`), may not be a symlink, and is capped
+  at 64 KiB — a prompt-driven script must not be coaxed into posting an arbitrary
+  file (a secret, a token store) as a public comment.
 
 ## Cross-references
 
