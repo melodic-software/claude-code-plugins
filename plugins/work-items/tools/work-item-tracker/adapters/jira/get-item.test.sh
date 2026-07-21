@@ -86,10 +86,29 @@ assert_eq "done-category → closed" "closed" "$(jq -r '.state' <<<"$OUT")"
 assert_eq "no assignee → empty array" "0" "$(jq -r '.assignees | length' <<<"$OUT")"
 assert_eq "no parent → null" "null" "$(jq -r '.parent_id' <<<"$OUT")"
 
+# An assignee object present but with a null accountId (a privacy-restricted user)
+# projects to an empty assignees array, not [null] — the frontier keys on emptiness.
+cat >"$FIX/1.body" <<'JSON'
+{"key":"SW2-6","fields":{"summary":"Restricted","status":{"statusCategory":{"key":"new"}},"assignee":{"accountId":null},"labels":[],"issuetype":{"name":"Task"},"parent":null,"issuelinks":[]}}
+JSON
+printf '200' >"$FIX/1.status"
+run_get "jira:test.atlassian.net/SW2#6"
+assert_eq "assignee with null accountId → empty array" "0" "$(jq -r '.assignees | length' <<<"$OUT")"
+
 # --- error paths ---
 # Cross-site id (site does not match the bound site) → usage error, before network.
 run_get "jira:other.atlassian.net/SW2#1"
 assert_eq "cross-site id → usage (2)" "2" "$RC"
+
+# A project key that is grammar-valid in the ID (dots allowed there) but not a real
+# Jira key → usage error up front, not an opaque exit 5 from the normalizer's parser.
+run_get "jira:test.atlassian.net/SW.2#1"
+assert_eq "malformed project key in id → usage (2)" "2" "$RC"
+if [[ ! -e "$FIX/.counter" ]]; then
+  pass "malformed key made no HTTP call"
+else
+  fail "malformed key made no HTTP call" "no curl call" "curl invoked"
+fi
 
 # 404 from Jira → not-found (5).
 printf '404' >"$FIX/1.status"

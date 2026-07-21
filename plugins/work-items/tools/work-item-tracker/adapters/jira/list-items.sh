@@ -33,14 +33,18 @@ esac
 wit_need_jira_config
 
 # Project scope: a --repo override (site/PROJECTKEY) narrows to one project after
-# validating its site against the bound site; otherwise scope is all configured
-# project_keys. Built as a JQL `project in (...)` clause from a JSON array so the keys
-# are quoted safely, never string-concatenated into the query.
+# validating its site against the bound site AND its key against the JQL-token
+# allowlist (a bad --repo key is a usage error, exit 2); otherwise scope is all
+# configured project_keys, already allowlist-validated by wit_need_jira_config. Every
+# value reaching the JQL builders below is therefore charset-checked first — the
+# builders assemble JQL by string concatenation, so this is what keeps it injection-safe.
 if [[ -n "$repo_override" ]]; then
   repo_site="${repo_override%%/*}"
   repo_project="${repo_override#*/}"
   [[ "$repo_site" == "$WIT_JIRA_SITE" && "$repo_project" != "$repo_override" && -n "$repo_project" ]] ||
     wit_usage_error "--repo must be <site>/<PROJECTKEY> with site matching config.jira.site '$WIT_JIRA_SITE'"
+  [[ "$repo_project" =~ $WIT_JIRA_PROJECT_KEY_RE ]] ||
+    wit_usage_error "--repo project key '$repo_project' is outside the allowed charset ($WIT_JIRA_PROJECT_KEY_RE)"
   projects_json="$(jq -cn --arg p "$repo_project" '[$p]')"
 else
   projects_json="$WIT_JIRA_PROJECT_KEYS"
@@ -48,7 +52,8 @@ fi
 
 # statusCategory scope mirrors the state cut in the normalizer: open == not a
 # done-category, closed == a done-category, all == unconstrained. The done keys are
-# the configurable set (#4 override seam); JQL matches them via `statusCategory in`.
+# the configurable set (#4 override seam), allowlist-validated at config load; JQL
+# matches them via `statusCategory in`.
 case "$state" in
 open) status_clause=" AND statusCategory not in ($(jq -r 'map("\"\(.)\"") | join(",")' <<<"$WIT_JIRA_DONE_KEYS"))" ;;
 closed) status_clause=" AND statusCategory in ($(jq -r 'map("\"\(.)\"") | join(",")' <<<"$WIT_JIRA_DONE_KEYS"))" ;;

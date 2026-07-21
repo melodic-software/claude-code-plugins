@@ -65,6 +65,16 @@ readonly WIT_JIRA_CURL_BIN="${WIT_JIRA_CURL:-curl}"
 readonly WIT_JIRA_DEFAULT_BLOCKED_BY_LINK_TYPE="Blocks"
 readonly WIT_JIRA_DEFAULT_DONE_KEYS='["done","completed"]'
 
+# Values interpolated into a JQL query (project keys, statusCategory keys) are
+# constrained to a strict allowlist BEFORE interpolation — the seam builds JQL by
+# string assembly, so an unescaped `"` in a key would break out of the literal and
+# inject arbitrary JQL. Allowlisting (reject the unexpected) is safer than escaping,
+# and matches what Jira itself permits: project keys are letter-led alphanumerics
+# (the same charset the normalizer's key parser accepts); statusCategory keys are
+# letter-led alphanumerics plus hyphen (e.g. `in-flight`). Anything else is refused.
+readonly WIT_JIRA_PROJECT_KEY_RE='^[A-Za-z][A-Za-z0-9_]*$'
+readonly WIT_JIRA_CATEGORY_KEY_RE='^[A-Za-z][A-Za-z0-9-]*$'
+
 # Set by wit_jira_http; declared here so a read before the first call does not trip
 # `set -u`.
 WIT_JIRA_BODY=""
@@ -121,6 +131,25 @@ wit_need_jira_config() {
   [[ "$(jq -r 'length' <<<"$WIT_JIRA_PROJECT_KEYS")" -gt 0 ]] || missing+=" config.jira.project_keys[]"
   if [[ -n "$missing" ]]; then
     printf '%s: jira binding missing required config:%s — see CONTRACT.md "jira adapter"\n' "$name" "$missing" >&2
+    exit "$EX_CONFIG"
+  fi
+  # Every JQL-interpolated value from config is allowlist-validated here (a bad
+  # config value is exit 3), so the query builders in list-items never assemble an
+  # unvalidated token. Captured then iterated via here-string (MSYS process-sub
+  # gotcha); the loop body only runs a regex, no fork.
+  local bad="" k keys
+  keys="$(jq -r '.[]' <<<"$WIT_JIRA_PROJECT_KEYS" | wit_strip_cr)"
+  while IFS= read -r k; do
+    [[ -n "$k" ]] || continue
+    [[ "$k" =~ $WIT_JIRA_PROJECT_KEY_RE ]] || bad+=" project_keys:'$k'"
+  done <<<"$keys"
+  keys="$(jq -r '.[]' <<<"$WIT_JIRA_DONE_KEYS" | wit_strip_cr)"
+  while IFS= read -r k; do
+    [[ -n "$k" ]] || continue
+    [[ "$k" =~ $WIT_JIRA_CATEGORY_KEY_RE ]] || bad+=" done_category_keys:'$k'"
+  done <<<"$keys"
+  if [[ -n "$bad" ]]; then
+    printf '%s: jira config value(s) outside the allowed charset:%s — see CONTRACT.md "jira adapter"\n' "$name" "$bad" >&2
     exit "$EX_CONFIG"
   fi
   # curl is the read path's only prerequisite binary; gate here (exit 3, actionable)

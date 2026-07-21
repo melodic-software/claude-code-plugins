@@ -6,7 +6,7 @@
 # list-sub-items degrades to exit 6 at the core capability gate (all pre-network).
 # The read verbs (get-item/list-items) are covered offline by the adapter's own
 # *.test.sh with a mocked curl; a live-Jira conformance pass is deferred to the
-# 2026-07-21 work-laptop pass (settles the #4 statusCategory key and #6 link type).
+# work-laptop pass that settles the #4 statusCategory key and #6 link type (see #379).
 #
 # CB_REPO is left empty: no --repo is threaded through (the suite's read/create paths
 # that would use it are all skipped under the consume-only manifest).

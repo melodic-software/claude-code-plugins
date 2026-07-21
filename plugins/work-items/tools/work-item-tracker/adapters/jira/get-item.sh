@@ -19,6 +19,12 @@ wit_need_jira_config
 [[ "$WIT_ID_OWNER" == "$WIT_JIRA_SITE" ]] ||
   wit_usage_error "id site '$WIT_ID_OWNER' does not match bound config.jira.site '$WIT_JIRA_SITE'"
 
+# The id grammar's repo group is broader than a Jira project key; reject a
+# non-conforming key up front (exit 2) rather than reconstruct a native key the
+# normalizer's parser cannot split (which would surface as an opaque exit 5).
+[[ "$WIT_ID_REPO" =~ $WIT_JIRA_PROJECT_KEY_RE ]] ||
+  wit_usage_error "project key '$WIT_ID_REPO' is outside the allowed charset ($WIT_JIRA_PROJECT_KEY_RE)"
+
 # Reconstruct the native Jira key (PROJECTKEY-number) from the qualified id parts.
 key="$WIT_ID_REPO-$WIT_ID_NUMBER"
 
