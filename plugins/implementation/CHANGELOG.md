@@ -10,12 +10,15 @@ All notable changes to the `implementation` plugin are documented here. Format f
 - `implement-dispatch`'s "Compose the brief" step (`skills/implement-dispatch/SKILL.md`) now front-loads
   CI-hygiene and early-push clauses alongside the existing worktree-cwd clause: no issue-number back-references
   in code comments (the `comment-hygiene` check flags them; `TODO(#issue)` is the sanctioned exception);
-  any new shebang file must be marked executable via `git update-index --chmod=+x` before the commit
-  that introduces it (the `exec-bit` check flags a tracked shebang file recorded non-executable); and
-  commit, push, and open the PR as early as practical — before the CI-poll tail — so a mid-flight worker
-  session-limit death never orphans unpushed work. Reinforced as Gotchas-section reminders, matching the
-  worktree-cwd clause's existing pattern. Closes #819, where fresh dispatched workers repeatedly learned
-  these same PR-contract constraints via red CI instead of the brief.
+  any new shebang file must be marked executable on both the worktree and the index — `chmod +x <path>`
+  before `git update-index --chmod=+x <path>`, since the index flag alone leaves the worktree file at
+  `0644` and a later `git add` reverts it (the `exec-bit` check flags a tracked shebang file recorded
+  non-executable); and commit and push as early as practical — before the CI-poll tail — so a mid-flight
+  worker session-limit death never orphans unpushed work. PR creation stays out of every worker brief; it
+  belongs to the orchestrator's post-verification flow (`/implementation:implement` Step 5), invoked only
+  after every worker return is verified and the build/test gate passes. Reinforced as Gotchas-section
+  reminders, matching the worktree-cwd clause's existing pattern. Closes #819, where fresh dispatched
+  workers repeatedly learned these same PR-contract constraints via red CI instead of the brief.
 
 ## [0.7.5]
 
