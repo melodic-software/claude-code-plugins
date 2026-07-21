@@ -13,8 +13,10 @@ All notable changes to the `playwright` plugin are documented here. Format follo
   `--hires` screenshots, `--mobile`/`--device=` emulation, and Windows
   `&`-in-URL shell-escaping guidance, all in `reference/commands.md`;
   `video-show-actions`/`video-hide-actions` auto-annotated video overlays in
-  `reference/tracing-and-video.md`; and a pointer to the (now-merged)
-  spec-driven plan/generate/heal workflow in `reference/test-generation.md`.
+  `reference/tracing-and-video.md`; and a distilled summary of the (now-merged)
+  spec-driven plan/generate/heal workflow in `reference/test-generation.md` —
+  self-contained rather than pointing normal use at `vendor/`, which this
+  skill's own SKILL.md reserves for drift-detection reading only.
 
 ## [0.3.2]
 

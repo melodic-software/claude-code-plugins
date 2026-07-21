@@ -63,6 +63,11 @@ skill_frontmatter::field() {
 #     upstream-version: 0.1.17
 # `skill_frontmatter::field` anchors at column 0 and cannot see this — it's
 # for top-level keys only. Prints nothing if the key is absent.
+#
+# `key` is spliced into an awk regex uninterpreted — safe only for plain
+# identifier-shaped keys (letters/digits/hyphen, e.g. `upstream-version`).
+# A key containing awk regex metacharacters (`.`, `[`, `*`, ...) would silently
+# mismatch, not error. All current call sites pass literal identifier keys.
 skill_frontmatter::metadata_field() {
   local key="$1"
   awk -v k="$key" '
