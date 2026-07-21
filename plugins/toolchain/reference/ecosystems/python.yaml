@@ -7,5 +7,5 @@ build-cmd: null # no separate build step; lint/test cover verification
 test-cmd: "uv run pytest -x -q" # plain pytest when the project doesn't use uv
 check-cmd: "uv run ruff check . --no-fix && uv run ruff format . --check && uv run pyright"
 fix-cmd: "uv run ruff check . --fix && uv run ruff format ." # pyright has no fix mode
-opt-in: "ruff config (ruff.toml, .ruff.toml, or pyproject.toml [tool.ruff]); pyright runs in its default basic mode absent a pyrightconfig.json or pyproject.toml [tool.pyright]"
+opt-in: "ruff config (ruff.toml, .ruff.toml, or pyproject.toml [tool.ruff]); pyright runs in its default standard mode absent a pyrightconfig.json or pyproject.toml [tool.pyright]"
 install-hint: "pip install ruff pyright uv | brew install uv ruff pyright | winget install astral-sh.uv"
