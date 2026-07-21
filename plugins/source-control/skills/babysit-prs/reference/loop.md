@@ -171,6 +171,27 @@ else
   [ "$(git rev-parse HEAD)" = "$PR_HEAD" ] && CHECKOUT_MODE="full" || CHECKOUT_MODE="read-only"
 fi
 
+# Resolve the push destination ONCE, here, for EVERY full-mode push path — the
+# freshness push, the conflict-continue push, and the §5.1.4 fix-cycle push all
+# read $PUSH_REMOTE. FAIL CLOSED: a same-repo head pushes to origin; a fork head
+# pushes to the remote `gh pr checkout` configured for the branch. If a fork
+# remote cannot be validated — a fork head reached via `--detach` leaves no
+# branch config — degrade to read-only rather than defaulting to origin, which
+# is the BASE repo and would write a same-named branch there instead of updating
+# the fork head (the cross-repo regression this guards; safety.md).
+if [ "$CHECKOUT_MODE" = "full" ]; then
+  if [ "$(gh pr view "$PR_NUMBER" --json isCrossRepository -q .isCrossRepository)" = "false" ]; then
+    PUSH_REMOTE=origin
+  else
+    PUSH_REMOTE=$(git config --get "branch.$BRANCH.remote" || true)
+    case "$PUSH_REMOTE" in
+      ""|.|origin)
+        echo "Fork head with no validated fork remote (detached or unmodifiable) — read-only"
+        CHECKOUT_MODE="read-only" ;;
+    esac
+  fi
+fi
+
 # Branch freshness — MERGE-ONLY (full mode only). Rebasing would rewrite history
 # and require a force-push, which safety.md ("Never Do Automatically") and
 # orchestration.md's never-force-push invariant forbid; the final squash merge
@@ -183,13 +204,9 @@ if [ "$CHECKOUT_MODE" = "full" ]; then
     MERGE_EXIT=$?
     if [ "$MERGE_EXIT" -eq 0 ]; then
       INTEGRATION_STATUS="integrated"
-      # Push to the remote gh pr checkout configured for this branch — origin for
-      # a same-repo head, the fork's remote for a write-allowed cross-repo (fork)
-      # head — never hardcoded origin, which would write a same-named branch on
-      # the base repo instead of the fork head. Refspec form works from detached
-      # HEAD too; fast-forward given the head assertion, never force. A rejected
-      # non-fast-forward push means the head moved: re-fetch and stop.
-      PUSH_REMOTE=$(git config --get "branch.$BRANCH.remote" || echo origin)
+      # Push by refspec (works from a detached HEAD too) to the pre-resolved
+      # $PUSH_REMOTE; fast-forward given the head assertion, never force. A
+      # rejected non-fast-forward push means the head moved: re-fetch and stop.
       git push "$PUSH_REMOTE" "HEAD:$BRANCH"
     else
       # Graduated conflict handling — attempt simple, abort complex.
@@ -302,7 +319,9 @@ When on the PR branch AND a comment is classified VALID after D3 validation:
 - [ ] Edit code to fix the issue
 - [ ] `git add <specific-files>` (never `-A` or `.`)
 - [ ] `git commit -m "<type>: <description>"`
-- [ ] `git push`
+- [ ] `git push "$PUSH_REMOTE" HEAD:$BRANCH` — refspec form against the same
+      pre-resolved `$PUSH_REMOTE` the freshness push used; a plain `git push`
+      is rejected from the `--detach` checkout a sibling-locked branch uses
 - [ ] Post a follow-up reply citing the commit SHA (D7)
 
 **One wave at a time:** address all current comments on this PR → commit + push → then
