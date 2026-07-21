@@ -799,6 +799,31 @@ else
   fail "git diff --output block should not warn precompute (rc=$rc): $out"
 fi
 
+# 18n. An external-program diff option (`git diff --ext-diff`) can run a
+#      configured diff.external helper, so it fails closed.
+make_skill precompute-extdiff '---
+name: precompute-extdiff
+description: "External diff. Use when: '"'"'running an external diff'"'"'."
+---
+
+## Steps
+
+```bash
+git diff --ext-diff
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run precompute-extdiff 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'precompute opportunity' <<<"$out"; then
+  pass "external-diff option on a git reader (--ext-diff) fails closed"
+else
+  fail "git diff --ext-diff block should not warn precompute (rc=$rc): $out"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1

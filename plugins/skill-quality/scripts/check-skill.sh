@@ -438,9 +438,13 @@ precompute_readonly_line() {
   case "$no_or" in *'|'*) return 1 ;; *) ;; esac
 
   # Side-effecting options that survive the head-command allowlist: command- or
-  # file-writing find primaries, and a git reader's file-output flag.
+  # file-writing find primaries, a git reader's file-output flag, and git's
+  # external-program diff options (`--ext-diff` runs a configured diff.external
+  # helper; `--textconv` runs a configured textconv filter). Repo config can
+  # still attach programs to a plain `git diff` (default diff.external / textconv
+  # on configured paths) — that is inherent to git and beyond a static line scan.
   # shellcheck disable=SC2016  # single quotes are deliberate: $ is an ERE end anchor, not a shell expansion
-  grep -qE '(^|[[:space:]])(-exec|-execdir|-ok|-okdir|-delete|-fprintf|-fprint|-fls|--output|rm|mv|cp|tee|sed|mkdir|touch)([[:space:]=]|$)' <<<"$line" && return 1
+  grep -qE '(^|[[:space:]])(-exec|-execdir|-ok|-okdir|-delete|-fprintf|-fprint|-fls|--output|--ext-diff|--textconv|rm|mv|cp|tee|sed|mkdir|touch)([[:space:]=]|$)' <<<"$line" && return 1
 
   local cmd="${line%%[[:space:]]*}"
   case "$cmd" in

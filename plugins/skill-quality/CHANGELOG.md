@@ -16,8 +16,9 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   mutation like `git stash` or `gh pr merge` is never read-only), and any shell construct that can hide
   a second command or a write disqualifies the line — redirection, command/process substitution
   (`$(...)`, backticks), backgrounding/chaining (`&`, `&&`, `;`), a bare pipe into a sink
-  (`git status | tee f`), and side-effecting options on an allowlisted reader (`find -exec`,
-  `git diff --output`). The `|| echo "<fallback>"` fallback form is the one preserved continuation.
+  (`git status | tee f`), and side-effecting or external-program options on an allowlisted reader
+  (`find -exec`, `git diff --output`, `git diff --ext-diff`/`--textconv`). The `|| echo "<fallback>"`
+  fallback form is the one preserved continuation.
   The check stays silent when the skill already uses any `!` injection. A static scan cannot tell an instruction-to-run block from
   an illustrative example, so the WARN is a candidate to hand-verify, not a defect; it reads fenced
   blocks only (not prose) and under-reports by design. Points at the official
