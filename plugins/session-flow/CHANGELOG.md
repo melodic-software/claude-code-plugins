@@ -1,5 +1,20 @@
 # Changelog — session-flow plugin
 
+## [0.12.3]
+
+### Changed
+
+- orchestrate: sharpened imperative 7's per-worker tiering into an explicit volume-based default.
+  Past a wide fan-out the cheaper tier is now the DEFAULT the whole fleet inherits (volume
+  multiplies every notch of over-provisioning), with an explicitly-hard stage (verify,
+  judge/adjudicate, judgment-heavy synthesis) as the standing exception that keeps the parent
+  tier — closing the residual enhancement from the spawn-inherit fix. Tier is also broadened
+  beyond model to reasoning effort: the doc-confirmed per-worker `effort` lever means a cheaper
+  tier can be a cheaper model, a lower effort, or both. Guidance stays model-/tool-agnostic in the
+  imperatives and export brief; the version-pinned platform specifics behind it (the fleet-model
+  inherit mechanism, the platform's own wide-run threshold, and the `effort` enum) are recorded as
+  citations in the skill's `context/sources.md`.
+
 ## [0.12.2]
 
 ### Changed
