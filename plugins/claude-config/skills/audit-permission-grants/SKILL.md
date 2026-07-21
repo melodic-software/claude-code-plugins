@@ -24,7 +24,7 @@ The mechanical check definitions (P1/P2/P3, severities, detector invocation) are
 This skill owns grant portability + auto-mode durability + who adds the operative rule. It does **not**
 own config-file correctness — baseline deny/ask presence, deprecated `:*` syntax, overly broad
 patterns, or live plugin drift belong to the sibling `audit` skill. When a request is about
-those, route it there rather than answering here. The `health` skill in the `claude-memory` plugin
+those, route it there rather than answering here. The `audit` skill in the `claude-memory` plugin
 owns the instruction layer (CLAUDE.md / rules / auto-memory).
 
 ## Arguments

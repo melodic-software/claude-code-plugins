@@ -163,12 +163,9 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: 
 
 ## Output format
 
-The skill presents findings as a table and one proposed diff per finding:
-
-```text
-| # | Check | Surface:Line | Severity | Tier | Authority | Finding | Proposed change |
-|---|-------|--------------|----------|------|-----------|---------|-----------------|
-```
+Findings are presented using the Phase D report table defined in the skill body
+([SKILL.md](../SKILL.md)), one proposed diff per finding — the column set lives there and is not
+restated here.
 
 A clean audit ("No instructions flagged.") is a valid outcome. Behavioral-tier proposals are
 always presented as proposals paired with the delete-and-watch follow-through, never as confident
