@@ -220,6 +220,22 @@ class ClassifyStuckChecksTests(unittest.TestCase):
         self.assertEqual([s["class"] for s in stuck], [checks.STUCK_NEVER_SETTLING])
         self.assertEqual(stuck[0]["target_url"], "https://ci.example/run")
 
+    def test_never_settling_in_progress_check_run_past_threshold(self) -> None:
+        old = _norm(__typename="CheckRun", name="integration", status="IN_PROGRESS",
+                    startedAt=OLD_TS)
+        stuck = self._stuck([old])
+        self.assertEqual([s["class"] for s in stuck], [checks.STUCK_NEVER_SETTLING])
+        self.assertGreater(stuck[0]["age_seconds"], THRESHOLD)
+
+    def test_orphaned_status_without_inception_has_null_age(self) -> None:
+        # An app that posts a pending status with no createdAt still classifies
+        # as orphaned (structural, not age-gated), with a null age_seconds.
+        orphan = _norm(__typename="StatusContext", context="ext", state="PENDING",
+                       targetUrl="")
+        stuck = self._stuck([orphan])
+        self.assertEqual([s["class"] for s in stuck], [checks.STUCK_ORPHANED_STATUS])
+        self.assertIsNone(stuck[0]["age_seconds"])
+
     def test_settled_and_success_checks_are_never_stuck(self) -> None:
         failed = _norm(__typename="CheckRun", name="build", status="COMPLETED",
                        conclusion="FAILURE", startedAt=OLD_TS)

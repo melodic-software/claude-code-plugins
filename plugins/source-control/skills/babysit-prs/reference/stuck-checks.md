@@ -9,7 +9,10 @@ is a **report/escalation** signal, never an auto-fix trigger.
 
 The snapshot engine classifies stuck checks from data it already normalizes — no extra GitHub
 fetch. Each PR carries `checks.stuck[]`, always present (empty when none), where each entry is
-`{name, type, class, target_url, details_url, age_seconds}`. Detection fires only under
+`{name, type, class, target_url, details_url, age_seconds}`. `age_seconds` is the check's age at
+snapshot time in seconds, or **`null`** when no inception timestamp is known — expected for
+`orphaned_status` entries from apps that post a pending status without a `createdAt`, which is also
+why that class is detected structurally rather than by age. Detection fires only under
 `mergeStateStatus == UNSTABLE`. That state's own contract — "mergeable, every REQUIRED gate
 satisfied, a non-required commit status not passing" — is why a stuck non-required check is not a
 required-check failure; the same fact is stated for the single-PR lifecycle in the pull-request
