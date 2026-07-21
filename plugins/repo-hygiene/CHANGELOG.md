@@ -3,14 +3,14 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.4.5]
+## [0.4.6]
 
 ### Documentation
 
 - `skills/clean/scripts/lib/test-helpers.sh` now points at
   `docs/conventions/shell-test-helpers/README.md`, the repo's owner doc recording that per-plugin
   shell assert-helper duplication and per-script exit-code taxonomies are deliberate, not drift. No
-  behavior change.
+  behavior change. Version bumped past `#860`'s open `0.4.5` claim to avoid a collision.
 
 ## [0.4.4]
 
