@@ -689,6 +689,57 @@ plugins-reference, and hooks pages 2026-07-17; re-verify per the `CLAUDE.md` fre
 Record accept/deny + rationale for any plugin touching surfaces 2, 5, 6, or 7; a later version bump
 that introduces a new surface re-triggers this review.
 
+### Review record — `github` (ACCEPT, 2026-07-21)
+
+Recorded here as the single SSOT (miro §2 precedent). Reviewed at `0.1.0`; a version bump adding a
+new trust surface re-triggers this review.
+
+- **Code execution (1).** No hooks, no scripts wired to any event. The plugin ships prompt
+  artifacts only (skills + reference markdown) plus `github.test.sh`, a repo-CI contract test
+  referenced by nothing in the manifest — inert in a consumer install.
+- **MCP servers (2).** None.
+- **Consumer config (3).** One `userConfig` boolean (`offer_browser_automation`, non-sensitive,
+  documented, default `true`). No credential options: authentication stays entirely in the
+  consumer's own `gh` CLI login — the plugin never prompts for, stores, or transports a token.
+  Consumer-side routing/conventions files live at the documented `.claude/github/` project layers
+  and `~/.claude/github/` user-global layer (sanctioned read per criterion 4's operator-home
+  carve-out).
+- **Cache isolation (4).** All intra-plugin references anchor at `${CLAUDE_PLUGIN_ROOT}` (skills)
+  or resolve inside the plugin directory (reference cross-links). No `../` reach-outs beyond the
+  plugin root, no constructed absolute paths.
+- **Data egress (5).** Three channels, all consumer-initiated, no telemetry:
+  - `api.github.com` via the consumer's **own** `gh` auth. Bare invocations are read-only by
+    written contract (write-capability guard: no field/input flags, no non-GET method, no GraphQL
+    `mutation`); writes exist only behind `--apply` → consumer-declared routing → per-step user
+    confirm naming the exact command and its doc provenance.
+  - Official GitHub docs (`docs.github.com` et al.) runtime fetches for grounding — the D4
+    zero-vendored-knowledge posture; read-only, with a fetch-integrity rung and a
+    refuse-recall-as-grounded branch.
+  - **Browser automation over the consumer's authenticated GitHub session** — the heavy surface,
+    accepted with layered gates: presence-gated (claude-in-chrome tool probe / playwright
+    plugin-installed seam), **never auto-fires**, each action individually offered and confirmed
+    with the resolved settings URL, intended action, and mechanics provenance; post-write
+    read-back verification where an API read exists; guided-manual + deep-link fallback always
+    available. `offer_browser_automation: false` suppresses the offer — recorded honestly as an
+    **advisory, model-honored gate layered under the per-action confirm, not a runtime-enforced
+    kill switch**; the hard gate is the per-action user confirm. Accept rationale: some org-admin
+    surfaces are UI-only, the session and credentials remain the user's own, and every action is
+    user-in-loop; denying the surface would only push users to unassisted manual clicking with no
+    provenance trail.
+- **Prompt injection via ingested GitHub content (explicit item).** Everything fetched from GitHub
+  (repo names, descriptions, issue/PR bodies, webhook URLs, custom property values) is declared
+  **untrusted data, never instructions** as a standing instruction in both ingesting skills
+  (`audit`, `advise`); an injected instruction must not trigger a write, browser action, or
+  routing change. Evidence: anti-pattern eval cases (audit id 5, advise id 9). Defense in depth:
+  every write path is already user-in-loop, so a successful steer still lands on a human confirm.
+- **Provenance & third-party trust (6).** First-party authored (`author` = Melodic Software),
+  MIT. No third-party SaaS delegation: the only vendor wired is GitHub itself, reached through the
+  consumer's pre-existing `gh` relationship.
+- **Main-thread / PATH (7).** No `settings.json` `agent`, no `bin/`.
+
+**Verdict: ACCEPT** — surfaces 1/2/7 absent; 3/4 conform; 5's browser-automation channel accepted
+with the layered gates above; 6 first-party.
+
 ## Local development loop
 
 For a plugin that already ships here, iterate against your local clone without re-publishing and

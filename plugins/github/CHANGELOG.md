@@ -7,6 +7,12 @@ All notable changes to the `github` plugin are documented here. Format follows
 
 ### Added
 
+- Published to the marketplace catalog (`category: operations`) after clearing the per-plugin
+  migration gate and the plugin-acceptance security review (record in the playbook's
+  security-review section — no hooks/MCP/bin; egress limited to the consumer's own `gh` auth,
+  official-docs runtime fetches, and the opt-in confirm-gated browser-automation offer; ingested
+  GitHub content treated as untrusted data).
+
 - Walking skeleton: the `audit` skill end-to-end — area router (`reference/areas.md`, every
   coverage-matrix area), generic method ladder (`reference/method-ladder.md`: `gh` native →
   `gh api` REST → GraphQL → UI-only detection → guided manual + deep link, with fetch-integrity,

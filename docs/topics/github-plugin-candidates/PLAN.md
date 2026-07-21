@@ -371,7 +371,7 @@ live `gh` state + runtime doc fetch → grounded findings) on the real platform 
 - `grep -riEn "melodic|medley|github-iac|pulumi" plugins/github/ --include='*.md'` returns empty
   (publisher metadata in `plugin.json` `author` is the sanctioned exception).
 
-#### Phase 7: Gates + publish [TODO]
+#### Phase 7: Gates + publish [DONE]
 
 - Walk the per-plugin migration gate (11 steps) and record outcomes.
 - Plugin-acceptance security review, recorded in `docs/MIGRATION-PLAYBOOK.md` per the miro
