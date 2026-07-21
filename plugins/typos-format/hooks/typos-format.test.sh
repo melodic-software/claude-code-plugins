@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # Black-box contract test for typos-format.sh (the typos-format plugin hook).
 #
-# Proves WIRING: the hook fires on any file (no extension filter), gates on a
-# consumer typos config (present -> run, absent -> leave bytes untouched),
-# honors typos.toml > _typos.toml > .typos.toml > Cargo.toml > pyproject.toml
-# precedence, applies typos' safe corrections in place, surfaces residual
-# (unfixable) findings via additionalContext with remediation guidance,
-# honors the kill switch, and emits a schema-valid telemetry envelope.
+# Proves WIRING: the hook fires on any file (no extension filter) UNCONDITIONALLY
+# -- with or without a consumer typos config present -- honors typos' own
+# native typos.toml > _typos.toml > .typos.toml > Cargo.toml > pyproject.toml
+# discovery/precedence when a config IS present, applies typos' safe
+# corrections in place, surfaces residual (unfixable) findings via
+# additionalContext with remediation guidance, honors the kill switch, and
+# emits a schema-valid telemetry envelope.
 #
 # Self-contained: builds throwaway git repos with runtime-generated fixtures.
 # The hook is invoked from an UNRELATED cwd so any reliance on the caller's
@@ -113,40 +114,37 @@ run_hook_env() {
   )
 }
 
-# --- Case 1: opt-in gate OFF (no typos config) -> file left untouched -------
-# A repo with typos installed but NO config must not have its files checked
-# against typos' built-in dictionary.
+# --- Case 1: NO typos config anywhere -> hook still runs and fixes the typo -
+# The activation gate is gone: typos ships a built-in dictionary and runs with
+# zero configuration, so a repo with typos installed but NO config must still
+# have its files checked and fixed (not left untouched).
 REPO_NO="$WORK/no-config"
 new_typos_repo "$REPO_NO" NO_CONFIG
 printf 'this has teh typo\n' >"$REPO_NO/doc.txt" # spellchecker:disable-line
-BEFORE_NO="$(cat "$REPO_NO/doc.txt")"
 OUT=$(run_hook "$REPO_NO/doc.txt")
 RC=$?
-if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "gate OFF (no config) -> exit 0, silent"; else fail "gate OFF not silent (rc=$RC out=$OUT)"; fi
-if [[ "$(cat "$REPO_NO/doc.txt")" == "$BEFORE_NO" ]]; then ok "gate OFF -> file left untouched"; else fail "gate OFF -> file was rewritten"; fi
+if [[ $RC -eq 0 ]]; then ok "no config anywhere -> exit 0 (advisory)"; else fail "no config anywhere exit $RC"; fi
+if grep -q ' the ' "$REPO_NO/doc.txt"; then
+  ok "no config anywhere -> typos autofixed unconditionally (no opt-in gate)"
+else
+  fail "no config anywhere -> file not fixed: $(cat "$REPO_NO/doc.txt")"
+fi
 
-# --- Case 1b: pyproject.toml WITHOUT [tool.typos] does NOT opt in -----------
-REPO_PP="$WORK/pyproject-plain"
-new_typos_repo "$REPO_PP" NO_CONFIG
-printf '[project]\nname = "t"\n' >"$REPO_PP/pyproject.toml"
-printf 'this has teh typo\n' >"$REPO_PP/plain.txt" # spellchecker:disable-line
-BEFORE_PP="$(cat "$REPO_PP/plain.txt")"
-OUT=$(run_hook "$REPO_PP/plain.txt")
-RC=$?
-if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "pyproject without [tool.typos] -> exit 0, silent (no opt-in)"; else fail "plain pyproject opted in (rc=$RC out=$OUT)"; fi
-if [[ "$(cat "$REPO_PP/plain.txt")" == "$BEFORE_PP" ]]; then ok "pyproject without [tool.typos] -> file left untouched"; else fail "plain pyproject -> file was rewritten"; fi
-
-# --- Case 1c: pyproject.toml WITH [tool.typos] opts in ----------------------
+# --- Case 1c: pyproject.toml WITH [tool.typos] present -> still fixed ------
+# Config presence is no longer an activation switch either way; confirms a
+# governing pyproject.toml section doesn't interfere with the unconditional run.
 REPO_PT="$WORK/pyproject-typos"
 new_typos_repo "$REPO_PT" NO_CONFIG
 printf '[project]\nname = "t"\n\n[tool.typos]\n' >"$REPO_PT/pyproject.toml"
 printf 'this has teh typo\n' >"$REPO_PT/opt.txt" # spellchecker:disable-line
 OUT=$(run_hook "$REPO_PT/opt.txt")
 RC=$?
-if [[ $RC -eq 0 ]]; then ok "pyproject with [tool.typos] -> exit 0"; else fail "pyproject opt-in exit $RC"; fi
-if grep -q ' the ' "$REPO_PT/opt.txt"; then ok "pyproject with [tool.typos] -> file fixed"; else fail "pyproject opt-in -> not fixed: $(cat "$REPO_PT/opt.txt")"; fi
+if [[ $RC -eq 0 ]]; then ok "pyproject with [tool.typos] -> exit 0"; else fail "pyproject with [tool.typos] exit $RC"; fi
+if grep -q ' the ' "$REPO_PT/opt.txt"; then ok "pyproject with [tool.typos] -> file fixed"; else fail "pyproject with [tool.typos] -> not fixed: $(cat "$REPO_PT/opt.txt")"; fi
 
-# --- Case 1d: typos.toml takes precedence over _typos.toml in the same dir --
+# --- Case 1d: typos' own precedence — typos.toml wins over _typos.toml -----
+# This is typos' NATIVE config discovery (Config::from_dir), not anything the
+# hook implements — the hook no longer does its own config walk at all.
 REPO_PREC="$WORK/precedence"
 new_typos_repo "$REPO_PREC" NO_CONFIG
 printf '[default.extend-words]\nfooone = "correctone"\n' >"$REPO_PREC/_typos.toml"
@@ -154,12 +152,12 @@ printf '[default.extend-words]\nfootwo = "correcttwo"\n' >"$REPO_PREC/typos.toml
 printf 'this has fooone and footwo words\n' >"$REPO_PREC/p.txt"
 run_hook "$REPO_PREC/p.txt" >/dev/null
 if grep -q 'correcttwo' "$REPO_PREC/p.txt" && grep -q 'fooone' "$REPO_PREC/p.txt"; then
-  ok "typos.toml wins over _typos.toml in the same directory"
+  ok "typos.toml wins over _typos.toml in the same directory (typos' own precedence)"
 else
   fail "config precedence wrong: $(cat "$REPO_PREC/p.txt")"
 fi
 
-# --- Case 2: gate ON + clean file -> exit 0, empty stdout -------------------
+# --- Case 2: config present + clean file -> exit 0, empty stdout -----------
 REPO="$WORK/consumer"
 new_typos_repo "$REPO"
 printf 'this is a clean document\n' >"$REPO/clean.txt"
@@ -168,16 +166,16 @@ RC=$?
 if [[ $RC -eq 0 ]]; then ok "clean file -> exit 0"; else fail "clean file exit $RC"; fi
 if [[ -z "$OUT" ]]; then ok "clean file -> empty stdout"; else fail "clean file stdout not empty: $OUT"; fi
 
-# --- Case 3: gate ON + fixable typo -> autofixed in place -------------------
+# --- Case 3: config present + fixable typo -> autofixed in place -----------
 mkdir -p "$REPO/src"
 printf 'this has teh typo\n' >"$REPO/src/fix.txt" # spellchecker:disable-line
 OUT=$(run_hook "$REPO/src/fix.txt")
 RC=$?
 if [[ $RC -eq 0 ]]; then ok "fixable typo -> exit 0 (advisory)"; else fail "fixable typo exit $RC"; fi
 if grep -q ' the ' "$REPO/src/fix.txt"; then
-  ok "gate ON (subdir file) -> typos autofixed"
+  ok "config present (subdir file) -> typos autofixed"
 else
-  fail "gate ON -> file not fixed: $(cat "$REPO/src/fix.txt")"
+  fail "config present -> file not fixed: $(cat "$REPO/src/fix.txt")"
 fi
 
 # --- Case 3b: config nested BELOW repo root (root itself has no config) -----
@@ -197,7 +195,7 @@ else
   fail "nested config not applied: $(cat "$REPO_NEST/packages/pkg/file.txt")"
 fi
 
-# --- Case 4: gate ON + unfixable finding -> advisory context with remediation
+# --- Case 4: config present + unfixable finding -> advisory context with remediation
 mkdir -p "$REPO/lib"
 printf 'this has a disallowme term\n' >"$REPO/lib/lint.txt"
 OUT=$(run_hook "$REPO/lib/lint.txt")
@@ -302,24 +300,25 @@ else
 fi
 rm -f "$TEL"
 
-# --- Stub sink + gate OFF -> status skipped -----------------------------------
-printf 'this has teh typo\n' >"$REPO_NO/tel2.txt" # spellchecker:disable-line
+# --- Stub sink + no config present -> status ok (still runs) -----------------
+printf 'this is a clean telemetry check with no config\n' >"$REPO_NO/tel2.txt"
 TELS="$(mktemp)"
 SINKS="$(make_sink "cat >\"$TELS\"")"
 run_hook_env "$REPO_NO/tel2.txt" PATH="$(dirname "$REAL_TYPOS"):$PATH" CLAUDE_PLUGIN_OPTION_TYPOS_FORMAT_ENABLED=true HOOK_TELEMETRY_SINK="$SINKS" >/dev/null
 wait_for_sink "$TELS"
 if [[ -s "$TELS" ]]; then
-  if [[ "$(jq -r '.status' "$TELS")" == "skipped" ]]; then ok "telemetry/gate-off: status skipped"; else fail "telemetry/gate-off: status=$(jq -r '.status' "$TELS")"; fi
-  if [[ "$(jq '.data.findings | length' "$TELS")" -eq 0 ]]; then ok "telemetry/gate-off: findings empty array"; else fail "telemetry/gate-off: findings not empty"; fi
+  if [[ "$(jq -r '.status' "$TELS")" == "ok" ]]; then ok "telemetry/no-config: status ok (unconditional run)"; else fail "telemetry/no-config: status=$(jq -r '.status' "$TELS")"; fi
+  if [[ "$(jq '.data.findings | length' "$TELS")" -eq 0 ]]; then ok "telemetry/no-config: findings empty array"; else fail "telemetry/no-config: findings not empty"; fi
 else
-  fail "telemetry/gate-off: no envelope written"
+  fail "telemetry/no-config: no envelope written"
 fi
 rm -f "$TELS"
 
 # --- Missing-tool visibility (dim-9 doctrine) --------------------------------
-# Fake-bin dir of exec wrappers (no typos): a repo with a governing typos
-# config but no binary must produce a visible once-per-session skip notice on
-# both channels, silent on the second run. jq removal then exercises the
+# Fake-bin dir of exec wrappers (no typos): with no 'typos' binary on PATH the
+# hook must produce a visible once-per-session skip notice on both channels
+# (regardless of whether a typos config exists — activation no longer depends
+# on one), silent on the second run. jq removal then exercises the
 # input-parsing gate.
 FAKEBIN="$(mktemp -d -p "$WORK" fakebin.XXXXXX)"
 for t in bash jq git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink; do
@@ -345,8 +344,8 @@ run_nt() {
 OUT_NT=$(run_nt)
 RC_NT=$?
 if [[ $RC_NT -eq 0 ]]; then ok "typos-absent -> exit 0"; else fail "typos-absent exit $RC_NT"; fi
-if jq -e '(.systemMessage | contains("typos")) and (.hookSpecificOutput.additionalContext | contains("typos config"))' <<<"$OUT_NT" >/dev/null 2>&1; then
-  ok "typos-absent with governing config -> visible notice on both channels"
+if jq -e '(.systemMessage | contains("typos")) and (.hookSpecificOutput.additionalContext | contains("was found on PATH"))' <<<"$OUT_NT" >/dev/null 2>&1; then
+  ok "typos-absent -> visible notice on both channels"
 else
   fail "typos-absent: notice missing or malformed: $OUT_NT"
 fi

@@ -8,17 +8,20 @@
 # entry) findings surface via additionalContext but never block the edit. A
 # commit hook or CI is the hard gate.
 #
-# Opt-in: typos runs ONLY when a typos configuration governs the edited file —
-# found by walking up from the file to the repo root, checking (in precedence
-# order, per crate-ci/typos' own docs at
-# https://github.com/crate-ci/typos/blob/master/docs/reference.md)
-# typos.toml, _typos.toml, .typos.toml, Cargo.toml (with
-# [workspace.metadata.typos] or [package.metadata.typos]), or pyproject.toml
-# (with [tool.typos]). A repo that has not adopted a typos config is left
-# untouched rather than checked against typos' built-in defaults, so the
-# plugin never imposes a style it did not choose. The typos binary is resolved
-# from PATH only — never downloaded (typos is a standalone Rust binary with no
-# per-repo dependency-manager convention, unlike ruff's .venv).
+# Unconditional: typos ships a built-in spelling dictionary and runs with zero
+# configuration, so this hook runs on every edited file regardless of whether
+# the repo has a typos config — matching markdown-format's unconditional
+# pattern rather than ruff-format's config-gated one (Ruff/Biome require
+# project-specific configuration to be useful; typos does not). When a typos
+# config (typos.toml, _typos.toml, .typos.toml, Cargo.toml with
+# [workspace.metadata.typos]/[package.metadata.typos], or pyproject.toml with
+# [tool.typos]) IS present, typos discovers and honors it itself — per
+# crate-ci/typos' own docs at
+# https://github.com/crate-ci/typos/blob/master/docs/reference.md — to widen
+# its allowlist or excludes; this hook does no config discovery of its own.
+# The typos binary is resolved from PATH only — never downloaded (typos is a
+# standalone Rust binary with no per-repo dependency-manager convention,
+# unlike ruff's .venv).
 #
 # Hook-precision: this convention is fleet-wide by intent (its owner doc says
 # "every plugin hook follows" it), even though today's CI-audited enforcement
@@ -82,8 +85,8 @@ FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
 
 TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
 
-# Resolve repo root early — used to bound the config opt-in walk and to compute
-# the schema-required repo-relative path in data.file.
+# Resolve repo root early — used to compute the schema-required repo-relative
+# path in data.file and to anchor RUN_DIR below.
 REPO_ROOT="$(hook::repo_root "$(dirname "$FILE")")"
 # Repo-relative path: schema requires "relative to the consuming repo root".
 # On Windows Git Bash, git rev-parse --show-toplevel returns a drive-letter path
@@ -122,52 +125,20 @@ emit_skipped() {
   exit 0
 }
 
-# Resolve the file's directory in `pwd` form once. Both walks below start here.
+# Resolve the file's directory in `pwd` form once — feeds RUN_DIR/TYPOS_ARG below.
 FILE_DIR_POSIX="$(cd "$(dirname "$FILE")" 2>/dev/null && pwd)" || FILE_DIR_POSIX=""
 root="$(cd "$REPO_ROOT" 2>/dev/null && pwd)" || root=""
-
-# Consumer opt-in: a typos configuration that governs the edited file. Walk up
-# from the file's directory to the repo root, stopping at the FIRST config
-# found — typos itself resolves the closest config per-directory (checking all
-# recognized names together before ascending, per crate-ci/typos'
-# Config::from_dir), so the closest hit is exactly the config that will govern
-# the run. Same-directory precedence mirrors typos' own documented order:
-# typos.toml > _typos.toml > .typos.toml > Cargo.toml (workspace/package
-# metadata.typos) > pyproject.toml ([tool.typos]). Absence of any config is the
-# opt-out: the file is left untouched.
-CONFIG_FOUND=""
-dir="$FILE_DIR_POSIX"
-while [[ -n "$dir" ]]; do
-  for name in typos.toml _typos.toml .typos.toml; do
-    [[ -f "$dir/$name" ]] && CONFIG_FOUND="$dir/$name" && break
-  done
-  if [[ -z "$CONFIG_FOUND" && -f "$dir/Cargo.toml" ]] &&
-    grep -qE '^[[:space:]]*\[(workspace|package)\.metadata\.typos(\]|[.])' "$dir/Cargo.toml" 2>/dev/null; then
-    CONFIG_FOUND="$dir/Cargo.toml"
-  fi
-  if [[ -z "$CONFIG_FOUND" && -f "$dir/pyproject.toml" ]] &&
-    grep -qE '^[[:space:]]*\[tool\.typos(\]|[.])' "$dir/pyproject.toml" 2>/dev/null; then
-    CONFIG_FOUND="$dir/pyproject.toml"
-  fi
-  [[ -n "$CONFIG_FOUND" ]] && break
-  [[ -n "$root" && "$dir" == "$root" ]] && break
-  parent="$(dirname "$dir")"
-  [[ "$parent" == "$dir" ]] && break # reached filesystem root
-  dir="$parent"
-done
-
-[[ -n "$CONFIG_FOUND" ]] || emit_skipped
 
 # Resolve the typos binary from PATH — never downloaded (typos is a standalone
 # Rust binary; no per-repo dependency-manager convention exists for it, unlike
 # ruff's .venv or markdownlint's node_modules).
 TYPOS_BIN="$(command -v typos 2>/dev/null)" || TYPOS_BIN=""
 
-# The repo opted in via a typos config but no binary is available → visible
-# once-per-session skip notice, not a silent gap (dim-9 doctrine).
+# No binary available → visible once-per-session skip notice, not a silent gap
+# (dim-9 doctrine).
 if [[ -z "$TYPOS_BIN" ]]; then
   if hook::notice_once "typos-format-typos" "$INPUT"; then
-    hook::emit_skip_notice PostToolUse "typos-format: a typos config governs this repo but no 'typos' binary was found on PATH — spell-check skipped for this session. Install: https://github.com/crate-ci/typos#install"
+    hook::emit_skip_notice PostToolUse "typos-format: no 'typos' binary was found on PATH — spell-check skipped for this session. Install: https://github.com/crate-ci/typos#install"
   fi
   emit_skipped
 fi
@@ -178,9 +149,8 @@ fi
 # line, not the process CWD (verified empirically: running from the repo root
 # with a relative subdirectory path still discovers and honors that
 # subdirectory's own config) — so running from repo root here does not change
-# which config governs; it matches the walk above regardless of nesting depth.
-# Falls back to the absolute path when the repo root did not resolve or the
-# file is outside it.
+# which config (if any) governs, regardless of nesting depth. Falls back to
+# the absolute path when the repo root did not resolve or the file is outside it.
 TYPOS_ARG="$FILE"
 RUN_DIR="${root:-$FILE_DIR_POSIX}"
 if [[ -n "$root" && -n "$FILE_REL" && "$FILE_REL" != "$FILE" ]]; then
@@ -240,7 +210,7 @@ fi
 # judgment was made. Surface the diagnostic via additionalContext (NOT stderr —
 # an advisory hook's exit-0 stderr can trip a false "Hook Error" label). Record
 # as "skipped" (typos never ran to judgment), the same status as the
-# no-config / no-binary paths.
+# no-binary path.
 hook::ctx_reset
 hook::ctx_append "typos-format: typos failed for $(basename "$FILE") (no diagnostics; tool break, not a finding):"
 while IFS= read -r line; do
