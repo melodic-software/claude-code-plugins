@@ -4,6 +4,7 @@ description: "Looks up and tracks known Claude product issues — searches known
 argument-hint: "<action> [args] — actions: status (default), search, check-all, scan, list, quality, create. e.g., 'search Stop hook', 'check-all', 'create bug \"title\"'"
 user-invocable: true
 disable-model-invocation: false
+shell: bash
 ---
 
 ## Pre-computed context

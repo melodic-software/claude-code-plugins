@@ -4,6 +4,7 @@ description: "Sweep stale references after renames — the syntactic forms token
 argument-hint: "[action] [<old> [to <new>]] [--include-historical|--include-memory|--include-plan-docs] (e.g., /rename-references audit, /rename-references audit blast /verify to /verify-changes, /rename-references audit half-rename /a to /b, /rename-references audit orphans /a to /b, /rename-references blocklist)"
 user-invocable: true
 disable-model-invocation: false
+shell: bash
 ---
 
 ## Pre-computed context

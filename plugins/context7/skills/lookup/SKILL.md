@@ -9,6 +9,7 @@ allowed-tools:
 metadata:
   upstream-version: upstash/context7@master
   synced: 2026-05-22
+shell: bash
 ---
 
 ## Pre-computed context

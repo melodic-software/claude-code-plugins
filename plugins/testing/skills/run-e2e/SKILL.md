@@ -4,6 +4,7 @@ description: "End-to-end live app verification — check prerequisites, start th
 argument-hint: "[scenario] (e.g., /testing:run-e2e, /testing:run-e2e the login flow, /testing:run-e2e non-ui)"
 user-invocable: true
 disable-model-invocation: false
+shell: bash
 ---
 
 ## Pre-computed context

@@ -4,6 +4,7 @@ description: "Start, restart, stop, and check loop lanes as named background Cla
 argument-hint: "[start|restart|status|stop] [lane...] — start (default); restart/stop accept lane names; --config, --repo, --dry-run, --no-pull, --no-update"
 user-invocable: true
 disable-model-invocation: true
+shell: bash
 ---
 
 ## Pre-computed context

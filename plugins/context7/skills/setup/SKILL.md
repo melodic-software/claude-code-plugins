@@ -7,6 +7,7 @@ disable-model-invocation: true
 allowed-tools:
   - "Bash(ctx7 --version*)"
   - "Bash(npm view ctx7 version*)"
+shell: bash
 ---
 
 ## Pre-computed context

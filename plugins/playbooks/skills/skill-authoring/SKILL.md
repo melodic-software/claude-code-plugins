@@ -6,6 +6,7 @@ disable-model-invocation: false
 metadata:
   upstream-version: 1.0.0
   synced: 2026-03-17
+shell: bash
 ---
 
 # How To Use Skills — from Anthropic's internal playbook
