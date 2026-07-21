@@ -403,6 +403,15 @@
       "selectorResultInput": "prerequisite-result",
       "allowedInputs": ["runner", "prerequisite-result", "exempt-authors"],
       "allowedSecrets": {}
+    },
+    "melodic-software/ci-workflows/.github/workflows/issue-triage-label.yml@c5e729c0af0e55ffed4675ec85c1b57356fef79e": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "allowedInputs": ["runner", "label", "label-prefix"],
+      "allowedSecrets": {},
+      "allowedCallerPermissions": {
+        "issues": "write"
+      }
     }
   },
   "canonicalSelectorInputs": {
