@@ -148,6 +148,7 @@ user opts in with `/plugin enable`; an existing install is never flipped by cata
 
 - [`kindle-dedrm`](plugins/kindle-dedrm) — Manage the Kindle for PC 2.8.0 + Calibre DeDRM workflow for personal-use ebook DRM removal on books you own (Windows only). Action router with setup, sync, update, cleanup, and status, each state mutation paired with a documented compensating reversal.
 - [`ai-briefing`](plugins/ai-briefing) — Build source-backed AI-industry briefings from official vendor publications, configured RSS/Atom feeds, GitHub releases, reputable secondary reporting, and user-supplied URLs. Deduplicate, rank, and present results as markdown or optional HTML/PPTX decks, with repository-owned profile, audience, and brand configuration. Automated X/Twitter collection is disabled; Playwright is used only for deterministic local rendering.
+- [`adhd`](plugins/adhd) — Shape the assistant's output for a reader with ADHD — action-first, low-friction responses: lead with the concrete next action, number multi-step work, restate state across turns, cap and rank lists, give concrete time estimates, make wins visible, and cut preamble, recap, and closers. On-demand and session-standing once invoked. Reauthored from ayghri/i-have-adhd (MIT). Deliberately mutually exclusive with terse-for-tokens output shapers like caveman — opposite objectives.
 
 <!-- catalog:end -->
 
