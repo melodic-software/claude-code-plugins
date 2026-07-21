@@ -172,36 +172,18 @@ Persist chosen line(s) into `${CLOSES_LINE}`. NEVER wrap a closing keyword in an
 ### 2.4.1 Push and assemble PR body
 
 ```bash
-# Push via the shared resolver in --push mode, which applies Git's documented
-# push precedence: branch.<name>.pushRemote, else remote.pushDefault, else the
-# §2.2 fetch order (branch.<name>.remote, else `origin`, else the sole other
-# configured remote). This is why the push resolves separately from §2.2's
-# fetch remote — Git lets the push destination differ, so a triangular fork
-# flow that fetches from `upstream` but sets pushRemote/pushDefault to the fork
-# pushes to the fork, not `upstream`. A fork may be named `origin`, `fork`, or
-# anything else, and a repo cloned with a non-origin sole remote (`git clone -o
-# vendor`) must push there too, not `origin`. Two or more non-origin candidates
-# with no `origin` set fails loudly (see §2.2) rather than pushing to an
-# arbitrary remote.
-#
-# `-u` is CONDITIONAL: `git push -u` rewrites `branch.<name>.remote` to the
-# push target, so on a triangular fork (fetch `upstream`, push a fork via
-# pushRemote/pushDefault) an unconditional `-u` would silently repoint the
-# FETCH remote §2.2 reads to the fork — breaking the next rebase. So bootstrap
-# tracking with `-u` only when the branch has no real `branch.<name>.remote`
-# yet (a fresh feature branch, or a local-only `.` upstream): the common first
-# push still sets upstream to `origin` exactly as before. When a real fetch
-# remote is already configured, push WITHOUT `-u` to preserve it. Either way
-# later pushes need no remote argument (tracking was already set, or `-u` just
-# set it). Match resolve-remote.sh's `\r` strip and `.`-as-unset convention.
-PUSH_REMOTE=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/resolve-remote.sh" --push) || exit 1
-BRANCH_NAME=$(git branch --show-current)
-EXISTING_FETCH_REMOTE=$(git config "branch.${BRANCH_NAME}.remote" 2>/dev/null | tr -d '\r')
-if [[ -n "$EXISTING_FETCH_REMOTE" && "$EXISTING_FETCH_REMOTE" != "." ]]; then
-  git push "$PUSH_REMOTE" "$BRANCH_NAME"
-else
-  git push -u "$PUSH_REMOTE" "$BRANCH_NAME"
-fi
+# Push via push-branch.sh, which resolves the push and fetch/rebase remotes
+# independently (resolve-remote.sh --push vs plain) and sets upstream (`-u`)
+# ONLY for a branch with NO existing upstream whose fetch and push both resolve
+# to the same remote (a fresh feature branch's first push). `git push -u`
+# rewrites the branch's whole upstream — both branch.<name>.remote AND
+# branch.<name>.merge — so any existing upstream (a real remote, or a deliberate
+# local-only `.`) is preserved by a plain push instead. This closes two silent
+# corruptions: a triangular fork (push a fork via pushRemote/pushDefault, fetch
+# `origin`/`upstream`) no longer repoints the fetch remote to the fork, and an
+# already-tracked branch no longer has its merge ref overwritten. See the script
+# header for the full rationale.
+bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/push-branch.sh" || exit 1
 ```
 
 Derive PR title from the commit subject, shaped to satisfy the resolved subject/title convention (the ladder in [SKILL.md](../SKILL.md): layered `source-control.md` config → project convention → Conventional Commits default). Build body with `${CLOSES_LINE}` at top, followed by Summary + Test plan + a `## Related` section + a config-gated attribution line:

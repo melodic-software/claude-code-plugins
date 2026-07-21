@@ -3,6 +3,38 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.5]
+
+### Fixed
+
+- **`/pull-request` create flow no longer silently corrupts a branch's fetch/rebase upstream when
+  publishing it for a PR (#442, residual finding from PR #763).** A post-merge review empirically
+  reproduced a residual silent clobber: §2.4.1's conditional `-u` gate keyed on the LITERAL
+  `branch.<name>.remote` config being set. In the triangular shape where `remote.pushDefault` names a
+  fork globally but `branch.<name>.remote` is unset (so fetch/rebase falls back to `origin`), the gate
+  read "unset", took the `-u` bootstrap path, and `git push -u <fork>` rewrote `branch.<name>.remote`
+  to the fork — so the next fetch/rebase silently targeted the fork instead of `origin`. The gate now
+  fires `-u` only when the branch has NO existing upstream (`branch.<name>.remote` literally unset)
+  AND its fetch and push remotes resolve to the same name (`resolve-remote.sh` fetch-mode vs `--push`);
+  otherwise it pushes plain and writes no branch config. This closes the reported `pushDefault`-only
+  clobber (fetch resolves `origin`, push resolves the fork → they differ → plain push, upstream
+  untouched) and a second corruption the fix surfaced: `git push -u` rewrites the branch's WHOLE
+  upstream — both `branch.<name>.remote` and `branch.<name>.merge` — so an already-tracked branch, or
+  one on a deliberate local-only `.` upstream (`git branch --track . <ref>`), kept its merge ref
+  overwritten under a resolved-name-only comparison. Requiring the upstream to be absent before
+  bootstrapping preserves any existing one via plain push. This also changes #763's behavior for the
+  `.` case (it took the `-u` path); publishing a branch for a PR no longer mutates a deliberate
+  local-only upstream — a strict improvement. An ambiguous fetch resolution (empty) is unequal to any
+  push remote → plain push, never an abort. The conditional moved out of the `create.md` prose into a
+  new co-located `scripts/push-branch.sh` (§2.4.1 now delegates to it), so the gate sequence is
+  executable and testable rather than living only in markdown; the normalized `.`-as-unset / `\r`-strip
+  handling stays solely in `resolve-remote.sh` and is not duplicated (the literal-unset probe reads the
+  key raw — `.` is non-empty, i.e. "has an upstream"). New `push-branch.test.sh` drives the full
+  resolve-fetch → resolve-push → conditional-push → re-resolve-fetch sequence against real bare remotes
+  across the pushRemote-triangular, `pushDefault`-only triangular, non-triangular (asserting the merge
+  ref is preserved), fresh-branch bootstrap, local-only `.`, and fetch-ambiguous shapes — the
+  integration coverage whose absence let this escape `resolve-remote.test.sh`'s resolver-only cases.
+
 ## [0.15.4]
 
 ### Fixed
