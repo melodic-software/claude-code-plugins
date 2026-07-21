@@ -8,26 +8,28 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
 ### Added
 
 - **dotnet ecosystem `opt-in` key** (`.editorconfig` with a `[*]` or C#-glob
-  section, walked from the changed file up to the repo root — empirically
-  verified against dotnet SDK 10.0.302 that a universal `[*]` section governs
-  `dotnet format`'s output on `.cs` files just as a `[*.cs]` section would,
-  while a `.editorconfig` with only unrelated globs has zero effect) —
-  closes the one lint-bearing ecosystem gap where a config-presence opt-in
-  didn't exist.
+  section, walked from the changed file up to the repo root or a
+  `root = true` marker, whichever comes first — empirically verified against
+  dotnet SDK 10.0.302 that a universal `[*]` section governs `dotnet format`'s
+  output on `.cs` files just as a `[*.cs]` section would, that a
+  `.editorconfig` with only unrelated globs has zero effect, and that a
+  nested `root = true` marker genuinely stops EditorConfig discovery before
+  it reaches an outer section) — closes the one lint-bearing ecosystem gap
+  where a config-presence opt-in didn't exist.
 - **`/toolchain:check` now honors `opt-in`** for the lint phase (it never did
   before — `dotnet format --verify-no-changes` ran unconditionally whenever
   `.cs`/`.csproj`/etc. files changed, regardless of whether the repo
   configured any style/analyzer preferences). Build and test are unaffected;
-  only the lint phase is gated.
+  only the lint phase is gated. This binary run/skip treatment applies to
+  single-condition ecosystems (dotnet, python); multi-tool ecosystems whose
+  `opt-in` bundles several sub-tools into one opaque command string (bash,
+  cross-cutting) are unchanged from prior behavior — a bundled command
+  cannot be partially suppressed, a known limitation documented in
+  `check/SKILL.md`'s Gotchas.
 - **Visible `skip (opt-in unmet: ...)` status** in both `/toolchain:check`
-  and `/toolchain:lint` results tables — an ecosystem whose `opt-in`
-  condition isn't met is now reported, not silently dropped from output as
+  and `/toolchain:lint` results tables — a single-condition ecosystem whose
+  `opt-in` isn't met is now reported, not silently dropped from output as
   it previously was in `/toolchain:lint` for every opt-in-bearing ecosystem.
-  Multi-tool ecosystems (bash's shellcheck-always/shfmt-conditional split,
-  cross-cutting's per-tool config list) are only whole-row-skipped when
-  every sub-tool's condition is unmet — an unconditionally-applicable
-  sub-tool (e.g. shellcheck) still runs and reports even when a sibling
-  sub-tool in the same ecosystem is gated.
 
 ### Fixed
 
