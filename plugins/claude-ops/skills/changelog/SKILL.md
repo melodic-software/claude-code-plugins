@@ -73,7 +73,7 @@ The full pipeline runs explore → research → interview → plan → implement
 
 Resolve changelog content and check version alignment:
 
-1. **Check installed CC version:** `claude --version 2>/dev/null`. Compare against target version per "Version awareness" above
+1. **Check installed CC version:** use the value precomputed at load in "Version awareness" above; compare against the target version
 2. **Resolve content** (first match wins):
    - Changelog text already in conversation → parse it
    - Version arg provided (e.g., `apply v2.1.152`) → run `fetch` for that version
