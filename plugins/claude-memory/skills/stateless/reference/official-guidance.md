@@ -70,6 +70,18 @@ survives the env var later being unset.
 real memory dir may not be the slug-derived default. Purge must read that key at every scope
 before it enumerates what to delete, or it can miss (and fail to purge) a relocated store.
 
+### CLAUDE_CONFIG_DIR relocates the whole config root
+
+> "On Windows, `~/.claude` resolves to `%USERPROFILE%\.claude`. If you set `CLAUDE_CONFIG_DIR`,
+> every `~/.claude` path on this page lives under that directory instead."
+> — code.claude.com/docs/en/claude-directory (the page scopes settings AND memory under `~/.claude`)
+
+So the config root is `${CLAUDE_CONFIG_DIR:-~/.claude}`: when the env var is set, the user
+`settings.json` and the `projects/<project>/memory/` tree both live under it. Every scope and
+memory-dir resolution in this skill (the `scope-report.sh` snapshot, the shared
+`resolve-memory-dir.sh`, and the disable/purge workflows) resolves the config root this way, so
+a relocated root is honored rather than mistaken for an `autoMemoryDirectory` override.
+
 The directory holds a `MEMORY.md` index plus optional topic files (layout per
 code.claude.com/docs/en/memory):
 

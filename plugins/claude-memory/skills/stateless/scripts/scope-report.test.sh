@@ -89,6 +89,16 @@ OUT=$(cd "$NONREPO" && env -u GIT_DIR HOME="$ISO_HOME" bash "$SCRIPT") || rc=$?
 assert_exit "non-git dir exits 0" 0 "$rc"
 assert_contains "non-git dir reports it is not a repo" "$OUT" "Not inside a git repository"
 
+# --- Case 6: CLAUDE_CONFIG_DIR relocates the config root (user scope + memory tree) ---
+
+CFG="$TEST_TMPDIR/cfg"
+mkdir -p "$CFG"
+printf '{}\n' >"$CFG/settings.json"
+OUT=$(cd "$REPO" && env -u CLAUDE_CODE_DISABLE_AUTO_MEMORY HOME="$ISO_HOME" CLAUDE_CONFIG_DIR="$CFG" bash "$SCRIPT")
+assert_contains "reports CLAUDE_CONFIG_DIR when set" "$OUT" "CLAUDE_CONFIG_DIR=$CFG"
+assert_contains "user settings resolved under CLAUDE_CONFIG_DIR" "$OUT" "$CFG/settings.json"
+assert_contains "memory dir resolved under CLAUDE_CONFIG_DIR" "$OUT" "$CFG/projects/"
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0

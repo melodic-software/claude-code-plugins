@@ -7,8 +7,10 @@ and never edit silently.
 
 Ask which reach the user wants; recommend based on intent:
 
-- **Machine-wide (RECOMMENDED for "make Claude stateless")** → user settings
-  `~/.claude/settings.json`. Applies to every project on this machine.
+- **Machine-wide (RECOMMENDED for "make Claude stateless")** → user settings at
+  `${CLAUDE_CONFIG_DIR:-~/.claude}/settings.json`. Applies to every project on this machine.
+  Honor `CLAUDE_CONFIG_DIR`: when it is set, the user config root (and this file) live under it,
+  not `~/.claude` — the SKILL.md snapshot reports the resolved path.
 - **This repo only** → project settings `<repo>/.claude/settings.json` (team-shared, committed)
   or local `<repo>/.claude/settings.local.json` (personal, gitignored). Ask which; local for a
   personal choice, project to disable it for everyone on the team.
@@ -35,7 +37,8 @@ deterministic merge over hand-editing. When `jq` is available, use it (it preser
 key and only adds/overwrites the two targets; it starts from `{}` when the file is absent):
 
 ```bash
-settings="<chosen settings.json path>"
+settings="<chosen settings.json path>"   # user scope: ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json
+mkdir -p "$(dirname "$settings")"          # project/local .claude/ may not exist yet
 tmp=$(mktemp)
 { cat "$settings" 2>/dev/null || echo '{}'; } |
   jq '.autoMemoryEnabled = false
@@ -43,9 +46,11 @@ tmp=$(mktemp)
   mv "$tmp" "$settings" || { rm -f "$tmp"; echo "jq merge failed — fall back to a careful manual edit"; }
 ```
 
-`jq` reformats the file (2-space JSON) — acceptable for a machine-managed settings file. If `jq`
-is unavailable, Read the file and edit it by hand: add/set exactly these two keys, leave every
-other key and any existing `env` entries intact, and keep the trailing newline.
+The `mkdir -p` matters for a repo/local scope whose `.claude/` directory does not exist yet —
+without it the `mv` fails. `jq` reformats the file (2-space JSON) — acceptable for a
+machine-managed settings file. If `jq` is unavailable, Read the file and edit it by hand
+(creating the parent directory first): add/set exactly these two keys, leave every other key
+and any existing `env` entries intact, and keep the trailing newline.
 
 An even stronger, session-independent lever is a real **OS environment variable**
 `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` (e.g. `setx` on Windows, a shell profile export on
@@ -61,7 +66,7 @@ run an `apply` that could revert your edit.
 Detect and route generically (repo-agnostic — do not assume a specific manager):
 
 ```bash
-command -v chezmoi >/dev/null 2>&1 && chezmoi managed "$HOME/.claude/settings.json" 2>/dev/null \
+command -v chezmoi >/dev/null 2>&1 && chezmoi managed "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json" 2>/dev/null \
   && echo "TRACKED by chezmoi — backfill to the dotfiles source" \
   || echo "not chezmoi-tracked (check any other dotfile manager)"
 ```

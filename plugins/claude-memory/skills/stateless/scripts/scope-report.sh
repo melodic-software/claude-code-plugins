@@ -42,6 +42,10 @@ fi
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 resolver="$script_dir/../../audit/scripts/resolve-memory-dir.sh"
 
+# Config root: CLAUDE_CONFIG_DIR relocates the whole `~/.claude` tree (user settings
+# AND the projects/ memory tree) when set — see the official .claude-directory doc.
+config_root="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+
 exists() { [[ -f "$1" ]] && echo "PRESENT" || echo "absent"; }
 
 # Managed/policy settings location is OS-specific. Report the path for this OS so the
@@ -53,7 +57,7 @@ MINGW* | MSYS* | CYGWIN*) managed="C:/Program Files/ClaudeCode/managed-settings.
 *) managed="(unknown OS — see settings doc for managed-settings.json location)" ;;
 esac
 
-user_settings="$HOME/.claude/settings.json"
+user_settings="$config_root/settings.json"
 
 # Project/local scopes: anchor to the repo root when inside one, else CWD.
 repo_root=$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')
@@ -70,6 +74,11 @@ printf '%-10s %-8s %s\n' "local" "$(exists "$local_settings")" "$local_settings"
 
 echo
 echo "=== Live environment ==="
+if [[ -n "${CLAUDE_CONFIG_DIR:-}" ]]; then
+  echo "CLAUDE_CONFIG_DIR=${CLAUDE_CONFIG_DIR} (config root relocated — user scope + memory tree live here)"
+else
+  echo "CLAUDE_CONFIG_DIR: unset (config root is ~/.claude)"
+fi
 if [[ -n "${CLAUDE_CODE_DISABLE_AUTO_MEMORY:-}" ]]; then
   echo "CLAUDE_CODE_DISABLE_AUTO_MEMORY=${CLAUDE_CODE_DISABLE_AUTO_MEMORY} (set in OS environment)"
 else

@@ -11,7 +11,8 @@ The store may be relocated by `autoMemoryDirectory`, which is read from **any** 
 1. Read `autoMemoryDirectory` from every present settings scope (managed / local / project /
    user — the snapshot in SKILL.md lists which files exist; Read each). Expand `~/` to `$HOME`.
 2. Resolve the default via the snapshot / `scope-report.sh` (slug-derived
-   `~/.claude/projects/<project>/memory/`).
+   `${CLAUDE_CONFIG_DIR:-~/.claude}/projects/<project>/memory/` — the config root honors
+   `CLAUDE_CONFIG_DIR`, so a config root relocated by it is the *expected* tree, not a flag).
 3. Build the candidate set = the highest-precedence `autoMemoryDirectory` override if any set,
    plus the default. Include the default even when an override exists (older writes may remain
    there). De-duplicate.
@@ -24,12 +25,13 @@ delete files created between the manifest and the delete). Capture regular files
 skips symlinks, so a symlinked `*.md` is never followed):
 
 ```bash
+config_root="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"   # honors a relocated config root
 manifest=$(mktemp)
 for dir in <resolved absolute candidate dirs from Step 1>; do
   [[ -d "$dir" ]] || continue
   case "$dir" in
-  "$HOME/.claude/projects/"*) : ;; # expected default tree
-  *) echo "UNEXPECTED RELOCATION: $dir is outside ~/.claude/projects/ (from autoMemoryDirectory)" ;;
+  "$config_root/projects/"*) : ;; # expected default (or CLAUDE_CONFIG_DIR-relocated) tree
+  *) echo "UNEXPECTED RELOCATION: $dir is outside $config_root/projects/ (from autoMemoryDirectory)" ;;
   esac
   find "$dir" -maxdepth 1 -type f -name '*.md' 2>/dev/null
 done | sort -u >"$manifest"
@@ -38,10 +40,10 @@ done | sort -u >"$manifest"
 Present to the user:
 
 - Each directory and the **resolved absolute path** of every file in `$manifest` (with count).
-- **Explicitly flag any `UNEXPECTED RELOCATION` line**: a candidate dir outside
-  `~/.claude/projects/` came from an `autoMemoryDirectory` override that a project/local
-  settings file can set — confirm the user intends to delete from that absolute path before
-  proceeding, since it could point at an unrelated directory.
+- **Explicitly flag any `UNEXPECTED RELOCATION` line**: a candidate dir outside the config root's
+  `projects/` tree came from an `autoMemoryDirectory` override that a project/local settings file
+  can set — confirm the user intends to delete from that absolute path before proceeding, since
+  it could point at an unrelated directory.
 - That this deletes auto-memory notes only — **not** CLAUDE.md, rules, transcripts, or history.
 - If `$manifest` is empty, report that there is nothing to purge and stop (no-op).
 

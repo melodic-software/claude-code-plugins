@@ -23,6 +23,14 @@ All notable changes to the `claude-memory` plugin are documented here. Format fo
   and `status` treats a set env var as authoritative. The bundled `scope-report.sh` reuses the
   plugin's single-source memory-dir resolver rather than re-deriving the path.
 
+### Fixed
+
+- **`resolve-memory-dir.sh` now honors `CLAUDE_CONFIG_DIR`.** The shared resolver (used by both
+  the `audit` and `stateless` skills) resolved the config root as `$HOME/.claude`, so a machine
+  that relocates its Claude Code config via `CLAUDE_CONFIG_DIR` had its memory directory resolved
+  to the wrong path. It now uses `${CLAUDE_CONFIG_DIR:-$HOME/.claude}`, per the official
+  `.claude-directory` doc, so the relocated `projects/<project>/memory/` tree resolves correctly.
+
 ## [0.2.3]
 
 ### Fixed

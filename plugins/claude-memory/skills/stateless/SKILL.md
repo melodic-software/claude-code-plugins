@@ -68,6 +68,10 @@ wants to be stateless everywhere, not just in this repo.
 - **`autoMemoryDirectory` relocates the store** and is read from *any* scope. The snapshot
   prints the slug-derived default only — `purge` and `status` must read the override at every
   scope or they act on the wrong directory.
+- **`CLAUDE_CONFIG_DIR` relocates the whole config root**: when set, the user `settings.json`
+  *and* the `projects/<project>/memory/` tree live under it, not `~/.claude`. All scope and
+  memory-dir resolution honors `${CLAUDE_CONFIG_DIR:-~/.claude}` (scripts + workflows); the
+  snapshot reports the resolved root, and `purge`'s relocation check treats it as expected.
 - **Windows managed policy** can live in the registry (`HKLM`/`HKCU\SOFTWARE\Policies\ClaudeCode`),
   not a file. `scope-report.sh` can't read it — report managed scope as unread, don't assume empty.
 - **`disable` applies next session**, not immediately: the setting and `env` block are read at
