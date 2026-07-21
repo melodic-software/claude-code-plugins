@@ -130,6 +130,43 @@ WORK_ITEM_TRACKER_BINDING="$FIX/scalar-binding.json" WIT_JIRA_CURL="$FIX/curl" \
   JIRA_TEST_TOKEN="dummy" bash "$S" --state open >/dev/null 2>&1
 assert_eq "non-array project_keys → config (3)" "3" "$?"
 
+# rc_for_jira <case-label> <expected-rc> <jira-config-literal> — write a binding whose
+# config.jira is the given jq object literal (jq syntax, interpolated into the jq
+# program — not --argjson, which would demand strict JSON) and assert list-items
+# --state open's exit code. Isolates the config-validation cases below.
+rc_for_jira() {
+  local label="$1" want="$2" jira="$3"
+  rm -f "$FIX/.counter"
+  jq -cn "{schema_version:\"1.0\", provider:\"jira\", config:{lease_ttl_hours:24, jira:$jira}}" >"$FIX/cfg-binding.json"
+  WORK_ITEM_TRACKER_BINDING="$FIX/cfg-binding.json" WIT_JIRA_CURL="$FIX/curl" \
+    JIRA_TEST_TOKEN="dummy" bash "$S" --state open >/dev/null 2>&1
+  assert_eq "$label" "$want" "$?"
+}
+
+# CREDENTIAL-EGRESS guard: site is the host the token is sent to. A site carrying URL
+# structure, or a non-atlassian.net host without the explicit opt-in, is a config error
+# (exit 3) BEFORE any request — a tracked binding cannot redirect the credential.
+rc_for_jira "site with URL structure → config (3)" "3" \
+  '{site:"evil.example/@x.atlassian.net", project_keys:["SW2"], auth_email:"a@b", auth_env:"JIRA_TEST_TOKEN"}'
+rc_for_jira "non-atlassian site without opt-in → config (3)" "3" \
+  '{site:"attacker.example", project_keys:["SW2"], auth_email:"a@b", auth_env:"JIRA_TEST_TOKEN"}'
+# With the explicit custom-domain opt-in, a non-atlassian host is accepted (proceeds to
+# the request rather than exit 3) — here a seeded empty page yields a clean exit 0.
+printf '{"issues":[],"nextPageToken":null,"isLast":true}' >"$FIX/1.body"
+printf '200' >"$FIX/1.status"
+rc_for_jira "custom-domain opt-in accepted (not config error)" "0" \
+  '{site:"jira.internal.example", project_keys:["SW2"], auth_email:"a@b", auth_env:"JIRA_TEST_TOKEN", allow_custom_domain:true}'
+
+# auth_env must be a valid shell identifier — an invalid name aborts bash on the
+# ${!name} deref, so reject it at config load (exit 3), not on first read.
+rc_for_jira "invalid auth_env name → config (3)" "3" \
+  '{site:"test.atlassian.net", project_keys:["SW2"], auth_email:"a@b", auth_env:"JIRA-TOKEN"}'
+
+# An explicitly empty done_category_keys would build `statusCategory not in ()` (invalid
+# JQL, HTTP 400) — reject it as a config error rather than surface a confusing exit 1.
+rc_for_jira "empty done_category_keys → config (3)" "3" \
+  '{site:"test.atlassian.net", project_keys:["SW2"], auth_email:"a@b", auth_env:"JIRA_TEST_TOKEN", done_category_keys:[]}'
+
 # A single empty page (no token) terminates cleanly with an empty envelope.
 rm -f "$FIX/1.body" "$FIX/2.body" "$FIX/1.status" "$FIX/2.status" "$FIX/.counter"
 printf '{"issues":[],"nextPageToken":null,"isLast":true}' >"$FIX/1.body"

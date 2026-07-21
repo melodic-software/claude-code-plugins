@@ -75,6 +75,18 @@ readonly WIT_JIRA_DEFAULT_DONE_KEYS='["done","completed"]'
 readonly WIT_JIRA_PROJECT_KEY_RE='^[A-Za-z][A-Za-z0-9_]*$'
 readonly WIT_JIRA_CATEGORY_KEY_RE='^[A-Za-z][A-Za-z0-9-]*$'
 
+# config.jira.site becomes the request host that receives the Basic-auth token, so it
+# must be a BARE hostname — no scheme, path, userinfo (`@`), port, or control chars —
+# lest a binding smuggle URL structure that redirects the credential off the tenant.
+# And it must be an Atlassian Cloud host (*.atlassian.net) unless the binding
+# explicitly opts into a custom domain: deny-by-default on credential egress, since a
+# tracked binding is PR-modifiable and the token may be present in CI.
+readonly WIT_JIRA_HOSTNAME_RE='^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$'
+readonly WIT_JIRA_CLOUD_SUFFIX='.atlassian.net'
+# auth_env is dereferenced via ${!name}; an invalid identifier aborts bash, so it must
+# be a valid shell variable name.
+readonly WIT_JIRA_ENV_NAME_RE='^[A-Za-z_][A-Za-z0-9_]*$'
+
 # Set by wit_jira_http; declared here so a read before the first call does not trip
 # `set -u`.
 WIT_JIRA_BODY=""
@@ -124,6 +136,8 @@ wit_need_jira_config() {
   WIT_JIRA_PROJECT_KEYS="$(jq -c '.config.jira.project_keys // []' "$binding")"
   WIT_JIRA_BLOCKED_BY_LINK_TYPE="$(jq -r --arg d "$WIT_JIRA_DEFAULT_BLOCKED_BY_LINK_TYPE" '.config.jira.blocked_by_link_type // $d' "$binding")"
   WIT_JIRA_DONE_KEYS="$(jq -c --argjson d "$WIT_JIRA_DEFAULT_DONE_KEYS" '.config.jira.done_category_keys // $d' "$binding")"
+  local allow_custom_domain
+  allow_custom_domain="$(jq -r '.config.jira.allow_custom_domain // false' "$binding")"
   local missing=""
   [[ -n "$WIT_JIRA_SITE" ]] || missing+=" config.jira.site"
   [[ -n "$WIT_JIRA_AUTH_EMAIL" ]] || missing+=" config.jira.auth_email"
@@ -135,19 +149,34 @@ wit_need_jira_config() {
   [[ "$(jq -r 'type' <<<"$WIT_JIRA_PROJECT_KEYS")" == "array" ]] &&
     [[ "$(jq -r 'length' <<<"$WIT_JIRA_PROJECT_KEYS")" -gt 0 ]] ||
     missing+=" config.jira.project_keys[](non-empty array)"
-  # done_category_keys defaults when absent, but a present non-array value is a
-  # misconfiguration, not a silent fall-through to the default.
-  [[ "$(jq -r 'type' <<<"$WIT_JIRA_DONE_KEYS")" == "array" ]] ||
-    missing+=" config.jira.done_category_keys(array)"
+  # done_category_keys defaults when absent, but a present non-array OR EMPTY value is a
+  # misconfiguration: an empty set builds `statusCategory not in ()` — invalid JQL Jira
+  # rejects with 400 — not a silent fall-through to the default.
+  [[ "$(jq -r 'type' <<<"$WIT_JIRA_DONE_KEYS")" == "array" ]] &&
+    [[ "$(jq -r 'length' <<<"$WIT_JIRA_DONE_KEYS")" -gt 0 ]] ||
+    missing+=" config.jira.done_category_keys(non-empty array)"
   if [[ -n "$missing" ]]; then
     printf '%s: jira binding missing/invalid required config:%s — see CONTRACT.md "jira adapter"\n' "$name" "$missing" >&2
     exit "$EX_CONFIG"
   fi
-  # Every JQL-interpolated value from config is allowlist-validated here (a bad
-  # config value is exit 3), so the query builders in list-items never assemble an
-  # unvalidated token. Captured then iterated via here-string (MSYS process-sub
-  # gotcha); the loop body only runs a regex, no fork.
+  # Value-level validation (all exit 3): the JQL-interpolated keys against their
+  # allowlist charset (the query builders assemble by string concat, so an unvalidated
+  # token could inject), plus the credential-bearing site host and the token env-var
+  # name. Captured then iterated via here-string (MSYS process-sub gotcha); the loop
+  # body only runs a regex, no fork.
   local bad="" k keys
+  # site is the host the Basic-auth token is sent to: require a bare hostname (block
+  # scheme/path/userinfo/port smuggling) and an Atlassian Cloud host unless the binding
+  # explicitly opts into a custom domain (deny-by-default credential egress).
+  if ! [[ "$WIT_JIRA_SITE" =~ $WIT_JIRA_HOSTNAME_RE ]]; then
+    bad+=" site:'$WIT_JIRA_SITE'(not a bare hostname)"
+  elif [[ "$allow_custom_domain" != "true" && "$WIT_JIRA_SITE" != *"$WIT_JIRA_CLOUD_SUFFIX" ]]; then
+    bad+=" site:'$WIT_JIRA_SITE'(non-atlassian.net; set config.jira.allow_custom_domain=true to allow)"
+  fi
+  # auth_env is dereferenced via ${!name}; an invalid identifier aborts bash on first
+  # read — reject it here (exit 3) with a clear message instead.
+  [[ "$WIT_JIRA_AUTH_ENV" =~ $WIT_JIRA_ENV_NAME_RE ]] ||
+    bad+=" auth_env:'$WIT_JIRA_AUTH_ENV'(not a valid env var name)"
   keys="$(jq -r '.[]' <<<"$WIT_JIRA_PROJECT_KEYS" | wit_strip_cr)"
   while IFS= read -r k; do
     [[ -n "$k" ]] || continue
@@ -159,7 +188,7 @@ wit_need_jira_config() {
     [[ "$k" =~ $WIT_JIRA_CATEGORY_KEY_RE ]] || bad+=" done_category_keys:'$k'"
   done <<<"$keys"
   if [[ -n "$bad" ]]; then
-    printf '%s: jira config value(s) outside the allowed charset:%s — see CONTRACT.md "jira adapter"\n' "$name" "$bad" >&2
+    printf '%s: invalid jira config value(s):%s — see CONTRACT.md "jira adapter"\n' "$name" "$bad" >&2
     exit "$EX_CONFIG"
   fi
   # curl is the read path's only prerequisite binary; gate here (exit 3, actionable)

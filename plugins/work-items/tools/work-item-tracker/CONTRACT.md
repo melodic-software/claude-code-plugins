@@ -351,8 +351,16 @@ PR `SW2-*` linkage and the opt-in-write mechanism are sequenced follow-ups.
 - **Auth.** Basic auth — Atlassian account email + API token (passwords are deprecated). The
   token is read from the env var **named** by `config.jira.auth_env` (never stored in the
   tracked binding) and passed to curl via a stdin config (`-K -`) so it never appears in argv.
-  Missing/empty token env var → exit `4`. Tokens expire (1-year default since Dec 2024) — the
-  adapter treats rotation as a normal lifecycle event (a clear exit-`4` surface, re-bind in setup).
+  Missing/empty token env var → exit `4`. `auth_env` must be a valid shell identifier
+  (`[A-Za-z_][A-Za-z0-9_]*`), validated at config load (exit `3`) since it is dereferenced.
+  Tokens expire (1-year default since Dec 2024) — the adapter treats rotation as a normal
+  lifecycle event (a clear exit-`4` surface, re-bind in setup).
+- **Credential-egress guard.** `site` is the host the Basic-auth token is sent to, and the
+  binding is tracked (PR-modifiable). It is validated at config load (exit `3`) to be a **bare
+  hostname** — no scheme, path, `@` userinfo, port, or control characters, so a binding cannot
+  smuggle URL structure that redirects the credential — and to be an Atlassian Cloud host
+  (`*.atlassian.net`) **unless** the binding sets `config.jira.allow_custom_domain: true` to
+  explicitly accept a custom-domain tenant (deny-by-default on credential egress).
 - **Binding config.** Jira has no `gh repo view` equivalent to derive scope at runtime, so
   `config.jira` is required (a binding missing `site`, non-empty `project_keys[]`, `auth_email`,
   or `auth_env` → exit `3`):

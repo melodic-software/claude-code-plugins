@@ -20,7 +20,7 @@ cb_setup() {
   # (create-item=false blocks item seeding, so get-item/list-items never run).
   jq -cn '{schema_version:"1.0", provider:"jira",
     config:{lease_ttl_hours:24,
-      jira:{site:"conformance.example.invalid", project_keys:["CONF"],
+      jira:{site:"conformance.atlassian.net", project_keys:["CONF"],
         auth_email:"conformance@example.invalid", auth_env:"WIT_JIRA_CONFORMANCE_TOKEN_UNUSED"}}}' \
     >"$CB_BINDING_TMP"
   export WORK_ITEM_TRACKER_BINDING="$CB_BINDING_TMP"

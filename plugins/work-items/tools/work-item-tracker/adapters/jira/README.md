@@ -56,6 +56,12 @@ curl through a stdin config). An unset/empty token env var is exit `4`; tokens e
 sudden `4` as a rotation signal and re-bind. Generate tokens at
 `https://id.atlassian.com/manage/api-tokens`.
 
+Two config values are validated at load (exit `3`) because they are security-bearing: `site` (the
+host that receives the token) must be a bare hostname and an `*.atlassian.net` Cloud host unless
+the binding sets `config.jira.allow_custom_domain: true` — a tracked binding cannot silently
+redirect the credential to another host; and `auth_env` must be a valid shell identifier (it is
+dereferenced).
+
 ## Gotchas
 
 - **Deferred live-instance facts.** The exact `statusCategory` key for "Done" and the
