@@ -133,6 +133,13 @@ printf '{"errorMessages":["boom"]}' >"$FIX/1.body"
 run_get "jira:test.atlassian.net/SW2#5"
 assert_eq "2xx without issue key → unavailable (8)" "8" "$RC"
 
+# A 2xx issue whose key the normalizer cannot parse → exit 8 with a clear message,
+# not a bare/misleading exit from the failed jq.
+printf '200' >"$FIX/1.status"
+printf '{"key":"NOT A JIRA KEY","fields":{"summary":"x","status":{"statusCategory":{"key":"new"}},"assignee":null,"labels":[],"issuetype":{"name":"Task"},"parent":null,"issuelinks":[]}}' >"$FIX/1.body"
+run_get "jira:test.atlassian.net/SW2#5"
+assert_eq "un-normalizable issue key → unavailable (8)" "8" "$RC"
+
 # Missing token env var → auth (4), before any curl call.
 rm -f "$FIX/.counter"
 OUT="$(WORK_ITEM_TRACKER_BINDING="$FIX/binding.json" WIT_JIRA_CURL="$FIX/curl" \

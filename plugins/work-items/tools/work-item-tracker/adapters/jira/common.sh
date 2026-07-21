@@ -328,7 +328,8 @@ export WIT_JIRA_FIELDS
 # trips SC2089/2090); the disable marks it intentionally external instead.
 # shellcheck disable=SC2016,SC2034  # jq program — $sv/$site/$dk/$blk are jq args, not bash; used by verb scripts
 readonly WIT_JIRA_NORMALIZE_PROGRAM='
-  def keyparts: capture("^(?<p>[A-Za-z][A-Za-z0-9_]*)-(?<n>[0-9]+)$");
+  def keyparts: (capture("^(?<p>[A-Za-z][A-Za-z0-9_]*)-(?<n>[0-9]+)$")
+    // error("jira: unparseable issue key: " + (. | tostring)));
   def qualify: (keyparts | "jira:" + $site + "/" + .p + "#" + .n);
   {
     schema_version: $sv,

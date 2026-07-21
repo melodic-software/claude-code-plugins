@@ -93,9 +93,19 @@ emitted=0
       exit "$EX_UNAVAILABLE"
     }
     page_count="$(jq -r '.issues | length' <<<"$WIT_JIRA_BODY")"
-    jq -c --arg sv "$WIT_SCHEMA_VERSION" --arg site "$WIT_JIRA_SITE" \
+    # Normalize the page atomically: capture, then check jq's exit. Streaming the
+    # objects straight to stdout would let a single malformed issue (e.g. a key the
+    # normalizer's parser rejects) abort jq mid-page while the already-emitted rows
+    # stand — an all-invalid page would then collapse to items:[] with exit 0, telling
+    # list-frontier there is no work. On any normalizer failure, fail loud (exit 8)
+    # instead of emitting a partial page.
+    page_items="$(jq -c --arg sv "$WIT_SCHEMA_VERSION" --arg site "$WIT_JIRA_SITE" \
       --argjson dk "$WIT_JIRA_DONE_KEYS" --arg blk "$WIT_JIRA_BLOCKED_BY_LINK_TYPE" \
-      ".issues[] | $WIT_JIRA_NORMALIZE_PROGRAM" <<<"$WIT_JIRA_BODY"
+      ".issues[] | $WIT_JIRA_NORMALIZE_PROGRAM" <<<"$WIT_JIRA_BODY")" || {
+      printf 'jira: list-items — an issue in a %s page could not be normalized (malformed issue key?)\n' "$WIT_JIRA_STATUS" >&2
+      exit "$EX_UNAVAILABLE"
+    }
+    [[ -z "$page_items" ]] || printf '%s\n' "$page_items"
     emitted=$((emitted + page_count))
     next_token="$(jq -r '.nextPageToken // ""' <<<"$WIT_JIRA_BODY")"
     # Last page: isLast true, or no continuation token, or the API returned nothing.

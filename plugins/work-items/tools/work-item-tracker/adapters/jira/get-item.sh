@@ -43,7 +43,12 @@ wit_jira_require_ok "get-item $id"
   exit "$EX_UNAVAILABLE"
 }
 
-printf '%s\n' "$WIT_JIRA_BODY" | jq -c \
-  --arg sv "$WIT_SCHEMA_VERSION" --arg site "$WIT_JIRA_SITE" \
+# Normalize with an explicit exit check: a body whose key the parser rejects makes jq
+# fail, which would otherwise surface as a bare non-zero exit — map it to exit 8 (the
+# provider returned an issue we cannot represent) with a clear message.
+jq -c --arg sv "$WIT_SCHEMA_VERSION" --arg site "$WIT_JIRA_SITE" \
   --argjson dk "$WIT_JIRA_DONE_KEYS" --arg blk "$WIT_JIRA_BLOCKED_BY_LINK_TYPE" \
-  "$WIT_JIRA_NORMALIZE_PROGRAM"
+  "$WIT_JIRA_NORMALIZE_PROGRAM" <<<"$WIT_JIRA_BODY" || {
+  printf 'get-item: %s response could not be normalized (malformed issue key?)\n' "$WIT_JIRA_STATUS" >&2
+  exit "$EX_UNAVAILABLE"
+}

@@ -215,4 +215,11 @@ printf '{"errorMessages":["boom"]}' >"$FIX/1.body"
 run_list --state open
 assert_eq "2xx without issues array → unavailable (8)" "8" "$RC"
 
+# A 2xx page whose only issue has a key the normalizer cannot parse must fail loudly
+# (exit 8), not drop the issue and emit an empty page (which would hide real work).
+printf '200' >"$FIX/1.status"
+printf '{"issues":[{"key":"NOT A JIRA KEY","fields":{"summary":"x","status":{"statusCategory":{"key":"new"}},"assignee":null,"labels":[],"issuetype":{"name":"Task"},"parent":null,"issuelinks":[]}}],"nextPageToken":null,"isLast":true}' >"$FIX/1.body"
+run_list --state open
+assert_eq "un-normalizable issue in a page → unavailable (8)" "8" "$RC"
+
 [[ $FAILED -eq 0 ]] || exit 1
