@@ -50,6 +50,32 @@
         "Proceeds with the recovery flow that is the same regardless of cause",
         "Focuses on real-state inspection and continuation, not the interruption's origin"
       ]
+    },
+    {
+      "id": 5,
+      "name": "limit-lifted-go-not-summarize",
+      "prompt": "keep going — the usage limit just reset and we're back. We were partway through the refactor.",
+      "expected_output": "The skill recognizes that because it is executing again the block is already over, and CONTINUES the refactor from its real state rather than producing a summary and stopping. It does not summarize-and-stall, and it does not try to classify which limit it was.",
+      "files": [],
+      "expectations": [
+        "Continues the underlying work rather than emitting a summary and handing back",
+        "Grounds the continuation in a fresh read of the real task state, not a remembered claim",
+        "Does not summarize-and-stall as its terminal action",
+        "Does not diagnose which limit type reset"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "live-poke-evidence-before-kill",
+      "prompt": "poke it — check the monitor, that subagent has been staring for a while. Is it stuck? Kill and restart it if so.",
+      "expected_output": "The skill reads the REAL monitor / subagent output first, treats 'been a while' only as a reason to look closer (not proof of a stall), and acts on evidence: if the subagent is progressing it leaves it alive and says so; if it kills and restarts, that is gated as a side effect because a kill of work it cannot prove is dead could destroy live-but-slow progress.",
+      "files": [],
+      "expectations": [
+        "Reads the actual monitor/subagent output before deciding, not just elapsed time",
+        "Treats slow-vs-elapsed as a suspicion-raiser, not authorization to kill",
+        "If the work is progressing, leaves it alive rather than killing it",
+        "Gates the kill/restart — does not kill live-but-slow work it cannot prove is dead"
+      ]
     }
   ]
 }
