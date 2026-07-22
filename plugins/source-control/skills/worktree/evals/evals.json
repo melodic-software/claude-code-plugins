@@ -5,10 +5,11 @@
       "id": 1,
       "name": "create-routing-enterworktree-last",
       "prompt": "/worktree create feat/payment-retry — set me up an isolated worktree for this feature.",
-      "expected_output": "The create action validates the name against the EnterWorktree schema constraints, explains the setup, and calls EnterWorktree(name: ...) as its FINAL action — nothing executes after that call because the working directory and session state transition on it.",
+      "expected_output": "The create action validates the name against the EnterWorktree schema constraints, explains the setup, routes creation through the shared worktree-create.sh helper (external root, copies .worktreeinclude), and calls EnterWorktree(path: ...) on the helper's printed path as its FINAL action — nothing executes after that call because the working directory and session state transition on it. On a non-zero helper exit it STOPs and never falls back to EnterWorktree(name: ...).",
       "files": [],
       "expectations": [
         "The skill validates the worktree/branch name before creating",
+        "Routes creation through the shared worktree-create.sh helper and calls EnterWorktree(path: ...) on the printed path — it does NOT use the in-repo EnterWorktree(name: ...) path",
         "EnterWorktree is called as the final action of the invocation — no steps are scheduled to run after it",
         "It does not attempt post-EnterWorktree work in the same turn"
       ]
