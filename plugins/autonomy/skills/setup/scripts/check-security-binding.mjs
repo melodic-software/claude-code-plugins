@@ -164,33 +164,45 @@ function isMetadataEndpoint(normalized) {
   return url.hostname === "metadata.google.internal" && hasRoutePrefix(url.pathname, "/computemetadata");
 }
 
-// Lexically normalize a host path for containment testing: lowercase,
-// backslashes to slashes, and collapse "." / ".." segments. A host_expanded
+// Lexically normalize an ANCHORED host path for containment testing:
+// backslashes to slashes and collapse "." / ".." segments. A host_expanded
 // value names a location on the PROBING host, not the checker's filesystem, so
 // resolution MUST be purely lexical — realpathSync would test the wrong machine
 // (and the path need not exist there) and resolve() would inject the checker's
-// cwd. A "/"-rooted or drive-letter-rooted anchor is preserved; a ".." that
-// would escape the anchor yields null, which containment treats as no match
-// (denied) — so a traversal can never climb above a configured root. Lowercasing
-// matches the entry/expansion normalization elsewhere in this file: credential
-// paths compare case-insensitively so a configured root and a recorded
-// expansion differing only in case still contain, and folding here consistently
-// avoids a normalization split between the coherence guard and containment. The
-// checker never reads the probing host's filesystem, so POSIX case-sensitivity
-// is not observable and a case-insensitive containment test is the safe choice
-// (it can only ever REFUSE to distinguish two roots that differ only in case,
-// never widen a root).
+// cwd. Only a "/"-rooted or drive-letter-rooted anchor is kept; an unanchored
+// (relative) path yields null. A relative value names no stable host location —
+// it resolves against an arbitrary working directory — so a relative root or
+// candidate must fail closed rather than compare as a bare string (else a root
+// `secrets` would "contain" a candidate `secrets/not-real`). A ".." that would
+// escape the anchor also yields null. containment treats null as no match
+// (denied), so neither a traversal nor a relative path can satisfy a root.
+//
+// Case is preserved for POSIX paths and folded only for the drive-letter form.
+// A case-sensitive host distinguishes /var/Creds from /var/creds, so folding a
+// POSIX path would WIDEN the allowlist: a candidate differing from the trusted
+// root only in case is a DIFFERENT file on that host, yet would falsely
+// contain. Preserving case fails closed there. A Windows drive path is
+// case-insensitive on its host, so folding it is correct. The checker cannot
+// observe the probing host's platform (process.platform is the checker's, not
+// the probe's), so the case-sensitive comparison is the safe default for an
+// ambiguous POSIX path — it can only ever REFUSE a case-mismatched candidate,
+// never accept one that the real host would reject.
 function normalizeHostPath(p) {
-  const lowered = p.toLowerCase().replaceAll("\\", "/");
+  const slashed = p.replaceAll("\\", "/");
   // A UNC / double-separator form ("//server/share", or a Windows "\\server\share"
-  // that folded to "//") names a share on an invented server, not a location on the
-  // host — collapsing its leading "//" onto the POSIX root would misread "//etc/..."
-  // as the host's own "/etc/...". Refuse it so containment can never accept it,
-  // consistent with the home-anchored coherence guard's UNC rejection.
-  if (lowered.startsWith("//")) return null;
-  const driveMatch = /^([a-z]:)\//.exec(lowered);
-  const anchor = driveMatch !== null ? driveMatch[1] : lowered.startsWith("/") ? "/" : "";
-  const body = anchor === "/" ? lowered.slice(1) : driveMatch !== null ? lowered.slice(driveMatch[0].length) : lowered;
+  // whose backslashes fold to "//") names a share on an invented server, not a
+  // location on the host — collapsing its leading "//" onto the POSIX root would
+  // misread "//etc/..." as the host's own "/etc/...". Refuse it so containment can
+  // never accept it, consistent with the home-anchored coherence guard's UNC rejection.
+  if (slashed.startsWith("//")) return null;
+  const driveMatch = /^([a-zA-Z]:)\//.exec(slashed);
+  // Drive-letter paths are case-insensitive: fold the whole drive path so "C:/X"
+  // and "c:/x" contain. POSIX paths keep their case (see above).
+  const cased = driveMatch !== null ? slashed.toLowerCase() : slashed;
+  const drive = driveMatch !== null ? driveMatch[1].toLowerCase() : null;
+  const anchor = drive !== null ? drive : cased.startsWith("/") ? "/" : "";
+  if (anchor === "") return null;
+  const body = anchor === "/" ? cased.slice(1) : cased.slice(drive.length + 1);
   const out = [];
   for (const segment of body.split("/")) {
     if (segment === "" || segment === ".") continue;
@@ -201,8 +213,7 @@ function normalizeHostPath(p) {
     }
     out.push(segment);
   }
-  if (anchor === "") return out.join("/");
-  return `${anchor === "/" ? "" : anchor}/${out.join("/")}`;
+  return anchor === "/" ? `/${out.join("/")}` : `${drive}/${out.join("/")}`;
 }
 
 // Deny-by-default containment: the host-side expanded path resolves under one
@@ -1732,11 +1743,12 @@ const egressAllowList =
   egressHostsArg === null
     ? null
     : egressHostsArg.split(",").map((host) => host.trim().toLowerCase().replace(/\.$/, "")).filter((host) => host.length > 0);
-// Credential roots are trimmed only; normalizeHostPath lowercases and collapses
-// each root and candidate consistently at containment time. An arg that parses
-// to zero roots (e.g. "," or "  ") is treated as unconfigured, so the operator
-// gets the "no --credential-roots configured" guidance rather than a confusing
-// empty-allowlist rejection — fail-closed either way.
+// Credential roots are trimmed only; normalizeHostPath collapses each root and
+// candidate consistently at containment time (preserving POSIX case, folding
+// only case-insensitive drive paths). An arg that parses to zero roots (e.g.
+// "," or "  ") is treated as unconfigured, so the operator gets the "no
+// --credential-roots configured" guidance rather than a confusing empty-allowlist
+// rejection — fail-closed either way.
 const credentialRootsParsed =
   credentialRootsArg === null
     ? null

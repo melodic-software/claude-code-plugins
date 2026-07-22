@@ -208,6 +208,20 @@
         "does not resolve under any configured --credential-roots"
       ]
     },
+    "probe-evidence-credroots-case-mismatch.json": {
+      "exit": 1,
+      "credential_roots": "/home/Runner",
+      "findings_substrings": [
+        "does not resolve under any configured --credential-roots"
+      ]
+    },
+    "probe-evidence-credroots-relative-root.json": {
+      "exit": 1,
+      "credential_roots": "secrets",
+      "findings_substrings": [
+        "does not resolve under any configured --credential-roots"
+      ]
+    },
     "probe-evidence-credroots-unconfigured.json": {
       "exit": 1,
       "findings_substrings": [
@@ -658,6 +672,7 @@
     "ci-pool-a-l2-no-transport.json",
     "ci-pool-a-l2-outer-egress-failed.json",
     "ci-pool-a-l2-protocol-assignment.json",
+    "ci-pool-a-l2-relative-credpath.json",
     "ci-pool-a-l2-site-local-v6.json",
     "ci-pool-a-l2-srv6-sid.json",
     "ci-pool-a-l2-teredo.json",
