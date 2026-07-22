@@ -48,10 +48,12 @@ and the official fallback is to **write a local HTML file** instead:
 the always-available rich tier and the one that never leaves the machine.
 
 The local HTML file is **not** under the artifact CSP (it is a file, not a
-published page), so it may load or inline scripts freely — but it also gets **no
-runtime for free**. In particular a published Artifact renders mermaid natively,
-whereas a local HTML file renders a mermaid diagram only if the page itself embeds
-a mermaid renderer; a bare `mermaid` block in a plain file stays unrendered.
+published page), so it *can* embed scripts inline — but it gets **no runtime for
+free**, and it must stay self-contained (the README promises no network calls), so
+any script is embedded, never loaded from a remote host. In particular a published
+Artifact renders mermaid natively, whereas a local HTML file renders a mermaid
+diagram only if the page embeds a mermaid renderer inline; a bare `mermaid` block in
+a plain file stays unrendered.
 
 ## Form catalog
 

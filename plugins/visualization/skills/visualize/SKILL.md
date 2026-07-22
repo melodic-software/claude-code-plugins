@@ -90,12 +90,14 @@ the Artifact surface exists. The `file` preference deliberately stays on the
 machine (never published); `artifact` prefers publishing but degrades the same way.
 
 A **mermaid diagram** is the sharp case: it renders natively only on a published
-Artifact. A local HTML file renders it only if the page embeds a mermaid renderer
-(a local file is not under the artifact CSP, so it may inline or load one); a plain
-self-contained file with a bare `mermaid` block does not render. So if no
-mermaid-capable surface is reachable, deliver the mermaid **source** fence in the
-terminal and say it is unrendered — never open a page that shows source instead of
-the promised picture.
+Artifact. A local HTML file renders it only if the page **embeds** a mermaid
+renderer inline — keep the file self-contained; never load a renderer from the
+network, which breaks offline use and, for `file` or otherwise sensitive output,
+would expose the page to a third party. A plain file with a bare `mermaid` block
+does not render. So if no mermaid-capable surface is reachable and no trusted
+renderer can be embedded, deliver the mermaid **source** fence in the terminal and
+say it is unrendered — never open a page that shows source instead of the promised
+picture.
 
 Honor a preference without overproducing: `artifact` still renders a trivial
 three-row table inline, and `terminal` degrades a rich form to its best terminal
