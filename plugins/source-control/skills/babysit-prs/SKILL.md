@@ -199,12 +199,13 @@ home in [reference/safety.md](reference/safety.md). Both fail closed without `--
   gate refuses the merge; re-snapshot and reassess the new head instead of using
   `--allow-unpinned-head` — the wrapper rejects that flag outright, so no unattended unpinned
   merge exists. The pin is carried to GitHub's server-side match-head-commit guard. It refuses
-  a dependency-manager-authored PR absent `--allow-dependency`, refuses merge on an unprotected
+  a dependency-manager-authored PR absent `--allow-dependency` (held set: built-in dependabot/renovate
+  plus any `babysit_extra_dependency_manager_logins`, which you MUST append via
+  `--extra-dependency-manager-logins "<value>"` when set — see safety.md's merge command forms — or
+  those extra bots are silently not held), refuses merge on an unprotected
   repo (zero required reviews and zero required contexts) for a non-self author absent
   `--allow-unprotected`, never uses `--admin`, and cannot resolve threads, reply, or
-  force-push. React to `blockers`; do not bypass the gate. A `ready:false` immediately
-  following a `ready:true` on the same expected head is often GitHub's own mergeability
-  recompute lag — re-run the read-only check once before treating it as a real block.
+  force-push. React to `blockers`; do not bypass the gate. A `ready:false` immediately following a `ready:true` on the same expected head is often GitHub's own mergeability recompute lag — re-run the read-only check once before treating it as a real block.
 
 - **Once ready, stop.** When the gate proves a PR ready (safe mode) or its merge is deferred to
   a human (Pinned-Command Degradation, [reference/safety.md](reference/safety.md)), report that
@@ -223,8 +224,7 @@ home in [reference/safety.md](reference/safety.md). Both fail closed without `--
   ([reference/orchestration.md](reference/orchestration.md)); that pre-push-outdated rule is agent
   discipline, not machine-enforced, so a thread a worker's own push merely displaced (`isOutdated`
   flipped while both comment pins still match) is still resolvable — the machine-enforced fix for
-  that displacement bypass is tracked in #571.
-  In autopilot pass `--resolve --include-human` for threads the agent has addressed; the
+  that displacement bypass is tracked in #571. In autopilot pass `--resolve --include-human` for threads the agent has addressed; the
   script still cannot merge, reply, or dismiss reviews. Never treat exit code 0 alone as proof
   a specific thread was resolved — always parse the per-thread JSON `action` field
   (`resolved` vs `skipped-*` / `refused-stale-pin` / `resolve-failed`) and the
@@ -283,8 +283,7 @@ branch, make only clear branch-owned fixes, re-check the head SHA, push, clean u
 The values below substitute from this plugin's stored configuration when this skill loads.
 A surviving literal `${user_config.…}` placeholder means that key is unset — apply its
 documented unset behavior. Reference files use `<angle-bracket>` slots; fill every slot from
-this block. Values reach scripts ONLY as explicit CLI flags (option environment variables never
-reach skill-invoked scripts). Configuration selects targets and thresholds; it never widens tier authority.
+this block. Values reach scripts ONLY as explicit CLI flags (option environment variables never reach skill-invoked scripts). Configuration selects targets and thresholds; it never widens tier authority.
 
 | Key | Value | Flag delivery | Unset behavior |
 | --- | --- | --- | --- |
@@ -302,6 +301,7 @@ reach skill-invoked scripts). Configuration selects targets and thresholds; it n
 | `babysit_review_gate_context` | `${user_config.babysit_review_gate_context}` | `--review-gate-context` (snapshot) | gate treated as absent |
 | `babysit_ci_gateway_context` | `${user_config.babysit_ci_gateway_context}` | `--ci-gateway-context` (snapshot) | gateway check unused |
 | `babysit_extra_bot_logins` | `${user_config.babysit_extra_bot_logins}` | `--extra-bot-logins` (snapshot) | structural bot detection only |
+| `babysit_extra_dependency_manager_logins` | `${user_config.babysit_extra_dependency_manager_logins}` | `--extra-dependency-manager-logins` (merge gate) | built-in dependabot/renovate dependency-manager set only |
 | `babysit_approval_downgrade_logins` | `${user_config.babysit_approval_downgrade_logins}` | `--approval-downgrade-logins` (snapshot) | an approval carrying blocking-looking prose is downgraded to ignored structurally (every bot); a named login instead surfaces its own as material. Real APPROVED-state reviews and plain clean approvals are ignored regardless. |
 | `babysit_skip_downgrade_logins` | `${user_config.babysit_skip_downgrade_logins}` | `--skip-downgrade-logins` (snapshot) | downgrade heuristic dormant |
 | `babysit_max_quiet_recheck_seconds` | `${user_config.babysit_max_quiet_recheck_seconds}` | `--max-quiet-recheck-seconds` (snapshot) | `14400` |

@@ -193,7 +193,11 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
 - The merge CLI refuses a dependency-manager-authored PR absent `--allow-dependency`, and refuses
   to merge on an unprotected repository — zero required reviews AND zero required status contexts
   — when the PR author is not one of `<self-logins>`, absent `--allow-unprotected`. Both
-  overrides are human decisions, never passed autonomously.
+  overrides are human decisions, never passed autonomously. The held dependency-manager set is the
+  built-in dependabot/renovate bots plus, when `babysit_extra_dependency_manager_logins` is
+  configured (non-empty, not a literal unexpanded token), the logins appended via
+  `--extra-dependency-manager-logins <extra-dependency-manager-logins>` — supply it on every merge
+  command below, exactly as `--method` is, or those extra bots are not held.
 - The merge wrapper's `--autopilot-merge-tier` flag layers the #476 tier criteria (issue-linked,
   lane-authored, no blocking label, a distinct-bot approval on the live head, no human blocking
   comment) onto the base gate. It is **fail-closed**: the umbrella flag refuses (exit `3`) unless
@@ -234,13 +238,15 @@ it, and any later gate-off flip, is a separate announced operator step.
   never the four-flagless base command, which would ignore every tier criterion:
 
   ```text
-  bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-merge" owner/repo#N --allowed-owners <watched-owners> --self-logins @me,<self-logins> --merge --expected-head <post-push-head-sha> --autopilot-merge-tier --lane-logins <lane-logins> --approver-bot-logins <approver-bot-logins> --block-labels <merge-block-labels>
+  bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-merge" owner/repo#N --allowed-owners <watched-owners> --self-logins @me,<self-logins> --merge --expected-head <post-push-head-sha> --autopilot-merge-tier --lane-logins <lane-logins> --approver-bot-logins <approver-bot-logins> --block-labels <merge-block-labels> --extra-dependency-manager-logins <extra-dependency-manager-logins>
   ```
 
   The umbrella `--autopilot-merge-tier` is fail-closed: it refuses (exit `3`) unless
   `--lane-logins`, `--approver-bot-logins`, and `--block-labels` are all supplied, and any of
-  those three without the umbrella is a usage error (exit `2`). Add `--method <merge-method>`
-  when configured, exactly as for the base merge readiness gate above.
+  those three without the umbrella is a usage error (exit `2`). Add `--method <merge-method>` and
+  `--extra-dependency-manager-logins <extra-dependency-manager-logins>` when configured, exactly as
+  for the base merge readiness gate above (omit each when its value is empty or a literal
+  unexpanded token).
 
 - **Second-account approve mechanic.** The approving review the gate's distinct-bot criterion
   requires is submitted out-of-band by the agent — the gate only verifies one exists on the live
@@ -325,7 +331,7 @@ narrow allow rule.
 For a merge:
 
 ```text
-bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-merge" owner/repo#42 --allowed-owners <watched-owners> --merge --expected-head <post-push-head-sha> --method <merge-method>
+bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-merge" owner/repo#42 --allowed-owners <watched-owners> --merge --expected-head <post-push-head-sha> --method <merge-method> --extra-dependency-manager-logins <extra-dependency-manager-logins>
 ```
 
 When the autopilot merge tier is enabled, this degraded handoff carries the tier flags too:

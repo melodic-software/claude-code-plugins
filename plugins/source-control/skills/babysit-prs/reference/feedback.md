@@ -95,7 +95,9 @@ actually is, not by hardcoding a bot's login:
   dependency version (a lockfile, a manifest version field, a pinned Action SHA/tag for a
   third-party action). Accepting the new version is a human policy call. Dependency-manager PRs
   are never merged autonomously in any tier — `SKILL.md` states the invariant, and the merge
-  wrapper enforces it mechanically (`safety.md`, Guarded Mutation Wrappers).
+  wrapper enforces it mechanically (`safety.md`, Guarded Mutation Wrappers). The wrapper matches a
+  built-in dependency-manager login set (dependabot/renovate); a non-dependabot/renovate dependency
+  bot an operator runs is added to that hold via `babysit_extra_dependency_manager_logins`.
 - **Policy/content-sync bot PR**: the diff is this repository receiving content it does not own
   back from an upstream repository, through a mechanism the repository itself declares (for
   example a sync manifest naming which local paths are managed from where). This is the reviewed
