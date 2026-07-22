@@ -293,7 +293,7 @@ plugins/dometrain/skills/setup/evals/evals.json` ≥ 1; `grep -c '/mcp.*connecti
 plugins/dometrain/skills/setup/SKILL.md` == 0 (the corrected design never claims to read `/mcp`
 directly).
 
-### Phase 3: Grounding skill + a separate, non-model-invocable sync skill [TODO]
+### Phase 3: Grounding skill + a separate, non-model-invocable sync skill [DONE]
 
 **Design correction (devils-advocate CRITICAL + HIGH findings, applied here):**
 
