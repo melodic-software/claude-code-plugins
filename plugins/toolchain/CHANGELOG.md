@@ -3,6 +3,48 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.0]
+
+### Added
+
+- **`lychee-offline` added to the `cross-cutting` ecosystem default.** The bundled
+  `reference/ecosystems/cross-cutting.yaml` `check-cmd` now runs `lychee --offline --no-progress
+  './**/*.md'` alongside `typos`/`gitleaks`/editorconfig-checker — on-disk link/anchor integrity,
+  network-free (`--offline` skips external URLs; only local file and fragment targets are verified).
+  Opt-in follows the same per-tool-config pattern as the existing cross-cutting tools: an optional
+  `lychee.toml` at repo root customizes the ruleset (exclusions, fragment-check mode), absent means
+  lychee's own defaults. `install-hint` gains the `lycheeverse.lychee` winget package / `lychee`
+  brew formula. Per epic #830 ("lint/static-analysis gap closure"), sub-issue #833.
+
+## [0.8.0]
+
+### Added
+
+- **`go` ecosystem batch default** (`build-cmd: go build ./...`, `test-cmd: go test ./...`,
+  `check-cmd`/`fix-cmd: golangci-lint run [--fix] ./...`, `project-discovery: ["go.mod"]` for
+  nested-module coverage, a `go-mod-tidy-drift` gate via `go mod tidy -diff`) added to
+  `reference/ecosystems/go.yaml` — closes the Go toolchain CI/local-parity gap. Gated behind an
+  `opt-in` key (`.golangci.yml`/`.golangci.yaml`/`.golangci.toml`/`.golangci.json` presence) —
+  empirically verified golangci-lint v2 with no config file still applies its own fixed "standard"
+  linter preset unconditionally, the same imposed-unconfigured-opinion risk the 0.6.0 dotnet gate
+  addressed.
+- `context/go.md` reference file — Go-specific gotchas (`./...` module-boundary behavior,
+  golangci-lint's home-directory config fallback, `go mod tidy -diff`'s Go 1.23+ requirement).
+- `docs/conventions/ecosystem-commands/examples/go.yaml` worked-example fixture.
+- `go`/`golang` added to `/toolchain:check` and `/toolchain:lint`'s covered-ecosystem lists and
+  alias tables.
+
+## [0.7.0]
+
+### Added
+
+- **`pyright` added to the bundled Python ecosystem default's `check-cmd`.** Local `/toolchain:check`
+  now runs `uv run pyright` alongside the existing ruff lint/format check, closing the gap where CI
+  gated pyright but the local batch was ruff-only. Rung-4 fallback only — a consumer's own
+  `.claude/ecosystems/python.yaml` overrides `check-cmd` key-by-key and is unaffected. `fix-cmd` is
+  unchanged (pyright has no fix mode). `context/python.md` documents the default standard-mode gotcha
+  for untyped projects.
+
 ## [0.6.0]
 
 ### Added

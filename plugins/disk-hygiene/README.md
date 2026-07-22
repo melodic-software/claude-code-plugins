@@ -109,6 +109,10 @@ hand-cleaning the zone.
 
 - Use `/repo-hygiene:clean` for deterministic caches, build outputs, Git metadata, or a fresh-pull reset
   inside one repository. `disk-hygiene` does not duplicate those mechanisms.
+- Use `/source-control:worktree status`/`cleanup` (if installed) for git worktree checkouts such as a
+  `.worktrees/` tree — run those actions from the checkout's own main repository, as they manage the
+  current repository's worktrees and take no target. `disk-hygiene` protects tracked content and `.git`
+  metadata but does not manage worktree lifecycle.
 - Use a product's own prune/GC/uninstall command for state it owns. This skill reports the handoff and
   records the native result but never makes managed state eligible for engine execution.
 - `git clean` remains the authority for ignored/untracked repository files. This plugin protects every

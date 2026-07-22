@@ -219,6 +219,43 @@ in telemetry = Sonnet; live checkout clean; any fire-without-row = Phase 1 defec
 > attestation from the inner session transcript's scheduled-task enqueue marker,
 > fail-closed) — land before any eligibility claim relies on the zero-manual-kicks
 > input.
+>
+> **Status note (2026-07-22): fire-kind gap CLOSED — attestation LANDED** —
+> scratch#22 (merge `12098d7`, closes scratch#15). Empirical finding that reshaped the
+> design: a Run-now's enqueue record is byte-shape IDENTICAL to a scheduled one (verified
+> against the 07:36Z warm-up transcript), so #15's proposed marker cannot distinguish
+> origins alone; the landed mechanism is the originating-transcript join (run_id
+> containment + enqueue within 0–900s before run start, measured against EVERY task-tagged
+> enqueue per transcript) plus cron-slot alignment (≤600s past top-of-hour; genuine fires
+> land +320–332s, warm-up +2187s). Fail-closed exclusion; positives materialized to
+> `.artifacts/fire-attestations.jsonl` so once-attested runs survive transcript GC.
+> Predicate no longer trusts the `fire_kind` stamp (`fire_attested = true` filter).
+> Independent review found 1 CRITICAL pre-merge (multi-enqueue transcripts misattributed
+> origin to the file's first enqueue — fixed + regression-covered; latent today, all 11
+> real transcripts single-enqueue). Documented residual: a manual kick enqueued within
+> 600s of the slot attests falsely — threat model is accidental kicks, not an adversarial
+> operator. Live predicate at note time: completions=3 (runs 080540Z/190608Z/000552Z,
+> attested), span 1d, gate 100%, reverts 0, eligible=false; warm-up 073658Z mechanically
+> excluded (off-schedule, 2187s). Same day: C2 queue reseeded (scratch#17–#20) after #10
+> drained; drain PRs #16 (#10) and #21 (#17, fully autonomous seed-to-merge cycle) merged;
+> #811 root-caused (fnm shell-init-only PATH — GUI-launched sessions never get node;
+> operator one-liner + Desktop restart posted on #811, pending).
+>
+> **Acceleration ruling (operator, 2026-07-22):** move as fast as the predicate's intent
+> allows; the calendar gates (14-day span, ≥1-week zero-manual-kicks acceptance) stay
+> binding — shortening them would gut the evidence's meaning. Three sanctioned levers:
+> (1) **front-load the completion count** — seed the C2 queue as fast as GENUINE mechanical
+> items exist (drain claims one per hourly fire; the ~1.5/day cadence was shape preference,
+> not a rule; fabricated busywork seeds are forbidden — they weaken the evidence);
+> (2) **ignite Phase IV in parallel** with this watch (its gate — Phase I demonstrable — was
+> met 2026-07-21; each item still gets its own plan);
+> (3) **pre-build the Phase III flip machinery** (promotion PR draft citing the evidence
+> window) so the earliest eligibility date (~2026-08-04) is ratify-and-merge, not a build
+> day. Same day: drain PRs #23/#24/#26 merged (one linkage defect — `Refs` vs `Closes` —
+> caught and fixed pre-merge on #24), Dependabot's first PR #25 merged (SHA verified against
+> the upstream v7.0.1 tag; Dependabot PRs never count as drain evidence), queue reseeded
+> with five verified seeds (scratch#27–#31); predicate at completions=6, gate 100%,
+> reverts 0.
 
 Standing lane: missed-fire detector + failure tracker items are the automated signal; human
 merges the day's drain PRs (this is the pre-promotion policy, not a kick); weekly usage

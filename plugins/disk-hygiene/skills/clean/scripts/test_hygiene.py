@@ -880,6 +880,145 @@ class HygieneTests(unittest.TestCase):
             self.assertIn("--max-depth", payload["error"])
             self.assertIn("os_autoclean", payload)
 
+    def _home_target_fixture(self) -> tuple[Path, Path, Path]:
+        """A directory tree standing in for the user home target."""
+        base = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, base, ignore_errors=True)
+        root = base / "home"
+        root.mkdir()
+        (root / "loose.tmp").write_text("x", encoding="utf-8")
+        (root / "nested").mkdir()
+        (root / "nested" / "leaf.txt").write_text("y", encoding="utf-8")
+        data_root = base / "plugin-data"
+        data_root.mkdir()
+        return root, data_root, data_root / "run" / "snapshot.json"
+
+    def _run_home_scan(
+        self, extra_args: list[str]
+    ) -> tuple[int, dict[str, object], Path]:
+        root, data_root, output = self._home_target_fixture()
+        stdout_io = io.StringIO()
+        with (
+            mock.patch.object(hygiene.Path, "home", return_value=root.resolve()),
+            redirect_stdout(stdout_io),
+        ):
+            code = hygiene.main(
+                [
+                    "scan",
+                    "--target",
+                    str(root),
+                    "--output",
+                    str(output),
+                    "--data-root",
+                    str(data_root),
+                    *extra_args,
+                ]
+            )
+        return code, json.loads(stdout_io.getvalue()), output
+
+    def test_home_target_without_bound_requires_confirmation_and_never_walks(
+        self,
+    ) -> None:
+        root, data_root, output = self._home_target_fixture()
+        stdout_io = io.StringIO()
+        with (
+            mock.patch.object(hygiene.Path, "home", return_value=root.resolve()),
+            refuse_call("scan_tree"),
+            redirect_stdout(stdout_io),
+        ):
+            code = hygiene.main(
+                [
+                    "scan",
+                    "--target",
+                    str(root),
+                    "--output",
+                    str(output),
+                    "--data-root",
+                    str(data_root),
+                ]
+            )
+        payload = json.loads(stdout_io.getvalue())
+        self.assertEqual(5, code)
+        self.assertEqual("large-target-confirmation-required", payload["status"])
+        self.assertEqual(["user-home"], payload["large_target_reasons"])
+        self.assertEqual(2, payload["immediate_entries"])
+        self.assertIn("os_autoclean", payload)
+        self.assertFalse(output.exists())
+
+    def test_home_target_with_max_depth_proceeds(self) -> None:
+        code, payload, output = self._run_home_scan(["--max-depth", "1"])
+        self.assertEqual(0, code)
+        self.assertEqual("scan-complete", payload["status"])
+        self.assertTrue(output.exists())
+
+    def test_home_target_with_confirmed_flag_proceeds(self) -> None:
+        code, payload, output = self._run_home_scan(["--confirmed-large-scan"])
+        self.assertEqual(0, code)
+        self.assertEqual("scan-complete", payload["status"])
+        self.assertTrue(output.exists())
+
+    def test_ordinary_subdirectory_is_not_gated(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            root = base / "target"
+            root.mkdir()
+            (root / "junk.tmp").write_text("x", encoding="utf-8")
+            home = base / "home"
+            home.mkdir()
+            data_root = base / "plugin-data"
+            data_root.mkdir()
+            output = data_root / "run" / "snapshot.json"
+            stdout_io = io.StringIO()
+            with (
+                # Home is a different real directory, so identity does not match.
+                mock.patch.object(hygiene.Path, "home", return_value=home.resolve()),
+                redirect_stdout(stdout_io),
+            ):
+                code = hygiene.main(
+                    [
+                        "scan",
+                        "--target",
+                        str(root),
+                        "--output",
+                        str(output),
+                        "--data-root",
+                        str(data_root),
+                    ]
+                )
+            payload = json.loads(stdout_io.getvalue())
+            self.assertEqual(0, code)
+            self.assertEqual("scan-complete", payload["status"])
+
+    def test_home_match_is_by_filesystem_identity_not_case_folded_string(
+        self,
+    ) -> None:
+        # A case-variant spelling resolves to the same directory on a
+        # case-insensitive macOS volume, but os.path.normcase folds case only on
+        # Windows — a string compare would let it bypass the gate. The match is
+        # by filesystem identity, simulated here (CI is case-sensitive Linux) by
+        # having samefile report the two distinct spellings as one file.
+        target = Path("/users/alice")
+        home = Path("/Users/alice")
+        self.assertNotEqual(os.fspath(target), os.fspath(home))
+        with (
+            mock.patch.object(hygiene, "user_home", return_value=home),
+            mock.patch("os.path.samefile", return_value=True) as samefile,
+        ):
+            reasons = hygiene.large_scan_reasons(target)
+        self.assertEqual(["user-home"], reasons)
+        samefile.assert_called_once_with(target, home)
+
+    def test_home_match_treats_unstattable_home_as_no_match(self) -> None:
+        # samefile raises when a path is missing; a home that cannot be stat'd
+        # must be no match, never a crash.
+        with (
+            mock.patch.object(
+                hygiene, "user_home", return_value=Path("/home/missing")
+            ),
+            mock.patch("os.path.samefile", side_effect=FileNotFoundError),
+        ):
+            self.assertEqual([], hygiene.large_scan_reasons(Path("/home/target")))
+
 
 class StandingPolicyTests(unittest.TestCase):
     @staticmethod
@@ -1064,6 +1203,7 @@ class GuardTests(unittest.TestCase):
         with (
             mock.patch("sys.stdin", stdin),
             redirect_stdout(stdout),
+            mock.patch.object(guard.sys, "argv", [str(SCRIPT_DIR / "destructive_guard.py")]),
             mock.patch.dict(
                 "os.environ", {"CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED": "true"}, clear=False
             ),
@@ -1077,12 +1217,48 @@ class GuardTests(unittest.TestCase):
         with (
             mock.patch("sys.stdin", stdin),
             redirect_stdout(stdout),
+            mock.patch.object(guard.sys, "argv", [str(SCRIPT_DIR / "destructive_guard.py")]),
             mock.patch.dict(
                 "os.environ", {"CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED": "false"}, clear=False
             ),
         ):
             self.assertEqual(0, guard.main())
         return json.loads(stdout.getvalue())
+
+    def run_guard_enabled_argv(
+        self, command: str, tool_name: str, enabled_arg: str
+    ) -> dict[str, object] | None:
+        """Drive the guard with the kill switch supplied via hook argv, not the env.
+
+        Mirrors the skill-frontmatter hook, which substitutes
+        ``--disk-hygiene-enabled ${user_config.disk_hygiene_enabled}`` into the
+        guard's own argv while CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED is absent
+        from the hook process environment — the exact env-injection failure this
+        fix addresses.
+        """
+        argv = [
+            str(SCRIPT_DIR / "destructive_guard.py"),
+            "--disk-hygiene-enabled",
+            enabled_arg,
+        ]
+        environment = {
+            key: value
+            for key, value in os.environ.items()
+            if key != "CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED"
+        }
+        stdin = io.StringIO(
+            json.dumps({"tool_name": tool_name, "tool_input": {"command": command}})
+        )
+        stdout = io.StringIO()
+        with (
+            mock.patch("sys.stdin", stdin),
+            redirect_stdout(stdout),
+            mock.patch.object(guard.sys, "argv", argv),
+            mock.patch.dict("os.environ", environment, clear=True),
+        ):
+            self.assertEqual(0, guard.main())
+        value = stdout.getvalue()
+        return json.loads(value) if value.strip() else None
 
     def test_guard_denies_direct_recursive_delete(self) -> None:
         result = self.run_guard("rm -rf /tmp/example")
@@ -1229,6 +1405,33 @@ class GuardTests(unittest.TestCase):
             self.run_guard(malformed)["hookSpecificOutput"]["permissionDecision"],
         )
 
+    def test_guard_allows_exact_kill_switch_probe_invocation(self) -> None:
+        probe = SCRIPT_DIR.parent.parent / "setup" / "scripts" / "kill_switch_probe.py"
+        command = f'"{self.python_command()}" "{probe}"'
+        result = self.run_guard(command)["hookSpecificOutput"]
+        self.assertEqual("allow", result["permissionDecision"])
+
+    def test_guard_allows_kill_switch_probe_in_audit_only_mode(self) -> None:
+        probe = SCRIPT_DIR.parent.parent / "setup" / "scripts" / "kill_switch_probe.py"
+        command = f'"{self.python_command()}" "{probe}"'
+        result = self.run_guard_disabled(command)["hookSpecificOutput"]
+        self.assertEqual("allow", result["permissionDecision"])
+
+    def test_guard_denies_kill_switch_probe_with_arguments(self) -> None:
+        probe = SCRIPT_DIR.parent.parent / "setup" / "scripts" / "kill_switch_probe.py"
+        for suffix in (" --settings-file s", " extra"):
+            command = f'"{self.python_command()}" "{probe}"{suffix}'
+            self.assertEqual(
+                "deny",
+                self.run_guard(command)["hookSpecificOutput"]["permissionDecision"],
+                command,
+            )
+
+    def test_guard_denies_kill_switch_probe_via_bare_python(self) -> None:
+        probe = SCRIPT_DIR.parent.parent / "setup" / "scripts" / "kill_switch_probe.py"
+        result = self.run_guard(f'python "{probe}"')["hookSpecificOutput"]
+        self.assertEqual("deny", result["permissionDecision"])
+
     def test_guard_scan_accepts_optional_policy_and_project_dir(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         base = f'"{self.python_command()}" "{script}" scan --target t --output s'
@@ -1266,8 +1469,30 @@ class GuardTests(unittest.TestCase):
         with (
             mock.patch("sys.stdin", stdin),
             redirect_stdout(stdout),
+            mock.patch.object(guard.sys, "argv", [str(SCRIPT_DIR / "destructive_guard.py")]),
             mock.patch.dict(
                 "os.environ", {"CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED": "true"}, clear=False
+            ),
+        ):
+            self.assertEqual(0, guard.main())
+        value = stdout.getvalue()
+        return json.loads(value) if value.strip() else None
+
+    def run_guard_powershell_disabled(
+        self, command: str
+    ) -> dict[str, object] | None:
+        stdin = io.StringIO(
+            json.dumps({"tool_name": "PowerShell", "tool_input": {"command": command}})
+        )
+        stdout = io.StringIO()
+        with (
+            mock.patch("sys.stdin", stdin),
+            redirect_stdout(stdout),
+            mock.patch.object(guard.sys, "argv", [str(SCRIPT_DIR / "destructive_guard.py")]),
+            mock.patch.dict(
+                "os.environ",
+                {"CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED": "false"},
+                clear=False,
             ),
         ):
             self.assertEqual(0, guard.main())
@@ -1478,6 +1703,101 @@ class GuardTests(unittest.TestCase):
                     "contains ${ must be preserved as the argv authority",
                 )
 
+    def test_argv_flag_value_parses_both_arg_spellings(self) -> None:
+        self.assertEqual(
+            "false",
+            guard._argv_flag_value(["--disk-hygiene-enabled", "false"], "--disk-hygiene-enabled"),
+        )
+        self.assertEqual(
+            "false",
+            guard._argv_flag_value(["--disk-hygiene-enabled=false"], "--disk-hygiene-enabled"),
+        )
+        self.assertIsNone(
+            guard._argv_flag_value(["--other", "false"], "--disk-hygiene-enabled")
+        )
+        self.assertIsNone(
+            guard._argv_flag_value(["--disk-hygiene-enabled"], "--disk-hygiene-enabled")
+        )
+
+    def test_resolve_disk_hygiene_enabled_precedence(self) -> None:
+        script = str(SCRIPT_DIR / "destructive_guard.py")
+
+        def drive(argv_tail: list[str], env: dict[str, str]) -> bool:
+            with (
+                mock.patch.object(guard.sys, "argv", [script, *argv_tail]),
+                mock.patch.dict("os.environ", env, clear=True),
+            ):
+                return guard.resolve_disk_hygiene_enabled()
+
+        # Argv is authoritative over the environment, both directions.
+        self.assertFalse(
+            drive(
+                ["--disk-hygiene-enabled", "false"],
+                {"CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED": "true"},
+            ),
+            "a configured false in argv must disable even when the env says true",
+        )
+        self.assertTrue(
+            drive(
+                ["--disk-hygiene-enabled", "true"],
+                {"CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED": "false"},
+            )
+        )
+        # Case-insensitive, whitespace-tolerant false.
+        self.assertFalse(drive(["--disk-hygiene-enabled", " FALSE "], {}))
+        # A literal, unsubstituted placeholder falls back to the environment.
+        self.assertFalse(
+            drive(
+                ["--disk-hygiene-enabled", "${user_config.disk_hygiene_enabled}"],
+                {"CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED": "false"},
+            ),
+            "an unsubstituted placeholder must fall back to the environment",
+        )
+        # An empty substituted value falls back to the environment.
+        self.assertFalse(
+            drive(
+                ["--disk-hygiene-enabled", ""],
+                {"CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED": "false"},
+            )
+        )
+        # No argv, env supplies the value.
+        self.assertFalse(
+            drive([], {"CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED": "false"})
+        )
+        # No channel supplies a value: fail safe to enabled (guard active).
+        self.assertTrue(drive([], {}))
+
+    def test_skill_hook_passes_disk_hygiene_enabled_flag_matching_constant(
+        self,
+    ) -> None:
+        """Lock the config<->code seam the kill switch depends on.
+
+        The frontmatter hook must pass the exact flag literal the guard parses,
+        immediately followed by the ${user_config.disk_hygiene_enabled} token. If
+        either side is renamed without the other, the guard silently loses the
+        configured value and falls back to the (absent) env var — defaulting to
+        enabled and defeating the kill switch, the regression this test guards.
+        """
+        skill = SCRIPT_DIR.parent / "SKILL.md"
+        text = skill.read_text(encoding="utf-8")
+        args_line = next(
+            (
+                line
+                for line in text.splitlines()
+                if "destructive_guard.py" in line and "args:" in line
+            ),
+            None,
+        )
+        self.assertIsNotNone(args_line, "frontmatter hook args line not found")
+        assert args_line is not None
+        array_text = args_line[args_line.index("[") : args_line.rindex("]") + 1]
+        args = json.loads(array_text)
+        self.assertIn(guard._DISK_HYGIENE_ENABLED_FLAG, args)
+        flag_index = args.index(guard._DISK_HYGIENE_ENABLED_FLAG)
+        self.assertEqual(
+            guard._DISK_HYGIENE_ENABLED_PLACEHOLDER, args[flag_index + 1]
+        )
+
     def test_skill_hook_passes_authorized_data_root_flag_matching_constant(
         self,
     ) -> None:
@@ -1507,6 +1827,50 @@ class GuardTests(unittest.TestCase):
         flag_index = args.index(guard._AUTHORIZED_DATA_ROOT_FLAG)
         self.assertEqual("${CLAUDE_PLUGIN_DATA}", args[flag_index + 1])
 
+    def test_skill_hook_interpreter_is_python3_and_resolves(self) -> None:
+        """Lock the guard's launch interpreter and prove it resolves.
+
+        The PreToolUse hook runs in exec form, so `command` is resolved on PATH
+        with no shell. Bare `python` is absent on stock macOS and many Linux
+        distros (and a legacy 2.x would crash the guard), which fails the launch
+        open — the guard never intercepts. The static half locks the config at
+        `python3`. The runtime half is the "interpreter actually resolves" probe:
+        it skips where `python3` cannot run — absent from PATH, or resolved to a
+        name that will not execute (a Windows App Execution Alias stub resolves
+        to a real path yet exits non-zero) — because that is the documented
+        residual host gap, not a regression; only a runnable `python3` is
+        asserted to be 3.11+.
+        """
+        skill = SCRIPT_DIR.parent / "SKILL.md"
+        command_line = next(
+            (
+                line
+                for line in skill.read_text(encoding="utf-8").splitlines()
+                if line.strip().startswith("command:")
+            ),
+            None,
+        )
+        self.assertIsNotNone(command_line, "frontmatter hook command line not found")
+        assert command_line is not None
+        interpreter = command_line.split(":", 1)[1].strip().strip('"')
+        self.assertEqual("python3", interpreter)
+
+        resolved = shutil.which(interpreter)
+        if resolved is None:
+            self.skipTest(f"{interpreter} does not resolve on this host")
+        probe = subprocess.run(
+            [resolved, "-c", "import sys; print('%d.%d' % sys.version_info[:2])"],
+            capture_output=True,
+            text=True,
+        )
+        if probe.returncode != 0 or not probe.stdout.strip():
+            self.skipTest(
+                f"{interpreter} resolved to a non-runnable interpreter "
+                f"({(probe.stderr or probe.stdout).strip()})"
+            )
+        major, minor = (int(part) for part in probe.stdout.strip().split("."))
+        self.assertGreaterEqual((major, minor), (3, 11), probe.stdout)
+
     def test_guard_scan_max_depth_accepts_only_positive_integer_literal(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         base = f'"{self.python_command()}" "{script}" scan --target t --output s'
@@ -1523,6 +1887,32 @@ class GuardTests(unittest.TestCase):
                     "permissionDecision"
                 ],
                 value,
+            )
+
+    def test_guard_scan_accepts_single_confirmed_large_scan_flag(self) -> None:
+        script = SCRIPT_DIR / "hygiene.py"
+        base = f'"{self.python_command()}" "{script}" scan --target t --output s'
+        allowed = (
+            f"{base} --confirmed-large-scan",
+            f"{base} --confirmed-large-scan --max-depth 1",
+            f"{base} --max-depth 1 --confirmed-large-scan",
+            f"{base} --confirmed-large-scan --policy p",
+        )
+        denied = (
+            f"{base} --confirmed-large-scan --confirmed-large-scan",
+            f"{base} --confirmed-large-scan v",
+        )
+        for command in allowed:
+            self.assertEqual(
+                "allow",
+                self.run_guard(command)["hookSpecificOutput"]["permissionDecision"],
+                command,
+            )
+        for command in denied:
+            self.assertEqual(
+                "deny",
+                self.run_guard(command)["hookSpecificOutput"]["permissionDecision"],
+                command,
             )
 
     def test_guard_preview_accepts_optional_authorized_data_root(self) -> None:
@@ -1594,6 +1984,56 @@ class GuardTests(unittest.TestCase):
             "Get-Item C:/tmp/example | Select-Object Length",
         ):
             self.assertIsNone(self.run_guard_powershell(command), command)
+
+    def test_powershell_deletion_spellings_denied_in_audit_only_mode(self) -> None:
+        """Kill switch (B2): audit-only mode must deny PowerShell deletions, not ask."""
+        for command in (
+            "Remove-Item -Recurse -Force C:/tmp/example",
+            "rm C:/tmp/example",
+            "del C:/tmp/example",
+            "[IO.File]::Delete('C:/tmp/example')",
+            "[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile('x', 'OnlyErrorDialogs', 'SendToRecycleBin')",
+        ):
+            result = self.run_guard_powershell_disabled(command)
+            assert result is not None, command
+            self.assertEqual(
+                "deny",
+                result["hookSpecificOutput"]["permissionDecision"],
+                command,
+            )
+
+    def test_kill_switch_blocks_every_lane_via_argv_without_env(self) -> None:
+        """Acceptance (B2+D3 together): a configured ``false`` reaching the guard
+        only through the hook argv — the env var UNSET, the exact env-injection
+        failure — must block deletions on both the PowerShell and Bash lanes."""
+        script = SCRIPT_DIR / "hygiene.py"
+        powershell = self.run_guard_enabled_argv(
+            "Remove-Item -Recurse -Force C:/tmp/example", "PowerShell", "false"
+        )
+        assert powershell is not None
+        self.assertEqual(
+            "deny", powershell["hookSpecificOutput"]["permissionDecision"]
+        )
+        apply_command = (
+            f'"{self.python_command()}" "{script}" apply --execute --snapshot s '
+            f'--plan p --confirm-tier high --approval-token {"a" * 24} --report r'
+        )
+        bash = self.run_guard_enabled_argv(apply_command, "Bash", "false")
+        assert bash is not None
+        self.assertEqual("deny", bash["hookSpecificOutput"]["permissionDecision"])
+
+    def test_kill_switch_enabled_via_argv_without_env_still_gates(self) -> None:
+        """The argv channel with the env var unset also carries an enabling value:
+        an ``apply`` is gated (``ask``) rather than denied, confirming the argv
+        value — not a hardcoded default — drives the decision."""
+        script = SCRIPT_DIR / "hygiene.py"
+        apply_command = (
+            f'"{self.python_command()}" "{script}" apply --execute --snapshot s '
+            f'--plan p --confirm-tier high --approval-token {"a" * 24} --report r'
+        )
+        result = self.run_guard_enabled_argv(apply_command, "Bash", "true")
+        assert result is not None
+        self.assertEqual("ask", result["hookSpecificOutput"]["permissionDecision"])
 
 
 if __name__ == "__main__":

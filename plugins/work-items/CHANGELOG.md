@@ -3,6 +3,83 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.2]
+
+### Changed
+
+- Fresh-eyes delegation sites now prefer a cross-vendor advisor when one is installed
+  (e.g. the OpenAI Codex plugin, invoked per its own docs), with the fresh-context same-vendor
+  subagent as the stated fallback — presence-gated per the seam-phrasing convention.
+
+## [0.21.1]
+
+### Fixed
+
+- **Triage SKILL state machine + attention view reconciled with live labels (`#817`).** The
+  attention view's bucket list named only `status:needs-triage`, leaving a repo that files raw
+  intake on the priority axis (`priority:needs-triage`, per `#802`'s dual-axis Scope wording)
+  invisible to the no-arg attention view; the bucket now names both axes. Separately,
+  `status:needs-decision` was already referenced by the closing invariant as a routing outcome
+  that clears the raw marker, but was never introduced as a side exit in the state machine itself
+  (unlike `needs-info`, human-gated, and close) — it is now documented alongside them in the
+  side-exits sentence and the state diagram. Doc-only; no routing logic changed.
+
+## [0.21.0]
+
+### Added
+
+- **Issue-conventions reference — `reference/issue-conventions.md` (`#552` member 6).** The title
+  convention (~98% of live org issues conform) and the filing body shape were load-bearing and
+  written down nowhere. The new doc is the single source of truth for the TITLE convention
+  (`<prefix>: <lowercase summary>`, area/path and conventional-commit prefix dialects, `Epic:` for
+  umbrellas, sub-issue edges over title suffixes) and points — never copies — at the existing owners
+  for body (`track add` "Build body", `agent-brief.md`), type/labels (`track add` type resolution,
+  `label-taxonomy.md`), and close reason (`track done`). Cited from `track add`, `decompose`,
+  `triage`, and `dogfood-filing.md`.
+
+### Changed
+
+- **Triage priority default is `p2-medium`; `p1-high` is reserved (`#552` member 4).** 77% of open
+  issues carried `priority: high`, destroying it as a staffing signal. Triage now defaults to
+  `priority:p2-medium` when no directive, category rule, or severity signal sets one, and reserves
+  `priority:p1-high` for items that block other work or carry an imminent external deadline. The
+  `track add` filing default (`p3-low`) is deliberately distinct — an untriaged-signal floor, not a
+  priority assessment — and is now documented as such.
+- **Duplicate / supersede close discipline (`#552` member 5).** Sampled closures were 100%
+  `COMPLETED` — duplicates and superseded items were closing under the wrong reason. Duplicates now close via the
+  provider's native duplicate mechanic where one exists (GitHub: `gh issue close --duplicate-of`,
+  which sets close reason `duplicate` and a structured, API-queryable `duplicateOf` relationship),
+  with the portable fallback — append a queryable `## Duplicate of #N` body section and close
+  `not planned` — for cross-repo targets and providers without a native duplicate reason. Superseded
+  and duplicate items never close as `completed` (triage outcome table, `track done`, GitHub adapter
+  README mechanic).
+
+## [0.20.0]
+
+### Added
+
+- **Mini-SDLC pipeline-shape SSOT — `reference/pipeline-shape.md` (`#613`, stage 1 of `#513`).** The
+  work lane had no durable definition of the *shape* of the pipeline it runs per item — the lane
+  catalog, the implementer ≠ reviewer ≠ verifier invariant, and the depth tiers lived only as evolving
+  prose and per-issue plans, so the shape drifted and could not be scaled or reviewed in one place. A
+  new reference doc owns that stable policy: the fixed lane set (explore → research → plan →
+  devil's-advocate → implement → test → review → verify, with the re-anchor slot reserved), the
+  "variation in depth, never in shape" principle, the role-separation invariant, and placeholder depth
+  tiers carried as a plan field. It is a reversible reference-doc STOPGAP (form/location/name left to
+  the operator per `#513`) and points at the return-payload contract (`#496`) and convention-gap
+  protocol (`#554`) rather than restating them. **Scope note:** this stage lands the shape and the
+  wire-in only — the depth-scaling dispatcher and the separated-reviewer/verifier runtime are later
+  `#513` stages, so the doc defines the target shape and makes no claim that the runtime already
+  depth-scales or fully separates roles today.
+
+### Changed
+
+- **`work` Step 5 dispatches against the pipeline-shape SSOT (`#613`).** The execute sub-step now
+  points the dispatched chain at `reference/pipeline-shape.md` for the lane shape, additively — the
+  existing instruction to follow the consuming project's own development workflow and domain rules is
+  retained; the chain runs the shape *within* the consumer's workflow and rules, never in place of
+  them.
+
 ## [0.19.0]
 
 ### Added

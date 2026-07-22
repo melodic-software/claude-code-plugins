@@ -70,6 +70,8 @@ and review criteria, or delegate to a fresh-context reviewer.
 
 - A reviewer in a fresh context sees only the diff and the criteria — it is not anchored by the
   reasoning that produced the change; prefer that over pure self-audit for non-trivial diffs
+- For a high-stakes diff, prefer a cross-vendor reviewer when one is installed and set up — e.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs — with the fresh-context same-vendor subagent as the fallback,
+  never a route to a command that may not resolve
 
 ## 7. Verify outcome
 

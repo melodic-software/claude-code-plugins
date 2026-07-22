@@ -71,6 +71,19 @@
       }
     },
     {
+      "name": "go-format",
+      "source": "./plugins/go-format",
+      "category": "development",
+      "tags": ["go", "golang", "goimports", "formatter", "hook"],
+      "relevance": {
+        "topic": "Go",
+        "signals": {
+          "filesRead": ["**/*.go"],
+          "cli": ["goimports"]
+        }
+      }
+    },
+    {
       "name": "eol-normalizer",
       "displayName": "EOL Normalizer",
       "source": "./plugins/eol-normalizer",
@@ -410,6 +423,13 @@
       "source": "./plugins/miro",
       "category": "design",
       "tags": ["miro", "mcp", "boards", "sticky-notes", "eventstorming", "diagramming", "visual-collaboration"],
+      "defaultEnabled": false
+    },
+    {
+      "name": "dometrain",
+      "source": "./plugins/dometrain",
+      "category": "discovery",
+      "tags": ["dometrain", "mcp", "courses", "dotnet", "csharp", "learning", "grounding"],
       "defaultEnabled": false
     },
     {

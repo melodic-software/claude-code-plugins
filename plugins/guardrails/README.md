@@ -10,7 +10,7 @@ Each guard is independently toggleable, so you run exactly the subset you want.
 |-------|-----------------|----------|-----------------|
 | **secret-pattern-detection** | PreToolUse · Write \| Edit \| NotebookEdit | **Blocks** (exit 2) | High-confidence secret/credential patterns (AWS/GitHub/GitLab/Slack/Stripe/OpenAI keys, PEM private keys) in new file content. |
 | **hardcoded-path-check** | PreToolUse · Write \| Edit \| NotebookEdit | **Blocks** (exit 2) | Hardcoded machine-specific paths — Windows drive-letter homes, macOS/Linux user homes, machine-specific repo checkout roots. |
-| **block-no-verify** | PreToolUse · Bash | **Blocks** (exit 2) | Git hook-bypass attempts on `git commit` / `git push`: `--no-verify` / `-n`, `core.hooksPath=` assignment, and `LEFTHOOK=0` / `LEFTHOOK_*=false` env-var prefixes (including inside compound `cd … && …` commands). |
+| **block-no-verify** | PreToolUse · Bash | **Blocks** (exit 2) | Git hook-bypass attempts on `git commit` / `git push`: `--no-verify` / `-n`, `core.hooksPath=` assignment, and hook-manager disable env vars — a configurable prefix set defaulting to `lefthook`, `husky`, `pre_commit`, `simple_git_hooks` (e.g. `LEFTHOOK=0`, `HUSKY=0`, `PRE_COMMIT_*=false`), tunable via `block_no_verify_hook_manager_prefixes`, including inside compound `cd … && …` commands. |
 | **block-dangerous-git** | PreToolUse · Bash | **Blocks** (exit 2) | Irreversible git operations: `push --force`/`-f` plus the equivalent leading-`+` refspec and `--mirror` forms (never `--force-with-lease`; a push dry-run disarms), `reset --hard`, `clean` with a force flag (any dry-run flag disarms), worktree-wide `checkout`/`restore` pathspecs (`.`, `:/`, `:(top…)` — path-scoped forms and `restore --staged .` pass), and forced `checkout -f` / `switch --discard-changes`. Accepted unique-prefix abbreviations of the blocked long options match too. `branch -D` is deliberately not blocked (reflog-recoverable; sanctioned skill flows issue it). Per-repo/per-user allow-list via the `block_dangerous_git_allow` userConfig option (comma list, any subset of `push-force,reset-hard,clean-force,checkout-dot,restore-dot,checkout-force`). |
 | **block-hook-bypass** | PreToolUse · Bash | **Blocks** (exit 2) | Bash file-write workarounds that circumvent the Write/Edit hook gates — `cat > file`, `echo … > file`, and `python3 -c` with file-write indicators. Executable-token detection ignores quoted prose/commit text that merely mentions the pattern. |
 | **cli-flag-verify** | PostToolUse · Write \| Edit | **Advisory** (exit 0) | Hallucinated CLI flags — a `--flag` written as a command that does not exist in the binary's actual `--help` output. Surfaces via `additionalContext`, never blocks. |
@@ -24,11 +24,14 @@ way but always allow the operation.
 
 ### Scope notes
 
-- **Hook-manager coverage.** `block-no-verify` recognizes the **lefthook**
-  env-var disable prefix (`LEFTHOOK=0` / `LEFTHOOK_*=false`). Other managers'
-  disable env vars (husky, pre-commit, …) are **not** matched — but the
-  manager-agnostic `--no-verify` / `-n` and `core.hooksPath=` checks catch those
-  bypasses regardless of which manager runs the hooks.
+- **Hook-manager coverage.** `block-no-verify` recognizes the disable env-var
+  prefixes of a configurable manager set — `lefthook`, `husky`, `pre_commit`,
+  and `simple_git_hooks` by default (`LEFTHOOK=0`, `HUSKY=0`, `PRE_COMMIT_*=false`,
+  `SIMPLE_GIT_HOOKS=0`, …). Extend or narrow it with the
+  `block_no_verify_hook_manager_prefixes` userConfig option (see Consumer seams).
+  Independent of that set, the manager-agnostic `--no-verify` / `-n` and
+  `core.hooksPath=` checks catch bypasses regardless of which manager runs the
+  hooks.
 - **Argv-grammar-faithful matching (and its residual).** `block-no-verify` and
   `block-dangerous-git` share one parser (in the bundled hook-utils library)
   that parses the command the way the shell builds argv — segmenting on
@@ -122,14 +125,25 @@ repo-specific policy of their own:
   (`claude gh dotnet docker npm kubectl terraform az aws`); override with the
   `cli_flag_verify_bins` option (`bin1,bin2,…`) and skip specific binaries
   with `cli_flag_verify_skip_bins`.
-- **Skill-availability gating.** `flag-commit-pr-skill-bypass` reads
-  `enabledPlugins` from the consuming project's own `.claude/settings.json`
-  (`.claude/settings.local.json` as an override, only for a key already present
-  in `settings.json` — CC ignores a local-only key per
-  [anthropics/claude-code#27247](https://github.com/anthropics/claude-code/issues/27247))
-  to confirm `source-control@…` is actually enabled before advising toward its
-  skills. Missing/uncertain state (no settings file, no jq, key absent) fails
-  quiet — never advises toward a skill the project doesn't have installed.
+- **Hook-manager prefixes.** `block-no-verify` reads its recognized
+  hook-manager disable-env-var prefixes from `block_no_verify_hook_manager_prefixes`
+  (comma list, default `lefthook, husky, pre_commit, simple_git_hooks`). Add a
+  manager your project uses, or narrow the set. Values are reduced to identifier
+  characters before use, so a consumer value can never inject regex metacharacters.
+  The manager-agnostic `--no-verify` / `-n` and `core.hooksPath=` checks run
+  regardless of this list.
+- **Skill-availability gating.** `flag-commit-pr-skill-bypass` resolves
+  `enabledPlugins` the way Claude Code merges it across scopes — user-global
+  (`$CLAUDE_CONFIG_DIR/settings.json`, else `~/.claude/settings.json`) as the
+  base, the project's `.claude/settings.json` overriding it, and
+  `.claude/settings.local.json` overriding that (a local override counts only
+  for a key the project already declares — CC ignores a local-only key per
+  [anthropics/claude-code#27247](https://github.com/anthropics/claude-code/issues/27247)).
+  Each exact `source-control@…` key is resolved independently; if ANY resolves
+  enabled the advisory fires. So a plugin enabled **only** at user-global (a
+  common install) still triggers it — the project need not carry its own
+  `settings.json`. Missing/uncertain state (no key enabled at any scope, no jq)
+  fails quiet — never advises toward a skill that is not enabled for the session.
 
 ## Telemetry (opt-in)
 

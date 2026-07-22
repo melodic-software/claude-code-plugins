@@ -24,11 +24,11 @@ Detects affected ecosystems from changed files and runs each one's build → tes
 
 `$ARGUMENTS` — optional ecosystem filter. If provided, run only that ecosystem. If omitted, auto-detect from changed files.
 
-Available ecosystem filters are the ecosystems `/toolchain:check` covers: `dotnet`, `python`, `typescript`, `bash`, `powershell`, `markdown` (resolved per the ladder). Common aliases: `ts`/`node` → `typescript`, `shell` → `bash`, `ps`/`pwsh` → `powershell`, `md` → `markdown`. Literal `all` runs every covered ecosystem. The lint-only `yaml` and `cross-cutting` surfaces are **not** run by `/toolchain:check` — use `/toolchain:lint` for those.
+Available ecosystem filters are the ecosystems `/toolchain:check` covers: `dotnet`, `python`, `typescript`, `bash`, `powershell`, `markdown`, `go` (resolved per the ladder). Common aliases: `ts`/`node` → `typescript`, `shell` → `bash`, `ps`/`pwsh` → `powershell`, `md` → `markdown`, `golang` → `go`. Literal `all` runs every covered ecosystem. The lint-only `yaml` and `cross-cutting` surfaces are **not** run by `/toolchain:check` — use `/toolchain:lint` for those.
 
 ## Ecosystem detection
 
-Each ecosystem declares a list of `globs` that classify changed files into that ecosystem (resolved per the ladder — consumer `.claude/ecosystems/<ecosystem>.yaml` when present, else the bundled default). The skill matches `git status --porcelain` output against each covered ecosystem's `globs` to determine which ecosystems are affected. `/toolchain:check` covers `dotnet`, `python`, `typescript`, `bash`, `powershell`, `markdown`; the lint-only `yaml` and `cross-cutting` surfaces are `/toolchain:lint`'s (in particular `cross-cutting`'s `**` glob is never matched here).
+Each ecosystem declares a list of `globs` that classify changed files into that ecosystem (resolved per the ladder — consumer `.claude/ecosystems/<ecosystem>.yaml` when present, else the bundled default). The skill matches `git status --porcelain` output against each covered ecosystem's `globs` to determine which ecosystems are affected. `/toolchain:check` covers `dotnet`, `python`, `typescript`, `bash`, `powershell`, `markdown`, `go`; the lint-only `yaml` and `cross-cutting` surfaces are `/toolchain:lint`'s (in particular `cross-cutting`'s `**` glob is never matched here).
 
 For ecosystem-specific gotchas, reference files, and primary-source detail, read the corresponding context file:
 
@@ -38,6 +38,7 @@ For ecosystem-specific gotchas, reference files, and primary-source detail, read
 - [context/typescript.md](context/typescript.md) — TypeScript compile, test, lint
 - [context/bash.md](context/bash.md) — ShellCheck, shfmt
 - [context/powershell.md](context/powershell.md) — PSScriptAnalyzer
+- [context/go.md](context/go.md) — Go build, test, lint, module discovery
 
 When invoked as a task (`/toolchain:check`), detect from `git status --porcelain`. When referenced by another skill, use the file list that skill provides.
 
@@ -53,7 +54,7 @@ All commands use absolute paths. Never `cd` and lose context.
 
 ### 1. Detect ecosystems
 
-If `$ARGUMENTS` specifies an ecosystem, use it. If `all`, run every covered ecosystem. Otherwise, classify changed files from `git status --porcelain` against each covered ecosystem's `globs` (resolved per the ladder; `/toolchain:check` covers `dotnet`, `python`, `typescript`, `bash`, `powershell`, `markdown`). Skip any ecosystem whose resolved `enabled` is `false` (a consumer opt-out) — excluded even under `all`.
+If `$ARGUMENTS` specifies an ecosystem, use it. If `all`, run every covered ecosystem. Otherwise, classify changed files from `git status --porcelain` against each covered ecosystem's `globs` (resolved per the ladder; `/toolchain:check` covers `dotnet`, `python`, `typescript`, `bash`, `powershell`, `markdown`, `go`). Skip any ecosystem whose resolved `enabled` is `false` (a consumer opt-out) — excluded even under `all`.
 
 If the working tree is clean, fall back to the branch diff so checkpoint-committed work still gets classified (the common pre-PR case: every green block was already committed). Resolve the default branch by **detection, not assumption** — never a hardcoded `main`/`master` — and assign it before use:
 
@@ -111,7 +112,7 @@ Tool presence: before each ecosystem runs, verify the tool is on `PATH`. If miss
 
 **Opt-in gate (lint phase only)**: before running an ecosystem's `check-cmd`, evaluate its resolved `opt-in` condition (if present) against the repo. Build and test always run regardless of `opt-in` — only the lint phase is gated, since compiling and testing don't depend on style configuration.
 
-This binary gate applies cleanly when `opt-in` describes ONE condition governing the whole `check-cmd` (e.g. dotnet, python): unmet → report the ecosystem's Lint column as `skip (opt-in unmet: <condition, ≤10 words>)` — visible, not silently omitted — and do not run `check-cmd`. Met → run `check-cmd` normally.
+This binary gate applies cleanly when `opt-in` describes ONE condition governing the whole `check-cmd` (e.g. dotnet, python, go): unmet → report the ecosystem's Lint column as `skip (opt-in unmet: <condition, ≤10 words>)` — visible, not silently omitted — and do not run `check-cmd`. Met → run `check-cmd` normally.
 
 When `opt-in` instead describes MULTIPLE independent per-tool conditions bundled into one opaque command string (e.g. bash's `"shellcheck always applies to shell files; shfmt only when .editorconfig declares shell style"`, where `check-cmd` is `shellcheck ... && shfmt -d <files>`), this gate does NOT apply — `check-cmd` is a single opaque string (per the ecosystem-commands contract) with no way to run one sub-tool's portion without the other. Run `check-cmd` as before (unchanged from prior behavior) and report its real output; do not attempt a partial skip. See Gotchas below for the known atomicity limitation this leaves open.
 

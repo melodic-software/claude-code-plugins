@@ -40,8 +40,17 @@ note that re-enabling restores the FAIL semantics.
    `/proc/self/mountinfo` is readable; `lsof` needed only for the optional execution
    lane — absent `lsof` is INFO with the reduced-capability note), macOS (audit/report
    only by design — INFO, not a defect).
-4. **Hook toggle** — report the effective `disk_hygiene_enabled` value:
-   `${user_config.disk_hygiene_enabled}` (unexpanded or empty means default `true`).
+4. **Execution kill switch** — resolve the effective `disk_hygiene_enabled` value
+   deterministically; never present an assumed value as the configured one. Run the bundled
+   probe with the step-1 interpreter:
+   `"<python>" "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/kill_switch_probe.py"`
+   and report its `effective` value together with its `source` (`configured` vs `default`).
+   When the probe says `degraded: true`, report that the configured value could not be read
+   and that default `true` is being assumed — an assumption, never the configured value. The
+   body token `${user_config.disk_hygiene_enabled}` is at most a cross-check: if it expanded
+   to a boolean that contradicts the probe, report the discrepancy instead of silently
+   preferring either channel (the probe sees user settings only; managed settings or a
+   `--settings` flag can carry a value the probe cannot see).
 5. **Plugin registration** — INFO: confirm the plugin is enabled for this project
    (`/plugin` → Installed) rather than parsing settings files.
 

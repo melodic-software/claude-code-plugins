@@ -1,5 +1,13 @@
 # Changelog — docs-hygiene plugin
 
+## [0.8.4]
+
+### Changed
+
+- Fresh-eyes delegation sites now prefer a cross-vendor advisor when one is installed
+  (e.g. the OpenAI Codex plugin, invoked per its own docs), with the fresh-context same-vendor
+  subagent as the stated fallback — presence-gated per the seam-phrasing convention.
+
 ## [0.8.3]
 
 ### Changed

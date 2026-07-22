@@ -4,6 +4,7 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { parseArgs } from "node:util";
 
 import Ajv2020 from "ajv/dist/2020.js";
 import { parseDocument } from "yaml";
@@ -3488,36 +3489,31 @@ export async function auditRepository({
   );
 }
 
-function parseArguments(argv) {
-  const options = {
-    root: process.cwd(),
-    configPath: DEFAULT_CONFIG_PATH,
-    policyPath: DEFAULT_POLICY_PATH,
-    repositoryVisibility: process.env.CI_REPOSITORY_VISIBILITY,
-    githubRepository: process.env.GITHUB_REPOSITORY,
-    json: argv.includes("--json"),
-  };
-  for (let index = 0; index < argv.length; index += 1) {
-    const argument = argv[index];
-    if (argument === "--json") {
-      options.json = true;
-      continue;
-    }
-    if (new Set(["--root", "--config", "--policy", "--repository-visibility"]).has(argument)) {
-      const value = argv[index + 1];
-      if (!value || value.startsWith("--")) {
-        throw new ConfigurationError(`${argument} requires a value`);
-      }
-      index += 1;
-      if (argument === "--root") options.root = value;
-      if (argument === "--config") options.configPath = value;
-      if (argument === "--policy") options.policyPath = value;
-      if (argument === "--repository-visibility") options.repositoryVisibility = value;
-      continue;
-    }
-    throw new ConfigurationError(`unknown argument: ${argument}`);
+export function parseArguments(argv, environment = process.env) {
+  try {
+    const { values } = parseArgs({
+      args: argv,
+      allowPositionals: false,
+      options: {
+        config: { default: DEFAULT_CONFIG_PATH, type: "string" },
+        json: { default: false, type: "boolean" },
+        policy: { default: DEFAULT_POLICY_PATH, type: "string" },
+        "repository-visibility": { type: "string" },
+        root: { default: process.cwd(), type: "string" },
+      },
+      strict: true,
+    });
+    return {
+      root: values.root,
+      configPath: values.config,
+      policyPath: values.policy,
+      repositoryVisibility: values["repository-visibility"] ?? environment.CI_REPOSITORY_VISIBILITY,
+      githubRepository: environment.GITHUB_REPOSITORY,
+      json: values.json,
+    };
+  } catch (error) {
+    throw new ConfigurationError(error instanceof Error ? error.message : String(error));
   }
-  return options;
 }
 
 async function main() {

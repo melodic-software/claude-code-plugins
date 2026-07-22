@@ -9,9 +9,13 @@ hooks:
   PreToolUse:
     - matcher: "Bash"
       hooks:
+        # Shell form (no `args`) on purpose: exec form resolves `command` via PATH,
+        # which on Windows finds the WSL relay (System32\bash.exe) and the guard
+        # never launches — a silent fail-open. Shell form with `shell: bash` makes
+        # Claude Code itself resolve Git Bash on every platform.
         - type: command
-          command: "bash"
-          args: ["${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive-guard.sh"]
+          command: "bash \"${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive-guard.sh\""
+          shell: bash
 shell: bash
 ---
 

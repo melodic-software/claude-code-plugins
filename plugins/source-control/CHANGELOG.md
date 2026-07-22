@@ -3,6 +3,111 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.0]
+
+### Added
+
+- **Shared worktree-creation helper `scripts/worktree-create.sh` (#399, Phase A).** One helper now
+  owns worktree placement: it computes the external path `<root>/<owner>-<repo>-<slug>`, sanitizes the
+  branch slug, resolves the base ref (`worktree.baseRef` fresh/head, default branch resolved
+  symbolically — never a hardcoded `origin/main`), runs `git worktree add`, and reimplements Claude
+  Code's `.worktreeinclude` copy (the intersection of `.worktreeinclude`-matched and gitignored files),
+  which is bypassed when a worktree is created with `git worktree add` directly. The flag CLI is the
+  stable seam the future `WorktreeCreate` hook (Phase B) will share.
+- **New `worktree_root` userConfig directory key.** The external root `/worktree create` places
+  worktrees under, mirroring the `babysit_worktree_root` shape. When unset, `/worktree create` refuses
+  with guidance rather than falling back to the in-repo `.claude/worktrees/` default.
+
+### Changed
+
+- **`/worktree create` routes through the shared helper instead of `EnterWorktree(name:)` (#399, #400).**
+  It runs `worktree-create.sh`, then enters the created worktree with `EnterWorktree(path:)`. On a
+  non-zero helper exit (notably exit 3, `worktree_root` unconfigured) it stops with the helper's
+  guidance and never falls back to the in-repo path — closing the CLAUDE.md/rules double-load bug
+  (#400, upstream anthropics/claude-code #29599 / #23565) for the interactive path. Entering the
+  external path prompts for approval (not suppressible outside `bypassPermissions`); create.md documents
+  the expected prompt and the declined-approval recovery. The native `WorktreeCreate` hook (Phase B)
+  stays gated on the two empirical upstream gates and is not shipped here.
+
+## [0.16.3]
+
+### Changed
+
+- **Dependency-manager hold-merge login set is now configurable (`#917` W1).** The merge gate held
+  only the built-in `dependabot`/`renovate` product bots (`DEPENDENCY_MANAGER_LOGINS`); a
+  non-dependabot/renovate dependency bot an operator runs slipped the cross-tier hold. The gate now
+  also holds any login in the new `babysit_extra_dependency_manager_logins` userConfig (threaded as
+  the `--extra-dependency-manager-logins` merge-wrapper flag, matching the existing arg-threading of
+  `--approver-bot-logins`); logins are normalized on both sides (casefold, strip `app/` and `[bot]`).
+  Ships empty, so an unconfigured install matches the built-in set alone.
+- **Branch-to-issue grammar is now configurable (`#917` W2).** `parse-branch-issue.sh` hardcoded the
+  `<type>/<N>-<slug>` (and `routine-issue-<N>`) convention, so a repo that places the GitHub issue
+  number differently in its branch names silently failed to derive a `Closes #N` line. The script now
+  accepts an ERE `pattern` positional (last capture group = the numeric GitHub issue number, e.g.
+  `^[^/]+/([0-9]+)-` for `alice/1234-slug`), wired from the new `branch_issue_pattern` userConfig at
+  the `/pull-request create` call site. The placeholder is single-quoted there so an unset value
+  reaches the script as an inert literal (double-quoting a dotted `${…}` name is a Bash
+  `bad substitution`) and falls back to the built-in convention.
+
+## [0.16.2]
+
+### Fixed
+
+- **Babysit worker-worktree head-safety + merge-only freshness (`#548`).** A babysit worker can be
+  assigned a worktree in detached HEAD (its PR branch locked in a sibling/foreign worktree) or on a
+  stale local branch tip behind `origin`; the checkout/freshness mechanics then merged and pushed
+  from that tip, so a stale-tip integration could silently revert the newest branch commit — a
+  near-miss where safety depended on the assigned `HEAD` happening to match, not a guard.
+  - `reference/safety.md` Checkout And Push Invariants now require asserting the assigned worktree's
+    `HEAD` equals the true PR head (`gh pr view --json headRefOid`) before any merge/edit/push (stop
+    on a stale/detached mismatch) and pushing via an explicit refspec (`git push "$PUSH_REMOTE"
+    HEAD:<headRefName>`) to a **fail-closed** destination — `origin` for a same-repo head; for a
+    write-allowed cross-repo head, the fork destination validated by **host + owner/repo** identity,
+    not by remote name: canonicalize the URL `git push` will actually use (`git remote get-url
+    --push`, which honors a `pushurl` that can differ from the fetch URL) and require it to equal the
+    head repo's own URL (`gh api repos/<nameWithOwner> --jq .html_url`), else read-only — fast-forward
+    by construction, never `--force` — so a branch locked by a sibling worktree is not a `git
+    checkout` dead-end.
+  - The worker mechanics are reconciled to that contract: `reference/loop.md` §5.1.2 acquires the head
+    via `gh pr checkout` and asserts `HEAD == the live headRefOid` in every checkout path (already-at-
+    head, sibling-locked `--detach` reuse, and heal-via-checkout), degrading to read-only on mismatch;
+    `SKILL.md` Step 0.2 + cross-tier invariants and `reference/orchestration.md`'s conflict-worker
+    follow the same assertion + upstream refspec push.
+  - **Freshness is now merge-only.** The prior `loop.md` path rebased-and-`--force-with-lease`d
+    linear-history branches, which both violated the skill's own never-force-push invariant
+    (`safety.md` "Never Do Automatically", `orchestration.md`) and was the silent-revert vector.
+    Behind-default branches now always integrate via `git merge` + a fast-forward refspec push (the
+    final squash merge still flattens interim history). **Behavior change:** linear-history branches
+    now carry an interim merge commit during freshness instead of being rebased.
+
+  Enforcement remains agent discipline; whether the head assertion belongs in a deterministic helper
+  is tracked in `#885`.
+
+## [0.16.1]
+
+### Fixed
+
+- **`babysit-prs` worker/autopilot contract now invokes the guarded mutation wrappers by their
+  bundled `bin/` path, not by bare command name (#484).** The bare wrapper names
+  (`source-control-babysit-merge`, `source-control-babysit-resolve-thread`) are not on the Bash
+  tool's `PATH`, so every bare invocation the contract prescribed failed `command not found`
+  (exit 127), forcing workers to hand-roll raw `gh api graphql resolveReviewThread` calls and lose
+  the wrapper's `--allowed-owners` guardrail and JSON `action` receipt. `SKILL.md`,
+  `reference/orchestration.md` (including the worker prompt template), and `reference/safety.md`
+  now invoke each wrapper as `bash "${CLAUDE_PLUGIN_ROOT}/bin/<wrapper>" …` — the same form the
+  read-only sibling scripts under `${CLAUDE_PLUGIN_ROOT}/scripts/` already use. The Guarded
+  Mutation Wrappers posture in `safety.md` is refined to match: launching a wrapper by path runs
+  the wrapper with every guard intact (the merge wrapper still rejects `--allow-unpinned-head`;
+  both still fail closed without `--allowed-owners`), so the only forbidden re-spelling is the raw
+  Python behind them — which bypasses those guards — and piping a wrapper into an interpreter. A
+  one-line pointer in `reference/review-discipline.md` records that the babysit tiers resolve
+  through the wrapper, while its D7.5 keeps the general raw-GraphQL policy for `/pull-request`.
+- **Known residuals, not fixed here.** The `bin/`-path form does not match a pre-approved
+  bare-name `Bash(source-control-babysit-merge:*)` allow rule, so an operator's narrow allowlist
+  entries no longer auto-approve these calls; and the root gap — Claude Code documents a plugin's
+  `bin/` as on the Bash tool's `PATH` while enabled, yet it is empirically absent here — is an
+  upstream/harness matter. Only closing that gap restores bare-name invocation.
+
 ## [0.16.0]
 
 ### Added

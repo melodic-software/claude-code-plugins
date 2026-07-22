@@ -236,6 +236,19 @@ depends on the binding until that human-landed change exists.
    - a **host-credential-path read attempt** — a read of a host credential path MUST be absent or
      denied (a boundary that leaks host secrets is not an `L2` boundary).
 
+   The checker resolves no DNS and reads no remote host, so it validates the probe's targets against
+   operator-configured seams. The egress target checks against `--egress-hosts <host,...>` (a
+   configured trusted external target; without it the checker falls back to its
+   local/private/encoded/special-use deny lists). Each host credential path checks against
+   `--credential-roots <path,...>` DENY-BY-DEFAULT: a filesystem credential entry proves absence only
+   when its recorded host-side expansion resolves under a configured trusted root, and with no roots
+   configured every filesystem credential entry is untrusted and the level fails closed — a
+   cloud-metadata-endpoint route and a well-known credential env token stay bounded closed sets that
+   need no allowlist. The allowlist SHAPE (that these seams exist, and their schema) is a
+   repo-committed convention; the host-secret-sensitive root VALUES, which reveal where an org's
+   credentials live, bind per the deployment's secret-binding classification (a machine/userConfig
+   binding), never inlined into the committed binding document.
+
    Only when the probe transcript proves BOTH failures does the binding for that level on that
    surface land; the transcript's reference is recorded in the level binding's `probe_evidence`
    field (schema-required — a binding without probe evidence is invalid per

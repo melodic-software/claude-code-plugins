@@ -33,7 +33,7 @@ question: **is there a delta since the last snapshot that a worker could actuall
 previously persisted snapshot for that PR. The arms fall into two groups against
 `pr_clean_ready_for_direct_gate` (non-draft, `mergeStateStatus` `CLEAN`/`HAS_HOOKS`, zero
 blockers, and no untriaged material bot feedback): **suppressible** arms are fully re-validated by
-the direct merge gate itself (`source-control-babysit-merge owner/repo#42 --allowed-owners
+the direct merge gate itself (`bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-merge" owner/repo#42 --allowed-owners
 <watched-owners>`, read-only; `mergeStateStatus` already integrates required checks, approvals,
 and conversation resolution), so one of them firing on a cycle where the PR is already, or just
 became, clean/non-draft/zero-blocker/fully triaged would dispatch a worker that finds nothing left
@@ -447,12 +447,21 @@ The dedicated conflict-resolution worker's contract:
   Merging that stale local ref can find no conflict — because the stale view predates the base
   update that actually caused it — and push or report success without resolving anything. Fetch
   first, unconditionally, then merge.
-- **Merge, never rebase.** Resolve with `git merge origin/<base-branch>` into the PR branch. This
-  is deliberate: a rebase rewrites the branch's commit history and would require a force-push to
-  update the remote PR branch, violating this skill's absolute never-force-push cross-tier
-  invariant. A merge commit needs only a normal `git push`, preserves both histories, and is fully
-  compatible with a repo that requires linear history on its default branch — that requirement is
-  enforced by the final squash merge, not by the PR branch's own interim history.
+- **Assert the head, merge, never rebase.** Before merging, assert the worktree's `HEAD` equals the
+  true PR head (`gh pr view --json headRefOid`) — refuse to resolve onto a stale or head-mismatched
+  tip (a detached HEAD that equals the head is fine — the sibling-locked case; `reference/safety.md`,
+  Checkout And Push Invariants). Resolve with `git merge origin/<base-branch>`
+  into the PR branch. This is deliberate: a rebase rewrites the branch's commit history and would
+  require a force-push to update the remote PR branch, violating this skill's absolute
+  never-force-push cross-tier invariant. The merge commit is pushed by refspec to the branch's
+  configured upstream — `git push "$PUSH_REMOTE" HEAD:<headRefName>`, where `PUSH_REMOTE` resolves
+  **fail-closed** per `reference/safety.md` (Checkout And Push Invariants): `origin` for a same-repo
+  head, the fork's remote for a write-allowed cross-repo head, and **stop (read-only)** rather than
+  defaulting to `origin` when a fork remote is unresolved (an `origin` fallback writes a same-named
+  branch on the base repo, not the fork head). A fast-forward given the head assertion, never force —
+  preserving both histories and staying
+  compatible with a repo that requires linear history on its default branch, which the final squash
+  merge enforces, not the PR branch's own interim history.
 - **Understand both sides before touching markers.** Read and reconcile the actual semantic intent
   of the PR branch's own diff and of whatever changed on the base branch since divergence. Never
   resolve by blindly keeping "ours" or "theirs" without understanding what each side was trying to
@@ -507,7 +516,7 @@ Each worker must:
 - commit and push only clear branch-owned fixes
 - **auto-resolve only pre-push-outdated threads.** A worker may resolve a review thread only when
   that thread was already `isOutdated` in the pre-push snapshot it was dispatched with, and only
-  through `source-control-babysit-resolve-thread owner/repo#42 --allowed-owners <watched-owners>
+  through `bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners>
   --autonomous --resolve` pinned with `--thread-id`, `--expected-comment-count`, and
   `--expected-last-updated` taken from that same snapshot (`safety.md`, thread-pin pair rule). A
   thread that became outdated only because of the worker's own push has not thereby been addressed
@@ -573,8 +582,8 @@ Stop unless branch writes are allowed. Fix only clear branch-owned CI or bot-rev
 Never refresh branches, post review triggers, merge, enable auto-merge, force-push, change
 GitHub settings, or auto-fix human-authored feedback — classify, reply with evidence, and
 surface human items instead. You may resolve a review thread only if it appears in the pre-push
-outdated-thread list above, via source-control-babysit-resolve-thread owner/repo#42
---allowed-owners <watched-owners> --autonomous --resolve --thread-id <id>
+outdated-thread list above, via bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread"
+owner/repo#42 --allowed-owners <watched-owners> --autonomous --resolve --thread-id <id>
 --expected-comment-count <n> --expected-last-updated <ts>, with the pins taken from that list; a
 thread that becomes outdated only because of your own push is not addressed by that push — leave
 it. Never arm a background monitor or poll loop waiting on CI — check once, report exactly what

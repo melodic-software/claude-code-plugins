@@ -204,6 +204,27 @@ OUT=$(PATH="$FAKE_BIN_DIR:$PATH" CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS=faket
 assert_exit "empty stdin → exit 0" 0 "$RC"
 assert_silent "empty stdin → no output" "$OUT"
 
+# Bundled verifier missing (docs/conventions/hook-observability/): a fake
+# CLAUDE_PLUGIN_ROOT with no lib/verification/verify-cli-flag.sh reproduces
+# install corruption. CLAUDE_PLUGIN_DATA isolated to a fresh dir per case
+# (hook::notice_once persists a marker there; an unisolated real machine path
+# would make this pass only on the first-ever run).
+noverif_root="$TEST_TMPDIR/no-verifier-root"
+mkdir -p "$noverif_root/hooks"
+cp "$HOOK" "$noverif_root/hooks/cli-flag-verify.sh"
+cp "$HOOK_DIR/hook-utils.sh" "$noverif_root/hooks/hook-utils.sh"
+noverif_data="$TEST_TMPDIR/no-verifier-data"; mkdir -p "$noverif_data"
+noverif_input=$(MSYS_NO_PATHCONV=1 jq -n --arg fp "$dis_dir/target.sh" --arg c 'faketool sub --fake' '{tool_name:"Write",tool_input:{file_path:$fp,content:$c}}')
+OUT=$(PATH="$FAKE_BIN_DIR:$PATH" CLAUDE_PLUGIN_OPTION_CLI_FLAG_VERIFY_BINS=faketool \
+  CLAUDE_PLUGIN_ROOT="$noverif_root" CLAUDE_PLUGIN_DATA="$noverif_data" \
+  bash "$noverif_root/hooks/cli-flag-verify.sh" <<<"$noverif_input" 2>&1); RC=$?
+assert_exit "bundled verifier missing → exit 0 (fail open)" 0 "$RC"
+assert_contains "bundled verifier missing → visible advisory (additionalContext)" "$OUT" \
+  "bundled verifier missing"
+assert_contains "bundled verifier missing → visible advisory (systemMessage)" \
+  "$(jq -r '.systemMessage // empty' <<<"$OUT" 2>/dev/null)" \
+  "bundled verifier missing"
+
 # ============================ TELEMETRY ====================================
 TEL="$(mktemp -p "$TEST_TMPDIR")"
 SINK="$(make_sink "cat >\"$TEL\"")"

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "go-format",
+  "version": "0.2.0",
+  "description": "Auto-fix Go formatting and import management on edit via goimports — runs unconditionally (no consumer-config gate), skipping generated files.",
+  "author": {
+    "name": "Melodic Software",
+    "email": "info@melodicsoftware.com"
+  },
+  "license": "MIT",
+  "keywords": [
+    "go",
+    "golang",
+    "goimports",
+    "formatter",
+    "hook"
+  ],
+  "userConfig": {
+    "go_format_enabled": {
+      "type": "boolean",
+      "title": "go-format hook",
+      "description": "Run goimports -w on edit of a Go file",
+      "default": true
+    }
+  }
+}

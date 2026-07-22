@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/go-format.sh",
+            "timeout": 15,
+            "statusMessage": "Formatting Go imports..."
+          }
+        ]
+      }
+    ]
+  }
+}
