@@ -143,7 +143,7 @@ while IFS= read -r _line || [[ -n "$_line" ]]; do
     [[ "$_line" == *'*/'* ]] && IN_BLOCK=0
     continue # still inside (or just closed) a block comment: keep scanning
   fi
-  [[ -n "${_line// /}" ]] || continue # blank line: keep scanning the leading block
+  [[ -n "${_line//[[:space:]]/}" ]] || continue # blank line (any whitespace, incl. tabs): keep scanning the leading block
   # Trimmed only for comment-shape classification (an indented `//`/`/*`
   # still counts as "still within the leading comment block") — the marker
   # regex itself stays column-0-anchored, matching Go's own convention.
