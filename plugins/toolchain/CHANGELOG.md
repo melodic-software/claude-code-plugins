@@ -3,6 +3,25 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.1]
+
+### Fixed
+
+- **`pyrightconfig.json` added to the python ecosystem detection `globs`.** A standalone
+  pyright-config-only change (`reference/ecosystems/python.yaml` `globs` previously covered only
+  `*.py`/`pyproject.toml`/`uv.lock`) is now auto-detected as python-affecting by `/toolchain:check`
+  and `/toolchain:lint` local runs, closing a coverage gap versus CI.
+- **python `opt-in` reduced to its single gating condition.** The trailing semicolon-separated
+  pyright-mode clause structurally resembled the multi-clause per-tool `opt-in` form (per the
+  ecosystem-commands contract), risking a misread of python's single-condition (ruff config) gate as
+  multi-condition. The descriptive pyright-mode note is unchanged and already lives in the check
+  skill's `context/python.md` gotchas (single source of truth).
+- **pyright documented as a hard prerequisite of the python default once ruff opts the ecosystem
+  in.** `context/python.md` now states that pyright shares the compound `check-cmd` with ruff and
+  tool presence is evaluated per ecosystem, so a ruff-configured project with pyright absent reports
+  a whole-ecosystem missing-tool `skip` (dropping ruff coverage) rather than skipping pyright alone —
+  install pyright alongside ruff. Follow-ups from PR #859 review, batched via #657 sweep; closes #1017.
+
 ## [0.9.0]
 
 ### Added
