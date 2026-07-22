@@ -1,8 +1,8 @@
 ---
 name: clean
-description: "Repo hygiene action-router: scan (inventory), caches, build, git (prune/branch audit), tree (destructive fresh-pull reset), tree-batch (multi-repo tree reset with skip-list + dirty guard), all. Bare invocation detects intent from conversation or shows a menu. Dry-run-first; destructive actions require explicit confirmation. Use when: clean, disk space, remove caches, build artifacts, fresh pull, fresh clone state, reset to origin, reset all my repos, stale branches, repo hygiene. Skip: removing git worktree directories (a worktree-management tool handles those)."
+description: "Repo hygiene action-router: scan (inventory), caches, build, git (prune/branch audit), stash (stash audit/triage), tree (destructive fresh-pull reset), tree-batch (multi-repo tree reset with skip-list + dirty guard), all. Bare invocation detects intent from conversation or shows a menu. Dry-run-first; destructive actions require explicit confirmation. Use when: clean, disk space, remove caches, build artifacts, fresh pull, fresh clone state, reset to origin, reset all my repos, stale branches, stashes, repo hygiene. Skip: removing git worktree directories (a worktree-management tool handles those)."
 user-invocable: true
-argument-hint: "[scan|caches|build|git|tree|tree-batch|all|aliases…] (bare → menu or auto-detect)"
+argument-hint: "[scan|caches|build|git|stash|tree|tree-batch|all|aliases…] (bare → menu or auto-detect)"
 allowed-tools:
   - Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/*)
 hooks:
@@ -38,6 +38,8 @@ Bare invocation never mutates silently: resolve intent → dry-run → user conf
 bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/resolve-clean-action.sh $ARGUMENTS
 ```
 
+When a leading action token is followed by free text, the resolver also emits a `Note: <text>` line. That note is **advisory context you must address** — a question to answer (e.g. "does this include stashes?") or a live-session constraint to honor (e.g. "6-7 live sessions, mind WIP") — not part of action selection. Surface it and act on it alongside the resolved action; never silently drop it.
+
 ### Bare invocation (empty args)
 
 1. Infer from conversation (fresh pull → `tree`, disk space → `scan`, … — see action-router).
@@ -51,7 +53,8 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/resolve-clean-action.sh $ARGUMEN
 | `scan` | Show what's reclaimable | Safe | No | — |
 | `caches` | Clear tool and linter caches | Low | Yes | — |
 | `build` | Clear build output and logs | Low | Yes (includes caches) | — |
-| `git` | Prune stale git metadata; audit branches | Low | No | Yes |
+| `git` | Prune stale git metadata; audit branches + stashes | Low | No | Yes |
+| `stash` | Audit and triage stashes (age, source, diffstat) | Safe | No | — |
 | `tree` | Reset working tree like a fresh pull | **Destructive** | No (always dry-run first) | **Never** |
 | `tree-batch` | Reset many repos like a fresh pull (skip-list + dirty guard) | **Destructive** | No (always dry-run first) | **Never** |
 | `all` | Sweep caches + build + git hygiene | Medium | Yes | — |
@@ -118,7 +121,11 @@ Both selective mutating tiers pay the filesystem walk **once**. `--dry-run` writ
 
 #### 4.2 Branch audit
 
-`bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-branch-audit.sh` — deletion via `AskUserQuestion` per [context/git-branch-cleanup.md](context/git-branch-cleanup.md).
+`bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-branch-audit.sh` — deletion via `AskUserQuestion` per [context/git-branch-cleanup.md](context/git-branch-cleanup.md). Branches in the `WORKTREE` tier are checked out in a linked worktree: never offer them for `git branch -d` — route the user to the worktree-management tool to clean up the worktree first. Branches carrying `no upstream, M commits not on origin/<default>` are never-pushed local work — surface the count and confirm before any deletion.
+
+#### 4.3 Stash audit
+
+`bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-stash-audit.sh` — read-only per-stash facts (age, source branch, diffstat, PR/merge signal, advisory). **Never drops a stash.** Present the list and, for each stash, ask the user keep-or-drop via `AskUserQuestion`; a `possibly superseded` / `likely superseded` advisory is a hint to raise first, never an autonomous drop. Dedup a fleet sweep by the `StashStore:` key (linked worktrees share one stash ref). When the resolved action is `stash`, run only this step.
 
 ### 5. All
 
