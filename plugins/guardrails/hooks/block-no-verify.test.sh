@@ -135,7 +135,7 @@ run "env -S 'ls -la' (split-string non-git, allowed)" \
 # --- [P3] case-insensitive executable + .exe strip (OS-gated) ----------------
 case "${OSTYPE:-}" in
 msys* | cygwin* | win32) exp_win=2 ;; # Windows/MSYS folds case + strips .exe
-*) exp_win=0 ;;                        # POSIX stays case-sensitive
+*) exp_win=0 ;;                       # POSIX stays case-sensitive
 esac
 run "GIT commit --no-verify (uppercase exec, OS-gated)" \
   'GIT commit --no-verify -m test' "$exp_win"
@@ -166,6 +166,21 @@ run "cd foo && LEFTHOOK=0 git commit (compound, blocked)" "cd foo && LEFTHOOK=0 
 
 # --- Form 2 negatives — env-var alone or with non-git command must NOT block -
 run "LEFTHOOK=0 echo foo (not git, allowed)" "LEFTHOOK=0 echo foo" 0
+
+# Default manager set covers more than lefthook.
+run "HUSKY=0 git commit (default set, blocked)" "HUSKY=0 git commit -m test" 2
+run "HUSKY=false git push (default set, blocked)" "HUSKY=false git push" 2
+run "PRE_COMMIT=0 git commit (default set, blocked)" "PRE_COMMIT=0 git commit -m test" 2
+run "SIMPLE_GIT_HOOKS=false git commit (default set, blocked)" "SIMPLE_GIT_HOOKS=false git commit -m test" 2
+run "UNKNOWNMGR=0 git commit (not in set, allowed)" "UNKNOWNMGR=0 git commit -m test" 0
+
+# --- Form 2b: the hook-manager prefix set is configurable -------------------
+run "custom prefix blocks its manager" "MYHOOKS=0 git commit -m test" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_HOOK_MANAGER_PREFIXES="myhooks"
+run "custom set replaces the default (lefthook now allowed)" "LEFTHOOK=0 git commit -m test" 0 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_HOOK_MANAGER_PREFIXES="myhooks"
+run "regex metachars in a prefix value are sanitized, not injected" "MYHOOKS=0 git commit -m test" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_HOOK_MANAGER_PREFIXES="my.*hooks,myhooks"
 run "LEFTHOOK=false ls (not git, allowed)" "LEFTHOOK=false ls" 0
 run "LEFTHOOK=1 git commit (truthy value, allowed)" "LEFTHOOK=1 git commit -m test" 0
 run "LEFTHOOK=true git push (truthy value, allowed)" "LEFTHOOK=true git push" 0

@@ -3,6 +3,36 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.7]
+
+### Changed
+
+- **`block-no-verify` hook-manager bypass detection is now configurable and
+  covers more managers by default.** The env-var disable check matched only
+  `lefthook*`, silently missing `HUSKY=0` and other managers. It now resolves a
+  configurable prefix set (`block_no_verify_hook_manager_prefixes` userConfig)
+  defaulting to `lefthook, husky, pre_commit, simple_git_hooks`; consumer values
+  are reduced to identifier characters before use, so a value can never inject
+  regex metacharacters.
+- **`hardcoded-path-check` machine-path detection broadened past `repos`.** The
+  drive-letter-anchored checkout-parent pattern matched only `X:\repos\…`, so a
+  hardcoded `C:\Projects\…` or `C:\Dev\…` path went undetected. It now also
+  matches `Projects` and `Dev` (both capitalizations); a consumer's own checkout
+  root was and remains caught by the driver's project-root literal scan.
+
+## [0.9.6]
+
+### Fixed
+
+- **`flag-commit-pr-skill-bypass` advisory now honors user-global plugin
+  enablement.** The `source_control_enabled` probe read only the consuming
+  project's `.claude/settings.json` (plus its local override), so when
+  source-control was enabled solely at user-global scope (`~/.claude/settings.json`)
+  — a common install — the probe false-negatived and the `gh pr create` advisory
+  never fired. Enablement now resolves across user-global, project, and local
+  scopes in Claude Code's precedence order (user-global base, project overrides,
+  local overrides), matching how the platform actually merges `enabledPlugins`.
+
 ## [0.9.5]
 
 ### Fixed

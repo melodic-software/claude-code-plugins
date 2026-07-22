@@ -134,6 +134,22 @@ emit_skipped() {
 # matches. (The marker itself can only ever appear on a `//`-prefixed line —
 # `^// Code generated .* DO NOT EDIT\.$` — never inside a `/* */` block, so
 # block-comment lines are only ever scanned-through, not matched against.)
+#
+# APPROXIMATION: this string-match scan is a deliberate stand-in for Go's own
+# `ast.IsGenerated`, which classifies a *parsed* `*ast.File` (via `go/parser`).
+# The two cannot be made equal by adding patterns — the gap is structural, so
+# exotic shapes (unusual build-tag/comment interleavings, nested block
+# comments, atypical Unicode whitespace) can keep surfacing indefinitely. That
+# is tolerable because the guard is advisory (see ADVISORY, top of file): an
+# unhandled shape only means goimports reformats a generated file — visible in
+# the diff, no gate broken. So no further pattern patches are planned unless a
+# *real-world* generated file is observed defeating this scan; a synthetic
+# counter-example alone is not enough. The actual structural fix, should a real
+# case ever warrant it, is to shell out to the `go` toolchain (`go/parser` plus
+# the real `ast.IsGenerated` logic) instead of extending this matcher — not
+# done here because it would add per-edit latency and a hard `go`-toolchain
+# dependency this hook otherwise keeps optional (only `-local` grouping needs
+# `go`).
 GENERATED=0
 IN_BLOCK=0
 while IFS= read -r _line || [[ -n "$_line" ]]; do
