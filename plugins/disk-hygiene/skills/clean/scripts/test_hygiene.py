@@ -1507,6 +1507,50 @@ class GuardTests(unittest.TestCase):
         flag_index = args.index(guard._AUTHORIZED_DATA_ROOT_FLAG)
         self.assertEqual("${CLAUDE_PLUGIN_DATA}", args[flag_index + 1])
 
+    def test_skill_hook_interpreter_is_python3_and_resolves(self) -> None:
+        """Lock the guard's launch interpreter and prove it resolves.
+
+        The PreToolUse hook runs in exec form, so `command` is resolved on PATH
+        with no shell. Bare `python` is absent on stock macOS and many Linux
+        distros (and a legacy 2.x would crash the guard), which fails the launch
+        open — the guard never intercepts. The static half locks the config at
+        `python3`. The runtime half is the "interpreter actually resolves" probe:
+        it skips where `python3` cannot run — absent from PATH, or resolved to a
+        name that will not execute (a Windows App Execution Alias stub resolves
+        to a real path yet exits non-zero) — because that is the documented
+        residual host gap, not a regression; only a runnable `python3` is
+        asserted to be 3.11+.
+        """
+        skill = SCRIPT_DIR.parent / "SKILL.md"
+        command_line = next(
+            (
+                line
+                for line in skill.read_text(encoding="utf-8").splitlines()
+                if line.strip().startswith("command:")
+            ),
+            None,
+        )
+        self.assertIsNotNone(command_line, "frontmatter hook command line not found")
+        assert command_line is not None
+        interpreter = command_line.split(":", 1)[1].strip().strip('"')
+        self.assertEqual("python3", interpreter)
+
+        resolved = shutil.which(interpreter)
+        if resolved is None:
+            self.skipTest(f"{interpreter} does not resolve on this host")
+        probe = subprocess.run(
+            [resolved, "-c", "import sys; print('%d.%d' % sys.version_info[:2])"],
+            capture_output=True,
+            text=True,
+        )
+        if probe.returncode != 0 or not probe.stdout.strip():
+            self.skipTest(
+                f"{interpreter} resolved to a non-runnable interpreter "
+                f"({(probe.stderr or probe.stdout).strip()})"
+            )
+        major, minor = (int(part) for part in probe.stdout.strip().split("."))
+        self.assertGreaterEqual((major, minor), (3, 11), probe.stdout)
+
     def test_guard_scan_max_depth_accepts_only_positive_integer_literal(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         base = f'"{self.python_command()}" "{script}" scan --target t --output s'
