@@ -199,7 +199,9 @@ clean_path_is_reparse_point() {
   local path="$1"
   [[ -L "$path" ]] && return 0
   if command -v fsutil >/dev/null 2>&1 && command -v cygpath >/dev/null 2>&1; then
-    fsutil reparsepoint query "$(cygpath -w "$path")" >/dev/null 2>&1 && return 0
+    # `</dev/null`: fsutil drains stdin, which would consume a caller's read loop
+    # fd (e.g. clean_apply_manifest's manifest) if this runs inside one.
+    fsutil reparsepoint query "$(cygpath -w "$path")" </dev/null >/dev/null 2>&1 && return 0
   fi
   return 1
 }
@@ -287,8 +289,13 @@ clean_enumerate() {
 # build-tier's --include-caches path, so the two never drift.
 clean_caches_candidates() {
   local root="$1" rel
-  for rel in "${CLEAN_CACHE_EXPLICIT[@]}"; do printf '%s\n' "$root/$rel"; done
-  for rel in "${CLEAN_CACHE_EXPLICIT_FILES[@]}"; do printf '%s\n' "$root/$rel"; done
+  # Explicit repo-root paths bypass `find`'s `-type` filter, so apply the same
+  # type check here (explicit dirs must be plain dirs, explicit files plain
+  # files) — otherwise a file or symlink named e.g. `.pytest_cache` would be
+  # planned at dry-run but rejected at --apply, making the advertised plan
+  # unapplyable.
+  for rel in "${CLEAN_CACHE_EXPLICIT[@]}"; do clean_is_plain_dir "$root/$rel" && printf '%s\n' "$root/$rel"; done
+  for rel in "${CLEAN_CACHE_EXPLICIT_FILES[@]}"; do clean_is_plain_file "$root/$rel" && printf '%s\n' "$root/$rel"; done
   clean_enumerate "$root" "${CLEAN_CACHE_FIND_DIR_NAMES[@]}" -- "${CLEAN_CACHE_FIND_FILE_GLOBS[@]}"
 }
 
@@ -375,6 +382,18 @@ clean_plan() {
     abs="${CLEAN_CAND_ABS[$i]}"
     class="${CLEAN_CAND_CLASS[$i]}"
     [[ -e "$abs" ]] || continue
+    # The manifest is tab-delimited and newline-terminated; a path containing
+    # either cannot be encoded unambiguously and would corrupt both the dedup
+    # parse below and the record #994 consumes. Pathological for build/cache
+    # artifacts — skip with a visible warning rather than emit a record that maps
+    # to the wrong path at --apply.
+    case "$abs" in
+    *$'\t'* | *$'\n'*)
+      printf 'Skip (unencodable path): %s\n' "${abs#"$root"/}" >&2
+      continue
+      ;;
+    *) ;;
+    esac
     if skip="$(clean_target_eligible "$root" "$abs")"; then
       elig_abs+=("$abs")
       elig_class+=("$class")
@@ -389,7 +408,9 @@ clean_plan() {
   # path with a trailing '/' key so an ancestor sorts immediately before ALL its
   # descendants and they stay contiguous (the '/' also stops `build` swallowing a
   # sibling `buildstuff` — `buildstuff/` does not start with `build/`), then skip
-  # anything under the last kept ancestor in a single pass.
+  # anything under the last kept ancestor in a single pass. Inputs never carry a
+  # trailing slash (find never emits one; explicit paths are root-joined), so the
+  # single appended '/' is unambiguous.
   local -a surv_abs=() surv_class=()
   local last_key="" key
   while IFS=$'\t' read -r key abs class; do
@@ -520,17 +541,22 @@ clean_manifest_target_valid() {
 # must be one this tier produces (ALLOWED, space-separated), the path must be
 # repo-contained (no `..`/absolute), outside every pruned tree (enumeration never
 # descends CLEAN_PRUNE_DIRS, so a `.git/...` entry is never one it emitted) AND a
-# real target of the right type for its class (not an arbitrary untracked path),
-# and the byte field must be an unsigned decimal before it reaches Bash
-# arithmetic (which evaluates array subscripts recursively).
+# real target of the right type for its class (not an arbitrary untracked path).
+# The reclaimed-bytes total is re-measured from the filesystem at removal time,
+# so the manifest's byte field never reaches summary arithmetic — a caller value
+# cannot inject (array subscripts evaluate recursively) or overflow it.
 #   clean_apply_manifest ROOT MANIFEST ALLOWED_CLASSES
 clean_apply_manifest() {
   local root="$1" manifest="$2" allowed="${3:-}"
   local class bytes rel abs skip
+  # Read the manifest on a dedicated fd (3), not stdin: a per-entry validator can
+  # shell out to a tool that drains stdin (e.g. `fsutil` in the reparse-point
+  # check), which on fd 0 would swallow the rest of the manifest and silently
+  # skip every entry after the first.
   # `|| [[ -n … ]]` processes a final record with no trailing newline (common in
   # caller-written files) instead of dropping it — dropping it would report a
   # cleanup as done while leaving it undone.
-  while IFS=$'\t' read -r class bytes rel || [[ -n "$class$bytes$rel" ]]; do
+  while IFS=$'\t' read -r class bytes rel <&3 || [[ -n "$class$bytes$rel" ]]; do
     if [[ -z "$rel" ]]; then
       # A deliberately blank line is ignored; a nonblank but truncated record
       # (missing the path field, e.g. a partial write by a concurrent process) is
@@ -565,20 +591,26 @@ clean_apply_manifest() {
       CLEAN_FAILED_COUNT=$((CLEAN_FAILED_COUNT + 1))
       continue
     fi
-    [[ "$bytes" =~ ^[0-9]+$ ]] || bytes=0
     if ! skip="$(clean_target_eligible "$root" "$abs")"; then
       [[ -n "$skip" ]] && printf '%s\n' "$skip"
       continue
     fi
+    # Reclaimed bytes are re-measured from the filesystem now, not read from the
+    # manifest's dry-run byte field: the target may have grown/shrunk since the
+    # plan, and this also keeps a caller-supplied field out of the summary
+    # arithmetic entirely (no overflow/wrap, no evaluation of untrusted input).
+    local kb
+    kb="$(du -sk "$abs" 2>/dev/null | awk '{print $1}')"
+    [[ "$kb" =~ ^[0-9]+$ ]] || kb=0
     if rm -rf "$abs" 2>/dev/null; then
       printf 'Removed: %s\n' "$rel"
       CLEAN_REMOVED_COUNT=$((CLEAN_REMOVED_COUNT + 1))
-      CLEAN_REMOVED_BYTES=$((CLEAN_REMOVED_BYTES + bytes))
+      CLEAN_REMOVED_BYTES=$((CLEAN_REMOVED_BYTES + kb * 1024))
     else
       printf 'Unremovable: %s\n' "$rel" >&2
       CLEAN_FAILED_COUNT=$((CLEAN_FAILED_COUNT + 1))
     fi
-  done <"$manifest"
+  done 3<"$manifest"
 }
 
 # Return 0 when PATH is safe to (re)write as a manifest: absent, or an existing

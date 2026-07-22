@@ -247,6 +247,44 @@ else
   chmod u+w "$TEST_TMPDIR/r2/.mypy_cache" 2>/dev/null || true
 fi
 
+# --- dry-run/apply consistency + honest byte accounting (fresh repo) ---
+git init "$TEST_TMPDIR/r3" >/dev/null 2>&1
+git -C "$TEST_TMPDIR/r3" config user.email "t@example.com"
+git -C "$TEST_TMPDIR/r3" config user.name "Test"
+run_r3() { bash -c "cd '$TEST_TMPDIR/r3' && bash '$CLEAN' $*"; }
+
+# 12. A file (or symlink) whose name matches an explicit cache dir must NOT be
+#     planned: the dry-run only emits what --apply will accept, so a file named
+#     `.pytest_cache` is filtered at planning, keeping the plan applyable.
+echo f >"$TEST_TMPDIR/r3/.pytest_cache" # a FILE named like a cache DIR
+out="$(run_r3 --dry-run --manifest "$TEST_TMPDIR/r3.m")"
+assert_contains "file-named explicit cache not planned" "$out" "Summary: planned=0"
+assert_file_exists "file-named explicit cache untouched by dry-run" "$TEST_TMPDIR/r3/.pytest_cache"
+rm -f "$TEST_TMPDIR/r3/.pytest_cache"
+
+# 13. Reclaimed bytes come from the filesystem at apply, not the manifest's byte
+#     field — a caller-supplied inflated value must not reach the summary.
+mkdir -p "$TEST_TMPDIR/r3/.ruff_cache"
+head -c 4000 /dev/urandom >"$TEST_TMPDIR/r3/.ruff_cache/blob" 2>/dev/null || echo x >"$TEST_TMPDIR/r3/.ruff_cache/blob"
+printf 'caches\t999999999\t.ruff_cache\n' >"$TEST_TMPDIR/r3.inflated.manifest"
+out="$(run_r3 --apply --manifest "$TEST_TMPDIR/r3.inflated.manifest")"
+rc=$?
+assert_contains "target removed" "$out" "Removed: .ruff_cache"
+assert_not_contains "inflated manifest byte field not trusted" "$out" "bytes=999999999"
+assert_exit "recompute apply exit 0" 0 "$rc"
+
+# 14. A path containing a tab/newline cannot be encoded in the tab-delimited
+#     manifest, so it is skipped with a warning rather than mis-mapped. Skips
+#     where the FS cannot create such a name (NTFS rejects some characters).
+if mkdir -p "$TEST_TMPDIR/r3/od$(printf '\t')d/__pycache__" 2>/dev/null; then
+  echo p >"$TEST_TMPDIR/r3/od$(printf '\t')d/__pycache__/p"
+  out="$(run_r3 --dry-run --manifest "$TEST_TMPDIR/r3.tab.manifest" 2>&1)"
+  assert_contains "unencodable path skipped" "$out" "Skip (unencodable path):"
+  assert_not_contains "unencodable path not manifested" "$(cat "$TEST_TMPDIR/r3.tab.manifest")" "__pycache__"
+else
+  skip_case "unencodable path — FS rejects tab in a filename here"
+fi
+
 if [[ $FAILED -ne 0 ]]; then
   echo "FAILED: $FAILED test(s)"
   exit 1
