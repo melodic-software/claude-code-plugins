@@ -3,6 +3,14 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.4]
+
+### Changed
+
+- Fresh-eyes delegation sites in `plan` (Step 3 plan-reviewer dispatch) and `devils-advocate`
+  (fresh-context requirement) now prefer a cross-vendor advisor when one is installed (e.g. the OpenAI Codex plugin, invoked per its own docs), with the fresh-context
+  same-vendor sub-agent as the stated fallback — presence-gated per the seam-phrasing convention.
+
 ## [0.24.3]
 
 ### Changed
