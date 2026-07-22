@@ -48,6 +48,43 @@ out="$(run_build --apply)"
 assert_contains "submodule build dir skipped" "$out" "Skip (submodule):"
 assert_file_exists "submodule tracked file preserved" "$TEST_TMPDIR/repo/deps/sub/build/app.js"
 
+# --- manifest / nested-dedup / apply-from-manifest / resume (#993, #995, #1002) ---
+# Fresh repo so progressive mutation above does not bleed into these cases.
+git init "$TEST_TMPDIR/b2" >/dev/null 2>&1
+git -C "$TEST_TMPDIR/b2" config user.email "t@example.com"
+git -C "$TEST_TMPDIR/b2" config user.name "Test"
+# bin/ with a nested obj/ — both are build dir names; the walk returns both but
+# the ancestor (bin/) must collapse the descendant so the byte total is not
+# double-counted and apply does not chase an already-removed path.
+mkdir -p "$TEST_TMPDIR/b2/bin/obj"
+echo a >"$TEST_TMPDIR/b2/bin/x.dll"
+echo b >"$TEST_TMPDIR/b2/bin/obj/y.dll"
+MANI="$TEST_TMPDIR/b2.manifest"
+
+run_b2() {
+  bash -c "cd '$TEST_TMPDIR/b2' && bash '$BUILD' $*"
+}
+
+out="$(run_b2 --dry-run --manifest "$MANI")"
+assert_contains "dry-run prints manifest path" "$out" "Manifest: $MANI"
+assert_contains "nested dir deduped to one plan" "$out" "Summary: planned=1 bytes="
+mani_body="$(cat "$MANI")"
+assert_contains "manifest carries bin" "$mani_body" "build"
+assert_not_contains "nested obj not a separate entry" "$mani_body" "bin/obj"
+assert_file_exists "dry-run does not mutate" "$TEST_TMPDIR/b2/bin/obj/y.dll"
+
+out="$(run_b2 --apply --manifest "$MANI")"
+rc=$?
+assert_contains "apply-from-manifest removes bin" "$out" "Removed: bin"
+assert_contains "apply summary shape" "$out" "Summary: removed=1 failed=0 bytes="
+assert_exit "apply exit 0" 0 "$rc"
+assert_file_absent "bin gone after apply" "$TEST_TMPDIR/b2/bin/x.dll"
+
+out="$(run_b2 --apply --manifest "$MANI")"
+rc=$?
+assert_contains "resume removes nothing" "$out" "Summary: removed=0 failed=0 bytes=0"
+assert_exit "resume exit 0" 0 "$rc"
+
 if [[ $FAILED -ne 0 ]]; then
   echo "FAILED: $FAILED test(s)"
   exit 1

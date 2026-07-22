@@ -53,7 +53,7 @@ Default when still unsure after one question: **`scan`** (safest).
 | Action | Pre-mutation step | User gate |
 | --- | --- | --- |
 | `scan` | Run `scan.sh` | None |
-| `caches`, `build`, `all` | `preflight.sh` + tier scripts `--dry-run` | `AskUserQuestion` when preflight non-empty OR before `--apply` |
+| `caches`, `build`, `all` | `preflight.sh` + tier scripts `--dry-run` (writes a manifest; emits `Manifest:` + `Summary: planned=N bytes=K`) | `AskUserQuestion` when preflight non-empty OR before `--apply` — surface the `bytes` reclaimable total; apply the same manifest (`--apply --manifest <path>`), which emits `Summary: removed=N failed=M bytes=K` and exits non-zero on failure |
 | `git` | `git-prune.sh --dry-run`, `git-branch-audit.sh` | Before `--apply` prune; before any branch deletion |
 | `tree` | `git-tree-reset.sh --dry-run` (always) | **Mandatory** `AskUserQuestion` before `--apply` (surface `PreserveDeps`/`PreserveSecrets`/`AheadCount`); a non-zero `AheadCount` or exit 4 needs explicit unpushed-loss confirmation before `--allow-unpushed`; `--include-secrets` is UNRECOVERABLE — confirm separately; never autonomous |
 | `tree-batch` | `git-tree-reset-batch.sh --dry-run` (always) | **Mandatory** single batch-wide `AskUserQuestion` before `--apply` (surface the per-repo `Outcome`/`Reason`, `Summary`, and `UnmatchedSkip:`); one gate for the whole batch, never per repo; `--include-dirty` re-enables the data-loss vector — confirm separately naming the dirty repos, like `--include-secrets`; never autonomous. Detail: [git-tree-reset-batch.md](git-tree-reset-batch.md) |

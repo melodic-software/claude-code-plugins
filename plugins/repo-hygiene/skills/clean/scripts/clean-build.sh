@@ -2,7 +2,11 @@
 # shellcheck disable=SC2154
 # Remove build artifacts for the clean build tier (includes caches when --include-caches).
 #
-# Default: --dry-run. --apply mutates. Optional dotnet clean driver when dotnet available.
+# Default: --dry-run (writes a manifest of planned removals + reclaimable bytes).
+# --apply consumes the manifest (re-stat staleness guard) and mutates disk.
+# Optional dotnet clean driver when dotnet available. With --include-caches the
+# caches tier shares this one manifest — a single pruned walk per tier, no
+# subprocess. Enumeration/manifest/apply engine lives in lib/clean-common.sh.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -11,17 +15,27 @@ source "$SCRIPT_DIR/lib/clean-common.sh"
 
 DRY_RUN=1
 INCLUDE_CACHES=0
+MANIFEST_ARG=""
 
 usage() {
   cat <<'EOF'
 clean-build.sh — remove build artifacts for the clean build tier.
 
 Usage:
-  clean-build.sh [--dry-run] [--apply] [--include-caches] [--help]
+  clean-build.sh [--dry-run] [--apply] [--include-caches] [--manifest PATH] [--help]
 
-Default: --dry-run. --include-caches runs clean-caches.sh first.
+Default: --dry-run — writes a manifest and prints its path + reclaimable total,
+never mutates. --include-caches folds the caches tier into the same manifest.
 
-Exit: 0 success; 1 not a git repo; 2 usage error.
+Manifest flow (single walk paid once):
+  --dry-run              writes a manifest, prints `Manifest: <path>` and
+                         `Summary: planned=N bytes=K`.
+  --apply --manifest P   consumes manifest P (re-stat guard, no re-walk); resume
+                         = re-run the same command (already-gone entries skipped).
+  --apply                without --manifest builds the manifest then applies it.
+  --manifest P           on --dry-run writes to P instead of a mktemp path.
+
+Exit: 0 success; 1 not a git repo OR an apply had rm failures; 2 usage error.
 EOF
 }
 
@@ -38,6 +52,10 @@ while [[ $# -gt 0 ]]; do
   --include-caches)
     INCLUDE_CACHES=1
     shift
+    ;;
+  --manifest)
+    MANIFEST_ARG="${2:-}"
+    shift 2
     ;;
   -h | --help)
     usage
@@ -58,16 +76,11 @@ fi
 
 cd "$REPO_ROOT" || exit 1
 
-CACHE_FLAG=--dry-run
-[[ "$DRY_RUN" -eq 0 ]] && CACHE_FLAG=--apply
-
-if [[ "$INCLUDE_CACHES" -eq 1 ]]; then
-  bash "$SCRIPT_DIR/clean-caches.sh" "$CACHE_FLAG"
-fi
-
 # .NET clean driver — solution/project detected at runtime, never hardcoded.
 # Prefer a *.slnx, then *.sln, at the repo root; skip cleanly when none exists
 # or dotnet is unavailable (universal bin/obj globs below still remove output).
+# Independent of the path manifest (it is an action, not a path): announced on
+# dry-run, run on any --apply.
 DOTNET_SOLUTION=""
 if command -v dotnet >/dev/null 2>&1; then
   for cand in "$REPO_ROOT"/*.slnx "$REPO_ROOT"/*.sln; do
@@ -88,47 +101,35 @@ if [[ -n "$DOTNET_SOLUTION" ]]; then
   fi
 fi
 
-plan_remove() {
-  local abs="$1"
-  [[ -e "$abs" ]] || return 0
-  if clean_path_is_protected "$REPO_ROOT" "$abs"; then
-    printf 'Skip (protected): %s\n' "${abs#"$REPO_ROOT"/}"
-    return 0
-  fi
-  if clean_path_in_submodule "$REPO_ROOT" "$abs"; then
-    printf 'Skip (submodule): %s\n' "${abs#"$REPO_ROOT"/}"
-    return 0
-  fi
-  if [[ -d "$abs" ]] && clean_dir_has_protected_descendant "$REPO_ROOT" "$abs"; then
-    printf 'Skip (protected descendant): %s\n' "${abs#"$REPO_ROOT"/}"
-    return 0
-  fi
-  if [[ "$DRY_RUN" -eq 1 ]]; then
-    printf 'Planned remove: %s\n' "${abs#"$REPO_ROOT"/}"
-  else
-    rm -rf "$abs"
-    printf 'Removed: %s\n' "${abs#"$REPO_ROOT"/}"
-  fi
-}
+# --apply with a prebuilt manifest: skip enumeration entirely, just consume it.
+if [[ "$DRY_RUN" -eq 0 && -n "$MANIFEST_ARG" ]]; then
+  clean_apply_manifest "$REPO_ROOT" "$MANIFEST_ARG"
+  printf 'Summary: removed=%s failed=%s bytes=%s\n' \
+    "$CLEAN_REMOVED_COUNT" "$CLEAN_FAILED_COUNT" "$CLEAN_REMOVED_BYTES"
+  [[ "$CLEAN_FAILED_COUNT" -eq 0 ]] || exit 1
+  exit 0
+fi
 
-for name in "${CLEAN_BUILD_DIR_NAMES[@]}"; do
-  while IFS= read -r abs; do
-    [[ -z "$abs" ]] && continue
-    plan_remove "$abs"
-  done < <(find "$REPO_ROOT" -type d -name "$name" \
-    ! -path "$CLEAN_FIND_EXCLUDE_GIT" \
-    ! -path "$CLEAN_FIND_EXCLUDE_VENV" \
-    ! -path "$CLEAN_FIND_EXCLUDE_NODE_MODULES" 2>/dev/null)
-done
+MANIFEST="$(clean_manifest_path "$MANIFEST_ARG")"
 
-for glob in "${CLEAN_BUILD_FILE_GLOBS[@]}"; do
-  while IFS= read -r abs; do
-    [[ -z "$abs" ]] && continue
-    plan_remove "$abs"
-  done < <(find "$REPO_ROOT" -type f -name "$glob" \
-    ! -path "$CLEAN_FIND_EXCLUDE_GIT" \
-    ! -path "$CLEAN_FIND_EXCLUDE_VENV" \
-    ! -path "$CLEAN_FIND_EXCLUDE_NODE_MODULES" 2>/dev/null)
-done
+if [[ "$INCLUDE_CACHES" -eq 1 ]]; then
+  mapfile -t CACHE_CANDS < <(clean_caches_candidates "$REPO_ROOT")
+  clean_add_candidates caches "${CACHE_CANDS[@]}"
+fi
 
+mapfile -t BUILD_CANDS < <(clean_build_candidates "$REPO_ROOT")
+clean_add_candidates build "${BUILD_CANDS[@]}"
+
+clean_plan "$REPO_ROOT" "$MANIFEST" "$DRY_RUN"
+
+if [[ "$DRY_RUN" -eq 1 ]]; then
+  printf 'Manifest: %s\n' "$MANIFEST"
+  printf 'Summary: planned=%s bytes=%s\n' "$CLEAN_PLANNED_COUNT" "$CLEAN_PLANNED_BYTES"
+  exit 0
+fi
+
+clean_apply_manifest "$REPO_ROOT" "$MANIFEST"
+printf 'Summary: removed=%s failed=%s bytes=%s\n' \
+  "$CLEAN_REMOVED_COUNT" "$CLEAN_FAILED_COUNT" "$CLEAN_REMOVED_BYTES"
+[[ "$CLEAN_FAILED_COUNT" -eq 0 ]] || exit 1
 exit 0
