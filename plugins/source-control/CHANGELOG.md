@@ -13,7 +13,10 @@ All notable changes to the `source-control` plugin are documented here. Format f
   [`reference/config-resolution.md`](reference/config-resolution.md). `/pull-request create` builds
   one `## <heading>` block per resolved section and a new §2.4.2.2 pre-create gate blocks
   `gh pr create` when any required section is missing or empty, naming the exact section and the
-  resolved config source (winning layer's file + the key) in its failure message. Absent everywhere
+  resolved config source (winning layer's file + the key) in its failure message. The gate scans the
+  body BEFORE the config-gated attribution footer is appended, so an empty last required section can
+  never be masked by footer text that carries no `##` heading of its own (review-caught during #975).
+  Absent everywhere
   → the bundled portable default: `Summary` and `Test plan` only (research-grounded across GitHub's
   own guidance, Google's CL-description doc, GitLab's dogfooded default template, and a cross-section
   of OSS PR templates — see

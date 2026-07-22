@@ -164,6 +164,18 @@
         "The failure message points at the resolved config source (file path/layer and the pr_body_required_sections key)",
         "The closing-keyword check (§2.4.2.1) is unaffected — this is a separate, independent gate"
       ]
+    },
+    {
+      "id": 14,
+      "name": "pr-body-required-sections-gate-not-fooled-by-attribution-footer",
+      "prompt": "/pull-request create from branch feat/512-add-widget — no source-control.md config exists (portable default: Summary, Test plan required; pr_body_attribution unset, so the default attribution line applies). The drafted body has real content under `## Summary` but leaves `## Test plan` (the last required section) empty.",
+      "expected_output": "The §2.4.2.2 gate still blocks PR creation for the empty `## Test plan` section even though the default attribution line follows it in the final PR body. The gate evaluates the required-section scan against the body BEFORE the attribution line is appended (§2.4.1/§2.4.3), so an empty last section is never masked by non-whitespace footer text that has no `## ` heading of its own. If the gate ran against the attribution-inclusive body instead, the empty Test plan section would incorrectly read as non-empty and the gate would wrongly pass.",
+      "files": [],
+      "expectations": [
+        "The gate blocks PR creation because `## Test plan` (the last required section) is empty, regardless of the attribution line that will follow it",
+        "The required-section scan runs against a body that does not yet include `${ATTRIBUTION}` — the attribution is appended only after both §2.4.2 gates pass, in §2.4.3",
+        "An empty last required section is not masked by the attribution footer's non-whitespace text"
+      ]
     }
   ]
 }

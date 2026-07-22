@@ -272,20 +272,26 @@ ATTRIBUTION='🤖 Generated with [Claude Code](https://claude.com/claude-code)' 
 #                                       The concat below is also inert, but assignment is the
 #                                       first line of defense.)
 
-# Concat CLOSES_LINE in front of TEMPLATE and ATTRIBUTION after it, via bash
-# parameter expansion. Parameter expansion of "${VAR}" does NOT re-evaluate the
-# expanded value — if CLOSES_LINE or REFS_LINES contains literal "$(rm -rf ~)" (e.g.
-# user typed it into the orphan-PR or multi-issue prompt), or ATTRIBUTION carries a
-# configured `$`-bearing custom value, it stays a literal string and is never
-# executed. This is the defense against shell injection through user-supplied
-# prompt input and configured text.
+# Concat CLOSES_LINE in front of TEMPLATE via bash parameter expansion. Parameter
+# expansion of "${VAR}" does NOT re-evaluate the expanded value — if CLOSES_LINE or
+# REFS_LINES contains literal "$(rm -rf ~)" (e.g. user typed it into the orphan-PR
+# or multi-issue prompt), it stays a literal string and is never executed. This is
+# the defense against shell injection through user-supplied prompt input.
+#
+# ATTRIBUTION is deliberately NOT appended here. §2.4.2.2's required-section gate
+# scans from each "## <heading>" to the next "## " heading OR end of body — if
+# ATTRIBUTION were already part of $BODY, an empty LAST required section's scan
+# would run off the end of the template and into the attribution footer, which is
+# non-whitespace text with no "## " prefix, and the gate would misread it as that
+# section's real content (defeating the emptiness check for exactly the last
+# section). Keeping the footer out of $BODY until after §2.4.2 passes closes that
+# hole structurally, rather than teaching the gate to special-case a footer shape.
 BODY=""
 [[ -n "$CLOSES_LINE" ]] && BODY="${CLOSES_LINE}"$'\n\n'
 BODY+="$TEMPLATE"
-[[ -n "$ATTRIBUTION" ]] && BODY+=$'\n\n'"$ATTRIBUTION"
 ```
 
-**Why quoted heredoc segments + concat (not a single `<<EOF`):** unquoted heredoc `<<EOF` evaluates `$(...)`, `${...}`, and `` `...` `` *inside the body content itself* (POSIX heredoc semantics — `<<EOF` is treated as if double-quoted). If `${CLOSES_LINE}` or `${REFS_LINES}` ever contains shell-meta from interactive prompt input, or `${ATTRIBUTION}` carries a configured custom line, an unquoted heredoc would execute it. Quoted heredoc content is inert; splicing `${CLOSES_LINE}`, the per-section content, `${REFS_LINES}`, and `${ATTRIBUTION}` via parameter expansion + concat keeps all of it as literal text. The attribution line is deliberately spliced *outside* any heredoc rather than embedded inside one so that a `pr_body_attribution` value resolved from config never re-enters shell evaluation.
+**Why quoted heredoc segments + concat (not a single `<<EOF`):** unquoted heredoc `<<EOF` evaluates `$(...)`, `${...}`, and `` `...` `` *inside the body content itself* (POSIX heredoc semantics — `<<EOF` is treated as if double-quoted). If `${CLOSES_LINE}` or `${REFS_LINES}` ever contains shell-meta from interactive prompt input, an unquoted heredoc would execute it. Quoted heredoc content is inert; splicing `${CLOSES_LINE}` and the per-section content via parameter expansion + concat keeps all of it as literal text.
 
 `gh pr create --body` fully overrides `.github/PULL_REQUEST_TEMPLATE.md` (cli/cli #10751) — body assembly above is the canonical path for skill-driven PRs; the template is the web-UI backstop. When the consuming project ships a PR template, mirror its section shape in the assembled body (or, better, express it as the project's own `pr_body_required_sections` — see [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md)).
 
@@ -363,7 +369,15 @@ The message names the exact missing heading(s) and the resolved config source (�
 
 ### 2.4.3 Create PR
 
+Append `${ATTRIBUTION}` (resolved in §2.4.1) to `$BODY` only now, after both §2.4.2 gates have
+passed against the attribution-free body — never earlier, per §2.4.1's note on why the footer stays
+out of the gated content:
+
 ```bash
+# Splice outside any heredoc, same inertness rationale as §2.4.1's CLOSES_LINE/TEMPLATE
+# concat: parameter expansion never re-evaluates a `$`-bearing configured ATTRIBUTION value.
+[[ -n "$ATTRIBUTION" ]] && BODY+=$'\n\n'"$ATTRIBUTION"
+
 # Identity: plain `gh` (the human PR author) by default. If the consuming
 # project's conventions route automation writes through a bot identity
 # wrapper, follow those for comments/reactions — PR creation itself is
