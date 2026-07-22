@@ -268,7 +268,7 @@ to zero-config behavior; see `reference/observer.md` for full semantics):
 | Key | Default | Effect |
 |---|---|---|
 | `observer_enabled` | `false` | Opt in the SessionStart auto-arm. Off = installing the plugin changes nothing; manual `arm` still works. |
-| `observer_analysis_enabled` | `true` | Run the autonomous post-end analysis once armed (off = collect-only). |
+| `observer_analysis_enabled` | `true` | Run the autonomous post-end analysis once armed. Off = collect-only: observations are distilled and retained under the plugin work dir for manual inspection; nothing is written to the ledger. |
 | `observer_analysis_model` | `claude-haiku-4-5` | Analysis model — the dominant cost lever. |
 | `observer_analysis_bare` | `false` | Pass `--bare` to the analysis run (breaks OAuth-login auth; leave off unless auth is an env-var API key). |
 | `observer_idle_seconds` | `900` | mtime-idle end threshold; keep above the longest single turn. |

@@ -39,8 +39,8 @@ semantics.
    The manual `arm` action resolves inputs without `jq`, so absence is INFO for that path. Remediation:
    install `jq` (<https://jqlang.org/download/>).
 3. **`claude` CLI on PATH** — the autonomous analysis leg invokes `claude -p`. INFO if absent: the
-   observer still collects observations; the analysis run is skipped and the next in-session checkpoint
-   reads them.
+   observer still distills and retains observations under its plugin work dir; the analysis run is
+   skipped and nothing is written to the ledger.
 4. **Observer config** — report the effective value of each native key (an unexpanded `${user_config.…}`
    token or empty means the default): `${user_config.observer_enabled}` (default off),
    `${user_config.observer_analysis_enabled}` (default on), `${user_config.observer_analysis_model}`

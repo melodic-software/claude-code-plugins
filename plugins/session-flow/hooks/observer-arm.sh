@@ -51,7 +51,6 @@ SESSION_ID="$(printf '%s' "$INPUT" | jq -r '.session_id // ""' 2>/dev/null)"
 [[ -n "$TRANSCRIPT" && -n "$SESSION_ID" ]] || exit 0
 
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SESSION_DATA_DIR="$(dirname "$TRANSCRIPT")"
 
 # Resolve memory_dir exactly as retro does (concern file -> default .work), reusing
 # the shared parser rather than reimplementing it. Anchor a relative root to the
@@ -88,8 +87,7 @@ ARM="$PLUGIN_ROOT/skills/running-retro/scripts/arm_observer.py"
 [[ -f "$ARM" ]] || exit 0
 
 args=(--transcript "$TRANSCRIPT" --work-dir "$WORK_DIR" --ledger-dir "$LEDGER_DIR"
-  --session-id "$SESSION_ID" --plugin-root "$PLUGIN_ROOT"
-  --session-data-dir "$SESSION_DATA_DIR" --model "$MODEL"
+  --session-id "$SESSION_ID" --plugin-root "$PLUGIN_ROOT" --model "$MODEL"
   --idle-seconds "$IDLE" --poll-seconds "$POLL" --max-seconds "$MAX")
 [[ "${CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_ENABLED:-true}" == "true" ]] && args+=(--analysis)
 [[ "${CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_BARE:-false}" == "true" ]] && args+=(--bare)

@@ -163,8 +163,7 @@ PY=""; for c in python3 python; do command -v "$c" >/dev/null 2>&1 \
 
 "$PY" "$PLUGIN_ROOT/skills/running-retro/scripts/arm_observer.py" \
   --transcript "$TRANSCRIPT" --work-dir "$WORK_DIR" --ledger-dir "$MEMORY_DIR/running-retros" \
-  --session-id "$CLAUDE_CODE_SESSION_ID" --plugin-root "$PLUGIN_ROOT" \
-  --session-data-dir "$SESSION_DATA_DIR" --analysis
+  --session-id "$CLAUDE_CODE_SESSION_ID" --plugin-root "$PLUGIN_ROOT" --analysis
 ```
 
 This is the SAME launcher the opt-in SessionStart hook (`observer_enabled`) uses; manual `arm` works

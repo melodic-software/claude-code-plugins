@@ -48,7 +48,6 @@ def main() -> int:
     p.add_argument("--ledger-dir", required=True)
     p.add_argument("--session-id", default="")
     p.add_argument("--plugin-root", default="")
-    p.add_argument("--session-data-dir", default="")
     p.add_argument("--topic", default="")
     p.add_argument("--model", default="claude-haiku-4-5")
     p.add_argument("--analysis", action="store_true")
@@ -56,6 +55,7 @@ def main() -> int:
     p.add_argument("--poll-seconds", default="5")
     p.add_argument("--idle-seconds", default="900")
     p.add_argument("--max-seconds", default="86400")
+    p.add_argument("--analysis-timeout-seconds", default="600")
     args = p.parse_args()
 
     transcript = Path(args.transcript)
@@ -74,12 +74,12 @@ def main() -> int:
            "--ledger-dir", args.ledger_dir,
            "--session-id", args.session_id,
            "--plugin-root", args.plugin_root,
-           "--session-data-dir", args.session_data_dir,
            "--topic", args.topic,
            "--model", args.model,
            "--poll-seconds", str(args.poll_seconds),
            "--idle-seconds", str(args.idle_seconds),
-           "--max-seconds", str(args.max_seconds)]
+           "--max-seconds", str(args.max_seconds),
+           "--analysis-timeout-seconds", str(args.analysis_timeout_seconds)]
     if args.analysis:
         cmd.append("--analysis")
     if args.bare:

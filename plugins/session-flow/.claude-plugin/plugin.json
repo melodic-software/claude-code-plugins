@@ -42,7 +42,7 @@
     "observer_analysis_enabled": {
       "type": "boolean",
       "title": "Observer: autonomous post-end analysis",
-      "description": "When armed, run a headless post-session running-retro checkpoint after the observer detects the session ended (mtime-idle), writing the findings to the running-retro ledger. Off = the observer only collects observations and the next in-session checkpoint reads them (no per-session Claude spend).",
+      "description": "When armed, run a headless post-session running-retro checkpoint after the observer detects the session ended (mtime-idle), writing the findings to the running-retro ledger. Off = the observer only distills observations and retains them under its plugin work dir for manual inspection; it does not analyze or write the ledger (no per-session Claude spend, no automatic in-session consumer).",
       "default": true
     },
     "observer_analysis_model": {

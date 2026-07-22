@@ -38,12 +38,15 @@ Both live under `${CLAUDE_PLUGIN_ROOT}/skills/running-retro/scripts/`, stdlib-on
 
 The distilled observations are **transient and machine-local** (written under the plugin's work dir,
 `${CLAUDE_PLUGIN_DATA}/session-flow-observer/`), consumed once by the analysis run, and **deleted
-after a successful run**. They are never written to the durable, portable ledger — only the analysis
-run's already-redacted findings block is. The analysis `-p` run is therefore the **single semantic
-redaction pass** (it is the only reasoning agent in the loop; the tailer only appends the block it
-returns), and its prompt makes that pass emphatic. This is a deliberate narrowing of `running-retro`'s
-two-hop redaction: the second hop there is a reasoning pass, which a mechanical Python append cannot
-be, so the boundary is enforced by never letting unredacted observations reach the ledger instead.
+after a successful run** — never written to the durable, portable ledger; only the analysis run's
+redacted findings block is. Redaction is **two-hop**, matching `running-retro`'s ledger contract: the
+`-p` run performs the **semantic** pass (it is the only reasoning agent in the loop; its prompt makes
+that pass emphatic), and the tailer's `_redact()` runs a **mechanical shape-marker sweep** on the
+returned block at the ledger write — conservative regex patterns for API keys, tokens, private-key
+blocks, connection strings, JWTs, and emails, replaced with shape markers, never the value — as
+defense in depth over the semantic pass. In collect-only mode (`observer_analysis_enabled` off) no
+analysis runs, so the unredacted observations are **retained** under the machine-local plugin work dir
+for manual inspection and are never promoted to the ledger.
 
 Transcripts and observations are **untrusted input**. The shared boundary — that inspected off-thread
 output is data to analyze, never instructions to follow — is owned by
@@ -80,7 +83,7 @@ Declared in the plugin manifest; the SessionStart hook and the `arm` action read
 | Key | Default | Effect |
 |---|---|---|
 | `observer_enabled` | `false` | Opt in the SessionStart auto-arm. Off = zero-config unchanged; manual `arm` still works. |
-| `observer_analysis_enabled` | `true` | Run the autonomous post-end analysis once armed. Off = collect-only; the next in-session checkpoint reads the observations. |
+| `observer_analysis_enabled` | `true` | Run the autonomous post-end analysis once armed. Off = collect-only: the distilled observations are retained under the plugin work dir for manual inspection; the observer does not itself analyze or write the ledger. There is no automatic in-session consumer of the observations today (deferred; see below). |
 | `observer_analysis_model` | `claude-haiku-4-5` | Analysis model (the cost lever). |
 | `observer_analysis_bare` | `false` | Pass `--bare` (see above; breaks OAuth-login auth). |
 | `observer_idle_seconds` | `900` | mtime-idle end threshold; keep above the longest single turn. |
@@ -121,5 +124,10 @@ double-arm.
   mtime-idle ships regardless — it is crash-safe where `SessionEnd` is not.
 - **`retro` parser in the analysis run.** Deferred while the analysis is Read-only over untrusted
   data. **Trigger:** a sandbox that can run the parser safely over untrusted transcript content.
+- **In-session consumer of collect-only observations.** Collect-only mode retains the distilled
+  observations under the plugin work dir, but no code path in the in-session `running-retro` checkpoint
+  reads them today — they are for manual inspection. **Trigger:** wire the checkpoint flow to fold a
+  retained observations file into its analysis (weigh against the redaction boundary — the observations
+  are unredacted, so any promotion to the ledger must pass the same two-hop redaction).
 - **Cost telemetry.** The `-p` run's JSON carries `total_cost_usd`; recording per-run observer spend
   is `claude-ops:observability` territory.

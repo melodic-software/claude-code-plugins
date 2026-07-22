@@ -109,11 +109,11 @@ class Observer:
         self.poll_secs = args.poll_seconds
         self.idle_secs = args.idle_seconds
         self.max_secs = args.max_seconds
+        self.analysis_timeout_secs = args.analysis_timeout_seconds
         self.analysis = args.analysis
         self.bare = args.bare
         self.model = args.model
         self.plugin_root = args.plugin_root
-        self.session_data_dir = args.session_data_dir
         self.topic = args.topic or "session"
 
         self.work_dir.mkdir(parents=True, exist_ok=True)
@@ -132,24 +132,44 @@ class Observer:
     def acquire_lock(self) -> bool:
         """One observer per session id. Returns False if another is live.
 
-        A stale lock (older than idle+poll, no live pid) is reclaimed so a crash
-        does not permanently block re-arming.
+        Atomic create-or-fail via `O_CREAT | O_EXCL` — no exists-check-then-write
+        window, so two observers racing to arm the same session cannot both win.
+        A stale lock (no live pid, or older than the absolute lifetime cap) is
+        removed and the create retried, so a crash does not permanently block
+        re-arming; only one racer can win the retry because it is the same atomic
+        create.
         """
-        if self.lock_path.exists():
+        for _ in range(2):
             try:
-                data = json.loads(self.lock_path.read_text(encoding="utf-8"))
-                other_pid = int(data.get("pid", -1))
-                age = time.time() - _to_epoch(data.get("started", ""))
-            except (OSError, ValueError, json.JSONDecodeError):
-                other_pid, age = -1, 1e9
-            if _pid_alive(other_pid) and age < (self.idle_secs + self.max_secs):
+                fd = os.open(str(self.lock_path),
+                             os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+            except FileExistsError:
+                if not self._lock_is_stale():
+                    return False
+                try:
+                    self.lock_path.unlink()
+                except OSError:
+                    return False
+                continue
+            except OSError:
                 return False
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump({"pid": os.getpid(), "started": now_iso(),
+                           "session_id": self.session_id}, f)
+            return True
+        return False
+
+    def _lock_is_stale(self) -> bool:
+        try:
+            data = json.loads(self.lock_path.read_text(encoding="utf-8"))
+            other_pid = int(data.get("pid", -1))
+            age = time.time() - _to_epoch(data.get("started", ""))
+        except (OSError, ValueError, json.JSONDecodeError):
+            return True
+        stale = (not _pid_alive(other_pid)) or age >= (self.idle_secs + self.max_secs)
+        if stale:
             self.log(f"reclaiming stale lock (pid={other_pid}, age={age:.0f}s)")
-        self.lock_path.write_text(
-            json.dumps({"pid": os.getpid(), "started": now_iso(),
-                        "session_id": self.session_id}),
-            encoding="utf-8")
-        return True
+        return stale
 
     def release_lock(self) -> None:
         try:
@@ -163,13 +183,15 @@ class Observer:
             return 0
         try:
             state = self._tail_until_idle()
-            analyzed_ok = True
+            # Delete the unredacted observations ONLY when a successful analysis run
+            # has consumed them. Collect-only mode (analysis disabled) retains them
+            # as its durable-for-this-machine artifact under the plugin work dir; a
+            # failed analysis retains them for debugging. They never leave the
+            # machine-local work dir regardless.
+            consumed = False
             if state == "ended-idle" and self.analysis:
-                analyzed_ok = self._run_analysis()
-            # Keep the transient observations only when analysis was attempted and
-            # failed, so the run is debuggable; otherwise remove them (they are
-            # unredacted and machine-local, never durable).
-            if analyzed_ok:
+                consumed = self._run_analysis()
+            if consumed:
                 self._cleanup_observations()
             return 0
         finally:
@@ -202,6 +224,11 @@ class Observer:
                     continue
 
                 size, mtime = st.st_size, st.st_mtime
+                if size < offset:
+                    # File shrank -> truncated or replaced (rotation). Resync from
+                    # the start rather than seeking past the new end.
+                    offset = 0
+                    partial = b""
                 if size > offset:
                     try:
                         with self.transcript.open("rb") as f:
@@ -304,17 +331,19 @@ class Observer:
             self.log("claude CLI not found on PATH; skipping analysis")
             return True
 
-        checkpoint = f"{self.plugin_root}/skills/running-retro/context/checkpoint.md"
+        checkpoint_dir = f"{self.plugin_root}/skills/running-retro/context"
+        checkpoint = f"{checkpoint_dir}/checkpoint.md"
         prompt = _analysis_prompt(
             observations=str(self.obs_path),
             checkpoint=checkpoint,
             session_id=self.session_id,
         )
-        # The prompt goes via STDIN, never as a trailing positional: `--add-dir`
-        # is variadic and would otherwise swallow the prompt as another directory.
-        add_dirs = ["--add-dir", self.plugin_root, "--add-dir", str(self.work_dir)]
-        if self.session_data_dir:
-            add_dirs += ["--add-dir", self.session_data_dir]
+        # Grant read access to EXACTLY the two directories the prompt reads: the
+        # work dir (the observations file) and the checkpoint's own context dir.
+        # Not the whole plugin root, and not the session data dir (unused). The
+        # prompt goes via STDIN, never as a trailing positional -- `--add-dir` is
+        # variadic and would otherwise swallow the prompt as another directory.
+        add_dirs = ["--add-dir", str(self.work_dir), "--add-dir", checkpoint_dir]
         cmd = [claude, "-p"]
         # --bare drops auto-discovery (a cost lever) BUT couples to auth: on an
         # OAuth-login install it makes the run report "Not logged in" and fail.
@@ -340,8 +369,11 @@ class Observer:
         env = dict(os.environ, SESSION_FLOW_OBSERVER_ANALYSIS="1")
         self.log(f"firing analysis: {self.model} over {self.obs_path.name}")
         try:
+            # Own short timeout, NOT max_secs -- otherwise the observer could live
+            # up to ~2x its documented absolute lifetime cap. The measured run is
+            # ~20-40s; this bounds a stuck run to minutes.
             proc = subprocess.run(cmd, input=prompt, capture_output=True, text=True,
-                                  env=env, timeout=self.max_secs)
+                                  env=env, timeout=self.analysis_timeout_secs)
         except (subprocess.TimeoutExpired, OSError) as e:
             self.log(f"analysis run failed: {e}")
             return False
@@ -363,13 +395,15 @@ class Observer:
         """Append the returned findings to this session's single ledger file.
 
         Discovery rule mirrors running-retro's: locate this session's ledger by
-        matching session_id in frontmatter; create it on first write. This runs
-        entirely on already-redacted text returned by the -p run.
+        matching session_id in frontmatter; create it on first write. A mechanical
+        shape-marker redaction sweep runs here as the second hop (defense in depth
+        over the -p run's semantic pass) exactly as running-retro's ledger write
+        mandates -- this is the durable, portable output.
         """
         self.ledger_dir.mkdir(parents=True, exist_ok=True)
         ledger = self._find_session_ledger()
         section = (f"\n## Checkpoint {now_ts()} (autonomous post-end)\n\n"
-                   f"{findings.strip()}\n")
+                   f"{_redact(findings).strip()}\n")
         if ledger is None:
             ledger = self.ledger_dir / f"{now_ts()}-running-retro-{self.topic}.md"
             header = (f"---\nsession_id: {self.session_id}\n"
@@ -438,6 +472,33 @@ def _extract_result(stdout: str) -> str:
     return ""
 
 
+# Mechanical secret-shape patterns for the ledger-write redaction hop. Conservative
+# and shape-based (never the value) -- defense in depth over the -p run's semantic
+# pass, matching running-retro's "redact on the ledger write too" mandate.
+_REDACTIONS: tuple[tuple[re.Pattern, str], ...] = (
+    (re.compile(r"-----BEGIN[^-]+PRIVATE KEY-----.*?-----END[^-]+PRIVATE KEY-----",
+                re.DOTALL), "<REDACTED: private key>"),
+    (re.compile(r"\b(?:sk|rk|pk)-[A-Za-z0-9_-]{16,}"), "<REDACTED: API key>"),
+    (re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}"), "<REDACTED: GitHub token>"),
+    (re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}"), "<REDACTED: Slack token>"),
+    (re.compile(r"\bAKIA[0-9A-Z]{16}\b"), "<REDACTED: AWS key id>"),
+    (re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"),
+     "<REDACTED: JWT>"),
+    (re.compile(r"(?i)\b(?:bearer|token|api[_-]?key|secret|password|passwd|pwd)"
+                r"['\"]?\s*[:=]\s*['\"]?[A-Za-z0-9._+/=-]{8,}"), "<REDACTED: secret>"),
+    (re.compile(r"\b[a-z][a-z0-9+.-]*://[^\s:@/]+:[^\s:@/]+@[^\s]+"),
+     "<REDACTED: connection string>"),
+    (re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"),
+     "<REDACTED: email>"),
+)
+
+
+def _redact(text: str) -> str:
+    for pattern, marker in _REDACTIONS:
+        text = pattern.sub(marker, text)
+    return text
+
+
 def _result_error(stdout: str) -> str:
     """Return the -p run's own error text when its JSON body signals failure."""
     try:
@@ -479,7 +540,7 @@ candidates); run the mandatory redaction pass. Return ONLY that block -- no prea
 echo of the observations."""
 
 
-def main() -> int:
+def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="running-retro detached observer")
     p.add_argument("--transcript", required=True, help="absolute path to <session>.jsonl")
     p.add_argument("--work-dir", required=True,
@@ -488,7 +549,6 @@ def main() -> int:
                    help="running-retros ledger dir (durable, redacted findings only)")
     p.add_argument("--session-id", default="", help="defaults to transcript stem")
     p.add_argument("--plugin-root", default="", help="${CLAUDE_PLUGIN_ROOT}")
-    p.add_argument("--session-data-dir", default="", help="dir holding the transcript")
     p.add_argument("--topic", default="", help="ledger topic slug")
     p.add_argument("--model", default="claude-haiku-4-5")
     p.add_argument("--analysis", action="store_true",
@@ -501,7 +561,14 @@ def main() -> int:
                    help="mtime-idle end threshold; keep above the longest single turn")
     p.add_argument("--max-seconds", type=float, default=86400.0,
                    help="hard lifetime safety valve; exits WITHOUT analysis")
-    args = p.parse_args()
+    p.add_argument("--analysis-timeout-seconds", type=float, default=600.0,
+                   help="subprocess timeout for the headless analysis run (its own "
+                        "bound, independent of --max-seconds)")
+    return p
+
+
+def main() -> int:
+    args = build_parser().parse_args()
     return Observer(args).run()
 
 
