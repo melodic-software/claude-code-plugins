@@ -28,8 +28,9 @@
 #   1. Frontmatter parses; name matches dir; description present
 #   2. description + when_to_use <= 1536 chars (listing-truncation guard)
 #   3. Trigger-keyword preservation vs the base ref (skipped for new skills;
-#      a phrase moved verbatim to a sibling skill's listing text WARNs, since
-#      the marketplace listing still routes it — only lost phrases FAIL)
+#      a phrase moved verbatim to a sibling skill's listing text — one the
+#      sibling did not carry at the base ref — WARNs, since the marketplace
+#      listing still routes it; lost phrases and coincidental overlap FAIL)
 #   4. SKILL.md < 500 lines (hard cap)
 #   5. Backtick-cited skill-internal supporting files resolve
 #   6. markdownlint clean (markdownlint-cli2; WARN-skip if npx absent)
@@ -222,27 +223,46 @@ if git -C "$REPO_ROOT" cat-file -e "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null; 
     MISSING="$(comm -23 <(printf '%s\n' "$BASE_TRIG") <(printf '%s\n' "$CUR_TRIG"))"
     if [[ -n "$MISSING" ]]; then
       # A dropped phrase that reappears verbatim in a SIBLING skill's listing
-      # text (same skills root, working tree) is a deliberate trigger MOVE, not
-      # a lost trigger: the marketplace listing still routes the phrase, which
-      # is the regression this check exists to catch. Moves WARN (visible until
-      # merge, never blocking); only phrases absent everywhere FAIL.
+      # text (same skills root, working tree) — where the sibling's BASE_REF
+      # frontmatter did NOT already carry it — is a deliberate trigger MOVE,
+      # not a lost trigger: the marketplace listing still routes the phrase,
+      # which is the regression this check exists to catch. The base-ref
+      # condition keeps the exception exactly as narrow as the rationale: a
+      # phrase the sibling carried all along is coincidental overlap, not a
+      # move, and dropping it here still FAILs. Moves WARN (visible until
+      # merge, never blocking).
+      # Repo-relative parent of the skills root ("" when skills sit at the
+      # repo root), so sibling base-ref lookups address the right tree entry.
+      SKILLS_REL_PARENT=""
+      [[ "$SKILL_REL" == */* ]] && SKILLS_REL_PARENT="${SKILL_REL%/*}"
       LOST=""
       while IFS= read -r phrase; do
         [[ -n "$phrase" ]] || continue
         MOVE_HOST=""
         for other_md in "$SKILLS_ROOT"/*/SKILL.md; do
           [[ -f "$other_md" ]] || continue
-          [[ "$other_md" -ef "$SKILL_MD" ]] && continue
+          [[ "$other_md" == "$SKILL_MD" ]] && continue
           OTHER_FM="$(skill_frontmatter::extract <"$other_md")"
           OTHER_TRIG="$(printf '%s\n%s\n' \
             "$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field description <<<"$OTHER_FM")")" \
             "$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field when_to_use <<<"$OTHER_FM")")" |
             skill_frontmatter::extract_triggers)"
-          if printf '%s\n' "$OTHER_TRIG" | grep -qxF -- "$phrase"; then
-            MOVE_HOST="${other_md%/SKILL.md}"
-            MOVE_HOST="${MOVE_HOST##*/}"
-            break
+          printf '%s\n' "$OTHER_TRIG" | grep -qxF -- "$phrase" || continue
+          OTHER_NAME="${other_md%/SKILL.md}"
+          OTHER_NAME="${OTHER_NAME##*/}"
+          OTHER_REL="${SKILLS_REL_PARENT:+$SKILLS_REL_PARENT/}$OTHER_NAME"
+          if git -C "$REPO_ROOT" cat-file -e "$BASE_REF:$OTHER_REL/SKILL.md" 2>/dev/null; then
+            OTHER_BASE_FM="$(git -C "$REPO_ROOT" show "$BASE_REF:$OTHER_REL/SKILL.md" 2>/dev/null | skill_frontmatter::extract)"
+            OTHER_BASE_TRIG="$(printf '%s\n%s\n' \
+              "$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field description <<<"$OTHER_BASE_FM")")" \
+              "$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field when_to_use <<<"$OTHER_BASE_FM")")" |
+              skill_frontmatter::extract_triggers)"
+            # Sibling already carried the phrase at BASE_REF: coincidental
+            # overlap, not a move — keep looking for a genuine host.
+            printf '%s\n' "$OTHER_BASE_TRIG" | grep -qxF -- "$phrase" && continue
           fi
+          MOVE_HOST="$OTHER_NAME"
+          break
         done
         if [[ -n "$MOVE_HOST" ]]; then
           warn "trigger phrase $phrase moved to sibling skill '$MOVE_HOST' — listing coverage preserved, confirm the move is deliberate"
