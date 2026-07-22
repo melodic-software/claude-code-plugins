@@ -384,9 +384,9 @@ clean_plan() {
     [[ -e "$abs" ]] || continue
     # The manifest is tab-delimited and newline-terminated; a path containing
     # either cannot be encoded unambiguously and would corrupt both the dedup
-    # parse below and the record #994 consumes. Pathological for build/cache
-    # artifacts — skip with a visible warning rather than emit a record that maps
-    # to the wrong path at --apply.
+    # parse below and the record a downstream consumer parses. Pathological for
+    # build/cache artifacts — skip with a visible warning rather than emit a
+    # record that maps to the wrong path at --apply.
     case "$abs" in
     *$'\t'* | *$'\n'*)
       printf 'Skip (unencodable path): %s\n' "${abs#"$root"/}" >&2
