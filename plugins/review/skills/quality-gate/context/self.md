@@ -2,7 +2,7 @@
 
 Design judgment and completeness check after implementation, before verification or PR. **Not a build check.**
 
-**Dispatch policy:** the producing main thread MUST NOT run the checklist inline — the thread that wrote the code rubber-stamps its own recap. Orchestrate a fresh-context read-only subagent; the main thread gathers inputs, dispatches, verifies findings, and presents the verdict. Where the verdict is high-stakes and correlated blind spots are the risk, prefer a cross-vendor reviewer **when one is installed** — e.g. the OpenAI Codex plugin's `/codex:review` or `/codex:adversarial-review` — with the fresh-context same-vendor subagent as the fallback, never a route to a command that may not resolve.
+**Dispatch policy:** the producing main thread MUST NOT run the checklist inline — the thread that wrote the code rubber-stamps its own recap. Orchestrate a fresh-context read-only subagent; the main thread gathers inputs, dispatches, verifies findings, and presents the verdict. Where the verdict is high-stakes and correlated blind spots are the risk, prefer a cross-vendor reviewer **when one is installed** — e.g. the OpenAI Codex plugin's `/codex:review --wait` or `/codex:adversarial-review --wait` — with the fresh-context same-vendor subagent as the fallback, never a route to a command that may not resolve.
 
 ## Orchestrator sequence (main thread)
 

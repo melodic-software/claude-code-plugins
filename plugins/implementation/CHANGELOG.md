@@ -8,8 +8,8 @@ All notable changes to the `implementation` plugin are documented here. Format f
 ### Changed
 
 - `implement-dispatch`'s fresh-context verifier before marking a phase `[DONE]` (`skills/implement-dispatch/SKILL.md`)
-  now prefers a cross-vendor advisor when one is installed (e.g. the OpenAI Codex plugin's `/codex:review` or
-  `/codex:adversarial-review`), with the fresh-context same-vendor verifier sub-agent as the stated fallback —
+  now prefers a cross-vendor advisor when one is installed (e.g. the OpenAI Codex plugin's `/codex:review --wait` or
+  `/codex:adversarial-review --wait`), with the fresh-context same-vendor verifier sub-agent as the stated fallback —
   presence-gated per the seam-phrasing convention.
 
 ## [0.7.7]

@@ -5,7 +5,7 @@
 ### Changed
 
 - Fresh-eyes delegation sites now prefer a cross-vendor advisor when one is installed
-  (e.g. the OpenAI Codex plugin's `/codex:review`), with the fresh-context same-vendor
+  (e.g. the OpenAI Codex plugin's `/codex:review --wait`), with the fresh-context same-vendor
   subagent as the stated fallback — presence-gated per the seam-phrasing convention.
 
 ## [0.8.3]

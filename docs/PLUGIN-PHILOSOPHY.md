@@ -346,7 +346,7 @@ The delegation target has an independence ladder: a same-vendor fresh context re
 reasoning but can still share the model's blind spots; a different-vendor advisor removes both. Where
 the verdict is high-stakes and correlated blind spots are the risk, a checkpoint site prefers a
 cross-vendor advisor **when one is installed and set up** — e.g. the OpenAI Codex plugin's
-`/codex:review` or `/codex:adversarial-review` — with the fresh-context same-vendor subagent as the
+`/codex:review --wait` or `/codex:adversarial-review --wait` — with the fresh-context same-vendor subagent as the
 stated fallback, never a route to a command that may not resolve. That reference is optional
 collaboration, so it carries the presence-gate-plus-fallback shape
 ([seam phrasing](conventions/seam-phrasing/README.md)) at each site that instructs it; an advisor

@@ -3,6 +3,15 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.4]
+
+### Changed
+
+- The cross-vendor reviewer examples in `/verification:confirm`'s "Independence of
+  the verdict" now specify the synchronous form (`/codex:review --wait`) — the bare
+  command can background and return only a status handle, silently leaving the
+  verdict without the preferred reviewer's findings.
+
 ## [0.3.3]
 
 ### Changed

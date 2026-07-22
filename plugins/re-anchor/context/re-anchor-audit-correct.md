@@ -50,7 +50,7 @@ Run these in order. Skip a step only when its input is genuinely absent
    instead of self-checking in the context that produced it — a self-check
    in the same context is weak by construction. Prefer a cross-vendor
    advisor for that re-derivation when one is installed (e.g. the OpenAI
-   Codex plugin's `/codex:review`), with the fresh-context same-vendor
+   Codex plugin's `/codex:review --wait`), with the fresh-context same-vendor
    subagent as the fallback — never a route to a command that may not
    resolve. Surface anything that cannot be corrected here rather than
    papering over it. **Outward

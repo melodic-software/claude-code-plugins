@@ -47,7 +47,7 @@ that stage (the Step 5 anchor) rather than dead-end.
 
 For the Verify lane specifically, where the result is high-stakes and correlated blind spots are the
 risk, prefer a cross-vendor advisor **when one is installed** — e.g. the OpenAI Codex plugin's
-`/codex:review` or `/codex:adversarial-review` — with the fresh-context same-vendor verifier as the
+`/codex:review --wait` or `/codex:adversarial-review --wait` — with the fresh-context same-vendor verifier as the
 fallback, never a route to a command that may not resolve.
 
 The **re-anchor slot** (`re-anchor:*`) is reserved: the re-anchor set is a periodic anchor across lane
