@@ -350,20 +350,43 @@ for section in "${REQUIRED_SECTIONS[@]}"; do
   # ("```"/"~~~") AND outside an HTML comment (<!-- ... -->, single- or multi-line) —
   # a Summary that documents a template containing a literal "## Related" inside a
   # code sample, or a body carrying a commented-out draft section, must never
-  # satisfy the Related requirement GitHub itself renders as absent. A single
-  # action block (not separate pattern-action rules) keeps exactly one branch
-  # firing per line — awk otherwise runs every matching rule for a line, which
-  # would double-toggle state on a line matching more than one pattern.
+  # satisfy the Related requirement GitHub itself renders as absent.
   #
   # Fences and comments are NOT symmetric once inside the found section: a fence
-  # delimiter encountered there is real, RENDERED content and stays in the
-  # captured body (a section whose own genuine content includes a code block is
-  # still captured correctly) — but a comment is never rendered at all, in or out
-  # of a found section, so comment text is never printed into SECTION_BODY. A
-  # required section whose entire body is an unfilled `<!-- ... -->` template
-  # placeholder must read as empty, the same as GitHub's own render and this
-  # repo's PR-body validator (which strips comments before checking) would.
+  # delimiter there is real, RENDERED content and stays in the captured body (a
+  # section whose own genuine content includes a code block is still captured
+  # correctly) — but a comment is never rendered at all, so comment text is
+  # never counted as content, even inside a found section. An *inline* comment
+  # is stripped as a SPAN, not a whole line, though: "Ran smoke tests <!-- done
+  # --><!-- todo -->" keeps "Ran smoke tests " (GitHub still renders the text
+  # outside the comment) rather than dropping the entire line the way a
+  # comment-only line correctly does. A fence or comment already open when a
+  # line starts consumes that line's meaning entirely before any NEW fence or
+  # comment on the same line is considered — GFM parses both literally with no
+  # nested markup, so a "<!--" inside an open fence, or a "```" inside an open
+  # comment, is never a real comment/fence start.
   SECTION_BODY=$(printf '%s\n' "$BODY" | awk -v h="## ${section}" '
+  function strip_comment_span(line,    out, idx) {
+    # Removes every "<!-- ... -->" span from `line`, keeping visible text
+    # before/after/between spans on the same line; updates the global
+    # in_comment state when a span does not close on this line (a multi-line
+    # comment). A comment-only line returns "".
+    out = ""
+    while (1) {
+      if (in_comment) {
+        idx = index(line, "-->")
+        if (idx == 0) { return out }
+        line = substr(line, idx + 3)
+        in_comment = 0
+      } else {
+        idx = index(line, "<!--")
+        if (idx == 0) { return out line }
+        out = out substr(line, 1, idx - 1)
+        line = substr(line, idx + 4)
+        in_comment = 1
+      }
+    }
+  }
   {
     # Fence detection matches GFM (https://github.github.com/gfm/#fenced-code-blocks):
     # up to 3 leading spaces, then 3+ of the SAME fence character (backtick or
@@ -378,23 +401,37 @@ for section in "${REQUIRED_SECTIONS[@]}"; do
     if (stripped ~ /^```/) fence_char = "`"
     else if (stripped ~ /^~~~/) fence_char = "~"
 
-    if (!in_fence && fence_char != "") { in_fence = 1; open_char = fence_char; if (found) print; next }
+    # An already-open fence or comment takes absolute priority (see the block
+    # comment above) — checked before anything else, including the heading and
+    # exit-boundary tests below.
     if (in_fence) {
       if (fence_char == open_char) in_fence = 0
       if (found) print
       next
     }
-    if ($0 ~ /<!--/) {
-      in_comment = 1
-      if ($0 ~ /-->/) in_comment = 0
-      next
-    }
     if (in_comment) {
-      if ($0 ~ /-->/) in_comment = 0
+      visible = strip_comment_span($0)
+      if (found && visible != "") print visible
       next
     }
+
+    # Heading and exit-boundary checks run on the RAW line, never a
+    # comment-stripped one: a real ATX heading (or the next one, ending this
+    # section) must start the line itself, so a "##"-shaped fragment freed by
+    # stripping a same-line comment could never be a real heading GitHub would
+    # render as one. Checking the raw line here also means a heading carrying
+    # a trailing inline comment ("## Related <!-- draft -->") is still
+    # correctly read as a real exit boundary, not misrouted into the
+    # comment-open branch below.
     if (!found && $0 == h) { found = 1; next }
     if (found && $0 ~ /^## /) { exit }
+
+    if (fence_char != "") { in_fence = 1; open_char = fence_char; if (found) print; next }
+    if ($0 ~ /<!--/) {
+      visible = strip_comment_span($0)
+      if (found && visible != "") print visible
+      next
+    }
     if (found) print
   }
   ')
