@@ -201,6 +201,13 @@
       ],
       "credential_roots": "/home/runner"
     },
+    "probe-evidence-credroots-root-slash.json": {
+      "exit": 1,
+      "credential_roots": "/",
+      "findings_substrings": [
+        "does not resolve under any configured --credential-roots"
+      ]
+    },
     "probe-evidence-credroots-unconfigured.json": {
       "exit": 1,
       "findings_substrings": [

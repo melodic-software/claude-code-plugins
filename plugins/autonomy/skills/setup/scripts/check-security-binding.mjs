@@ -115,8 +115,10 @@ const SPECIAL_USE_TLDS = [
 ];
 // Well-known credential variable names for the whole-entry env-token form (a
 // BOUNDED closed set, compared against the lowercased entry). An invented
-// *_token name proves nothing; org-specific names belong on the configured
-// --credential-roots allowlist, not recognized statically by name.
+// *_token name proves nothing and is not recognized statically by name; probe
+// the host FILESYSTEM path where the org's injected secret is stored (e.g.
+// /run/secrets/my-org-token) and configure its parent in --credential-roots —
+// the allowlist holds filesystem roots, not token names.
 const CREDENTIAL_ENV_VARS = new Set(["github_token", "gh_token"]);
 // A home-token expansion under an ephemeral base like /tmp is planted
 // evidence, not the host's credential store — the expansion-coherence guard
@@ -212,9 +214,13 @@ function pathUnderConfiguredRoot(candidate, roots) {
   if (normCandidate === null) return false;
   return roots.some((root) => {
     const normRoot = normalizeHostPath(root);
-    if (normRoot === null || normRoot === "") return false;
+    // A root that normalizes to "/" (or empty/invalid) is refused: "/" would make
+    // containment `startsWith("/")`, accepting every absolute path and silently
+    // defeating deny-by-default. Trusting the whole filesystem is never valid
+    // credential-absence evidence, so it fails closed like an unconfigured root.
+    if (normRoot === null || normRoot === "" || normRoot === "/") return false;
     if (normCandidate === normRoot) return true;
-    return normCandidate.startsWith(normRoot === "/" ? "/" : `${normRoot}/`);
+    return normCandidate.startsWith(`${normRoot}/`);
   });
 }
 
@@ -246,7 +252,7 @@ function credentialEntryProblem(entry, expanded, credentialRoots) {
   if (segments.length === 1 && isEnvToken(segments[0])) {
     const bare = segments[0].replace(/^[$%]/, "").replace(/%$/, "");
     if (!CREDENTIAL_ENV_VARS.has(bare)) {
-      return `not a well-known credential env token (${[...CREDENTIAL_ENV_VARS].map((name) => `$${name.toUpperCase()}`).join(", ")}); an org-specific token belongs on the configured --credential-roots allowlist, not recognized by name`;
+      return `not a well-known credential env token (${[...CREDENTIAL_ENV_VARS].map((name) => `$${name.toUpperCase()}`).join(", ")}); an org-specific token is not recognized by name — probe the host filesystem path where the injected secret is stored (e.g. /run/secrets/my-org-token) and configure its parent in --credential-roots`;
     }
     return credentialExpansionProblem(entry, expanded);
   }
@@ -1727,11 +1733,16 @@ const egressAllowList =
     ? null
     : egressHostsArg.split(",").map((host) => host.trim().toLowerCase().replace(/\.$/, "")).filter((host) => host.length > 0);
 // Credential roots are trimmed only; normalizeHostPath lowercases and collapses
-// each root and candidate consistently at containment time.
-const credentialRoots =
+// each root and candidate consistently at containment time. An arg that parses
+// to zero roots (e.g. "," or "  ") is treated as unconfigured, so the operator
+// gets the "no --credential-roots configured" guidance rather than a confusing
+// empty-allowlist rejection — fail-closed either way.
+const credentialRootsParsed =
   credentialRootsArg === null
     ? null
     : credentialRootsArg.split(",").map((root) => root.trim()).filter((root) => root.length > 0);
+const credentialRoots =
+  credentialRootsParsed !== null && credentialRootsParsed.length === 0 ? null : credentialRootsParsed;
 
 let raw;
 try {
