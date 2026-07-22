@@ -162,6 +162,14 @@ out="$(run_r2 --dry-run --manifest "$MANI" 2>&1)"
 rc=$?
 assert_exit "rewriting a real manifest still works" 0 "$rc"
 
+# 7. A trailing `--manifest` with no value is a usage error, not an infinite loop
+#    (without set -e, `shift 2` on a single remaining arg is a silent no-op). The
+#    timeout fails the case loudly if the guard ever regresses into a hang.
+out="$(timeout 10 bash -c "cd '$TEST_TMPDIR/r2' && bash '$CLEAN' --apply --manifest" 2>&1)"
+rc=$?
+assert_exit "trailing --manifest is a usage error" 2 "$rc"
+assert_contains "trailing --manifest reported" "$out" "--manifest requires a value"
+
 # rm-failure accounting: a manifest entry rm cannot remove must count failed and
 # force a non-zero exit. Deterministic only where the FS enforces a write-denied
 # parent (real POSIX / Linux CI); Cygwin/MSYS ignores it, so probe and skip.

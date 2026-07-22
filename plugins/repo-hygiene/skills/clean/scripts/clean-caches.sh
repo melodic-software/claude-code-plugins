@@ -48,7 +48,11 @@ while [[ $# -gt 0 ]]; do
     shift
     ;;
   --manifest)
-    MANIFEST_ARG="${2:-}"
+    if [[ $# -lt 2 ]]; then
+      echo "clean-caches.sh: --manifest requires a value" >&2
+      exit 2
+    fi
+    MANIFEST_ARG="$2"
     shift 2
     ;;
   -h | --help)
