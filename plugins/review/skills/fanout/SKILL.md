@@ -52,10 +52,12 @@ Both review modes share the roster ([context/leaf-roster.md](context/leaf-roster
 
 ## Pre-flight gate (both review modes)
 
-Resolve the review diff base ("Shared inputs") and confirm it yields a non-empty diff BEFORE any surface is spawned:
+**Ask-shape check first, before any diff resolution:** when the ask is a whole-repository security audit rather than a change review, emit the deep-scan escalation from [context/leaf-roster.md](context/leaf-roster.md) "Deep-scan escalation" and STOP — regardless of diff state. A tracked diff or open PR does not convert that ask into a change review; a diff-scoped fan-out would answer a question the user did not ask.
+
+Otherwise resolve the review diff base ("Shared inputs") and confirm it yields a non-empty diff BEFORE any surface is spawned:
 
 - **Unresolvable base** — an open PR's `origin/<baseRefName>` fails `git rev-parse --verify` even after a fetch (do NOT silently substitute a different base — that reviews the wrong diff), or no ladder ref resolves at all → report which ref failed and STOP.
-- **Nothing to review** — truly clean tree, or untracked-only changes → emit the matching diagnostic (full logic: [context/default-mode.md](context/default-mode.md) "Clean-tree short-circuit + untracked-only diagnostic") and STOP; never stage files. When the ask was a whole-repository security audit rather than a change review, the STOP diagnostic also carries the deep-scan escalation from [context/leaf-roster.md](context/leaf-roster.md) "Deep-scan escalation" — a clean tree is the common shape of that ask, and stopping silently would bury the intended route.
+- **Nothing to review** — truly clean tree, or untracked-only changes → emit the matching diagnostic (full logic: [context/default-mode.md](context/default-mode.md) "Clean-tree short-circuit + untracked-only diagnostic") and STOP; never stage files.
 
 Either outcome spawns ZERO reviewers — a fan-out against an empty or wrong change set burns the whole roster to produce noise. The `fix` action is exempt: it consumes persisted findings and spawns no reviewers.
 

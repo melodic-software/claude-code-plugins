@@ -10,7 +10,8 @@ All notable changes to the `review` plugin are documented here. Format follows
 - Deep-scan escalation routing to the official Claude Security plugin (`/claude-security`) from
   quality-gate security mode and the fanout leaf roster — presence-gated, pointer-only
   (contract stays upstream at <https://code.claude.com/docs/en/claude-security>), and explicitly
-  not a fan-out leaf.
+  not a fan-out leaf. The fanout pre-flight gate checks ask shape before diff resolution, so a
+  whole-repo security-audit ask escalates regardless of diff state.
 
 ## [0.14.11]
 
