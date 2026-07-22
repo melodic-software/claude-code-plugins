@@ -55,11 +55,12 @@
       "id": 5,
       "name": "surface-gate-degrades-visibly-not-silently",
       "prompt": "render this state machine as a diagram I can actually look at — [in a context where the Artifact publishing surface is unavailable].",
-      "expected_output": "Chooses a mermaid state diagram, and because the published-Artifact surface is unavailable, degrades along the tier order: write a self-contained local HTML file and open it; if no page surface is available at all, emit the mermaid source in the terminal with a visible one-line notice that the rendered surface was unavailable. The degradation is stated, never silent.",
+      "expected_output": "Chooses a mermaid state diagram. Because a mermaid diagram renders natively only on a published Artifact, and that surface is unavailable, it either produces a local HTML file that embeds a mermaid renderer (a local file is not under the artifact CSP) or, if it cannot render mermaid on a reachable surface, emits the mermaid source fence in the terminal with a visible one-line notice that it is unrendered. It does NOT open a plain local page that shows the source instead of the promised picture, and the degradation is stated, never silent.",
       "files": [],
       "expectations": [
         "Selects a mermaid state diagram as the form",
-        "Detects the Artifact surface is unavailable and degrades to a local HTML file (or terminal source) rather than assuming it exists",
+        "Recognizes that a mermaid diagram renders natively only on a published Artifact; a local HTML file needs an embedded renderer",
+        "Degrades to a mermaid-capable surface or to a terminal source fence — never a plain local page that renders nothing",
         "Surfaces the degradation with a visible notice — never a silent failure"
       ]
     },

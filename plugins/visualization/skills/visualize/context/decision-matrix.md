@@ -47,6 +47,12 @@ and the official fallback is to **write a local HTML file** instead:
 **inline terminal → local HTML file → published Artifact.** The local HTML file is
 the always-available rich tier and the one that never leaves the machine.
 
+The local HTML file is **not** under the artifact CSP (it is a file, not a
+published page), so it may load or inline scripts freely — but it also gets **no
+runtime for free**. In particular a published Artifact renders mermaid natively,
+whereas a local HTML file renders a mermaid diagram only if the page itself embeds
+a mermaid renderer; a bare `mermaid` block in a plain file stays unrendered.
+
 ## Form catalog
 
 ### Mermaid diagram families
