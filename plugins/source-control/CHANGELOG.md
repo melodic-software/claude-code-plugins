@@ -18,8 +18,11 @@ All notable changes to the `source-control` plugin are documented here. Format f
   never be masked by footer text that carries no `##` heading of its own; the heading scan is also
   fence- and HTML-comment-aware, so a `## <heading>`-shaped line inside a fenced code sample (e.g. a
   Summary documenting a PR-body template) or an HTML comment (a commented-out draft section) never
-  counts as a real section boundary (all three review-caught during #975). Absent everywhere → the
-  bundled portable default: `Summary` and `Test plan` only (research-grounded across GitHub's
+  counts as a real section boundary. Fence detection matches GFM's actual rules (up to 3 leading
+  spaces before the opener, and a fence closes only on a matching delimiter character — a `~~~` line
+  never closes an open ` ``` ` fence or vice versa), not a bare column-zero triple-delimiter check
+  (all four review-caught during #975). Absent everywhere → the bundled portable default: `Summary`
+  and `Test plan` only (research-grounded across GitHub's
   own guidance, Google's CL-description doc, GitLab's dogfooded default template, and a cross-section
   of OSS PR templates — see
   [`docs/conventions/pr-body-convention/README.md`](../../docs/conventions/pr-body-convention/README.md)).

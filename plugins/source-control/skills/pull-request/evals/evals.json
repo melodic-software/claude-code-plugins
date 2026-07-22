@@ -180,11 +180,12 @@
     {
       "id": 15,
       "name": "pr-body-required-sections-gate-ignores-fenced-heading-lookalikes",
-      "prompt": "/pull-request create. pr_body_required_sections requires Related. The drafted body has no real `## Related` section, but the `## Summary` section's prose includes a fenced code sample documenting a PR-body template that itself contains the literal line `## Related`.",
-      "expected_output": "The §2.4.2.2 gate still blocks PR creation for the missing `## Related` section. The heading scan is fence-aware: a `## Related` line that appears inside a fenced code block (inside Summary's own content) is not treated as a real section boundary, so it neither falsely satisfies the Related requirement nor incorrectly truncates Summary's own captured content at that line.",
+      "prompt": "/pull-request create. pr_body_required_sections requires Related. The drafted body has no real `## Related` section, but the `## Summary` section's prose includes a fenced code sample documenting a PR-body template that itself contains the literal line `## Related` — one instance in a plain ` ``` ` fence indented inside a list item (up to 3 leading spaces, per GFM), and one instance where a `~~~` line appears inside an already-open ` ``` ` fence.",
+      "expected_output": "The §2.4.2.2 gate still blocks PR creation for the missing `## Related` section. The heading scan is fence-aware and matches GFM's fenced-code-block rules (github.github.com/gfm/#fenced-code-blocks): a fence opener may carry up to 3 leading spaces, and a fence is closed only by a delimiter of the SAME character (backtick vs tilde) — so a `~~~` line inside an open ` ``` ` fence does not close it, and an indented fence is still recognized. A `## Related` line inside either fence form is not treated as a real section boundary, so it neither falsely satisfies the Related requirement nor incorrectly truncates Summary's own captured content.",
       "files": [],
       "expectations": [
-        "A `## <heading>` line appearing inside a fenced code block (```` ``` ```` or `~~~`) is not treated as a real section heading",
+        "A `## <heading>` line appearing inside a fenced code block (```` ``` ```` or `~~~`, including one indented up to 3 spaces) is not treated as a real section heading",
+        "A `~~~` line encountered while inside an already-open ` ``` ` fence (or vice versa) does not close that fence — only a matching delimiter character does",
         "The gate still blocks when the only heading-shaped match for a required section is inside a code fence",
         "A fence delimiter encountered while already inside a real section's content is preserved as part of that section's captured body, not treated as an exit boundary"
       ]

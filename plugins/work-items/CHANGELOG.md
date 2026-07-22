@@ -13,9 +13,12 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   enumerated it alongside `Closes #N` as if every PR carried it. The dispatch brief and the
   post-green deferred-finding step (`skills/work/SKILL.md`) now: point at pull-request's
   configurable scaffold instead of restating it, drop `## Related` from the standing-obligations
-  list, and have the deferred-finding step ensure the section exists (`gh pr edit --body`) before
-  citing a follow-up issue in it, rather than assuming pull-request already created one. Eval 3
-  updated to match.
+  list, and have the deferred-finding step ensure the section exists before citing a follow-up issue
+  in it, rather than assuming pull-request already created one. That step is documented as a
+  **read-modify-write** (`gh pr view --json body` then `gh pr edit --body-file -`), matching the
+  GitHub adapter's own PR-body-edit identity note — `gh pr edit --body`/`--body-file` REPLACES the
+  whole body, so a bare append-flavored write would silently drop `Closes #N` and the rest of the
+  scaffold (review-caught). Eval 3 updated to match.
 
 ## [0.21.2]
 

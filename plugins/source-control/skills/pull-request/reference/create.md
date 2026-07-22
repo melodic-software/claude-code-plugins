@@ -360,8 +360,25 @@ for section in "${REQUIRED_SECTIONS[@]}"; do
   # correctly.
   SECTION_BODY=$(printf '%s\n' "$BODY" | awk -v h="## ${section}" '
   {
-    if ($0 ~ /^(```|~~~)/) { in_fence = !in_fence; if (found) print; next }
-    if (in_fence) { if (found) print; next }
+    # Fence detection matches GFM (https://github.github.com/gfm/#fenced-code-blocks):
+    # up to 3 leading spaces, then 3+ of the SAME fence character (backtick or
+    # tilde) — a fence indented inside a list item is still recognized, and a
+    # ``` opener is closed only by another ``` line, never by a ~~~ line (and
+    # vice versa). Exact opener/closer run-length parity (a further GFM nicety)
+    # is not tracked — this scan only needs "is this line inside a fence", not
+    # faithful code-block rendering.
+    stripped = $0
+    sub(/^ {0,3}/, "", stripped)
+    fence_char = ""
+    if (stripped ~ /^```/) fence_char = "`"
+    else if (stripped ~ /^~~~/) fence_char = "~"
+
+    if (!in_fence && fence_char != "") { in_fence = 1; open_char = fence_char; if (found) print; next }
+    if (in_fence) {
+      if (fence_char == open_char) in_fence = 0
+      if (found) print
+      next
+    }
     if ($0 ~ /<!--/) {
       in_comment = 1
       if (found) print
