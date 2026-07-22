@@ -3,6 +3,19 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.1]
+
+### Fixed
+
+- **Triage SKILL state machine + attention view reconciled with live labels (`#817`).** The
+  attention view's bucket list named only `status:needs-triage`, leaving a repo that files raw
+  intake on the priority axis (`priority:needs-triage`, per `#802`'s dual-axis Scope wording)
+  invisible to the no-arg attention view; the bucket now names both axes. Separately,
+  `status:needs-decision` was already referenced by the closing invariant as a routing outcome
+  that clears the raw marker, but was never introduced as a side exit in the state machine itself
+  (unlike `needs-info`, human-gated, and close) — it is now documented alongside them in the
+  side-exits sentence and the state diagram. Doc-only; no routing logic changed.
+
 ## [0.21.0]
 
 ### Added
