@@ -444,6 +444,13 @@ run_pwsh "PS: & 'Invoke-Expression' quoted (blocked)" \
   "& 'Invoke-Expression' 'Set-Content f x'" 2
 run_pwsh "PS: & quoted non-writer program path (allowed)" \
   "& 'C:\\tools\\build.exe' arg" 0
+# Review round 5: expression-valued producers and computed call targets.
+run_pwsh "PS: numeric expression > file (blocked)" "36 > out.txt" 2
+run_pwsh "PS: cast expression > file (blocked)" "[char]65 > out.txt" 2
+run_pwsh "PS: & computed writer name (fail-closed block)" \
+  "& ('Set-'+'Content') -Path f.txt -Value x" 2
+run_pwsh "PS: spaced numeric is a value write, tool redirect still allowed" \
+  "git diff 2> err.txt" 0
 
 # The block message is shell-agnostic (no 'Bash' assumption).
 psout=$(bash "$HOOK" <<<"$(pwsh_command_json "Set-Content f.txt 'x'")" 2>&1)

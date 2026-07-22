@@ -59,6 +59,14 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   `& 'Invoke-Expression' …`) is detected on the quote-intact text before blanking. A
   quoted path to an arbitrary program (`& 'C:\tools\x.exe'`) stays allowed — the
   same quoted-command-word residual the Bash guard carries.
+- **Review round 5 (computed-expression shapes fail closed):** a launcher whose
+  program is a computed expression or variable (`Start-Process ('g'+'it') …`,
+  `saps $tool …`, optionally behind one named parameter) is treated as
+  possibly-git rather than provably git-free; a call/dot-source of a computed
+  target (`& ('Set-'+'Content') …`, `& $w …`) fails the write gate closed the
+  same way iex does; and an expression-literal redirect producer (`36 > out.txt`,
+  `[char]65 > out.txt` — spaced value writes, not attached-digit stream
+  redirects) counts as a content write.
 - **The PowerShell coverage bar is documented as Bash-parity, not airtight.** These
   guards are accidental-destruction friction, not a boundary against deliberate
   evasion — and the Bash guard they extend does not stop deliberate evasion either.

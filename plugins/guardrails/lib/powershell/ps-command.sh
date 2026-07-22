@@ -191,6 +191,11 @@ ps::might_invoke_git() {
   # Call / dot-source of a variable, subexpression, or string literal:
   # `& $x …`, `& (…)`, `& 'git …'`, `. $x …` — the target runs as a command.
   [[ "$lc" =~ (^|[[:space:]])[.\&][[:space:]]*[\$\($q] ]] && return 0
+  # A launcher whose program is a computed expression or variable —
+  # `Start-Process ('g'+'it') …`, `saps $tool …`, optionally behind one named
+  # parameter (`-FilePath (…)`) — may evaluate to git; it cannot be proven
+  # git-free, so it stays in the fail-closed branch (review round 5).
+  [[ "$lc" =~ (^|[[:space:]\;\|\&\(])(start-process|saps|start|pwsh|powershell|cmd)(\.exe)?[[:space:]]+(-[a-z]+[[:space:]]+)?[\(\$] ]] && return 0
   return 1
 }
 
@@ -330,6 +335,13 @@ ps::write_bypass() {
   if [[ "$lcq" =~ (^|[[:space:]])[.\&][[:space:]]*[$q]([a-z.]+\\)?(set-content|add-content|out-file|tee-object|ac|tee|iex|invoke-expression|new-item|ni|epcsv|export-[a-z]+) ]]; then
     return 0
   fi
+  # A call/dot-source of a COMPUTED target — `& ('Set-'+'Content') …`, `& $w …`
+  # — evaluates an expression into the command name; it cannot be proven
+  # non-writer, so it fails closed like iex (review round 5). Mirrors
+  # ps::might_invoke_git's treatment of the same shape on the git side.
+  if [[ "$lcq" =~ (^|[[:space:]])[.\&][[:space:]]*[\(\$] ]]; then
+    return 0
+  fi
 
   scan=$(ps::blank_quoted_spans "$PS_BLANKED")
   # Delete backticks before matching so a name obfuscated by PowerShell's escape
@@ -412,8 +424,13 @@ ps::write_bypass() {
     case "$head" in
     echo | write | write-output | write-host | "${PS_HERESTRING_PLACEHOLDER,,}") return 0 ;;
     '$'*) return 0 ;; # a variable / subexpression value redirected to a file
+    '['*) return 0 ;; # a cast/type expression value ([char]65 > f)
     *) ;;
     esac
+    # A bare numeric expression is a value write (`36 > out.txt` writes "36").
+    # Only the SPACED form — an attached digit prefix (`2>err.txt`, `2>&1`) is a
+    # stream redirect whose producer is the preceding tool, not a value.
+    [[ "$head" =~ ^[0-9]+([.][0-9]+)?$ ]] && return 0
   done <<<"$norm"
   return 1
 }

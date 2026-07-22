@@ -363,5 +363,13 @@ run_pwsh "PS: powershell.exe -Command git reset --hard (fail-closed block)" \
 run_pwsh "PS: start alias launches git (fail-closed block)" \
   "start git -ArgumentList 'reset --hard'" 2
 run_pwsh "PS: start alias, no git (allowed)" "start notepad" 0
+# A launcher whose program is a computed expression cannot be proven git-free.
+run_pwsh "PS: Start-Process computed target (fail-closed block)" \
+  "Start-Process ('g'+'it') -ArgumentList 'reset --hard'" 2
+run_pwsh "PS: Start-Process -FilePath computed target (fail-closed block)" \
+  "Start-Process -FilePath ('g'+'it') -ArgumentList 'reset --hard'" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: launcher with variable target (fail-closed block)" \
+  'saps $tool -ArgumentList "reset --hard"' 2
 
 report
