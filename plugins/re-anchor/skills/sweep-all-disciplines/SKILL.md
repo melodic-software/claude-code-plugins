@@ -74,7 +74,12 @@ unchanged and bind every member.
    `subagent_type: "fork"`, which inherits the full conversation history the
    audit must read. A fresh/typed subagent receives no history, and a
    skill-level `context: fork` also discards it — neither can audit this
-   conversation. Instruct each fork: load exactly this ONE corrector's
+   conversation. Fork-spawning is a rollout-gated capability
+   (`CLAUDE_CODE_FORK_SUBAGENT`); where it is off, requesting the `fork` type
+   falls back to a fresh general-purpose subagent that cannot see the
+   conversation — so if forks are unavailable, report that the inheriting
+   audit fan-out cannot run and stop, rather than auditing blind. Instruct
+   each fork: load exactly this ONE corrector's
    `SKILL.md`, run shared-loop steps 1–2 only (re-anchor + self-audit), make
    NO writes, and return a findings ledger (concrete located findings, or an
    honest "clean"). Cap concurrency in bounded waves like the `-deep`
@@ -119,7 +124,12 @@ never a hand-edited member), substituted here at load:
 - Promoted to always-run: `${user_config.batch_promote}`
 - Demoted to relevance-gated: `${user_config.batch_demote}`
 
-Each is a comma-separated list of corrector names, empty when unset. Apply
+Each is a comma-separated list of corrector names. An unset option does not
+reliably substitute to empty: on a zero-config or headless install, or for a
+user who never ran plugin-config, the literal `${user_config.…}` token
+survives instead. Treat BOTH an empty value AND a surviving literal
+placeholder as unset — no overlay from that key — and never read the literal
+token as a corrector name. Apply
 after tier resolution: `batch_exclude` drops a member, `batch_promote` lifts a
 situational corrector to always-run, `batch_demote` drops a core corrector to
 relevance-gated. Report the net effect whenever the overlay changes the set.
