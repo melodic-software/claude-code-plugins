@@ -127,6 +127,25 @@ EOF
   exit 3
 fi
 
+# Canonicalize a Windows backslash root to the forward-slash grammar git emits.
+# On a Windows shell `\` is a path separator `git worktree add` resolves, but the
+# containment guard below cannot: the ancestor walk splits on `/`, so an
+# all-backslash `${probe%/*}` never changes (parent == probe), the loop breaks on
+# its first iteration, and the whole guard block is skipped — a backslash root
+# then sails through and git lands the checkout inside the repo/.git. Swapping
+# `\`→`/` up front routes a backslash root through the SAME anchor + normalize_path
+# + walk as a forward-slash root (one code path, not a parallel one). Gated to
+# Windows shells via $OSTYPE — off-Windows `\` is a legal filename byte and must
+# be left untouched. (cygpath is intentionally avoided: it resolves relative paths
+# against the CWD, not $toplevel, and rewrites MSYS `/tmp` paths — both diverge
+# from this helper's contract; a pure separator swap defers all resolution to the
+# existing machinery.)
+if [[ "$root" == *\\* && ("$OSTYPE" == msys || "$OSTYPE" == cygwin) ]]; then
+  bslash="\\"
+  fwd="/"
+  root="${root//"$bslash"/"$fwd"}"
+fi
+
 # Resolve the source repository top level.
 if ! toplevel=$(git -C "$repo_dir" rev-parse --show-toplevel 2>/dev/null); then
   printf '%s: --repo-dir is not inside a git repository: %s\n' "$PROG" "$repo_dir" >&2

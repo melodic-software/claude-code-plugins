@@ -129,6 +129,41 @@ assert_contains "normalized in-repo refuse names the repository" "$err" "inside 
 assert_file_absent "no worktree materialized inside repo via '..' bypass" \
   "$repo/.claude/worktrees/acme-widget-feat-x/README.md"
 
+# --- Case: Windows backslash roots are canonicalized before the guard ---
+# On a Windows shell `\` is a separator git resolves but the ancestor walk (which
+# splits on `/`) cannot climb, so an un-canonicalized backslash root would skip
+# the containment guard entirely. Windows-only: `\` is a legal filename byte
+# elsewhere. cygpath -w builds the native backslash form.
+if [[ "$OSTYPE" == msys || "$OSTYPE" == cygwin ]] && command -v cygpath >/dev/null 2>&1; then
+  # backslash root pointing directly into the repo working tree
+  repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+  err=$(bash "$HELPER" --name feat/bs --root "$(cygpath -w "$repo")\\.claude\\worktrees" --repo-dir "$repo" 2>&1 >/dev/null)
+  assert_exit "backslash root inside repo refuses exit 3" 3 "$?"
+  assert_contains "backslash in-repo refuse names the repository" "$err" "inside the repository"
+  assert_file_absent "no worktree via backslash-into-repo" "$repo/.claude/worktrees/acme-widget-feat-bs/README.md"
+
+  # backslash root pointing into the .git directory
+  repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+  err=$(bash "$HELPER" --name feat/bg --root "$(cygpath -w "$repo")\\.git\\ext" --repo-dir "$repo" 2>&1 >/dev/null)
+  assert_exit "backslash root inside .git refuses exit 3" 3 "$?"
+  assert_contains "backslash-into-.git names a git directory" "$err" "inside a git directory"
+
+  # backslash root with `..` after a nonexistent component resolving into the repo
+  repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+  bs_dd="$(cygpath -w "$repo")\\..\\missing\\..\\${repo##*/}\\.claude\\worktrees"
+  bash "$HELPER" --name feat/bd --root "$bs_dd" --repo-dir "$repo" >/dev/null 2>&1
+  assert_exit "backslash + '..' resolving inside repo refuses exit 3" 3 "$?"
+
+  # a genuine EXTERNAL backslash root still creates (exit 0) — no over-reject, and
+  # the printed path is the forward-slash form EnterWorktree(path:) expects.
+  repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+  out=$(bash "$HELPER" --name feat/be --root "$(cygpath -w "$TEST_TMPDIR/ext-backslash")" --repo-dir "$repo" 2>/dev/null)
+  assert_exit "external backslash root still creates (exit 0)" 0 "$?"
+  assert_file_exists "external backslash worktree materialized" "$out/README.md"
+else
+  skip_case "backslash-root canonicalization is Windows-only"
+fi
+
 # --- Case: an external root adjacent to a .git directory is allowed (exit 0) ---
 # Normal-path guard: the containment check must not over-reject a genuinely
 # external root just because a sibling path holds a git directory.
