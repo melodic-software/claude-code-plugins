@@ -110,6 +110,17 @@ class Locking(unittest.TestCase):
             self.assertTrue(ob.acquire_lock(), "stale (dead-pid) lock must be reclaimed")
             ob.release_lock()
 
+    def test_partial_write_lock_treated_live(self):
+        # A just-created lock the winner has not finished writing (empty/partial,
+        # fresh mtime) must be treated as LIVE, never reclaimed -- otherwise a
+        # racing loser could unlink it and both proceed.
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            ob = make_observer(tmp)
+            ob.lock_path.write_text("", encoding="utf-8")  # created, not yet written
+            self.assertFalse(ob.acquire_lock(),
+                             "empty/mid-write lock (fresh mtime) must not be reclaimed")
+
     def test_race_exactly_one_winner(self):
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)

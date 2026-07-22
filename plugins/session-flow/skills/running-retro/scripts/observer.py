@@ -160,13 +160,30 @@ class Observer:
         return False
 
     def _lock_is_stale(self) -> bool:
+        """A held lock is stale only on positive evidence, never on partial reads.
+
+        The winner OWNS the lock the instant its `O_EXCL` create succeeds; it then
+        writes the JSON body. A loser that reads the file in that window sees empty
+        or partial content -- which must be treated as LIVE (the loser backs off),
+        not stale, or two observers could both proceed. An unreadable lock is only
+        reclaimed once the FILE ITSELF is old (mtime past the lifetime cap), which a
+        just-created mid-write lock never is.
+        """
+        try:
+            mtime_age = time.time() - self.lock_path.stat().st_mtime
+        except OSError:
+            return True  # already gone -> free to take
+        cap = self.idle_secs + self.max_secs
         try:
             data = json.loads(self.lock_path.read_text(encoding="utf-8"))
             other_pid = int(data.get("pid", -1))
             age = time.time() - _to_epoch(data.get("started", ""))
         except (OSError, ValueError, json.JSONDecodeError):
-            return True
-        stale = (not _pid_alive(other_pid)) or age >= (self.idle_secs + self.max_secs)
+            if mtime_age >= cap:
+                self.log(f"reclaiming unreadable/abandoned lock (mtime age {mtime_age:.0f}s)")
+                return True
+            return False  # partial/mid-write lock -> treat as LIVE
+        stale = (not _pid_alive(other_pid)) or age >= cap
         if stale:
             self.log(f"reclaiming stale lock (pid={other_pid}, age={age:.0f}s)")
         return stale

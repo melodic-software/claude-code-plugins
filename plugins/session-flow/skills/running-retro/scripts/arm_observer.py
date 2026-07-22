@@ -68,10 +68,20 @@ def main() -> int:
         print(f"observer: observer.py missing at {observer}")
         return 0
 
+    # Resolve to ABSOLUTE paths against THIS launcher's cwd (the caller's cwd --
+    # the consumer project root for the skill entry) before handing them to the
+    # detached observer, whose cwd is the scripts dir. A relative --ledger-dir
+    # would otherwise land findings under the installed plugin cache instead of
+    # the consumer repo. The SessionStart hook already passes absolute paths;
+    # abspath is a no-op for those.
+    transcript = transcript.resolve()
+    work_dir = str(Path(args.work_dir).resolve())
+    ledger_dir = str(Path(args.ledger_dir).resolve())
+
     cmd = [sys.executable, str(observer),
            "--transcript", str(transcript),
-           "--work-dir", args.work_dir,
-           "--ledger-dir", args.ledger_dir,
+           "--work-dir", work_dir,
+           "--ledger-dir", ledger_dir,
            "--session-id", args.session_id,
            "--plugin-root", args.plugin_root,
            "--topic", args.topic,

@@ -150,6 +150,11 @@ config, untrusted-data boundary, and the deferred native Observer-Agents alterna
 [`${CLAUDE_PLUGIN_ROOT}/reference/observer.md`](${CLAUDE_PLUGIN_ROOT}/reference/observer.md) — read
 it, do not restate it. To arm the current session, resolve the inputs and run the launcher:
 
+Read the **same `userConfig` values the hook reads** so a manual arm honors the operator's analysis
+settings (an operator who set `observer_analysis_enabled=false` to avoid autonomous spend must not get
+a `claude -p` run from a manual arm). Anchor the ledger dir to the project — the launcher resolves it
+to an absolute path, so a relative `memory_dir` still lands in the consumer repo, not the plugin cache.
+
 ```bash
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
 TRANSCRIPT="$SESSION_DATA_DIR/${CLAUDE_CODE_SESSION_ID}.jsonl"   # SESSION_DATA_DIR per retro's "Paths"
@@ -161,14 +166,19 @@ WORK_DIR="${CLAUDE_PLUGIN_DATA:-${TEMP:-${TMPDIR:-/tmp}}}/session-flow-observer"
 PY=""; for c in python3 python; do command -v "$c" >/dev/null 2>&1 \
   && "$c" -c 'import sys;sys.exit(0 if sys.version_info>=(3,10) else 1)' 2>/dev/null && { PY="$c"; break; }; done
 
-"$PY" "$PLUGIN_ROOT/skills/running-retro/scripts/arm_observer.py" \
-  --transcript "$TRANSCRIPT" --work-dir "$WORK_DIR" --ledger-dir "$MEMORY_DIR/running-retros" \
-  --session-id "$CLAUDE_CODE_SESSION_ID" --plugin-root "$PLUGIN_ROOT" --analysis
+args=(--transcript "$TRANSCRIPT" --work-dir "$WORK_DIR" --ledger-dir "$MEMORY_DIR/running-retros"
+  --session-id "$CLAUDE_CODE_SESSION_ID" --plugin-root "$PLUGIN_ROOT"
+  --model "${CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_MODEL:-claude-haiku-4-5}"
+  --idle-seconds "${CLAUDE_PLUGIN_OPTION_OBSERVER_IDLE_SECONDS:-900}"
+  --max-seconds "${CLAUDE_PLUGIN_OPTION_OBSERVER_MAX_SECONDS:-86400}")
+[[ "${CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_ENABLED:-true}" == "true" ]] && args+=(--analysis)
+[[ "${CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_BARE:-false}" == "true" ]] && args+=(--bare)
+"$PY" "$PLUGIN_ROOT/skills/running-retro/scripts/arm_observer.py" "${args[@]}"
 ```
 
-This is the SAME launcher the opt-in SessionStart hook (`observer_enabled`) uses; manual `arm` works
-whether or not the auto-arm is on, and is the primary entry — the hook only automates it. The
-launcher prints the observer pid and returns at once; it never blocks the session.
+This is the SAME launcher and config surface the opt-in SessionStart hook (`observer_enabled`) uses;
+manual `arm` works whether or not the auto-arm is on, and is the primary entry — the hook only automates
+it. The launcher prints the observer pid and returns at once; it never blocks the session.
 
 ## Cadence
 
