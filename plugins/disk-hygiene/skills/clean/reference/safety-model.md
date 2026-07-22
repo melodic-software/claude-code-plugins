@@ -57,7 +57,8 @@ the host platform's path case rules; POSIX path identity is never case-folded. A
 is accepted only when it matches the authorized data root the guard receives as a runtime-substituted
 hook argument (`${CLAUDE_PLUGIN_DATA}`) — the shell environment is never trusted for it (an env var is
 honored only as a fallback), and absent that authority the flag fails closed. `--max-depth` accepts
-only a bare positive-integer literal.
+only a bare positive-integer literal. `--confirmed-large-scan` is the one valueless scan flag; the
+guard permits at most one and rejects any trailing value, so the scan grammar stays exact.
 
 The same guard also covers the PowerShell tool with the inverse tradeoff: PowerShell stays open for
 read-only support work, while engine invocations are hard-denied (Bash is the only engine lane) and
@@ -75,6 +76,12 @@ and platform gates remain the deletion authority.
 A depth-limited scan records every directory it declined to enter in `truncated_paths`. Truncated
 directories have no captured descendant set, so the preview blocks them (and anything beneath them)
 as `truncated-not-inventoried`; they are coverage gaps, never candidates.
+
+A scan of a known-large root — the user home directory — is gated before it walks. Absent an explicit
+`--max-depth` bound or a `--confirmed-large-scan` acknowledgement, the engine performs a cheap
+top-level probe and returns `large-target-confirmation-required` instead of the unbounded traversal,
+so an unauthenticated whole-home walk cannot begin by omission. This is scan-cost gating (time and
+resources), distinct from the hard rejection of filesystem and OS-managed roots as invalid targets.
 
 Managed state is engine-ineligible. Even current native dry-run evidence is recorded only as a
 report-only handoff because this engine cannot independently authenticate the owning product's state
