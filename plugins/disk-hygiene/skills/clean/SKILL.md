@@ -247,6 +247,10 @@ sparse files, hard links, compression, and delayed allocation affect it.
   - Where both names resolve to the same interpreter (the common POSIX layout, including a
     `python` → `python3` symlink, which resolves identically), the guard runs twice per call —
     redundant, never weaker.
+  - Where the two names resolve to different 3.11+ interpreters (e.g. a virtualenv `python` beside a
+    system `python3`), each guard instance trusts both registered interpreters, so an engine call
+    spelled with either absolute path passes; without that, the sibling instance would deny every
+    engine call — deny winning over allow across parallel hooks — and make the lane unusable.
   - Where a legacy `python` 2.x resolves, each guarded call emits a Python 2 traceback to the
     transcript — harmless noise; the `python3` entry still enforces.
   `/disk-hygiene:setup check` reports which interpreters resolve on this machine.

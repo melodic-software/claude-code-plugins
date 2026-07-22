@@ -1135,6 +1135,22 @@ class GuardTests(unittest.TestCase):
             result["hookSpecificOutput"]["permissionDecisionReason"],
         )
 
+    def test_engine_call_allowed_under_sibling_registered_interpreter(self) -> None:
+        real = self.python_command()
+        script = SCRIPT_DIR / "hygiene.py"
+        command = f'"{real}" "{script}" scan --target t --output s'
+        original_which = guard.shutil.which
+
+        def fake_which(name: str) -> str | None:
+            return real if name in {"python", "python3"} else original_which(name)
+
+        with (
+            mock.patch.object(guard.sys, "executable", os.fspath(script)),
+            mock.patch.object(guard.shutil, "which", side_effect=fake_which),
+        ):
+            result = self.run_guard(command)
+        self.assertEqual("allow", result["hookSpecificOutput"]["permissionDecision"])
+
     @unittest.skipUnless(os.name == "posix", "exported Bash functions are POSIX-only")
     def test_absolute_python_bypasses_exported_same_name_function(self) -> None:
         completed = subprocess.run(

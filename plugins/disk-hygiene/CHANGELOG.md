@@ -24,6 +24,17 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   already unsupported on Windows/macOS, so the per-path human approval that lane already requires
   and the consumer's baseline permission policy stay the backstop, and `/disk-hygiene:setup check`
   reports interpreter resolution. (#380)
+- **Each guard instance now authorizes an engine call spelled with either registered interpreter.**
+  The dual registration above launches one guard under `python3` and one under `python`; each
+  previously trusted only its own launch runtime. Where the two names resolve to different 3.11+
+  interpreters (e.g. a virtualenv `python` beside a system `python3`), every engine call uses one
+  absolute interpreter, so the sibling instance denied it — and deny winning over allow across
+  parallel hooks blocked the whole engine lane on that common mixed-interpreter layout. The guard
+  now trusts any path resolving to this process's runtime or either `PATH`-resolved hook name
+  (`python3`/`python`); bare names stay rejected, and trusting a resolved hook name adds no new
+  trust because that name already launches the guard. A regression test
+  (`test_engine_call_allowed_under_sibling_registered_interpreter`) locks the sibling-interpreter
+  path. (#380)
 
 ## [0.4.2]
 
