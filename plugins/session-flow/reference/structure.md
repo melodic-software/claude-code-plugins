@@ -1,8 +1,9 @@
 # Handoff document structure + full-path write procedure
 
-Reference consulted while WRITING a full-path handoff (the decision logic — STOP gate, path choice,
-exit checklists — stays in `SKILL.md`). Walk every section; be specific — vague handoffs cost the
-next session a re-investigation.
+Reference consulted while WRITING a full-path handoff (the delivery decision logic — STOP gate,
+launch gates, exit checklists — stays in the citing skill's `SKILL.md`; path choice and destination
+resolution live in the sibling `save-point.md` engine doc). Walk every section; be specific — vague
+handoffs cost the next session a re-investigation.
 
 ## The eight body sections
 
@@ -108,7 +109,7 @@ TaskCreate(subject="Full pipeline run", description="...") → status=pending (d
 
 ## Full-path write procedure
 
-Write the file into the handoff location (SKILL.md "Where handoffs live"):
+Write the file into the handoff location (`save-point.md` "Where save-points live"):
 
 ```bash
 TS=$(date -u +%Y%m%dT%H%M%SZ)              # ISO basic — Windows-safe, no colons
@@ -144,7 +145,7 @@ if memory_root_is_repo_root "$MEMORY_ROOT" ||
   exit 1
 fi
 
-DIR="$MEMORY_ROOT/handoffs"                # resolved per SKILL.md "Where handoffs live"
+DIR="$MEMORY_ROOT/handoffs"                # resolved per save-point.md "Where save-points live"
 
 # Candidate prior handoff (newest by timestamp) for the chain pointer — but
 # only USE it when this session is a continuation of that handoff's task

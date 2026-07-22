@@ -39,6 +39,18 @@
         "It does NOT launch the background agent because unrelated uncommitted changes are present (and it is not already inside a linked worktree)",
         "It reports the reason and falls back to the standard /clear-then-paste instruction, noting the user can commit or stash and re-run /continue-in-background"
       ]
+    },
+    {
+      "id": 4,
+      "name": "linked-worktree-dirty-tree-launches",
+      "prompt": "/continue-in-background — take it from here, I'm off for the night. (Note: this session is already running inside a linked git worktree created with git worktree add, and the tree has uncommitted edits from the current task.)",
+      "expected_output": "The dirty-tree gate's linked-worktree exception applies: background sessions skip worktree isolation when already inside a linked worktree, so the uncommitted edits stay visible to the launched agent. The skill launches the background agent despite the dirty tree, reports the launch result, and STOPS.",
+      "files": [],
+      "expectations": [
+        "The skill launches the background agent even though the tree has uncommitted changes, because the current session already runs inside a linked git worktree (the documented exception — isolation is skipped there, so the edits remain visible to the launched agent)",
+        "It does NOT fall back to /clear-then-paste on account of the dirty tree",
+        "The launch result is reported and the skill STOPS — no monitoring or babysitting"
+      ]
     }
   ]
 }

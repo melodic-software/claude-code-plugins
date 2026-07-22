@@ -60,7 +60,7 @@ The document structure (eight body sections — Task / Progress / Decisions made
 Tried and ruled out / Open questions / Suggested skills / Files to review), the TaskList snapshot +
 reconstitute format, and the frontmatter shape (including the `session_id` / `previous_handoff` /
 `previous_session_id` chain fields that `/retro` walks) live in
-[`${CLAUDE_PLUGIN_ROOT}/skills/handoff/context/structure.md`](${CLAUDE_PLUGIN_ROOT}/skills/handoff/context/structure.md)
+[`${CLAUDE_PLUGIN_ROOT}/reference/structure.md`](${CLAUDE_PLUGIN_ROOT}/reference/structure.md)
 — walk it while writing the file.
 
 When the target file already exists on disk (extending an earlier turn's write), re-read it from

@@ -117,9 +117,9 @@ ambiguous.
 
 - [ ] Position located + next stage named (fresh reads this turn)
 - [ ] Handoff file written to the handoff location (self-ignore guard verified first) with
-  frontmatter per `context/structure.md`
+  frontmatter per the engine's structure doc (`${CLAUDE_PLUGIN_ROOT}/reference/structure.md`)
 - [ ] `previous_handoff` + `previous_session_id` present IF this session continued a prior
-  handoff's task (chain continuity per `context/structure.md`); omitted otherwise — including when
+  handoff's task (chain continuity per the same structure doc); omitted otherwise — including when
   the directory holds only unrelated-task handoffs
 - [ ] All eight body sections present
 - [ ] Redaction pass swept the file AND the prompt (secrets/tokens/credentials/PII replaced with

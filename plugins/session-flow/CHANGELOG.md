@@ -21,7 +21,10 @@
   redaction pass, handoff-file write, rails resume prompt — extracted from the
   handoff skill into a plugin-level reference both delivery skills cite via
   `${CLAUDE_PLUGIN_ROOT}` (same shape as `reference/topic-docs.md`). No content
-  duplicated in either skill; no runtime skill-to-skill invocation.
+  duplicated in either skill; no runtime skill-to-skill invocation. The handoff
+  document-structure doc moves with it (`skills/handoff/context/structure.md` →
+  `reference/structure.md`) so the shared engine never reaches into one
+  consumer's internal layout.
 
 ### Changed (breaking)
 

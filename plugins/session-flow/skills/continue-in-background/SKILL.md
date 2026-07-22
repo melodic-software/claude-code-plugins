@@ -93,8 +93,11 @@ then:
    save-point output on ANY path.
 3. Report the launch result: the command's output, the agent name, the `claude agents`
    management hint, and any launched-session behavior the resumed work depends on (next
-   section). The `/clear`-then-paste instruction is replaced by this report — the user no longer
-   needs to paste anything.
+   section). Verify the agent actually appeared — a zero-exit launch can still be invisible if
+   the persistence override is ever unrecognized — by listing sessions non-interactively this
+   turn when the CLI offers a way, and otherwise telling the user explicitly: "confirm it
+   appears in `claude agents`". The `/clear`-then-paste instruction is replaced by this report —
+   the user no longer needs to paste anything.
 4. **Launch failure → fall back, never block.** Non-zero exit (e.g. the installed Claude Code
    predates `--bg`) → report the error and fall back to the standard `/clear`-then-paste
    instruction. The save-point already exists; nothing is lost.
