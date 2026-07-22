@@ -51,7 +51,7 @@ The decision space is a TREE, not a flat list. Decisions have dependencies — r
 
 Run rounds until the stop condition is met. Each round:
 
-1. **Restate the working understanding** in two or three sentences — what is decided, what branches remain open
+1. **Restate the working understanding** in two or three sentences — what is decided, what branches remain open. This restate doubles as the **session-hop anchor**: after a handoff, resume, or long gap it re-establishes the decided set and the current round's stakes before any question, so a returning reader (or a fresh session resuming from the ledger) is grounded without re-reading the whole ledger. When it fully covers a question's context, that question needs no per-question context line (SKILL.md "Relentless mode")
 2. **Compute the frontier** — every open decision whose prerequisites are settled. A question whose framing or option set depends on another question still open in THIS round belongs to a later round, not this one. Carry-overs first: questions unanswered from the previous round re-surface at the top, labelled as such
 3. **Codebase gate per frontier question** — check whether the environment already answers it (Grep, Read, Glob). A fact the code answers is STATED, not asked, and its dependents join the frontier now. A slow lookup (deep exploration, external research) is dispatched to a sub-agent without blocking: the running lookup is an unsettled prerequisite, so only its downstream questions wait — the rest of the frontier is asked this round
 4. **Ask the frontier as one numbered set** — each question with a recommended answer grounded in observed codebase state (when no code signal exists, recommend from conventions and state the basis). Order within the round by blast radius — the answer that would change the most downstream work goes first
@@ -100,6 +100,25 @@ Targets that catch the most rework downstream:
 Each round is one numbered set in prose (surface rules: SKILL.md "Question surface"). **Per-question template + partial-round resolution: SKILL.md Stance "Relentless mode"** — single source; not duplicated here.
 
 `Q<N>` is a running counter across the session and across rounds (Q1–Q4 in round one, Q5… in round two — visible depth). Wait for the round's answers before computing the next round. The closing probe is load-bearing: it invites the user to surface a hidden constraint that would flip a recommendation. Most answers come back as a one-line "all as recommended" — that is the format working, not under-questioning.
+
+### Artifact escape hatch (dense round)
+
+When a round is large or dense enough that inline prose reads as a wall, offer to render the **whole frontier** as an HTML decision-table artifact (SKILL.md "Artifact escape hatch"). It is a rendering surface, not a protocol change — the frontier is still asked whole, never capped or split across cards.
+
+- **Columns:** `#` (the terminal `Q<N>`) | `Question` | `Recommendation` (the answer, terse) | `Alternatives` (the other options, one line each) | `Deciding what` (the stakes — what this answer changes downstream).
+- **Answer path:** the row `#` equals the terminal `Q<N>`, so the user answers in the terminal by number ("Q7 = b", "accept all") exactly as with an inline round; the artifact is read-only scanning, not an input surface.
+- **Terminal residue:** the terminal keeps a one-line summary (how many questions, what the round turns on) and the artifact link — never a silent hand-off to the artifact.
+- **Degrade:** when artifact rendering is unavailable, render the same five columns as a fenced markdown table inline.
+
+### Session-shorthand glossary
+
+When a round coins or leans on session-local shorthand — a label, abbreviation, or cross-repo term the user may not share — define it once at first use and record it here so later rounds (and a resumed session) use it without re-explaining. Ephemeral session vocabulary, distinct from the project's ubiquitous language (owned by `/domain-driven-design:curate-language`); it lives only in the working ledger and is discarded with it.
+
+```markdown
+**Session shorthand:**
+- lane — one parallel builder session working an isolated slice
+- gate vacuity — an acceptance gate that always passes, so it checks nothing
+```
 
 ### Dialogue + recommendation revision
 

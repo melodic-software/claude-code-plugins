@@ -51,7 +51,9 @@ Unknown actions route to `auto`; surface the unrecognized request as a one-line 
 
 **Default action leans to `me` (relentless prose rounds).** When invoked with no args (or by proactive auto-trigger), bias toward `me`-mode — drive open decisions through frontier-rounds prose Q&A. Fall back to direct synthesis (`lock`-style) ONLY when context heavily informs against asking: intent already crystal-clear with no open decisions, OR the user signalled "just lock it / stop asking". Auto-detect's synthesize-directly path is for the genuinely-clear case, not the default posture.
 
-**Question surface: inline prose by default.** Rounds render as numbered inline prose — dictation-friendly, no per-question cap, and each question carries its recommendation, reasoning, and probe in one readable block. `AskUserQuestion` is an opt-in surface, enabled via the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`, default off). When opted in, use it ONLY for a round of ≤4 mutually independent questions; fall back to prose when the frontier exceeds 4 or any question in the round depends on another — the card cannot express a dependency, and chunking a round across multiple cards fragments it. When in doubt, prose.
+**Question surface: inline prose by default.** Rounds render as numbered inline prose — dictation-friendly, no per-question cap, and each question carries its recommendation, reasoning, and probe in one readable block. `AskUserQuestion` is an opt-in surface, enabled via the plugin's `use_ask_user_question` user config (`${user_config.use_ask_user_question}`, default off). When opted in, use it ONLY for a round of ≤4 mutually independent questions that are **simple selections or binary confirms** — a card carries options, not a recommendation's reasoning or a constraint-surfacing probe, so any question needing its basis argued stays prose. Fall back to prose when the frontier exceeds 4, any question in the round depends on another, or a question needs more than a pick — the card cannot express a dependency or a rationale, and chunking a round across multiple cards fragments it. When in doubt, prose.
+
+**Artifact escape hatch for a dense round.** When a round is large or its questions are dense — a wall of prose the user cannot scan — OFFER to render the *whole frontier* as an HTML decision-table artifact: one row per question, columns **question / recommendation / alternatives / what you're deciding**, rows numbered to the terminal `Q<N>` so the user still answers by number in the terminal, which keeps a one-line summary and the artifact link. This is a rendering surface for the same frontier — never a round split or a question cap; the frontier is still asked whole. Degrade to a fenced markdown table when artifact rendering is unavailable. Column detail: [`context/loop.md`](context/loop.md) "Artifact escape hatch".
 
 ## Stance: supportive, depth-first, opinionated
 
@@ -86,16 +88,21 @@ Tone is collaborative but opinionated. You are not interrogating; you are helpin
 
 ```text
 Q<N>: <one question>
+[<one line of context — ONLY when the round-header restate doesn't reach this question, or the first round after a session gap>]
 
 My recommendation: **<answer>** — <2-3 sentences; grounded in codebase/convention; why it beats the alternatives>.
 
 Alternatives to consider:
-- (a) <option> (recommended) — <one-line tradeoff>
+- (a) <option> — <one-line tradeoff>
 - (b) <option> — <one-line tradeoff>
 - (c) <option> — <one-line tradeoff>
 ```
 
 `Q<N>` numbering runs continuously across rounds (Q1…Q4 in round one, Q5… in round two — visible depth). Close the round with one probe inviting a constraint that breaks the recommendations, and the note that the user may answer in any order. Wait for the answers before computing the next round. The recommendation+basis discipline holds per question — inline prose carries the recommendation, its reasoning, AND the probe in one readable block; a card cannot.
+
+**One verdict marker, at most one context line.** The `My recommendation:` line is the *single* verdict marker for the question — never stack a second one: no standalone `**(RECOMMENDED)**` badge line above it, and no `(recommended)` tag repeated in the Alternatives list; the recommended answer is named once, on that line. Per-question context is at most ONE line and usually absent — the round-header restate carries shared context, so add a line only when it doesn't reach this question or the session just resumed after a gap.
+
+**Define session shorthand once, then park it.** When a round introduces session-local shorthand — a coined label, an abbreviation, or cross-repo jargon the user may not share ("lanes", "gate vacuity") — define it in one clause at first use and record it in the ledger's shorthand glossary, then use the term freely. This is ephemeral session vocabulary, distinct from the project's ubiquitous language (owned by `/domain-driven-design:curate-language`), and never touches a project glossary. Ledger shape: [`context/loop.md`](context/loop.md) "Session-shorthand glossary".
 
 **Partial-round resolution.** The user may answer any subset, in any order, in one reply. Unanswered questions stay OPEN on the frontier — re-surface them at the top of the next round, labelled "unanswered from last round". NEVER silently resolve an unanswered question to its recommendation — the auto-guard applies inside rounds too. Honor accept-shorthands: "accept all recommendations" resolves the whole round to the recommended answers; "yes to Q5" / "Q5–Q7 yes" resolves that subset. Answers that reshape the tree ("actually, we don't need auth at all") invalidate pending questions — recompute the frontier before re-asking anything.
 
@@ -109,7 +116,7 @@ Alternatives to consider:
 
 ### Recommended answers
 
-For EVERY question, propose an answer grounded in observed codebase state. User confirms (fast) or corrects (faster than explaining from scratch). When no codebase signal exists, recommend based on conventions and state the basis. Mark that recommendation as **(RECOMMENDED)** with its one-line basis. Detail in [`context/loop.md`](context/loop.md) "Frontier rounds".
+For EVERY question, propose an answer grounded in observed codebase state. User confirms (fast) or corrects (faster than explaining from scratch). When no codebase signal exists, recommend based on conventions and state the basis. Mark it with its one-line basis — in an inline round that marker IS the `My recommendation:` line (one verdict marker, never a second stacked badge); in an `AskUserQuestion` card it is the option tagged **(RECOMMENDED)**. Detail in [`context/loop.md`](context/loop.md) "Frontier rounds".
 
 ### Domain-aware behaviors
 
@@ -156,7 +163,7 @@ For `lock`: skip Step 1.5 AND Step 2, synthesize directly. If a gap surfaces mid
 
 ### Step 2 — Drive the frontier-rounds loop
 
-Run rounds: restate working understanding → compute the frontier (every open question whose prerequisites are settled) → ask the whole frontier as one numbered set → capture the answers → recompute. Categorize each open item as resolvable / blocked / defer-with-assumption / defer-fully.
+Run rounds: restate working understanding → compute the frontier (every open question whose prerequisites are settled) → ask the whole frontier as one numbered set → capture the answers → recompute. Categorize each open item as resolvable / blocked / defer-with-assumption / defer-fully. The restate is also the **session-hop anchor**: after a handoff, resume, or long gap it re-establishes the decided set and this round's stakes before any question, so a returning reader is grounded without re-reading the whole ledger.
 
 Full surfacing-question taxonomy + categorization heuristics in [`context/loop.md`](context/loop.md).
 
