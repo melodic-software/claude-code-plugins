@@ -39,7 +39,10 @@ for the launch or run `/session-flow:continue-in-background` themselves.
 
 `$ARGUMENTS` carries `[file|prompt] [topic]` — both optional and positional, with the same
 semantics as `handoff`: method (`file` | `prompt`) recognized only as the first token, otherwise
-auto-detect; topic is the kebab slug for the save-point filename, inferred when omitted.
+auto-detect; topic is the kebab slug for the save-point filename, inferred when omitted. Before the
+resolved topic is embedded anywhere (filename, `--name` flag), sanitize it to `[a-z0-9-]` only —
+strip or replace every other character — so a crafted slug cannot smuggle quotes or extra flags
+into the launch command.
 
 ## Produce the save-point
 
@@ -71,22 +74,21 @@ then:
    re-run `/continue-in-background`. Exception: launch anyway when the current session already
    runs inside a linked git worktree — isolation is skipped there per the same page.
 2. Launch from the consuming project's root, passing the rails prompt verbatim as one argument.
-   `<topic>` = the resolved topic slug (argument or inferred); when none resolves, use `resume`:
+   First write the prompt — exactly as emitted between the rails — to a temporary file with the
+   Write tool (never inline it in the command: prompt content is untrusted session text, and any
+   inline embedding — a heredoc, an escaped string — hands crafted content a path out of the
+   quoting and into the shell). `<topic>` = the resolved, sanitized topic slug (argument or
+   inferred); when none resolves, use `resume`:
 
    ```bash
-   cd "${CLAUDE_PROJECT_DIR}" && CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1 claude --bg --name "continue-<topic>" "$(cat <<'CONTINUE_RESUME_PROMPT_END'
-   <resume prompt exactly as emitted between the rails>
-   CONTINUE_RESUME_PROMPT_END
-   )"
+   cd "${CLAUDE_PROJECT_DIR}" && CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1 claude --bg --name "continue-<topic>" "$(cat "<prompt-file>")" && rm -f "<prompt-file>"
    ```
 
    `claude --bg` starts the session as a background agent and returns immediately; the user
    manages it with `claude agents`. `CLAUDE_CODE_FORCE_SESSION_PERSISTENCE=1` is required
    because this launch runs from a Bash-tool subprocess, which carries
    `CLAUDE_CODE_CHILD_SESSION=1` — nested sessions are otherwise excluded from the
-   `claude agents` list (<https://code.claude.com/docs/en/env-vars>). The heredoc sentinel is
-   deliberately unique — a bare `EOF` line inside a freeform resume prompt would terminate a
-   plain `<<'EOF'` heredoc early and silently truncate the prompt. Awareness note: the prompt
+   `claude agents` list (<https://code.claude.com/docs/en/env-vars>). Awareness note: the prompt
    travels in the process argument list, so it is briefly visible to other local processes
    (`ps`) — inherent to `claude --bg "<prompt>"`. The mandatory redaction pass has already
    scrubbed the prompt by this point; this exposure is one more reason secrets never belong in
@@ -138,9 +140,9 @@ doc's save-point items, which the sibling `handoff` skill's checklists mirror):
 ## Gotchas
 
 Failure patterns are documented inline at the step that owns them: the `-uall` untracked-directory
-collapse (dirty-tree gate, step 1), heredoc-sentinel truncation and the session-persistence env
-requirement (launch command, step 2), and non-inheritance surprises — model, effort, CLI flags
-("What the launched session inherits").
+collapse (dirty-tree gate, step 1), the no-inline-prompt rule and the session-persistence env
+requirement (launch command, step 2), slug sanitization ("Arguments"), and non-inheritance
+surprises — model, effort, CLI flags ("What the launched session inherits").
 
 ## What this skill does NOT do
 

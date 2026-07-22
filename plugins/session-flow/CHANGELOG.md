@@ -11,6 +11,11 @@
   discoverability, but launches only on the user's explicit request — never
   self-elected, with an eval covering the gate), dirty-tree gate,
   launch + report, fallback-on-failure, and its own STOP rule. Also surfaces the
+  The rails prompt is passed to the launch via a temp file rather than an inline
+  heredoc — prompt content is untrusted session text, and a crafted line matching
+  a heredoc sentinel could otherwise break out of the quoting into the shell; the
+  resolved topic slug is sanitized to `[a-z0-9-]` before it reaches the `--name`
+  flag for the same reason. Also surfaces the
   launched-session behavior the flag never documented: the agent is a NEW session
   that inherits neither the current session's CLI flags nor its model/effort
   choices — both resolve from the launch command's own flags and the launch
