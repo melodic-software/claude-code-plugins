@@ -67,7 +67,7 @@ Two steps — the helper creates and places the worktree; `EnterWorktree(path:)`
 
    ```bash
    bash "${CLAUDE_PLUGIN_ROOT}/scripts/worktree-create.sh" \
-     --name "<validated-name>" --root "${user_config.worktree_root}"
+     --name "<validated-name>" --root '${user_config.worktree_root}'
    ```
 
    The helper prints the created worktree path as its **sole stdout line**; capture it.
