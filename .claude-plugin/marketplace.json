@@ -426,6 +426,13 @@
       "defaultEnabled": false
     },
     {
+      "name": "dometrain",
+      "source": "./plugins/dometrain",
+      "category": "discovery",
+      "tags": ["dometrain", "mcp", "courses", "dotnet", "csharp", "learning", "grounding"],
+      "defaultEnabled": false
+    },
+    {
       "name": "autonomy",
       "source": "./plugins/autonomy",
       "category": "autonomy",
