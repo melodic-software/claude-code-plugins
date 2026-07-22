@@ -27,11 +27,14 @@ When the plugin's toggle is disabled, every prerequisite absence downgrades from
 INFO — a deliberately disabled plugin is not broken. Report the probes informationally and
 note that re-enabling restores the FAIL semantics.
 
-1. **Python 3.11+ on `PATH`** — the interpreter used by scanning, validation, the
-   skill-scoped guard, and cleanup. FAIL if absent or older, with the README's requirement
-   as the remediation; the plugin never downloads a runtime. Report the absolute
-   interpreter path (guarded engine calls must use the same absolute interpreter the guard
-   reports — Bash aliases and functions cannot substitute).
+1. **Python floor on `PATH`** — the interpreter used by scanning, validation, the
+   skill-scoped guard, and cleanup. The required version has one origin: the `MIN_PYTHON`
+   constant in `${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py` — parse it from
+   there (`grep -m1 '^MIN_PYTHON' …`) and probe the interpreter against that value; do not
+   recite a version number from this file or the README. FAIL if absent or older, naming
+   the parsed floor in the remediation; the plugin never downloads a runtime. Report the
+   absolute interpreter path (guarded engine calls must use the same absolute interpreter
+   the guard reports — Bash aliases and functions cannot substitute).
 2. **Git** — `command -v git`. Conditional per the README: optional for ordinary trees,
    required when a target contains or sits inside a Git worktree. Report presence as INFO
    with that conditionality stated; absence is only a FAIL for worktree-containing targets.
@@ -59,8 +62,8 @@ note that re-enabling restores the FAIL semantics.
 Run `check`, then for each FAIL point at the resolution. Every prerequisite is a system
 tool or an OS capability, so `apply` installs nothing and writes nothing — it only points:
 
-- missing/old Python: the platform's own Python 3.11+ install channel; never a plugin
-  download.
+- missing/old Python: the platform's own install channel for the floor `check` parsed from
+  the engine's `MIN_PYTHON`; never a plugin download.
 - missing git (worktree targets): platform install instructions.
 - toggle off: direct to `/plugin configure disk-hygiene` (interactive, any time).
   Headless: `--config` only applies on a fresh install (ignored once installed), so

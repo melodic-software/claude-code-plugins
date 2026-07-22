@@ -3,6 +3,21 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.1]
+
+### Changed
+
+- **The Python version floor now has one origin.** The "3.11+" floor was hand-maintained in at
+  least five places — `hygiene.py`'s runtime check (the real enforcement), both `.test.sh`
+  wrappers, both SKILL.md files, and the README — while the setup skill told itself to "probe
+  what they actually require, don't recite this file"; a future bump would drift the copies
+  silently. The floor is now the module-level `MIN_PYTHON` constant in `hygiene.py`: the runtime
+  check and its error message derive from it, a regression test locks the constant's greppable
+  line shape and proves enforcement uses it, both test wrappers parse it instead of restating
+  the number (failing loudly if the parse breaks), `setup check` step 1 derives the probed floor
+  from the constant, and the remaining prose mentions are annotated as pointers or convenience
+  copies of that origin.
+
 ## [0.6.0]
 
 ### Added
