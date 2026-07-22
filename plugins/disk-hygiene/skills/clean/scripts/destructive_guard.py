@@ -112,6 +112,52 @@ _AUTHORIZED_DATA_ROOT_FLAG = "--authorized-data-root"
 _CLAUDE_PLUGIN_DATA_ENV = "CLAUDE_PLUGIN_DATA"
 _AUTHORIZED_DATA_ROOT_PLACEHOLDER = f"${{{_CLAUDE_PLUGIN_DATA_ENV}}}"
 
+_PLUGIN_ROOT_FLAG = "--plugin-root"
+_PLUGIN_ROOT_PLACEHOLDER = "${CLAUDE_PLUGIN_ROOT}"
+_PLUGIN_CACHE_DIRNAME = "cache"
+_PLUGINS_DIRNAME = "plugins"
+_PLUGIN_DATA_DIRNAME = "data"
+_PLUGIN_ID_DISALLOWED = re.compile(r"[^A-Za-z0-9_-]")
+
+
+def _plugin_data_root_from_root(plugin_root: str) -> str | None:
+    """Derive the persistent data root from the plugin's installation root.
+
+    A skill-frontmatter hook may substitute only ``${CLAUDE_PLUGIN_ROOT}`` into
+    its args — ``${CLAUDE_PLUGIN_DATA}`` is plugin-only and makes Claude Code
+    refuse to launch a skill hook — so the guard reconstructs the data root from
+    the installation root. Claude Code lays a marketplace plugin out at
+    ``<plugins>/cache/<marketplace>/<name>/<version>`` — the install root is the
+    version leaf — and persists its data at ``<plugins>/data/<id>``, where ``<id>``
+    is ``<name>@<marketplace>`` with every character outside ``[A-Za-z0-9_-]``
+    replaced by ``-`` (plugins reference, "Persistent data directory").
+
+    The install root is version-specific, so this anchors on the
+    ``<plugins>/cache`` marker rather than a fixed depth: the segment after
+    ``cache`` is the marketplace, the next is the name, any further segments (a
+    ``<version>`` leaf, absent for a directly-linked local install) are ignored,
+    and ``data`` is ``cache``'s sibling. A root without that marker, or with no
+    name segment after the marketplace, yields ``None`` so the caller fails closed
+    instead of trusting a guessed path.
+    """
+    parts = Path(plugin_root).parts
+    for index in range(1, len(parts)):
+        if not (
+            parts[index].casefold() == _PLUGIN_CACHE_DIRNAME
+            and parts[index - 1].casefold() == _PLUGINS_DIRNAME
+        ):
+            continue
+        if index + 2 >= len(parts):
+            return None
+        marketplace, name = parts[index + 1], parts[index + 2]
+        if not marketplace or not name:
+            return None
+        plugin_id = _PLUGIN_ID_DISALLOWED.sub("-", f"{name}@{marketplace}")
+        plugins_dir = Path(*parts[:index])
+        return os.fspath(plugins_dir / _PLUGIN_DATA_DIRNAME / plugin_id)
+    return None
+
+
 _DISK_HYGIENE_ENABLED_FLAG = "--disk-hygiene-enabled"
 _DISK_HYGIENE_ENABLED_ENV = "CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED"
 _DISK_HYGIENE_ENABLED_PLACEHOLDER = "${user_config.disk_hygiene_enabled}"
@@ -120,10 +166,10 @@ _DISK_HYGIENE_ENABLED_PLACEHOLDER = "${user_config.disk_hygiene_enabled}"
 def _argv_flag_value(argv: list[str], flag: str) -> str | None:
     """Read the runtime-substituted value the frontmatter hook passed for ``flag``.
 
-    Inline placeholder substitution resolves in hook ``args`` even where
-    environment injection does not, so the guard's own argv is the authoritative,
-    model-unforgeable channel for a value the harness controls. Accepts both the
-    space-separated (``--flag value``) and ``--flag=value`` spellings.
+    The guard's own argv is a model-unforgeable channel for a value the harness
+    substitutes at launch (e.g. ``${CLAUDE_PLUGIN_ROOT}``), reaching the guard even
+    where environment injection does not. Accepts both the space-separated
+    (``--flag value``) and ``--flag=value`` spellings.
     """
     for index, token in enumerate(argv):
         if token == flag and index + 1 < len(argv):
@@ -140,14 +186,30 @@ def _argv_authorized_data_root(argv: list[str]) -> str | None:
 
 
 def resolve_authorized_data_root() -> str | None:
-    """Resolve the authoritative data root from the hook argv, then the environment.
+    """Resolve the authoritative data root a skill-frontmatter hook can supply.
 
-    A literal, unsubstituted placeholder is treated as absent so the environment
-    fallback still applies.
+    Precedence, highest first:
+
+    1. ``--authorized-data-root`` — a direct path, for a host that can substitute
+       ``${CLAUDE_PLUGIN_DATA}`` itself (a plugin ``hooks.json`` hook can; a skill
+       hook cannot).
+    2. ``--plugin-root ${CLAUDE_PLUGIN_ROOT}`` — the only substitution a skill hook
+       receives; the data root is derived from it. This is the channel the bundled
+       ``clean`` skill uses.
+    3. The ``CLAUDE_PLUGIN_DATA`` environment variable, if present.
+
+    A literal, unsubstituted placeholder is treated as absent at each step. Absent
+    every channel the guard has no authority and every ``--data-root`` engine call
+    fails closed.
     """
-    from_argv = _argv_authorized_data_root(sys.argv[1:])
-    if from_argv and from_argv != _AUTHORIZED_DATA_ROOT_PLACEHOLDER:
-        return from_argv
+    direct = _argv_flag_value(sys.argv[1:], _AUTHORIZED_DATA_ROOT_FLAG)
+    if direct and direct != _AUTHORIZED_DATA_ROOT_PLACEHOLDER:
+        return direct
+    plugin_root = _argv_flag_value(sys.argv[1:], _PLUGIN_ROOT_FLAG)
+    if plugin_root and plugin_root != _PLUGIN_ROOT_PLACEHOLDER:
+        derived = _plugin_data_root_from_root(plugin_root)
+        if derived:
+            return derived
     return os.environ.get(_CLAUDE_PLUGIN_DATA_ENV)
 
 
@@ -155,14 +217,20 @@ def resolve_disk_hygiene_enabled() -> bool:
     """Resolve the execution kill switch from the hook argv, then the environment.
 
     The kill switch is a safety control: ``false`` is audit-only mode and must
-    prevent every deletion lane. The runtime does not inject
-    ``CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED`` into a skill-frontmatter hook's
-    process environment, so the configured value reaches the guard through the
-    hook argv (``--disk-hygiene-enabled ${user_config.disk_hygiene_enabled}``);
-    the environment variable is honored only as a fallback. A literal,
-    unsubstituted placeholder or an empty value is treated as absent. When no
-    channel supplies a value the guard fails safe to enabled — the guard stays
-    active and still gates every mutation behind the final human prompt.
+    prevent every deletion lane. A host supplies the value either as a
+    ``--disk-hygiene-enabled`` argv flag or as the
+    ``CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED`` environment variable; argv wins.
+    A literal, unsubstituted placeholder or an empty value is treated as absent.
+
+    A skill-frontmatter hook can supply neither reliably: Claude Code substitutes
+    only ``${CLAUDE_PLUGIN_ROOT}`` into a skill hook's args (so
+    ``${user_config.disk_hygiene_enabled}`` cannot be passed on argv), and it does
+    not inject ``CLAUDE_PLUGIN_OPTION_*`` into a skill hook's environment. In that
+    deployment no channel supplies a value and the guard fails safe to enabled —
+    it stays active and still gates every mutation behind the final human prompt,
+    but cannot honor a configured ``false`` by denying outright. Delivering the
+    kill switch to a skill-scoped guard needs a channel skill hooks do not yet
+    have; see the plugin's safety model.
     """
     from_argv = _argv_flag_value(sys.argv[1:], _DISK_HYGIENE_ENABLED_FLAG)
     if from_argv and from_argv != _DISK_HYGIENE_ENABLED_PLACEHOLDER:
@@ -226,15 +294,24 @@ def classify_exact_engine_command(command: str, authority: str | None) -> str | 
 
     if tokens[2] == "scan":
         if (
-            len(tokens) not in {7, 9, 11, 13, 15}
+            len(tokens) < 7
             or tokens[3] != "--target"
             or not _argument(tokens[4])
             or tokens[5] != "--output"
             or not _argument(tokens[6])
         ):
             return None
-        if not _consume_optional_pairs(
-            tokens[7:],
+        # --confirmed-large-scan is the sole valueless scan flag; strip at most
+        # one so the remainder is the pure flag/value-pair grammar every other
+        # optional follows.
+        optionals = list(tokens[7:])
+        confirmed = optionals.count("--confirmed-large-scan")
+        if confirmed > 1:
+            return None
+        if confirmed:
+            optionals.remove("--confirmed-large-scan")
+        if len(optionals) not in {0, 2, 4, 6, 8} or not _consume_optional_pairs(
+            optionals,
             frozenset({"--policy", "--project-dir", "--data-root", "--max-depth"}),
             authority,
         ):
@@ -279,6 +356,23 @@ def classify_exact_engine_command(command: str, authority: str | None) -> str | 
 
 def is_exact_engine_apply(command: str, authority: str | None) -> bool:
     return classify_exact_engine_command(command, authority) == "apply"
+
+
+def is_exact_kill_switch_probe(command: str) -> bool:
+    """Return True only for the exact, argument-free bundled probe invocation.
+
+    The probe (``skills/setup/scripts/kill_switch_probe.py``) is the
+    deterministic, report-only read of the ``disk_hygiene_enabled`` toggle; the
+    clean skill runs it when its body token arrives unexpanded. No arguments are
+    permitted, so the probed settings file is always the real default location.
+    """
+    tokens = _literal_shell_words(command)
+    if tokens is None or len(tokens) != 2 or not _is_current_python(tokens[0]):
+        return False
+    expected_script = str(
+        Path(__file__).resolve().parents[2] / "setup" / "scripts" / "kill_switch_probe.py"
+    )
+    return _script_path_key(tokens[1]) == _script_path_key(expected_script)
 
 
 _POWERSHELL_MUTATION_WORDS = re.compile(
@@ -343,9 +437,10 @@ def _bash_denial_guidance(authority: str | None) -> str:
         f' Pass --data-root "{data_root}" so generated state lands in the plugin data directory.'
         if data_root
         else (
-            " The guard did not receive an authorized data root (neither the"
-            f" {_AUTHORIZED_DATA_ROOT_FLAG} hook argument nor CLAUDE_PLUGIN_DATA),"
-            " so --data-root cannot be validated and engine calls fail closed."
+            " The guard did not receive an authorized data root (none of the"
+            f" {_PLUGIN_ROOT_FLAG} or {_AUTHORIZED_DATA_ROOT_FLAG} hook arguments"
+            " nor CLAUDE_PLUGIN_DATA resolved one), so --data-root cannot be"
+            " validated and engine calls fail closed."
         )
     )
     return (
@@ -383,6 +478,16 @@ def main() -> int:
         return 0
 
     authority = resolve_authorized_data_root()
+    if is_exact_kill_switch_probe(command):
+        print(
+            json.dumps(
+                decision(
+                    "allow",
+                    "Exact bundled disk-hygiene kill-switch probe (read-only report).",
+                )
+            )
+        )
+        return 0
     command_kind = classify_exact_engine_command(command, authority)
     if command_kind in {"scan", "preview"}:
         print(

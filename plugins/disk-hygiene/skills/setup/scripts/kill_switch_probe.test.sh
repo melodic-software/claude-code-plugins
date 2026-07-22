@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
-# Cross-platform contract wrapper for the stdlib Python test suite.
+# Cross-platform contract wrapper for the kill-switch probe test suite.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# The Python floor has one origin: MIN_PYTHON in hygiene.py. Parse it rather
-# than restating the number here.
-FLOOR="$(sed -n 's/^MIN_PYTHON = (\([0-9]*\), \([0-9]*\)).*/\1.\2/p' "$SCRIPT_DIR/hygiene.py")"
+# The Python floor has one origin: MIN_PYTHON in the clean engine. Parse it
+# rather than restating the number here.
+ENGINE="$SCRIPT_DIR/../../clean/scripts/hygiene.py"
+FLOOR="$(sed -n 's/^MIN_PYTHON = (\([0-9]*\), \([0-9]*\)).*/\1.\2/p' "$ENGINE")"
 if [[ -z "$FLOOR" ]]; then
-  echo "FAIL: could not parse MIN_PYTHON from hygiene.py" >&2
+  echo "FAIL: could not parse MIN_PYTHON from $ENGINE" >&2
   exit 1
 fi
 
@@ -25,4 +26,4 @@ fi
   echo "SKIP: Python ${FLOOR}+ required" >&2
   exit 0
 }
-"$PYTHON" -m unittest -v "$SCRIPT_DIR/test_hygiene.py"
+"$PYTHON" -m unittest -v "$SCRIPT_DIR/test_kill_switch_probe.py"

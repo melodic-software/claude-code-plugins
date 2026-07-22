@@ -3,6 +3,28 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.2]
+
+### Fixed
+
+- **Emitted telemetry `hook` id now matches the published schema.** The hook emitted
+  `"actionlint"` on all three paths (skipped / findings / clean), but the envelope
+  `hook` value is the hook-script basename and its schema is discovered at
+  `data/<hook>.schema.json`. It now emits `"actionlint-check"`, matching
+  `docs/conventions/hook-telemetry/data/actionlint-check.schema.json` and the
+  README Implementers table. Producer-conformance fix only — the published
+  envelope/data contract is unchanged.
+
+## [0.5.1]
+
+### Changed
+
+- Sync of the shared `hook-utils.sh`: the git-option parser distinguishes `--config-env`
+  (an env-var name) from `-c`/`--config` (an inline value), and a `--config-env` alias for
+  a guarded subcommand is refused by shape rather than by resolving the environment
+  variable's value (`#740`). No behavior change for this plugin — it does not inspect git
+  config values; shipped so consumers receive the shared library update.
+
 ## [0.5.0]
 
 ### Added
