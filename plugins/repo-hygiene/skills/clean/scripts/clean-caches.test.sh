@@ -247,6 +247,23 @@ else
   chmod u+w "$TEST_TMPDIR/r2/.mypy_cache" 2>/dev/null || true
 fi
 
+# A symlinked ANCESTOR must not let rm follow a manifest path out of the repo:
+# `link/__pycache__` where `link` points outside is rejected, the outside dir
+# preserved. Enumeration never descends a symlinked dir, so this is never planned.
+mkdir -p "$TEST_TMPDIR/escape_victim/__pycache__"
+echo s >"$TEST_TMPDIR/escape_victim/__pycache__/s"
+ln -s "$TEST_TMPDIR/escape_victim" "$TEST_TMPDIR/r2/link" 2>/dev/null || true
+if [[ -L "$TEST_TMPDIR/r2/link" ]]; then
+  printf 'caches\t1\tlink/__pycache__\n' >"$TEST_TMPDIR/r2.ancestor.manifest"
+  out="$(run_r2 --apply --manifest "$TEST_TMPDIR/r2.ancestor.manifest" 2>&1)"
+  rc=$?
+  assert_contains "symlinked ancestor rejected" "$out" "Rejected (symlinked ancestor): link/__pycache__"
+  assert_exit "symlinked ancestor exits non-zero" 1 "$rc"
+  assert_file_exists "outside dir preserved through symlinked ancestor" "$TEST_TMPDIR/escape_victim/__pycache__/s"
+else
+  skip_case "symlinked ancestor — symlinks not creatable here"
+fi
+
 # --- dry-run/apply consistency + honest byte accounting (fresh repo) ---
 git init "$TEST_TMPDIR/r3" >/dev/null 2>&1
 git -C "$TEST_TMPDIR/r3" config user.email "t@example.com"

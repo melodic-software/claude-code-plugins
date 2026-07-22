@@ -462,6 +462,26 @@ clean_manifest_rel_safe() {
   esac
 }
 
+# Return 0 when any component of ROOT/REL (an ancestor directory OR the target)
+# is a symlink or reparse point. `..`-rejection stops textual escapes, but a
+# manifest naming `link/__pycache__` where `link` points outside the repo would
+# otherwise let `rm -rf` follow the ancestor out of the tree. Enumeration uses
+# `find -type d`, which never descends a symlinked dir, so such a path is never
+# one the dry-run emitted — reject it. Junction-aware (fsutil), so it also
+# catches Windows reparse-point ancestors that `realpath`/`-L` miss.
+clean_path_has_reparse_ancestor() {
+  local root="$1" seg
+  local cur="$root"
+  local -a parts
+  IFS=/ read -r -a parts <<<"${2//\\//}"
+  for seg in "${parts[@]}"; do
+    [[ -z "$seg" ]] && continue
+    cur="$cur/$seg"
+    clean_path_is_reparse_point "$cur" && return 0
+  done
+  return 1
+}
+
 # Return 0 when a repo-relative path lies within a pruned tree (a
 # CLEAN_PRUNE_DIRS segment). Enumeration never descends these, so a manifest
 # entry inside one — e.g. `.git/...`, whose removal could corrupt the repo — is
@@ -539,9 +559,10 @@ clean_manifest_target_valid() {
 # manifest is untrusted input (a caller supplies it, or a concurrent process may
 # alter it): every entry is validated before its path is acted on — the class
 # must be one this tier produces (ALLOWED, space-separated), the path must be
-# repo-contained (no `..`/absolute), outside every pruned tree (enumeration never
-# descends CLEAN_PRUNE_DIRS, so a `.git/...` entry is never one it emitted) AND a
-# real target of the right type for its class (not an arbitrary untracked path).
+# repo-contained (no `..`/absolute, no symlinked ancestor that `rm -rf` could
+# follow out of the repo), outside every pruned tree (enumeration never descends
+# CLEAN_PRUNE_DIRS, so a `.git/...` entry is never one it emitted) AND a real
+# target of the right type for its class (not an arbitrary untracked path).
 # The reclaimed-bytes total is re-measured from the filesystem at removal time,
 # so the manifest's byte field never reaches summary arithmetic — a caller value
 # cannot inject (array subscripts evaluate recursively) or overflow it.
@@ -586,6 +607,11 @@ clean_apply_manifest() {
     # failure nor a re-removal — skip before target/type validation (which needs
     # the path to exist).
     [[ -e "$abs" ]] || continue
+    if clean_path_has_reparse_ancestor "$root" "$rel"; then
+      printf 'Rejected (symlinked ancestor): %s\n' "$rel" >&2
+      CLEAN_FAILED_COUNT=$((CLEAN_FAILED_COUNT + 1))
+      continue
+    fi
     if ! clean_manifest_target_valid "$class" "$rel" "$abs"; then
       printf 'Rejected (not a %s target): %s\n' "$class" "$rel" >&2
       CLEAN_FAILED_COUNT=$((CLEAN_FAILED_COUNT + 1))
