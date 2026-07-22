@@ -60,11 +60,6 @@ set -uo pipefail
 # shellcheck source=hook-utils.sh
 source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
 
-# Snapshot the ambient environment now — at top level, before any function locals
-# exist and before COMMAND is assigned — so the --config-env resolver reads real
-# ambient values, not a stack local that shadows a same-named env var in a child.
-hook::snapshot_env
-
 hook::check_enabled "BLOCK_NONCANONICAL_COMMIT"
 
 # High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;
@@ -191,11 +186,6 @@ check_segment() {
   local gi sub sub_idx nseg k word next stdin_form=0 exempt=0 saw_commit=0
   local inline_alias_handled=0
 
-  # An earlier segment may EXPORT a variable this segment's `git --config-env`
-  # then reads (`export AV=commit; git --config-env=alias.c=AV c`, e.g. inside a
-  # `!` shell alias). Record exported state before resolving this segment.
-  hook::shell_track_persistent_env "$@"
-
   # A shell -c wrapper (`bash -lc 'git commit -m x'`) executes its operand as a
   # full shell command — re-parse it with the same tokenizer.
   if hook::shell_c_operand "$@"; then
@@ -221,49 +211,47 @@ check_segment() {
   # enforced through HOOK_NO_ALIAS, which dynamic scoping carries into the
   # recursive call.
   if ((${HOOK_NO_ALIAS:-0} == 0)); then
-    local cv exp reparse a
-    local -a cfgv=() expw=()
-    # Effective values: --config-env entries carry an env-var NAME, not the value,
-    # so resolve them (hook-utils) before matching an alias expansion — otherwise
-    # `git --config-env=alias.<sub>=VAR <sub>` (VAR=commit) reads the literal "VAR"
-    # as the expansion and the real subcommand slips past this guard.
-    hook::git_effective_config_values
-    # Fail closed: a --config-env value needed the ambient environment but it could not
-    # be read (awk unavailable), so the aliased subcommand cannot be proven canonical.
-    if ((${HOOK_GIT_CONFIG_UNRESOLVED:-0})); then
-      echo "BLOCKED: cannot resolve a git --config-env value (awk unavailable) — failing closed." >&2
-      echo "Install awk (gawk/mawk/busybox awk), or set the guardrails block_noncanonical_commit_enabled option to false to bypass." >&2
-      emit_tel "blocked" "config-env-unresolved"
+    local exp reparse a
+    local -a expw=()
+    # A --config-env alias for the invoked subcommand is refused by SHAPE — its
+    # expansion is an env var's value this guard never reads. An inline -c/--config
+    # alias carries the expansion literally, so it is re-checked. See
+    # hook::git_alias_expansion.
+    hook::git_alias_expansion "$sub"
+    case $? in
+    2)
+      # Structural fail-closed: the invoked subcommand's alias is defined via
+      # --config-env, whose expansion is an environment variable's value. Reading it is
+      # the recurring fail-open surface (fed by an ambient var, an inline/`env` prefix,
+      # an `export`, `set -a`, or a nested `bash -c` in any wrapper); a commit smuggled
+      # through such an alias cannot be verified, and defining an alias this way on a
+      # guarded invocation is never the canonical path — the shape alone blocks.
+      echo "BLOCKED: git alias '$sub' is defined via --config-env, so its expansion cannot be verified — failing closed." >&2
+      echo "Commit with \`git commit -F -\` (or the /commit skill), define aliases in git config, or set the guardrails block_noncanonical_commit_enabled option to false to bypass." >&2
+      emit_tel "blocked" "config-env-alias"
       exit 2
-    fi
-    cfgv=(${HOOK_GIT_CONFIG_EFFECTIVE[@]+"${HOOK_GIT_CONFIG_EFFECTIVE[@]}"})
-    # LAST value wins, matching git: `-c alias.c=status -c alias.c=commit`
-    # runs commit. Taking the first match would let a decoy earlier value
-    # (expanding to a harmless subcommand) mask the real one.
-    exp=""
-    for cv in ${cfgv[@]+"${cfgv[@]}"}; do
-      # git config names are case-insensitive: `-c alias.RH=… rh` and `-c
-      # alias.rh=… RH` both resolve, so fold both sides of the key match (the
-      # expansion value keeps its case — it is extracted from the original entry).
-      [[ "${cv,,}" == "alias.${sub,,}="* ]] && exp="${cv#*=}"
-    done
-    if [[ -n "$exp" ]]; then
-      inline_alias_handled=1
-      if [[ "$exp" == '!'* ]]; then
-        # Shell alias: git runs the expansion with git's process environment, so
-        # carry this invocation's git env into the reparse — a nested
-        # `git --config-env=<key>=<name>` resolves the name against it.
-        reparse="${exp#!}"
-        for a in "${w[@]:sub_idx+1}"; do reparse+=" $(printf '%q' "$a")"; done
-        hook::git_reparse_shell_alias check_segment "$reparse"
-      else
-        hook::env_s_split "$exp"
-        expw=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"})
-        HOOK_NO_ALIAS=1
-        check_segment "${w[@]:0:gi+1}" ${expw[@]+"${expw[@]}"} "${w[@]:sub_idx+1}"
-        HOOK_NO_ALIAS=0
+      ;;
+    0)
+      # Inline alias (-c/--config): the expansion is literally present — re-check it.
+      # shellcheck disable=SC2154  # HOOK_GIT_ALIAS_EXP is set by hook::git_alias_expansion
+      exp="$HOOK_GIT_ALIAS_EXP"
+      if [[ -n "$exp" ]]; then
+        inline_alias_handled=1
+        if [[ "$exp" == '!'* ]]; then
+          reparse="${exp#!}"
+          for a in "${w[@]:sub_idx+1}"; do reparse+=" $(printf '%q' "$a")"; done
+          hook::bash_parse_segments "$reparse" check_segment
+        else
+          hook::env_s_split "$exp"
+          expw=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"})
+          HOOK_NO_ALIAS=1
+          check_segment "${w[@]:0:gi+1}" ${expw[@]+"${expw[@]}"} "${w[@]:sub_idx+1}"
+          HOOK_NO_ALIAS=0
+        fi
       fi
-    fi
+      ;;
+    *) ;; # 1: the invoked subcommand is not an inline/env alias here — nothing to do
+    esac
 
     # An alias can also live in .git/config, ~/.gitconfig, or system config,
     # where HOOK_GIT_CONFIG_VALUES cannot see it — `git config alias.c commit`
@@ -277,7 +265,7 @@ check_segment() {
           local preparse pa
           preparse="${pexp#!}"
           for pa in "${w[@]:sub_idx+1}"; do preparse+=" $(printf '%q' "$pa")"; done
-          hook::git_reparse_shell_alias check_segment "$preparse"
+          hook::bash_parse_segments "$preparse" check_segment
         else
           local -a pexpw=()
           hook::env_s_split "$pexp"

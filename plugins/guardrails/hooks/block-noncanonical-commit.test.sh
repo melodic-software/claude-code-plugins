@@ -90,77 +90,40 @@ run "last inline alias value wins (blocked)" \
 run "last inline alias value wins (allowed when the last is harmless)" \
   "git -c alias.c=commit -c alias.c=status c -m x" 0
 
-# --- --config-env aliases resolve through the named env var -------------------
-# `--config-env=<key>=<envvar>` supplies the NAME of an env var holding the value,
-# not the value; the guard must resolve it (as git does) before matching an alias,
-# else the env-var name reads as the expansion and a real commit slips past.
-run "config-env alias to commit (env-sourced, blocked)" \
-  "git --config-env=alias.c=AV c" 2 AV=commit
-run "config-env alias two-word form (env-sourced, blocked)" \
-  "git --config-env alias.c=AV c" 2 AV=commit
-run "config-env alias to a harmless subcommand (allowed)" \
-  "git --config-env=alias.st=AV st" 0 AV=status
-# An unset named var: git rejects the invocation (fatal), so no commit runs and the
-# empty projection correctly does not match an alias — allowed here, git blocks it.
-run "config-env alias with an unset env var (allowed — git rejects)" \
-  "git --config-env=alias.c=MISSINGVAR c" 0
-# The named var can be supplied ON the command line (inline prefix or the env
-# wrapper), where it lives only in git's environment — the guard must read those, not
-# just the hook's ambient env, or this self-contained one-liner slips past.
-run "config-env alias with an inline-prefix env var (blocked)" \
-  "AV=commit git --config-env=alias.c=AV c" 2
-run "config-env alias with an env-wrapper env var (blocked)" \
-  "env AV=commit git --config-env=alias.c=AV c" 2
-# The env-var NAME need not be a valid shell identifier: git reads it with getenv() on
-# the raw string, so a hyphenated name resolves and must be caught. The guard reads it
-# via awk's ENVIRON (not bash indirect ${!name}, which rejects a non-identifier and
-# would silently drop the assignment — the #740 fail-open).
-run "config-env alias with a non-identifier env name (blocked)" \
-  "git --config-env=alias.c=bad-name c" 2 bad-name=commit
-# An injection-shaped name is passed through a fixed ENVIRON key, never re-parsed — so
-# `$(…)` in a name cannot execute; the unset name resolves to empty. Allowed (git
-# rejects it); no exec.
+# --- --config-env aliases are refused by SHAPE -------------------------------
+# `--config-env=<key>=<envvar>` holds the alias expansion in an env var this guard never
+# reads (its origin — an ambient var, an inline/`env` prefix, an `export`, `set -a`, or a
+# nested `bash -c` in any wrapper — is the recurring fail-open surface). An env-defined
+# alias for the INVOKED subcommand is refused by shape; a commit smuggled through it can
+# never be verified. The extra-env below is ignored by the guard.
+run "config-env alias for the invoked sub (blocked by shape)" "git --config-env=alias.c=AV c" 2
+run "config-env alias, two-word --config-env form (blocked)" "git --config-env alias.c=AV c" 2
+run "config-env alias, benign-looking value STILL blocked (value never read)" "git --config-env=alias.st=AV st" 2 AV=status
+run "config-env alias, case-folded key (blocked)" "git --config-env=alias.C=AV c" 2
+run "config-env alias, non-identifier env name (blocked)" "git --config-env=alias.c=bad-name c" 2
+run "config-env alias, leading-dash env name (blocked)" "env -- '-CV=x' git --config-env=alias.c=-CV c" 2
+run "config-env value last-wins over an inline decoy (blocked)" "git -c alias.c=log --config-env=alias.c=AV c" 2
+
+# Refused wherever it APPEARS, through any wrapper — no env propagation is tracked, so
+# every prior env-carrying bypass is closed by construction.
+run "config-env alias inside an inline '!' shell alias (blocked)" "git -c \"alias.sh=!git --config-env=alias.c=AV c --allow-empty -m x\" sh" 2
+run "config-env alias inside an env-prefixed bash -c (blocked)" "AV=commit bash -c 'git --config-env=alias.c=AV c -m x'" 2
+run "config-env alias after export in a shell-alias body (blocked)" "git -c \"alias.sh=!export AV=commit; git --config-env=alias.c=AV c --allow-empty -m x\" sh" 2
+run "config-env alias after 'then export' in a compound command (blocked)" "git -c 'alias.sh=!if true; then export AV=commit; fi; git --config-env=alias.c=AV c --allow-empty -m x' sh" 2
+run "config-env alias after an assignment-prefixed export (blocked)" "git -c 'alias.sh=!AV=commit export AV; git --config-env=alias.c=AV c --allow-empty -m x' sh" 2
+run "config-env alias after 'set -a; NAME=val' allexport (blocked)" "set -a; AV=commit; git --config-env=alias.c=AV c -m x" 2
+run "config-env alias, env name colliding with an internal global (blocked)" "git --config-env=alias.c=HOOK_ENV_SNAPSHOT_OK c" 2 "HOOK_ENV_SNAPSHOT_OK=commit"
+
+# ACCEPTANCE — decidable safe WITHOUT reading a value, so still allowed:
+run "--config-env setting a NON-alias key, canonical commit (allowed)" "git --config-env=user.name=NAMEVAR commit -F -" 0
+run "--config-env alias for a subcommand that is NOT invoked (allowed)" "git --config-env=alias.foo=AV status" 0
+run "inline value last-wins over an earlier --config-env for the same key (allowed)" "git --config-env=alias.c=AV -c alias.c=log c" 0
+# A `$( )` env name is command-substituted by the shell before git and split by the
+# static parser — neither evaluates it, so no exec and (git-fatal) no commit runs.
 rm -f "$TEST_TMPDIR/pwned-nc"
-run "injection-shaped config-env var name (allowed — resolves empty)" \
+run "injection-shaped config-env env name (allowed — never evaluated)" \
   "git --config-env=alias.c=\$(touch $TEST_TMPDIR/pwned-nc) c" 0
-assert_file_absent "injection-safe resolution: no exec for a shell-metachar env name" "$TEST_TMPDIR/pwned-nc"
-# An `env` wrapper OPERAND sets a non-identifier name in git's environment only (not
-# ambient), so the resolver must collect it from the one-liner. No extra-env here.
-run "config-env alias with an env-wrapper non-identifier operand (blocked)" \
-  "env 'bad-name=commit' git --config-env=alias.c=bad-name c" 2
-# `env -- <name>=<value>` past the option marker sets a leading-dash name; `printenv
-# '-CV'` would parse it as an option and resolve empty (a fail-open).
-run "config-env alias with an env -- leading-dash operand (blocked)" \
-  "env -- '-CV=commit' git --config-env=alias.c=-CV c" 2
-# git runs a `!` shell alias with its own process environment, so a command-line
-# assignment on the enclosing invocation reaches a nested `git --config-env` inside the
-# expansion. The guard must carry that env across the shell-alias reparse — otherwise
-# the nested resolve sees the name unset and this commit slips past.
-run "shell alias carries enclosing git env into nested --config-env commit (blocked)" \
-  "AV=commit git -c alias.sh='!git --config-env=alias.c=AV c --allow-empty -m x' sh" 2
-# An `export` in an earlier shell-alias-body segment reaches a later `git
-# --config-env` in the same body (git reads exported env via getenv). No enclosing
-# command-line assignment — a pass proves the in-body export was modeled.
-run "export inside shell-alias body reaches nested --config-env commit (blocked)" \
-  "git -c \"alias.sh=!export AV=commit; git --config-env=alias.c=AV c --allow-empty -m x\" sh" 2
-# The export may sit behind a compound-command reserved word (`then`/`do`); the
-# resolver skips those before spotting `export`, so git still sees the value.
-run "export after 'then' in shell-alias body (commit, blocked)" \
-  "git -c 'alias.sh=!if true; then export AV=commit; fi; git --config-env=alias.c=AV c --allow-empty -m x' sh" 2
-# An ambient env-var NAME identical to one of the resolver's own shell LOCALS must
-# still resolve to the real value: it is read from a snapshot taken at hook entry, not
-# an awk/command-substitution child that would inherit a stack `local NAME` shadowing
-# the same-named env var and read the local (empty) — a fail-open. `envvar` and `key`
-# are live resolver locals.
-run "ambient name equal to resolver local 'envvar' (blocked)" \
-  "git --config-env=alias.c=envvar c" 2 "envvar=commit"
-run "ambient name equal to resolver local 'key' (blocked)" \
-  "git --config-env=alias.c=key c" 2 "key=commit"
-run "ambient resolver-local name with a harmless value (allowed)" \
-  "git --config-env=alias.c=envvar c" 0 "envvar=status"
-# A name that was the removed awk pivot key resolves from the snapshot like any other.
-run "config-env name equal to the old awk pivot key (ambient, blocked)" \
-  "git --config-env=alias.c=__HOOK_CE_NAME c" 2 "__HOOK_CE_NAME=commit"
+assert_file_absent "config-env injection: no exec for a shell-metachar env name" "$TEST_TMPDIR/pwned-nc"
 
 # --- case-insensitive alias resolution (git folds config names) --------------
 run "inline alias, uppercase subcommand (blocked)" "git -c alias.c=commit C -m x" 2

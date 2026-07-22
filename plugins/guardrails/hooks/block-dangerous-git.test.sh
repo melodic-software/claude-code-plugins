@@ -203,90 +203,44 @@ run "git -c alias.rh='reset --hard' rh (inline git alias, blocked)" "git -c alia
 run "git -c alias.nuke='!git reset --hard' nuke (inline shell alias, blocked)" "git -c alias.nuke='!git reset --hard' nuke" 2
 run "git -c alias.st=status st (safe alias, allowed)" "git -c alias.st=status st" 0
 run "git -c alias.rh='reset --hard' status (alias defined, not run, allowed)" "git -c alias.rh='reset --hard' status" 0
-# --config-env supplies the NAME of an env var holding the value; the guard must
-# resolve it (as git does) before matching an alias, else a dangerous op smuggled
-# through the named var reads as the literal var name and is waved through.
-run "git --config-env=alias.rh=AV rh (env-sourced git alias, blocked)" "git --config-env=alias.rh=AV rh" 2 "AV=reset --hard"
-run "git --config-env alias.rh=AV rh (two-word form, blocked)" "git --config-env alias.rh=AV rh" 2 "AV=reset --hard"
-run "git --config-env=alias.st=AV st (safe env alias, allowed)" "git --config-env=alias.st=AV st" 0 AV=status
-# The named var can be supplied ON the command line (inline prefix / env wrapper),
-# where it lives only in git's environment — the guard must read those, not just the
-# hook's ambient env, or this self-contained one-liner slips past.
-run "inline-prefix env var (blocked)" "AV='reset --hard' git --config-env=alias.rh=AV rh" 2
-run "env-wrapper env var (blocked)" "env AV='reset --hard' git --config-env=alias.rh=AV rh" 2
-# git config names are case-insensitive: fold both sides of the alias-key match.
-run "case-folded inline alias, uppercase subcommand (blocked)" "git -c alias.rh='reset --hard' RH" 2
-run "case-folded inline alias, uppercase key (blocked)" "git -c alias.RH='reset --hard' rh" 2
-# The env-var NAME need not be a valid shell identifier: git reads it with getenv() on
-# the raw string, so a hyphenated name resolves and must be caught. The guard reads it
-# via awk's ENVIRON (not bash indirect ${!name}, which rejects a non-identifier and
-# would silently drop the assignment — the #740 fail-open).
-run "git --config-env=alias.rh=bad-rh rh (non-identifier env name, blocked)" "git --config-env=alias.rh=bad-rh rh" 2 "bad-rh=reset --hard"
-# An injection-shaped name is passed through a fixed ENVIRON key, never re-parsed — so
-# `$(…)` in a name cannot execute; the unset name resolves to empty.
+# --config-env=<key>=<envvar> holds the alias expansion in an ENVIRONMENT VARIABLE, and
+# this guard never reads that value: its origin — an ambient var, an inline/`env` prefix,
+# an `export`, `set -a`, or a nested `bash -c` in any wrapper — is the recurring fail-open
+# surface. An env-defined alias for the INVOKED subcommand is refused by SHAPE alone.
+run "env-defined alias for the invoked sub (blocked by shape)" "git --config-env=alias.rh=AV rh" 2
+run "env-defined alias, two-word --config-env form (blocked)" "git --config-env alias.rh=AV rh" 2
+run "env-defined alias, benign-looking value STILL blocked (value never read)" "git --config-env=alias.st=AV st" 2 AV=status
+run "env-defined alias, case-folded key (blocked)" "git --config-env=alias.RH=AV rh" 2
+run "env-defined alias, non-identifier env name (blocked)" "git --config-env=alias.rh=bad-rh rh" 2
+run "env-defined alias, leading-dash env name (blocked)" "env -- '-AV=x' git --config-env=alias.rh=-AV rh" 2
+run "env value last-wins over an inline decoy for the same key (blocked)" "git -c alias.rh=status --config-env=alias.rh=AV rh" 2
+# Inline (-c/--config) aliases still carry the expansion literally and are resolved.
+run "inline dangerous alias (blocked)" "git -c alias.rh='reset --hard' rh" 2
+run "inline alias, case-folded subcommand (blocked)" "git -c alias.rh='reset --hard' RH" 2
+run "inline alias, case-folded key (blocked)" "git -c alias.RH='reset --hard' rh" 2
+
+# The env-defined alias is refused wherever it APPEARS, through any wrapper — no env
+# propagation is tracked, so every prior env-carrying bypass (export / set -a / command
+# prefix / bash -c / snapshot-global collision) is closed by construction.
+run "env-defined alias inside an inline '!' shell alias (blocked)" "git -c \"alias.sh=!git --config-env=alias.rh=AV rh\" sh" 2
+run "env-defined alias inside an env-prefixed bash -c (blocked)" "AV='reset --hard' bash -c 'git --config-env=alias.rh=AV rh'" 2
+run "env-defined alias after export in a shell-alias body (blocked)" "git -c \"alias.sh=!export AV='reset --hard'; git --config-env=alias.rh=AV rh\" sh" 2
+run "env-defined alias after 'then export' in a compound command (blocked)" "git -c 'alias.sh=!if true; then export AV=\"reset --hard\"; fi; git --config-env=alias.rh=AV rh' sh" 2
+run "env-defined alias after 'export NAME; NAME=val' (blocked)" "git -c 'alias.sh=!export AV; AV=\"reset --hard\"; git --config-env=alias.rh=AV rh' sh" 2
+run "env-defined alias after an assignment-prefixed export (blocked)" "git -c 'alias.sh=!AV=\"reset --hard\" export AV; git --config-env=alias.rh=AV rh' sh" 2
+run "env-defined alias after 'set -a; NAME=val' allexport (blocked)" "set -a; AV='reset --hard'; git --config-env=alias.rh=AV rh" 2
+run "env-defined alias whose env name collides with an internal global (blocked)" "git --config-env=alias.rh=HOOK_ENV_SNAPSHOT_OK rh" 2 "HOOK_ENV_SNAPSHOT_OK=reset --hard"
+
+# ACCEPTANCE — decidable safe WITHOUT reading any value, so still allowed:
+run "--config-env setting a NON-alias key (allowed)" "git --config-env=core.pager=PAGERVAR status" 0
+run "--config-env alias for a subcommand that is NOT invoked (allowed)" "git --config-env=alias.foo=AV status" 0
+run "inline value last-wins over an earlier --config-env for the same key (allowed)" "git --config-env=alias.rh=AV -c alias.rh=status rh" 0
+# A `$( )` env name is command-substituted by the shell before git and split by the
+# static parser — neither evaluates it, so no exec and nothing dangerous runs (git-fatal).
 rm -f "$TEST_TMPDIR/pwned-dg"
-run "injection-shaped config-env var name (allowed — resolves empty)" \
+run "injection-shaped config-env env name (allowed — never evaluated)" \
   "git --config-env=alias.rh=\$(touch $TEST_TMPDIR/pwned-dg) rh" 0
-assert_file_absent "injection-safe resolution: no exec for a shell-metachar env name" "$TEST_TMPDIR/pwned-dg"
-# An `env` wrapper OPERAND sets a non-identifier name in git's environment only (not
-# the hook's ambient env), so the resolver must collect it as a command-line assignment.
-# No extra-env here: a pass proves the operand was read from the one-liner, not ambient.
-run "env-wrapper non-identifier operand (blocked)" \
-  "env 'bad-rh=reset --hard' git --config-env=alias.rh=bad-rh rh" 2
-# `env -- <name>=<value>` past the option marker sets a leading-dash name. `printenv
-# '-AV'` would parse it as an option and resolve empty (a fail-open); the resolver
-# collects the operand and never option-parses the name.
-run "env -- leading-dash operand (blocked)" \
-  "env -- '-AV=reset --hard' git --config-env=alias.rh=-AV rh" 2
-# git applies the LAST value for a config key, so a later --config-env value must not be
-# masked by an earlier decoy `-c` alias that expands to a harmless subcommand.
-run "later --config-env value wins over decoy -c alias (blocked)" \
-  "AV='reset --hard' git -c alias.rh=status --config-env=alias.rh=AV rh" 2
-run "later harmless --config-env value wins (allowed)" \
-  "AV=status git -c alias.rh='reset --hard' --config-env=alias.rh=AV rh" 0
-# git runs a `!` shell alias with its own process environment, so a command-line
-# assignment on the enclosing invocation reaches a nested `git --config-env` inside the
-# expansion. The guard must carry that env across the shell-alias reparse.
-run "shell alias carries enclosing git env into nested --config-env (blocked)" \
-  "AV='reset --hard' git -c alias.sh='!git --config-env=alias.rh=AV rh' sh" 2
-# A `!` shell alias runs its body in a shell, so an `export` in an earlier body
-# segment reaches a later `git --config-env` in the same body (git reads exported
-# env via getenv). No enclosing command-line assignment here — a pass proves the
-# in-body export was modeled. A bare (unexported) assignment is NOT a bypass: git
-# rejects the resulting unset --config-env as fatal, so it stays allowed.
-run "export inside shell-alias body reaches nested --config-env (blocked)" \
-  "git -c \"alias.sh=!export AV='reset --hard'; git --config-env=alias.rh=AV rh\" sh" 2
-# The export may sit behind a compound-command reserved word (`then`/`do`/`{`); the
-# resolver skips those before spotting `export`, so git still sees the value.
-run "export after 'then' in shell-alias body (blocked)" \
-  "git -c 'alias.sh=!if true; then export AV=\"reset --hard\"; fi; git --config-env=alias.rh=AV rh' sh" 2
-run "export after 'do' in shell-alias body (blocked)" \
-  "git -c 'alias.sh=!for x in 1; do export AV=\"reset --hard\"; done; git --config-env=alias.rh=AV rh' sh" 2
-run "export NAME promotes a bare var inside shell-alias body (blocked)" \
-  "git -c \"alias.sh=!AV='reset --hard'; export AV; git --config-env=alias.rh=AV rh\" sh" 2
-run "bare unexported assignment before --config-env (allowed — git rejects unset)" \
-  "AV='reset --hard'; git --config-env=alias.rh=AV rh" 0
-run "harmless export before --config-env (allowed)" \
-  "export AV=status; git --config-env=alias.rh=AV rh" 0
-# An ambient env-var NAME identical to one of the resolver's own shell LOCALS must
-# still resolve to the real value. The ambient value is read from a snapshot taken at
-# hook entry (an associative array), not an awk/command-substitution child that would
-# inherit a stack `local NAME` shadowing the same-named env var and read the local
-# (empty) — a fail-open in the exact code this PR rewrote. `envvar`, `key`, `n`, `sub`,
-# and `COMMAND` are all live resolver/parser locals or reassigned globals.
-run "ambient name equal to resolver local 'envvar' (blocked)" \
-  "git --config-env=alias.rh=envvar rh" 2 "envvar=reset --hard"
-run "ambient name equal to resolver local 'key' (blocked)" \
-  "git --config-env=alias.rh=key rh" 2 "key=reset --hard"
-run "ambient name equal to parser local 'n' (blocked)" \
-  "git --config-env=alias.rh=n rh" 2 "n=reset --hard"
-run "ambient name equal to reassigned global 'COMMAND' (blocked)" \
-  "git --config-env=alias.rh=COMMAND rh" 2 "COMMAND=reset --hard"
-run "ambient resolver-local name with a harmless value (allowed)" \
-  "git --config-env=alias.rh=envvar rh" 0 "envvar=status"
-# A name that was the removed awk pivot key resolves from the snapshot like any other.
-run "config-env name equal to the old awk pivot key (ambient, blocked)" \
-  "git --config-env=alias.rh=__HOOK_CE_NAME rh" 2 "__HOOK_CE_NAME=reset --hard"
+assert_file_absent "config-env injection: no exec for a shell-metachar env name" "$TEST_TMPDIR/pwned-dg"
 run "command -p git reset --hard (command wrapper option, blocked)" "command -p git reset --hard" 2
 run "command -- git reset --hard (command end-of-options, blocked)" "command -- git reset --hard" 2
 run "exec -c git reset --hard (exec wrapper option, blocked)" "exec -c git reset --hard" 2

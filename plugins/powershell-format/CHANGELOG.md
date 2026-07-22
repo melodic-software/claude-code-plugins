@@ -7,13 +7,11 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
 
 ### Changed
 
-- Sync of the shared `hook-utils.sh`: the git-option parser now distinguishes
-  `--config-env` (an env-var name) from `-c`/`--config` (an inline value) and adds the
-  `hook::git_effective_config_values` resolver — hardened so every `--config-env` name git
-  reads (non-identifier, leading-dash, ambient or command-line) resolves, the last value
-  for a key wins, and a `!` shell alias inherits the enclosing git environment,
-  including variables it `export`s (`#740`). No behavior change for this plugin — it does
-  not read git config values; shipped so consumers receive the shared library update.
+- Sync of the shared `hook-utils.sh`: the git-option parser distinguishes `--config-env`
+  (an env-var name) from `-c`/`--config` (an inline value), and a `--config-env` alias for
+  a guarded subcommand is refused by shape rather than by resolving the environment
+  variable's value (`#740`). No behavior change for this plugin — it does not inspect git
+  config values; shipped so consumers receive the shared library update.
 
 ## [0.4.3]
 

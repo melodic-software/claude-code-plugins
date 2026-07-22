@@ -5,90 +5,38 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
 ## [0.9.6]
 
-### Fixed
+### Changed
 
-- **`--config-env` git aliases no longer bypass `block-noncanonical-commit` and
-  `block-dangerous-git` (`#740`).** The shared git-option parser
-  (`hook::git_resolve_subcommand`) collected `-c`/`--config`/`--config-env` values into
-  one array undifferentiated, but `--config-env=<key>=<envvar>` supplies the NAME of an
-  environment variable holding the value, not the value itself. Both guards read the
-  env-var name as the literal alias expansion, so `git --config-env=alias.z=AV z` (with
-  `AV=commit` or `AV='reset --hard'`) resolved the alias to the harmless-looking token
-  `AV` and waved the real subcommand through — a verified fail-open. The parser now tags
-  each value's origin (`HOOK_GIT_CONFIG_VALUE_KINDS`), and a new
-  `hook::git_effective_config_values` resolver projects `--config-env` entries to their
-  actual `<key>=<value>`; both guards match aliases against the resolved values. The name
-  is resolved with `getenv()` (via `printenv`), exactly as git reads it, so a name that is
-  not a valid shell identifier (e.g. a hyphenated one git still accepts) resolves too and
-  is caught. Only an unset variable projects to an empty value — git itself rejects an
-  unset `--config-env` variable, so the assignment never takes effect. The name is passed
-  to `printenv` as a single quoted argument and never re-parsed, so an injection-shaped
-  name cannot be evaluated.
-- **The `--config-env` value is resolved from the environment git actually sees.** The
-  named variable is read preferring a command-line assignment on the same invocation — an
-  inline `VAR=val git …` prefix or an `env VAR=val git …` wrapper (collected by
-  `hook::git_resolve_index`) — over the hook's ambient environment, since that
-  self-contained one-liner (`AV=commit git --config-env=alias.c=AV c`) sets the variable
-  only in git's environment and would otherwise pass an ambient-only check. (An inline
-  env-assignment prefix in front of an ordinary command remains out of scope for the
-  parser generally; this covers specifically the `--config-env` resolution.)
-- **Case-insensitive alias matching.** git config names are case-insensitive, so
-  `git -c alias.RH='reset --hard' rh` and `git -c alias.rh=… RH` both run the alias; the
-  guards' inline-alias re-check now folds both sides of the key match (the expansion value
-  keeps its case), matching git.
-- **Four residual `--config-env` fail-opens closed (`#740`).** (1) An `env` wrapper sets
-  any name (`env 'bad-name=commit' git --config-env=alias.c=bad-name c`); the resolver now
-  collects such non-identifier operands as command-line assignments instead of
-  identifier-gating them away. (2) `env -- <name>=<value>` past the option marker sets a
-  leading-dash name (`env -- '-AV=reset --hard' git --config-env=alias.rh=-AV rh`); the
-  `env` walk now treats `--` as end-of-options and collects the dash-named operand. (3) The
-  ambient value is read with awk's `ENVIRON` (getenv-equivalent) rather than
-  `printenv "$name"`, which parsed a leading-dash name as an option and resolved it empty.
-  (4) `block-dangerous-git` took the FIRST matching alias value and broke, but git applies
-  the LAST value for a key, so a decoy `-c alias.rh=status` masked a later
-  `--config-env=alias.rh=AV` (`AV='reset --hard'`); it now takes the last match, as
-  `block-noncanonical-commit` already did. (5) A `!` shell alias runs with git's process
-  environment, so a command-line assignment on the enclosing invocation
-  (`AV=commit git -c alias.sh='!git --config-env=alias.c=AV c …' sh`) reaches a nested
-  `git --config-env`; both guards now carry that environment across the shell-alias reparse
-  (`HOOK_GIT_ENV_INHERITED`) instead of resolving the name as unset.
-- **Two further `--config-env` fail-opens closed (`#740`).** (6) A variable EXPORTED inside
-  a `!` shell-alias body reaches a later `git --config-env` in the same body — git reads
-  exported env via `getenv` — but only the enclosing invocation's assignments were carried,
-  so `git -c "alias.sh=!export AV='reset --hard'; git --config-env=alias.rh=AV rh" sh` (and
-  the `export AV=commit` shape past `block-noncanonical-commit`) resolved `AV` as unset and
-  waved the command through. `hook::shell_track_persistent_env` now models exported state
-  across a shell script's segments — `export NAME=VALUE`, `declare -x`/`typeset -x`, and an
-  `export NAME` that promotes a prior bare assignment — seeding it into the resolver for
-  later segments. A bare, unexported `NAME=VALUE` is deliberately NOT modeled: git rejects
-  the resulting unset `--config-env` as fatal, so it is not a bypass.
-- **Ambient `--config-env` values are read from an entry-time environment snapshot, not a
-  command-substitution child (`#740`).** The ambient resolver ran an `awk`/command-
-  substitution child to read the named variable, but such a child inherits the hook's live
-  shell variables, and bash keeps the export attribute on a `local NAME` that shadows an
-  inherited env var. So an ambient variable whose name matched any resolver-stack local
-  (`n`, `i`, `w`, `key`, `envvar`, `sub`, the reassigned `COMMAND`, …) was read back as the
-  local's value (empty) instead of the real value — the guard's own resolver returning a
-  fail-open result (`n='reset --hard'` + `git --config-env=alias.rh=n rh` ran the alias).
-  `hook::snapshot_env` now captures the environment into an associative array once at hook
-  entry, before any function locals are on the stack, and the resolver reads that array;
-  the lookup is a literal `declare -A` subscript, so every name shape (leading-dash,
-  non-identifier, `@`/`*`, an injection-shaped `$( )`) stays exact and inert, and the
-  earlier awk-pivot-key collision (`__HOOK_CE_NAME`) is gone with the child.
-- **`export` behind a compound-command keyword is now tracked (`#740`).** The shell-alias
-  export modeling saw a segment beginning with a reserved word (`then export AV=…`,
-  `do export AV=…`, `{ export AV=…`) as the keyword rather than `export`, so
-  `git -c 'alias.sh=!if true; then export AV="reset --hard"; fi; git --config-env=alias.rh=AV rh' sh`
-  ran the alias while the guard resolved `AV` as unset — a fail-open. The tracker now skips
-  leading reserved words before identifying an environment-setting builtin (a subshell
-  `( … )` opener is deliberately not skipped — its exports do not reach the parent shell).
-- **`--config-env` resolution fails closed when `awk` is unavailable (`#740`).** The ambient
-  snapshot needs `awk`; if it is missing or fails, the snapshot used to be empty and an
-  ambient name resolved to "" — silently allowing every ambient `--config-env` alias while
-  git still read the real value. `hook::snapshot_env` now records whether it ran, and a
-  `--config-env` value that needs the ambient environment but cannot be resolved (and was
-  not supplied by a command-line assignment) sets `HOOK_GIT_CONFIG_UNRESOLVED`; both guards
-  block on it rather than treat it as an unset variable.
+- **`--config-env` git aliases for a guarded subcommand are now refused by SHAPE, not
+  resolved (`#740`).** `--config-env=<key>=<envvar>` names an environment variable that
+  holds the alias expansion; that value can be fed from an ambient variable, an inline or
+  `env` command-line prefix, an `export` (including `set -a`, an `export NAME` promotion,
+  or an assignment-prefixed `export`), or a nested `bash -c` / `!`-alias in any enclosing
+  wrapper. Every attempt to resolve the value — to decide whether `git <alias>` runs a
+  guarded operation — reopened a fail-open as reviewers found new propagation paths. Since
+  the `--config-env=alias.<sub>=<envvar>` option and the `<sub>` it defines always sit in
+  the same git invocation, the guards no longer read the value at all: an alias for the
+  INVOKED subcommand whose last definition on the command line is `--config-env` is blocked
+  structurally (`hook::git_alias_expansion`). Nobody legitimately defines a commit or reset
+  alias this way on a guarded invocation — the canonical form is a gitconfig alias or the
+  plain subcommand — so the shape alone is sufficient, and the whole env-resolution attack
+  surface is removed rather than backstopped.
+- **Inline `-c`/`--config` aliases are unchanged.** Their expansion is literally present
+  and bounded, so both guards resolve and re-check it as before — last value wins,
+  case-insensitive key match, and `!` shell-alias / git-alias expansions re-parsed one
+  level deep.
+- **Removed the env-value-resolution machinery** that existed only to read a `--config-env`
+  value and the environment feeding it: `hook::snapshot_env` / `HOOK_ENV_SNAPSHOT`,
+  `hook::git_effective_config_values` / `HOOK_GIT_CONFIG_UNRESOLVED`,
+  `hook::git_reparse_shell_alias` with its shell-alias env inheritance
+  (`HOOK_GIT_ENV_INHERITED`), `hook::shell_track_persistent_env` / `HOOK_SHELL_VARS`, and
+  `HOOK_GIT_ENV_ASSIGNMENTS`. `hook::git_resolve_index` walks env-assignment prefixes only
+  to locate the git token, never to collect their values.
+- **Behavior change for `--config-env` aliases.** A `--config-env` alias for the invoked
+  subcommand now blocks even when the named variable holds a harmless value — the value is
+  never consulted. Still allowed (decidable safe without reading a value): a `--config-env`
+  that sets a NON-alias key, one that defines an alias for a subcommand that is not
+  invoked, and one whose LAST value for the key is an inline `-c`/`--config`.
 
 ## [0.9.5]
 

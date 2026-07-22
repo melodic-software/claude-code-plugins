@@ -647,300 +647,87 @@ else
   fail "git config kinds (two-word): kinds=($(join_a "${HOOK_GIT_CONFIG_VALUE_KINDS[@]}"))"
 fi
 
-# The ambient value is read from a snapshot taken at hook entry; the tests below
-# mutate the real environment then re-snapshot before resolving, mirroring the guard.
-export WIT_TEST_CFG_ENV=commit
-hook::snapshot_env
-hook::git_resolve_subcommand 0 git --config-env=alias.c=WIT_TEST_CFG_ENV c
-hook::git_effective_config_values
-if [[ "$(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")" == "alias.c=commit" ]]; then
-  ok "git config: env value resolves to the variable's value"
+# --- git_alias_expansion: structural classification of the invoked alias -------
+# The guard RESOLVES an inline (-c/--config) alias but REFUSES an env (--config-env)
+# alias for the invoked subcommand by shape — its expansion is an env var never read.
+# git applies the LAST value for a config key, so the last alias.<sub> entry decides.
+
+hook::git_resolve_subcommand 0 git -c alias.rh='reset --hard' rh
+hook::git_alias_expansion rh
+rc=$?
+if ((rc == 0)) && [[ "$HOOK_GIT_ALIAS_EXP" == "reset --hard" ]]; then
+  ok "git alias: inline -c alias returns the literal expansion (rc 0)"
 else
-  fail "git config effective (env set): $(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")"
+  fail "git alias (inline): rc=$rc exp=[$HOOK_GIT_ALIAS_EXP]"
 fi
 
-hook::git_resolve_subcommand 0 git -c alias.c=commit c
-hook::git_effective_config_values
-if [[ "$(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")" == "alias.c=commit" ]]; then
-  ok "git config: inline value passes through unchanged"
+hook::git_resolve_subcommand 0 git --config-env=alias.rh=AVAR rh
+hook::git_alias_expansion rh
+rc=$?
+if ((rc == 2)); then
+  ok "git alias: --config-env alias for the invoked sub is refused by shape (rc 2)"
 else
-  fail "git config effective (inline): $(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")"
+  fail "git alias (env refuse): rc=$rc"
 fi
 
-unset WIT_TEST_CFG_ENV
-hook::snapshot_env
-hook::git_resolve_subcommand 0 git --config-env=alias.c=WIT_TEST_CFG_ENV c
-hook::git_effective_config_values
-if [[ "$(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")" == "alias.c=" ]]; then
-  ok "git config: unset env var projects to an empty value"
+hook::git_resolve_subcommand 0 git -c foo.bar=baz rh
+hook::git_alias_expansion rh
+rc=$?
+if ((rc == 1)); then
+  ok "git alias: no alias for the invoked sub returns 1"
 else
-  fail "git config effective (env unset): $(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")"
+  fail "git alias (none): rc=$rc"
 fi
 
-# A non-identifier env-var name (e.g. hyphenated) is still read by git via getenv(),
-# so it must RESOLVE, not project empty — projecting empty was a fail-open: git would
-# expand the alias while the guard saw nothing. Bash assignment syntax cannot name
-# such a variable, so set it in a subshell and confirm the value is read.
-# shellcheck disable=SC2016  # $HOOK_GIT_CONFIG_EFFECTIVE expands in the inner shell, not here
-noniden=$(env 'bad-name=commit' "$BASH" -c '
-  source "'"$HOOK_DIR"'/hook-utils.sh"
-  hook::snapshot_env
-  hook::git_resolve_subcommand 0 git --config-env=alias.c=bad-name c
-  hook::git_effective_config_values
-  IFS="|"; printf "%s" "${HOOK_GIT_CONFIG_EFFECTIVE[*]}"')
-if [[ "$noniden" == "alias.c=commit" ]]; then
-  ok "git config: non-identifier env var name resolves via getenv"
+# A --config-env that sets a NON-alias key never triggers refusal (the legitimate use).
+hook::git_resolve_subcommand 0 git --config-env=core.pager=PAGERVAR status
+hook::git_alias_expansion status
+rc=$?
+if ((rc == 1)); then
+  ok "git alias: --config-env non-alias key is not refused (resolvable/allowed)"
 else
-  fail "git config effective (non-identifier name): [$noniden]"
+  fail "git alias (non-alias key): rc=$rc"
 fi
 
-# An unset name (identifier-shaped or not) still projects empty — git rejects an unset
-# --config-env variable as fatal, so nothing takes effect.
-hook::snapshot_env
-hook::git_resolve_subcommand 0 git --config-env=alias.c=bad-name c
-hook::git_effective_config_values
-if [[ "$(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")" == "alias.c=" ]]; then
-  ok "git config: unset non-identifier env var name projects empty"
+# A --config-env alias for a subcommand OTHER than the invoked one is not refused.
+hook::git_resolve_subcommand 0 git --config-env=alias.foo=AVAR status
+hook::git_alias_expansion status
+rc=$?
+if ((rc == 1)); then
+  ok "git alias: --config-env alias for an uninvoked subcommand is not refused"
 else
-  fail "git config effective (unset non-identifier): $(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")"
+  fail "git alias (uninvoked alias): rc=$rc"
 fi
 
-# An injection-shaped env-var name must never be evaluated: it is looked up as a
-# literal associative-array subscript (declare -A), so `$(…)` in a name cannot execute;
-# the absent key resolves to empty. Pins injection safety — a refactor resolving the
-# name through an eval/arithmetic/indexed-array subscript context would be an RCE.
-rm -f "$HOOK_DIR/../pwned-lib"
-hook::snapshot_env
-# shellcheck disable=SC2016  # the literal $(…) is the injection payload under test — must NOT expand
-hook::git_resolve_subcommand 0 git '--config-env=alias.c=$(touch pwned-lib)' c
-hook::git_effective_config_values
-if [[ "$(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")" == "alias.c=" && ! -e pwned-lib ]]; then
-  ok "git config: injection-shaped env name → empty, no evaluation"
+# LAST value wins: env after inline for the same key -> refuse (git runs the env one).
+hook::git_resolve_subcommand 0 git -c alias.rh=status --config-env=alias.rh=AVAR rh
+hook::git_alias_expansion rh
+rc=$?
+if ((rc == 2)); then
+  ok "git alias: env value last-wins over an inline decoy -> refuse"
 else
-  fail "git config effective (injection name): $(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}") file=$([[ -e pwned-lib ]] && echo present || echo absent)"
-fi
-rm -f pwned-lib
-
-# A command-line env assignment (inline `VAR=val git …`) is preferred over ambient,
-# resolved through hook::git_resolve_index's collected HOOK_GIT_ENV_ASSIGNMENTS.
-unset WIT_TEST_CFG_ENV 2>/dev/null || true
-hook::git_resolve_index WIT_TEST_CFG_ENV=commit git --config-env=alias.c=WIT_TEST_CFG_ENV c
-hook::git_resolve_subcommand "$HOOK_GIT_RESOLVED_GI" "${HOOK_GIT_RESOLVED_WORDS[@]}"
-hook::git_effective_config_values
-if [[ "$(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")" == "alias.c=commit" ]]; then
-  ok "git config: inline-prefix assignment resolves (ambient unset)"
-else
-  fail "git config effective (inline prefix): $(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")"
+  fail "git alias (env last): rc=$rc"
 fi
 
-# The env wrapper carries the assignment the same way.
-hook::git_resolve_index env WIT_TEST_CFG_ENV=commit git --config-env=alias.c=WIT_TEST_CFG_ENV c
-hook::git_resolve_subcommand "$HOOK_GIT_RESOLVED_GI" "${HOOK_GIT_RESOLVED_WORDS[@]}"
-hook::git_effective_config_values
-if [[ "$(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")" == "alias.c=commit" ]]; then
-  ok "git config: env-wrapper assignment resolves"
+# LAST value wins: inline after env for the same key -> resolve the inline (allowed).
+hook::git_resolve_subcommand 0 git --config-env=alias.rh=AVAR -c alias.rh=status rh
+hook::git_alias_expansion rh
+rc=$?
+if ((rc == 0)) && [[ "$HOOK_GIT_ALIAS_EXP" == "status" ]]; then
+  ok "git alias: inline value last-wins over an earlier env -> resolve (allowed)"
 else
-  fail "git config effective (env wrapper): $(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")"
+  fail "git alias (inline last): rc=$rc exp=[$HOOK_GIT_ALIAS_EXP]"
 fi
 
-# A command-line assignment overrides an ambient value of the same name (git sees the
-# command-line one).
-export WIT_TEST_CFG_ENV=status
-hook::snapshot_env
-hook::git_resolve_index WIT_TEST_CFG_ENV=commit git --config-env=alias.c=WIT_TEST_CFG_ENV c
-hook::git_resolve_subcommand "$HOOK_GIT_RESOLVED_GI" "${HOOK_GIT_RESOLVED_WORDS[@]}"
-hook::git_effective_config_values
-if [[ "$(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")" == "alias.c=commit" ]]; then
-  ok "git config: command-line assignment overrides ambient"
+# git config names are case-insensitive: the key match folds case.
+hook::git_resolve_subcommand 0 git --config-env=alias.RH=AVAR rh
+hook::git_alias_expansion rh
+rc=$?
+if ((rc == 2)); then
+  ok "git alias: --config-env key match folds case"
 else
-  fail "git config effective (override): $(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")"
+  fail "git alias (case fold): rc=$rc"
 fi
-unset WIT_TEST_CFG_ENV
-
-# An `env` wrapper sets ANY name (getenv-visible), including a non-identifier the
-# shell would reject as an assignment prefix. The resolver must collect it as a
-# command-line assignment (git reads it), not identifier-gate it away — dropping it
-# was a fail-open: `env 'bad-name=commit' git --config-env=alias.c=bad-name c` ran
-# the commit alias while the guard saw nothing. Ambient is unset here, so a pass
-# proves the env-wrapper OPERAND was collected, not read from the environment.
-unset WIT_TEST_CFG_ENV 2>/dev/null || true
-hook::git_resolve_index env 'bad-name=commit' git --config-env=alias.c=bad-name c
-hook::git_resolve_subcommand "$HOOK_GIT_RESOLVED_GI" "${HOOK_GIT_RESOLVED_WORDS[@]}"
-hook::git_effective_config_values
-if [[ "$(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")" == "alias.c=commit" ]]; then
-  ok "git config: env-wrapper non-identifier assignment is collected"
-else
-  fail "git config effective (env-wrapper non-identifier): $(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")"
-fi
-
-# `env -- <name>=<value>` past the option marker sets a leading-dash name (a real
-# git-honored assignment: `env -- '-AV=reset --hard' git --config-env=alias.rh=-AV
-# rh`). The resolver must treat the post-`--` operand as an assignment, not an env
-# option, and collect the dash name.
-hook::git_resolve_index env -- '-AV=reset --hard' git --config-env=alias.rh=-AV rh
-hook::git_resolve_subcommand "$HOOK_GIT_RESOLVED_GI" "${HOOK_GIT_RESOLVED_WORDS[@]}"
-hook::git_effective_config_values
-if [[ "$(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")" == "alias.rh=reset --hard" ]]; then
-  ok "git config: env -- collects a leading-dash assignment name"
-else
-  fail "git config effective (env -- leading-dash): $(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")"
-fi
-
-# A leading-dash name read from the AMBIENT environment must resolve too: git reads
-# it via getenv, but `printenv "-AV"` parses it as an option and returns empty (a
-# fail-open). The snapshot lookup keys on the exact name. Bash cannot name such a
-# variable, so set it via `env --` in a subshell with NO command-line assignment.
-# shellcheck disable=SC2016  # $HOOK_GIT_CONFIG_EFFECTIVE expands in the inner shell, not here
-dashamb=$(env -- '-AV=commit' "$BASH" -c '
-  source "'"$HOOK_DIR"'/hook-utils.sh"
-  hook::snapshot_env
-  hook::git_resolve_subcommand 0 git --config-env=alias.c=-AV c
-  hook::git_effective_config_values
-  IFS="|"; printf "%s" "${HOOK_GIT_CONFIG_EFFECTIVE[*]}"')
-if [[ "$dashamb" == "alias.c=commit" ]]; then
-  ok "git config: leading-dash ambient env name resolves (not option-parsed)"
-else
-  fail "git config effective (leading-dash ambient): [$dashamb]"
-fi
-
-# A guard re-parsing a `!` shell alias declares the enclosing git environment via
-# HOOK_GIT_ENV_INHERITED; the resolver must seed HOOK_GIT_ENV_ASSIGNMENTS from it so
-# a nested `git --config-env=<key>=<name>` (with no prefix of its own) resolves the
-# name. Without the seed the nested parse saw the name unset and the guard failed open.
-unset WIT_TEST_CFG_ENV 2>/dev/null || true
-HOOK_GIT_ENV_INHERITED=(WIT_TEST_CFG_ENV=commit)
-hook::git_resolve_index git --config-env=alias.c=WIT_TEST_CFG_ENV c
-hook::git_resolve_subcommand "$HOOK_GIT_RESOLVED_GI" "${HOOK_GIT_RESOLVED_WORDS[@]}"
-hook::git_effective_config_values
-HOOK_GIT_ENV_INHERITED=()
-if [[ "$(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")" == "alias.c=commit" ]]; then
-  ok "git config: inherited git env seeds a nested resolve"
-else
-  fail "git config effective (inherited env seed): $(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")"
-fi
-
-# hook::shell_track_persistent_env models the environment a shell segment EXPORTS
-# for later segments — git reads it via getenv, so only exported state counts.
-HOOK_GIT_ENV_INHERITED=()
-HOOK_SHELL_VARS=()
-hook::shell_track_persistent_env export AV='reset --hard'
-if [[ "$(join_a "${HOOK_GIT_ENV_INHERITED[@]}")" == "AV=reset --hard" ]]; then
-  ok "shell env: export NAME=VALUE enters inherited git env"
-else
-  fail "shell env (export): $(join_a "${HOOK_GIT_ENV_INHERITED[@]}")"
-fi
-
-# A bare NAME=value sets an UNEXPORTED shell variable git cannot see; it stays out
-# of the inherited env and is only recorded so a later `export NAME` can promote it.
-HOOK_GIT_ENV_INHERITED=()
-HOOK_SHELL_VARS=()
-hook::shell_track_persistent_env AV='reset --hard'
-if [[ -z "$(join_a ${HOOK_GIT_ENV_INHERITED[@]+"${HOOK_GIT_ENV_INHERITED[@]}"})" ]]; then
-  ok "shell env: bare assignment does not enter git env (unexported)"
-else
-  fail "shell env (bare not exported): $(join_a "${HOOK_GIT_ENV_INHERITED[@]}")"
-fi
-hook::shell_track_persistent_env export AV
-if [[ "$(join_a "${HOOK_GIT_ENV_INHERITED[@]}")" == "AV=reset --hard" ]]; then
-  ok "shell env: export NAME promotes a tracked bare variable"
-else
-  fail "shell env (export promotion): $(join_a "${HOOK_GIT_ENV_INHERITED[@]}")"
-fi
-
-# declare/typeset export only with -x; a plain declare is not git-visible.
-HOOK_GIT_ENV_INHERITED=()
-HOOK_SHELL_VARS=()
-hook::shell_track_persistent_env declare -x AV=commit
-hook::shell_track_persistent_env declare BV=diff
-if [[ "$(join_a "${HOOK_GIT_ENV_INHERITED[@]}")" == "AV=commit" ]]; then
-  ok "shell env: declare -x exports, plain declare does not"
-else
-  fail "shell env (declare -x): $(join_a "${HOOK_GIT_ENV_INHERITED[@]}")"
-fi
-HOOK_GIT_ENV_INHERITED=()
-HOOK_SHELL_VARS=()
-
-# An `export` after a leading compound-command reserved word (`then export …`, `do
-# export …`, `{ export …`) is still tracked — the reserved words are skipped first.
-# A subshell `( … )` opener is NOT skipped (its exports do not reach the parent).
-hook::shell_track_persistent_env 'then' export AV='reset --hard'
-hook::shell_track_persistent_env 'do' export BV=commit
-if [[ "$(join_a "${HOOK_GIT_ENV_INHERITED[@]}")" == "AV=reset --hard|BV=commit" ]]; then
-  ok "shell env: export after a compound-command keyword is tracked"
-else
-  fail "shell env (compound keyword export): $(join_a "${HOOK_GIT_ENV_INHERITED[@]}")"
-fi
-HOOK_GIT_ENV_INHERITED=()
-HOOK_SHELL_VARS=()
-
-# An ambient name identical to a resolver-stack LOCAL must still resolve to the real
-# ambient value. The value is read from HOOK_ENV_SNAPSHOT (an associative array
-# populated at hook entry), not from an awk/command-substitution child — such a child
-# inherited `hook::git_effective_config_values`'s own `local envvar`/`local key`,
-# which bash keeps exported when it shadows an inherited env var, so the child read the
-# local (empty) instead of the real value and failed open. `envvar` and `key` are both
-# locals of the resolver; setting them ambiently and resolving must still see the value.
-# shellcheck disable=SC2016  # $HOOK_DIR/$HOOK_GIT_CONFIG_EFFECTIVE expand in the inner shell
-shadow=$(env 'envvar=reset --hard' 'key=commit' "$BASH" -c '
-  source "'"$HOOK_DIR"'/hook-utils.sh"
-  hook::snapshot_env
-  hook::git_resolve_subcommand 0 git --config-env=alias.rh=envvar --config-env=alias.c=key rh
-  hook::git_effective_config_values
-  IFS="|"; printf "%s" "${HOOK_GIT_CONFIG_EFFECTIVE[*]}"')
-if [[ "$shadow" == "alias.rh=reset --hard|alias.c=commit" ]]; then
-  ok "git config: ambient name equal to a resolver local resolves (no shadowing)"
-else
-  fail "git config effective (resolver-local shadowing): [$shadow]"
-fi
-
-# hook::snapshot_env captures any name shape (leading-dash, hyphen, `@`) as an exact
-# associative key; a name absent from the snapshot resolves empty (git-fatal, safe).
-# The weird keys are read through variable subscripts so a literal `[@]` is never the
-# all-elements operator.
-# shellcheck disable=SC2016  # $HOOK_DIR expands in the inner shell
-shape=$(env -- '-AV=one' 'bad-name=two' '@=three' "$BASH" -c '
-  source "'"$HOOK_DIR"'/hook-utils.sh"
-  hook::snapshot_env
-  dk="-AV"; hk="bad-name"; ak="@"; mk="NOPE_UNSET_NAME"
-  printf "%s|%s|%s|%s" "${HOOK_ENV_SNAPSHOT[$dk]-}" "${HOOK_ENV_SNAPSHOT[$hk]-}" "${HOOK_ENV_SNAPSHOT[$ak]-}" "${HOOK_ENV_SNAPSHOT[$mk]-}"')
-if [[ "$shape" == "one|two|three|" ]]; then
-  ok "git config: env snapshot keys any name shape, missing key is empty"
-else
-  fail "git config env snapshot (name shapes): [$shape]"
-fi
-
-# hook::snapshot_env sets HOOK_ENV_SNAPSHOT_OK=1 when awk actually ran (sentinel).
-hook::snapshot_env
-if [[ "${HOOK_ENV_SNAPSHOT_OK:-0}" == "1" ]]; then
-  ok "git config: snapshot marks success when awk is available"
-else
-  fail "git config snapshot ok flag: [${HOOK_ENV_SNAPSHOT_OK:-unset}]"
-fi
-
-# Fail-closed contract: when the ambient snapshot did not run (awk unavailable) and no
-# command-line assignment supplies the value, an env-kind --config-env entry cannot be
-# resolved — HOOK_GIT_CONFIG_UNRESOLVED must flag it so the guard blocks.
-HOOK_ENV_SNAPSHOT=()
-HOOK_ENV_SNAPSHOT_OK=0
-HOOK_GIT_ENV_ASSIGNMENTS=()
-hook::git_resolve_subcommand 0 git --config-env=alias.rh=WIT_TEST_UNRES rh
-hook::git_effective_config_values
-if ((${HOOK_GIT_CONFIG_UNRESOLVED:-0})); then
-  ok "git config: unresolved ambient value (awk down) flags fail-closed"
-else
-  fail "git config unresolved flag not set when snapshot unavailable"
-fi
-# A command-line assignment resolves the value even with the snapshot down — no fail-close.
-HOOK_GIT_ENV_ASSIGNMENTS=(WIT_TEST_UNRES=commit)
-hook::git_resolve_subcommand 0 git --config-env=alias.rh=WIT_TEST_UNRES rh
-hook::git_effective_config_values
-if ((${HOOK_GIT_CONFIG_UNRESOLVED:-0})); then
-  fail "git config unresolved flag set despite a command-line assignment"
-else
-  ok "git config: command-line assignment resolves without the snapshot (no fail-close)"
-fi
-HOOK_GIT_ENV_ASSIGNMENTS=()
-hook::snapshot_env
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"
