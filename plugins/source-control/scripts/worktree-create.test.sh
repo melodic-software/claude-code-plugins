@@ -80,6 +80,12 @@ err=$(bash "$HELPER" --name feat/x --root "$repo/.claude/worktrees" --repo-dir "
 assert_exit "in-repo root refuses exit 3" 3 "$?"
 assert_contains "in-repo refuse names the repository" "$err" "inside the repository"
 
+# --- Case: refuse a relative root that resolves inside the repo (exit 3) ---
+# git -C "$toplevel" worktree add anchors a relative target at the repo top level.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+bash "$HELPER" --name feat/x --root "worktrees" --repo-dir "$repo" >/dev/null 2>&1
+assert_exit "relative in-repo root refuses exit 3" 3 "$?"
+
 # --- Case: path computation <root>/<owner>-<repo>-<slug> with slug sanitization ---
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 root="$TEST_TMPDIR/wtroot1"

@@ -205,6 +205,12 @@ else
 fi
 worktree_path="${root%/}/${dirname}"
 
+# `git -C "$toplevel" worktree add` resolves a relative target against the repo
+# top level, so a relative root (e.g. `worktrees`) always lands inside the repo.
+# Anchor it to $toplevel up front so the containment check below sees the real
+# target rather than an unrooted string whose ancestor walk never reaches the repo.
+[[ "$worktree_path" != /* && "$worktree_path" != ?:* ]] && worktree_path="$toplevel/$worktree_path"
+
 # Reject in-repo placement. Keeping worktrees OUT of the source checkout is the
 # helper's core purpose; an in-repo worktree reintroduces the CLAUDE.md/rules
 # double-load bug. The unconfigured-root refuse above does not catch a root
