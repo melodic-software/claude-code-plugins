@@ -10,7 +10,11 @@ lifecycle plugins.
 A plugin is a reusable, independently useful vertical slice of one cohesive capability. It must work
 outside the repository and organization that produced it. Publisher metadata may identify its source;
 runtime behavior must not depend on publisher names, organization-specific environment variables,
-repository names, absolute machine paths, or an undocumented consumer layout.
+repository names, absolute machine paths, or an undocumented consumer layout. The artifact-agnostic
+form of this doctrine — consumer-agnostic behavior, externalized consumer-varying configuration,
+consumer tiers, explicit adoption — is owned by `melodic-software/standards`
+`conventions/engineering/shareable-artifact-design.md`; this document specializes it for Claude Code
+plugins and adds only what is plugin-specific.
 
 Keep plugins horizontally decoupled:
 
@@ -384,6 +388,9 @@ authoritative self-updating master list. Pages load-bearing for this document, v
   tags, bundles.
 - [Claude Code settings](https://code.claude.com/docs/en/settings) — settings scopes, precedence, and
   the special storage and read scopes of `pluginConfigs`.
+- `melodic-software/standards` `conventions/engineering/shareable-artifact-design.md` — the
+  artifact-agnostic consumer-facing design doctrine the design boundary, configuration ownership,
+  and setup contract above specialize for plugins.
 - `melodic-software/standards` engineering philosophy and cross-platform review criteria — repository
   design and verification policy.
 
