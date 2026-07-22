@@ -12,7 +12,7 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   itself, so the "restart at ~N% context" discipline has no in-session
   enforcement; the skill's `restart` (fresh session from the canonical prompt) is
   the actual reset, and it is operator- or launcher-initiated, not automatic. The
-  SKILL.md now states this so a lane prompt does not mis-assume per-cycle
+  SKILL.md now states this so a lane prompt does not wrongly assume per-cycle
   freshness. Interim documentation ahead of an automatic relaunch trigger. (#551)
 
 ## [0.18.0]
