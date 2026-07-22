@@ -48,7 +48,7 @@ out="$(run_build --apply)"
 assert_contains "submodule build dir skipped" "$out" "Skip (submodule):"
 assert_file_exists "submodule tracked file preserved" "$TEST_TMPDIR/repo/deps/sub/build/app.js"
 
-# --- manifest / nested-dedup / apply-from-manifest / resume (#993, #995, #1002) ---
+# --- manifest / nested-dedup / apply-from-manifest / resume ---
 # Fresh repo so progressive mutation above does not bleed into these cases.
 git init "$TEST_TMPDIR/b2" >/dev/null 2>&1
 git -C "$TEST_TMPDIR/b2" config user.email "t@example.com"
@@ -74,7 +74,7 @@ assert_contains "dry-run prints manifest path" "$out" "Manifest: $MANI"
 # bin/ (nested obj/ deduped) + .pytest_cache = 2 planned.
 assert_contains "nested dir deduped, caches folded in" "$out" "Summary: planned=2 bytes="
 mani_body="$(cat "$MANI")"
-# Structural pin (consumed contract, #994): exact class<TAB>bytes<TAB>path per tier.
+# Structural pin (the manifest is a consumed contract): exact class<TAB>bytes<TAB>path per tier.
 if grep -qE "^build"$'\t'"[0-9]+"$'\t'"bin$" "$MANI"; then
   pass "build line is class<TAB>bytes<TAB>path"
 else

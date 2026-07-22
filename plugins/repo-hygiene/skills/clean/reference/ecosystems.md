@@ -14,7 +14,7 @@ Per-ecosystem teaching tables for the clean skill. Each entry includes command s
 | App log dirs | build | Not swept generically (no portable path) — reclaim via the `tree` action | Safe | App sink creates on next run |
 | `*.csproj.user` / `*.suo` | NEVER | — | Protected | VS / IDE debug profile preference |
 
-No build-system clean driver runs (e.g. `dotnet clean`): the single pruned walk + `rm -rf` already removes every `bin/`/`obj/` output such a driver would, so invoking one first is pure overhead (#999).
+No build-system clean driver runs (e.g. `dotnet clean`): the single pruned walk + `rm -rf` already removes every `bin/`/`obj/` output such a driver would, so invoking one first is pure overhead.
 
 ## Python
 

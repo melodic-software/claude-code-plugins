@@ -80,7 +80,7 @@ cd "$REPO_ROOT" || exit 1
 # removal below already deletes everything such a driver would, and running one
 # first is pure overhead (full MSBuild evaluation, minutes on a large solution)
 # that also re-creates obj/ evaluation artifacts. One walk + rm is strictly
-# faster and equally complete (#999).
+# faster and equally complete.
 
 # --apply with a prebuilt manifest: skip enumeration entirely, just consume it.
 if [[ "$DRY_RUN" -eq 0 && -n "$MANIFEST_ARG" ]]; then

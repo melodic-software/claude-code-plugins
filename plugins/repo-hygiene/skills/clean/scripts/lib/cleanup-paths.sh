@@ -49,7 +49,7 @@ CLEAN_BUILD_FILE_GLOBS=(
 
 # build — no build-system clean driver: the universal bin/obj globs above remove
 # every output a driver like `dotnet clean` would, so running one first is pure
-# overhead (#999).
+# overhead.
 
 # git — safe prune mutations
 GIT_PRUNE_OPS=(

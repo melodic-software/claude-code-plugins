@@ -35,7 +35,7 @@ assert_file_absent "cache deleted after apply" "$TEST_TMPDIR/repo/.pytest_cache/
 out="$(run_clean --dry-run)"
 assert_not_contains "node_modules skipped" "$out" "node_modules"
 
-# --- manifest / summary / apply-from-manifest / resume (issues #995, #1002) ---
+# --- manifest / summary / apply-from-manifest / resume ---
 # Fresh repo so progressive mutation above does not bleed into these cases.
 git init "$TEST_TMPDIR/r2" >/dev/null 2>&1
 git -C "$TEST_TMPDIR/r2" config user.email "t@example.com"
@@ -53,8 +53,8 @@ assert_contains "dry-run prints manifest path" "$out" "Manifest: $MANI"
 assert_contains "dry-run planned summary" "$out" "Summary: planned=1 bytes="
 assert_file_exists "manifest written" "$MANI"
 mani_body="$(cat "$MANI")"
-# Structural pin: the manifest is a consumed contract (#994 parses it), so
-# assert the exact <class>\t<bytes>\t<relpath> shape, not just substrings.
+# Structural pin: the manifest is a consumed contract downstream tooling parses,
+# so assert the exact <class>\t<bytes>\t<relpath> shape, not just substrings.
 if grep -qE "^caches"$'\t'"[0-9]+"$'\t'"\.pytest_cache$" "$MANI"; then
   pass "manifest line is class<TAB>bytes<TAB>path"
 else

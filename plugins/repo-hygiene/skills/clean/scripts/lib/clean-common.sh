@@ -223,7 +223,7 @@ clean_branch_matches_protected_pattern() {
   return 1
 }
 
-# --- enumeration + manifest engine (issues #993 / #995 / #1002) --------------
+# --- enumeration + manifest engine -------------------------------------------
 #
 # The selective build/caches tiers formerly ran one unpruned full-tree `find`
 # per pattern (~10 walks/repo); the `! -path` exclusions filtered output but did
@@ -232,9 +232,6 @@ clean_branch_matches_protected_pattern() {
 # descends those three trees, then classifies, sizes, and manifests the result.
 # Measured on a large .NET + node repo (Windows/NTFS): one pruned walk incl. `du`
 # sizing ~17s vs a 10-walk unpruned dry-run that exceeded 10 min (killed).
-#
-# scan.sh still uses the old per-pattern unpruned walks — TODO(#1011) migrate it
-# onto clean_enumerate (kept out of #993's named scope).
 
 # Single pruned walk. Prunes .git / node_modules / .venv (never descended),
 # then `-print`s directory-name and file-glob matches. Tier-agnostic:
