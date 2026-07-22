@@ -399,7 +399,7 @@ detected"; `grep -c 'disable-model-invocation: true' plugins/dometrain/skills/sy
 `grep -c 'disable-model-invocation: false' plugins/dometrain/skills/grounding/SKILL.md` == 1; `grep
 -c 'untrusted reference data' plugins/dometrain/skills/grounding/SKILL.md` ≥ 1.
 
-### Phase 4: README [TODO]
+### Phase 4: README [DONE]
 
 - `plugins/dometrain/README.md` — new, structured like `plugins/miro/README.md`: what the plugin
   does; Dometrain Pro prerequisite; enabling/config table (`dometrain_api_key` → secure credential
