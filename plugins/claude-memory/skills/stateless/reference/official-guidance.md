@@ -1,6 +1,6 @@
 # Official Claude Code Guidance on Auto Memory State
 
-Last researched: 2026-07-20
+Last researched: 2026-07-22
 Sources: [code.claude.com/docs/en/memory](https://code.claude.com/docs/en/memory),
 [code.claude.com/docs/en/settings](https://code.claude.com/docs/en/settings),
 [code.claude.com/docs/en/env-vars](https://code.claude.com/docs/en/env-vars)

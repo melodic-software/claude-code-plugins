@@ -3,6 +3,52 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.0]
+
+### Added
+
+- **Shared worktree-creation helper `scripts/worktree-create.sh` (#399, Phase A).** One helper now
+  owns worktree placement: it computes the external path `<root>/<owner>-<repo>-<slug>`, sanitizes the
+  branch slug, resolves the base ref (`worktree.baseRef` fresh/head, default branch resolved
+  symbolically — never a hardcoded `origin/main`), runs `git worktree add`, and reimplements Claude
+  Code's `.worktreeinclude` copy (the intersection of `.worktreeinclude`-matched and gitignored files),
+  which is bypassed when a worktree is created with `git worktree add` directly. The flag CLI is the
+  stable seam the future `WorktreeCreate` hook (Phase B) will share.
+- **New `worktree_root` userConfig directory key.** The external root `/worktree create` places
+  worktrees under, mirroring the `babysit_worktree_root` shape. When unset, `/worktree create` refuses
+  with guidance rather than falling back to the in-repo `.claude/worktrees/` default.
+
+### Changed
+
+- **`/worktree create` routes through the shared helper instead of `EnterWorktree(name:)` (#399, #400).**
+  It runs `worktree-create.sh`, then enters the created worktree with `EnterWorktree(path:)`. On a
+  non-zero helper exit (notably exit 3, `worktree_root` unconfigured) it stops with the helper's
+  guidance and never falls back to the in-repo path — closing the CLAUDE.md/rules double-load bug
+  (#400, upstream anthropics/claude-code #29599 / #23565) for the interactive path. Entering the
+  external path prompts for approval (not suppressible outside `bypassPermissions`); create.md documents
+  the expected prompt and the declined-approval recovery. The native `WorktreeCreate` hook (Phase B)
+  stays gated on the two empirical upstream gates and is not shipped here.
+
+## [0.16.3]
+
+### Changed
+
+- **Dependency-manager hold-merge login set is now configurable (`#917` W1).** The merge gate held
+  only the built-in `dependabot`/`renovate` product bots (`DEPENDENCY_MANAGER_LOGINS`); a
+  non-dependabot/renovate dependency bot an operator runs slipped the cross-tier hold. The gate now
+  also holds any login in the new `babysit_extra_dependency_manager_logins` userConfig (threaded as
+  the `--extra-dependency-manager-logins` merge-wrapper flag, matching the existing arg-threading of
+  `--approver-bot-logins`); logins are normalized on both sides (casefold, strip `app/` and `[bot]`).
+  Ships empty, so an unconfigured install matches the built-in set alone.
+- **Branch-to-issue grammar is now configurable (`#917` W2).** `parse-branch-issue.sh` hardcoded the
+  `<type>/<N>-<slug>` (and `routine-issue-<N>`) convention, so a repo that places the GitHub issue
+  number differently in its branch names silently failed to derive a `Closes #N` line. The script now
+  accepts an ERE `pattern` positional (last capture group = the numeric GitHub issue number, e.g.
+  `^[^/]+/([0-9]+)-` for `alice/1234-slug`), wired from the new `branch_issue_pattern` userConfig at
+  the `/pull-request create` call site. The placeholder is single-quoted there so an unset value
+  reaches the script as an inert literal (double-quoting a dotted `${…}` name is a Bash
+  `bad substitution`) and falls back to the built-in convention.
+
 ## [0.16.2]
 
 ### Fixed

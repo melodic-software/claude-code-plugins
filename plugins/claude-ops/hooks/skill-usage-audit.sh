@@ -39,8 +39,10 @@ project_dir=$(hook::repo_root "${CLAUDE_PROJECT_DIR:-.}")
 rel_dir="${CLAUDE_PLUGIN_OPTION_SKILL_USAGE_DIR:-.claude/observability}"
 log_dir=""
 if ! log_dir=$(claude_ops::resolve_project_relative_dir "$project_dir" "$rel_dir"); then
-  hook::emit_additional_context "PostToolUse" \
-    "claude-ops skipped skill-usage logging: skill_usage_dir must be a contained project-relative path (no absolute, drive, UNC, traversal, or escaping symlink path)."
+  if hook::notice_once "skill-usage-audit-badconfig" "$INPUT"; then
+    hook::emit_skip_notice "PostToolUse" \
+      "claude-ops skipped skill-usage logging: skill_usage_dir must be a contained project-relative path (no absolute, drive, UNC, traversal, or escaping symlink path)."
+  fi
 elif mkdir -p "$log_dir" 2>/dev/null \
   && verified_log_dir=$(claude_ops::resolve_project_relative_dir "$project_dir" "$rel_dir") \
   && [[ "$verified_log_dir" == "$log_dir" ]]; then
@@ -55,8 +57,10 @@ elif mkdir -p "$log_dir" 2>/dev/null \
       '{ts: $ts, event: "SkillUse", skill: $skill, branch: $branch, hook: $hook, source: "tool"}'
   ) && hook::append_jsonl "${log_dir}/skill-usage.jsonl" "$line"
 else
-  hook::emit_additional_context "PostToolUse" \
-    "claude-ops skipped skill-usage logging: the configured project-relative destination could not be created safely."
+  if hook::notice_once "skill-usage-audit-nodest" "$INPUT"; then
+    hook::emit_skip_notice "PostToolUse" \
+      "claude-ops skipped skill-usage logging: the configured project-relative destination could not be created safely."
+  fi
 fi
 
 # --- Telemetry envelope (only when a sink is wired) -------------------------

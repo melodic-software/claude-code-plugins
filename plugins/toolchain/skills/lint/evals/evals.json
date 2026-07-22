@@ -30,7 +30,7 @@
       "id": 3,
       "name": "owns-yaml-and-cross-cutting-surfaces",
       "prompt": "/toolchain:lint all — the change set includes a GitHub Actions workflow YAML and touches several text files across the repo.",
-      "expected_output": "Runs the lint-only `yaml` and `cross-cutting` surfaces that /toolchain:check does not — yaml for the workflow file, and cross-cutting (typos/gitleaks/editorconfig-checker) when any text file changed and the repo opts into those tools — resolving the editorconfig-checker binary-name variant before substituting it in.",
+      "expected_output": "Runs the lint-only `yaml` and `cross-cutting` surfaces that /toolchain:check does not — yaml for the workflow file, and cross-cutting (typos/gitleaks/editorconfig-checker/lychee-offline) when any text file changed and the repo opts into those tools — resolving the editorconfig-checker binary-name variant before substituting it in.",
       "files": [],
       "expectations": [
         "Runs the `yaml` surface for the workflow file (a `/toolchain:lint`-only surface not covered by `/toolchain:check`)",

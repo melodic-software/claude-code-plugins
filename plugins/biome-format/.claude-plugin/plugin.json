@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "biome-format",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "description": "Auto-format and lint JS/TS/JSX/JSON on edit via Biome, only when a biome.json governs the repo — using the consuming repo's own Biome config.",
   "author": {
     "name": "Melodic Software",

@@ -1,5 +1,5 @@
 {
-  "_comment": "Graded-fixture manifest for check-security-binding.fixtures.test.mjs. Keyed by top-level fixture filename under evals/fixtures/security-binding/. Each entry: expected checker exit (0 valid, 1 findings) and defect-naming substrings the runner asserts (stdout when exit 0, stderr when exit 1). A binding+evidence pair grades evaluation mode with the named event-array input; egress_hosts pins the --egress-hosts allow-list seam. quarantined lists any fixture whose real checker behavior contradicts its name (none currently).",
+  "_comment": "Graded-fixture manifest for check-security-binding.fixtures.test.mjs. Keyed by top-level fixture filename under evals/fixtures/security-binding/. Each entry: expected checker exit (0 valid, 1 findings) and defect-naming substrings the runner asserts (stdout when exit 0, stderr when exit 1). A binding+evidence pair grades evaluation mode with the named event-array input; egress_hosts pins the --egress-hosts allow-list seam; credential_roots pins the --credential-roots deny-by-default trusted-credential-root seam. quarantined lists any fixture whose real checker behavior contradicts its name (none currently).",
   "fixtures": {
     "admission-weakened-no-justification.json": {
       "exit": 1,
@@ -15,7 +15,8 @@
     },
     "as112-v6-valid.json": {
       "exit": 0,
-      "findings_substrings": []
+      "findings_substrings": [],
+      "credential_roots": "/home/runner"
     },
     "c2-auto-unratified.json": {
       "exit": 1,
@@ -73,11 +74,13 @@
     },
     "escalation-severity-tracker-only-valid.json": {
       "exit": 0,
-      "findings_substrings": []
+      "findings_substrings": [],
+      "credential_roots": "/home/runner"
     },
     "escalation-severity-valid.json": {
       "exit": 0,
-      "findings_substrings": []
+      "findings_substrings": [],
+      "credential_roots": "/home/runner"
     },
     "evidence-contrary.json": {
       "binding": "promoted-c2.json",
@@ -85,7 +88,8 @@
       "exit": 0,
       "findings_substrings": [
         "ceiling lowered by contrary evidence"
-      ]
+      ],
+      "credential_roots": "/home/runner"
     },
     "evidence-stale.json": {
       "binding": "promoted-c2.json",
@@ -93,11 +97,13 @@
       "exit": 0,
       "findings_substrings": [
         "pre-epoch contrary event(s) ignored"
-      ]
+      ],
+      "credential_roots": "/home/runner"
     },
     "hosted-ephemeral-l3-valid.json": {
       "exit": 0,
-      "findings_substrings": []
+      "findings_substrings": [],
+      "credential_roots": "/home/runner"
     },
     "human-gated-only-no-l2.json": {
       "exit": 0,
@@ -136,7 +142,8 @@
     "multi-host-egress-valid.json": {
       "egress_hosts": "example.com,iana.org",
       "exit": 0,
-      "findings_substrings": []
+      "findings_substrings": [],
+      "credential_roots": "/home/runner"
     },
     "probe-evidence-6to4-relay.json": {
       "exit": 1,
@@ -162,12 +169,6 @@
         "records assertions.egress_denied.host \"2001:2::7\""
       ]
     },
-    "probe-evidence-bogus-credpath.json": {
-      "exit": 1,
-      "findings_substrings": [
-        "records assertions.credentials_absent.path entry \"/definitely-not-a-host-credential\""
-      ]
-    },
     "probe-evidence-bogus-metadata.json": {
       "exit": 1,
       "findings_substrings": [
@@ -184,7 +185,8 @@
       "exit": 1,
       "findings_substrings": [
         "records assertions.credentials_absent.outer_exit_code entry \"1\" for path \"/root/.ssh/id_rsa\""
-      ]
+      ],
+      "credential_roots": "/root"
     },
     "probe-evidence-credpath-code-count.json": {
       "exit": 1,
@@ -196,6 +198,41 @@
       "exit": 1,
       "findings_substrings": [
         "records assertions.credentials_absent.exit_code entry \"0\" for path \"http://169.254.169.254/metadata/instance\""
+      ],
+      "credential_roots": "/home/runner"
+    },
+    "probe-evidence-credroots-root-slash.json": {
+      "exit": 1,
+      "credential_roots": "/",
+      "findings_substrings": [
+        "does not resolve under any configured --credential-roots"
+      ]
+    },
+    "probe-evidence-credroots-case-mismatch.json": {
+      "exit": 1,
+      "credential_roots": "/home/Runner",
+      "findings_substrings": [
+        "does not resolve under any configured --credential-roots"
+      ]
+    },
+    "probe-evidence-credroots-drive-root.json": {
+      "exit": 1,
+      "credential_roots": "C:/",
+      "findings_substrings": [
+        "does not resolve under any configured --credential-roots"
+      ]
+    },
+    "probe-evidence-credroots-relative-root.json": {
+      "exit": 1,
+      "credential_roots": "secrets",
+      "findings_substrings": [
+        "does not resolve under any configured --credential-roots"
+      ]
+    },
+    "probe-evidence-credroots-unconfigured.json": {
+      "exit": 1,
+      "findings_substrings": [
+        "no --credential-roots configured"
       ]
     },
     "probe-evidence-discard-only.json": {
@@ -218,8 +255,9 @@
     },
     "probe-evidence-dot-traversal.json": {
       "exit": 1,
+      "credential_roots": "/root",
       "findings_substrings": [
-        "records assertions.credentials_absent.path entry \"/root/../var/empty/.ssh/id_rsa\""
+        "\"/root/../var/empty/.ssh/id_rsa\" does not resolve under any configured --credential-roots"
       ]
     },
     "probe-evidence-dummy-prefix.json": {
@@ -234,12 +272,6 @@
         "records assertions.egress_denied.host \"2130706433\""
       ]
     },
-    "probe-evidence-etc-descendant-credpath.json": {
-      "exit": 1,
-      "findings_substrings": [
-        "records assertions.credentials_absent.path entry \"/etc/example/credentials\""
-      ]
-    },
     "probe-evidence-expanded-loopback.json": {
       "exit": 1,
       "findings_substrings": [
@@ -249,7 +281,7 @@
     "probe-evidence-expansion-ephemeral.json": {
       "exit": 1,
       "findings_substrings": [
-        "records assertions.credentials_absent.host_expanded entry \"/tmp/.ssh/id_rsa\" for path \"$HOME/.ssh/id_rsa\""
+        "the host-side expansion sits under an ephemeral base (tmp, temp, shm)"
       ]
     },
     "probe-evidence-expansion-tail-mismatch.json": {
@@ -264,22 +296,11 @@
         "records assertions.credentials_absent.path entry \"$TOKEN\""
       ]
     },
-    "probe-evidence-generic-token.json": {
-      "exit": 1,
-      "findings_substrings": [
-        "records assertions.credentials_absent.path entry \"/tmp/token\""
-      ]
-    },
-    "probe-evidence-home-descendant-credpath.json": {
-      "exit": 1,
-      "findings_substrings": [
-        "records assertions.credentials_absent.path entry \"$HOME/scratch/credentials\""
-      ]
-    },
     "probe-evidence-host-home-mount.json": {
       "exit": 1,
+      "credential_roots": "/home/runner",
       "findings_substrings": [
-        "records assertions.credentials_absent.path entry \"/host-home/.netrc\""
+        "\"/host-home/.netrc\" does not resolve under any configured --credential-roots"
       ]
     },
     "probe-evidence-imds-http-error.json": {
@@ -302,26 +323,15 @@
     },
     "probe-evidence-invented-home-user.json": {
       "exit": 1,
+      "credential_roots": "/home/runner",
       "findings_substrings": [
-        "definitely-not-a-host-user"
-      ]
-    },
-    "probe-evidence-invented-token.json": {
-      "exit": 1,
-      "findings_substrings": [
-        "records assertions.credentials_absent.path entry \"$HOME/definitely_not_a_token\""
+        "\"/home/definitely-not-a-host-user/.ssh/id_rsa\" does not resolve under any configured --credential-roots"
       ]
     },
     "probe-evidence-ipv4-compat.json": {
       "exit": 1,
       "findings_substrings": [
         "records assertions.egress_denied.host \"::127.0.0.1\""
-      ]
-    },
-    "probe-evidence-known-hosts.json": {
-      "exit": 1,
-      "findings_substrings": [
-        "records assertions.credentials_absent.path entry \"$HOME/.ssh/known_hosts\""
       ]
     },
     "probe-evidence-l3-container.json": {
@@ -346,6 +356,13 @@
       "exit": 1,
       "findings_substrings": [
         "records assertions.egress_denied.host \"egress..example.com\""
+      ]
+    },
+    "probe-evidence-metadata-expansion-mismatch.json": {
+      "exit": 1,
+      "credential_roots": "/home/runner",
+      "findings_substrings": [
+        "a concrete entry needs no host-side expansion, so host_expanded must repeat the entry verbatim"
       ]
     },
     "probe-evidence-metadata-port.json": {
@@ -438,12 +455,6 @@
         "records substrate_class \"container\", not this binding entry's ratified substrate_class \"vm-microvm\""
       ]
     },
-    "probe-evidence-relative-credpath.json": {
-      "exit": 1,
-      "findings_substrings": [
-        "records assertions.credentials_absent.path entry \"home/.ssh\""
-      ]
-    },
     "probe-evidence-root-escape.json": {
       "exit": 1,
       "findings_substrings": [
@@ -462,46 +473,24 @@
         "records assertions.egress_denied.host \"5f00::1\""
       ]
     },
-    "probe-evidence-ssh-dir.json": {
-      "exit": 1,
-      "findings_substrings": [
-        "records assertions.credentials_absent.path entry \"$HOME/.ssh\""
-      ]
-    },
     "probe-evidence-teredo.json": {
       "exit": 1,
       "findings_substrings": [
         "records assertions.egress_denied.host \"2001::5\""
       ]
     },
-    "probe-evidence-token-substring.json": {
-      "exit": 1,
-      "findings_substrings": [
-        "records assertions.credentials_absent.path entry \"/definitely-not-a-host-token\""
-      ]
-    },
     "probe-evidence-transport-cross-type.json": {
       "exit": 1,
       "findings_substrings": [
         "records assertions.credentials_absent.transport_outcome entry \"connect-failed\" for path \"$HOME/.netrc\""
-      ]
+      ],
+      "credential_roots": "/home/runner"
     },
-    "probe-evidence-unanchored-credpath.json": {
+    "probe-evidence-unc-credpath.json": {
       "exit": 1,
+      "credential_roots": "/etc",
       "findings_substrings": [
-        "records assertions.credentials_absent.path entry \"/tmp/.ssh\""
-      ]
-    },
-    "probe-evidence-unanchored-envvar.json": {
-      "exit": 1,
-      "findings_substrings": [
-        "records assertions.credentials_absent.path entry \"$UNRELATED/.ssh\""
-      ]
-    },
-    "probe-evidence-unc-etc.json": {
-      "exit": 1,
-      "findings_substrings": [
-        "records assertions.credentials_absent.path entry \"//etc/credentials\""
+        "\"//etc/credentials\" does not resolve under any configured --credential-roots"
       ]
     },
     "probe-evidence-uri-host.json": {
@@ -518,7 +507,8 @@
     },
     "promoted-c2.json": {
       "exit": 0,
-      "findings_substrings": []
+      "findings_substrings": [],
+      "credential_roots": "/home/runner"
     },
     "promotion-nonpromotable.json": {
       "exit": 1,
@@ -558,7 +548,8 @@
     },
     "ssh-id-rsa-valid.json": {
       "exit": 0,
-      "findings_substrings": []
+      "findings_substrings": [],
+      "credential_roots": "/home/runner"
     },
     "temporal-classification-bare-string.json": {
       "exit": 1,
@@ -568,7 +559,8 @@
     },
     "temporal-classification-valid.json": {
       "exit": 0,
-      "findings_substrings": []
+      "findings_substrings": [],
+      "credential_roots": "/home/runner"
     },
     "temporal-duplicate-producer-identity.json": {
       "exit": 1,
@@ -602,7 +594,8 @@
     },
     "temporal-shared-run-link-prefix-valid.json": {
       "exit": 0,
-      "findings_substrings": []
+      "findings_substrings": [],
+      "credential_roots": "/home/runner"
     },
     "temporal-shared-source-surface.json": {
       "exit": 1,
@@ -612,7 +605,8 @@
     },
     "two-level-surface-valid.json": {
       "exit": 0,
-      "findings_substrings": []
+      "findings_substrings": [],
+      "credential_roots": "/home/runner"
     },
     "unverifiable-probe-evidence.json": {
       "exit": 1,
@@ -622,7 +616,8 @@
     },
     "valid.json": {
       "exit": 0,
-      "findings_substrings": []
+      "findings_substrings": [],
+      "credential_roots": "/home/runner"
     },
     "vendor-hosted-auto.json": {
       "exit": 1,
@@ -644,7 +639,6 @@
     "ci-pool-a-l2-as112-v6.json",
     "ci-pool-a-l2-bare-metadata.json",
     "ci-pool-a-l2-benchmarking-v6.json",
-    "ci-pool-a-l2-bogus-credpath.json",
     "ci-pool-a-l2-bogus-metadata.json",
     "ci-pool-a-l2-cred-outer-missing.json",
     "ci-pool-a-l2-cred-outer-nonzero.json",
@@ -654,26 +648,23 @@
     "ci-pool-a-l2-doc-3fff.json",
     "ci-pool-a-l2-docnet.json",
     "ci-pool-a-l2-dot-traversal.json",
+    "ci-pool-a-l2-drive-root.json",
     "ci-pool-a-l2-dummy-prefix.json",
     "ci-pool-a-l2-encoded-loopback.json",
-    "ci-pool-a-l2-etc-descendant-credpath.json",
     "ci-pool-a-l2-expanded-loopback.json",
     "ci-pool-a-l2-expansion-ephemeral.json",
     "ci-pool-a-l2-expansion-tail-mismatch.json",
     "ci-pool-a-l2-generic-env-token.json",
-    "ci-pool-a-l2-generic-token.json",
-    "ci-pool-a-l2-home-descendant-credpath.json",
     "ci-pool-a-l2-host-home-mount.json",
     "ci-pool-a-l2-id-rsa.json",
     "ci-pool-a-l2-imds-http-error.json",
     "ci-pool-a-l2-invalid-tld.json",
     "ci-pool-a-l2-invented-env-token.json",
     "ci-pool-a-l2-invented-home-user.json",
-    "ci-pool-a-l2-invented-token.json",
     "ci-pool-a-l2-ipv4-compat.json",
-    "ci-pool-a-l2-known-hosts.json",
     "ci-pool-a-l2-localhost.json",
     "ci-pool-a-l2-malformed-dns.json",
+    "ci-pool-a-l2-metadata-expansion-mismatch.json",
     "ci-pool-a-l2-metadata-port.json",
     "ci-pool-a-l2-metadata-route-boundary.json",
     "ci-pool-a-l2-metadata-route.json",
@@ -692,13 +683,9 @@
     "ci-pool-a-l2-relative-credpath.json",
     "ci-pool-a-l2-site-local-v6.json",
     "ci-pool-a-l2-srv6-sid.json",
-    "ci-pool-a-l2-ssh-dir.json",
     "ci-pool-a-l2-teredo.json",
-    "ci-pool-a-l2-token-substring.json",
     "ci-pool-a-l2-transport-cross-type.json",
-    "ci-pool-a-l2-unanchored-credpath.json",
-    "ci-pool-a-l2-unanchored-envvar.json",
-    "ci-pool-a-l2-unc-etc.json",
+    "ci-pool-a-l2-unc-credpath.json",
     "ci-pool-a-l2-uri-host.json",
     "ci-pool-a-l2-zero-exit.json",
     "ci-pool-a-l2.json",

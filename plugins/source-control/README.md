@@ -163,6 +163,7 @@ repo's owner.
 | `babysit_review_gate_context` | string | review gate treated as absent |
 | `babysit_ci_gateway_context` | string | gateway check unused |
 | `babysit_extra_bot_logins` | string (multiple) | structural bot detection only |
+| `babysit_extra_dependency_manager_logins` | string (multiple) | built-in dependabot/renovate dependency-manager set only |
 | `babysit_approval_downgrade_logins` | string (multiple) | an approval carrying blocking-looking prose is downgraded to ignored structurally (every bot); a named login instead surfaces its own as material. Real APPROVED-state reviews and plain clean approvals are ignored regardless. |
 | `babysit_skip_downgrade_logins` | string (multiple) | downgrade heuristic dormant |
 | `babysit_max_quiet_recheck_seconds` | number | 14400 |
@@ -172,6 +173,7 @@ repo's owner.
 | `babysit_worktree_root` | directory | `worktrees/` under the plugin data dir |
 | `worktree_stale_days` | number | 14 (staleness threshold for `/worktree status`) |
 | `fetch_logs_max_bytes` | number | 52428800 (CI-log ZIP size cap for `fetch-logs`) |
+| `branch_issue_pattern` | string | built-in `<type>/<N>-<slug>` (and `routine-issue-<N>`) branch-to-issue grammar; set an ERE (last capture group = the numeric GitHub issue number) for a scheme that places the number differently, e.g. `^[^/]+/([0-9]+)-` (`alice/1234-slug`) or `-([0-9]+)$` (`feat/add-widget-1234`) |
 
 The commit-subject / PR-title convention is separate: run
 **`/source-control:setup`** to interview your repo and write the

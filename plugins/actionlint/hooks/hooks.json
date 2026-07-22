@@ -7,7 +7,8 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/actionlint-check.sh",
-            "timeout": 15
+            "timeout": 15,
+            "statusMessage": "Checking workflow with actionlint..."
           }
         ]
       }

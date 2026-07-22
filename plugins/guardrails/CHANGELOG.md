@@ -3,7 +3,7 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.9.9]
+## [0.10.2]
 
 ### Fixed
 
@@ -27,7 +27,7 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   string as possibly-git — never by trusting a negative `commit`/`push` shape
   match on a scan the obfuscating construct has already mangled (the fail-open
   class fixed in #740/#903). Because the sink keys on git-presence,
-  `block-dangerous-git` fails closed on ANY git-shaped unparseable PowerShell — not
+  `block-dangerous-git` fails closed on ANY git-shaped unparsable PowerShell — not
   only commit/push — so an obfuscated `git reset --hard` / `clean -fd` /
   `checkout` cannot slip through, and its block message names those destructive
   forms rather than the commit form.
@@ -64,6 +64,54 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   the PowerShell here-string form when the call originates from the PowerShell
   tool (not a Bash heredoc), and `block-hook-bypass`'s remediation no longer
   assumes Bash.
+
+## [0.10.1]
+
+### Fixed
+
+- **`hardcoded-path-check` no longer scans when no project is active.** The
+  scope guard previously fell through and scanned unconditionally when
+  `CLAUDE_PROJECT_DIR` was unset — contradicting the README's "only police
+  files under `$CLAUDE_PROJECT_DIR`" contract — and the gitignore escape hatch
+  was gated on the same variable, so in exactly that case the one documented
+  per-file exemption was unreachable (real incident: forced `~/` rewrites onto
+  a machine-local `~/.gitconfig` edited from a no-project session). The hook
+  now skips entirely with no active project: a no-project target is
+  machine-local, not the portable repo artifact this guard protects.
+  Deliberately different from `secret-pattern-detection`, which scans even
+  without a resolvable root — secrets are dangerous anywhere. README "Consumer
+  seams" bullets updated to state the no-project behavior explicitly.
+  (Official hooks reference consulted per the fresh-docs mandate:
+  <https://code.claude.com/docs/en/hooks> — `CLAUDE_PROJECT_DIR` is "the
+  project root", with no guarantee of presence in no-project sessions.)
+
+## [0.10.0]
+
+### Added
+
+- **`statusMessage` declared on every hook's `hooks.json` handler** (9 handlers)
+  and **telemetry added to `workflow-resilience-check`**, which previously
+  emitted none — it now emits at every meaningful outcome (no-fan-out /
+  already-throttled / advisory finding), matching every sibling guardrails
+  hook (hook-observability convention, `docs/conventions/hook-observability/`).
+
+### Fixed
+
+- **Missing-`jq` degraded state is now user-visible.** `block-dangerous-git`,
+  `block-hook-bypass`, `block-no-verify`, `block-noncanonical-commit`,
+  `cli-flag-verify`, `flag-commit-pr-skill-bypass`, `hardcoded-path-check`,
+  `secret-pattern-detection`, and `workflow-resilience-check` previously wrote
+  their jq-missing notice to stderr on an exit-0 path — per the official Claude
+  Code hooks reference, exit-0 stderr is discarded entirely and was never shown
+  to the user or Claude. Each now routes through the shared `hook::require_jq`
+  helper (once-per-session `systemMessage` + `additionalContext`, matching the
+  fleet's formatter-hook convention). `cli-flag-verify`'s separate
+  bundled-verifier-missing path (install corruption) gets the same treatment,
+  previously fully silent (not even stderr).
+- **`scripts/check-silent-skips.sh` tightened**: a bare `>&2` write no longer
+  satisfies the gate's visibility requirement (it never actually satisfied the
+  doctrine — exit-0 stderr is invisible; the gate's own assumption was wrong).
+  The 9 hooks above were the only fleet sites relying on that leniency.
 
 ## [0.9.8]
 

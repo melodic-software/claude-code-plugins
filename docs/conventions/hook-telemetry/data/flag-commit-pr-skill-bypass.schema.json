@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/data/flag-commit-pr-skill-bypass.schema.json",
+  "title": "flag-commit-pr-skill-bypass telemetry data",
+  "description": "Per-hook `data` payload for the flag-commit-pr-skill-bypass advisory. Discovered from the envelope `hook` value \"flag-commit-pr-skill-bypass\". Evolves additive-only. Carries NO full command string. Status is always \"ok\" — this hook never blocks.",
+  "type": "object",
+  "required": ["tool", "subject", "forms"],
+  "additionalProperties": true,
+  "properties": {
+    "tool": {
+      "type": "string",
+      "description": "Always \"Bash\" — this advisory matches only Bash tool calls."
+    },
+    "subject": {
+      "type": "string",
+      "description": "Privacy-safe command subject `Bash:<first-token>` with leading sudo / env-assignment prefixes stripped and the token basenamed. NEVER the full command or its arguments."
+    },
+    "forms": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Bypass forms flagged (e.g. \"gh-pr-create-bypass\"). Empty array when nothing was flagged."
+    }
+  }
+}
