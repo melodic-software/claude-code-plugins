@@ -122,14 +122,18 @@ repo-specific policy of their own:
   (`claude gh dotnet docker npm kubectl terraform az aws`); override with the
   `cli_flag_verify_bins` option (`bin1,bin2,…`) and skip specific binaries
   with `cli_flag_verify_skip_bins`.
-- **Skill-availability gating.** `flag-commit-pr-skill-bypass` reads
-  `enabledPlugins` from the consuming project's own `.claude/settings.json`
-  (`.claude/settings.local.json` as an override, only for a key already present
-  in `settings.json` — CC ignores a local-only key per
-  [anthropics/claude-code#27247](https://github.com/anthropics/claude-code/issues/27247))
-  to confirm `source-control@…` is actually enabled before advising toward its
-  skills. Missing/uncertain state (no settings file, no jq, key absent) fails
-  quiet — never advises toward a skill the project doesn't have installed.
+- **Skill-availability gating.** `flag-commit-pr-skill-bypass` resolves
+  `enabledPlugins` the way Claude Code merges it across scopes — user-global
+  (`$CLAUDE_CONFIG_DIR/settings.json`, else `~/.claude/settings.json`) as the
+  base, the project's `.claude/settings.json` overriding it, and
+  `.claude/settings.local.json` overriding that (a local override counts only
+  for a key the project already declares — CC ignores a local-only key per
+  [anthropics/claude-code#27247](https://github.com/anthropics/claude-code/issues/27247)).
+  Each exact `source-control@…` key is resolved independently; if ANY resolves
+  enabled the advisory fires. So a plugin enabled **only** at user-global (a
+  common install) still triggers it — the project need not carry its own
+  `settings.json`. Missing/uncertain state (no key enabled at any scope, no jq)
+  fails quiet — never advises toward a skill that is not enabled for the session.
 
 ## Telemetry (opt-in)
 
