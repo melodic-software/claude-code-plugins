@@ -213,6 +213,33 @@ out=$(bash "$HOOK" <<<"$(command_json "git commit -m 'feat: x'")" 2>&1)
 assert_contains "block message names -F -" "$out" '-F -'
 assert_contains "block message names the skill" "$out" '/commit'
 
+# --- PowerShell tool coverage (issue #915) ------------------------------------
+# The canonical PowerShell commit form (a here-string piped to `git commit -F -`)
+# must be allowed exactly as the Bash `-F -` form is; a `-m` PowerShell commit
+# must be blocked; commit-shaped PowerShell the guard cannot parse fails closed.
+run_pwsh() {
+  local label="$1" command="$2" expected="$3" rc
+  bash "$HOOK" <<<"$(pwsh_command_json "$command")" >/dev/null 2>&1
+  rc=$?
+  assert_exit "$label" "$expected" "$rc"
+}
+run_pwsh "PS: canonical here-string | git commit -F - (allowed)" \
+  "$(printf '%s\n%s\n%s' "@'" "feat: x" "'@ | git commit -F -")" 0
+run_pwsh "PS: git commit -m here-string (blocked — not the stdin form)" \
+  "$(printf '%s\n%s\n%s' "git commit -m @'" "feat: x" "'@")" 2
+run_pwsh "PS: git commit -m literal (blocked)" "git commit -m 'feat: x'" 2
+run_pwsh "PS: git commit --amend (allowed — exempt)" "git commit --amend" 0
+run_pwsh "PS: git status (allowed — not a commit)" "git status" 0
+run_pwsh "PS: backtick-continued commit (fail-closed block)" \
+  "$(printf 'git commit -m x `\n --cleanup=verbatim')" 2
+run_pwsh "PS: unbalanced here-string hiding a -m commit (fail-closed block)" \
+  "$(printf '%s\n%s\n%s' "@'" "body" "'X ; git commit -m sneaky")" 2
+
+# The PowerShell block message shows the here-string form, not a Bash heredoc.
+psout=$(bash "$HOOK" <<<"$(pwsh_command_json "git commit -m 'x'")" 2>&1)
+assert_contains "PS block message shows the here-string form" "$psout" "'@ | git commit -F -"
+assert_absent "PS block message omits the Bash heredoc" "$psout" "<<'EOF'"
+
 echo
 echo "passed: $PASS   failed: $FAIL"
 ((FAIL == 0))

@@ -3,6 +3,38 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.9]
+
+### Fixed
+
+- **Git/commit guards are no longer bypassed via the PowerShell tool.** The
+  `block-no-verify`, `block-noncanonical-commit`, `block-dangerous-git`, and
+  `flag-commit-pr-skill-bypass` guards matched only the `Bash` tool, so the same
+  `git commit --no-verify` ran unblocked through Claude Code's opt-in PowerShell
+  tool (`CLAUDE_CODE_USE_POWERSHELL_TOOL=1`) — a bypass proven live on Windows.
+  Their PreToolUse matchers are now `Bash|PowerShell`, and a bundled classifier
+  (`lib/powershell/ps-command.sh`) reduces a PowerShell command to a
+  Bash-tokenizer-faithful form or fails closed: the canonical PowerShell commit
+  form (a here-string piped to `git commit -F -`) is allowed exactly as the Bash
+  `-F -` form is, while a `git commit`/`git push`-shaped PowerShell command
+  carrying a construct the guard cannot parse with confidence (backtick, `--%`,
+  subexpression, script-block grouping, or an unbalanced here-string) is blocked
+  rather than waved through.
+- **`block-hook-bypass` now covers the PowerShell file-write surface.**
+  `Set-Content`, `Add-Content`, `Out-File`, `Tee-Object`, and content-producer
+  `>`/`>>` redirects that bypass the Write/Edit hook gate are blocked on the
+  PowerShell tool, producer-scoped like the Bash detection (a tool's own output
+  redirect — e.g. `git diff > out.txt` — is still allowed). Scope: this closes
+  the write-GATE bypass; secret-pattern and hardcoded-path CONTENT scanning of
+  PowerShell writes remains on the `Write|Edit`-matched guards (deferred).
+
+### Changed
+
+- **Guard block messages are shell-agnostic.** `block-noncanonical-commit` shows
+  the PowerShell here-string form when the call originates from the PowerShell
+  tool (not a Bash heredoc), and `block-hook-bypass`'s remediation no longer
+  assumes Bash.
+
 ## [0.9.8]
 
 ### Fixed

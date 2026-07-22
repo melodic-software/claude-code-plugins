@@ -188,4 +188,14 @@ else
   bad "telemetry: no envelope written on advisory fire"
 fi
 
+# --- PowerShell tool coverage (issue #915) ------------------------------------
+# The advisory is matched on Bash|PowerShell. A direct `gh pr create` on the
+# PowerShell tool still fires; the same text quarantined inside a here-string
+# body is neutralized (blanked) and stays silent.
+out=$(run_hook "$(pwsh_command_json 'gh pr create --title x --body y')" "$ENABLED_PROJECT")
+assert_contains "PS: gh pr create fires" "$out" "gh pr create"
+
+out=$(run_hook "$(pwsh_command_json "$(printf '%s\n%s\n%s' "@'" "gh pr create in a message body" "'@ | git commit -F -")")" "$ENABLED_PROJECT")
+assert_silent "PS: gh pr create inside a here-string body stays silent" "$out"
+
 report

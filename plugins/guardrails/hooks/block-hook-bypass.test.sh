@@ -385,4 +385,30 @@ else
   bad "telemetry: no envelope written on block"
 fi
 
+# --- PowerShell tool coverage (issue #915) ------------------------------------
+# The guard is matched on Bash|PowerShell. PowerShell file-write forms that
+# bypass the Write/Edit gate are blocked; content-producer scoping is preserved
+# (a tool's own output redirect is allowed, matching the Bash producer scope).
+run_pwsh() {
+  local label="$1" command="$2" expected="$3" rc
+  bash "$HOOK" <<<"$(pwsh_command_json "$command")" >/dev/null 2>&1
+  rc=$?
+  assert_exit "$label" "$expected" "$rc"
+}
+run_pwsh "PS: Set-Content (blocked)" "Set-Content -Path f.txt -Value 'x'" 2
+run_pwsh "PS: Add-Content (blocked)" "Add-Content f.txt 'x'" 2
+run_pwsh "PS: Out-File (blocked)" "'secret' | Out-File creds.txt" 2
+run_pwsh "PS: Tee-Object (blocked)" "'x' | Tee-Object f.txt" 2
+run_pwsh "PS: string > file (blocked)" "'content' > file.txt" 2
+run_pwsh "PS: echo > file (blocked)" "echo hi > out.txt" 2
+run_pwsh "PS: tool output > file (allowed — producer is the tool)" "git diff > out.txt" 0
+run_pwsh "PS: redirect to \$null (allowed — discard)" "git log > \$null" 0
+run_pwsh "PS: Set-Content mentioned in quoted arg (allowed)" "echo 'run Set-Content later'" 0
+run_pwsh "PS: plain git status (allowed)" "git status" 0
+
+# The block message is shell-agnostic (no 'Bash' assumption).
+psout=$(bash "$HOOK" <<<"$(pwsh_command_json "Set-Content f.txt 'x'")" 2>&1)
+assert_contains "PS write block names Write/Edit" "$psout" "Write or Edit tool"
+assert_absent "PS write block message is shell-agnostic" "$psout" "Bash file-write"
+
 report

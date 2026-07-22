@@ -254,4 +254,21 @@ else
   bad "telemetry: no envelope written on block"
 fi
 
+# --- PowerShell tool coverage (issue #915) ------------------------------------
+# The guard is matched on Bash|PowerShell. PowerShell-simple dangerous ops are
+# caught; push-shaped PowerShell the guard cannot parse fails closed.
+run_pwsh() {
+  local label="$1" command="$2" expected="$3" rc
+  bash "$HOOK" <<<"$(pwsh_command_json "$command")" >/dev/null 2>&1
+  rc=$?
+  assert_exit "$label" "$expected" "$rc"
+}
+run_pwsh "PS: git push --force (blocked)" "git push --force" 2
+run_pwsh "PS: git reset --hard (blocked)" "git reset --hard" 2
+run_pwsh "PS: git push --force-with-lease (allowed — safe force)" "git push --force-with-lease" 0
+run_pwsh "PS: git push (plain, allowed)" "git push origin main" 0
+run_pwsh "PS: git status (allowed)" "git status" 0
+run_pwsh "PS: backtick-continued force push (fail-closed block)" \
+  "$(printf 'git push `\n --force')" 2
+
 report

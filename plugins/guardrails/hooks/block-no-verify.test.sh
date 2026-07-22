@@ -208,4 +208,30 @@ else
   bad "telemetry: no envelope written on block"
 fi
 
+# --- PowerShell tool coverage (issue #915) ------------------------------------
+# The guard is matched on Bash|PowerShell. The proven bypass must be caught on
+# the PowerShell tool; the canonical PowerShell commit form must be allowed; and
+# commit/push-shaped PowerShell the guard cannot parse must fail closed.
+run_pwsh() {
+  local label="$1" command="$2" expected="$3" rc
+  bash "$HOOK" <<<"$(pwsh_command_json "$command")" >/dev/null 2>&1
+  rc=$?
+  assert_exit "$label" "$expected" "$rc"
+}
+run_pwsh "PS: git commit --no-verify (blocked — the proven bypass)" "git commit --no-verify -m x" 2
+run_pwsh "PS: git commit -n (blocked)" "git commit -n -m x" 2
+run_pwsh "PS: git push --no-verify (blocked)" "git push --no-verify" 2
+run_pwsh "PS: canonical here-string | git commit -F - (allowed)" \
+  "$(printf '%s\n%s\n%s' "@'" "fix: x" "'@ | git commit -F -")" 0
+run_pwsh "PS: git commit -m here-string (allowed here — noncanonical's concern, no bypass)" \
+  "$(printf '%s\n%s\n%s' "git commit -m @'" "msg" "'@")" 0
+run_pwsh "PS: git status (allowed)" "git status" 0
+run_pwsh "PS: backtick-continued commit (fail-closed block)" \
+  "$(printf 'git commit `\n --no-verify')" 2
+run_pwsh "PS: unbalanced here-string hiding --no-verify (fail-closed block)" \
+  "$(printf '%s\n%s\n%s' "@'" "body" "'X | git commit --no-verify")" 2
+run_pwsh "PS: brace-grouped commit --no-verify (fail-closed block)" \
+  "& { git commit --no-verify }" 2
+run_pwsh "PS: LEFTHOOK=0 git commit (env bypass, blocked)" "LEFTHOOK=0 git commit -m x" 2
+
 report

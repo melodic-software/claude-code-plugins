@@ -49,6 +49,14 @@ source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
 
 hook::check_enabled "FLAG_COMMIT_PR_SKILL_BYPASS"
 
+# Bundled PowerShell-command classifier — this guard is matched on both the Bash
+# and the (opt-in) PowerShell tool. Resolved under the plugin root (CC sets
+# CLAUDE_PLUGIN_ROOT; the BASH_SOURCE fallback keeps the contract tests working
+# when it is unset).
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+# shellcheck source=../lib/powershell/ps-command.sh
+source "$PLUGIN_ROOT/lib/powershell/ps-command.sh"
+
 # High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;
 # on older bash it is unset, so default to empty and skip telemetry.
 start=${EPOCHREALTIME:-}
@@ -66,6 +74,14 @@ fi
 INPUT=$(hook::buffer_stdin) || exit 0
 COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null | tr -d '\r')
 [[ -n "$COMMAND" ]] || exit 0
+TOOL_NAME=$(printf '%s' "$INPUT" | jq -r '.tool_name // "Bash"' 2>/dev/null | tr -d '\r')
+# On the PowerShell tool, neutralize here-strings first so a `gh pr create`
+# mention inside message text is inert and a real invocation after a here-string
+# is still seen. Advisory-only: never blocks, so best-effort is proportionate.
+if [[ "$TOOL_NAME" == "PowerShell" ]]; then
+  ps::blank_herestrings "$COMMAND"
+  COMMAND="$PS_BLANKED"
+fi
 
 # Privacy-safe telemetry subject: `Bash:<first-token>` with leading `sudo` /
 # env-assignment prefixes stripped and the token basenamed. Never the full
@@ -82,7 +98,11 @@ bash_subject() {
   printf 'Bash:%s' "${tok##*/}"
 }
 
-SUBJECT=$(bash_subject "$COMMAND")
+if [[ "$TOOL_NAME" == "Bash" ]]; then
+  SUBJECT=$(bash_subject "$COMMAND")
+else
+  SUBJECT="$TOOL_NAME"
+fi
 
 # Emit one telemetry envelope per run. Advisory guards always report status
 # "ok" (they never block); the finding signal rides in `data.forms` — category
@@ -96,8 +116,8 @@ emit_tel() {
     forms_json=$(printf '%s\n' "${FORMS[@]}" | jq -R . | jq -s . 2>/dev/null) || forms_json="[]"
   fi
   local data
-  data=$(jq -n --arg subject "$SUBJECT" --argjson forms "$forms_json" \
-    '{tool:"Bash",subject:$subject,forms:$forms}' 2>/dev/null) ||
+  data=$(jq -n --arg tool "$TOOL_NAME" --arg subject "$SUBJECT" --argjson forms "$forms_json" \
+    '{tool:$tool,subject:$subject,forms:$forms}' 2>/dev/null) ||
     data='{"tool":"Bash","subject":"","forms":[]}'
   hook::emit_telemetry "flag-commit-pr-skill-bypass" "PreToolUse" "ok" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
