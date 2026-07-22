@@ -45,9 +45,11 @@ at preview. Backups remain the recovery boundary for user data.
 ## Requirements and platform support
 
 - Python 3.11+ available on `PATH` is required for scanning, validation, the skill-scoped guard, and
-  cleanup. Claude Code launches the guard in shell-free exec form; guarded engine calls must use the
-  same absolute interpreter reported by that guard, so Bash aliases and functions cannot replace it.
-  The plugin never downloads a runtime.
+  cleanup (the floor's single origin is the `MIN_PYTHON` constant in
+  `skills/clean/scripts/hygiene.py`; `/disk-hygiene:setup check` derives the enforced value from
+  there, so treat the number printed here as a convenience copy). Claude Code launches the guard in
+  shell-free exec form; guarded engine calls must use the same absolute interpreter reported by that
+  guard, so Bash aliases and functions cannot replace it. The plugin never downloads a runtime.
 - Git is optional for ordinary trees. If a target contains or sits inside a Git worktree, Git becomes
   required so tracked content can be proven safe; otherwise cleanup for that subtree is blocked.
 - Windows uses Python 3.11's `lstat` reparse metadata plus Win32 APIs exposed by the OS. It never

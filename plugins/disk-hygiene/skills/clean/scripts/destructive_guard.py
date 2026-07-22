@@ -290,6 +290,23 @@ def is_exact_engine_apply(command: str, authority: str | None) -> bool:
     return classify_exact_engine_command(command, authority) == "apply"
 
 
+def is_exact_kill_switch_probe(command: str) -> bool:
+    """Return True only for the exact, argument-free bundled probe invocation.
+
+    The probe (``skills/setup/scripts/kill_switch_probe.py``) is the
+    deterministic, report-only read of the ``disk_hygiene_enabled`` toggle; the
+    clean skill runs it when its body token arrives unexpanded. No arguments are
+    permitted, so the probed settings file is always the real default location.
+    """
+    tokens = _literal_shell_words(command)
+    if tokens is None or len(tokens) != 2 or not _is_current_python(tokens[0]):
+        return False
+    expected_script = str(
+        Path(__file__).resolve().parents[2] / "setup" / "scripts" / "kill_switch_probe.py"
+    )
+    return _script_path_key(tokens[1]) == _script_path_key(expected_script)
+
+
 _POWERSHELL_MUTATION_WORDS = re.compile(
     r"(?i)(?<![\w./\\-])("
     r"remove-item|rm|rmdir|del|erase|rd|ri|clear-content|rimraf|unlink"
@@ -392,6 +409,16 @@ def main() -> int:
         return 0
 
     authority = resolve_authorized_data_root()
+    if is_exact_kill_switch_probe(command):
+        print(
+            json.dumps(
+                decision(
+                    "allow",
+                    "Exact bundled disk-hygiene kill-switch probe (read-only report).",
+                )
+            )
+        )
+        return 0
     command_kind = classify_exact_engine_command(command, authority)
     if command_kind in {"scan", "preview"}:
         print(

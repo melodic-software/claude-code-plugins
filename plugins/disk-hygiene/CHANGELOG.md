@@ -3,7 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.5.1]
+## [0.6.2]
 
 ### Fixed
 
@@ -22,6 +22,49 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   root (`large_scan_reasons` reason `non-os-volume-root`), so an unbounded whole-volume walk returns
   `large-target-confirmation-required` unless bounded with `--max-depth` or confirmed with
   `--confirmed-large-scan`.
+
+## [0.6.1]
+
+### Changed
+
+- **The Python version floor now has one origin.** The "3.11+" floor was hand-maintained in at
+  least five places — `hygiene.py`'s runtime check (the real enforcement), both `.test.sh`
+  wrappers, both SKILL.md files, and the README — while the setup skill told itself to "probe
+  what they actually require, don't recite this file"; a future bump would drift the copies
+  silently. The floor is now the module-level `MIN_PYTHON` constant in `hygiene.py`: the runtime
+  check and its error message derive from it, a regression test locks the constant's greppable
+  line shape and proves enforcement uses it, both test wrappers parse it instead of restating
+  the number (failing loudly if the parse breaks), `setup check` step 1 derives the probed floor
+  from the constant, and the remaining prose mentions are annotated as pointers or convenience
+  copies of that origin.
+
+## [0.6.0]
+
+### Added
+
+- **Deterministic kill-switch probe** (`skills/setup/scripts/kill_switch_probe.py`): a report-only,
+  stdlib-only read of the configured `disk_hygiene_enabled` value from
+  `pluginConfigs[<plugin-id>].options` in the user `settings.json` (`CLAUDE_CONFIG_DIR`-aware). It
+  emits one JSON line with the `effective` boolean, its `source`
+  (`configured` / `default` / `indeterminate`), a `degraded` flag, and the matched entries. The
+  guard's Bash allowlist now permits exactly the argument-free bundled probe invocation (any
+  argument, bare `python`, or a different path stays denied).
+
+### Fixed
+
+- **`setup check` no longer reports the kill switch from an unexpanded body token.** Step 4
+  previously emitted `${user_config.disk_hygiene_enabled}` in the skill body with the rule
+  "unexpanded or empty means default `true`", so a configured `false` (audit-only mode) whose
+  token failed to expand was misreported as enabled — a false-negative on the safety-critical
+  setting the check exists to verify. Current plugin docs state non-sensitive `${user_config.*}`
+  values substitute in skill content, but a live run observed the token unexpanded, so body-token
+  expansion cannot be load-bearing for a safety report. `check` now reports the probe's
+  deterministic result with provenance, degrades honestly ("could not read the configured toggle;
+  assuming default `true`") when no definitive read is possible, and treats the body token as at
+  most a cross-check whose contradiction is reported rather than silently resolved. The `clean`
+  skill's audit-only instruction likewise stops treating an unexpanded token as "unset = enabled"
+  and resolves the toggle through the same probe; enforcement remains with the guard's
+  runtime-substituted `--disk-hygiene-enabled` hook argument (0.4.4).
 
 ## [0.5.0]
 

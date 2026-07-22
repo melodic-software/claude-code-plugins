@@ -20,6 +20,7 @@ import tempfile
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+MIN_PYTHON = (3, 11)
 SCHEMA_VERSION = 1
 MAX_SNAPSHOT_ENTRIES = 250_000
 TIERS = {"high", "medium", "low"}
@@ -1661,8 +1662,9 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     DATA_ROOT_OVERRIDE = args.data_root
     try:
-        if sys.version_info < (3, 11):
-            raise HygieneError("disk-hygiene requires Python 3.11 or newer")
+        if sys.version_info < MIN_PYTHON:
+            floor = ".".join(str(part) for part in MIN_PYTHON)
+            raise HygieneError(f"disk-hygiene requires Python {floor} or newer")
         if args.command == "scan":
             target_input = Path(args.target).expanduser().absolute()
             if (
