@@ -908,12 +908,23 @@ hook::git_resolve_subcommand() {
 # the awk child that dumps the environment has already been spawned (so an ambient var
 # named after them is still captured). awk's ENVIRON is a portable getenv view; the
 # `%c`/NUL record terminator keeps values with newlines or `=` intact.
-# shellcheck disable=SC2034  # HOOK_ENV_SNAPSHOT is consumed by hook::git_effective_config_values
+#
+# Sets HOOK_ENV_SNAPSHOT_OK=1 only when awk actually ran: the dump emits a leading
+# NUL-terminated `\1ok` sentinel (`\1` cannot begin an env-var NAME), so a missing or
+# failed awk yields no records and OK stays 0. A consumer that needs an ambient value
+# must FAIL CLOSED when OK is 0 rather than treat the empty map as "variable unset" —
+# otherwise a broken awk would silently allow every ambient --config-env alias.
+# shellcheck disable=SC2034  # HOOK_ENV_SNAPSHOT / _OK consumed by hook::git_effective_config_values
 hook::snapshot_env() {
   HOOK_ENV_SNAPSHOT=()
+  HOOK_ENV_SNAPSHOT_OK=0
   while IFS= read -r -d '' HOOK_ENV_SNAPSHOT_KV; do
+    if [[ "$HOOK_ENV_SNAPSHOT_KV" == $'\1ok' ]]; then
+      HOOK_ENV_SNAPSHOT_OK=1
+      continue
+    fi
     HOOK_ENV_SNAPSHOT["${HOOK_ENV_SNAPSHOT_KV%%=*}"]="${HOOK_ENV_SNAPSHOT_KV#*=}"
-  done < <(awk 'BEGIN { for (k in ENVIRON) printf "%s=%s%c", k, ENVIRON[k], 0 }')
+  done < <(awk 'BEGIN { printf "\1ok%c", 0; for (k in ENVIRON) printf "%s=%s%c", k, ENVIRON[k], 0 }')
   unset -v HOOK_ENV_SNAPSHOT_KV
 }
 
@@ -936,11 +947,18 @@ hook::snapshot_env() {
 # value-keyed consumer gets no spurious match; a key-keyed consumer still sees the key).
 # A malformed operand with no '=' is passed through untouched. Fills
 # HOOK_GIT_CONFIG_EFFECTIVE, aligned 1:1 with HOOK_GIT_CONFIG_VALUES. Call after
-# hook::git_resolve_index + git_resolve_subcommand, and after hook::snapshot_env.
-# shellcheck disable=SC2034  # HOOK_GIT_CONFIG_EFFECTIVE is consumed by the sourcing guard
+# hook::git_resolve_index + git_resolve_subcommand, and after hook::snapshot_env. Also
+# sets HOOK_GIT_CONFIG_UNRESOLVED=1 when an ambient value could not be resolved (awk
+# unavailable) — the guard must fail closed on it.
+# shellcheck disable=SC2034  # HOOK_GIT_CONFIG_EFFECTIVE / _UNRESOLVED consumed by the guard
 hook::git_effective_config_values() {
   HOOK_GIT_CONFIG_EFFECTIVE=()
-  local i entry kind key envvar val a
+  # Set when an env-kind (--config-env) value could NOT be resolved because the ambient
+  # snapshot is unavailable (awk missing/failed) and no command-line assignment supplied
+  # it. A consuming guard MUST fail closed (block) on this: the resolver, a security
+  # control, cannot prove the aliased subcommand is safe.
+  HOOK_GIT_CONFIG_UNRESOLVED=0
+  local i entry kind key envvar val a overridden
   for i in "${!HOOK_GIT_CONFIG_VALUES[@]}"; do
     entry="${HOOK_GIT_CONFIG_VALUES[i]}"
     kind="${HOOK_GIT_CONFIG_VALUE_KINDS[i]:-inline}"
@@ -961,13 +979,21 @@ hook::git_effective_config_values() {
       # overrode the real value and failed open. An unset name yields empty (git
       # rejects an unset --config-env variable as fatal), the safe projection.
       val="${HOOK_ENV_SNAPSHOT[$envvar]-}"
+      overridden=0
       # A command-line assignment for this variable overrides the ambient value,
       # matching what git's process actually sees; last one wins.
       if [[ -n "${HOOK_GIT_ENV_ASSIGNMENTS+x}" ]]; then
         for a in "${HOOK_GIT_ENV_ASSIGNMENTS[@]}"; do
-          [[ "$a" == "$envvar="* ]] && val="${a#*=}"
+          [[ "$a" == "$envvar="* ]] && {
+            val="${a#*=}"
+            overridden=1
+          }
         done
       fi
+      # If the value had to come from the ambient snapshot but the snapshot never ran
+      # (awk broken), we cannot know it — fail closed rather than project empty, which
+      # git would honor by reading the real ambient value and running the alias.
+      ((overridden)) || ((${HOOK_ENV_SNAPSHOT_OK:-0})) || HOOK_GIT_CONFIG_UNRESOLVED=1
       HOOK_GIT_CONFIG_EFFECTIVE+=("${key}=${val}")
     else
       HOOK_GIT_CONFIG_EFFECTIVE+=("$entry")
@@ -1019,6 +1045,19 @@ hook::git_reparse_shell_alias() {
 # shellcheck disable=SC2034  # HOOK_GIT_ENV_INHERITED / HOOK_SHELL_VARS consumed elsewhere
 hook::shell_track_persistent_env() {
   local -a w=("$@")
+  # Skip leading shell reserved words that can prefix a command in the same segment
+  # (`then export …`, `do export …`, `{ export …`), so an export inside a compound
+  # command is still seen — the tokenizer emits e.g. `then export AV=…` as one segment.
+  # Mirrors hook::git_resolve_index's reserved-word skip. A subshell `( … )` is NOT
+  # skipped: its exports do not reach the parent shell, so they must not be tracked.
+  while ((${#w[@]})); do
+    case "${w[0]}" in
+    if | then | elif | else | while | until | for | do | case | select | coproc | '{' | '}')
+      w=("${w[@]:1}")
+      ;;
+    *) break ;;
+    esac
+  done
   ((${#w[@]})) || return 0
   local arg name v s has_x=0
   case "${w[0]##*/}" in

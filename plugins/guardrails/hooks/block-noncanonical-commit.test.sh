@@ -143,6 +143,10 @@ run "shell alias carries enclosing git env into nested --config-env commit (bloc
 # command-line assignment — a pass proves the in-body export was modeled.
 run "export inside shell-alias body reaches nested --config-env commit (blocked)" \
   "git -c \"alias.sh=!export AV=commit; git --config-env=alias.c=AV c --allow-empty -m x\" sh" 2
+# The export may sit behind a compound-command reserved word (`then`/`do`); the
+# resolver skips those before spotting `export`, so git still sees the value.
+run "export after 'then' in shell-alias body (commit, blocked)" \
+  "git -c 'alias.sh=!if true; then export AV=commit; fi; git --config-env=alias.c=AV c --allow-empty -m x' sh" 2
 # An ambient env-var NAME identical to one of the resolver's own shell LOCALS must
 # still resolve to the real value: it is read from a snapshot taken at hook entry, not
 # an awk/command-substitution child that would inherit a stack `local NAME` shadowing

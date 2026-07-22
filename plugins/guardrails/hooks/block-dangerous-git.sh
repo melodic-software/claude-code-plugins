@@ -241,6 +241,16 @@ check_segment() {
     # smuggled through `git --config-env=alias.<sub>=VAR <sub>` is not read as the
     # literal "VAR" and waved through. See hook::git_effective_config_values.
     hook::git_effective_config_values
+    # Fail closed: a --config-env value needed the ambient environment but it could not
+    # be read (awk unavailable). We cannot prove the aliased subcommand is safe, so
+    # block unconditionally — the allow-list is not consulted here, as with the
+    # too-long-command path.
+    if ((${HOOK_GIT_CONFIG_UNRESOLVED:-0})); then
+      echo "BLOCKED: cannot resolve a git --config-env value (awk unavailable) — failing closed." >&2
+      echo "Install awk (gawk/mawk/busybox awk), or set the guardrails block_dangerous_git_enabled option to false to bypass." >&2
+      emit_tel "blocked" "config-env-unresolved"
+      exit 2
+    fi
     cfgv=(${HOOK_GIT_CONFIG_EFFECTIVE[@]+"${HOOK_GIT_CONFIG_EFFECTIVE[@]}"})
     # LAST value wins, matching git: `-c alias.rh=status --config-env=alias.rh=AV rh`
     # runs the later value, so a decoy earlier value (expanding to a harmless

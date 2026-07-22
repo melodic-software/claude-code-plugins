@@ -860,6 +860,19 @@ fi
 HOOK_GIT_ENV_INHERITED=()
 HOOK_SHELL_VARS=()
 
+# An `export` after a leading compound-command reserved word (`then export …`, `do
+# export …`, `{ export …`) is still tracked — the reserved words are skipped first.
+# A subshell `( … )` opener is NOT skipped (its exports do not reach the parent).
+hook::shell_track_persistent_env 'then' export AV='reset --hard'
+hook::shell_track_persistent_env 'do' export BV=commit
+if [[ "$(join_a "${HOOK_GIT_ENV_INHERITED[@]}")" == "AV=reset --hard|BV=commit" ]]; then
+  ok "shell env: export after a compound-command keyword is tracked"
+else
+  fail "shell env (compound keyword export): $(join_a "${HOOK_GIT_ENV_INHERITED[@]}")"
+fi
+HOOK_GIT_ENV_INHERITED=()
+HOOK_SHELL_VARS=()
+
 # An ambient name identical to a resolver-stack LOCAL must still resolve to the real
 # ambient value. The value is read from HOOK_ENV_SNAPSHOT (an associative array
 # populated at hook entry), not from an awk/command-substitution child — such a child
@@ -895,6 +908,39 @@ if [[ "$shape" == "one|two|three|" ]]; then
 else
   fail "git config env snapshot (name shapes): [$shape]"
 fi
+
+# hook::snapshot_env sets HOOK_ENV_SNAPSHOT_OK=1 when awk actually ran (sentinel).
+hook::snapshot_env
+if [[ "${HOOK_ENV_SNAPSHOT_OK:-0}" == "1" ]]; then
+  ok "git config: snapshot marks success when awk is available"
+else
+  fail "git config snapshot ok flag: [${HOOK_ENV_SNAPSHOT_OK:-unset}]"
+fi
+
+# Fail-closed contract: when the ambient snapshot did not run (awk unavailable) and no
+# command-line assignment supplies the value, an env-kind --config-env entry cannot be
+# resolved — HOOK_GIT_CONFIG_UNRESOLVED must flag it so the guard blocks.
+HOOK_ENV_SNAPSHOT=()
+HOOK_ENV_SNAPSHOT_OK=0
+HOOK_GIT_ENV_ASSIGNMENTS=()
+hook::git_resolve_subcommand 0 git --config-env=alias.rh=WIT_TEST_UNRES rh
+hook::git_effective_config_values
+if ((${HOOK_GIT_CONFIG_UNRESOLVED:-0})); then
+  ok "git config: unresolved ambient value (awk down) flags fail-closed"
+else
+  fail "git config unresolved flag not set when snapshot unavailable"
+fi
+# A command-line assignment resolves the value even with the snapshot down — no fail-close.
+HOOK_GIT_ENV_ASSIGNMENTS=(WIT_TEST_UNRES=commit)
+hook::git_resolve_subcommand 0 git --config-env=alias.rh=WIT_TEST_UNRES rh
+hook::git_effective_config_values
+if ((${HOOK_GIT_CONFIG_UNRESOLVED:-0})); then
+  fail "git config unresolved flag set despite a command-line assignment"
+else
+  ok "git config: command-line assignment resolves without the snapshot (no fail-close)"
+fi
+HOOK_GIT_ENV_ASSIGNMENTS=()
+hook::snapshot_env
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"

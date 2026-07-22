@@ -228,6 +228,14 @@ check_segment() {
     # `git --config-env=alias.<sub>=VAR <sub>` (VAR=commit) reads the literal "VAR"
     # as the expansion and the real subcommand slips past this guard.
     hook::git_effective_config_values
+    # Fail closed: a --config-env value needed the ambient environment but it could not
+    # be read (awk unavailable), so the aliased subcommand cannot be proven canonical.
+    if ((${HOOK_GIT_CONFIG_UNRESOLVED:-0})); then
+      echo "BLOCKED: cannot resolve a git --config-env value (awk unavailable) — failing closed." >&2
+      echo "Install awk (gawk/mawk/busybox awk), or set the guardrails block_noncanonical_commit_enabled option to false to bypass." >&2
+      emit_tel "blocked" "config-env-unresolved"
+      exit 2
+    fi
     cfgv=(${HOOK_GIT_CONFIG_EFFECTIVE[@]+"${HOOK_GIT_CONFIG_EFFECTIVE[@]}"})
     # LAST value wins, matching git: `-c alias.c=status -c alias.c=commit`
     # runs commit. Taking the first match would let a decoy earlier value

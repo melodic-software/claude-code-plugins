@@ -256,6 +256,12 @@ run "shell alias carries enclosing git env into nested --config-env (blocked)" \
 # rejects the resulting unset --config-env as fatal, so it stays allowed.
 run "export inside shell-alias body reaches nested --config-env (blocked)" \
   "git -c \"alias.sh=!export AV='reset --hard'; git --config-env=alias.rh=AV rh\" sh" 2
+# The export may sit behind a compound-command reserved word (`then`/`do`/`{`); the
+# resolver skips those before spotting `export`, so git still sees the value.
+run "export after 'then' in shell-alias body (blocked)" \
+  "git -c 'alias.sh=!if true; then export AV=\"reset --hard\"; fi; git --config-env=alias.rh=AV rh' sh" 2
+run "export after 'do' in shell-alias body (blocked)" \
+  "git -c 'alias.sh=!for x in 1; do export AV=\"reset --hard\"; done; git --config-env=alias.rh=AV rh' sh" 2
 run "export NAME promotes a bare var inside shell-alias body (blocked)" \
   "git -c \"alias.sh=!AV='reset --hard'; export AV; git --config-env=alias.rh=AV rh\" sh" 2
 run "bare unexported assignment before --config-env (allowed — git rejects unset)" \

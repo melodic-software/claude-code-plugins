@@ -75,6 +75,20 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   the lookup is a literal `declare -A` subscript, so every name shape (leading-dash,
   non-identifier, `@`/`*`, an injection-shaped `$( )`) stays exact and inert, and the
   earlier awk-pivot-key collision (`__HOOK_CE_NAME`) is gone with the child.
+- **`export` behind a compound-command keyword is now tracked (`#740`).** The shell-alias
+  export modeling saw a segment beginning with a reserved word (`then export AV=…`,
+  `do export AV=…`, `{ export AV=…`) as the keyword rather than `export`, so
+  `git -c 'alias.sh=!if true; then export AV="reset --hard"; fi; git --config-env=alias.rh=AV rh' sh`
+  ran the alias while the guard resolved `AV` as unset — a fail-open. The tracker now skips
+  leading reserved words before identifying an environment-setting builtin (a subshell
+  `( … )` opener is deliberately not skipped — its exports do not reach the parent shell).
+- **`--config-env` resolution fails closed when `awk` is unavailable (`#740`).** The ambient
+  snapshot needs `awk`; if it is missing or fails, the snapshot used to be empty and an
+  ambient name resolved to "" — silently allowing every ambient `--config-env` alias while
+  git still read the real value. `hook::snapshot_env` now records whether it ran, and a
+  `--config-env` value that needs the ambient environment but cannot be resolved (and was
+  not supplied by a command-line assignment) sets `HOOK_GIT_CONFIG_UNRESOLVED`; both guards
+  block on it rather than treat it as an unset variable.
 
 ## [0.9.5]
 
