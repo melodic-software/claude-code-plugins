@@ -49,7 +49,9 @@ for mem in "$projects_root"/*/memory; do
   found=$((found + 1))
   # No -f pre-check: a file deleted between check and read (concurrent purge) must
   # degrade to "absent", never emit a malformed empty field in the tab contract.
-  lines=$(wc -l <"$mem/MEMORY.md" 2>/dev/null | tr -d ' \r') || true
+  # 2>/dev/null BEFORE the input redirection: redirections apply left to right, so a
+  # missing file's shell error is silenced (the other order prints it before wc runs).
+  lines=$(wc -l 2>/dev/null <"$mem/MEMORY.md" | tr -d ' \r') || true
   [[ -n "$lines" ]] || lines="absent"
   # Null-delimited count — a filename with an embedded newline must count once.
   topics=0
