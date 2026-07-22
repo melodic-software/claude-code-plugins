@@ -130,13 +130,39 @@
       "id": 11,
       "name": "pr-body-attribution-opt-out-suppressed",
       "prompt": "/pull-request create from branch feat/512-add-widget. Assemble and create the PR.",
-      "expected_output": "With .claude/source-control.md declaring `pr_body_attribution: none`, the skill resolves that key across the three source-control.md layers (per reference/config-resolution.md, the same seam /commit's trailer_policy uses) and omits the `🤖 Generated with [Claude Code]…` attribution line from the assembled PR body entirely — the ATTRIBUTION value resolves to empty and the trailing concat is skipped. The `## Summary`, `## Test plan`, and `## Related` sections and the `${CLOSES_LINE}` closing keyword are unaffected. trailer_policy is a separate key: this opt-out governs only the PR body, not the commit trailer.",
+      "expected_output": "With .claude/source-control.md declaring `pr_body_attribution: none`, the skill resolves that key across the three source-control.md layers (per reference/config-resolution.md, the same seam /commit's trailer_policy uses) and omits the `🤖 Generated with [Claude Code]…` attribution line from the assembled PR body entirely — the ATTRIBUTION value resolves to empty and the trailing concat is skipped. The `## Summary` / `## Test plan` section scaffold (the portable default, since this fixture sets no pr_body_required_sections) and the `${CLOSES_LINE}` closing keyword are unaffected. trailer_policy is a separate key: this opt-out governs only the PR body, not the commit trailer.",
       "files": [".claude/source-control.md"],
       "expectations": [
         "pr_body_attribution: none from .claude/source-control.md is honored: the PR body carries no `🤖 Generated with [Claude Code]…` attribution line",
         "The suppression is driven by resolving pr_body_attribution across the source-control.md layers, not by editing the plugin",
-        "The rest of the PR body (Summary, Test plan, Related, and the closing-keyword line) is assembled unchanged",
+        "The rest of the PR body (the Summary/Test plan section scaffold and the closing-keyword line) is assembled unchanged",
         "Suppressing the PR-body attribution is treated as independent of trailer_policy — the opt-out targets only the PR body"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "pr-body-required-sections-portable-default",
+      "prompt": "/pull-request create from branch feat/512-add-widget — no source-control.md config file exists in this repo. Assemble and create the PR.",
+      "expected_output": "With no source-control.md layer setting pr_body_required_sections, the skill resolves the bundled portable default: exactly `Summary` and `Test plan` are required. The assembled body carries `## Summary` and `## Test plan` with real content and no `## Related` section (the portable default excludes it — see docs/conventions/pr-body-convention/README.md), unless the branch/prompt flow produced genuine Refs references, in which case an ad hoc `## Related` section carries them without being treated as required. The §2.4.2.2 gate passes because both required sections are present and non-empty; it does not fail merely because `## Related` is absent.",
+      "files": [],
+      "expectations": [
+        "No source-control.md layer sets pr_body_required_sections, so the plugin's portable default (Summary, Test plan) governs",
+        "The assembled body does not include a `## Related` section unless genuine Refs references exist to carry",
+        "The §2.4.2.2 required-section gate passes without requiring `## Related` under the portable default",
+        "Summary and Test plan sections contain real content, not literal placeholder text"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "pr-body-required-sections-gate-blocks-missing-section",
+      "prompt": "/pull-request create from branch feat/900-add-endpoint. The team's source-control.md config is captured in evals/fixtures/source-control-required-related.md relative to the skill directory (declares pr_body_required_sections: Summary, Test plan, Related). Assemble the PR body but the drafted body is missing a `## Related` section.",
+      "expected_output": "The §2.4.2.2 pre-create gate blocks `gh pr create` because the resolved pr_body_required_sections list (team layer) includes Related and the assembled body has no `## Related` section. The failure message names `Related` as the exact missing section and cites the resolved config source (the team-layer source-control.md file and the pr_body_required_sections key) so the actor knows where to add the section or where the convention is declared. PR creation does not proceed until the section is added.",
+      "files": ["evals/fixtures/source-control-required-related.md"],
+      "expectations": [
+        "The gate blocks PR creation rather than proceeding with a body missing a required section",
+        "The failure message names Related as the exact missing section, not a generic 'PR body invalid' message",
+        "The failure message points at the resolved config source (file path/layer and the pr_body_required_sections key)",
+        "The closing-keyword check (§2.4.2.1) is unaffected — this is a separate, independent gate"
       ]
     }
   ]

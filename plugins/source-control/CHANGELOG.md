@@ -3,6 +3,37 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.0]
+
+### Added
+
+- **Configurable PR-body required-sections scaffold (`pr_body_required_sections`, #975).** A new key
+  on `.claude/source-control.md`, resolved across the same three layers as every other key on that
+  surface (per-key, whole-list override) — see
+  [`reference/config-resolution.md`](reference/config-resolution.md). `/pull-request create` builds
+  one `## <heading>` block per resolved section and a new §2.4.2.2 pre-create gate blocks
+  `gh pr create` when any required section is missing or empty, naming the exact section and the
+  resolved config source (winning layer's file + the key) in its failure message. Absent everywhere
+  → the bundled portable default: `Summary` and `Test plan` only (research-grounded across GitHub's
+  own guidance, Google's CL-description doc, GitLab's dogfooded default template, and a cross-section
+  of OSS PR templates — see
+  [`docs/conventions/pr-body-convention/README.md`](../../docs/conventions/pr-body-convention/README.md)).
+  A marketplace-level owner doc lands now, ahead of a future CI/enforcement consumer, following the
+  commit-convention seam's two-reads prior art.
+
+### Changed
+
+- **The assembled PR body no longer includes `## Related` by default.** Previously hardcoded and
+  always emitted (defaulting to the literal `N/A`); a `Related` section presumes an issue-tracking
+  convention the plugin cannot assume for every consumer, so it moves to configuration
+  (`pr_body_required_sections` including `Related`) — the two-lane convention posture the fleet
+  already applies elsewhere. A repo that wants the prior behavior declares `Related` in its own
+  `pr_body_required_sections`. The closing-keyword line and its own pre-create gate (§2.4.2.1,
+  formerly the whole of §2.4.2) are unaffected — this is a scaffold-content change only, never a
+  linkage-signal change. When the multi-issue or orphan-PR flow collects genuine `Refs #Y`
+  references, a `## Related` section is still emitted ad hoc to carry them, even when the repo has
+  not configured it as required.
+
 ## [0.17.0]
 
 ### Added

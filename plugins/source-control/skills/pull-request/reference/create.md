@@ -149,6 +149,8 @@ Fill `<branch-issue-pattern>` with the resolved ERE. Its last capture group must
 
 ```bash
 CLOSES_LINE=""
+REFS_LINES=""  # newline-separated `Refs #Y — <why>` lines, populated by the multi-issue or
+                # orphan-PR prompts below; never a closing keyword — see §2.4.1 for routing.
 if [[ -n "$ISSUE_NUM" ]]; then
   # Validate issue exists in current repo BEFORE shipping `Closes #N`.
   # GitHub auto-close only fires when the issue exists, lives in this repo,
@@ -171,14 +173,14 @@ fi
 
 > *"This PR closes #N. Any other issues to close on merge? List them one per line (`Closes #X`), use `Refs #Y` to link without closing, or `no` to skip."*
 
-Append each accepted `Closes #X` line to `${CLOSES_LINE}` (newline-separated); route each `Refs #Y` line into the `## Related` section instead (§2.4.1, replacing its `N/A`), never onto the closing-keyword line — the same rule the orphan-PR and `## Related` guidance below apply to every non-closing reference. GitHub accepts one keyword per issue, comma- or newline-separated.
+Append each accepted `Closes #X` line to `${CLOSES_LINE}` (newline-separated); collect each accepted `Refs #Y` line into `${REFS_LINES}` instead, never onto the closing-keyword line — §2.4.1 routes `${REFS_LINES}` into a `## Related` section (required by resolved config, or emitted ad hoc when non-empty and not required — see §2.4.1's section-scaffold resolution). GitHub accepts one keyword per issue, comma- or newline-separated.
 
 **Branch lacks issue number (orphan PR — drift sweep, hotfix, refactor):** prompt with two options:
 
 1. `Closes #<N>` — provide a number to auto-close on merge
 2. `No related issue: <reason>` — orphan PR, no linkage
 
-To reference an issue this PR does **not** close, put a `Refs #N — <why>` line in the `## Related` section (§2.4.1), not on the closing-keyword line: a bare `Refs #N` satisfies neither the §2.4.2 pre-create gate nor the real `pr-issue-linkage` validator's closing-keyword half, so such a PR still picks one of the two options above.
+To reference an issue this PR does **not** close, collect a `Refs #N — <why>` line into `${REFS_LINES}` (§2.4.1), not the closing-keyword line: a bare `Refs #N` satisfies neither the §2.4.2 pre-create gate nor the real `pr-issue-linkage` validator's closing-keyword half, so such a PR still picks one of the two options above.
 
 Persist chosen line(s) into `${CLOSES_LINE}`. NEVER wrap a closing keyword in an HTML comment — `<!-- Closes #N -->` is parsed as a valid keyword and will auto-close the issue on merge. Fenced code blocks ARE inert, so example snippets are safe.
 
@@ -200,33 +202,53 @@ Persist chosen line(s) into `${CLOSES_LINE}`. NEVER wrap a closing keyword in an
 bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/push-branch.sh" || exit 1
 ```
 
-Derive PR title from the commit subject, shaped to satisfy the resolved subject/title convention (the ladder in [SKILL.md](../SKILL.md): layered `source-control.md` config → project convention → Conventional Commits default). Build body with `${CLOSES_LINE}` at top, followed by Summary + Test plan + a `## Related` section + a config-gated attribution line:
+Derive PR title from the commit subject, shaped to satisfy the resolved subject/title convention (the ladder in [SKILL.md](../SKILL.md): layered `source-control.md` config → project convention → Conventional Commits default). Build body with `${CLOSES_LINE}` at top, followed by the resolved section scaffold and a config-gated attribution line.
+
+**Resolve the required section scaffold first.** Read `pr_body_required_sections` across the three `source-control.md` layers per [../../../reference/config-resolution.md](../../../reference/config-resolution.md) (per-key override — a winning layer's list is taken whole, never merged with an earlier layer's). Absent everywhere → the bundled portable default, `Summary` and `Test plan` only (no `Related` — see [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md) for why the portable default excludes it). Track which file/layer supplied the effective list — the §2.4.2 gate cites it verbatim on failure.
 
 ```bash
-# Quoted heredoc — body template is inert; nothing inside expands.
-# Safe even if surrounding template prose contains $vars or $(cmds).
-TEMPLATE=$(cat <<'EOF'
-## Summary
-...
+# REQUIRED_SECTIONS: resolved at the model level from the three source-control.md layers'
+# `## pr_body_required_sections` bullet lists (one heading per `- ` line), per-key whole-list
+# override. Shown here with the portable default; a resolved config layer replaces both the
+# array and the source string wholesale.
+REQUIRED_SECTIONS=("Summary" "Test plan")
+REQUIRED_SECTIONS_SOURCE="plugin default (no source-control.md layer sets pr_body_required_sections)"
+# When a layer resolves the key, e.g.:
+#   REQUIRED_SECTIONS=("Summary" "Test plan" "Related")
+#   REQUIRED_SECTIONS_SOURCE="<repo-root>/.claude/source-control.md, ## pr_body_required_sections (team layer)"
+```
 
-## Test plan
-- ...
+Build one `## <heading>` block per entry in `${REQUIRED_SECTIONS[@]}`, real content in each — never
+literal placeholder text. `Related` and `Test plan` get their established defaults when nothing more
+specific applies (`Related` → the literal `N/A`; `Test plan` → verification steps actually taken); any
+other heading (including a repo-declared custom one) gets content matching what that heading names, the
+same way `Summary` already does. If `${REFS_LINES}` (collected in §2.4.0) is non-empty and `Related` is
+**not** in `${REQUIRED_SECTIONS[@]}`, still append a `## Related` section carrying those lines — real
+user-supplied content is never dropped — but do **not** add it to `${REQUIRED_SECTIONS[@]}`: an ad hoc
+`Related` section is present only because it has real content, and the §2.4.2 gate must never come to
+require a section the resolved config does not list.
 
-## Related
-N/A
-EOF
-)
+```bash
+# Quoted heredoc segments — inert; nothing inside expands. Safe even if a heading's
+# real content contains $vars or $(cmds).
+TEMPLATE=""
+for section in "${REQUIRED_SECTIONS[@]}"; do
+  TEMPLATE+="## ${section}"$'\n\n'"<real content for ${section}>"$'\n\n'
+done
+if [[ -n "$REFS_LINES" ]] && ! printf '%s\n' "${REQUIRED_SECTIONS[@]}" | grep -qx "Related"; then
+  TEMPLATE+="## Related"$'\n\n'"${REFS_LINES}"$'\n\n'
+fi
 
 # Resolve the PR-body attribution line from the `pr_body_attribution` key across
-# the three source-control.md layers (../../reference/config-resolution.md), the
+# the three source-control.md layers (../../../reference/config-resolution.md), the
 # same seam `/commit`'s `trailer_policy` uses for the commit trailer. Absent → the
 # default line (current behavior — existing consumers are unaffected); a value of
 # `none` → omit the line; any other value → that literal line. Resolve the effective
 # value at the model level and bake it in as literal text below; do NOT reference it
-# as an unexpanded shell var inside the quoted heredoc (a quoted heredoc emits
-# `${ATTRIBUTION}` verbatim), and do NOT switch the heredoc to unquoted `<<EOF` to
-# force expansion — that would re-evaluate the whole body and reopen the injection
-# hole this section is built to close.
+# as an unexpanded shell var inside a quoted heredoc segment (it would emit
+# `${ATTRIBUTION}` verbatim), and do NOT switch to an unquoted `<<EOF` to force
+# expansion — that would re-evaluate the whole body and reopen the injection hole
+# this section is built to close.
 ATTRIBUTION='🤖 Generated with [Claude Code](https://claude.com/claude-code)'  # key absent → default
 # pr_body_attribution: none         -> ATTRIBUTION=""            (omit the line)
 # pr_body_attribution: <custom text> -> ATTRIBUTION='<that text>'  (SINGLE-quoted, NEVER
@@ -240,31 +262,35 @@ ATTRIBUTION='🤖 Generated with [Claude Code](https://claude.com/claude-code)' 
 
 # Concat CLOSES_LINE in front of TEMPLATE and ATTRIBUTION after it, via bash
 # parameter expansion. Parameter expansion of "${VAR}" does NOT re-evaluate the
-# expanded value — if CLOSES_LINE contains literal "$(rm -rf ~)" (e.g. user typed
-# it into the orphan-PR or multi-issue prompt), or ATTRIBUTION carries a configured
-# `$`-bearing custom line, it stays a literal string and is never executed. This is
-# the defense against shell injection through user-supplied prompt input and
-# configured text.
+# expanded value — if CLOSES_LINE or REFS_LINES contains literal "$(rm -rf ~)" (e.g.
+# user typed it into the orphan-PR or multi-issue prompt), or ATTRIBUTION carries a
+# configured `$`-bearing custom value, it stays a literal string and is never
+# executed. This is the defense against shell injection through user-supplied
+# prompt input and configured text.
 BODY=""
 [[ -n "$CLOSES_LINE" ]] && BODY="${CLOSES_LINE}"$'\n\n'
 BODY+="$TEMPLATE"
 [[ -n "$ATTRIBUTION" ]] && BODY+=$'\n\n'"$ATTRIBUTION"
 ```
 
-**Why quoted heredoc + concat (not `<<EOF`):** unquoted heredoc `<<EOF` evaluates `$(...)`, `${...}`, and `` `...` `` *inside the body content itself* (POSIX heredoc semantics — `<<EOF` is treated as if double-quoted). If `${CLOSES_LINE}` ever contains shell-meta from interactive prompt input, or `${ATTRIBUTION}` carries a configured custom line, an unquoted heredoc would execute it. Quoted `<<'EOF'` is inert; splicing `${CLOSES_LINE}` and `${ATTRIBUTION}` via parameter expansion + concat keeps both as literal text. The attribution line is deliberately spliced *outside* the heredoc rather than embedded inside it so that a `pr_body_attribution` value resolved from config never re-enters shell evaluation.
+**Why quoted heredoc segments + concat (not a single `<<EOF`):** unquoted heredoc `<<EOF` evaluates `$(...)`, `${...}`, and `` `...` `` *inside the body content itself* (POSIX heredoc semantics — `<<EOF` is treated as if double-quoted). If `${CLOSES_LINE}` or `${REFS_LINES}` ever contains shell-meta from interactive prompt input, or `${ATTRIBUTION}` carries a configured custom line, an unquoted heredoc would execute it. Quoted heredoc content is inert; splicing `${CLOSES_LINE}`, the per-section content, `${REFS_LINES}`, and `${ATTRIBUTION}` via parameter expansion + concat keeps all of it as literal text. The attribution line is deliberately spliced *outside* any heredoc rather than embedded inside one so that a `pr_body_attribution` value resolved from config never re-enters shell evaluation.
 
-`gh pr create --body` fully overrides `.github/PULL_REQUEST_TEMPLATE.md` (cli/cli #10751) — body assembly above is the canonical path for skill-driven PRs; the template is the web-UI backstop. When the consuming project ships a PR template, mirror its section shape in the assembled body.
+`gh pr create --body` fully overrides `.github/PULL_REQUEST_TEMPLATE.md` (cli/cli #10751) — body assembly above is the canonical path for skill-driven PRs; the template is the web-UI backstop. When the consuming project ships a PR template, mirror its section shape in the assembled body (or, better, express it as the project's own `pr_body_required_sections` — see [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md)).
 
-**Linkage scaffolds — always emitted.** Two scaffolds mirror the two-part contract a `pr-issue-linkage`-style gate enforces (a non-empty `## Related` section AND a native GitHub closing keyword or `No related issue:` opt-out), so a skill-driven PR clears that gate on first push instead of burning a red-CI round-trip:
+**Linkage scaffolds — always emitted, independent of the section scaffold.** The closing-keyword line and the section scaffold are two separate mechanisms that happen to compose on the same body:
 
-- **Closing-keyword line** (`${CLOSES_LINE}` at top): always populated by §2.4.0 (branch-derived `Closes #N`, the multi-issue prompt, or the orphan-PR opt-out) and asserted by the §2.4.2 gate before create — a required, always-present scaffold, not a conditional decoration.
-- **`## Related` section**: defaults to the literal `N/A` so the section is non-empty by default. Replace `N/A` with genuinely related-but-not-closed references — sibling PRs, ADRs, or decision-log entries (`Refs #N — <why>`, matching the repo's own `## Related` convention) — whenever they exist; leave `N/A` only when nothing else applies. The issue this PR *closes* belongs on the closing-keyword line, not here.
+- **Closing-keyword line** (`${CLOSES_LINE}` at top): always populated by §2.4.0 (branch-derived `Closes #N`, the multi-issue prompt, or the orphan-PR opt-out) and asserted by the §2.4.2 gate before create — a required, always-present scaffold, not a conditional decoration, and entirely independent of `pr_body_required_sections`.
+- **`## Related` section**: present when `Related` is in the resolved `${REQUIRED_SECTIONS[@]}` (defaults to the literal `N/A`, replaced by `${REFS_LINES}` when genuinely related-but-not-closed references exist — sibling PRs, ADRs, decision-log entries), or ad hoc when `${REFS_LINES}` is non-empty even though `Related` is not required. Absent in the portable default (no config) with no genuine refs to carry. The issue this PR *closes* belongs on the closing-keyword line, not here, in every case.
 
-A `Refs #N` line links an issue without closing it and belongs in the `## Related` section, never on the closing-keyword line: it satisfies the closing-keyword half of **neither** the §2.4.2 pre-create gate nor the real `pr-issue-linkage` validator — only a real closing keyword or a literal `No linked issue` / `No related issue:` phrase does. When the branch resolves a real `Closes #N` (the common path) both halves pass; a PR that closes nothing needs a `No related issue:` line to clear the gate.
+A `Refs #N` line links an issue without closing it and never belongs on the closing-keyword line: it satisfies the closing-keyword half of **neither** the §2.4.2 pre-create gate nor the real `pr-issue-linkage` validator — only a real closing keyword or a literal `No linked issue` / `No related issue:` phrase does. When the branch resolves a real `Closes #N` (the common path) both halves pass; a PR that closes nothing needs a `No related issue:` line to clear the gate.
 
-### 2.4.2 Verify closing-keyword line (pre-create gate)
+### 2.4.2 Pre-create gate
 
-Before invoking `gh pr create`, grep assembled `$BODY` for a valid closing keyword OR an opt-out marker. Catches branches where §2.4.0 fell through (issue-existence check failed without orphan-PR prompt running, user dismissed the prompt, `$CLOSES_LINE` is empty) and prevents shipping a PR with no linkage signal.
+Before invoking `gh pr create`, run two independent checks against assembled `$BODY`: the closing-keyword check (unchanged, existing mechanism) and the required-section check (new, generic — reads `pr_body_required_sections`, never a hardcoded section list). Both must pass.
+
+#### 2.4.2.1 Verify closing-keyword line
+
+Grep assembled `$BODY` for a valid closing keyword OR an opt-out marker. Catches branches where §2.4.0 fell through (issue-existence check failed without orphan-PR prompt running, user dismissed the prompt, `$CLOSES_LINE` is empty) and prevents shipping a PR with no linkage signal.
 
 ```bash
 # Case-insensitive — covers ALL 9 valid keywords (close/closes/closed/fix/
@@ -293,6 +319,35 @@ fi
 ```
 
 When user explicitly selected `No related issue: <reason>` in §2.4.0, the gate passes silently — the opt-out is a legitimate path for refactors, drift sweeps, and hotfixes. Gate exists to catch the case where §2.4.0 fell through without populating `$CLOSES_LINE`.
+
+#### 2.4.2.2 Verify required sections (config-driven)
+
+For every heading in `${REQUIRED_SECTIONS[@]}` (resolved in §2.4.1 from `pr_body_required_sections`, or the portable default), confirm a `## <heading>` section exists in `$BODY` **and** its body is non-empty. This is a generic mechanism — it verifies whatever the resolved config lists, never a section name baked into this skill. Deferred beyond presence + non-empty (per [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md)): placeholder-text detection (`TBD`/`TODO`/a restated heading) and per-section min-content rules — `standards#173`.
+
+```bash
+MISSING_SECTIONS=()
+for section in "${REQUIRED_SECTIONS[@]}"; do
+  # Everything after "## <section>" up to the next "## " heading or end of body.
+  SECTION_BODY=$(printf '%s\n' "$BODY" | awk -v h="## ${section}" '
+    $0==h {found=1; next}
+    found && /^## / {exit}
+    found {print}
+  ')
+  if [[ -z "$(printf '%s' "$SECTION_BODY" | tr -d '[:space:]')" ]]; then
+    MISSING_SECTIONS+=("$section")
+  fi
+done
+
+if [[ ${#MISSING_SECTIONS[@]} -gt 0 ]]; then
+  echo "⚠ PR body is missing required section(s): ${MISSING_SECTIONS[*]}" >&2
+  echo "  Required sections resolved from: ${REQUIRED_SECTIONS_SOURCE}" >&2
+  echo "  Add each missing '## <heading>' with real content, then re-run create." >&2
+  echo "  Aborting PR creation. (Silent proceed would ship a body that fails the same check downstream.)" >&2
+  exit 1
+fi
+```
+
+The message names the exact missing heading(s) and the resolved config source (§2.4.1's `${REQUIRED_SECTIONS_SOURCE}` — the winning layer's file path, or the plugin default when no layer sets the key), so an actor who never saw the convention learns where it lives from the failure itself.
 
 ### 2.4.3 Create PR
 
