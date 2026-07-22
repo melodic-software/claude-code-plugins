@@ -7,7 +7,7 @@
       "L2": {
         "substrate": "egress-denied-container-pool",
         "substrate_class": "container",
-        "probe_evidence": "probe-transcripts/ci-pool-a-l2-known-hosts.json",
+        "probe_evidence": "probe-transcripts/ci-pool-a-l2-drive-root.json",
         "runtime_markers": {
           "runner-pool": "ci-pool-a",
           "region": "us-east"

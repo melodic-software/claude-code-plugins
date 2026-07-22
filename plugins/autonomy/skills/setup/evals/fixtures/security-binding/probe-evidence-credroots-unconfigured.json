@@ -7,7 +7,7 @@
       "L2": {
         "substrate": "egress-denied-container-pool",
         "substrate_class": "container",
-        "probe_evidence": "probe-transcripts/ci-pool-a-l2-unc-etc.json",
+        "probe_evidence": "probe-transcripts/ci-pool-a-l2-id-rsa.json",
         "runtime_markers": {
           "runner-pool": "ci-pool-a",
           "region": "us-east"
