@@ -3,7 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.6.2]
+## [0.6.3]
 
 ### Fixed
 
@@ -22,6 +22,27 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   root (`large_scan_reasons` reason `non-os-volume-root`), so an unbounded whole-volume walk returns
   `large-target-confirmation-required` unless bounded with `--max-depth` or confirmed with
   `--confirmed-large-scan`.
+
+## [0.6.2]
+
+### Fixed
+
+- **Windows platform posture no longer reads as if the engine deletes there.** `setup check`'s
+  platform-posture step said "Windows (full, `lstat` reparse + Win32, never UAC)", but "full"
+  described only the audit lane — `clean`'s preview returns `execution-platform-unsupported` on
+  Windows and removal is a manual Recycle-Bin handoff. The posture line (and the README's Windows
+  bullet) now keeps the lanes visibly separate: full **audit**; engine **execution unsupported**;
+  manual, per-path Recycle-Bin handoff after explicit approval. macOS gains the matching manual
+  Trash note.
+- **"Skill-scoped guard" wording now says what the scope means.** The `destructive_guard.py`
+  PreToolUse hook is registered in the `clean` skill's frontmatter and fires only within that
+  skill's context; setup's own probes and any direct `hygiene.py` invocation rely on the engine's
+  built-in containment, not the hook. One clause in `setup check` step 1 and the README
+  requirements bullet now states this instead of implying always-on protection.
+- **The security review's Configuration bullet no longer claims "no `userConfig`".** That claim
+  has been stale since 0.3.0 introduced the `disk_hygiene_enabled` toggle; the bullet now
+  describes the actual surface (one non-sensitive boolean that can only narrow the destructive
+  surface) with the review conclusion unchanged.
 
 ## [0.6.1]
 
