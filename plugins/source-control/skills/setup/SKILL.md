@@ -48,12 +48,20 @@ single layer's value as the effective convention; a reader who cannot see which 
 tell why `/commit` behaves as it does.
 
 ```text
-key                 value                       won by
-subject_pattern     ^[A-Z]+-\d+: .+             team
-pr_title_pattern    Same as subject_pattern      team
-trailer_policy      none                         local overlay
-pr_body_attribution none                         local overlay
+key                        value                       won by
+subject_pattern            ^[A-Z]+-\d+: .+             team
+pr_title_pattern           Same as subject_pattern      team
+trailer_policy             none                         local overlay
+pr_body_attribution        none                         local overlay
+pr_body_required_sections  Summary, Test plan           plugin default
 ```
+
+`pr_body_required_sections` is a **list**-valued key (like `type_list`, and unlike every scalar row
+above it) — render it comma-joined for this report regardless of how many lines the winning layer's
+file spells it across. When every layer leaves it unset, the row still resolves — to the plugin's
+portable default, `Summary` and `Test plan` — so `won by` reads `plugin default` rather than the row
+going blank; this is the one key whose "no layer sets it" state is itself a reportable, named value,
+not a bare absence.
 
 Per-layer verdicts:
 
@@ -222,6 +230,16 @@ With no argument in an interactive session, run the interview:
      `trailer_policy: none` still keeps the PR-body line unless this is also set). Recommend keeping the
      default `🤖 Generated with [Claude Code]…` line unless the user wants a custom line or `none` to
      omit it. Omit this section entirely to keep the default.
+   - **`pr_body_required_sections`** (optional) — the required `## <heading>` section scaffold
+     `/pull-request create` drafts and pre-checks before opening a PR (one bullet per heading; see
+     [config-resolution.md](../../reference/config-resolution.md) and
+     [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md)).
+     **RECOMMENDED: keep the plugin's own portable default** (`Summary`, `Test plan`) — this interview
+     must not suggest a `Related`/linked-issue section, or any other specific organization's list, as
+     if it were a universal default; a linked-issue section presumes an issue-tracker convention this
+     plugin cannot assume for every repo. Ask what the repo's actual convention requires (a PR
+     template, a CI gate like `pr-issue-linkage`, team practice) rather than proposing one, and write
+     only what the repo genuinely needs. Omit this section entirely to keep the portable default.
 5. **Write the config.** Materialize the target layer's path with these sections:
 
    ```markdown
@@ -259,6 +277,14 @@ With no argument in an interactive session, run the interview:
 
    <only present if the repo overrides the default PR-body attribution line — a custom line, or
    `none` to omit it>
+
+   ## pr_body_required_sections
+
+   <only present if the repo's required-section scaffold differs from the plugin's portable default
+   (Summary, Test plan) — a flat bullet list, one `- <H2 heading>` per line, e.g.:
+   - Summary
+   - Test plan
+   - Related>
    ```
 
    Drop any section with no content rather than leaving it empty. Writing a non-`team` layer, add one

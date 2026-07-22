@@ -3,6 +3,21 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.0]
+
+### Added
+
+- **`/source-control:setup` now covers `pr_body_required_sections` (#1032, completing #975's
+  adoption path).** `check` reports the key's effective value across all three layers — a
+  `pr_body_required_sections` row on the effective-configuration table, resolving to the plugin's
+  portable default (`Summary`, `Test plan`) with `won by: plugin default` when no layer sets it,
+  rather than a blank row. `apply`'s interview offers setting it and the written-config template
+  gains the matching `## pr_body_required_sections` section, at parity with every other per-key
+  surface (`subject_pattern`, `pr_title_pattern`, `trailer_policy`, `pr_body_attribution`). The
+  interview deliberately recommends only the plugin's own portable default and never proposes a
+  `Related`/linked-issue section or any other organization-specific list — asking what the repo's
+  actual convention requires, never inventing one, per the plugin's Two-lane convention posture.
+
 ## [0.18.0]
 
 ### Added

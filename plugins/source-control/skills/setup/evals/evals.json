@@ -155,6 +155,32 @@
         "Still carries through independent keys such as trailer_policy that the invocation did not name",
         "Leaves no config in which type_list coexists with a custom subject_pattern"
       ]
+    },
+    {
+      "id": 13,
+      "name": "check-reports-pr-body-required-sections-plugin-default",
+      "prompt": "/source-control:setup check\n\nNo layer sets pr_body_required_sections.",
+      "expected_output": "The effective-configuration table includes a pr_body_required_sections row resolving to Summary, Test plan (the plugin's portable default) with won by reading 'plugin default' — the row is present and named, not blank or omitted, even though no layer sets the key. This mirrors how the report treats other unset optional keys as INFO rather than FAIL, but pr_body_required_sections additionally names the resolved default value since 'unset' is itself a meaningful, reportable state for this key.",
+      "files": [],
+      "expectations": [
+        "The check table includes a pr_body_required_sections row even when no layer sets it",
+        "The row's value is the plugin's portable default (Summary, Test plan), not blank",
+        "The row's won-by column reads 'plugin default' rather than naming a layer that never set it",
+        "An unset pr_body_required_sections is reported as INFO, not FAIL"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "apply-interview-recommends-portable-default-not-org-specific-list",
+      "prompt": "/source-control:setup apply\n\nRun the interactive interview for a repo with no existing source-control.md and no inferable convention signal.",
+      "expected_output": "When the interview reaches pr_body_required_sections, it recommends keeping the plugin's portable default (Summary, Test plan) and does NOT propose adding a Related/linked-issue section, or any other specific organization's convention, as if it were a universal default. It asks what the repo's actual convention requires (a PR template, a CI gate such as pr-issue-linkage, team practice) rather than inventing one, and omits the section from the written config when the user accepts the portable default.",
+      "files": [],
+      "expectations": [
+        "Recommends the plugin's portable default (Summary, Test plan) for pr_body_required_sections",
+        "Does not suggest a Related/linked-issue section, or any other org-specific list, as a default recommendation",
+        "Asks about the repo's actual convention rather than proposing one the repo gave no signal for",
+        "Omits the pr_body_required_sections section from the written config when the portable default is accepted"
+      ]
     }
   ]
 }
