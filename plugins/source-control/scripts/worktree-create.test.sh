@@ -74,6 +74,12 @@ assert_contains "refuse message rejects in-repo fallback" "$err" ".claude/worktr
 bash "$HELPER" --name feat/x --root '${user_config.worktree_root}' --repo-dir "$repo" >/dev/null 2>&1
 assert_exit "unexpanded token refuses exit 3" 3 "$?"
 
+# --- Case: refuse when the configured root is inside the repo (exit 3) ---
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+err=$(bash "$HELPER" --name feat/x --root "$repo/.claude/worktrees" --repo-dir "$repo" 2>&1 >/dev/null)
+assert_exit "in-repo root refuses exit 3" 3 "$?"
+assert_contains "in-repo refuse names the repository" "$err" "inside the repository"
+
 # --- Case: path computation <root>/<owner>-<repo>-<slug> with slug sanitization ---
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 root="$TEST_TMPDIR/wtroot1"
