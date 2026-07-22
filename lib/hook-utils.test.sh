@@ -623,6 +623,196 @@ else
 fi
 rm -rf "$DATA17" "$FAKEBIN17"
 
+# --- git config value kinds + effective resolution ---------------------------
+# The option walk must tag each collected -c/--config/--config-env value with its
+# origin, and the effective-value projection must resolve a --config-env entry
+# (an env-var NAME) to the variable's value the way git does at runtime.
+join_a() {
+  local IFS='|'
+  echo "$*"
+}
+
+hook::git_resolve_subcommand 0 git -c foo.bar=baz --config-env=alias.c=AVAR c
+if [[ "$(join_a "${HOOK_GIT_CONFIG_VALUES[@]}")" == "foo.bar=baz|alias.c=AVAR" &&
+"$(join_a "${HOOK_GIT_CONFIG_VALUE_KINDS[@]}")" == "inline|env" ]]; then
+  ok "git config: =-forms tag inline vs env"
+else
+  fail "git config kinds (=-forms): values=($(join_a "${HOOK_GIT_CONFIG_VALUES[@]}")) kinds=($(join_a "${HOOK_GIT_CONFIG_VALUE_KINDS[@]}"))"
+fi
+
+hook::git_resolve_subcommand 0 git -c a.b=c --config-env alias.d=AVAR d
+if [[ "$(join_a "${HOOK_GIT_CONFIG_VALUE_KINDS[@]}")" == "inline|env" ]]; then
+  ok "git config: two-word forms tag inline vs env"
+else
+  fail "git config kinds (two-word): kinds=($(join_a "${HOOK_GIT_CONFIG_VALUE_KINDS[@]}"))"
+fi
+
+# --- git_alias_expansion: structural classification of the invoked alias -------
+# The guard RESOLVES inline (-c/--config) aliases but REFUSES an env (--config-env) alias
+# for the invoked subcommand by shape — its expansion is an env var never read. git reads
+# two spellings as the alias (`alias.<sub>` and `alias.<sub>.command`); the classifier
+# keeps the LAST value WITHIN each spelling and fails closed on their union — env in
+# either -> rc 2; else rc 0 exposing every present spelling's expansion in
+# HOOK_GIT_ALIAS_EXPS (joined with '|' below, in plain-then-command order).
+
+hook::git_resolve_subcommand 0 git -c alias.rh='reset --hard' rh
+hook::git_alias_expansion rh
+rc=$?
+if ((rc == 0)) && [[ "$(join_a "${HOOK_GIT_ALIAS_EXPS[@]}")" == "reset --hard" ]]; then
+  ok "git alias: inline -c alias returns the literal expansion (rc 0)"
+else
+  fail "git alias (inline): rc=$rc exps=[$(join_a "${HOOK_GIT_ALIAS_EXPS[@]}")]"
+fi
+
+hook::git_resolve_subcommand 0 git --config-env=alias.rh=AVAR rh
+hook::git_alias_expansion rh
+rc=$?
+if ((rc == 2)); then
+  ok "git alias: --config-env alias for the invoked sub is refused by shape (rc 2)"
+else
+  fail "git alias (env refuse): rc=$rc"
+fi
+
+hook::git_resolve_subcommand 0 git -c foo.bar=baz rh
+hook::git_alias_expansion rh
+rc=$?
+if ((rc == 1)); then
+  ok "git alias: no alias for the invoked sub returns 1"
+else
+  fail "git alias (none): rc=$rc"
+fi
+
+# A --config-env that sets a NON-alias key never triggers refusal (the legitimate use).
+hook::git_resolve_subcommand 0 git --config-env=core.pager=PAGERVAR status
+hook::git_alias_expansion status
+rc=$?
+if ((rc == 1)); then
+  ok "git alias: --config-env non-alias key is not refused (resolvable/allowed)"
+else
+  fail "git alias (non-alias key): rc=$rc"
+fi
+
+# A --config-env alias for a subcommand OTHER than the invoked one is not refused.
+hook::git_resolve_subcommand 0 git --config-env=alias.foo=AVAR status
+hook::git_alias_expansion status
+rc=$?
+if ((rc == 1)); then
+  ok "git alias: --config-env alias for an uninvoked subcommand is not refused"
+else
+  fail "git alias (uninvoked alias): rc=$rc"
+fi
+
+# LAST value WITHIN a spelling wins: env after inline for the same key -> refuse.
+hook::git_resolve_subcommand 0 git -c alias.rh=status --config-env=alias.rh=AVAR rh
+hook::git_alias_expansion rh
+rc=$?
+if ((rc == 2)); then
+  ok "git alias: env value last-wins over an inline decoy -> refuse"
+else
+  fail "git alias (env last): rc=$rc"
+fi
+
+# LAST value WITHIN a spelling wins: inline after env for the same key -> resolve inline.
+hook::git_resolve_subcommand 0 git --config-env=alias.rh=AVAR -c alias.rh=status rh
+hook::git_alias_expansion rh
+rc=$?
+if ((rc == 0)) && [[ "$(join_a "${HOOK_GIT_ALIAS_EXPS[@]}")" == "status" ]]; then
+  ok "git alias: inline value last-wins over an earlier env -> resolve (allowed)"
+else
+  fail "git alias (inline last): rc=$rc exps=[$(join_a "${HOOK_GIT_ALIAS_EXPS[@]}")]"
+fi
+
+# git config names are case-insensitive: the key match folds case.
+hook::git_resolve_subcommand 0 git --config-env=alias.RH=AVAR rh
+hook::git_alias_expansion rh
+rc=$?
+if ((rc == 2)); then
+  ok "git alias: --config-env key match folds case"
+else
+  fail "git alias (case fold): rc=$rc"
+fi
+
+# The `alias.<sub>.command` subkey is an alias definition too (git reads it), classified
+# like the plain form: inline resolves, --config-env shape refuses.
+hook::git_resolve_subcommand 0 git -c alias.rh.command='reset --hard' rh
+hook::git_alias_expansion rh
+rc=$?
+if ((rc == 0)) && [[ "$(join_a "${HOOK_GIT_ALIAS_EXPS[@]}")" == "reset --hard" ]]; then
+  ok "git alias: inline -c .command subkey returns the literal expansion (rc 0)"
+else
+  fail "git alias (inline .command): rc=$rc exps=[$(join_a "${HOOK_GIT_ALIAS_EXPS[@]}")]"
+fi
+
+hook::git_resolve_subcommand 0 git --config-env=alias.rh.command=AVAR rh
+hook::git_alias_expansion rh
+rc=$?
+if ((rc == 2)); then
+  ok "git alias: --config-env .command subkey for the invoked sub is refused by shape (rc 2)"
+else
+  fail "git alias (env .command): rc=$rc"
+fi
+
+# A non-`command` alias subkey is NOT an alias definition to git — must not be classified.
+hook::git_resolve_subcommand 0 git -c alias.rh.nope=status rh
+hook::git_alias_expansion rh
+rc=$?
+if ((rc == 1)); then
+  ok "git alias: a non-command alias subkey is not treated as an alias (rc 1)"
+else
+  fail "git alias (.nope control): rc=$rc"
+fi
+
+# LAST value WITHIN the .command spelling wins (independently of the plain spelling).
+hook::git_resolve_subcommand 0 git -c alias.rh.command='reset --hard' -c alias.rh.command=status rh
+hook::git_alias_expansion rh
+rc=$?
+if ((rc == 0)) && [[ "$(join_a "${HOOK_GIT_ALIAS_EXPS[@]}")" == "status" ]]; then
+  ok "git alias: last value within the .command spelling wins"
+else
+  fail "git alias (.command within last): rc=$rc exps=[$(join_a "${HOOK_GIT_ALIAS_EXPS[@]}")]"
+fi
+
+# MAX-DANGER UNION: which spelling git runs when both are set is version-dependent, so the
+# classifier exposes BOTH expansions and never lets one spelling mask the other. A benign
+# value in either spelling must NOT collapse the sibling's expansion out of the result.
+hook::git_resolve_subcommand 0 git -c alias.rh='reset --hard' -c alias.rh.command=status rh
+hook::git_alias_expansion rh
+rc=$?
+if ((rc == 0)) && [[ "$(join_a "${HOOK_GIT_ALIAS_EXPS[@]}")" == "reset --hard|status" ]]; then
+  ok "git alias: dangerous plain + benign .command exposes both expansions (union)"
+else
+  fail "git alias (union plain+cmd): rc=$rc exps=[$(join_a "${HOOK_GIT_ALIAS_EXPS[@]}")]"
+fi
+
+hook::git_resolve_subcommand 0 git -c alias.rh=status -c alias.rh.command='reset --hard' rh
+hook::git_alias_expansion rh
+rc=$?
+if ((rc == 0)) && [[ "$(join_a "${HOOK_GIT_ALIAS_EXPS[@]}")" == "status|reset --hard" ]]; then
+  ok "git alias: benign plain + dangerous .command exposes both expansions (union)"
+else
+  fail "git alias (union cmd danger): rc=$rc exps=[$(join_a "${HOOK_GIT_ALIAS_EXPS[@]}")]"
+fi
+
+# Union on the ENV dimension: an env spelling refuses even when the sibling inline spelling
+# is benign — the benign inline must not mask the unreadable env sibling.
+hook::git_resolve_subcommand 0 git --config-env=alias.rh=AVAR -c alias.rh.command=status rh
+hook::git_alias_expansion rh
+rc=$?
+if ((rc == 2)); then
+  ok "git alias: env plain spelling refuses despite a benign inline .command sibling"
+else
+  fail "git alias (env plain masked): rc=$rc"
+fi
+
+hook::git_resolve_subcommand 0 git --config-env=alias.rh.command=AVAR -c alias.rh=status rh
+hook::git_alias_expansion rh
+rc=$?
+if ((rc == 2)); then
+  ok "git alias: env .command spelling refuses despite a benign inline plain sibling"
+else
+  fail "git alias (env .command masked): rc=$rc"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

@@ -628,6 +628,10 @@ hook::git_is_bin() {
 # must match on the rewritten words, so the index alone is not enough.
 #   HOOK_GIT_RESOLVED_GI    — index of git in HOOK_GIT_RESOLVED_WORDS
 #   HOOK_GIT_RESOLVED_WORDS — the (possibly rewritten) segment argv
+# Leading `NAME=value` env-assignment prefixes and `env NAME=value` operands are walked
+# PAST to reach the git token, but their values are not collected: a `--config-env` alias
+# for the invoked subcommand is refused by SHAPE (hook::git_alias_expansion), so the
+# resolver never needs to know what an environment variable holds.
 # shellcheck disable=SC1003  # '\' compares a literal backslash char, not a quote escape
 # shellcheck disable=SC2034  # result globals are consumed by the sourcing guard, not this file
 hook::git_resolve_index() {
@@ -640,41 +644,64 @@ hook::git_resolve_index() {
   while ((i < n)); do
     tok="${w[i]}"
     if [[ "$tok" == *=* ]]; then
+      # A leading NAME=value token is a command-line env-assignment prefix; skip it to
+      # reach the git token (the shell treats only a valid-name assignment as such, but
+      # skipping any `*=*` word here is harmless — a non-assignment command word never
+      # contains an unquoted `=` at argv position 0 in a real invocation).
       ((i++))
       continue
     fi
 
     case "${tok##*/}" in
     env)
+      # env [OPTION]... [--] [NAME=VALUE]... [COMMAND ...]: options first, then
+      # operand assignments, then the command. `--` ends option parsing (so a
+      # following leading-dash operand like `-AV=…` is an assignment, not an
+      # option). Unlike a shell prefix, env sets any name — collect every operand
+      # assignment regardless of name shape so a hyphenated/leading-dash name git
+      # reads via --config-env is captured, not dropped.
       ((i++))
-      while ((i < n)) && [[ "${w[i]}" == -* ]]; do
-        case "${w[i]}" in
-        # -S/--split-string re-splits its operand into argv (GNU env), so a
-        # quoted 'git commit --no-verify' would otherwise hide from the
-        # resolver as one non-git word. Splice the split words back into the
-        # scan and restart at the command position.
-        -S | --split-string)
-          local sval=""
-          ((i + 1 < n)) && sval="${w[i + 1]}"
-          hook::env_s_split "$sval"
-          w=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"} "${w[@]:i+2}")
-          n=${#w[@]}
-          i=0
-          continue 2
-          ;;
-        -S* | --split-string=*)
-          local sval="${w[i]#-S}"
-          sval="${sval#--split-string=}"
-          hook::env_s_split "$sval"
-          w=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"} "${w[@]:i+1}")
-          n=${#w[@]}
-          i=0
-          continue 2
-          ;;
-        -u | --unset | -C | --chdir) ((i += 2)) ;;
-        -*) ((i++)) ;;
-        *) ((i++)) ;;
-        esac
+      local env_past_optmark=0
+      while ((i < n)); do
+        if ((env_past_optmark == 0)) && [[ "${w[i]}" == -* ]]; then
+          case "${w[i]}" in
+          --)
+            ((i++))
+            env_past_optmark=1
+            ;;
+          # -S/--split-string re-splits its operand into argv (GNU env), so a
+          # quoted 'git commit --no-verify' would otherwise hide from the
+          # resolver as one non-git word. Splice the split words back into the
+          # scan and restart at the command position.
+          -S | --split-string)
+            local sval=""
+            ((i + 1 < n)) && sval="${w[i + 1]}"
+            hook::env_s_split "$sval"
+            w=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"} "${w[@]:i+2}")
+            n=${#w[@]}
+            i=0
+            continue 2
+            ;;
+          -S* | --split-string=*)
+            local sval="${w[i]#-S}"
+            sval="${sval#--split-string=}"
+            hook::env_s_split "$sval"
+            w=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"} "${w[@]:i+1}")
+            n=${#w[@]}
+            i=0
+            continue 2
+            ;;
+          -u | --unset | -C | --chdir) ((i += 2)) ;;
+          -*) ((i++)) ;;
+          *) ((i++)) ;;
+          esac
+        elif [[ "${w[i]}" == *=* ]]; then
+          # An `env NAME=value` operand — skip it to reach the command (git). Its value
+          # is never read: a --config-env alias is refused by shape, not resolved.
+          ((i++))
+        else
+          break
+        fi
       done
       continue
       ;;
@@ -778,6 +805,13 @@ hook::git_resolve_index() {
 #                            order, so a guard can inspect config assignments
 #                            without re-walking (commit messages and pathspecs
 #                            are never collected here)
+#   HOOK_GIT_CONFIG_VALUE_KINDS — parallel to HOOK_GIT_CONFIG_VALUES (1:1 by
+#                            index): "inline" for a -c/--config value (the literal
+#                            assignment) or "env" for a --config-env value (whose
+#                            operand is `<key>=<envvar>`, an environment-variable
+#                            NAME, not the value). An env-kind alias for the invoked
+#                            subcommand is REFUSED by shape (hook::git_alias_expansion),
+#                            never resolved — the value is deliberately never read.
 # Call as: hook::git_resolve_subcommand <git-index> <argv words...>
 # shellcheck disable=SC2034  # result globals are consumed by the sourcing guard, not this file
 hook::git_resolve_subcommand() {
@@ -788,17 +822,34 @@ hook::git_resolve_subcommand() {
   HOOK_GIT_SUB=""
   HOOK_GIT_SUB_IDX=-1
   HOOK_GIT_CONFIG_VALUES=()
+  HOOK_GIT_CONFIG_VALUE_KINDS=()
 
   j=$((gi + 1))
   while ((j < nseg)); do
     gw="${w[j]}"
     case "$gw" in
-    -c | --config | --config-env)
-      ((j + 1 < nseg)) && HOOK_GIT_CONFIG_VALUES+=("${w[j + 1]}")
+    -c | --config)
+      ((j + 1 < nseg)) && {
+        HOOK_GIT_CONFIG_VALUES+=("${w[j + 1]}")
+        HOOK_GIT_CONFIG_VALUE_KINDS+=("inline")
+      }
       ((j += 2))
       ;;
-    --config=* | --config-env=*)
+    --config-env)
+      ((j + 1 < nseg)) && {
+        HOOK_GIT_CONFIG_VALUES+=("${w[j + 1]}")
+        HOOK_GIT_CONFIG_VALUE_KINDS+=("env")
+      }
+      ((j += 2))
+      ;;
+    --config=*)
       HOOK_GIT_CONFIG_VALUES+=("${gw#*=}")
+      HOOK_GIT_CONFIG_VALUE_KINDS+=("inline")
+      ((j++))
+      ;;
+    --config-env=*)
+      HOOK_GIT_CONFIG_VALUES+=("${gw#*=}")
+      HOOK_GIT_CONFIG_VALUE_KINDS+=("env")
       ((j++))
       ;;
     -C | --git-dir | --work-tree | --namespace | --super-prefix | --attr-source | --exec-path)
@@ -814,6 +865,61 @@ hook::git_resolve_subcommand() {
       ;;
     esac
   done
+  return 1
+}
+
+# Classify how a guard should treat the alias for the invoked subcommand, from the
+# config values collected by hook::git_resolve_subcommand. git reads TWO spellings as the
+# alias for a subcommand — `alias.<sub>` and its `alias.<sub>.command` subkey (the only
+# alias subkey git reads) — and which spelling wins when both are set is git-version-
+# dependent. Rather than model that precedence (and risk a benign value in one spelling
+# masking a dangerous value in the other on a git that resolves it the opposite way), this
+# classifier fails closed on the MAX-DANGER UNION of the two spellings: the LAST value
+# WITHIN each spelling decides that spelling (git applies the last value for a given key),
+# then the spellings combine so the guard blocks if EITHER could carry a guarded op.
+#
+#   - "env" (--config-env=<key>=<envvar>) in EITHER spelling: the expansion lives in an
+#     environment variable whose VALUE is deliberately never read — that value is the
+#     recurring attack surface (an ambient var, an inline/`env` prefix, an `export`,
+#     `set -a`, or a nested `bash -c`, in this or any enclosing wrapper), and each attempt
+#     to resolve it has reopened a fail-open. Nobody legitimately defines an alias for a
+#     guarded subcommand via --config-env on the invoking command line (the canonical form
+#     is a gitconfig alias or the plain subcommand), so the SHAPE alone is sufficient.
+#     Returns 2 — the guard blocks without reading anything.
+#   - "inline" (-c/--config), no env spelling: each present spelling's expansion is
+#     literally present and bounded. Returns 0 with HOOK_GIT_ALIAS_EXPS holding one entry
+#     per present spelling (1 or 2), so the guard re-checks every expansion and blocks if
+#     any is dangerous — a benign expansion never suppresses a dangerous sibling.
+#   - neither spelling present: returns 1, the subcommand is not an inline/env alias here.
+#
+# A --config-env that sets a NON-alias key, or an alias for a subcommand OTHER than the
+# invoked one, never matches — those stay resolvable/allowed. Call after
+# hook::git_resolve_subcommand; read HOOK_GIT_ALIAS_EXPS only on return 0.
+# shellcheck disable=SC2034  # HOOK_GIT_ALIAS_EXPS is consumed by the sourcing guard
+hook::git_alias_expansion() {
+  local sub="$1" i cv key kind
+  local plain_exp="" plain_kind="" cmd_exp="" cmd_kind=""
+  HOOK_GIT_ALIAS_EXPS=()
+  # git config names are case-insensitive: fold both sides of the exact key match. Keep
+  # the LAST value WITHIN each spelling separately, never collapsed across the two, so one
+  # spelling's value cannot mask the other's.
+  for i in "${!HOOK_GIT_CONFIG_VALUES[@]}"; do
+    cv="${HOOK_GIT_CONFIG_VALUES[i]}"
+    key="${cv%%=*}"
+    kind="${HOOK_GIT_CONFIG_VALUE_KINDS[i]:-inline}"
+    if [[ "${key,,}" == "alias.${sub,,}" ]]; then
+      plain_exp="${cv#*=}"
+      plain_kind="$kind"
+    elif [[ "${key,,}" == "alias.${sub,,}.command" ]]; then
+      cmd_exp="${cv#*=}"
+      cmd_kind="$kind"
+    fi
+  done
+  # Max-danger union: an env spelling in either place is unreadable — value-blind refusal.
+  [[ "$plain_kind" == "env" || "$cmd_kind" == "env" ]] && return 2
+  [[ -n "$plain_kind" ]] && HOOK_GIT_ALIAS_EXPS+=("$plain_exp")
+  [[ -n "$cmd_kind" ]] && HOOK_GIT_ALIAS_EXPS+=("$cmd_exp")
+  ((${#HOOK_GIT_ALIAS_EXPS[@]})) && return 0
   return 1
 }
 
@@ -934,8 +1040,8 @@ hook::bash_parse_segments() {
       # following lines is the command's stdin, so record the delimiter and
       # let the newline handler skip the body. A quoted/backslashed delimiter
       # (`<<'EOF'`, `<<\EOF`) still terminates on a line reading `EOF`.
-      if [[ "$c" == '<' ]] && ((i + 1 < n)) && [[ "${chars[i + 1]}" == '<' ]] \
-        && { ((i + 2 >= n)) || [[ "${chars[i + 2]}" != '<' ]]; }; then
+      if [[ "$c" == '<' ]] && ((i + 1 < n)) && [[ "${chars[i + 1]}" == '<' ]] &&
+        { ((i + 2 >= n)) || [[ "${chars[i + 2]}" != '<' ]]; }; then
         ((i++))
         local hstrip=0
         if ((i + 1 < n)) && [[ "${chars[i + 1]}" == '-' ]]; then
