@@ -6,6 +6,44 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 Versions 0.1.0–0.7.0 predate this file (introduced with 0.7.1); their history lives in the
 merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
 
+## [0.10.0]
+
+### Added
+
+- **Deterministic lane-stop gate (`Stop` hook) — the plugin's first hook** (#535 member 3). "A lane
+  that stops itself before its goal is met is a bug" was previously only a prompt admonition. The new
+  `hooks/lane-stop-gate.sh` fires on every stop attempt of an opted-in lane and structurally
+  intercepts it: unless completion is EXPLICITLY signaled, the first stop is blocked with a
+  re-injected completion self-check (`decision:"block"` + reason), converting a silent premature stop
+  into "keep going or declare done." It directly counters the fabricated-context-percentage
+  premature-stop failure (#576/#577) — the reason states that a self-estimated "~50% context", a turn
+  count, or a vague sense of "enough" is not a completion condition. Completion is signaled
+  deterministically (a shell hook cannot re-run the `/goal` evaluator model): either the exact
+  sentinel token (default `LANE-STOP-OK`, matched standalone-only) in the agent's final message, or
+  the existence of a configured marker file — the settings-scoped, cross-session sibling of `/goal`'s
+  session-only condition (#481). **Default OFF**: a Stop-blocking hook must never engage for an
+  interactive session, so it is inert unless a lane opts in via `lane_stop_gate_enabled=true`. It is
+  **fail-open** on unreadable stdin, missing `jq`, or a non-`Stop` event (a `SubagentStop` never trips
+  it), and bounded against runaway: the `stop_hook_active` guard makes the gate block a stop at most
+  once before allowing it, with Claude Code's own consecutive-block cap as the ultimate backstop.
+  Scope: it catches a graceful **self-stop** only — a closed laptop,
+  a killed process, or `/loop` expiry emit no `Stop` event and are out of this member's scope.
+- **Operator notification on a genuine lane stop** (#535 member 4, evidence #582). When a lane still
+  stops after the one structural nudge, the gate treats it as a down/stuck lane, allows the stop (never
+  wedges it), and alerts the operator via the new self-contained `hooks/lane-notify.sh` — an OS-native
+  toast (macOS/Linux) plus a best-effort terminal bell + OSC 9. Reach is **local-machine only**: there
+  is no remote/Slack/push transport (none exists as a marketplace primitive yet), so it does not cover
+  an away operator. It reimplements rather than sources the `desktop-notification` plugin because a
+  `Stop` hook's stdout is parsed for `decision`/`reason` and cannot use the `terminalSequence` field
+  that plugin's `Notification` hook relies on — a genuinely different emission path (direct `/dev/tty`)
+  — and because cache-isolated plugins cannot source each other at runtime. No separate
+  repeated-failure counter was built: a lane that keeps stopping simply re-fires this notification each
+  time (and API-error telemetry is already owned by `claude-ops`'s `StopFailure` hook).
+- **Six `userConfig` options** gating the above: `lane_stop_gate_enabled` (default false),
+  `lane_stop_gate_sentinel`, `lane_stop_gate_marker`, `lane_notify_enabled`,
+  `lane_notify_os_toast_enabled`, `lane_notify_terminal_enabled`. The plugin now carries the shared
+  `hooks/hook-utils.sh` copy (Win32-safe stdin buffering, prerequisite-visibility helpers).
+
 ## [0.9.0]
 
 ### Changed

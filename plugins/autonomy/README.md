@@ -78,6 +78,41 @@ locked (no step-skipping — trust before scale).
 | A second plugin consumes `.claude/autonomy/` config | Graduate the binding schema to a versioned concern contract per the marketplace's concern-named-folder convention. |
 | A second repository consumes the security binding | Stand up a mechanical cross-repo binding drift check. |
 
+## Lane-stop gate + operator notification (`Stop` hook)
+
+`hooks/lane-stop-gate.sh` makes "a lane that stops itself before its goal is met is a bug" a
+mechanism instead of a prompt admonition. On every stop attempt of an **opted-in** lane it does a
+deterministic completion self-check; if completion is not explicitly signaled it blocks the first
+stop with a re-injected self-check (keep going, or declare done), and if the lane stops anyway it
+allows the stop and alerts the operator via `hooks/lane-notify.sh` (OS toast + terminal bell/OSC 9,
+local machine only).
+
+Completion is signaled either way (a shell hook cannot re-run the `/goal` evaluator model): the exact
+sentinel token in the agent's final message, or a marker file. It is the settings-scoped,
+cross-session sibling of `/goal`'s session-only completion condition — use `/goal` for a single
+session, this gate for a standing lane.
+
+**Default OFF** — a Stop-blocking hook must never engage for an interactive session. A lane launcher
+opts a session in per run, e.g.:
+
+```shell
+claude --config lane_stop_gate_enabled=true --config lane_stop_gate_marker=.lane-complete ...
+```
+
+It is fail-open (unreadable stdin / missing `jq` / a `SubagentStop` never trips it) and bounded
+against runaway by the `stop_hook_active` one-nudge guard plus Claude Code's consecutive-block cap.
+It catches a graceful self-stop only — a closed laptop, a killed process, or `/loop` expiry emit no
+`Stop` event.
+
+| userConfig option | Default | Effect |
+|---|---|---|
+| `lane_stop_gate_enabled` | `false` | Opt this session's lane into the gate. |
+| `lane_stop_gate_sentinel` | `LANE-STOP-OK` | Token the agent emits (standalone) to declare the goal met. |
+| `lane_stop_gate_marker` | *(unset)* | Marker file whose existence also authorizes a stop (absolute, or relative to the session cwd). |
+| `lane_notify_enabled` | `true` | Master switch for the operator alert. |
+| `lane_notify_os_toast_enabled` | `true` | OS-native toast channel (macOS/Linux). |
+| `lane_notify_terminal_enabled` | `true` | Terminal bell + OSC 9 channel. |
+
 ## Configuration
 
 Setup writes tracked config to `.claude/autonomy/` in the consuming repo (concern-named — the
