@@ -385,4 +385,99 @@ else
   bad "telemetry: no envelope written on block"
 fi
 
+# --- PowerShell tool coverage ------------------------------------------------
+# The guard is matched on Bash|PowerShell. PowerShell file-write forms that
+# bypass the Write/Edit gate are blocked; content-producer scoping is preserved
+# (a tool's own output redirect is allowed, matching the Bash producer scope).
+run_pwsh() {
+  local label="$1" command="$2" expected="$3" rc
+  bash "$HOOK" <<<"$(pwsh_command_json "$command")" >/dev/null 2>&1
+  rc=$?
+  assert_exit "$label" "$expected" "$rc"
+}
+run_pwsh "PS: Set-Content (blocked)" "Set-Content -Path f.txt -Value 'x'" 2
+run_pwsh "PS: Add-Content (blocked)" "Add-Content f.txt 'x'" 2
+run_pwsh "PS: Out-File (blocked)" "'secret' | Out-File creds.txt" 2
+run_pwsh "PS: Tee-Object (blocked)" "'x' | Tee-Object f.txt" 2
+run_pwsh "PS: string > file (blocked)" "'content' > file.txt" 2
+run_pwsh "PS: echo > file (blocked)" "echo hi > out.txt" 2
+run_pwsh "PS: tool output > file (allowed — producer is the tool)" "git diff > out.txt" 0
+run_pwsh "PS: redirect to \$null (allowed — discard)" "git log > \$null" 0
+run_pwsh "PS: Set-Content mentioned in quoted arg (allowed)" "echo 'run Set-Content later'" 0
+run_pwsh "PS: plain git status (allowed)" "git status" 0
+# Alias + backtick-obfuscation regressions (independent security review).
+bt='`'
+run_pwsh "PS: ac alias (Add-Content, blocked)" "ac -Path f.txt -Value x" 2
+run_pwsh "PS: tee alias (Tee-Object, blocked)" "x | tee -FilePath out.txt" 2
+run_pwsh "PS: backtick-escaped Set\`-Content (blocked)" "Set${bt}-Content f.txt x" 2
+# `sc` is sc.exe in PowerShell 7 (service controller), NOT Set-Content — allowed.
+run_pwsh "PS: sc is sc.exe not Set-Content (allowed)" "sc query" 0
+# Expanded write surface (independent security review, round 2).
+run_pwsh "PS: iex opaque run (blocked)" "iex 'Set-Content f.txt x'" 2
+run_pwsh "PS: New-Item -Value (blocked)" "New-Item -Path f -ItemType File -Value 'data'" 2
+run_pwsh "PS: New-Item -ItemType Directory, no -Value (allowed)" "New-Item -Path d -ItemType Directory" 0
+run_pwsh "PS: Export-Csv (blocked)" "\$d | Export-Csv f.csv" 2
+run_pwsh "PS: Export-Clixml (blocked)" "\$d | Export-Clixml f.xml" 2
+run_pwsh "PS: [IO.File]::WriteAllText (blocked)" "[IO.File]::WriteAllText('f','x')" 2
+run_pwsh "PS: StreamWriter (blocked)" "(New-Object IO.StreamWriter 'f').Write('x')" 2
+run_pwsh "PS: variable redirected to file (blocked)" "\$x > f.txt" 2
+# Write-cmdlet alias parity (round 3 review): ni (New-Item), epcsv (Export-Csv).
+run_pwsh "PS: ni -Value alias (blocked)" "ni -Path f -ItemType File -Value 'data'" 2
+run_pwsh "PS: epcsv alias (Export-Csv, blocked)" "\$d | epcsv f.csv" 2
+# `sc` is Set-Content in Windows PowerShell 5.1; matched only in its Set-Content
+# form (a -Value/-Path parameter). sc.exe (PS 7) service calls stay allowed.
+run_pwsh "PS: sc -Path -Value (5.1 Set-Content form, blocked)" "sc -Path f.txt -Value 'x'" 2
+run_pwsh "PS: sc query (sc.exe service, allowed)" "sc query" 0
+run_pwsh "PS: sc start service (sc.exe, allowed)" "sc start W32Time" 0
+# Review round 4: producer-alias, module-qualified, grouped-producer, and
+# quoted-writer-call parity.
+run_pwsh "PS: write alias (Write-Output) > file (blocked)" "write secret > creds.txt" 2
+run_pwsh "PS: module-qualified Set-Content (blocked)" \
+  "Microsoft.PowerShell.Management\\Set-Content -Path f.txt -Value x" 2
+run_pwsh "PS: parenthesized literal > file (blocked)" "('secret') > creds.txt" 2
+run_pwsh "PS: parenthesized Write-Output > file (blocked)" "(Write-Output secret) > creds.txt" 2
+run_pwsh "PS: parenthesized tool output > file (allowed — producer is the tool)" \
+  "(git diff) > out.txt" 0
+run_pwsh "PS: & 'Set-Content' quoted writer call (blocked)" \
+  "& 'Set-Content' -Path f.txt -Value x" 2
+run_pwsh "PS: & 'Invoke-Expression' quoted (blocked)" \
+  "& 'Invoke-Expression' 'Set-Content f x'" 2
+run_pwsh "PS: & quoted non-writer program path (allowed)" \
+  "& 'C:\\tools\\build.exe' arg" 0
+# Review round 5: expression-valued producers and computed call targets.
+run_pwsh "PS: numeric expression > file (blocked)" "36 > out.txt" 2
+run_pwsh "PS: cast expression > file (blocked)" "[char]65 > out.txt" 2
+run_pwsh "PS: & computed writer name (fail-closed block)" \
+  "& ('Set-'+'Content') -Path f.txt -Value x" 2
+run_pwsh "PS: spaced numeric is a value write, tool redirect still allowed" \
+  "git diff 2> err.txt" 0
+# Review round 6: non-success stream producers and separator-adjacent calls.
+run_pwsh "PS: Write-Error 2> file (blocked)" "Write-Error secret 2> creds.txt" 2
+run_pwsh "PS: Write-Warning 3> file (blocked)" "Write-Warning secret 3> creds.txt" 2
+run_pwsh "PS: semicolon-adjacent & 'Set-Content' (blocked)" \
+  "Write-Host ok;& 'Set-Content' -Path f.txt -Value x" 2
+run_pwsh "PS: quoted '@' not a here-string opener (write line not swallowed)" \
+  "$(printf "Write-Output '@'\nSet-Content -Path f.txt -Value x\n'@'")" 2
+
+# Review round 7: fd-dup merge redirects are plumbing, not producers; invoked
+# script blocks are unwrapped like parenthesized producers.
+run_pwsh "PS: tool capture with 2>&1 > file (allowed)" "git status 2>&1 > out.txt" 0
+run_pwsh "PS: Get-ChildItem 2>&1 > file (allowed)" "Get-ChildItem 2>&1 > out.txt" 0
+run_pwsh "PS: echo with 2>&1 > file (still a producer, blocked)" "echo x 2>&1 > f.txt" 2
+run_pwsh "PS: & { Write-Output secret } > file (blocked)" \
+  "& { Write-Output secret } > creds.txt" 2
+run_pwsh "PS: & { git diff } > file (tool producer, allowed)" \
+  "& { git diff } > out.txt" 0
+
+# Review round 8: module-qualified producer heads.
+run_pwsh "PS: module-qualified Write-Output > file (blocked)" \
+  "Microsoft.PowerShell.Utility\\Write-Output secret > f.txt" 2
+run_pwsh "PS: module-qualified Write-Error 2> file (blocked)" \
+  "Microsoft.PowerShell.Utility\\Write-Error secret 2> f.txt" 2
+
+# The block message is shell-agnostic (no 'Bash' assumption).
+psout=$(bash "$HOOK" <<<"$(pwsh_command_json "Set-Content f.txt 'x'")" 2>&1)
+assert_contains "PS write block names Write/Edit" "$psout" "Write or Edit tool"
+assert_absent "PS write block message is shell-agnostic" "$psout" "Bash file-write"
+
 report
