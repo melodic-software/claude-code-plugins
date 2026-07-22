@@ -78,6 +78,15 @@ OUT=$(HOME="$TEST_TMPDIR/elsewhere2" CLAUDE_PROJECT_DIR="$SUBREPO/pkg" \
 assert_exit "repo subdir of non-home checkout → exit 2" 2 "$RC"
 assert_contains "repo subdir → machine-specific repo message" "$OUT" "Machine-specific repo path"
 
+# Generic Windows checkout root under a widened root name (Projects/Dev/Repos):
+# content carries no "Users"/"repos" literal, so it exercises the cheap
+# pre-filter gate — which must trip on every root HPP_WIN_REPO_BODY accepts, or
+# the scan early-returns and the leak passes (fail-open).
+WIN_PROJECTS="D:${BS}Projects${BS}acme${BS}src"
+OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" "build from ${WIN_PROJECTS}")" 2>&1); RC=$?
+assert_exit "windows Projects checkout root → exit 2" 2 "$RC"
+assert_contains "windows Projects root → message" "$OUT" "Windows repo path"
+
 # ============================ ALLOW (exit 0) ================================
 OUT=$(bash "$HOOK" <<<"$(write_json "$FIXTURE" 'echo "hello world"')" 2>&1); RC=$?
 assert_exit "clean content → exit 0" 0 "$RC"
