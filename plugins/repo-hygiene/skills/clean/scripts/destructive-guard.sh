@@ -60,7 +60,9 @@ is_destructive() {
 # coverage is best-effort — but a guard that cannot parse must block what it
 # can see, never go silently inert (cf. #983, #532 fail-open class).
 if ! command -v jq >/dev/null 2>&1; then
-  if is_destructive "$INPUT"; then
+  # Quotes become spaces so the patterns' prefix anchors match a command at the
+  # start of a JSON string value ("command":"rm -rf ..." puts a quote before rm).
+  if is_destructive "${INPUT//\"/ }"; then
     {
       echo "BLOCKED by the clean skill's destructive guard (degraded mode: jq not found)."
       echo "Without jq the guard cannot verify the CLEAN_GUARD_ACK acknowledgement, so destructive commands are blocked outright."
