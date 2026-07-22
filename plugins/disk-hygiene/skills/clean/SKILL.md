@@ -27,6 +27,10 @@ filesystem root, mount target, OS-managed root, protected shell-folder root or d
 directory, symlink, or Windows reparse point.
 
 - Use `/repo-hygiene:clean` for one repository's caches, build output, Git metadata, or tree reset.
+- For git worktree checkouts (e.g. under a `.worktrees/` directory), hand off to
+  `/source-control:worktree status`/`cleanup` (if installed), run from the checkout's own main
+  repository — those actions manage the current repository's worktrees and take no target path. The
+  engine already protects tracked content and `.git` metadata, but owns no worktree lifecycle.
 - For state owned by a package manager, plugin manager, browser, IDE, cloud-sync client, or similar
   product, research its documented dry-run/prune/GC command and report the handoff. Managed state is
   never eligible for this engine, even when a native dry-run calls it eligible.

@@ -3,6 +3,19 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.7]
+
+### Fixed
+
+- **The `clean` skill now hands off git worktree checkouts to `/source-control:worktree`.** An audit
+  of a repos root containing worktree checkouts (e.g. under `.worktrees/`) inventories each checkout
+  and protects its tracked content and `.git` metadata, but the skill named no next step for the
+  worktree lifecycle it does not own. The boundary list (and the README relationship list) now point
+  at `/source-control:worktree status`/`cleanup` (if installed) — run from the checkout's own main
+  repository, since those actions manage the current repository's worktrees and take no target —
+  extending the existing managed-state → named-handoff pattern. Discoverability only; no engine or
+  safety behavior change. (#986)
+
 ## [0.4.6]
 
 ### Changed
