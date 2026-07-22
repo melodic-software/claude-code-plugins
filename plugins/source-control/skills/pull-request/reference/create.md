@@ -346,18 +346,37 @@ For every heading in `${REQUIRED_SECTIONS[@]}` (resolved in §2.4.1 from `pr_bod
 MISSING_SECTIONS=()
 for section in "${REQUIRED_SECTIONS[@]}"; do
   # Everything after "## <section>" up to the next "## " heading or end of body.
-  # Fence-aware: a "```"/"~~~" delimiter toggles in_fence, and heading matches only
-  # count OUTSIDE a fence — a Summary that documents a template containing a literal
-  # "## Related" inside a code sample must never satisfy the Related requirement. A
-  # fence delimiter that appears WHILE already inside the found section is real
-  # content of that section and stays in its captured body (only `next`, not
-  # skipped), so a section whose own genuine content includes a code block is still
-  # captured correctly.
+  # Fence- and comment-aware: heading matches only count outside a fenced code block
+  # ("```"/"~~~") AND outside an HTML comment (<!-- ... -->, single- or multi-line) —
+  # a Summary that documents a template containing a literal "## Related" inside a
+  # code sample, or a body carrying a commented-out draft section, must never
+  # satisfy the Related requirement GitHub itself renders as absent. A single
+  # action block (not separate pattern-action rules) keeps exactly one branch
+  # firing per line — awk otherwise runs every matching rule for a line, which
+  # would double-toggle state on a line matching more than one pattern. A fence or
+  # comment delimiter encountered WHILE already inside the found section is real
+  # content of that section and stays in its captured body, so a section whose own
+  # genuine content includes a code block or an inline comment is still captured
+  # correctly.
   SECTION_BODY=$(printf '%s\n' "$BODY" | awk -v h="## ${section}" '
-    /^(```|~~~)/ { in_fence = !in_fence; if (found) print; next }
-    !in_fence && $0==h {found=1; next}
-    found && !in_fence && /^## / {exit}
-    found {print}
+  {
+    if ($0 ~ /^(```|~~~)/) { in_fence = !in_fence; if (found) print; next }
+    if (in_fence) { if (found) print; next }
+    if ($0 ~ /<!--/) {
+      in_comment = 1
+      if (found) print
+      if ($0 ~ /-->/) in_comment = 0
+      next
+    }
+    if (in_comment) {
+      if (found) print
+      if ($0 ~ /-->/) in_comment = 0
+      next
+    }
+    if (!found && $0 == h) { found = 1; next }
+    if (found && $0 ~ /^## /) { exit }
+    if (found) print
+  }
   ')
   if [[ -z "$(printf '%s' "$SECTION_BODY" | tr -d '[:space:]')" ]]; then
     MISSING_SECTIONS+=("$section")

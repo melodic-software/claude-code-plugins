@@ -188,6 +188,18 @@
         "The gate still blocks when the only heading-shaped match for a required section is inside a code fence",
         "A fence delimiter encountered while already inside a real section's content is preserved as part of that section's captured body, not treated as an exit boundary"
       ]
+    },
+    {
+      "id": 16,
+      "name": "pr-body-required-sections-gate-ignores-html-comment-heading-lookalikes",
+      "prompt": "/pull-request create. pr_body_required_sections requires Related. The drafted body has no rendered `## Related` section, but carries a multi-line HTML comment (`<!--` on its own line, then `## Related` on its own line, then `...` and `-->` closing it) documenting a draft the author decided not to render.",
+      "expected_output": "The §2.4.2.2 gate still blocks PR creation for the missing `## Related` section. The heading scan is comment-aware in addition to fence-aware: a `## Related` line inside an HTML comment (single- or multi-line) is not treated as a real section boundary, matching what GitHub itself renders (the comment is invisible). This mirrors the fence-lookalike protection (eval 15) for the other way real Markdown text can hide a heading-shaped line.",
+      "files": [],
+      "expectations": [
+        "A `## <heading>` line inside an HTML comment (`<!-- ... -->`, single- or multi-line) is not treated as a real section heading",
+        "The gate still blocks when the only heading-shaped match for a required section is inside a comment",
+        "A comment delimiter encountered while already inside a real section's content is preserved as part of that section's captured body, not treated as an exit boundary"
+      ]
     }
   ]
 }
