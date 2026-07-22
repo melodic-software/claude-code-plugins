@@ -39,8 +39,10 @@ re-fetch the two source pages if a fact is load-bearing before you act.
 | Argument | Action |
 |----------|--------|
 | *(none)* or `status` | Report the auto-memory posture: effective enabled/disabled state, where the store lives, what it holds. Read-only. |
+| `status all` | Machine-wide: the `status` report plus a table of EVERY per-project memory store (`scripts/enumerate-all-projects.sh`). Read-only. |
 | `disable` | Turn auto memory off durably (`autoMemoryEnabled: false` + `CLAUDE_CODE_DISABLE_AUTO_MEMORY`). Edits settings — confirm scope first. |
-| `purge` | **Destructive.** Delete the auto-memory files. Reads `autoMemoryDirectory` at every scope first, shows a manifest, and deletes only after explicit confirmation. |
+| `purge` | **Destructive.** Delete the auto-memory files. Reads `autoMemoryDirectory` at every scope first, shows a manifest, offers an opt-in pre-delete backup, and deletes only after explicit confirmation. |
+| `purge all` | **Destructive, machine-wide.** Same flow with every per-project store as the candidate set, one combined manifest, and ONE combined gate stating the total count and every directory. |
 
 ## Precedence (documented)
 

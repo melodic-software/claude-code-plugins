@@ -3,7 +3,7 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.10.1]
+## [0.10.2]
 
 ### Changed
 
@@ -56,6 +56,26 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   depth ≥ 2. The value-blind `--config-env` shape refusal is now ungated so it fires at
   every depth; only the one-level inline-alias re-expansion remains bounded by
   `HOOK_NO_ALIAS`.
+
+## [0.10.1]
+
+### Fixed
+
+- **`hardcoded-path-check` no longer scans when no project is active.** The
+  scope guard previously fell through and scanned unconditionally when
+  `CLAUDE_PROJECT_DIR` was unset — contradicting the README's "only police
+  files under `$CLAUDE_PROJECT_DIR`" contract — and the gitignore escape hatch
+  was gated on the same variable, so in exactly that case the one documented
+  per-file exemption was unreachable (real incident: forced `~/` rewrites onto
+  a machine-local `~/.gitconfig` edited from a no-project session). The hook
+  now skips entirely with no active project: a no-project target is
+  machine-local, not the portable repo artifact this guard protects.
+  Deliberately different from `secret-pattern-detection`, which scans even
+  without a resolvable root — secrets are dangerous anywhere. README "Consumer
+  seams" bullets updated to state the no-project behavior explicitly.
+  (Official hooks reference consulted per the fresh-docs mandate:
+  <https://code.claude.com/docs/en/hooks> — `CLAUDE_PROJECT_DIR` is "the
+  project root", with no guarantee of presence in no-project sessions.)
 
 ## [0.10.0]
 

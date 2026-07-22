@@ -3,6 +3,94 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.2]
+
+### Fixed
+
+- **Windows platform posture no longer reads as if the engine deletes there.** `setup check`'s
+  platform-posture step said "Windows (full, `lstat` reparse + Win32, never UAC)", but "full"
+  described only the audit lane — `clean`'s preview returns `execution-platform-unsupported` on
+  Windows and removal is a manual Recycle-Bin handoff. The posture line (and the README's Windows
+  bullet) now keeps the lanes visibly separate: full **audit**; engine **execution unsupported**;
+  manual, per-path Recycle-Bin handoff after explicit approval. macOS gains the matching manual
+  Trash note.
+- **"Skill-scoped guard" wording now says what the scope means.** The `destructive_guard.py`
+  PreToolUse hook is registered in the `clean` skill's frontmatter and fires only within that
+  skill's context; setup's own probes and any direct `hygiene.py` invocation rely on the engine's
+  built-in containment, not the hook. One clause in `setup check` step 1 and the README
+  requirements bullet now states this instead of implying always-on protection.
+- **The security review's Configuration bullet no longer claims "no `userConfig`".** That claim
+  has been stale since 0.3.0 introduced the `disk_hygiene_enabled` toggle; the bullet now
+  describes the actual surface (one non-sensitive boolean that can only narrow the destructive
+  surface) with the review conclusion unchanged.
+
+## [0.6.1]
+
+### Changed
+
+- **The Python version floor now has one origin.** The "3.11+" floor was hand-maintained in at
+  least five places — `hygiene.py`'s runtime check (the real enforcement), both `.test.sh`
+  wrappers, both SKILL.md files, and the README — while the setup skill told itself to "probe
+  what they actually require, don't recite this file"; a future bump would drift the copies
+  silently. The floor is now the module-level `MIN_PYTHON` constant in `hygiene.py`: the runtime
+  check and its error message derive from it, a regression test locks the constant's greppable
+  line shape and proves enforcement uses it, both test wrappers parse it instead of restating
+  the number (failing loudly if the parse breaks), `setup check` step 1 derives the probed floor
+  from the constant, and the remaining prose mentions are annotated as pointers or convenience
+  copies of that origin.
+
+## [0.6.0]
+
+### Added
+
+- **Deterministic kill-switch probe** (`skills/setup/scripts/kill_switch_probe.py`): a report-only,
+  stdlib-only read of the configured `disk_hygiene_enabled` value from
+  `pluginConfigs[<plugin-id>].options` in the user `settings.json` (`CLAUDE_CONFIG_DIR`-aware). It
+  emits one JSON line with the `effective` boolean, its `source`
+  (`configured` / `default` / `indeterminate`), a `degraded` flag, and the matched entries. The
+  guard's Bash allowlist now permits exactly the argument-free bundled probe invocation (any
+  argument, bare `python`, or a different path stays denied).
+
+### Fixed
+
+- **`setup check` no longer reports the kill switch from an unexpanded body token.** Step 4
+  previously emitted `${user_config.disk_hygiene_enabled}` in the skill body with the rule
+  "unexpanded or empty means default `true`", so a configured `false` (audit-only mode) whose
+  token failed to expand was misreported as enabled — a false-negative on the safety-critical
+  setting the check exists to verify. Current plugin docs state non-sensitive `${user_config.*}`
+  values substitute in skill content, but a live run observed the token unexpanded, so body-token
+  expansion cannot be load-bearing for a safety report. `check` now reports the probe's
+  deterministic result with provenance, degrades honestly ("could not read the configured toggle;
+  assuming default `true`") when no definitive read is possible, and treats the body token as at
+  most a cross-check whose contradiction is reported rather than silently resolved. The `clean`
+  skill's audit-only instruction likewise stops treating an unexpanded token as "unset = enabled"
+  and resolves the toggle through the same probe; enforcement remains with the guard's
+  runtime-substituted `--disk-hygiene-enabled` hook argument (0.4.4).
+
+## [0.5.0]
+
+### Added
+
+- **Engine-level large-target scan gate.** A `scan` whose target resolves to the user home directory
+  now returns `large-target-confirmation-required` (after a cheap top-level probe, no full walk)
+  unless it carries `--max-depth` or the new `--confirmed-large-scan` flag, backing the former
+  prompt-only `--max-depth 1` convention with a deterministic backstop so a forgotten bound cannot
+  become an accidental unbounded whole-home walk. The Bash guard accepts the valueless
+  `--confirmed-large-scan` in the exact scan shape.
+
+## [0.4.7]
+
+### Fixed
+
+- **The `clean` skill now hands off git worktree checkouts to `/source-control:worktree`.** An audit
+  of a repos root containing worktree checkouts (e.g. under `.worktrees/`) inventories each checkout
+  and protects its tracked content and `.git` metadata, but the skill named no next step for the
+  worktree lifecycle it does not own. The boundary list (and the README relationship list) now point
+  at `/source-control:worktree status`/`cleanup` (if installed) — run from the checkout's own main
+  repository, since those actions manage the current repository's worktrees and take no target —
+  extending the existing managed-state → named-handoff pattern. Discoverability only; no engine or
+  safety behavior change. (#986)
+
 ## [0.4.6]
 
 ### Changed
