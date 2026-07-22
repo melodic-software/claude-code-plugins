@@ -10,7 +10,7 @@ hooks:
       hooks:
         - type: command
           command: "python3"
-          args: ["${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--authorized-data-root", "${CLAUDE_PLUGIN_DATA}", "--disk-hygiene-enabled", "${user_config.disk_hygiene_enabled}"]
+          args: ["${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]
 ---
 
 # Disk hygiene
@@ -45,14 +45,14 @@ unless bounded with `--max-depth` or confirmed with `--confirmed-large-scan`.
   running the bundled probe (the guard allows exactly this argument-free shape):
   `"<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/kill_switch_probe.py"` and honor
   the `effective` value it reports; on `degraded: true` proceed as enabled but say the configured
-  value could not be read. In this audit-only mode the guard denies every
-  deletion lane, including the flagged PowerShell mutation spellings, not only the Bash engine
-  apply. The kill-switch value reaches the guard as a runtime-substituted hook argument
-  (`--disk-hygiene-enabled ${user_config.disk_hygiene_enabled}`), so a configured `false` is
-  honored even where the runtime does not inject the `CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED`
-  environment variable; the environment variable is only a fallback. The hook
-  runs in shell-free exec form and reports its absolute Python interpreter and the authorized
-  `--data-root` value in denial guidance. Use that exact interpreter path as `<hook-python>` for
+  value could not be read. Honoring that value is your responsibility: a skill-frontmatter hook
+  receives neither the `${user_config.*}` substitution nor the
+  `CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED` environment variable, so the guard cannot independently
+  enforce audit-only mode — it stays active and still forces a human prompt before every mutation,
+  but a configured `false` reaches only you, not the guard. Do not treat the guard as the kill
+  switch's backstop here. The hook runs in shell-free exec form and reports its absolute Python
+  interpreter and the authorized `--data-root` value in denial guidance. Use that exact interpreter
+  path as `<hook-python>` for
   every engine call; bare `python`/`python3` is rejected because Bash aliases and functions can
   replace them. If either value is not known yet, submit the otherwise exact scan shape once with
   bare `python`: the guard must deny it and report both, after which retry the scan with the
@@ -74,9 +74,12 @@ stay there, never in the target or `${CLAUDE_PLUGIN_ROOT}`. Run:
   [--max-depth <N>] [--confirmed-large-scan]
 ```
 
-The guard validates `--data-root` against the authorized data root it receives as a
-runtime-substituted hook argument (`${CLAUDE_PLUGIN_DATA}`), so generated state provably lands in the
-plugin data directory even when the shell environment lacks `CLAUDE_PLUGIN_DATA`.
+The guard validates `--data-root` against the plugin data directory it derives from
+`${CLAUDE_PLUGIN_ROOT}` (passed to the guard as `--plugin-root`, the only substitution a
+skill-frontmatter hook receives), confining generated state to the plugin data directory even when
+the guard's own environment lacks `CLAUDE_PLUGIN_DATA`. If the guard cannot recognize the install
+layout it derives no authority and denies `--data-root` engine calls rather than trusting a guessed
+path, so re-run reporting a denial is a coverage gap, not a clean result.
 
 For a large root (a home directory, anything whose recursive walk could exceed the engine's entry
 cap), start with a bounded pass: add `--max-depth 1` to inventory the target's loose files and

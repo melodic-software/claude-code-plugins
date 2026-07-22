@@ -3,7 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.6.3]
+## [0.6.4]
 
 ### Fixed
 
@@ -22,6 +22,38 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   root (`large_scan_reasons` reason `non-os-volume-root`), so an unbounded whole-volume walk returns
   `large-target-confirmation-required` unless bounded with `--max-depth` or confirmed with
   `--confirmed-large-scan`.
+
+## [0.6.3]
+
+### Fixed
+
+- **The destructive-action guard was failing open on the bundled `clean` skill.** The
+  skill-frontmatter PreToolUse hook passed `--authorized-data-root ${CLAUDE_PLUGIN_DATA}` in its
+  args, but Claude Code refuses to launch a skill-scoped hook that references `${CLAUDE_PLUGIN_DATA}`
+  (it is plugin-only; only `${CLAUDE_PLUGIN_ROOT}` is available to skill hooks) and treats the failed
+  launch as a non-blocking error — so the guard silently never ran and `rm -rf`, engine `apply`, and
+  the PowerShell deletion belt were all ungated. This recurs the fail-open shape earlier fixes
+  addressed through a new vector (hook launch failure via an unsupported substitution token); the
+  0.4.4 premise that "inline placeholder substitution resolves in exec-form hook args" does not hold
+  for `${CLAUDE_PLUGIN_DATA}` in a skill-scoped hook.
+  - The hook now passes only `--plugin-root ${CLAUDE_PLUGIN_ROOT}` — the sole substitution a skill
+    hook receives — so it always launches. `destructive_guard.py` derives the authorized data root
+    from the plugin root using Claude Code's documented persistent-data-directory layout
+    (`<plugins>/data/<id>`, `<id>` = the sanitized `<name>@<marketplace>`). Every failure mode is
+    fail-closed: an unrecognized layout yields no authority, so `--data-root` engine calls are denied
+    while the destructive-action guard stays fully active. A direct `--authorized-data-root` and the
+    `CLAUDE_PLUGIN_DATA` environment variable remain accepted as additional/fallback channels for
+    hosts that can supply them.
+  - **Known limitation (platform gap):** the `disk_hygiene_enabled` kill switch can no longer reach
+    the guard on a skill-frontmatter hook. Its only channels are the `--disk-hygiene-enabled` argv
+    flag (which needs the `${user_config.*}` substitution skill hooks do not receive) and the
+    `CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED` environment variable (which the runtime does not
+    inject into skill hooks). The guard therefore defaults to enabled and cannot honor a configured
+    `false` by denying outright; it still forces a human prompt before every mutation, and the skill
+    body's substituted value lets the model self-enforce audit-only. This never functioned on 0.4.6
+    either (the hook did not launch at all), so it is a documented gap rather than a regression.
+    Delivering the kill switch to a skill-scoped guard needs a channel skill hooks do not yet have.
+    (#983)
 
 ## [0.6.2]
 

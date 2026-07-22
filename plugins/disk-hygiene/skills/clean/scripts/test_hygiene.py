@@ -1552,11 +1552,13 @@ class GuardTests(unittest.TestCase):
     ) -> dict[str, object] | None:
         """Drive the guard with the kill switch supplied via hook argv, not the env.
 
-        Mirrors the skill-frontmatter hook, which substitutes
-        ``--disk-hygiene-enabled ${user_config.disk_hygiene_enabled}`` into the
-        guard's own argv while CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED is absent
-        from the hook process environment — the exact env-injection failure this
-        fix addresses.
+        Exercises the ``--disk-hygiene-enabled`` argv channel with
+        CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED absent — the delivery a host that
+        can substitute ``${user_config.disk_hygiene_enabled}`` (a plugin
+        ``hooks.json`` hook) would use. The bundled skill-frontmatter hook cannot
+        supply this value (Claude Code substitutes only ``${CLAUDE_PLUGIN_ROOT}``
+        into skill-hook args), so this proves the guard's argv path itself, not the
+        shipped skill deployment.
         """
         argv = [
             str(SCRIPT_DIR / "destructive_guard.py"),
@@ -1874,11 +1876,13 @@ class GuardTests(unittest.TestCase):
     def run_guard_hook_argv(
         self, command: str, authorized: str | None
     ) -> dict[str, object]:
-        """Drive the guard with the data root supplied via hook argv, not the env.
+        """Drive the guard with the data root supplied directly via hook argv.
 
-        Mirrors the skill-frontmatter hook, which substitutes
-        ``--authorized-data-root ${CLAUDE_PLUGIN_DATA}`` into the guard's own argv
-        while CLAUDE_PLUGIN_DATA is absent from the hook process environment.
+        Exercises the ``--authorized-data-root`` channel — the direct path a host
+        that can substitute ``${CLAUDE_PLUGIN_DATA}`` itself (a plugin ``hooks.json``
+        hook) may pass — with CLAUDE_PLUGIN_DATA absent from the process
+        environment. The bundled ``clean`` skill instead uses ``--plugin-root``
+        (see ``run_guard_plugin_root``), the only substitution a skill hook gets.
         """
         argv = [str(SCRIPT_DIR / "destructive_guard.py")]
         if authorized is not None:
@@ -1982,6 +1986,57 @@ class GuardTests(unittest.TestCase):
                 result["hookSpecificOutput"]["permissionDecisionReason"],
             )
 
+    def run_guard_plugin_root(
+        self, command: str, plugin_root: str
+    ) -> dict[str, object]:
+        """Drive the guard exactly as the shipped skill hook does.
+
+        The skill-frontmatter hook passes ``--plugin-root ${CLAUDE_PLUGIN_ROOT}``
+        (the only substitution a skill hook receives) and nothing else; the guard
+        derives the authorized data root from it. CLAUDE_PLUGIN_DATA is absent from
+        the process environment, the exact skill-hook condition.
+        """
+        argv = [str(SCRIPT_DIR / "destructive_guard.py"), "--plugin-root", plugin_root]
+        environment = {
+            key: value
+            for key, value in os.environ.items()
+            if key != "CLAUDE_PLUGIN_DATA"
+        }
+        environment["CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED"] = "true"
+        stdin = io.StringIO(json.dumps({"tool_input": {"command": command}}))
+        stdout = io.StringIO()
+        with (
+            mock.patch("sys.stdin", stdin),
+            redirect_stdout(stdout),
+            mock.patch.object(guard.sys, "argv", argv),
+            mock.patch.dict("os.environ", environment, clear=True),
+        ):
+            self.assertEqual(0, guard.main())
+        return json.loads(stdout.getvalue())
+
+    def test_guard_derives_data_root_from_plugin_root_argv(self) -> None:
+        script = SCRIPT_DIR / "hygiene.py"
+        with tempfile.TemporaryDirectory() as temporary:
+            plugins = Path(temporary).resolve() / "plugins"
+            # The install root is the version leaf under cache/<mkt>/<name>/.
+            plugin_root = plugins / "cache" / "acme" / "disk-hygiene" / "0.4.8"
+            plugin_root.mkdir(parents=True)
+            authorized = str(plugins / "data" / "disk-hygiene-acme")
+            other = str(plugins / "data" / "elsewhere")
+            base = f'"{self.python_command()}" "{script}" scan --target t --output s'
+            self.assertEqual(
+                "allow",
+                self.run_guard_plugin_root(
+                    f'{base} --data-root "{authorized}"', str(plugin_root)
+                )["hookSpecificOutput"]["permissionDecision"],
+            )
+            self.assertEqual(
+                "deny",
+                self.run_guard_plugin_root(
+                    f'{base} --data-root "{other}"', str(plugin_root)
+                )["hookSpecificOutput"]["permissionDecision"],
+            )
+
     def test_argv_authorized_data_root_parses_both_arg_spellings(self) -> None:
         self.assertEqual(
             "/data", guard._argv_authorized_data_root(["--authorized-data-root", "/data"])
@@ -2024,6 +2079,82 @@ class GuardTests(unittest.TestCase):
                     "only the exact placeholder is rejected; a real path that merely "
                     "contains ${ must be preserved as the argv authority",
                 )
+
+    def test_resolve_authorized_data_root_derives_from_plugin_root(self) -> None:
+        script = str(SCRIPT_DIR / "destructive_guard.py")
+        plugin_root = os.fspath(
+            Path("/x/plugins/cache/acme/disk-hygiene/0.4.8")
+        )
+        derived = os.fspath(Path("/x/plugins/data/disk-hygiene-acme"))
+        environment = {
+            key: value
+            for key, value in os.environ.items()
+            if key != "CLAUDE_PLUGIN_DATA"
+        }
+        with mock.patch.dict("os.environ", environment, clear=True):
+            with mock.patch.object(
+                guard.sys, "argv", [script, "--plugin-root", plugin_root]
+            ):
+                self.assertEqual(derived, guard.resolve_authorized_data_root())
+            # A direct --authorized-data-root outranks plugin-root derivation.
+            with mock.patch.object(
+                guard.sys,
+                "argv",
+                [script, "--authorized-data-root", "/direct", "--plugin-root", plugin_root],
+            ):
+                self.assertEqual("/direct", guard.resolve_authorized_data_root())
+            # An unresolvable plugin-root layout yields no authority, then env.
+            with mock.patch.object(
+                guard.sys, "argv", [script, "--plugin-root", "/not/a/plugin/layout"]
+            ):
+                self.assertIsNone(guard.resolve_authorized_data_root())
+        with mock.patch.dict(
+            "os.environ", {"CLAUDE_PLUGIN_DATA": "/from-env"}, clear=False
+        ):
+            with mock.patch.object(
+                guard.sys, "argv", [script, "--plugin-root", "/not/a/plugin/layout"]
+            ):
+                self.assertEqual("/from-env", guard.resolve_authorized_data_root())
+
+    def test_plugin_data_root_from_root_follows_documented_layout(self) -> None:
+        # Real marketplace install: the install root is the VERSION leaf under
+        # <plugins>/cache/<marketplace>/<name>/<version>; data is <plugins>/data/<id>
+        # with <id> the sanitized "<name>@<marketplace>". The version is ignored.
+        self.assertEqual(
+            os.fspath(Path("/x/plugins/data/disk-hygiene-melodic-software")),
+            guard._plugin_data_root_from_root(
+                os.fspath(
+                    Path("/x/plugins/cache/melodic-software/disk-hygiene/0.4.8")
+                )
+            ),
+        )
+        # A directly-linked local install omits the <version> leaf; the name is
+        # then the root itself.
+        self.assertEqual(
+            os.fspath(Path("/x/plugins/data/disk-hygiene-melodic-software")),
+            guard._plugin_data_root_from_root(
+                os.fspath(Path("/x/plugins/cache/melodic-software/disk-hygiene"))
+            ),
+        )
+        # The "@" separator and every other disallowed character (".") collapse
+        # to "-", per the documented id-sanitization rule.
+        self.assertEqual(
+            os.fspath(Path("/x/plugins/data/my-plugin-my-market")),
+            guard._plugin_data_root_from_root(
+                os.fspath(Path("/x/plugins/cache/my.market/my.plugin/1.2.3"))
+            ),
+        )
+        # No <plugins>/cache marker, "cache" not under a "plugins" parent, or no
+        # name segment after the marketplace: fail closed.
+        for stray in (
+            "/somewhere/else/plugin",
+            "/a/b",
+            "/x/store/cache/m/n",
+            "/x/plugins/cache/only-marketplace",
+        ):
+            self.assertIsNone(
+                guard._plugin_data_root_from_root(os.fspath(Path(stray))), stray
+            )
 
     def test_argv_flag_value_parses_both_arg_spellings(self) -> None:
         self.assertEqual(
@@ -2089,65 +2220,65 @@ class GuardTests(unittest.TestCase):
         # No channel supplies a value: fail safe to enabled (guard active).
         self.assertTrue(drive([], {}))
 
-    def test_skill_hook_passes_disk_hygiene_enabled_flag_matching_constant(
+    @staticmethod
+    def _skill_hook_command_and_args() -> tuple[str, list[str]]:
+        """Return the frontmatter guard hook's `command` and parsed `args`."""
+        text = (SCRIPT_DIR.parent / "SKILL.md").read_text(encoding="utf-8")
+        args_line = next(
+            line
+            for line in text.splitlines()
+            if "destructive_guard.py" in line and "args:" in line
+        )
+        args = json.loads(args_line[args_line.index("[") : args_line.rindex("]") + 1])
+        command_line = next(
+            line
+            for line in text.splitlines()
+            if line.strip().startswith("command:")
+        )
+        command = command_line.split(":", 1)[1].strip().strip('"')
+        return command, args
+
+    def test_skill_hook_args_launch_with_only_skill_available_substitutions(
         self,
     ) -> None:
-        """Lock the config<->code seam the kill switch depends on.
+        """Guard the guard's launch: the hook must reference only skill-available tokens.
+
+        Claude Code refuses to launch a skill-frontmatter hook whose command or
+        args reference any substitution token it does not provide to skill hooks,
+        and treats that refusal as a non-blocking error — so the destructive-action
+        guard silently never runs. Empirically the only token available to a skill
+        hook is `${CLAUDE_PLUGIN_ROOT}`: `${CLAUDE_PLUGIN_DATA}` is plugin-only and
+        `${user_config.*}` is not substituted for skill hooks, and either one
+        reintroduces the fail-open. This asserts the declared tokens are within that
+        allowlist; that the hook then launches is only fully verifiable in a live
+        Claude Code session with the plugin installed.
+        """
+        command, args = self._skill_hook_command_and_args()
+        tokens = set(re.findall(r"\$\{[^}]+\}", command))
+        for value in args:
+            tokens.update(re.findall(r"\$\{[^}]+\}", value))
+        allowed = {"${CLAUDE_PLUGIN_ROOT}"}
+        self.assertLessEqual(
+            tokens,
+            allowed,
+            "skill-hook command/args reference tokens Claude Code does not "
+            f"substitute for skill hooks: {sorted(tokens - allowed)}",
+        )
+
+    def test_skill_hook_passes_plugin_root_flag_matching_constant(self) -> None:
+        """Lock the config<->code seam the data-root derivation depends on.
 
         The frontmatter hook must pass the exact flag literal the guard parses,
-        immediately followed by the ${user_config.disk_hygiene_enabled} token. If
-        either side is renamed without the other, the guard silently loses the
-        configured value and falls back to the (absent) env var — defaulting to
-        enabled and defeating the kill switch, the regression this test guards.
+        immediately followed by the ${CLAUDE_PLUGIN_ROOT} token from which the
+        guard derives the authorized data root. If either side is renamed without
+        the other, the guard loses its authority and the engine lane fails closed —
+        the regression this test guards.
         """
-        skill = SCRIPT_DIR.parent / "SKILL.md"
-        text = skill.read_text(encoding="utf-8")
-        args_line = next(
-            (
-                line
-                for line in text.splitlines()
-                if "destructive_guard.py" in line and "args:" in line
-            ),
-            None,
-        )
-        self.assertIsNotNone(args_line, "frontmatter hook args line not found")
-        assert args_line is not None
-        array_text = args_line[args_line.index("[") : args_line.rindex("]") + 1]
-        args = json.loads(array_text)
-        self.assertIn(guard._DISK_HYGIENE_ENABLED_FLAG, args)
-        flag_index = args.index(guard._DISK_HYGIENE_ENABLED_FLAG)
-        self.assertEqual(
-            guard._DISK_HYGIENE_ENABLED_PLACEHOLDER, args[flag_index + 1]
-        )
-
-    def test_skill_hook_passes_authorized_data_root_flag_matching_constant(
-        self,
-    ) -> None:
-        """Lock the config<->code seam the fix depends on.
-
-        The frontmatter hook must pass the exact flag literal the guard parses,
-        immediately followed by the ${CLAUDE_PLUGIN_DATA} placeholder. If either
-        side is renamed without the other, the guard silently loses its authority
-        and the engine lane fails closed — the regression this test guards.
-        """
-        skill = SCRIPT_DIR.parent / "SKILL.md"
-        text = skill.read_text(encoding="utf-8")
-        args_line = next(
-            (
-                line
-                for line in text.splitlines()
-                if "destructive_guard.py" in line and "args:" in line
-            ),
-            None,
-        )
-        self.assertIsNotNone(args_line, "frontmatter hook args line not found")
-        assert args_line is not None
-        array_text = args_line[args_line.index("[") : args_line.rindex("]") + 1]
-        args = json.loads(array_text)
+        _command, args = self._skill_hook_command_and_args()
         self.assertTrue(args[0].endswith("destructive_guard.py"), args)
-        self.assertIn(guard._AUTHORIZED_DATA_ROOT_FLAG, args)
-        flag_index = args.index(guard._AUTHORIZED_DATA_ROOT_FLAG)
-        self.assertEqual("${CLAUDE_PLUGIN_DATA}", args[flag_index + 1])
+        self.assertIn(guard._PLUGIN_ROOT_FLAG, args)
+        flag_index = args.index(guard._PLUGIN_ROOT_FLAG)
+        self.assertEqual(guard._PLUGIN_ROOT_PLACEHOLDER, args[flag_index + 1])
 
     def test_skill_hook_interpreter_is_python3_and_resolves(self) -> None:
         """Lock the guard's launch interpreter and prove it resolves.
@@ -2325,9 +2456,10 @@ class GuardTests(unittest.TestCase):
             )
 
     def test_kill_switch_blocks_every_lane_via_argv_without_env(self) -> None:
-        """Acceptance (B2+D3 together): a configured ``false`` reaching the guard
-        only through the hook argv — the env var UNSET, the exact env-injection
-        failure — must block deletions on both the PowerShell and Bash lanes."""
+        """A configured ``false`` reaching the guard only through the
+        ``--disk-hygiene-enabled`` argv channel — the env var UNSET — must block
+        deletions on both the PowerShell and Bash lanes. Proves the guard's argv
+        kill-switch logic for a host that can deliver the value there."""
         script = SCRIPT_DIR / "hygiene.py"
         powershell = self.run_guard_enabled_argv(
             "Remove-Item -Recurse -Force C:/tmp/example", "PowerShell", "false"
