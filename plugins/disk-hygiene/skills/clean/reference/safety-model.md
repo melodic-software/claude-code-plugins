@@ -61,10 +61,16 @@ only a bare positive-integer literal.
 
 The same guard also covers the PowerShell tool with the inverse tradeoff: PowerShell stays open for
 read-only support work, while engine invocations are hard-denied (Bash is the only engine lane) and
-known deletion spellings and .NET Delete calls are downgraded to a final human permission prompt —
-the same bar as the engine apply prompt. That lane is a raised bar, not fail-closed: an unknown
-mutation spelling passes it, so the engine's own containment, revalidation, and platform gates remain
-the deletion authority.
+known deletion spellings and .NET Delete calls resolve against the `disk_hygiene_enabled` kill
+switch — the same bar as the engine apply lane. When execution is enabled they are downgraded to a
+final human permission prompt; in audit-only mode (`disk_hygiene_enabled` is `false`) they are
+denied outright, so the kill switch blocks deletions on the PowerShell lane too and not only the
+Bash engine apply. The kill-switch value reaches the guard as a runtime-substituted hook argument
+(`--disk-hygiene-enabled ${user_config.disk_hygiene_enabled}`), so a configured `false` holds even
+where the runtime does not inject `CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED` into the hook
+environment (the environment variable is only a fallback). That lane is a raised bar, not
+fail-closed: an unknown mutation spelling passes it, so the engine's own containment, revalidation,
+and platform gates remain the deletion authority.
 
 A depth-limited scan records every directory it declined to enter in `truncated_paths`. Truncated
 directories have no captured descendant set, so the preview blocks them (and anything beneath them)

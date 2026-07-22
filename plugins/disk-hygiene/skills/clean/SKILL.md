@@ -10,7 +10,7 @@ hooks:
       hooks:
         - type: command
           command: "python3"
-          args: ["${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--authorized-data-root", "${CLAUDE_PLUGIN_DATA}"]
+          args: ["${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--authorized-data-root", "${CLAUDE_PLUGIN_DATA}", "--disk-hygiene-enabled", "${user_config.disk_hygiene_enabled}"]
 ---
 
 # Disk hygiene
@@ -34,7 +34,12 @@ directory, symlink, or Windows reparse point.
   retention mechanism. Report `needs-elevation` or `handle-state-unverified` and stop that tier.
 - If the `disk_hygiene_enabled` userConfig option is `false` (its value here is
   `${user_config.disk_hygiene_enabled}`; a literal unexpanded token means unset = enabled), audit
-  only and explain why execution is disabled. The hook
+  only and explain why execution is disabled. In this audit-only mode the guard denies every
+  deletion lane, including the flagged PowerShell mutation spellings, not only the Bash engine
+  apply. The kill-switch value reaches the guard as a runtime-substituted hook argument
+  (`--disk-hygiene-enabled ${user_config.disk_hygiene_enabled}`), so a configured `false` is
+  honored even where the runtime does not inject the `CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED`
+  environment variable; the environment variable is only a fallback. The hook
   runs in shell-free exec form and reports its absolute Python interpreter and the authorized
   `--data-root` value in denial guidance. Use that exact interpreter path as `<hook-python>` for
   every engine call; bare `python`/`python3` is rejected because Bash aliases and functions can

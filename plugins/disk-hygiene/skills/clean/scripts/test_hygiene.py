@@ -1084,6 +1084,41 @@ class GuardTests(unittest.TestCase):
             self.assertEqual(0, guard.main())
         return json.loads(stdout.getvalue())
 
+    def run_guard_enabled_argv(
+        self, command: str, tool_name: str, enabled_arg: str
+    ) -> dict[str, object] | None:
+        """Drive the guard with the kill switch supplied via hook argv, not the env.
+
+        Mirrors the skill-frontmatter hook, which substitutes
+        ``--disk-hygiene-enabled ${user_config.disk_hygiene_enabled}`` into the
+        guard's own argv while CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED is absent
+        from the hook process environment — the exact env-injection failure this
+        fix addresses.
+        """
+        argv = [
+            str(SCRIPT_DIR / "destructive_guard.py"),
+            "--disk-hygiene-enabled",
+            enabled_arg,
+        ]
+        environment = {
+            key: value
+            for key, value in os.environ.items()
+            if key != "CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED"
+        }
+        stdin = io.StringIO(
+            json.dumps({"tool_name": tool_name, "tool_input": {"command": command}})
+        )
+        stdout = io.StringIO()
+        with (
+            mock.patch("sys.stdin", stdin),
+            redirect_stdout(stdout),
+            mock.patch.object(guard.sys, "argv", argv),
+            mock.patch.dict("os.environ", environment, clear=True),
+        ):
+            self.assertEqual(0, guard.main())
+        value = stdout.getvalue()
+        return json.loads(value) if value.strip() else None
+
     def test_guard_denies_direct_recursive_delete(self) -> None:
         result = self.run_guard("rm -rf /tmp/example")
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
@@ -1268,6 +1303,26 @@ class GuardTests(unittest.TestCase):
             redirect_stdout(stdout),
             mock.patch.dict(
                 "os.environ", {"CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED": "true"}, clear=False
+            ),
+        ):
+            self.assertEqual(0, guard.main())
+        value = stdout.getvalue()
+        return json.loads(value) if value.strip() else None
+
+    def run_guard_powershell_disabled(
+        self, command: str
+    ) -> dict[str, object] | None:
+        stdin = io.StringIO(
+            json.dumps({"tool_name": "PowerShell", "tool_input": {"command": command}})
+        )
+        stdout = io.StringIO()
+        with (
+            mock.patch("sys.stdin", stdin),
+            redirect_stdout(stdout),
+            mock.patch.dict(
+                "os.environ",
+                {"CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED": "false"},
+                clear=False,
             ),
         ):
             self.assertEqual(0, guard.main())
@@ -1478,6 +1533,101 @@ class GuardTests(unittest.TestCase):
                     "contains ${ must be preserved as the argv authority",
                 )
 
+    def test_argv_flag_value_parses_both_arg_spellings(self) -> None:
+        self.assertEqual(
+            "false",
+            guard._argv_flag_value(["--disk-hygiene-enabled", "false"], "--disk-hygiene-enabled"),
+        )
+        self.assertEqual(
+            "false",
+            guard._argv_flag_value(["--disk-hygiene-enabled=false"], "--disk-hygiene-enabled"),
+        )
+        self.assertIsNone(
+            guard._argv_flag_value(["--other", "false"], "--disk-hygiene-enabled")
+        )
+        self.assertIsNone(
+            guard._argv_flag_value(["--disk-hygiene-enabled"], "--disk-hygiene-enabled")
+        )
+
+    def test_resolve_disk_hygiene_enabled_precedence(self) -> None:
+        script = str(SCRIPT_DIR / "destructive_guard.py")
+
+        def drive(argv_tail: list[str], env: dict[str, str]) -> bool:
+            with (
+                mock.patch.object(guard.sys, "argv", [script, *argv_tail]),
+                mock.patch.dict("os.environ", env, clear=True),
+            ):
+                return guard.resolve_disk_hygiene_enabled()
+
+        # Argv is authoritative over the environment, both directions.
+        self.assertFalse(
+            drive(
+                ["--disk-hygiene-enabled", "false"],
+                {"CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED": "true"},
+            ),
+            "a configured false in argv must disable even when the env says true",
+        )
+        self.assertTrue(
+            drive(
+                ["--disk-hygiene-enabled", "true"],
+                {"CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED": "false"},
+            )
+        )
+        # Case-insensitive, whitespace-tolerant false.
+        self.assertFalse(drive(["--disk-hygiene-enabled", " FALSE "], {}))
+        # A literal, unsubstituted placeholder falls back to the environment.
+        self.assertFalse(
+            drive(
+                ["--disk-hygiene-enabled", "${user_config.disk_hygiene_enabled}"],
+                {"CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED": "false"},
+            ),
+            "an unsubstituted placeholder must fall back to the environment",
+        )
+        # An empty substituted value falls back to the environment.
+        self.assertFalse(
+            drive(
+                ["--disk-hygiene-enabled", ""],
+                {"CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED": "false"},
+            )
+        )
+        # No argv, env supplies the value.
+        self.assertFalse(
+            drive([], {"CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED": "false"})
+        )
+        # No channel supplies a value: fail safe to enabled (guard active).
+        self.assertTrue(drive([], {}))
+
+    def test_skill_hook_passes_disk_hygiene_enabled_flag_matching_constant(
+        self,
+    ) -> None:
+        """Lock the config<->code seam the kill switch depends on.
+
+        The frontmatter hook must pass the exact flag literal the guard parses,
+        immediately followed by the ${user_config.disk_hygiene_enabled} token. If
+        either side is renamed without the other, the guard silently loses the
+        configured value and falls back to the (absent) env var — defaulting to
+        enabled and defeating the kill switch, the regression this test guards.
+        """
+        skill = SCRIPT_DIR.parent / "SKILL.md"
+        text = skill.read_text(encoding="utf-8")
+        args_line = next(
+            (
+                line
+                for line in text.splitlines()
+                if "destructive_guard.py" in line and "args:" in line
+            ),
+            None,
+        )
+        self.assertIsNotNone(args_line, "frontmatter hook args line not found")
+        assert args_line is not None
+        array_text = args_line[args_line.index("[") : args_line.rindex("]") + 1]
+        args = json.loads(array_text)
+        self.assertIn(guard._DISK_HYGIENE_ENABLED_FLAG, args)
+        flag_index = args.index(guard._DISK_HYGIENE_ENABLED_FLAG)
+        self.assertEqual(
+            guard._DISK_HYGIENE_ENABLED_PLACEHOLDER, args[flag_index + 1]
+        )
+
     def test_skill_hook_passes_authorized_data_root_flag_matching_constant(
         self,
     ) -> None:
@@ -1638,6 +1788,56 @@ class GuardTests(unittest.TestCase):
             "Get-Item C:/tmp/example | Select-Object Length",
         ):
             self.assertIsNone(self.run_guard_powershell(command), command)
+
+    def test_powershell_deletion_spellings_denied_in_audit_only_mode(self) -> None:
+        """Kill switch (B2): audit-only mode must deny PowerShell deletions, not ask."""
+        for command in (
+            "Remove-Item -Recurse -Force C:/tmp/example",
+            "rm C:/tmp/example",
+            "del C:/tmp/example",
+            "[IO.File]::Delete('C:/tmp/example')",
+            "[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile('x', 'OnlyErrorDialogs', 'SendToRecycleBin')",
+        ):
+            result = self.run_guard_powershell_disabled(command)
+            assert result is not None, command
+            self.assertEqual(
+                "deny",
+                result["hookSpecificOutput"]["permissionDecision"],
+                command,
+            )
+
+    def test_kill_switch_blocks_every_lane_via_argv_without_env(self) -> None:
+        """Acceptance (B2+D3 together): a configured ``false`` reaching the guard
+        only through the hook argv — the env var UNSET, the exact env-injection
+        failure — must block deletions on both the PowerShell and Bash lanes."""
+        script = SCRIPT_DIR / "hygiene.py"
+        powershell = self.run_guard_enabled_argv(
+            "Remove-Item -Recurse -Force C:/tmp/example", "PowerShell", "false"
+        )
+        assert powershell is not None
+        self.assertEqual(
+            "deny", powershell["hookSpecificOutput"]["permissionDecision"]
+        )
+        apply_command = (
+            f'"{self.python_command()}" "{script}" apply --execute --snapshot s '
+            f'--plan p --confirm-tier high --approval-token {"a" * 24} --report r'
+        )
+        bash = self.run_guard_enabled_argv(apply_command, "Bash", "false")
+        assert bash is not None
+        self.assertEqual("deny", bash["hookSpecificOutput"]["permissionDecision"])
+
+    def test_kill_switch_enabled_via_argv_without_env_still_gates(self) -> None:
+        """The argv channel with the env var unset also carries an enabling value:
+        an ``apply`` is gated (``ask``) rather than denied, confirming the argv
+        value — not a hardcoded default — drives the decision."""
+        script = SCRIPT_DIR / "hygiene.py"
+        apply_command = (
+            f'"{self.python_command()}" "{script}" apply --execute --snapshot s '
+            f'--plan p --confirm-tier high --approval-token {"a" * 24} --report r'
+        )
+        result = self.run_guard_enabled_argv(apply_command, "Bash", "true")
+        assert result is not None
+        self.assertEqual("ask", result["hookSpecificOutput"]["permissionDecision"])
 
 
 if __name__ == "__main__":
