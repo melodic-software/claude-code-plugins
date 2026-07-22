@@ -19,7 +19,7 @@ merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
   premature-stop failure (#576/#577) — the reason states that a self-estimated "~50% context", a turn
   count, or a vague sense of "enough" is not a completion condition. Completion is signaled
   deterministically (a shell hook cannot re-run the `/goal` evaluator model): either the exact
-  sentinel token (default `LANE-STOP-OK`, matched standalone-only) in the agent's final message, or
+  sentinel token (default `LANE-STOP-OK`, matched only when alone on its own line) in the agent's final message, or
   the existence of a configured marker file — the settings-scoped, cross-session sibling of `/goal`'s
   session-only condition (#481). **Default OFF**: a Stop-blocking hook must never engage for an
   interactive session, so it is inert unless a lane opts in via `lane_stop_gate_enabled=true`. It is

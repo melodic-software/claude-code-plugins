@@ -114,7 +114,7 @@ It catches a graceful self-stop only — a closed laptop, a killed process, or `
 | userConfig option | Default | Effect |
 |---|---|---|
 | `lane_stop_gate_enabled` | `false` | Opt this session's lane into the gate. |
-| `lane_stop_gate_sentinel` | `LANE-STOP-OK` | Token the agent emits (standalone) to declare the goal met. |
+| `lane_stop_gate_sentinel` | `LANE-STOP-OK` | Token the agent emits alone on its own line to declare the goal met. |
 | `lane_stop_gate_marker` | *(unset)* | Marker file whose existence also authorizes a stop (absolute, or relative to the session cwd). |
 | `lane_notify_enabled` | `true` | Master switch for the operator alert. |
 | `lane_notify_os_toast_enabled` | `true` | OS-native toast channel (macOS/Linux). |

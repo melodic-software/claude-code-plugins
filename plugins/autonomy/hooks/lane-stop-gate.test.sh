@@ -72,9 +72,10 @@ if [[ $RC -eq 0 ]]; then ok "first stop no-signal: exit 0"; else fail "first sto
 if is_block "$OUT"; then ok "first stop no-signal → decision:block"; else fail "first stop no-signal → not blocked: $OUT"; fi
 if printf '%s' "$OUT" | jq -re '.reason' | grep -q 'LANE-STOP-OK'; then ok "block reason names the sentinel"; else fail "block reason missing sentinel: $OUT"; fi
 
-# --- Case 3: enabled, sentinel present → allow (no block) ------------------
-OUT="$(run "$(build_input Stop "All queue items cleared. LANE-STOP-OK" false)")"
-if is_block "$OUT"; then fail "sentinel present → still blocked: $OUT"; else ok "sentinel present → stop allowed (no block)"; fi
+# --- Case 3: sentinel alone on its own (final) line → allow (no block) ------
+OUT="$(run "$(build_input Stop "All queue items cleared.
+LANE-STOP-OK" false)")"
+if is_block "$OUT"; then fail "sentinel on its own line → still blocked: $OUT"; else ok "sentinel on its own line → stop allowed (no block)"; fi
 
 # --- Case 4: sentinel only as substring of a longer word → NOT signaled ----
 OUT="$(run "$(build_input Stop "status: LANE-STOP-OKAYISH maybe" false)")"
@@ -115,7 +116,8 @@ RC=$?
 if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "empty stdin → silent exit 0 (fail-open)"; else fail "empty stdin (rc=$RC out=$OUT)"; fi
 
 # --- Case 11: custom sentinel via env → allow ------------------------------
-OUT="$(run "$(build_input Stop "queue empty DONE-ROTATE" false)" CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL="DONE-ROTATE")"
+OUT="$(run "$(build_input Stop "queue empty
+DONE-ROTATE" false)" CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL="DONE-ROTATE")"
 if is_block "$OUT"; then fail "custom sentinel → still blocked: $OUT"; else ok "custom sentinel honored → allowed"; fi
 
 # --- Case 12: jq absent → visible systemMessage notice + exit 0 (fail-open) --
@@ -136,6 +138,19 @@ if [[ $RC -eq 0 && "$OUT_NOJQ" == *'"systemMessage"'* && "$OUT_NOJQ" == *jq* ]];
 else
   fail "jq-absent (rc=$RC out=$OUT_NOJQ)"
 fi
+
+# --- Case 13: sentinel mentioned/negated inline (not alone on a line) → block
+# Regression: after the nudge reveals the token, a premature turn that merely
+# discusses or negates it must NOT satisfy the gate.
+OUT="$(run "$(build_input Stop "I should not emit LANE-STOP-OK yet" false)")"
+if is_block "$OUT"; then ok "inline mention/negation of sentinel → not a signal, blocked"; else fail "inline sentinel mention wrongly allowed: $OUT"; fi
+
+# --- Case 14: sentinel alone on its line amid other lines, indented → allow --
+# Leading/trailing whitespace around the dedicated line is tolerated.
+OUT="$(run "$(build_input Stop "Goal verified, tests green.
+  LANE-STOP-OK
+(stopping now)" false)")"
+if is_block "$OUT"; then fail "sentinel alone on its line (indented) → wrongly blocked: $OUT"; else ok "sentinel alone on its own line (whitespace ok) → stop allowed"; fi
 
 echo
 echo "PASS=$PASS FAIL=$FAIL"

@@ -22,7 +22,7 @@
 # Completion signal (either is sufficient, checked deterministically — a shell
 # hook cannot re-run the /goal evaluator model):
 #   - the exact sentinel token (default LANE-STOP-OK) in the agent's final
-#     message, matched only as a standalone token, or
+#     message, matched only when it stands alone on its own line, or
 #   - the existence of the marker file named by lane_stop_gate_marker.
 #
 # Config (userConfig mirror):
@@ -60,15 +60,18 @@ EVENT=$(printf '%s' "$INPUT" | jq -r '.hook_event_name // ""' 2>/dev/null | tr -
 # Has completion been explicitly signaled?
 SIGNALED=0
 
-# Signal 1 — the sentinel token in the agent's final message. Matched only as a
-# standalone token (not a substring of a longer alnum run), so a message that
-# merely discusses the mechanism does not incidentally authorize the stop.
+# Signal 1 — the sentinel token in the agent's final message. Matched only when
+# the token stands alone on its own line (surrounding whitespace allowed), which
+# is exactly the "emit the exact token ... on its own line" instruction the block
+# reason gives. Requiring a dedicated line — not merely a standalone word — means
+# a message that only mentions or negates the token inline (e.g. "I should not
+# emit LANE-STOP-OK yet") does not authorize the stop.
 SENTINEL="${CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_SENTINEL:-LANE-STOP-OK}"
 if [[ -n "$SENTINEL" ]]; then
   LAST=$(printf '%s' "$INPUT" | jq -r '.last_assistant_message // ""' 2>/dev/null)
   # Escape any regex metacharacters in the (configurable) sentinel before use.
   SENTINEL_RE=$(printf '%s' "$SENTINEL" | sed 's/[][\.^$*+?(){}|/]/\\&/g')
-  if printf '%s' "$LAST" | grep -qE "(^|[^A-Za-z0-9-])${SENTINEL_RE}([^A-Za-z0-9-]|$)"; then
+  if printf '%s' "$LAST" | grep -qE "^[[:space:]]*${SENTINEL_RE}[[:space:]]*$"; then
     SIGNALED=1
   fi
 fi
