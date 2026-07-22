@@ -30,11 +30,20 @@ first-class use, and the audit may honestly return clean.
 | `/re-anchor:script-the-deterministic-work` | Script deterministic sub-work — run it, then reason over the output |
 | `/re-anchor:use-your-skills` | Actually use the skills in context — scan the listing, invoke the fitting skill, name skills when delegating |
 | `/re-anchor:reuse-or-replace` | Anti-fragmentation — reuse the established way or openly replace it, never silently stand up a second parallel way |
+| `/re-anchor:scrutinize-dont-coast` | Adversarial self-scrutiny — stop coasting on your own recent output; re-examine it through a fresh-context pass and remediate with the user |
 
 The shared method — re-anchor, audit the work in flight, correct forward,
 report — lives once at plugin scope in
 [`context/re-anchor-audit-correct.md`](context/re-anchor-audit-correct.md);
 each skill carries only its own delta.
+
+Beyond the correctors, the plugin ships one **composed runbook** — a declared
+second species that is *not* a corrector and re-anchors no discipline of its
+own:
+
+| Runbook | What it composes |
+|---|---|
+| `/re-anchor:sweep-all-disciplines` | Runs the whole bundle as one pass — fans out an audit-only subagent per in-scope corrector, then applies the corrections on the main thread in a fixed order; at session start it reports a cheap posture digest instead |
 
 ## What each skill does
 
@@ -267,6 +276,41 @@ win).
 /re-anchor:reuse-or-replace        # re-anchor + audit + correct
 ```
 
+### scrutinize-dont-coast
+
+Re-anchors a *meta* discipline rather than a single content axis: don't coast
+on your own recent output — confidence that work is sound is not evidence that
+it is. The load-bearing adversarial re-examination runs in a fresh-context
+(non-fork) subagent blind to the reasoning that produced the output. It makes
+two deliberate, documented deltas to the shared loop — it **stops the
+trajectory first** and **remediates with the user** rather than autonomously.
+Negative routing: pre-implementation plan stress-tests go to
+`/planning:devils-advocate`, review checkpoints to `/review:quality-gate`, and
+single-axis flaws to the sibling that owns them.
+
+```shell
+/re-anchor:scrutinize-dont-coast   # re-anchor + audit + correct
+```
+
+### sweep-all-disciplines (composed runbook)
+
+The plugin's one **second species** — a router that composes the correctors,
+carrying no discipline of its own. Two modes: at conversation start it derives
+a cheap posture digest from the skill listing and each corrector's tier
+metadata (no bodies load, no audit); mid-session it runs the full pass —
+fanning out a conversation-inheriting fork subagent per in-scope corrector for
+an audit-only walk, then applying the corrections once on the main thread in a
+fixed order (`use-your-skills` first, `tighten-your-output` last). Membership
+is resolved by reading each corrector's colocated `metadata.re-anchor-batch`
+tier (`core` / `situational` / `never`) and `re-anchor-batch-rank` — the
+runbook names no members — layered with an optional `batch_exclude` /
+`batch_promote` / `batch_demote` user overlay. It files no outward artifact and
+preserves every member's human gate.
+
+```shell
+/re-anchor:sweep-all-disciplines   # batch re-anchor, or a session-start posture digest
+```
+
 ## Consumer conventions
 
 The correctors adapt to the consuming repo rather than imposing a source
@@ -291,7 +335,25 @@ of truth:
 
 ## Configuration
 
-No `userConfig`, no persistent state — each skill reads the conversation and
-the consuming project's own instruction layer. `follow-our-standards` may
-fetch a remote standards source when the consumer declares one and no local
-checkout exists.
+No persistent state — each skill reads the conversation and the consuming
+project's own instruction layer. `follow-our-standards` may fetch a remote
+standards source when the consumer declares one and no local checkout exists.
+
+The correctors themselves are zero-config. The `sweep-all-disciplines` runbook
+adds three optional `userConfig` scalars that overlay batch membership without
+editing any corrector — each a comma-separated list of corrector names, empty
+by default (tiers run exactly as declared):
+
+| Option | Effect |
+|---|---|
+| `batch_exclude` | Drop these correctors from the batch |
+| `batch_promote` | Run these situational correctors every session instead of gating them on relevance |
+| `batch_demote` | Run these core correctors only when relevant instead of every session |
+
+Set them through Claude Code's native plugin-config flow
+(`/plugin configure re-anchor`); they are personal scalars, not repository
+configuration. `/re-anchor:setup check` reports the effective overlay read-only
+(it never writes config — reconfiguration stays the native flow). Batch
+membership and order otherwise live in each corrector's own colocated tier
+metadata (`metadata.re-anchor-batch` + `re-anchor-batch-rank`), so changing a
+shipped tier is a PR to that corrector.
