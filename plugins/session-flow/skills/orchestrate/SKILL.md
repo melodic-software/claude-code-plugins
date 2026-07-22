@@ -49,8 +49,9 @@ told:
    never self-audit in the context that produced it. Give the verifier concrete pass/fail criteria
    ("run the full suite, report all failures"), scope it to correctness/requirements (not style),
    and judge the final STATE, not the process — an uncriteriaed verifier just rubber-stamps. When
-   the verdict is high-stakes, prefer a different-vendor advisor when one is on hand — its blind
-   spots are uncorrelated with yours — with the fresh-context same-vendor verifier as the fallback.
+   the verdict is high-stakes, prefer a different-vendor advisor when one is set up and able to
+   judge this artifact — its blind spots are uncorrelated with yours — with the fresh-context
+   same-vendor verifier as the fallback.
 4. RUN WORKERS WELL — prefer non-blocking dispatch: keep working while independent workers run.
    Reuse a long-lived worker across subtasks when your runtime supports it (saves cost via cache).
    Watch running workers and intervene the moment one drifts or is missing context.
