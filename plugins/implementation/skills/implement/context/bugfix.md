@@ -17,7 +17,7 @@ Bug fixes follow a bottom-up approach: reproduce, isolate, fix, prove. Temptatio
 
 ## Common pitfalls
 
-- **Fixing without a test** — "I can see the bug, the fix is obvious" leads to regressions. Write the test first
+- **Fixing without a test** — "I can see the bug, the fix is obvious" leads to regressions. Under the test-first fallback, write the test first; otherwise follow the project's declared `CLAUDE.md` / rules testing cadence
 - **Expanding scope** — a bug fix that also refactors the surrounding code is two changes. Commit the fix first, refactor separately
 - **Fixing the symptom** — null check at the call site instead of fixing why the value is null in the first place
 
