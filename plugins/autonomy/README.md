@@ -93,11 +93,17 @@ cross-session sibling of `/goal`'s session-only completion condition — use `/g
 session, this gate for a standing lane.
 
 **Default OFF** — a Stop-blocking hook must never engage for an interactive session. A lane launcher
-opts a session in per run, e.g.:
+opts a *single* session in by overriding the plugin's `userConfig` through `--settings` (which accepts
+inline JSON and applies for that session only, without persisting). The `pluginConfigs` key is the
+marketplace-qualified plugin id:
 
 ```shell
-claude --config lane_stop_gate_enabled=true --config lane_stop_gate_marker=.lane-complete ...
+claude --settings '{"pluginConfigs":{"autonomy@melodic-software":{"options":{"lane_stop_gate_enabled":true,"lane_stop_gate_marker":".lane-complete"}}}}' ...
 ```
+
+`--config <key=value>` is an option of `claude plugin install` (it *persists* the value to user
+settings, enabling the gate for every session — which defeats the default-OFF design), not a flag on
+the session-launch command, so the per-lane path is `--settings` above.
 
 It is fail-open (unreadable stdin / missing `jq` / a `SubagentStop` never trips it) and bounded
 against runaway by the `stop_hook_active` one-nudge guard plus Claude Code's consecutive-block cap.
