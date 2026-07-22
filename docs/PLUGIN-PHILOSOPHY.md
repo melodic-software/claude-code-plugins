@@ -191,7 +191,16 @@ hand-edit — migrates to `userConfig` with the schema used honestly:
 - `sensitive: true` for secrets — noting that on platforms without a supported keychain the value
   lands in `~/.claude/.credentials.json`, so verify storage on the target platform before migrating
   a secret; and
-- `claude plugin install --config` documented in the plugin's setup skill for headless use.
+- `claude plugin install --config` documented in the plugin's setup skill for headless use — note
+  in that same documentation that this flag only seeds a value on a fresh install; re-running it
+  against an already-installed plugin does not update the stored value (empirically verified); and
+- for any `sensitive: true` option, the plugin's README documents `/plugin configure <plugin>` as
+  the rotation/clear path. This is the only way to change or blank a sensitive value after initial
+  enable — the `/mcp` server menu's "Clear authentication" is OAuth-only and silently no-ops for a
+  plugin using static `userConfig`-substituted headers, and `/plugin`'s own detail view carries no
+  reconfigure entry once a required value is already set. `/plugin configure` is undocumented on
+  the official docs site as of this writing; do not assume it will stay that way without
+  re-verifying, but do not omit the guidance merely because upstream hasn't written it down.
 
 Hook processes read the native `CLAUDE_PLUGIN_OPTION_<KEY>` mirror — a hook-only export: a Bash
 call made by a skill and monitor processes do not receive it. A non-hook consumer (a `bin/` script,
@@ -239,9 +248,9 @@ must not write into the installed plugin cache, mutate Claude Code user settings
 `pluginConfigs`. Personal scalar configuration is collected through Claude Code's native plugin
 configuration surface. Where that native surface is a plugin's entire configuration — nothing but
 `userConfig`, no tracked project config, no external prerequisite setup can resolve — a check-only
-setup is conforming: `check` verifies and reports, reconfiguration routes through the native flow,
-and no `apply` is offered, because the only thing it could write is the `pluginConfigs` this
-contract forbids.
+setup is conforming: `check` verifies and reports, reconfiguration routes through the native flow
+(`/plugin configure <plugin>` — see above), and no `apply` is offered, because the only thing it
+could write is the `pluginConfigs` this contract forbids.
 
 Two native idioms are the sanctioned initialization surfaces (verified 2026-07-17 against the
 [hooks reference](https://code.claude.com/docs/en/hooks) and

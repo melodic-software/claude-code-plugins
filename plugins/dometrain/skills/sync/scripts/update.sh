@@ -104,7 +104,7 @@ if [[ "$MODE" == "--refresh-baseline" ]]; then
   echo "  ↳ Re-add the attribution comment (see context/update.md) — --refresh-baseline"
   echo "    overwrites with raw upstream content, which never carries it."
   TODAY=$(date -u +%Y-%m-%d)
-  sed -i.bak -E "s/^( *synced: ).*/\1$TODAY/" "$GROUNDING_SKILL_MD" && rm -f "$GROUNDING_SKILL_MD.bak"
+  sed -i.bak -E "s/^( *synced: ).*/\1\"$TODAY\"/" "$GROUNDING_SKILL_MD" && rm -f "$GROUNDING_SKILL_MD.bak"
   echo "  ✓ Stamped synced: $TODAY in grounding/SKILL.md frontmatter"
   exit 0
 fi

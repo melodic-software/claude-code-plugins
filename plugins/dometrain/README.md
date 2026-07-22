@@ -35,6 +35,24 @@ Run `/dometrain:setup` to check enablement and MCP tool availability. The setup 
 reads or exposes the key and never calls a Dometrain tool during setup — see
 [Setup mechanism](#setup-mechanism) below for why.
 
+### Rotating or clearing the key
+
+Once set, a sensitive `userConfig` value has no dedicated menu entry in the `/plugin` detail
+view, and the `/mcp` server menu's "Clear authentication" only applies to OAuth-based servers —
+it is a no-op for this plugin's static Bearer-header auth (verified: reconnecting after "Clear
+authentication" here silently reuses the existing stored key). To change or clear
+`dometrain_api_key` later, run:
+
+```text
+/plugin configure dometrain
+```
+
+This reopens the same configuration screen shown at first enable, letting you overwrite or blank
+the key at any time. (`claude plugin install dometrain@melodic-software --config
+dometrain_api_key=...` only seeds the value on a fresh install — re-running it against an
+already-installed plugin does not update the stored value; use `/plugin configure` instead, or
+uninstall and reinstall for a headless rotation.)
+
 ## Tools
 
 | Tool | What it does |

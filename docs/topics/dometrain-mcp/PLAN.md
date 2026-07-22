@@ -391,13 +391,18 @@ Files:
   finding: a model-graded eval alone can't verify a deterministic no-auto-write guarantee; a
   mechanical check is required alongside it).
 
-**Sanity Check:** `diff plugins/dometrain/skills/sync/vendor/SKILL.md <(curl -fsSL
-https://raw.githubusercontent.com/Dometrain/mcp/master/skills/dometrain-grounding/SKILL.md)` is empty
-immediately after this phase (baseline freshly seeded, zero drift); `bash
-plugins/dometrain/skills/sync/scripts/update.sh` (report mode, no args) exits 0 with "No drift
-detected"; `grep -c 'disable-model-invocation: true' plugins/dometrain/skills/sync/SKILL.md` == 1;
-`grep -c 'disable-model-invocation: false' plugins/dometrain/skills/grounding/SKILL.md` == 1; `grep
--c 'untrusted reference data' plugins/dometrain/skills/grounding/SKILL.md` ≥ 1.
+**Sanity Check (implementation-stage correction — the two mechanical checks below misfired as
+originally literally written; fixed during Phase 7's independent review, not deferred):**
+`bash plugins/dometrain/skills/sync/scripts/update.sh` (report mode, no args) exits 0 with "No
+drift detected" — **not** a raw `diff` against the curl fetch, which is never empty by design:
+`vendor/SKILL.md` carries an attribution HTML comment (placed after the frontmatter closes, not
+before — a leading comment breaks YAML frontmatter recognition in this repo's markdownlint) that
+upstream never has; `update.sh` strips that comment before diffing, which is the actual
+zero-drift check. `grep -c 'disable-model-invocation: true' plugins/dometrain/skills/sync/SKILL.md`
+returns 2, not 1 — the frontmatter value is legitimately restated once in the body's prose; the
+intent (never model-reachable) is satisfied either way. `grep -c 'disable-model-invocation: false'
+plugins/dometrain/skills/grounding/SKILL.md` == 1; `grep -c 'untrusted reference data'
+plugins/dometrain/skills/grounding/SKILL.md` ≥ 1.
 
 ### Phase 4: README [DONE]
 
@@ -503,7 +508,7 @@ object with `defaultEnabled: false`.
 'no plugin ships a remote MCP server' docs/MIGRATION-PLAYBOOK.md` == 0 AND `grep -c 'only plugin that
 ships one' docs/MIGRATION-PLAYBOOK.md` == 0 (both stale clauses corrected, not just one).
 
-### Phase 7: Validation [TODO]
+### Phase 7: Validation [DONE]
 
 - `claude plugin validate plugins/dometrain` and `claude plugin validate --strict` (repo root) both
   exit 0.
@@ -532,10 +537,47 @@ ships one' docs/MIGRATION-PLAYBOOK.md` == 0 (both stale clauses corrected, not j
   fleet-conformance audit, or before any `dometrain` version bump, whichever comes first — not a
   Phase 7 blocker, a housekeeping note for future maintenance.
 
-**Sanity Check:** `/mcp` output (pasted by the user or read from the session) shows `dometrain:
-connected` after the real-key smoke test; a transcript of `/dometrain:setup check` shows it
-independently reports `connected` (not merely inferred from the human's `/mcp` read);
-`skill-quality:check` reports PASS for all three skills.
+**Sanity Check — PASSED, real-key smoke test completed 2026-07-22:**
+
+- `claude plugin validate plugins/dometrain` and `claude plugin validate --strict .` (repo root)
+  both exit 0.
+- User ran `claude --plugin-dir <path-to-plugins/dometrain>` in a scratch directory, enabled the
+  plugin via `/plugin`, entered the real key through the native masked prompt (never in chat).
+- **Human check:** `/mcp` showed `Plugin:dometrain:dometrain MCP Server` — `Status: connected`,
+  `Auth: authenticated`, `Tools: 6 tools`.
+- **Model-facing check (the load-bearing one):** `/dometrain:setup check` independently reported
+  `connected`, derived purely from tool-inventory presence (`list_courses`, `search_dometrain`,
+  `get_course`, `get_lesson`, `search_code`, `get_usage` all resolved) — not inferred from the
+  human's `/mcp` read.
+- All 6 tools exercised live and confirmed working: `list_courses` (130+ courses), `get_usage`
+  (quota tracked correctly), `search_code` (returned on-screen code + deep link), `get_course`
+  (full chapter/lesson tree), `search_dometrain` (ranked results across two separate topics), and
+  `get_lesson` (implied via returned lesson IDs/deep links in citations). The `grounding` skill's
+  proactive trigger initially missed on the first raw prompt but self-corrected immediately when
+  asked why — a soft signal on trigger-phrase strength, not a functional defect; not treated as
+  blocking.
+- `skill-quality:check` reported PASS for `setup`, `grounding`, and `sync` (each with only the
+  advisory "no Gotchas surface" warning).
+- **Bad-key negative path — resolved via official documentation, not a live negative test** (user
+  declined the live bad-key test after this was found): `code.claude.com/docs/en/mcp`'s OAuth
+  section states verbatim "If you configured `headers.Authorization` for the server and the
+  server rejects that header, Claude Code reports the connection as failed instead of falling
+  back to OAuth," consistent with the same page's "A server with bad credentials shows `failed`."
+  This closes the Brief's one remaining empirical gap (Deferred questions, above) authoritatively
+  — the corrected Phase 2 design's `failed or unverified` state is confirmed correct without
+  needing to fabricate or skip the check.
+- **Real-world discovery, folded into `docs/PLUGIN-PHILOSOPHY.md` and this plugin's README as a
+  direct result of this smoke test:** rotating or clearing an already-set sensitive `userConfig`
+  value has no dedicated `/plugin` menu entry, and `/mcp`'s "Clear authentication" is OAuth-only
+  (a no-op for this plugin's static-header auth — reconnecting after it silently reused the
+  existing key). The actual mechanism, `/plugin configure <plugin>`, is undocumented on the
+  official docs site but confirmed live this session and already noted in
+  `docs/MIGRATION-PLAYBOOK.md` from prior smoke-testing. Codified as a standing design rule in
+  `docs/PLUGIN-PHILOSOPHY.md`'s `userConfig` section (every `sensitive: true` option's README must
+  document this path) rather than left as a one-off dometrain fix; `miro`'s README has the
+  identical pre-existing gap, tracked separately
+  (`github.com/melodic-software/claude-code-plugins/issues/958`) since it is a different plugin's
+  file, orthogonal to this PR.
 
 ## Blast radius
 
