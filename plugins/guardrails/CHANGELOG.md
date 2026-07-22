@@ -3,6 +3,26 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.8]
+
+### Fixed
+
+- **`hardcoded-path-check` pre-filter no longer fails open on the broadened
+  checkout roots.** 0.9.7 widened the detailed drive-letter bodies to accept
+  `Projects` and `Dev` (both capitalizations), but the cheap `scan_text`
+  pre-filter gate still tripped only on `Users|/home/|repos`. Content whose
+  sole machine path used a widened root (e.g. `C:\Projects\…`, `C:\Dev\…`)
+  early-returned before the detailed scan ever ran — a fail-open in a security
+  gate. The gate now lists every root token the detailed bodies accept, keeping
+  it a strict superset; a `Projects`-root regression test guards it.
+
+### Changed
+
+- **`block-no-verify` guard description broadened to match shipped behavior.**
+  The `block_no_verify_enabled` userConfig description still enumerated
+  "lefthook disables" only; it now states the actual configurable default set
+  (lefthook, husky, pre-commit, simple-git-hooks).
+
 ## [0.9.7]
 
 ### Changed
