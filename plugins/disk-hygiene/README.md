@@ -137,10 +137,14 @@ hand-cleaning the zone.
 - **MCP / external trust:** no MCP server, agent, dependency, or third-party service is shipped.
 - **Configuration:** one non-sensitive `userConfig` boolean (`disk_hygiene_enabled`, default
   `true`) gating the execution tiers — setting it `false` puts `/disk-hygiene:clean` in audit-only
-  mode (enforced by the skill-scoped guard, which denies every deletion lane there; a direct
-  `hygiene.py` invocation outside that skill does not read the toggle and answers only to the
-  engine's own preview/approval-token gate). The toggle can only narrow the destructive surface,
-  never widen it. No credentials. Policy comes from an explicit invocation
+  mode. That mode is enforced by the skill, which resolves the toggle through the bundled kill-switch
+  probe and self-enforces; the skill-scoped guard cannot independently enforce it, because a
+  skill-frontmatter hook reaches the guard with neither the `${user_config.*}` substitution nor the
+  `CLAUDE_PLUGIN_OPTION_*` environment variable, though the guard still forces a human prompt before
+  every mutation. A direct `hygiene.py` invocation outside that skill does not read the toggle and
+  answers only to the engine's own preview/approval-token gate. The toggle can only narrow the
+  destructive surface, never widen it (see [the safety model](skills/clean/reference/safety-model.md)
+  for the degraded-mode detail). No credentials. Policy comes from an explicit invocation
   argument or standing `disk-hygiene.json` files under `~/.claude/` and the consumer project's
   `.claude/`. All policy input is pattern-only and additive: it can add protections and discovery
   hints or disable hints, and cannot weaken hard guards or authorize removal, so ambient config
