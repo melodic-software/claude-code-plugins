@@ -869,43 +869,58 @@ hook::git_resolve_subcommand() {
 }
 
 # Classify how a guard should treat the alias for the invoked subcommand, from the
-# config values collected by hook::git_resolve_subcommand. git applies the LAST value
-# for a config key, so the last `alias.<sub>` entry (case-insensitive) decides:
+# config values collected by hook::git_resolve_subcommand. git reads TWO spellings as the
+# alias for a subcommand — `alias.<sub>` and its `alias.<sub>.command` subkey (the only
+# alias subkey git reads) — and which spelling wins when both are set is git-version-
+# dependent. Rather than model that precedence (and risk a benign value in one spelling
+# masking a dangerous value in the other on a git that resolves it the opposite way), this
+# classifier fails closed on the MAX-DANGER UNION of the two spellings: the LAST value
+# WITHIN each spelling decides that spelling (git applies the last value for a given key),
+# then the spellings combine so the guard blocks if EITHER could carry a guarded op.
 #
-#   - "inline" (-c/--config): the expansion is literally present and bounded. Returns 0
-#     with HOOK_GIT_ALIAS_EXP set to it, so the guard re-checks the expansion.
-#   - "env" (--config-env=<key>=<envvar>): the expansion lives in an environment
-#     variable. Its VALUE is deliberately never read — that value is the recurring
-#     attack surface (it can be fed by an ambient var, an inline/`env` prefix, an
-#     `export`, `set -a`, or a nested `bash -c`, in this or any enclosing wrapper), and
-#     each attempt to resolve it has reopened a fail-open. Nobody legitimately defines
-#     an alias for a guarded subcommand via --config-env on the invoking command line
-#     (the canonical form is a gitconfig alias or the plain subcommand), so the SHAPE
-#     alone is sufficient. Returns 2 — the guard blocks without reading anything.
-#   - no `alias.<sub>` entry: returns 1, the subcommand is not an inline/env alias here.
+#   - "env" (--config-env=<key>=<envvar>) in EITHER spelling: the expansion lives in an
+#     environment variable whose VALUE is deliberately never read — that value is the
+#     recurring attack surface (an ambient var, an inline/`env` prefix, an `export`,
+#     `set -a`, or a nested `bash -c`, in this or any enclosing wrapper), and each attempt
+#     to resolve it has reopened a fail-open. Nobody legitimately defines an alias for a
+#     guarded subcommand via --config-env on the invoking command line (the canonical form
+#     is a gitconfig alias or the plain subcommand), so the SHAPE alone is sufficient.
+#     Returns 2 — the guard blocks without reading anything.
+#   - "inline" (-c/--config), no env spelling: each present spelling's expansion is
+#     literally present and bounded. Returns 0 with HOOK_GIT_ALIAS_EXPS holding one entry
+#     per present spelling (1 or 2), so the guard re-checks every expansion and blocks if
+#     any is dangerous — a benign expansion never suppresses a dangerous sibling.
+#   - neither spelling present: returns 1, the subcommand is not an inline/env alias here.
 #
 # A --config-env that sets a NON-alias key, or an alias for a subcommand OTHER than the
 # invoked one, never matches — those stay resolvable/allowed. Call after
-# hook::git_resolve_subcommand; read HOOK_GIT_ALIAS_EXP only on return 0.
-# shellcheck disable=SC2034  # HOOK_GIT_ALIAS_EXP is consumed by the sourcing guard
+# hook::git_resolve_subcommand; read HOOK_GIT_ALIAS_EXPS only on return 0.
+# shellcheck disable=SC2034  # HOOK_GIT_ALIAS_EXPS is consumed by the sourcing guard
 hook::git_alias_expansion() {
-  local sub="$1" i cv found_kind=""
-  HOOK_GIT_ALIAS_EXP=""
+  local sub="$1" i cv key kind
+  local plain_exp="" plain_kind="" cmd_exp="" cmd_kind=""
+  HOOK_GIT_ALIAS_EXPS=()
+  # git config names are case-insensitive: fold both sides of the exact key match. Keep
+  # the LAST value WITHIN each spelling separately, never collapsed across the two, so one
+  # spelling's value cannot mask the other's.
   for i in "${!HOOK_GIT_CONFIG_VALUES[@]}"; do
     cv="${HOOK_GIT_CONFIG_VALUES[i]}"
-    # git config names are case-insensitive: fold both sides of the key match.
-    # git honors two spellings for a subcommand's alias, `alias.<sub>` and the
-    # `alias.<sub>.command` subkey (the only alias subkey it reads) — both must be
-    # detected or a dangerous alias smuggled via `.command` classifies as non-alias.
-    [[ "${cv,,}" == "alias.${sub,,}="* || "${cv,,}" == "alias.${sub,,}.command="* ]] || continue
-    HOOK_GIT_ALIAS_EXP="${cv#*=}"
-    found_kind="${HOOK_GIT_CONFIG_VALUE_KINDS[i]:-inline}"
+    key="${cv%%=*}"
+    kind="${HOOK_GIT_CONFIG_VALUE_KINDS[i]:-inline}"
+    if [[ "${key,,}" == "alias.${sub,,}" ]]; then
+      plain_exp="${cv#*=}"
+      plain_kind="$kind"
+    elif [[ "${key,,}" == "alias.${sub,,}.command" ]]; then
+      cmd_exp="${cv#*=}"
+      cmd_kind="$kind"
+    fi
   done
-  case "$found_kind" in
-  env) return 2 ;;
-  inline) return 0 ;;
-  *) return 1 ;;
-  esac
+  # Max-danger union: an env spelling in either place is unreadable — value-blind refusal.
+  [[ "$plain_kind" == "env" || "$cmd_kind" == "env" ]] && return 2
+  [[ -n "$plain_kind" ]] && HOOK_GIT_ALIAS_EXPS+=("$plain_exp")
+  [[ -n "$cmd_kind" ]] && HOOK_GIT_ALIAS_EXPS+=("$cmd_exp")
+  ((${#HOOK_GIT_ALIAS_EXPS[@]})) && return 0
+  return 1
 }
 
 # Single linear pass: read the command into a char array once (O(n)), then walk

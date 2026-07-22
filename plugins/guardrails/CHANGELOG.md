@@ -30,8 +30,13 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   alias for `<sub>` (`git -c alias.rh.command='reset --hard' rh` runs it); the classifier
   previously matched only the plain spelling, so a dangerous alias smuggled through
   `.command` — via `-c` or `--config-env` — was treated as a non-alias and ran unchecked.
-  Both spellings are now detected, inline (resolved and re-checked) and by `--config-env`
-  shape (refused), with the same last-wins precedence git applies across the two forms.
+  Both spellings are now detected. Because which spelling git runs when both are set is
+  git-version-dependent, the classifier does NOT mirror git's cross-spelling precedence; it
+  fails closed on the MAX-DANGER UNION — the last value WITHIN each spelling decides that
+  spelling, then the guard refuses if EITHER is `--config-env`-shaped and re-checks EVERY
+  inline spelling, blocking if any resolves to a guarded operation and allowing only when
+  both spellings are benign. On a git where a benign later `.command` genuinely overrides a
+  dangerous plain alias this over-blocks, which is fail-safe.
 - **Removed the env-value-resolution machinery** that existed only to read a `--config-env`
   value and the environment feeding it: `hook::snapshot_env` / `HOOK_ENV_SNAPSHOT`,
   `hook::git_effective_config_values` / `HOOK_GIT_CONFIG_UNRESOLVED`,

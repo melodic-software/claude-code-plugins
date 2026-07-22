@@ -142,9 +142,17 @@ run "config-env .command-subkey alias for the invoked sub (blocked by shape)" "g
 run ".command-subkey alias, case-folded key (blocked)" "git -c alias.C.command=commit c -m x" 2
 # A non-`command` alias subkey is not an alias to git, so it must not be blocked.
 run "non-command alias subkey is not an alias (allowed)" "git -c alias.c.nope=commit c -m bypass" 0
-# Cross-form last-wins across the plain and .command spellings.
-run ".command decoy last-wins over an earlier commit alias (allowed)" "git -c alias.c=commit -c alias.c.command=status c -m x" 0
-run "plain commit alias last-wins over an earlier .command decoy (blocked)" "git -c alias.c.command=status -c alias.c=commit c -m x" 2
+# MAX-DANGER UNION: which spelling git runs when both are set is version-dependent, so a
+# benign value in one spelling must never mask a commit alias in the other — the guard
+# blocks if EITHER spelling commits non-canonically, and allows only when BOTH are benign.
+run "commit plain masked by a benign .command (blocked by union)" "git -c alias.c=commit -c alias.c.command=status c -m x" 2
+run "commit .command masked by a benign plain (blocked by union)" "git -c alias.c=status -c alias.c.command=commit c -m x" 2
+run "commit plain, benign .command decoy first (blocked by union)" "git -c alias.c.command=status -c alias.c=commit c -m x" 2
+run "both spellings benign non-commit (allowed)" "git -c alias.c=status -c alias.c.command=log c" 0
+# Union on the --config-env shape path: an env spelling refuses even when the sibling
+# inline spelling is benign (both command-line orders).
+run "env plain spelling refuses despite a benign inline .command (blocked)" "git --config-env=alias.c=AV -c alias.c.command=status c" 2
+run "env .command spelling refuses despite a benign inline plain (blocked)" "git --config-env=alias.c.command=AV -c alias.c=status c" 2
 
 # --- other subcommands are untouched -----------------------------------------
 run "git log (allowed)" "git log --oneline -5" 0

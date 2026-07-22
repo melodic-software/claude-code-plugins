@@ -233,10 +233,12 @@ check_segment() {
   fi
   if ((${HOOK_NO_ALIAS:-0} == 0)); then
     if ((alias_rc == 0)); then
-      # Inline alias (-c/--config): the expansion is literally present — re-check it.
-      # shellcheck disable=SC2154  # HOOK_GIT_ALIAS_EXP is set by hook::git_alias_expansion
-      exp="$HOOK_GIT_ALIAS_EXP"
-      if [[ -n "$exp" ]]; then
+      # Inline alias (-c/--config): each spelling's expansion is literally present. Re-check
+      # EVERY spelling (plain and `.command`) independently so a benign expansion in one
+      # never suppresses a dangerous sibling in the other.
+      # shellcheck disable=SC2154  # HOOK_GIT_ALIAS_EXPS is set by hook::git_alias_expansion
+      for exp in ${HOOK_GIT_ALIAS_EXPS[@]+"${HOOK_GIT_ALIAS_EXPS[@]}"}; do
+        [[ -n "$exp" ]] || continue
         inline_alias_handled=1
         if [[ "$exp" == '!'* ]]; then
           reparse="${exp#!}"
@@ -249,7 +251,7 @@ check_segment() {
           check_segment "${w[@]:0:gi+1}" ${expw[@]+"${expw[@]}"} "${w[@]:sub_idx+1}"
           HOOK_NO_ALIAS=0
         fi
-      fi
+      done
     fi
 
     # An alias can also live in .git/config, ~/.gitconfig, or system config,

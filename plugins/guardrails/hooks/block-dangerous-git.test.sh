@@ -226,9 +226,17 @@ run "env-defined .command-subkey alias for the invoked sub (blocked by shape)" "
 run ".command-subkey alias, case-folded key (blocked)" "git -c alias.RH.command='reset --hard' rh" 2
 # A non-`command` alias subkey is not an alias to git, so it must not be blocked.
 run "non-command alias subkey is not an alias (allowed)" "git -c alias.rh.nope='reset --hard' rh" 0
-# Cross-form last-wins across the plain and .command spellings.
-run ".command decoy last-wins over an earlier dangerous plain alias (allowed)" "git -c alias.rh='reset --hard' -c alias.rh.command=status rh" 0
-run "plain dangerous alias last-wins over an earlier .command decoy (blocked)" "git -c alias.rh.command=status -c alias.rh='reset --hard' rh" 2
+# MAX-DANGER UNION: which spelling git runs when both are set is version-dependent, so a
+# benign value in one spelling must never mask a dangerous value in the other — the guard
+# blocks if EITHER spelling is dangerous, and allows only when BOTH are benign.
+run "dangerous plain masked by a benign .command (blocked by union)" "git -c alias.rh='reset --hard' -c alias.rh.command=status rh" 2
+run "dangerous .command masked by a benign plain (blocked by union)" "git -c alias.rh=status -c alias.rh.command='reset --hard' rh" 2
+run "dangerous plain, benign .command decoy first (blocked by union)" "git -c alias.rh.command=status -c alias.rh='reset --hard' rh" 2
+run "both spellings benign (allowed)" "git -c alias.rh=status -c alias.rh.command=log rh" 0
+# Union on the --config-env shape path: an env spelling refuses even when the sibling
+# inline spelling is benign (both command-line orders).
+run "env plain spelling refuses despite a benign inline .command (blocked)" "git --config-env=alias.rh=AV -c alias.rh.command=status rh" 2
+run "env .command spelling refuses despite a benign inline plain (blocked)" "git --config-env=alias.rh.command=AV -c alias.rh=status rh" 2
 
 # The env-defined alias is refused wherever it APPEARS, through any wrapper — no env
 # propagation is tracked, so every prior env-carrying bypass (export / set -a / command
