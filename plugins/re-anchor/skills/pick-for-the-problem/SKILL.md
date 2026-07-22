@@ -3,6 +3,9 @@ name: pick-for-the-problem
 description: "Re-anchor the discipline that a tool, library, framework, language, or approach is chosen to fit the actual problem — not reached for out of habit, availability, incumbency, or preconception — then audit the selection in flight and re-derive it from the problem. Use when: 'pick for the problem', 'right tool for the job', 'which library should we use', 'what framework', 'should we build this or use X', 'is this the right approach', 'you defaulted to X', 'we always reach for X', 'evaluate the options', 'choose a dependency', or at conversation start on a build-vs-buy or technology-selection decision."
 user-invocable: true
 disable-model-invocation: false
+metadata:
+  re-anchor-batch: situational  # only at a tool/library/approach selection point
+  re-anchor-batch-rank: 80
 ---
 
 # Pick for the problem

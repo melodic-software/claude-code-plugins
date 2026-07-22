@@ -10,8 +10,12 @@ reports the effective boolean with its provenance, degrading honestly when a
 definitive read is impossible.
 
 Report-only: exit code is always 0 and the single-line JSON on stdout is the
-whole contract. Enforcement stays with ``destructive_guard.py``, which receives
-the runtime-substituted ``--disk-hygiene-enabled`` hook argument.
+whole contract. This report is how the ``clean`` skill self-enforces audit-only
+mode: a skill-frontmatter hook reaches ``destructive_guard.py`` with neither the
+``${user_config.*}`` substitution nor the ``CLAUDE_PLUGIN_OPTION_*`` environment
+variable, so the guard cannot read the toggle or deny on it — it still gates
+every mutation behind a human prompt, but honoring a configured ``false`` is the
+model's responsibility, driven by this probe.
 
 Scope: managed settings and a ``--settings`` flag can also carry
 ``pluginConfigs`` and are not visible here; the ``detail`` sentence states the

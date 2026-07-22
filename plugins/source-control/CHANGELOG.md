@@ -3,6 +3,23 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.1]
+
+### Changed
+
+- **The team convention file `/source-control:setup apply` writes is now self-describing
+  (#1046, audit f6).** The template's header states, for the reader who does NOT run these
+  plugins, that the file is read by the source-control plugin (and the guardrails
+  commit-convention gate where installed), is inert without them, and is a drafting aid —
+  not team-wide enforcement, which is a commit-msg hook or CI check. The header is part of
+  the template (a reconfiguration run rewrites it in place, never appends a second copy),
+  and prose above the first `##` heading is inert to every consumer by construction: the
+  enforcement resolver reads only the first non-empty body line under a `## <key>` H2 — a
+  regression test in `lib/resolve-convention-pattern.test.sh` now proves a preambled file
+  resolves identically to a bare one. The `apply` report for a team write states the same
+  draft-aid vs enforcement distinction instead of implying the file enforces anything by
+  itself.
+
 ## [0.17.0]
 
 ### Added

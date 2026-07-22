@@ -3,6 +3,8 @@ name: do-your-research-deep
 description: "Escalate research discipline to a heavy verification fan-out: enumerate every load-bearing claim made so far and dispatch fresh-context subagents to verify each against a primary source, then report a per-claim ledger. Use when: 'deep research pass', 'verify every claim', 'audit all our claims', 'we've made a lot of load-bearing claims', or when your own judgement is the suspected bias across many claims. For a single inline re-anchor + audit, use the sibling do-your-research."
 user-invocable: true
 disable-model-invocation: false
+metadata:
+  re-anchor-batch: never  # heavier fan-out execution tier — invoked directly, not batched
 ---
 
 # Do your research — deep

@@ -3,6 +3,26 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.5]
+
+### Changed
+
+- **`interview` round-format legibility levers.** The round-header restate now
+  doubles as a **session-hop anchor** that re-grounds a resumed reader before any
+  question; per-question context is capped at one line and used only when the
+  header restate doesn't reach the question or the session just resumed after a
+  gap. The `My recommendation:` line is the **single verdict marker** — no
+  stacked standalone `(RECOMMENDED)` badge, no repeated tag in the Alternatives
+  list. Session-local shorthand is now defined once at first use and parked in
+  the ledger's **shorthand glossary** (ephemeral session vocabulary, distinct
+  from the project's ubiquitous language). A dense round can be offered as an
+  **HTML decision-table artifact** rendering the whole frontier
+  (question / recommendation / alternatives / deciding-what, rows numbered to the
+  terminal `Q<N>`, answers still returned by number, degrading to a fenced
+  markdown table) — a rendering surface, never a round split or question cap.
+  `AskUserQuestion` guidance sharpened to simple selections / binary confirms
+  only. Guidance-only; no new skill, action, or config (#1042).
+
 ## [0.24.4]
 
 ### Changed
