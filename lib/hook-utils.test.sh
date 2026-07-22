@@ -749,6 +749,67 @@ else
 fi
 unset WIT_TEST_CFG_ENV
 
+# An `env` wrapper sets ANY name (getenv-visible), including a non-identifier the
+# shell would reject as an assignment prefix. The resolver must collect it as a
+# command-line assignment (git reads it), not identifier-gate it away — dropping it
+# was a fail-open: `env 'bad-name=commit' git --config-env=alias.c=bad-name c` ran
+# the commit alias while the guard saw nothing. Ambient is unset here, so a pass
+# proves the env-wrapper OPERAND was collected, not read from the environment.
+unset WIT_TEST_CFG_ENV 2>/dev/null || true
+hook::git_resolve_index env 'bad-name=commit' git --config-env=alias.c=bad-name c
+hook::git_resolve_subcommand "$HOOK_GIT_RESOLVED_GI" "${HOOK_GIT_RESOLVED_WORDS[@]}"
+hook::git_effective_config_values
+if [[ "$(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")" == "alias.c=commit" ]]; then
+  ok "git config: env-wrapper non-identifier assignment is collected"
+else
+  fail "git config effective (env-wrapper non-identifier): $(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")"
+fi
+
+# `env -- <name>=<value>` past the option marker sets a leading-dash name (a real
+# git-honored assignment: `env -- '-AV=reset --hard' git --config-env=alias.rh=-AV
+# rh`). The resolver must treat the post-`--` operand as an assignment, not an env
+# option, and collect the dash name.
+hook::git_resolve_index env -- '-AV=reset --hard' git --config-env=alias.rh=-AV rh
+hook::git_resolve_subcommand "$HOOK_GIT_RESOLVED_GI" "${HOOK_GIT_RESOLVED_WORDS[@]}"
+hook::git_effective_config_values
+if [[ "$(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")" == "alias.rh=reset --hard" ]]; then
+  ok "git config: env -- collects a leading-dash assignment name"
+else
+  fail "git config effective (env -- leading-dash): $(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")"
+fi
+
+# A leading-dash name read from the AMBIENT environment must resolve too: git reads
+# it via getenv, but `printenv "-AV"` parses it as an option and returns empty (a
+# fail-open). The awk/ENVIRON lookup keys on the exact name. Bash cannot name such a
+# variable, so set it via `env --` in a subshell with NO command-line assignment.
+# shellcheck disable=SC2016  # $HOOK_GIT_CONFIG_EFFECTIVE expands in the inner shell, not here
+dashamb=$(env -- '-AV=commit' "$BASH" -c '
+  source "'"$HOOK_DIR"'/hook-utils.sh"
+  hook::git_resolve_subcommand 0 git --config-env=alias.c=-AV c
+  hook::git_effective_config_values
+  IFS="|"; printf "%s" "${HOOK_GIT_CONFIG_EFFECTIVE[*]}"')
+if [[ "$dashamb" == "alias.c=commit" ]]; then
+  ok "git config: leading-dash ambient env name resolves (not option-parsed)"
+else
+  fail "git config effective (leading-dash ambient): [$dashamb]"
+fi
+
+# A guard re-parsing a `!` shell alias declares the enclosing git environment via
+# HOOK_GIT_ENV_INHERITED; the resolver must seed HOOK_GIT_ENV_ASSIGNMENTS from it so
+# a nested `git --config-env=<key>=<name>` (with no prefix of its own) resolves the
+# name. Without the seed the nested parse saw the name unset and the guard failed open.
+unset WIT_TEST_CFG_ENV 2>/dev/null || true
+HOOK_GIT_ENV_INHERITED=(WIT_TEST_CFG_ENV=commit)
+hook::git_resolve_index git --config-env=alias.c=WIT_TEST_CFG_ENV c
+hook::git_resolve_subcommand "$HOOK_GIT_RESOLVED_GI" "${HOOK_GIT_RESOLVED_WORDS[@]}"
+hook::git_effective_config_values
+HOOK_GIT_ENV_INHERITED=()
+if [[ "$(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")" == "alias.c=commit" ]]; then
+  ok "git config: inherited git env seeds a nested resolve"
+else
+  fail "git config effective (inherited env seed): $(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]

@@ -232,19 +232,27 @@ check_segment() {
     # literal "VAR" and waved through. See hook::git_effective_config_values.
     hook::git_effective_config_values
     cfgv=(${HOOK_GIT_CONFIG_EFFECTIVE[@]+"${HOOK_GIT_CONFIG_EFFECTIVE[@]}"})
+    # LAST value wins, matching git: `-c alias.rh=status --config-env=alias.rh=AV rh`
+    # runs the later value, so a decoy earlier value (expanding to a harmless
+    # subcommand) must not mask the real one. Accumulate the last matching
+    # expansion, then act — taking the first match and breaking would read the decoy.
+    exp=""
     for cv in ${cfgv[@]+"${cfgv[@]}"}; do
       # git config names are case-insensitive, so fold both sides of the key match
       # (`alias.RH` vs subcommand `rh` and vice versa); the expansion value keeps its
-      # case — it is extracted from the original entry below.
-      [[ "${cv,,}" == "alias.${sub,,}="* ]] || continue
-      exp="${cv#*=}"
+      # case — it is extracted from the original entry.
+      [[ "${cv,,}" == "alias.${sub,,}="* ]] && exp="${cv#*=}"
+    done
+    if [[ -n "$exp" ]]; then
       if [[ "$exp" == '!'* ]]; then
         # Shell alias: git runs the expansion as a shell command with the
         # invocation's trailing args appended (positional), so append them
-        # (shell-quoted) before re-parsing the whole string as a command.
+        # (shell-quoted) before re-parsing the whole string as a command. git runs
+        # it with git's process environment, so carry this invocation's git env into
+        # the reparse (a nested --config-env resolves against it).
         reparse="${exp#!}"
         for a in "${w[@]:sub_idx+1}"; do reparse+=" $(printf '%q' "$a")"; done
-        hook::bash_parse_segments "$reparse" check_segment
+        hook::git_reparse_shell_alias check_segment "$reparse"
       else
         # Git alias: its expansion is dequoted with shell quoting rules
         # (so `push "--force"` yields --force, not "--force"). Splice the
@@ -256,8 +264,7 @@ check_segment() {
         check_segment "${w[@]:0:gi+1}" ${expw[@]+"${expw[@]}"} "${w[@]:sub_idx+1}"
         HOOK_NO_ALIAS=0
       fi
-      break
-    done
+    fi
   fi
 
   case "$sub" in

@@ -113,17 +113,31 @@ run "config-env alias with an env-wrapper env var (blocked)" \
   "env AV=commit git --config-env=alias.c=AV c" 2
 # The env-var NAME need not be a valid shell identifier: git reads it with getenv() on
 # the raw string, so a hyphenated name resolves and must be caught. The guard reads it
-# via printenv (not bash indirect ${!name}, which rejects a non-identifier and would
-# silently drop the assignment — the #740 fail-open).
+# via awk's ENVIRON (not bash indirect ${!name}, which rejects a non-identifier and
+# would silently drop the assignment — the #740 fail-open).
 run "config-env alias with a non-identifier env name (blocked)" \
   "git --config-env=alias.c=bad-name c" 2 bad-name=commit
-# An injection-shaped name is passed to printenv as one quoted argument, never
-# re-parsed — so `$(…)` in a name cannot execute; the unset name resolves to empty.
-# Allowed (git rejects it); no exec.
+# An injection-shaped name is passed through a fixed ENVIRON key, never re-parsed — so
+# `$(…)` in a name cannot execute; the unset name resolves to empty. Allowed (git
+# rejects it); no exec.
 rm -f "$TEST_TMPDIR/pwned-nc"
 run "injection-shaped config-env var name (allowed — resolves empty)" \
   "git --config-env=alias.c=\$(touch $TEST_TMPDIR/pwned-nc) c" 0
 assert_file_absent "injection-safe resolution: no exec for a shell-metachar env name" "$TEST_TMPDIR/pwned-nc"
+# An `env` wrapper OPERAND sets a non-identifier name in git's environment only (not
+# ambient), so the resolver must collect it from the one-liner. No extra-env here.
+run "config-env alias with an env-wrapper non-identifier operand (blocked)" \
+  "env 'bad-name=commit' git --config-env=alias.c=bad-name c" 2
+# `env -- <name>=<value>` past the option marker sets a leading-dash name; `printenv
+# '-CV'` would parse it as an option and resolve empty (a fail-open).
+run "config-env alias with an env -- leading-dash operand (blocked)" \
+  "env -- '-CV=commit' git --config-env=alias.c=-CV c" 2
+# git runs a `!` shell alias with its own process environment, so a command-line
+# assignment on the enclosing invocation reaches a nested `git --config-env` inside the
+# expansion. The guard must carry that env across the shell-alias reparse — otherwise
+# the nested resolve sees the name unset and this commit slips past.
+run "shell alias carries enclosing git env into nested --config-env commit (blocked)" \
+  "AV=commit git -c alias.sh='!git --config-env=alias.c=AV c --allow-empty -m x' sh" 2
 
 # --- case-insensitive alias resolution (git folds config names) --------------
 run "inline alias, uppercase subcommand (blocked)" "git -c alias.c=commit C -m x" 2

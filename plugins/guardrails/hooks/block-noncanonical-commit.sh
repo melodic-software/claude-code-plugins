@@ -232,9 +232,12 @@ check_segment() {
     if [[ -n "$exp" ]]; then
       inline_alias_handled=1
       if [[ "$exp" == '!'* ]]; then
+        # Shell alias: git runs the expansion with git's process environment, so
+        # carry this invocation's git env into the reparse — a nested
+        # `git --config-env=<key>=<name>` resolves the name against it.
         reparse="${exp#!}"
         for a in "${w[@]:sub_idx+1}"; do reparse+=" $(printf '%q' "$a")"; done
-        hook::bash_parse_segments "$reparse" check_segment
+        hook::git_reparse_shell_alias check_segment "$reparse"
       else
         hook::env_s_split "$exp"
         expw=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"})
@@ -256,7 +259,7 @@ check_segment() {
           local preparse pa
           preparse="${pexp#!}"
           for pa in "${w[@]:sub_idx+1}"; do preparse+=" $(printf '%q' "$pa")"; done
-          hook::bash_parse_segments "$preparse" check_segment
+          hook::git_reparse_shell_alias check_segment "$preparse"
         else
           local -a pexpw=()
           hook::env_s_split "$pexp"

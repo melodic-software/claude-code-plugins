@@ -36,6 +36,22 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   `git -c alias.RH='reset --hard' rh` and `git -c alias.rh=… RH` both run the alias; the
   guards' inline-alias re-check now folds both sides of the key match (the expansion value
   keeps its case), matching git.
+- **Four residual `--config-env` fail-opens closed (`#740`).** (1) An `env` wrapper sets
+  any name (`env 'bad-name=commit' git --config-env=alias.c=bad-name c`); the resolver now
+  collects such non-identifier operands as command-line assignments instead of
+  identifier-gating them away. (2) `env -- <name>=<value>` past the option marker sets a
+  leading-dash name (`env -- '-AV=reset --hard' git --config-env=alias.rh=-AV rh`); the
+  `env` walk now treats `--` as end-of-options and collects the dash-named operand. (3) The
+  ambient value is read with awk's `ENVIRON` (getenv-equivalent) rather than
+  `printenv "$name"`, which parsed a leading-dash name as an option and resolved it empty.
+  (4) `block-dangerous-git` took the FIRST matching alias value and broke, but git applies
+  the LAST value for a key, so a decoy `-c alias.rh=status` masked a later
+  `--config-env=alias.rh=AV` (`AV='reset --hard'`); it now takes the last match, as
+  `block-noncanonical-commit` already did. (5) A `!` shell alias runs with git's process
+  environment, so a command-line assignment on the enclosing invocation
+  (`AV=commit git -c alias.sh='!git --config-env=alias.c=AV c …' sh`) reaches a nested
+  `git --config-env`; both guards now carry that environment across the shell-alias reparse
+  (`HOOK_GIT_ENV_INHERITED`) instead of resolving the name as unset.
 
 ## [0.9.5]
 

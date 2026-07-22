@@ -219,15 +219,36 @@ run "case-folded inline alias, uppercase subcommand (blocked)" "git -c alias.rh=
 run "case-folded inline alias, uppercase key (blocked)" "git -c alias.RH='reset --hard' rh" 2
 # The env-var NAME need not be a valid shell identifier: git reads it with getenv() on
 # the raw string, so a hyphenated name resolves and must be caught. The guard reads it
-# via printenv (not bash indirect ${!name}, which rejects a non-identifier and would
-# silently drop the assignment — the #740 fail-open).
+# via awk's ENVIRON (not bash indirect ${!name}, which rejects a non-identifier and
+# would silently drop the assignment — the #740 fail-open).
 run "git --config-env=alias.rh=bad-rh rh (non-identifier env name, blocked)" "git --config-env=alias.rh=bad-rh rh" 2 "bad-rh=reset --hard"
-# An injection-shaped name is passed to printenv as one quoted argument, never
-# re-parsed — so `$(…)` in a name cannot execute; the unset name resolves to empty.
+# An injection-shaped name is passed through a fixed ENVIRON key, never re-parsed — so
+# `$(…)` in a name cannot execute; the unset name resolves to empty.
 rm -f "$TEST_TMPDIR/pwned-dg"
 run "injection-shaped config-env var name (allowed — resolves empty)" \
   "git --config-env=alias.rh=\$(touch $TEST_TMPDIR/pwned-dg) rh" 0
 assert_file_absent "injection-safe resolution: no exec for a shell-metachar env name" "$TEST_TMPDIR/pwned-dg"
+# An `env` wrapper OPERAND sets a non-identifier name in git's environment only (not
+# the hook's ambient env), so the resolver must collect it as a command-line assignment.
+# No extra-env here: a pass proves the operand was read from the one-liner, not ambient.
+run "env-wrapper non-identifier operand (blocked)" \
+  "env 'bad-rh=reset --hard' git --config-env=alias.rh=bad-rh rh" 2
+# `env -- <name>=<value>` past the option marker sets a leading-dash name. `printenv
+# '-AV'` would parse it as an option and resolve empty (a fail-open); the resolver
+# collects the operand and never option-parses the name.
+run "env -- leading-dash operand (blocked)" \
+  "env -- '-AV=reset --hard' git --config-env=alias.rh=-AV rh" 2
+# git applies the LAST value for a config key, so a later --config-env value must not be
+# masked by an earlier decoy `-c` alias that expands to a harmless subcommand.
+run "later --config-env value wins over decoy -c alias (blocked)" \
+  "AV='reset --hard' git -c alias.rh=status --config-env=alias.rh=AV rh" 2
+run "later harmless --config-env value wins (allowed)" \
+  "AV=status git -c alias.rh='reset --hard' --config-env=alias.rh=AV rh" 0
+# git runs a `!` shell alias with its own process environment, so a command-line
+# assignment on the enclosing invocation reaches a nested `git --config-env` inside the
+# expansion. The guard must carry that env across the shell-alias reparse.
+run "shell alias carries enclosing git env into nested --config-env (blocked)" \
+  "AV='reset --hard' git -c alias.sh='!git --config-env=alias.rh=AV rh' sh" 2
 run "command -p git reset --hard (command wrapper option, blocked)" "command -p git reset --hard" 2
 run "command -- git reset --hard (command end-of-options, blocked)" "command -- git reset --hard" 2
 run "exec -c git reset --hard (exec wrapper option, blocked)" "exec -c git reset --hard" 2
