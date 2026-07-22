@@ -77,12 +77,14 @@ or an explicit `# silent-skip-ok: <reason>` annotation.
 
 ### 3. OTel-style telemetry envelope
 
-Every wired producer hook emits one envelope per run via `hook::emit_telemetry`
+Every wired producer hook emits one envelope per meaningful-outcome run via `hook::emit_telemetry`
 (`lib/hook-utils.sh`) to the consumer-opted-in `HOOK_TELEMETRY_SINK`. Full schema and adoption
 list: [`docs/conventions/hook-telemetry/`](../hook-telemetry/README.md) — this doc does not
 restate that shape, only the adoption requirement: **every hook wired in a plugin's `hooks.json`
-emits it**, no exceptions for hooks with multiple exit paths (each path emits its own envelope
-with the status that fits it).
+emits it for each meaningful outcome it produces** (a check that ran and returned ok / blocked /
+skipped-for-cause) — a pure inapplicability short-circuit before any check logic runs (wrong tool
+type, excluded path, missing prerequisite) does not need one; see the Conformance section below
+for the precise rule and why.
 
 **Why a local file sink, not a real OTel exporter.** Claude Code strips every `OTEL_*` exporter
 environment variable from hook subprocesses it spawns
@@ -118,7 +120,11 @@ Fleet audits check, per wired producer hook:
 - Every missing-prerequisite skip path emits a `systemMessage` (via `hook::require_jq` or
   `hook::notice_once` + `hook::emit_skip_notice`), gated so it fires once per session on a broad
   matcher.
-- The hook emits the telemetry envelope on every exit path.
+- The hook emits the telemetry envelope for every **meaningful outcome** — a check that ran and
+  produced a result (ok / blocked / skipped-for-cause). A pure inapplicability short-circuit
+  (wrong tool type, excluded path, empty content, outside the project) that fires before any
+  check logic runs carries no diagnostic information and does not need one — this matches how
+  every current telemetry-emitting hook in the fleet is already shaped.
 
 `scripts/check-silent-skips.sh` mechanically enforces the second point for the `command -v`-gated
 shapes it recognizes, **once its pending gate correction lands** (see the systemMessage section

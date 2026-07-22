@@ -32,8 +32,11 @@ Source: <https://code.claude.com/docs/en/hooks>, fetched 2026-07-22.
 1. **`statusMessage`** — handler-object config field (`hooks.json`), optional, no default. Spinner
    label shown while the hook process runs.
 2. **`systemMessage`** — JSON output field (exit 0), "warning message shown to the user," 10,000
-   char cap, immediate effect. Already implemented fleet-wide via `hook::emit_channels` /
-   `hook::emit_skip_notice` (`lib/hook-utils.sh:58,74`).
+   char cap, immediate effect. The composing helpers (`hook::emit_channels` /
+   `hook::emit_skip_notice`, `lib/hook-utils.sh:58,74`) exist fleet-wide and are already callable
+   by every hook — **adoption at every missing-prerequisite skip site is not yet complete**; see
+   "systemMessage — 11 genuine gaps" below for the sites still on stderr-only or
+   `additionalContext`-only.
 3. **Exit-code display semantics** (load-bearing for scoping "notable action" below):
    - Exit 0: stdout parsed as JSON if present; **stderr is ignored** — never shown to user or
      agent on exit 0.
@@ -156,11 +159,31 @@ paths degrade telemetry only, already covered by `hook::emit_telemetry`'s docume
 contract; no user-facing feature is silently lost. **No change** to guardrails' exit-2 block paths
 — already user-visible via Claude Code's blocking UI (doc states this rationale explicitly).
 
-### Telemetry — 1 genuine gap
+### Telemetry — scope clarified, 1 genuine gap
 
-- `plugins/guardrails/hooks/workflow-resilience-check.sh` — add a `hook::emit_telemetry` call
-  (status `ok`/`skipped` per its fan-out/throttle outcome), matching every other guardrails hook's
-  shape.
+Codex correctly flagged that "every exit path emits telemetry" (the doc's original Conformance
+wording) does not hold literally: every existing telemetry-emitting guardrails hook has several
+`exit 0` short-circuits BEFORE its `emit_tel` helper is even defined — missing `jq`, wrong tool
+type, empty content, path outside the project, an excluded-path-pattern match. Verified this
+pattern empirically across all 8 existing telemetry-emitting guardrails hooks (`block-dangerous-
+git`, `block-hook-bypass`, `block-noncanonical-commit`, `cli-flag-verify`,
+`flag-commit-pr-skill-bypass`, `hardcoded-path-check`, `secret-pattern-detection`, plus the
+claude-ops audit hooks) — in every one, the pre-`emit_tel` exits are pure inapplicability
+short-circuits (this tool/file/state doesn't apply to this hook at all), and every *meaningful*
+outcome (a check ran and produced a result: ok / blocked / skipped-for-cause) does call
+`emit_tel`. **The real, corrected rule: telemetry is required for every meaningful outcome, not
+for pure inapplicability short-circuits that carry no diagnostic information** — both the owner
+doc's Conformance section and this plan are corrected to say this precisely, rather than the
+looser "every exit path."
+
+Under that corrected rule, the genuine gap is unchanged in substance but now precisely scoped:
+
+- `plugins/guardrails/hooks/workflow-resilience-check.sh` — has **zero** telemetry calls anywhere,
+  including on its meaningful outcome paths (fan-out detected, throttle applied, advisory issued)
+  — unlike every sibling guardrails hook, which correctly telemeters those. Add a
+  `hook::emit_telemetry` call at each meaningful exit (status `ok`/`skipped` per outcome),
+  matching every other guardrails hook's shape. Its pure-inapplicability exits (missing `jq`,
+  no fan-out script) correctly need no telemetry, matching the sibling pattern.
 
 ### Housekeeping bundled into PR B
 
