@@ -83,7 +83,7 @@ if [[ "$DRY_RUN" -eq 0 && -n "$MANIFEST_ARG" ]]; then
   exit 0
 fi
 
-MANIFEST="$(clean_manifest_path "$MANIFEST_ARG")"
+MANIFEST="$(clean_manifest_path "$MANIFEST_ARG")" || exit 1
 
 mapfile -t CACHE_CANDS < <(clean_caches_candidates "$REPO_ROOT")
 clean_add_candidates caches "${CACHE_CANDS[@]}"

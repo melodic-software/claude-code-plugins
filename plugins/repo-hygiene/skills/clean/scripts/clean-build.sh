@@ -95,7 +95,7 @@ if [[ "$DRY_RUN" -eq 0 && -n "$MANIFEST_ARG" ]]; then
   exit 0
 fi
 
-MANIFEST="$(clean_manifest_path "$MANIFEST_ARG")"
+MANIFEST="$(clean_manifest_path "$MANIFEST_ARG")" || exit 1
 
 if [[ "$INCLUDE_CACHES" -eq 1 ]]; then
   mapfile -t CACHE_CANDS < <(clean_caches_candidates "$REPO_ROOT")

@@ -130,12 +130,37 @@ rc=$?
 assert_contains "wrong-tier entry rejected" "$out" "Rejected (wrong tier): bin"
 assert_file_exists "wrong-tier target preserved" "$TEST_TMPDIR/r2/bin/x"
 
-# 4. Fail closed on an unreadable/missing manifest — silently doing nothing and
+# 4. Type validation — a regular file whose basename matches a dir-name target
+#    (enumeration only emits those under -type d) is rejected, never removed.
+mkdir -p "$TEST_TMPDIR/r2/src"
+echo f >"$TEST_TMPDIR/r2/src/__pycache__" # a FILE named like a cache dir
+printf 'caches\t1\tsrc/__pycache__\n' >"$TEST_TMPDIR/r2.type.manifest"
+out="$(run_r2 --apply --manifest "$TEST_TMPDIR/r2.type.manifest" 2>&1)"
+rc=$?
+assert_contains "file-as-dir target rejected" "$out" "Rejected (not a caches target): src/__pycache__"
+assert_exit "type-mismatch apply exits non-zero" 1 "$rc"
+assert_file_exists "misnamed file preserved" "$TEST_TMPDIR/r2/src/__pycache__"
+
+# 5. Fail closed on an unreadable/missing manifest — silently doing nothing and
 #    exiting 0 would let automation treat a mistyped path as a successful sweep.
 out="$(run_r2 --apply --manifest "$TEST_TMPDIR/does-not-exist.manifest" 2>&1)"
 rc=$?
 assert_contains "missing manifest reported" "$out" "manifest not readable"
 assert_exit "missing manifest exits non-zero" 1 "$rc"
+
+# 6. Dry-run must not truncate an arbitrary --manifest destination: an existing
+#    non-manifest file (a mistyped path) is refused, not erased.
+printf 'important user config\n' >"$TEST_TMPDIR/precious.conf"
+out="$(run_r2 --dry-run --manifest "$TEST_TMPDIR/precious.conf" 2>&1)"
+rc=$?
+assert_contains "non-manifest overwrite refused" "$out" "refusing to overwrite non-manifest file"
+assert_exit "refuse-overwrite exits non-zero" 1 "$rc"
+preserved="$(cat "$TEST_TMPDIR/precious.conf")"
+assert_contains "precious file left intact" "$preserved" "important user config"
+# Re-writing an existing MANIFEST-format file is still allowed (dry-run reuse).
+out="$(run_r2 --dry-run --manifest "$MANI" 2>&1)"
+rc=$?
+assert_exit "rewriting a real manifest still works" 0 "$rc"
 
 # rm-failure accounting: a manifest entry rm cannot remove must count failed and
 # force a non-zero exit. Deterministic only where the FS enforces a write-denied

@@ -434,34 +434,42 @@ clean_manifest_rel_safe() {
   esac
 }
 
-# Return 0 when REL is a legitimate removal target for CLASS — matching the SAME
-# candidate rules enumeration uses to FIND targets (explicit repo-root paths, a
-# recursive dir-name leaf, or a file-glob leaf). The manifest is untrusted, so
+# Return 0 when the existing path ABS is a legitimate removal target for CLASS —
+# matching the SAME candidate rules enumeration uses to FIND targets, INCLUDING
+# the filesystem type it emits each under (dir names / explicit dirs are found
+# `-type d`, globs / explicit files `-type f`). The manifest is untrusted, so
 # --apply re-derives target-hood from the rules rather than trusting a listed
-# path was ever a real target: a tampered entry like `caches\t1\tnotes` names an
-# ordinary untracked dir that is not a cache and must never be removed.
+# path was ever a real target: a tampered `caches\t1\tnotes` (an ordinary
+# untracked dir) or `build\t1\timportant/bin` (a regular file merely named `bin`)
+# is one the dry-run could never have planned and must never be removed. Assumes
+# ABS exists (callers `-e`-check first so a resumed, already-gone entry stays an
+# idempotent no-op rather than a rejection).
+#   clean_manifest_target_valid CLASS REL ABS
 clean_manifest_target_valid() {
-  local class="$1" rel="${2//\\//}" base="${2##*/}" e pat
+  local class="$1" rel="${2//\\//}" abs="$3" base="${2##*/}" e pat
   case "$class" in
   caches)
-    for e in "${CLEAN_CACHE_EXPLICIT[@]}" "${CLEAN_CACHE_EXPLICIT_FILES[@]}"; do
-      [[ "$rel" == "$e" ]] && return 0
+    for e in "${CLEAN_CACHE_EXPLICIT[@]}"; do
+      [[ "$rel" == "$e" ]] && { [[ -d "$abs" ]] && return 0 || return 1; }
+    done
+    for e in "${CLEAN_CACHE_EXPLICIT_FILES[@]}"; do
+      [[ "$rel" == "$e" ]] && { [[ -f "$abs" ]] && return 0 || return 1; }
     done
     for e in "${CLEAN_CACHE_FIND_DIR_NAMES[@]}"; do
-      [[ "$base" == "$e" ]] && return 0
+      [[ "$base" == "$e" ]] && { [[ -d "$abs" ]] && return 0 || return 1; }
     done
     for pat in "${CLEAN_CACHE_FIND_FILE_GLOBS[@]}"; do
       # shellcheck disable=SC2053
-      [[ "$base" == $pat ]] && return 0
+      [[ "$base" == $pat ]] && { [[ -f "$abs" ]] && return 0 || return 1; }
     done
     ;;
   build)
     for e in "${CLEAN_BUILD_DIR_NAMES[@]}"; do
-      [[ "$base" == "$e" ]] && return 0
+      [[ "$base" == "$e" ]] && { [[ -d "$abs" ]] && return 0 || return 1; }
     done
     for pat in "${CLEAN_BUILD_FILE_GLOBS[@]}"; do
       # shellcheck disable=SC2053
-      [[ "$base" == $pat ]] && return 0
+      [[ "$base" == $pat ]] && { [[ -f "$abs" ]] && return 0 || return 1; }
     done
     ;;
   *) ;;
@@ -497,14 +505,17 @@ clean_apply_manifest() {
       CLEAN_FAILED_COUNT=$((CLEAN_FAILED_COUNT + 1))
       continue
     fi
-    if ! clean_manifest_target_valid "$class" "$rel"; then
+    abs="$root/$rel"
+    # Idempotent resume: an entry a prior apply already removed is neither a
+    # failure nor a re-removal — skip before target/type validation (which needs
+    # the path to exist).
+    [[ -e "$abs" ]] || continue
+    if ! clean_manifest_target_valid "$class" "$rel" "$abs"; then
       printf 'Rejected (not a %s target): %s\n' "$class" "$rel" >&2
       CLEAN_FAILED_COUNT=$((CLEAN_FAILED_COUNT + 1))
       continue
     fi
     [[ "$bytes" =~ ^[0-9]+$ ]] || bytes=0
-    abs="$root/$rel"
-    [[ -e "$abs" ]] || continue
     if ! skip="$(clean_target_eligible "$root" "$abs")"; then
       [[ -n "$skip" ]] && printf '%s\n' "$skip"
       continue
@@ -520,13 +531,35 @@ clean_apply_manifest() {
   done <"$manifest"
 }
 
+# Return 0 when PATH is safe to (re)write as a manifest: absent, or an existing
+# regular file that is empty or already in manifest format. `--manifest` is a
+# documented caller-supplied path, so an explicit value that names an existing
+# non-manifest file (e.g. a mistyped `~/.config/app/settings`) must not be
+# truncated — the dry-run build would silently erase it.
+clean_manifest_writable_target() {
+  local path="$1" line
+  [[ -e "$path" ]] || return 0
+  [[ -f "$path" ]] || return 1
+  [[ -s "$path" ]] || return 0
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -z "$line" ]] && continue
+    [[ "$line" =~ ^(caches|build)$'\t'[0-9]+$'\t' ]] || return 1
+  done <"$path"
+  return 0
+}
+
 # clean_manifest_path [--manifest VALUE] → resolve/create the session manifest.
 # Honors an explicit path (agent passes dry-run's path back at --apply); else
-# mktemp a session-scoped file. Truncates so a reused path starts clean.
+# mktemp a session-scoped file. Truncates so a reused path starts clean, but
+# refuses (returns 1, prints nothing) to overwrite an existing non-manifest file.
 clean_manifest_path() {
   local explicit="$1" path
   if [[ -n "$explicit" ]]; then
     path="$explicit"
+    if ! clean_manifest_writable_target "$path"; then
+      printf 'clean: refusing to overwrite non-manifest file: %s\n' "$path" >&2
+      return 1
+    fi
   else
     path="$(mktemp 2>/dev/null)" || path="${TMPDIR:-/tmp}/clean-manifest.$$"
   fi
