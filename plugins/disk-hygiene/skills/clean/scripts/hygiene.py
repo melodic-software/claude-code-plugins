@@ -554,17 +554,22 @@ def large_scan_reasons(target: Path) -> list[str]:
     apply lane's "ask before it is expensive" posture, moved earlier because the
     cost here is time, not data loss. Drive-root reasoning is a separate concern
     owned elsewhere; a filesystem root is already rejected before this runs.
+
+    The home match is by filesystem identity (device + inode via
+    ``os.path.samefile``), not a path-string compare: ``os.path.normcase`` only
+    folds case on Windows, so a string compare would let a case-variant spelling
+    (``/users/alice`` vs ``/Users/alice``) bypass the gate on a case-insensitive
+    macOS volume. ``target`` is validated to exist upstream; ``samefile`` raises
+    only when a path is missing, so a home that cannot be stat'd is simply no match.
     """
     reasons: list[str] = []
     home = user_home()
     if home is not None:
         try:
-            resolved_home = home.resolve(strict=False)
+            same_home = os.path.samefile(target, home)
         except OSError:
-            resolved_home = home
-        if os.path.normcase(os.fspath(target)) == os.path.normcase(
-            os.fspath(resolved_home)
-        ):
+            same_home = False
+        if same_home:
             reasons.append("user-home")
     return sorted(set(reasons))
 

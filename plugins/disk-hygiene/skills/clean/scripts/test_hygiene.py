@@ -963,15 +963,15 @@ class HygieneTests(unittest.TestCase):
             root = base / "target"
             root.mkdir()
             (root / "junk.tmp").write_text("x", encoding="utf-8")
+            home = base / "home"
+            home.mkdir()
             data_root = base / "plugin-data"
             data_root.mkdir()
             output = data_root / "run" / "snapshot.json"
             stdout_io = io.StringIO()
             with (
-                # Home is a different directory, so the target is not known-large.
-                mock.patch.object(
-                    hygiene.Path, "home", return_value=(base / "home").resolve()
-                ),
+                # Home is a different real directory, so identity does not match.
+                mock.patch.object(hygiene.Path, "home", return_value=home.resolve()),
                 redirect_stdout(stdout_io),
             ):
                 code = hygiene.main(
@@ -988,6 +988,36 @@ class HygieneTests(unittest.TestCase):
             payload = json.loads(stdout_io.getvalue())
             self.assertEqual(0, code)
             self.assertEqual("scan-complete", payload["status"])
+
+    def test_home_match_is_by_filesystem_identity_not_case_folded_string(
+        self,
+    ) -> None:
+        # A case-variant spelling resolves to the same directory on a
+        # case-insensitive macOS volume, but os.path.normcase folds case only on
+        # Windows — a string compare would let it bypass the gate. The match is
+        # by filesystem identity, simulated here (CI is case-sensitive Linux) by
+        # having samefile report the two distinct spellings as one file.
+        target = Path("/users/alice")
+        home = Path("/Users/alice")
+        self.assertNotEqual(os.fspath(target), os.fspath(home))
+        with (
+            mock.patch.object(hygiene, "user_home", return_value=home),
+            mock.patch("os.path.samefile", return_value=True) as samefile,
+        ):
+            reasons = hygiene.large_scan_reasons(target)
+        self.assertEqual(["user-home"], reasons)
+        samefile.assert_called_once_with(target, home)
+
+    def test_home_match_treats_unstattable_home_as_no_match(self) -> None:
+        # samefile raises when a path is missing; a home that cannot be stat'd
+        # must be no match, never a crash.
+        with (
+            mock.patch.object(
+                hygiene, "user_home", return_value=Path("/home/missing")
+            ),
+            mock.patch("os.path.samefile", side_effect=FileNotFoundError),
+        ):
+            self.assertEqual([], hygiene.large_scan_reasons(Path("/home/target")))
 
 
 class StandingPolicyTests(unittest.TestCase):
