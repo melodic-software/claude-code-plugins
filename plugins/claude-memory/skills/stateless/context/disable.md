@@ -76,14 +76,18 @@ command -v chezmoi >/dev/null 2>&1 &&
   yadm ls-files --error-unmatch "$settings" >/dev/null 2>&1 && tracked="yadm"
 [[ -z "$tracked" && -L "$settings" ]] &&
   tracked="symlink -> $(readlink "$settings") (GNU stow or a similar symlink manager)"
+# Stow tree-folding: the parent dir (e.g. ~/.claude) may be the symlink while the
+# settings file inside it is a regular file reached through it — check the dir too.
+[[ -z "$tracked" && -L "$(dirname -- "$settings")" ]] &&
+  tracked="parent-dir symlink -> $(readlink "$(dirname -- "$settings")") (GNU stow tree-folded, or similar)"
 if [[ -n "$tracked" ]]; then
   echo "TRACKED by $tracked — backfill to the dotfiles source"
 else
   fp=""
   [[ -e "$HOME/.chezmoiroot" || -d "$HOME/.local/share/chezmoi" ]] && fp="$fp chezmoi"
   [[ -d "$HOME/.local/share/yadm" ]] && fp="$fp yadm"
-  [[ -e "$HOME/.stow-local-ignore" ]] && fp="$fp stow"
-  [[ -d "$HOME/.dotbot" || -e "$HOME/install.conf.yaml" ]] && fp="$fp dotbot"
+  [[ -e "$HOME/.stow-global-ignore" ]] && fp="$fp stow"
+  [[ -d "$HOME/.dotbot" ]] && fp="$fp dotbot"
   if [[ -n "$fp" ]]; then
     echo "manager fingerprint present but binary/tracking not confirmed:$fp — verify manually before editing"
   else
