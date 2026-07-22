@@ -441,7 +441,7 @@ form present); `grep -c 'dometrain:setup' plugins/dometrain/README.md` ≥ 1 (se
 '.plugins[] | select(.name=="dometrain")' .claude-plugin/marketplace.json` returns exactly one
 object with `defaultEnabled: false`.
 
-### Phase 6: Migration-playbook review record [TODO]
+### Phase 6: Migration-playbook review record [DONE]
 
 - `docs/MIGRATION-PLAYBOOK.md` — edit, two changes:
   1. Criterion 2's sentence (line ~659–662, `## Plugin-acceptance security review`): the live text
