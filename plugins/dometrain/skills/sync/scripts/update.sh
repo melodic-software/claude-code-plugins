@@ -24,7 +24,11 @@ SNAPSHOT_DIR="$SKILL_DIR/vendor"
 GROUNDING_SKILL_MD="$SKILL_DIR/../grounding/SKILL.md"
 BASELINE="$SNAPSHOT_DIR/SKILL.md"
 
-UPSTREAM_URL="https://raw.githubusercontent.com/Dometrain/mcp/master/skills/dometrain-grounding/SKILL.md"
+# Pinned to a specific commit, not `master` HEAD — a supply-chain-integrity choice, not an
+# oversight. Fetching an unpinned branch would silently follow whatever a compromised upstream
+# account pushed next. Bumping this pin is itself the maintainer's explicit "I intend to review
+# this specific upstream commit" act; see context/update.md for the bump-then-refresh protocol.
+UPSTREAM_URL="https://raw.githubusercontent.com/Dometrain/mcp/de4be471cdbaf8d2193c51b7bad0ce7c87fd9705/skills/dometrain-grounding/SKILL.md"
 
 # The vendored baseline carries an attribution HTML comment (plus its surrounding blank
 # lines) after the frontmatter that upstream does not have — added deliberately (MIT
@@ -32,8 +36,9 @@ UPSTREAM_URL="https://raw.githubusercontent.com/Dometrain/mcp/master/skills/dome
 # leading comment breaks YAML-frontmatter recognition in markdownlint and would corrupt the
 # verbatim snapshot on every format pass. Strip it before diffing so a copy that is otherwise
 # byte-identical to upstream reports zero drift, not a permanent 2-line false positive.
+# {N;d} (not the GNU-only `,+1d` range extension) so this parses on BSD sed (macOS default) too.
 strip_attribution() {
-  sed '/<!-- Vendored from https:\/\/github.com\/Dometrain\/mcp/,+1d' "$1"
+  sed '/<!-- Vendored from https:\/\/github.com\/Dometrain\/mcp/{N;d}' "$1"
 }
 
 for cmd in curl diff; do
@@ -52,10 +57,11 @@ baseline_lf=$(mktemp)
 tmpfile_lf=$(mktemp)
 trap 'rm -f "$tmpfile" "$baseline_lf" "$tmpfile_lf"' EXIT
 
-if ! curl -fsSL "$UPSTREAM_URL" -o "$tmpfile" 2>/dev/null; then
+curl_err=$(curl -fsSL "$UPSTREAM_URL" -o "$tmpfile" 2>&1 >/dev/null) || {
   echo "  ✖ Failed to fetch $UPSTREAM_URL" >&2
+  [[ -n "$curl_err" ]] && echo "    $curl_err" >&2
   exit 1
-fi
+}
 
 if [[ ! -f "$BASELINE" ]]; then
   echo "  ↳ No baseline at $BASELINE"

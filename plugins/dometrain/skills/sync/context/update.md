@@ -31,9 +31,18 @@ frontmatter). The human in the loop decides what to port.
   for an issue or PR against this plugin's marketplace repository — not something to patch in
   the installed copy, which is an ephemeral cache overwritten on plugin update.
 - **Plugin maintainers** port upstream changes in a working clone of the marketplace repository
-  (using the `--plugin-dir` local development loop), then refresh the baseline there:
+  (using the `--plugin-dir` local development loop). `scripts/update.sh`'s `UPSTREAM_URL` is
+  pinned to a specific commit SHA, not `master` HEAD (supply-chain integrity — an unpinned fetch
+  would silently follow whatever a compromised upstream account pushed next). Bump the pin
+  first, to the specific commit being reviewed, then refresh the baseline:
 
   ```bash
+  # 1. Find the commit to review (or a specific SHA you already know you want):
+  gh api repos/Dometrain/mcp/commits/master --jq '.sha'
+
+  # 2. Edit UPSTREAM_URL in scripts/update.sh to that SHA, commit the pin bump.
+
+  # 3. Refresh the baseline against the newly pinned commit:
   bash "${CLAUDE_PLUGIN_ROOT}/skills/sync/scripts/update.sh" --refresh-baseline
   ```
 

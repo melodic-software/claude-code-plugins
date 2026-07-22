@@ -72,8 +72,9 @@ here (they change independently of this plugin).
 
 - Do not repeat an identical search in the same session — reuse what you already fetched.
 - Prefer one `get_lesson` over re-searching for more snippets of the same lesson.
-- Responses include a `quota_note` once the monthly quota is nearly exhausted; slow down when
-  you see it. On a `429`, the response carries the reset date — call `get_usage()` if the user
+- Responses include a `quota_note` once ≥90% of the monthly quota is used; slow down when
+  you see it. (This trigger percentage is a fixed API behavior, not the volatile quota total
+  itself, so it's precise here rather than described generically.) On a `429`, the response carries the reset date — call `get_usage()` if the user
   asks where they stand, and do not retry until reset (burst-cap `429`s can be retried after a
   short pause).
 

@@ -31,6 +31,13 @@ Headless install with the key seeded on first install:
 claude plugin install dometrain@melodic-software --config dometrain_api_key=<your-key>
 ```
 
+**Security note:** passing the key as a CLI argument records it in shell history
+(`.bash_history`, `.zsh_history`) and briefly exposes it in the process table
+(`/proc/<pid>/cmdline`, `ps aux`) while the command runs — unlike the interactive `/plugin`
+prompt, which masks input and never touches either surface. In CI/CD, route the value through
+your secrets manager rather than inlining it literally; interactively, clear your shell history
+afterward or prefix the command with a leading space if your shell supports that convention.
+
 Run `/dometrain:setup` to check enablement and MCP tool availability. The setup skill never
 reads or exposes the key and never calls a Dometrain tool during setup — see
 [Setup mechanism](#setup-mechanism) below for why.
@@ -51,7 +58,8 @@ This reopens the same configuration screen shown at first enable, letting you ov
 the key at any time. (`claude plugin install dometrain@melodic-software --config
 dometrain_api_key=...` only seeds the value on a fresh install — re-running it against an
 already-installed plugin does not update the stored value; use `/plugin configure` instead, or
-uninstall and reinstall for a headless rotation.)
+uninstall and reinstall for a headless rotation — same shell-history/process-table exposure
+caveat as above applies to that command too.)
 
 ## Tools
 
