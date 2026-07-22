@@ -102,7 +102,7 @@ build_data_json() {
 # status so a consumer sink can observe the coverage gap.
 if ! command -v actionlint >/dev/null 2>&1; then
   data_json=$(build_data_json '[]')
-  emit_tel "actionlint" "PostToolUse" "skipped" "$start" "$data_json" "$REPO_ROOT"
+  emit_tel "actionlint-check" "PostToolUse" "skipped" "$start" "$data_json" "$REPO_ROOT"
   if hook::notice_once "actionlint-missing" "$INPUT"; then
     hook::emit_skip_notice PostToolUse "actionlint: 'actionlint' not found on PATH — workflow lint skipped for this session. Install: https://github.com/rhysd/actionlint/blob/main/docs/install.md"
   fi
@@ -133,11 +133,11 @@ if [[ -n "$AL_OUTPUT" ]]; then
     FINDINGS_JSON=$(printf '%s' "$findings_raw" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
   fi
   data_json=$(build_data_json "$FINDINGS_JSON")
-  emit_tel "actionlint" "PostToolUse" "ok" "$start" "$data_json" "$REPO_ROOT"
+  emit_tel "actionlint-check" "PostToolUse" "ok" "$start" "$data_json" "$REPO_ROOT"
   exit 0
 fi
 
 # Clean workflow.
 data_json=$(build_data_json '[]')
-emit_tel "actionlint" "PostToolUse" "ok" "$start" "$data_json" "$REPO_ROOT"
+emit_tel "actionlint-check" "PostToolUse" "ok" "$start" "$data_json" "$REPO_ROOT"
 exit 0
