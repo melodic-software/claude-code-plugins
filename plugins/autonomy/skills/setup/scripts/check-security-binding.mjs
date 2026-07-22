@@ -8,7 +8,7 @@
 // joint-satisfiability, per-surface class-aware isolation verdicts, promotion
 // discipline, and admission floors/precedence.
 //
-// Usage: node check-security-binding.mjs <binding.json> [--evidence <evidence.json>] [--probe-evidence-root <dir>] [--egress-hosts <host,host,...>]
+// Usage: node check-security-binding.mjs <binding.json> [--evidence <evidence.json>] [--probe-evidence-root <dir>] [--egress-hosts <host,host,...>] [--credential-roots <path,path,...>]
 // Exit 0 = valid (verdicts printed); 1 = findings; 2 = usage/environment error.
 //
 // --egress-hosts is the configured/trusted probe-target seam: when supplied,
@@ -16,6 +16,21 @@
 // checker falls back to shape rules plus deny lists (local/private/encoded
 // targets, special-use TLDs) — a static checker cannot resolve DNS, so orgs
 // close the residual by passing their configured target here.
+//
+// --credential-roots is the trusted host-credential-location seam, and it is
+// DENY-BY-DEFAULT: a static checker cannot know an org's real credential
+// locations, and for any structural recognizer an adversary can craft a
+// plausible-but-invented path (an invented home user, a mount that need not
+// exist) whose failing read proves nothing while real host credentials stay
+// readable. So a filesystem credential-probe path counts as credential-absence
+// evidence ONLY when its recorded host-side expansion resolves under one of the
+// operator-configured trusted roots; with no roots configured, every filesystem
+// credential entry is untrusted and the level fails closed. Membership under a
+// configured root is the sole test — there is no open-ended location
+// enumeration to keep exhaustive. A cloud-metadata-endpoint route and a
+// well-known credential env token remain BOUNDED closed sets that need no
+// allowlist. This deny-by-default posture is the credential-side seam; the
+// egress seam above keeps its own configured behavior.
 //
 // Probe verification: an L2/L3 isolation level counts toward eligibility only
 // when its probe_evidence ref resolves — relative to --probe-evidence-root,
@@ -98,76 +113,14 @@ const SPECIAL_USE_TLDS = [
   ".home.arpa",
   ".onion",
 ];
-// Recognized host-credential locations are EXACT full locations: the whole
-// path must equal a well-known credential location, never merely end at a
-// recognized basename somewhere under an accepted anchor. A failed read is
-// credential evidence only when the path IS a well-known credential
-// location in full — anchor + basename at arbitrary depth lets a probe pick
-// a benign existing descendant (e.g. $HOME/scratch/credentials or
-// /etc/example/credentials) whose outer existence check passes and whose
-// inner read fails, producing an accepted proof while the real host
-// credentials stay exposed. Substring matching is even weaker (it would
-// accept "/definitely-not-a-host-credential" via "credentials"), and a
-// non-secret sibling under a credential directory ($HOME/.ssh/known_hosts)
-// or a directory marker ($HOME/.ssh, ambiguous read-tool semantics) proves
-// nothing either — exactness excludes all of these by construction. Same
-// no-config-source rationale as the egress-host check: the checker cannot
-// know the org's probed credential paths, so any entry that is not exactly
-// a recognized location is rejected rather than trusted. GnuPG has no
-// static concrete secret file — its private keys live under
-// private-keys-v1.d/ with arbitrary key-grip names — so it defers to the
-// future configured allow-list, like org-named injected secrets
-// (/run/secrets/<org-name> is an inventable name; /run/secrets/credentials
-// is the one recognized concrete form, exactly at that depth).
-// The isolation-probe template's "cloud metadata endpoint" example qualifies
-// ONLY through the URL branch's known endpoints — a filesystem path segment
-// named "metadata" is not credential evidence. The metadata IP there is a
-// DELIBERATE asymmetry with the egress check, which DENIES 169.254.169.254
-// (link-local proves no external egress): metadata IS the cloud credential
-// source, and the two checks serve opposite goals.
-// HOME_SECRET_RELATIVE_FORMS are the exact relative forms under a home
-// anchor (a leading home env token, or the fixed /root home);
-// FIXED_SECRET_PATHS are whole fixed system locations. Segment arrays,
-// matched exactly and in full.
-const HOME_SECRET_RELATIVE_FORMS = [
-  [".ssh", "id_rsa"],
-  [".ssh", "id_dsa"],
-  [".ssh", "id_ecdsa"],
-  [".ssh", "id_ed25519"],
-  [".netrc"],
-  [".git-credentials"],
-  [".aws", "credentials"],
-  [".kube", "config"],
-  [".docker", "config.json"],
-  [".config", "gh", "hosts.yml"],
-];
-const FIXED_SECRET_PATHS = [
-  ["etc", "ssh", "ssh_host_rsa_key"],
-  ["etc", "ssh", "ssh_host_dsa_key"],
-  ["etc", "ssh", "ssh_host_ecdsa_key"],
-  ["etc", "ssh", "ssh_host_ed25519_key"],
-  ["run", "secrets", "credentials"],
-];
-// Well-known credential variable names for the whole-entry env-token form
-// (compared against the lowercased entry).
+// Well-known credential variable names for the whole-entry env-token form (a
+// BOUNDED closed set, compared against the lowercased entry). An invented
+// *_token name proves nothing; org-specific names belong on the configured
+// --credential-roots allowlist, not recognized statically by name.
 const CREDENTIAL_ENV_VARS = new Set(["github_token", "gh_token"]);
-// A recognized location counts only when the path is REAL BY CONSTRUCTION —
-// its ROOT names a location every probing host actually has: a leading OS
-// home env token ($HOME / %USERPROFILE%, expanded in-shell on the probing
-// host to the real home) or the fixed /root home for the home-anchored
-// forms; the fixed system locations carry their own roots in full. A
-// literal multi-user or mount base ("/home/<user>",
-// "/users/<user>", "/host-home") is free-form inventable — the named user or
-// mount need not exist on any host, and a failing read of a path that need
-// not exist proves nothing while real host credentials stay readable — so it
-// never anchors; org-specific mounts belong in the future configured
-// allow-list. The anchor must be the FIRST segment: an env token behind an
-// arbitrary prefix ("/mnt/<mount>/$HOME/...") inherits the prefix's
-// inventability. A recognized name under an ephemeral base like /tmp is
-// planted evidence, not the host's credential store. A literal
-// "/home/<user>" IS accepted as a credentials_absent.host_expanded value —
-// there the capture shape's recorded outer expansion step corroborates it;
-// the inventability objection applies to UNCORROBORATED bare entries.
+// A home-token expansion under an ephemeral base like /tmp is planted
+// evidence, not the host's credential store — the expansion-coherence guard
+// rejects it so a recipe cannot substitute a throwaway path for the real home.
 const EPHEMERAL_SEGMENTS = new Set(["tmp", "temp", "shm"]);
 const isEnvToken = (segment) => /^\$[a-z_]+$/.test(segment) || /^%[a-z_]+%$/.test(segment);
 const isHomeEnvToken = (segment) =>
@@ -177,74 +130,124 @@ const isHomeEnvToken = (segment) =>
 // would accept e.g. "/metadata-not-a-credential" via "/metadata".
 const hasRoutePrefix = (pathname, prefix) => pathname === prefix || pathname.startsWith(prefix + "/");
 
-function isRecognizedCredentialEntry(entry) {
-  const normalized = entry.toLowerCase().replaceAll("\\", "/");
-  if (normalized.includes("://")) {
-    let url;
-    try {
-      url = new URL(normalized);
-    } catch {
-      return false;
-    }
-    // KNOWN cloud metadata endpoints only, and only their known credential
-    // ROUTES — an arbitrary path on the metadata host proves nothing, a
-    // "metadata" label or path segment on an arbitrary host proves nothing,
-    // and the bare single-label alias is search-domain-dependent; org-specific
-    // endpoints belong in a future configured allow-list. (The whole entry is
-    // lowercased before parsing, so the prefixes and protocol compare
-    // lowercase.) The transport must be the service's own: metadata credential
-    // services speak plain HTTP on the default port, so a file:// read or an
-    // odd-port probe can fail for non-boundary reasons (unsupported local
-    // scheme, closed port) while the real service stays reachable — such an
-    // entry proves nothing. The WHATWG parser normalizes an explicit default
-    // ":80" away, so an empty port means the default.
-    if (url.protocol !== "http:" || url.port !== "") return false;
-    if (url.hostname === "169.254.169.254") {
-      return (
-        hasRoutePrefix(url.pathname, "/metadata") ||
-        hasRoutePrefix(url.pathname, "/latest") ||
-        hasRoutePrefix(url.pathname, "/computemetadata")
-      );
-    }
-    return url.hostname === "metadata.google.internal" && hasRoutePrefix(url.pathname, "/computemetadata");
-  }
-  const segments = normalized.split("/").filter((segment) => segment.length > 0);
-  // A whole-entry env-style token naming a credential variable qualifies on
-  // its own (e.g. $GITHUB_TOKEN — an injected token env var per the
-  // template's marked examples), but only WELL-KNOWN credential variable
-  // names are recognizable statically: an invented *_token name proves
-  // nothing; org-specific names belong to the future configured allow-list.
-  if (segments.length === 1 && isEnvToken(segments[0])) {
-    const bare = segments[0].replace(/^[$%]/, "").replace(/%$/, "");
-    return CREDENTIAL_ENV_VARS.has(bare);
-  }
-  // A dot segment resolves the path elsewhere than its anchor claims
-  // ("/root/../var/empty/.ssh" probes /var/empty/.ssh while "root" anchors),
-  // so the anchor cannot be trusted — rejected outright rather than
-  // canonicalized: resolving traversal invites its own edge cases, and a
-  // probe recipe has no reason to record a non-canonical path.
-  if (segments.some((segment) => segment === "." || segment === "..")) return false;
-  // A UNC form ("//server/..." — a leading "\\" normalizes to it above)
-  // invents its server: "//etc/credentials" names a share on a server called
-  // "etc", not the host's /etc, so no UNC path names a by-construction-real
-  // host location; org file-share credential roots belong to the future
-  // configured allow-list.
-  if (normalized.startsWith("//")) return false;
-  // A relative path resolves against an arbitrary cwd and says nothing about
-  // the host credential store — only a rooted form names a host location:
-  // POSIX-absolute or a leading home env token. A drive-letter root is
-  // deliberately not rooted enough: the only by-construction Windows home
-  // form is %USERPROFILE%, and a literal "c:/users/<user>" invents its user.
-  if (!(normalized.startsWith("/") || isHomeEnvToken(segments[0]))) {
+// A cloud-metadata-endpoint credential route: a BOUNDED closed set (the two
+// well-known providers' fixed hosts + their known credential routes), so it
+// needs no configured allowlist. An arbitrary path on the metadata host, a
+// "metadata" label on an arbitrary host, and the search-domain-dependent bare
+// single-label alias all prove nothing. The transport must be the service's
+// own: metadata credential services speak plain HTTP on the default port, so a
+// file:// read or an odd-port probe can fail for non-boundary reasons (an
+// unsupported local scheme, a closed port) while the real service stays
+// reachable. The metadata IP is a DELIBERATE asymmetry with the egress check,
+// which DENIES 169.254.169.254 (link-local proves no external egress): metadata
+// IS the cloud credential source, so the two checks serve opposite goals. The
+// entry is lowercased before parsing, so the prefixes and protocol compare
+// lowercase; the WHATWG parser normalizes an explicit default ":80" away, so an
+// empty port means the default.
+function isMetadataEndpoint(normalized) {
+  let url;
+  try {
+    url = new URL(normalized);
+  } catch {
     return false;
   }
-  if (segments.some((segment) => EPHEMERAL_SEGMENTS.has(segment))) return false;
-  const segmentsEqual = (a, b) => a.length === b.length && a.every((segment, index) => segment === b[index]);
-  if (isHomeEnvToken(segments[0]) || segments[0] === "root") {
-    const relativeForm = segments.slice(1);
-    return HOME_SECRET_RELATIVE_FORMS.some((form) => segmentsEqual(form, relativeForm));
+  if (url.protocol !== "http:" || url.port !== "") return false;
+  if (url.hostname === "169.254.169.254") {
+    return (
+      hasRoutePrefix(url.pathname, "/metadata") ||
+      hasRoutePrefix(url.pathname, "/latest") ||
+      hasRoutePrefix(url.pathname, "/computemetadata")
+    );
   }
-  return FIXED_SECRET_PATHS.some((form) => segmentsEqual(form, segments));
+  return url.hostname === "metadata.google.internal" && hasRoutePrefix(url.pathname, "/computemetadata");
+}
+
+// Lexically normalize a host path for containment testing: lowercase,
+// backslashes to slashes, and collapse "." / ".." segments. A host_expanded
+// value names a location on the PROBING host, not the checker's filesystem, so
+// resolution MUST be purely lexical — realpathSync would test the wrong machine
+// (and the path need not exist there) and resolve() would inject the checker's
+// cwd. A "/"-rooted or drive-letter-rooted anchor is preserved; a ".." that
+// would escape the anchor yields null, which containment treats as no match
+// (denied) — so a traversal can never climb above a configured root. Lowercasing
+// matches the entry/expansion normalization elsewhere in this file: credential
+// paths compare case-insensitively so a configured root and a recorded
+// expansion differing only in case still contain, and folding here consistently
+// avoids a normalization split between the coherence guard and containment. The
+// checker never reads the probing host's filesystem, so POSIX case-sensitivity
+// is not observable and a case-insensitive containment test is the safe choice
+// (it can only ever REFUSE to distinguish two roots that differ only in case,
+// never widen a root).
+function normalizeHostPath(p) {
+  const lowered = p.toLowerCase().replaceAll("\\", "/");
+  const driveMatch = /^([a-z]:)\//.exec(lowered);
+  const anchor = driveMatch !== null ? driveMatch[1] : lowered.startsWith("/") ? "/" : "";
+  const body = anchor === "/" ? lowered.slice(1) : driveMatch !== null ? lowered.slice(driveMatch[0].length) : lowered;
+  const out = [];
+  for (const segment of body.split("/")) {
+    if (segment === "" || segment === ".") continue;
+    if (segment === "..") {
+      if (out.length === 0) return null;
+      out.pop();
+      continue;
+    }
+    out.push(segment);
+  }
+  if (anchor === "") return out.join("/");
+  return `${anchor === "/" ? "" : anchor}/${out.join("/")}`;
+}
+
+// Deny-by-default containment: the host-side expanded path resolves under one
+// of the operator-configured trusted credential roots. The match is on a
+// segment boundary (equal to the root, or the root followed by "/"), never a
+// bare prefix that would accept a sibling like "<root>-other".
+function pathUnderConfiguredRoot(candidate, roots) {
+  const normCandidate = normalizeHostPath(candidate);
+  if (normCandidate === null) return false;
+  return roots.some((root) => {
+    const normRoot = normalizeHostPath(root);
+    if (normRoot === null || normRoot === "") return false;
+    if (normCandidate === normRoot) return true;
+    return normCandidate.startsWith(normRoot === "/" ? "/" : `${normRoot}/`);
+  });
+}
+
+// Deny-by-default validation of one probed credential entry against the
+// operator-configured trusted roots. A cloud-metadata-endpoint route and a
+// well-known credential env token are bounded closed sets that need no
+// allowlist; any other form is a host FILESYSTEM path, accepted as
+// credential-absence evidence ONLY when its recorded host-side expansion is
+// coherent with the entry AND resolves under a configured --credential-roots
+// entry. No roots configured => filesystem credential evidence is untrusted:
+// a static checker cannot know the org's real credential locations, and a
+// failing read of a structurally-plausible-but-invented path (an invented home
+// user, a mount that need not exist) proves nothing while real host credentials
+// stay readable. Membership under a configured root is the sole test, so there
+// is no open-ended location enumeration to keep exhaustive. Returns null when
+// the entry is valid evidence, else the reason.
+function credentialEntryProblem(entry, expanded, credentialRoots) {
+  const normalized = entry.toLowerCase().replaceAll("\\", "/");
+  if (normalized.includes("://")) {
+    return isMetadataEndpoint(normalized)
+      ? null
+      : "not a known cloud metadata endpoint credential route (169.254.169.254 or metadata.google.internal over plain HTTP on the default port, on a known credential route)";
+  }
+  const segments = normalized.split("/").filter((segment) => segment.length > 0);
+  if (segments.length === 1 && isEnvToken(segments[0])) {
+    const bare = segments[0].replace(/^[$%]/, "").replace(/%$/, "");
+    return CREDENTIAL_ENV_VARS.has(bare)
+      ? null
+      : `not a well-known credential env token (${[...CREDENTIAL_ENV_VARS].map((name) => `$${name.toUpperCase()}`).join(", ")}); an org-specific token belongs on the configured --credential-roots allowlist, not recognized by name`;
+  }
+  const coherence = credentialExpansionProblem(entry, expanded);
+  if (coherence !== null) return coherence;
+  if (credentialRoots === null) {
+    return "no --credential-roots configured — a static checker cannot know whether an arbitrary host path names a real credential store, so filesystem credential evidence is untrusted by default; pass the org's trusted credential root(s) via --credential-roots";
+  }
+  if (!pathUnderConfiguredRoot(expanded, credentialRoots)) {
+    return `host-side expansion ${JSON.stringify(expanded)} does not resolve under any configured --credential-roots (${credentialRoots.join(", ")}) — a failing read of a path outside every trusted credential root proves nothing about the host credential store`;
+  }
+  return null;
 }
 
 // Per-entry validation of the recorded host-side expansion. The credential
@@ -1057,7 +1060,7 @@ function isNonExternalEgressHost(host) {
 // surface, level, substrate, or substrate class proves a DIFFERENT boundary,
 // not this one. Returns null when verified, else the reason the entry is
 // unproven.
-function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, substrateClass, egressAllowList) {
+function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, substrateClass, egressAllowList, credentialRoots) {
   // Evidence verifies ONLY against the configured protected root: without
   // --probe-evidence-root a ref resolves as written — including to an
   // agent-writable file swapped after the human ratified the binding — so no
@@ -1305,15 +1308,15 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
     return `transcript ${path} records assertions.credentials_absent.outer_exit_code ${JSON.stringify(rawCredentialOuterCodes)} for ${credentialPaths.length} probed path entr${credentialPaths.length === 1 ? "y" : "ies"} — one recorded outer-context exit code per probed credential path is required, comma-separated and positionally paired with path: a failed inner read proves a credential boundary only when the outer context proves the target exists on the host`;
   }
   for (const [index, entry] of credentialPaths.entries()) {
-    if (!isRecognizedCredentialEntry(entry)) {
-      return `transcript ${path} records assertions.credentials_absent.path entry ${JSON.stringify(entry)} — not a recognized host-credential location; probe a well-known credential location IN FULL: a home-anchored secret file (a leading home env token like $HOME / %USERPROFILE%, or the fixed /root home, followed exactly by ${HOME_SECRET_RELATIVE_FORMS.map((form) => form.join("/")).join(", ")}) or a fixed system secret file (${FIXED_SECRET_PATHS.map((form) => `/${form.join("/")}`).join(", ")}) — never an arbitrary descendant of a credential anchor (a recognized basename at arbitrary depth lets a probe pick a benign existing file while real credentials stay exposed), never under an ephemeral base (tmp, temp, shm), and free of dot segments (".", ".." — a dot-segment path resolves elsewhere than its anchor claims, so the anchor cannot be trusted); a well-known credential env token like $GITHUB_TOKEN alone; or a known cloud metadata endpoint credential route`;
+    // Deny-by-default recognition folds the recorded host-side expansion in:
+    // a filesystem entry is credential-absence evidence only when its expansion
+    // is coherent AND resolves under a configured --credential-roots entry.
+    const entryProblem = credentialEntryProblem(entry, hostExpanded[index], credentialRoots);
+    if (entryProblem !== null) {
+      return `transcript ${path} records assertions.credentials_absent.path entry ${JSON.stringify(entry)} — ${entryProblem}`;
     }
     if (!nonzeroExit(credentialCodes[index])) {
       return `transcript ${path} records assertions.credentials_absent.exit_code entry ${JSON.stringify(credentialCodes[index])} for path ${JSON.stringify(entry)} — a proven credential-absence requires a non-zero integer exit code string for every probed path`;
-    }
-    const expansionProblem = credentialExpansionProblem(entry, hostExpanded[index]);
-    if (expansionProblem !== null) {
-      return `transcript ${path} records assertions.credentials_absent.host_expanded entry ${JSON.stringify(hostExpanded[index])} for path ${JSON.stringify(entry)} — ${expansionProblem}`;
     }
     const urlEntry = entry.toLowerCase().replaceAll("\\", "/").includes("://");
     if (urlEntry && transportOutcomes[index] !== "connect-failed") {
@@ -1332,7 +1335,7 @@ function verifyProbeTranscript(ref, probeRoot, surfaceId, level, substrate, subs
   return null;
 }
 
-function checkSemantics(binding, probeRoot, egressAllowList) {
+function checkSemantics(binding, probeRoot, egressAllowList, credentialRoots) {
   const posture = binding.dispatch_posture ?? "autonomous-enabled";
   const autonomous = posture === "autonomous-enabled";
 
@@ -1428,7 +1431,7 @@ function checkSemantics(binding, probeRoot, egressAllowList) {
         continue;
       }
       const reason = isNonEmptyString(entry.probe_evidence)
-        ? verifyProbeTranscript(entry.probe_evidence, probeRoot, surfaceId, level, entry.substrate, entry.substrate_class, egressAllowList)
+        ? verifyProbeTranscript(entry.probe_evidence, probeRoot, surfaceId, level, entry.substrate, entry.substrate_class, egressAllowList, credentialRoots)
         : "probe_evidence missing";
       if (reason === null) {
         provenMax = Math.max(provenMax, levelNo);
@@ -1675,6 +1678,7 @@ let bindingPath = null;
 let evidencePath = null;
 let probeRoot = null;
 let egressHostsArg = null;
+let credentialRootsArg = null;
 for (let i = 0; i < args.length; i += 1) {
   if (args[i] === "--evidence") {
     evidencePath = args[i + 1];
@@ -1684,6 +1688,9 @@ for (let i = 0; i < args.length; i += 1) {
     i += 1;
   } else if (args[i] === "--egress-hosts") {
     egressHostsArg = args[i + 1];
+    i += 1;
+  } else if (args[i] === "--credential-roots") {
+    credentialRootsArg = args[i + 1];
     i += 1;
   } else if (bindingPath === null) {
     bindingPath = args[i];
@@ -1696,10 +1703,11 @@ if (
   !isNonEmptyString(bindingPath) ||
   (evidencePath !== null && !isNonEmptyString(evidencePath)) ||
   (probeRoot !== null && !isNonEmptyString(probeRoot)) ||
-  (egressHostsArg !== null && !isNonEmptyString(egressHostsArg))
+  (egressHostsArg !== null && !isNonEmptyString(egressHostsArg)) ||
+  (credentialRootsArg !== null && !isNonEmptyString(credentialRootsArg))
 ) {
   console.error(
-    "usage: check-security-binding.mjs <binding.json> [--evidence <evidence.json>] [--probe-evidence-root <dir>] [--egress-hosts <host,host,...>]",
+    "usage: check-security-binding.mjs <binding.json> [--evidence <evidence.json>] [--probe-evidence-root <dir>] [--egress-hosts <host,host,...>] [--credential-roots <path,path,...>]",
   );
   process.exit(2);
 }
@@ -1707,6 +1715,12 @@ const egressAllowList =
   egressHostsArg === null
     ? null
     : egressHostsArg.split(",").map((host) => host.trim().toLowerCase().replace(/\.$/, "")).filter((host) => host.length > 0);
+// Credential roots are trimmed only; normalizeHostPath lowercases and collapses
+// each root and candidate consistently at containment time.
+const credentialRoots =
+  credentialRootsArg === null
+    ? null
+    : credentialRootsArg.split(",").map((root) => root.trim()).filter((root) => root.length > 0);
 
 let raw;
 try {
@@ -1728,7 +1742,7 @@ try {
 let verdicts = [];
 if (binding !== null) {
   validateStructure(binding);
-  if (isPlainObject(binding)) verdicts = checkSemantics(binding, probeRoot, egressAllowList);
+  if (isPlainObject(binding)) verdicts = checkSemantics(binding, probeRoot, egressAllowList, credentialRoots);
 }
 
 if (findings.length > 0) {
