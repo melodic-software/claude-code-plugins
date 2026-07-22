@@ -136,8 +136,11 @@ hand-cleaning the zone.
   quoted CLI arguments.
 - **MCP / external trust:** no MCP server, agent, dependency, or third-party service is shipped.
 - **Configuration:** one non-sensitive `userConfig` boolean (`disk_hygiene_enabled`, default
-  `true`) gating the execution tiers — setting it `false` is audit-only mode; it can only narrow
-  the destructive surface, never widen it. No credentials. Policy comes from an explicit invocation
+  `true`) gating the execution tiers — setting it `false` puts `/disk-hygiene:clean` in audit-only
+  mode (enforced by the skill-scoped guard, which denies every deletion lane there; a direct
+  `hygiene.py` invocation outside that skill does not read the toggle and answers only to the
+  engine's own preview/approval-token gate). The toggle can only narrow the destructive surface,
+  never widen it. No credentials. Policy comes from an explicit invocation
   argument or standing `disk-hygiene.json` files under `~/.claude/` and the consumer project's
   `.claude/`. All policy input is pattern-only and additive: it can add protections and discovery
   hints or disable hints, and cannot weaken hard guards or authorize removal, so ambient config
