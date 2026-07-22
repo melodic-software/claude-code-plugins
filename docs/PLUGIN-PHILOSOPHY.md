@@ -254,14 +254,17 @@ setup skill aggregates and reports it per skill.
 The verb set is deliberately closed at `check` and `apply` — no standalone `remove`, `reset`, or
 `migrate` verb joins the mandatory contract (teardown, where genuinely needed, rides as a `remove`
 argument to `apply`, per the teardown rule below). `apply` is *state-assessing*: it reads current
-state and converges, which is what idempotent-and-preserve-unrelated-content already requires, named
-as a verb contract rather than a new bar. This subsumes forward schema evolution — an `apply` that
-meets prior-shape config fills absent keys at current defaults, preserves keys it does not
-recognize, and reports (never silently rewrites) values it cannot reconcile, so an obsolete or
-renamed key surfaces on re-run instead of sitting silently inert. It does not translate renamed or
-removed keys: the fleet's clean-break stance (no compatibility shims, no migration tooling) extends
-to setup config, and reconcile-and-report is what stands in for a migration verb. `reset` decomposes
-to teardown plus `apply`.
+state and converges, which the idempotency and preserve-unrelated-content requirements above already
+demand, named as a verb contract rather than a new bar. It reconciles conservatively — fill absent
+keys at current defaults, preserve keys it does not recognize, and report (never silently rewrite)
+values it cannot reconcile, so an obsolete or renamed key surfaces on re-run instead of sitting
+silently inert. Schema evolution is handled this way, without a separate `migrate` verb: a plugin
+that versions its own config contract may carry a forward, directional, user-confirmed upgrade of a
+recognized older version — still under `apply`, never a separate verb and never a silent write (the
+versioned standards index is the fleet example) — while a plugin that instead takes topic-docs'
+clean-break path relocates by hand with no compatibility tooling. What the clean-break stance rules
+out for either is silent backward-compatibility shims and dual-read windows that translate a changed
+shape behind the user's back. `reset` decomposes to teardown plus `apply`.
 
 Setup may inspect the repository and create or update the plugin's tracked project configuration. It
 must not write into the installed plugin cache, mutate Claude Code user settings, or write
@@ -280,7 +283,8 @@ project config the plugin owns and never to `pluginConfigs` — whose reconfigur
 the `/plugin configure` flow the check-only carve-out above routes to. Teardown stays off the
 mandatory contract because it is destructive and, across the fleet today, unexercised — grounds to
 defer it with a trigger, not proof it is never needed: a second plugin needing teardown graduates a
-shared teardown shape into an owner doc before that second adopter. The distinction is config versus
+shared teardown shape into an owner doc before that second adopter — a step the fleet conformance
+audit checks, the same enforcement every convention-registry row rides. The distinction is config versus
 data: removing the plugin's own tracked setup config is teardown, whereas an apply-scoped operation
 that mutates a managed inventory the plugin maintains (a status change over existing entries, say)
 is ordinary `apply` surface, not teardown, and does not trip that trigger.
@@ -297,9 +301,9 @@ honored either way. The skill is the interactive, discoverable consumer-configur
 (check/apply over tracked project config) — a need no native hook exposes, so the skill is not a
 redundant custom mechanism. The `Setup` hook event and `SessionStart` install hook are the
 unattended faces the same plugin may also carry, and unattended init routes to them rather than a
-custom channel. Where both exist they converge to one idempotent state. The `setup`-skill
-requirement above is satisfied in the interactive dimension by the skill and may be complemented —
-never replaced — in the headless dimension by these idioms.
+custom channel. Where both exist they converge to one idempotent state. The `setup` skill fulfills
+the `setup`-skill requirement above; the headless dimension may be complemented — never replaced —
+by these native idioms.
 
 ## Prerequisites and failure behavior
 
