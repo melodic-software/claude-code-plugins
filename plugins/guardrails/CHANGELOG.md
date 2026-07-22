@@ -3,6 +3,39 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.0]
+
+### Added
+
+- **Opt-in git `commit-msg` hook — tool-agnostic convention enforcement (audit f1
+  depth layer, f4 backstop).** New `/guardrails:setup apply install-commit-msg`
+  action installs `lib/git-hooks/commit-msg-convention.sh` (plus a copy of the
+  enforcement resolver) into the operator's personal `.git/hooks/`, validating the
+  subject of EVERY commit in the repo — editor commits, `git commit -F <file>`,
+  IDE integrations, humans outside Claude — against the same team-tracked pattern
+  the CC-layer gate reads. Trust-surface contract:
+  - **Never runs from bare `apply`** — only the explicit `install-commit-msg`
+    argument writes anything, and only the two guardrails-owned files in the
+    operator's own hooks dir. `core.hooksPath`, hook-manager configs, and tracked
+    files are never touched; the committed team lane is deliberately not
+    scaffolded (a human PR decision — and `core.hooksPath` changes are the exact
+    shape `block-no-verify` refuses).
+  - **Chain-or-refuse:** managed repos (`core.hooksPath`, lefthook, husky,
+    pre-commit) → refuse with the manager-side remediation; an existing
+    `commit-msg` hook is never overwritten — chain (renamed to
+    `commit-msg.pre-guardrails`, run first, its rejection final) or refuse.
+  - **Sentinel-marked** (`guardrails-commit-msg-convention`) so
+    convention-inference tooling excludes the installed hook as a signal
+    (echo-cycle guard); sentinel-marked re-install is idempotent ("refreshed").
+  - **Unresolved = no enforcement** (never the bundled CC default); resolver
+    removed → fail open, never block blind; `fixup!`/`squash!`/`amend!` subjects
+    exempt (autosquash); a chained pre-existing hook's rejection is final.
+  - **Deadlock-by-design exit:** the rejection message instructs fixing the
+    subject and never suggests `--no-verify` (which `block-no-verify` refuses in
+    Claude sessions anyway); in-session the CC-layer gate blocks first, making
+    this hook the cross-tool backstop.
+  15-case contract suite (`lib/git-hooks/commit-msg-convention.test.sh`).
+
 ## [0.11.0]
 
 ### Added
