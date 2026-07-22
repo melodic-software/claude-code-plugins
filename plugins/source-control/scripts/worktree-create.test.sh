@@ -115,6 +115,20 @@ err=$(bash "$HELPER" --name feat/x --root "$bare/worktrees" --repo-dir "$repo" 2
 assert_exit "root inside a bare clone refuses exit 3" 3 "$?"
 assert_contains "bare-clone refuse names a git directory" "$err" "inside a git directory"
 
+# --- Case: refuse a root with `..` after a NONEXISTENT component (exit 3) ---
+# `<tmp>/nonexistent/../<repo>/.claude/worktrees` lexically resolves inside the
+# repo, but the raw-string ancestor walk stopped at the nonexistent `nonexistent`
+# component and never probed the real repo; `git worktree add` would then create
+# the missing dir, resolve `..`, and land the checkout in `.claude/worktrees`.
+# Normalizing the target before the walk closes this.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+root="$TEST_TMPDIR/nonexistent-leading/../${repo##*/}/.claude/worktrees"
+err=$(bash "$HELPER" --name feat/x --root "$root" --repo-dir "$repo" 2>&1 >/dev/null)
+assert_exit "'..'-after-nonexistent in-repo root refuses exit 3" 3 "$?"
+assert_contains "normalized in-repo refuse names the repository" "$err" "inside the repository"
+assert_file_absent "no worktree materialized inside repo via '..' bypass" \
+  "$repo/.claude/worktrees/acme-widget-feat-x/README.md"
+
 # --- Case: an external root adjacent to a .git directory is allowed (exit 0) ---
 # Normal-path guard: the containment check must not over-reject a genuinely
 # external root just because a sibling path holds a git directory.

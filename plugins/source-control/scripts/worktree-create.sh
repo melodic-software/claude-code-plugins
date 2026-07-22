@@ -174,6 +174,43 @@ parse_owner_repo() {
   fi
 }
 
+# normalize_path <abs-path> — lexically collapse `.` and `..` (and redundant
+# slashes) in an ABSOLUTE path, echoing the result. Pure string work: it does
+# NOT touch the filesystem, so it resolves `..` even when leading components do
+# not exist yet — the case `git worktree add` handles by creating the missing
+# dirs and letting the OS resolve `..`. `realpath -m` would do this too but is a
+# GNU extension absent on BSD/macOS (the repo's realpath/readlink -f idiom needs
+# every-but-last component to exist, so it cannot resolve a nonexistent-prefix
+# `..`). A path with no `.`/`..`/`//` segment re-splits and re-joins identically,
+# so this is a no-op for ordinary roots. Symlink resolution of existing
+# components is left to git's own realpath at creation (see the containment note).
+normalize_path() {
+  local input="$1" root rest seg
+  if [[ "$input" == /* ]]; then
+    root="/"
+    rest="${input#/}"
+  elif [[ "$input" =~ ^[A-Za-z]:/ ]]; then
+    root="${input:0:2}/"
+    rest="${input:3}"
+  else
+    root=""
+    rest="$input"
+  fi
+  local -a segs=() out=()
+  IFS='/' read -r -a segs <<<"$rest"
+  for seg in "${segs[@]}"; do
+    [[ -z "$seg" || "$seg" == "." ]] && continue
+    if [[ "$seg" == ".." ]]; then
+      # Pop the last kept segment; a `..` at the root is a no-op (clamped).
+      ((${#out[@]})) && out=("${out[@]:0:${#out[@]}-1}")
+      continue
+    fi
+    out+=("$seg")
+  done
+  local IFS='/'
+  printf '%s%s' "$root" "${out[*]}"
+}
+
 # owner/repo from the origin remote when present; otherwise fall back to the
 # repository directory name (owner omitted).
 owner=""
@@ -210,6 +247,14 @@ worktree_path="${root%/}/${dirname}"
 # Anchor it to $toplevel up front so the containment check below sees the real
 # target rather than an unrooted string whose ancestor walk never reaches the repo.
 [[ "$worktree_path" != /* && "$worktree_path" != ?:* ]] && worktree_path="$toplevel/$worktree_path"
+
+# Collapse `.`/`..` before the containment walk. A root with `..` after a
+# nonexistent component (e.g. `<root>/missing/../<repo>/.claude/worktrees`) would
+# otherwise defeat the walk: it stops at the nonexistent `missing` string and
+# never probes the real `<repo>` ancestor, so the guard passes and `git worktree
+# add` creates `missing`, resolves `..`, and lands the checkout inside the repo.
+# Normalizing first makes the walk see the true landing path.
+worktree_path=$(normalize_path "$worktree_path")
 
 # Reject placement inside any git repository — a working tree, a normal repo's
 # .git directory, or a bare clone. Keeping worktrees OUT of every repository is
