@@ -30,9 +30,11 @@ findings to that same `running-retros/` ledger (matched by `session_id`), so the
 in-session checkpoints share one file per session. Its intermediate distilled observations are NOT a
 memory-tier artifact: they are transient, machine-local plugin state under
 `${CLAUDE_PLUGIN_DATA}/session-flow-observer/`, deleted after the analysis run consumes them, and
-never committed — only the redacted findings block reaches the ledger. The observer never edits the
-consumer's `.gitignore`; the in-session checkpoint's once-per-session self-ignore guard on the
-memory root (per the contract's Runtime guards) still governs the ledger directory itself.
+never committed — only the redacted findings block reaches the ledger. Before its first ledger
+write the observer runs the contract's self-ignore guard on the resolved memory root — ensuring
+`<memory_dir>/.gitignore` contains `*` (creating it when absent) so the memory-tier output is never
+committed — and refuses when the memory root is itself a repo root; it never edits the consumer's
+root `.gitignore`.
 
 All three artifacts are memory-tier and therefore checkout-local (contract ≥ 2.0.0): a handoff
 written in one worktree is invisible to a session resuming in another. The workflow checklist is a

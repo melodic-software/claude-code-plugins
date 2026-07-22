@@ -215,7 +215,12 @@ class Observer:
             self.release_lock()
 
     def _tail_until_idle(self) -> str:
-        offset = 0
+        # Resume from where a prior observer for THIS session left off (e.g. a
+        # `source=resume` re-arm after the first observer idled), so the already-
+        # analyzed span is not re-read and re-analyzed into a duplicate ledger
+        # entry. A shrunk/rotated transcript is caught by the size<offset resync
+        # in the loop. First arm has no prior status -> offset 0.
+        offset = self._resume_offset()
         partial = b""
         cycles = total_lines = sharing_violations = read_errors = parse_errors = 0
         max_mtime = 0.0
@@ -326,6 +331,43 @@ class Observer:
                             "updated": now_iso()}, merge=True)
         return state
 
+    def _resume_offset(self) -> int:
+        try:
+            prev = json.loads(self.status_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return 0
+        if prev.get("target_session") != self.session_id:
+            return 0
+        try:
+            off = max(int(prev.get("byte_offset", 0)), 0)
+        except (TypeError, ValueError):
+            return 0
+        if off > 0:
+            self.log(f"resuming from prior observer byte offset {off}")
+        return off
+
+    def _ensure_memory_root_ignored(self) -> None:
+        """Self-ignore the resolved memory root before the first ledger write.
+
+        Mirrors the topic-docs contract's self-ignore guard: the memory root
+        (default `.work`, the parent of `running-retros/`) gets a `.gitignore`
+        containing `*` so the memory-tier output is never committed. It NEVER
+        touches the consumer's root `.gitignore` -- if the memory root is itself a
+        repo root (its `.gitignore` would be the consumer's), the guard refuses.
+        """
+        memory_root = self.ledger_dir.parent
+        if (memory_root / ".git").exists():
+            self.log("memory root is a repo root; skipping self-ignore guard")
+            return
+        gi = memory_root / ".gitignore"
+        try:
+            memory_root.mkdir(parents=True, exist_ok=True)
+            if not gi.exists():
+                gi.write_text("*\n", encoding="utf-8")
+                self.log(f"created memory-root self-ignore guard {gi}")
+        except OSError as e:
+            self.log(f"self-ignore guard skipped: {e}")
+
     def _write_status(self, status: dict, merge: bool = False) -> None:
         try:
             if merge and self.status_path.exists():
@@ -426,6 +468,7 @@ class Observer:
         over the -p run's semantic pass) exactly as running-retro's ledger write
         mandates -- this is the durable, portable output.
         """
+        self._ensure_memory_root_ignored()
         self.ledger_dir.mkdir(parents=True, exist_ok=True)
         ledger = self._find_session_ledger()
         section = (f"\n## Checkpoint {now_ts()} (autonomous post-end)\n\n"

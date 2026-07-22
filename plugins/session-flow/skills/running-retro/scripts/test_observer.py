@@ -211,6 +211,41 @@ class LedgerAndRetention(unittest.TestCase):
             self.assertEqual(len(lines), total,
                              f"expected {total} distilled events, got {len(lines)} (dupes/underread?)")
 
+    def test_resume_offset_from_prior_status(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            ob = make_observer(tmp, session_id="rs")
+            self.assertEqual(ob._resume_offset(), 0)  # no prior status
+            ob.status_path.write_text(json.dumps(
+                {"target_session": "rs", "byte_offset": 4096}), encoding="utf-8")
+            self.assertEqual(ob._resume_offset(), 4096)
+            # A status file for a DIFFERENT session must not be resumed from.
+            ob.status_path.write_text(json.dumps(
+                {"target_session": "other", "byte_offset": 999}), encoding="utf-8")
+            self.assertEqual(ob._resume_offset(), 0)
+
+    def test_memory_root_self_ignore_guard(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            ob = make_observer(tmp, session_id="gi")  # ledger_dir = tmp/ledger
+            ob._append_ledger("finding")
+            gi = ob.ledger_dir.parent / ".gitignore"
+            self.assertTrue(gi.exists() and gi.read_text().strip() == "*",
+                            "memory root must self-ignore with '*'")
+
+    def test_guard_refuses_repo_root_gitignore(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            # memory root == a repo root (has .git): the guard must NOT create a
+            # .gitignore there (that would be the consumer's root .gitignore).
+            (tmp / "ledger").mkdir()
+            (tmp / ".git").mkdir()
+            ob = make_observer(tmp, session_id="rr")
+            # ledger_dir is tmp/ledger; its parent (tmp) has .git -> refuse.
+            ob._ensure_memory_root_ignored()
+            self.assertFalse((tmp / ".gitignore").exists(),
+                             "guard must never write a repo-root .gitignore")
+
     def test_retention_rule(self):
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)

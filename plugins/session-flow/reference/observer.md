@@ -103,7 +103,11 @@ double-arm.
 
 - **Durable ledger — primary.** Redacted findings append to this session's `running-retro` ledger
   (`<memory_dir>/running-retros/`), matched by `session_id` frontmatter, read by a later in-session
-  checkpoint. No new plumbing beyond the existing ledger-on-disk model.
+  checkpoint. No new plumbing beyond the existing ledger-on-disk model. Before its first ledger write
+  the observer runs the topic-docs self-ignore guard on the memory root (ensures
+  `<memory_dir>/.gitignore` contains `*`; refuses a repo-root memory root; never the consumer's root
+  `.gitignore`). On a `source=resume` re-arm the observer resumes from the prior run's persisted byte
+  offset, so an already-analyzed span is not re-analyzed into a duplicate ledger entry.
 - **`SendMessage`** — reserved for the case where findings must reach a still-running session; gated
   behind experimental agent-teams and cannot grant consent, so it is not the default.
 - **desktop-notification** — not usable: it is bound to Claude Code's own `Notification` events, not
