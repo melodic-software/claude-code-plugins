@@ -154,21 +154,39 @@ ps::is_commit_or_push_shaped() {
   return 0
 }
 
-# Classify a git/commit-guard command for the resolved tool. Sets PS_SAFE_COMMAND
-# (the command the caller should hand to its Bash parser) and returns:
+# True (0) when the (quote-stripped) text carries a `git` (optionally `git.exe`)
+# command word. Coarser than commit/push shaping: block-dangerous-git owns
+# destructive non-commit forms (reset/clean/checkout/restore), so it must fail
+# closed on ANY git-shaped command it cannot parse — not only commit/push — lest
+# an unparseable `git --% reset --hard` slip through.
+ps::is_git_shaped() {
+  local lc="${1,,}"
+  [[ "$lc" =~ (^|[^[:alnum:]_.])git([.]exe)?([^[:alnum:]_]|$) ]]
+}
+
+# Classify a git/commit-guard command for the resolved tool. The optional third
+# argument selects the DANGER SHAPE that forces a fail-closed block on an
+# unparseable command: `commit-push` (default — the commit/push guards) or `git`
+# (block-dangerous-git, which also owns destructive non-commit forms and so fails
+# closed on ANY git-shaped command it cannot parse). Sets PS_SAFE_COMMAND (the
+# command the caller should hand to its Bash parser) and returns:
 #   0  proceed — parse PS_SAFE_COMMAND (== the original command for the Bash tool)
-#   1  allow/skip — a non-commit PowerShell command with a construct deferred to
-#      A2b; the guard's concern is not confidently present, so do not block
-#   2  block fail-closed — commit/push shaped but not confidently parseable
+#   1  allow/skip — an unparseable PowerShell command that is NOT danger-shaped
+#      for this guard (a construct deferred to A2b); do not block
+#   2  block fail-closed — danger-shaped but not confidently parseable
 ps::classify_git_command() {
-  local tool="$1" cmd="$2" scan
+  local tool="$1" cmd="$2" shape="${3:-commit-push}" scan
   PS_SAFE_COMMAND="$cmd"
   [[ "$tool" == "PowerShell" ]] || return 0
 
   ps::blank_herestrings "$cmd"
   scan=$(ps::blank_quoted_spans "$PS_BLANKED")
   if ((PS_HERESTRING_UNBALANCED)) || ps::has_special_constructs "$scan"; then
-    ps::is_commit_or_push_shaped "$scan" && return 2
+    if [[ "$shape" == "git" ]]; then
+      ps::is_git_shaped "$scan" && return 2
+    else
+      ps::is_commit_or_push_shaped "$scan" && return 2
+    fi
     return 1
   fi
   # Read by the sourcing guard, not within this library.
@@ -186,6 +204,14 @@ ps::print_unparseable_block_message() {
   echo "  <subject>" >&2
   echo "  '@ | git commit -F -" >&2
   echo "or run the commit via the Bash tool (the /commit skill's canonical form)." >&2
+}
+
+# Shell-agnostic block text for a PowerShell git command block-dangerous-git
+# cannot parse with confidence. Printed to stderr by the caller before it exits 2.
+ps::print_unparseable_git_block_message() {
+  echo "BLOCKED: this PowerShell 'git' command cannot be parsed with confidence — blocked (fail-closed)." >&2
+  echo "A git command carrying a PowerShell construct the guard cannot faithfully tokenize (backtick, '--%', subexpression, script-block grouping, or an unbalanced here-string) could hide a destructive form (reset --hard, clean -fd, checkout/restore), so it is blocked rather than waved through." >&2
+  echo "Run the command via the Bash tool, or rewrite it without the unparseable construct." >&2
 }
 
 # True (0) when a PowerShell command authors file content in a way that bypasses

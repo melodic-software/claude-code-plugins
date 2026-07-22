@@ -721,18 +721,19 @@ if ((${#COMMAND} > MAX_COMMAND_LEN)); then
 fi
 
 # Reduce a PowerShell command to a Bash-tokenizer-faithful form, or fail closed.
-# For the Bash tool this is a no-op (COMMAND unchanged). The fail-closed branch
-# fires only for `git commit`/`git push`-shaped PowerShell this guard cannot
-# parse; other dangerous ops carrying an A2b-deferred PowerShell construct are
-# deferred (allowed), not this issue's proven bypass surface.
-ps::classify_git_command "$TOOL_NAME" "$COMMAND"
+# For the Bash tool this is a no-op (COMMAND unchanged). This guard also owns
+# destructive non-commit forms (reset/clean/checkout/restore), so it fails closed
+# on ANY git-shaped PowerShell it cannot parse (shape `git`): an unparseable
+# `git --% reset --hard` must not slip through. A non-git unparseable PowerShell
+# command is not this guard's concern and is allowed.
+ps::classify_git_command "$TOOL_NAME" "$COMMAND" git
 case $? in
 2)
-  ps::print_unparseable_block_message
+  ps::print_unparseable_git_block_message
   emit_tel "blocked" "powershell-unparseable"
   exit 2
   ;;
-1) exit 0 ;; # non-commit/push PowerShell with an A2b-deferred construct
+1) exit 0 ;; # non-git PowerShell with an A2b-deferred construct
 *) COMMAND="$PS_SAFE_COMMAND" ;;
 esac
 

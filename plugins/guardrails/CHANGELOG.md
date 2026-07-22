@@ -19,7 +19,11 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   `-F -` form is, while a `git commit`/`git push`-shaped PowerShell command
   carrying a construct the guard cannot parse with confidence (backtick, `--%`,
   subexpression, script-block grouping, or an unbalanced here-string) is blocked
-  rather than waved through.
+  rather than waved through. `block-dangerous-git` also owns destructive
+  non-commit forms (`reset --hard`, `clean -fd`, `checkout`/`restore`), so its
+  fail-closed net is wider: it blocks ANY git-shaped PowerShell it cannot parse,
+  not only commit/push — an unparseable `git --% reset --hard` cannot slip
+  through.
 - **`block-hook-bypass` now covers the PowerShell file-write surface.**
   `Set-Content`, `Add-Content`, `Out-File`, `Tee-Object`, and content-producer
   `>`/`>>` redirects that bypass the Write/Edit hook gate are blocked on the

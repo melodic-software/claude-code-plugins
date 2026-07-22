@@ -271,4 +271,24 @@ run_pwsh "PS: git status (allowed)" "git status" 0
 run_pwsh "PS: backtick-continued force push (fail-closed block)" \
   "$(printf 'git push `\n --force')" 2
 
+# This guard owns destructive non-commit forms (reset/clean/checkout/restore), so
+# unlike the commit/push guards it cannot defer an unparseable NON-commit/push git
+# command — it must fail closed on ANY git-shaped PowerShell it cannot parse.
+run_pwsh "PS: git --% reset --hard (stop-parsing token, fail-closed block)" \
+  "git --% reset --hard" 2
+run_pwsh "PS: git --% clean -fd (stop-parsing token, fail-closed block)" \
+  "git --% clean -fd" 2
+run_pwsh "PS: backtick-continued git reset --hard (fail-closed block)" \
+  "$(printf 'git `\n reset --hard')" 2
+# Single-quoted `$(...)` is deliberately literal PowerShell subexpression text
+# (the construct under test), not a Bash expansion.
+# shellcheck disable=SC2016
+run_pwsh "PS: git checkout via subexpression (fail-closed block)" \
+  'git checkout $(Get-Branch)' 2
+# Negative control: a non-git unparseable PowerShell command is not this guard's
+# concern — no over-block past git.
+# shellcheck disable=SC2016
+run_pwsh "PS: non-git unparseable command (allowed — not git-shaped)" \
+  'Remove-Item $(Get-Foo)' 0
+
 report
