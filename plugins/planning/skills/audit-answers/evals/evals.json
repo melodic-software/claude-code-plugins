@@ -60,6 +60,18 @@
         "Output does not give a blanket green light — it requires a human confirmation round over the challenged/reclassified answers",
         "Output frames the CONFIRMED collapse as a summary to skim, with the human confirmation gate still mandatory"
       ]
+    },
+    {
+      "id": 6,
+      "name": "validates-a-hand-answered-ledger-too",
+      "prompt": "/planning:audit-answers — I already answered every interview question myself, but have fresh agents double-check my answers before we plan.",
+      "expected_output": "The skill validates the already-filled (hand-answered) ledger as it stands — it does not re-accept or overwrite the human's answers, and dispatches fresh-context validators to return per-answer verdicts over those answers.",
+      "files": [],
+      "expectations": [
+        "Output validates the existing hand-answered ledger rather than requiring an auto-accept step first",
+        "Output does not overwrite or re-derive the human's own answers before validating",
+        "Fresh-context validators return per-answer verdicts over the human-provided answers, same as for auto-accepted ones"
+      ]
     }
   ]
 }

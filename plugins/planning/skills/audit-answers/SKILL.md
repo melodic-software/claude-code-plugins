@@ -1,6 +1,6 @@
 ---
 name: audit-answers
-description: "Adversarially validate a completed /planning:interview's accepted answers with independent fresh-context agents instead of hand-answering every round — the orchestrator accepts each open question's recommended answer, then validators re-examine each accepted answer with its rationale withheld and return a per-answer verdict (confirmed / challenged / reclassified-to-human), so only the doubtful answers come back as real questions and user-reserved decisions always do. Use when: 'audit my interview answers', 'accept all and have agents check them', 'validate the interview answers', 'agent-validated interview', 'have subagents second-guess the recommendations', 'auto-answer then verify the ledger'. Not for stress-testing a plan artifact (that is '/planning:devils-advocate') or asking the human the questions the first time ('/planning:interview'); needs a filled interview ledger."
+description: "Adversarially validate a completed /planning:interview's answers with independent fresh-context agents — runs over any filled decision ledger, whether the human hand-answered the rounds or the recommendations were auto-accepted. Validators re-examine each answer with its rationale withheld and return a per-answer verdict (confirmed / challenged / reclassified-to-human), so only the doubtful answers come back as real questions and user-reserved decisions always do; if open branches remain, it accepts the recommended answers to fill them first, holding the never-auto floor. Use when: 'audit my interview answers', 'validate the interview answers', 'have agents check the answers', 'accept all and have agents check them', 'agent-validated interview', 'second-guess the recommendations'. Not for stress-testing a plan artifact (that is '/planning:devils-advocate') or asking the human the questions the first time ('/planning:interview'); needs a filled interview ledger."
 argument-hint: "[topic] (no args reads the current topic's interview ledger)"
 user-invocable: true
 disable-model-invocation: false
@@ -17,9 +17,9 @@ Arguments: `$ARGUMENTS`
 
 ## Purpose
 
-An **agent-validated finish** to a `/planning:interview`. Instead of the human answering every round by hand, the orchestrator accepts the recommended answer to each open question — the filled decision ledger — and then independent fresh-context agents adversarially re-examine each accepted answer. Only the answers they challenge or reclassify come back to the human; the rest collapse to a one-line confirmation.
+**Independent adversarial validation of a completed `/planning:interview`'s answers.** It runs over any filled decision ledger — whether the human hand-answered the rounds or the recommendations were auto-accepted — and hands each answer to fresh-context agents that re-examine it on its merits. Only the answers they challenge or reclassify come back to the human; the rest collapse to a one-line confirmation.
 
-The value is catching a decision that a blanket "accept all recommendations" would swallow. `/planning:interview`'s accept-shorthand takes the *orchestrator's own* recommendations at face value — the producer grading its own work. This skill inserts a producer≠critic step: fresh validators that never saw the reasoning judge the decision on its merits.
+The value is a producer≠critic pass over decisions the producing session is structurally the worst judge of. It is sharpest when the answers were auto-accepted — `/planning:interview`'s accept-shorthand takes the *orchestrator's own* recommendations at face value, the producer grading its own work — but a hand-answered ledger benefits too: fresh validators that never saw the reasoning catch a decision made under the same session's blind spots.
 
 **This is validation, never derivation.** It does NOT spawn subagents to *invent* answers. The interview contract already resolves every fact from the environment, so anything that reaches a round is a genuine decision — the never-auto class — and a subagent asked to derive it only reinjects the orchestrator's framing and converges to accept-all at quadratic frontier cost with a false patina of verification. Fresh-context independence is real only for *checking* an answer, not for producing one. So the answers are accepted first, then checked.
 
@@ -34,9 +34,9 @@ Derive `<topic-slug>` from `$ARGUMENTS` or the current branch (kebab-case, ≤40
 
 ## The validation loop
 
-### Step 1 — Accept to completion, holding the never-auto floor
+### Step 1 — Ensure a filled ledger, holding the never-auto floor
 
-Drive the interview's accept-recommended path to a **working, in-session filled ledger** — for every open consequential branch, take the orchestrator's recommended answer as a *provisional* accepted answer. These provisional answers are NOT persisted to the tracked ledger or Brief yet: an auto-accepted answer is unvalidated, and writing it into the contract before validation is exactly what this skill exists to prevent. **The mechanical never-auto floor is held out of the auto-accept — it always routes to the human, never to a validator:**
+Validation needs a filled ledger. If the interview is already fully answered — every consequential branch resolved, whether by hand or by a prior accept-all — validate it as it stands. If open branches remain, drive the interview's accept-recommended path to fill them into a **working, in-session filled ledger** — for each open branch, take the orchestrator's recommended answer as a *provisional* accepted answer, NOT persisted to the tracked ledger or Brief yet (an auto-accepted answer is unvalidated, and writing it into the contract before validation is exactly what this skill exists to prevent). **The mechanical never-auto floor is held out of any auto-accept — it always routes to the human, never to a validator:**
 
 - any Deferred question tagged **`USER-RESERVED`** (its resolution could change acceptance criteria, out-of-scope, or constraints), and
 - any decision the interview's **auto-guard** class covers — a genuine user choice with real tradeoffs and no codebase answer.
@@ -74,10 +74,10 @@ Present the triaged result: the collapsed CONFIRMED block, then the real questio
 
 ## What this skill does NOT do
 
-- **Does not derive answers** — validation only (see Purpose). The orchestrator's recommendations are the input, not a subagent's invented ones.
+- **Does not derive answers** — validation only (see Purpose). The ledger's answers are the input, not a subagent's invented ones.
 - **Does not auto-resolve a reserved decision** — the never-auto floor (USER-RESERVED + auto-guard) always routes to the human; no verdict overrides it.
 - **Does not stress-test a plan** — that is `/planning:devils-advocate` over a `/planning:plan` artifact. This validates interview *answers*, upstream of the plan.
-- **Does not ask the questions itself the first time** — that is `/planning:interview`. This runs only over answers already accepted, to check them.
+- **Does not ask the questions itself the first time** — that is `/planning:interview`. This runs only over answers already in the ledger (hand-answered or auto-accepted), to check them.
 - **Does not block or auto-apply** — it emits findings that gate a human confirmation round; the human decides.
 
 ## Composition

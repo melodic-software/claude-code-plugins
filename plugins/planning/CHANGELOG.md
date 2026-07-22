@@ -7,13 +7,15 @@ All notable changes to the `planning` plugin are documented here. Format follows
 
 ### Added
 
-- **`audit-answers` — an agent-validated finish to `/planning:interview`.**
-  Instead of hand-answering every round, the orchestrator accepts each open
-  question's recommended answer (holding the mechanical never-auto floor —
-  `USER-RESERVED` deferred questions and the interview's auto-guard class always
-  route to the human), then dispatches **1–3 fresh-context (non-fork) validator
-  subagents** that re-examine each accepted answer with its **rationale
-  withheld** (audit the decision, not the pitch) and return a per-answer verdict
+- **`audit-answers` — independent adversarial validation of a completed
+  `/planning:interview`'s answers.** It runs over any filled ledger, whether the
+  human hand-answered the rounds or the recommendations were auto-accepted. When
+  open branches remain it accepts each one's recommended answer to fill them
+  first (holding the mechanical never-auto floor — `USER-RESERVED` deferred
+  questions and the interview's auto-guard class always route to the human), then
+  dispatches **1–3 fresh-context (non-fork) validator subagents** that re-examine
+  each answer with its **rationale withheld** (audit the decision, not the pitch)
+  and return a per-answer verdict
   — **CONFIRMED / CHALLENGED / RECLASSIFIED-TO-HUMAN** — plus shaky
   dependency-chain flags. Triaged confirm: CONFIRMED answers collapse to one
   line; CHALLENGED and RECLASSIFIED answers become real questions in the
