@@ -128,6 +128,13 @@ double-arm.
   mtime-idle ships regardless — it is crash-safe where `SessionEnd` is not.
 - **`retro` parser in the analysis run.** Deferred while the analysis is Read-only over untrusted
   data. **Trigger:** a sandbox that can run the parser safely over untrusted transcript content.
+- **Headless prose-inferred memory root.** The SessionStart hook resolves `memory_dir` mechanically
+  (the `.claude/topic-docs.yaml` concern file, then the `.work` default); it cannot do retro's rung-2
+  inference of a `memory_dir` documented only in `CLAUDE.md`/rules prose (that needs an in-session
+  agent). A hook-armed observer would then write under `.work` while in-session checkpoints look under
+  the prose-documented root. The manual `arm` entry resolves it in-session and is unaffected.
+  **Trigger:** a mechanical concern-file declaration of `memory_dir` (recommended), or a safe headless
+  inference path.
 - **Headless cross-session continuity.** The opt-in SessionStart hook arms the observer without the
   `previous_running_retro` / `previous_session_id` continuity pointers, because a detached process
   cannot safely apply retro's Phase 1.0 continuity gate (blindly linking the newest handoff could

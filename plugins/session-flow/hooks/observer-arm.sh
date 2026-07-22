@@ -52,9 +52,13 @@ SESSION_ID="$(printf '%s' "$INPUT" | jq -r '.session_id // ""' 2>/dev/null)"
 
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-# Resolve memory_dir exactly as retro does (concern file -> default .work), reusing
-# the shared parser rather than reimplementing it. Anchor a relative root to the
-# project dir so the detached observer (which will not share this cwd) resolves it.
+# Resolve memory_dir mechanically: the concern file (.claude/topic-docs.yaml) then
+# the default .work, reusing the shared parser. A headless hook CANNOT do retro's
+# rung-2 prose inference (a memory_dir documented only in CLAUDE.md/rules) -- that
+# needs an in-session agent -- so a consumer relying on a prose-documented root
+# should declare it in the concern file or use the manual `arm` (which resolves it
+# in-session). Anchor a relative root to the project dir so the detached observer
+# (which will not share this cwd) resolves it.
 MEMORY_DIR="$(bash "$PLUGIN_ROOT/skills/retro/scripts/parse-concern-value.sh" \
   .claude/topic-docs.yaml memory_dir "" 2>/dev/null || true)"
 MEMORY_DIR="${MEMORY_DIR:-.work}"

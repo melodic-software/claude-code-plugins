@@ -150,18 +150,28 @@ config, untrusted-data boundary, and the deferred native Observer-Agents alterna
 [`${CLAUDE_PLUGIN_ROOT}/reference/observer.md`](${CLAUDE_PLUGIN_ROOT}/reference/observer.md) — read
 it, do not restate it. To arm the current session, resolve the inputs and run the launcher:
 
-Read the **same `userConfig` values the hook reads** so a manual arm honors the operator's analysis
-settings (an operator who set `observer_analysis_enabled=false` to avoid autonomous spend must not get
-a `claude -p` run from a manual arm). Anchor the ledger dir to the project — the launcher resolves it
-to an absolute path, so a relative `memory_dir` still lands in the consumer repo, not the plugin cache.
+First resolve these into shell variables the block below reads. A skill runs **in-session**, so read
+config from the **rendered `${user_config.observer_*}` values** (an unexpanded token or empty = the
+default) — the `CLAUDE_PLUGIN_OPTION_*` env vars the hook uses are NOT set in a skill's Bash context:
 
-**Cross-session continuity (manual arm only).** If this session resumed from a handoff chain or an
-earlier running-retro ledger, resolve the prior ledger and its session id under retro's Phase 1.0
-continuity gate (the same `previous_running_retro` / `previous_session_id` resolution the checkpoint
-flow uses in step 2) and pass them below, so the observer's autonomous ledger links back into the
-cumulative chain. A **detached/headless observer cannot make the continuity-gate judgement safely**
-(blindly linking the newest handoff could splice an unrelated session), so the opt-in SessionStart
-hook leaves these empty; a later in-session checkpoint reconciles continuity for hook-armed sessions.
+- `OBS_MODEL` ← `${user_config.observer_analysis_model}` (default `claude-haiku-4-5`)
+- `OBS_IDLE` ← `${user_config.observer_idle_seconds}` (default `900`); `OBS_MAX` ←
+  `${user_config.observer_max_seconds}` (default `86400`)
+- `OBS_ANALYSIS` ← `${user_config.observer_analysis_enabled}` (default `true`) — an operator who set it
+  `false` to avoid autonomous spend must NOT get a `claude -p` run from a manual arm
+- `OBS_BARE` ← `${user_config.observer_analysis_bare}` (default `false`)
+- `DECLARED_MEMORY_DIR` ← a `memory_dir` the consuming repo documents in prose (its `CLAUDE.md` /
+  rules) but not in `.claude/topic-docs.yaml` — retro's rung-2 inference; empty otherwise. Being
+  in-session, the manual arm CAN honor this (and cross-session continuity below); the headless hook
+  resolves `memory_dir` only from the concern file + default and cannot infer a prose-documented root.
+- `PREV_LEDGER` / `PREV_SID` ← for cross-session continuity, if this session resumed from a handoff
+  chain or an earlier running-retro ledger: resolve the prior ledger and its session id under retro's
+  Phase 1.0 continuity gate (same as the checkpoint flow's step 2). A detached/headless observer cannot
+  make that judgement safely (blindly linking the newest handoff could splice an unrelated session), so
+  the SessionStart hook leaves these empty and a later in-session checkpoint reconciles them.
+
+The launcher resolves the ledger dir to an absolute path, so a relative `memory_dir` still lands in the
+consumer repo, not the plugin cache.
 
 ```bash
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
@@ -177,17 +187,17 @@ PY=""; for c in python3 python; do command -v "$c" >/dev/null 2>&1 \
 args=(--transcript "$TRANSCRIPT" --work-dir "$WORK_DIR" --ledger-dir "$MEMORY_DIR/running-retros"
   --session-id "$CLAUDE_CODE_SESSION_ID" --plugin-root "$PLUGIN_ROOT"
   --previous-running-retro "${PREV_LEDGER:-}" --previous-session-id "${PREV_SID:-}"
-  --model "${CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_MODEL:-claude-haiku-4-5}"
-  --idle-seconds "${CLAUDE_PLUGIN_OPTION_OBSERVER_IDLE_SECONDS:-900}"
-  --max-seconds "${CLAUDE_PLUGIN_OPTION_OBSERVER_MAX_SECONDS:-86400}")
-[[ "${CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_ENABLED:-true}" == "true" ]] && args+=(--analysis)
-[[ "${CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_BARE:-false}" == "true" ]] && args+=(--bare)
+  --model "${OBS_MODEL:-claude-haiku-4-5}"
+  --idle-seconds "${OBS_IDLE:-900}" --max-seconds "${OBS_MAX:-86400}")
+[[ "${OBS_ANALYSIS:-true}" != "false" ]] && args+=(--analysis)
+[[ "${OBS_BARE:-false}" == "true" ]] && args+=(--bare)
 "$PY" "$PLUGIN_ROOT/skills/running-retro/scripts/arm_observer.py" "${args[@]}"
 ```
 
-This is the SAME launcher and config surface the opt-in SessionStart hook (`observer_enabled`) uses;
-manual `arm` works whether or not the auto-arm is on, and is the primary entry — the hook only automates
-it. The launcher prints the observer pid and returns at once; it never blocks the session.
+This is the SAME launcher the opt-in SessionStart hook (`observer_enabled`) uses; manual `arm` works
+whether or not the auto-arm is on, and is the primary entry. Because it runs in-session it can honor
+prose-inferred memory roots and cross-session continuity the headless hook cannot. The launcher prints
+the observer pid and returns at once; it never blocks the session.
 
 ## Cadence
 
