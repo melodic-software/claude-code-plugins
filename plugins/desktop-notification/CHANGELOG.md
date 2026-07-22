@@ -3,6 +3,16 @@
 All notable changes to the `desktop-notification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.1]
+
+### Changed
+
+- Sync of the shared `hook-utils.sh`: the git-option parser distinguishes `--config-env`
+  (an env-var name) from `-c`/`--config` (an inline value), and a `--config-env` alias for
+  a guarded subcommand is refused by shape rather than by resolving the environment
+  variable's value (`#740`). No behavior change for this plugin — it does not inspect git
+  config values; shipped so consumers receive the shared library update.
+
 ## [0.5.0]
 
 ### Added
