@@ -39,16 +39,14 @@ restores the FAIL semantics.
    once-per-session notice instead of fixing typos.
 3. **typos binary** — `command -v typos` (the hook resolves PATH only — no `.venv`-style
    per-repo convention). Report the resolved path and `typos --version` output when found.
-   FAIL when absent while a typos config governs the repo; the hook then emits a visible
-   once-per-session skip notice instead of running.
-4. **Consumer typos config** — mirror the hook's opt-in walk: it stops at the FIRST
-   (closest) governing config found walking from the edited file's directory up to the repo
-   root, checking (in precedence order) `typos.toml`, `_typos.toml`, `.typos.toml`, a
+   FAIL when absent; the hook then emits a visible once-per-session skip notice instead of
+   running.
+4. **Consumer typos config (informational only)** — the hook runs unconditionally and never
+   gates on a config existing; typos resolves its own governing config (if any) directly from
+   the file path it is given. Report whether a `typos.toml`, `_typos.toml`, `.typos.toml`, a
    `Cargo.toml` with `[workspace.metadata.typos]`/`[package.metadata.typos]`, or a
-   `pyproject.toml` with `[tool.typos]` (read the hook for the exact names and the section
-   test — its test is the authority). Report the governing config the walk discovers, or
-   INFO that none exists — absence is the opt-out by design, so the plugin is inert (INFO,
-   not FAIL), matching the README's "ships no rules of its own" stance.
+   `pyproject.toml` with `[tool.typos]` governs the repo, purely as INFO — its presence or
+   absence never changes whether the hook runs.
 5. **Hook toggle** — report the effective `typos_format_enabled` value:
    `${user_config.typos_format_enabled}` (unexpanded or empty means default `true`).
 6. **Hook registration** — INFO: confirm the plugin is enabled for this project
