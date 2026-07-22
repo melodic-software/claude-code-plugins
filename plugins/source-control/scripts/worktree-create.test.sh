@@ -95,6 +95,35 @@ err=$(bash "$HELPER" --name feat/x --root "$other/nested" --repo-dir "$repo" 2>&
 assert_exit "root inside another checkout refuses exit 3" 3 "$?"
 assert_contains "foreign-checkout refuse names another working tree" "$err" "another git working tree"
 
+# --- Case: refuse a root beneath a normal repo's .git directory (exit 3) ---
+# `git rev-parse --show-toplevel` fails inside a .git dir, so the work-tree probe
+# alone misses it; --is-inside-git-dir catches the git-administrative ancestor
+# and stops a linked checkout from landing inside git metadata.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+err=$(bash "$HELPER" --name feat/x --root "$repo/.git/external" --repo-dir "$repo" 2>&1 >/dev/null)
+assert_exit "root under .git refuses exit 3" 3 "$?"
+assert_contains "git-dir refuse names a git directory" "$err" "inside a git directory"
+assert_file_absent "no worktree created inside .git" "$repo/.git/external/acme-widget-feat-x/README.md"
+
+# --- Case: refuse a root inside a bare clone (exit 3) ---
+# A bare repo has no work tree either, so --show-toplevel reports nothing; the
+# same --is-inside-git-dir guard rejects the bare-repo ancestor.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+bare="$(mktemp -d "$TEST_TMPDIR/bareXXXXXX")/other.git"
+git init -q --bare "$bare" >/dev/null 2>&1
+err=$(bash "$HELPER" --name feat/x --root "$bare/worktrees" --repo-dir "$repo" 2>&1 >/dev/null)
+assert_exit "root inside a bare clone refuses exit 3" 3 "$?"
+assert_contains "bare-clone refuse names a git directory" "$err" "inside a git directory"
+
+# --- Case: an external root adjacent to a .git directory is allowed (exit 0) ---
+# Normal-path guard: the containment check must not over-reject a genuinely
+# external root just because a sibling path holds a git directory.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+root="$TEST_TMPDIR/adjacent-external"
+out=$(bash "$HELPER" --name feat/adj --root "$root" --repo-dir "$repo" 2>/dev/null)
+assert_exit "external root adjacent to a repo still creates (exit 0)" 0 "$?"
+assert_file_exists "external adjacent worktree materialized" "$out/README.md"
+
 # --- Case: path computation <root>/<owner>-<repo>-<slug> with slug sanitization ---
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 root="$TEST_TMPDIR/wtroot1"

@@ -211,46 +211,59 @@ worktree_path="${root%/}/${dirname}"
 # target rather than an unrooted string whose ancestor walk never reaches the repo.
 [[ "$worktree_path" != /* && "$worktree_path" != ?:* ]] && worktree_path="$toplevel/$worktree_path"
 
-# Reject placement inside any git working tree. Keeping worktrees OUT of every
-# checkout is the helper's core purpose: a worktree nested inside a working tree
-# reintroduces the CLAUDE.md/rules double-load bug for whichever checkout owns the
-# ancestor — the source repo or any unrelated clone the root happens to sit in.
-# The unconfigured-root refuse above does not catch a root explicitly pointed
-# inside a checkout (e.g. the old .claude/worktrees/ path, or a root under a
-# sibling clone), so ask git whether the target's location sits inside a working
-# tree: walk up from the target's parent to the nearest existing ancestor and ask
-# for its top level. Probing the parent, never the target itself, keeps an
-# already-created worktree at $worktree_path from matching its own top level —
-# that case is the "already exists" error below. A non-empty top level means the
-# target lands inside that checkout — refuse. The top levels come from `rev-parse
-# --show-toplevel`, so the check is immune to path-format differences (drive-letter
-# spelling, symlinks) that defeat a raw string prefix test.
+# Reject placement inside any git repository — a working tree, a normal repo's
+# .git directory, or a bare clone. Keeping worktrees OUT of every repository is
+# the helper's core purpose: a worktree nested inside a working tree reintroduces
+# the CLAUDE.md/rules double-load bug for whichever checkout owns the ancestor,
+# and one dropped inside a .git or bare directory mixes the checkout into git
+# metadata. The unconfigured-root refuse above does not catch a root explicitly
+# pointed inside a repository (e.g. the old .claude/worktrees/ path, a root under
+# a sibling clone, or a path beneath a .git directory), so ask git about the
+# target's location: walk up from the target's parent to the nearest existing
+# ancestor. Probing the parent, never the target itself, keeps an already-created
+# worktree at $worktree_path from matching its own top level — that case is the
+# "already exists" error below. `--show-toplevel` catches work-tree ancestors (and
+# by top-level equality tells the source repo from a foreign clone);
+# `--is-inside-git-dir` catches .git and bare-repo ancestors, which have no work
+# tree and so report no top level. Both come from `rev-parse`, so the check is
+# immune to path-format differences (drive-letter spelling, symlinks) that defeat
+# a raw string prefix test.
 probe="${worktree_path%/*}"
 while [[ ! -e "$probe" ]]; do
   parent="${probe%/*}"
   [[ "$parent" == "$probe" ]] && break
   probe="$parent"
 done
-if [[ -e "$probe" ]] && target_top=$(git -C "$probe" rev-parse --show-toplevel 2>/dev/null) && [[ -n "$target_top" ]]; then
-  if [[ "$target_top" == "$toplevel" ]]; then
-    location="inside the repository"
-  else
-    location="inside another git working tree"
+if [[ -e "$probe" ]]; then
+  location=""
+  detail=""
+  if target_top=$(git -C "$probe" rev-parse --show-toplevel 2>/dev/null) && [[ -n "$target_top" ]]; then
+    if [[ "$target_top" == "$toplevel" ]]; then
+      location="inside the repository"
+    else
+      location="inside another git working tree"
+    fi
+    detail="  checkout: $target_top"
+  elif [[ "$(git -C "$probe" rev-parse --is-inside-git-dir 2>/dev/null)" == "true" ]]; then
+    location="inside a git directory"
+    detail="  git dir:  $(git -C "$probe" rev-parse --absolute-git-dir 2>/dev/null)"
   fi
-  cat >&2 <<EOF
+  if [[ -n "$location" ]]; then
+    cat >&2 <<EOF
 $PROG: worktree target is $location — refusing to create a worktree.
 
   target:   $worktree_path
-  checkout: $target_top
+$detail
 
 Set the source-control plugin's \`worktree_root\` directory key to an external
 root (a path OUTSIDE every repository, on the same drive as the repo on Windows),
 then retry.
 
-Not creating inside a checkout: that nested placement triggers Claude Code's
-CLAUDE.md/rules double-load bug.
+Not creating inside a checkout or a git directory: that placement triggers Claude
+Code's CLAUDE.md/rules double-load bug and mixes the worktree into git metadata.
 EOF
-  exit 3
+    exit 3
+  fi
 fi
 
 if [[ -e "$worktree_path" ]]; then
