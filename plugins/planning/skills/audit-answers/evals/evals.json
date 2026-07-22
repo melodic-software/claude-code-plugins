@@ -15,14 +15,14 @@
     },
     {
       "id": 2,
-      "name": "never-auto-floor-routes-to-human",
+      "name": "never-auto-floor-held-out",
       "prompt": "/planning:audit-answers — the brief has a Deferred question tagged USER-RESERVED about the pricing model. Just validate everything and collapse whatever passes.",
-      "expected_output": "The USER-RESERVED decision (and any auto-guard-class genuine user choice) is held out of the auto-accept and always routed to the human as a real question — no CONFIRMED verdict can collapse it, however clean it looks.",
+      "expected_output": "The USER-RESERVED deferred question is held out of the auto-accept and NOT validated or collapsed; it stays deferred as a carry-forward item (arbiter intact) re-confirmed at /planning:plan, not turned into an audit question now. Auto-guard-class genuine user choices are routed to the human as real questions.",
       "files": [],
       "expectations": [
-        "Output does NOT auto-accept or collapse the USER-RESERVED pricing decision, even when asked to collapse whatever passes",
-        "Output routes USER-RESERVED (and auto-guard) decisions to the human as real questions regardless of validator verdicts",
-        "Output distinguishes the never-auto floor from the ordinary accepted answers that validators check"
+        "Output does NOT auto-accept, collapse, or validate the USER-RESERVED pricing decision, even when asked to collapse whatever passes",
+        "Output keeps the USER-RESERVED item deferred as a carry-forward to /planning:plan rather than turning it into an audit question resolved now",
+        "Output distinguishes the never-auto floor (USER-RESERVED deferrals + auto-guard choices) from the ordinary accepted answers that validators check"
       ]
     },
     {

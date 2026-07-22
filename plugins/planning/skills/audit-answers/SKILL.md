@@ -25,29 +25,30 @@ The value is a producer≠critic pass over decisions the producing session is st
 
 ## Preconditions
 
-A filled interview ledger. This skill consumes what `/planning:interview` produces:
+A completed `/planning:interview` for the topic. The skill validates whatever answers that interview persisted, in whichever form it wrote them — it does not require any single artifact:
 
-- the decision-tree ledger (`interview-checklist.md` in the topic's memory slice), and
-- the `## Brief` in `PLAN.md` (Captured assumptions, and Deferred questions with their **arbiter tags**).
+- an engineering session's `## Brief` in `PLAN.md` (its resolved decisions, Captured assumptions, and Deferred questions with their **arbiter tags**);
+- the decision-tree ledger (`interview-checklist.md` in the memory slice), present only for sessions the interview emitted one for (≥2 open questions or `me` mode);
+- a general (non-engineering) session's shared-understanding summary in the memory slice.
 
-Derive `<topic-slug>` from `$ARGUMENTS` or the current branch (kebab-case, ≤40 chars; shared with `/planning:interview`); resolve the slices per the topic-docs binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). If no interview ledger exists for the topic, STOP with a message pointing at `/planning:interview` — there is nothing to validate. If the ledger is partial (open consequential branches remain), Step 1 fills them under the never-auto floor before validating.
+The answer set to validate is the resolved decisions in whichever of these exists — the ledger when present, else the Brief's decisions, else the general summary. A **Brief-only** interview (an `auto`/`lock` session with no checklist) and a **summary-only** general interview are both valid inputs, not a reason to stop. Derive `<topic-slug>` from `$ARGUMENTS` or the current branch (kebab-case, ≤40 chars; shared with `/planning:interview`); resolve the slices per the topic-docs binding [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). If the topic has NO persisted interview output at all, STOP with a message pointing at `/planning:interview` — there is nothing to validate. If output exists but has open consequential branches, Step 1 fills them under the never-auto floor before validating.
 
 ## The validation loop
 
-### Step 1 — Ensure a filled ledger, holding the never-auto floor
+### Step 1 — Assemble the answer set, holding the never-auto floor
 
-Validation needs a filled ledger. If the interview is already fully answered — every consequential branch resolved, whether by hand or by a prior accept-all — validate it as it stands. If open branches remain, drive the interview's accept-recommended path to fill them into a **working, in-session filled ledger** — for each open branch, take the orchestrator's recommended answer as a *provisional* accepted answer, NOT persisted to the tracked ledger or Brief yet (an auto-accepted answer is unvalidated, and writing it into the contract before validation is exactly what this skill exists to prevent). **The mechanical never-auto floor is held out of any auto-accept — it always routes to the human, never to a validator:**
+Validation needs a complete answer set. If the interview is already fully answered — every consequential branch resolved, whether by hand or by a prior accept-all — validate it as it stands. If open branches remain, drive the interview's accept-recommended path to fill them into a **working, in-session** set of *provisional* answers — for each open branch, take the orchestrator's recommended answer, NOT persisted to the tracked Brief / ledger / summary yet (an auto-accepted answer is unvalidated, and writing it into the contract before validation is exactly what this skill exists to prevent). **The mechanical never-auto floor is held out of any auto-accept, and no validator ever resolves it:**
 
-- any Deferred question tagged **`USER-RESERVED`** (its resolution could change acceptance criteria, out-of-scope, or constraints), and
-- any decision the interview's **auto-guard** class covers — a genuine user choice with real tradeoffs and no codebase answer.
+- a Deferred question tagged **`USER-RESERVED`** stays **deferred** — it is a carry-forward item whose arbiter re-confirms at the `/planning:plan` approval gate *with plan-time context*, so it is not auto-accepted, not validated, and **not turned into an audit question here**; it passes through untouched, arbiter tag intact.
+- a decision the interview's **auto-guard** class covers — a genuine user choice with real tradeoffs and no codebase answer — is held out of the auto-accept and routed to the human as a real question in the confirm round (Step 4).
 
-These stay OPEN as human questions regardless of what the validators say; a CONFIRMED verdict can never collapse one. Everything else enters the ledger as an accepted answer for validation.
+Everything else enters the provisional set as an accepted answer for validation.
 
 ### Step 2 — Dispatch fresh-context validators
 
-Dispatch **1–3 fresh-context (non-fork) adversarial validator subagents** — one for a small ledger, up to three to split coverage of a large one. A fork inherits this session's reasoning and would carry its bias forward, so a validator MUST be a fresh-context (non-fork) subagent that never saw the interview happen — this is the self-grade fresh-eyes rule the marketplace mandates for any step that judges its own context's work. Where the verdict is high-stakes and correlated blind spots are the risk, prefer a cross-vendor advisor for a validator **when one is installed and set up** — e.g. the OpenAI Codex plugin, when its documented surface can take this input, invoked per its own docs — with the fresh-context same-vendor subagent as the stated fallback, never a route to a command that may not resolve.
+Dispatch **1–3 fresh-context (non-fork) adversarial validator subagents**, **each reviewing the whole answer set** — the count scales independent redundancy (more validators = more independent cross-checks on *every* answer), never a sharding of the work. Every validator sees every answer, so the Step 4 merge can require agreement across all of them; splitting coverage would make "confirmed by all" indistinguishable from "unseen by some" and is not done. A fork inherits this session's reasoning and would carry its bias forward, so a validator MUST be a fresh-context (non-fork) subagent that never saw the interview happen — this is the self-grade fresh-eyes rule the marketplace mandates for any step that judges its own context's work. Where the verdict is high-stakes and correlated blind spots are the risk, prefer a cross-vendor advisor for a validator **when one is installed and set up** — e.g. the OpenAI Codex plugin, when its documented surface can take this input, invoked per its own docs — with the fresh-context same-vendor subagent as the stated fallback, never a route to a command that may not resolve.
 
-Each validator receives the filled ledger (the accepted answers) and the Brief, **with the recommendation's persuasive rationale WITHHELD** — it audits the decision, not the story that sold it. Hand it *what* was decided, never *why the orchestrator liked it*: a validator handed the pitch inherits the pitch's blind spot.
+Each validator receives the whole provisional answer set and the interview's persisted context (Brief or general summary), **with the recommendation's persuasive rationale WITHHELD** — it audits the decision, not the story that sold it. Hand it *what* was decided, never *why the orchestrator liked it*: a validator handed the pitch inherits the pitch's blind spot.
 
 Each validator applies `/planning:devils-advocate`'s evidence discipline — every verdict backed by a code path, doc reference, bug number, or concrete logical argument, never training-data recall; unverified is a finding, not a pass. That discipline is **reused by reference, not restated here.** The dispatch and verdict contract are purpose-built rather than an invocation of `/planning:devils-advocate` because the input and output genuinely differ: `/planning:devils-advocate` *extracts* assumptions from one plan artifact and emits severity-ranked findings plus revised-plan recommendations, whereas this skill validates a *pre-enumerated* per-answer ledger and emits per-answer verdicts that feed back as interview questions.
 
@@ -66,25 +67,26 @@ Validators also flag **shaky dependency chains** — an answer whose soundness r
 Merge the validators' verdicts. Independence means one dissent is signal: any CHALLENGED or RECLASSIFIED from *any* validator wins over another's CONFIRMED.
 
 - **CONFIRMED by all** → collapse to a one-line summary per answer. The human skims, does not re-decide.
-- **CHALLENGED / RECLASSIFIED / the never-auto floor** → become real numbered human questions, asked in the `/planning:interview` round format (its recommendation-per-question, single-verdict-marker, and dependency-surfacing rules apply). Each challenge's *why* rides along so the human decides informed.
+- **CHALLENGED / RECLASSIFIED / auto-guard-held decisions** → become real numbered human questions, asked in the `/planning:interview` round format (its recommendation-per-question, single-verdict-marker, and dependency-surfacing rules apply). Each challenge's *why* rides along so the human decides informed.
+- **USER-RESERVED deferred questions** → listed as carry-forward items (arbiter tag intact), NOT resolved here — they re-confirm at the `/planning:plan` approval gate with plan-time context, so asking them now would strip that context and rewrite the Brief prematurely.
 
 ### Step 5 — Human confirmation
 
-Present the triaged result: the collapsed CONFIRMED block, then the real questions. The human answers only the questions. **Persistence happens here and only here:** once the human confirms, the provisional accepted answers plus the human's answers are written to the tracked ledger and Brief exactly as an interview round would — nothing reaches the contract on a bare invocation, ahead of this confirmation. This gate is mandatory — a CONFIRMED collapse is a summary to skim, never a licence to skip the human. Then hand back to the interview's stop/handoff path.
+Present the triaged result: the collapsed CONFIRMED block, the real questions, and the untouched USER-RESERVED carry-forward list. The human answers only the questions. **Persistence happens here and only here:** once the human confirms, the provisional accepted answers plus the human's answers are written back to the interview's persisted artifact(s) — the Brief or the general summary, and the ledger when the interview kept one — exactly as an interview round would, leaving USER-RESERVED deferrals in place; nothing reaches the contract on a bare invocation, ahead of this confirmation. This gate is mandatory — a CONFIRMED collapse is a summary to skim, never a licence to skip the human. Then hand back to the interview's stop/handoff path.
 
 ## What this skill does NOT do
 
-- **Does not derive answers** — validation only (see Purpose). The ledger's answers are the input, not a subagent's invented ones.
-- **Does not auto-resolve a reserved decision** — the never-auto floor (USER-RESERVED + auto-guard) always routes to the human; no verdict overrides it.
+- **Does not derive answers** — validation only (see Purpose). The interview's answers are the input, not a subagent's invented ones.
+- **Does not auto-resolve — or prematurely resolve — a reserved decision** — auto-guard choices route to the human, and USER-RESERVED deferrals stay deferred to `/planning:plan`; no verdict overrides either.
 - **Does not stress-test a plan** — that is `/planning:devils-advocate` over a `/planning:plan` artifact. This validates interview *answers*, upstream of the plan.
-- **Does not ask the questions itself the first time** — that is `/planning:interview`. This runs only over answers already in the ledger (hand-answered or auto-accepted), to check them.
+- **Does not ask the questions itself the first time** — that is `/planning:interview`. This runs only over answers already in the interview's output (hand-answered or auto-accepted), to check them.
 - **Does not block or auto-apply** — it emits findings that gate a human confirmation round; the human decides.
 
 ## Composition
 
 | When | Skill | How it composes |
 |---|---|---|
-| Produce the answers to validate | `/planning:interview` | Writes the ledger + Brief this consumes; the human confirmation round hands back to its stop/handoff path |
+| Produce the answers to validate | `/planning:interview` | Writes the Brief / general summary / ledger this consumes; the human confirmation round hands back to its stop/handoff path |
 | Evidence discipline each validator applies | `/planning:devils-advocate` | Its evidence-backed, no-recall, fresh-eyes discipline is cited, not duplicated |
 | Plan the implementation | `/planning:plan` | Downstream: the confirmed Brief feeds planning, exactly as a hand-answered interview's would |
 
@@ -92,6 +94,6 @@ Present the triaged result: the collapsed CONFIRMED block, then the real questio
 
 - A validator handed the recommendation's rationale validates the *pitch*, not the decision — withholding the narrative is load-bearing, not optional.
 - Forks are not validators: a fork inherits this session's context and reproduces its blind spot. Use fresh-context (non-fork) subagents.
-- A CONFIRMED verdict on a USER-RESERVED or auto-guard decision is a floor violation — those never collapse, however clean they look.
+- The never-auto floor is not validator territory: an auto-guard decision never collapses on a CONFIRMED verdict, and a USER-RESERVED deferral is never even turned into an audit question — it carries forward to `/planning:plan` untouched.
 - One validator's CHALLENGED outweighs another's CONFIRMED: independence means a lone dissent is signal to surface, not a vote to average away.
 - Do not treat the collapsed CONFIRMED block as the finish — the human confirmation round is the stop condition, same as an interview's confirmation gate.
