@@ -7,13 +7,13 @@ All notable changes to the `adhd` plugin are documented here. Format follows
 
 ### Added
 
-- **`/adhd:digest`** — on-demand, one-shot reshape of a dense, decision-heavy
+- **`/adhd:clarify`** — on-demand, one-shot reshape of a dense, decision-heavy
   artifact already on screen (default target: the previous assistant response;
   an explicit target overrides). Restructures faithfully — chunks the content
   one-decision-at-a-time, defines the session's own jargon, and surfaces exactly
   what the reader must decide — with hard fidelity rules: operative terms of every
   recommendation quoted verbatim, original item numbers kept as back-links,
-  omissions listed explicitly, and a closing line that the digest is a lens
+  omissions listed explicitly, and a closing line that the clarification is a lens
   (validate answers against the original). Changes STRUCTURE, never altitude.
 - **Artifact-forward rendering.** For big or decision-dense content, renders an
   HTML decision table (item | recommendation | alternative | what-you're-deciding,
@@ -23,7 +23,7 @@ All notable changes to the `adhd` plugin are documented here. Format follows
 
 ### Changed
 
-- `/adhd:shape` description gains a one-line boundary vs `adhd:digest` (standing
+- `/adhd:shape` description gains a one-line boundary vs `adhd:clarify` (standing
   session posture vs one-shot artifact reshape). Behavior unchanged.
 
 ## [0.1.0]

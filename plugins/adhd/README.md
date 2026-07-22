@@ -3,12 +3,12 @@
 A Claude Code plugin that shapes and restructures the assistant's output for a
 reader with ADHD — and anyone who wants action-first, low-friction, digestible
 responses. Two skills, one concern: arrange output so an ADHD brain can act on
-it. `shape` sets a standing house style; `digest` rescues one specific artifact.
+it. `shape` sets a standing house style; `clarify` rescues one specific artifact.
 
 | Skill | What it does |
 |---|---|
 | `/adhd:shape` | Shape responses to lead with the next action, number multi-step work, restate state, cap and rank lists, estimate time concretely, make wins visible, and cut preamble, recap, and closers |
-| `/adhd:digest` | Faithfully restructure a dense, decision-heavy message already on screen — chunk it one-decision-at-a-time, define the session's jargon, and surface what you must decide; renders an HTML decision table for big content |
+| `/adhd:clarify` | Faithfully restructure a dense, decision-heavy message already on screen — chunk it one-decision-at-a-time, define the session's jargon, and surface what you must decide; renders an HTML decision table for big content |
 
 ## What it does
 
@@ -27,19 +27,19 @@ full-length, a destructive action gets a confirmation first (safety over
 brevity), a debug spiral pauses to name the wrong assumption, and a genuinely
 ambiguous request earns one clarifying question.
 
-### `/adhd:digest` — rescue one dense artifact
+### `/adhd:clarify` — rescue one dense artifact
 
-Where `shape` governs how the assistant writes going forward, `digest` acts once
+Where `shape` governs how the assistant writes going forward, `clarify` acts once
 on something already on screen: a wall-of-text interview round, a jargon-thick
 design memo, a recommendation you have to re-read three times. It restructures
 that exact artifact — one decision per chunk, a glossary of the session's own
 shorthand, and the actual choices pulled to the surface — **faithfully**. The
 move is restructure, never simplify: precision and reading level stay fixed;
 only the arrangement changes (lowering the altitude is `education:explain`'s job,
-a deliberately disjoint concern). Four hard fidelity rules keep a digest of a
-decision document from corrupting the decisions: operative terms quoted verbatim,
+a deliberately disjoint concern). Four hard fidelity rules keep a clarification of
+a decision document from corrupting the decisions: operative terms quoted verbatim,
 original item numbers kept as back-links, omissions named explicitly, and a
-closing line that the digest is a lens — final answers are validated against the
+closing line that the clarification is a lens — final answers are validated against the
 original text. For big or decision-dense content it renders an HTML decision
 table (item, recommendation, alternative, and what you're deciding, with rows
 numbered so a terminal answer maps back), honoring the Artifact tool contract and
@@ -58,9 +58,9 @@ the session** — invoke it once at the start of a session and every following
 response is shaped, no need to repeat it. Invoke it whenever you want that
 output shape; skip it when you don't.
 
-`digest` is on-demand too, but **one-shot, not session-standing**: it surfaces on
-a plain-language cue ("make this clear", "help me digest this", "break this down",
-"I can't parse this", "what am I actually deciding") or a direct `/adhd:digest`,
+`clarify` is on-demand too, but **one-shot, not session-standing**: it surfaces on
+a plain-language cue ("make this clear", "clarify this", "help me digest this",
+"break this down", "I can't parse this", "what am I actually deciding") or a direct `/adhd:clarify`,
 acts on one artifact, and changes nothing about how later responses are written.
 Its triggers are kept disjoint from `education:explain`'s comprehension cues ("I
 don't get it", "ELI5", "explain simply") so the two auto-firing skills route on
@@ -112,7 +112,7 @@ between the plugins to enforce this — it is a usage guideline.)
 
 None. The plugin is zero-config and zero-prerequisite — no `userConfig`, no
 setup skill, no external tools. Enable it and invoke `/adhd:shape` or
-`/adhd:digest`.
+`/adhd:clarify`.
 
 ## Attribution
 
@@ -122,7 +122,7 @@ rules' substance is preserved, the wrapper is adapted to this marketplace's
 discovery discipline (no auto-fire-on-any-message), and the prose is
 rewritten. The underlying communication strategies adapt *The Adult ADHD Tool
 Kit* by J. Russell Ramsay and Anthony L. Rostain from personal organization to
-how an assistant shapes its output. `/adhd:digest` is original to this plugin.
+how an assistant shapes its output. `/adhd:clarify` is original to this plugin.
 
 ## License
 

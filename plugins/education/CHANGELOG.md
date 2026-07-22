@@ -8,7 +8,7 @@ All notable changes to the `education` plugin are documented here. Format follow
 ### Changed
 
 - `/education:explain` description gains a disjoint-trigger boundary vs the new
-  `adhd:digest`: `explain` changes ALTITUDE (plain words, lossy), `digest`
+  `adhd:clarify`: `explain` changes ALTITUDE (plain words, lossy), `clarify`
   changes STRUCTURE (faithful restructure, no altitude loss). This keeps the two
   auto-firing skills from colliding on the shared "previous response" default
   target — routing is on intent, not overlapping phrases. All existing `explain`

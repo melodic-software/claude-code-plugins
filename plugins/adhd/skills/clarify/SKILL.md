@@ -1,24 +1,23 @@
 ---
-name: digest
-description: "Faithfully restructure a dense, decision-heavy message you were just handed so you can act on it — chunk it into one-decision-at-a-time, define the session's own jargon, and surface exactly what you must decide, with every recommendation's operative terms quoted verbatim and no loss of precision or reading level. For big or decision-dense content, renders an HTML decision table (item | recommendation | alternative | what-you're-deciding, rows numbered so terminal answers map back). Use when: 'make this clear', 'help me digest this', 'break this down', 'I can't parse this', 'what am I actually deciding here', 'this is a wall of text'. Empty argument targets the previous assistant response; an explicit target overrides. This changes STRUCTURE, not altitude — a lossy plain-language / ELI5 drop that trades precision for simplicity is education:explain (if installed) instead. Sibling to adhd:shape, a standing session-wide output posture; this is a one-shot reshape of one artifact."
-argument-hint: "[artifact to digest] (empty = the previous assistant response)"
+name: clarify
+description: "Faithfully clarify a dense, decision-heavy message you were just handed so you can act on it — chunk it into one-decision-at-a-time, define the session's own jargon, and surface exactly what you must decide, with every recommendation's operative terms quoted verbatim and no loss of precision or reading level. For big or decision-dense content, renders an HTML decision table (item | recommendation | alternative | what-you're-deciding, rows numbered so terminal answers map back). Use when: 'make this clear', 'clarify this', 'help me digest this', 'break this down', 'I can't parse this', 'what am I actually deciding here', 'this is a wall of text'. Empty argument targets the previous assistant response; an explicit target overrides. This changes STRUCTURE, not altitude — it makes the same content clear without simplifying it; a lossy plain-language / ELI5 drop that trades precision for simplicity is education:explain (if installed) instead. Sibling to adhd:shape, a standing session-wide output posture; this is a one-shot reshape of one artifact."
+argument-hint: "[artifact to clarify] (empty = the previous assistant response)"
 user-invocable: true
 disable-model-invocation: false
 ---
 
-# Digest a dense artifact into something you can act on
+# Clarify a dense artifact into something you can act on
 
 You were just handed a wall of text — an interview round with seven
 cross-referenced questions, a design memo thick with session jargon, a
 recommendation paragraph you have to re-read three times. This skill takes
-**that exact artifact** and reorganizes it so a reader can act on it: one
-decision at a time, jargon defined, and the actual choices pulled to the
-surface.
+**that exact artifact** and makes it clear enough to act on: one decision at a
+time, jargon defined, and the actual choices pulled to the surface.
 
-The move is **restructure, never simplify**. The content stays at full
-precision and full reading level; only its *arrangement* changes. Lowering the
-altitude — plain words, an analogy, ELI5 — is a different job (see
-[Boundaries](#boundaries)). Digesting a decision document that then loses or
+The move is **clarify by restructuring, never by simplifying**. The content
+stays at full precision and full reading level; only its *arrangement* changes.
+Lowering the altitude — plain words, an analogy, ELI5 — is a different job (see
+[Boundaries](#boundaries)). Clarifying a decision document in a way that loses or
 softens a decision is worse than the wall of text, so the fidelity rules below
 are hard, not aspirational.
 
@@ -28,7 +27,7 @@ are hard, not aspirational.
    argument → the **previous assistant response** (see [Empty
    argument](#empty-argument--anaphora-default)).
 2. **Ground it, don't recall it.** Re-read the actual artifact this turn — the
-   message just sent, in full. Digesting your memory of it instead of its text
+   message just sent, in full. Working from your memory of it instead of its text
    is how operative terms drift.
 3. **Restructure faithfully** — chunk, define jargon, surface decisions
    (below), under the fidelity rules.
@@ -39,32 +38,33 @@ are hard, not aspirational.
 
 With no argument, the target is the **assistant's own previous response** — the
 thing the reader is reacting to. "Make this clear" needs no topic named:
-re-read that prior message and digest it. When there is **no prior assistant
+re-read that prior message and clarify it. When there is **no prior assistant
 message** — a cold start where the reader opens with "make this clear" and
-nothing has been said — do not invent a target: ask what to digest.
+nothing has been said — do not invent a target: ask what to clarify.
 
 ## Fidelity rules (hard)
 
-A digest is a **lens on the original, not a replacement for it.** These four
-rules are non-negotiable, because a restructure that corrupts a decision defeats
-the purpose:
+A clarification is a **lens on the original, not a replacement for it.** These
+four rules are non-negotiable, because a restructure that corrupts a decision
+defeats the purpose:
 
 1. **Quote operative terms verbatim.** The load-bearing words of every
    recommendation — the chosen option, the number, the named file, the
    condition, the verb that decides — are **copied, never paraphrased**. Restate
    surrounding framing in your own words if it helps; never the terms the reader
    will act on. "Go with option B, patch bump, gated behind `--force`" survives
-   into the digest character-for-character.
+   into the clarified version character-for-character.
 2. **Keep the original numbers as back-links.** Every chunk carries the
    original item's own identifier (Q9, Round 4 · P15b, §3) so the reader can jump
-   back to the source. This is separate from any numbering the digest adds for
+   back to the source. This is separate from any numbering this skill adds for
    itself (see [Rendering](#rendering-artifact-forward)) — never collapse the two.
 3. **List omissions explicitly.** Anything in the original you did not carry
-   into the digest — a caveat, a fifth option, a dependency — is named in a short
-   "Left out" note, not silently dropped. The reader decides whether an omission
+   forward — a caveat, a fifth option, a dependency — is named in a short "Left
+   out" note, not silently dropped. The reader decides whether an omission
    mattered; you do not get to decide it for them by hiding it.
-4. **State that it is a lens.** Close with one line: this is a digest — validate
-   final answers against the original text, not against this restructuring.
+4. **State that it is a lens.** Close with one line: this is a clarification —
+   validate final answers against the original text, not against this
+   restructuring.
 
 ## Restructure moves
 
@@ -121,9 +121,9 @@ Whichever medium, the decision table has numbered rows and these columns:
 | 1 | Q9 | *(verbatim operative terms)* | *(verbatim, or "none offered")* | the crux in one sentence |
 | 2 | Q10 | *(verbatim)* | *(verbatim)* | … |
 
-- The **`#` column is the digest's own row number** — its job is answer-mapping,
-  so the reader can reply "row 2: take the alternative" and you know exactly which
-  original item that resolves.
+- The **`#` column is the table's own row number** (this skill's) — its job is
+  answer-mapping, so the reader can reply "row 2: take the alternative" and you
+  know exactly which original item that resolves.
 - The **`Item` column is the original identifier** (Q9, §3, Round 4 · P15b) — the
   back-link to the source. Two numbering systems, kept distinct.
 - **Recommendation and Alternative cells carry the verbatim operative terms.** A
@@ -146,11 +146,11 @@ table twice.
 **vs `education:explain` — structure, not altitude.** `explain` drops the
 *altitude*: plain words, a concrete analogy, ELI5 — it trades precision for
 accessibility, and it climbs back up only on request. This skill holds altitude
-**fixed** and changes *arrangement*: same precision, same reading level,
-reorganized. The routing rule: "I don't get it / explain simply / what does this
-mean" is a comprehension gap → `explain`; "make this clear / break this down /
-what am I deciding" is a structure problem → this skill. When a reader genuinely
-needs the concept made simpler, hand off to `/education:explain` (if the
+**fixed** and changes *arrangement*: same precision, same reading level, made
+clear by reorganizing. The routing rule: "I don't get it / explain simply / what
+does this mean" is a comprehension gap → `explain`; "make this clear / clarify
+this / what am I deciding" is a structure problem → this skill. When a reader
+genuinely needs the concept made simpler, hand off to `/education:explain` (if the
 `education` plugin is installed); otherwise a faithful restructure is this skill's
 job.
 
@@ -162,8 +162,8 @@ rescue a specific wall of text.
 
 ## Gotchas
 
-- **Restructuring is not summarizing.** A summary drops detail to save length; a
-  digest keeps every decision and rearranges it. If the reader ends up with fewer
+- **Clarifying is not summarizing.** A summary drops detail to save length; this
+  keeps every decision and rearranges it. If the reader ends up with fewer
   decisions than the original held, that is a fidelity-rule-3 omission you failed
   to declare.
 - **Verbatim means verbatim.** The temptation to "clean up" a recommendation into
@@ -184,5 +184,6 @@ rescue a specific wall of text.
   to its gist.
 - **Not a standing output posture.** It reshapes one artifact once; the
   session-wide shaper is `adhd:shape`.
-- **Not an input-capture form.** It renders a digest to read and answer from;
-  collecting answers *through* an artifact form is a deferred, separate capability.
+- **Not an input-capture form.** It renders a clarified view to read and answer
+  from; collecting answers *through* an artifact form is a deferred, separate
+  capability.
