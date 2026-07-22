@@ -1,7 +1,7 @@
 ---
 name: running-retro
-description: "Take an in-flight retrospective checkpoint mid-session: spawn a subagent to analyze the session transcript so far (reusing retro's parser), classify each finding by category and suggested resolution route (CLAUDE.md fix / rule fix / skill change / new-skill candidate / tracker issue), and append it to a cumulative running ledger — capture and route only, never auto-applied. The live counterpart to /session-flow:retro, which is the end-of-session full scoring + codification pass. Use when: 'running retro', 'live retro', 'in-flight retro', 'checkpoint this session', 'how is this session going', 'observe the session so far', partway through a long skill loop, or on a /loop interval. Does NOT score the session, codify learnings (that is /session-flow:retro codify), auto-file issues, or /clear the session."
-argument-hint: "[topic] (e.g., /running-retro, /running-retro phase-3)"
+description: "Take an in-flight retrospective checkpoint mid-session: spawn a subagent to analyze the session transcript so far (reusing retro's parser), classify each finding by category and suggested resolution route (CLAUDE.md fix / rule fix / skill change / new-skill candidate / tracker issue), and append it to a cumulative running ledger — capture and route only, never auto-applied. The live counterpart to /session-flow:retro, which is the end-of-session full scoring + codification pass. An `arm` action instead launches a detached observer that watches this session out-of-band and runs the checkpoint autonomously after the session ends (zero context cost; findings land in the same ledger). Use when: 'running retro', 'live retro', 'in-flight retro', 'checkpoint this session', 'how is this session going', 'observe the session so far', 'arm the observer', 'watch this session in the background', 'observe this session after it ends', partway through a long skill loop, or on a /loop interval. Does NOT score the session, codify learnings (that is /session-flow:retro codify), auto-file issues, or /clear the session."
+argument-hint: "[topic | arm] (e.g., /running-retro, /running-retro phase-3, /running-retro arm)"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -37,10 +37,13 @@ performed automatically.
 
 ## Zero-arm — nothing to set up in advance
 
-No arming at session start. The session transcript on disk (`<session-id>.jsonl`) is the lossless
-record — it survives compaction, so a checkpoint reconstructs the full session from disk even after
-the live context was compacted. That is exactly what `/session-flow:retro`'s parser already reads in
-production; running-retro reuses it rather than parsing anew. Invoke a checkpoint any time.
+No arming at session start for the default in-session checkpoint. The session transcript on disk
+(`<session-id>.jsonl`) is the lossless record — it survives compaction, so a checkpoint reconstructs
+the full session from disk even after the live context was compacted. That is exactly what
+`/session-flow:retro`'s parser already reads in production; running-retro reuses it rather than
+parsing anew. Invoke a checkpoint any time. (The `arm` action and its opt-in SessionStart hook are
+the deliberate exception — they arm a detached observer to run the checkpoint *after* the session
+ends; see "Arming a detached observer" below. The default checkpoint still needs no setup.)
 
 ## The checkpoint flow
 
@@ -136,11 +139,44 @@ Tick each in the response so the exit shape is verifiable:
   new per-checkpoint file; self-ignore guard verified on the first memory-tier write)
 - [ ] Routes offered, nothing auto-applied (step 5); the task continues in this same session
 
+## Arming a detached observer (`arm`)
+
+When `$ARGUMENTS` is `arm` (or the user asks to watch/observe this session in the background), do
+NOT run the in-session checkpoint above. Instead launch the **detached observer** for the current
+session: a substrate that outlives the session, tails its transcript out-of-band at zero context
+cost, detects end by mtime-idle, and (unless analysis is disabled) runs this same checkpoint method
+headless afterwards, appending its findings to this session's ledger. The substrate, lifecycle,
+config, untrusted-data boundary, and the deferred native Observer-Agents alternative live in
+[`${CLAUDE_PLUGIN_ROOT}/reference/observer.md`](${CLAUDE_PLUGIN_ROOT}/reference/observer.md) — read
+it, do not restate it. To arm the current session, resolve the inputs and run the launcher:
+
+```bash
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
+TRANSCRIPT="$SESSION_DATA_DIR/${CLAUDE_CODE_SESSION_ID}.jsonl"   # SESSION_DATA_DIR per retro's "Paths"
+MEMORY_DIR=$(bash "$PLUGIN_ROOT/skills/retro/scripts/parse-concern-value.sh" \
+  .claude/topic-docs.yaml memory_dir "${DECLARED_MEMORY_DIR:-}")
+MEMORY_DIR="${MEMORY_DIR:-.work}"
+WORK_DIR="${CLAUDE_PLUGIN_DATA:-${TEMP:-${TMPDIR:-/tmp}}}/session-flow-observer"
+
+PY=""; for c in python3 python; do command -v "$c" >/dev/null 2>&1 \
+  && "$c" -c 'import sys;sys.exit(0 if sys.version_info>=(3,10) else 1)' 2>/dev/null && { PY="$c"; break; }; done
+
+"$PY" "$PLUGIN_ROOT/skills/running-retro/scripts/arm_observer.py" \
+  --transcript "$TRANSCRIPT" --work-dir "$WORK_DIR" --ledger-dir "$MEMORY_DIR/running-retros" \
+  --session-id "$CLAUDE_CODE_SESSION_ID" --plugin-root "$PLUGIN_ROOT" \
+  --session-data-dir "$SESSION_DATA_DIR" --analysis
+```
+
+This is the SAME launcher the opt-in SessionStart hook (`observer_enabled`) uses; manual `arm` works
+whether or not the auto-arm is on, and is the primary entry — the hook only automates it. The
+launcher prints the observer pid and returns at once; it never blocks the session.
+
 ## Cadence
 
 Manual checkpoint by default. Composes with `/loop` for periodic checkpoints across a long session;
 running-retro ships no scheduler of its own. It is non-terminating — after routing, the underlying
-task continues in this same session.
+task continues in this same session. The detached observer (`arm`) is the push/end-of-life
+counterpart: a `/loop` cannot fire after the session ends, but the observer can.
 
 ## What this skill does NOT do
 

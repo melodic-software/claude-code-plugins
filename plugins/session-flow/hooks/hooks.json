@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/observer-arm.sh",
+            "timeout": 30,
+            "statusMessage": "Arming session observer..."
+          }
+        ]
+      }
+    ]
+  }
+}
