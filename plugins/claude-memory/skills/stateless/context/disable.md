@@ -63,17 +63,46 @@ A user-scope `settings.json` is often tracked by a dotfile manager. If it is, a 
 must be backfilled to the source of truth — do not leave the tracked file drifted, and never
 run an `apply` that could revert your edit.
 
-Detect and route generically (repo-agnostic — do not assume a specific manager):
+Detect and route generically (repo-agnostic — no single manager assumed). Three concrete
+detectors — chezmoi and yadm track real files and answer path queries; GNU stow (and
+similar) manages via symlinks, so a symlinked settings file is the discriminator:
 
 ```bash
-command -v chezmoi >/dev/null 2>&1 && chezmoi managed "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json" 2>/dev/null \
-  && echo "TRACKED by chezmoi — backfill to the dotfiles source" \
-  || echo "not chezmoi-tracked (check any other dotfile manager)"
+settings="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
+tracked=""
+command -v chezmoi >/dev/null 2>&1 &&
+  [[ -n "$(chezmoi managed "$settings" 2>/dev/null)" ]] && tracked="chezmoi"
+[[ -z "$tracked" ]] && command -v yadm >/dev/null 2>&1 &&
+  yadm ls-files --error-unmatch "$settings" >/dev/null 2>&1 && tracked="yadm"
+[[ -z "$tracked" && -L "$settings" ]] &&
+  tracked="symlink -> $(readlink "$settings") (GNU stow or a similar symlink manager)"
+# Stow tree-folding: the parent dir (e.g. ~/.claude) may be the symlink while the
+# settings file inside it is a regular file reached through it — check the dir too.
+[[ -z "$tracked" && -L "$(dirname -- "$settings")" ]] &&
+  tracked="parent-dir symlink -> $(readlink "$(dirname -- "$settings")") (GNU stow tree-folded, or similar)"
+if [[ -n "$tracked" ]]; then
+  echo "TRACKED by $tracked — backfill to the dotfiles source"
+else
+  fp=""
+  [[ -e "$HOME/.chezmoiroot" || -d "$HOME/.local/share/chezmoi" ]] && fp="$fp chezmoi"
+  [[ -d "$HOME/.local/share/yadm" ]] && fp="$fp yadm"
+  [[ -e "$HOME/.stow-global-ignore" ]] && fp="$fp stow"
+  [[ -d "$HOME/.dotbot" ]] && fp="$fp dotbot"
+  if [[ -n "$fp" ]]; then
+    echo "manager fingerprint present but binary/tracking not confirmed:$fp — verify manually before editing"
+  else
+    echo "no dotfile manager detected — manually managed settings file, no backfill needed"
+  fi
+fi
 ```
 
-If tracked, tell the user to backfill through their dotfiles repo's own flow (for chezmoi:
-its `add-dotfile` / drift-reconcile path), not `chezmoi apply` from this session. If no
-manager is detected, note that a manually managed settings file needs no backfill.
+The fingerprint fallback matters when a manager's artifacts exist but its binary is not on
+PATH (fresh shell, partial install): report it as unconfirmed rather than silently
+concluding the file is unmanaged. If tracked, tell the user to backfill through their
+dotfiles repo's own flow (chezmoi: its `add-dotfile` / drift-reconcile path; yadm:
+`yadm add` + commit; stow: edit the file inside the stow package — the symlink already
+points there), never an `apply`/`restow` from this session that could revert the live
+edit. If nothing is detected, note that a manually managed settings file needs no backfill.
 
 ## Step 4: Confirm effect
 
