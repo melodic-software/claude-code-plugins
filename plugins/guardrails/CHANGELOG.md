@@ -37,6 +37,13 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   never consulted. Still allowed (decidable safe without reading a value): a `--config-env`
   that sets a NON-alias key, one that defines an alias for a subcommand that is not
   invoked, and one whose LAST value for the key is an inline `-c`/`--config`.
+- **The shape refusal fires at every alias-recursion depth (`#740`).** A wrapping inline
+  alias whose expansion is itself a `--config-env` alias for the invoked subcommand
+  (`git -c alias.rh='--config-env=alias.foo=AV foo' rh`, which git runs) previously slipped
+  through: the refusal was gated behind `HOOK_NO_ALIAS`, which suppressed it at recursion
+  depth ≥ 2. The value-blind `--config-env` shape refusal is now ungated so it fires at
+  every depth; only the one-level inline-alias re-expansion remains bounded by
+  `HOOK_NO_ALIAS`.
 
 ## [0.9.5]
 

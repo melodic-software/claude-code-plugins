@@ -210,28 +210,29 @@ check_segment() {
   # only — git does not expand the first word of an expansion as another alias —
   # enforced through HOOK_NO_ALIAS, which dynamic scoping carries into the
   # recursive call.
+  # The --config-env SHAPE refusal is value-blind, terminal, and must fire at EVERY
+  # recursion depth: a wrapping inline alias can expand to `--config-env=alias.<sub>=…`
+  # that defines the invoked subcommand (`git -c alias.c='--config-env=alias.foo=AV foo'
+  # c`), which git runs. It is therefore NOT gated by HOOK_NO_ALIAS. The inline-alias
+  # re-expansion and the gitconfig-alias probe below ARE one-level (HOOK_NO_ALIAS bounds
+  # the recursion — git does not re-expand an expansion's first word as another alias).
+  local exp reparse a alias_rc
+  local -a expw=()
+  hook::git_alias_expansion "$sub"
+  alias_rc=$?
+  if ((alias_rc == 2)); then
+    # Structural fail-closed: the invoked subcommand's alias is defined via --config-env
+    # (here or in a wrapping alias's expansion), whose value is the recurring fail-open
+    # surface (fed by an ambient var, an inline/`env` prefix, an `export`, `set -a`, or a
+    # nested `bash -c` in any wrapper); a commit smuggled through it cannot be verified,
+    # and defining an alias this way on a guarded invocation is never canonical.
+    echo "BLOCKED: git alias '$sub' is defined via --config-env, so its expansion cannot be verified — failing closed." >&2
+    echo "Commit with \`git commit -F -\` (or the /commit skill), define aliases in git config, or set the guardrails block_noncanonical_commit_enabled option to false to bypass." >&2
+    emit_tel "blocked" "config-env-alias"
+    exit 2
+  fi
   if ((${HOOK_NO_ALIAS:-0} == 0)); then
-    local exp reparse a
-    local -a expw=()
-    # A --config-env alias for the invoked subcommand is refused by SHAPE — its
-    # expansion is an env var's value this guard never reads. An inline -c/--config
-    # alias carries the expansion literally, so it is re-checked. See
-    # hook::git_alias_expansion.
-    hook::git_alias_expansion "$sub"
-    case $? in
-    2)
-      # Structural fail-closed: the invoked subcommand's alias is defined via
-      # --config-env, whose expansion is an environment variable's value. Reading it is
-      # the recurring fail-open surface (fed by an ambient var, an inline/`env` prefix,
-      # an `export`, `set -a`, or a nested `bash -c` in any wrapper); a commit smuggled
-      # through such an alias cannot be verified, and defining an alias this way on a
-      # guarded invocation is never the canonical path — the shape alone blocks.
-      echo "BLOCKED: git alias '$sub' is defined via --config-env, so its expansion cannot be verified — failing closed." >&2
-      echo "Commit with \`git commit -F -\` (or the /commit skill), define aliases in git config, or set the guardrails block_noncanonical_commit_enabled option to false to bypass." >&2
-      emit_tel "blocked" "config-env-alias"
-      exit 2
-      ;;
-    0)
+    if ((alias_rc == 0)); then
       # Inline alias (-c/--config): the expansion is literally present — re-check it.
       # shellcheck disable=SC2154  # HOOK_GIT_ALIAS_EXP is set by hook::git_alias_expansion
       exp="$HOOK_GIT_ALIAS_EXP"
@@ -249,9 +250,7 @@ check_segment() {
           HOOK_NO_ALIAS=0
         fi
       fi
-      ;;
-    *) ;; # 1: the invoked subcommand is not an inline/env alias here — nothing to do
-    esac
+    fi
 
     # An alias can also live in .git/config, ~/.gitconfig, or system config,
     # where HOOK_GIT_CONFIG_VALUES cannot see it — `git config alias.c commit`

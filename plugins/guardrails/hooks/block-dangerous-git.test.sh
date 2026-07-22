@@ -223,6 +223,11 @@ run "inline alias, case-folded key (blocked)" "git -c alias.RH='reset --hard' rh
 # propagation is tracked, so every prior env-carrying bypass (export / set -a / command
 # prefix / bash -c / snapshot-global collision) is closed by construction.
 run "env-defined alias inside an inline '!' shell alias (blocked)" "git -c \"alias.sh=!git --config-env=alias.rh=AV rh\" sh" 2
+# An inline alias whose expansion is itself a `--config-env` alias for the invoked sub
+# runs at recursion depth 2, where the SHAPE refusal must still fire (real git runs it:
+# reverts the worktree). Verified against ground truth.
+run "wrapping inline alias expands to a --config-env alias (depth-2 shape refusal, blocked)" \
+  "git -c alias.rh='--config-env=alias.foo=AV foo' rh" 2 "AV=reset --hard"
 run "env-defined alias inside an env-prefixed bash -c (blocked)" "AV='reset --hard' bash -c 'git --config-env=alias.rh=AV rh'" 2
 run "env-defined alias after export in a shell-alias body (blocked)" "git -c \"alias.sh=!export AV='reset --hard'; git --config-env=alias.rh=AV rh\" sh" 2
 run "env-defined alias after 'then export' in a compound command (blocked)" "git -c 'alias.sh=!if true; then export AV=\"reset --hard\"; fi; git --config-env=alias.rh=AV rh' sh" 2

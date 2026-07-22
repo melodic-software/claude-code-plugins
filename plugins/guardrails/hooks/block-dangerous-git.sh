@@ -220,56 +220,56 @@ check_segment() {
   # An inline alias runs its expansion (`git -c alias.rh='reset --hard' rh`
   # discards — verified), so re-check the expanded command: a shell alias
   # (leading !) re-parses as a full shell command; a git alias splices its
-  # words in place of the alias name. One level only — git does not expand
-  # the first word of an expansion as another alias — enforced through
-  # HOOK_NO_ALIAS, which dynamic scoping carries into the recursive call. A
-  # --config-env alias for the invoked subcommand is refused by SHAPE — its
-  # expansion lives in an env var this guard never reads (hook::git_alias_expansion).
-  if ((${HOOK_NO_ALIAS:-0} == 0)); then
-    local exp reparse a
-    local -a expw=()
-    hook::git_alias_expansion "$sub"
-    case $? in
-    2)
-      # Structural fail-closed: the invoked subcommand is an alias whose LAST
-      # definition on this command line is `--config-env=alias.<sub>=<envvar>`, so its
-      # expansion is an environment variable's value. Reading that value is the
-      # recurring fail-open surface (it can be fed by an ambient var, an inline/`env`
-      # prefix, an `export`, `set -a`, or a nested `bash -c` in any wrapper); the shape
-      # alone — an alias for the invoked subcommand defined via --config-env — is
-      # sufficient to block. The allow-list is not consulted, as with the too-long path.
-      echo "BLOCKED: git alias '$sub' is defined via --config-env, so its expansion cannot be verified — failing closed." >&2
-      echo "Define the alias in git config, run the subcommand directly, or set the guardrails block_dangerous_git_enabled option to false to bypass." >&2
-      emit_tel "blocked" "config-env-alias"
-      exit 2
-      ;;
-    0)
-      # Inline alias (-c/--config): the expansion is literally present — re-check it.
-      # shellcheck disable=SC2154  # HOOK_GIT_ALIAS_EXP is set by hook::git_alias_expansion
-      exp="$HOOK_GIT_ALIAS_EXP"
-      if [[ -n "$exp" ]]; then
-        if [[ "$exp" == '!'* ]]; then
-          # Shell alias: git runs the expansion as a shell command with the
-          # invocation's trailing args appended (positional), so append them
-          # (shell-quoted) before re-parsing the whole string as a command.
-          reparse="${exp#!}"
-          for a in "${w[@]:sub_idx+1}"; do reparse+=" $(printf '%q' "$a")"; done
-          hook::bash_parse_segments "$reparse" check_segment
-        else
-          # Git alias: its expansion is dequoted with shell quoting rules
-          # (so `push "--force"` yields --force, not "--force"). Splice the
-          # dequoted words in place of the alias name and keep the trailing
-          # invocation args, which git appends to the expanded argv.
-          hook::env_s_split "$exp"
-          expw=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"})
-          HOOK_NO_ALIAS=1
-          check_segment "${w[@]:0:gi+1}" ${expw[@]+"${expw[@]}"} "${w[@]:sub_idx+1}"
-          HOOK_NO_ALIAS=0
-        fi
+  # words in place of the alias name. A --config-env alias for the invoked
+  # subcommand is refused by SHAPE — its expansion lives in an env var this guard
+  # never reads (hook::git_alias_expansion).
+  #
+  # The SHAPE refusal must fire at EVERY recursion depth: a wrapping inline alias
+  # can expand to `--config-env=alias.<sub>=<envvar>` defining the invoked sub
+  # (`git -c alias.rh='--config-env=alias.foo=AV foo' rh`), which git runs. It is
+  # value-blind, cheap, and terminal, so it is NOT gated by HOOK_NO_ALIAS. Only the
+  # INLINE-alias re-expansion is one-level (HOOK_NO_ALIAS bounds the recursion —
+  # git does not re-expand the first word of an expansion as another alias).
+  local exp reparse a alias_rc
+  local -a expw=()
+  hook::git_alias_expansion "$sub"
+  alias_rc=$?
+  if ((alias_rc == 2)); then
+    # Structural fail-closed: the invoked subcommand is an alias whose LAST definition
+    # (here or in a wrapping alias's expansion) is `--config-env=alias.<sub>=<envvar>`,
+    # so its expansion is an environment variable's value. Reading that value is the
+    # recurring fail-open surface (fed by an ambient var, an inline/`env` prefix, an
+    # `export`, `set -a`, or a nested `bash -c` in any wrapper); the shape alone is
+    # sufficient. The allow-list is not consulted, as with the too-long-command path.
+    echo "BLOCKED: git alias '$sub' is defined via --config-env, so its expansion cannot be verified — failing closed." >&2
+    echo "Define the alias in git config, run the subcommand directly, or set the guardrails block_dangerous_git_enabled option to false to bypass." >&2
+    emit_tel "blocked" "config-env-alias"
+    exit 2
+  fi
+  if ((alias_rc == 0)) && ((${HOOK_NO_ALIAS:-0} == 0)); then
+    # Inline alias (-c/--config): the expansion is literally present — re-check it.
+    # shellcheck disable=SC2154  # HOOK_GIT_ALIAS_EXP is set by hook::git_alias_expansion
+    exp="$HOOK_GIT_ALIAS_EXP"
+    if [[ -n "$exp" ]]; then
+      if [[ "$exp" == '!'* ]]; then
+        # Shell alias: git runs the expansion as a shell command with the
+        # invocation's trailing args appended (positional), so append them
+        # (shell-quoted) before re-parsing the whole string as a command.
+        reparse="${exp#!}"
+        for a in "${w[@]:sub_idx+1}"; do reparse+=" $(printf '%q' "$a")"; done
+        hook::bash_parse_segments "$reparse" check_segment
+      else
+        # Git alias: its expansion is dequoted with shell quoting rules
+        # (so `push "--force"` yields --force, not "--force"). Splice the
+        # dequoted words in place of the alias name and keep the trailing
+        # invocation args, which git appends to the expanded argv.
+        hook::env_s_split "$exp"
+        expw=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"})
+        HOOK_NO_ALIAS=1
+        check_segment "${w[@]:0:gi+1}" ${expw[@]+"${expw[@]}"} "${w[@]:sub_idx+1}"
+        HOOK_NO_ALIAS=0
       fi
-      ;;
-    *) ;; # 1: the invoked subcommand is not an inline/env alias here — nothing to do
-    esac
+    fi
   fi
 
   case "$sub" in
