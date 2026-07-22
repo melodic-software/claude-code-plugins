@@ -17,7 +17,10 @@ All notable changes to the `claude-memory` plugin are documented here. Format fo
   normalization as the repo-root path) when no repo is found, `scope-report.sh` calls it
   unconditionally (with an informational note that the cwd is the project key), and the
   regression test that had locked the bail-out in as a spec now asserts the resolved
-  cwd-derived path. (#978)
+  cwd-derived path. The `audit` skill's deterministic M2 checker
+  (`memory-index-refs-check.sh`) carried its own now-redundant git-repo guard that would have
+  kept the audit from checking a non-repo store's index integrity — the guard is removed
+  (the shared resolver owns the non-repo case) with a non-repo regression test added. (#978)
 
 ## [0.3.2]
 

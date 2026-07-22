@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Resolve the absolute path to the Claude Code auto-memory dir for the CURRENT repo.
+# Resolve the absolute path to the Claude Code auto-memory dir for the CURRENT project
+# (a git repo, or the current directory outside one).
 #
 # Why this exists: the naive glob `~/.claude/projects/*/memory/` matches EVERY
 # project's memory dir on a multi-project machine and resolves alphabetical-first
@@ -29,7 +30,7 @@ set -uo pipefail
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   cat <<'EOF'
-resolve-memory-dir.sh — emit absolute path to the auto-memory dir for the current repo.
+resolve-memory-dir.sh — emit absolute path to the auto-memory dir for the current project (repo or non-repo cwd).
 
 Usage:
   resolve-memory-dir.sh [--help]
