@@ -518,8 +518,19 @@ clean_manifest_target_valid() {
 clean_apply_manifest() {
   local root="$1" manifest="$2" allowed="${3:-}"
   local class bytes rel abs skip
-  while IFS=$'\t' read -r class bytes rel; do
-    [[ -n "$rel" ]] || continue
+  # `|| [[ -n … ]]` processes a final record with no trailing newline (common in
+  # caller-written files) instead of dropping it — dropping it would report a
+  # cleanup as done while leaving it undone.
+  while IFS=$'\t' read -r class bytes rel || [[ -n "$class$bytes$rel" ]]; do
+    if [[ -z "$rel" ]]; then
+      # A deliberately blank line is ignored; a nonblank but truncated record
+      # (missing the path field, e.g. a partial write by a concurrent process) is
+      # malformed — fail closed so automation cannot read it as a successful no-op.
+      [[ -z "$class$bytes" ]] && continue
+      printf 'Rejected (malformed record): %s\n' "$class $bytes" >&2
+      CLEAN_FAILED_COUNT=$((CLEAN_FAILED_COUNT + 1))
+      continue
+    fi
     if [[ -n "$allowed" && " $allowed " != *" $class "* ]]; then
       printf 'Rejected (wrong tier): %s\n' "$rel" >&2
       CLEAN_FAILED_COUNT=$((CLEAN_FAILED_COUNT + 1))

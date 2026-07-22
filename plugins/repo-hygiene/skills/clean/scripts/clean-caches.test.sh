@@ -153,14 +153,32 @@ assert_contains "file-as-dir target rejected" "$out" "Rejected (not a caches tar
 assert_exit "type-mismatch apply exits non-zero" 1 "$rc"
 assert_file_exists "misnamed file preserved" "$TEST_TMPDIR/r2/src/__pycache__"
 
-# 5. Fail closed on an unreadable/missing manifest — silently doing nothing and
+# 5. A valid final record without a trailing newline (common in caller-written
+#    files) must still be processed, not silently dropped.
+mkdir -p "$TEST_TMPDIR/r2/.pytest_cache"
+echo x >"$TEST_TMPDIR/r2/.pytest_cache/x"
+printf 'caches\t1\t.pytest_cache' >"$TEST_TMPDIR/r2.nonl.manifest" # no trailing newline
+out="$(run_r2 --apply --manifest "$TEST_TMPDIR/r2.nonl.manifest")"
+rc=$?
+assert_contains "newline-less final record processed" "$out" "Removed: .pytest_cache"
+assert_exit "newline-less apply exit 0" 0 "$rc"
+
+# 6. A nonblank but truncated record (missing the path field) is malformed and
+#    fails closed; a genuinely blank line is still ignored.
+printf 'caches\t1\n\n' >"$TEST_TMPDIR/r2.malformed.manifest"
+out="$(run_r2 --apply --manifest "$TEST_TMPDIR/r2.malformed.manifest" 2>&1)"
+rc=$?
+assert_contains "malformed record rejected" "$out" "Rejected (malformed record)"
+assert_exit "malformed record exits non-zero" 1 "$rc"
+
+# 7. Fail closed on an unreadable/missing manifest — silently doing nothing and
 #    exiting 0 would let automation treat a mistyped path as a successful sweep.
 out="$(run_r2 --apply --manifest "$TEST_TMPDIR/does-not-exist.manifest" 2>&1)"
 rc=$?
 assert_contains "missing manifest reported" "$out" "manifest not readable"
 assert_exit "missing manifest exits non-zero" 1 "$rc"
 
-# 6. Dry-run must not truncate an arbitrary --manifest destination: an existing
+# 8. Dry-run must not truncate an arbitrary --manifest destination: an existing
 #    non-manifest file (a mistyped path) is refused, not erased.
 printf 'important user config\n' >"$TEST_TMPDIR/precious.conf"
 out="$(run_r2 --dry-run --manifest "$TEST_TMPDIR/precious.conf" 2>&1)"
@@ -174,7 +192,7 @@ out="$(run_r2 --dry-run --manifest "$MANI" 2>&1)"
 rc=$?
 assert_exit "rewriting a real manifest still works" 0 "$rc"
 
-# 7. A trailing `--manifest` with no value is a usage error, not an infinite loop
+# 9. A trailing `--manifest` with no value is a usage error, not an infinite loop
 #    (without set -e, `shift 2` on a single remaining arg is a silent no-op). The
 #    timeout fails the case loudly if the guard ever regresses into a hang.
 out="$(timeout 10 bash -c "cd '$TEST_TMPDIR/r2' && bash '$CLEAN' --apply --manifest" 2>&1)"
