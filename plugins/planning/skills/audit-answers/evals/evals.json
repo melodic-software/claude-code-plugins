@@ -1,0 +1,77 @@
+{
+  "skill_name": "audit-answers",
+  "evals": [
+    {
+      "id": 1,
+      "name": "accepts-then-validates-with-fresh-agents",
+      "prompt": "/planning:audit-answers — I finished the interview but I'm overloaded; accept the recommendations and have agents check them instead of me answering every round.",
+      "expected_output": "The skill accepts each open question's recommended answer into the ledger, then dispatches fresh-context (non-fork) validator subagents that receive the accepted answers with the rationale withheld and return a per-answer verdict (CONFIRMED / CHALLENGED / RECLASSIFIED-TO-HUMAN). It does NOT invent answers via subagents.",
+      "files": [],
+      "expectations": [
+        "Output accepts the recommended answers first, then validates them — it does not derive/invent answers with subagents",
+        "Validators are described as fresh-context (non-fork) subagents that receive the decisions with the persuasive rationale withheld",
+        "Each accepted answer gets a per-answer verdict: CONFIRMED, CHALLENGED (with a reason), or RECLASSIFIED-TO-HUMAN"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "never-auto-floor-held-out",
+      "prompt": "/planning:audit-answers — the brief has a Deferred question tagged USER-RESERVED about the pricing model. Just validate everything and collapse whatever passes.",
+      "expected_output": "The USER-RESERVED deferred question is held out of the auto-accept and NOT validated or collapsed; it stays deferred as a carry-forward item (arbiter intact) re-confirmed at /planning:plan, not turned into an audit question now. Auto-guard-class genuine user choices are routed to the human as real questions.",
+      "files": [],
+      "expectations": [
+        "Output does NOT auto-accept, collapse, or validate the USER-RESERVED pricing decision, even when asked to collapse whatever passes",
+        "Output keeps the USER-RESERVED item deferred as a carry-forward to /planning:plan rather than turning it into an audit question resolved now",
+        "Output distinguishes the never-auto floor (USER-RESERVED deferrals + auto-guard choices) from the ordinary accepted answers that validators check"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "no-ledger-stops-and-points-to-interview",
+      "prompt": "/planning:audit-answers the caching approach",
+      "expected_output": "With no filled interview ledger for the topic, the skill stops with a message that there is nothing to validate and points the user at /planning:interview to produce the ledger first.",
+      "files": [],
+      "expectations": [
+        "Output recognizes the precondition: a filled interview ledger (interview-checklist.md decision-tree ledger + PLAN.md Brief) must exist",
+        "Output stops rather than fabricating answers to validate when no ledger is present",
+        "Output points the user to /planning:interview to produce the ledger"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "not-a-plan-stress-test",
+      "prompt": "/planning:audit-answers here is my implementation plan — poke holes in it before we build.",
+      "expected_output": "The skill clarifies it validates a completed interview's accepted answers, not a plan artifact, and points to /planning:devils-advocate for stress-testing a plan.",
+      "files": [],
+      "expectations": [
+        "Output does not run an assumption-extraction / severity-findings stress-test over the plan",
+        "Output clarifies its scope is validating interview answers, upstream of the plan",
+        "Output points to /planning:devils-advocate for stress-testing a plan artifact"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "one-dissent-is-signal-and-confirm-gate-holds",
+      "prompt": "/planning:audit-answers — run the validators and if most answers look fine just give me the green light so I can move on.",
+      "expected_output": "A single CHALLENGED or RECLASSIFIED verdict from any validator makes that answer a real human question (not averaged away), and the human confirmation round is mandatory — the collapsed CONFIRMED block is a summary to skim, never a licence to skip the human.",
+      "files": [],
+      "expectations": [
+        "Output treats one validator's CHALLENGED/RECLASSIFIED as signal that surfaces a human question, not a vote averaged against CONFIRMED verdicts",
+        "Output does not give a blanket green light — it requires a human confirmation round over the challenged/reclassified answers",
+        "Output frames the CONFIRMED collapse as a summary to skim, with the human confirmation gate still mandatory"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "validates-a-hand-answered-ledger-too",
+      "prompt": "/planning:audit-answers — I already answered every interview question myself, but have fresh agents double-check my answers before we plan.",
+      "expected_output": "The skill validates the already-filled (hand-answered) ledger as it stands — it does not re-accept or overwrite the human's answers, and dispatches fresh-context validators to return per-answer verdicts over those answers.",
+      "files": [],
+      "expectations": [
+        "Output validates the existing hand-answered ledger rather than requiring an auto-accept step first",
+        "Output does not overwrite or re-derive the human's own answers before validating",
+        "Fresh-context validators return per-answer verdicts over the human-provided answers, same as for auto-accepted ones"
+      ]
+    }
+  ]
+}
