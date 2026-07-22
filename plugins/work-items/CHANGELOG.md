@@ -3,6 +3,20 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.3]
+
+### Fixed
+
+- **`work`'s dispatch brief no longer lists `## Related` as a standing PR obligation (#975).**
+  `/source-control:pull-request`'s PR-body scaffold is now configurable via
+  `pr_body_required_sections` and no longer includes `## Related` by default — the prior wording
+  enumerated it alongside `Closes #N` as if every PR carried it. The dispatch brief and the
+  post-green deferred-finding step (`skills/work/SKILL.md`) now: point at pull-request's
+  configurable scaffold instead of restating it, drop `## Related` from the standing-obligations
+  list, and have the deferred-finding step ensure the section exists (`gh pr edit --body`) before
+  citing a follow-up issue in it, rather than assuming pull-request already created one. Eval 3
+  updated to match.
+
 ## [0.21.2]
 
 ### Changed

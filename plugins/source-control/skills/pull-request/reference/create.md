@@ -219,24 +219,36 @@ REQUIRED_SECTIONS_SOURCE="plugin default (no source-control.md layer sets pr_bod
 ```
 
 Build one `## <heading>` block per entry in `${REQUIRED_SECTIONS[@]}`, real content in each — never
-literal placeholder text. `Related` and `Test plan` get their established defaults when nothing more
-specific applies (`Related` → the literal `N/A`; `Test plan` → verification steps actually taken); any
-other heading (including a repo-declared custom one) gets content matching what that heading names, the
-same way `Summary` already does. If `${REFS_LINES}` (collected in §2.4.0) is non-empty and `Related` is
-**not** in `${REQUIRED_SECTIONS[@]}`, still append a `## Related` section carrying those lines — real
+literal placeholder text. `Related` uses `${REFS_LINES}` (collected in §2.4.0) when non-empty, else the
+established default `N/A` — this resolution is the SAME regardless of whether `Related` reached the
+scaffold via `${REQUIRED_SECTIONS[@]}` (configured) or the ad hoc append below (not configured, but
+genuine refs exist): there is exactly one place `Related`'s content is decided, never two. `Test plan`
+gets its established default (verification steps actually taken) when nothing more specific applies;
+any other heading (including a repo-declared custom one) gets content matching what that heading names,
+the same way `Summary` already does. If `${REFS_LINES}` is non-empty and `Related` is **not** in
+`${REQUIRED_SECTIONS[@]}`, still append a `## Related` section carrying those lines — real
 user-supplied content is never dropped — but do **not** add it to `${REQUIRED_SECTIONS[@]}`: an ad hoc
 `Related` section is present only because it has real content, and the §2.4.2 gate must never come to
 require a section the resolved config does not list.
 
 ```bash
+# One content resolver, reused whether Related is required or ad hoc — the single place
+# that decides what goes under any heading, so the two paths can never disagree.
+content_for_section() {
+  case "$1" in
+    Related) [[ -n "$REFS_LINES" ]] && printf '%s' "$REFS_LINES" || printf 'N/A' ;;
+    *) printf '<real content for %s>' "$1" ;;  # model fills real content before executing
+  esac
+}
+
 # Quoted heredoc segments — inert; nothing inside expands. Safe even if a heading's
 # real content contains $vars or $(cmds).
 TEMPLATE=""
 for section in "${REQUIRED_SECTIONS[@]}"; do
-  TEMPLATE+="## ${section}"$'\n\n'"<real content for ${section}>"$'\n\n'
+  TEMPLATE+="## ${section}"$'\n\n'"$(content_for_section "$section")"$'\n\n'
 done
 if [[ -n "$REFS_LINES" ]] && ! printf '%s\n' "${REQUIRED_SECTIONS[@]}" | grep -qx "Related"; then
-  TEMPLATE+="## Related"$'\n\n'"${REFS_LINES}"$'\n\n'
+  TEMPLATE+="## Related"$'\n\n'"$(content_for_section "Related")"$'\n\n'
 fi
 
 # Resolve the PR-body attribution line from the `pr_body_attribution` key across
