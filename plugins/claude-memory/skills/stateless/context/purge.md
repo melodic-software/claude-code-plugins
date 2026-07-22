@@ -54,7 +54,8 @@ paths), and offer an opt-in backup in the same question, e.g.:
 
 > This will permanently delete N auto-memory file(s): `<abs path>/MEMORY.md`,
 > `<abs path>/debugging.md`, … This cannot be undone. I can first copy these exact files to
-> `<memory_dir>.bak-<UTC-timestamp>/` as a snapshot. Type "yes" to delete, or
+> `<memory_dir>.bak-<UTC-timestamp>/` as a snapshot. If the backup fails, the deletion is
+> cancelled too (you can re-confirm a plain delete afterwards). Type "yes" to delete, or
 > "yes, with backup" to snapshot first.
 
 Proceed only on an unambiguous yes. Anything else — abort and change nothing. Never infer
@@ -82,18 +83,26 @@ recursively. Each source directory gets its own sibling snapshot `<dir>.bak-<UTC
 
 ```bash
 ts=$(date -u +%Y%m%dT%H%M%SZ)
+total=$(grep -c . "$manifest")
+copied=0
 while IFS= read -r file; do
   [[ -n "$file" ]] || continue
   dest="$(dirname -- "$file").bak-$ts"
-  mkdir -p -- "$dest"
-  cp -- "$file" "$dest/"
+  mkdir -p -- "$dest" || { echo "BACKUP FAILED (mkdir): $dest" >&2; break; }
+  cp -- "$file" "$dest/" || { echo "BACKUP FAILED (cp): $file" >&2; break; }
+  copied=$((copied + 1))
 done <"$manifest"
+if [[ "$copied" -ne "$total" ]]; then
+  echo "Backup incomplete ($copied/$total) — ABORTING: delete nothing." >&2
+fi
 ```
 
+Proceed to the delete ONLY when `copied == total`. On any shortfall (full disk,
+permissions), abort the purge, report the partial snapshot's path, and change nothing —
+the user can re-confirm a plain no-backup delete afterwards if they still want it.
 `cp -- "$file"` on a manifest entry copies a regular file only (the Step 2 capture was
 `-type f`); the backup lives beside the memory dir, outside it, so it is never re-matched
-by a future purge's `-maxdepth 1` enumeration of the memory dir itself. Verify the copy
-count equals the manifest count before deleting; on any copy failure, stop — do not delete.
+by a future purge's `-maxdepth 1` enumeration of the memory dir itself.
 
 After confirmation (and the backup, when requested), delete exactly the paths captured in
 `$manifest` in Step 2 — do not re-enumerate, do not `find ... -delete`, do not `rm -rf`
