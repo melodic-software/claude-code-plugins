@@ -59,26 +59,42 @@ git -C "$TEST_TMPDIR/b2" config user.name "Test"
 mkdir -p "$TEST_TMPDIR/b2/bin/obj"
 echo a >"$TEST_TMPDIR/b2/bin/x.dll"
 echo b >"$TEST_TMPDIR/b2/bin/obj/y.dll"
+# A caches-tier target too, to prove --include-caches folds both classes into
+# the one build manifest (no clean-caches.sh subprocess).
+mkdir -p "$TEST_TMPDIR/b2/.pytest_cache"
+echo c >"$TEST_TMPDIR/b2/.pytest_cache/c"
 MANI="$TEST_TMPDIR/b2.manifest"
 
 run_b2() {
   bash -c "cd '$TEST_TMPDIR/b2' && bash '$BUILD' $*"
 }
 
-out="$(run_b2 --dry-run --manifest "$MANI")"
+out="$(run_b2 --dry-run --include-caches --manifest "$MANI")"
 assert_contains "dry-run prints manifest path" "$out" "Manifest: $MANI"
-assert_contains "nested dir deduped to one plan" "$out" "Summary: planned=1 bytes="
+# bin/ (nested obj/ deduped) + .pytest_cache = 2 planned.
+assert_contains "nested dir deduped, caches folded in" "$out" "Summary: planned=2 bytes="
 mani_body="$(cat "$MANI")"
-assert_contains "manifest carries bin" "$mani_body" "build"
+# Structural pin (consumed contract, #994): exact class<TAB>bytes<TAB>path per tier.
+if grep -qE "^build"$'\t'"[0-9]+"$'\t'"bin$" "$MANI"; then
+  pass "build line is class<TAB>bytes<TAB>path"
+else
+  fail "build manifest line format" "build<TAB><int><TAB>bin" "$mani_body"
+fi
+if grep -qE "^caches"$'\t'"[0-9]+"$'\t'"\.pytest_cache$" "$MANI"; then
+  pass "caches line folded into build manifest"
+else
+  fail "folded caches manifest line" "caches<TAB><int><TAB>.pytest_cache" "$mani_body"
+fi
 assert_not_contains "nested obj not a separate entry" "$mani_body" "bin/obj"
 assert_file_exists "dry-run does not mutate" "$TEST_TMPDIR/b2/bin/obj/y.dll"
 
 out="$(run_b2 --apply --manifest "$MANI")"
 rc=$?
 assert_contains "apply-from-manifest removes bin" "$out" "Removed: bin"
-assert_contains "apply summary shape" "$out" "Summary: removed=1 failed=0 bytes="
+assert_contains "apply summary shape" "$out" "Summary: removed=2 failed=0 bytes="
 assert_exit "apply exit 0" 0 "$rc"
 assert_file_absent "bin gone after apply" "$TEST_TMPDIR/b2/bin/x.dll"
+assert_file_absent "folded cache gone after apply" "$TEST_TMPDIR/b2/.pytest_cache/c"
 
 out="$(run_b2 --apply --manifest "$MANI")"
 rc=$?

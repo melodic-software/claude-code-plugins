@@ -53,8 +53,13 @@ assert_contains "dry-run prints manifest path" "$out" "Manifest: $MANI"
 assert_contains "dry-run planned summary" "$out" "Summary: planned=1 bytes="
 assert_file_exists "manifest written" "$MANI"
 mani_body="$(cat "$MANI")"
-assert_contains "manifest tags class+path" "$mani_body" "caches"
-assert_contains "manifest carries the cache path" "$mani_body" ".pytest_cache"
+# Structural pin: the manifest is a consumed contract (#994 parses it), so
+# assert the exact <class>\t<bytes>\t<relpath> shape, not just substrings.
+if grep -qE "^caches"$'\t'"[0-9]+"$'\t'"\.pytest_cache$" "$MANI"; then
+  pass "manifest line is class<TAB>bytes<TAB>path"
+else
+  fail "manifest line format" "caches<TAB><int><TAB>.pytest_cache" "$mani_body"
+fi
 assert_file_exists "dry-run does not mutate" "$TEST_TMPDIR/r2/.pytest_cache/x"
 
 out="$(run_r2 --apply --manifest "$MANI")"
