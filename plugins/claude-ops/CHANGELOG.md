@@ -3,6 +3,15 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.2]
+
+### Changed
+
+- Internal: synced the shared hook utility library (`hook-utils.sh`) carried
+  by this plugin. This plugin's hooks do not use the changed file-membership
+  guard, so there is no behavior change; the version bump ships the updated
+  library to consumers that do.
+
 ## [0.18.1]
 
 ### Changed

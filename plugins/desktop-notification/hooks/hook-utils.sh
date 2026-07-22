@@ -184,11 +184,16 @@ hook::physical_path() {
   printf '%s' "$1"
 }
 
-# Parse file_path from PostToolUse JSON on stdin; validate existence and (when
-# CLAUDE_PROJECT_DIR is set) project membership. Both sides of the membership
-# comparison are canonicalized (symlinks resolved) first, so neither an
-# escaping symlink nor a project root reached via a symlinked path (e.g.
-# macOS /tmp) skews the verdict. Outputs the path on success. Returns 1 to skip.
+# Parse file_path from PostToolUse JSON on stdin; validate existence and file
+# membership. When CLAUDE_PROJECT_DIR is set, membership is prefix containment
+# under it (both sides canonicalized — symlinks resolved — so neither an
+# escaping symlink nor a project root reached via a symlinked path, e.g.
+# macOS /tmp, skews the verdict). When CLAUDE_PROJECT_DIR is UNSET (e.g. an
+# autonomous session whose cwd is the home directory, not a repo), membership
+# falls back to git-working-tree containment: a file under no git working tree
+# is skipped, so a scratch/temp file outside any repository is not processed
+# with repo-scoped rules, while a repo file edited in such a session still is.
+# Outputs the path on success. Returns 1 to skip.
 #   FILE=$(hook::read_file_path) || exit 0
 hook::read_file_path() {
   local file
@@ -206,6 +211,10 @@ hook::read_file_path() {
     if [[ "$norm_file" != "$norm_project" && "$norm_file" != "$norm_project"/* ]]; then
       return 1
     fi
+  elif ! git -C "$(dirname "$file")" rev-parse --show-toplevel >/dev/null 2>&1; then
+    # No project dir to scope against: --show-toplevel succeeds only inside a
+    # git working tree, so its failure means the file is under none → skip.
+    return 1
   fi
   printf '%s' "$file"
 }

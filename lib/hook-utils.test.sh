@@ -434,6 +434,45 @@ fi
 
 rm -rf "$PROJ12" "$OUTSIDE12" "$SIB12"
 
+# --- Test 12b: read_file_path git-working-tree fallback (CLAUDE_PROJECT_DIR unset) -
+# With CLAUDE_PROJECT_DIR unset the guard falls back to git-working-tree
+# membership: a file under a working tree is still processed, one under none is
+# skipped (advisory hooks must not process a scratch/temp file outside any
+# repository). Each case runs in a subshell with CLAUDE_PROJECT_DIR explicitly
+# unset so it never leaks into the suite.
+rfp_unset() { # <file_path> → stdout: emitted path; rc: guard verdict
+  MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*' jq -n --arg fp "$1" '{tool_input: {file_path: $fp}}' |
+    (
+      unset CLAUDE_PROJECT_DIR 2>/dev/null || true
+      hook::read_file_path
+    )
+}
+
+# In-tree file → accepted, caller's original path emitted.
+GITTREE12B="$(mktemp -d)"
+git -C "$GITTREE12B" init -q
+echo 'a = 1' >"$GITTREE12B/inside.md"
+if got=$(rfp_unset "$GITTREE12B/inside.md") && [[ "$got" == "$GITTREE12B/inside.md" ]]; then
+  ok "read_file_path: unset project dir, file in git tree accepted"
+else
+  fail "read_file_path: unset project dir, in-tree file rejected (got '$got')"
+fi
+
+# Out-of-tree file → skipped. mktemp -d normally yields a path outside any repo;
+# assert that before relying on it — a temp root that happened to sit inside a
+# git tree on this host would make the skip assertion pass vacuously.
+NOGIT12B="$(mktemp -d)"
+echo 'b = 2' >"$NOGIT12B/scratch.md"
+if git -C "$NOGIT12B" rev-parse --show-toplevel >/dev/null 2>&1; then
+  ok "read_file_path: unset project dir, out-of-tree case SKIPPED (temp dir sits inside a git tree on this host)"
+elif got=$(rfp_unset "$NOGIT12B/scratch.md"); then
+  fail "read_file_path: unset project dir, out-of-tree file admitted (got '$got')"
+else
+  ok "read_file_path: unset project dir, out-of-tree file skipped"
+fi
+
+rm -rf "$GITTREE12B" "$NOGIT12B"
+
 # --- Test 13: hook::telemetry_enabled — cheap sink-presence probe -------------
 # Producers gate telemetry-payload construction on this, so its verdict must
 # track HOOK_TELEMETRY_SINK exactly: unset and empty are disabled, any

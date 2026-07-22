@@ -3,6 +3,19 @@
 All notable changes to the `typos-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.1]
+
+### Fixed
+
+- **Out-of-tree files are no longer processed when `CLAUDE_PROJECT_DIR` is
+  unset.** The shared hook library's file-membership guard now falls back to
+  git-working-tree containment when `CLAUDE_PROJECT_DIR` is unset (for example
+  an autonomous session whose working directory is not a repository): a file
+  under no git working tree is skipped, so a scratch or temporary file outside
+  any repository is not processed with repo-scoped rules, while a repository
+  file edited in such a session still is. Behavior when `CLAUDE_PROJECT_DIR`
+  is set is unchanged.
+
 ## [0.3.0]
 
 ### Added

@@ -228,6 +228,38 @@ else
   fail "missing .md not skipped (rc=$RC_M out=$OUT_M)"
 fi
 
+# --- Git-tree fallback: CLAUDE_PROJECT_DIR unset, file outside any git tree ---
+# Regression for out-of-tree scratchpad-lint noise: with CLAUDE_PROJECT_DIR
+# unset, a .md written outside any git working tree (a lane's temp comment-body)
+# is skipped entirely — no --fix applied, no findings. run_hook already leaves
+# CLAUDE_PROJECT_DIR unset. A temp dir that happens to sit inside a git tree on
+# this host would pass vacuously, so assert the fixture is genuinely out-of-tree.
+# The in-tree counterpart (unset dir, file inside a git tree still linted) is
+# covered by every fixture above: they all live in $REPO, a git working tree.
+OUTOFTREE="$(mktemp -d)"
+if git -C "$OUTOFTREE" rev-parse --show-toplevel >/dev/null 2>&1; then
+  ok "out-of-tree scratchpad case SKIPPED (temp dir sits inside a git tree on this host)"
+else
+  SCRATCH="$OUTOFTREE/comment-body.md"
+  # A fixable issue (MD004 star marker + MD047 missing final newline) the hook
+  # WOULD apply if it ran — so an unmodified file proves the skip.
+  printf '# Comment\n\n* bullet' >"$SCRATCH"
+  SCRATCH_BEFORE="$(cat "$SCRATCH")"
+  OUT_SCRATCH="$(run_hook "$SCRATCH")"
+  RC_SCRATCH=$?
+  if [[ $RC_SCRATCH -eq 0 && -z "$OUT_SCRATCH" ]]; then
+    ok "out-of-tree scratchpad .md skipped (exit 0, no findings)"
+  else
+    fail "out-of-tree scratchpad .md not skipped (rc=$RC_SCRATCH out=$OUT_SCRATCH)"
+  fi
+  if [[ "$(cat "$SCRATCH")" == "$SCRATCH_BEFORE" ]]; then
+    ok "out-of-tree scratchpad .md left unmodified (no --fix)"
+  else
+    fail "out-of-tree scratchpad .md was modified: $(cat "$SCRATCH")"
+  fi
+fi
+rm -rf "$OUTOFTREE"
+
 # --- Repository-local markdownlint: use contained npm/Git Bash shim ---------
 # Hide the PATH copy, then provide the extensionless POSIX shim npm installs
 # beside its Windows .cmd launcher. The hook must execute it directly from the
