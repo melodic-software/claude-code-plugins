@@ -25,9 +25,7 @@ Universal artifact directory globs:
 
 - `**/bin/`, `**/obj/`, `**/build/`, `**/dist/`, `**/out/`, `**/target/`, `**/TestResults/`, `**/*.binlog`
 
-Build-system clean driver (run before the glob removal in Workflow §3):
-
-- .NET: `clean-build.sh` detects a `*.slnx` or `*.sln` at the repo root at runtime and runs `dotnet clean <solution> -v q`. If `dotnet` is unavailable or no solution is present, the driver is skipped; the universal globs still remove `bin/`/`obj/` directly.
+No build-system clean driver (e.g. `dotnet clean`): the universal artifact globs above already remove every output such a driver would delete, so running one first is pure overhead — a full MSBuild evaluation (minutes on a large solution) that also re-creates `obj/` evaluation artifacts. One walk + rm is strictly faster and equally complete.
 
 App-specific runtime output (application logs written outside the universal artifact dirs) is **not** swept generically — no portable path exists. A consumer whose app writes logs to a non-artifact directory reclaims them through the `tree` tier (they are untracked/ignored) or their own gitignore + tooling.
 

@@ -34,6 +34,16 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   exits non-zero when any removal fails, so a fleet sweep no longer requires
   grepping every per-repo log to confirm success. (#1002)
 
+### Removed
+
+- **The `dotnet clean` build-system driver.** `clean-build.sh` no longer runs
+  `dotnet clean <solution>` before removing `bin/`/`obj/`. The universal artifact
+  removal already deletes everything the driver would, so running it first was
+  pure overhead — a full MSBuild evaluation (minutes on a large solution) that
+  also re-created `obj/` evaluation artifacts. One walk + `rm` is strictly faster
+  and equally complete. Removes the `Planned: dotnet clean …` (dry-run) and
+  `DRIVER_FAILED:` (apply) output markers. (#999)
+
 ## [0.4.6]
 
 ### Fixed

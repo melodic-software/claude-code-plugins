@@ -4,9 +4,9 @@
 #
 # Default: --dry-run (writes a manifest of planned removals + reclaimable bytes).
 # --apply consumes the manifest (re-stat staleness guard) and mutates disk.
-# Optional dotnet clean driver when dotnet available. With --include-caches the
-# caches tier shares this one manifest — a single pruned walk per tier, no
-# subprocess. Enumeration/manifest/apply engine lives in lib/clean-common.sh.
+# With --include-caches the caches tier shares this one manifest — a single
+# pruned walk per tier, no subprocess. Enumeration/manifest/apply engine lives
+# in lib/clean-common.sh.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -76,30 +76,11 @@ fi
 
 cd "$REPO_ROOT" || exit 1
 
-# .NET clean driver — solution/project detected at runtime, never hardcoded.
-# Prefer a *.slnx, then *.sln, at the repo root; skip cleanly when none exists
-# or dotnet is unavailable (universal bin/obj globs below still remove output).
-# Independent of the path manifest (it is an action, not a path): announced on
-# dry-run, run on any --apply.
-DOTNET_SOLUTION=""
-if command -v dotnet >/dev/null 2>&1; then
-  for cand in "$REPO_ROOT"/*.slnx "$REPO_ROOT"/*.sln; do
-    if [[ -f "$cand" ]]; then
-      DOTNET_SOLUTION="$cand"
-      break
-    fi
-  done
-fi
-if [[ -n "$DOTNET_SOLUTION" ]]; then
-  DOTNET_DRIVER="dotnet clean \"$DOTNET_SOLUTION\" -v q"
-  if [[ "$DRY_RUN" -eq 1 ]]; then
-    printf 'Planned: %s\n' "$DOTNET_DRIVER"
-  else
-    if ! dotnet clean "$DOTNET_SOLUTION" -v q 2>/dev/null; then
-      printf 'DRIVER_FAILED: %s\n' "$DOTNET_DRIVER" >&2
-    fi
-  fi
-fi
+# No build-system clean driver (e.g. `dotnet clean`): the universal bin/obj/…
+# removal below already deletes everything such a driver would, and running one
+# first is pure overhead (full MSBuild evaluation, minutes on a large solution)
+# that also re-creates obj/ evaluation artifacts. One walk + rm is strictly
+# faster and equally complete (#999).
 
 # --apply with a prebuilt manifest: skip enumeration entirely, just consume it.
 if [[ "$DRY_RUN" -eq 0 && -n "$MANIFEST_ARG" ]]; then

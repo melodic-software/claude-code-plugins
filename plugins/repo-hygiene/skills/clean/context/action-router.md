@@ -8,7 +8,7 @@ SKILL.md carries the action table headline; this file carries alias resolution, 
 | --- | --- | --- | --- | --- |
 | `scan` | "Show what's reclaimable" | Read-only inventory | Safe | N/A (no mutation) |
 | `caches` | "Clear tool and linter caches" | `.pytest_cache/`, `.ruff_cache/`, `__pycache__/`, … | Low | **Never** |
-| `build` | "Clear build output and logs" | `bin/`, `obj/`, `dist/`, dotnet clean driver, … | Low | **Never** |
+| `build` | "Clear build output and logs" | `bin/`, `obj/`, `dist/`, `*.binlog`, … | Low | **Never** |
 | `git` | "Prune stale git metadata" | `worktree prune`, `remote prune`, `gc`, branch audit | Low | Prune/gc only after user OK; branch delete always opt-in |
 | `tree` | "Reset working tree like a fresh pull" | `fetch` + `reset --hard` upstream + `clean -fdx` (default-preserve secrets/deps/skill-data; `--include-deps` / `--include-secrets` to widen) | **Destructive** | **Never** |
 | `tree-batch` | "Reset all my repos like a fresh pull" | `tree` across a repo set behind one gate; separator-agnostic skip list; dirty/unpushed skipped unless `--include-dirty` | **Destructive** | **Never** |
