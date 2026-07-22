@@ -102,6 +102,12 @@
       "title": "Babysit extra bot logins",
       "description": "Additional logins to treat as bots when structural detection cannot identify them. Absent: structural detection only."
     },
+    "babysit_extra_dependency_manager_logins": {
+      "type": "string",
+      "multiple": true,
+      "title": "Babysit extra dependency-manager logins",
+      "description": "Additional dependency-manager bot logins beyond the built-in dependabot/renovate set whose PRs the merge gate holds absent --allow-dependency, the same as the built-ins. Absent: built-in dependency-manager set only."
+    },
     "babysit_approval_downgrade_logins": {
       "type": "string",
       "multiple": true,
@@ -161,6 +167,11 @@
       "description": "Abort a CI-log ZIP fetch larger than this",
       "default": 52428800,
       "min": 1
+    },
+    "branch_issue_pattern": {
+      "type": "string",
+      "title": "Branch-to-issue grammar (ERE)",
+      "description": "POSIX ERE for extracting the numeric GitHub issue number from the current branch name; the LAST capture group holds it and must resolve to digits (Closes #N honors only a numeric issue). Set this for a non-default branch scheme that places the number differently, e.g. '^[^/]+/([0-9]+)-' for 'alice/1234-slug' or '-([0-9]+)$' for 'feat/add-widget-1234'. Absent: the built-in '<type>/<N>-<slug>' (and routine-issue-<N>) convention."
     }
   }
 }

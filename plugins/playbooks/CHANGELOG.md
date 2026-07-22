@@ -4,6 +4,18 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.3.2]
+
+### Changed
+
+- `fable-5`: the fresh-context verification chapter now names the presence-gated
+  cross-vendor advisor (e.g. the OpenAI Codex plugin, invoked per its own docs) with the
+  fresh-context same-vendor subagent as the stated fallback — aligning the chapter's
+  existing independence-gradient sentence to the seam-phrasing gate-plus-fallback shape,
+  not adding a duplicate site. The gate lives at the orchestration chapter's
+  "Fresh-context verification" SSOT; SKILL.md and the verification chapter keep their
+  pointers.
+
 ## [0.3.1]
 
 ### Changed

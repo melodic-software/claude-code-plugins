@@ -33,6 +33,8 @@ Consumer conventions come from the consuming project's own `CLAUDE.md`, `AGENTS.
 
 **PR-body attribution** (the `🤖 Generated with [Claude Code]…` line) resolves from the `pr_body_attribution` key across the same three `source-control.md` layers ([../../reference/config-resolution.md](../../reference/config-resolution.md)) — absent → the default line, `none` → omitted, any other value → that line. It is the PR-body analogue of `/commit`'s `trailer_policy` and gated separately; see [reference/create.md](reference/create.md) §2.4.1 for the assembly.
 
+**Branch-to-issue grammar** — the effective `branch_issue_pattern` is `${user_config.branch_issue_pattern}` (this line is the substituted surface; when it still shows the literal `${user_config.branch_issue_pattern}` token the key is unset). When it holds a real ERE — a POSIX ERE whose LAST capture group is the numeric GitHub issue number, e.g. `^[^/]+/([0-9]+)-` — [reference/create.md](reference/create.md) §2.4.0 fills its `<branch-issue-pattern>` slot with that value; unset uses the built-in `<type>/<N>-<slug>` (and `routine-issue-<N>`) convention.
+
 ## Emit checklist
 
 For PR lifecycle runs spanning 3+ phases, copy `${CLAUDE_PLUGIN_ROOT}/skills/pull-request/templates/checklist.md` into your project's working-notes location (or track it inline) and tick each `- [ ]` as the phase produces its output. Stateful surface; survives `/clear`.

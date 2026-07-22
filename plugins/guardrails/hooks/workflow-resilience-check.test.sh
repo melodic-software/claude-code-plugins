@@ -65,4 +65,32 @@ assert_contains "saved scriptPath is inspected" "$out" "Workflow resilience"
 out=$(printf '' | bash "$HOOK" 2>&1)
 assert_silent "empty stdin is a no-op" "$out"
 
+# ============================ TELEMETRY ====================================
+# docs/conventions/hook-observability/: this hook previously emitted zero
+# telemetry on any path — repro-first, these cases fail against the pre-fix
+# hook (no HOOK_TELEMETRY_SINK-wired envelope ever appears) and pass after.
+TEL="$(mktemp -p "$TEST_TMPDIR")"
+SINK="$(make_sink "cat >\"$TEL\"")"
+env HOOK_TELEMETRY_SINK="$SINK" CLAUDE_PROJECT_DIR="$TEST_TMPDIR" \
+  bash "$HOOK" <<<"$(workflow_script_json 'await pipeline(FILES, s1)')" >/dev/null 2>&1
+if wait_for_sink "$TEL"; then
+  assert_contains "telemetry: hook id" "$(jq -r '.hook' "$TEL")" "workflow-resilience-check"
+  assert_contains "telemetry: status ok (advisory never blocks)" "$(jq -r '.status' "$TEL")" "ok"
+  assert_contains "telemetry: findings name the advisory" "$(jq -r '.data.findings[0] // empty' "$TEL")" \
+    "Workflow resilience"
+else
+  bad "telemetry envelope never appeared (advisory path)"
+fi
+
+TEL2="$(mktemp -p "$TEST_TMPDIR")"
+SINK2="$(make_sink "cat >\"$TEL2\"")"
+env HOOK_TELEMETRY_SINK="$SINK2" CLAUDE_PROJECT_DIR="$TEST_TMPDIR" \
+  bash "$HOOK" <<<"$(workflow_script_json 'const a = await agent("do x")')" >/dev/null 2>&1
+if wait_for_sink "$TEL2"; then
+  assert_contains "telemetry: no-fan-out path also emits (meaningful outcome)" "$(jq -r '.status' "$TEL2")" "ok"
+  assert_contains "telemetry: no-fan-out path has no findings" "$(jq -r '.data.findings | length' "$TEL2")" "0"
+else
+  bad "telemetry envelope never appeared (no-fan-out path)"
+fi
+
 report

@@ -3,6 +3,22 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.0]
+
+### Added
+
+- **`statusMessage` declared on every hook's `hooks.json` handler** (8 handlers)
+  (hook-observability convention, `docs/conventions/hook-observability/`).
+
+### Fixed
+
+- **`skill-usage-audit` and `skill-usage-expansion-audit`'s config-invalid /
+  destination-unwritable skip paths are now user-visible.** Previously
+  agent-only (`additionalContext`), matching neither channel a missing
+  runtime prerequisite requires per the doctrine. Both now route through
+  `hook::emit_skip_notice` gated by `hook::notice_once` (once-per-session
+  `systemMessage` + `additionalContext`).
+
 ## [0.17.4]
 
 ### Fixed

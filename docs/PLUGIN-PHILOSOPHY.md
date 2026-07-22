@@ -10,7 +10,11 @@ lifecycle plugins.
 A plugin is a reusable, independently useful vertical slice of one cohesive capability. It must work
 outside the repository and organization that produced it. Publisher metadata may identify its source;
 runtime behavior must not depend on publisher names, organization-specific environment variables,
-repository names, absolute machine paths, or an undocumented consumer layout.
+repository names, absolute machine paths, or an undocumented consumer layout. The artifact-agnostic
+form of this doctrine — consumer-agnostic behavior, externalized consumer-varying configuration,
+consumer tiers, explicit adoption — is owned by `melodic-software/standards`
+`conventions/engineering/shareable-artifact-design.md`; this document specializes it for Claude Code
+plugins and adds only what is plugin-specific.
 
 Keep plugins horizontally decoupled:
 
@@ -343,6 +347,18 @@ the trigger:
 - **self-grade** — scoring the same context's output against criteria (a quality gate in self mode, a
   synthesis step grading its own lock).
 
+The delegation target has an independence ladder: a same-vendor fresh context removes the session's
+reasoning but can still share the model's blind spots; a different-vendor advisor removes both. Where
+the verdict is high-stakes and correlated blind spots are the risk, a checkpoint site prefers a
+cross-vendor advisor **when one is installed and set up** — e.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs — with the fresh-context same-vendor subagent as the
+stated fallback, never a route to a command that may not resolve. That reference is optional
+collaboration, so it carries the presence-gate-plus-fallback shape
+([seam phrasing](conventions/seam-phrasing/README.md)) at each site that instructs it; an advisor
+plugin external to this marketplace is never a manifest dependency. Invocation mechanics —
+synchronous waiting, diff-base selection, which artifacts a surface can judge — are the advisor
+plugin's own documentation's concern: a checkpoint site names the capability and the fallback,
+never the advisor's command flags, which drift against the surface their owner evolves.
+
 What does not need it: deterministic gates (a script's pass/fail cannot be biased by context — prefer
 one wherever the judgment is mechanical), and judgment over external input the context did not produce
 (triage of another author's issue or PR). Delegation cost is real; the rule buys unbiased judgment
@@ -372,6 +388,9 @@ authoritative self-updating master list. Pages load-bearing for this document, v
   tags, bundles.
 - [Claude Code settings](https://code.claude.com/docs/en/settings) — settings scopes, precedence, and
   the special storage and read scopes of `pluginConfigs`.
+- `melodic-software/standards` `conventions/engineering/shareable-artifact-design.md` — the
+  artifact-agnostic consumer-facing design doctrine the design boundary, configuration ownership,
+  and setup contract above specialize for plugins.
 - `melodic-software/standards` engineering philosophy and cross-platform review criteria — repository
   design and verification policy.
 

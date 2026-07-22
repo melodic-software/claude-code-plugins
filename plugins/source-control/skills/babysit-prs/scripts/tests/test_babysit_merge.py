@@ -651,5 +651,60 @@ class ApprovalReportsBlockingUnit(unittest.TestCase):
             self.assertFalse(merge.approval_reports_blocking(body), body)
 
 
+class DependencyHoldIntegrationTests(unittest.TestCase):
+    """The dependency-manager hold in `evaluate`'s base path, driven end-to-end
+    through the real evaluate() with gh seams stubbed -- a pure-function test of
+    `is_dependency_author` would pass even if the config never reached the call,
+    so this exercises the actual wiring: CLI-arg-shaped frozenset -> evaluate()
+    param -> the line-715 hold.
+    """
+
+    DEP_BOT = "acme-bot"
+
+    def _evaluate(self, extra: frozenset[str]) -> dict[str, Any]:
+        pr = _pr(author={"login": self.DEP_BOT}, reviewDecision="APPROVED")
+
+        def gh_json(args: list[str]) -> Any:
+            if args[:2] == ["pr", "view"]:
+                return pr
+            if args[0] == "api":
+                return RULES
+            raise AssertionError(f"unexpected gh_json call: {args}")
+
+        with (
+            mock.patch.object(merge, "gh_json", side_effect=gh_json),
+            mock.patch.object(merge, "fetch_review_threads", return_value=[]),
+            mock.patch.object(
+                merge, "fetch_pull_request_reviews",
+                return_value=[_approval("some-reviewer[bot]", HEAD)],
+            ),
+            mock.patch.object(merge, "fetch_issue_comments", return_value=[]),
+            mock.patch.object(
+                merge, "fetch_pull_request_review_comments", return_value=[],
+            ),
+        ):
+            return merge.evaluate(
+                "owner/repo", PR_NUMBER, HEAD, {"owner"}, frozenset(),
+                False, False, None,
+                extra_dependency_manager_logins=extra,
+            )
+
+    def _dependency_blockers(self, result: dict[str, Any]) -> list[str]:
+        return [b for b in result["blockers"] if "dependency manager" in b]
+
+    def test_unconfigured_does_not_hold_a_custom_dep_bot(self) -> None:
+        # acme-bot is not a built-in dependency manager; absent config it is a
+        # normal author and the dependency hold does not fire.
+        result = self._evaluate(frozenset())
+        self.assertEqual(self._dependency_blockers(result), [])
+
+    def test_configured_extra_login_flips_the_hold(self) -> None:
+        # Naming acme-bot in the extra set makes the very same PR held.
+        result = self._evaluate(frozenset({self.DEP_BOT}))
+        blockers = self._dependency_blockers(result)
+        self.assertEqual(len(blockers), 1, result["blockers"])
+        self.assertIn(self.DEP_BOT, blockers[0])
+
+
 if __name__ == "__main__":
     unittest.main()
