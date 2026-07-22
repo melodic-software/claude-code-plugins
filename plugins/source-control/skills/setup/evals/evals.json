@@ -181,6 +181,19 @@
         "Asks about the repo's actual convention rather than proposing one the repo gave no signal for",
         "Omits the pr_body_required_sections section from the written config when the portable default is accepted"
       ]
+    },
+    {
+      "id": 15,
+      "name": "reset-to-default-writes-explicit-list-over-lower-layer",
+      "prompt": "/source-control:setup apply layer=local\n\nThe tracked team .claude/source-control.md already declares pr_body_required_sections as Summary, Test plan, Related. I personally don't want to bother with Related on this machine — go back to just Summary and Test plan.",
+      "expected_output": "Because pr_body_required_sections falls through per key, an omitted section in the local overlay would keep inheriting the team layer's Summary/Test plan/Related list, not reset to the portable default. The skill recognizes the intent as an explicit override and writes pr_body_required_sections in the local overlay as the literal bullet list (Summary, Test plan) rather than leaving the section out, stating in one line that it is written explicitly to override the team layer's list, not merely to restate the portable default. It then reports the resulting effective merge (the local overlay's explicit list winning over the team layer).",
+      "files": [],
+      "expectations": [
+        "Recognizes that omitting the section would NOT reset to the portable default, because the team layer already sets pr_body_required_sections",
+        "Writes the explicit portable-default bullet list (Summary, Test plan) into the local overlay rather than omitting the section",
+        "States the one-line reason the explicit list is written (overriding the lower layer, not merely restating the default)",
+        "Reports the resulting effective merge showing the local overlay's explicit list winning over the team layer's list"
+      ]
     }
   ]
 }

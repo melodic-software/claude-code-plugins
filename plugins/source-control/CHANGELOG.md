@@ -16,7 +16,25 @@ All notable changes to the `source-control` plugin are documented here. Format f
   surface (`subject_pattern`, `pr_title_pattern`, `trailer_policy`, `pr_body_attribution`). The
   interview deliberately recommends only the plugin's own portable default and never proposes a
   `Related`/linked-issue section or any other organization-specific list — asking what the repo's
-  actual convention requires, never inventing one, per the plugin's Two-lane convention posture.
+  actual convention requires, never inventing one, per the plugin's Two-lane convention posture. The
+  interview also states, per-key-fallthrough-aware, when resetting to the portable default over a
+  lower layer that already sets the key requires writing the explicit default list rather than
+  omitting the section — an omission only inherits, it never overrides (review-caught during #1032).
+
+### Fixed
+
+- **`## Related` pre-create gate no longer drops visible text sharing a line with an inline HTML
+  comment (#975/#1029 follow-up, review-caught during #1032).** The comment-aware heading scan
+  previously treated an entire line as comment text once it saw `<!--`, dropping content like
+  `Ran smoke tests <!-- details omitted -->` before the section's non-empty check — a false-fail,
+  since GitHub still renders the visible text outside the comment. The scan now strips only the
+  comment SPAN (single- or multi-line), preserving visible text before, between, and after spans on
+  the same line; a genuinely comment-only line, or a fully-hidden middle line of a multi-line span,
+  still contributes nothing. Defensive pass over the fence/comment interaction: a fence's content is
+  never comment-parsed (comment-marker-shaped text inside a fence stays literal) and a comment's
+  content is never fence-parsed (fence-marker-shaped text inside a comment stays literal), and a
+  heading line carrying a trailing inline comment is still correctly read as a real exit boundary.
+  New eval 18 covers the regression.
 
 ## [0.18.0]
 

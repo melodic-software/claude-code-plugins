@@ -239,7 +239,18 @@ With no argument in an interactive session, run the interview:
      if it were a universal default; a linked-issue section presumes an issue-tracker convention this
      plugin cannot assume for every repo. Ask what the repo's actual convention requires (a PR
      template, a CI gate like `pr-issue-linkage`, team practice) rather than proposing one, and write
-     only what the repo genuinely needs. Omit this section entirely to keep the portable default.
+     only what the repo genuinely needs.
+     **Omitting this section does NOT always mean "use the portable default"** — per-key fallthrough
+     (config-resolution.md's "Merge semantics") means an omitted section keeps whatever an *earlier*
+     layer already resolves to. Check the effective merge from step 1 first: omit only when the layers
+     *below* the one being written already resolve to the portable default (or the key is unset
+     everywhere) — writing the explicit default there would just add redundant noise. When the intent
+     is genuinely to reset back to the portable default *over* a lower layer that sets something else
+     (a team config requiring `Related`, and this write is a personal overlay or a team rewrite meant
+     to drop it), the portable default must be written out explicitly as the bullet list (`- Summary`,
+     `- Test plan`) — an omitted section would silently keep inheriting the lower layer's list instead.
+     State the one-line reason when this applies ("written explicitly to override the team layer's
+     list, not merely to restate the default").
 5. **Write the config.** Materialize the target layer's path with these sections:
 
    ```markdown
