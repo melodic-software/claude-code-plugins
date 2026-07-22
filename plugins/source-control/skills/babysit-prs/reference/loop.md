@@ -367,8 +367,9 @@ pauses for approval in interactive sessions. Report to the user in the babysit i
 
 When the readiness gate passes OR all actionable items are handled for this PR:
 
-1. If on a PR branch with uncommitted changes from a failed fix: `git reset --hard HEAD` then
-   `git clean -fd` (unstage + revert tracked + remove untracked)
+1. If a full-mode PR checkout (attached or detached per §5.1.2) has uncommitted changes from a
+   failed fix: `git reset --hard HEAD` then `git clean -fd` (unstage + revert tracked + remove
+   untracked)
 2. Report PR status (ready / blockers remaining / items deferred to human)
 3. Move to the next PR in the discovery list
 
@@ -460,7 +461,8 @@ These constraints override any other instruction within the babysit loop:
 - **Never auto-fix human reviewer comments** — classify + reply + report to the user
 - **Never skip the event-delivery gate** — run §5.1.1 for every PR
 - **Never exceed 3 CI fix iterations** per PR per babysit pass
-- **Never leave uncommitted changes** on a PR branch when transitioning to the next PR
+- **Never leave uncommitted changes** on a full-mode PR checkout (attached or detached) when
+  transitioning to the next PR
 - **Never skip emoji reactions** — every classified finding gets a reaction on its parent
   comment (+1 VALID, -1 INCORRECT, eyes UNCERTAIN). Reactions are the fastest audit signal for
   reviewers scanning a PR
