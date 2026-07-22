@@ -4,9 +4,9 @@
 
 ### Added
 
-- reconcile-work: new skill. The prune-and-reconcile counterpart to
+- reconcile: new skill. The prune-and-reconcile counterpart to
   `keep-going`'s resume — where keep-going asks "is it stuck, pick it back up",
-  reconcile-work asks "is anything still running that should be retired, and
+  reconcile asks "is anything still running that should be retired, and
   does the task ledger
   match reality?" Inventories the off-thread work this session spawned, inspects
   each item's real state, retires the genuinely finished by clearing them from
@@ -24,7 +24,7 @@
   bundles eleven skills.
 - reference/off-thread-work.md: shared engine doc. The open-ended
   off-thread-work inventory kinds and the inspect-real-state-first invariant —
-  the mechanics `keep-going`, `orient`, and `reconcile-work` all share (Rule of
+  the mechanics `keep-going`, `orient`, and `reconcile` all share (Rule of
   Three) — are extracted to a plugin-level reference all three cite via
   `${CLAUDE_PLUGIN_ROOT}`, each thinned to its own delta (same
   point-not-copy shape as `reference/topic-docs.md` and re-anchor's
@@ -37,9 +37,9 @@
   `reference/off-thread-work.md` for the off-thread kinds and the
   inspect-real-state invariant rather than restating them inline; the duplicated
   "tools change over time" gotcha (now owned by the shared doc) is removed. The
-  richer Active-verification protocol stays in keep-going (reconcile-work
+  richer Active-verification protocol stays in keep-going (reconcile
   cites it). Description gains a reciprocal boundary line pointing at
-  `reconcile-work` for
+  `reconcile` for
   retire/reconcile vs resume; all prior trigger phrases preserved.
 - orient: the off-thread-work glance in "What it reads" now points at the shared
   `reference/off-thread-work.md` for the full open-ended kinds set while keeping

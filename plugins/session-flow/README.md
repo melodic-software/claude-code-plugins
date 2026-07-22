@@ -18,7 +18,7 @@ what to learn from it while it runs and after, and how to arm it for delegation-
 | `/session-flow:orient` | Where do we stand, what are we doing, and why — from the durable + off-thread state, not just the conversation? |
 | `/session-flow:orchestrate` | How do I arm this session (or a spawned worker) with proactive-orchestration imperatives? |
 | `/session-flow:reanchor` | Are this session's assumptions still true, or has reality moved under them? |
-| `/session-flow:reconcile-work` | Is anything still running that should be retired, and does the task ledger match reality? |
+| `/session-flow:reconcile` | Is anything still running that should be retired, and does the task ledger match reality? |
 
 ## What each skill does
 
@@ -192,10 +192,10 @@ checks and reports the fuller inventory as unavailable.
 /session-flow:reanchor            # verify session premises → report drift → re-anchored picture
 ```
 
-### reconcile-work
+### reconcile
 
 The prune-and-reconcile counterpart to `keep-going`'s resume: where keep-going asks "is it stuck,
-pick it back up", reconcile-work asks "is anything still running that should be retired, and does
+pick it back up", reconcile asks "is anything still running that should be retired, and does
 the task ledger match reality?" It inventories the off-thread work this session spawned (background
 tasks, shells, monitors, scheduled jobs, subagents — the open-ended kinds in
 `reference/off-thread-work.md`, the same inventory-and-inspect engine `keep-going` and `orient`
@@ -209,7 +209,7 @@ a spawned subagent's internal task list is not readable. It touches no git state
 `clean-stop`) and does not resume the work (that is `keep-going`).
 
 ```shell
-/session-flow:reconcile-work   # inventory → inspect → retire finished + close done → report
+/session-flow:reconcile   # inventory → inspect → retire finished + close done → report
 ```
 
 ## Consumer conventions
@@ -250,8 +250,8 @@ optionally runs `gh pr list` (read-only) to include open pull requests in its br
 work-item tracker capability is installed, reads its open items (which may reach a remote tracker) —
 degrading to local git state alone when `gh` or the tracker is absent or unauthenticated. The other eight
 skills — workflow, handoff, continue-in-background, keep-going, retro, running-retro, orchestrate, and
-reconcile-work — are network-free (both retro and running-retro use the same stdlib-only Python 3.10+
-parser reading local `~/.claude/projects/` transcripts; `reconcile-work` reads those same local
+reconcile — are network-free (both retro and running-retro use the same stdlib-only Python 3.10+
+parser reading local `~/.claude/projects/` transcripts; `reconcile` reads those same local
 transcripts read-only for its sibling-session liveness inventory and mutates only the in-session task
 ledger);
 `continue-in-background` spawns a local `claude --bg` process,
