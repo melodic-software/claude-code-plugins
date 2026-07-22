@@ -3,6 +3,18 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.7]
+
+### Fixed
+
+- **The `clean` skill now hands off VCS worktree checkouts to `/source-control:worktree`.** A repos
+  root containing a `.worktrees/` tree surfaces as a VCS-boundary `truncated_paths` coverage gap, but
+  the skill named no next step — leaving the operator at an unexplained truncated-path entry. The
+  boundary list (and the README relationship list) now point at `/source-control:worktree
+  status`/`cleanup` (if installed) as the owner of worktree lifecycle, extending the existing
+  managed-state → named-handoff pattern. Discoverability only — no engine or safety behavior change;
+  VCS-tracked content was already engine-ineligible. (#986)
+
 ## [0.4.6]
 
 ### Changed
