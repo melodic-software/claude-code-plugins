@@ -385,7 +385,7 @@ else
   bad "telemetry: no envelope written on block"
 fi
 
-# --- PowerShell tool coverage (issue #915) ------------------------------------
+# --- PowerShell tool coverage ------------------------------------------------
 # The guard is matched on Bash|PowerShell. PowerShell file-write forms that
 # bypass the Write/Edit gate are blocked; content-producer scoping is preserved
 # (a tool's own output redirect is allowed, matching the Bash producer scope).

@@ -277,7 +277,7 @@ out=$(bash "$HOOK" <<<"$(command_json "git commit -m 'feat: x'")" 2>&1)
 assert_contains "block message names -F -" "$out" '-F -'
 assert_contains "block message names the skill" "$out" '/commit'
 
-# --- PowerShell tool coverage (issue #915) ------------------------------------
+# --- PowerShell tool coverage ------------------------------------------------
 # The canonical PowerShell commit form (a here-string piped to `git commit -F -`)
 # must be allowed exactly as the Bash `-F -` form is; a `-m` PowerShell commit
 # must be blocked; commit-shaped PowerShell the guard cannot parse fails closed.

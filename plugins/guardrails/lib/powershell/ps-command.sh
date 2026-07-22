@@ -6,10 +6,10 @@
 # PowerShell tool (CLAUDE_CODE_USE_POWERSHELL_TOOL=1) surfaces its command in the
 # SAME `tool_input.command` field but with PowerShell grammar, so a naive widen
 # of the PreToolUse matcher to `Bash|PowerShell` would feed PowerShell text to a
-# Bash tokenizer. This library bridges that gap for the CORE, fail-closed scope
-# of issue #915; faithful parsing of the full PowerShell grammar (here-strings
-# beyond the canonical commit form, backticks, `--%`, subexpressions) is the
-# deferred follow-up A2b.
+# Bash tokenizer. This library bridges that gap with a CORE, fail-closed scope;
+# faithful parsing of the full PowerShell grammar (here-strings beyond the
+# canonical commit form, backticks, `--%`, subexpressions) is a deferred
+# follow-up.
 #
 # THE BAR IS BASH-PARITY, NOT AIRTIGHT. These guards are accidental-destruction
 # friction, not a boundary against deliberate evasion — and the Bash guard this

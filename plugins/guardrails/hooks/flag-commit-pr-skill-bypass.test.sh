@@ -188,7 +188,7 @@ else
   bad "telemetry: no envelope written on advisory fire"
 fi
 
-# --- PowerShell tool coverage (issue #915) ------------------------------------
+# --- PowerShell tool coverage ------------------------------------------------
 # The advisory is matched on Bash|PowerShell. A direct `gh pr create` on the
 # PowerShell tool still fires; the same text quarantined inside a here-string
 # body is neutralized (blanked) and stays silent.

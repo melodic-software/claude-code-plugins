@@ -316,7 +316,7 @@ else
   bad "telemetry: no envelope written on block"
 fi
 
-# --- PowerShell tool coverage (issue #915) ------------------------------------
+# --- PowerShell tool coverage ------------------------------------------------
 # The guard is matched on Bash|PowerShell. PowerShell-simple dangerous ops are
 # caught; push-shaped PowerShell the guard cannot parse fails closed.
 run_pwsh() {

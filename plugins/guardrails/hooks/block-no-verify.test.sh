@@ -208,7 +208,7 @@ else
   bad "telemetry: no envelope written on block"
 fi
 
-# --- PowerShell tool coverage (issue #915) ------------------------------------
+# --- PowerShell tool coverage ------------------------------------------------
 # The guard is matched on Bash|PowerShell. The proven bypass must be caught on
 # the PowerShell tool; the canonical PowerShell commit form must be allowed; and
 # commit/push-shaped PowerShell the guard cannot parse must fail closed.
