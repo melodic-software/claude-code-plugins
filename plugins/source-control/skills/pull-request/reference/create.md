@@ -353,11 +353,16 @@ for section in "${REQUIRED_SECTIONS[@]}"; do
   # satisfy the Related requirement GitHub itself renders as absent. A single
   # action block (not separate pattern-action rules) keeps exactly one branch
   # firing per line — awk otherwise runs every matching rule for a line, which
-  # would double-toggle state on a line matching more than one pattern. A fence or
-  # comment delimiter encountered WHILE already inside the found section is real
-  # content of that section and stays in its captured body, so a section whose own
-  # genuine content includes a code block or an inline comment is still captured
-  # correctly.
+  # would double-toggle state on a line matching more than one pattern.
+  #
+  # Fences and comments are NOT symmetric once inside the found section: a fence
+  # delimiter encountered there is real, RENDERED content and stays in the
+  # captured body (a section whose own genuine content includes a code block is
+  # still captured correctly) — but a comment is never rendered at all, in or out
+  # of a found section, so comment text is never printed into SECTION_BODY. A
+  # required section whose entire body is an unfilled `<!-- ... -->` template
+  # placeholder must read as empty, the same as GitHub's own render and this
+  # repo's PR-body validator (which strips comments before checking) would.
   SECTION_BODY=$(printf '%s\n' "$BODY" | awk -v h="## ${section}" '
   {
     # Fence detection matches GFM (https://github.github.com/gfm/#fenced-code-blocks):
@@ -381,12 +386,10 @@ for section in "${REQUIRED_SECTIONS[@]}"; do
     }
     if ($0 ~ /<!--/) {
       in_comment = 1
-      if (found) print
       if ($0 ~ /-->/) in_comment = 0
       next
     }
     if (in_comment) {
-      if (found) print
       if ($0 ~ /-->/) in_comment = 0
       next
     }

@@ -199,7 +199,19 @@
       "expectations": [
         "A `## <heading>` line inside an HTML comment (`<!-- ... -->`, single- or multi-line) is not treated as a real section heading",
         "The gate still blocks when the only heading-shaped match for a required section is inside a comment",
-        "A comment delimiter encountered while already inside a real section's content is preserved as part of that section's captured body, not treated as an exit boundary"
+        "Comment text is never treated as an exit boundary for a real section's scan, so a comment inside real section content does not truncate that content prematurely"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "pr-body-required-sections-gate-treats-comment-only-body-as-empty",
+      "prompt": "/pull-request create. pr_body_required_sections requires Test plan. The drafted body has a real `## Test plan` heading, but its entire body is an unfilled HTML-comment placeholder (e.g. `<!--\\nfill this in\\n-->`) with no other content.",
+      "expected_output": "The §2.4.2.2 gate blocks PR creation because `## Test plan`'s body is effectively empty. Unlike a fenced code block (rendered, visible content that legitimately counts toward a section's captured body), an HTML comment is never rendered at all — GitHub shows nothing for it, and this repo's own PR-body validator strips comments before checking content — so comment text is never counted toward a section's non-empty determination, even when the comment sits inside an otherwise-correctly-headed real section. A section whose only content is a commented-out placeholder is exactly the unfilled-template state the gate exists to catch.",
+      "files": [],
+      "expectations": [
+        "The gate blocks PR creation when a required section's heading is real but its entire body is HTML-comment text",
+        "Comment text is never counted as non-empty content, even inside a genuinely matched section — unlike a fenced code block, which is rendered and does count",
+        "The behavior matches what GitHub itself renders (nothing) and what a comment-stripping PR-body validator would see (nothing)"
       ]
     }
   ]

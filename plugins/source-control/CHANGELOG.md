@@ -20,9 +20,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
   Summary documenting a PR-body template) or an HTML comment (a commented-out draft section) never
   counts as a real section boundary. Fence detection matches GFM's actual rules (up to 3 leading
   spaces before the opener, and a fence closes only on a matching delimiter character — a `~~~` line
-  never closes an open ` ``` ` fence or vice versa), not a bare column-zero triple-delimiter check
-  (all four review-caught during #975). Absent everywhere → the bundled portable default: `Summary`
-  and `Test plan` only (research-grounded across GitHub's
+  never closes an open ` ``` ` fence or vice versa), not a bare column-zero triple-delimiter check.
+  Comment text is never counted as section content at all (unlike a fence, which renders visibly and
+  legitimately counts) — a required section whose entire body is an unfilled `<!-- ... -->`
+  placeholder reads as empty, matching both GitHub's own render and a comment-stripping PR-body
+  validator (all five review-caught during #975). Absent everywhere → the bundled portable default:
+  `Summary` and `Test plan` only (research-grounded across GitHub's
   own guidance, Google's CL-description doc, GitLab's dogfooded default template, and a cross-section
   of OSS PR templates — see
   [`docs/conventions/pr-body-convention/README.md`](../../docs/conventions/pr-body-convention/README.md)).
