@@ -183,7 +183,9 @@ previous_session_id: <UUID>               # CONDITIONAL — omit when no prior h
 
 `session_id` captures the current session for downstream chain-walkers (the sibling `retro` skill's
 transcript parser). `previous_handoff` (the prior file's name, relative to the handoff directory) +
-`previous_session_id` create the backward chain pointer.
+`previous_session_id` create the backward chain pointer. The `type: handoff` frontmatter is also
+part of the stable detection contract `/session-flow:find-handoff` keys off to recover a lost
+handoff (see [`save-point.md`](save-point.md) "Detection contract").
 
 **Chain continuity — same task only.** Emit `previous_handoff` / `previous_session_id` ONLY when
 this session actually continued the prior handoff's work: it resumed from that handoff (the resume

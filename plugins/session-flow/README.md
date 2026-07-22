@@ -1,6 +1,6 @@
 # session-flow
 
-A Claude Code plugin bundling ten skills for one cohesive capability: managing the lifecycle of a
+A Claude Code plugin bundling eleven skills for one cohesive capability: managing the lifecycle of a
 working session — where you are in the work, how to pause and resume it, how to recover it after an
 interruption, how to leave it durable before the machine goes away, where things stand and why,
 whether its assumptions are still current, what to learn from it while it runs and after, and how to
@@ -12,6 +12,7 @@ arm it for delegation-heavy tasks.
 | `/session-flow:handoff` | How do I save this session's state so a fresh `/clear` session resumes without rediscovery? |
 | `/session-flow:continue-in-background` | I'm stepping away — how does a background agent pick this up and keep it moving now? |
 | `/session-flow:keep-going` | We were interrupted — what was running, what survived, and where does the main task continue? |
+| `/session-flow:find-handoff` | I wrote a handoff, ran `/clear`, and lost the resume prompt — where is it and how do I resume? |
 | `/session-flow:clean-stop` | Before I lose this machine — is everything durable and linked, or is something stranded? |
 | `/session-flow:retro` | What happened this session, what did we learn, and how do we codify it? |
 | `/session-flow:running-retro` | Mid-flight: how is this session going, what is drifting, and what should change before it costs more? |
@@ -89,6 +90,23 @@ scheduler. Intent is inferred from the conversation; arguments are optional.
 
 ```shell
 /session-flow:keep-going              # inventory → inspect → recover → reconcile → report
+```
+
+### find-handoff
+
+The recovery counterpart to `handoff`: finds a save-point whose resume prompt was written but never
+copied — the operator ran `/clear` before copying it, leaving the fresh session with zero context
+and no path to the handoff on disk. Runs a read-only detection ladder — known-location glob of the
+current repo's `<memory_dir>/handoffs/`, then a bounded, recency-ranked scan of transcripts
+(excluding the current session's own file, since `/clear` opens a new transcript in the same project
+dir and the pre-clear content is a sibling) for the handoff directive and dashed-rail markers, which
+`reference/save-point.md` documents as a stable detection contract — then a confirm-before-resume
+gate. Handles both output modes (file-based and prompt-only, which writes no file). Read-only and
+redaction-aware: surfaces only the resume prompt and handoff metadata, never raw transcript content.
+Routes to `keep-going` when the recovered session ended mid-work rather than at a clean save-point.
+
+```shell
+/session-flow:find-handoff            # locate → confirm → resume, or hand to keep-going
 ```
 
 ### clean-stop
@@ -227,9 +245,10 @@ degrades to reporting what it could not verify when that authenticated egress is
 and falling back to direct `git`/`gh` — to make session work durable on the remote. `orient`
 optionally runs `gh pr list` (read-only) to include open pull requests in its briefing and, when a
 work-item tracker capability is installed, reads its open items (which may reach a remote tracker) —
-degrading to local git state alone when `gh` or the tracker is absent or unauthenticated. The other seven
-skills — workflow, handoff, continue-in-background, keep-going, retro, running-retro, and orchestrate —
-are network-free (both retro and running-retro use the same stdlib-only Python 3.10+ parser reading local
-`~/.claude/projects/` transcripts); `continue-in-background` spawns a local `claude --bg` process,
+degrading to local git state alone when `gh` or the tracker is absent or unauthenticated. The other eight
+skills — workflow, handoff, continue-in-background, keep-going, find-handoff, retro, running-retro, and orchestrate —
+are network-free (retro and running-retro use the same stdlib-only Python 3.10+ parser reading local
+`~/.claude/projects/` transcripts, and find-handoff scans those same local transcripts read-only with no parser);
+`continue-in-background` spawns a local `claude --bg` process,
 which is a new Claude Code session with the ordinary network access of any session, but the skill
 itself performs no egress.

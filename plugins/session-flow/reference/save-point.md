@@ -108,3 +108,16 @@ bullets inline between the rails instead.
 fresh session or `/retro` chain-walker locate the transcript later.
 
 After the rails prompt is emitted, control returns to the citing skill's delivery step.
+
+## Detection contract — consumed by `/session-flow:find-handoff`
+
+The output shape above is a **stable detection contract**, not merely a display convention:
+`/session-flow:find-handoff` keys off it to recover a handoff whose resume prompt was written but
+never copied (operator ran `/clear` before copying it). The load-bearing signals, in precision
+order, are (1) the `Read @…-handoff-*.md` directive — the exact path to recover, for a file-based
+handoff; (2) the two `─` (U+2500) rails plus the `` `/clear`, then copy everything between the
+dashed lines `` instruction line — the primary key for a prompt-only handoff, which writes no file;
+and (3) the `Prior session: <UUID>` line, which — together with the `type: handoff` frontmatter
+([`structure.md`](structure.md)) — pins the session chain. Changing this prompt/marker format is a
+**knowing** break of that contract, not a cosmetic edit; update `find-handoff`'s detection in the
+same change.
