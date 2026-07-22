@@ -213,6 +213,20 @@
         "Comment text is never counted as non-empty content, even inside a genuinely matched section — unlike a fenced code block, which is rendered and does count",
         "The behavior matches what GitHub itself renders (nothing) and what a comment-stripping PR-body validator would see (nothing)"
       ]
+    },
+    {
+      "id": 18,
+      "name": "pr-body-required-sections-gate-preserves-visible-text-around-inline-comments",
+      "prompt": "/pull-request create. pr_body_required_sections requires Test plan. The drafted `## Test plan` section's only content line is `Ran smoke tests <!-- details omitted -->` — real visible text sharing a line with a trailing HTML comment.",
+      "expected_output": "The §2.4.2.2 gate passes for `## Test plan` — 'Ran smoke tests ' is real content GitHub renders, so the section is not empty. The scan strips only the comment SPAN (`<!-- details omitted -->`), not the whole line, so visible text before, between, or after a comment span on the same line (including a multi-line span whose opening or closing line also carries visible text) is preserved and counted; only a genuinely comment-only line (eval 17) or a fully-hidden middle line of a multi-line span contributes nothing. A fence still takes priority over a comment inside it (fence content is literal, never comment-parsed) and vice versa (comment content is literal, never fence-parsed), and a heading line carrying a trailing inline comment is still correctly read as a real exit boundary rather than misrouted into comment handling.",
+      "files": [],
+      "expectations": [
+        "Visible text sharing a line with an inline HTML comment is preserved and counted as real content — the gate does not block on a section whose only issue is a trailing/leading inline comment",
+        "Only the comment span itself is removed, not the whole line — text before the span, after the span, or between two spans on the same line is all kept",
+        "A multi-line comment span's opening line keeps its pre-comment visible text and its closing line keeps its post-comment visible text; only a fully-hidden middle line contributes nothing",
+        "A fenced code block's content is preserved even if it contains comment-marker-shaped text (`<!--`), and an HTML comment's content is dropped even if it contains fence-marker-shaped text (```` ``` ````) — each construct's own parsing rules win inside it, never the other's",
+        "A heading line carrying a trailing inline comment is still treated as a real section-exit boundary, not swallowed by comment handling"
+      ]
     }
   ]
 }
