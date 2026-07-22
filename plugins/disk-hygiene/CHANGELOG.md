@@ -3,6 +3,31 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.4]
+
+### Fixed
+
+- **The `disk_hygiene_enabled` kill switch now actually blocks deletions in audit-only mode.**
+  Setting `disk_hygiene_enabled=false` (audit-only mode) failed to prevent deletions in two
+  independent ways, both fixed here.
+  - The PowerShell lane never consulted the kill switch: `destructive_guard.py` routed `PowerShell`
+    calls to `powershell_decision` and returned before the enabled gate was computed, so flagged
+    deletion spellings (`Remove-Item`, `rm`, `del`, `::Delete`, recycle-bin calls) still returned
+    `ask` — and could be approved — even with execution disabled. The enabled gate is now resolved
+    before the tool-name branch and threaded into `powershell_decision`, which denies flagged
+    deletions in audit-only mode and only prompts (`ask`) when execution is enabled.
+  - The kill switch was inert under the env-injection failure: the guard read
+    `CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED` from the hook process environment and defaulted to
+    enabled when absent, but the runtime does not inject plugin env vars into a skill-frontmatter
+    hook's environment, so a configured `false` was silently overridden to enabled. The `clean`
+    skill's hook now passes the configured value as a runtime-substituted
+    `--disk-hygiene-enabled ${user_config.disk_hygiene_enabled}` argument — inline placeholder
+    substitution resolves in exec-form hook `args` where environment injection does not — and the
+    guard reads the kill switch from that argument, honoring the environment variable only as a
+    fallback. When no channel supplies a value the guard still fails safe to enabled (guard active,
+    every mutation gated behind the final human prompt). This mirrors the `--authorized-data-root`
+    argv mechanism.
+
 ## [0.4.3]
 
 ### Fixed
