@@ -118,10 +118,35 @@ assert_exit "de-gitted repo fails the batch closed (exit 1)" 1 "$rc"
 assert_contains "de-gitted repo reported failed" "$out" "Outcome: failed"
 assert_contains "aggregate summary counts the failure" "$out" "failed=1"
 
+# --- 4c. malformed plan record: a REPO line with an EMPTY manifest field must
+#         fail closed at apply, never pass --manifest "" to the child (which would
+#         re-walk the live repo and remove artifacts outside the gated plan). ---
+R7="$(mkrepo r7)"
+BADPLANFILE="$TEST_TMPDIR/badplan"
+printf 'REPO\t%s\tcaches\t\n' "$(git -C "$R7" rev-parse --show-toplevel)" >"$BADPLANFILE"
+rc=0
+out="$(bash "$BATCH" --tier caches --apply --batch-plan "$BADPLANFILE" 2>&1)" || rc=$?
+assert_exit "malformed REPO record (empty manifest) fails closed (exit 1)" 1 "$rc"
+assert_contains "malformed record reported" "$out" "malformed plan record"
+assert_file_exists "live repo cache NOT re-walked/removed" "$R7/.pytest_cache/x"
+
 # --- 5. skip list + unmatched skip ---
 out="$(bash "$BATCH" --tier caches --repo "$R1" "$R2" --skip r2 --skip nosuchrepo)"
 assert_contains "skip-listed repo skipped" "$out" "skip-list (r2)"
 assert_contains "unmatched skip surfaced" "$out" "UnmatchedSkip: nosuchrepo"
+
+# --- 5b. collision-free manifests: two repos whose sanitized keys collide
+#         (differ only by punctuation) must get DISTINCT manifest paths. ---
+RA="$(mkrepo 'repo-x')"
+RB="$(mkrepo 'repo_x')"
+out="$(bash "$BATCH" --tier caches --repo "$RA" "$RB")"
+CPLAN="$(sed -n 's/^BatchPlan: //p' <<<"$out")"
+n_manifests="$(awk -F'\t' '$1=="REPO"{print $4}' "$CPLAN" | sort -u | wc -l)"
+if [[ "$n_manifests" -eq 2 ]]; then
+  pass "punctuation-colliding repo keys get distinct manifests"
+else
+  fail "distinct manifests for colliding keys" 2 "$n_manifests"
+fi
 
 # --- 6. build tier folds caches into the manifest ---
 R5="$(mkrepo r5)"

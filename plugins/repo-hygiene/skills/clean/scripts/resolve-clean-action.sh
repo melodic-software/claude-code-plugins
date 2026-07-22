@@ -97,6 +97,16 @@ has_fleet_indicator() {
   esac
 }
 
+# Destructive fresh-pull / reset intent. A fleet phrase that names the `all` tier
+# is the DESTRUCTIVE tree-batch only when it also reads as a reset; a plain
+# "clean all repos" is a selective all-batch sweep, not a reset-hard preview.
+has_reset_intent() {
+  case "$1" in
+  *reset* | *fresh\ pull* | *fresh-pull* | *fresh\ clone* | *pristine* | *wipe*) return 0 ;;
+  *) return 1 ;;
+  esac
+}
+
 # Selective tier + fleet intent => the selective batch form, decided BEFORE the
 # bare fleet/all -> tree-batch upgrade below. A selective sweep across a fleet
 # ("clean caches across all repos", "caches fleet", "prune git across the fleet")
@@ -127,12 +137,13 @@ for token in "$@"; do
   lower="$(printf '%s' "$token" | tr '[:upper:]' '[:lower:]')"
   hit="$(resolve_one "$lower")"
   # A bare "all" token is the single-repo `all` tier, but inside a fleet phrase it
-  # names the multi-repo tree-batch. Let the phrase win over the token so "reset
-  # all my repos" routes to tree-batch instead of the single-repo sweep. A genuine
-  # conflict with another explicit token (e.g. "scan all repos") still falls to the
-  # menu via the mismatch check below.
+  # names a multi-repo sweep. Reset/fresh-pull phrasing ("reset all my repos") is
+  # the DESTRUCTIVE tree-batch; a plain fleet cleanup ("clean all repos", "sweep
+  # across all repos") is the SELECTIVE all-batch — never preview a reset-hard for
+  # an innocuous all-tier request. A genuine conflict with another explicit token
+  # (e.g. "scan all repos") still falls to the menu via the mismatch check below.
   if [[ "$hit" == "all" ]] && is_fleet_phrase "$joined"; then
-    hit=tree-batch
+    if has_reset_intent "$joined"; then hit=tree-batch; else hit=all-batch; fi
   fi
   if [[ -n "$hit" ]]; then
     if [[ -z "$canonical" ]]; then
@@ -146,7 +157,7 @@ done
 
 if [[ -z "$canonical" ]]; then
   if is_fleet_phrase "$joined"; then
-    canonical=tree-batch
+    if has_reset_intent "$joined"; then canonical=tree-batch; else canonical=all-batch; fi
   else
     case "$joined" in
     *fresh\ pull* | *fresh\ clone* | *like\ a\ fresh* | *reset\ to\ origin* | *wipe\ ignored*)

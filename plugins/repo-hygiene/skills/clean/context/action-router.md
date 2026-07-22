@@ -39,7 +39,7 @@ Emits `Action: <canonical|menu>`. Single-token aliases:
 | `git-batch`, `git-fleet`, `prune-batch`, `gc-batch` | `git-batch` |
 | `all-batch`, `all-fleet`, `sweep-batch`, `clean-all` | `all-batch` |
 
-Multi-token phrase heuristics (when no single token matches): `reset all`, `all my repos`, `every repo`, `across repos`, `ghq list` → `tree-batch`; `fresh pull`, `fresh clone`, `reset to origin`, `wipe ignored` → `tree`; disk-space phrases → `scan`; stale/merged branch phrases → `git`.
+Multi-token phrase heuristics (when no single token matches): a selective tier word (`caches`/`build`/`git`) plus a fleet signal (`fleet`, `batch`, `all repos`, `across repos`, …) → that tier's `*-batch`. A fleet phrase naming the `all` tier splits on intent: reset/fresh-pull phrasing (`reset all my repos`, `wipe all repos`) → destructive `tree-batch`; a plain fleet cleanup (`clean all repos`, `sweep across all repos`) → selective `all-batch`. Single-repo phrases: `fresh pull`, `fresh clone`, `reset to origin`, `wipe ignored` → `tree`; disk-space phrases → `scan`; stale/merged branch phrases → `git`.
 
 Conflicting tokens → `menu`.
 

@@ -183,7 +183,16 @@ if [[ "$DRY_RUN" -eq 0 ]]; then
     [[ -n "$kind" ]] || continue
     case "$kind" in
     REPO)
-      # a=toplevel b=child-token c=manifest-path
+      # a=toplevel b=child-token c=manifest-path. Validate the whole record before
+      # touching disk: a truncated or hand-edited plan line with an empty manifest
+      # field would pass --manifest "" to the child, which reads that as "no
+      # manifest" and RE-WALKS the live repo, removing artifacts never shown in the
+      # gated dry-run. Fail closed — the batch contract is "apply the plan only".
+      if [[ -z "$a" || ("$b" != caches && "$b" != build) || -z "$c" || ! -f "$c" ]]; then
+        batch_emit "${a:-<empty>}" failed "malformed plan record (tier='$b' manifest='$c')"
+        FAILED=$((FAILED + 1))
+        continue
+      fi
       if [[ ! -d "$a" ]]; then
         batch_emit "$a" skipped "vanished after dry-run (gone from fleet)"
         continue
@@ -287,11 +296,14 @@ printf 'Tier: %s\n' "$TIER"
 printf 'Repos: %s\n' "$REPOS"
 printf '%s\n' '---'
 
-# Keyed manifest name per repo so same-basename repos never collide. Non-alnum
-# key bytes (slashes, colon, drive letter) collapse to `_` for a safe basename.
+# Per-repo manifest name. The plan index (unique per repo in this batch) prefixes
+# a sanitized key so two keys that differ only by punctuation the sanitizer
+# collapses (e.g. `repo-a` vs `repo_a` -> both `repo_a`) never share a manifest —
+# a collision would let the second dry-run truncate the first, dropping the first
+# repo's planned artifacts from apply. The sanitized key stays for readability.
 manifest_for() {
-  local key="$1"
-  printf '%s/%s.manifest' "$PLAN_DIR" "${key//[^[:alnum:]]/_}"
+  local idx="$1" key="$2"
+  printf '%s/%03d-%s.manifest' "$PLAN_DIR" "$idx" "${key//[^[:alnum:]]/_}"
 }
 
 for ((i = 0; i < ${#BATCH_TOPS[@]}; i++)); do
@@ -317,7 +329,7 @@ for ((i = 0; i < ${#BATCH_TOPS[@]}; i++)); do
   # 2. Manifest tier (caches/build/all): run the child dry-run, capture its
   #    manifest + planned bytes, record a REPO plan line.
   if tier_has_manifest; then
-    manifest="$(manifest_for "$key")"
+    manifest="$(manifest_for "$i" "$key")"
     child="$CACHES_CHILD"
     extra=()
     tok="$(manifest_child_token)"
@@ -326,6 +338,18 @@ for ((i = 0; i < ${#BATCH_TOPS[@]}; i++)); do
       extra=(--include-caches)
     fi
     out="$(cd "$top" && bash "$child" --dry-run --manifest "$manifest" "${extra[@]}" 2>&1)"
+    rc=$?
+    # Fail closed on a non-zero child dry-run (repo lost .git after resolution, or
+    # the child refused an unwritable / pre-existing non-manifest path). Otherwise
+    # the missing Summary would default planned/bytes to 0, still write a REPO plan
+    # line, and report a clean preview — gating an incomplete plan. Block the repo
+    # (no plan line) so apply never touches it.
+    if [[ "$rc" -ne 0 ]]; then
+      batch_emit "$top" blocked "$tok dry-run failed (child exit $rc — not planned)"
+      printf '%s\n' "$out" >&2
+      BLOCKED=$((BLOCKED + 1))
+      continue
+    fi
     r="$(printf '%s\n' "$out" | sed -n 's/^Summary: //p' | head -1)"
     planned="$(sed -n 's/.*planned=\([0-9]*\).*/\1/p' <<<"$r")"
     bytes="$(sed -n 's/.*bytes=\([0-9]*\).*/\1/p' <<<"$r")"
