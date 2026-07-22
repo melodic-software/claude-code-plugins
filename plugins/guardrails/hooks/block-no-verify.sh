@@ -231,8 +231,8 @@ fi
 ps::classify_git_command "$TOOL_NAME" "$COMMAND"
 case $? in
 2)
-  ps::print_unparseable_block_message
-  emit_tel "blocked" "powershell-unparseable"
+  ps::print_unparsable_block_message
+  emit_tel "blocked" "powershell-unparsable"
   exit 2
   ;;
 1) exit 0 ;; # non-commit PowerShell with an A2b-deferred construct — not this guard's proven surface

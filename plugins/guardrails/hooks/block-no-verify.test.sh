@@ -244,7 +244,7 @@ run_pwsh "PS: backtick inside push (git pu\`sh --force, blocked)" "git pu${bt}sh
 run_pwsh "PS: backtick inside git itself (g\`it com\`mit, blocked)" "g${bt}it com${bt}mit --no-verify" 2
 run_pwsh "PS: quoted subcommand + subexpression decoy (blocked)" "git 'commit' --no-verify \$(whoami)" 2
 run_pwsh "PS: quoted git command word (blocked via parser)" "& 'git' commit --no-verify" 2
-# Provably git-free PowerShell carrying an unparseable construct is NOT blocked
+# Provably git-free PowerShell carrying an unparsable construct is NOT blocked
 # by the git guards (no over-block of legitimate non-git PowerShell).
 run_pwsh "PS: non-git scriptblock (allowed)" "Get-Process | Where-Object { \$_.CPU -gt 5 }" 0
 run_pwsh "PS: non-git subexpression (allowed)" "Write-Output \$(Get-Date)" 0
