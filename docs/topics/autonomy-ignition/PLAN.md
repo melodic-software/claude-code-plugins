@@ -256,10 +256,39 @@ in telemetry = Sonnet; live checkout clean; any fire-without-row = Phase 1 defec
 > the upstream v7.0.1 tag; Dependabot PRs never count as drain evidence), queue reseeded
 > with five verified seeds (scratch#27–#31); predicate at completions=6, gate 100%,
 > reverts 0.
+>
+> **Re-bind ratification (operator, 2026-07-22, supersedes the calendar-gate line of the
+> acceleration ruling above):** the predicate's threshold VALUES are org-bindable per
+> `work-classes.md` ("suggested defaults the org binds"); the operator re-bound them in a
+> reviewed change (scratch#43, merge `cd89f4a`, independently reviewed, 62-test suite):
+> span ≥14d → **≥7d**, compensated by a **48h merge-maturity guard** — both the ≥20 count
+> AND the span measure use only completions merged ≥48h before evaluation, so a
+> burst-then-straggler shape stays ineligible and the revert signal cannot be outrun.
+> Simulation of evidence was proposed and REJECTED (synthetic evidence corrupts the base).
+> Earliest eligibility moves ~2026-08-04 → **~2026-07-28/29**. Preconditions before any
+> flip: the mechanical demotion watcher (scratch#41) replaces ad-hoc verification.
+> Same change: fire cadence hourly → **15-min grid** (slot attestation generalized,
+> tolerance 480s; quantified residual — accidental Run-now attests within ~53% of the hour
+> vs ~17% before, accepted against the accidental-kick threat model + transcript-join
+> primacy + watcher; historic negative re-classification under the new grid is inert
+> today — the only manual runs are pre-window or failed); lease TTL 1h stopgap
+> (TODO plugins#1034 sub-hour protocol); label-kick event-driven dispatch filed
+> (scratch#42) to retire polling waste. Desktop task schedule flip is the operator's
+> single remaining action, gated on the merged attestation code (done).
+>
+> **Delegated-merge amendment (recorded 2026-07-22):** during accumulation the de facto
+> merge path has been operator-DELEGATED main-session merges — the interactive main
+> session (distinct model + context from the drain runs) empirically verifies gate via
+> check-run API, diff-vs-seed, and linkage before each squash-merge, under the operator's
+> standing watch directive. This is a fresh-context verification tier, not human review
+> per merge, and not run self-merge; recorded so the evidence base describes what actually
+> happened. The predicate's "autonomous completion" definition (claim→implement→PR, no
+> help) is unaffected.
 
 Standing lane: missed-fire detector + failure tracker items are the automated signal; human
 merges the day's drain PRs (this is the pre-promotion policy, not a kick); weekly usage
-review (budget revisit trigger); predicate inputs accumulate toward 14-day/20-completion.
+review (budget revisit trigger); predicate inputs accumulate toward the re-bound
+7-day/20-mature-completion thresholds (scratch#43).
 Demotion events fire fail-closed per work-classes.
 
 Two DEADLINE work items (alignment audit 2026-07-21 — both must land BEFORE day 14 of the
