@@ -7,13 +7,14 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 
 ### Fixed
 
-- **The `clean` skill now hands off VCS worktree checkouts to `/source-control:worktree`.** A repos
-  root containing a `.worktrees/` tree surfaces as a VCS-boundary `truncated_paths` coverage gap, but
-  the skill named no next step — leaving the operator at an unexplained truncated-path entry. The
-  boundary list (and the README relationship list) now point at `/source-control:worktree
-  status`/`cleanup` (if installed) as the owner of worktree lifecycle, extending the existing
-  managed-state → named-handoff pattern. Discoverability only — no engine or safety behavior change;
-  VCS-tracked content was already engine-ineligible. (#986)
+- **The `clean` skill now hands off git worktree checkouts to `/source-control:worktree`.** An audit
+  of a repos root containing worktree checkouts (e.g. under `.worktrees/`) inventories each checkout
+  and protects its tracked content and `.git` metadata, but the skill named no next step for the
+  worktree lifecycle it does not own. The boundary list (and the README relationship list) now point
+  at `/source-control:worktree status`/`cleanup` (if installed) — run from the checkout's own main
+  repository, since those actions manage the current repository's worktrees and take no target —
+  extending the existing managed-state → named-handoff pattern. Discoverability only; no engine or
+  safety behavior change. (#986)
 
 ## [0.4.6]
 
