@@ -120,21 +120,35 @@ emit_skipped() {
 }
 
 # Generated-file guard: skip files carrying Go's canonical generated-code
-# marker on their first non-blank line — goimports itself has no awareness of
-# this convention (empirically confirmed it rewrites such files unmodified-
-# looking but silently). A build-tag or blank-line preamble before the marker
-# is uncommon for generated Go (the convention expects it as the file's
-# leading comment), so a first-non-blank-line check is sufficient without a
-# full-file scan.
-FIRST_LINE=""
+# marker — goimports itself has no awareness of this convention (empirically
+# confirmed it rewrites such files silently). Go's own convention (and its
+# own detector, cmd/go/testdata/script/test_generated_main.txt) requires the
+# marker to appear "before the first non-comment, non-blank text in the
+# file" — NOT necessarily on the very first line. A license/copyright header
+# (common output of addlicense/goheader tooling prepended to generated code)
+# routinely precedes the marker by a few `//` comment lines; scanning only
+# the first non-blank line missed this real-world shape (empirically
+# confirmed against actual stdlib-adjacent generated files carrying a
+# 3-line copyright header before the marker). Scan the file's leading
+# comment/blank-line run instead, stopping at the first line that is
+# neither blank nor a `//` comment (e.g. `package foo`). A trailing CRLF
+# `\r` and a leading UTF-8 BOM are stripped per line so a Windows-checked-out
+# or BOM-prefixed file still matches.
+GENERATED=0
 while IFS= read -r _line || [[ -n "$_line" ]]; do
-  [[ -n "${_line// /}" ]] || continue
-  FIRST_LINE="$_line"
-  break
+  _line="${_line%$'\r'}"
+  _line="${_line#$'\xEF\xBB\xBF'}"
+  [[ -n "${_line// /}" ]] || continue # blank line: keep scanning the leading block
+  if [[ "$_line" == //* ]]; then
+    if [[ "$_line" =~ ^//\ Code\ generated\ .*\ DO\ NOT\ EDIT\.$ ]]; then
+      GENERATED=1
+    fi
+    [[ $GENERATED -eq 1 ]] && break
+    continue # a different // comment line: still within the leading block
+  fi
+  break # first non-comment, non-blank line: leading block ended, marker absent
 done <"$FILE"
-if [[ "$FIRST_LINE" =~ ^//\ Code\ generated\ .*\ DO\ NOT\ EDIT\.$ ]]; then
-  emit_skipped
-fi
+[[ $GENERATED -eq 1 ]] && emit_skipped
 
 # Resolve the goimports binary from PATH — never downloaded.
 GOIMPORTS_BIN="$(command -v goimports 2>/dev/null)" || GOIMPORTS_BIN=""
@@ -153,13 +167,11 @@ fi
 # empirically (goimports v0.48.0): -l ALWAYS exits 0, even when it lists a
 # file — there is no exit-1-style "findings" signal like ruff/typos have.
 # Non-zero exit (verified: 2, with a parseable message on stderr) occurs
-# only on a genuine parse/syntax error — captured separately so it can be
-# surfaced as a finding below.
-STDERR_FILE=$(mktemp)
-"$GOIMPORTS_BIN" -w -l "$FILE" >/dev/null 2>"$STDERR_FILE"
+# only on a genuine parse/syntax error — captured via command substitution
+# (stdout discarded, stderr redirected to fd1) the same way every sibling
+# hook in this repo captures tool output, rather than a temp file.
+STDERR=$("$GOIMPORTS_BIN" -w -l "$FILE" 2>&1 >/dev/null)
 RC=$?
-STDERR=$(cat "$STDERR_FILE" 2>/dev/null)
-rm -f "$STDERR_FILE"
 
 if [[ $RC -eq 0 ]]; then
   # Clean, or fixed silently (formatting/import changes carry no advisory

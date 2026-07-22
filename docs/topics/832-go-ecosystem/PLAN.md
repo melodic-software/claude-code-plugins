@@ -53,9 +53,21 @@ identified 2026-07-21 (line 66-67).
      Generated Go files (protobuf, mockgen, sqlc, stringer, wire output) are common; an
      unconditional hook would silently rewrite them on any edit. **Fix, not a re-open of the
      unconditional-default decision:** `go-format.sh` adds a generated-file marker guard — skip
-     (emit_skipped) when the file's first non-blank/non-comment line matches
-     `^// Code generated .* DO NOT EDIT\.$` — before invoking goimports. This is precision-scoping
-     (same category as `--force-exclude` giving Ruff per-file skip precision), not a consumer-config
+     (emit_skipped) when the marker appears anywhere in the file's leading
+     comment/blank-line run (scanning stops at the first line that is neither blank nor a `//`
+     comment), matching Go's own stated convention ("before the first non-comment, non-blank text
+     in the file"), not just the first non-blank line. **Independent-review correction (CRITICAL,
+     folded in post-stress-test):** the original implementation checked ONLY the first non-blank
+     line, on the premise that a preamble before the marker is "uncommon" — that premise was
+     false; a license/copyright header (common `addlicense`/`goheader` tooling output) routinely
+     precedes the marker by several `//` lines, and this shape is empirically present in real Go
+     stdlib-adjacent generated files. Fixed by scanning the full leading comment/blank block
+     instead of only line one; also fixed two related defeat vectors caught by the same review
+     (trailing CRLF `\r` not stripped before the `$` anchor; a leading UTF-8 BOM defeating the `^`
+     anchor) and added five regression test cases (license-header preamble, CRLF, BOM, and a
+     negative case confirming a marker appearing AFTER the leading block does NOT suppress a real
+     edit). This is precision-scoping (same category as `--force-exclude` giving Ruff per-file skip
+     precision), not a consumer-config
      walk-up, so it does not undermine Open Decision 1's "unconditional" framing.
 
 2. **`golangci-lint` lint step gated behind an `opt-in` key** requiring
@@ -137,10 +149,15 @@ Files:
   at rebase time — do not assume 0.6.0 is still current, #833/#834 may have already bumped it).
 - `plugins/toolchain/CHANGELOG.md` — `[Unreleased]`/new version entry under Added.
 
-**Sanity Check:** `docs/conventions/ecosystem-commands/ecosystem.schema.json` validation passes for
-both `plugins/toolchain/reference/ecosystems/go.yaml` and
-`docs/conventions/ecosystem-commands/examples/go.yaml` (via whatever schema-check script/command
-the repo already runs for the other 8 ecosystem files — locate and reuse it, don't hand-roll).
+**Sanity Check:** `check-jsonschema --schemafile docs/conventions/ecosystem-commands/ecosystem.schema.json
+<file>` passes for both `plugins/toolchain/reference/ecosystems/go.yaml` and
+`docs/conventions/ecosystem-commands/examples/go.yaml`. **Independent-review correction:** no CI
+job or repo script actually validates `reference/ecosystems/*.yaml`/`examples/*.yaml` against this
+schema today (confirmed by grepping `.github/workflows/ci.yml` — its four `check-jsonschema` steps
+cover only marketplace/plugin manifests, dependabot, and workflow files); the check above is a
+manual `check-jsonschema` CLI run, not an existing repo script being reused. Both files validated
+clean this way. This is a pre-existing gap in the repo's own CI coverage, out of scope for this
+issue — noted here rather than silently left as an inaccurate claim.
 
 ### Phase 2: `plugins/go-format/` hook plugin [DONE]
 
@@ -238,6 +255,28 @@ reports no drift for the new copy.
 
 **Sanity Check:** `gh pr view <N> --json state -q .state` returns `MERGED`; `gh issue view 832
 --json state -q .state` returns `CLOSED`.
+
+## Review history
+
+An independent fresh-context code review ran before PR creation and found one CRITICAL and two
+lower-severity items, all addressed and re-verified before opening the PR:
+
+1. **CRITICAL — generated-file guard only checked the first non-blank line, missing the common
+   license-header-then-marker layout** (and two related defeat vectors: CRLF, UTF-8 BOM).
+   Reviewer empirically reproduced the miss against a real generated-file shape (a copyright
+   header plus a `stringer`-style marker) and confirmed the hook silently rewrote it. Fixed: the guard now
+   scans the file's full leading comment/blank-line run (stopping at the first non-comment,
+   non-blank line) per Go's own stated convention, strips a trailing CRLF and leading BOM per
+   line before matching. Five new regression cases added (license-header preamble, CRLF, BOM,
+   and a negative case proving a marker appearing after the leading block does NOT suppress a
+   real edit) — see Open Decision 1 above for the full before/after.
+2. **SUGGESTION — stderr capture used an unnecessary `mktemp` file**, inconsistent with every
+   other hook in the repo's simpler command-substitution idiom. Simplified to match.
+3. **SUGGESTION — this PLAN's own Phase 1 Sanity Check claimed an existing repo script validates
+   ecosystem yaml against `ecosystem.schema.json`; no such CI job or script exists.** Corrected the
+   claim (see Phase 1's Sanity Check above) — the schema validation itself was and remains correct
+   (verified manually via `check-jsonschema`), only the "reuse an existing script" framing was
+   wrong. This is a pre-existing repo-wide CI-coverage gap, out of scope here.
 
 ## Blast radius
 
