@@ -8,8 +8,9 @@
 #                      orphan direction (a topic file that fell out of the index) is the
 #                      reverse-drift gap this adds.
 #
-# Resolves the CURRENT repo's memory dir via the sibling resolver (NOT a cross-project
-# glob). Orphan opt-out: a topic file containing `<!-- memory-index-orphan-ignore -->`
+# Resolves the CURRENT project's memory dir (repo, or the cwd outside one) via the
+# sibling resolver (NOT a cross-project glob). Orphan opt-out: a topic file containing
+# `<!-- memory-index-orphan-ignore -->`
 # (e.g. an intentional staging file not yet indexed) is skipped.
 #
 # WARN-tier / advisory: prints findings, ALWAYS exits 0. Consumed by the audit
@@ -33,7 +34,8 @@ Usage: memory-index-refs-check.sh [--count|--help]
   --count    print integer finding count (missing + orphan); exit 0
   --help     this message
 
-Resolves the current repo's memory dir via the sibling resolve-memory-dir.sh.
+Resolves the current project's memory dir (repo, or the cwd outside one) via the
+sibling resolve-memory-dir.sh.
 Orphan opt-out: topic file containing `<!-- memory-index-orphan-ignore -->`.
 Advisory — always exits 0.
 EOF
@@ -45,12 +47,8 @@ mode="report"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-repo_root=$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')
-if [[ -z "$repo_root" ]]; then
-  echo "memory-index-refs-check: not inside a git repository" >&2
-  exit 1
-fi
-
+# No repo guard here: the sibling resolver handles the non-repo case itself (outside a
+# git repo the cwd is the project key, per the memory doc).
 memory_dir=$(bash "$SCRIPT_DIR/resolve-memory-dir.sh" 2>/dev/null)
 index="$memory_dir/MEMORY.md"
 
