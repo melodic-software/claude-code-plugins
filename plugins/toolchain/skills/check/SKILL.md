@@ -116,9 +116,17 @@ This binary gate applies cleanly when `opt-in` describes ONE condition governing
 
 When `opt-in` instead describes MULTIPLE independent per-tool conditions bundled into one opaque command string (e.g. bash's `"shellcheck always applies to shell files; shfmt only when .editorconfig declares shell style"`, where `check-cmd` is `shellcheck ... && shfmt -d <files>`), this gate does NOT apply — `check-cmd` is a single opaque string (per the ecosystem-commands contract) with no way to run one sub-tool's portion without the other. Run `check-cmd` as before (unchanged from prior behavior) and report its real output; do not attempt a partial skip. See Gotchas below for the known atomicity limitation this leaves open.
 
-An opt-in-unmet skip (single-condition case) counts toward the table's total ecosystem count but never toward the FAIL count, the same precedent as a missing-tool skip. This is ecosystem-generic (reads the resolved `opt-in` key), not dotnet-specific — it applies to every current and future single-condition opt-in-bearing ecosystem `/toolchain:check` covers. Project-declared CI-parity gates (below) are unaffected — they already run independent of `check-cmd`.
+An opt-in-unmet skip (single-condition case) counts toward the table's total ecosystem count but never toward the FAIL count, the same precedent as a missing-tool skip. This is ecosystem-generic (reads the resolved `opt-in` key), not dotnet-specific — it applies to every current and future single-condition opt-in-bearing ecosystem `/toolchain:check` covers. CI-parity gates (below) are unaffected — they run independent of `check-cmd`.
 
-**Project-declared CI-parity gates** — when the consuming project documents extra local checks that mirror CI gates plain build / test / lint don't catch (lockfile drift, generated-artifact freshness, schema regeneration), run the ones whose trigger files changed. These live in the consumer's own conventions (its `CLAUDE.md` / rules / commands reference) — this plugin ships none of its own.
+**CI-parity gates (resolved `gates` array).** After an affected ecosystem's build → test → lint, iterate its resolved `gates` array (§1.5 — bundled default or consumer file, per the ladder). Gates cover the CI-parity checks plain build / test / lint don't catch: lockfile drift, generated-artifact freshness, schema regeneration. For each gate:
+
+- **Fire condition** — if `trigger-globs` is present, run the gate only when ≥1 changed file matches, matched against the **full** changed-files set (not the ecosystem-scoped subset — a gate's trigger files need not classify into the ecosystem's own `globs`). If `trigger-globs` is omitted, run whenever the ecosystem runs. A present `trigger-globs` with no matching changed file (e.g. `check all` on a clean tree) → the gate does not fire.
+- **Independent of the build/test/lint short-circuit** — a fired gate runs even when this ecosystem's build, test, or lint already failed and stopped (line above). Gates mirror CI checks that are independent of build success (a lockfile or `go mod tidy` gate is meaningful whether or not the build compiled), so a failed earlier phase never suppresses them.
+- **Run** `gate.cmd` (an opaque shell string — substitute the same placeholders as other commands: `<files>`, resolved anchor, etc.) from `$REPO_ROOT` with absolute paths.
+- **Tool presence** — as with `check-cmd`, if the gate's tool is missing from `PATH`, report `skip` (reuse the ecosystem's `install-hint`) — never `FAIL`.
+- **Outcome** — report `pass`/`FAIL` by name. On `FAIL`, surface `gate.remediation`. A fired gate that fails is a real failure and **counts toward the run's FAIL verdict** (unlike opt-in/missing-tool skips).
+
+Gates resolve through the ladder like every other key: a bundled default may ship one (e.g. `go.yaml`'s `go-mod-tidy-drift`), and a consumer declares its own in its tracked `.claude/ecosystems/<ecosystem>.yaml` `gates` array (e.g. the `nuget-lockfile-drift` shape in `docs/conventions/ecosystem-commands/examples/dotnet.yaml`).
 
 For ecosystem-specific gotchas (xUnit `--nologo` trap, `dotnet test --project`, etc.), read the corresponding `context/<ecosystem>.md` file.
 
@@ -137,7 +145,7 @@ Overall: FAIL (1 of 2 ecosystems failed)
 
 Use `pass`, `FAIL`, `skip` (tool missing) or `skip (opt-in unmet: ...)` (config condition not met), or `—` (not applicable — for ecosystems where the corresponding command is null in the ecosystem config). Show failing command output below the table.
 
-If any project-declared CI-parity gates fired, summarize each by name + outcome below the per-ecosystem block, with the remediation pointer on failure.
+If any CI-parity gates fired, summarize each by name + outcome below the per-ecosystem block, with the remediation pointer on failure. A fired gate that failed flips Overall to `FAIL` and is counted in it — including when every ecosystem's build/test/lint cell passed (e.g. `Overall: FAIL (0 of 2 ecosystems failed, 1 gate failed)`). The Overall line names both counts whenever a gate fires.
 
 ## For other skills referencing /toolchain:check
 

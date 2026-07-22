@@ -3,6 +3,21 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0]
+
+### Added
+
+- **Resolved `gates` arrays now execute in `/toolchain:check`.** The ecosystem-commands
+  `gates` array (`name`/`cmd`/`trigger-globs`/`remediation`) was resolved as part of each
+  ecosystem's command surface but never invoked by any workflow step — a bundled or
+  consumer-declared gate was inert. `check/SKILL.md` §2 now iterates each affected ecosystem's
+  resolved `gates` after build → test → lint: a gate fires when a changed file matches its
+  `trigger-globs` (full changed-files set) or unconditionally when `trigger-globs` is omitted,
+  runs independent of the build/test/lint short-circuit, reports `skip` on a missing tool, and on
+  failure surfaces `remediation` and flips Overall to `FAIL`. `go.yaml`'s `go-mod-tidy-drift`
+  bundled default and a consumer's `nuget-lockfile-drift`-shaped gate now actually run. `lint`
+  is unchanged — gates are CI-parity checks beyond lint's fast build-free path. Closes #926.
+
 ## [0.9.0]
 
 ### Added
