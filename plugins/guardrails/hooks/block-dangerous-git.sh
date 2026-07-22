@@ -721,12 +721,13 @@ if ((${#COMMAND} > MAX_COMMAND_LEN)); then
 fi
 
 # Reduce a PowerShell command to a Bash-tokenizer-faithful form, or fail closed.
-# For the Bash tool this is a no-op (COMMAND unchanged). This guard also owns
-# destructive non-commit forms (reset/clean/checkout/restore), so it fails closed
-# on ANY git-shaped PowerShell it cannot parse (shape `git`): an unparseable
-# `git --% reset --hard` must not slip through. A non-git unparseable PowerShell
-# command is not this guard's concern and is allowed.
-ps::classify_git_command "$TOOL_NAME" "$COMMAND" git
+# For the Bash tool this is a no-op (COMMAND unchanged). The classifier's sink is
+# git-presence-based (ps::might_invoke_git), so an unparseable PowerShell command
+# that could reach git at all is blocked — this guard owns destructive non-commit
+# forms (reset/clean/checkout/restore), and an unparseable `git --% reset --hard`
+# must not slip through. A non-git unparseable PowerShell command is not this
+# guard's concern and is allowed.
+ps::classify_git_command "$TOOL_NAME" "$COMMAND"
 case $? in
 2)
   ps::print_unparseable_git_block_message

@@ -16,21 +16,47 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   (`lib/powershell/ps-command.sh`) reduces a PowerShell command to a
   Bash-tokenizer-faithful form or fails closed: the canonical PowerShell commit
   form (a here-string piped to `git commit -F -`) is allowed exactly as the Bash
-  `-F -` form is, while a `git commit`/`git push`-shaped PowerShell command
-  carrying a construct the guard cannot parse with confidence (backtick, `--%`,
-  subexpression, script-block grouping, or an unbalanced here-string) is blocked
-  rather than waved through. `block-dangerous-git` also owns destructive
-  non-commit forms (`reset --hard`, `clean -fd`, `checkout`/`restore`), so its
-  fail-closed net is wider: it blocks ANY git-shaped PowerShell it cannot parse,
-  not only commit/push — an unparseable `git --% reset --hard` cannot slip
-  through.
+  `-F -` form is, while a PowerShell command carrying a construct the Bash
+  tokenizer cannot faithfully parse (backtick, `--%`, `(`/`)`/`{`/`}` grouping,
+  an unbalanced here-string, a dynamic invocation — `iex`/`invoke-expression` or a
+  call/dot-source of a string literal — or a process launcher / nested shell:
+  `Start-Process`/`saps`, `pwsh`/`powershell`/`cmd`) is refused unless it is
+  provably git-free. The refusal is decided by whether the command could reach git
+  at all — recovering backtick obfuscation (`` g`it com`mit `` → `git commit`),
+  reading quoted command words and launched argv, and treating an opaque run
+  string as possibly-git — never by trusting a negative `commit`/`push` shape
+  match on a scan the obfuscating construct has already mangled (the fail-open
+  class fixed in #740/#903). Because the sink keys on git-presence,
+  `block-dangerous-git` fails closed on ANY git-shaped unparseable PowerShell — not
+  only commit/push — so an obfuscated `git reset --hard` / `clean -fd` /
+  `checkout` cannot slip through, and its block message names those destructive
+  forms rather than the commit form.
 - **`block-hook-bypass` now covers the PowerShell file-write surface.**
-  `Set-Content`, `Add-Content`, `Out-File`, `Tee-Object`, and content-producer
-  `>`/`>>` redirects that bypass the Write/Edit hook gate are blocked on the
-  PowerShell tool, producer-scoped like the Bash detection (a tool's own output
-  redirect — e.g. `git diff > out.txt` — is still allowed). Scope: this closes
-  the write-GATE bypass; secret-pattern and hardcoded-path CONTENT scanning of
-  PowerShell writes remains on the `Write|Edit`-matched guards (deferred).
+  `Set-Content`, `Add-Content`, `Out-File`, `Tee-Object` (including the `ac` and
+  `tee` aliases and backtick-escaped names), `New-Item -Value` (alias `ni`), the
+  `Export-*` serialize-to-file family (alias `epcsv`), `[IO.File]::WriteAll*`/
+  `AppendAll*` and StreamWriter, `iex`/`invoke-expression` (opaque run string,
+  failed closed), and content-producer `>`/`>>` redirects (echo/Write-Output/
+  Write-Host, a string or here-string literal, or a `$variable` value) that bypass
+  the Write/Edit hook gate are blocked on the PowerShell tool. Producer-scoped like
+  the Bash detection (a tool's own output redirect — e.g. `git diff > out.txt` — is
+  still allowed; `New-Item -ItemType Directory` with no `-Value` is not a content
+  write). `sc` is matched only in its unambiguous Set-Content form (a `-Value`/
+  `-Path`/`-LiteralPath`/`-Stream` parameter): it is Set-Content's alias in Windows
+  PowerShell 5.1 but sc.exe in PowerShell 7, so a genuine `sc query` service call
+  stays allowed. Scope: this closes the write-GATE bypass; secret-pattern and
+  hardcoded-path CONTENT scanning of PowerShell writes remains on the
+  `Write|Edit`-matched guards (deferred).
+- **The PowerShell coverage bar is documented as Bash-parity, not airtight.** These
+  guards are accidental-destruction friction, not a boundary against deliberate
+  evasion — and the Bash guard they extend does not stop deliberate evasion either.
+  The PowerShell surface is held to what the Bash guard already sees through
+  (`sh -c`/`bash -c` → `pwsh`/`powershell -Command`; `nice`/`sudo`/`env` →
+  `Start-Process`), no higher. Beyond-parity vectors are shared Bash+PS residuals,
+  not covered: a command word supplied entirely by an unexpanded variable
+  (`& $tool commit`, `iex $var`), deep nested-shell / `cmd /c` quoting, .NET
+  reflection beyond the common `[IO.File]`/StreamWriter writes, and any shell
+  variable / command substitution.
 
 ### Changed
 

@@ -11,6 +11,18 @@
 # beyond the canonical commit form, backticks, `--%`, subexpressions) is the
 # deferred follow-up A2b.
 #
+# THE BAR IS BASH-PARITY, NOT AIRTIGHT. These guards are accidental-destruction
+# friction, not a boundary against deliberate evasion — and the Bash guard this
+# extends does not stop deliberate evasion either. The PowerShell surface is held
+# to what the Bash guard already sees through, no higher: the `sh -c`/`bash -c`
+# see-through has PS analogs in `pwsh`/`powershell -Command` and the nested-shell
+# launchers; the `nice`/`sudo`/`env` launcher transparency has its analog in
+# `Start-Process`. Vectors the Bash guard ALSO misses are shared Bash+PS residuals,
+# documented, not bugs: a command word supplied entirely by an unexpanded variable
+# (`& $tool commit`, `iex $var`); deep nested-shell / `cmd /c` quoting; .NET
+# reflection beyond the common [IO.File]/StreamWriter writes; and any shell
+# variable / command substitution (never evaluated, the same residual as Bash).
+#
 # STRATEGY (git/commit guards): reduce a PowerShell command to a form the Bash
 # tokenizer handles faithfully, or fail closed.
 #   1. Blank properly-delimited here-strings (@'...'@ / @"..."@) to an inert
@@ -24,26 +36,34 @@
 #      as a pipeline whose second segment is `git commit -F -` (stdin form) —
 #      allowed exactly as the Bash canonical form is.
 #   2. On the here-string-blanked, quote-stripped text, detect the PowerShell
-#      constructs the Bash tokenizer cannot faithfully handle (backtick,
-#      `--%`, subexpression `$(`/`@(`, script-block/grouping `{`/`}`) and any
-#      unbalanced here-string. Quoted spans are stripped first so a construct
-#      that lives inside commit-message text does not count.
-#   3. If such a construct is present AND the command is `git commit`/`git push`
-#      shaped, BLOCK fail-closed — the guard cannot confidently parse it. If it
-#      is not commit/push shaped, defer to A2b (allow; not this issue's proven
-#      bypass surface). Otherwise the reduced command is Bash-tokenizer-faithful
-#      and is handed to the existing parser.
+#      constructs the Bash tokenizer cannot faithfully handle (backtick, `--%`,
+#      and `(`/`)`/`{`/`}` grouping) and any unbalanced here-string. Quoted spans
+#      are stripped first so a construct that lives inside commit-message text
+#      does not count.
+#   3. If such a construct is present, the command is not faithfully tokenizable,
+#      so it is BLOCKED fail-closed UNLESS it is provably git-free. Crucially the
+#      allow decision is NOT a negative `commit`/`push` shape match on the mangled
+#      scan — the very construct that defeats the tokenizer also mangles that scan
+#      (backtick splits `com`+`mit`, quote-stripping erases `'commit'`), so a
+#      negative match is not evidence of safety (the #740/#903 fail-open class).
+#      Instead ps::might_invoke_git asks the mangle-resistant question "could this
+#      reach git at all?" — backticks recovered, scan quote-INTACT, plus dynamic
+#      invocation (iex / call / dot-source) — and blocks unless the answer is no.
+#      Otherwise the reduced command is Bash-tokenizer-faithful and handed to the
+#      existing parser.
 #
-# OVER-BLOCK, NEVER UNDER-BLOCK is the invariant for the blanker: an ambiguous
+# OVER-BLOCK, NEVER UNDER-BLOCK is the invariant. For the blanker: an ambiguous
 # here-string extent is treated as unbalanced (unsafe) rather than blanked, so a
 # trailing `| git commit --no-verify` can never be swallowed into the inert
-# placeholder and thereby escape detection.
+# placeholder and escape detection. For the sink: an unparseable command that
+# might reach git is blocked even at the cost of over-blocking an exotic non-git
+# git-touching command (e.g. `git log | ForEach { … }`).
 #
-# RESIDUAL (documented, deferred to A2b): backtick-escaped quotes and doubled
-# `""` inside a double-quoted string diverge between Bash and PowerShell
-# tokenization; here they only ever cause an over-block (fail-closed), never an
-# under-block. Shell variable / command substitution is not evaluated (same
-# residual the Bash guards carry).
+# RESIDUAL (documented, deferred to A2b): a git invocation whose command word
+# comes entirely from an unexpanded variable with NO structural construct present
+# (`& $tool commit`, where `$tool` holds `git`) takes the parser path and is not
+# caught — the same "variable / command substitution is not evaluated" residual
+# the Bash guards carry. Faithful PowerShell tokenization is the A2b follow-up.
 
 # Guard against double-sourcing.
 [[ -n "${_GUARDRAILS_PS_COMMAND_LOADED:-}" ]] && return 0
@@ -125,9 +145,14 @@ ps::blank_quoted_spans() {
 }
 
 # True (0) when the (quote-stripped) text carries a PowerShell construct the Bash
-# tokenizer cannot faithfully handle. These are exactly the constructs deferred
-# to A2b; their presence on a commit/push-shaped command forces a fail-closed
-# block rather than a best-effort Bash parse.
+# tokenizer cannot faithfully handle: backtick (escape / line continuation, which
+# the Bash tokenizer would read as command substitution and use to swallow
+# adjacent tokens), `--%` (stop-parsing), and `(`/`)`/`{`/`}` grouping
+# (subexpression, array subexpression, script block, hashtable — any of which can
+# seat a git invocation where the Bash parser will not find it). Their presence
+# routes the command to the fail-closed sink rather than a best-effort Bash parse.
+# Quoted spans are stripped by the caller first, so a construct inside message
+# text does not trip this — only structural constructs do.
 ps::has_special_constructs() {
   local scan="$1"
   # The single-quoted needles are literal glob patterns, not expansions.
@@ -135,58 +160,106 @@ ps::has_special_constructs() {
   case "$scan" in
   *'`'*) return 0 ;;         # backtick: escape / line continuation
   *'--%'*) return 0 ;;       # stop-parsing token
-  *'$('*) return 0 ;;        # subexpression
-  *'@('*) return 0 ;;        # array subexpression
+  *'('* | *')'*) return 0 ;; # subexpression / array subexpression / grouping
   *'{'* | *'}'*) return 0 ;; # script block / hashtable grouping
   *) return 1 ;;
   esac
 }
 
-# True (0) when the (quote-stripped) text is `git commit`/`git push` shaped: a
-# `git` (optionally `git.exe`) command word and a `commit` or `push` word. Coarse
-# and deliberately generous — it only gates the fail-closed branch, so
-# over-inclusiveness costs at most an over-block on a command that also carries an
-# unparseable construct.
-ps::is_commit_or_push_shaped() {
-  local lc="${1,,}"
-  [[ "$lc" =~ (^|[^[:alnum:]_.])git([.]exe)?([^[:alnum:]_]|$) ]] || return 1
-  [[ "$lc" =~ (^|[^[:alnum:]_-])(commit|push)([^[:alnum:]_-]|$) ]] || return 1
-  return 0
+# True (0) when the text MIGHT invoke git and cannot be proven otherwise. This is
+# the fail-closed sink's positive test: because the constructs that route here can
+# obfuscate the command, we do not trust a negative `commit`/`push` shape match on
+# a mangled scan (that is exactly the #740/#903 fail-open class). Instead we ask
+# the weaker, mangle-resistant question "could this reach git at all?" and block
+# unless the answer is provably no.
+#
+# Backticks are deleted first (PowerShell's escape char, so `g``it com``mit`
+# recovers to `git commit`), and the scan is quote-INTACT so a quoted command word
+# (`& 'git' commit`, `git 'commit'`) is still seen. A dynamic-invocation operator
+# whose target cannot be resolved statically (`iex`/`invoke-expression`, or a call
+# `&` / dot-source `.` of a variable or subexpression) is likewise treated as
+# possibly-git. Over-inclusive by construction — it only gates the fail-closed
+# branch, so a false positive costs at most an over-block on a command that also
+# carries an unparseable construct.
+ps::might_invoke_git() {
+  # `q` carries the two quote characters so neither appears literally inside the
+  # [[ =~ ]] test (which would derail shellcheck's parser).
+  local recovered="${1//\`/}" lc q="\"'"
+  lc="${recovered,,}"
+  [[ "$lc" =~ (^|[^[:alnum:]_.])git([.]exe)?([^[:alnum:]_]|$) ]] && return 0
+  [[ "$lc" =~ (^|[^[:alnum:]_-])(iex|invoke-expression)([^[:alnum:]_-]|$) ]] && return 0
+  # Call / dot-source of a variable, subexpression, or string literal:
+  # `& $x …`, `& (…)`, `& 'git …'`, `. $x …` — the target runs as a command.
+  [[ "$lc" =~ (^|[[:space:]])[.\&][[:space:]]*[\$\($q] ]] && return 0
+  return 1
 }
 
-# True (0) when the (quote-stripped) text carries a `git` (optionally `git.exe`)
-# command word. Coarser than commit/push shaping: block-dangerous-git owns
-# destructive non-commit forms (reset/clean/checkout/restore), so it must fail
-# closed on ANY git-shaped command it cannot parse — not only commit/push — lest
-# an unparseable `git --% reset --hard` slip through.
-ps::is_git_shaped() {
-  local lc="${1,,}"
-  [[ "$lc" =~ (^|[^[:alnum:]_.])git([.]exe)?([^[:alnum:]_]|$) ]]
+# True (0) when the command uses a dynamic-invocation form that runs an arbitrary
+# string as a command: `iex`/`invoke-expression` (of anything), or a call `&` /
+# dot-source `.` of a STRING LITERAL (`& 'git commit …'`, `. "…"`). These defeat
+# faithful Bash tokenization exactly as the structural constructs do — the run
+# string is opaque to the tokenizer — so they must route to the fail-closed sink
+# even when no bracket/backtick construct is present (the fail-open class the
+# re-review found: a construct-free `iex '…'` otherwise reached the Bash parser,
+# which sees command word `iex`, not git, and passed). A call/dot-source of a bare
+# VARIABLE (`& $tool …`) is the genuinely-deferred variable-command-word residual
+# and is deliberately NOT routed here. Operates on the quote-INTACT command
+# (backticks recovered) so the string-literal forms stay visible.
+ps::has_dynamic_invocation() {
+  # `q` carries the two quote characters so neither appears literally inside the
+  # [[ =~ ]] test (which would derail shellcheck's parser).
+  local recovered="${1//\`/}" lc q="\"'"
+  lc="${recovered,,}"
+  [[ "$lc" =~ (^|[^[:alnum:]_-])(iex|invoke-expression)([^[:alnum:]_-]|$) ]] && return 0
+  [[ "$recovered" =~ (^|[[:space:]])[.\&][[:space:]]*[$q] ]] && return 0
+  return 1
 }
 
-# Classify a git/commit-guard command for the resolved tool. The optional third
-# argument selects the DANGER SHAPE that forces a fail-closed block on an
-# unparseable command: `commit-push` (default — the commit/push guards) or `git`
-# (block-dangerous-git, which also owns destructive non-commit forms and so fails
-# closed on ANY git-shaped command it cannot parse). Sets PS_SAFE_COMMAND (the
-# command the caller should hand to its Bash parser) and returns:
+# True (0) when a process launcher / nested shell sits at a command position:
+# Start-Process (alias saps) launches a program the same way the Bash guard sees
+# through `nice`/`nohup`/`sudo`/`env`; pwsh/powershell/cmd run a nested command
+# string, the parity analog of the Bash guard's `sh -c`/`bash -c` see-through.
+# Routed to the sink so ps::might_invoke_git decides — it blocks only when the
+# literal `git` is present in the launched argv / command string (`Start-Process
+# git -ArgumentList …`, `pwsh -Command 'git …'`), and passes a launcher with no
+# git (`Start-Process notepad`, `pwsh -File build.ps1`). This is Bash-PARITY, not
+# an airtight boundary; deeper nested-shell escaping (and `cmd /c`'s own quoting)
+# is a shared Bash+PS residual.
+ps::has_launcher() {
+  local lc="${1//\`/}"
+  lc="${lc,,}"
+  [[ "$lc" =~ (^|[[:space:]\;\|\&\(])(start-process|saps|pwsh|powershell|cmd)([[:space:]]|$) ]]
+}
+
+# Classify a git/commit-guard command for the resolved tool. Sets PS_SAFE_COMMAND
+# (the command the caller should hand to its Bash parser) and returns:
 #   0  proceed — parse PS_SAFE_COMMAND (== the original command for the Bash tool)
-#   1  allow/skip — an unparseable PowerShell command that is NOT danger-shaped
-#      for this guard (a construct deferred to A2b); do not block
-#   2  block fail-closed — danger-shaped but not confidently parseable
+#   1  allow/skip — a PowerShell command that carries an A2b-deferred construct but
+#      is PROVABLY git-free, so none of the git guards' concerns can be present
+#   2  block fail-closed — carries a construct the Bash tokenizer cannot faithfully
+#      parse AND might reach git; refused by shape rather than guessed safe
+#
+# SINK DOCTRINE (the #740/#903 lesson): when the command is not faithfully
+# Bash-tokenizable, do NOT resolve-then-trust-a-negative — the same construct that
+# defeats the tokenizer also mangles any shape scan, so a negative `commit`/`push`
+# match is not evidence of safety. Block unless the command is provably git-free.
 ps::classify_git_command() {
-  local tool="$1" cmd="$2" shape="${3:-commit-push}" scan
+  local tool="$1" cmd="$2" scan
   PS_SAFE_COMMAND="$cmd"
   [[ "$tool" == "PowerShell" ]] || return 0
 
   ps::blank_herestrings "$cmd"
   scan=$(ps::blank_quoted_spans "$PS_BLANKED")
-  if ((PS_HERESTRING_UNBALANCED)) || ps::has_special_constructs "$scan"; then
-    if [[ "$shape" == "git" ]]; then
-      ps::is_git_shaped "$scan" && return 2
-    else
-      ps::is_commit_or_push_shaped "$scan" && return 2
-    fi
+  if ((PS_HERESTRING_UNBALANCED)) ||
+    ps::has_special_constructs "$scan" ||
+    ps::has_dynamic_invocation "$PS_BLANKED" ||
+    ps::has_launcher "$PS_BLANKED"; then
+    # Not faithfully tokenizable. Fail closed unless provably git-free. The git
+    # probe runs on PS_BLANKED (quotes INTACT, backticks recovered inside the
+    # probe) so a quoted or backtick-obfuscated `git` is still seen; an unbalanced
+    # here-string leaves PS_BLANKED as the raw command so a trailing pipeline is
+    # scanned, not swallowed.
+    ps::might_invoke_git "$PS_BLANKED" && return 2
     return 1
   fi
   # Read by the sourcing guard, not within this library.
@@ -195,11 +268,12 @@ ps::classify_git_command() {
   return 0
 }
 
-# Shell-agnostic block text for a PowerShell commit/push the guard cannot parse
+# Shell-agnostic block text for a PowerShell git command the guard cannot parse
 # with confidence. Printed to stderr by the caller before it exits 2.
 ps::print_unparseable_block_message() {
-  echo "BLOCKED: this PowerShell 'git commit'/'git push' cannot be parsed with confidence — blocked (fail-closed)." >&2
-  echo "Use the canonical PowerShell commit form (a here-string piped to 'git commit -F -'):" >&2
+  echo "BLOCKED: this PowerShell git command cannot be parsed with confidence — blocked (fail-closed)." >&2
+  echo "Remove the obfuscating construct (backtick, --%, subexpression, or {}/() grouping)." >&2
+  echo "The canonical PowerShell commit form (a here-string piped to 'git commit -F -') is:" >&2
   echo "  @'" >&2
   echo "  <subject>" >&2
   echo "  '@ | git commit -F -" >&2
@@ -207,7 +281,9 @@ ps::print_unparseable_block_message() {
 }
 
 # Shell-agnostic block text for a PowerShell git command block-dangerous-git
-# cannot parse with confidence. Printed to stderr by the caller before it exits 2.
+# cannot parse with confidence. That guard also owns destructive non-commit forms,
+# so its message names them rather than the commit form. Printed to stderr by the
+# caller before it exits 2.
 ps::print_unparseable_git_block_message() {
   echo "BLOCKED: this PowerShell 'git' command cannot be parsed with confidence — blocked (fail-closed)." >&2
   echo "A git command carrying a PowerShell construct the guard cannot faithfully tokenize (backtick, '--%', subexpression, script-block grouping, or an unbalanced here-string) could hide a destructive form (reset --hard, clean -fd, checkout/restore), so it is blocked rather than waved through." >&2
@@ -215,11 +291,23 @@ ps::print_unparseable_git_block_message() {
 }
 
 # True (0) when a PowerShell command authors file content in a way that bypasses
-# the Write/Edit hook gate: a content-authoring cmdlet (Set-Content, Add-Content,
-# Out-File, Tee-Object), or a stdout redirect (`>`/`>>`, not the `$null` discard)
-# whose producer is a content emitter (echo / Write-Output / Write-Host or a bare
-# string / here-string literal). Producer-scoped to match the Bash guard, which
-# allows `<tool> ... > out` (the producer is the tool, not a content author).
+# the Write/Edit hook gate. Covered surface:
+#   - content-authoring cmdlets: Set-Content, Add-Content, Out-File, Tee-Object
+#     (and the `ac` / `tee` aliases; `sc` only in its Set-Content form, since it is
+#     sc.exe in PS 7);
+#   - New-Item (alias `ni`) with -Value; the Export-* serialize-to-file family
+#     (alias `epcsv`);
+#   - .NET file writes: [IO.File]::WriteAllText/AppendAllText/WriteAllLines and
+#     StreamWriter;
+#   - a stdout redirect (`>`/`>>`, not the `$null` discard) whose producer is a
+#     content emitter (echo / Write-Output / Write-Host, a bare string /
+#     here-string literal, or a `$variable` / subexpression value) — producer-
+#     scoped to match the Bash guard, which allows `<tool> ... > out` (the
+#     producer is the tool, not a content author);
+#   - iex / invoke-expression, whose run string is opaque here — fail closed,
+#     mirroring the git guards' sink.
+# Backticks are deleted before matching so an escape-obfuscated name (`Set``-Content`)
+# resolves to its real form.
 #
 # SCOPE: this covers the write-GATE bypass only. Secret-pattern and hardcoded-path
 # CONTENT scanning of PowerShell writes stays on the Write|Edit-matched guards;
@@ -228,11 +316,58 @@ ps::write_bypass() {
   local cmd="$1" scan lcs seg lc head
   ps::blank_herestrings "$cmd"
   scan=$(ps::blank_quoted_spans "$PS_BLANKED")
+  # Delete backticks before matching so a name obfuscated by PowerShell's escape
+  # char (`Set``-Content`) resolves to its real form.
+  scan="${scan//\`/}"
   lcs="${scan,,}"
 
   # Content-authoring cmdlets are a write by nature. Detected on the quote-stripped
-  # text so a cmdlet named inside message text is inert.
-  if [[ "$lcs" =~ (^|[[:space:]\;\|\&\(])(set-content|add-content|out-file|tee-object)([[:space:]]|$) ]]; then
+  # text so a cmdlet named inside message text is inert. Aliases are matched too:
+  # `ac` (Add-Content) and `tee` (Tee-Object). Out-File has no built-in alias.
+  # `sc` is handled separately below — it is Set-Content's alias in Windows
+  # PowerShell 5.1 but sc.exe (the service controller) in PowerShell 7, so it is
+  # matched only in its unambiguous Set-Content form.
+  if [[ "$lcs" =~ (^|[[:space:]\;\|\&\(])(set-content|add-content|out-file|tee-object|ac|tee)([[:space:]]|$) ]]; then
+    return 0
+  fi
+  # `sc` in its Set-Content form: only when a Set-Content-only parameter follows
+  # (`-Value`/`-Path`/`-LiteralPath`/`-LP`/`-Stream`). sc.exe (PS 7) takes bare
+  # subcommands (`sc query`, `sc start …`) and none of these dash-parameters, so
+  # this never fires on a genuine service-controller call — while a 5.1
+  # `sc -Path f -Value x` (the Set-Content alias) is caught. The bare positional
+  # form (`sc f 'x'`) on 5.1 is a documented residual.
+  if [[ "$lcs" =~ (^|[[:space:]\;\|\&\(])sc[[:space:]] ]] &&
+    [[ "$lcs" =~ [[:space:]]-(va[a-z]*|path|literalpath|lp|stream)([[:space:]]|:) ]]; then
+    return 0
+  fi
+
+  # iex / invoke-expression authors content via the arbitrary string it runs — its
+  # payload is opaque here, so fail closed (mirrors the git guards' sink).
+  if [[ "$lcs" =~ (^|[[:space:]\;\|\&\(])(iex|invoke-expression)([[:space:]]|$) ]]; then
+    return 0
+  fi
+  # New-Item (alias `ni`) authoring content via -Value. `-va` is the shortest
+  # unambiguous abbreviation (New-Item has no other -va* parameter); `-Value:x`
+  # attaches with a colon. Directory/empty-file creation with no -Value is not a
+  # content author.
+  if [[ "$lcs" =~ (^|[[:space:]\;\|\&\(])(new-item|ni)([[:space:]]) ]] &&
+    [[ "$lcs" =~ [[:space:]]-va[a-z]*([[:space:]]|:) ]]; then
+    return 0
+  fi
+  # Serialize-to-file cmdlets: the Export-* family (Export-Csv, Export-Clixml, …),
+  # including the `epcsv` (Export-Csv) alias. ConvertTo-*/format cmdlets piped into
+  # Out-File/Set-Content are already caught by those sinks above. The broad
+  # `export-*` match also catches the few non-file-writing members (notably
+  # Export-ModuleMember) — a safe-direction over-block, never an under-block, and
+  # tolerated friction: those are authored inside .psm1 module files, not run as
+  # ad hoc tool commands.
+  if [[ "$lcs" =~ (^|[[:space:]\;\|\&\(])(export-[a-z]+|epcsv)([[:space:]]|$) ]]; then
+    return 0
+  fi
+  # .NET file-write APIs: [IO.File]::WriteAllText/AppendAllText/WriteAllLines/
+  # WriteAllBytes and StreamWriter.
+  if [[ "$lcs" =~ io\.file\][^:]*::[[:space:]]*(writeall|appendall) ]] ||
+    [[ "$lcs" =~ streamwriter ]]; then
     return 0
   fi
 
@@ -252,6 +387,7 @@ ps::write_bypass() {
     esac
     case "$head" in
     echo | write-output | write-host | "${PS_HERESTRING_PLACEHOLDER,,}") return 0 ;;
+    '$'*) return 0 ;; # a variable / subexpression value redirected to a file
     *) ;;
     esac
   done <<<"$norm"

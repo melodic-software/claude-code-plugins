@@ -405,6 +405,30 @@ run_pwsh "PS: tool output > file (allowed — producer is the tool)" "git diff >
 run_pwsh "PS: redirect to \$null (allowed — discard)" "git log > \$null" 0
 run_pwsh "PS: Set-Content mentioned in quoted arg (allowed)" "echo 'run Set-Content later'" 0
 run_pwsh "PS: plain git status (allowed)" "git status" 0
+# Alias + backtick-obfuscation regressions (independent security review).
+bt='`'
+run_pwsh "PS: ac alias (Add-Content, blocked)" "ac -Path f.txt -Value x" 2
+run_pwsh "PS: tee alias (Tee-Object, blocked)" "x | tee -FilePath out.txt" 2
+run_pwsh "PS: backtick-escaped Set\`-Content (blocked)" "Set${bt}-Content f.txt x" 2
+# `sc` is sc.exe in PowerShell 7 (service controller), NOT Set-Content — allowed.
+run_pwsh "PS: sc is sc.exe not Set-Content (allowed)" "sc query" 0
+# Expanded write surface (independent security review, round 2).
+run_pwsh "PS: iex opaque run (blocked)" "iex 'Set-Content f.txt x'" 2
+run_pwsh "PS: New-Item -Value (blocked)" "New-Item -Path f -ItemType File -Value 'data'" 2
+run_pwsh "PS: New-Item -ItemType Directory, no -Value (allowed)" "New-Item -Path d -ItemType Directory" 0
+run_pwsh "PS: Export-Csv (blocked)" "\$d | Export-Csv f.csv" 2
+run_pwsh "PS: Export-Clixml (blocked)" "\$d | Export-Clixml f.xml" 2
+run_pwsh "PS: [IO.File]::WriteAllText (blocked)" "[IO.File]::WriteAllText('f','x')" 2
+run_pwsh "PS: StreamWriter (blocked)" "(New-Object IO.StreamWriter 'f').Write('x')" 2
+run_pwsh "PS: variable redirected to file (blocked)" "\$x > f.txt" 2
+# Write-cmdlet alias parity (round 3 review): ni (New-Item), epcsv (Export-Csv).
+run_pwsh "PS: ni -Value alias (blocked)" "ni -Path f -ItemType File -Value 'data'" 2
+run_pwsh "PS: epcsv alias (Export-Csv, blocked)" "\$d | epcsv f.csv" 2
+# `sc` is Set-Content in Windows PowerShell 5.1; matched only in its Set-Content
+# form (a -Value/-Path parameter). sc.exe (PS 7) service calls stay allowed.
+run_pwsh "PS: sc -Path -Value (5.1 Set-Content form, blocked)" "sc -Path f.txt -Value 'x'" 2
+run_pwsh "PS: sc query (sc.exe service, allowed)" "sc query" 0
+run_pwsh "PS: sc start service (sc.exe, allowed)" "sc start W32Time" 0
 
 # The block message is shell-agnostic (no 'Bash' assumption).
 psout=$(bash "$HOOK" <<<"$(pwsh_command_json "Set-Content f.txt 'x'")" 2>&1)
