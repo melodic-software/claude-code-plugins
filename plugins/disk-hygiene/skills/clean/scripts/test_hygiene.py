@@ -162,6 +162,85 @@ class HygieneTests(unittest.TestCase):
         self.assertIn("d:/system volume information", roots)
         self.assertIn("d:/$recycle.bin", roots)
 
+    def test_os_drive_markers_exclude_per_volume_metadata(self) -> None:
+        markers = {
+            str(path).replace("\\", "/").casefold()
+            for path in hygiene.os_drive_markers(
+                platform_key="windows", windows_roots=[Path("C:/"), Path("D:/")]
+            )
+        }
+        # OS-install markers stay; the per-volume metadata every Windows volume
+        # carries — a provisioned non-OS Dev Drive included — must NOT count as
+        # an OS-drive signal, or every drive root would classify OS-managed.
+        self.assertIn("d:/windows", markers)
+        self.assertIn("d:/programdata", markers)
+        self.assertNotIn("d:/system volume information", markers)
+        self.assertNotIn("d:/$recycle.bin", markers)
+
+    def test_os_managed_target_flags_drive_holding_os_install(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            drive = Path(temporary) / "drive"
+            (drive / "Windows").mkdir(parents=True)
+            self.assertTrue(
+                hygiene.is_os_managed_target(
+                    drive, roots=[], markers=[drive / "Windows"]
+                )
+            )
+
+    def test_os_managed_target_ignores_per_volume_metadata_only(self) -> None:
+        # The Dev Drive case: a volume root whose only system-looking folders
+        # are the per-volume metadata every volume carries is NOT OS-managed —
+        # the synthesized OS-install marker does not exist on it.
+        with tempfile.TemporaryDirectory() as temporary:
+            drive = Path(temporary) / "dev-drive"
+            (drive / "System Volume Information").mkdir(parents=True)
+            (drive / "$Recycle.Bin").mkdir()
+            self.assertFalse(
+                hygiene.is_os_managed_target(
+                    drive,
+                    roots=[],
+                    markers=[drive / name for name in ("Windows", "ProgramData")],
+                )
+            )
+
+    def test_os_managed_target_flags_path_within_a_system_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "sysroot"
+            inside = root / "sub"
+            inside.mkdir(parents=True)
+            self.assertTrue(
+                hygiene.is_os_managed_target(inside, roots=[root], markers=[])
+            )
+
+    def test_hard_protection_names_the_target_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / "target"
+            target.mkdir()
+            self.assertIn(
+                "target-root", hygiene.hard_protection(target, target, set())
+            )
+
+    def test_hard_protection_reasons_about_volume_root_purpose(self) -> None:
+        # The cited hard_protection branch is now reasoned, not structural: a
+        # volume-root path is flagged os-managed only when reasoned OS-managed.
+        # No live call path reaches it with a root-shaped entry, so exercise it
+        # directly to lock the intent.
+        path, target = Path("X:/"), Path("Y:/")
+        with (
+            mock.patch.object(hygiene, "is_volume_root", return_value=True),
+            mock.patch.object(hygiene, "is_os_managed_target", return_value=True),
+        ):
+            self.assertIn(
+                "os-managed-root", hygiene.hard_protection(path, target, set())
+            )
+        with (
+            mock.patch.object(hygiene, "is_volume_root", return_value=True),
+            mock.patch.object(hygiene, "is_os_managed_target", return_value=False),
+        ):
+            self.assertNotIn(
+                "os-managed-root", hygiene.hard_protection(path, target, set())
+            )
+
     @unittest.skipUnless(
         hygiene.os_key() == "linux", "real mountinfo is available only on Linux"
     )
@@ -304,6 +383,179 @@ class HygieneTests(unittest.TestCase):
             self.assertEqual(2, code)
             self.assertIn("protected shell-folder", output.getvalue())
             self.assertFalse((data_root / "snapshot.json").exists())
+
+    def _scan_target(
+        self,
+        target: Path,
+        data_root: Path,
+        patches: list[object],
+        extra_args: list[str] | None = None,
+    ) -> tuple[int, dict[str, object]]:
+        output = io.StringIO()
+        with (
+            mock.patch.dict(
+                "os.environ", {"CLAUDE_PLUGIN_DATA": str(data_root)}, clear=False
+            ),
+            redirect_stdout(output),
+        ):
+            for patch in patches:
+                self.enterContext(patch)
+            code = hygiene.main(
+                [
+                    "scan",
+                    "--target",
+                    str(target),
+                    "--output",
+                    str(data_root / "snapshot.json"),
+                    *(extra_args or []),
+                ]
+            )
+        return code, json.loads(output.getvalue())
+
+    def _non_os_volume_root_patches(self) -> list[object]:
+        # A drive-letter root is always os.path.ismount True; it holds no
+        # OS-managed content (a Windows Dev Drive), so it is a valid non-OS
+        # volume root rather than a rejected OS root.
+        return [
+            mock.patch.object(hygiene, "is_volume_root", return_value=True),
+            mock.patch.object(hygiene, "is_os_managed_target", return_value=False),
+            mock.patch.object(hygiene, "mount_state", return_value=(True, None)),
+        ]
+
+    def test_non_os_volume_root_without_bound_requires_large_confirmation(self) -> None:
+        # A non-OS volume root is no longer blanket-rejected, but an unbounded
+        # whole-volume walk is gated the same way a home target is (#985's
+        # large-target gate) rather than silently proceeding.
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "dev-drive"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            (target / "scratch.tmp").write_text("x", encoding="utf-8")
+            data_root.mkdir()
+            code, payload = self._scan_target(
+                target, data_root, self._non_os_volume_root_patches()
+            )
+            self.assertEqual(5, code)
+            self.assertEqual("large-target-confirmation-required", payload["status"])
+            self.assertIn("non-os-volume-root", payload["large_target_reasons"])
+            self.assertFalse((data_root / "snapshot.json").exists())
+
+    def test_non_os_volume_root_with_confirmed_flag_scans(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "dev-drive"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            (target / "scratch.tmp").write_text("x", encoding="utf-8")
+            data_root.mkdir()
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                self._non_os_volume_root_patches(),
+                extra_args=["--confirmed-large-scan"],
+            )
+            self.assertEqual(0, code)
+            self.assertEqual("scan-complete", payload["status"])
+            self.assertTrue((data_root / "snapshot.json").exists())
+
+    def test_large_scan_reasons_flags_non_os_volume_root(self) -> None:
+        with (
+            mock.patch.object(hygiene, "is_volume_root", return_value=True),
+            mock.patch.object(hygiene, "is_os_managed_target", return_value=False),
+        ):
+            self.assertEqual(
+                ["non-os-volume-root"], hygiene.large_scan_reasons(Path("X:/"))
+            )
+        # An OS-managed volume root never reaches the gate (denied upstream), and
+        # even called directly it is not named a large target here.
+        with (
+            mock.patch.object(hygiene, "is_volume_root", return_value=True),
+            mock.patch.object(hygiene, "is_os_managed_target", return_value=True),
+        ):
+            self.assertEqual([], hygiene.large_scan_reasons(Path("X:/")))
+
+    def test_scan_denies_os_managed_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "os-root"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            data_root.mkdir()
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                [mock.patch.object(hygiene, "is_os_managed_target", return_value=True)],
+            )
+            self.assertEqual(2, code)
+            self.assertIn("OS-managed roots", payload["error"])
+            self.assertFalse((data_root / "snapshot.json").exists())
+
+    def test_scan_rejects_non_root_mount_point(self) -> None:
+        # A mount point that is not a volume root (a nested or bind mount as the
+        # target) stays hard-blocked — the real cross-boundary danger, unchanged.
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "mounted"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            data_root.mkdir()
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                [
+                    mock.patch.object(
+                        hygiene, "is_os_managed_target", return_value=False
+                    ),
+                    mock.patch.object(hygiene, "is_volume_root", return_value=False),
+                    mock.patch.object(
+                        hygiene, "mount_state", return_value=(True, None)
+                    ),
+                ],
+            )
+            self.assertEqual(2, code)
+            self.assertIn("mount points are not valid audit targets", payload["error"])
+            self.assertFalse((data_root / "snapshot.json").exists())
+
+    def test_preview_denies_os_managed_root_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "orphan.tmp").write_text("x", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            plan = {
+                "version": 1,
+                "tier": "high",
+                "candidates": [candidate("orphan.tmp")],
+            }
+            with mock.patch.object(hygiene, "is_os_managed_target", return_value=True):
+                with self.assertRaisesRegex(hygiene.HygieneError, "OS-managed root"):
+                    hygiene.preview(snapshot, plan)
+
+    def test_preview_allows_non_os_volume_root_snapshot(self) -> None:
+        # Symmetry with scan: a non-OS volume-root snapshot reaches candidate
+        # evaluation instead of a target-level root/mount veto (the confirmation
+        # gate lived at scan; preview must not re-reject the same root).
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "orphan.tmp").write_text("x", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            plan = {
+                "version": 1,
+                "tier": "high",
+                "candidates": [candidate("orphan.tmp")],
+            }
+            with (
+                mock.patch.object(hygiene, "is_volume_root", return_value=True),
+                mock.patch.object(hygiene, "is_os_managed_target", return_value=False),
+                mock.patch.object(hygiene, "mount_state", return_value=(True, None)),
+            ):
+                result = hygiene.preview(snapshot, plan)
+            self.assertEqual("high", result["tier"])
+            self.assertEqual(
+                ["orphan.tmp"], [item["path"] for item in result["candidates"]]
+            )
 
     @unittest.skipUnless(
         shutil.which("git"), "git is required for the VCS regression fixture"

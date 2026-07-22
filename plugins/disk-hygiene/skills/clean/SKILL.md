@@ -22,9 +22,12 @@ filename pattern is a discovery hint, never proof that an entry is junk. Read
 ## Arguments and boundaries
 
 Parse `$ARGUMENTS` as optional `--execute`, optional `--policy <file>`, and one target directory.
-`--execute` means “offer the gated lane”; it is not approval. With no target, ask once. Reject a
-filesystem root, mount target, OS-managed root, protected shell-folder root or descendant, missing
-directory, symlink, or Windows reparse point.
+`--execute` means “offer the gated lane”; it is not approval. With no target, ask once. Reject an
+OS-managed root, a non-root mount target, a protected shell-folder root or descendant, a missing
+directory, a symlink, or a Windows reparse point. A whole-volume root that is not OS-managed (a
+Windows Dev Drive) is no longer rejected outright — it is a valid target, but as a known-large root
+it is gated like a home target (see step 1): the scan returns `large-target-confirmation-required`
+unless bounded with `--max-depth` or confirmed with `--confirmed-large-scan`.
 
 - Use `/repo-hygiene:clean` for one repository's caches, build output, Git metadata, or tree reset.
 - For git worktree checkouts (e.g. under a `.worktrees/` directory), hand off to
@@ -73,10 +76,12 @@ plugin data directory even when the shell environment lacks `CLAUDE_PLUGIN_DATA`
 For a large root (a home directory, anything whose recursive walk could exceed the engine's entry
 cap), start with a bounded pass: add `--max-depth 1` to inventory the target's loose files and
 immediate children, then fan out deeper scans per subtree that the evidence justifies. The engine
-backs this with a deterministic gate: a scan whose target resolves to the user home directory and
-carries neither `--max-depth` nor `--confirmed-large-scan` returns `large-target-confirmation-required`
-(after a cheap top-level probe, not a full walk) instead of the unbounded traversal, so a forgotten
-bound never becomes an accidental whole-home scan. `--max-depth` is the preferred bounded response.
+backs this with a deterministic gate: a scan whose target resolves to the user home directory or a
+non-OS volume root (a Windows Dev Drive — an OS-managed root is denied outright and never reaches
+this gate) and carries neither `--max-depth` nor `--confirmed-large-scan` returns
+`large-target-confirmation-required` (after a cheap top-level probe, not a full walk) instead of the
+unbounded traversal, so a forgotten bound never becomes an accidental whole-volume scan. `--max-depth`
+is the preferred bounded response.
 Reserve `--confirmed-large-scan` for a deliberate full walk the human has confirmed — ask with
 `AskUserQuestion` first, exactly as the apply lane requires before an expensive step; a general
 "clean my home directory" is not that confirmation. Every
