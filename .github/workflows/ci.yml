@@ -270,6 +270,26 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: scripts/sync-parse-concern-value.sh --check-bump "origin/$BASE_REF"
 
+  resolve-convention-pattern-sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          # Full history so the PR base ref is resolvable for the bump gate.
+          fetch-depth: 0
+      - name: Verify plugin copies match the shared resolver
+        run: scripts/sync-resolve-convention-pattern.sh --check
+      - name: Run shared resolver tests
+        run: bash lib/resolve-convention-pattern.test.sh
+      - name: Verify consuming plugins bumped when the lib changed
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/sync-resolve-convention-pattern.sh --check-bump "origin/$BASE_REF"
+
   standards-contract-sync:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -661,6 +681,7 @@ jobs:
       - hygiene
       - hook-utils-sync
       - parse-concern-value-sync
+      - resolve-convention-pattern-sync
       - standards-contract-sync
       - cross-plugin-source-drift
       - skill-leaf-name-gate

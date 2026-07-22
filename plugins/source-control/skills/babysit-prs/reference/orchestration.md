@@ -447,12 +447,21 @@ The dedicated conflict-resolution worker's contract:
   Merging that stale local ref can find no conflict — because the stale view predates the base
   update that actually caused it — and push or report success without resolving anything. Fetch
   first, unconditionally, then merge.
-- **Merge, never rebase.** Resolve with `git merge origin/<base-branch>` into the PR branch. This
-  is deliberate: a rebase rewrites the branch's commit history and would require a force-push to
-  update the remote PR branch, violating this skill's absolute never-force-push cross-tier
-  invariant. A merge commit needs only a normal `git push`, preserves both histories, and is fully
-  compatible with a repo that requires linear history on its default branch — that requirement is
-  enforced by the final squash merge, not by the PR branch's own interim history.
+- **Assert the head, merge, never rebase.** Before merging, assert the worktree's `HEAD` equals the
+  true PR head (`gh pr view --json headRefOid`) — refuse to resolve onto a stale or head-mismatched
+  tip (a detached HEAD that equals the head is fine — the sibling-locked case; `reference/safety.md`,
+  Checkout And Push Invariants). Resolve with `git merge origin/<base-branch>`
+  into the PR branch. This is deliberate: a rebase rewrites the branch's commit history and would
+  require a force-push to update the remote PR branch, violating this skill's absolute
+  never-force-push cross-tier invariant. The merge commit is pushed by refspec to the branch's
+  configured upstream — `git push "$PUSH_REMOTE" HEAD:<headRefName>`, where `PUSH_REMOTE` resolves
+  **fail-closed** per `reference/safety.md` (Checkout And Push Invariants): `origin` for a same-repo
+  head, the fork's remote for a write-allowed cross-repo head, and **stop (read-only)** rather than
+  defaulting to `origin` when a fork remote is unresolved (an `origin` fallback writes a same-named
+  branch on the base repo, not the fork head). A fast-forward given the head assertion, never force —
+  preserving both histories and staying
+  compatible with a repo that requires linear history on its default branch, which the final squash
+  merge enforces, not the PR branch's own interim history.
 - **Understand both sides before touching markers.** Read and reconcile the actual semantic intent
   of the PR branch's own diff and of whatever changed on the base branch since divergence. Never
   resolve by blindly keeping "ours" or "theirs" without understanding what each side was trying to

@@ -12,7 +12,7 @@ Close a work item with a completion comment.
 
 - `--summary "text"` -- Completion summary (required -- will prompt if missing)
 - `--pr <number>` -- Link the closing PR
-- `--not-planned` -- Close as "not planned" instead of "completed" (for items decided against or superseded)
+- `--not-planned` -- Close as "not planned" instead of "completed" (items decided against, superseded, or a duplicate with no native duplicate close — see the "Duplicate close" note). Superseded and duplicate items never close as "completed"
 
 ## Workflow
 
@@ -60,4 +60,5 @@ If it's a recurring item, warn: "This is a recurring item. Did you mean `/work-i
 
 - Always require a completion summary. Summaries are institutional memory of what was decided/learned.
 - If no `--summary` provided, ask for one before closing.
-- The `done` action closes with `completed` (default), or `not planned` when `--not-planned` is given — for items decided against, superseded, or no longer relevant.
+- The `done` action closes with `completed` (default), or `not planned` when `--not-planned` is given — for items decided against, superseded, or no longer relevant. Superseded and duplicate items never close as `completed`.
+- **Duplicate close.** Close a duplicate via the adapter's native duplicate mechanic when it has one (adapter: "Close item" — GitHub's `--duplicate-of`, which sets a structured, queryable `duplicateOf` relationship and close reason `duplicate`); otherwise fall back to appending a `## Duplicate of <ref>` body section — `#<M>` for a same-repo duplicate, the qualified `<owner>/<repo>#<M>` reference or issue URL for a cross-repo one — and closing with `--not-planned`, linking the original in a comment.

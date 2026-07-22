@@ -7,6 +7,7 @@ Create a new work item with labels from the taxonomy.
 - **Priority** — when the `--priority` flag is absent, apply `priority:p3-low`.
 - **Body template** — when `--body` is not provided, fall back to the default skeleton: a `## Context` paragraph (what observation surfaced this item, what's the cost of leaving it), a `## Proposed work` bullet list (concrete next actions), `## Acceptance criteria` (one verifiable assertion per bullet), and `## References` (cross-references to rules, files, prior PRs, or external docs). The concrete body the workflow builds is detailed in step "Build body" below.
 - **Label taxonomy** — labels are validated against the 8-group structure documented in [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md).
+- **Title shape** — the item title follows the convention in [`${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md`](${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md).
 
 ## Usage
 

@@ -81,6 +81,18 @@ no `type_list` in any layer resolves to the bundled 11-type list.
 `pr_title_pattern` resolving to `Same as \`subject_pattern\`.` expands against the **effective**
 `subject_pattern` after all three layers merge, not against the pattern in its own layer.
 
+## Drafting vs enforcement
+
+This document owns **drafting** resolution — how `/source-control:commit` and `/pull-request`
+compose a compliant subject/title, reading all three layers with the per-key merge above. A separate
+concern owns **enforcement** — how a zero-dependency guardrails hook decides whether an
+*already-formed* subject/title is allowed. The two read the same `.claude/source-control.md` file but
+differ deliberately: enforcement reads the **team-tracked layer only** (a gitignored `*.local.md`
+must never weaken a blocking gate), resolves to **POSIX ERE only**, and treats an unresolved key as
+**no enforcement** — never the bundled Conventional Commits default. That contract, the regex-dialect
+normalization, and the resolver (`lib/resolve-convention-pattern.sh`) live in the
+[commit-convention enforcement seam](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/commit-convention/README.md).
+
 ## Consumer `.gitignore`
 
 The overlay convention needs one line in the consuming repo:

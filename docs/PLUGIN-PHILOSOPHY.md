@@ -280,8 +280,10 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Shared hook utility library | `lib/hook-utils.sh`, synced by `scripts/sync-hook-utils.sh` |
 | Cross-plugin shared-source clusters | `scripts/cross-plugin-source-registry.txt` |
 | Consumer-config layering and precedence | [`docs/conventions/consumer-config-layering/`](conventions/consumer-config-layering/README.md) |
+| Commit-convention enforcement seam | [`docs/conventions/commit-convention/`](conventions/commit-convention/README.md) |
 | Ecosystem command resolution | [`docs/conventions/ecosystem-commands/`](conventions/ecosystem-commands/README.md) |
 | Hook telemetry | [`docs/conventions/hook-telemetry/`](conventions/hook-telemetry/README.md) |
+| Hook observability (status/failure surfaces) | [`docs/conventions/hook-observability/`](conventions/hook-observability/README.md) |
 | Hook precision (false-positive discipline) | [`docs/conventions/hook-precision/`](conventions/hook-precision/README.md) |
 | Permission-rule hygiene | [`docs/conventions/permission-rule-hygiene/`](conventions/permission-rule-hygiene/README.md) |
 | Repository standards index | [`docs/conventions/standards/`](conventions/standards/README.md) |

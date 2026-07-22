@@ -3,6 +3,24 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0]
+
+### Added
+
+- **`go` ecosystem batch default** (`build-cmd: go build ./...`, `test-cmd: go test ./...`,
+  `check-cmd`/`fix-cmd: golangci-lint run [--fix] ./...`, `project-discovery: ["go.mod"]` for
+  nested-module coverage, a `go-mod-tidy-drift` gate via `go mod tidy -diff`) added to
+  `reference/ecosystems/go.yaml` — closes the Go toolchain CI/local-parity gap. Gated behind an
+  `opt-in` key (`.golangci.yml`/`.golangci.yaml`/`.golangci.toml`/`.golangci.json` presence) —
+  empirically verified golangci-lint v2 with no config file still applies its own fixed "standard"
+  linter preset unconditionally, the same imposed-unconfigured-opinion risk the 0.6.0 dotnet gate
+  addressed.
+- `context/go.md` reference file — Go-specific gotchas (`./...` module-boundary behavior,
+  golangci-lint's home-directory config fallback, `go mod tidy -diff`'s Go 1.23+ requirement).
+- `docs/conventions/ecosystem-commands/examples/go.yaml` worked-example fixture.
+- `go`/`golang` added to `/toolchain:check` and `/toolchain:lint`'s covered-ecosystem lists and
+  alias tables.
+
 ## [0.7.0]
 
 ### Added

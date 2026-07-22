@@ -26,6 +26,9 @@ subdirectory.
   running in it — lease-protected removal: hold that PR's worker lease for any per-PR removal.
 - Never use raw filesystem deletion for Git worktrees. Use `git worktree remove` through the
   cleanup helper.
+- When a PR branch is already checked out in a sibling or foreign dev worktree, `git checkout`
+  dead-ends — operate from the assigned worktree in detached HEAD under the head assertion and push
+  by refspec rather than sharing the foreign checkout (`safety.md`, Checkout And Push Invariants).
 
 ## Commands
 
