@@ -17,8 +17,7 @@
     },
     "action": {
       "type": "string",
-      "enum": ["skip", "lf", "crlf"],
-      "description": "Outcome for the file's line endings: \"skip\" (already canonical or not applicable), \"lf\" (normalized to LF), or \"crlf\" (normalized to CRLF)."
+      "description": "Outcome for the file's line endings: \"skip\" (already canonical or not applicable) | \"lf\" (normalized to LF) | \"crlf\" (normalized to CRLF). Documented value set, not a closed enum."
     }
   }
 }
