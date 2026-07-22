@@ -434,24 +434,71 @@ clean_manifest_rel_safe() {
   esac
 }
 
+# Return 0 when REL is a legitimate removal target for CLASS — matching the SAME
+# candidate rules enumeration uses to FIND targets (explicit repo-root paths, a
+# recursive dir-name leaf, or a file-glob leaf). The manifest is untrusted, so
+# --apply re-derives target-hood from the rules rather than trusting a listed
+# path was ever a real target: a tampered entry like `caches\t1\tnotes` names an
+# ordinary untracked dir that is not a cache and must never be removed.
+clean_manifest_target_valid() {
+  local class="$1" rel="${2//\\//}" base="${2##*/}" e pat
+  case "$class" in
+  caches)
+    for e in "${CLEAN_CACHE_EXPLICIT[@]}" "${CLEAN_CACHE_EXPLICIT_FILES[@]}"; do
+      [[ "$rel" == "$e" ]] && return 0
+    done
+    for e in "${CLEAN_CACHE_FIND_DIR_NAMES[@]}"; do
+      [[ "$base" == "$e" ]] && return 0
+    done
+    for pat in "${CLEAN_CACHE_FIND_FILE_GLOBS[@]}"; do
+      # shellcheck disable=SC2053
+      [[ "$base" == $pat ]] && return 0
+    done
+    ;;
+  build)
+    for e in "${CLEAN_BUILD_DIR_NAMES[@]}"; do
+      [[ "$base" == "$e" ]] && return 0
+    done
+    for pat in "${CLEAN_BUILD_FILE_GLOBS[@]}"; do
+      # shellcheck disable=SC2053
+      [[ "$base" == $pat ]] && return 0
+    done
+    ;;
+  *) ;;
+  esac
+  return 1
+}
+
 # Consume a manifest: re-stat + re-run the protection gate per entry (the
 # staleness guard), `rm -rf` survivors, and accumulate outcomes. An entry whose
 # path is already gone is idempotent success (resume) — counted neither removed
 # nor failed. A path that became protected since the dry-run is skipped (its
 # `Skip` line re-emitted), not removed. CLEAN_FAILED_COUNT counts genuine `rm`
-# failures (locked / Unremovable) and rejected entries (a manifest a caller
-# supplied or a concurrent process altered may carry a path that escapes the repo
-# — fail closed on it). The manifest is untrusted input: paths are containment-
-# checked and the byte field is validated as an unsigned decimal before it ever
-# reaches Bash arithmetic (which evaluates array subscripts recursively).
-#   clean_apply_manifest ROOT MANIFEST
+# failures (locked / Unremovable) and rejected entries — fail closed. The
+# manifest is untrusted input (a caller supplies it, or a concurrent process may
+# alter it): every entry is validated before its path is acted on — the class
+# must be one this tier produces (ALLOWED, space-separated), the path must be
+# repo-contained (no `..`/absolute) AND a real target for its class (not an
+# arbitrary untracked dir), and the byte field must be an unsigned decimal before
+# it reaches Bash arithmetic (which evaluates array subscripts recursively).
+#   clean_apply_manifest ROOT MANIFEST ALLOWED_CLASSES
 clean_apply_manifest() {
-  local root="$1" manifest="$2"
+  local root="$1" manifest="$2" allowed="${3:-}"
   local class bytes rel abs skip
   while IFS=$'\t' read -r class bytes rel; do
     [[ -n "$rel" ]] || continue
+    if [[ -n "$allowed" && " $allowed " != *" $class "* ]]; then
+      printf 'Rejected (wrong tier): %s\n' "$rel" >&2
+      CLEAN_FAILED_COUNT=$((CLEAN_FAILED_COUNT + 1))
+      continue
+    fi
     if ! clean_manifest_rel_safe "$rel"; then
       printf 'Rejected (outside repo): %s\n' "$rel" >&2
+      CLEAN_FAILED_COUNT=$((CLEAN_FAILED_COUNT + 1))
+      continue
+    fi
+    if ! clean_manifest_target_valid "$class" "$rel"; then
+      printf 'Rejected (not a %s target): %s\n' "$class" "$rel" >&2
       CLEAN_FAILED_COUNT=$((CLEAN_FAILED_COUNT + 1))
       continue
     fi

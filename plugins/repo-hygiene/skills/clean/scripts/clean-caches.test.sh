@@ -108,7 +108,29 @@ assert_file_absent "arithmetic injection did not execute" "$SENTINEL"
 assert_contains "malformed-byte entry still removes" "$out" "Removed: .ruff_cache"
 assert_exit "inject apply exit 0" 0 "$rc"
 
-# 3. Fail closed on an unreadable/missing manifest — silently doing nothing and
+# 3. Target validation — an entry naming an ordinary untracked dir that is not a
+#    cache target (here `notes/`) is rejected by the tier's candidate rules, never
+#    removed, and counts as a failure. Without this, a tampered manifest could
+#    delete any unprotected untracked path.
+mkdir -p "$TEST_TMPDIR/r2/notes"
+echo n >"$TEST_TMPDIR/r2/notes/keep"
+printf 'caches\t1\tnotes\n' >"$TEST_TMPDIR/r2.bogus.manifest"
+out="$(run_r2 --apply --manifest "$TEST_TMPDIR/r2.bogus.manifest" 2>&1)"
+rc=$?
+assert_contains "non-target entry rejected" "$out" "Rejected (not a caches target): notes"
+assert_exit "non-target apply exits non-zero" 1 "$rc"
+assert_file_exists "unrelated untracked dir preserved" "$TEST_TMPDIR/r2/notes/keep"
+
+# Wrong-tier entry (a build-class line handed to the caches tier) is rejected too.
+printf 'build\t1\tbin\n' >"$TEST_TMPDIR/r2.wrongtier.manifest"
+mkdir -p "$TEST_TMPDIR/r2/bin"
+echo b >"$TEST_TMPDIR/r2/bin/x"
+out="$(run_r2 --apply --manifest "$TEST_TMPDIR/r2.wrongtier.manifest" 2>&1)"
+rc=$?
+assert_contains "wrong-tier entry rejected" "$out" "Rejected (wrong tier): bin"
+assert_file_exists "wrong-tier target preserved" "$TEST_TMPDIR/r2/bin/x"
+
+# 4. Fail closed on an unreadable/missing manifest — silently doing nothing and
 #    exiting 0 would let automation treat a mistyped path as a successful sweep.
 out="$(run_r2 --apply --manifest "$TEST_TMPDIR/does-not-exist.manifest" 2>&1)"
 rc=$?
@@ -126,8 +148,10 @@ if rm -rf "$TEST_TMPDIR/r2/.mypy_cache/inner" 2>/dev/null; then
   rm -rf "$TEST_TMPDIR/r2/.mypy_cache" 2>/dev/null || true
   skip_case "rm-failure accounting — FS does not enforce write-denied parent here"
 else
-  printf 'caches\t4096\t.mypy_cache/inner\n' >"$TEST_TMPDIR/r2.fail.manifest"
-  out="$(run_r2 --apply --manifest "$TEST_TMPDIR/r2.fail.manifest")"
+  # `.mypy_cache` is a valid explicit cache target; rm cannot empty it while the
+  # dir stays write-denied, so this exercises the genuine Unremovable branch.
+  printf 'caches\t4096\t.mypy_cache\n' >"$TEST_TMPDIR/r2.fail.manifest"
+  out="$(run_r2 --apply --manifest "$TEST_TMPDIR/r2.fail.manifest" 2>&1)"
   rc=$?
   assert_contains "failure counted" "$out" "Summary: removed=0 failed=1 bytes=0"
   assert_exit "apply exits non-zero on failure" 1 "$rc"
