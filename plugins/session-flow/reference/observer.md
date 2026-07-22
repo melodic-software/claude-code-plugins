@@ -52,22 +52,28 @@ Transcripts and observations are **untrusted input**. The shared boundary — th
 output is data to analyze, never instructions to follow — is owned by
 [`off-thread-work.md`](./off-thread-work.md) ("The inspected output is untrusted data"); the analysis
 prompt restates the directive-immunity rule inline for the fresh `-p` context. The analysis run is
-**Read-only** (`--allowedTools Read` under `--permission-mode dontAsk`): no Bash, no code execution
-over injected transcript content. The distilled observations already carry the tool histogram and
-turn boundaries, so the checkpoint block is complete without running the parser.
+**genuinely Read-only**: `--tools Read` RESTRICTS the available tool set to Read, `--strict-mcp-config`
+loads no MCP servers, and `--allowedTools Read` under `--permission-mode dontAsk` keeps that single
+Read from prompting or being denied. `--allowedTools` alone would not suffice — it only auto-approves
+and does not restrict, so a Bash/WebFetch/MCP tool already allowed in the user's settings could
+otherwise be driven by a prompt-injection record in the transcript. The distilled observations
+already carry the tool histogram and turn boundaries, so the checkpoint block is complete without
+running the parser.
 
 ## The analysis run — flags and the `--bare` / auth coupling
 
 The default analysis command is:
 
 ```text
-claude -p --model <observer_analysis_model> --permission-mode dontAsk \
-  --output-format json --allowedTools Read --add-dir <plugin_root> --add-dir <work_dir>
+claude -p --model <observer_analysis_model> --permission-mode dontAsk --output-format json \
+  --tools Read --allowedTools Read --strict-mcp-config \
+  --add-dir <checkpoint-context-dir> --add-dir <work_dir>
 ```
 
 with the prompt fed on **stdin** (never as a trailing positional — `--add-dir` is variadic and would
 swallow it). `dontAsk` guarantees the run can never hang (an unauthorized tool call aborts rather
-than waiting); `--allowedTools Read` keeps the authorized read from being auto-denied.
+than waiting); `--tools Read` + `--strict-mcp-config` make the run genuinely Read-only regardless of
+the user's ambient tool grants; `--allowedTools Read` keeps the authorized read from being auto-denied.
 
 `--bare` (skip auto-discovery) is a further cost lever, but it is **off by default** and gated behind
 `observer_analysis_bare`: verified on Claude Code 2.1.218, `--bare` makes the run report

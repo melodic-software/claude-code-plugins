@@ -171,6 +171,39 @@ class LedgerAndRetention(unittest.TestCase):
             ob = make_observer(tmp, session_id="mine")
             self.assertIsNone(ob._find_session_ledger())
 
+    def test_analysis_command_is_tool_restricted(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            ob = make_observer(tmp, analysis=True, session_id="tr")
+            ob.obs_path.write_text('{"t":"user"}\n', encoding="utf-8")
+            captured = {}
+
+            class FakeProc:
+                returncode = 0
+                stdout = json.dumps({"is_error": False,
+                                     "result": "### Checkpoint findings\n\nok"})
+                stderr = ""
+
+            def fake_run(cmd, input=None, **kw):
+                captured["cmd"], captured["input"] = cmd, input
+                return FakeProc()
+
+            of, orr = observer._find_claude, observer.subprocess.run
+            observer._find_claude = lambda: "claude"
+            observer.subprocess.run = fake_run
+            try:
+                self.assertTrue(ob._run_analysis())
+            finally:
+                observer._find_claude, observer.subprocess.run = of, orr
+            cmd = captured["cmd"]
+            # Genuinely tool-restricted, MCP-off, prompt via stdin, --bare default off.
+            self.assertEqual(cmd[cmd.index("--tools") + 1], "Read")
+            self.assertIn("--strict-mcp-config", cmd)
+            self.assertEqual(cmd[cmd.index("--permission-mode") + 1], "dontAsk")
+            self.assertIsInstance(captured["input"], str)
+            self.assertNotIn("--bare", cmd)
+            self.assertIsNotNone(ob._find_session_ledger())
+
     def test_analysis_unavailable_retains(self):
         # claude CLI absent -> _run_analysis must report "not consumed" so run()
         # keeps the observations as the collect fallback rather than deleting them.

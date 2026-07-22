@@ -435,11 +435,15 @@ class Observer:
             "--model", self.model,
             "--permission-mode", "dontAsk",
             "--output-format", "json",
-            # Read-only: dontAsk auto-denies anything that would prompt, so the run
-            # can never hang; Read is explicitly allowed so it isn't denied either.
-            # Bash/parser is deliberately NOT granted -- the observations are
-            # untrusted data, so no code executes over injected transcript content.
+            # Genuinely Read-only over UNTRUSTED observations. --tools RESTRICTS the
+            # available tool set to Read; --allowedTools only auto-APPROVES and does
+            # not restrict, so on its own a Bash/WebFetch/MCP tool already allowed in
+            # the user's settings could be driven by a prompt-injection record in the
+            # transcript. --strict-mcp-config loads no MCP servers. --allowedTools +
+            # dontAsk keep the single Read from prompting or being denied.
+            "--tools", "Read",
             "--allowedTools", "Read",
+            "--strict-mcp-config",
             *add_dirs,
         ]
 
