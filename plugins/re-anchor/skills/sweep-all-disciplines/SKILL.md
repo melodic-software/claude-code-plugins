@@ -88,7 +88,13 @@ unchanged and bind every member.
    `use-your-skills` first (fix which skills govern the work) → evidence
    correctors (get the facts right) → structural correctors → `mind-your-maxims`
    (communication) → `tighten-your-output` dead last, so it never tightens
-   text a later corrector rewrites.
+   text a later corrector rewrites. Correcting on the main thread does not
+   suppress the shared method's fresh-context escalation: where a finding's
+   suspected drift source is this context's own judgement, re-derive it in a
+   fresh-context (non-fork) subagent blind to that reasoning, per the method
+   doc's Non-negotiable — the batch orchestrates the correction here, it does
+   not waive that escalation. (The fork *audit* inherits context on purpose:
+   step 2 is a same-context self-audit; this carve-out is about step 3.)
 4. **Report** one consolidated ledger: per corrector — corrected / clean /
    open; plus which situational members ran versus were skipped, and which
    never-members exist for direct use.
@@ -139,6 +145,11 @@ relevance-gated. Report the net effect whenever the overlay changes the set.
 - **Audit in the forks, correct on the main thread.** Parallel forks that
   wrote would race and re-dilute salience; the value is one ordered
   correction pass.
+- **Forks run at the parent model's cost.** An Agent-tool fork ignores a model
+  override and inherits the whole conversation, so each in-scope corrector's
+  audit runs at the parent model over the full transcript; the wave cap bounds
+  burst, not per-fork cost. Keeping the `never` tier out and relevance-gating
+  the situational tier are what hold the fan-out small.
 - **`tighten-your-output` stays last** — tightening before the other
   corrections would tighten text they then rewrite.
 - **A situational skip is reported, not silent** — the user sees what was
