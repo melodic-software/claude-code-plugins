@@ -265,7 +265,10 @@ in telemetry = Sonnet; live checkout clean; any fire-without-row = Phase 1 defec
 > AND the span measure use only completions merged ≥48h before evaluation, so a
 > burst-then-straggler shape stays ineligible and the revert signal cannot be outrun.
 > Simulation of evidence was proposed and REJECTED (synthetic evidence corrupts the base).
-> Earliest eligibility moves ~2026-08-04 → **~2026-07-28/29**. Preconditions before any
+> Earliest eligibility moves ~2026-08-04 → **~2026-07-30/31**: the ≥7d mature-completion
+> span closes ~2026-07-28 (first mature merge 2026-07-21T18:30Z + 7d), and the closing
+> completion must itself be merged ≥48h before evaluation — the maturity guard lags the
+> closing edge by ~2 days on top of the span. Preconditions before any
 > flip: the mechanical demotion watcher (scratch#41) replaces ad-hoc verification.
 > Same change: fire cadence hourly → **15-min grid** (slot attestation generalized,
 > tolerance 480s; quantified residual — accidental Run-now attests within ~53% of the hour
@@ -283,7 +286,13 @@ in telemetry = Sonnet; live checkout clean; any fire-without-row = Phase 1 defec
 > standing watch directive. This is a fresh-context verification tier, not human review
 > per merge, and not run self-merge; recorded so the evidence base describes what actually
 > happened. The predicate's "autonomous completion" definition (claim→implement→PR, no
-> help) is unaffected.
+> help) is unaffected — and it applies to the runs counted: a run whose PR needed a
+> delegated pre-merge correction (scratch#24's `Refs` → `Closes` linkage fix by the
+> verifying session) produced its valid PR WITH help and is not an autonomous completion.
+> Corrected runs are excluded from the predicate count — by hand (raw completions minus
+> corrected runs; currently exactly one, scratch#24) until the mechanical exclusion lands
+> in the predicate filter (scratch#60). Dispatch's `Closes` guard (scratch#47) prevents
+> the defect class recurring.
 
 Standing lane: missed-fire detector + failure tracker items are the automated signal; human
 merges the day's drain PRs (this is the pre-promotion policy, not a kick); weekly usage
