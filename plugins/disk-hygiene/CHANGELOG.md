@@ -14,10 +14,12 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   and other destructive shapes stop being intercepted on the very POSIX hosts the safety model
   relies on — and a legacy `python` 2.x resolving first would crash the guard on modern syntax. The
   hook now names `python3`. A new regression test (`test_skill_hook_interpreter_is_python3_and_resolves`)
-  locks the config at `python3` and probes that it resolves to a 3.11+ interpreter. Enforcement
-  remains bounded by resolution: on a host without a resolvable `python3` the launch still fails
-  open, so the manual-handoff human approval and the consumer's baseline permission policy stay the
-  backstop, and `/disk-hygiene:setup check` reports interpreter resolution. (#380)
+  locks the config at `python3` and probes that a runnable `python3` reports a 3.11+ interpreter.
+  Enforcement remains bounded by resolution: on a host without a resolvable `python3` the launch
+  still fails open on the manual PowerShell deletion lane (engine `apply` is already unsupported on
+  Windows/macOS), so the per-path human approval that lane already requires and the consumer's
+  baseline permission policy stay the backstop, and `/disk-hygiene:setup check` reports interpreter
+  resolution. (#380)
 
 ## [0.4.2]
 

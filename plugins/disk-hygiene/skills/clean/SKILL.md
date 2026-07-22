@@ -231,11 +231,13 @@ sparse files, hard links, compression, and delayed allocation affect it.
   `python` 2.x would crash the guard on modern syntax). Enforcement is therefore only as strong as
   that resolution: on a host where `python3` does not resolve to a 3.11+ interpreter the PreToolUse
   launch fails, and Claude Code treats a failed hook launch as a non-blocking error, so the guard
-  does not intercept there. This does not open a silent auto-delete path — the engine's own apply
-  lane runs only after the guard's `ask` prompt, is unsupported on Windows and macOS entirely, and
-  the manual-handoff lane plus the consumer's baseline permission policy still gate every deletion —
-  but it is defense-in-depth lost, not preserved. `/disk-hygiene:setup check` reports whether the
-  interpreter resolves on this machine.
+  does not intercept there. Concretely, the exposure is the manual PowerShell deletion lane: engine
+  `apply` is unsupported on Windows and macOS and elsewhere runs only behind the guard's own `ask`,
+  so no silent auto-delete path opens, but the guard's PowerShell belt that turns a deletion spelling
+  into a final human prompt is lost. The backstops that remain are the per-path human approval the
+  manual-handoff lane already requires and the consumer's baseline permission policy — defense-in-depth
+  lost, not preserved. `/disk-hygiene:setup check` reports whether the interpreter resolves on this
+  machine.
 - The PowerShell lane is the inverse tradeoff: it stays open for read-only support work (git, gh,
   metadata probes) and instead hard-denies engine invocations and turns known deletion spellings
   into a final human permission prompt. It is a raised bar, not a fail-closed lane; the engine's
