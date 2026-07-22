@@ -49,7 +49,8 @@ Four beats, in order. The two **mechanical** beats reuse existing machinery verb
    owns the body template (Context / Proposed work / Acceptance criteria / References / Metadata) and
    the argv-safe `create-item` write ([`../skills/track/actions/add.md`](../skills/track/actions/add.md)
    "Build body", "Create the item"). The shape is not restated here — `track add` is its source of
-   truth, so a change to the template lands in one place.
+   truth, so a change to the template lands in one place. The item **title** follows the convention
+   in [`issue-conventions.md`](issue-conventions.md).
 
 4. **Label `needs-triage`, then hand off (mechanical label + policy).** Apply `status:needs-triage`
    ([`label-taxonomy.md`](label-taxonomy.md) status axis) so the item lands in the triage attention

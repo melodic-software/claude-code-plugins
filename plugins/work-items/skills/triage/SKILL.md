@@ -93,8 +93,8 @@ Read the item body, comments, and any linked PRs; for a PR, the diff too (adapte
 
 Classify **bug vs enhancement** first — it steers the rest of the flow (bugs get reproduced; rejected enhancements get ledgered). Then recommend:
 
-- **Type** — bug → `Bug`; enhancement → `Feature` (or `Task` for tracked non-feature work). Native GitHub Issue Type on org repos, set through the seam; `type:` label on personal / non-org repos
-- **Priority label** (`priority:p0-critical` through `priority:p3-low`) — when a directive or category rule sets this label **above** the finding's self-labeled severity, record the original severity in the triage comment (e.g. `priority set to pX by <rule>; reporter severity: <sev>`) so implementers can sub-sort within a priority band. No new labels
+- **Type** — bug → `Bug`; enhancement → `Feature` (or `Task` for tracked non-feature work). Native GitHub Issue Type on org repos, set through the seam; `type:` label on personal / non-org repos. Item title and prefix conventions: [`${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md`](${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md)
+- **Priority label** (`priority:p0-critical` through `priority:p3-low`) — default to `priority:p2-medium` when no directive, category rule, or severity signal sets one. `priority:p1-high` is **reserved** for items that block other work or carry an imminent external deadline; `priority:p0-critical` keeps its existing critical semantics. When a directive or category rule sets this label **above** the finding's self-labeled severity, record the original severity in the triage comment (e.g. `priority set to pX by <rule>; reporter severity: <sev>`) so implementers can sub-sort within a priority band. No new labels. This triage-assessed default is deliberately distinct from the `/work-items:track add` filing default (`priority:p3-low`, an untriaged-signal floor rather than a priority assessment)
 - **Target state** — from the state machine above: needs-info, or one of the three briefed exits (delegable, decision-defaulted, human-gated). For a briefed item that carries a decision, apply the **routing test**: is the alternative reversible/maintainer-vetoable (→ **decision-defaulted**: autonomous-eligible role + `status:ready`, recorded with a `Decision defaulted: X — veto before merge` comment) or genuinely open — open design space, product intent, or cross-repo policy (→ **human-gated**)?
 
 **Direction gate.** Recommending is read-only; the gate governs *mutation* — labels, comments, closes, item creation — and which side of it you are on is fixed by how triage was invoked:
@@ -131,7 +131,7 @@ Every outcome is a **transition off raw**, not a layer on top of it. Applying an
 | Already implemented | Close pointing to where the behavior lives; do NOT ledger it (`docs/out-of-scope/` records rejections, not built features) |
 | Won't fix (bug) | Close with rationale comment |
 | Won't fix (enhancement) | Close with rationale comment; when the repo keeps `docs/out-of-scope/`, record the rejection in the matching concept file (re-read + append to "Prior requests", or create the concept file for a first rejection) and link it from the closing comment — applies to enhancement PRs exactly as to issues, so the same request doesn't return as fresh code |
-| Duplicate | Close with link to original |
+| Duplicate | Never `completed`. Close via the adapter's native duplicate mechanic when the provider has one (GitHub: `--duplicate-of`), else not-planned + a `## Duplicate of #N` body section + link comment |
 
 For a PR, the outcome addresses the attached code explicitly: adopt the diff (briefed for an agent or human to carry forward), rework it (brief describes the gap between the diff and the verified requirement), or decline it (close with rationale — and the ledger entry when it's a rejected enhancement).
 

@@ -61,10 +61,11 @@ none of its own.
 repository with the `gh` CLI available:
 
 ```shell
-gh issue create --body-file <report-path>
+gh issue create --type Bug --body-file <report-path>
 ```
 
-Let `gh` prompt for the title interactively. If filing non-interactively, never paste
+Let `gh` prompt for the title interactively. `--type Bug` sets the native GitHub Issue
+Type (org repos; omit on repos without native Issue Types, adding a `type: bug` label instead). If filing non-interactively, never paste
 the reporter's title text into the command string — write it to a file and pass
 `--title "$(cat <title-file>)"`: the substitution result is a quoted argument value and
 is not re-parsed, so backticks or `$( )` in reporter text cannot execute.
