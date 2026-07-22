@@ -60,7 +60,7 @@ topic qualifier follows the verb with a hyphen (`audit-noise` beside `audit-enca
 `scan-todos` under `work-items`); the verb keeps its fixed meaning from the table.
 
 Nouns are reserved for knowledge routers (`principles`, `methodology`) and lifecycle-object routers
-(`worktree`, `pull-request`). Six further documented exceptions: a single-skill vendor-CLI wrapper
+(`worktree`, `pull-request`). Five further documented exceptions: a single-skill vendor-CLI wrapper
 repeats its tool name (`firecrawl:firecrawl`); a `-deep` suffix marks the heavier
 isolated-execution tier of a sibling skill (`explore`/`explore-deep`); a knowledge router named by
 its method's own literature term keeps that term when renaming would destroy recognized craft
@@ -70,10 +70,7 @@ content's identity (`playbooks:boris`, `playbooks:fable-5` — one scheme, perso
 and an object-pronoun qualifier is kept when the skill's defining boundary IS that the object under
 test is the user themself (`education:quiz-me` — the `-me` distinguishes quizzing the human on
 completed work from teach's in-workspace content quizzing, where a bare `quiz` would under-specify
-the object the grammar normally delegates to the namespace); and a single-skill plugin whose sole
-capability is a bare imperative verb repeats that verb as its plugin namespace (`visualize:visualize`),
-because the plugin exists only to house that one verb and no static object-noun reads more truthfully
-than the verb itself — distinct from the vendor-CLI case, whose repeated token is a tool's proper noun.
+the object the grammar normally delegates to the namespace).
 Every exception is an entry on this list, decided per name — a name class is never
 blanket-sanctioned.
 

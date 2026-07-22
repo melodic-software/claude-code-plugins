@@ -1,4 +1,4 @@
-# visualize
+# visualization
 
 A Claude Code plugin for on-demand visualization. One skill, one job: at any point
 in a conversation, decide **what** is most worth showing visually and **how** to
@@ -6,7 +6,7 @@ show it, then render it — a form-and-medium router, not a craft teacher.
 
 | Skill | What it does |
 |---|---|
-| `/visualize:visualize` | Infer the target from the conversation, pick a form (mermaid diagram, table, chart, ASCII/Unicode, or a rich page) and a medium (terminal, local HTML file, or published Artifact), and render it — asking only on genuine ambiguity |
+| `/visualization:visualize` | Infer the target from the conversation, pick a form (mermaid diagram, table, chart, ASCII/Unicode, or a rich page) and a medium (terminal, local HTML file, or published Artifact), and render it — asking only on genuine ambiguity |
 
 ## What it decides
 
@@ -63,7 +63,7 @@ rendered diagram. These facts and their sources are documented in the catalog.
   and treated as `auto`. There is no native enum type for `userConfig`, so the
   allowed values are validated in-skill.
 
-Configure with `/plugin configure visualize` (or `--config medium=<value>` on a
+Configure with `/plugin configure visualization` (or `--config medium=<value>` on a
 fresh install). No persistent state; no external prerequisites; no network calls of
 its own.
 
@@ -71,7 +71,7 @@ its own.
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install visualize@melodic-software
+/plugin install visualization@melodic-software
 ```
 
 ## Possible future change

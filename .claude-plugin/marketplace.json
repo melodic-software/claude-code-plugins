@@ -269,8 +269,8 @@
       "tags": ["workflow", "handoff", "keep-going", "clean-stop", "resume", "recover", "durable", "retro", "retrospective", "session", "orchestration", "reanchor", "freshness", "skill"]
     },
     {
-      "name": "visualize",
-      "source": "./plugins/visualize",
+      "name": "visualization",
+      "source": "./plugins/visualization",
       "category": "workflow",
       "tags": ["visualize", "visualization", "diagram", "mermaid", "chart", "artifact", "render", "skill"]
     },

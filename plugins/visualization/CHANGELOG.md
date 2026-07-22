@@ -1,13 +1,13 @@
 # Changelog
 
-All notable changes to the `visualize` plugin are documented here. Format follows
+All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
 ## [0.1.0]
 
 ### Added
 
-- **Initial release.** `/visualize:visualize` — a form-and-medium router that
+- **Initial release.** `/visualization:visualize` — a form-and-medium router that
   infers what in the current conversation should be shown visually, picks a form
   (a mermaid diagram, a markdown table, a hand-authored SVG/CSS chart, ASCII/Unicode
   art, or a rich rendered page) and a medium (inline terminal, a local HTML file, or
