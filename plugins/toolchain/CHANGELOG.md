@@ -87,6 +87,7 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
 - Skills with `!` dynamic-context injections now declare `shell: bash` explicitly, per
   the pinned precompute convention — bash-only pipelines must not fall through to a
   PowerShell host.
+
 ## [0.5.1]
 
 ### Changed
