@@ -112,7 +112,11 @@ user first.
 Every removal or rewrite proposal is re-judged before it reaches the report. Dispatch **fresh-context,
 non-fork** subagents — this is a self-grade of the audit's own proposals, so a fork that inherits the
 producing context would not be independent — prompted to refute: "would removing this instruction
-cause Claude to make mistakes? Argue that it is still load-bearing." Batch one verifier per surface
+cause Claude to make mistakes? Argue that it is still load-bearing." Where the removal call is
+high-stakes and correlated blind spots are the risk, prefer a cross-vendor advisor **when one is
+installed** — e.g. the OpenAI Codex plugin's `/codex:review` or `/codex:adversarial-review` — with
+the fresh-context same-vendor subagent as the fallback, never a route to a command that may not
+resolve. Batch one verifier per surface
 (not one per finding), counted under the same ~20-dispatch gate. A proposal the verifier defends is
 demoted to `info` or dropped, never surfaced as a confident removal.
 

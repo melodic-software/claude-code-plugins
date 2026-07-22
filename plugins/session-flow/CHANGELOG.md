@@ -1,5 +1,20 @@
 # Changelog — session-flow plugin
 
+## [0.13.1]
+
+### Changed
+
+- Fresh-eyes review/verify delegation sites now prefer a cross-vendor
+  advisor when one is installed, with the fresh-context same-vendor
+  subagent as the stated fallback — presence-gated per the seam-phrasing
+  convention (#933). `workflow`'s Review stage (`context/steps.md`) names
+  the example command (the OpenAI Codex plugin's `/codex:review`);
+  `orchestrate`'s fresh-context-verify imperative states the preference
+  tool-agnostically and names no command, because that imperative is
+  exported verbatim into the skill's model- and tool-agnostic
+  worker/handoff brief, where a named command would be exactly the
+  unresolvable route the rule forbids.
+
 ## [0.13.0]
 
 ### Added

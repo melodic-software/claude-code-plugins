@@ -130,6 +130,10 @@ pre-scoring filters could not match.
 
    Running them blind and independent is deliberate anti-anchoring; the
    method grounding is in [`context/sources.md`](context/sources.md).
+   When a cross-vendor generator is installed (e.g. the OpenAI Codex
+   plugin), draw one of the generators from it for genuinely
+   uncorrelated candidates — most valuable in `tournament` mode —
+   falling back to same-vendor blind generators when none is present.
 3. **Merge and score.** For a name used as an utterance — a skill, command,
    or anything invoked by saying it — apply the **sentence-form test** as an
    early filter before scoring: is the candidate the imperative you would

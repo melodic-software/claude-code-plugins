@@ -160,7 +160,11 @@ survive scrutiny before being reported.
 false-positive gate as a SEPARATE subagent that re-verifies each finding against the source of
 truth — do NOT let the discovering agent grade its own findings. A model re-checking its own work
 rubber-stamps it; an independent agent re-reading the doc claim AND the actual code catches both
-false positives and miscategorized-but-correct claims. Fence each validator to read-only (its
+false positives and miscategorized-but-correct claims. Where the finding set is high-stakes and
+correlated blind spots are the risk, prefer a cross-vendor advisor **when one is installed** —
+e.g. the OpenAI Codex plugin's `/codex:review` or `/codex:adversarial-review` — with the
+fresh-context same-vendor subagent as the fallback, never a route to a command that may not
+resolve. Fence each validator to read-only (its
 findings' files + verification-sources).
 
 ### External research (required when the tooling exists)

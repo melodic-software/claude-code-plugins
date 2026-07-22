@@ -3,6 +3,16 @@
 All notable changes to the `naming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.1]
+
+### Changed
+
+- `name-it-better`'s blind-generator fan-out now draws one candidate
+  generator from a cross-vendor generator when one is installed (e.g. the
+  OpenAI Codex plugin), for genuinely uncorrelated candidates — most
+  valuable in `tournament` mode — falling back to same-vendor blind
+  generators when absent, presence-gated per the seam-phrasing convention.
+
 ## [0.3.0]
 
 ### Added
