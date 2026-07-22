@@ -3,6 +3,86 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.1]
+
+### Fixed
+
+- **`flag-commit-pr-skill-bypass` honors local-only plugin enablement (audit f2
+  residual, follow-up to 0.9.9's user-global fix).** `source_control_enabled()`
+  counted a `settings.local.json` value only when the project `settings.json`
+  already declared the same key, so a plugin enabled ONLY at local scope
+  (`claude plugin install --scope local` — a first-class state per the official
+  plugins reference) resolved as disabled and the `gh pr create` advisory never
+  fired. A local value now participates in per-key resolution unconditionally
+  (settings precedence Local > Project > User); the two tests that encoded the
+  old "local-only key is ignored" model are inverted, plus a new
+  local-only-enable-with-no-other-scope case.
+  (Docs consulted per the fresh-docs mandate:
+  <https://code.claude.com/docs/en/settings> scope precedence;
+  <https://code.claude.com/docs/en/plugins-reference> `--scope local`.)
+
+## [0.12.0]
+
+### Added
+
+- **Opt-in git `commit-msg` hook — tool-agnostic convention enforcement (audit f1
+  depth layer, f4 backstop).** New `/guardrails:setup apply install-commit-msg`
+  action installs `lib/git-hooks/commit-msg-convention.sh` (plus a copy of the
+  enforcement resolver) into the operator's personal `.git/hooks/`, validating the
+  subject of EVERY commit in the repo — editor commits, `git commit -F <file>`,
+  IDE integrations, humans outside Claude — against the same team-tracked pattern
+  the CC-layer gate reads. Trust-surface contract:
+  - **Never runs from bare `apply`** — only the explicit `install-commit-msg`
+    argument writes anything, and only the two guardrails-owned files in the
+    operator's own hooks dir. `core.hooksPath`, hook-manager configs, and tracked
+    files are never touched; the committed team lane is deliberately not
+    scaffolded (a human PR decision — and `core.hooksPath` changes are the exact
+    shape `block-no-verify` refuses).
+  - **Chain-or-refuse:** managed repos (`core.hooksPath`, lefthook, husky,
+    pre-commit) → refuse with the manager-side remediation; an existing
+    `commit-msg` hook is never overwritten — chain (renamed to
+    `commit-msg.pre-guardrails`, run first, its rejection final) or refuse.
+  - **Sentinel-marked** (`guardrails-commit-msg-convention`) so
+    convention-inference tooling excludes the installed hook as a signal
+    (echo-cycle guard); sentinel-marked re-install is idempotent ("refreshed").
+  - **Unresolved = no enforcement** (never the bundled CC default); resolver
+    removed → fail open, never block blind; `fixup!`/`squash!`/`amend!` subjects
+    exempt (autosquash); a chained pre-existing hook's rejection is final.
+  - **Deadlock-by-design exit:** the rejection message instructs fixing the
+    subject and never suggests `--no-verify` (which `block-no-verify` refuses in
+    Claude sessions anyway); in-session the CC-layer gate blocks first, making
+    this hook the cross-tool backstop.
+  15-case contract suite (`lib/git-hooks/commit-msg-convention.test.sh`).
+
+## [0.11.0]
+
+### Added
+
+- **`block-convention-violation` — the CC-layer content gate (audit f4).** A ninth
+  guard validating the DECLARATIVE convention where a team has explicitly tracked
+  one: the commit subject of the canonical stdin form (first non-empty line of the
+  Bash heredoc / PowerShell here-string body) and the `gh pr create --title` value
+  are checked against the POSIX-ERE pattern resolved from the consumer's tracked
+  `.claude/source-control.md` by the vendored enforcement resolver
+  (`resolve-convention-pattern.sh`, synced from `lib/` — the commit-convention
+  seam, `docs/conventions/commit-convention/`). Contract highlights:
+  - **Unresolved = no enforcement.** No team-tracked pattern, a non-ERE pattern, or
+    an unreadable config → the gate no-ops; it never blocks against the bundled
+    Conventional Commits default.
+  - **Never blocks `gh pr create` itself** — only a present-and-violating
+    `--title`/`-t` value; the documented inline fallback stays usable.
+  - **Inherits `block-noncanonical-commit`'s exemption taxonomy** — `--amend`,
+    `-C`/`-c`, `--fixup`/`--squash`, `-F <path>`, and an in-progress
+    merge/rebase/cherry-pick/revert are never content-gated.
+  - **Declared bypass coverage:** `gh pr edit --title`, `--fill`, direct API
+    calls, babysit retitles, and non-heredoc stdin producers
+    (`printf … | git commit -F -`) are out of scope, documented in the hook
+    header.
+  - Kill switch: `block_convention_gate_enabled` userConfig (default true).
+  Matched on `Bash|PowerShell` like the sibling git guards; PowerShell commands
+  reduce through the bundled classifier first, so unparsable PS never reaches a
+  content decision here (the mechanic gates own those).
+
 ## [0.10.3]
 
 ### Fixed

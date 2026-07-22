@@ -51,6 +51,33 @@ assert_action "fleet alias" "fleet" "tree-batch"
 assert_action "every-repo phrase" "reset every repo" "tree-batch"
 assert_action "ghq list phrase" "reset from ghq list" "tree-batch"
 assert_action "conflicting tokens -> menu" "scan tree" "menu"
+# Selective-tier fleet spellings — sanctioned explicit tokens.
+assert_action "caches-batch token" "caches-batch" "caches-batch"
+assert_action "caches-fleet alias" "caches-fleet" "caches-batch"
+assert_action "build-batch token" "build-batch" "build-batch"
+assert_action "build-fleet alias" "build-fleet" "build-batch"
+assert_action "git-batch token" "git-batch" "git-batch"
+assert_action "prune-batch alias" "prune-batch" "git-batch"
+assert_action "all-batch token" "all-batch" "all-batch"
+assert_action "sweep-batch alias" "sweep-batch" "all-batch"
+# all-batch must NOT be preempted by the fleet-phrase upgrade that targets bare `all`.
+assert_action "all-batch is selective, not tree-batch" "all-batch" "all-batch"
+# A selective tier token + a fleet indicator must route to the (non-destructive)
+# selective batch form, never the destructive tree-batch. This is the safety fix:
+# "clean caches across all repos" previously went to menu / risked tree-batch.
+assert_action "caches + across-all-repos phrase -> caches-batch" "clean caches across all repos" "caches-batch"
+assert_action "caches + bare fleet token -> caches-batch (not tree-batch)" "caches fleet" "caches-batch"
+assert_action "build + all-my-repos phrase -> build-batch" "clear build artifacts across all my repos" "build-batch"
+assert_action "git + fleet phrase -> git-batch" "prune git across the fleet" "git-batch"
+# No selective tier present: a bare fleet phrase is still the destructive tree-batch.
+assert_action "bare fleet phrase still tree-batch" "reset the whole fleet" "tree-batch"
+# A non-reset all-tier fleet request is the SELECTIVE all-batch, not a reset-hard
+# preview; only reset/fresh-pull phrasing keeps the destructive tree-batch.
+assert_action "clean all repos -> all-batch (non-reset)" "clean all repos" "all-batch"
+assert_action "sweep across all repos -> all-batch" "sweep across all repos" "all-batch"
+assert_action "reset all my repos stays tree-batch" "reset all my repos" "tree-batch"
+assert_action "wipe all repos stays tree-batch (reset intent)" "wipe all repos" "tree-batch"
+assert_action "no-token non-reset fleet phrase -> all-batch" "tidy up across all repos" "all-batch"
 # A bare "all" token must not preempt a fleet phrase: "reset all my repos" is the
 # multi-repo tree-batch, not the single-repo `all` sweep.
 assert_action "all-my-repos phrase beats bare all token" "reset all my repos" "tree-batch"

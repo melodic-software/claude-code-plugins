@@ -9,9 +9,10 @@
 # resolved across user-global (`~/.claude/settings.json`), project
 # (`<repo>/.claude/settings.json`), and local (`.claude/settings.local.json`) in
 # precedence order (user-global is the base, project overrides it, local
-# overrides that) — a plugin enabled ONLY at user-global (a common install) is
-# active in every project, so a probe reading the project file alone
-# false-negatives and this advisory never fires. Uncertain state (no jq, no
+# overrides that — unconditionally; `claude plugin install --scope local` makes
+# a local-only key a first-class state) — a plugin enabled ONLY at user-global
+# (a common install) or ONLY at local scope is active here, so a probe reading
+# the project file alone false-negatives and this advisory never fires. Uncertain state (no jq, no
 # value at any scope) never flags a `gh pr create` call — an advisory firing on
 # unknown state is noise, not signal. A missing jq specifically still surfaces a
 # one-time systemMessage that the guard is disabled
@@ -179,8 +180,11 @@ source_control_enabled() {
     lval=$(sc_key_value "$local_settings" "$key")
     effective="$uval"
     [[ -n "$bval" ]] && effective="$bval"
-    # A local override counts only for a key the project settings already declare.
-    [[ -n "$bval" && -n "$lval" ]] && effective="$lval"
+    # Local participates unconditionally: settings precedence is Local >
+    # Project > User, and `claude plugin install --scope local` writes
+    # enabledPlugins to settings.local.json as a first-class standalone state
+    # — a local-only key is real enablement, not noise to ignore.
+    [[ -n "$lval" ]] && effective="$lval"
     [[ "$effective" == "true" ]] && return 0 # any enabled key -> skill available
   done <<<"$keys"
   return 1

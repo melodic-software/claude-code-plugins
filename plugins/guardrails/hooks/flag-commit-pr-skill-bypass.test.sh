@@ -139,15 +139,20 @@ assert_silent "project false overrides user-global true" "$out"
 out=$(run_hook "$(command_json 'gh pr create --title x --body y')" "$ENABLED_PROJECT" HOME="$HOME_DISABLED")
 assert_contains "project true overrides user-global false" "$out" "gh pr create"
 
-# A local key the project settings.json does NOT declare is ignored by Claude
-# Code, so it must not override — only the project+user-global values apply.
+# Local scope stands alone (settings precedence Local > Project > User;
+# `claude plugin install --scope local` writes enabledPlugins to
+# settings.local.json as a first-class state) — a local value participates in
+# per-key resolution whether or not the project settings.json declares the key.
 LOCAL_ONLY_OFF="$(make_project '' false)" # project {} (no key), local=false
 out=$(run_hook "$(command_json 'gh pr create --title x --body y')" "$LOCAL_ONLY_OFF" HOME="$HOME_ENABLED")
-assert_contains "local-only false ignored (no project key) -> user-global fires" "$out" "gh pr create"
+assert_silent "local-only false overrides user-global true (no project key)" "$out"
 
 LOCAL_ONLY_ON="$(make_project '' true)" # project {} (no key), local=true
 out=$(run_hook "$(command_json 'gh pr create --title x --body y')" "$LOCAL_ONLY_ON" HOME="$HOME_DISABLED")
-assert_silent "local-only true ignored (no project key) -> user-global disabled stays silent" "$out"
+assert_contains "local-only true overrides user-global false (no project key)" "$out" "gh pr create"
+
+out=$(run_hook "$(command_json 'gh pr create --title x --body y')" "$LOCAL_ONLY_ON")
+assert_contains "local-only enablement fires with no other scope set" "$out" "gh pr create"
 
 # user-global via a relocated CLAUDE_CONFIG_DIR (not ~/.claude) is honored.
 CFG_ENABLED="$(make_config_dir true)"

@@ -55,6 +55,12 @@
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/block-noncanonical-commit.sh",
             "timeout": 10,
             "statusMessage": "Checking commit-message convention..."
+          },
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/block-convention-violation.sh",
+            "timeout": 10,
+            "statusMessage": "Checking commit subject / PR title against the team convention..."
           }
         ]
       },

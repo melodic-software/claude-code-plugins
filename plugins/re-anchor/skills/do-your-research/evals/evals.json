@@ -49,6 +49,19 @@
         "Does not fabricate findings to appear thorough",
         "Does not paste or restate the discipline's rule text as its output"
       ]
+    },
+    {
+      "id": 5,
+      "name": "fact-check-trigger-routes-to-research-discipline",
+      "prompt": "You said the CLI flag is --parallel and the free tier allows 100 requests a day. Fact-check that.",
+      "expected_output": "Reads 'fact-check' as a trigger for research discipline, re-anchors it, names the two unverified specifics (the flag name, the free-tier limit) as located findings, and corrects forward this turn by verifying each against an authoritative source or the live environment rather than restating them from memory. A single-question fact-check stays in this inline tier rather than escalating to the deep fan-out.",
+      "files": [],
+      "expectations": [
+        "Treats the 'fact-check' request as research/verification discipline and re-anchors it",
+        "Names the unverified flag and the unverified limit as concrete, located findings",
+        "Verifies each against an authoritative source or the live environment this turn, or flags it unverifiable",
+        "Stays inline for a small fact-check rather than escalating to do-your-research-deep"
+      ]
     }
   ]
 }
