@@ -21,7 +21,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 src="lib/resolve-convention-pattern.sh"
 
 copies=(
-  # plugins/guardrails/hooks/resolve-convention-pattern.sh   # added by #914
+  plugins/guardrails/hooks/resolve-convention-pattern.sh # CC-layer content gate (block-convention-violation.sh)
 )
 
 mode="${1:-sync}"

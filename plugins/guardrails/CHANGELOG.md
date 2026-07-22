@@ -3,6 +3,35 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.0]
+
+### Added
+
+- **`block-convention-violation` — the CC-layer content gate (audit f4).** A ninth
+  guard validating the DECLARATIVE convention where a team has explicitly tracked
+  one: the commit subject of the canonical stdin form (first non-empty line of the
+  Bash heredoc / PowerShell here-string body) and the `gh pr create --title` value
+  are checked against the POSIX-ERE pattern resolved from the consumer's tracked
+  `.claude/source-control.md` by the vendored enforcement resolver
+  (`resolve-convention-pattern.sh`, synced from `lib/` — the commit-convention
+  seam, `docs/conventions/commit-convention/`). Contract highlights:
+  - **Unresolved = no enforcement.** No team-tracked pattern, a non-ERE pattern, or
+    an unreadable config → the gate no-ops; it never blocks against the bundled
+    Conventional Commits default.
+  - **Never blocks `gh pr create` itself** — only a present-and-violating
+    `--title`/`-t` value; the documented inline fallback stays usable.
+  - **Inherits `block-noncanonical-commit`'s exemption taxonomy** — `--amend`,
+    `-C`/`-c`, `--fixup`/`--squash`, `-F <path>`, and an in-progress
+    merge/rebase/cherry-pick/revert are never content-gated.
+  - **Declared bypass coverage:** `gh pr edit --title`, `--fill`, direct API
+    calls, babysit retitles, and non-heredoc stdin producers
+    (`printf … | git commit -F -`) are out of scope, documented in the hook
+    header.
+  - Kill switch: `block_convention_gate_enabled` userConfig (default true).
+  Matched on `Bash|PowerShell` like the sibling git guards; PowerShell commands
+  reduce through the bundled classifier first, so unparsable PS never reaches a
+  content decision here (the mechanic gates own those).
+
 ## [0.10.3]
 
 ### Fixed
