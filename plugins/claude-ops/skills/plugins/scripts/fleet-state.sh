@@ -80,8 +80,11 @@ PLUGIN_ROOT_DEFAULT="$(builtin cd "$SCRIPT_DIR/../../.." && builtin pwd)"
 # exercising marketplace self-resolution).
 HOOK_UTILS="$PLUGIN_ROOT_DEFAULT/hooks/hook-utils.sh"
 if [[ -f "$HOOK_UTILS" ]]; then
+  # `builtin source` so an inherited environment exporting a shell function
+  # named `source` (BASH_FUNC_source%%) cannot shadow the builtin and ignore
+  # the correctly resolved path — the resolution above would otherwise be moot.
   # shellcheck source=/dev/null
-  source "$HOOK_UTILS"
+  builtin source "$HOOK_UTILS"
 else
   echo "ERROR: hook-utils.sh not found at $HOOK_UTILS" >&2
   exit 2

@@ -650,6 +650,28 @@ case "$out" in
 *) pass "hostile PATH dirname ignored: hook-utils resolved without an external dirname" ;;
 esac
 
+# ============================================================================
+# Case: an inherited, exported `source` shell function cannot hijack the
+# hook-utils source (security regression guard). Bash imports environment-
+# exported functions (BASH_FUNC_source%%) before the script runs; a plain
+# `source` would then invoke the attacker's function, which receives the
+# correctly resolved real path but can ignore it and run arbitrary code —
+# making the whole trusted-path resolution moot. The script uses `builtin
+# source`, bypassing the exported function. If a future refactor drops
+# `builtin`, the decoy function below runs and its marker surfaces, failing
+# this case.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": []}'
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir" 'BASH_FUNC_source%%=() { echo "PWNED-SOURCE-SHADOW"; }')
+case "$out" in
+*PWNED-SOURCE-SHADOW*) fail "exported source shadow ignored: hijacked source must NOT run" "decoy marker present in output" ;;
+*) pass "exported source shadow ignored: real hook-utils sourced via builtin" ;;
+esac
+
 # --- Summary -------------------------------------------------------------
 printf '\n%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
 [[ "$FAILED" -eq 0 ]] && exit 0
