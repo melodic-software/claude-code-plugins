@@ -1531,7 +1531,8 @@ class GuardTests(unittest.TestCase):
         script = SCRIPT_DIR / "hygiene.py"
         with tempfile.TemporaryDirectory() as temporary:
             plugins = Path(temporary).resolve() / "plugins"
-            plugin_root = plugins / "cache" / "acme" / "disk-hygiene"
+            # The install root is the version leaf under cache/<mkt>/<name>/.
+            plugin_root = plugins / "cache" / "acme" / "disk-hygiene" / "0.4.8"
             plugin_root.mkdir(parents=True)
             authorized = str(plugins / "data" / "disk-hygiene-acme")
             other = str(plugins / "data" / "elsewhere")
@@ -1595,7 +1596,7 @@ class GuardTests(unittest.TestCase):
     def test_resolve_authorized_data_root_derives_from_plugin_root(self) -> None:
         script = str(SCRIPT_DIR / "destructive_guard.py")
         plugin_root = os.fspath(
-            Path("/home/u/.claude/plugins/cache/acme/disk-hygiene")
+            Path("/home/u/.claude/plugins/cache/acme/disk-hygiene/0.4.8")
         )
         derived = os.fspath(
             Path("/home/u/.claude/plugins/data/disk-hygiene-acme")
@@ -1631,8 +1632,19 @@ class GuardTests(unittest.TestCase):
                 self.assertEqual("/from-env", guard.resolve_authorized_data_root())
 
     def test_plugin_data_root_from_root_follows_documented_layout(self) -> None:
-        # <plugins>/cache/<marketplace>/<name> -> <plugins>/data/<id>, with <id>
-        # the sanitized "<name>@<marketplace>".
+        # Real marketplace install: the install root is the VERSION leaf under
+        # <plugins>/cache/<marketplace>/<name>/<version>; data is <plugins>/data/<id>
+        # with <id> the sanitized "<name>@<marketplace>". The version is ignored.
+        self.assertEqual(
+            os.fspath(Path("/x/plugins/data/disk-hygiene-melodic-software")),
+            guard._plugin_data_root_from_root(
+                os.fspath(
+                    Path("/x/plugins/cache/melodic-software/disk-hygiene/0.4.8")
+                )
+            ),
+        )
+        # A directly-linked local install omits the <version> leaf; the name is
+        # then the root itself.
         self.assertEqual(
             os.fspath(Path("/x/plugins/data/disk-hygiene-melodic-software")),
             guard._plugin_data_root_from_root(
@@ -1644,11 +1656,17 @@ class GuardTests(unittest.TestCase):
         self.assertEqual(
             os.fspath(Path("/x/plugins/data/my-plugin-my-market")),
             guard._plugin_data_root_from_root(
-                os.fspath(Path("/x/plugins/cache/my.market/my.plugin"))
+                os.fspath(Path("/x/plugins/cache/my.market/my.plugin/1.2.3"))
             ),
         )
-        # A layout that is not <plugins>/cache/<marketplace>/<name> fails closed.
-        for stray in ("/somewhere/else/plugin", "/a/b", "/x/store/cache/m/n"):
+        # No <plugins>/cache marker, "cache" not under a "plugins" parent, or no
+        # name segment after the marketplace: fail closed.
+        for stray in (
+            "/somewhere/else/plugin",
+            "/a/b",
+            "/x/store/cache/m/n",
+            "/x/plugins/cache/only-marketplace",
+        ):
             self.assertIsNone(
                 guard._plugin_data_root_from_root(os.fspath(Path(stray))), stray
             )

@@ -68,8 +68,10 @@ stay there, never in the target or `${CLAUDE_PLUGIN_ROOT}`. Run:
 
 The guard validates `--data-root` against the plugin data directory it derives from
 `${CLAUDE_PLUGIN_ROOT}` (passed to the guard as `--plugin-root`, the only substitution a
-skill-frontmatter hook receives), so generated state provably lands in the plugin data directory even
-when the guard's own environment lacks `CLAUDE_PLUGIN_DATA`.
+skill-frontmatter hook receives), confining generated state to the plugin data directory even when
+the guard's own environment lacks `CLAUDE_PLUGIN_DATA`. If the guard cannot recognize the install
+layout it derives no authority and denies `--data-root` engine calls rather than trusting a guessed
+path, so re-run reporting a denial is a coverage gap, not a clean result.
 
 For a large root (a home directory, anything whose recursive walk could exceed the engine's entry
 cap), start with a bounded pass: add `--max-depth 1` to inventory the target's loose files and

@@ -63,9 +63,16 @@ layout. A host that can substitute `${CLAUDE_PLUGIN_DATA}` itself may instead pa
 every channel the flag fails closed. `--max-depth` accepts only a bare positive-integer literal.
 
 Deriving the data root from `${CLAUDE_PLUGIN_ROOT}` couples to the one undocumented part of that
-layout — the `cache/<marketplace>/<name>` shape of the installation root. That coupling is acceptable
-only because its sole failure mode is fail-closed: an unrecognized layout yields no authority, so
-`--data-root` engine calls are denied while the destructive-action guard stays fully active.
+layout — the `cache/<marketplace>/<name>/<version>` shape of the installation root (the install root
+is the version leaf; a directly-linked local install omits it). The guard anchors on the
+`<plugins>/cache` marker rather than a fixed depth, taking the marketplace and name from the two
+segments after `cache` and reading `data` as `cache`'s sibling, so a version leaf does not shift the
+result. That coupling is acceptable only because its sole failure mode is fail-closed: an
+unrecognized layout yields no authority, so `--data-root` engine calls are denied while the
+destructive-action guard stays fully active. Whether a skill-frontmatter hook additionally receives
+`CLAUDE_PLUGIN_DATA` in its environment (which would make the derivation a redundant belt over that
+env fallback) is unconfirmed on current Claude Code; the derivation is written to stand on its own
+either way.
 
 The same guard also covers the PowerShell tool with the inverse tradeoff: PowerShell stays open for
 read-only support work, while engine invocations are hard-denied (Bash is the only engine lane) and

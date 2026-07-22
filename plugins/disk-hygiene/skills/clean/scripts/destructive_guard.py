@@ -126,28 +126,36 @@ def _plugin_data_root_from_root(plugin_root: str) -> str | None:
     A skill-frontmatter hook may substitute only ``${CLAUDE_PLUGIN_ROOT}`` into
     its args — ``${CLAUDE_PLUGIN_DATA}`` is plugin-only and makes Claude Code
     refuse to launch a skill hook — so the guard reconstructs the data root from
-    the installation root. Claude Code installs a plugin at
-    ``<plugins>/cache/<marketplace>/<name>`` and persists its data at
-    ``<plugins>/data/<id>``, where ``<id>`` is ``<name>@<marketplace>`` with every
-    character outside ``[A-Za-z0-9_-]`` replaced by ``-`` (plugins reference,
-    "Persistent data directory"). A root that does not match that layout yields
-    ``None`` so the caller fails closed instead of trusting a guessed path.
+    the installation root. Claude Code lays a marketplace plugin out at
+    ``<plugins>/cache/<marketplace>/<name>/<version>`` — the install root is the
+    version leaf — and persists its data at ``<plugins>/data/<id>``, where ``<id>``
+    is ``<name>@<marketplace>`` with every character outside ``[A-Za-z0-9_-]``
+    replaced by ``-`` (plugins reference, "Persistent data directory").
+
+    The install root is version-specific, so this anchors on the
+    ``<plugins>/cache`` marker rather than a fixed depth: the segment after
+    ``cache`` is the marketplace, the next is the name, any further segments (a
+    ``<version>`` leaf, absent for a directly-linked local install) are ignored,
+    and ``data`` is ``cache``'s sibling. A root without that marker, or with no
+    name segment after the marketplace, yields ``None`` so the caller fails closed
+    instead of trusting a guessed path.
     """
-    root = Path(plugin_root)
-    parents = root.parents
-    if len(parents) < 3:
-        return None
-    marketplace_dir, cache_dir, plugins_dir = parents[0], parents[1], parents[2]
-    if (
-        cache_dir.name.casefold() != _PLUGIN_CACHE_DIRNAME
-        or plugins_dir.name.casefold() != _PLUGINS_DIRNAME
-    ):
-        return None
-    name, marketplace = root.name, marketplace_dir.name
-    if not name or not marketplace:
-        return None
-    plugin_id = _PLUGIN_ID_DISALLOWED.sub("-", f"{name}@{marketplace}")
-    return os.fspath(plugins_dir / _PLUGIN_DATA_DIRNAME / plugin_id)
+    parts = Path(plugin_root).parts
+    for index in range(1, len(parts)):
+        if not (
+            parts[index].casefold() == _PLUGIN_CACHE_DIRNAME
+            and parts[index - 1].casefold() == _PLUGINS_DIRNAME
+        ):
+            continue
+        if index + 2 >= len(parts):
+            return None
+        marketplace, name = parts[index + 1], parts[index + 2]
+        if not marketplace or not name:
+            return None
+        plugin_id = _PLUGIN_ID_DISALLOWED.sub("-", f"{name}@{marketplace}")
+        plugins_dir = Path(*parts[:index])
+        return os.fspath(plugins_dir / _PLUGIN_DATA_DIRNAME / plugin_id)
+    return None
 
 
 _DISK_HYGIENE_ENABLED_FLAG = "--disk-hygiene-enabled"
