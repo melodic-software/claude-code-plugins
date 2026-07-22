@@ -54,7 +54,8 @@ directory, symlink, or Windows reparse point.
   replace them. If either value is not known yet, submit the otherwise exact scan shape once with
   bare `python`: the guard must deny it and report both, after which retry the scan with the
   absolute interpreter and the reported `--data-root`. If the reported interpreter is older than
-  Python 3.11, stop with the declared prerequisite instead of improvising a different scanner or
+  the engine's declared floor (the `MIN_PYTHON` constant in `hygiene.py`, the floor's single
+  origin), stop with the declared prerequisite instead of improvising a different scanner or
   deletion path.
 - Automated, scheduled, remote, unattended, or no-human-in-loop sessions always audit and stop.
 
@@ -250,7 +251,8 @@ sparse files, hard links, compression, and delayed allocation affect it.
 - The guard hook launches in exec form via `python3`, resolved on `PATH` with no shell (`python3`,
   not bare `python`, because stock macOS and many Linux distros ship only `python3` and a legacy
   `python` 2.x would crash the guard on modern syntax). Enforcement is therefore only as strong as
-  that resolution: on a host where `python3` does not resolve to a 3.11+ interpreter the PreToolUse
+  that resolution: on a host where `python3` does not resolve to an interpreter meeting the
+  engine's `MIN_PYTHON` floor the PreToolUse
   launch fails, and Claude Code treats a failed hook launch as a non-blocking error, so the guard
   does not intercept there. Concretely, the exposure is the manual PowerShell deletion lane: engine
   `apply` is unsupported on Windows and macOS and elsewhere runs only behind the guard's own `ask`,

@@ -7,6 +7,7 @@ import importlib.util
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -1018,6 +1019,45 @@ class HygieneTests(unittest.TestCase):
             mock.patch("os.path.samefile", side_effect=FileNotFoundError),
         ):
             self.assertEqual([], hygiene.large_scan_reasons(Path("/home/target")))
+
+
+class VersionFloorTests(unittest.TestCase):
+    """The Python floor has one origin: hygiene.MIN_PYTHON."""
+
+    def test_min_python_line_keeps_its_greppable_shape(self) -> None:
+        # setup check and the .test.sh wrappers derive the floor by parsing
+        # this exact line shape out of hygiene.py.
+        source = (SCRIPT_DIR / "hygiene.py").read_text(encoding="utf-8")
+        matches = re.findall(
+            r"^MIN_PYTHON = \((\d+), (\d+)\)$", source, flags=re.MULTILINE
+        )
+        self.assertEqual(1, len(matches))
+        self.assertEqual(tuple(map(int, matches[0])), hygiene.MIN_PYTHON)
+
+    def test_engine_enforces_the_constant_and_names_it_in_the_error(self) -> None:
+        below = (hygiene.MIN_PYTHON[0], hygiene.MIN_PYTHON[1] - 1, 0)
+        with (
+            mock.patch.object(hygiene.sys, "version_info", below),
+            redirect_stdout(io.StringIO()),
+        ):
+            code = hygiene.main(
+                ["scan", "--target", "irrelevant", "--output", "irrelevant"]
+            )
+        self.assertNotEqual(0, code)
+
+    def test_error_message_derives_from_the_constant(self) -> None:
+        floor = ".".join(str(part) for part in hygiene.MIN_PYTHON)
+        below = (hygiene.MIN_PYTHON[0], hygiene.MIN_PYTHON[1] - 1, 0)
+        stdout = io.StringIO()
+        with (
+            mock.patch.object(hygiene.sys, "version_info", below),
+            redirect_stdout(stdout),
+        ):
+            hygiene.main(
+                ["scan", "--target", "irrelevant", "--output", "irrelevant"]
+            )
+        payload = json.loads(stdout.getvalue())
+        self.assertIn(floor, payload["error"])
 
 
 class StandingPolicyTests(unittest.TestCase):
