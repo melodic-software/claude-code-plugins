@@ -251,7 +251,11 @@ class Observer:
                         with self.transcript.open("rb") as f:
                             f.seek(offset)
                             chunk = f.read()
-                        offset = size
+                        # Advance by bytes ACTUALLY read, not the (already stale)
+                        # stat size: CC may append between stat() and read(), so
+                        # read() can pass `size`. Setting offset=size would re-read
+                        # that tail next poll and duplicate events.
+                        offset += len(chunk)
                     except PermissionError:
                         sharing_violations += 1
                         time.sleep(self.poll_secs)
@@ -337,16 +341,21 @@ class Observer:
 
         Reuses running-retro's checkpoint method (pointed at by absolute path, not
         duplicated). The -p run performs the sole semantic redaction pass; this
-        script appends only the block it returns. Returns True on success (or a
-        benign skip), False when the run failed and observations are worth keeping.
+        script appends only the block it returns. Returns True only when the
+        observations were CONSUMED (a successful run, or nothing to keep), so the
+        caller may delete them; False whenever they should be RETAINED (analysis
+        unavailable or failed).
         """
         if not self.obs_path.exists() or self.obs_path.stat().st_size == 0:
             self.log("no observations captured; skipping analysis")
-            return True
+            return True  # nothing to retain
         claude = _find_claude()
         if not claude:
-            self.log("claude CLI not found on PATH; skipping analysis")
-            return True
+            # Analysis could not run -> RETAIN the observations as the collect-only
+            # fallback (return "not consumed"), so the user is left with the
+            # machine-local artifact rather than nothing.
+            self.log("claude CLI not found on PATH; retaining observations, no analysis")
+            return False
 
         checkpoint_dir = f"{self.plugin_root}/skills/running-retro/context"
         checkpoint = f"{checkpoint_dir}/checkpoint.md"

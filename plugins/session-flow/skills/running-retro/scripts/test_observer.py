@@ -13,6 +13,7 @@ import importlib.util
 import json
 import tempfile
 import threading
+import time
 import unittest
 from pathlib import Path
 
@@ -169,6 +170,46 @@ class LedgerAndRetention(unittest.TestCase):
                 "---\nsession_id: other\n---\n", encoding="utf-8")
             ob = make_observer(tmp, session_id="mine")
             self.assertIsNone(ob._find_session_ledger())
+
+    def test_analysis_unavailable_retains(self):
+        # claude CLI absent -> _run_analysis must report "not consumed" so run()
+        # keeps the observations as the collect fallback rather than deleting them.
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            ob = make_observer(tmp, analysis=True)
+            ob.obs_path.write_text('{"t":"user"}\n', encoding="utf-8")
+            orig = observer._find_claude
+            observer._find_claude = lambda: None
+            try:
+                self.assertFalse(ob._run_analysis(), "unavailable claude -> retain")
+            finally:
+                observer._find_claude = orig
+            self.assertTrue(ob.obs_path.exists())
+
+    def test_tail_no_duplicate_events_on_growth(self):
+        # The offset must advance by bytes read, not the stat size, or a session
+        # that grows across polls re-emits its tail. Run the tailer while the file
+        # grows in batches and assert exactly one observation per record.
+        import threading
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            ob = make_observer(tmp, analysis=False, idle_seconds=2.0, poll_seconds=0.15,
+                               max_seconds=30.0)
+            rec = '{"type":"user","message":{"content":"x"}}\n'
+            total = 9
+
+            tailer = threading.Thread(target=ob._tail_until_idle)
+            tailer.start()
+            time.sleep(0.3)  # let the tailer begin polling before growth starts
+            for _ in range(3):
+                with ob.transcript.open("a", encoding="utf-8") as f:
+                    for _ in range(3):
+                        f.write(rec)
+                time.sleep(0.5)
+            tailer.join(30)
+            lines = [ln for ln in ob.obs_path.read_text(encoding="utf-8").splitlines() if ln]
+            self.assertEqual(len(lines), total,
+                             f"expected {total} distilled events, got {len(lines)} (dupes/underread?)")
 
     def test_retention_rule(self):
         with tempfile.TemporaryDirectory() as d:
