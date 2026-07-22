@@ -1,6 +1,6 @@
 ---
 name: keep-going
-description: "Recover and continue after an interruption — rate limit, crash, disconnect, or gap — or when live off-thread work looks stalled and you are asked to check on it. Inventory off-thread work, inspect its REAL output, act only on evidence (resume / rerun / kill-and-restart), then continue the main task where it stood. Use when: 'keep going', 'continue', 'pick up where you left off', 'resume', 'you got cut off', 'we got interrupted', 'carry on', 'what were you doing', 'check the monitor', 'stop staring at it', 'poke it', 'is it stuck', 'are you stuck'. Infers intent from the conversation; arguments optional. After a usage limit lifts it continues rather than summarizing-and-stalling; it gates killing or re-firing side-effectful work."
+description: "Recover and continue after an interruption — rate limit, crash, disconnect, or gap — or when live off-thread work looks stalled and you are asked to check on it. Inventory off-thread work, inspect its REAL output, act only on evidence (resume / rerun / kill-and-restart), then continue the main task where it stood. Use when: 'keep going', 'continue', 'pick up where you left off', 'resume', 'you got cut off', 'we got interrupted', 'carry on', 'what were you doing', 'check the monitor', 'stop staring at it', 'poke it', 'is it stuck', 'are you stuck'. Infers intent from the conversation; arguments optional. After a usage limit lifts it continues rather than summarizing-and-stalling; it gates killing or re-firing side-effectful work. To retire finished off-thread work and reconcile the task ledger rather than resume, use /session-flow:reconcile."
 user-invocable: true
 disable-model-invocation: false
 ---
@@ -49,16 +49,14 @@ itself the thing this skill removes.
 ## Steps
 
 1. **Inventory off-thread work.** Enumerate everything running outside
-   this thread — background tasks, background shell commands, monitors,
-   scheduled / cron tasks, dynamic workflows, spawned subagents. Treat
-   that as examples of the *kinds* of off-thread work to find, not a
-   fixed catalogue; the tool surface evolves, so inventory whatever
-   mechanisms exist now.
-2. **Inspect real state — never assume.** For each item read its actual
-   state from the source of truth: task output, subagent transcript,
-   monitor status, journals, shell logs. Do not infer "it probably
-   finished" or "it probably died" — check. Only the artifact tells you
-   which.
+   this thread, per the off-thread kinds in
+   [`${CLAUDE_PLUGIN_ROOT}/reference/off-thread-work.md`](${CLAUDE_PLUGIN_ROOT}/reference/off-thread-work.md)
+   — an open-ended set (background tasks, shells, monitors, scheduled
+   jobs, dynamic workflows, subagents), not a fixed catalogue.
+2. **Inspect real state — never assume.** Read each item's actual state
+   from the source of truth, per that doc's inspect-real-state invariant:
+   do not infer "it probably finished" or "it probably died" — only the
+   artifact tells you which.
 3. **Recover per item — act on evidence.** Classify against the real
    output and act:
    - **Progressing** (even if slow) → leave it; report it is alive and
@@ -152,9 +150,6 @@ that is still the job.
 
 ## Gotchas
 
-- The specific tools that hold off-thread work change over time; inventory
-  whatever off-thread mechanisms the current harness exposes, not only the
-  ones named above.
 - "Probably done" is one failure mode; "it has been a while, kill it" is
   the other. A resumable job that looks finished may have died at 90%; a
   side-effect that looks unsent may have landed just before the cutoff;

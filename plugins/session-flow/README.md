@@ -1,10 +1,10 @@
 # session-flow
 
-A Claude Code plugin bundling ten skills for one cohesive capability: managing the lifecycle of a
+A Claude Code plugin bundling eleven skills for one cohesive capability: managing the lifecycle of a
 working session — where you are in the work, how to pause and resume it, how to recover it after an
-interruption, how to leave it durable before the machine goes away, where things stand and why,
-whether its assumptions are still current, what to learn from it while it runs and after, and how to
-arm it for delegation-heavy tasks.
+interruption, how to leave it durable before the machine goes away, how to retire finished work and
+reconcile the task ledger, where things stand and why, whether its assumptions are still current,
+what to learn from it while it runs and after, and how to arm it for delegation-heavy tasks.
 
 | Skill | Question it answers |
 |---|---|
@@ -18,6 +18,7 @@ arm it for delegation-heavy tasks.
 | `/session-flow:orient` | Where do we stand, what are we doing, and why — from the durable + off-thread state, not just the conversation? |
 | `/session-flow:orchestrate` | How do I arm this session (or a spawned worker) with proactive-orchestration imperatives? |
 | `/session-flow:reanchor` | Are this session's assumptions still true, or has reality moved under them? |
+| `/session-flow:reconcile` | Is anything still running that should be retired, and does the task ledger match reality? |
 
 ## What each skill does
 
@@ -191,6 +192,26 @@ checks and reports the fuller inventory as unavailable.
 /session-flow:reanchor            # verify session premises → report drift → re-anchored picture
 ```
 
+### reconcile
+
+The prune-and-reconcile counterpart to `keep-going`'s resume: where keep-going asks "is it stuck,
+pick it back up", reconcile asks "is anything still running that should be retired, and does
+the task ledger match reality?" It inventories the off-thread work this session spawned (background
+tasks, shells, monitors, scheduled jobs, subagents — the open-ended kinds in
+`reference/off-thread-work.md`, the same inventory-and-inspect engine `keep-going` and `orient`
+share), inspects each item's real state, retires the ones genuinely finished by clearing them from
+tracking, and closes this session's task-ledger items whose work is proven complete. It also reports
+the read-only liveness of sibling sessions in the same project — from transcript mtime plus a coarse
+tail read, never a deep parse of the unstable JSONL. Auto-settles the provably-finished (closing a
+task is evidence-gated, the mirror of never killing work you cannot prove is dead); GATES any kill
+of still-running work. It fixes this session only: sibling sessions are visible but report-only, and
+a spawned subagent's internal task list is not readable. It touches no git state (that is
+`clean-stop`) and does not resume the work (that is `keep-going`).
+
+```shell
+/session-flow:reconcile   # inventory → inspect → retire finished + close done → report
+```
+
 ## Consumer conventions
 
 The skills adapt to the consuming repo rather than imposing structure:
@@ -227,9 +248,12 @@ degrades to reporting what it could not verify when that authenticated egress is
 and falling back to direct `git`/`gh` — to make session work durable on the remote. `orient`
 optionally runs `gh pr list` (read-only) to include open pull requests in its briefing and, when a
 work-item tracker capability is installed, reads its open items (which may reach a remote tracker) —
-degrading to local git state alone when `gh` or the tracker is absent or unauthenticated. The other seven
-skills — workflow, handoff, continue-in-background, keep-going, retro, running-retro, and orchestrate —
-are network-free (both retro and running-retro use the same stdlib-only Python 3.10+ parser reading local
-`~/.claude/projects/` transcripts); `continue-in-background` spawns a local `claude --bg` process,
+degrading to local git state alone when `gh` or the tracker is absent or unauthenticated. The other eight
+skills — workflow, handoff, continue-in-background, keep-going, retro, running-retro, orchestrate, and
+reconcile — are network-free (both retro and running-retro use the same stdlib-only Python 3.10+
+parser reading local `~/.claude/projects/` transcripts; `reconcile` reads those same local
+transcripts read-only for its sibling-session liveness inventory and mutates only the in-session task
+ledger);
+`continue-in-background` spawns a local `claude --bg` process,
 which is a new Claude Code session with the ordinary network access of any session, but the skill
 itself performs no egress.

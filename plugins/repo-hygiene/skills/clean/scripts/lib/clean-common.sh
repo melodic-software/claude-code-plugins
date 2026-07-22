@@ -428,12 +428,17 @@ clean_plan() {
   )
   ((${#surv_abs[@]})) || return 0
 
+  # Size via NUL-delimited xargs so a monorepo with thousands of survivors is
+  # chunked under ARG_MAX across multiple `du` execs — a single
+  # `du "${surv_abs[@]}"` would hit E2BIG and, with stderr discarded, silently
+  # size everything at 0. Survivors never contain a tab/newline (skipped at
+  # classification), so the tab-split parse is unambiguous.
   local -A size_of=()
   local kb path
   while IFS=$'\t' read -r kb path; do
     [[ -n "$path" ]] || continue
     size_of["$path"]=$((kb * 1024))
-  done < <(du -sk "${surv_abs[@]}" 2>/dev/null)
+  done < <(printf '%s\0' "${surv_abs[@]}" | xargs -0 du -sk 2>/dev/null)
 
   local bytes rel
   for i in "${!surv_abs[@]}"; do
@@ -608,7 +613,7 @@ clean_apply_manifest() {
     # the path to exist).
     [[ -e "$abs" ]] || continue
     if clean_path_has_reparse_ancestor "$root" "$rel"; then
-      printf 'Rejected (symlinked ancestor): %s\n' "$rel" >&2
+      printf 'Rejected (symlinked path): %s\n' "$rel" >&2
       CLEAN_FAILED_COUNT=$((CLEAN_FAILED_COUNT + 1))
       continue
     fi

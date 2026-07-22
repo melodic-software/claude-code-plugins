@@ -10,9 +10,9 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=lib/test-helpers.sh
+# shellcheck source=test-helpers.sh
 source "$SCRIPT_DIR/test-helpers.sh"
-# shellcheck source=lib/batch-common.sh
+# shellcheck source=batch-common.sh
 source "$SCRIPT_DIR/batch-common.sh"
 
 TEST_TMPDIR="$(mktemp -d)"
@@ -20,23 +20,23 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 FAILED=0
 
 # --- 1. batch_normalize_input: backslash -> forward slash, CR + trailing slash ---
-got="$(batch_normalize_input 'D:\repos\acme\keepme')"
-assert_contains "backslash path normalized to forward slashes" "$got" 'D:/repos/acme/keepme'
+got="$(batch_normalize_input 'D:\work\acme\keepme')"
+assert_contains "backslash path normalized to forward slashes" "$got" 'D:/work/acme/keepme'
 backslash=$'\134'
 assert_not_contains "no backslash remains" "$got" "$backslash"
 
-got="$(batch_normalize_input $'D:/repos/acme/keepme\r')"
-if [[ "$got" == 'D:/repos/acme/keepme' ]]; then
+got="$(batch_normalize_input $'D:/work/acme/keepme\r')"
+if [[ "$got" == 'D:/work/acme/keepme' ]]; then
   pass "trailing CR stripped"
 else
-  fail "trailing CR stripped" 'D:/repos/acme/keepme' "$got"
+  fail "trailing CR stripped" 'D:/work/acme/keepme' "$got"
 fi
 
-got="$(batch_normalize_input 'D:/repos/acme/keepme/')"
-if [[ "$got" == 'D:/repos/acme/keepme' ]]; then
+got="$(batch_normalize_input 'D:/work/acme/keepme/')"
+if [[ "$got" == 'D:/work/acme/keepme' ]]; then
   pass "trailing slash collapsed"
 else
-  fail "trailing slash collapsed" 'D:/repos/acme/keepme' "$got"
+  fail "trailing slash collapsed" 'D:/work/acme/keepme' "$got"
 fi
 
 # --- 2. batch_resolve_repos: dedup by canonical toplevel ---

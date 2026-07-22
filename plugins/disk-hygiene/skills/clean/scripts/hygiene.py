@@ -20,20 +20,30 @@ import tempfile
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+MIN_PYTHON = (3, 11)
 SCHEMA_VERSION = 1
 MAX_SNAPSHOT_ENTRIES = 250_000
 TIERS = {"high", "medium", "low"}
 VCS_NAMES = {".git", ".hg", ".svn"}
 FILE_ATTRIBUTE_REPARSE_POINT = 0x0400
-WINDOWS_VOLUME_SYSTEM_NAMES = {
-    "$Recycle.Bin",
+# Folders whose presence at a drive root identifies that drive as an OS/system
+# drive. A user-provisioned non-OS volume (a Windows Dev Drive) carries none of
+# them, so they are the discriminator for whole-volume-root classification.
+WINDOWS_OS_DRIVE_MARKERS = {
     "Program Files",
     "Program Files (x86)",
     "ProgramData",
     "Recovery",
-    "System Volume Information",
     "Windows",
 }
+# Per-volume filesystem metadata every Windows volume carries, OS drive or not.
+# Protected from deletion on every drive, but never evidence a volume is the OS
+# drive — a Dev Drive has a System Volume Information and $Recycle.Bin too.
+WINDOWS_PER_VOLUME_METADATA = {
+    "$Recycle.Bin",
+    "System Volume Information",
+}
+WINDOWS_VOLUME_SYSTEM_NAMES = WINDOWS_OS_DRIVE_MARKERS | WINDOWS_PER_VOLUME_METADATA
 PLUGIN_ROOT = Path(__file__).resolve().parents[3]
 BASELINE_POLICY = (
     Path(__file__).resolve().parents[1] / "reference" / "baseline-policy.json"
@@ -244,6 +254,78 @@ def system_roots(
     return roots
 
 
+def os_drive_markers(
+    platform_key: str | None = None, windows_roots: list[Path] | None = None
+) -> list[Path]:
+    """Paths whose presence within a volume identifies it as an OS/system drive.
+
+    Distinct from system_roots(): system_roots() lists everything to protect
+    from deletion (including the per-volume metadata every Windows volume
+    carries), whereas this lists only the OS-install markers that make a whole
+    volume the OS drive. The difference is the whole point of the Dev Drive
+    fix: counting per-volume metadata (System Volume Information, $Recycle.Bin)
+    as an OS signal would misclassify every drive root — a provisioned non-OS
+    volume has that metadata too. On POSIX every system root is a genuine OS
+    directory, so the full set applies.
+    """
+    current_platform = platform_key or os_key()
+    if current_platform != "windows":
+        return system_roots(current_platform)
+    markers: list[Path] = []
+    env_roots = (
+        os.environ.get("SystemRoot"),
+        os.environ.get("ProgramFiles"),
+        os.environ.get("ProgramFiles(x86)"),
+        os.environ.get("ProgramData"),
+    )
+    markers.extend(Path(value).absolute() for value in env_roots if value)
+    drive_roots = windows_roots if windows_roots is not None else windows_drive_roots()
+    for drive_root in drive_roots:
+        markers.extend(drive_root / name for name in WINDOWS_OS_DRIVE_MARKERS)
+    return markers
+
+
+def is_volume_root(path: Path) -> bool:
+    """True for a filesystem or drive root — a path that is its own parent."""
+    return path.parent == path
+
+
+def is_os_managed_target(
+    target: Path,
+    roots: list[Path] | None = None,
+    markers: list[Path] | None = None,
+) -> bool:
+    """Reasoned OS-managed classification for a whole-volume audit target.
+
+    Two directions, each with its own root set:
+
+    - the target sits *within* an OS-managed root (system_roots(), the full
+      protect-from-deletion set) — e.g. ``C:\\Windows\\Temp`` or ``/etc/x``;
+    - an OS-install *marker* actually exists *within* the target
+      (os_drive_markers(), the narrow OS-drive discriminator) — e.g. ``C:\\``
+      holds an existing ``C:\\Windows``, ``/`` holds ``/bin``.
+
+    The containing direction deliberately uses the narrow marker set, not
+    system_roots(): every Windows volume — a provisioned non-OS Dev Drive
+    included — carries System Volume Information and $Recycle.Bin, so counting
+    those as an OS signal would deny every drive root and defeat the fix. The
+    existence gate matters because os_drive_markers() synthesizes per-drive
+    marker paths for every drive without checking existence. Result: ``C:\\``
+    (holds an existing Windows install) is denied; a Dev Drive root (holds no
+    OS-install marker) is not — it is confirmation-required, never
+    blanket-denied.
+    """
+    target_abs = target.absolute()
+    for root in roots if roots is not None else system_roots():
+        if is_within(target_abs, root.absolute()):
+            return True
+    for marker in markers if markers is not None else os_drive_markers():
+        marker_abs = marker.absolute()
+        if is_within(marker_abs, target_abs) and marker_abs.exists():
+            return True
+    return False
+
+
 def hard_protection(
     path: Path,
     target: Path,
@@ -251,8 +333,10 @@ def hard_protection(
     known_linux_mounts: set[Path] | None = None,
 ) -> list[str]:
     reasons: list[str] = []
-    if path == target or path.parent == path:
-        reasons.append("target-or-filesystem-root")
+    if path == target:
+        reasons.append("target-root")
+    if is_volume_root(path) and is_os_managed_target(path):
+        reasons.append("os-managed-root")
     current = path
     while is_within(current, target):
         if is_linkish(current):
@@ -261,9 +345,17 @@ def hard_protection(
         if mount_error:
             reasons.append("mount-state-unverified")
         elif mounted:
-            reasons.append(
-                "target-is-mount-point" if current == target else "nested-mount-point"
-            )
+            if current != target:
+                reasons.append("nested-mount-point")
+            elif not is_volume_root(target):
+                # A volume-root target is inherently a mount point and is
+                # admitted as such by the reasoned target-level checks; flagging
+                # it here would mark every descendant target-is-mount-point and
+                # defeat the admitted scan. A non-volume-root target that is a
+                # mount is still blocked (it should never have been admitted, or
+                # became a mount after the snapshot). Nested mounts below the
+                # target stay blocked regardless.
+                reasons.append("target-is-mount-point")
         if current == target:
             break
         if has_protected_name(current, exact_names):
@@ -549,11 +641,14 @@ def large_scan_reasons(target: Path) -> list[str]:
     """Name deterministically why a target is a known-large scan root.
 
     A known-large root is one whose unbounded recursive walk is expected to be
-    expensive in time and resources — the user home directory today. The engine
-    gates such a walk behind an explicit bound or confirmation, mirroring the
-    apply lane's "ask before it is expensive" posture, moved earlier because the
-    cost here is time, not data loss. Drive-root reasoning is a separate concern
-    owned elsewhere; a filesystem root is already rejected before this runs.
+    expensive in time and resources. Two cases today: the user home directory,
+    and a whole filesystem/volume root that is a valid non-OS target (a Windows
+    Dev Drive). An OS-managed root is denied upstream before this runs, so any
+    volume root reaching the gate is non-OS; the check here is nonetheless
+    self-contained (is_volume_root and not OS-managed) so the reason is honest
+    even called directly. The engine gates such a walk behind an explicit bound
+    or confirmation, mirroring the apply lane's "ask before it is expensive"
+    posture, moved earlier because the cost here is time, not data loss.
 
     The home match is by filesystem identity (device + inode via
     ``os.path.samefile``), not a path-string compare: ``os.path.normcase`` only
@@ -561,6 +656,8 @@ def large_scan_reasons(target: Path) -> list[str]:
     (``/users/alice`` vs ``/Users/alice``) bypass the gate on a case-insensitive
     macOS volume. ``target`` is validated to exist upstream; ``samefile`` raises
     only when a path is missing, so a home that cannot be stat'd is simply no match.
+    The volume-root match is structural (``is_volume_root``: a self-parent path),
+    inherently spelling- and case-robust.
     """
     reasons: list[str] = []
     home = user_home()
@@ -571,6 +668,8 @@ def large_scan_reasons(target: Path) -> list[str]:
             same_home = False
         if same_home:
             reasons.append("user-home")
+    if is_volume_root(target) and not is_os_managed_target(target):
+        reasons.append("non-os-volume-root")
     return sorted(set(reasons))
 
 
@@ -1167,13 +1266,11 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
     target = target_input.resolve(strict=True)
     known_mounts, mount_error = linux_mount_points()
     target_mounted, target_mount_error = mount_state(target, known_mounts)
-    if target.parent == target or any(
-        is_within(target, root.absolute()) for root in system_roots()
-    ):
-        raise HygieneError("snapshot target is now a filesystem or OS-managed root")
     if mount_error or target_mount_error:
         raise HygieneError("snapshot target mount state is unverified")
-    if target_mounted:
+    if is_os_managed_target(target):
+        raise HygieneError("snapshot target is now an OS-managed root")
+    if target_mounted and not is_volume_root(target):
         raise HygieneError("snapshot target is a mount point")
     if has_protected_path_component(target, baseline_exact_names):
         raise HygieneError(
@@ -1573,8 +1670,9 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     DATA_ROOT_OVERRIDE = args.data_root
     try:
-        if sys.version_info < (3, 11):
-            raise HygieneError("disk-hygiene requires Python 3.11 or newer")
+        if sys.version_info < MIN_PYTHON:
+            floor = ".".join(str(part) for part in MIN_PYTHON)
+            raise HygieneError(f"disk-hygiene requires Python {floor} or newer")
         if args.command == "scan":
             target_input = Path(args.target).expanduser().absolute()
             if (
@@ -1590,14 +1688,10 @@ def main(argv: list[str] | None = None) -> int:
             mounted, target_mount_error = mount_state(target, known_mounts)
             if mount_error or target_mount_error:
                 raise HygieneError("target mount state is unverified")
-            if mounted:
+            if is_os_managed_target(target):
+                raise HygieneError("OS-managed roots are not valid audit targets")
+            if mounted and not is_volume_root(target):
                 raise HygieneError("mount points are not valid audit targets")
-            if target.parent == target or any(
-                is_within(target, root.absolute()) for root in system_roots()
-            ):
-                raise HygieneError(
-                    "filesystem and OS-managed roots are not valid audit targets"
-                )
             policy = load_policy(
                 Path(args.policy).expanduser().absolute() if args.policy else None,
                 Path(args.project_dir).expanduser().absolute()
