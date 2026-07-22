@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "desktop-notification",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Alert you when Claude Code needs input — an audible terminal bell, an OSC 9 terminal notification, and an OS-native toast (macOS/Linux) on permission and idle prompts.",
   "author": {
     "name": "Melodic Software",

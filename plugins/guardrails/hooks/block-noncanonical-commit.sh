@@ -220,30 +220,48 @@ check_segment() {
   # only — git does not expand the first word of an expansion as another alias —
   # enforced through HOOK_NO_ALIAS, which dynamic scoping carries into the
   # recursive call.
+  # The --config-env SHAPE refusal is value-blind, terminal, and must fire at EVERY
+  # recursion depth: a wrapping inline alias can expand to `--config-env=alias.<sub>=…`
+  # that defines the invoked subcommand (`git -c alias.c='--config-env=alias.foo=AV foo'
+  # c`), which git runs. It is therefore NOT gated by HOOK_NO_ALIAS. The inline-alias
+  # re-expansion and the gitconfig-alias probe below ARE one-level (HOOK_NO_ALIAS bounds
+  # the recursion — git does not re-expand an expansion's first word as another alias).
+  local exp reparse a alias_rc
+  local -a expw=()
+  hook::git_alias_expansion "$sub"
+  alias_rc=$?
+  if ((alias_rc == 2)); then
+    # Structural fail-closed: the invoked subcommand's alias is defined via --config-env
+    # (here or in a wrapping alias's expansion), whose value is the recurring fail-open
+    # surface (fed by an ambient var, an inline/`env` prefix, an `export`, `set -a`, or a
+    # nested `bash -c` in any wrapper); a commit smuggled through it cannot be verified,
+    # and defining an alias this way on a guarded invocation is never canonical.
+    echo "BLOCKED: git alias '$sub' is defined via --config-env, so its expansion cannot be verified — failing closed." >&2
+    echo "Commit with \`git commit -F -\` (or the /commit skill), define aliases in git config, or set the guardrails block_noncanonical_commit_enabled option to false to bypass." >&2
+    emit_tel "blocked" "config-env-alias"
+    exit 2
+  fi
   if ((${HOOK_NO_ALIAS:-0} == 0)); then
-    local cv exp reparse a
-    local -a cfgv=() expw=()
-    cfgv=(${HOOK_GIT_CONFIG_VALUES[@]+"${HOOK_GIT_CONFIG_VALUES[@]}"})
-    # LAST value wins, matching git: `-c alias.c=status -c alias.c=commit`
-    # runs commit. Taking the first match would let a decoy earlier value
-    # (expanding to a harmless subcommand) mask the real one.
-    exp=""
-    for cv in ${cfgv[@]+"${cfgv[@]}"}; do
-      [[ "$cv" == "alias.${sub}="* ]] && exp="${cv#*=}"
-    done
-    if [[ -n "$exp" ]]; then
-      inline_alias_handled=1
-      if [[ "$exp" == '!'* ]]; then
-        reparse="${exp#!}"
-        for a in "${w[@]:sub_idx+1}"; do reparse+=" $(printf '%q' "$a")"; done
-        hook::bash_parse_segments "$reparse" check_segment
-      else
-        hook::env_s_split "$exp"
-        expw=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"})
-        HOOK_NO_ALIAS=1
-        check_segment "${w[@]:0:gi+1}" ${expw[@]+"${expw[@]}"} "${w[@]:sub_idx+1}"
-        HOOK_NO_ALIAS=0
-      fi
+    if ((alias_rc == 0)); then
+      # Inline alias (-c/--config): each spelling's expansion is literally present. Re-check
+      # EVERY spelling (plain and `.command`) independently so a benign expansion in one
+      # never suppresses a dangerous sibling in the other.
+      # shellcheck disable=SC2154  # HOOK_GIT_ALIAS_EXPS is set by hook::git_alias_expansion
+      for exp in ${HOOK_GIT_ALIAS_EXPS[@]+"${HOOK_GIT_ALIAS_EXPS[@]}"}; do
+        [[ -n "$exp" ]] || continue
+        inline_alias_handled=1
+        if [[ "$exp" == '!'* ]]; then
+          reparse="${exp#!}"
+          for a in "${w[@]:sub_idx+1}"; do reparse+=" $(printf '%q' "$a")"; done
+          hook::bash_parse_segments "$reparse" check_segment
+        else
+          hook::env_s_split "$exp"
+          expw=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"})
+          HOOK_NO_ALIAS=1
+          check_segment "${w[@]:0:gi+1}" ${expw[@]+"${expw[@]}"} "${w[@]:sub_idx+1}"
+          HOOK_NO_ALIAS=0
+        fi
+      done
     fi
 
     # An alias can also live in .git/config, ~/.gitconfig, or system config,

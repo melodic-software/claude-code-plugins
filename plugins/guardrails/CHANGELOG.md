@@ -3,7 +3,7 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.10.2]
+## [0.10.3]
 
 ### Fixed
 
@@ -64,6 +64,60 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   the PowerShell here-string form when the call originates from the PowerShell
   tool (not a Bash heredoc), and `block-hook-bypass`'s remediation no longer
   assumes Bash.
+
+## [0.10.2]
+
+### Changed
+
+- **`--config-env` git aliases for a guarded subcommand are now refused by SHAPE, not
+  resolved (`#740`).** `--config-env=<key>=<envvar>` names an environment variable that
+  holds the alias expansion; that value can be fed from an ambient variable, an inline or
+  `env` command-line prefix, an `export` (including `set -a`, an `export NAME` promotion,
+  or an assignment-prefixed `export`), or a nested `bash -c` / `!`-alias in any enclosing
+  wrapper. Every attempt to resolve the value — to decide whether `git <alias>` runs a
+  guarded operation — reopened a fail-open as reviewers found new propagation paths. Since
+  the `--config-env=alias.<sub>=<envvar>` option and the `<sub>` it defines always sit in
+  the same git invocation, the guards no longer read the value at all: an alias for the
+  INVOKED subcommand whose last definition on the command line is `--config-env` is blocked
+  structurally (`hook::git_alias_expansion`). Nobody legitimately defines a commit or reset
+  alias this way on a guarded invocation — the canonical form is a gitconfig alias or the
+  plain subcommand — so the shape alone is sufficient, and the whole env-resolution attack
+  surface is removed rather than backstopped.
+- **Inline `-c`/`--config` aliases are unchanged.** Their expansion is literally present
+  and bounded, so both guards resolve and re-check it as before — last value wins,
+  case-insensitive key match, and `!` shell-alias / git-alias expansions re-parsed one
+  level deep.
+- **The `alias.<sub>.command` subkey is now classified as an alias definition too
+  (`#740`).** git reads both `alias.<sub>` and its `alias.<sub>.command` subkey as the
+  alias for `<sub>` (`git -c alias.rh.command='reset --hard' rh` runs it); the classifier
+  previously matched only the plain spelling, so a dangerous alias smuggled through
+  `.command` — via `-c` or `--config-env` — was treated as a non-alias and ran unchecked.
+  Both spellings are now detected. Because which spelling git runs when both are set is
+  git-version-dependent, the classifier does NOT mirror git's cross-spelling precedence; it
+  fails closed on the MAX-DANGER UNION — the last value WITHIN each spelling decides that
+  spelling, then the guard refuses if EITHER is `--config-env`-shaped and re-checks EVERY
+  inline spelling, blocking if any resolves to a guarded operation and allowing only when
+  both spellings are benign. On a git where a benign later `.command` genuinely overrides a
+  dangerous plain alias this over-blocks, which is fail-safe.
+- **Removed the env-value-resolution machinery** that existed only to read a `--config-env`
+  value and the environment feeding it: `hook::snapshot_env` / `HOOK_ENV_SNAPSHOT`,
+  `hook::git_effective_config_values` / `HOOK_GIT_CONFIG_UNRESOLVED`,
+  `hook::git_reparse_shell_alias` with its shell-alias env inheritance
+  (`HOOK_GIT_ENV_INHERITED`), `hook::shell_track_persistent_env` / `HOOK_SHELL_VARS`, and
+  `HOOK_GIT_ENV_ASSIGNMENTS`. `hook::git_resolve_index` walks env-assignment prefixes only
+  to locate the git token, never to collect their values.
+- **Behavior change for `--config-env` aliases.** A `--config-env` alias for the invoked
+  subcommand now blocks even when the named variable holds a harmless value — the value is
+  never consulted. Still allowed (decidable safe without reading a value): a `--config-env`
+  that sets a NON-alias key, one that defines an alias for a subcommand that is not
+  invoked, and one whose LAST value for the key is an inline `-c`/`--config`.
+- **The shape refusal fires at every alias-recursion depth (`#740`).** A wrapping inline
+  alias whose expansion is itself a `--config-env` alias for the invoked subcommand
+  (`git -c alias.rh='--config-env=alias.foo=AV foo' rh`, which git runs) previously slipped
+  through: the refusal was gated behind `HOOK_NO_ALIAS`, which suppressed it at recursion
+  depth ≥ 2. The value-blind `--config-env` shape refusal is now ungated so it fires at
+  every depth; only the one-level inline-alias re-expansion remains bounded by
+  `HOOK_NO_ALIAS`.
 
 ## [0.10.1]
 
