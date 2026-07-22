@@ -275,6 +275,16 @@ else
   PLAN_DIR="$(mktemp -d 2>/dev/null)" || PLAN_DIR="${TMPDIR:-/tmp}/clean-batch.$$"
   PLAN="$PLAN_DIR/plan"
 fi
+# Refuse to truncate an unrelated file: a typo'd --batch-plan path must not
+# silently destroy user data. An existing target is overwritten only when it is
+# already a batch plan (every non-empty line a REPO/GITDIR tab-record) — the
+# resumable case — mirroring the child --manifest non-manifest-overwrite guard.
+if [[ -n "$BATCH_PLAN_ARG" && -e "$PLAN" ]]; then
+  [[ -f "$PLAN" ]] || fail_usage "--batch-plan target is not a regular file: $PLAN"
+  if ! awk -F'\t' 'NF && $1 != "REPO" && $1 != "GITDIR" { exit 1 }' "$PLAN"; then
+    fail_usage "refusing to overwrite a file that is not a batch plan (typo'd --batch-plan?): $PLAN"
+  fi
+fi
 # Create the plan dir for BOTH branches (an explicit --batch-plan may name a
 # not-yet-existing parent) and verify the plan is actually writable — otherwise a
 # failed redirect would leave no plan yet still print BatchPlan/Summary and exit 0.

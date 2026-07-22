@@ -64,6 +64,26 @@ out="$(bash "$BATCH" --tier caches --repo "$(mkrepo planparent2)" --batch-plan "
 assert_exit "uncreatable --batch-plan dir exits 2" 2 "$rc"
 assert_not_contains "no BatchPlan printed on plan-write failure" "$out" "BatchPlan:"
 
+# A --batch-plan pointing at an existing NON-plan file (a typo onto user data)
+# must be refused, not truncated.
+USERFILE="$TEST_TMPDIR/precious.txt"
+printf 'important user data\nsecond line\n' >"$USERFILE"
+rc=0
+out="$(bash "$BATCH" --tier caches --repo "$(mkrepo planparent3)" --batch-plan "$USERFILE" 2>&1)" || rc=$?
+assert_exit "refuses to truncate a non-plan file (exit 2)" 2 "$rc"
+assert_contains "refusal reported" "$out" "not a batch plan"
+if [[ "$(cat "$USERFILE")" == "important user data"$'\n'"second line" ]]; then
+  pass "non-plan file left intact, not truncated"
+else
+  fail "non-plan file preserved" "important user data..." "$(cat "$USERFILE")"
+fi
+# An existing VALID batch plan is resumable (overwrite allowed).
+VALIDPLAN="$TEST_TMPDIR/valid.plan"
+printf 'REPO\t/x\tcaches\t/x/m.manifest\nGITDIR\t/y\tkey\n' >"$VALIDPLAN"
+rc=0
+out="$(bash "$BATCH" --tier caches --repo "$(mkrepo planparent4)" --batch-plan "$VALIDPLAN" 2>&1)" || rc=$?
+assert_exit "existing batch plan is overwritable (resumable)" 0 "$rc"
+
 # --- 2. caches dry-run over 2 repos: one plan, aggregate summary ---
 R1="$(mkrepo r1)"
 R2="$(mkrepo r2)"
