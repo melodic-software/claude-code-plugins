@@ -6,7 +6,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import shutil
 import sys
 from pathlib import Path
 
@@ -24,11 +23,11 @@ def decision(value: str, reason: str) -> dict[str, object]:
     }
 
 
-def _same_interpreter(value: str, source: str | None) -> bool:
-    if not source:
+def _is_current_python(value: str) -> bool:
+    if not os.path.isabs(value):
         return False
     try:
-        runtime = Path(source).resolve(strict=True)
+        runtime = Path(sys.executable).resolve(strict=True)
         candidate = Path(value).absolute()
         return (
             os.path.normcase(os.fspath(candidate))
@@ -37,26 +36,6 @@ def _same_interpreter(value: str, source: str | None) -> bool:
         )
     except OSError:
         return False
-
-
-def _is_trusted_engine_interpreter(value: str) -> bool:
-    """Accept an absolute path resolving to any interpreter Claude Code launches
-    this guard under: this process's runtime or either registered hook command
-    (``python3`` / ``python``). When those names resolve to different executables
-    (e.g. a virtualenv ``python`` beside a system ``python3``), each of the two
-    parallel guard instances must still accept a call spelled with the other's
-    interpreter, or the sibling instance denies every engine call and — deny
-    winning over allow across hooks — makes the lane unusable. Bare names stay
-    rejected so a Bash alias or exported function cannot substitute for the
-    interpreter; trusting a resolved hook name adds no new trust because that name
-    already launches this guard.
-    """
-    if not os.path.isabs(value):
-        return False
-    return any(
-        _same_interpreter(value, source)
-        for source in (sys.executable, shutil.which("python3"), shutil.which("python"))
-    )
 
 
 def _display_python() -> str:
@@ -211,7 +190,7 @@ def classify_exact_engine_command(command: str, authority: str | None) -> str | 
     tokens = _literal_shell_words(command)
     if tokens is None:
         return None
-    if len(tokens) < 3 or not _is_trusted_engine_interpreter(tokens[0]):
+    if len(tokens) < 3 or not _is_current_python(tokens[0]):
         return None
     expected_script = str(Path(__file__).resolve().with_name("hygiene.py"))
     if _script_path_key(tokens[1]) != _script_path_key(expected_script):

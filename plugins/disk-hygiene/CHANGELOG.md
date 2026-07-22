@@ -7,34 +7,19 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 
 ### Fixed
 
-- **The `clean` skill's destructive-safety guard now launches under both `python3` and `python`.**
-  The PreToolUse hook ran in exec form via the single unqualified interpreter `python`, which stock
-  macOS and many Linux distros do not ship (only `python3`). Because Claude Code treats a failed
-  hook launch as a non-blocking error, an unresolvable name fails the guard open — `rm -rf`, engine
-  `apply`, and other destructive shapes stop being intercepted. The guard now registers two launch
-  entries, `python3` and `python`; all matching hooks run in parallel, so a host exposing a 3.11+
-  runtime under either name is guarded — closing the fail-open both on macOS/Linux (only `python3`)
-  and on a POSIX layout exposing only bare `python` (no `python3`). This is fail-closed in every
-  direction: an unresolvable name contributes nothing, and a legacy `python` 2.x entry crashes on
-  modern syntax (also non-blocking); the sibling entry still guards. A regression test
-  (`test_skill_hook_interpreters_cover_python3_and_python_and_resolve`) locks both names and probes
-  that a resolving Python 3 name reports a 3.11+ interpreter. Residual: on a host where neither name
-  resolves to a runnable 3.11+ interpreter (e.g. a python.org-only Windows install exposing only
-  `py`) the launch still fails open on the manual PowerShell deletion lane — engine `apply` is
-  already unsupported on Windows/macOS, so the per-path human approval that lane already requires
-  and the consumer's baseline permission policy stay the backstop, and `/disk-hygiene:setup check`
-  reports interpreter resolution. (#380)
-- **Each guard instance now authorizes an engine call spelled with either registered interpreter.**
-  The dual registration above launches one guard under `python3` and one under `python`; each
-  previously trusted only its own launch runtime. Where the two names resolve to different 3.11+
-  interpreters (e.g. a virtualenv `python` beside a system `python3`), every engine call uses one
-  absolute interpreter, so the sibling instance denied it — and deny winning over allow across
-  parallel hooks blocked the whole engine lane on that common mixed-interpreter layout. The guard
-  now trusts any path resolving to this process's runtime or either `PATH`-resolved hook name
-  (`python3`/`python`); bare names stay rejected, and trusting a resolved hook name adds no new
-  trust because that name already launches the guard. A regression test
-  (`test_engine_call_allowed_under_sibling_registered_interpreter`) locks the sibling-interpreter
-  path. (#380)
+- **The `clean` skill's destructive-safety guard now launches via a resolvable `python3`.** The
+  PreToolUse hook ran in exec form via the unqualified interpreter `python`, which stock macOS and
+  many Linux distros do not ship (only `python3`). Because Claude Code treats a failed hook launch
+  as a non-blocking error, an unresolvable `python` fails the guard open — `rm -rf`, engine `apply`,
+  and other destructive shapes stop being intercepted on the very POSIX hosts the safety model
+  relies on — and a legacy `python` 2.x resolving first would crash the guard on modern syntax. The
+  hook now names `python3`. A new regression test (`test_skill_hook_interpreter_is_python3_and_resolves`)
+  locks the config at `python3` and probes that a runnable `python3` reports a 3.11+ interpreter.
+  Enforcement remains bounded by resolution: on a host without a resolvable `python3` the launch
+  still fails open on the manual PowerShell deletion lane (engine `apply` is already unsupported on
+  Windows/macOS), so the per-path human approval that lane already requires and the consumer's
+  baseline permission policy stay the backstop, and `/disk-hygiene:setup check` reports interpreter
+  resolution. (#380)
 
 ## [0.4.2]
 

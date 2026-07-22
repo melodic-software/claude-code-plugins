@@ -11,9 +11,6 @@ hooks:
         - type: command
           command: "python3"
           args: ["${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--authorized-data-root", "${CLAUDE_PLUGIN_DATA}"]
-        - type: command
-          command: "python"
-          args: ["${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--authorized-data-root", "${CLAUDE_PLUGIN_DATA}"]
 ---
 
 # Disk hygiene
@@ -229,31 +226,18 @@ sparse files, hard links, compression, and delayed allocation affect it.
   research uses non-Bash read-only tools; only literal-word bundled scan, preview, and apply shapes
   using the hook runtime's same absolute executable pass. Shell expansions, globs, splitting/escape
   forms, operators, redirections, aliases, and exported functions fail closed.
-- The guard registers two PreToolUse launch entries running the same guard, one under `command:
-  "python3"` and one under `command: "python"`, each resolved on `PATH` in exec form with no shell.
-  All matching hooks run in parallel, so whichever name resolves to a 3.11+ runtime enforces — a
-  host exposing the runtime under either name is covered, which closes the earlier fail-open on a
-  layout that ships only bare `python` (no `python3`). Every failure mode of one entry is
-  fail-closed against the other: an unresolvable name is a non-blocking launch error that
-  contributes nothing, and a legacy `python` 2.x entry crashes on modern syntax (also non-blocking)
-  — in both cases the sibling entry still guards. Residual exposures, all disclosed:
-  - If NEITHER name resolves to a runnable 3.11+ interpreter (e.g. a python.org-only Windows install
-    exposing only `py`), both launches fail and the guard does not intercept. The exposure is the
-    manual PowerShell deletion lane — engine `apply` is unsupported on Windows and macOS and
-    elsewhere runs only behind the guard's own `ask`, so no silent auto-delete path opens; what is
-    lost is the PowerShell belt that turns a deletion spelling into a final human prompt. The
-    remaining backstops are the per-path human approval the manual-handoff lane already requires and
-    the consumer's baseline permission policy.
-  - Where both names resolve to the same interpreter (the common POSIX layout, including a
-    `python` → `python3` symlink, which resolves identically), the guard runs twice per call —
-    redundant, never weaker.
-  - Where the two names resolve to different 3.11+ interpreters (e.g. a virtualenv `python` beside a
-    system `python3`), each guard instance trusts both registered interpreters, so an engine call
-    spelled with either absolute path passes; without that, the sibling instance would deny every
-    engine call — deny winning over allow across parallel hooks — and make the lane unusable.
-  - Where a legacy `python` 2.x resolves, each guarded call emits a Python 2 traceback to the
-    transcript — harmless noise; the `python3` entry still enforces.
-  `/disk-hygiene:setup check` reports which interpreters resolve on this machine.
+- The guard hook launches in exec form via `python3`, resolved on `PATH` with no shell (`python3`,
+  not bare `python`, because stock macOS and many Linux distros ship only `python3` and a legacy
+  `python` 2.x would crash the guard on modern syntax). Enforcement is therefore only as strong as
+  that resolution: on a host where `python3` does not resolve to a 3.11+ interpreter the PreToolUse
+  launch fails, and Claude Code treats a failed hook launch as a non-blocking error, so the guard
+  does not intercept there. Concretely, the exposure is the manual PowerShell deletion lane: engine
+  `apply` is unsupported on Windows and macOS and elsewhere runs only behind the guard's own `ask`,
+  so no silent auto-delete path opens, but the guard's PowerShell belt that turns a deletion spelling
+  into a final human prompt is lost. The backstops that remain are the per-path human approval the
+  manual-handoff lane already requires and the consumer's baseline permission policy — defense-in-depth
+  lost, not preserved. `/disk-hygiene:setup check` reports whether the interpreter resolves on this
+  machine.
 - The PowerShell lane is the inverse tradeoff: it stays open for read-only support work (git, gh,
   metadata probes) and instead hard-denies engine invocations and turns known deletion spellings
   into a final human permission prompt. It is a raised bar, not a fail-closed lane; the engine's
