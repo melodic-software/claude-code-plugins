@@ -145,6 +145,7 @@ A push channel arms for ONE PR at a time. Re-arm for each new PR in the loop.
 BRANCH="<headRefName>"
 PR_HEAD=$(gh pr view "$PR_NUMBER" --json headRefOid -q .headRefOid)
 CUR_WT=$(git rev-parse --show-toplevel)
+CUR_BRANCH=$(git symbolic-ref --short -q HEAD || true)  # empty when detached
 DEFAULT_BRANCH=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name)
 git fetch origin "$DEFAULT_BRANCH"
 if [ -n "$(git status --porcelain)" ]; then
@@ -152,9 +153,12 @@ if [ -n "$(git status --porcelain)" ]; then
   # this loop did not create.
   echo "Working tree has uncommitted changes (possibly another session's WIP) — processing read-only"
   CHECKOUT_MODE="read-only"
-elif [ "$(git rev-parse HEAD)" = "$PR_HEAD" ]; then
-  # HEAD already IS the true PR head — on the branch and current, or already
-  # detached at it. Safe to mutate.
+elif [ "$(git rev-parse HEAD)" = "$PR_HEAD" ] && { [ -z "$CUR_BRANCH" ] || [ "$CUR_BRANCH" = "$BRANCH" ]; }; then
+  # HEAD already IS the true PR head AND we are on $BRANCH or detached — not some
+  # other local branch that merely points at the same commit (a fix committed there
+  # would advance that unrelated branch while only the refspec push lands on
+  # $BRANCH). A coincidental same-tip match on another branch falls through to the
+  # gh pr checkout paths below, which put us on the actual PR head.
   CHECKOUT_MODE="full"
 elif git worktree list | grep -vF "$CUR_WT " | grep -q "\[$BRANCH\]"; then
   # Branch locked in a sibling worktree — `git checkout $BRANCH` here dead-ends
@@ -182,32 +186,50 @@ fi
 # name would push to the BASE repo, writing a same-named branch there instead of
 # updating the fork head (the cross-repo regression this guards; safety.md).
 # `branch.<b>.pushRemote`/`remote` may hold a remote name OR a URL, and a named
-# remote can carry a separate `pushurl` that `git push` honors — so resolve the
-# actual PUSH url (`git remote get-url --push`) and canonicalize it to
-# host + owner/repo, then require BOTH to equal the head repo's own canonical URL
-# (`gh api repos/<nameWithOwner> --jq .html_url`), else read-only. This rejects a
-# same-path remote on a DIFFERENT host and a fork fetch url masking a base pushurl.
+# remote can carry separate `pushurl`(s) that `git push` honors — so resolve the
+# actual PUSH urls (`git remote get-url --push --all`) and canonicalize EACH to
+# host + owner/repo, then require EVERY one to equal the head repo's own canonical
+# URL (`gh api repos/<nameWithOwner> --jq .html_url`), else read-only. A cross-repo
+# head is additionally gated on its owner being within <watched-owners>. This
+# rejects a same-path remote on a DIFFERENT host, a fork fetch url masking a base
+# pushurl, an extra base/attacker pushurl past a matching first one, and an
+# external-fork head outside the trust boundary.
 if [ "$CHECKOUT_MODE" = "full" ]; then
   if [ "$(gh pr view "$PR_NUMBER" --json isCrossRepository -q .isCrossRepository)" = "false" ]; then
     PUSH_REMOTE=origin
   else
-    # Canonicalize any git URL — scheme://[user@]host[:port]/owner/repo,
+    # Canonicalize each line of stdin — scheme://[user@]host[:port]/owner/repo,
     # user@host:owner/repo, or a bare host/owner/repo — to host/owner/repo so the
     # comparison includes the HOST, not just the path: a same-path remote on a
     # different host (git@evil.example.com:owner/repo) must NOT satisfy it.
-    repo_id() { printf '%s\n' "$1" | sed -E 's#\.git$##; s#/+$##; s#^[a-zA-Z][a-zA-Z0-9+.-]*://##; s#^[^/@]*@##; s#:[0-9]+/#/#; s#:#/#'; }
+    canon() { sed -E 's#\.git$##; s#/+$##; s#^[a-zA-Z][a-zA-Z0-9+.-]*://##; s#^[^/@]*@##; s#:[0-9]+/#/#; s#:#/#'; }
     HEAD_REPO=$(gh pr view "$PR_NUMBER" --json headRepository -q .headRepository.nameWithOwner)
-    # headRepository carries no URL; resolve the head repo's canonical host+path
-    # from its authoritative html_url (a fork head is always on the base instance).
-    HEAD_ID=$(repo_id "$(gh api "repos/$HEAD_REPO" --jq .html_url 2>/dev/null)")
+    # Trust boundary: a cross-repo head is writable only when its owner is within
+    # <watched-owners> (safety.md Stop And Ask — an external-fork head outside the
+    # watched owners stays read-only even with maintainer edits enabled). Enforce it
+    # before accepting the fork remote so the pure-bash degrade path never pushes to
+    # a repository outside the trust boundary.
+    HEAD_OWNER=${HEAD_REPO%%/*}
+    case ",<watched-owners>," in
+      *",$HEAD_OWNER,"*) : ;;
+      *) echo "Cross-repo head owner $HEAD_OWNER outside <watched-owners> — read-only"; CHECKOUT_MODE="read-only" ;;
+    esac
+    # headRepository carries no URL; canonicalize the head repo's authoritative
+    # html_url (a fork head is always on the base instance).
+    HEAD_ID=$(gh api "repos/$HEAD_REPO" --jq .html_url 2>/dev/null | canon)
     # git push consults pushRemote before remote; either may be a remote NAME or a
-    # URL. Resolve the PUSH url (--push honors remote.<name>.pushurl, which can
-    # differ from the fetch url) — the address git push will actually write to.
+    # URL, and it writes to EVERY configured push url (`--push --all`; `--push`
+    # honors remote.<name>.pushurl, which can differ from the fetch url). Require ALL
+    # of them to canonicalize to the head repo — any non-matching line (an extra
+    # base-repo or attacker pushurl past a matching first one) fails closed. A
+    # bare-URL config value is not a known remote, so get-url errors and the literal
+    # value is validated instead.
     PUSH_REMOTE=$(git config --get "branch.$BRANCH.pushRemote" \
       || git config --get "branch.$BRANCH.remote" || true)
-    REMOTE_URL=$(git remote get-url --push "$PUSH_REMOTE" 2>/dev/null || printf '%s' "$PUSH_REMOTE")
-    if [ -z "$PUSH_REMOTE" ] || [ -z "$HEAD_ID" ] || [ "$(repo_id "$REMOTE_URL")" != "$HEAD_ID" ]; then
-      echo "Fork push remote does not resolve to the PR head repo ($HEAD_ID) — read-only"
+    PUSH_URLS=$(git remote get-url --push --all "$PUSH_REMOTE" 2>/dev/null || printf '%s\n' "$PUSH_REMOTE")
+    BAD=$(printf '%s\n' "$PUSH_URLS" | canon | grep -vxF "$HEAD_ID" || true)
+    if [ -z "$PUSH_REMOTE" ] || [ -z "$HEAD_ID" ] || [ -z "$PUSH_URLS" ] || [ -n "$BAD" ]; then
+      echo "Fork push URL(s) do not all resolve to the PR head repo ($HEAD_ID) — read-only"
       CHECKOUT_MODE="read-only"
     fi
   fi
