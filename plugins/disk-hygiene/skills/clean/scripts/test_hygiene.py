@@ -1405,6 +1405,33 @@ class GuardTests(unittest.TestCase):
             self.run_guard(malformed)["hookSpecificOutput"]["permissionDecision"],
         )
 
+    def test_guard_allows_exact_kill_switch_probe_invocation(self) -> None:
+        probe = SCRIPT_DIR.parent.parent / "setup" / "scripts" / "kill_switch_probe.py"
+        command = f'"{self.python_command()}" "{probe}"'
+        result = self.run_guard(command)["hookSpecificOutput"]
+        self.assertEqual("allow", result["permissionDecision"])
+
+    def test_guard_allows_kill_switch_probe_in_audit_only_mode(self) -> None:
+        probe = SCRIPT_DIR.parent.parent / "setup" / "scripts" / "kill_switch_probe.py"
+        command = f'"{self.python_command()}" "{probe}"'
+        result = self.run_guard_disabled(command)["hookSpecificOutput"]
+        self.assertEqual("allow", result["permissionDecision"])
+
+    def test_guard_denies_kill_switch_probe_with_arguments(self) -> None:
+        probe = SCRIPT_DIR.parent.parent / "setup" / "scripts" / "kill_switch_probe.py"
+        for suffix in (" --settings-file s", " extra"):
+            command = f'"{self.python_command()}" "{probe}"{suffix}'
+            self.assertEqual(
+                "deny",
+                self.run_guard(command)["hookSpecificOutput"]["permissionDecision"],
+                command,
+            )
+
+    def test_guard_denies_kill_switch_probe_via_bare_python(self) -> None:
+        probe = SCRIPT_DIR.parent.parent / "setup" / "scripts" / "kill_switch_probe.py"
+        result = self.run_guard(f'python "{probe}"')["hookSpecificOutput"]
+        self.assertEqual("deny", result["permissionDecision"])
+
     def test_guard_scan_accepts_optional_policy_and_project_dir(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         base = f'"{self.python_command()}" "{script}" scan --target t --output s'

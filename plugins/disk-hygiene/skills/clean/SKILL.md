@@ -37,8 +37,12 @@ directory, symlink, or Windows reparse point.
 - Never elevate, trigger UAC/sudo, install a dependency, close another process's handle, or disable a
   retention mechanism. Report `needs-elevation` or `handle-state-unverified` and stop that tier.
 - If the `disk_hygiene_enabled` userConfig option is `false` (its value here is
-  `${user_config.disk_hygiene_enabled}`; a literal unexpanded token means unset = enabled), audit
-  only and explain why execution is disabled. In this audit-only mode the guard denies every
+  `${user_config.disk_hygiene_enabled}`), audit only and explain why execution is disabled. A
+  literal unexpanded token is not evidence the toggle is unset — resolve it deterministically by
+  running the bundled probe (the guard allows exactly this argument-free shape):
+  `"<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/kill_switch_probe.py"` and honor
+  the `effective` value it reports; on `degraded: true` proceed as enabled but say the configured
+  value could not be read. In this audit-only mode the guard denies every
   deletion lane, including the flagged PowerShell mutation spellings, not only the Bash engine
   apply. The kill-switch value reaches the guard as a runtime-substituted hook argument
   (`--disk-hygiene-enabled ${user_config.disk_hygiene_enabled}`), so a configured `false` is
