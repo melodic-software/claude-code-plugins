@@ -40,7 +40,7 @@ re-fetch the two source pages if a fact is load-bearing before you act.
 |----------|--------|
 | *(none)* or `status` | Report the auto-memory posture: effective enabled/disabled state, where the store lives, what it holds. Read-only. |
 | `disable` | Turn auto memory off durably (`autoMemoryEnabled: false` + `CLAUDE_CODE_DISABLE_AUTO_MEMORY`). Edits settings — confirm scope first. |
-| `purge` | **Destructive.** Delete the auto-memory files. Reads `autoMemoryDirectory` at every scope first, shows a manifest, and deletes only after explicit confirmation. |
+| `purge` | **Destructive.** Delete the auto-memory files. Reads `autoMemoryDirectory` at every scope first, shows a manifest, offers an opt-in pre-delete backup, and deletes only after explicit confirmation. |
 
 ## Precedence (documented)
 

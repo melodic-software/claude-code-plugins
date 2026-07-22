@@ -3,6 +3,25 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.4]
+
+### Added
+
+- **`stateless` purge: opt-in backup-before-purge escape hatch.** The confirmation gate now
+  offers to snapshot the manifest's exact files to a sibling `<memory_dir>.bak-<UTC>/`
+  directory before deleting ("yes, with backup"). The copy follows the same
+  manifest-exact/no-re-glob discipline as the delete, verifies the copy count before any
+  deletion, and Step 5 reports the snapshot path. (#979)
+
+### Changed
+
+- **`stateless` purge: bundled-consent does not satisfy the confirmation gate.** Step 3 now
+  states explicitly that consent gathered earlier via a bundled or multi-option answer — an
+  upstream `/interview` round, a numbered menu selection whose option happened to include the
+  purge, or a "purge" given before the manifest was known — does not satisfy the gate; it must
+  restate the concrete now-known scope (file count, directories) and receive a fresh,
+  scope-referencing confirmation. A worked anti-pattern example is included. (#979)
+
 ## [0.3.3]
 
 ### Fixed
