@@ -3,6 +3,23 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.6]
+
+### Fixed
+
+- **Destructive-guard hook now launches on Windows — was silently fail-open.** The
+  exec-form hook (`command: "bash"` + `args`) resolves `bash` via PATH, which on
+  Windows finds the WSL relay (`System32\bash.exe`) and fails to launch; Claude Code
+  treats a failed hook launch as non-blocking, so the guard enforced nothing (48
+  errors in one field session). The hook now uses shell form with `shell: bash`,
+  which Claude Code runs via Git Bash on Windows — the guard launches wherever the
+  skill itself can run.
+- **Missing jq now degrades fail-closed instead of fail-open.** Without jq the guard
+  previously announced itself inactive and allowed everything. It now matches the
+  destructive patterns against the raw hook payload and blocks outright (the
+  `CLEAN_GUARD_ACK` acknowledgement is unverifiable without jq); benign commands
+  still pass. Install jq to restore the confirmation-gated flow.
+
 ## [0.4.5]
 
 ### Changed
