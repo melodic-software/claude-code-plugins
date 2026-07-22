@@ -240,6 +240,22 @@ in telemetry = Sonnet; live checkout clean; any fire-without-row = Phase 1 defec
 > drained; drain PRs #16 (#10) and #21 (#17, fully autonomous seed-to-merge cycle) merged;
 > #811 root-caused (fnm shell-init-only PATH — GUI-launched sessions never get node;
 > operator one-liner + Desktop restart posted on #811, pending).
+>
+> **Acceleration ruling (operator, 2026-07-22):** move as fast as the predicate's intent
+> allows; the calendar gates (14-day span, ≥1-week zero-manual-kicks acceptance) stay
+> binding — shortening them would gut the evidence's meaning. Three sanctioned levers:
+> (1) **front-load the completion count** — seed the C2 queue as fast as GENUINE mechanical
+> items exist (drain claims one per hourly fire; the ~1.5/day cadence was shape preference,
+> not a rule; fabricated busywork seeds are forbidden — they weaken the evidence);
+> (2) **ignite Phase IV in parallel** with this watch (its gate — Phase I demonstrable — was
+> met 2026-07-21; each item still gets its own plan);
+> (3) **pre-build the Phase III flip machinery** (promotion PR draft citing the evidence
+> window) so the earliest eligibility date (~2026-08-04) is ratify-and-merge, not a build
+> day. Same day: drain PRs #23/#24/#26 merged (one linkage defect — `Refs` vs `Closes` —
+> caught and fixed pre-merge on #24), Dependabot's first PR #25 merged (SHA verified against
+> the upstream v7.0.1 tag; Dependabot PRs never count as drain evidence), queue reseeded
+> with five verified seeds (scratch#27–#31); predicate at completions=6, gate 100%,
+> reverts 0.
 
 Standing lane: missed-fire detector + failure tracker items are the automated signal; human
 merges the day's drain PRs (this is the pre-promotion policy, not a kick); weekly usage
