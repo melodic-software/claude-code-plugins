@@ -346,9 +346,17 @@ For every heading in `${REQUIRED_SECTIONS[@]}` (resolved in §2.4.1 from `pr_bod
 MISSING_SECTIONS=()
 for section in "${REQUIRED_SECTIONS[@]}"; do
   # Everything after "## <section>" up to the next "## " heading or end of body.
+  # Fence-aware: a "```"/"~~~" delimiter toggles in_fence, and heading matches only
+  # count OUTSIDE a fence — a Summary that documents a template containing a literal
+  # "## Related" inside a code sample must never satisfy the Related requirement. A
+  # fence delimiter that appears WHILE already inside the found section is real
+  # content of that section and stays in its captured body (only `next`, not
+  # skipped), so a section whose own genuine content includes a code block is still
+  # captured correctly.
   SECTION_BODY=$(printf '%s\n' "$BODY" | awk -v h="## ${section}" '
-    $0==h {found=1; next}
-    found && /^## / {exit}
+    /^(```|~~~)/ { in_fence = !in_fence; if (found) print; next }
+    !in_fence && $0==h {found=1; next}
+    found && !in_fence && /^## / {exit}
     found {print}
   ')
   if [[ -z "$(printf '%s' "$SECTION_BODY" | tr -d '[:space:]')" ]]; then

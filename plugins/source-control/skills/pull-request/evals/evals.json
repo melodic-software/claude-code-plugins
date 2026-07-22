@@ -176,6 +176,18 @@
         "The required-section scan runs against a body that does not yet include `${ATTRIBUTION}` — the attribution is appended only after both §2.4.2 gates pass, in §2.4.3",
         "An empty last required section is not masked by the attribution footer's non-whitespace text"
       ]
+    },
+    {
+      "id": 15,
+      "name": "pr-body-required-sections-gate-ignores-fenced-heading-lookalikes",
+      "prompt": "/pull-request create. pr_body_required_sections requires Related. The drafted body has no real `## Related` section, but the `## Summary` section's prose includes a fenced code sample documenting a PR-body template that itself contains the literal line `## Related`.",
+      "expected_output": "The §2.4.2.2 gate still blocks PR creation for the missing `## Related` section. The heading scan is fence-aware: a `## Related` line that appears inside a fenced code block (inside Summary's own content) is not treated as a real section boundary, so it neither falsely satisfies the Related requirement nor incorrectly truncates Summary's own captured content at that line.",
+      "files": [],
+      "expectations": [
+        "A `## <heading>` line appearing inside a fenced code block (```` ``` ```` or `~~~`) is not treated as a real section heading",
+        "The gate still blocks when the only heading-shaped match for a required section is inside a code fence",
+        "A fence delimiter encountered while already inside a real section's content is preserved as part of that section's captured body, not treated as an exit boundary"
+      ]
     }
   ]
 }

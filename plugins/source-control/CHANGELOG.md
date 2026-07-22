@@ -15,9 +15,11 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `gh pr create` when any required section is missing or empty, naming the exact section and the
   resolved config source (winning layer's file + the key) in its failure message. The gate scans the
   body BEFORE the config-gated attribution footer is appended, so an empty last required section can
-  never be masked by footer text that carries no `##` heading of its own (review-caught during #975).
-  Absent everywhere
-  → the bundled portable default: `Summary` and `Test plan` only (research-grounded across GitHub's
+  never be masked by footer text that carries no `##` heading of its own; the heading scan is also
+  fence-aware, so a `## <heading>`-shaped line inside a fenced code sample (e.g. a Summary
+  documenting a PR-body template) never counts as a real section boundary (both review-caught during
+  #975). Absent everywhere → the bundled portable default: `Summary` and `Test plan` only
+  (research-grounded across GitHub's
   own guidance, Google's CL-description doc, GitLab's dogfooded default template, and a cross-section
   of OSS PR templates — see
   [`docs/conventions/pr-body-convention/README.md`](../../docs/conventions/pr-body-convention/README.md)).
