@@ -102,6 +102,13 @@ fleet safe to sweep: a repo that vanished after the dry-run applies idempotently
 (its manifest paths are already gone); a repo that appeared is not in the plan, so
 it is never touched. Do not re-enumerate at apply — pass the plan back.
 
+Apply also validates the plan against the requested `--tier` before touching disk:
+the plan must have been built for the same tier. A plan whose records the tier does
+not authorize — a `build` REPO record (which folds caches) under `--tier caches`, a
+`caches` record under `build`, or a `GITDIR` record under a non-git tier — is
+refused atomically (usage error, nothing removed, no apply banner) so the `--tier`
+flag can never under-report the scope of what a swapped or stale plan removes.
+
 ### Per-repo outcome
 
 Each repo emits `Repo:` / `Outcome:` / `Reason:`. Outcomes: `would-clean`

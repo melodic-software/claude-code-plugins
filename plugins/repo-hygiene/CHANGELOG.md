@@ -3,6 +3,23 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.1]
+
+### Fixed
+
+- **`clean-batch.sh --apply` now validates the batch plan against the requested
+  `--tier` before touching disk.** The apply-time `--tier` was informational only —
+  dispatch keyed purely on each plan line's `REPO`/`GITDIR` kind — so a stale or
+  swapped plan executed its full gated content while the banner named a narrower
+  tier (e.g. a `--tier build` dry-run plan applied with `--tier caches` removed both
+  `bin/` and `.pytest_cache/` while printing `Tier: caches`). Apply now pre-scans the
+  plan and refuses it atomically (usage error, nothing removed, no apply banner) when
+  a record the requested tier does not authorize is present: a `build`-class REPO
+  record under `--tier caches`, a `caches` record under `build`, or a `GITDIR` record
+  under a non-git tier. The removal set is unchanged (every path was still gated at
+  plan creation); the fix closes the scope-misrepresentation between the `--tier` flag
+  and what apply actually removes. (#1081)
+
 ## [0.7.0]
 
 ### Added

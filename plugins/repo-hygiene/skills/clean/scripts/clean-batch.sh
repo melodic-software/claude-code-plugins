@@ -31,7 +31,8 @@
 #
 # Exit: 0 ran to completion (skips/blocks are normal outcomes);
 #       1 one or more repos failed mid-apply (a child rm failure);
-#       2 usage/validation error (no tier, no repos, bad flag, apply without plan).
+#       2 usage/validation error (no tier, no repos, bad flag, apply without plan,
+#         or a plan whose records do not match the requested --tier).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -76,8 +77,12 @@ Gate:
   --apply --batch-plan P
                      apply the gated plan P from a prior dry-run. Required: apply
                      without --batch-plan is a usage error (the gate is mandatory).
-                     Prints `Summary: removed=N failed=M bytes=K` (plus gitdirs=G
-                     for the git/all tiers). Exits non-zero if any repo failed.
+                     P must have been built for the SAME --tier: a plan whose
+                     records the requested tier does not authorize (e.g. a build
+                     plan under --tier caches, or a GITDIR record under a non-git
+                     tier) is refused before anything is removed. Prints `Summary:
+                     removed=N failed=M bytes=K` (plus gitdirs=G for the git/all
+                     tiers). Exits non-zero if any repo failed.
 
 Exit: 0 ran to completion; 1 a repo failed mid-apply; 2 usage error.
 EOF
@@ -163,12 +168,49 @@ tier_has_git() { [[ "$TIER" == git || "$TIER" == all ]]; }
 # Manifest child token written into the plan (apply picks the script from it).
 manifest_child_token() { [[ "$TIER" == caches ]] && printf 'caches' || printf 'build'; }
 
+# The REPO manifest token the requested tier AUTHORIZES at apply, or empty for a
+# tier that authorizes no REPO record (git). Distinct from manifest_child_token,
+# which never returns empty and would wrongly authorize a build REPO record under
+# --tier git: authorization must fail closed for a tier that plans no REPO work.
+tier_repo_token() {
+  case "$TIER" in
+  caches) printf 'caches' ;;
+  build | all) printf 'build' ;;
+  *) printf '' ;;
+  esac
+}
+
 # ---------------------------------------------------------------------------
 # APPLY: consume the gated plan only (never re-enumerate).
 # ---------------------------------------------------------------------------
 if [[ "$DRY_RUN" -eq 0 ]]; then
   [[ -n "$BATCH_PLAN_ARG" ]] || fail_usage "--apply requires --batch-plan <path> from a prior --dry-run"
   [[ -f "$BATCH_PLAN_ARG" ]] || fail_usage "batch plan not found: $BATCH_PLAN_ARG"
+
+  # Tier-authorization pre-scan: refuse the whole apply — before the banner, before
+  # touching any disk — if the plan carries a record the requested --tier does not
+  # authorize. A plan built for a broader tier (e.g. a build plan, whose REPO
+  # records fold caches) applied under a narrower --tier caches would otherwise
+  # execute the broader gated content while the banner names the narrower tier —
+  # scope misrepresentation. Atomic refusal (exit 2, nothing removed, no banner)
+  # makes that structurally impossible. A malformed/unrecognized token is NOT judged
+  # here; the apply loop fails those closed per-record (exit 1) as structural
+  # corruption, a different error class from a well-formed plan for the wrong tier.
+  while IFS=$'\t' read -r kind a b c; do
+    [[ -n "$kind" ]] || continue
+    case "$kind" in
+    REPO)
+      [[ "$b" == caches || "$b" == build ]] || continue
+      if [[ "$b" != "$(tier_repo_token)" ]]; then
+        fail_usage "plan record does not match --tier $TIER: a '$b' REPO record is not authorized (plan built for a different tier?). Re-run --dry-run --tier $TIER."
+      fi
+      ;;
+    GITDIR)
+      tier_has_git || fail_usage "plan record does not match --tier $TIER: a GITDIR record requires --tier git or all (plan built for a different tier?). Re-run --dry-run --tier $TIER."
+      ;;
+    *) ;;
+    esac
+  done <"$BATCH_PLAN_ARG"
 
   printf 'Fleet Clean (apply)\n'
   printf 'Tier: %s\n' "$TIER"

@@ -150,6 +150,44 @@ assert_exit "malformed REPO record (empty manifest) fails closed (exit 1)" 1 "$r
 assert_contains "malformed record reported" "$out" "malformed plan record"
 assert_file_exists "live repo cache NOT re-walked/removed" "$R7/.pytest_cache/x"
 
+# --- 4d. tier-authorization: a plan built for a BROADER tier must be refused when
+#         applied under a NARROWER --tier, before anything is removed. The exact
+#         repro: a `--tier build` dry-run plan (REPO/build records that fold caches)
+#         applied with `--tier caches` must NOT remove bin/ OR .pytest_cache/. ---
+R8="$(mkrepo r8)"
+out="$(bash "$BATCH" --tier build --repo "$R8")"
+PLAN_R8="$(sed -n 's/^BatchPlan: //p' <<<"$out")"
+rc=0
+out="$(bash "$BATCH" --tier caches --apply --batch-plan "$PLAN_R8" 2>&1)" || rc=$?
+assert_exit "build plan under --tier caches is refused (exit 2)" 2 "$rc"
+assert_contains "tier-mismatch refusal reported" "$out" "does not match --tier caches"
+assert_not_contains "no apply banner printed on tier mismatch" "$out" "Fleet Clean (apply)"
+assert_file_exists "build dir NOT removed by mismatched apply" "$R8/bin/b"
+assert_file_exists "cache NOT removed by mismatched apply" "$R8/.pytest_cache/x"
+
+# --- 4e. tier-authorization: a GITDIR record must be refused under a non-git tier
+#         (gate the GITDIR arm on a git-bearing tier). ---
+GR2="$(mkrepo gitrepo2)"
+out="$(bash "$BATCH" --tier git --repo "$GR2")"
+GPLAN2="$(sed -n 's/^BatchPlan: //p' <<<"$out")"
+rc=0
+out="$(bash "$BATCH" --tier caches --apply --batch-plan "$GPLAN2" 2>&1)" || rc=$?
+assert_exit "git plan under --tier caches is refused (exit 2)" 2 "$rc"
+assert_contains "GITDIR-under-non-git refusal reported" "$out" "GITDIR record requires --tier git or all"
+
+# --- 4f. tier-authorization is not over-strict: an `all` plan (REPO/build + GITDIR)
+#         applied under --tier all authorizes BOTH record kinds and runs them. ---
+AR2="$(mkrepo allrepo2)"
+out="$(bash "$BATCH" --tier all --repo "$AR2")"
+APLAN2="$(sed -n 's/^BatchPlan: //p' <<<"$out")"
+rc=0
+out="$(bash "$BATCH" --tier all --apply --batch-plan "$APLAN2" 2>&1)" || rc=$?
+assert_exit "all plan under --tier all applies (exit 0)" 0 "$rc"
+assert_contains "all apply cleans the build/caches manifest" "$out" "Outcome: cleaned"
+assert_contains "all apply prunes the shared object store" "$out" "Outcome: pruned"
+assert_file_absent "all apply removed build dir" "$AR2/bin/b"
+assert_file_absent "all apply removed cache" "$AR2/.pytest_cache/x"
+
 # --- 5. skip list + unmatched skip ---
 out="$(bash "$BATCH" --tier caches --repo "$R1" "$R2" --skip r2 --skip nosuchrepo)"
 assert_contains "skip-listed repo skipped" "$out" "skip-list (r2)"
