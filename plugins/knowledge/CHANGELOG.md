@@ -4,6 +4,21 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.9.2]
+
+### Fixed
+
+- **youtube-digest extraction: deterministic dev installs** (#905): `npm ci` in
+  `skills/youtube-digest/extraction` failed from a clean checkout — the committed
+  lockfile pins the shared `vendor/` packages as packed installs (the mode
+  `setup-deps.mjs` uses via `--install-links`), while a plain `npm install`
+  resolved them as symlinks, skipped their dependencies (`imghash`), and rewrote
+  the lockfile into the mismatched link shape. A committed `.npmrc`
+  (`install-links=true`) pins the packed mode for every install command, so dev
+  installs match the runtime path and the lockfile stays stable. CI gains a
+  `youtube-extraction` lane (clean `npm ci` + typecheck + vitest) so this drift
+  class can no longer go latent.
+
 ## [0.9.1]
 
 ### Changed

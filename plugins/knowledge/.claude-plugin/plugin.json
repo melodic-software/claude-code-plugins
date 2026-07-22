@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "knowledge",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "description": "Ingest external knowledge into durable, synthesized artifacts. Ships a book-distillation pipeline (PDF/EPUB into concept-organized, author-attributed skill reference files), a YouTube pipeline (watch, transcript, link harvest, and repo-applicability synthesis), and a course-digest pipeline (extract and synthesize online video courses — Dometrain, Teachable — into repo-applicable recommendations), plus a re-runnable setup action; a configurable library directory governs where synthesized artifacts land in the consuming repo.",
   "author": {
     "name": "Melodic Software",
