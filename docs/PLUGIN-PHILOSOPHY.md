@@ -233,15 +233,35 @@ conformance audit tracks the gap.
 
 The uniform contract: the skill is named `setup`, sets `disable-model-invocation: true`, and offers
 `check` (read-only inspect and verify) and `apply` (idempotent configure) actions. This is a
-normative target — setup skills that predate this contract are nonconforming until migrated, and
-the fleet conformance audit tracks the gap rather than the doctrine pretending it is closed. Setup
-must be:
+normative target — setup skills that predate this contract are nonconforming until brought into
+conformance, and the fleet conformance audit tracks the gap rather than the doctrine pretending it
+is closed. Setup must be:
 
 - idempotent and safe to rerun;
 - transparent about what it inferred, changed, skipped, or could not verify;
 - limited to configuration the plugin owns;
 - safe for existing files, preserving unrelated user content; and
 - non-interactive when complete arguments are supplied, so automation and headless use remain possible.
+
+Setup is one **plugin-level** `setup` skill, never a per-skill setup action. Setup granularity
+follows install granularity: a plugin installs and is configured as a unit, and its configuration
+surface — tracked project files, external prerequisites, `userConfig` — is plugin-scoped and
+routinely shared across skills, so one `setup` skill is the single discoverable entry point
+(`/<plugin>:setup`) and the one place `disable-model-invocation` is set for configuration, not a
+flag fragmented across per-skill actions. Where distinct skills carry distinct readiness, the one
+setup skill aggregates and reports it per skill.
+
+The verb set is deliberately closed at `check` and `apply` — no standalone `remove`, `reset`, or
+`migrate` verb joins the mandatory contract (teardown, where genuinely needed, rides as a `remove`
+argument to `apply`, per the teardown rule below). `apply` is *state-assessing*: it reads current
+state and converges, which is what idempotent-and-preserve-unrelated-content already requires, named
+as a verb contract rather than a new bar. This subsumes forward schema evolution — an `apply` that
+meets prior-shape config fills absent keys at current defaults, preserves keys it does not
+recognize, and reports (never silently rewrites) values it cannot reconcile, so an obsolete or
+renamed key surfaces on re-run instead of sitting silently inert. It does not translate renamed or
+removed keys: the fleet's clean-break stance (no compatibility shims, no migration tooling) extends
+to setup config, and reconcile-and-report is what stands in for a migration verb. `reset` decomposes
+to teardown plus `apply`.
 
 Setup may inspect the repository and create or update the plugin's tracked project configuration. It
 must not write into the installed plugin cache, mutate Claude Code user settings, or write
@@ -252,12 +272,34 @@ setup is conforming: `check` verifies and reports, reconfiguration routes throug
 (`/plugin configure <plugin>` — see above), and no `apply` is offered, because the only thing it
 could write is the `pluginConfigs` this contract forbids.
 
+Bare `apply` converges to the configured state and never removes; genuine teardown — converging to
+the *absence* of the plugin's own tracked project config — is the one thing `apply` will not do
+unasked. A plugin that genuinely needs it exposes it as an optional apply-scoped operation (an
+`apply remove`, under the same never-blind, preserve-unrelated discipline), bounded to the tracked
+project config the plugin owns and never to `pluginConfigs` — whose reconfigure-or-clear path stays
+the `/plugin configure` flow the check-only carve-out above routes to. Teardown stays off the
+mandatory contract because it is destructive and, across the fleet today, unexercised — grounds to
+defer it with a trigger, not proof it is never needed: a second plugin needing teardown graduates a
+shared teardown shape into an owner doc before that second adopter. The distinction is config versus
+data: removing the plugin's own tracked setup config is teardown, whereas an apply-scoped operation
+that mutates a managed inventory the plugin maintains (a status change over existing entries, say)
+is ordinary `apply` surface, not teardown, and does not trip that trigger.
+
 Two native idioms are the sanctioned initialization surfaces (verified 2026-07-17 against the
 [hooks reference](https://code.claude.com/docs/en/hooks) and
 [plugins reference](https://code.claude.com/docs/en/plugins-reference)): the `Setup` hook event
 (`--init-only`, or `--init`/`--maintenance` in `-p` mode) for headless and CI preparation, and a
 `SessionStart` hook comparing a bundled manifest against its `${CLAUDE_PLUGIN_DATA}` copy for
 runtime-dependency installation.
+
+These native idioms complement the `setup` skill; they do not compete with it, and native-first is
+honored either way. The skill is the interactive, discoverable consumer-configuration face
+(check/apply over tracked project config) — a need no native hook exposes, so the skill is not a
+redundant custom mechanism. The `Setup` hook event and `SessionStart` install hook are the
+unattended faces the same plugin may also carry, and unattended init routes to them rather than a
+custom channel. Where both exist they converge to one idempotent state. The `setup`-skill
+requirement above is satisfied in the interactive dimension by the skill and may be complemented —
+never replaced — in the headless dimension by these idioms.
 
 ## Prerequisites and failure behavior
 
