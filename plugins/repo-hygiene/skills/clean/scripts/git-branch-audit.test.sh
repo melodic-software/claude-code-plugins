@@ -132,6 +132,30 @@ git -C "$NU_REPO" checkout -q main
 gone_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$NU_REPO' && bash '$AUDIT'")"
 assert_contains "gone+unpushed is review not likely-safe" "$gone_out" "Reason: upstream gone, 2 commits not on origin/main"
 
+# Gone upstream with NO origin/<default> to compare against (feature-only clone /
+# unfetched remote HEAD): the script cannot prove the branch is merged, so it must
+# fail closed to REVIEW, not offer it as a deletable LIKELY-SAFE candidate.
+GC_REPO="$TEST_TMPDIR/gc-repo"
+git init -q --bare "$TEST_TMPDIR/gc-origin.git"
+git init -q -b main "$GC_REPO"
+git -C "$GC_REPO" config user.email "t@example.com"
+git -C "$GC_REPO" config user.name "Test"
+echo a >"$GC_REPO/a"
+git -C "$GC_REPO" add a
+git -C "$GC_REPO" commit -qm init
+git -C "$GC_REPO" remote add origin "$TEST_TMPDIR/gc-origin.git"
+git -C "$GC_REPO" checkout -q -b feat/gone-nocmp
+echo g >"$GC_REPO/g"
+git -C "$GC_REPO" add g
+git -C "$GC_REPO" commit -qm g
+git -C "$GC_REPO" push -q -u origin feat/gone-nocmp
+git -C "$GC_REPO" push -q origin --delete feat/gone-nocmp
+git -C "$GC_REPO" fetch -q --prune origin
+git -C "$GC_REPO" checkout -q main
+gc_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$GC_REPO' && bash '$AUDIT'")"
+assert_contains "gone + no default to compare fails closed to review" "$gc_out" "Reason: upstream gone, cannot compare against origin/main"
+assert_not_contains "gone + no default is never likely-safe" "$gc_out" "Tier: LIKELY-SAFE"
+
 if [[ $FAILED -ne 0 ]]; then
   echo "FAILED: $FAILED test(s)"
   exit 1

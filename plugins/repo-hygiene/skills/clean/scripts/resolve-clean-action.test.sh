@@ -98,6 +98,12 @@ assert_note "multiline note preserved" $'6-7 live sessions\nmind WIP' all $'6-7 
 # No spurious note when the action stands alone or the whole input is one phrase.
 assert_no_note "bare action emits no note" all
 assert_no_note "fleet phrase emits no note" reset all my repos
+# A fleet indicator the phrase list misses ("across the fleet") must not be
+# preempted by the note path into a single-repo `all` with the fleet words demoted
+# to a note — it goes to the fleet/batch resolution (here menu, since bare `fleet`
+# is itself the destructive tree-batch token, conflicting with the `all` tier).
+assert_no_note "fleet indicator not demoted to a note" all across the fleet
+assert_action "fleet all-indicator is not single-repo all" "all across the fleet" "menu"
 
 if [[ $FAILED -ne 0 ]]; then
   echo "FAILED: $FAILED test(s)"

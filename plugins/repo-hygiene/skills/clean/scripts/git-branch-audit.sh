@@ -123,7 +123,14 @@ classify_branch() {
     reason="PR closed without merge"
     pr_line="#${PR_NUM[$branch]} CLOSED"
   elif grep -qxF "$branch" <<<"$GONE_BRANCHES"; then
-    if [[ -n "$ahead_default" && "$ahead_default" -gt 0 ]]; then
+    if [[ -z "$ahead_default" ]]; then
+      # Upstream gone AND no origin/<default> to compare against (feature-only
+      # clone, unfetched/missing remote HEAD): the script cannot prove the branch
+      # is merged, so fail closed to REVIEW rather than offer it as a deletable
+      # LIKELY-SAFE candidate that might carry local-only commits.
+      tier="REVIEW"
+      reason="upstream gone, cannot compare against origin/${DEFAULT_BRANCH}"
+    elif [[ "$ahead_default" -gt 0 ]]; then
       tier="REVIEW"
       reason="upstream gone, ${ahead_default} commits not on origin/${DEFAULT_BRANCH}"
     else

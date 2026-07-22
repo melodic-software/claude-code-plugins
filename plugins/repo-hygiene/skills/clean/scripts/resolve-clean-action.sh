@@ -142,11 +142,14 @@ note=""
 
 # "Action token + advisory note" shape: a leading action token followed by free
 # text (a question or a live-session constraint), where that trailing text is NOT
-# itself a second action token and the whole input is not a fleet phrase. The note
-# must not be re-interpreted as an action — so trailing text that merely mentions
-# an action word (e.g. "…include stashes?") does not read as a conflict. A genuine
-# second action token (e.g. "scan tree", "scan all repos") is left to the
-# full-token resolution below, which reports the ambiguity as `menu`.
+# itself a second action token and the whole input carries no fleet indicator. The
+# note must not be re-interpreted as an action — so trailing text that merely
+# mentions an action word (e.g. "…include stashes?") does not read as a conflict.
+# A genuine second action token (e.g. "scan tree", "scan all repos") is left to the
+# full-token resolution below, which reports the ambiguity as `menu`. Gate on
+# has_fleet_indicator (not just is_fleet_phrase) so a fleet request the phrase list
+# misses ("all across the fleet") routes to the batch tier below instead of being
+# preempted into a single-repo action with the fleet words demoted to a note.
 first_lower="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
 first_action="$(resolve_one "$first_lower")"
 second_action=""
@@ -154,7 +157,7 @@ if [[ $# -ge 2 ]]; then
   second_lower="$(printf '%s' "$2" | tr '[:upper:]' '[:lower:]')"
   second_action="$(resolve_one "$second_lower")"
 fi
-if [[ -n "$first_action" && $# -ge 2 && -z "$second_action" ]] && ! is_fleet_phrase "$joined"; then
+if [[ -n "$first_action" && $# -ge 2 && -z "$second_action" ]] && ! has_fleet_indicator "$joined"; then
   canonical="$first_action"
   shift
   note="$*"
