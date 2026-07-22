@@ -14,11 +14,14 @@ All notable changes to the `source-control` plugin are documented here. Format f
   near-miss where safety depended on the assigned `HEAD` happening to match, not a guard.
   - `reference/safety.md` Checkout And Push Invariants now require asserting the assigned worktree's
     `HEAD` equals the true PR head (`gh pr view --json headRefOid`) before any merge/edit/push (stop
-    on a stale/detached mismatch) and pushing via an explicit refspec to the branch's configured
-    upstream (`git push "$(git config --get branch.<headRefName>.remote)" HEAD:<headRefName>` —
-    `origin` for a same-repo head, the fork's remote for a write-allowed cross-repo head) —
-    fast-forward by construction, never `--force` — so a branch locked by a sibling worktree is not a
-    `git checkout` dead-end.
+    on a stale/detached mismatch) and pushing via an explicit refspec (`git push "$PUSH_REMOTE"
+    HEAD:<headRefName>`) to a **fail-closed** destination — `origin` for a same-repo head; for a
+    write-allowed cross-repo head, the fork destination validated by **host + owner/repo** identity,
+    not by remote name: canonicalize the URL `git push` will actually use (`git remote get-url
+    --push`, which honors a `pushurl` that can differ from the fetch URL) and require it to equal the
+    head repo's own URL (`gh api repos/<nameWithOwner> --jq .html_url`), else read-only — fast-forward
+    by construction, never `--force` — so a branch locked by a sibling worktree is not a `git
+    checkout` dead-end.
   - The worker mechanics are reconciled to that contract: `reference/loop.md` §5.1.2 acquires the head
     via `gh pr checkout` and asserts `HEAD == the live headRefOid` in every checkout path (already-at-
     head, sibling-locked `--detach` reuse, and heal-via-checkout), degrading to read-only on mismatch;
