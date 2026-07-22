@@ -3,6 +3,22 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.0]
+
+### Changed
+
+- **Check 3 (trigger-keyword preservation) — move exception.** A quoted trigger phrase
+  dropped from a skill's listing text but present verbatim in a SIBLING skill's
+  `description`/`when_to_use` under the same skills root now WARNs ("moved to sibling
+  skill '<name>'") instead of failing — provided the sibling did NOT already carry the
+  phrase at the base ref (a phrase it carried all along is coincidental overlap, not a
+  move, and still FAILs). Rationale: the check exists to catch listing coverage loss —
+  a deliberate trigger partition (a phrase relocating to a new sibling skill in the
+  same change, e.g. session-flow's `--bg` cutover, #233) preserves routing, and the
+  gate previously had no sanctioned path for it. Phrases absent from every sibling
+  still FAIL. New regression tests cover the move path and the coincidental-overlap
+  path.
+
 ## [0.8.0]
 
 ### Added
