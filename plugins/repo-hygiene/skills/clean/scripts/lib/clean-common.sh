@@ -251,7 +251,14 @@ clean_enumerate() {
     if [[ "$bucket" == dirs ]]; then dir_names+=("$tok"); else file_globs+=("$tok"); fi
   done
 
-  local -a args=("$root" '(' -name .git -o -name node_modules -o -name .venv ')' -prune -o '(')
+  local -a prune=('(')
+  local d
+  for d in "${CLEAN_PRUNE_DIRS[@]}"; do
+    ((${#prune[@]} > 1)) && prune+=(-o)
+    prune+=(-name "$d")
+  done
+  prune+=(')')
+  local -a args=("$root" "${prune[@]}" -prune -o '(')
   local -a match=()
   local i
   if ((${#dir_names[@]})); then
@@ -434,6 +441,22 @@ clean_manifest_rel_safe() {
   esac
 }
 
+# Return 0 when a repo-relative path lies within a pruned tree (a
+# CLEAN_PRUNE_DIRS segment). Enumeration never descends these, so a manifest
+# entry inside one — e.g. `.git/...`, whose removal could corrupt the repo — is
+# one the dry-run could never have emitted. Rejected on --apply, keeping the
+# prune set uniform on the enumerate and apply sides.
+clean_path_has_pruned_segment() {
+  local rel="${1//\\//}" seg
+  for seg in "${CLEAN_PRUNE_DIRS[@]}"; do
+    case "/$rel/" in
+    *"/$seg/"*) return 0 ;;
+    *) ;;
+    esac
+  done
+  return 1
+}
+
 # Return 0 when the existing path ABS is a legitimate removal target for CLASS —
 # matching the SAME candidate rules enumeration uses to FIND targets, INCLUDING
 # the filesystem type it emits each under (dir names / explicit dirs are found
@@ -486,9 +509,11 @@ clean_manifest_target_valid() {
 # manifest is untrusted input (a caller supplies it, or a concurrent process may
 # alter it): every entry is validated before its path is acted on — the class
 # must be one this tier produces (ALLOWED, space-separated), the path must be
-# repo-contained (no `..`/absolute) AND a real target for its class (not an
-# arbitrary untracked dir), and the byte field must be an unsigned decimal before
-# it reaches Bash arithmetic (which evaluates array subscripts recursively).
+# repo-contained (no `..`/absolute), outside every pruned tree (enumeration never
+# descends CLEAN_PRUNE_DIRS, so a `.git/...` entry is never one it emitted) AND a
+# real target of the right type for its class (not an arbitrary untracked path),
+# and the byte field must be an unsigned decimal before it reaches Bash
+# arithmetic (which evaluates array subscripts recursively).
 #   clean_apply_manifest ROOT MANIFEST ALLOWED_CLASSES
 clean_apply_manifest() {
   local root="$1" manifest="$2" allowed="${3:-}"
@@ -502,6 +527,11 @@ clean_apply_manifest() {
     fi
     if ! clean_manifest_rel_safe "$rel"; then
       printf 'Rejected (outside repo): %s\n' "$rel" >&2
+      CLEAN_FAILED_COUNT=$((CLEAN_FAILED_COUNT + 1))
+      continue
+    fi
+    if clean_path_has_pruned_segment "$rel"; then
+      printf 'Rejected (pruned tree): %s\n' "$rel" >&2
       CLEAN_FAILED_COUNT=$((CLEAN_FAILED_COUNT + 1))
       continue
     fi

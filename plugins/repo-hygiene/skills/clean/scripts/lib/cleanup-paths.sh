@@ -3,6 +3,13 @@
 # SSOT: reference/cleanup-config.md — drift detected by cleanup-paths.test.sh
 # shellcheck disable=SC2034
 
+# Heavy trees that hold no cleanup targets we own — never descended by the
+# single-walk enumeration (`-prune`) and, symmetrically, never accepted from a
+# manifest at `--apply`, so both sides share one prune set. SSOT: the scan tier
+# still uses the per-glob CLEAN_FIND_EXCLUDE_* below (its migration to this walk
+# is deferred).
+CLEAN_PRUNE_DIRS=(.git node_modules .venv)
+
 # Universal find exclusions (cleanup-config.md intro)
 CLEAN_FIND_EXCLUDE_GIT='*/.git/*'
 CLEAN_FIND_EXCLUDE_VENV='*/.venv/*'

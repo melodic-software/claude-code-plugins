@@ -130,6 +130,18 @@ rc=$?
 assert_contains "wrong-tier entry rejected" "$out" "Rejected (wrong tier): bin"
 assert_file_exists "wrong-tier target preserved" "$TEST_TMPDIR/r2/bin/x"
 
+# 3b. Pruned-tree entry — enumeration never descends .git/node_modules/.venv, so
+#     a manifest entry inside one (removing it could corrupt the repo) is rejected
+#     even though its basename is a valid target name.
+mkdir -p "$TEST_TMPDIR/r2/.git/objects/__pycache__"
+echo g >"$TEST_TMPDIR/r2/.git/objects/__pycache__/g"
+printf 'caches\t1\t.git/objects/__pycache__\n' >"$TEST_TMPDIR/r2.pruned.manifest"
+out="$(run_r2 --apply --manifest "$TEST_TMPDIR/r2.pruned.manifest" 2>&1)"
+rc=$?
+assert_contains "pruned-tree entry rejected" "$out" "Rejected (pruned tree): .git/objects/__pycache__"
+assert_exit "pruned-tree apply exits non-zero" 1 "$rc"
+assert_file_exists "pruned-tree path preserved" "$TEST_TMPDIR/r2/.git/objects/__pycache__/g"
+
 # 4. Type validation — a regular file whose basename matches a dir-name target
 #    (enumeration only emits those under -type d) is rejected, never removed.
 mkdir -p "$TEST_TMPDIR/r2/src"
