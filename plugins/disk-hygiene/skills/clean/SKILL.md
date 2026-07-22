@@ -9,7 +9,7 @@ hooks:
     - matcher: "Bash|PowerShell"
       hooks:
         - type: command
-          command: "python"
+          command: "python3"
           args: ["${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--authorized-data-root", "${CLAUDE_PLUGIN_DATA}"]
 ---
 
@@ -226,6 +226,16 @@ sparse files, hard links, compression, and delayed allocation affect it.
   research uses non-Bash read-only tools; only literal-word bundled scan, preview, and apply shapes
   using the hook runtime's same absolute executable pass. Shell expansions, globs, splitting/escape
   forms, operators, redirections, aliases, and exported functions fail closed.
+- The guard hook launches in exec form via `python3`, resolved on `PATH` with no shell (`python3`,
+  not bare `python`, because stock macOS and many Linux distros ship only `python3` and a legacy
+  `python` 2.x would crash the guard on modern syntax). Enforcement is therefore only as strong as
+  that resolution: on a host where `python3` does not resolve to a 3.11+ interpreter the PreToolUse
+  launch fails, and Claude Code treats a failed hook launch as a non-blocking error, so the guard
+  does not intercept there. This does not open a silent auto-delete path — the engine's own apply
+  lane runs only after the guard's `ask` prompt, is unsupported on Windows and macOS entirely, and
+  the manual-handoff lane plus the consumer's baseline permission policy still gate every deletion —
+  but it is defense-in-depth lost, not preserved. `/disk-hygiene:setup check` reports whether the
+  interpreter resolves on this machine.
 - The PowerShell lane is the inverse tradeoff: it stays open for read-only support work (git, gh,
   metadata probes) and instead hard-denies engine invocations and turns known deletion spellings
   into a final human permission prompt. It is a raised bar, not a fail-closed lane; the engine's

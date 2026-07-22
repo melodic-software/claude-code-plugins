@@ -3,6 +3,22 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.3]
+
+### Fixed
+
+- **The `clean` skill's destructive-safety guard now launches via a resolvable `python3`.** The
+  PreToolUse hook ran in exec form via the unqualified interpreter `python`, which stock macOS and
+  many Linux distros do not ship (only `python3`). Because Claude Code treats a failed hook launch
+  as a non-blocking error, an unresolvable `python` fails the guard open — `rm -rf`, engine `apply`,
+  and other destructive shapes stop being intercepted on the very POSIX hosts the safety model
+  relies on — and a legacy `python` 2.x resolving first would crash the guard on modern syntax. The
+  hook now names `python3`. A new regression test (`test_skill_hook_interpreter_is_python3_and_resolves`)
+  locks the config at `python3` and probes that it resolves to a 3.11+ interpreter. Enforcement
+  remains bounded by resolution: on a host without a resolvable `python3` the launch still fails
+  open, so the manual-handoff human approval and the consumer's baseline permission policy stay the
+  backstop, and `/disk-hygiene:setup check` reports interpreter resolution. (#380)
+
 ## [0.4.2]
 
 ### Fixed
