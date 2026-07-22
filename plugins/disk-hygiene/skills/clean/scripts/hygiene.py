@@ -345,9 +345,17 @@ def hard_protection(
         if mount_error:
             reasons.append("mount-state-unverified")
         elif mounted:
-            reasons.append(
-                "target-is-mount-point" if current == target else "nested-mount-point"
-            )
+            if current != target:
+                reasons.append("nested-mount-point")
+            elif not is_volume_root(target):
+                # A volume-root target is inherently a mount point and is
+                # admitted as such by the reasoned target-level checks; flagging
+                # it here would mark every descendant target-is-mount-point and
+                # defeat the admitted scan. A non-volume-root target that is a
+                # mount is still blocked (it should never have been admitted, or
+                # became a mount after the snapshot). Nested mounts below the
+                # target stay blocked regardless.
+                reasons.append("target-is-mount-point")
         if current == target:
             break
         if has_protected_name(current, exact_names):

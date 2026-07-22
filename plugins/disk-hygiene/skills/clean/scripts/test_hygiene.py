@@ -242,6 +242,36 @@ class HygieneTests(unittest.TestCase):
                 "os-managed-root", hygiene.hard_protection(path, target, set())
             )
 
+    def test_hard_protection_exempts_admitted_volume_root_from_mount_reason(
+        self,
+    ) -> None:
+        # Regression: a descendant of an admitted non-OS volume-root target must
+        # not inherit target-is-mount-point from the ancestor walk reaching the
+        # (mounted) volume root — that blanket-protected every entry and defeated
+        # the admitted scan. A nested mount below the target stays blocked.
+        target, child, nested = Path("X:/"), Path("X:/scratch"), Path("X:/mnt")
+        with (
+            mock.patch.object(
+                hygiene, "is_volume_root", side_effect=lambda p: p == target
+            ),
+            mock.patch.object(hygiene, "is_linkish", return_value=False),
+        ):
+            with mock.patch.object(
+                hygiene, "mount_state", side_effect=lambda p, *a: (p == target, None)
+            ):
+                child_reasons = hygiene.hard_protection(child, target, set())
+            self.assertNotIn("target-is-mount-point", child_reasons)
+            self.assertNotIn("nested-mount-point", child_reasons)
+
+            with mock.patch.object(
+                hygiene,
+                "mount_state",
+                side_effect=lambda p, *a: (p in {target, nested}, None),
+            ):
+                nested_reasons = hygiene.hard_protection(nested, target, set())
+            self.assertIn("nested-mount-point", nested_reasons)
+            self.assertNotIn("target-is-mount-point", nested_reasons)
+
     @unittest.skipUnless(
         hygiene.os_key() == "linux", "real mountinfo is available only on Linux"
     )
