@@ -53,6 +53,18 @@ resolve_one() {
   tree-batch | batch | fleet | multi-repo | reset-all)
     printf 'tree-batch'
     ;;
+  caches-batch | caches-fleet | cache-batch)
+    printf 'caches-batch'
+    ;;
+  build-batch | build-fleet | artifacts-batch)
+    printf 'build-batch'
+    ;;
+  git-batch | git-fleet | prune-batch | gc-batch)
+    printf 'git-batch'
+    ;;
+  all-batch | all-fleet | sweep-batch | clean-all)
+    printf 'all-batch'
+    ;;
   all | sweep | everything)
     printf 'all'
     ;;
@@ -73,6 +85,42 @@ is_fleet_phrase() {
   *) return 1 ;;
   esac
 }
+
+# Any multi-repo signal: a fleet phrase, or a bare fleet/batch/multi-repo word.
+# Broader than is_fleet_phrase because it also catches "across the fleet" and a
+# lone "fleet"/"batch" token co-occurring with a selective tier.
+has_fleet_indicator() {
+  is_fleet_phrase "$1" && return 0
+  case "$1" in
+  *fleet* | *batch* | *multi-repo*) return 0 ;;
+  *) return 1 ;;
+  esac
+}
+
+# Selective tier + fleet intent => the selective batch form, decided BEFORE the
+# bare fleet/all -> tree-batch upgrade below. A selective sweep across a fleet
+# ("clean caches across all repos", "caches fleet", "prune git across the fleet")
+# must route to the non-destructive `<tier>-batch`, never the destructive tree
+# reset. Only fires for a single unambiguous selective tier; a mix (caches + build)
+# falls through to the normal conflict path.
+sel=""
+for token in "$@"; do
+  case "$(resolve_one "$(printf '%s' "$token" | tr '[:upper:]' '[:lower:]')")" in
+  caches | build | git)
+    t="$(resolve_one "$(printf '%s' "$token" | tr '[:upper:]' '[:lower:]')")"
+    if [[ -z "$sel" ]]; then
+      sel="$t"
+    elif [[ "$sel" != "$t" ]]; then
+      sel="__conflict__"
+    fi
+    ;;
+  *) ;;
+  esac
+done
+if [[ -n "$sel" && "$sel" != "__conflict__" ]] && has_fleet_indicator "$joined"; then
+  printf 'Action: %s-batch\n' "$sel"
+  exit 0
+fi
 
 canonical=""
 for token in "$@"; do

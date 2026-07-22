@@ -1,8 +1,8 @@
 ---
 name: clean
-description: "Repo hygiene action-router: scan (inventory), caches, build, git (prune/branch audit), tree (destructive fresh-pull reset), tree-batch (multi-repo tree reset with skip-list + dirty guard), all. Bare invocation detects intent from conversation or shows a menu. Dry-run-first; destructive actions require explicit confirmation. Use when: clean, disk space, remove caches, build artifacts, fresh pull, fresh clone state, reset to origin, reset all my repos, stale branches, repo hygiene. Skip: removing git worktree directories (a worktree-management tool handles those)."
+description: "Repo hygiene action-router: scan (inventory), caches, build, git (prune/branch audit), tree (destructive fresh-pull reset), tree-batch (multi-repo tree reset with skip-list + dirty guard), all, and fleet batch forms of the selective tiers (caches-batch / build-batch / git-batch / all-batch over many repos behind one gate). Bare invocation detects intent from conversation or shows a menu. Dry-run-first; destructive actions require explicit confirmation. Use when: clean, disk space, remove caches, build artifacts, fresh pull, fresh clone state, reset to origin, reset all my repos, clean caches across all repos, clear build artifacts across all my repos, prune git across the fleet, stale branches, repo hygiene. Skip: removing git worktree directories (a worktree-management tool handles those)."
 user-invocable: true
-argument-hint: "[scan|caches|build|git|tree|tree-batch|all|aliases…] (bare → menu or auto-detect)"
+argument-hint: "[scan|caches|build|git|tree|tree-batch|all|caches-batch|build-batch|git-batch|all-batch|aliases…] (bare → menu or auto-detect)"
 allowed-tools:
   - Bash(bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/*)
 hooks:
@@ -58,7 +58,9 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/resolve-clean-action.sh $ARGUMEN
 
 Tiers cumulative: `build` includes `caches`. `all` = `build` + `git`. **Neither `tree` nor `tree-batch` is ever composed into `all`.**
 
-Aliases (`fresh`, `inventory`, `artifacts`, …): [context/action-router.md](context/action-router.md).
+**Fleet (batch) forms.** Each selective tier has a multi-repo form — `caches-batch`, `build-batch`, `git-batch`, `all-batch` — that runs it across a repo set behind ONE gate (§8). `tree-batch` is the destructive tier's separate batch form (§6.5).
+
+Aliases (`fresh`, `inventory`, `artifacts`, `caches-fleet`, …): [context/action-router.md](context/action-router.md).
 
 ## What clean NEVER touches by default
 
@@ -145,6 +147,14 @@ Repo sources: `--repo` (repeatable; a shell glob expands to these) and `--repos-
 **Mandatory gate:** show dry-run output → `AskUserQuestion` → only then `--apply`. Surface `Kind` / `UnpushedRefs` / `SecretsCount` / `SkillData` in the confirmation. Autonomous sessions: abort.
 
 **Documented boundaries.** Containment is path- and device-based (physical resolution plus a same-device check). A *same-device* `mount --bind` under the root shares the root's filesystem device, so no path-based check can detect it; closing that would require a Linux-only mount-table (`/proc/self/mountinfo`) model that would also refuse legitimate under-root mounts, so it stays out of scope for this local, dry-run-default, explicit-`--apply` tool. The unpushed-ref guard covers `refs/heads` and `refs/tags`; other locally-created namespaces (e.g. `refs/notes`) are not scanned, and auto-generated ones (`refs/prefetch/*` from git-maintenance, `refs/replace/*`) are intentionally not treated as unpushed — `--allow-unpushed` is the escape hatch for any local ref. The secret scan gates only ignored (unrecoverable) files; tracked files are git's domain (recoverable via reset/remote, and separately blocked when dirty or unpushed).
+
+### 8. Batch — multi-repo selective tiers (`caches-batch` / `build-batch` / `git-batch` / `all-batch`)
+
+`bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/clean-batch.sh --tier <caches|build|git|all>` — default `--dry-run`. Runs the §2–§5 selective tiers across a set of repos behind one gate, the selective-tier sibling of §6.5 `tree-batch`. Detail + examples: [context/clean-batch.md](context/clean-batch.md). Additive over the single-repo tiers — the batch layer runs no removal itself; each per-repo action delegates to the unchanged child (`clean-caches.sh` / `clean-build.sh` / `git-prune.sh`), preserving every child gate. **`tree` is not batched here** (use §6.5); **branch audit/deletion is not batched** (interactive per-branch deletion can't sit behind one gate) — batch `git` is prune/gc/remote-prune only, once per unique shared object store.
+
+Repo sources: `--repo` (repeatable; a shell glob expands to these) and `--repos-from FILE|-` (ingests `ghq list -p`; backslash paths normalized). Skip list: `--skip ENTRY` / `--skip-from FILE` (same separator-agnostic matcher as `tree-batch`).
+
+**Mandatory gate (single, batch-wide):** run `--dry-run` once → it writes a **batch plan** and prints `BatchPlan: <path>`, per-repo `Outcome`/`Reason`, any `UnmatchedSkip:`, and an aggregate `Summary: repos=N planned=P bytes=K` (surface the reclaimable `bytes`). `AskUserQuestion` **once** → then `CLEAN_GUARD_ACK=1 … --apply --batch-plan <path>` **once**. The plan IS the gated set: apply targets exactly those repos (`--apply` errors without `--batch-plan`), so a repo that vanished after the dry-run applies idempotently and one that appeared is never touched. Apply prints `Summary: removed=N failed=M bytes=K` and exits non-zero on any failure. Autonomous sessions: abort.
 
 ## Integration
 

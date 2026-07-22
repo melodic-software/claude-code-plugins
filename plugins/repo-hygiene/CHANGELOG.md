@@ -3,6 +3,35 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.0]
+
+### Added
+
+- **Fleet (batch) mode for the selective `caches` / `build` / `git` / `all`
+  tiers.** A new `clean-batch.sh --tier <caches|build|git|all>` orchestrator runs
+  the single-repo tiers across a set of repositories behind ONE confirmation gate,
+  the way `tree-batch` already does for the destructive `tree` tier. It runs no
+  removal itself — each per-repo action delegates to the unchanged single-repo
+  child (`clean-caches.sh`, `clean-build.sh`, `git-prune.sh`), so every child gate
+  (protection classes, submodule/reparse guards, the dry-run manifest + re-stat
+  staleness guard) is reused verbatim. New action spellings `caches-batch` /
+  `build-batch` / `git-batch` / `all-batch` (plus `*-fleet` aliases) resolve to it.
+  (#994)
+- **The batch plan is the gated set.** `--dry-run` writes a plan enumerating
+  exactly the repos and shared object stores to act on (plus a per-repo child
+  manifest for `caches`/`build`), prints `BatchPlan: <path>` and an aggregate
+  `Summary: repos=N planned=P bytes=K`. `--apply --batch-plan <plan>` acts on that
+  plan ONLY and is a usage error without it — so a live fleet that races the sweep
+  is tolerated exactly: a repo that vanished after the dry-run applies idempotently
+  (its manifest paths are already gone), a repo that appeared is not in the plan and
+  is never touched. (#994)
+- **Central path normalization + shared-object-store dedup in the batch layer**
+  (`lib/batch-common.sh`). `ghq list -p` backslash paths are normalized once to the
+  git-friendly `D:/repos/...` forward-slash form (backslashes break `xargs` and
+  `[[ -d ]]`; `git check-ignore` rejects MSYS `/d/…` forms). The `git` tier groups
+  repos by unique `git rev-parse --git-common-dir` and prunes each shared object
+  store once, not once per linked worktree. (#994)
+
 ## [0.5.0]
 
 ### Fixed
