@@ -51,11 +51,15 @@ value and its unset fallback.
   same-repo vs fork from `gh pr view --json isCrossRepository`, never by whether `git config` happens
   to resolve: `origin` for a same-repo head; for a write-allowed cross-repo (in-owner fork) head, the
   fork destination from `branch.<headRefName>.pushRemote` or `branch.<headRefName>.remote`, validated
-  by URL — resolve that value (a remote name or a bare URL) to owner/repo and require it to equal the
-  PR head repository (`gh pr view --json headRepository`), not merely reject the literal `origin` name.
-  Never hardcode `origin`, and never fall back to it when the destination cannot be validated — a fork
-  head reached via `--detach` leaves no branch config, and a remote named `upstream` (or any name) can
-  point at the base repo, so pushing there silently writes a same-named branch on base instead of
+  by URL — a named remote can carry a separate `pushurl` that `git push` honors, so resolve the actual
+  push URL (`git remote get-url --push`) and canonicalize it (a remote name, a bare URL, or that
+  `pushurl`) to **host + owner/repo**, then require both to equal the head repo's own canonical URL
+  (`gh api repos/<nameWithOwner> --jq .html_url`; `gh pr view --json headRepository` exposes no URL),
+  not merely reject the literal `origin` name or match `owner/repo` on any host. Never hardcode
+  `origin`, and never fall back to it when the destination cannot be validated — a fork head reached via
+  `--detach` leaves no branch config, and a remote named `upstream` (or any name), a same-`owner/repo`
+  path on a different host, or a fork fetch URL masking a base-repo `pushurl`, can point at the base
+  repo, so pushing there silently writes a same-named branch on base instead of
   updating the fork head; **stop (read-only) instead**. Because `HEAD` equalled the PR head and you only added
   commits on top, this push is a fast-forward; never `--force` or `--force-with-lease`. A rejected
   non-fast-forward push means the assertion no longer holds — re-fetch and stop, never force past it.

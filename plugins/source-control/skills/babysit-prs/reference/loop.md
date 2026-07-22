@@ -181,20 +181,33 @@ fi
 # remote — commonly named `upstream`, but any name — so accepting any non-origin
 # name would push to the BASE repo, writing a same-named branch there instead of
 # updating the fork head (the cross-repo regression this guards; safety.md).
-# `branch.<b>.pushRemote`/`remote` may hold a remote name OR a URL; resolve
-# either to owner/repo and require it to equal the PR head repo, else read-only.
+# `branch.<b>.pushRemote`/`remote` may hold a remote name OR a URL, and a named
+# remote can carry a separate `pushurl` that `git push` honors — so resolve the
+# actual PUSH url (`git remote get-url --push`) and canonicalize it to
+# host + owner/repo, then require BOTH to equal the head repo's own canonical URL
+# (`gh api repos/<nameWithOwner> --jq .html_url`), else read-only. This rejects a
+# same-path remote on a DIFFERENT host and a fork fetch url masking a base pushurl.
 if [ "$CHECKOUT_MODE" = "full" ]; then
   if [ "$(gh pr view "$PR_NUMBER" --json isCrossRepository -q .isCrossRepository)" = "false" ]; then
     PUSH_REMOTE=origin
   else
+    # Canonicalize any git URL — scheme://[user@]host[:port]/owner/repo,
+    # user@host:owner/repo, or a bare host/owner/repo — to host/owner/repo so the
+    # comparison includes the HOST, not just the path: a same-path remote on a
+    # different host (git@evil.example.com:owner/repo) must NOT satisfy it.
+    repo_id() { printf '%s\n' "$1" | sed -E 's#\.git$##; s#/+$##; s#^[a-zA-Z][a-zA-Z0-9+.-]*://##; s#^[^/@]*@##; s#:[0-9]+/#/#; s#:#/#'; }
     HEAD_REPO=$(gh pr view "$PR_NUMBER" --json headRepository -q .headRepository.nameWithOwner)
-    # git push consults pushRemote before remote; either may be a remote NAME or a URL.
+    # headRepository carries no URL; resolve the head repo's canonical host+path
+    # from its authoritative html_url (a fork head is always on the base instance).
+    HEAD_ID=$(repo_id "$(gh api "repos/$HEAD_REPO" --jq .html_url 2>/dev/null)")
+    # git push consults pushRemote before remote; either may be a remote NAME or a
+    # URL. Resolve the PUSH url (--push honors remote.<name>.pushurl, which can
+    # differ from the fetch url) — the address git push will actually write to.
     PUSH_REMOTE=$(git config --get "branch.$BRANCH.pushRemote" \
       || git config --get "branch.$BRANCH.remote" || true)
-    REMOTE_URL=$(git remote get-url "$PUSH_REMOTE" 2>/dev/null || printf '%s' "$PUSH_REMOTE")
-    REMOTE_SLUG=$(printf '%s\n' "$REMOTE_URL" | sed -E 's#^[^/]+://[^/]+/##; s#^[^@]+@[^:]+:##; s#\.git$##')
-    if [ -z "$PUSH_REMOTE" ] || [ -z "$HEAD_REPO" ] || [ "$REMOTE_SLUG" != "$HEAD_REPO" ]; then
-      echo "Fork push remote does not resolve to the PR head repo ($HEAD_REPO) — read-only"
+    REMOTE_URL=$(git remote get-url --push "$PUSH_REMOTE" 2>/dev/null || printf '%s' "$PUSH_REMOTE")
+    if [ -z "$PUSH_REMOTE" ] || [ -z "$HEAD_ID" ] || [ "$(repo_id "$REMOTE_URL")" != "$HEAD_ID" ]; then
+      echo "Fork push remote does not resolve to the PR head repo ($HEAD_ID) — read-only"
       CHECKOUT_MODE="read-only"
     fi
   fi
