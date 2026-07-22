@@ -3,6 +3,28 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.7]
+
+### Changed
+
+- `implement-dispatch`'s "Compose the brief" step (`skills/implement-dispatch/SKILL.md`) now front-loads
+  CI-hygiene and early-push clauses alongside the existing worktree-cwd clause: no issue-number back-references
+  in code comments (the `comment-hygiene` check flags them; `TODO(#issue)` is the sanctioned exception);
+  any new regular file with a shebang (never a `120000` symlink — `git update-index --chmod=+x` fails on
+  one) must be marked executable on both the worktree and the index, in order — `chmod +x <path>`, then
+  `git add <path>` to stage it (a not-yet-tracked path fails `git update-index --chmod=+x` outright), then
+  `git update-index --chmod=+x <path>` to force the index mode explicitly, since a plain `git add` alone
+  can't be trusted to carry an executable bit across every platform/filesystem (the `exec-bit` check flags
+  a tracked shebang file recorded non-executable); and commit and push as early as practical — before the
+  CI-poll tail — so a mid-flight worker session-limit death never orphans unpushed work. That early commit
+  is a source-only checkpoint; the phase-boundary plan-mark commit (`/implementation:implement` Step 4 item
+  4) still runs separately, orchestrator-side, once the phase's acceptance criteria are verified — a scoped
+  exception to inline mode's combined source+marks commit, noted in "Phase boundaries." PR creation stays
+  out of every worker brief; it belongs to the orchestrator's post-verification flow (Step 5), invoked only
+  after every worker return is verified and the build/test gate passes. Reinforced as Gotchas-section
+  reminders, matching the worktree-cwd clause's existing pattern. Closes #819, where fresh dispatched
+  workers repeatedly learned these same PR-contract constraints via red CI instead of the brief.
+
 ## [0.7.6]
 
 ### Changed

@@ -3,6 +3,20 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.2]
+
+### Fixed
+
+- **The `clean` skill's step 2 now defines "suspicious" for home-directory targets.** A prior
+  fix covered the `tmp_*` hint-glob gap but left two findings open: an unhinted agent-session
+  status file has no shared name shape to glob, and SKILL.md never said what "suspicious"
+  meant for an unhinted entry. Both are the same gap: the scan snapshot already records every
+  walked entry with a possibly-empty `hints` list, so the data was always there, just never
+  triaged. Step 2 now instructs the model to treat any loose root-level entry at a user-home
+  target that is not in `protected_exact_names` and does not match a recognizable app/config
+  convention as suspicious, closing the triage gap without inventing a fabricated
+  baseline-policy.json glob for a naming pattern the evidence doesn't support. (#287)
+
 ## [0.4.1]
 
 ### Fixed

@@ -6,9 +6,11 @@ updated: YYYY-MM-DDTHH:MM:SSZ
 
 # {Video Title}
 
+**Target:** {resolved synthesis target — SKILL.md "Synthesis target resolution"}
+
 ## TLDR
 
-{2–3 sentences: what the video argues and whether it matters for this repo.}
+{2–3 sentences: what the video argues and whether it matters for the resolved synthesis target.}
 
 ## Journey
 
