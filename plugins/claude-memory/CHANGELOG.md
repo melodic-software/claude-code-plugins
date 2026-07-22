@@ -3,6 +3,24 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0]
+
+### Added
+
+- **`stateless`: machine-wide mode (`status all` / `purge all`).** The skill's name and
+  description invite "am I stateless everywhere on this machine?", but every action was
+  single-project — a machine-wide audit had to hand-roll a loop over
+  `~/.claude/projects/*/memory/`. New `scripts/enumerate-all-projects.sh` lists every
+  per-project store under `${CLAUDE_CONFIG_DIR:-~/.claude}/projects/` with MEMORY.md line
+  counts and topic-file counts (enumeration-only, never exits non-zero on absence, reusable
+  by the sibling `audit` skill; ships with its own test script). `status all` appends the
+  machine-wide table to the posture report, with explicit caveats that per-repo settings
+  overrides and relocated `autoMemoryDirectory` stores are not visible from enumeration
+  alone. `purge all` runs the same manifest → gate → optional-backup → delete flow with
+  every per-project store as the candidate set, one combined manifest, and ONE combined
+  confirmation gate stating the machine-wide total and every directory with per-dir counts;
+  the backup offer covers the whole manifest with per-dir sibling snapshots. (#981)
+
 ## [0.3.5]
 
 ### Changed
