@@ -3,6 +3,40 @@
 All notable changes to the `re-anchor` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0]
+
+### Added
+
+- **`fact-check` trigger routing** on both research correctors. `do-your-research`
+  and `do-your-research-deep` now list `'fact-check'` / `'fact check this'` (and
+  adjacent phrasing) in their descriptions, so the reflex phrase routes to the
+  research discipline. Every prior trigger phrase is preserved.
+- **`do-your-research-deep` step 1 is now a TYPED FULL INVENTORY.** It enumerates
+  every claim the session rests on as a typed checklist — assumptions, asserted
+  facts, concrete specifics, and load-bearing premises — not just the obviously
+  load-bearing ones, so coverage is provable. The ledger reports one row per
+  inventory item (no silent drops), each carrying verdict, source, **source tier**,
+  **consensus count** (independent authoritative sources), and **recency** where the
+  fact can go stale. Source tier and consensus resolve against the consuming
+  project's own research discipline via the shared method's source-of-truth ladder;
+  an internal assumption with no external referent is covered by an honest
+  re-derived / needs-confirm verdict rather than a fabricated citation.
+- **Configurable verification depth** for `do-your-research-deep` — the expensive
+  tier by design. New `research_deep_verification` `userConfig` scalar (the plugin's
+  fourth option): `tiered` (default — resolve trivial and non-load-bearing items
+  inline, fan subagents out only over load-bearing ones) or `full` (subagent-verify
+  every item). An invocation argument (`argument-hint: [tiered|full]`) overrides the
+  configured default; an empty value, an unexpanded token, or an unrecognized string
+  all fall back to `tiered` without erroring. Existing wave-throttle, failed-subset
+  retry, and blind-subagent mechanics are unchanged.
+
+### Changed
+
+- **`setup` broadened from the posture-batch overlay to the whole re-anchor
+  configuration surface.** It now also reports and validates
+  `research_deep_verification` alongside the three `batch_*` overlay options,
+  treating an unrecognized depth as a WARN that still resolves to `tiered`.
+
 ## [0.6.0]
 
 ### Added
