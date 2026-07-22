@@ -608,7 +608,7 @@ clean_apply_manifest() {
     # the path to exist).
     [[ -e "$abs" ]] || continue
     if clean_path_has_reparse_ancestor "$root" "$rel"; then
-      printf 'Rejected (symlinked ancestor): %s\n' "$rel" >&2
+      printf 'Rejected (symlinked path): %s\n' "$rel" >&2
       CLEAN_FAILED_COUNT=$((CLEAN_FAILED_COUNT + 1))
       continue
     fi

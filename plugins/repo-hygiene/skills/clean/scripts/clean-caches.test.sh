@@ -219,7 +219,7 @@ if [[ -L "$TEST_TMPDIR/r2/.turbo" ]]; then
   printf 'caches\t1\t.turbo\n' >"$TEST_TMPDIR/r2.symlink.manifest"
   out="$(run_r2 --apply --manifest "$TEST_TMPDIR/r2.symlink.manifest" 2>&1)"
   rc=$?
-  assert_contains "symlinked dir target rejected" "$out" "Rejected (not a caches target): .turbo"
+  assert_contains "symlinked dir target rejected" "$out" "Rejected (symlinked path): .turbo"
   assert_exit "symlink apply exits non-zero" 1 "$rc"
   assert_file_exists "symlink target contents preserved" "$TEST_TMPDIR/r2/realcache/c"
 else
@@ -257,7 +257,7 @@ if [[ -L "$TEST_TMPDIR/r2/link" ]]; then
   printf 'caches\t1\tlink/__pycache__\n' >"$TEST_TMPDIR/r2.ancestor.manifest"
   out="$(run_r2 --apply --manifest "$TEST_TMPDIR/r2.ancestor.manifest" 2>&1)"
   rc=$?
-  assert_contains "symlinked ancestor rejected" "$out" "Rejected (symlinked ancestor): link/__pycache__"
+  assert_contains "symlinked ancestor rejected" "$out" "Rejected (symlinked path): link/__pycache__"
   assert_exit "symlinked ancestor exits non-zero" 1 "$rc"
   assert_file_exists "outside dir preserved through symlinked ancestor" "$TEST_TMPDIR/escape_victim/__pycache__/s"
 else
