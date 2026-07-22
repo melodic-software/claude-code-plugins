@@ -1,0 +1,65 @@
+{
+  "skill_name": "audit-answers",
+  "evals": [
+    {
+      "id": 1,
+      "name": "accepts-then-validates-with-fresh-agents",
+      "prompt": "/planning:audit-answers — I finished the interview but I'm overloaded; accept the recommendations and have agents check them instead of me answering every round.",
+      "expected_output": "The skill accepts each open question's recommended answer into the ledger, then dispatches fresh-context (non-fork) validator subagents that receive the accepted answers with the rationale withheld and return a per-answer verdict (CONFIRMED / CHALLENGED / RECLASSIFIED-TO-HUMAN). It does NOT invent answers via subagents.",
+      "files": [],
+      "expectations": [
+        "Output accepts the recommended answers first, then validates them — it does not derive/invent answers with subagents",
+        "Validators are described as fresh-context (non-fork) subagents that receive the decisions with the persuasive rationale withheld",
+        "Each accepted answer gets a per-answer verdict: CONFIRMED, CHALLENGED (with a reason), or RECLASSIFIED-TO-HUMAN"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "never-auto-floor-routes-to-human",
+      "prompt": "/planning:audit-answers — the brief has a Deferred question tagged USER-RESERVED about the pricing model. Just validate everything and collapse whatever passes.",
+      "expected_output": "The USER-RESERVED decision (and any auto-guard-class genuine user choice) is held out of the auto-accept and always routed to the human as a real question — no CONFIRMED verdict can collapse it, however clean it looks.",
+      "files": [],
+      "expectations": [
+        "Output does NOT auto-accept or collapse the USER-RESERVED pricing decision, even when asked to collapse whatever passes",
+        "Output routes USER-RESERVED (and auto-guard) decisions to the human as real questions regardless of validator verdicts",
+        "Output distinguishes the never-auto floor from the ordinary accepted answers that validators check"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "no-ledger-stops-and-points-to-interview",
+      "prompt": "/planning:audit-answers the caching approach",
+      "expected_output": "With no filled interview ledger for the topic, the skill stops with a message that there is nothing to validate and points the user at /planning:interview to produce the ledger first.",
+      "files": [],
+      "expectations": [
+        "Output recognizes the precondition: a filled interview ledger (interview-checklist.md decision-tree ledger + PLAN.md Brief) must exist",
+        "Output stops rather than fabricating answers to validate when no ledger is present",
+        "Output points the user to /planning:interview to produce the ledger"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "not-a-plan-stress-test",
+      "prompt": "/planning:audit-answers here is my implementation plan — poke holes in it before we build.",
+      "expected_output": "The skill clarifies it validates a completed interview's accepted answers, not a plan artifact, and points to /planning:devils-advocate for stress-testing a plan.",
+      "files": [],
+      "expectations": [
+        "Output does not run an assumption-extraction / severity-findings stress-test over the plan",
+        "Output clarifies its scope is validating interview answers, upstream of the plan",
+        "Output points to /planning:devils-advocate for stress-testing a plan artifact"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "one-dissent-is-signal-and-confirm-gate-holds",
+      "prompt": "/planning:audit-answers — run the validators and if most answers look fine just give me the green light so I can move on.",
+      "expected_output": "A single CHALLENGED or RECLASSIFIED verdict from any validator makes that answer a real human question (not averaged away), and the human confirmation round is mandatory — the collapsed CONFIRMED block is a summary to skim, never a licence to skip the human.",
+      "files": [],
+      "expectations": [
+        "Output treats one validator's CHALLENGED/RECLASSIFIED as signal that surfaces a human question, not a vote averaged against CONFIRMED verdicts",
+        "Output does not give a blanket green light — it requires a human confirmation round over the challenged/reclassified answers",
+        "Output frames the CONFIRMED collapse as a summary to skim, with the human confirmation gate still mandatory"
+      ]
+    }
+  ]
+}

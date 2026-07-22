@@ -3,6 +3,30 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.0]
+
+### Added
+
+- **`audit-answers` — an agent-validated finish to `/planning:interview`.**
+  Instead of hand-answering every round, the orchestrator accepts each open
+  question's recommended answer (holding the mechanical never-auto floor —
+  `USER-RESERVED` deferred questions and the interview's auto-guard class always
+  route to the human), then dispatches **1–3 fresh-context (non-fork) validator
+  subagents** that re-examine each accepted answer with its **rationale
+  withheld** (audit the decision, not the pitch) and return a per-answer verdict
+  — **CONFIRMED / CHALLENGED / RECLASSIFIED-TO-HUMAN** — plus shaky
+  dependency-chain flags. Triaged confirm: CONFIRMED answers collapse to one
+  line; CHALLENGED and RECLASSIFIED answers become real questions in the
+  `/planning:interview` round format, and the human confirmation round is
+  mandatory. It **validates, never derives** — subagent-invented answers are out
+  of scope (fresh-context independence is real only for checking an answer, not
+  producing one). The adversarial evidence discipline is `devils-advocate`'s,
+  cited rather than duplicated; the dispatch and per-answer verdict contract are
+  purpose-built because the input (a pre-enumerated ledger) and output
+  (per-answer verdicts fed back as interview questions) differ from
+  `devils-advocate`'s plan-artifact stress-test. `/planning:interview` gains one
+  Composition-table row pointing at it (#1043).
+
 ## [0.24.5]
 
 ### Changed

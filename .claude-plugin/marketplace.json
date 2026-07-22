@@ -298,7 +298,7 @@
       "name": "planning",
       "source": "./plugins/planning",
       "category": "design",
-      "tags": ["planning", "wayfind", "decision-map", "brainstorm", "prd", "interview", "domain-modeling", "ubiquitous-language", "glossary", "design", "design-handoff", "devils-advocate", "plan", "stress-test", "skill"]
+      "tags": ["planning", "wayfind", "decision-map", "brainstorm", "prd", "interview", "audit-answers", "domain-modeling", "ubiquitous-language", "glossary", "design", "design-handoff", "devils-advocate", "plan", "stress-test", "skill"]
     },
     {
       "name": "domain-driven-design",
