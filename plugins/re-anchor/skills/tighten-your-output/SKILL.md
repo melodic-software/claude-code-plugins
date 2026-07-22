@@ -3,6 +3,9 @@ name: tighten-your-output
 description: "Re-anchor terseness discipline — say markdown in fewer words without semantic loss, write code in fewer lines when readability holds — then audit the work in flight for avoidable verbosity and tighten it. Use when: 'tighten your output', 'tighten this', 'too verbose', 'say it in fewer words', 'this is bloated', 'trim the code', 'simpler form', 'cut the wordiness', 'be more concise', or at conversation start on prose- or code-heavy work."
 user-invocable: true
 disable-model-invocation: false
+metadata:
+  re-anchor-batch: core  # every session produces output that can tighten; runs last so it never tightens text a later corrector rewrites
+  re-anchor-batch-rank: 110
 ---
 
 # Tighten your output

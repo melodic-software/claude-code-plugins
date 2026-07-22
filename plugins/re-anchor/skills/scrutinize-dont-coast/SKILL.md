@@ -3,6 +3,8 @@ name: scrutinize-dont-coast
 description: "Re-anchor adversarial self-scrutiny — stop coasting on your own recent output, re-examine whether it is actually sound (not merely confidently produced) through a fresh-context pass blind to the reasoning that made it, and remediate with the user. Use when: 'scrutinize don't coast', 'wait, stop', 'are you sure about this', 'second-guess this', 'poke holes in what you just did', \"you're steamrolling\", 'push back on yourself', with an optional focus to scope the re-examination, or at conversation start to set the posture."
 user-invocable: true
 disable-model-invocation: false
+metadata:
+  re-anchor-batch: never  # needs a non-fork fresh context and stops to remediate WITH the user — incompatible with the autonomous fork audit fan-out; invoke directly
 ---
 
 # Scrutinize, don't coast
