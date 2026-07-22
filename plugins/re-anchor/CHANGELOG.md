@@ -3,6 +3,39 @@
 All notable changes to the `re-anchor` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.0]
+
+### Added
+
+- **`sweep-all-disciplines`** — a posture-batch runbook, the plugin's first
+  **declared second species**: not a corrector (it re-anchors no discipline of
+  its own) but a router that composes the correctors. It fans out a
+  conversation-inheriting fork subagent per in-scope corrector for an
+  audit-only pass (shared-loop steps 1–2, no writes), then applies the
+  corrections once on the main thread in a fixed rank order (`use-your-skills`
+  first, `tighten-your-output` last). At conversation start it instead reports
+  a cheap posture digest from the listing and tier metadata, loading no
+  corrector bodies. Recorded in the skill as a **declared delta** from the
+  shared loop's per-corrector "correct forward now" step; member human-gates
+  and the outward-artifact carve-out survive batching.
+- **Colocated batch-tier metadata on every corrector.** Each corrector
+  self-classifies in its own frontmatter `metadata:` block — `re-anchor-batch`
+  (`core` / `situational` / `never`) plus `re-anchor-batch-rank` — so the
+  runbook resolves membership and order by globbing and reading, never from a
+  hand-maintained list; changing a shipped tier is a PR to that corrector.
+  `core` runs every session, `situational` is relevance-gated, and `never`
+  covers the `-deep` fan-out tiers plus `scrutinize-dont-coast` (its non-fork
+  fresh-context pass and stop-to-remediate gate are incompatible with the
+  autonomous fork fan-out).
+- **`userConfig` overlay** (`batch_exclude` / `batch_promote` /
+  `batch_demote`) — the plugin's first `userConfig` surface — adjusts batch
+  membership without a PR.
+
+### Fixed
+
+- README corrector table and per-skill detail now list `scrutinize-dont-coast`
+  (added in 0.5.0), closing a 13-listed-versus-14-shipped drift.
+
 ## [0.5.1]
 
 ### Changed
