@@ -567,6 +567,28 @@ rc=$?
 assert_exit "--marketplace no arg: exit 2, not an infinite loop" 2 "$rc"
 assert_contains "--marketplace no arg: actionable error" "$out" "requires a name"
 
+# ============================================================================
+# Case: FLEET_STATE_HOOK_UTILS is no longer honored — a caller-supplied path is
+# never sourced (security regression guard). hook-utils.sh resolves only from
+# the script's own location, so an inherited or hostile environment cannot
+# redirect `source` at an arbitrary file. If a future refactor re-introduces an
+# env-based override, the decoy below is re-sourced and its marker surfaces in
+# the output, failing this case.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": []}'
+write "$case_dir/evil-hook-utils.sh" 'echo "PWNED-HOOK-UTILS-SOURCED"'
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir" "FLEET_STATE_HOOK_UTILS=$case_dir/evil-hook-utils.sh")
+rc=$?
+assert_exit "hook-utils override ignored: runs to completion (exit 0)" 0 "$rc"
+case "$out" in
+*PWNED-HOOK-UTILS-SOURCED*) fail "hook-utils override ignored: caller-supplied path must NOT be sourced" "decoy marker present in output" ;;
+*) pass "hook-utils override ignored: caller-supplied path not sourced" ;;
+esac
+
 # --- Summary -------------------------------------------------------------
 printf '\n%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
 [[ "$FAILED" -eq 0 ]] && exit 0
