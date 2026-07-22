@@ -1,5 +1,48 @@
 # Changelog — session-flow plugin
 
+## [0.14.0]
+
+### Added
+
+- reconcile: new skill. The prune-and-reconcile counterpart to `keep-going`'s
+  resume — where keep-going asks "is it stuck, pick it back up", reconcile asks
+  "is anything still running that should be retired, and does the task ledger
+  match reality?" Inventories the off-thread work this session spawned, inspects
+  each item's real state, retires the genuinely finished by clearing them from
+  tracking, and closes this session's task-ledger items whose work is proven
+  complete. Also reports the read-only liveness of sibling sessions in the same
+  project — transcript mtime plus a coarse tail read, never a deep parse of the
+  officially-unstable JSONL. Auto-settles the provably-finished (closing a task
+  is evidence-gated — the mirror of keep-going's "never kill what you cannot
+  prove is dead"); GATES any kill of still-running work, the gate kept in-skill
+  because the three inventory skills' blast radii differ. Fixes this session
+  only: sibling sessions are visible but report-only, and a spawned subagent's
+  internal task list is not readable. MCP / browser / playwright tool-state
+  enumeration is deferred with a trigger (no generic tool-state surface exists;
+  closing user-owned state would be destructive-against-user). The plugin now
+  bundles eleven skills.
+- reference/off-thread-work.md: shared engine doc. The open-ended
+  off-thread-work inventory kinds and the inspect-real-state-first invariant —
+  the mechanics `keep-going`, `orient`, and `reconcile` all share (Rule of
+  Three) — are extracted to a plugin-level reference all three cite via
+  `${CLAUDE_PLUGIN_ROOT}`, each thinned to its own delta (same
+  point-not-copy shape as `reference/topic-docs.md` and re-anchor's
+  `context/re-anchor-audit-correct.md` engine doc). The three skills' autonomy
+  gates are deliberately NOT extracted — different blast radii, kept in-skill.
+
+### Changed
+
+- keep-going: inventory + inspect steps now cite the shared
+  `reference/off-thread-work.md` for the off-thread kinds and the
+  inspect-real-state invariant rather than restating them inline; the duplicated
+  "tools change over time" gotcha (now owned by the shared doc) is removed. The
+  richer Active-verification protocol stays in keep-going (reconcile cites it).
+  Description gains a reciprocal boundary line pointing at `reconcile` for
+  retire/reconcile vs resume; all prior trigger phrases preserved.
+- orient: the off-thread-work glance in "What it reads" now points at the shared
+  `reference/off-thread-work.md` for the full open-ended kinds set while keeping
+  its at-a-glance examples; no behavior change.
+
 ## [0.13.1]
 
 ### Changed
