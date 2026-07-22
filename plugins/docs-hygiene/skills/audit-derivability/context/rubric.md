@@ -129,8 +129,10 @@ answers and will overestimate how re-derivable they were. That is a self-grade,
 and the fix is a fresh set of eyes — a context that never saw the document.
 
 1. Spawn a **fresh-context, non-fork subagent** (e.g. an `Explore` agent). It
-   must NOT be shown the document and must NOT be a `context: fork` (a fork
-   inherits this context's contaminated history).
+   must NOT be shown the document and must NOT be spawned as the Agent tool's
+   `fork` subagent type — that fork inherits this context's contaminated
+   history. (A skill's own `context: fork` frontmatter is the opposite: it
+   starts blank, with no access to the conversation.)
 2. Give it the questions the document answers — or ask it to produce the
    document's key conclusions — using **only** native repository exploration.
 3. Compare its output to the document:

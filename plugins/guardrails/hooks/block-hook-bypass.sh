@@ -35,6 +35,14 @@ source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
 
 hook::check_enabled "BLOCK_HOOK_BYPASS"
 
+# Bundled PowerShell-command classifier — this guard is matched on both the Bash
+# and the (opt-in) PowerShell tool. Resolved under the plugin root (CC sets
+# CLAUDE_PLUGIN_ROOT; the BASH_SOURCE fallback keeps the contract tests working
+# when it is unset).
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+# shellcheck source=../lib/powershell/ps-command.sh
+source "$PLUGIN_ROOT/lib/powershell/ps-command.sh"
+
 # High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;
 # on older bash it is unset, so default to empty and skip telemetry (the block
 # still fires). Referencing it bare under `set -u` would abort before exit.
@@ -62,6 +70,7 @@ hook::require_jq "PreToolUse" "guardrails-block-hook-bypass" "$INPUT"
 
 COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null | tr -d '\r')
 [[ -n "$COMMAND" ]] || exit 0
+TOOL_NAME=$(printf '%s' "$INPUT" | jq -r '.tool_name // "Bash"' 2>/dev/null | tr -d '\r')
 
 # Privacy-safe telemetry subject: `Bash:<first-token>` with leading `sudo` /
 # env-assignment prefixes stripped and the token basenamed. Never the full
@@ -78,7 +87,11 @@ bash_subject() {
   printf 'Bash:%s' "${tok##*/}"
 }
 
-SUBJECT=$(bash_subject "$COMMAND")
+if [[ "$TOOL_NAME" == "Bash" ]]; then
+  SUBJECT=$(bash_subject "$COMMAND")
+else
+  SUBJECT="$TOOL_NAME"
+fi
 
 # Emit one telemetry envelope: $1 status, $2 form ("" when not blocked). Gated
 # on the high-res start stamp and the opt-in sink, so the unwired default path
@@ -87,8 +100,8 @@ emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
   local data
-  data=$(jq -n --arg subject "$SUBJECT" --arg form "$2" \
-    '{tool:"Bash",subject:$subject,form:$form}' 2>/dev/null) || data='{"tool":"Bash","subject":"","form":""}'
+  data=$(jq -n --arg tool "$TOOL_NAME" --arg subject "$SUBJECT" --arg form "$2" \
+    '{tool:$tool,subject:$subject,form:$form}' 2>/dev/null) || data='{"tool":"Bash","subject":"","form":""}'
   hook::emit_telemetry "block-hook-bypass" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
@@ -414,10 +427,24 @@ producer_redirect_bypass() {
 block_bypass() {
   local form="$1" reason="$2"
   echo "BLOCKED: $reason" >&2
-  echo "Use the Write or Edit tool instead of Bash file-write workarounds." >&2
+  echo "Use the Write or Edit tool instead of a shell file-write workaround." >&2
   emit_tel "blocked" "$form"
   exit 2
 }
+
+# PowerShell tool: the Bash strip / producer scan below does not model the
+# PowerShell write surface. Detect PowerShell file-write forms (Set-Content /
+# Add-Content / Out-File / Tee-Object, or a content-producer `>`/`>>` redirect)
+# and skip the Bash-specific scans. SCOPE: this closes the write-GATE bypass;
+# secret-pattern and hardcoded-path CONTENT scanning of PowerShell writes stays
+# on the Write|Edit-matched guards (deferred to A2b).
+if [[ "$TOOL_NAME" == "PowerShell" ]]; then
+  if ps::write_bypass "$COMMAND"; then
+    block_bypass "powershell-write" "PowerShell file-write cmdlet/redirect bypasses Write/Edit hooks"
+  fi
+  emit_tel "ok" ""
+  exit 0
+fi
 
 # cat > file (allow cat without redirect). EXEC_LC (lowercased stripped form) for
 # case-insensitive command-token detection.
