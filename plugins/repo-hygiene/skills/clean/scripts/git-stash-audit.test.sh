@@ -22,7 +22,9 @@ printf '#!/usr/bin/env bash\nexit 1\n' >"$STUB_BIN/gh"
 chmod +x "$STUB_BIN/gh"
 
 # Empty repo: no stashes → count 0, never an error, exit 0.
-git init -q "$TEST_TMPDIR/empty"
+# `-b main` pins the initial branch so the assertions below hold on machines where
+# `git init` still defaults to `master`.
+git init -q -b main "$TEST_TMPDIR/empty"
 git -C "$TEST_TMPDIR/empty" config user.email "t@example.com"
 git -C "$TEST_TMPDIR/empty" config user.name "Test"
 echo x >"$TEST_TMPDIR/empty/x"
@@ -38,7 +40,7 @@ assert_contains "summary line" "$empty_out" "Summary: stashes=0"
 # superseded — but only ever as advisory, never dropped.
 REPO="$TEST_TMPDIR/repo"
 git init -q --bare "$TEST_TMPDIR/origin.git"
-git init -q "$REPO"
+git init -q -b main "$REPO"
 git -C "$REPO" config user.email "t@example.com"
 git -C "$REPO" config user.name "Test"
 echo a >"$REPO/a"

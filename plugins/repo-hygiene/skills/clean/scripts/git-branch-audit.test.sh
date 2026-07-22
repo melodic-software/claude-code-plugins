@@ -15,7 +15,7 @@ rc=0
 bash "$AUDIT" --help >/dev/null 2>&1 || rc=$?
 assert_exit "--help exits 0" 0 "$rc"
 
-git init "$TEST_TMPDIR/repo" >/dev/null 2>&1
+git init -b main "$TEST_TMPDIR/repo" >/dev/null 2>&1
 git -C "$TEST_TMPDIR/repo" config user.email "t@example.com"
 git -C "$TEST_TMPDIR/repo" config user.name "Test"
 echo x >"$TEST_TMPDIR/repo/x"
@@ -63,7 +63,7 @@ chmod +x "$STUB_BIN/gh"
 # WORKTREE bucket — never a deletion candidate lumped under PROTECTED, and never
 # offered for `git branch -d` (which would break the worktree).
 WT_REPO="$TEST_TMPDIR/wt-repo"
-git init -q "$WT_REPO"
+git init -q -b main "$WT_REPO"
 git -C "$WT_REPO" config user.email "t@example.com"
 git -C "$WT_REPO" config user.name "Test"
 echo x >"$WT_REPO/x"
@@ -81,7 +81,7 @@ assert_contains "summary counts worktree bucket" "$wt_out" "worktree=1"
 # invisible behind @{upstream}-only ahead reporting.
 NU_REPO="$TEST_TMPDIR/nu-repo"
 git init -q --bare "$TEST_TMPDIR/nu-origin.git"
-git init -q "$NU_REPO"
+git init -q -b main "$NU_REPO"
 git -C "$NU_REPO" config user.email "t@example.com"
 git -C "$NU_REPO" config user.name "Test"
 echo a >"$NU_REPO/a"
