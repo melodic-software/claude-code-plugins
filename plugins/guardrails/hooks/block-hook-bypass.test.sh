@@ -429,6 +429,21 @@ run_pwsh "PS: epcsv alias (Export-Csv, blocked)" "\$d | epcsv f.csv" 2
 run_pwsh "PS: sc -Path -Value (5.1 Set-Content form, blocked)" "sc -Path f.txt -Value 'x'" 2
 run_pwsh "PS: sc query (sc.exe service, allowed)" "sc query" 0
 run_pwsh "PS: sc start service (sc.exe, allowed)" "sc start W32Time" 0
+# Review round 4: producer-alias, module-qualified, grouped-producer, and
+# quoted-writer-call parity.
+run_pwsh "PS: write alias (Write-Output) > file (blocked)" "write secret > creds.txt" 2
+run_pwsh "PS: module-qualified Set-Content (blocked)" \
+  "Microsoft.PowerShell.Management\\Set-Content -Path f.txt -Value x" 2
+run_pwsh "PS: parenthesized literal > file (blocked)" "('secret') > creds.txt" 2
+run_pwsh "PS: parenthesized Write-Output > file (blocked)" "(Write-Output secret) > creds.txt" 2
+run_pwsh "PS: parenthesized tool output > file (allowed — producer is the tool)" \
+  "(git diff) > out.txt" 0
+run_pwsh "PS: & 'Set-Content' quoted writer call (blocked)" \
+  "& 'Set-Content' -Path f.txt -Value x" 2
+run_pwsh "PS: & 'Invoke-Expression' quoted (blocked)" \
+  "& 'Invoke-Expression' 'Set-Content f x'" 2
+run_pwsh "PS: & quoted non-writer program path (allowed)" \
+  "& 'C:\\tools\\build.exe' arg" 0
 
 # The block message is shell-agnostic (no 'Bash' assumption).
 psout=$(bash "$HOOK" <<<"$(pwsh_command_json "Set-Content f.txt 'x'")" 2>&1)

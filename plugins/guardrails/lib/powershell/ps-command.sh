@@ -55,7 +55,7 @@
 # OVER-BLOCK, NEVER UNDER-BLOCK is the invariant. For the blanker: an ambiguous
 # here-string extent is treated as unbalanced (unsafe) rather than blanked, so a
 # trailing `| git commit --no-verify` can never be swallowed into the inert
-# placeholder and escape detection. For the sink: an unparseable command that
+# placeholder and escape detection. For the sink: an unparsable command that
 # might reach git is blocked even at the cost of over-blocking an exotic non-git
 # git-touching command (e.g. `git log | ForEach { … }`).
 #
@@ -180,7 +180,7 @@ ps::has_special_constructs() {
 # `&` / dot-source `.` of a variable or subexpression) is likewise treated as
 # possibly-git. Over-inclusive by construction — it only gates the fail-closed
 # branch, so a false positive costs at most an over-block on a command that also
-# carries an unparseable construct.
+# carries an unparsable construct.
 ps::might_invoke_git() {
   # `q` carries the two quote characters so neither appears literally inside the
   # [[ =~ ]] test (which would derail shellcheck's parser).
@@ -228,7 +228,10 @@ ps::has_dynamic_invocation() {
 ps::has_launcher() {
   local lc="${1//\`/}"
   lc="${lc,,}"
-  [[ "$lc" =~ (^|[[:space:]\;\|\&\(])(start-process|saps|pwsh|powershell|cmd)([[:space:]]|$) ]]
+  # The .exe-suffixed spellings (cmd.exe, powershell.exe, pwsh.exe) and the
+  # `start` alias of Start-Process are the same launchers, not a new class —
+  # a spelling gap here would skip the sink entirely (review round 4).
+  [[ "$lc" =~ (^|[[:space:]\;\|\&\(])(start-process|saps|start|pwsh|powershell|cmd)(\.exe)?([[:space:]]|$) ]]
 }
 
 # Classify a git/commit-guard command for the resolved tool. Sets PS_SAFE_COMMAND
@@ -270,7 +273,7 @@ ps::classify_git_command() {
 
 # Shell-agnostic block text for a PowerShell git command the guard cannot parse
 # with confidence. Printed to stderr by the caller before it exits 2.
-ps::print_unparseable_block_message() {
+ps::print_unparsable_block_message() {
   echo "BLOCKED: this PowerShell git command cannot be parsed with confidence — blocked (fail-closed)." >&2
   echo "Remove the obfuscating construct (backtick, --%, subexpression, or {}/() grouping)." >&2
   echo "The canonical PowerShell commit form (a here-string piped to 'git commit -F -') is:" >&2
@@ -284,10 +287,10 @@ ps::print_unparseable_block_message() {
 # cannot parse with confidence. That guard also owns destructive non-commit forms,
 # so its message names them rather than the commit form. Printed to stderr by the
 # caller before it exits 2.
-ps::print_unparseable_git_block_message() {
+ps::print_unparsable_git_block_message() {
   echo "BLOCKED: this PowerShell 'git' command cannot be parsed with confidence — blocked (fail-closed)." >&2
   echo "A git command carrying a PowerShell construct the guard cannot faithfully tokenize (backtick, '--%', subexpression, script-block grouping, or an unbalanced here-string) could hide a destructive form (reset --hard, clean -fd, checkout/restore), so it is blocked rather than waved through." >&2
-  echo "Run the command via the Bash tool, or rewrite it without the unparseable construct." >&2
+  echo "Run the command via the Bash tool, or rewrite it without the unparsable construct." >&2
 }
 
 # True (0) when a PowerShell command authors file content in a way that bypasses
@@ -313,8 +316,21 @@ ps::print_unparseable_git_block_message() {
 # CONTENT scanning of PowerShell writes stays on the Write|Edit-matched guards;
 # scanning PowerShell write content is deferred to A2b.
 ps::write_bypass() {
-  local cmd="$1" scan lcs seg lc head
+  local cmd="$1" scan lcs seg lc head lcq q="\"'"
   ps::blank_herestrings "$cmd"
+
+  # A call `&` / dot-source `.` of a QUOTED writer name runs that string as the
+  # command (about_Operators, call operator) — quote-blanking below would erase
+  # exactly the evidence, so detect it on the quote-INTACT text first. Only
+  # writer/iex names (optionally module-qualified) are matched: a quoted path to
+  # an arbitrary program (`& 'C:\Program Files\x.exe'`) stays allowed, the same
+  # quoted-command-word residual the Bash guard carries.
+  lcq="${PS_BLANKED//\`/}"
+  lcq="${lcq,,}"
+  if [[ "$lcq" =~ (^|[[:space:]])[.\&][[:space:]]*[$q]([a-z.]+\\)?(set-content|add-content|out-file|tee-object|ac|tee|iex|invoke-expression|new-item|ni|epcsv|export-[a-z]+) ]]; then
+    return 0
+  fi
+
   scan=$(ps::blank_quoted_spans "$PS_BLANKED")
   # Delete backticks before matching so a name obfuscated by PowerShell's escape
   # char (`Set``-Content`) resolves to its real form.
@@ -327,7 +343,9 @@ ps::write_bypass() {
   # `sc` is handled separately below — it is Set-Content's alias in Windows
   # PowerShell 5.1 but sc.exe (the service controller) in PowerShell 7, so it is
   # matched only in its unambiguous Set-Content form.
-  if [[ "$lcs" =~ (^|[[:space:]\;\|\&\(])(set-content|add-content|out-file|tee-object|ac|tee)([[:space:]]|$) ]]; then
+  # `\\` in the boundary class admits module-qualified spellings
+  # (`Microsoft.PowerShell.Management\Set-Content`) — same cmdlet, same write.
+  if [[ "$lcs" =~ (^|[[:space:]\;\|\&\(\\])(set-content|add-content|out-file|tee-object|ac|tee)([[:space:]]|$) ]]; then
     return 0
   fi
   # `sc` in its Set-Content form: only when a Set-Content-only parameter follows
@@ -343,14 +361,14 @@ ps::write_bypass() {
 
   # iex / invoke-expression authors content via the arbitrary string it runs — its
   # payload is opaque here, so fail closed (mirrors the git guards' sink).
-  if [[ "$lcs" =~ (^|[[:space:]\;\|\&\(])(iex|invoke-expression)([[:space:]]|$) ]]; then
+  if [[ "$lcs" =~ (^|[[:space:]\;\|\&\(\\])(iex|invoke-expression)([[:space:]]|$) ]]; then
     return 0
   fi
   # New-Item (alias `ni`) authoring content via -Value. `-va` is the shortest
   # unambiguous abbreviation (New-Item has no other -va* parameter); `-Value:x`
   # attaches with a colon. Directory/empty-file creation with no -Value is not a
   # content author.
-  if [[ "$lcs" =~ (^|[[:space:]\;\|\&\(])(new-item|ni)([[:space:]]) ]] &&
+  if [[ "$lcs" =~ (^|[[:space:]\;\|\&\(\\])(new-item|ni)([[:space:]]) ]] &&
     [[ "$lcs" =~ [[:space:]]-va[a-z]*([[:space:]]|:) ]]; then
     return 0
   fi
@@ -361,7 +379,7 @@ ps::write_bypass() {
   # Export-ModuleMember) — a safe-direction over-block, never an under-block, and
   # tolerated friction: those are authored inside .psm1 module files, not run as
   # ad hoc tool commands.
-  if [[ "$lcs" =~ (^|[[:space:]\;\|\&\(])(export-[a-z]+|epcsv)([[:space:]]|$) ]]; then
+  if [[ "$lcs" =~ (^|[[:space:]\;\|\&\(\\])(export-[a-z]+|epcsv)([[:space:]]|$) ]]; then
     return 0
   fi
   # .NET file-write APIs: [IO.File]::WriteAllText/AppendAllText/WriteAllLines/
@@ -380,13 +398,19 @@ ps::write_bypass() {
     [[ "$seg" == *'>'* ]] || continue
     # Exclude the `$null` discard (PowerShell's /dev/null).
     [[ "$seg" =~ \>\>?[[:space:]]*\$null([[:space:]]|$) ]] && continue
+    # Unwrap grouping parens so a parenthesized producer is judged by what it
+    # produces: `('secret') > f` (quote-stripped to `() > f`) reduces to the
+    # leading-literal case, `(write-output x) > f` to its real head, and a
+    # grouped tool run (`(git diff) > f`) stays the tool-producer allow.
+    seg="${seg//[()]/}"
+    seg="${seg#"${seg%%[![:space:]]*}"}" # re-ltrim after unwrap
     head="${seg%%[[:space:]]*}"
     case "$seg" in
     '>'*) return 0 ;; # leading literal (string stripped away) was the producer
     *) ;;
     esac
     case "$head" in
-    echo | write-output | write-host | "${PS_HERESTRING_PLACEHOLDER,,}") return 0 ;;
+    echo | write | write-output | write-host | "${PS_HERESTRING_PLACEHOLDER,,}") return 0 ;;
     '$'*) return 0 ;; # a variable / subexpression value redirected to a file
     *) ;;
     esac

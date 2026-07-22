@@ -47,6 +47,18 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   stays allowed. Scope: this closes the write-GATE bypass; secret-pattern and
   hardcoded-path CONTENT scanning of PowerShell writes remains on the
   `Write|Edit`-matched guards (deferred).
+- **Review round 4 (post-restack bot findings, all within-parity holes of covered
+  constructs):** the `.exe`-suffixed launcher spellings (`cmd.exe /c git …`,
+  `powershell.exe -Command …`) and the `start` alias of Start-Process now reach the
+  fail-closed launcher sink; the `write` alias of Write-Output counts as a redirect
+  producer; module-qualified writer spellings
+  (`Microsoft.PowerShell.Management\Set-Content`) match the writer cmdlets; a
+  parenthesized redirect producer (`('secret') > f`, `(Write-Output x) > f`) is
+  unwrapped and judged by what it produces (a grouped tool run stays allowed); and a
+  call/dot-source of a QUOTED writer name (`& 'Set-Content' …`,
+  `& 'Invoke-Expression' …`) is detected on the quote-intact text before blanking. A
+  quoted path to an arbitrary program (`& 'C:\tools\x.exe'`) stays allowed — the
+  same quoted-command-word residual the Bash guard carries.
 - **The PowerShell coverage bar is documented as Bash-parity, not airtight.** These
   guards are accidental-destruction friction, not a boundary against deliberate
   evasion — and the Bash guard they extend does not stop deliberate evasion either.

@@ -334,7 +334,7 @@ run_pwsh "PS: backtick-continued force push (fail-closed block)" \
   "$(printf 'git push `\n --force')" 2
 
 # This guard owns destructive non-commit forms (reset/clean/checkout/restore), so
-# unlike the commit/push guards it cannot defer an unparseable NON-commit/push git
+# unlike the commit/push guards it cannot defer an unparsable NON-commit/push git
 # command — it must fail closed on ANY git-shaped PowerShell it cannot parse.
 run_pwsh "PS: git --% reset --hard (stop-parsing token, fail-closed block)" \
   "git --% reset --hard" 2
@@ -347,10 +347,21 @@ run_pwsh "PS: backtick-continued git reset --hard (fail-closed block)" \
 # shellcheck disable=SC2016
 run_pwsh "PS: git checkout via subexpression (fail-closed block)" \
   'git checkout $(Get-Branch)' 2
-# Negative control: a non-git unparseable PowerShell command is not this guard's
+# Negative control: a non-git unparsable PowerShell command is not this guard's
 # concern — no over-block past git.
 # shellcheck disable=SC2016
-run_pwsh "PS: non-git unparseable command (allowed — not git-shaped)" \
+run_pwsh "PS: non-git unparsable command (allowed — not git-shaped)" \
   'Remove-Item $(Get-Foo)' 0
+
+# Launcher-spelling parity (review round 4): the .exe-suffixed spellings of the
+# covered launchers and the `start` alias of Start-Process are the same
+# see-through surface — a spelling gap, not a new launcher class.
+run_pwsh "PS: cmd.exe /c git reset --hard (fail-closed block)" \
+  "cmd.exe /c git reset --hard" 2
+run_pwsh "PS: powershell.exe -Command git reset --hard (fail-closed block)" \
+  "powershell.exe -Command 'git reset --hard'" 2
+run_pwsh "PS: start alias launches git (fail-closed block)" \
+  "start git -ArgumentList 'reset --hard'" 2
+run_pwsh "PS: start alias, no git (allowed)" "start notepad" 0
 
 report
