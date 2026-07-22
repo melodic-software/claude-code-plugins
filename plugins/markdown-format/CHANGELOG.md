@@ -3,6 +3,20 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.1]
+
+### Fixed
+
+- **Out-of-tree Markdown is no longer linted when `CLAUDE_PROJECT_DIR` is
+  unset.** In an autonomous session whose working directory is not a repository,
+  `CLAUDE_PROJECT_DIR` is unset and the hook previously linted the `.md`
+  wherever it lived — including a lane's temporary comment-body composed outside
+  any repository (e.g. for `gh issue comment --body-file`), firing repo-doc rules
+  (MD041, MD013) that do not apply to it. The hook now falls back to
+  git-working-tree membership when `CLAUDE_PROJECT_DIR` is unset: a file under no
+  git working tree is skipped, while a repository file edited in such a session
+  is still linted. Behavior when `CLAUDE_PROJECT_DIR` is set is unchanged.
+
 ## [0.6.0]
 
 ### Added

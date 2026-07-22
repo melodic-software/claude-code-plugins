@@ -57,6 +57,19 @@ case "$FILE" in
 *) exit 0 ;;
 esac
 
+# markdownlint applies repo-doc rules, so when no CLAUDE_PROJECT_DIR anchors
+# membership (e.g. an autonomous session whose cwd is not a repo), scope to
+# git-working-tree containment instead: a scratch/temp .md outside any working
+# tree (a lane's comment-body composed for gh --body-file) must not be linted
+# with rules that do not apply to it. When CLAUDE_PROJECT_DIR is set,
+# hook::read_file_path already enforced membership. This scoping is local to
+# markdown-format on purpose — the shared guard stays location-agnostic for
+# hooks whose value does not depend on repository membership.
+if [[ -z "${CLAUDE_PROJECT_DIR:-}" ]] &&
+  ! git -C "$(dirname "$FILE")" rev-parse --show-toplevel >/dev/null 2>&1; then
+  exit 0
+fi
+
 # Resolve repo root early — needed for CWD-anchored config discovery and for
 # computing the schema-required repo-relative path in data.file.
 REPO_ROOT="$(hook::repo_root "$(dirname "$FILE")")"
