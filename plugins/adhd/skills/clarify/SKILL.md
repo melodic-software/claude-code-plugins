@@ -101,13 +101,19 @@ how heavy the content is:
 | Content | Surface available | Render as |
 |---|---|---|
 | Big / decision-dense (roughly 3+ decisions) | Artifact tool present in this session | **Published HTML artifact** |
-| Big / decision-dense | No artifact surface (e.g. plain terminal), file writing useful | **Local HTML file**, hand back the path |
+| Big / decision-dense | No artifact surface (e.g. plain terminal), file writing useful | **Local HTML file** under plugin data / temp, hand back the path |
 | Small (1–2 decisions), or no useful file surface | either | **Structured terminal markdown** |
 
 The Artifact rendering surface is a claude.ai-hosted capability — present in some
 sessions and absent in others. Detect it: if the Artifact tool is available, that
 is the top rung; otherwise degrade down the ladder. Never claim a decision table
 was rendered when only prose was produced.
+
+Write any local HTML file to the plugin's own data directory
+(`${CLAUDE_PLUGIN_DATA}`) or an OS temp path and hand back that path — a
+clarified view is transient generated state, so it never lands in the consumer's
+repository tree. If neither a writable location nor the Artifact surface is
+available, drop to the terminal-markdown rung rather than writing into the repo.
 
 The fidelity rules hold in **every** medium — verbatim terms, original-number
 back-links, omissions, lens line — table or prose.
@@ -133,13 +139,15 @@ Whichever medium, the decision table has numbered rows and these columns:
 
 ### Honoring the Artifact contract
 
-When you publish an artifact, **load the `artifact-design` skill first** and
-follow the Artifact tool contract it points to — self-contained page (no external
-hosts), theme-aware, a title and one-line description, a favicon. The decision
-table is the page's spine; keep the treatment utilitarian, not a flashy hero.
-This static table needs no runtime capabilities. In the terminal, give a one-line
-summary and the artifact link (or the local file path); don't reprint the whole
-table twice.
+When you publish an artifact, honor the Artifact tool contract. **Load the
+`artifact-design` skill for the design fundamentals when it is available** — it
+ships with the artifact surface, so it is normally present on the publish rung;
+if it is not, meet the contract's essentials directly rather than skipping them:
+a self-contained page (no external hosts), theme-aware, a title and one-line
+description, a favicon. Either way, the decision table is the page's spine — keep
+the treatment utilitarian, not a flashy hero — and this static table needs no
+runtime capabilities. In the terminal, give a one-line summary and the artifact
+link (or the local file path); don't reprint the whole table twice.
 
 ## Boundaries
 
