@@ -292,8 +292,8 @@ clean_caches_candidates() {
   # Explicit repo-root paths bypass `find`'s `-type` filter, so apply the same
   # type check here (explicit dirs must be plain dirs, explicit files plain
   # files) — otherwise a file or symlink named e.g. `.pytest_cache` would be
-  # planned at dry-run but rejected at --apply, making the advertised plan
-  # unapplyable.
+  # planned at dry-run but rejected at --apply, so the advertised plan could not
+  # be applied.
   for rel in "${CLEAN_CACHE_EXPLICIT[@]}"; do clean_is_plain_dir "$root/$rel" && printf '%s\n' "$root/$rel"; done
   for rel in "${CLEAN_CACHE_EXPLICIT_FILES[@]}"; do clean_is_plain_file "$root/$rel" && printf '%s\n' "$root/$rel"; done
   clean_enumerate "$root" "${CLEAN_CACHE_FIND_DIR_NAMES[@]}" -- "${CLEAN_CACHE_FIND_FILE_GLOBS[@]}"

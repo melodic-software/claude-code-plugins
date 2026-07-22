@@ -255,7 +255,7 @@ run_r3() { bash -c "cd '$TEST_TMPDIR/r3' && bash '$CLEAN' $*"; }
 
 # 12. A file (or symlink) whose name matches an explicit cache dir must NOT be
 #     planned: the dry-run only emits what --apply will accept, so a file named
-#     `.pytest_cache` is filtered at planning, keeping the plan applyable.
+#     `.pytest_cache` is filtered at planning, so the plan can still be applied.
 echo f >"$TEST_TMPDIR/r3/.pytest_cache" # a FILE named like a cache DIR
 out="$(run_r3 --dry-run --manifest "$TEST_TMPDIR/r3.m")"
 assert_contains "file-named explicit cache not planned" "$out" "Summary: planned=0"
@@ -274,7 +274,7 @@ assert_not_contains "inflated manifest byte field not trusted" "$out" "bytes=999
 assert_exit "recompute apply exit 0" 0 "$rc"
 
 # 14. A path containing a tab/newline cannot be encoded in the tab-delimited
-#     manifest, so it is skipped with a warning rather than mis-mapped. Skips
+#     manifest, so it is skipped with a warning, not mapped to a wrong path. Skips
 #     where the FS cannot create such a name (NTFS rejects some characters).
 if mkdir -p "$TEST_TMPDIR/r3/od$(printf '\t')d/__pycache__" 2>/dev/null; then
   echo p >"$TEST_TMPDIR/r3/od$(printf '\t')d/__pycache__/p"
