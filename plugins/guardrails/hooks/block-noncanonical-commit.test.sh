@@ -90,6 +90,26 @@ run "last inline alias value wins (blocked)" \
 run "last inline alias value wins (allowed when the last is harmless)" \
   "git -c alias.c=commit -c alias.c=status c -m x" 0
 
+# --- #964: git chains aliases — re-expansion recurses to the commit -----------
+# git expands an alias whose first word is itself an alias, so a non-canonical
+# commit reached through a SECOND hop must still block. Command-line globals ride
+# into each hop (so a second-hop --config-env alias is refused by shape), and the
+# recursion stops on git's own alias-loop.
+run "#964 case C: two-hop inline chain to commit -m (blocked)" \
+  "git -c alias.c=x -c alias.x='commit -m bypass' c" 2
+run "#964 H1: inline first hop, --config-env second hop (blocked by shape)" \
+  "git -c alias.c=x --config-env=alias.x=AV c" 2 "AV=commit"
+run "#964 three-hop inline chain to commit -m (blocked)" \
+  "git -c alias.a=b -c alias.b=c -c alias.c='commit -m bypass' a" 2
+run "#964 .command-spelled second hop to commit -m (blocked)" \
+  "git -c alias.c=x -c alias.x.command='commit -m bypass' c" 2
+# Benign controls — a two-hop chain to the canonical -F - form still ALLOWS, and
+# an alias cycle terminates (git's alias-loop stop) and allows without hanging.
+run "#964 benign two-hop chain to canonical commit -F - (allowed)" \
+  "git -c alias.c=x -c alias.x='commit -F -' c" 0
+run "#964 alias cycle terminates and allows (no hang)" \
+  "git -c alias.a=b -c alias.b=a a" 0
+
 # --- --config-env aliases are refused by SHAPE -------------------------------
 # `--config-env=<key>=<envvar>` holds the alias expansion in an env var this guard never
 # reads (its origin — an ambient var, an inline/`env` prefix, an `export`, `set -a`, or a
@@ -269,6 +289,31 @@ if [[ -d "$PCFG/.git" ]]; then
       '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
       bash "$HOOK" >/dev/null 2>&1
     assert_exit "persisted config alias: $cmd" "$want" $?
+  done
+fi
+
+# --- #964: persisted alias CHAIN (git resolves alias -> alias in config) ------
+# `git config alias.c x; git config alias.x commit` chains in .git/config; git
+# expands c -> x -> commit, so `git c -m` must block through both hops.
+PCHAIN="$TEST_TMPDIR/persisted-chain"
+mkdir -p "$PCHAIN"
+(
+  cd "$PCHAIN" || exit 1
+  git init -q .
+  git config user.email t@e.st
+  git config user.name t
+  git config alias.c x
+  git config alias.x commit
+) >/dev/null 2>&1
+
+if [[ -d "$PCHAIN/.git" ]]; then
+  for spec in "git c -m bypass:2" "git c -F -:0"; do
+    cmd="${spec%:*}"
+    want="${spec##*:}"
+    MSYS_NO_PATHCONV=1 jq -n --arg c "$cmd" --arg d "$PCHAIN" \
+      '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
+      bash "$HOOK" >/dev/null 2>&1
+    assert_exit "persisted alias chain: $cmd" "$want" $?
   done
 fi
 

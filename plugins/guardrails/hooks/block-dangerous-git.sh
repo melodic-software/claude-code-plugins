@@ -237,11 +237,19 @@ check_segment() {
   # The SHAPE refusal must fire at EVERY recursion depth: a wrapping inline alias
   # can expand to `--config-env=alias.<sub>=<envvar>` defining the invoked sub
   # (`git -c alias.rh='--config-env=alias.foo=AV foo' rh`), which git runs. It is
-  # value-blind, cheap, and terminal, so it is NOT gated by HOOK_NO_ALIAS. Only the
-  # INLINE-alias re-expansion is one-level (HOOK_NO_ALIAS bounds the recursion —
-  # git does not re-expand the first word of an expansion as another alias).
-  local exp reparse a alias_rc
-  local -a expw=()
+  # value-blind, cheap, and terminal.
+  #
+  # git DOES chain aliases: when an expansion's first word is itself an alias git
+  # expands it again, until a non-alias subcommand is reached OR git detects a
+  # loop — a subcommand name it already expanded in this chain — and runs nothing.
+  # So the inline re-expansion recurses at EVERY hop, carrying the command-line
+  # -c/--config/--config-env globals into each hop (the splice starts at index 0
+  # through sub_idx, not gi+1, so no global between git and the subcommand is
+  # dropped). Recursion is bounded by HOOK_ALIAS_SEEN, a save/restore seen-set of
+  # resolved subcommand names: a repeat is git's own alias-loop stop (allow-safe),
+  # and finite distinct alias keys guarantee termination.
+  local exp reparse a alias_rc s seen_hit=0
+  local -a expw=() saved_seen=()
   hook::git_alias_expansion "$sub"
   alias_rc=$?
   if ((alias_rc == 2)); then
@@ -256,11 +264,24 @@ check_segment() {
     emit_tel "blocked" "config-env-alias"
     exit 2
   fi
-  if ((alias_rc == 0)) && ((${HOOK_NO_ALIAS:-0} == 0)); then
+  # git stops (runs nothing) if the resolved subcommand is one it already expanded
+  # in this chain, so skip the re-expansion on a repeat and let the plain scan
+  # decide — the `!` shell-alias path is unbounded by this set (its expansion is a
+  # fresh shell command, not a git-alias name).
+  for s in ${HOOK_ALIAS_SEEN[@]+"${HOOK_ALIAS_SEEN[@]}"}; do
+    [[ "$s" == "$sub" ]] && {
+      seen_hit=1
+      break
+    }
+  done
+  if ((alias_rc == 0)) && ((seen_hit == 0)); then
     # Inline alias (-c/--config): each spelling's expansion is literally present. Re-check
     # EVERY spelling (plain and `.command`) independently so a benign expansion in one
-    # never suppresses a dangerous sibling in the other.
+    # never suppresses a dangerous sibling in the other. Save/restore the seen-set around
+    # the recursion so sibling segments and unwound hops start clean.
     # shellcheck disable=SC2154  # HOOK_GIT_ALIAS_EXPS is set by hook::git_alias_expansion
+    saved_seen=(${HOOK_ALIAS_SEEN[@]+"${HOOK_ALIAS_SEEN[@]}"})
+    HOOK_ALIAS_SEEN+=("$sub")
     for exp in ${HOOK_GIT_ALIAS_EXPS[@]+"${HOOK_GIT_ALIAS_EXPS[@]}"}; do
       [[ -n "$exp" ]] || continue
       if [[ "$exp" == '!'* ]]; then
@@ -273,15 +294,15 @@ check_segment() {
       else
         # Git alias: its expansion is dequoted with shell quoting rules
         # (so `push "--force"` yields --force, not "--force"). Splice the
-        # dequoted words in place of the alias name and keep the trailing
-        # invocation args, which git appends to the expanded argv.
+        # dequoted words in place of the alias name, keeping every command-line
+        # global (indices 0..sub_idx) and the trailing invocation args, which
+        # git appends to the expanded argv.
         hook::env_s_split "$exp"
         expw=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"})
-        HOOK_NO_ALIAS=1
-        check_segment "${w[@]:0:gi+1}" ${expw[@]+"${expw[@]}"} "${w[@]:sub_idx+1}"
-        HOOK_NO_ALIAS=0
+        check_segment "${w[@]:0:sub_idx}" ${expw[@]+"${expw[@]}"} "${w[@]:sub_idx+1}"
       fi
     done
+    HOOK_ALIAS_SEEN=(${saved_seen[@]+"${saved_seen[@]}"})
   fi
 
   case "$sub" in
@@ -762,6 +783,12 @@ case $? in
 1) exit 0 ;; # non-git PowerShell with an A2b-deferred construct
 *) COMMAND="$PS_SAFE_COMMAND" ;;
 esac
+
+# Resolved-subcommand names already expanded in the CURRENT alias chain — git's
+# own alias-loop guard. Initialized here (not in check_segment, which recurses
+# and would reset it) and save/restored around each recursion; a multi-command
+# line runs check_segment once per top-level segment, each starting from empty.
+HOOK_ALIAS_SEEN=()
 
 hook::bash_parse_segments "$COMMAND" check_segment
 

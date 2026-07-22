@@ -282,6 +282,34 @@ run "git restore --staged --no-w . (abbrev no-worktree, allowed)" "git restore -
 run "git restore --no-worktree --worktree . (worktree re-armed, blocked)" "git restore --no-worktree --worktree ." 2
 run "git restore --staged --no-staged . (staged cleared, worktree discard, blocked)" "git restore --staged --no-staged ." 2
 
+# --- #964: git chains aliases — re-expansion recurses to the invoked op --------
+# git expands an alias whose first word is itself an alias, so a dangerous op
+# reached through a SECOND (or later) hop must still block. Every command-line
+# -c/--config-env global rides into each hop (so a second-hop --config-env alias
+# is refused by shape), and the recursion stops on git's own alias-loop.
+# Case C — plain two-hop inline chain (rh -> foo -> reset --hard).
+run "#964 case C: two-hop inline alias chain to reset --hard (blocked)" \
+  "git -c alias.rh=foo -c alias.foo='reset --hard' rh" 2
+# H1 — second hop defined via --config-env (env-shaped, refused by shape); the
+# global is carried into the nested hop by the widened splice.
+run "#964 H1: inline first hop, --config-env second hop (blocked by shape)" \
+  "git -c alias.rh=foo --config-env=alias.foo=AV rh" 2 "AV=reset --hard"
+# H2 — same defect with the --config-env global placed BEFORE the -c global.
+run "#964 H2: --config-env before -c, chained to the invoked sub (blocked)" \
+  "git --config-env=alias.foo=AV -c alias.rh=foo rh" 2 "AV=reset --hard"
+# Three inline hops.
+run "#964 three-hop inline chain to reset --hard (blocked)" \
+  "git -c alias.a=b -c alias.b=c -c alias.c='reset --hard' a" 2
+# Second hop spelled via the alias.<sub>.command subkey.
+run "#964 .command-spelled second hop to reset --hard (blocked)" \
+  "git -c alias.rh=foo -c alias.foo.command='reset --hard' rh" 2
+# Benign controls — a chain to a safe terminal op still ALLOWS, and an alias
+# cycle terminates (git's alias-loop stop) and allows without hanging.
+run "#964 benign two-hop chain to a safe subcommand (allowed)" \
+  "git -c alias.a=b -c alias.b=status a" 0
+run "#964 alias cycle terminates and allows (no hang)" \
+  "git -c alias.a=b -c alias.b=a a" 0
+
 # --- allow-list ---------------------------------------------------------------
 run "allow-list push-force → allowed" "git push --force" 0 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=push-force

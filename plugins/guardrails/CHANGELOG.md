@@ -3,6 +3,40 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.2]
+
+### Fixed
+
+- **Git-alias CHAINS no longer bypass the git guards (`block-dangerous-git`,
+  `block-noncanonical-commit`).** Both guards re-expand an inline/persisted git
+  alias to re-check the real subcommand, but two coupled defects in that
+  re-expansion let a dangerous op or a non-canonical commit reached through a
+  SECOND alias hop slip past (verified rc=0 → fail open):
+  - **The nested re-parse dropped the command-line globals.** The splice fed the
+    recursive check words `0..gi` (wrappers + `git`) plus the expansion, dropping
+    everything between `git` and the subcommand — i.e. the `-c` / `--config` /
+    `--config-env` options. So the nested hop saw empty config: no second-hop
+    alias definition and no `--config-env` shape to refuse. The splice now spans
+    `0..sub_idx`, carrying every command-line global into each hop, so the
+    already-value-blind `--config-env` shape refusal and the plain/`.command`
+    max-danger union fire at every depth (closes the `--config-env`-second-hop
+    manifestation and its `.command`-spelled variant by construction).
+  - **Re-expansion was capped at one level** on the false premise that git does
+    not chain aliases (it does — an expansion whose first word is itself an alias
+    is expanded again). The one-level cap is replaced by a save/restore seen-set
+    of resolved subcommand names: recursion follows the chain to the real op, and
+    a repeat is git's own alias-loop stop (nothing runs — allow-safe), with
+    termination guaranteed by the finite set of distinct alias keys. Covers plain
+    inline chains, `--config-env` hops, the `alias.<sub>.command` spelling, and
+    the commit guard's persisted-config alias chain.
+
+  Guard-local change only (no `hook-utils.sh` change, no cross-plugin sync). The
+  `!` shell-alias re-parse path is unchanged. Test matrices extended in both
+  guards with two- and three-hop chains, the `--config-env` and `.command`
+  second-hop variants, a persisted-config alias chain (fixture repo), and benign
+  controls (safe multi-hop chain allowed; alias cycle terminates and allows
+  without hanging). Closes #964.
+
 ## [0.12.1]
 
 ### Fixed

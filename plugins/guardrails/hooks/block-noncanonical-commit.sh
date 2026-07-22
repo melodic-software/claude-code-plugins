@@ -216,18 +216,20 @@ check_segment() {
   # so re-check the expanded command BEFORE concluding the subcommand is not
   # `commit` — otherwise the alias name is simply not "commit" and the guard
   # waves it through. A shell alias (leading !) re-parses as a full shell
-  # command; a git alias splices its words in place of the alias name. One level
-  # only — git does not expand the first word of an expansion as another alias —
-  # enforced through HOOK_NO_ALIAS, which dynamic scoping carries into the
-  # recursive call.
+  # command; a git alias splices its words in place of the alias name.
   # The --config-env SHAPE refusal is value-blind, terminal, and must fire at EVERY
   # recursion depth: a wrapping inline alias can expand to `--config-env=alias.<sub>=…`
   # that defines the invoked subcommand (`git -c alias.c='--config-env=alias.foo=AV foo'
-  # c`), which git runs. It is therefore NOT gated by HOOK_NO_ALIAS. The inline-alias
-  # re-expansion and the gitconfig-alias probe below ARE one-level (HOOK_NO_ALIAS bounds
-  # the recursion — git does not re-expand an expansion's first word as another alias).
-  local exp reparse a alias_rc
-  local -a expw=()
+  # c`), which git runs.
+  # git DOES chain aliases (an expansion whose first word is another alias is
+  # expanded again), so both the inline re-expansion and the gitconfig-alias probe
+  # below recurse at EVERY hop, carrying the command-line -c/--config/--config-env
+  # globals through each hop (the splice keeps indices 0..sub_idx, not gi+1),
+  # bounded by HOOK_ALIAS_SEEN — a save/restore seen-set of resolved subcommand
+  # names: a repeat is git's own alias-loop stop (runs nothing, allow-safe), and
+  # finite distinct alias keys guarantee termination.
+  local exp reparse a alias_rc s seen_hit=0
+  local -a expw=() saved_seen=()
   hook::git_alias_expansion "$sub"
   alias_rc=$?
   if ((alias_rc == 2)); then
@@ -241,11 +243,24 @@ check_segment() {
     emit_tel "blocked" "config-env-alias"
     exit 2
   fi
-  if ((${HOOK_NO_ALIAS:-0} == 0)); then
+  # git stops (runs nothing) if the resolved subcommand is one it already expanded
+  # in this chain, so skip the re-expansion on a repeat and let the plain scan
+  # decide. Save/restore the seen-set around BOTH branches so sibling segments and
+  # unwound hops start clean.
+  for s in ${HOOK_ALIAS_SEEN[@]+"${HOOK_ALIAS_SEEN[@]}"}; do
+    [[ "$s" == "$sub" ]] && {
+      seen_hit=1
+      break
+    }
+  done
+  if ((seen_hit == 0)); then
+    saved_seen=(${HOOK_ALIAS_SEEN[@]+"${HOOK_ALIAS_SEEN[@]}"})
+    HOOK_ALIAS_SEEN+=("$sub")
     if ((alias_rc == 0)); then
       # Inline alias (-c/--config): each spelling's expansion is literally present. Re-check
       # EVERY spelling (plain and `.command`) independently so a benign expansion in one
-      # never suppresses a dangerous sibling in the other.
+      # never suppresses a dangerous sibling in the other. Keep every command-line global
+      # (indices 0..sub_idx) so a nested hop re-reads the carried -c/--config-env config.
       # shellcheck disable=SC2154  # HOOK_GIT_ALIAS_EXPS is set by hook::git_alias_expansion
       for exp in ${HOOK_GIT_ALIAS_EXPS[@]+"${HOOK_GIT_ALIAS_EXPS[@]}"}; do
         [[ -n "$exp" ]] || continue
@@ -257,9 +272,7 @@ check_segment() {
         else
           hook::env_s_split "$exp"
           expw=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"})
-          HOOK_NO_ALIAS=1
-          check_segment "${w[@]:0:gi+1}" ${expw[@]+"${expw[@]}"} "${w[@]:sub_idx+1}"
-          HOOK_NO_ALIAS=0
+          check_segment "${w[@]:0:sub_idx}" ${expw[@]+"${expw[@]}"} "${w[@]:sub_idx+1}"
         fi
       done
     fi
@@ -268,7 +281,7 @@ check_segment() {
     # where HOOK_GIT_CONFIG_VALUES cannot see it — `git config alias.c commit`
     # then `git c -m x` would otherwise pass. Ask git for the resolved value
     # (its own precedence applies) only when no inline alias already matched.
-    if ((${HOOK_NO_ALIAS:-0} == 0)) && ((inline_alias_handled == 0)) && [[ "$sub" != "commit" ]]; then
+    if ((inline_alias_handled == 0)) && [[ "$sub" != "commit" ]]; then
       local pexp
       pexp=$(git -C "$(effective_dir "${w[@]}")" config --get "alias.$sub" 2>/dev/null)
       if [[ -n "$pexp" ]]; then
@@ -281,12 +294,11 @@ check_segment() {
           local -a pexpw=()
           hook::env_s_split "$pexp"
           pexpw=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"})
-          HOOK_NO_ALIAS=1
-          check_segment "${w[@]:0:gi+1}" ${pexpw[@]+"${pexpw[@]}"} "${w[@]:sub_idx+1}"
-          HOOK_NO_ALIAS=0
+          check_segment "${w[@]:0:sub_idx}" ${pexpw[@]+"${pexpw[@]}"} "${w[@]:sub_idx+1}"
         fi
       fi
     fi
+    HOOK_ALIAS_SEEN=(${saved_seen[@]+"${saved_seen[@]}"})
   fi
 
   [[ "$sub" == "commit" ]] || return 0
@@ -368,6 +380,12 @@ case $? in
 1) exit 0 ;; # non-commit PowerShell with an A2b-deferred construct
 *) COMMAND="$PS_SAFE_COMMAND" ;;
 esac
+
+# Resolved-subcommand names already expanded in the CURRENT alias chain — git's
+# own alias-loop guard. Initialized here (not in check_segment, which recurses
+# and would reset it) and save/restored around each recursion; a multi-command
+# line runs check_segment once per top-level segment, each starting from empty.
+HOOK_ALIAS_SEEN=()
 
 hook::bash_parse_segments "$COMMAND" check_segment
 
