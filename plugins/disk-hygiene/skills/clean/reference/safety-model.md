@@ -71,10 +71,21 @@ is the version leaf; a directly-linked local install omits it). The guard anchor
 segments after `cache` and reading `data` as `cache`'s sibling, so a version leaf does not shift the
 result. That coupling is acceptable only because its sole failure mode is fail-closed: an
 unrecognized layout yields no authority, so `--data-root` engine calls are denied while the
-destructive-action guard stays fully active. Whether a skill-frontmatter hook additionally receives
-`CLAUDE_PLUGIN_DATA` in its environment (which would make the derivation a redundant belt over that
-env fallback) is unconfirmed on current Claude Code; the derivation is written to stand on its own
-either way.
+destructive-action guard stays fully active. The plugins reference documents all three path
+variables (`CLAUDE_PLUGIN_ROOT`/`CLAUDE_PLUGIN_DATA`/`CLAUDE_PROJECT_DIR`) as exported to hook
+processes as environment variables, so the guard's `CLAUDE_PLUGIN_DATA` env fallback should carry the
+authority wherever the runtime honors that for skill hooks — the derivation is then a redundant belt.
+An earlier Claude Code build was observed not to export it to a skill hook, which is why both
+channels exist.
+
+A `claude --plugin-dir <checkout>` development session is the one shape with no derivable authority: a
+bare checkout has no `<plugins>/cache/<marketplace>` structure and no stable marketplace-keyed data
+`<id>`, so the marker walk finds nothing. That dev workflow relies solely on the `CLAUDE_PLUGIN_DATA`
+environment variable; where a Claude Code build does not export it to a skill hook, the engine lane is
+fail-closed there (every `--data-root` invocation denied) while the destructive-action guard itself
+stays fully active. This is a deliberate safe-over-convenient tradeoff for a development-only mode,
+not a security gap — a local developer sets `CLAUDE_PLUGIN_DATA` or exercises the engine lane through
+a real marketplace install.
 
 The same guard also covers the PowerShell tool with the inverse tradeoff: PowerShell stays open for
 read-only support work, while engine invocations are hard-denied (Bash is the only engine lane) and
