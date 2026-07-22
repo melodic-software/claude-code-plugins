@@ -17,9 +17,17 @@ whether an exact plan is mechanically eligible. Neither layer may weaken the oth
 
 ## Non-overridable checks
 
-- target containment and no filesystem/OS-managed roots;
-- no target root, protected shell-folder root, OS registry/profile hive, VCS metadata or tracked file;
-- no symlink, Windows reparse traversal, target mount, nested mount, or Linux bind mount;
+- target containment; an OS-managed root (per `system_roots()` — the OS drive holding an existing
+  Windows install / `Program Files` / `ProgramData`, or `/` holding `/bin`, `/etc`, …) is denied,
+  while a non-OS volume root (a Windows Dev Drive: a drive root carrying only the per-volume metadata
+  every volume has and no OS-install marker) is a valid target rather than blanket-denied — but as a
+  known-large root it is routed through the large-target scan gate below (bound or confirm), and
+  deletion stays gated by the preview and per-tier approval;
+- the audit root itself is never a removal candidate; no protected shell-folder root, OS
+  registry/profile hive, VCS metadata or tracked file;
+- no symlink, Windows reparse traversal, non-root mount target, nested mount, or Linux bind mount
+  (a volume root is itself a mount point and is governed by the OS-managed/confirmation reasoning
+  above, not this structural mount veto);
 - exact file identity and complete descendant set unchanged since snapshot;
 - repository markers re-discovered from live filesystem state and the Git index queried with
   `git ls-files` at preview and apply; snapshot VCS/protection annotations are never trusted;
@@ -111,11 +119,13 @@ A depth-limited scan records every directory it declined to enter in `truncated_
 directories have no captured descendant set, so the preview blocks them (and anything beneath them)
 as `truncated-not-inventoried`; they are coverage gaps, never candidates.
 
-A scan of a known-large root — the user home directory — is gated before it walks. Absent an explicit
-`--max-depth` bound or a `--confirmed-large-scan` acknowledgement, the engine performs a cheap
-top-level probe and returns `large-target-confirmation-required` instead of the unbounded traversal,
-so an unauthenticated whole-home walk cannot begin by omission. This is scan-cost gating (time and
-resources), distinct from the hard rejection of filesystem and OS-managed roots as invalid targets.
+A scan of a known-large root — the user home directory, or a non-OS volume root (a Windows Dev
+Drive) now that reasoned classification admits it as a valid target — is gated before it walks.
+Absent an explicit `--max-depth` bound or a `--confirmed-large-scan` acknowledgement, the engine
+performs a cheap top-level probe and returns `large-target-confirmation-required` instead of the
+unbounded traversal, so an unauthenticated whole-volume walk cannot begin by omission. This is
+scan-cost gating (time and resources), distinct from the hard rejection of an OS-managed root as an
+invalid target.
 
 Managed state is engine-ineligible. Even current native dry-run evidence is recorded only as a
 report-only handoff because this engine cannot independently authenticate the owning product's state
