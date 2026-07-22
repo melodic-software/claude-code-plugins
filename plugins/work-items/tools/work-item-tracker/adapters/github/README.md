@@ -125,15 +125,18 @@ gh issue close <N> --duplicate-of <M> --comment "Duplicate of #<M>"
 **Fallback — not-planned + body-append.** For a **cross-repo** duplicate target the native
 relationship is not confirmed to apply — if the native close is rejected, fall back to this; it is
 also the portable shape for providers/adapters without a native duplicate reason. A superseded item
-uses the same not-planned close. Append a queryable `## Duplicate of #<M>` section to the body first;
+uses the same not-planned close. Append a queryable `## Duplicate of <M>` section to the body first
+(`<M>` is `#<M>` same-repo, or the qualified `<owner>/<repo>#<M>` / issue URL cross-repo);
 `--body-file` REPLACES the body, so this is a read-modify-write (same mechanic as "PR
 closing-keyword mechanics" below):
 
 ```bash
+# <M>: a bare #<M> for a same-repo duplicate; the full <owner>/<repo>#<M> reference (or
+# the issue URL) for a cross-repo target, where a bare number would be ambiguous.
 gh issue view <N> --json body --jq '.body' | tr -d '\r' > /tmp/issue-body.md
-printf '%s\n\n%s\n' "$(cat /tmp/issue-body.md)" "## Duplicate of #<M>" \
+printf '%s\n\n%s\n' "$(cat /tmp/issue-body.md)" "## Duplicate of <M>" \
   | gh issue edit <N> --body-file -
-gh issue close <N> --comment "Duplicate of #<M>" --reason "not planned"
+gh issue close <N> --comment "Duplicate of <M>" --reason "not planned"
 ```
 
 ## Edit labels / assignees

@@ -131,7 +131,7 @@ Every outcome is a **transition off raw**, not a layer on top of it. Applying an
 | Already implemented | Close pointing to where the behavior lives; do NOT ledger it (`docs/out-of-scope/` records rejections, not built features) |
 | Won't fix (bug) | Close with rationale comment |
 | Won't fix (enhancement) | Close with rationale comment; when the repo keeps `docs/out-of-scope/`, record the rejection in the matching concept file (re-read + append to "Prior requests", or create the concept file for a first rejection) and link it from the closing comment — applies to enhancement PRs exactly as to issues, so the same request doesn't return as fresh code |
-| Duplicate | Never `completed`. Close via the adapter's native duplicate mechanic when the provider has one (GitHub: `--duplicate-of`), else not-planned + a `## Duplicate of #N` body section + link comment |
+| Duplicate | Never `completed`. Close via the adapter's native duplicate mechanic when the provider has one (GitHub: `--duplicate-of`), else not-planned + a `## Duplicate of <ref>` body section (`#<M>` same-repo, qualified `<owner>/<repo>#<M>` or URL cross-repo) + link comment |
 
 For a PR, the outcome addresses the attached code explicitly: adopt the diff (briefed for an agent or human to carry forward), rework it (brief describes the gap between the diff and the verified requirement), or decline it (close with rationale — and the ledger entry when it's a rejected enhancement).
 

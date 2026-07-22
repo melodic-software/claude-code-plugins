@@ -17,6 +17,9 @@ dialects are accepted:
 Umbrella / epic items use an `Epic:` prefix or a trailing `(umbrella)`. A child-of relationship is
 recorded as a native sub-issue edge, **never** as a title suffix.
 
+Recurring maintenance items keep the `[Maintenance] {title}` shape owned by `track add --recurring`
+(the due / work / recheck flows exact-match that prefix); they are exempt from the two prefix dialects.
+
 ## Body
 
 Follows the `track add` "Build body" template — the default skeleton, or the agent-brief shape for
