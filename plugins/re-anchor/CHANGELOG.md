@@ -30,6 +30,11 @@ All notable changes to the `re-anchor` plugin are documented here. Format follow
 - **`userConfig` overlay** (`batch_exclude` / `batch_promote` /
   `batch_demote`) — the plugin's first `userConfig` surface — adjusts batch
   membership without a PR.
+- **`setup` skill** — a check-only `/re-anchor:setup` conforming to the setup
+  contract's userConfig-only carve-out: it reports the effective batch overlay
+  (treating an unexpanded `${user_config.…}` token as unset) and routes
+  reconfiguration to the native `/plugin configure re-anchor` flow; it writes
+  no config.
 
 ### Fixed
 

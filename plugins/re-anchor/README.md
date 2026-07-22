@@ -352,6 +352,8 @@ by default (tiers run exactly as declared):
 
 Set them through Claude Code's native plugin-config flow
 (`/plugin configure re-anchor`); they are personal scalars, not repository
-configuration. Batch membership and order otherwise live in each corrector's
-own colocated tier metadata (`metadata.re-anchor-batch` +
-`re-anchor-batch-rank`), so changing a shipped tier is a PR to that corrector.
+configuration. `/re-anchor:setup check` reports the effective overlay read-only
+(it never writes config — reconfiguration stays the native flow). Batch
+membership and order otherwise live in each corrector's own colocated tier
+metadata (`metadata.re-anchor-batch` + `re-anchor-batch-rank`), so changing a
+shipped tier is a PR to that corrector.
