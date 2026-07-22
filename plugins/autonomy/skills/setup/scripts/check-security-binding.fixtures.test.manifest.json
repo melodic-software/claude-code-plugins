@@ -330,6 +330,13 @@
         "records assertions.egress_denied.host \"egress..example.com\""
       ]
     },
+    "probe-evidence-metadata-expansion-mismatch.json": {
+      "exit": 1,
+      "credential_roots": "/home/runner",
+      "findings_substrings": [
+        "a concrete entry needs no host-side expansion, so host_expanded must repeat the entry verbatim"
+      ]
+    },
     "probe-evidence-metadata-port.json": {
       "exit": 1,
       "findings_substrings": [
@@ -450,6 +457,13 @@
         "records assertions.credentials_absent.transport_outcome entry \"connect-failed\" for path \"$HOME/.netrc\""
       ],
       "credential_roots": "/home/runner"
+    },
+    "probe-evidence-unc-credpath.json": {
+      "exit": 1,
+      "credential_roots": "/etc",
+      "findings_substrings": [
+        "\"//etc/credentials\" does not resolve under any configured --credential-roots"
+      ]
     },
     "probe-evidence-uri-host.json": {
       "exit": 1,
@@ -621,6 +635,7 @@
     "ci-pool-a-l2-ipv4-compat.json",
     "ci-pool-a-l2-localhost.json",
     "ci-pool-a-l2-malformed-dns.json",
+    "ci-pool-a-l2-metadata-expansion-mismatch.json",
     "ci-pool-a-l2-metadata-port.json",
     "ci-pool-a-l2-metadata-route-boundary.json",
     "ci-pool-a-l2-metadata-route.json",
@@ -640,6 +655,7 @@
     "ci-pool-a-l2-srv6-sid.json",
     "ci-pool-a-l2-teredo.json",
     "ci-pool-a-l2-transport-cross-type.json",
+    "ci-pool-a-l2-unc-credpath.json",
     "ci-pool-a-l2-uri-host.json",
     "ci-pool-a-l2-zero-exit.json",
     "ci-pool-a-l2.json",

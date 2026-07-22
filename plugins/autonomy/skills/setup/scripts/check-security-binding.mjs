@@ -180,6 +180,12 @@ function isMetadataEndpoint(normalized) {
 // never widen a root).
 function normalizeHostPath(p) {
   const lowered = p.toLowerCase().replaceAll("\\", "/");
+  // A UNC / double-separator form ("//server/share", or a Windows "\\server\share"
+  // that folded to "//") names a share on an invented server, not a location on the
+  // host — collapsing its leading "//" onto the POSIX root would misread "//etc/..."
+  // as the host's own "/etc/...". Refuse it so containment can never accept it,
+  // consistent with the home-anchored coherence guard's UNC rejection.
+  if (lowered.startsWith("//")) return null;
   const driveMatch = /^([a-z]:)\//.exec(lowered);
   const anchor = driveMatch !== null ? driveMatch[1] : lowered.startsWith("/") ? "/" : "";
   const body = anchor === "/" ? lowered.slice(1) : driveMatch !== null ? lowered.slice(driveMatch[0].length) : lowered;
@@ -223,21 +229,26 @@ function pathUnderConfiguredRoot(candidate, roots) {
 // failing read of a structurally-plausible-but-invented path (an invented home
 // user, a mount that need not exist) proves nothing while real host credentials
 // stay readable. Membership under a configured root is the sole test, so there
-// is no open-ended location enumeration to keep exhaustive. Returns null when
-// the entry is valid evidence, else the reason.
+// is no open-ended location enumeration to keep exhaustive. Every entry kind —
+// metadata route, env token, filesystem path — still runs the expansion-
+// coherence guard: a concrete entry (metadata/env-token/fixed path) needs no
+// expansion, so its recorded host_expanded must repeat it verbatim. Returns
+// null when the entry is valid evidence, else the reason.
 function credentialEntryProblem(entry, expanded, credentialRoots) {
   const normalized = entry.toLowerCase().replaceAll("\\", "/");
   if (normalized.includes("://")) {
-    return isMetadataEndpoint(normalized)
-      ? null
-      : "not a known cloud metadata endpoint credential route (169.254.169.254 or metadata.google.internal over plain HTTP on the default port, on a known credential route)";
+    if (!isMetadataEndpoint(normalized)) {
+      return "not a known cloud metadata endpoint credential route (169.254.169.254 or metadata.google.internal over plain HTTP on the default port, on a known credential route)";
+    }
+    return credentialExpansionProblem(entry, expanded);
   }
   const segments = normalized.split("/").filter((segment) => segment.length > 0);
   if (segments.length === 1 && isEnvToken(segments[0])) {
     const bare = segments[0].replace(/^[$%]/, "").replace(/%$/, "");
-    return CREDENTIAL_ENV_VARS.has(bare)
-      ? null
-      : `not a well-known credential env token (${[...CREDENTIAL_ENV_VARS].map((name) => `$${name.toUpperCase()}`).join(", ")}); an org-specific token belongs on the configured --credential-roots allowlist, not recognized by name`;
+    if (!CREDENTIAL_ENV_VARS.has(bare)) {
+      return `not a well-known credential env token (${[...CREDENTIAL_ENV_VARS].map((name) => `$${name.toUpperCase()}`).join(", ")}); an org-specific token belongs on the configured --credential-roots allowlist, not recognized by name`;
+    }
+    return credentialExpansionProblem(entry, expanded);
   }
   const coherence = credentialExpansionProblem(entry, expanded);
   if (coherence !== null) return coherence;
