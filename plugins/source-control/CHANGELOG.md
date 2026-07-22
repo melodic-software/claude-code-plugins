@@ -38,6 +38,14 @@ All notable changes to the `source-control` plugin are documented here. Format f
   linkage-signal change. When the multi-issue or orphan-PR flow collects genuine `Refs #Y`
   references, a `## Related` section is still emitted ad hoc to carry them, even when the repo has
   not configured it as required.
+- **This repository (`claude-code-plugins`) now dogfoods `pr_body_required_sections`.** Its own
+  `.github/workflows/pr-issue-linkage.yml` requires a non-empty `## Related`, which the new portable
+  default no longer guarantees — self-regression atomicity: a change that would break this repo's
+  own CI ships with its own remedy in the same PR, not a follow-up. `.claude/source-control.md`
+  (team layer, root) now sets `pr_body_required_sections` to `Summary, Test plan, Related`, matching
+  this repo's actual gate. This is the **first fleet-adoption instance** of the key — every other
+  consuming repo adopts it the ordinary way, via `/source-control:setup apply`, not by hand-editing a
+  file.
 
 ## [0.17.0]
 
