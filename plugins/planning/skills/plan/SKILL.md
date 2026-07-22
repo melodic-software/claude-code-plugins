@@ -125,7 +125,7 @@ Per-scale calibration examples live in [context/plan-template.md](context/plan-t
 
 ### Step 3: Plan Stress-Test (MANDATORY — never skip)
 
-**Before assessing blast radius or presenting ANY plan, dispatch a fresh-context plan-reviewer sub-agent.** The producing main thread MUST NOT self-attack the plan inline — fresh-context verifiers outperform self-critique; the model that just wrote the plan rubber-stamps it. Where the plan is high-stakes and correlated blind spots are the risk, prefer a cross-vendor advisor **when one is installed** — e.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs — with the fresh-context plan-reviewer sub-agent as the stated fallback, never a route to a command that may not resolve.
+**Before assessing blast radius or presenting ANY plan, dispatch a fresh-context plan-reviewer sub-agent.** The producing main thread MUST NOT self-attack the plan inline — fresh-context verifiers outperform self-critique; the model that just wrote the plan rubber-stamps it. Where the plan is high-stakes and correlated blind spots are the risk, prefer a cross-vendor advisor **when one is installed and set up** — e.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs — with the fresh-context plan-reviewer sub-agent as the stated fallback, never a route to a command that may not resolve.
 
 1. Gather the plan draft + design artifacts (or `design-resolution.md`) + the Brief
 2. Dispatch a read-only general sub-agent with the prompt from [context/plan-reviewer.md](context/plan-reviewer.md)
