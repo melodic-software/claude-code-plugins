@@ -629,6 +629,17 @@ migration gate and the plugin-acceptance security review below — before it shi
 degradation). Defer risky units (hard external dependencies, no graceful degradation) and any
 license-gated units to per-item triage rather than a blanket hold. The ordering is reversible.
 
+**Swim-lane execution (orchestrated fan-out).** When an orchestrator drives several units to merge in
+one effort, each unit is a **swim lane**: a dedicated worktree (created under the same
+identity-scoped directory root as the primary checkout, so the repo's commit/push identity applies —
+never a sibling path outside it), a feature branch named `<type>/<issue>-<slug>`, its own atomic PR
+that closes exactly one issue, driven independently through CI to a clean merge, then post-merge
+cleanup (delete the branch, remove the worktree). A **seams-first** unit whose contract binds
+downstream lanes lands and merges **before** the dependent lanes open, so they build on the merged
+contract rather than rediscovering it. Independent lanes run concurrently; lanes sharing a
+contract-blocking dependency wait on its merge. The shared-file conflicts above are still resolved by
+serializing the final merges, not authorship.
+
 ## Plugin-acceptance security review
 
 A plugin runs code on the consumer's machine and can wire Claude to external systems. **Every plugin accepted

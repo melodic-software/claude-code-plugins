@@ -31,6 +31,56 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   doctrine — exit-0 stderr is invisible; the gate's own assumption was wrong).
   The 9 hooks above were the only fleet sites relying on that leniency.
 
+## [0.9.8]
+
+### Fixed
+
+- **`hardcoded-path-check` pre-filter no longer fails open on the broadened
+  checkout roots.** 0.9.7 widened the detailed drive-letter bodies to accept
+  `Projects` and `Dev` (both capitalizations), but the cheap `scan_text`
+  pre-filter gate still tripped only on `Users|/home/|repos`. Content whose
+  sole machine path used a widened root (e.g. `C:\Projects\…`, `C:\Dev\…`)
+  early-returned before the detailed scan ever ran — a fail-open in a security
+  gate. The gate now lists every root token the detailed bodies accept, keeping
+  it a strict superset; a `Projects`-root regression test guards it.
+
+### Changed
+
+- **`block-no-verify` guard description broadened to match shipped behavior.**
+  The `block_no_verify_enabled` userConfig description still enumerated
+  "lefthook disables" only; it now states the actual configurable default set
+  (lefthook, husky, pre-commit, simple-git-hooks).
+
+## [0.9.7]
+
+### Changed
+
+- **`block-no-verify` hook-manager bypass detection is now configurable and
+  covers more managers by default.** The env-var disable check matched only
+  `lefthook*`, silently missing `HUSKY=0` and other managers. It now resolves a
+  configurable prefix set (`block_no_verify_hook_manager_prefixes` userConfig)
+  defaulting to `lefthook, husky, pre_commit, simple_git_hooks`; consumer values
+  are reduced to identifier characters before use, so a value can never inject
+  regex metacharacters.
+- **`hardcoded-path-check` machine-path detection broadened past `repos`.** The
+  drive-letter-anchored checkout-parent pattern matched only `X:\repos\…`, so a
+  hardcoded `C:\Projects\…` or `C:\Dev\…` path went undetected. It now also
+  matches `Projects` and `Dev` (both capitalizations); a consumer's own checkout
+  root was and remains caught by the driver's project-root literal scan.
+
+## [0.9.6]
+
+### Fixed
+
+- **`flag-commit-pr-skill-bypass` advisory now honors user-global plugin
+  enablement.** The `source_control_enabled` probe read only the consuming
+  project's `.claude/settings.json` (plus its local override), so when
+  source-control was enabled solely at user-global scope (`~/.claude/settings.json`)
+  — a common install — the probe false-negatived and the `gh pr create` advisory
+  never fired. Enablement now resolves across user-global, project, and local
+  scopes in Claude Code's precedence order (user-global base, project overrides,
+  local overrides), matching how the platform actually merges `enabledPlugins`.
+
 ## [0.9.5]
 
 ### Fixed

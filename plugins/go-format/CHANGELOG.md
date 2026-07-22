@@ -12,6 +12,18 @@ All notable changes to the `go-format` plugin are documented here. Format follow
   Go imports...") now shows while the hook runs. Config-only — no runtime behavior
   change.
 
+## [0.1.1]
+
+### Added
+
+- Documented the generated-file guard's known limitation in
+  `hooks/go-format.sh`: the leading-block scan is a deliberate string-match
+  approximation of Go's own `ast.IsGenerated` (a parsed-AST classifier), the
+  gap between the two is structural rather than a fixable bug, and no further
+  pattern patches are planned unless a real-world generated file is observed
+  defeating the scan — at which point the structural fix is a `go`-toolchain
+  shell-out, not another pattern. Documentation-only; no behavior change.
+
 ## [0.1.0]
 
 ### Added

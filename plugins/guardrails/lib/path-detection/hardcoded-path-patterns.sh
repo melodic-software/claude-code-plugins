@@ -59,7 +59,9 @@ hpp::scan_text() {
   # of every detailed pattern's invariant literal:
   #   Users   ⊇ Windows-user + macOS-user  (both forms contain "Users")
   #   /home/  ⊇ Linux-user
-  #   repos   ⊇ Windows-repo + escaped-Windows-repo
+  #   checkout-root literals ⊇ Windows-repo + escaped-Windows-repo — the gate
+  #     lists every root token HPP_WIN_REPO_BODY / HPP_ESCAPED_WIN_REPO_BODY
+  #     accept (both spellings), so a widened body must widen this list too.
   # The project-root branch keys on the root's final path segment, which is
   # present identically in the slash, backslash, and escaped forms. When NONE of
   # these triggers fire, no detailed pattern below can match, so early-returning
@@ -71,7 +73,7 @@ hpp::scan_text() {
   # Uses a here-string, NOT `printf | grep -q`: a pipe + `grep -q` early-exit
   # would SIGPIPE printf, and under `pipefail` the pipeline would report printf's
   # failure and invert the result.
-  if ! grep -qE 'Users|/home/|repos' <<<"$content" 2>/dev/null; then
+  if ! grep -qE 'Users|/home/|repos|Repos|projects|Projects|dev|Dev' <<<"$content" 2>/dev/null; then
     local gate_root=""
     if [[ -n "$project_root" ]]; then
       gate_root="${project_root//\\//}"

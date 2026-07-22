@@ -6,8 +6,12 @@
 #   1. --no-verify / -n on git commit (skips pre-commit + commit-msg hooks)
 #      and --no-verify on git push (skips pre-push hook)
 #   2. core.hooksPath assignment on git commit/push (disables all git hooks)
-#   3. hook-manager env-var prefix (LEFTHOOK=0 / LEFTHOOK_*=0|false) on git
-#      commit/push (disables the hook manager for one invocation)
+#   3. hook-manager env-var prefix (e.g. LEFTHOOK=0 / LEFTHOOK_*=0|false,
+#      HUSKY=0) on git commit/push (disables the hook manager for one
+#      invocation). The manager set is configurable via the
+#      block_no_verify_hook_manager_prefixes userConfig; the default covers the
+#      common managers so a consumer using a different one is not silently
+#      unguarded.
 #
 # Detection is ARGV-GRAMMAR-FAITHFUL: the command is parsed the way the shell
 # builds argv — top-level segments split on unquoted control operators, each
@@ -69,6 +73,22 @@ COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/nul
 MAX_COMMAND_LEN=16384
 
 SUBJECT=$(hook::extract_bash_subject "Bash" "$COMMAND")
+
+# Hook-manager env-var disable prefixes, built once into a regex alternation.
+# The default set covers the common managers; a consumer extends it via the
+# block_no_verify_hook_manager_prefixes userConfig (comma-separated, read from
+# the hook-process mirror). Each prefix matches `PREFIX…=0|false`
+# (LEFTHOOK=0, HUSKY=0, LEFTHOOK_VERIFY=false, …). Entries are reduced to
+# identifier chars so a value can never smuggle regex metacharacters into the
+# alternation spliced below.
+HM_ALT=""
+IFS=',' read -ra _hm_list <<<"${CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_HOOK_MANAGER_PREFIXES:-lefthook,husky,pre_commit,simple_git_hooks}"
+for _hm in "${_hm_list[@]}"; do
+  _hm="${_hm//[^a-zA-Z0-9_]/}"
+  _hm="${_hm,,}"
+  [[ -n "$_hm" ]] && HM_ALT="${HM_ALT:+$HM_ALT|}$_hm"
+done
+[[ -n "$HM_ALT" ]] || HM_ALT="lefthook" # never leave the guard patternless
 
 # Emit one telemetry envelope: $1 status, $2 form ("" when not blocked). Gated
 # on the high-res start stamp and the opt-in sink, so the unwired default path
@@ -134,7 +154,7 @@ check_segment() {
   # assignments before the git executable (not commit messages or pathspecs).
   for ((k = 0; k < gi; k++)); do
     lc="${w[k],,}"
-    [[ "$lc" =~ ^lefthook[_a-z0-9]*=(0|false)$ ]] && block "hook-manager-env" \
+    [[ "$lc" =~ ^(${HM_ALT})[_a-z0-9]*=(0|false)$ ]] && block "hook-manager-env" \
       "BLOCKED: hook-manager env-var bypass is not allowed with git commit/push." \
       "Fix the hook lane failure instead of bypassing."
   done
