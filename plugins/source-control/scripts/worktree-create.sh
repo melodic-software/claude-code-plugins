@@ -211,33 +211,43 @@ worktree_path="${root%/}/${dirname}"
 # target rather than an unrooted string whose ancestor walk never reaches the repo.
 [[ "$worktree_path" != /* && "$worktree_path" != ?:* ]] && worktree_path="$toplevel/$worktree_path"
 
-# Reject in-repo placement. Keeping worktrees OUT of the source checkout is the
-# helper's core purpose; an in-repo worktree reintroduces the CLAUDE.md/rules
-# double-load bug. The unconfigured-root refuse above does not catch a root
-# explicitly pointed inside the repo (e.g. the old .claude/worktrees/ path), so
-# ask git whether the target sits inside this repo's working tree: walk up to the
-# nearest existing ancestor of the target and compare its top level to ours. Both
-# come from `rev-parse --show-toplevel`, so the comparison is immune to
-# path-format differences (drive-letter spelling, symlinks) that defeat a raw
-# string prefix test.
-probe="$worktree_path"
+# Reject placement inside any git working tree. Keeping worktrees OUT of every
+# checkout is the helper's core purpose: a worktree nested inside a working tree
+# reintroduces the CLAUDE.md/rules double-load bug for whichever checkout owns the
+# ancestor — the source repo or any unrelated clone the root happens to sit in.
+# The unconfigured-root refuse above does not catch a root explicitly pointed
+# inside a checkout (e.g. the old .claude/worktrees/ path, or a root under a
+# sibling clone), so ask git whether the target's location sits inside a working
+# tree: walk up from the target's parent to the nearest existing ancestor and ask
+# for its top level. Probing the parent, never the target itself, keeps an
+# already-created worktree at $worktree_path from matching its own top level —
+# that case is the "already exists" error below. A non-empty top level means the
+# target lands inside that checkout — refuse. The top levels come from `rev-parse
+# --show-toplevel`, so the check is immune to path-format differences (drive-letter
+# spelling, symlinks) that defeat a raw string prefix test.
+probe="${worktree_path%/*}"
 while [[ ! -e "$probe" ]]; do
   parent="${probe%/*}"
   [[ "$parent" == "$probe" ]] && break
   probe="$parent"
 done
-if [[ -e "$probe" ]] && target_top=$(git -C "$probe" rev-parse --show-toplevel 2>/dev/null) && [[ "$target_top" == "$toplevel" ]]; then
+if [[ -e "$probe" ]] && target_top=$(git -C "$probe" rev-parse --show-toplevel 2>/dev/null) && [[ -n "$target_top" ]]; then
+  if [[ "$target_top" == "$toplevel" ]]; then
+    location="inside the repository"
+  else
+    location="inside another git working tree"
+  fi
   cat >&2 <<EOF
-$PROG: worktree target is inside the repository — refusing to create a worktree.
+$PROG: worktree target is $location — refusing to create a worktree.
 
-  target:     $worktree_path
-  repository: $toplevel
+  target:   $worktree_path
+  checkout: $target_top
 
 Set the source-control plugin's \`worktree_root\` directory key to an external
 root (a path OUTSIDE every repository, on the same drive as the repo on Windows),
 then retry.
 
-Not creating inside the repo: that nested placement triggers Claude Code's
+Not creating inside a checkout: that nested placement triggers Claude Code's
 CLAUDE.md/rules double-load bug.
 EOF
   exit 3

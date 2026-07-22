@@ -86,6 +86,15 @@ repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 bash "$HELPER" --name feat/x --root "worktrees" --repo-dir "$repo" >/dev/null 2>&1
 assert_exit "relative in-repo root refuses exit 3" 3 "$?"
 
+# --- Case: refuse a root nested inside a DIFFERENT checkout (exit 3) ---
+# The guard rejects placement inside ANY working tree, not only the source repo:
+# a root under an unrelated clone still triggers the nested-checkout double-load bug.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+other=$(mkrepo --origin "git@github.com:acme/other.git")
+err=$(bash "$HELPER" --name feat/x --root "$other/nested" --repo-dir "$repo" 2>&1 >/dev/null)
+assert_exit "root inside another checkout refuses exit 3" 3 "$?"
+assert_contains "foreign-checkout refuse names another working tree" "$err" "another git working tree"
+
 # --- Case: path computation <root>/<owner>-<repo>-<slug> with slug sanitization ---
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 root="$TEST_TMPDIR/wtroot1"
