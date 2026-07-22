@@ -1596,11 +1596,9 @@ class GuardTests(unittest.TestCase):
     def test_resolve_authorized_data_root_derives_from_plugin_root(self) -> None:
         script = str(SCRIPT_DIR / "destructive_guard.py")
         plugin_root = os.fspath(
-            Path("/home/u/.claude/plugins/cache/acme/disk-hygiene/0.4.8")
+            Path("/x/plugins/cache/acme/disk-hygiene/0.4.8")
         )
-        derived = os.fspath(
-            Path("/home/u/.claude/plugins/data/disk-hygiene-acme")
-        )
+        derived = os.fspath(Path("/x/plugins/data/disk-hygiene-acme"))
         environment = {
             key: value
             for key, value in os.environ.items()
