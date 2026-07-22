@@ -20,9 +20,10 @@
 # `// Code generated ... DO NOT EDIT.` convention — empirically confirmed it
 # rewrites such files with no warning. Generated Go files (protobuf, mockgen,
 # sqlc, stringer, wire output) are common; this hook skips any file whose
-# first non-blank line matches that marker, mirroring the precision
-# `--force-exclude` gives Ruff/typos for free via consumer config (this hook
-# has no config to consult, so the marker check is the equivalent guard).
+# leading comment/blank-line block (scanned below) contains that marker,
+# mirroring the precision `--force-exclude` gives Ruff/typos for free via
+# consumer config (this hook has no config to consult, so the marker check
+# is the equivalent guard).
 #
 # The goimports binary is resolved from PATH only — never downloaded. Go
 # binaries are conventionally `go install`ed to $GOPATH/bin, which a
@@ -143,6 +144,10 @@ while IFS= read -r _line || [[ -n "$_line" ]]; do
     continue # still inside (or just closed) a block comment: keep scanning
   fi
   [[ -n "${_line// /}" ]] || continue # blank line: keep scanning the leading block
+  # Trimmed only for comment-shape classification (an indented `//`/`/*`
+  # still counts as "still within the leading comment block") — the marker
+  # regex itself stays column-0-anchored, matching Go's own convention.
+  _trimmed="${_line#"${_line%%[![:space:]]*}"}"
   if [[ "$_line" == //* ]]; then
     if [[ "$_line" =~ ^//\ Code\ generated\ .*\ DO\ NOT\ EDIT\.$ ]]; then
       GENERATED=1
@@ -150,9 +155,12 @@ while IFS= read -r _line || [[ -n "$_line" ]]; do
     [[ $GENERATED -eq 1 ]] && break
     continue # a different // comment line: still within the leading block
   fi
-  if [[ "$_line" == /\** ]]; then
-    [[ "$_line" == *'*/'* ]] || IN_BLOCK=1 # opens a block comment spanning further lines
-    continue # a /* ... */ comment (single- or multi-line): still within the leading block
+  if [[ "$_trimmed" == //* ]]; then
+    continue # an indented // comment line: still within the leading block
+  fi
+  if [[ "$_trimmed" == /\** ]]; then
+    [[ "$_trimmed" == *'*/'* ]] || IN_BLOCK=1 # opens a block comment spanning further lines
+    continue # an indented /* ... */ comment (single- or multi-line): still within the leading block
   fi
   break # first non-comment, non-blank line: leading block ended, marker absent
 done <"$FILE"
