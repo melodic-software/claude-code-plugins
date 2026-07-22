@@ -196,7 +196,7 @@ Scale: Medium (13 files/edits, mostly mechanical against direct precedent). Pull
 applies (plugin manifests/skills are Claude-Code-native, not a language ecosystem this repo's
 `docs/conventions/standards/` index covers).
 
-### Phase 1: Plugin scaffold [TODO]
+### Phase 1: Plugin scaffold [DONE]
 
 - `plugins/dometrain/.claude-plugin/plugin.json` — new. Fields: `name: "dometrain"`, `version:
   "0.1.0"`, `description` (states: third-party remote MCP, Dometrain Pro required, native masked
@@ -246,7 +246,7 @@ which the README actively discourages by explaining the trade-off up front.
 **Sanity Check:** `claude plugin validate plugins/dometrain` exits 0 once Phase 1's files exist even
 before skills land (manifest + `.mcp.json` alone are schema-valid); re-run after every phase.
 
-### Phase 2: Setup skill [TODO]
+### Phase 2: Setup skill [DONE]
 
 **Design correction (devils-advocate CRITICAL finding, verified directly against
 `code.claude.com/docs/en/mcp` and `tools-reference` this session, not taken on the reviewer's word
