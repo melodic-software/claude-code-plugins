@@ -3,6 +3,17 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0]
+
+### Added
+
+- **Engine-level large-target scan gate.** A `scan` whose target resolves to the user home directory
+  now returns `large-target-confirmation-required` (after a cheap top-level probe, no full walk)
+  unless it carries `--max-depth` or the new `--confirmed-large-scan` flag, backing the former
+  prompt-only `--max-depth 1` convention with a deterministic backstop so a forgotten bound cannot
+  become an accidental unbounded whole-home walk. The Bash guard accepts the valueless
+  `--confirmed-large-scan` in the exact scan shape.
+
 ## [0.4.7]
 
 ### Fixed

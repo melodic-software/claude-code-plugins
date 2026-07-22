@@ -226,15 +226,24 @@ def classify_exact_engine_command(command: str, authority: str | None) -> str | 
 
     if tokens[2] == "scan":
         if (
-            len(tokens) not in {7, 9, 11, 13, 15}
+            len(tokens) < 7
             or tokens[3] != "--target"
             or not _argument(tokens[4])
             or tokens[5] != "--output"
             or not _argument(tokens[6])
         ):
             return None
-        if not _consume_optional_pairs(
-            tokens[7:],
+        # --confirmed-large-scan is the sole valueless scan flag; strip at most
+        # one so the remainder is the pure flag/value-pair grammar every other
+        # optional follows.
+        optionals = list(tokens[7:])
+        confirmed = optionals.count("--confirmed-large-scan")
+        if confirmed > 1:
+            return None
+        if confirmed:
+            optionals.remove("--confirmed-large-scan")
+        if len(optionals) not in {0, 2, 4, 6, 8} or not _consume_optional_pairs(
+            optionals,
             frozenset({"--policy", "--project-dir", "--data-root", "--max-depth"}),
             authority,
         ):
