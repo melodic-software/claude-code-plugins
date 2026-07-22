@@ -233,7 +233,7 @@ Files (full new plugin directory, mirroring `plugins/typos-format/` structure):
 (`bash plugins/go-format/hooks/go-format.test.sh`), and `scripts/sync-hook-utils.sh --check`
 reports no drift for the new copy.
 
-### Phase 3: Cross-cutting verification + PR [TODO]
+### Phase 3: Cross-cutting verification + PR [DOING]
 
 - Rebase onto latest `origin/main` (expect a benign conflict on
   `plugins/toolchain/.claude-plugin/plugin.json` + `plugins/toolchain/CHANGELOG.md` against
