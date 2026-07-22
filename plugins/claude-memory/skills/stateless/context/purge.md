@@ -47,21 +47,57 @@ Present to the user:
 - That this deletes auto-memory notes only — **not** CLAUDE.md, rules, transcripts, or history.
 - If `$manifest` is empty, report that there is nothing to purge and stop (no-op).
 
-## Step 3: Confirmation gate
+## Step 3: Confirmation gate (with backup offer)
 
 Ask for explicit confirmation, quoting the concrete manifest (and any `UNEXPECTED RELOCATION`
-paths), e.g.:
+paths), and offer an opt-in backup in the same question, e.g.:
 
 > This will permanently delete N auto-memory file(s): `<abs path>/MEMORY.md`,
-> `<abs path>/debugging.md`, … This cannot be undone. Type "yes" to proceed.
+> `<abs path>/debugging.md`, … This cannot be undone. I can first copy these exact files to
+> `<memory_dir>.bak-<UTC-timestamp>/` as a snapshot. Type "yes" to delete, or
+> "yes, with backup" to snapshot first.
 
 Proceed only on an unambiguous yes. Anything else — abort and change nothing. Never infer
 consent from the original request; the gate is a separate, explicit step.
 
-## Step 4: Delete the captured manifest
+**A bundled or earlier multi-option answer does NOT satisfy this gate.** Consent that rode
+along in an upstream flow — an `/interview` round where "purge" was one bullet of a bundled
+answer, a numbered menu selection (`"1"`) whose option happened to include the purge, or a
+"go stateless and purge" given before the manifest existed — is materially weaker than this
+gate's bar. The gate must restate the concrete, now-known scope (file count, directories)
+and receive a fresh confirmation that references that scope specifically.
 
-After confirmation, delete exactly the paths captured in `$manifest` in Step 2 — do not
-re-enumerate, do not `find ... -delete`, do not `rm -rf` any directory:
+Worked anti-pattern: the user answers "go stateless and purge" in an early interview round;
+later the manifest turns out to be 198 files. A follow-up menu offers "1) purge all 198
+2) keep topic files", and the user replies `"1"`. That `"1"` is a menu selection made while
+weighing other bundled concerns — not a scope-referencing confirmation of an irreversible
+delete. Correct handling: raise this gate anyway, quote the 198 files and their directories,
+and require a fresh "yes" (or "yes, with backup") before deleting anything.
+
+## Step 4: Optional backup, then delete the captured manifest
+
+**Backup first when the user opted in** ("yes, with backup"). Copy exactly the files
+captured in `$manifest` — same no-re-glob discipline as the delete; never copy a directory
+recursively. Each source directory gets its own sibling snapshot `<dir>.bak-<UTC>/`:
+
+```bash
+ts=$(date -u +%Y%m%dT%H%M%SZ)
+while IFS= read -r file; do
+  [[ -n "$file" ]] || continue
+  dest="$(dirname -- "$file").bak-$ts"
+  mkdir -p -- "$dest"
+  cp -- "$file" "$dest/"
+done <"$manifest"
+```
+
+`cp -- "$file"` on a manifest entry copies a regular file only (the Step 2 capture was
+`-type f`); the backup lives beside the memory dir, outside it, so it is never re-matched
+by a future purge's `-maxdepth 1` enumeration of the memory dir itself. Verify the copy
+count equals the manifest count before deleting; on any copy failure, stop — do not delete.
+
+After confirmation (and the backup, when requested), delete exactly the paths captured in
+`$manifest` in Step 2 — do not re-enumerate, do not `find ... -delete`, do not `rm -rf`
+any directory:
 
 ```bash
 while IFS= read -r file; do
@@ -78,6 +114,8 @@ otherwise leaving the empty directory is harmless.
 ## Step 5: Report and offer follow-through
 
 - Confirm what was deleted (files, directories).
+- If a backup was taken, report its absolute path(s) (`<dir>.bak-<UTC>/`) and note the
+  snapshot is the user's to keep or delete — the skill never auto-prunes it.
 - Purge removes existing notes but does **not** stop new ones. If the user wants to stay
   stateless, point to `disable` (or run it now if they ask) so Claude doesn't immediately
   re-accumulate memory.
