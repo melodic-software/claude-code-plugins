@@ -3,6 +3,44 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.18.2]
+
+### Changed
+
+- Sync of the shared `hook-utils.sh`: the git-option parser distinguishes `--config-env`
+  (an env-var name) from `-c`/`--config` (an inline value), and a `--config-env` alias for
+  a guarded subcommand is refused by shape rather than by resolving the environment
+  variable's value (`#740`). No behavior change for this plugin — it does not inspect git
+  config values; shipped so consumers receive the shared library update.
+
+## [0.18.1]
+
+### Changed
+
+- **`lanes` skill — document that a relaunch is the only context reset a loop
+  lane gets.** A `/loop` lane re-invokes in the same session and cannot `/clear`
+  itself, so the "restart at ~N% context" discipline has no in-session
+  enforcement; the skill's `restart` (fresh session from the canonical prompt) is
+  the actual reset, and it is operator- or launcher-initiated, not automatic. The
+  SKILL.md now states this so a lane prompt does not wrongly assume per-cycle
+  freshness. Interim documentation ahead of an automatic relaunch trigger. (#551)
+
+## [0.18.0]
+
+### Added
+
+- **`statusMessage` declared on every hook's `hooks.json` handler** (8 handlers)
+  (hook-observability convention, `docs/conventions/hook-observability/`).
+
+### Fixed
+
+- **`skill-usage-audit` and `skill-usage-expansion-audit`'s config-invalid /
+  destination-unwritable skip paths are now user-visible.** Previously
+  agent-only (`additionalContext`), matching neither channel a missing
+  runtime prerequisite requires per the doctrine. Both now route through
+  `hook::emit_skip_notice` gated by `hook::notice_once` (once-per-session
+  `systemMessage` + `additionalContext`).
+
 ## [0.17.4]
 
 ### Fixed

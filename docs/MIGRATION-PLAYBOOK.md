@@ -629,6 +629,17 @@ migration gate and the plugin-acceptance security review below — before it shi
 degradation). Defer risky units (hard external dependencies, no graceful degradation) and any
 license-gated units to per-item triage rather than a blanket hold. The ordering is reversible.
 
+**Swim-lane execution (orchestrated fan-out).** When an orchestrator drives several units to merge in
+one effort, each unit is a **swim lane**: a dedicated worktree (created under the same
+identity-scoped directory root as the primary checkout, so the repo's commit/push identity applies —
+never a sibling path outside it), a feature branch named `<type>/<issue>-<slug>`, its own atomic PR
+that closes exactly one issue, driven independently through CI to a clean merge, then post-merge
+cleanup (delete the branch, remove the worktree). A **seams-first** unit whose contract binds
+downstream lanes lands and merges **before** the dependent lanes open, so they build on the merged
+contract rather than rediscovering it. Independent lanes run concurrently; lanes sharing a
+contract-blocking dependency wait on its merge. The shared-file conflicts above are still resolved by
+serializing the final merges, not authorship.
+
 ## Plugin-acceptance security review
 
 A plugin runs code on the consumer's machine and can wire Claude to external systems. **Every plugin accepted
@@ -645,9 +656,10 @@ plugins-reference, and hooks pages 2026-07-17; re-verify per the `CLAUDE.md` fre
    **advisory** (exits 0, never blocks) vs gating; no `eval` / `curl … | sh` / outbound network; untrusted
    input (file contents, tool args, PR/issue text) never flows unquoted into a shell; a kill switch
    (a per-hook `userConfig` boolean with a `default` of `true`) exists.
-2. **MCP servers — `.mcp.json` / inline in `plugin.json`.** `miro` is the **only** plugin that ships one
-   (local `stdio`, bundled — see its §2 trust accept above); no plugin ships a **remote** MCP server, which
-   remains the higher-scrutiny case. A plugin's MCP server **starts automatically when the plugin is enabled**
+2. **MCP servers — `.mcp.json` / inline in `plugin.json`.** `miro` is the only plugin that ships a
+   **local** `stdio`, bundled server (see its §2 trust accept above); `dometrain` is the only plugin
+   that ships a **remote** server (see its review record below), which remains the higher-scrutiny
+   case. A plugin's MCP server **starts automatically when the plugin is enabled**
    (subject to per-server approval), unless it ships `defaultEnabled: false`. Check: the server host/URL and who runs it (first-party vs a third party you're delegating trust
    to); transport (local `stdio` vs remote `http`/`sse`/`ws`); **what data leaves the machine** — a remote
    server receives whatever Claude sends and, if it returns external content, is a prompt-injection vector
@@ -739,6 +751,54 @@ new trust surface re-triggers this review.
 
 **Verdict: ACCEPT** — surfaces 1/2/7 absent; 3/4 conform; 5's browser-automation channel accepted
 with the layered gates above; 6 first-party.
+
+### Review record — `dometrain` (ACCEPT, 2026-07-22)
+
+Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this review.
+
+- **Code execution (1).** None — no hooks; `sync/scripts/update.sh` is not wired to any event
+  and is not model-reachable: `sync/SKILL.md` carries `disable-model-invocation: true`, so it
+  runs only on a maintainer's explicit `/dometrain:sync` invocation.
+- **MCP servers (2).** The remote server itself: third-party (Dometrain-hosted), `http`
+  transport, Bearer auth via `userConfig.dometrain_api_key` (never hardcoded), `defaultEnabled:
+  false`. **Data egress / prompt-injection:** search queries and lesson IDs are sent to
+  `mcp.dometrain.com`; responses are curated lesson text, which IS a genuine
+  indirect-prompt-injection surface — the risk is that returned text could steer Claude's use of
+  *other* tools already in the session (Bash, Write, other MCP servers), not whether Dometrain's
+  own tools are mutating (they are all read-only). Mitigated the same way this repo's `github`
+  plugin already accepts this class of risk (§740–745): `grounding/SKILL.md` carries a standing
+  instruction treating all `search_dometrain`/`search_code`/`get_lesson` results as untrusted
+  reference data, never instructions, backed by an anti-pattern eval case — an advisory,
+  model-honored defense, not a runtime-enforced one, stated honestly as such rather than implied
+  to be stronger than it is. Explicit trust decision: **ACCEPT**, third-party, rationale =
+  read-only course-content grounding, no destructive tool surface, user's own
+  paid-subscription-scoped token, `defaultEnabled: false`, standing untrusted-data instruction.
+- **Consumer config (3).** One sensitive required `userConfig` string
+  (`dometrain_api_key`), documented.
+- **Cache isolation (4).** All skill/script paths resolve via `${CLAUDE_PLUGIN_ROOT}`-relative
+  or script-own-location-relative paths (matching `context7`'s pattern); the `update.sh` upstream
+  fetch reaches `raw.githubusercontent.com`, a documented, justified outbound call (criterion 5),
+  not a `../` reach-out.
+- **Data egress (5).** Two channels: (a) the MCP server itself, covered under (2); (b)
+  `sync/scripts/update.sh`'s fetch of Dometrain's public GitHub-raw skill content — read-only,
+  and never model-reachable: `sync/SKILL.md`'s `disable-model-invocation: true` means only a
+  human explicitly running `/dometrain:sync` fires it, never the model on its own initiative and
+  never from the installed plugin cache absent that explicit human action. No data leaves beyond
+  the anonymous GET itself. No telemetry.
+- **Provenance & third-party trust (6).** First-party plugin manifest/config (Melodic Software
+  authored), but it wires TWO third-party trust surfaces: Dometrain's MCP server (the primary
+  trust delegation, covered under (2)) and Dometrain's own public skill content as a
+  vendored/reviewed text dependency (covered under (4)/(5)) — every sync is human-reviewed
+  before a baseline refresh, never auto-applied, so the trust surface is bounded by that review
+  gate, not blind ingestion. Note: this plugin's `grounding`/`sync` skill split is a stronger
+  enforcement of that boundary than this repo's existing `context7:lookup` precedent, which
+  bundles an equivalent `update` action into a model-invocable skill — a pre-existing gap flagged
+  during this review, not remediated here, tracked separately.
+- **Main-thread / PATH (7).** None; no `settings.json` `agent`, no `bin/`.
+
+**Verdict: ACCEPT** — surfaces 1/7 absent; 2 accepted with the stated third-party rationale; 3/4
+conform; 5 bounded to two justified, non-telemetry channels; 6 dual third-party surfaces both
+gated (credential scope + human-reviewed sync).
 
 ## Local development loop
 

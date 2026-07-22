@@ -9,9 +9,13 @@ hooks:
   PreToolUse:
     - matcher: "Bash"
       hooks:
+        # Shell form (no `args`) on purpose: exec form resolves `command` via PATH,
+        # which on Windows finds the WSL relay (System32\bash.exe) and the guard
+        # never launches — a silent fail-open. Shell form with `shell: bash` makes
+        # Claude Code itself resolve Git Bash on every platform.
         - type: command
-          command: "bash"
-          args: ["${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive-guard.sh"]
+          command: "bash \"${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive-guard.sh\""
+          shell: bash
 shell: bash
 ---
 
@@ -92,13 +96,17 @@ REPO_ROOT=$(git rev-parse --show-toplevel)
 
 `bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/preflight.sh` — see [context/preflight.md](context/preflight.md). Interactive: `AskUserQuestion` before `--apply` when non-empty. Autonomous: abort.
 
+#### Dry-run → confirm → apply manifest flow (caches / build)
+
+Both selective mutating tiers pay the filesystem walk **once**. `--dry-run` writes a session-scoped manifest and prints two machine-parseable lines: `Manifest: <path>` and `Summary: planned=N bytes=K` (bytes reclaimable — surface this in the confirmation gate). After the user confirms, apply the **same** manifest with `CLEAN_GUARD_ACK=1 … --apply --manifest <path>` — apply re-stats each entry (staleness guard) and removes it without re-walking, then prints `Summary: removed=N failed=M bytes=K` and exits non-zero if `failed>0`. A killed apply **resumes** by re-running the identical `--apply --manifest <path>` (already-removed entries are idempotent no-ops). Capture `<path>` from the dry-run's `Manifest:` line and thread it through unchanged; the manifest is ephemeral (mktemp default), so pass `--manifest <path>` on the dry-run too if you need a stable location.
+
 ### 2. Caches
 
-`bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/clean-caches.sh` — default `--dry-run`; `--apply` only after confirmation.
+`bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/clean-caches.sh` — default `--dry-run`; apply per the manifest flow above (`--apply --manifest <path>`) only after confirmation.
 
 ### 3. Build (includes caches)
 
-`bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/clean-build.sh --include-caches` — default `--dry-run`; `--apply` after confirmation.
+`bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/clean-build.sh --include-caches` — default `--dry-run`; apply per the manifest flow above only after confirmation. `--include-caches` folds the caches tier into the one build manifest.
 
 ### 4. Git
 

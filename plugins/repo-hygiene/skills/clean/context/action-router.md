@@ -8,7 +8,7 @@ SKILL.md carries the action table headline; this file carries alias resolution, 
 | --- | --- | --- | --- | --- |
 | `scan` | "Show what's reclaimable" | Read-only inventory | Safe | N/A (no mutation) |
 | `caches` | "Clear tool and linter caches" | `.pytest_cache/`, `.ruff_cache/`, `__pycache__/`, … | Low | **Never** |
-| `build` | "Clear build output and logs" | `bin/`, `obj/`, `dist/`, dotnet clean driver, … | Low | **Never** |
+| `build` | "Clear build output and logs" | `bin/`, `obj/`, `dist/`, `*.binlog`, … | Low | **Never** |
 | `git` | "Prune stale git metadata" | `worktree prune`, `remote prune`, `gc`, branch audit | Low | Prune/gc only after user OK; branch delete always opt-in |
 | `tree` | "Reset working tree like a fresh pull" | `fetch` + `reset --hard` upstream + `clean -fdx` (default-preserve secrets/deps/skill-data; `--include-deps` / `--include-secrets` to widen) | **Destructive** | **Never** |
 | `tree-batch` | "Reset all my repos like a fresh pull" | `tree` across a repo set behind one gate; separator-agnostic skip list; dirty/unpushed skipped unless `--include-dirty` | **Destructive** | **Never** |
@@ -53,7 +53,7 @@ Default when still unsure after one question: **`scan`** (safest).
 | Action | Pre-mutation step | User gate |
 | --- | --- | --- |
 | `scan` | Run `scan.sh` | None |
-| `caches`, `build`, `all` | `preflight.sh` + tier scripts `--dry-run` | `AskUserQuestion` when preflight non-empty OR before `--apply` |
+| `caches`, `build`, `all` | `preflight.sh` + tier scripts `--dry-run` (writes a manifest; emits `Manifest:` + `Summary: planned=N bytes=K`) | `AskUserQuestion` when preflight non-empty OR before `--apply` — surface the `bytes` reclaimable total; apply the same manifest (`--apply --manifest <path>`), which emits `Summary: removed=N failed=M bytes=K` and exits non-zero on failure |
 | `git` | `git-prune.sh --dry-run`, `git-branch-audit.sh` | Before `--apply` prune; before any branch deletion |
 | `tree` | `git-tree-reset.sh --dry-run` (always) | **Mandatory** `AskUserQuestion` before `--apply` (surface `PreserveDeps`/`PreserveSecrets`/`AheadCount`); a non-zero `AheadCount` or exit 4 needs explicit unpushed-loss confirmation before `--allow-unpushed`; `--include-secrets` is UNRECOVERABLE — confirm separately; never autonomous |
 | `tree-batch` | `git-tree-reset-batch.sh --dry-run` (always) | **Mandatory** single batch-wide `AskUserQuestion` before `--apply` (surface the per-repo `Outcome`/`Reason`, `Summary`, and `UnmatchedSkip:`); one gate for the whole batch, never per repo; `--include-dirty` re-enables the data-loss vector — confirm separately naming the dirty repos, like `--include-secrets`; never autonomous. Detail: [git-tree-reset-batch.md](git-tree-reset-batch.md) |

@@ -3,6 +3,64 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0]
+
+### Fixed
+
+- **Selective `caches`/`build` tiers now run a single pruned walk per tier instead
+  of ~10 unpruned full-tree `find` walks.** The old `! -path` exclusions filtered
+  output but did not `-prune`, so every per-pattern walk still descended `.git/`,
+  `node_modules/`, and `.venv/`. Enumeration now prunes those three trees once and
+  `-print`s all directory-name and file-glob matches in one walk, then applies
+  per-path protection on the result list. Measured on a large .NET + node repo
+  (Windows/NTFS): one pruned walk incl. `du` sizing ~17s vs a 10-walk unpruned
+  dry-run that exceeded 10 min (killed). (#993)
+
+### Added
+
+- **Dry-run writes a manifest and states reclaimable space; `--apply` consumes it
+  instead of re-walking.** The dry-run emits a session-scoped manifest
+  (`<class>\t<bytes>\t<relpath>` per eligible target), prints its path
+  (`Manifest: <path>`), and a `Summary: planned=N bytes=K` total so the
+  confirmation gate can state reclaimable bytes. `--apply --manifest <path>`
+  removes the manifest's entries with a re-stat + re-classify staleness guard (no
+  second walk); a killed apply resumes by re-running the same command
+  (already-gone entries are idempotent no-ops). `--apply` without a manifest
+  builds one then applies it, preserving the standalone CLI contract. With
+  `--include-caches` the caches tier folds into the same manifest — one walk per
+  tier, no subprocess. (#995)
+- **Apply ends with a machine-parseable summary and fails closed.** Each `--apply`
+  run prints `Summary: removed=N failed=M bytes=K` (bytes actually reclaimed) and
+  exits non-zero when any removal fails, so a fleet sweep no longer requires
+  grepping every per-repo log to confirm success. (#1002)
+
+### Removed
+
+- **The `dotnet clean` build-system driver.** `clean-build.sh` no longer runs
+  `dotnet clean <solution>` before removing `bin/`/`obj/`. The universal artifact
+  removal already deletes everything the driver would, so running it first was
+  pure overhead — a full MSBuild evaluation (minutes on a large solution) that
+  also re-created `obj/` evaluation artifacts. One walk + `rm` is strictly faster
+  and equally complete. Removes the `Planned: dotnet clean …` (dry-run) and
+  `DRIVER_FAILED:` (apply) output markers. (#999)
+
+## [0.4.6]
+
+### Fixed
+
+- **Destructive-guard hook now launches on Windows — was silently fail-open.** The
+  exec-form hook (`command: "bash"` + `args`) resolves `bash` via PATH, which on
+  Windows finds the WSL relay (`System32\bash.exe`) and fails to launch; Claude Code
+  treats a failed hook launch as non-blocking, so the guard enforced nothing (48
+  errors in one field session). The hook now uses shell form with `shell: bash`,
+  which Claude Code runs via Git Bash on Windows — the guard launches wherever the
+  skill itself can run.
+- **Missing jq now degrades fail-closed instead of fail-open.** Without jq the guard
+  previously announced itself inactive and allowed everything. It now matches the
+  destructive patterns against the raw hook payload and blocks outright (the
+  `CLEAN_GUARD_ACK` acknowledgement is unverifiable without jq); benign commands
+  still pass. Install jq to restore the confirmation-gated flow.
+
 ## [0.4.5]
 
 ### Changed

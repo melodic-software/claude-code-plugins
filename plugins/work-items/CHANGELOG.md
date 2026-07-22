@@ -3,6 +3,74 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.3]
+
+### Fixed
+
+- **`work`'s dispatch brief no longer lists `## Related` as a standing PR obligation (#975).**
+  `/source-control:pull-request`'s PR-body scaffold is now configurable via
+  `pr_body_required_sections` and no longer includes `## Related` by default — the prior wording
+  enumerated it alongside `Closes #N` as if every PR carried it. The dispatch brief and the
+  post-green deferred-finding step (`skills/work/SKILL.md`) now: point at pull-request's
+  configurable scaffold instead of restating it, drop `## Related` from the standing-obligations
+  list, and have the deferred-finding step ensure the section exists before citing a follow-up issue
+  in it, rather than assuming pull-request already created one. That step is documented as a
+  **read-modify-write** (`gh pr view --json body` then `gh pr edit --body-file -`), matching the
+  GitHub adapter's own PR-body-edit identity note — `gh pr edit --body`/`--body-file` REPLACES the
+  whole body, so a bare append-flavored write would silently drop `Closes #N` and the rest of the
+  scaffold (review-caught). Eval 3 updated to match.
+
+## [0.21.2]
+
+### Changed
+
+- Fresh-eyes delegation sites now prefer a cross-vendor advisor when one is installed
+  (e.g. the OpenAI Codex plugin, invoked per its own docs), with the fresh-context same-vendor
+  subagent as the stated fallback — presence-gated per the seam-phrasing convention.
+
+## [0.21.1]
+
+### Fixed
+
+- **Triage SKILL state machine + attention view reconciled with live labels (`#817`).** The
+  attention view's bucket list named only `status:needs-triage`, leaving a repo that files raw
+  intake on the priority axis (`priority:needs-triage`, per `#802`'s dual-axis Scope wording)
+  invisible to the no-arg attention view; the bucket now names both axes. Separately,
+  `status:needs-decision` was already referenced by the closing invariant as a routing outcome
+  that clears the raw marker, but was never introduced as a side exit in the state machine itself
+  (unlike `needs-info`, human-gated, and close) — it is now documented alongside them in the
+  side-exits sentence and the state diagram. Doc-only; no routing logic changed.
+
+## [0.21.0]
+
+### Added
+
+- **Issue-conventions reference — `reference/issue-conventions.md` (`#552` member 6).** The title
+  convention (~98% of live org issues conform) and the filing body shape were load-bearing and
+  written down nowhere. The new doc is the single source of truth for the TITLE convention
+  (`<prefix>: <lowercase summary>`, area/path and conventional-commit prefix dialects, `Epic:` for
+  umbrellas, sub-issue edges over title suffixes) and points — never copies — at the existing owners
+  for body (`track add` "Build body", `agent-brief.md`), type/labels (`track add` type resolution,
+  `label-taxonomy.md`), and close reason (`track done`). Cited from `track add`, `decompose`,
+  `triage`, and `dogfood-filing.md`.
+
+### Changed
+
+- **Triage priority default is `p2-medium`; `p1-high` is reserved (`#552` member 4).** 77% of open
+  issues carried `priority: high`, destroying it as a staffing signal. Triage now defaults to
+  `priority:p2-medium` when no directive, category rule, or severity signal sets one, and reserves
+  `priority:p1-high` for items that block other work or carry an imminent external deadline. The
+  `track add` filing default (`p3-low`) is deliberately distinct — an untriaged-signal floor, not a
+  priority assessment — and is now documented as such.
+- **Duplicate / supersede close discipline (`#552` member 5).** Sampled closures were 100%
+  `COMPLETED` — duplicates and superseded items were closing under the wrong reason. Duplicates now close via the
+  provider's native duplicate mechanic where one exists (GitHub: `gh issue close --duplicate-of`,
+  which sets close reason `duplicate` and a structured, API-queryable `duplicateOf` relationship),
+  with the portable fallback — append a queryable `## Duplicate of #N` body section and close
+  `not planned` — for cross-repo targets and providers without a native duplicate reason. Superseded
+  and duplicate items never close as `completed` (triage outcome table, `track done`, GitHub adapter
+  README mechanic).
+
 ## [0.20.0]
 
 ### Added

@@ -1,15 +1,16 @@
 # session-flow
 
-A Claude Code plugin bundling nine skills for one cohesive capability: managing the lifecycle of a
+A Claude Code plugin bundling eleven skills for one cohesive capability: managing the lifecycle of a
 working session — where you are in the work, how to pause and resume it, how to recover it after an
-interruption, how to leave it durable before the machine goes away, where things stand and why,
-whether its assumptions are still current, what to learn from it while it runs and after, and how to
-arm it for delegation-heavy tasks.
+interruption, how to leave it durable before the machine goes away, how to retire finished work and
+reconcile the task ledger, where things stand and why, whether its assumptions are still current,
+what to learn from it while it runs and after, and how to arm it for delegation-heavy tasks.
 
 | Skill | Question it answers |
 |---|---|
 | `/session-flow:workflow` | Where am I in the staged dev workflow, and what comes next? |
 | `/session-flow:handoff` | How do I save this session's state so a fresh `/clear` session resumes without rediscovery? |
+| `/session-flow:continue-in-background` | I'm stepping away — how does a background agent pick this up and keep it moving now? |
 | `/session-flow:keep-going` | We were interrupted — what was running, what survived, and where does the main task continue? |
 | `/session-flow:clean-stop` | Before I lose this machine — is everything durable and linked, or is something stranded? |
 | `/session-flow:retro` | What happened this session, what did we learn, and how do we codify it? |
@@ -17,6 +18,7 @@ arm it for delegation-heavy tasks.
 | `/session-flow:orient` | Where do we stand, what are we doing, and why — from the durable + off-thread state, not just the conversation? |
 | `/session-flow:orchestrate` | How do I arm this session (or a spawned worker) with proactive-orchestration imperatives? |
 | `/session-flow:reanchor` | Are this session's assumptions still true, or has reality moved under them? |
+| `/session-flow:reconcile` | Is anything still running that should be retired, and does the task ledger match reality? |
 
 ## What each skill does
 
@@ -42,16 +44,32 @@ Writes a mid-session save-point for the `/clear`-and-resume pattern: a durable h
 progress, decisions, files modified, tried-and-ruled-out, next steps, TaskList snapshot) plus a
 copy-paste resume prompt — or prompt-only when follow-ups are small. Handoff files chain via
 `session_id` / `previous_handoff` frontmatter so `retro` can analyze the whole session chain. The
-skill always STOPS after emitting the save-point — continuing would defeat the purpose. With
-`--bg` it additionally launches a fresh background agent seeded with the resume prompt (via
-`claude --bg`, managed with `claude agents`), so the work resumes without a manual
-`/clear`-and-paste.
+skill always STOPS after emitting the save-point — continuing would defeat the purpose. The
+save-point machinery itself (destination resolution, path choice, redaction, rails prompt) lives in
+the shared `reference/save-point.md` engine doc that `continue-in-background` also delivers from.
 
 ```shell
 /session-flow:handoff                 # auto-detect full vs prompt-only
 /session-flow:handoff prompt          # force prompt-only
 /session-flow:handoff file phase-3    # force full handoff, topic "phase-3"
-/session-flow:handoff --bg            # hand the resume prompt to a background agent
+```
+
+### continue-in-background
+
+The delegation counterpart to `handoff`: same save-point engine, different delivery. Instead of
+handing the user a `/clear`-then-paste prompt for later, it launches a fresh detached background
+agent seeded with the rails resume prompt (via `claude --bg`, managed with `claude agents`), so the
+task keeps moving while the user is away. It launches only on the user's explicit request — never
+self-elected — and gates the launch on a clean tree (save-point files exempt): other uncommitted
+changes would not carry into the isolated worktree the background session edits in, so it falls
+back to the manual `/clear`-then-paste exit and says why. The launched agent is a NEW session: it
+inherits neither the current session's CLI flags nor its model/effort choices — the skill mirrors
+and reports the flags the resumed work depends on. Like `handoff`, it STOPS after delivery: the
+background agent is the continuation, and nothing is monitored or babysat.
+
+```shell
+/session-flow:continue-in-background              # save-point, launch, report, stop
+/session-flow:continue-in-background file phase-3 # force full save-point, topic "phase-3"
 ```
 
 ### keep-going
@@ -174,6 +192,26 @@ checks and reports the fuller inventory as unavailable.
 /session-flow:reanchor            # verify session premises → report drift → re-anchored picture
 ```
 
+### reconcile
+
+The prune-and-reconcile counterpart to `keep-going`'s resume: where keep-going asks "is it stuck,
+pick it back up", reconcile asks "is anything still running that should be retired, and does
+the task ledger match reality?" It inventories the off-thread work this session spawned (background
+tasks, shells, monitors, scheduled jobs, subagents — the open-ended kinds in
+`reference/off-thread-work.md`, the same inventory-and-inspect engine `keep-going` and `orient`
+share), inspects each item's real state, retires the ones genuinely finished by clearing them from
+tracking, and closes this session's task-ledger items whose work is proven complete. It also reports
+the read-only liveness of sibling sessions in the same project — from transcript mtime plus a coarse
+tail read, never a deep parse of the unstable JSONL. Auto-settles the provably-finished (closing a
+task is evidence-gated, the mirror of never killing work you cannot prove is dead); GATES any kill
+of still-running work. It fixes this session only: sibling sessions are visible but report-only, and
+a spawned subagent's internal task list is not readable. It touches no git state (that is
+`clean-stop`) and does not resume the work (that is `keep-going`).
+
+```shell
+/session-flow:reconcile   # inventory → inspect → retire finished + close done → report
+```
+
 ## Consumer conventions
 
 The skills adapt to the consuming repo rather than imposing structure:
@@ -210,7 +248,12 @@ degrades to reporting what it could not verify when that authenticated egress is
 and falling back to direct `git`/`gh` — to make session work durable on the remote. `orient`
 optionally runs `gh pr list` (read-only) to include open pull requests in its briefing and, when a
 work-item tracker capability is installed, reads its open items (which may reach a remote tracker) —
-degrading to local git state alone when `gh` or the tracker is absent or unauthenticated. The other six
-skills — workflow, handoff, keep-going, retro, running-retro, and orchestrate — are network-free
-(both retro and running-retro use the same stdlib-only Python 3.10+ parser reading local
-`~/.claude/projects/` transcripts).
+degrading to local git state alone when `gh` or the tracker is absent or unauthenticated. The other eight
+skills — workflow, handoff, continue-in-background, keep-going, retro, running-retro, orchestrate, and
+reconcile — are network-free (both retro and running-retro use the same stdlib-only Python 3.10+
+parser reading local `~/.claude/projects/` transcripts; `reconcile` reads those same local
+transcripts read-only for its sibling-session liveness inventory and mutates only the in-session task
+ledger);
+`continue-in-background` spawns a local `claude --bg` process,
+which is a new Claude Code session with the ordinary network access of any session, but the skill
+itself performs no egress.

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "guardrails",
-  "version": "0.9.5",
+  "version": "0.10.2",
   "description": "Eight safety guards that block secret/credential writes, hardcoded machine-specific paths, git hook-bypass attempts, irreversible git operations (force-push, reset --hard, worktree-wide checkout/restore discards), Bash file-write workarounds that circumvent Write/Edit hooks, (advisory) hallucinated CLI flags, (advisory) un-throttled Workflow fan-out that risks burst 529s, and (advisory) direct git commit/gh pr create calls bypassing this marketplace's own commit/pull-request skills — each independently toggleable.",
   "author": {
     "name": "Melodic Software",
@@ -35,7 +35,7 @@
     "block_no_verify_enabled": {
       "type": "boolean",
       "title": "block-no-verify guard",
-      "description": "Block git hook-bypass attempts (--no-verify, core.hooksPath=, lefthook disables)",
+      "description": "Block git hook-bypass attempts (--no-verify, core.hooksPath=, hook-manager env-var disables for a configurable set — lefthook/husky/pre-commit/simple-git-hooks by default)",
       "default": true
     },
     "block_dangerous_git_enabled": {
@@ -96,6 +96,12 @@
       "type": "string",
       "title": "block-noncanonical-commit allow-list",
       "description": "Comma-separated form tokens to allow (currently: message-flag, which permits a bare `-m`)",
+      "default": ""
+    },
+    "block_no_verify_hook_manager_prefixes": {
+      "type": "string",
+      "title": "block-no-verify hook-manager prefixes",
+      "description": "Comma-separated hook-manager env-var name prefixes block-no-verify treats as a bypass when set to 0/false (e.g. lefthook,husky); empty uses the built-in default set (lefthook, husky, pre_commit, simple_git_hooks)",
       "default": ""
     }
   }

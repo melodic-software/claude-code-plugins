@@ -42,23 +42,26 @@ hook::check_enabled "BLOCK_DANGEROUS_GIT"
 # still fires). Referencing it bare under `set -u` would abort before exit.
 start=${EPOCHREALTIME:-}
 
-# jq is required to parse the tool payload. Fail OPEN when it is absent, but make
-# the degraded state visible rather than silently disabling the guard.
-if ! command -v jq >/dev/null 2>&1; then
-  echo "guardrails/block-dangerous-git: jq not found on PATH — guard disabled (install jq to enable)." >&2
-  exit 0
-fi
-
 # hook::buffer_stdin encapsulates the Win32-pipe-safe bounded fd0 read. rc 1
 # (empty stdin) skips like the empty-COMMAND guard below; rc 2 (read timed out
 # before a complete payload) FAILS CLOSED — the guard cannot evaluate the tool
 # call, and a silent skip would pass exactly the traffic this guard exists to
-# stop. buffer_stdin already printed the BLOCKED reason to stderr.
+# stop. buffer_stdin already printed the BLOCKED reason to stderr. Buffering
+# does not require jq (hook::buffer_stdin's own JSON-completeness check is
+# jq-optional), so it runs before the jq gate below — hook::require_jq needs
+# the buffered input for its once-per-session notice scoping.
 INPUT=$(hook::buffer_stdin) || {
   rc=$?
   ((rc == 2)) && exit 2
   exit 0
 }
+
+# jq is required to parse the tool payload. hook::require_jq fails OPEN
+# (advisory hooks never block over a missing prerequisite) but makes the
+# degraded state visible to both the user (systemMessage) and the agent
+# (additionalContext), once per session — see docs/conventions/hook-observability/.
+hook::require_jq "PreToolUse" "guardrails-block-dangerous-git" "$INPUT"
+
 COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null | tr -d '\r')
 [[ -n "$COMMAND" ]] || exit 0
 
@@ -217,16 +220,39 @@ check_segment() {
   # An inline alias runs its expansion (`git -c alias.rh='reset --hard' rh`
   # discards — verified), so re-check the expanded command: a shell alias
   # (leading !) re-parses as a full shell command; a git alias splices its
-  # words in place of the alias name. One level only — git does not expand
-  # the first word of an expansion as another alias — enforced through
-  # HOOK_NO_ALIAS, which dynamic scoping carries into the recursive call.
-  if ((${HOOK_NO_ALIAS:-0} == 0)); then
-    local cv exp reparse a
-    local -a cfgv=() expw=()
-    cfgv=(${HOOK_GIT_CONFIG_VALUES[@]+"${HOOK_GIT_CONFIG_VALUES[@]}"})
-    for cv in ${cfgv[@]+"${cfgv[@]}"}; do
-      [[ "$cv" == "alias.${sub}="* ]] || continue
-      exp="${cv#*=}"
+  # words in place of the alias name. A --config-env alias for the invoked
+  # subcommand is refused by SHAPE — its expansion lives in an env var this guard
+  # never reads (hook::git_alias_expansion).
+  #
+  # The SHAPE refusal must fire at EVERY recursion depth: a wrapping inline alias
+  # can expand to `--config-env=alias.<sub>=<envvar>` defining the invoked sub
+  # (`git -c alias.rh='--config-env=alias.foo=AV foo' rh`), which git runs. It is
+  # value-blind, cheap, and terminal, so it is NOT gated by HOOK_NO_ALIAS. Only the
+  # INLINE-alias re-expansion is one-level (HOOK_NO_ALIAS bounds the recursion —
+  # git does not re-expand the first word of an expansion as another alias).
+  local exp reparse a alias_rc
+  local -a expw=()
+  hook::git_alias_expansion "$sub"
+  alias_rc=$?
+  if ((alias_rc == 2)); then
+    # Structural fail-closed: the invoked subcommand is an alias whose LAST definition
+    # (here or in a wrapping alias's expansion) is `--config-env=alias.<sub>=<envvar>`,
+    # so its expansion is an environment variable's value. Reading that value is the
+    # recurring fail-open surface (fed by an ambient var, an inline/`env` prefix, an
+    # `export`, `set -a`, or a nested `bash -c` in any wrapper); the shape alone is
+    # sufficient. The allow-list is not consulted, as with the too-long-command path.
+    echo "BLOCKED: git alias '$sub' is defined via --config-env, so its expansion cannot be verified — failing closed." >&2
+    echo "Define the alias in git config, run the subcommand directly, or set the guardrails block_dangerous_git_enabled option to false to bypass." >&2
+    emit_tel "blocked" "config-env-alias"
+    exit 2
+  fi
+  if ((alias_rc == 0)) && ((${HOOK_NO_ALIAS:-0} == 0)); then
+    # Inline alias (-c/--config): each spelling's expansion is literally present. Re-check
+    # EVERY spelling (plain and `.command`) independently so a benign expansion in one
+    # never suppresses a dangerous sibling in the other.
+    # shellcheck disable=SC2154  # HOOK_GIT_ALIAS_EXPS is set by hook::git_alias_expansion
+    for exp in ${HOOK_GIT_ALIAS_EXPS[@]+"${HOOK_GIT_ALIAS_EXPS[@]}"}; do
+      [[ -n "$exp" ]] || continue
       if [[ "$exp" == '!'* ]]; then
         # Shell alias: git runs the expansion as a shell command with the
         # invocation's trailing args appended (positional), so append them
@@ -245,7 +271,6 @@ check_segment() {
         check_segment "${w[@]:0:gi+1}" ${expw[@]+"${expw[@]}"} "${w[@]:sub_idx+1}"
         HOOK_NO_ALIAS=0
       fi
-      break
     done
   fi
 

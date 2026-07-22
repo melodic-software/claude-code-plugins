@@ -3,6 +3,158 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.2]
+
+### Changed
+
+- **`--config-env` git aliases for a guarded subcommand are now refused by SHAPE, not
+  resolved (`#740`).** `--config-env=<key>=<envvar>` names an environment variable that
+  holds the alias expansion; that value can be fed from an ambient variable, an inline or
+  `env` command-line prefix, an `export` (including `set -a`, an `export NAME` promotion,
+  or an assignment-prefixed `export`), or a nested `bash -c` / `!`-alias in any enclosing
+  wrapper. Every attempt to resolve the value — to decide whether `git <alias>` runs a
+  guarded operation — reopened a fail-open as reviewers found new propagation paths. Since
+  the `--config-env=alias.<sub>=<envvar>` option and the `<sub>` it defines always sit in
+  the same git invocation, the guards no longer read the value at all: an alias for the
+  INVOKED subcommand whose last definition on the command line is `--config-env` is blocked
+  structurally (`hook::git_alias_expansion`). Nobody legitimately defines a commit or reset
+  alias this way on a guarded invocation — the canonical form is a gitconfig alias or the
+  plain subcommand — so the shape alone is sufficient, and the whole env-resolution attack
+  surface is removed rather than backstopped.
+- **Inline `-c`/`--config` aliases are unchanged.** Their expansion is literally present
+  and bounded, so both guards resolve and re-check it as before — last value wins,
+  case-insensitive key match, and `!` shell-alias / git-alias expansions re-parsed one
+  level deep.
+- **The `alias.<sub>.command` subkey is now classified as an alias definition too
+  (`#740`).** git reads both `alias.<sub>` and its `alias.<sub>.command` subkey as the
+  alias for `<sub>` (`git -c alias.rh.command='reset --hard' rh` runs it); the classifier
+  previously matched only the plain spelling, so a dangerous alias smuggled through
+  `.command` — via `-c` or `--config-env` — was treated as a non-alias and ran unchecked.
+  Both spellings are now detected. Because which spelling git runs when both are set is
+  git-version-dependent, the classifier does NOT mirror git's cross-spelling precedence; it
+  fails closed on the MAX-DANGER UNION — the last value WITHIN each spelling decides that
+  spelling, then the guard refuses if EITHER is `--config-env`-shaped and re-checks EVERY
+  inline spelling, blocking if any resolves to a guarded operation and allowing only when
+  both spellings are benign. On a git where a benign later `.command` genuinely overrides a
+  dangerous plain alias this over-blocks, which is fail-safe.
+- **Removed the env-value-resolution machinery** that existed only to read a `--config-env`
+  value and the environment feeding it: `hook::snapshot_env` / `HOOK_ENV_SNAPSHOT`,
+  `hook::git_effective_config_values` / `HOOK_GIT_CONFIG_UNRESOLVED`,
+  `hook::git_reparse_shell_alias` with its shell-alias env inheritance
+  (`HOOK_GIT_ENV_INHERITED`), `hook::shell_track_persistent_env` / `HOOK_SHELL_VARS`, and
+  `HOOK_GIT_ENV_ASSIGNMENTS`. `hook::git_resolve_index` walks env-assignment prefixes only
+  to locate the git token, never to collect their values.
+- **Behavior change for `--config-env` aliases.** A `--config-env` alias for the invoked
+  subcommand now blocks even when the named variable holds a harmless value — the value is
+  never consulted. Still allowed (decidable safe without reading a value): a `--config-env`
+  that sets a NON-alias key, one that defines an alias for a subcommand that is not
+  invoked, and one whose LAST value for the key is an inline `-c`/`--config`.
+- **The shape refusal fires at every alias-recursion depth (`#740`).** A wrapping inline
+  alias whose expansion is itself a `--config-env` alias for the invoked subcommand
+  (`git -c alias.rh='--config-env=alias.foo=AV foo' rh`, which git runs) previously slipped
+  through: the refusal was gated behind `HOOK_NO_ALIAS`, which suppressed it at recursion
+  depth ≥ 2. The value-blind `--config-env` shape refusal is now ungated so it fires at
+  every depth; only the one-level inline-alias re-expansion remains bounded by
+  `HOOK_NO_ALIAS`.
+
+## [0.10.1]
+
+### Fixed
+
+- **`hardcoded-path-check` no longer scans when no project is active.** The
+  scope guard previously fell through and scanned unconditionally when
+  `CLAUDE_PROJECT_DIR` was unset — contradicting the README's "only police
+  files under `$CLAUDE_PROJECT_DIR`" contract — and the gitignore escape hatch
+  was gated on the same variable, so in exactly that case the one documented
+  per-file exemption was unreachable (real incident: forced `~/` rewrites onto
+  a machine-local `~/.gitconfig` edited from a no-project session). The hook
+  now skips entirely with no active project: a no-project target is
+  machine-local, not the portable repo artifact this guard protects.
+  Deliberately different from `secret-pattern-detection`, which scans even
+  without a resolvable root — secrets are dangerous anywhere. README "Consumer
+  seams" bullets updated to state the no-project behavior explicitly.
+  (Official hooks reference consulted per the fresh-docs mandate:
+  <https://code.claude.com/docs/en/hooks> — `CLAUDE_PROJECT_DIR` is "the
+  project root", with no guarantee of presence in no-project sessions.)
+
+## [0.10.0]
+
+### Added
+
+- **`statusMessage` declared on every hook's `hooks.json` handler** (9 handlers)
+  and **telemetry added to `workflow-resilience-check`**, which previously
+  emitted none — it now emits at every meaningful outcome (no-fan-out /
+  already-throttled / advisory finding), matching every sibling guardrails
+  hook (hook-observability convention, `docs/conventions/hook-observability/`).
+
+### Fixed
+
+- **Missing-`jq` degraded state is now user-visible.** `block-dangerous-git`,
+  `block-hook-bypass`, `block-no-verify`, `block-noncanonical-commit`,
+  `cli-flag-verify`, `flag-commit-pr-skill-bypass`, `hardcoded-path-check`,
+  `secret-pattern-detection`, and `workflow-resilience-check` previously wrote
+  their jq-missing notice to stderr on an exit-0 path — per the official Claude
+  Code hooks reference, exit-0 stderr is discarded entirely and was never shown
+  to the user or Claude. Each now routes through the shared `hook::require_jq`
+  helper (once-per-session `systemMessage` + `additionalContext`, matching the
+  fleet's formatter-hook convention). `cli-flag-verify`'s separate
+  bundled-verifier-missing path (install corruption) gets the same treatment,
+  previously fully silent (not even stderr).
+- **`scripts/check-silent-skips.sh` tightened**: a bare `>&2` write no longer
+  satisfies the gate's visibility requirement (it never actually satisfied the
+  doctrine — exit-0 stderr is invisible; the gate's own assumption was wrong).
+  The 9 hooks above were the only fleet sites relying on that leniency.
+
+## [0.9.8]
+
+### Fixed
+
+- **`hardcoded-path-check` pre-filter no longer fails open on the broadened
+  checkout roots.** 0.9.7 widened the detailed drive-letter bodies to accept
+  `Projects` and `Dev` (both capitalizations), but the cheap `scan_text`
+  pre-filter gate still tripped only on `Users|/home/|repos`. Content whose
+  sole machine path used a widened root (e.g. `C:\Projects\…`, `C:\Dev\…`)
+  early-returned before the detailed scan ever ran — a fail-open in a security
+  gate. The gate now lists every root token the detailed bodies accept, keeping
+  it a strict superset; a `Projects`-root regression test guards it.
+
+### Changed
+
+- **`block-no-verify` guard description broadened to match shipped behavior.**
+  The `block_no_verify_enabled` userConfig description still enumerated
+  "lefthook disables" only; it now states the actual configurable default set
+  (lefthook, husky, pre-commit, simple-git-hooks).
+
+## [0.9.7]
+
+### Changed
+
+- **`block-no-verify` hook-manager bypass detection is now configurable and
+  covers more managers by default.** The env-var disable check matched only
+  `lefthook*`, silently missing `HUSKY=0` and other managers. It now resolves a
+  configurable prefix set (`block_no_verify_hook_manager_prefixes` userConfig)
+  defaulting to `lefthook, husky, pre_commit, simple_git_hooks`; consumer values
+  are reduced to identifier characters before use, so a value can never inject
+  regex metacharacters.
+- **`hardcoded-path-check` machine-path detection broadened past `repos`.** The
+  drive-letter-anchored checkout-parent pattern matched only `X:\repos\…`, so a
+  hardcoded `C:\Projects\…` or `C:\Dev\…` path went undetected. It now also
+  matches `Projects` and `Dev` (both capitalizations); a consumer's own checkout
+  root was and remains caught by the driver's project-root literal scan.
+
+## [0.9.6]
+
+### Fixed
+
+- **`flag-commit-pr-skill-bypass` advisory now honors user-global plugin
+  enablement.** The `source_control_enabled` probe read only the consuming
+  project's `.claude/settings.json` (plus its local override), so when
+  source-control was enabled solely at user-global scope (`~/.claude/settings.json`)
+  — a common install — the probe false-negatived and the `gh pr create` advisory
+  never fired. Enablement now resolves across user-global, project, and local
+  scopes in Claude Code's precedence order (user-global base, project overrides,
+  local overrides), matching how the platform actually merges `enabledPlugins`.
+
 ## [0.9.5]
 
 ### Fixed

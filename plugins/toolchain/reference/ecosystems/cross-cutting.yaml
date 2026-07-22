@@ -12,10 +12,13 @@ check-cmd: |
   gitleaks detect --source . --redact --no-banner --no-git
   # editorconfig-checker — binary name varies by install method (ec / editorconfig-checker / ec-windows-amd64)
   "$EC_BIN"
+  # lychee-offline — on-disk link/anchor integrity; --offline = no network (external URLs skipped)
+  lychee --offline --no-progress './**/*.md'
 fix-cmd: null
-opt-in: "each tool's own config at repo root (_typos.toml, .gitleaks.toml, .editorconfig-checker.json / .editorconfig)"
+opt-in: "each tool's own config at repo root (_typos.toml, .gitleaks.toml, .editorconfig-checker.json / .editorconfig, lychee.toml)"
 install-hint: |
   typos: winget install Crate-CI.Typos | brew install typos-cli
   gitleaks: winget install Gitleaks.Gitleaks | brew install gitleaks
   editorconfig-checker: winget install EditorConfig-Checker.EditorConfig-Checker | brew install editorconfig-checker
+  lychee: winget install lycheeverse.lychee | brew install lychee
 notes: "Lint-only — owned by /toolchain:lint. /toolchain:check does not run this ecosystem."

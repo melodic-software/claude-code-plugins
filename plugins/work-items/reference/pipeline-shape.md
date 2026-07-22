@@ -45,6 +45,10 @@ that stage (the Step 5 anchor) rather than dead-end.
 | Review | `review:code-reviewer` / `review:quality-gate` | Review the diff via a reviewer **distinct from the implementer**, before the PR opens. |
 | Verify | `verification:*` | Confirm the result against evidence via a **fresh-context verifier**, distinct from the implementer. |
 
+For the Verify lane specifically, where the result is high-stakes and correlated blind spots are the
+risk, prefer a cross-vendor advisor **when one is installed and set up** — e.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs — with the fresh-context same-vendor verifier as the
+fallback, never a route to a command that may not resolve.
+
 The **re-anchor slot** (`re-anchor:*`) is reserved: the re-anchor set is a periodic anchor across lane
 execution rather than a human-invoked extra. Its placement in the sequence is left for a later `#513`
 stage; this document reserves the slot and does not yet define its cadence.

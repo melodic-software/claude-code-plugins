@@ -37,6 +37,26 @@ class DependencyAuthorTests(unittest.TestCase):
             with self.subTest(login=login):
                 self.assertFalse(fb.is_dependency_author(login))
 
+    def test_extra_logins_are_recognized(self) -> None:
+        # A non-dependabot/renovate dependency bot an operator runs keeps the
+        # same hold-merge protection once named. Matching is normalization-
+        # insensitive on both sides (casefold, strip `app/` and `[bot]`).
+        extra = frozenset({"MyDepBot"})
+        for login in ("mydepbot", "MyDepBot[bot]", "app/mydepbot"):
+            with self.subTest(login=login):
+                self.assertTrue(fb.is_dependency_author(login, extra))
+
+    def test_extra_login_config_form_is_normalized(self) -> None:
+        # The configured entry itself may carry `app/` / `[bot]`; it still matches
+        # the normalized incoming login.
+        self.assertTrue(fb.is_dependency_author("mydepbot", frozenset({"app/MyDepBot[bot]"})))
+
+    def test_unconfigured_extra_matches_builtin_set_only(self) -> None:
+        # Empty extra (the shipped default) never widens the built-in set.
+        self.assertFalse(fb.is_dependency_author("mydepbot"))
+        self.assertFalse(fb.is_dependency_author("mydepbot", frozenset()))
+        self.assertTrue(fb.is_dependency_author("dependabot", frozenset()))
+
 
 class ActorKindTests(unittest.TestCase):
     def test_authoritative_bot_typename_wins_over_unknown_login(self) -> None:

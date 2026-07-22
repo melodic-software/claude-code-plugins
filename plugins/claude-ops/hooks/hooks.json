@@ -6,7 +6,8 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/api-error-audit.sh",
-            "timeout": 5
+            "timeout": 5,
+            "statusMessage": "Recording API-error telemetry..."
           }
         ]
       }
@@ -18,7 +19,8 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/config-change-audit.sh",
-            "timeout": 5
+            "timeout": 5,
+            "statusMessage": "Recording config-change telemetry..."
           }
         ]
       }
@@ -29,7 +31,8 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/instructions-loaded-audit.sh",
-            "timeout": 5
+            "timeout": 5,
+            "statusMessage": "Recording instructions-loaded telemetry..."
           }
         ]
       }
@@ -40,7 +43,8 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/permission-denied-audit.sh",
-            "timeout": 5
+            "timeout": 5,
+            "statusMessage": "Recording permission-denied telemetry..."
           }
         ]
       }
@@ -51,7 +55,8 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/pre-compact-audit.sh",
-            "timeout": 5
+            "timeout": 5,
+            "statusMessage": "Recording pre-compact telemetry..."
           }
         ]
       }
@@ -63,7 +68,8 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/skill-usage-audit.sh",
-            "timeout": 5
+            "timeout": 5,
+            "statusMessage": "Recording skill-usage telemetry..."
           }
         ]
       }
@@ -74,7 +80,8 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/skill-usage-expansion-audit.sh",
-            "timeout": 5
+            "timeout": 5,
+            "statusMessage": "Recording skill-usage-expansion telemetry..."
           }
         ]
       }
@@ -86,7 +93,8 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/tool-failure-audit.sh",
-            "timeout": 5
+            "timeout": 5,
+            "statusMessage": "Recording tool-failure telemetry..."
           }
         ]
       }

@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/data/block-noncanonical-commit.schema.json",
+  "title": "block-noncanonical-commit telemetry data",
+  "description": "Per-hook `data` payload for the block-noncanonical-commit guard. Discovered from the envelope `hook` value \"block-noncanonical-commit\". Evolves additive-only. Carries NO full command string or commit message body.",
+  "type": "object",
+  "required": ["tool", "subject", "form"],
+  "additionalProperties": true,
+  "properties": {
+    "tool": {
+      "type": "string",
+      "description": "Always \"Bash\" — this guard matches only Bash tool calls."
+    },
+    "subject": {
+      "type": "string",
+      "description": "Privacy-safe command subject `Bash:<first-token>` with leading sudo / env-assignment prefixes stripped and the token basenamed. NEVER the full command or its arguments."
+    },
+    "form": {
+      "type": "string",
+      "description": "The non-canonical commit-message form when blocked (e.g. \"message-flag\" for a bare -m/-F not paired with the canonical marker). Empty string when the command was allowed (status ok)."
+    }
+  }
+}

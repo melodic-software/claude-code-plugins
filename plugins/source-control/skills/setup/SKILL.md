@@ -227,6 +227,11 @@ With no argument in an interactive session, run the interview:
    ```markdown
    # source-control configuration
 
+   Read by the source-control Claude Code plugin (and, where installed, the guardrails
+   commit-convention gate). Without those plugins this file is inert — safe to ignore.
+   It is a drafting aid for plugin users, not team-wide enforcement: tool-agnostic
+   enforcement for every committer (plugin or not) is a commit-msg hook or CI check.
+
    Commit-subject / PR-title convention for the source-control plugin, resolved by
    `/source-control:commit` and `/source-control:pull-request` before they infer from the repo's own
    CLAUDE.md/rules/commit-msg hook or fall back to the bundled Conventional Commits default.
@@ -259,6 +264,14 @@ With no argument in an interactive session, run the interview:
    Drop any section with no content rather than leaving it empty. Writing a non-`team` layer, add one
    line under the heading naming which layer this file is and that it overrides per key — the file
    sits next to (or looks identical to) the team file, and the next reader has no other signal.
+
+   The self-describing preamble above the first `##` heading exists for the reader who does NOT run
+   these plugins — the team file lands in shared history, and a teammate opening it deserves to know
+   it binds nothing on its own. It is part of the template, not an append: a reconfiguration run
+   rewrites the whole header block in place, never stacks a second copy. Prose above the first H2 is
+   inert to every consumer by construction — the enforcement resolver reads only the first non-empty
+   body line under a `## <key>` heading (`lib/resolve-convention-pattern.sh` parse contract), and the
+   drafting read is per-H2-key — so the preamble can never change a resolved value.
 
 6. **Verify the write, per layer.** The post-write check inverts between layers and there is no
    shared shortcut: the team file must be tracked, the local overlay must be ignored, and the
@@ -357,6 +370,12 @@ With no argument in an interactive session, run the interview:
    overridden by an existing team file, and a `layer=team` write can be overridden by an existing
    local overlay — a user who is told only "wrote `subject_pattern`" and then sees `/commit` use a
    different pattern has been misled by the success message.
+
+   For a `team` write, the report also states plainly what the file is and is not: a drafting aid
+   (plus CC-layer enforcement input) for teammates who run these plugins, inert for everyone else —
+   NOT team-wide enforcement. Committers without the plugin are bound only by a commit-msg hook or CI
+   check; when the team wants that, point at the guardrails plugin's opt-in commit-msg hook or the
+   repo's own hook manager rather than implying this file enforces anything by itself.
 
 ### Babysit config
 

@@ -6,6 +6,24 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 Versions 0.1.0–0.7.0 predate this file (introduced with 0.7.1); their history lives in the
 merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
 
+## [0.9.0]
+
+### Changed
+
+- **Credential-probe validation is now deny-by-default against a configured `--credential-roots`
+  allowlist.** The security-binding checker no longer recognizes a probed host-credential path by
+  static structural shape. A static checker cannot know an org's real credential locations, and for
+  any open-ended structural recognizer an adversary can craft a plausible-but-invented path (an
+  invented home user, a mount that need not exist) whose failing read proves nothing while real host
+  credentials stay readable. A filesystem credential entry now counts as credential-absence evidence
+  only when its recorded host-side expansion resolves — lexically, `..`-safe, filesystem-independent —
+  under one of the operator-configured trusted roots passed via the new `--credential-roots
+  <path,path,...>` flag, mirroring the `--egress-hosts` seam; with no roots configured, every
+  filesystem credential entry is untrusted and the level fails closed. Membership under a configured
+  root is the sole test, so the previously non-converging location enumeration is dissolved. A
+  cloud-metadata-endpoint route and a well-known credential env token remain bounded closed sets that
+  need no allowlist, and the expansion-coherence guard is retained. The egress-side seam is unchanged.
+
 ## [0.8.0]
 
 ### Added

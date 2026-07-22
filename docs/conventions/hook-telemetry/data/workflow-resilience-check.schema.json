@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/data/workflow-resilience-check.schema.json",
+  "title": "workflow-resilience-check telemetry data",
+  "description": "Per-hook `data` payload for the workflow-resilience-check advisory. Discovered from the envelope `hook` value \"workflow-resilience-check\". Evolves additive-only. Status is always \"ok\" — this hook never blocks. Emitted for every meaningful outcome (no fan-out / already-throttled / advisory finding), not for a pure inapplicability short-circuit (no script content at all).",
+  "type": "object",
+  "required": ["tool", "file", "findings"],
+  "additionalProperties": true,
+  "properties": {
+    "tool": {
+      "type": "string",
+      "description": "Always empty — this advisory has no single tool/file subject (it inspects a Workflow tool's inline script or scriptPath)."
+    },
+    "file": {
+      "type": "string",
+      "description": "Always empty — see `tool`."
+    },
+    "findings": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "The resilience advisory text when the script fans out with no throttle/retry primitives, as a single-element array. Empty array when the script doesn't fan out, or already applies inWaves/inWavesPipeline/agentRetry."
+    }
+  }
+}

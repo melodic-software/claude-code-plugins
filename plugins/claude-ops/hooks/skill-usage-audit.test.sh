@@ -38,16 +38,25 @@ assert_eq "override dir used" "research" \
   "$(jq -r '.skill' "$PROJ2/telemetry/skills/skill-usage.jsonl" 2>/dev/null)"
 
 # --- Invalid override is visible and cannot escape the project -------------
+# CLAUDE_PLUGIN_DATA isolated to a fresh dir: the config-invalid branch now
+# goes through hook::notice_once (once-per-session gate), which persists a
+# marker file under CLAUDE_PLUGIN_DATA — an unisolated real machine path would
+# make this assertion pass only on the first-ever run.
 PROJB="$TEST_TMPDIR/projb"; mkdir -p "$PROJB"
 OUTSIDE="$TEST_TMPDIR/outside"
+BADCFG_DATA="$TEST_TMPDIR/badcfg-data"; mkdir -p "$BADCFG_DATA"
 INVALID_OUTPUT=$(env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$PROJB" \
   CLAUDE_PLUGIN_OPTION_SKILL_USAGE_DIR="../outside" \
+  CLAUDE_PLUGIN_DATA="$BADCFG_DATA" \
   bash "$HOOK" <<<"$INPUT" 2>/dev/null)
 assert_file_absent "traversal override cannot write outside project" "$OUTSIDE/skill-usage.jsonl"
 assert_contains "invalid override emits visible advisory" "$INVALID_OUTPUT" \
   "claude-ops skipped skill-usage logging"
 assert_eq "invalid override advisory uses hook protocol" "PostToolUse" \
   "$(jq -r '.hookSpecificOutput.hookEventName' <<<"$INVALID_OUTPUT" 2>/dev/null)"
+assert_contains "invalid override advisory is user-visible (systemMessage)" \
+  "$(jq -r '.systemMessage // empty' <<<"$INVALID_OUTPUT" 2>/dev/null)" \
+  "claude-ops skipped skill-usage logging"
 
 # --- Envelope emitted when a sink is wired ---------------------------------
 PROJ3="$TEST_TMPDIR/proj3"; mkdir -p "$PROJ3"

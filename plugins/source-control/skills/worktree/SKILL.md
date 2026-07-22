@@ -64,7 +64,11 @@ Detect current state and guide user to the right action.
 
 Create a new worktree with guided naming and setup verification. Full procedure — pre-flight guards (already-in-worktree, mid-session transition), name validation (EnterWorktree schema constraints), base-ref notes, the explain-before-create block, directory-rename caveats, and post-create setup checks: [context/create.md](context/create.md).
 
-**Safety invariant create MUST honor:** Call `EnterWorktree(name: "<validated-name>")` as the **final action** — working directory changes and session state transitions on that call, so nothing may execute after it.
+**Safety invariants create MUST honor** (full detail in context/create.md):
+
+- **Create via the shared helper, not `EnterWorktree(name:)`.** Run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/worktree-create.sh" --name "<validated-name>" --root '${user_config.worktree_root}'`; it places the worktree at the external root (`<root>/<owner>-<repo>-<slug>`), copies `.worktreeinclude` files, and prints the path. `EnterWorktree(name:)` lands in the in-repo `.claude/worktrees/`, which re-triggers Claude Code's CLAUDE.md/rules double-load bug (#400).
+- **On a non-zero helper exit, STOP — never fall back to `EnterWorktree(name:)`.** Exit 3 means `worktree_root` is unconfigured: surface the helper's guidance and stop, do not create anything (silent in-repo fallback is exactly the #400 regression this closes).
+- **Enter with `EnterWorktree(path: "<printed-path>")` as the final action** — working directory changes and session state transitions on that call, so nothing may execute after it. The out-of-`.claude/worktrees/` path prompts for approval (not suppressible outside `bypassPermissions`).
 
 ---
 

@@ -3,6 +3,16 @@
 All notable changes to the `bug-report` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.0]
+
+### Changed
+
+- **Filed reports carry the native GitHub Issue Type (`#552` member 1).** All three filing sites
+  (the write skill's hand-off step, the README filing section, and both report-footer templates) now
+  pass `--type Bug` on `gh issue create`, with the org-only caveat: native Issue Types are an
+  org-repo feature, so on personal / non-org repos the flag is dropped and a `type: bug` label is
+  added instead when the repo defines one. Previously filed issues carried no type axis at all.
+
 ## [0.5.2]
 
 ### Changed

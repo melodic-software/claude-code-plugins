@@ -1,6 +1,105 @@
 # Changelog — session-flow plugin
 
-## [0.12.4]
+## [0.14.0]
+
+### Added
+
+- reconcile: new skill. The prune-and-reconcile counterpart to
+  `keep-going`'s resume — where keep-going asks "is it stuck, pick it back up",
+  reconcile asks "is anything still running that should be retired, and
+  does the task ledger
+  match reality?" Inventories the off-thread work this session spawned, inspects
+  each item's real state, retires the genuinely finished by clearing them from
+  tracking, and closes this session's task-ledger items whose work is proven
+  complete. Also reports the read-only liveness of sibling sessions in the same
+  project — transcript mtime plus a coarse tail read, never a deep parse of the
+  officially-unstable JSONL. Auto-settles the provably-finished (closing a task
+  is evidence-gated — the mirror of keep-going's "never kill what you cannot
+  prove is dead"); GATES any kill of still-running work, the gate kept in-skill
+  because the three inventory skills' blast radii differ. Fixes this session
+  only: sibling sessions are visible but report-only, and a spawned subagent's
+  internal task list is not readable. MCP / browser / playwright tool-state
+  enumeration is deferred with a trigger (no generic tool-state surface exists;
+  closing user-owned state would be destructive-against-user). The plugin now
+  bundles eleven skills.
+- reference/off-thread-work.md: shared engine doc. The open-ended
+  off-thread-work inventory kinds and the inspect-real-state-first invariant —
+  the mechanics `keep-going`, `orient`, and `reconcile` all share (Rule of
+  Three) — are extracted to a plugin-level reference all three cite via
+  `${CLAUDE_PLUGIN_ROOT}`, each thinned to its own delta (same
+  point-not-copy shape as `reference/topic-docs.md` and re-anchor's
+  `context/re-anchor-audit-correct.md` engine doc). The three skills' autonomy
+  gates are deliberately NOT extracted — different blast radii, kept in-skill.
+
+### Changed
+
+- keep-going: inventory + inspect steps now cite the shared
+  `reference/off-thread-work.md` for the off-thread kinds and the
+  inspect-real-state invariant rather than restating them inline; the duplicated
+  "tools change over time" gotcha (now owned by the shared doc) is removed. The
+  richer Active-verification protocol stays in keep-going (reconcile
+  cites it). Description gains a reciprocal boundary line pointing at
+  `reconcile` for
+  retire/reconcile vs resume; all prior trigger phrases preserved.
+- orient: the off-thread-work glance in "What it reads" now points at the shared
+  `reference/off-thread-work.md` for the full open-ended kinds set while keeping
+  its at-a-glance examples; no behavior change.
+
+## [0.13.1]
+
+### Changed
+
+- Fresh-eyes review/verify delegation sites now prefer a cross-vendor
+  advisor when one is installed, with the fresh-context same-vendor
+  subagent as the stated fallback — presence-gated per the seam-phrasing
+  convention (#933). `workflow`'s Review stage (`context/steps.md`) names
+  the example command (the OpenAI Codex plugin, invoked per its own docs);
+  `orchestrate`'s fresh-context-verify imperative states the preference
+  tool-agnostically and names no command, because that imperative is
+  exported verbatim into the skill's model- and tool-agnostic
+  worker/handoff brief, where a named command would be exactly the
+  unresolvable route the rule forbids.
+
+## [0.13.0]
+
+### Added
+
+- continue-in-background: new skill (#233). Background delegation extracted from
+  `/handoff --bg` into its own honestly named, discoverable entry point: produce a
+  save-point, then launch a detached `claude --bg` session seeded with the rails
+  resume prompt. Owns the delivery: explicit-intent hard gate (model-invocable for
+  discoverability, but launches only on the user's explicit request — never
+  self-elected, with an eval covering the gate), dirty-tree gate,
+  launch + report, fallback-on-failure, and its own STOP rule. Also surfaces the
+  The rails prompt is passed to the launch via a temp file rather than an inline
+  heredoc — prompt content is untrusted session text, and a crafted line matching
+  a heredoc sentinel could otherwise break out of the quoting into the shell; the
+  resolved topic slug is sanitized to `[a-z0-9-]` before it reaches the `--name`
+  flag for the same reason. Also surfaces the
+  launched-session behavior the flag never documented: the agent is a NEW session
+  that inherits neither the current session's CLI flags nor its model/effort
+  choices — both resolve from the launch command's own flags and the launch
+  directory's settings (per the agent-view and env-vars official docs, cited in
+  the skill).
+- reference/save-point.md: shared save-point engine. Save-point production —
+  destination resolution, locate-position, full-vs-prompt-only choice, mandatory
+  redaction pass, handoff-file write, rails resume prompt — extracted from the
+  handoff skill into a plugin-level reference both delivery skills cite via
+  `${CLAUDE_PLUGIN_ROOT}` (same shape as `reference/topic-docs.md`). No content
+  duplicated in either skill; no runtime skill-to-skill invocation. The handoff
+  document-structure doc moves with it (`skills/handoff/context/structure.md` →
+  `reference/structure.md`) so the shared engine never reaches into one
+  consumer's internal layout.
+
+### Changed (breaking)
+
+- handoff: `--bg` removed outright — no alias, no deprecation window. `/handoff`
+  is now purely the manual `/clear`-then-paste save-point; background delegation
+  lives in `continue-in-background`. The background trigger phrase ("continue in
+  the background") moves from handoff's description to the new skill's — the
+  trigger partition leaves zero overlap. Handoff's two `--bg` evals
+  (no-launch-default, dirty-tree fallback) migrate to the new skill's eval set,
+  rephrased for the new entry point; handoff keeps default-path coverage.
 
 ### Fixed
 

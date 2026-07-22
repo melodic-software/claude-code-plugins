@@ -28,14 +28,14 @@ assert_exit() {
 }
 assert_contains() {
   case "$2" in
-    *"$3"*) pass "$1" ;;
-    *) fail "$1" "expected to contain: $3" ;;
+  *"$3"*) pass "$1" ;;
+  *) fail "$1" "expected to contain: $3" ;;
   esac
 }
 assert_not_contains() {
   case "$2" in
-    *"$3"*) fail "$1" "unexpected substring: $3" ;;
-    *) pass "$1" ;;
+  *"$3"*) fail "$1" "unexpected substring: $3" ;;
+  *) pass "$1" ;;
   esac
 }
 
@@ -48,8 +48,8 @@ make_repo() {
 
 slug_of() {
   local root
-  root=$(cd "$1" && (cygpath -w "$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')" 2>/dev/null \
-    || git rev-parse --show-toplevel 2>/dev/null | tr -d '\r'))
+  root=$(cd "$1" && (cygpath -w "$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')" 2>/dev/null ||
+    git rev-parse --show-toplevel 2>/dev/null | tr -d '\r'))
   printf '%s' "$root" | sed 's/[:\\/.]/-/g'
 }
 
@@ -120,6 +120,20 @@ rc=0
 OUT=$(run "$H6") || rc=$?
 assert_exit "fresh exits 0" 0 "$rc"
 assert_contains "fresh reports no MEMORY.md" "$OUT" "No MEMORY.md"
+
+# --- Case 7: outside a git repo, the cwd-derived store is still checked (docs:
+# "Outside a git repo, the project root is used instead") ---
+H7="$TEST_TMPDIR/h7"
+NONREPO="$TEST_TMPDIR/plain7"
+mkdir -p "$NONREPO"
+NSLUG=$(cd "$NONREPO" && printf '%s' "$(cygpath -w "$(pwd)" 2>/dev/null || pwd)" | sed 's/[:\\/.]/-/g')
+M7="$H7/.claude/projects/$NSLUG/memory"
+mkdir -p "$M7"
+printf '# Index\n- [gone.md](gone.md)\n' >"$M7/MEMORY.md"
+rc=0
+OUT=$(cd "$NONREPO" && env -u GIT_DIR HOME="$H7" bash "$SCRIPT") || rc=$?
+assert_exit "non-repo exits 0" 0 "$rc"
+assert_contains "non-repo cwd store is checked" "$OUT" "M2-missing"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

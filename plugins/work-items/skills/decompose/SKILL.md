@@ -89,7 +89,7 @@ Each step is its own ticket with blocking edges (contract blocked by every migra
 
 Present the proposed breakdown as a numbered list. For each slice:
 
-- **Title**: short descriptive name
+- **Title**: short descriptive name following [`${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md`](${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md)
 - **Type**: HITL / AFK
 - **Blocked by**: which other slices (by number) must complete first
 - **User stories covered**: which user stories this addresses (if PRD source)
