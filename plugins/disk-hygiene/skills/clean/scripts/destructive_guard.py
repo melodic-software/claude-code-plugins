@@ -294,15 +294,24 @@ def classify_exact_engine_command(command: str, authority: str | None) -> str | 
 
     if tokens[2] == "scan":
         if (
-            len(tokens) not in {7, 9, 11, 13, 15}
+            len(tokens) < 7
             or tokens[3] != "--target"
             or not _argument(tokens[4])
             or tokens[5] != "--output"
             or not _argument(tokens[6])
         ):
             return None
-        if not _consume_optional_pairs(
-            tokens[7:],
+        # --confirmed-large-scan is the sole valueless scan flag; strip at most
+        # one so the remainder is the pure flag/value-pair grammar every other
+        # optional follows.
+        optionals = list(tokens[7:])
+        confirmed = optionals.count("--confirmed-large-scan")
+        if confirmed > 1:
+            return None
+        if confirmed:
+            optionals.remove("--confirmed-large-scan")
+        if len(optionals) not in {0, 2, 4, 6, 8} or not _consume_optional_pairs(
+            optionals,
             frozenset({"--policy", "--project-dir", "--data-root", "--max-depth"}),
             authority,
         ):
@@ -347,6 +356,23 @@ def classify_exact_engine_command(command: str, authority: str | None) -> str | 
 
 def is_exact_engine_apply(command: str, authority: str | None) -> bool:
     return classify_exact_engine_command(command, authority) == "apply"
+
+
+def is_exact_kill_switch_probe(command: str) -> bool:
+    """Return True only for the exact, argument-free bundled probe invocation.
+
+    The probe (``skills/setup/scripts/kill_switch_probe.py``) is the
+    deterministic, report-only read of the ``disk_hygiene_enabled`` toggle; the
+    clean skill runs it when its body token arrives unexpanded. No arguments are
+    permitted, so the probed settings file is always the real default location.
+    """
+    tokens = _literal_shell_words(command)
+    if tokens is None or len(tokens) != 2 or not _is_current_python(tokens[0]):
+        return False
+    expected_script = str(
+        Path(__file__).resolve().parents[2] / "setup" / "scripts" / "kill_switch_probe.py"
+    )
+    return _script_path_key(tokens[1]) == _script_path_key(expected_script)
 
 
 _POWERSHELL_MUTATION_WORDS = re.compile(
@@ -452,6 +478,16 @@ def main() -> int:
         return 0
 
     authority = resolve_authorized_data_root()
+    if is_exact_kill_switch_probe(command):
+        print(
+            json.dumps(
+                decision(
+                    "allow",
+                    "Exact bundled disk-hygiene kill-switch probe (read-only report).",
+                )
+            )
+        )
+        return 0
     command_kind = classify_exact_engine_command(command, authority)
     if command_kind in {"scan", "preview"}:
         print(

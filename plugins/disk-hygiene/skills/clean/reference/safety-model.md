@@ -61,6 +61,8 @@ guard as `--plugin-root` and mapped to `<plugins>/data/<id>` per the documented
 layout. A host that can substitute `${CLAUDE_PLUGIN_DATA}` itself may instead pass it directly as
 `--authorized-data-root`, and the `CLAUDE_PLUGIN_DATA` environment variable is honored last; absent
 every channel the flag fails closed. `--max-depth` accepts only a bare positive-integer literal.
+`--confirmed-large-scan` is the one valueless scan flag; the guard permits at most one and rejects
+any trailing value, so the scan grammar stays exact.
 
 Deriving the data root from `${CLAUDE_PLUGIN_ROOT}` couples to the one undocumented part of that
 layout — the `cache/<marketplace>/<name>/<version>` shape of the installation root (the install root
@@ -97,6 +99,12 @@ containment, revalidation, and platform gates remain the deletion authority.
 A depth-limited scan records every directory it declined to enter in `truncated_paths`. Truncated
 directories have no captured descendant set, so the preview blocks them (and anything beneath them)
 as `truncated-not-inventoried`; they are coverage gaps, never candidates.
+
+A scan of a known-large root — the user home directory — is gated before it walks. Absent an explicit
+`--max-depth` bound or a `--confirmed-large-scan` acknowledgement, the engine performs a cheap
+top-level probe and returns `large-target-confirmation-required` instead of the unbounded traversal,
+so an unauthenticated whole-home walk cannot begin by omission. This is scan-cost gating (time and
+resources), distinct from the hard rejection of filesystem and OS-managed roots as invalid targets.
 
 Managed state is engine-ineligible. Even current native dry-run evidence is recorded only as a
 report-only handoff because this engine cannot independently authenticate the owning product's state
