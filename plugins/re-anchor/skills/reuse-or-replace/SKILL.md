@@ -3,6 +3,9 @@ name: reuse-or-replace
 description: "Re-anchor the anti-fragmentation discipline that when an established way of doing something already exists — a code idiom, structure, error-handling approach, naming shape, doc format, or process — new work REUSES that established way or openly REPLACES it (migrate the old uses, record the decision); it never silently stands up a second, parallel way alongside. Then audit the work in flight for an invented approach that diverges from an established way with no stated reason. Replacing the established way is first-class — when evidence backs an improvement, or its rationale is missing, incumbency-only, or stale — the sin is the SILENT second way, not divergence itself. Use when: 'reuse or replace', 'we already have a way of doing this', 'don't invent a second way', 'keep it one way', 'follow the existing pattern or replace it', 'be consistent', 'you added a parallel way', 'this diverges from how we do it elsewhere', or at conversation start on work that extends an established codebase, structure, or process."
 user-invocable: true
 disable-model-invocation: false
+metadata:
+  re-anchor-batch: situational  # only when extending an established codebase/process
+  re-anchor-batch-rank: 70
 ---
 
 # Reuse or replace

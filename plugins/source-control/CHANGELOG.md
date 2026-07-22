@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.17.2]
+## [0.18.1]
 
 ### Changed
 
@@ -15,6 +15,56 @@ All notable changes to the `source-control` plugin are documented here. Format f
   parallel-session external-root convention going forward. Both close the SSOT gap left by the
   retired external `ghq-layout-sibling-pr-worktrees` prose doc (physical deletion of that doc is a
   separate follow-up in the dotfiles repo).
+
+## [0.18.0]
+
+### Added
+
+- **Configurable PR-body required-sections scaffold (`pr_body_required_sections`, #975).** A new key
+  on `.claude/source-control.md`, resolved across the same three layers as every other key on that
+  surface (per-key, whole-list override) — see
+  [`reference/config-resolution.md`](reference/config-resolution.md). `/pull-request create` builds
+  one `## <heading>` block per resolved section and a new §2.4.2.2 pre-create gate blocks
+  `gh pr create` when any required section is missing or empty, naming the exact section and the
+  resolved config source (winning layer's file + the key) in its failure message. The gate scans the
+  body BEFORE the config-gated attribution footer is appended, so an empty last required section can
+  never be masked by footer text that carries no `##` heading of its own; the heading scan is also
+  fence- and HTML-comment-aware, so a `## <heading>`-shaped line inside a fenced code sample (e.g. a
+  Summary documenting a PR-body template) or an HTML comment (a commented-out draft section) never
+  counts as a real section boundary. Fence detection matches GFM's actual rules (up to 3 leading
+  spaces before the opener, and a fence closes only on a matching delimiter character — a `~~~` line
+  never closes an open ` ``` ` fence or vice versa), not a bare column-zero triple-delimiter check.
+  Comment text is never counted as section content at all (unlike a fence, which renders visibly and
+  legitimately counts) — a required section whose entire body is an unfilled `<!-- ... -->`
+  placeholder reads as empty, matching both GitHub's own render and a comment-stripping PR-body
+  validator (all five review-caught during #975). Absent everywhere → the bundled portable default:
+  `Summary` and `Test plan` only (research-grounded across GitHub's
+  own guidance, Google's CL-description doc, GitLab's dogfooded default template, and a cross-section
+  of OSS PR templates — see
+  [`docs/conventions/pr-body-convention/README.md`](../../docs/conventions/pr-body-convention/README.md)).
+  A marketplace-level owner doc lands now, ahead of a future CI/enforcement consumer, following the
+  commit-convention seam's two-reads prior art.
+
+### Changed
+
+- **The assembled PR body no longer includes `## Related` by default.** Previously hardcoded and
+  always emitted (defaulting to the literal `N/A`); a `Related` section presumes an issue-tracking
+  convention the plugin cannot assume for every consumer, so it moves to configuration
+  (`pr_body_required_sections` including `Related`) — the two-lane convention posture the fleet
+  already applies elsewhere. A repo that wants the prior behavior declares `Related` in its own
+  `pr_body_required_sections`. The closing-keyword line and its own pre-create gate (§2.4.2.1,
+  formerly the whole of §2.4.2) are unaffected — this is a scaffold-content change only, never a
+  linkage-signal change. When the multi-issue or orphan-PR flow collects genuine `Refs #Y`
+  references, a `## Related` section is still emitted ad hoc to carry them, even when the repo has
+  not configured it as required.
+- **This repository (`claude-code-plugins`) now dogfoods `pr_body_required_sections`.** Its own
+  `.github/workflows/pr-issue-linkage.yml` requires a non-empty `## Related`, which the new portable
+  default no longer guarantees — self-regression atomicity: a change that would break this repo's
+  own CI ships with its own remedy in the same PR, not a follow-up. `.claude/source-control.md`
+  (team layer, root) now sets `pr_body_required_sections` to `Summary, Test plan, Related`, matching
+  this repo's actual gate. This is the **first fleet-adoption instance** of the key — every other
+  consuming repo adopts it the ordinary way, via `/source-control:setup apply`, not by hand-editing a
+  file.
 
 ## [0.17.1]
 
