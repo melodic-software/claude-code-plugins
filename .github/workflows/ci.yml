@@ -160,10 +160,14 @@ jobs:
           # regex bodies self-match this lane's own detector. The autonomy
           # security-binding fixtures carry ADVERSARIAL host paths on purpose
           # (invented /home users the checker must reject) — sanitizing them
-          # would gut the regressions they pin.
+          # would gut the regressions they pin. Its graded-fixture manifest is
+          # the same corpus: it pins each fixture's trusted --credential-roots
+          # (a real runner home) and expected not-under-root rejections, so it
+          # necessarily carries those same host paths.
           exclude: >-
             :(exclude)plugins/guardrails/lib/path-detection/**
             :(exclude)plugins/autonomy/skills/setup/evals/fixtures/security-binding/**
+            :(exclude)plugins/autonomy/skills/setup/scripts/check-security-binding.fixtures.test.manifest.json
 
       - name: Check index-level EOL drift
         id: eol
@@ -224,11 +228,12 @@ jobs:
   zizmor:
     permissions:
       contents: read
-    # Advisory Actions security lint; findings annotate without blocking.
-    uses: melodic-software/ci-workflows/.github/workflows/zizmor.yml@90f1c54935203fa31b5b3d1f41531228be2c2b7f # 90f1c54 2026-07-18
+    # Actions security lint; any regular-persona finding blocks the merge gate.
+    uses: melodic-software/ci-workflows/.github/workflows/zizmor.yml@31a5b76c4a0b663023dc1c944e2bcfc01d6f6c46 # 31a5b76 2026-07-21
     with:
       runner: ubuntu-24.04
       paths: .
+      fail-on-severity: low
 
   hook-utils-sync:
     runs-on: ubuntu-24.04
@@ -269,6 +274,26 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: scripts/sync-parse-concern-value.sh --check-bump "origin/$BASE_REF"
+
+  resolve-convention-pattern-sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          # Full history so the PR base ref is resolvable for the bump gate.
+          fetch-depth: 0
+      - name: Verify plugin copies match the shared resolver
+        run: scripts/sync-resolve-convention-pattern.sh --check
+      - name: Run shared resolver tests
+        run: bash lib/resolve-convention-pattern.test.sh
+      - name: Verify consuming plugins bumped when the lib changed
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/sync-resolve-convention-pattern.sh --check-bump "origin/$BASE_REF"
 
   standards-contract-sync:
     runs-on: ubuntu-24.04
@@ -661,6 +686,7 @@ jobs:
       - hygiene
       - hook-utils-sync
       - parse-concern-value-sync
+      - resolve-convention-pattern-sync
       - standards-contract-sync
       - cross-plugin-source-drift
       - skill-leaf-name-gate

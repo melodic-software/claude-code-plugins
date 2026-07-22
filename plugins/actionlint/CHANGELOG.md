@@ -3,6 +3,15 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0]
+
+### Added
+
+- **`statusMessage` declared on the hook's `hooks.json` handler** (hook-observability
+  convention, `docs/conventions/hook-observability/`): a spinner label ("Checking
+  workflow with actionlint...") now shows while the hook runs. Config-only — no
+  runtime behavior change.
+
 ## [0.4.2]
 
 ### Changed

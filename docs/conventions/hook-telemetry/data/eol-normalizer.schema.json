@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/data/eol-normalizer.schema.json",
+  "title": "eol-normalizer telemetry data",
+  "description": "Per-hook `data` payload for the eol-normalizer hook. Discovered from the envelope `hook` value \"eol-normalizer\". Evolves additive-only.",
+  "type": "object",
+  "required": ["tool", "file", "action"],
+  "additionalProperties": true,
+  "properties": {
+    "tool": {
+      "type": "string",
+      "description": "Claude Code tool that triggered the hook (Write or Edit)."
+    },
+    "file": {
+      "type": "string",
+      "description": "Path of the checked file, relative to the consuming repo root."
+    },
+    "action": {
+      "type": "string",
+      "description": "Outcome for the file's line endings: \"skip\" (already canonical or not applicable) | \"lf\" (normalized to LF) | \"crlf\" (normalized to CRLF). Documented value set, not a closed enum."
+    }
+  }
+}

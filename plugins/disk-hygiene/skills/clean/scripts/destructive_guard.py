@@ -112,22 +112,31 @@ _AUTHORIZED_DATA_ROOT_FLAG = "--authorized-data-root"
 _CLAUDE_PLUGIN_DATA_ENV = "CLAUDE_PLUGIN_DATA"
 _AUTHORIZED_DATA_ROOT_PLACEHOLDER = f"${{{_CLAUDE_PLUGIN_DATA_ENV}}}"
 
+_DISK_HYGIENE_ENABLED_FLAG = "--disk-hygiene-enabled"
+_DISK_HYGIENE_ENABLED_ENV = "CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED"
+_DISK_HYGIENE_ENABLED_PLACEHOLDER = "${user_config.disk_hygiene_enabled}"
 
-def _argv_authorized_data_root(argv: list[str]) -> str | None:
-    """Read the authorized data root the runtime substituted into the hook argv.
 
-    The skill-frontmatter hook passes ``--authorized-data-root ${CLAUDE_PLUGIN_DATA}``;
-    inline placeholder substitution resolves in hook arguments even where
+def _argv_flag_value(argv: list[str], flag: str) -> str | None:
+    """Read the runtime-substituted value the frontmatter hook passed for ``flag``.
+
+    Inline placeholder substitution resolves in hook ``args`` even where
     environment injection does not, so the guard's own argv is the authoritative,
-    model-unforgeable channel for the data root.
+    model-unforgeable channel for a value the harness controls. Accepts both the
+    space-separated (``--flag value``) and ``--flag=value`` spellings.
     """
     for index, token in enumerate(argv):
-        if token == _AUTHORIZED_DATA_ROOT_FLAG and index + 1 < len(argv):
+        if token == flag and index + 1 < len(argv):
             return argv[index + 1]
-        prefix = f"{_AUTHORIZED_DATA_ROOT_FLAG}="
+        prefix = f"{flag}="
         if token.startswith(prefix):
             return token[len(prefix) :]
     return None
+
+
+def _argv_authorized_data_root(argv: list[str]) -> str | None:
+    """Read the authorized data root the runtime substituted into the hook argv."""
+    return _argv_flag_value(argv, _AUTHORIZED_DATA_ROOT_FLAG)
 
 
 def resolve_authorized_data_root() -> str | None:
@@ -140,6 +149,25 @@ def resolve_authorized_data_root() -> str | None:
     if from_argv and from_argv != _AUTHORIZED_DATA_ROOT_PLACEHOLDER:
         return from_argv
     return os.environ.get(_CLAUDE_PLUGIN_DATA_ENV)
+
+
+def resolve_disk_hygiene_enabled() -> bool:
+    """Resolve the execution kill switch from the hook argv, then the environment.
+
+    The kill switch is a safety control: ``false`` is audit-only mode and must
+    prevent every deletion lane. The runtime does not inject
+    ``CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED`` into a skill-frontmatter hook's
+    process environment, so the configured value reaches the guard through the
+    hook argv (``--disk-hygiene-enabled ${user_config.disk_hygiene_enabled}``);
+    the environment variable is honored only as a fallback. A literal,
+    unsubstituted placeholder or an empty value is treated as absent. When no
+    channel supplies a value the guard fails safe to enabled — the guard stays
+    active and still gates every mutation behind the final human prompt.
+    """
+    from_argv = _argv_flag_value(sys.argv[1:], _DISK_HYGIENE_ENABLED_FLAG)
+    if from_argv and from_argv != _DISK_HYGIENE_ENABLED_PLACEHOLDER:
+        return from_argv.strip().lower() != "false"
+    return os.environ.get(_DISK_HYGIENE_ENABLED_ENV, "true").strip().lower() != "false"
 
 
 def _is_authorized_data_root(value: str, authority: str | None) -> bool:
@@ -198,15 +226,24 @@ def classify_exact_engine_command(command: str, authority: str | None) -> str | 
 
     if tokens[2] == "scan":
         if (
-            len(tokens) not in {7, 9, 11, 13, 15}
+            len(tokens) < 7
             or tokens[3] != "--target"
             or not _argument(tokens[4])
             or tokens[5] != "--output"
             or not _argument(tokens[6])
         ):
             return None
-        if not _consume_optional_pairs(
-            tokens[7:],
+        # --confirmed-large-scan is the sole valueless scan flag; strip at most
+        # one so the remainder is the pure flag/value-pair grammar every other
+        # optional follows.
+        optionals = list(tokens[7:])
+        confirmed = optionals.count("--confirmed-large-scan")
+        if confirmed > 1:
+            return None
+        if confirmed:
+            optionals.remove("--confirmed-large-scan")
+        if len(optionals) not in {0, 2, 4, 6, 8} or not _consume_optional_pairs(
+            optionals,
             frozenset({"--policy", "--project-dir", "--data-root", "--max-depth"}),
             authority,
         ):
@@ -262,15 +299,18 @@ _POWERSHELL_MUTATION_WORDS = re.compile(
 _POWERSHELL_DOTNET_DELETE = re.compile(r"(?i)::\s*delete")
 
 
-def powershell_decision(command: str) -> tuple[str, str] | None:
+def powershell_decision(command: str, enabled: bool) -> tuple[str, str] | None:
     """Return a (decision, reason) pair for a PowerShell command, or None to defer.
 
     PowerShell stays available for read-only support work (git, gh, metadata
     inspection), so this lane gates known filesystem-mutation spellings and any
     engine invocation rather than denying unknown commands. Engine calls stay on
-    the Bash lane's fail-closed deny-unknown guard; mutation spellings surface
-    the same final human permission prompt as the engine apply lane, so the
-    unsupported-platform manual handoff remains possible but never silent.
+    the Bash lane's fail-closed deny-unknown guard. A flagged mutation spelling
+    resolves against the ``disk_hygiene_enabled`` kill switch: when execution is
+    enabled it surfaces the final human permission prompt (``ask``), preserving
+    the unsupported-platform manual handoff; in audit-only mode (``enabled`` is
+    false) it is denied outright, so the kill switch blocks every deletion lane
+    and not only the Bash engine lane.
     """
     if "hygiene.py" in command.casefold():
         return (
@@ -280,20 +320,30 @@ def powershell_decision(command: str) -> tuple[str, str] | None:
         )
     match = _POWERSHELL_MUTATION_WORDS.search(command)
     if match:
-        return (
-            "ask",
-            f'disk-hygiene flagged the deletion spelling "{match.group(0)}". '
-            "Confirm only if this is the explicitly approved manual handoff and "
-            "the command touches exactly the paths you approved.",
+        return _powershell_mutation_verdict(
+            enabled,
+            f'disk-hygiene flagged the deletion spelling "{match.group(0)}".',
         )
     if _POWERSHELL_DOTNET_DELETE.search(command):
-        return (
-            "ask",
-            "disk-hygiene flagged a .NET Delete call. Confirm only if this is "
-            "the explicitly approved manual handoff and the command touches "
-            "exactly the paths you approved.",
+        return _powershell_mutation_verdict(
+            enabled, "disk-hygiene flagged a .NET Delete call."
         )
     return None
+
+
+def _powershell_mutation_verdict(enabled: bool, flagged: str) -> tuple[str, str]:
+    """Deny a flagged PowerShell deletion in audit-only mode; otherwise prompt."""
+    if not enabled:
+        return (
+            "deny",
+            f"{flagged} Disk-hygiene execution is disabled (audit-only mode), so "
+            "deletions are blocked on every lane.",
+        )
+    return (
+        "ask",
+        f"{flagged} Confirm only if this is the explicitly approved manual "
+        "handoff and the command touches exactly the paths you approved.",
+    )
 
 
 def _bash_denial_guidance(authority: str | None) -> str:
@@ -333,15 +383,16 @@ def main() -> int:
         )
         return 0
 
+    enabled = resolve_disk_hygiene_enabled()
+
     if tool_name == "PowerShell":
-        verdict = powershell_decision(command)
+        verdict = powershell_decision(command, enabled)
         if verdict:
             print(json.dumps(decision(*verdict)))
         return 0
 
     authority = resolve_authorized_data_root()
     command_kind = classify_exact_engine_command(command, authority)
-    enabled = os.environ.get("CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED", "true").lower() != "false"
     if command_kind in {"scan", "preview"}:
         print(
             json.dumps(

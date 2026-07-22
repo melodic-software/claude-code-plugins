@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/data/biome-format.schema.json",
+  "title": "biome-format telemetry data",
+  "description": "Per-hook `data` payload for the biome-format hook. Discovered from the envelope `hook` value \"biome-format\". Evolves additive-only.",
+  "type": "object",
+  "required": ["tool", "file", "findings"],
+  "additionalProperties": true,
+  "properties": {
+    "tool": {
+      "type": "string",
+      "description": "Claude Code tool that triggered the hook (Write or Edit)."
+    },
+    "file": {
+      "type": "string",
+      "description": "Path of the formatted file, relative to the consuming repo root."
+    },
+    "findings": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Biome diagnostics remaining after formatting, one per line. Empty array = clean."
+    }
+  }
+}

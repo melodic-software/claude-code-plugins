@@ -6,8 +6,12 @@
 #   1. --no-verify / -n on git commit (skips pre-commit + commit-msg hooks)
 #      and --no-verify on git push (skips pre-push hook)
 #   2. core.hooksPath assignment on git commit/push (disables all git hooks)
-#   3. hook-manager env-var prefix (LEFTHOOK=0 / LEFTHOOK_*=0|false) on git
-#      commit/push (disables the hook manager for one invocation)
+#   3. hook-manager env-var prefix (e.g. LEFTHOOK=0 / LEFTHOOK_*=0|false,
+#      HUSKY=0) on git commit/push (disables the hook manager for one
+#      invocation). The manager set is configurable via the
+#      block_no_verify_hook_manager_prefixes userConfig; the default covers the
+#      common managers so a consumer using a different one is not silently
+#      unguarded.
 #
 # Detection is ARGV-GRAMMAR-FAITHFUL: the command is parsed the way the shell
 # builds argv — top-level segments split on unquoted control operators, each
@@ -40,23 +44,26 @@ hook::check_enabled "BLOCK_NO_VERIFY"
 # still fires). Referencing it bare under `set -u` would abort before exit.
 start=${EPOCHREALTIME:-}
 
-# jq is required to parse the tool payload. Fail OPEN when it is absent, but make
-# the degraded state visible rather than silently disabling the guard.
-if ! command -v jq >/dev/null 2>&1; then
-  echo "guardrails/block-no-verify: jq not found on PATH — guard disabled (install jq to enable)." >&2
-  exit 0
-fi
-
 # hook::buffer_stdin encapsulates the Win32-pipe-safe bounded fd0 read. rc 1
 # (empty stdin) skips like the empty-COMMAND guard below; rc 2 (read timed out
 # before a complete payload) FAILS CLOSED — the guard cannot evaluate the tool
 # call, and a silent skip would pass exactly the traffic this guard exists to
-# stop. buffer_stdin already printed the BLOCKED reason to stderr.
+# stop. buffer_stdin already printed the BLOCKED reason to stderr. Buffering
+# does not require jq (hook::buffer_stdin's own JSON-completeness check is
+# jq-optional), so it runs before the jq gate below — hook::require_jq needs
+# the buffered input for its once-per-session notice scoping.
 INPUT=$(hook::buffer_stdin) || {
   rc=$?
   ((rc == 2)) && exit 2
   exit 0
 }
+
+# jq is required to parse the tool payload. hook::require_jq fails OPEN
+# (advisory hooks never block over a missing prerequisite) but makes the
+# degraded state visible to both the user (systemMessage) and the agent
+# (additionalContext), once per session — see docs/conventions/hook-observability/.
+hook::require_jq "PreToolUse" "guardrails-block-no-verify" "$INPUT"
+
 COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null | tr -d '\r')
 [[ -n "$COMMAND" ]] || exit 0
 
@@ -66,6 +73,22 @@ COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/nul
 MAX_COMMAND_LEN=16384
 
 SUBJECT=$(hook::extract_bash_subject "Bash" "$COMMAND")
+
+# Hook-manager env-var disable prefixes, built once into a regex alternation.
+# The default set covers the common managers; a consumer extends it via the
+# block_no_verify_hook_manager_prefixes userConfig (comma-separated, read from
+# the hook-process mirror). Each prefix matches `PREFIX…=0|false`
+# (LEFTHOOK=0, HUSKY=0, LEFTHOOK_VERIFY=false, …). Entries are reduced to
+# identifier chars so a value can never smuggle regex metacharacters into the
+# alternation spliced below.
+HM_ALT=""
+IFS=',' read -ra _hm_list <<<"${CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_HOOK_MANAGER_PREFIXES:-lefthook,husky,pre_commit,simple_git_hooks}"
+for _hm in "${_hm_list[@]}"; do
+  _hm="${_hm//[^a-zA-Z0-9_]/}"
+  _hm="${_hm,,}"
+  [[ -n "$_hm" ]] && HM_ALT="${HM_ALT:+$HM_ALT|}$_hm"
+done
+[[ -n "$HM_ALT" ]] || HM_ALT="lefthook" # never leave the guard patternless
 
 # Emit one telemetry envelope: $1 status, $2 form ("" when not blocked). Gated
 # on the high-res start stamp and the opt-in sink, so the unwired default path
@@ -131,7 +154,7 @@ check_segment() {
   # assignments before the git executable (not commit messages or pathspecs).
   for ((k = 0; k < gi; k++)); do
     lc="${w[k],,}"
-    [[ "$lc" =~ ^lefthook[_a-z0-9]*=(0|false)$ ]] && block "hook-manager-env" \
+    [[ "$lc" =~ ^(${HM_ALT})[_a-z0-9]*=(0|false)$ ]] && block "hook-manager-env" \
       "BLOCKED: hook-manager env-var bypass is not allowed with git commit/push." \
       "Fix the hook lane failure instead of bypassing."
   done

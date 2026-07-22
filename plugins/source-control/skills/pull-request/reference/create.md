@@ -131,10 +131,23 @@ Stage specific files (never `git add -A`). Then invoke `/commit` (this plugin's 
 
 ### 2.4.0 Resolve linked issue(s)
 
-Before building PR body, parse branch for primary issue number and prompt for any additional closures. Keyword line is injected at top of body in §2.4.1.
+Before building PR body, parse branch for the primary (numeric GitHub) issue number and prompt for any additional closures. Keyword line is injected at top of body in §2.4.1.
+
+By default the parser uses the built-in `<type>/<N>-<slug>` (and `routine-issue-<N>`) convention:
 
 ```bash
 ISSUE_NUM=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/parse-branch-issue.sh" 2>/dev/null || true)
+```
+
+If SKILL.md's "Branch-to-issue grammar" surface shows a configured `branch_issue_pattern` (a real ERE, not the literal `${user_config…}` token — this reference file is Read raw, so the value is resolved there, never here), pass it as a **single-quoted** second positional; the empty first argument keeps the branch-name default (`git branch --show-current`). Single-quoting shields ERE metacharacters like the `$` end-anchor from the shell:
+
+```bash
+ISSUE_NUM=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/parse-branch-issue.sh" "" '<branch-issue-pattern>' 2>/dev/null || true)
+```
+
+Fill `<branch-issue-pattern>` with the resolved ERE. Its last capture group must resolve to the numeric GitHub issue number (a non-numeric capture — e.g. a bare Jira key — is looked up below, found absent, and dropped to the no-closure path); configure a scheme that captures the number wherever it sits, e.g. `^[^/]+/([0-9]+)-` for `alice/1234-slug` or `-([0-9]+)$` for `feat/add-widget-1234`.
+
+```bash
 CLOSES_LINE=""
 if [[ -n "$ISSUE_NUM" ]]; then
   # Validate issue exists in current repo BEFORE shipping `Closes #N`.

@@ -33,13 +33,6 @@ source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
 
 hook::check_enabled "CLI_FLAG_VERIFY"
 
-# jq is required to parse the tool payload. Fail OPEN when it is absent, but make
-# the degraded state visible rather than silently disabling the hook.
-if ! command -v jq >/dev/null 2>&1; then
-  echo "guardrails/cli-flag-verify: jq not found on PATH — hook disabled (install jq to enable)." >&2
-  exit 0
-fi
-
 hook::ctx_reset
 
 # Bundled verifier — resolved under the plugin root (CC sets CLAUDE_PLUGIN_ROOT;
@@ -48,9 +41,19 @@ PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && p
 VERIFIER="$PLUGIN_ROOT/lib/verification/verify-cli-flag.sh"
 
 # hook::buffer_stdin encapsulates the Win32-pipe-safe bounded fd0 read; empty
-# or timed-out stdin skips this advisory hook. Pipe the buffered payload into
-# hook::read_file_path so its jq no longer reads the inherited fd0 directly.
+# or timed-out stdin skips this advisory hook. Buffering does not require jq
+# (hook::buffer_stdin's own JSON-completeness check is jq-optional), so it
+# runs before the jq gate below — hook::require_jq needs the buffered input
+# for its once-per-session notice scoping, and hook::read_file_path (next)
+# itself parses with jq.
 INPUT=$(hook::buffer_stdin) || exit 0
+
+# jq is required to parse the tool payload. hook::require_jq fails OPEN
+# (this hook never blocks) but makes the degraded state visible to both the
+# user (systemMessage) and the agent (additionalContext), once per session —
+# see docs/conventions/hook-observability/.
+hook::require_jq "PostToolUse" "guardrails-cli-flag-verify" "$INPUT"
+
 FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
 IS_MD=false
 case "$FILE" in
@@ -75,7 +78,16 @@ Write) SCAN_CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.content // empty
 esac
 [[ -n "$SCAN_CONTENT" ]] || exit 0
 
-[[ -x "$VERIFIER" ]] || exit 0 # Verifier not present — fail open, don't block
+# Bundled verifier missing (install corruption, not a consumer-facing
+# prerequisite) — fail open, don't block, but make it visible once per
+# session rather than a fully silent skip (docs/conventions/hook-observability/).
+if [[ ! -x "$VERIFIER" ]]; then
+  if hook::notice_once "guardrails-cli-flag-verifier" "$INPUT"; then
+    hook::emit_skip_notice "PostToolUse" \
+      "guardrails/cli-flag-verify: bundled verifier missing at $VERIFIER — CLI-flag verification disabled for this session (reinstall the guardrails plugin to restore it)."
+  fi
+  exit 0
+fi
 
 # Repo root for telemetry data.file + relative sink resolution (file-anchored).
 REPO_ROOT="$(hook::repo_root "$(dirname "$FILE")")"

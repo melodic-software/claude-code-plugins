@@ -7,7 +7,8 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/powershell-format.sh",
-            "timeout": 30
+            "timeout": 30,
+            "statusMessage": "Formatting PowerShell..."
           }
         ]
       }

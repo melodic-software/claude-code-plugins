@@ -19,15 +19,17 @@ Two checks, run inside the boundary, both expected to FAIL:
 
 `<well-known-external-host>` is a durable public endpoint chosen at wire time (a marked example:
 a public DNS resolver's address, or a well-known example domain). `<host-credential-path>` is a
-host secret location the boundary must not expose, and must name a well-known credential
-location IN FULL — the exact host location of a concrete secret file, never a recognized
-filename at arbitrary depth under a credential anchor, and never a directory marker — anchored
-at a home env var token (e.g. `$HOME/...`) or the fixed `/root` home, or one of the fixed
-system secret paths (host SSH keys under `/etc/ssh`, the injected `/run/secrets` credentials
-file), with org-specific mounts routed through configuration (marked examples: a cloud metadata
-endpoint, a well-known credential file at its exact host location such as `$HOME/.netrc`, an
-injected token env var). Neither is hardcoded in the binding — each resolves from the detected
-surface.
+host secret location the boundary must not expose. A filesystem credential path is validated
+DENY-BY-DEFAULT against the checker's `--credential-roots`: its recorded `host_expanded` value
+must resolve under one of the operator-configured trusted credential roots, so probe an actual
+host credential location under a root the org configures (marked examples: a home-anchored secret
+file such as `$HOME/.netrc` or `$HOME/.ssh/id_rsa`, a fixed system secret path such as host SSH
+keys under `/etc/ssh` or the injected `/run/secrets` credentials file). With no roots configured
+the checker cannot know the org's real credential locations, so every filesystem credential entry
+is untrusted and the level fails closed. A cloud metadata endpoint credential route and a
+well-known credential env token (e.g. `$GITHUB_TOKEN`) are bounded closed sets that need no root.
+Neither target is hardcoded in the binding — each resolves from the detected surface, and the
+trusted-root values bind per the deployment's secret-binding classification.
 
 ## Egress-denial probe shape
 

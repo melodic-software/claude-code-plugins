@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "dometrain": {
+      "type": "http",
+      "url": "https://mcp.dometrain.com/mcp",
+      "headers": { "Authorization": "Bearer ${user_config.dometrain_api_key}" }
+    }
+  }
+}

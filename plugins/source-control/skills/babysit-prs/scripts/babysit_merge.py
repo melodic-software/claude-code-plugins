@@ -587,6 +587,7 @@ def evaluate(
     allow_dependency: bool,
     allow_unprotected: bool,
     tier: AutopilotMergeTierConfig | None = None,
+    extra_dependency_manager_logins: frozenset[str] = frozenset(),
 ) -> dict[str, Any]:
     owner = split_owner(repo)
     pr_data = gh_json(
@@ -712,7 +713,12 @@ def evaluate(
         )
     # A dependency-manager PR is held in every tier unless explicitly allowed:
     # its update should be reviewed, not auto-merged on a green gate alone.
-    if is_dependency_author(str(author_login or "")) and not allow_dependency:
+    if (
+        is_dependency_author(
+            str(author_login or ""), extra_dependency_manager_logins
+        )
+        and not allow_dependency
+    ):
         blockers.append(
             f"author {author_login!r} is a dependency manager "
             "-- held (pass --allow-dependency to override)"
@@ -835,6 +841,15 @@ def main() -> int:
         "--allow-dependency",
         action="store_true",
         help="permit merging a dependency-manager-authored PR (held by default)",
+    )
+    parser.add_argument(
+        "--extra-dependency-manager-logins",
+        default=None,
+        help=(
+            "comma-separated extra dependency-manager bot logins beyond the "
+            "built-in dependabot/renovate set; their PRs are held absent "
+            "--allow-dependency, same as the built-ins"
+        ),
     )
     parser.add_argument(
         "--allow-unprotected",
@@ -1001,6 +1016,10 @@ def main() -> int:
             if token.strip().casefold() != "@me"
         )
 
+    extra_dependency_manager_logins = frozenset(
+        parse_csv_set(args.extra_dependency_manager_logins)
+    )
+
     try:
         result = evaluate(
             repo,
@@ -1011,6 +1030,7 @@ def main() -> int:
             args.allow_dependency,
             args.allow_unprotected,
             tier,
+            extra_dependency_manager_logins=extra_dependency_manager_logins,
         )
     except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
         # Surface any gh/parse failure as JSON rather than a traceback.

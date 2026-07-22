@@ -241,10 +241,36 @@ def normalized_bot_login(item: dict[str, Any]) -> str:
     return author_login(item).casefold().removesuffix("[bot]")
 
 
-def is_dependency_author(login: str) -> bool:
-    """Pure dependency-manager author test feeding the cross-tier hold-merge rule."""
+def normalize_dependency_login_set(logins: Any) -> frozenset[str]:
+    """Normalize dependency-manager logins the way `is_dependency_author` matches:
+    casefold, strip a leading `app/` and a trailing `[bot]`.
+
+    Distinct from `normalize_login_set`, which does not strip the `app/` prefix a
+    GitHub App author carries -- the dependency test compares against that
+    stripped form, so a configured `app/foo` and a raw `foo` must collapse.
+    """
+    return frozenset(
+        str(login).casefold().removeprefix("app/").removesuffix("[bot]")
+        for login in (logins or [])
+        if str(login).strip()
+    )
+
+
+def is_dependency_author(login: str, extra: Any = frozenset()) -> bool:
+    """Dependency-manager author test feeding the cross-tier hold-merge rule.
+
+    Matches the built-in `DEPENDENCY_MANAGER_LOGINS` product bots plus any
+    caller-supplied `extra` logins -- a non-dependabot/renovate dependency bot an
+    operator runs, which should keep the same hold-merge protection. `extra` ships
+    empty, so an unconfigured caller matches the built-in set alone. Both sides are
+    normalized identically (casefold, strip `app/` prefix and `[bot]` suffix).
+    """
     normalized = str(login or "").casefold().removeprefix("app/").removesuffix("[bot]")
-    return normalized in DEPENDENCY_MANAGER_LOGINS
+    if normalized in DEPENDENCY_MANAGER_LOGINS:
+        return True
+    if not extra:
+        return False
+    return normalized in normalize_dependency_login_set(extra)
 
 
 def body_text(item: dict[str, Any]) -> str:

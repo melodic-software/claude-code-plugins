@@ -66,14 +66,14 @@
     },
     {
       "id": 6,
-      "name": "babysit-preserves-merge-workflow",
-      "prompt": "/source-control:babysit-prs — PR #482's checked-out branch is behind main and `git log --merges origin/main..HEAD` returns a merge commit.",
-      "expected_output": "The skill integrates `origin/main` with `git merge`, preserving the branch's merge workflow, and uses a plain `git push`. It does not rebase or force-push the merge-commit branch.",
+      "name": "babysit-freshness-is-merge-only",
+      "prompt": "/source-control:babysit-prs — PR #482's checked-out branch is behind the default branch and needs freshening before CI.",
+      "expected_output": "The skill integrates the default branch with `git merge` (never a rebase) and pushes the merge commit by refspec to the branch's configured upstream (`git push \"$PUSH_REMOTE\" HEAD:<headRefName>`, where PUSH_REMOTE is `origin` for a same-repo head or the fork's remote for a write-allowed cross-repo head). It never rebases or force-pushes a PR branch as freshness maintenance.",
       "files": [],
       "expectations": [
-        "It checks for merge commits before choosing an integration mode",
-        "It uses git merge origin/main for a merge-commit branch",
-        "It uses a plain push, not a force-with-lease push, after the merge"
+        "It integrates the default branch with git merge, never a rebase",
+        "It pushes by refspec to the branch's configured upstream, not a hardcoded origin and not a plain push that assumes a tracking branch",
+        "It never force-pushes or force-with-lease-pushes a PR branch as freshness maintenance"
       ]
     },
     {

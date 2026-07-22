@@ -129,6 +129,95 @@ else
   fail "dropped trigger phrase should fail with a trigger-drop message (rc=$rc): $out"
 fi
 
+# 5b. A dropped trigger phrase that reappears verbatim in a SIBLING skill's
+#     description is a trigger MOVE: warns, names the host, and passes — the
+#     listing still routes the phrase (check 3's move exception).
+make_skill mover-src '---
+name: mover-src
+description: "Move fixture. Use when: '"'"'gamma trigger'"'"', '"'"'delta trigger'"'"'."
+---
+
+## Purpose
+
+Committed baseline carrying the phrase that will move.
+'
+git -C "$TMP" add -A
+git -C "$TMP" commit -qm 'add mover-src'
+# Working tree: mover-src drops delta; sibling mover-dst now carries it.
+make_skill mover-src '---
+name: mover-src
+description: "Move fixture. Use when: '"'"'gamma trigger'"'"'."
+---
+
+## Purpose
+
+Working tree drops delta trigger, moved to the sibling below.
+'
+make_skill mover-dst '---
+name: mover-dst
+description: "Move target fixture. Use when: '"'"'delta trigger'"'"'."
+---
+
+## Purpose
+
+Sibling now owning the moved phrase.
+
+## Gotchas
+
+None known.
+'
+out="$(run mover-src 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "moved to sibling skill 'mover-dst'" <<<"$out" && ! grep -q 'dropped trigger keyword' <<<"$out"; then
+  pass "trigger phrase moved to a sibling skill warns and passes (move exception)"
+else
+  fail "moved trigger phrase should warn, name the host, and pass (rc=$rc): $out"
+fi
+
+# 5c. Coincidental overlap is NOT a move: when the sibling already carried the
+#     phrase at the base ref, dropping it here is a real trigger loss for this
+#     skill's routing and still fails (the move exception's base-ref condition).
+make_skill coinc-src '---
+name: coinc-src
+description: "Overlap fixture. Use when: '"'"'epsilon trigger'"'"', '"'"'shared trigger'"'"'."
+---
+
+## Purpose
+
+Committed baseline sharing a phrase with a committed sibling.
+'
+make_skill coinc-peer '---
+name: coinc-peer
+description: "Overlap peer fixture. Use when: '"'"'shared trigger'"'"'."
+---
+
+## Purpose
+
+Committed sibling that carried the shared phrase all along.
+
+## Gotchas
+
+None known.
+'
+git -C "$TMP" add -A
+git -C "$TMP" commit -qm 'add coincidental-overlap fixtures'
+make_skill coinc-src '---
+name: coinc-src
+description: "Overlap fixture. Use when: '"'"'epsilon trigger'"'"'."
+---
+
+## Purpose
+
+Working tree drops the shared phrase; the peer had it at base already.
+'
+out="$(run coinc-src 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'dropped trigger keyword' <<<"$out" && ! grep -q 'moved to sibling skill' <<<"$out"; then
+  pass "phrase the sibling carried at base is coincidental overlap — still fails"
+else
+  fail "pre-existing sibling overlap should not count as a move (rc=$rc): $out"
+fi
+
 # 6. A relative skills root resolves against CLAUDE_PROJECT_DIR, not the cwd,
 #    even when invoked from a subdirectory.
 mkdir -p "$TMP/subdir"
