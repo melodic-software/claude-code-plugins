@@ -73,7 +73,7 @@ Protected-path enforcement gates `scan`, `caches`, `build`, `git`, AND `tree` (`
 
 `tree` requires explicit confirmation and is never auto-invoked. Any file tracked by git is reset via `git reset --hard`, not selective deletion — and any tracked file deleted by reparse-point traversal (junction/symlink into a tracked dir) is auto-restored.
 
-**Session-scoped destructive guard (frontmatter hook).** While this skill is active, a PreToolUse hook (`scripts/destructive-guard.sh`) blocks destructive Bash commands (`rm -rf`, `git clean -f*`, `git reset --hard`, `git checkout --`, recursive `Remove-Item`). After the dry-run → user-confirmation gate passes, re-issue the confirmed command with the acknowledgement prefix `CLEAN_GUARD_ACK=1 <command>` — never add the prefix without the user's explicit confirmation in this session. Kill switch: the `clean_destructive_guard_enabled` userConfig option set to `false` (`/plugin configure repo-hygiene`).
+**Session-scoped destructive guard (frontmatter hook).** While this skill is active, a PreToolUse hook (`scripts/destructive-guard.sh`) blocks destructive Bash commands (`rm -rf`, `git clean -f*`, `git reset --hard`, `git checkout --`, `git stash drop`/`clear`, recursive `Remove-Item`). After the dry-run → user-confirmation gate passes, re-issue the confirmed command with the acknowledgement prefix `CLEAN_GUARD_ACK=1 <command>` — never add the prefix without the user's explicit confirmation in this session. Kill switch: the `clean_destructive_guard_enabled` userConfig option set to `false` (`/plugin configure repo-hygiene`).
 
 ## Cleanup configuration
 
@@ -126,6 +126,8 @@ Both selective mutating tiers pay the filesystem walk **once**. `--dry-run` writ
 #### 4.3 Stash audit
 
 `bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-stash-audit.sh` — read-only per-stash facts (age, source branch, diffstat, PR/merge signal, advisory). **Never drops a stash.** Present the list and, for each stash, ask the user keep-or-drop via `AskUserQuestion`; a `possibly superseded` / `likely superseded` advisory is a hint to raise first, never an autonomous drop. Dedup a fleet sweep by the `StashStore:` key (linked worktrees share one stash ref). When the resolved action is `stash`, run only this step.
+
+**Dropping stashes safely.** A confirmed drop is destructive and gated by the session guard — after the user confirms, re-issue as `CLEAN_GUARD_ACK=1 git stash drop <ref>`. The `Stash:` selector (`stash@{n}`) is **volatile**: the list renumbers after every drop, so dropping more than one by selector top-down retargets the wrong entry. Drop by the stable `Commit:` id (resolve it to its current selector immediately before each drop), or drop the highest-numbered selector first so lower indices stay valid.
 
 ### 5. All
 

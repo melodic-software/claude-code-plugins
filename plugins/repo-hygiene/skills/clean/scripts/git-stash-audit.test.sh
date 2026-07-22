@@ -70,6 +70,10 @@ assert_contains "merged source flagged superseded" "$out" "possibly superseded"
 # A stash on the default branch is live WIP, never flagged superseded.
 assert_contains "main stash stays review" "$out" "review — confirm with the user"
 assert_contains "never auto-dropped disclaimer" "$out" "never auto-dropped"
+# Each stash carries its stable commit id — the safe handle for multi-drop, since
+# the stash@{n} selector renumbers after every drop.
+sha0="$(git -C "$REPO" rev-parse "stash@{0}" 2>/dev/null)"
+assert_contains "emits stable stash commit id" "$out" "Commit: $sha0"
 
 if [[ $FAILED -ne 0 ]]; then
   echo "FAILED: $FAILED test(s)"

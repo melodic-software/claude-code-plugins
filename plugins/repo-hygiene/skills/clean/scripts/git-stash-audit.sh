@@ -4,9 +4,12 @@
 #
 # Output contract (stable labels):
 #   StashStore: <absolute git-common-dir | unknown>   (dedup key across worktrees)
-#   per stash — Stash, Age days, Source branch, Diffstat, PR, Advisory
+#   per stash — Stash, Commit, Age days, Source branch, Diffstat, PR, Advisory
 #   Stash count: <N>
 #   Summary: stashes=<N> likely-superseded=<M> (never auto-dropped)
+# `Stash` is the volatile `stash@{n}` selector (renumbers after every drop);
+# `Commit` is the stash's stable object id — the safe handle when dropping more
+# than one stash from a single audit.
 # Exit: 0.
 # Omit -e/-o pipefail: always exits 0; sub-commands are best-effort (gh may be absent).
 set -u
@@ -70,7 +73,7 @@ fi
 NOW=$(date +%s)
 count=0 superseded=0
 
-while IFS=$'\t' read -r sel ts subject; do
+while IFS=$'\t' read -r sel sha ts subject; do
   [[ -z "$sel" ]] && continue
   count=$((count + 1))
   age_days=$(((NOW - ts) / 86400))
@@ -105,12 +108,13 @@ while IFS=$'\t' read -r sel ts subject; do
   fi
 
   printf 'Stash: %s\n' "$sel"
+  printf 'Commit: %s\n' "$sha"
   printf 'Age days: %s\n' "$age_days"
   printf 'Source branch: %s\n' "$src"
   printf 'Diffstat: %s\n' "$diffstat"
   printf 'PR: %s\n' "$pr_line"
   printf 'Advisory: %s\n' "$advisory"
-done < <(git -C "$REPO_ROOT" stash list --format='%gd%x09%ct%x09%gs' 2>/dev/null | tr -d '\r')
+done < <(git -C "$REPO_ROOT" stash list --format='%gd%x09%H%x09%ct%x09%gs' 2>/dev/null | tr -d '\r')
 
 printf 'Stash count: %s\n' "$count"
 printf 'Summary: stashes=%s likely-superseded=%s (never auto-dropped)\n' "$count" "$superseded"

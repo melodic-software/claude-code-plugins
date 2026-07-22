@@ -114,6 +114,24 @@ uf_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$NU_REPO' && bash '$AUDIT'")"
 assert_not_contains "unfetched upstream not echoed literally" "$uf_out" "@{upstream}"
 assert_contains "unfetched upstream falls to no-upstream count" "$uf_out" "no upstream, 1 commits not on origin/main"
 
+# A branch whose upstream is GONE but that still carries commits not on
+# origin/<default> is unmerged local work — it must be REVIEW, not the LIKELY-SAFE
+# deletion candidate the bare `gone` check would assign (deleting it loses those
+# commits).
+git -C "$NU_REPO" checkout -q -b feat/gone
+echo g >"$NU_REPO/g"
+git -C "$NU_REPO" add g
+git -C "$NU_REPO" commit -qm g
+git -C "$NU_REPO" push -q -u origin feat/gone
+echo g2 >>"$NU_REPO/g"
+git -C "$NU_REPO" add g
+git -C "$NU_REPO" commit -qm g2
+git -C "$NU_REPO" push -q origin --delete feat/gone
+git -C "$NU_REPO" fetch -q --prune origin
+git -C "$NU_REPO" checkout -q main
+gone_out="$(PATH="$STUB_BIN:$PATH" bash -c "cd '$NU_REPO' && bash '$AUDIT'")"
+assert_contains "gone+unpushed is review not likely-safe" "$gone_out" "Reason: upstream gone, 2 commits not on origin/main"
+
 if [[ $FAILED -ne 0 ]]; then
   echo "FAILED: $FAILED test(s)"
   exit 1

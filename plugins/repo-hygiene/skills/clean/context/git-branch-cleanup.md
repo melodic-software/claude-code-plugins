@@ -56,11 +56,11 @@ Map script output to a table:
 
 | Branch | Tier | Age | PR | Unpushed | Reason |
 |--------|------|-----|----|----------|--------|
-| main | PROTECTED | 0d | — | 0 ahead of origin/main | default branch |
+| main | PROTECTED | 0d | — | 0 ahead of origin/<default> | default branch |
 | feat/parked | WORKTREE | 3d | — | 0 ahead of origin/feat/parked | checked out in worktree — clean up the worktree first |
 | feat/old-thing | SAFE | 45d | #123 MERGED | 0 ahead of origin/feat/old-thing | PR merged |
-| refactor/x | LIKELY-SAFE | 12d | — | no upstream (no origin/main to compare) | upstream gone |
-| draft/local | REVIEW | 4d | — | no upstream, 5 commits not on origin/main | no upstream, 5 commits not on origin/main |
+| refactor/x | LIKELY-SAFE | 12d | — | no upstream (no origin/<default> to compare) | upstream gone |
+| draft/local | REVIEW | 4d | — | no upstream, 5 commits not on origin/<default> | no upstream, 5 commits not on origin/<default> |
 | experiment | REVIEW | 120d | — | 0 ahead of origin/experiment | stale (120d), orphaned |
 
 **Summary:** N protected, W worktree, M safe, P likely-safe, Q review

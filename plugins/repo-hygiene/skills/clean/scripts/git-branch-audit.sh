@@ -82,11 +82,14 @@ classify_branch() {
   else
     upstream=""
   fi
-  if [[ -z "$upstream" ]]; then
-    no_upstream=1
-    if git -C "$REPO_ROOT" rev-parse --verify --quiet "refs/remotes/origin/${DEFAULT_BRANCH}" >/dev/null 2>&1; then
-      ahead_default="$(git -C "$REPO_ROOT" rev-list --count "origin/${DEFAULT_BRANCH}..refs/heads/${branch}" 2>/dev/null | tr -d '\r')"
-    fi
+  [[ -z "$upstream" ]] && no_upstream=1
+  # Commits on this branch absent from origin/<default> — the work lost if the
+  # branch were deleted. Computed for every branch (when origin/<default> exists)
+  # so both the upstream-gone and no-upstream classes can guard deletion on it: a
+  # `gone` upstream normally means merged-and-deleted, but a gone branch still
+  # carrying such commits is unmerged local work, not a safe-delete candidate.
+  if git -C "$REPO_ROOT" rev-parse --verify --quiet "refs/remotes/origin/${DEFAULT_BRANCH}" >/dev/null 2>&1; then
+    ahead_default="$(git -C "$REPO_ROOT" rev-list --count "origin/${DEFAULT_BRANCH}..refs/heads/${branch}" 2>/dev/null | tr -d '\r')"
   fi
 
   if [[ "$branch" == "$CURRENT_BRANCH" ]]; then
@@ -120,8 +123,13 @@ classify_branch() {
     reason="PR closed without merge"
     pr_line="#${PR_NUM[$branch]} CLOSED"
   elif grep -qxF "$branch" <<<"$GONE_BRANCHES"; then
-    tier="LIKELY-SAFE"
-    reason="upstream gone"
+    if [[ -n "$ahead_default" && "$ahead_default" -gt 0 ]]; then
+      tier="REVIEW"
+      reason="upstream gone, ${ahead_default} commits not on origin/${DEFAULT_BRANCH}"
+    else
+      tier="LIKELY-SAFE"
+      reason="upstream gone"
+    fi
   elif [[ "$no_upstream" == 1 && -n "$ahead_default" && "$ahead_default" -gt 0 ]]; then
     tier="REVIEW"
     reason="no upstream, ${ahead_default} commits not on origin/${DEFAULT_BRANCH}"

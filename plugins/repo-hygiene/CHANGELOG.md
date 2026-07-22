@@ -14,15 +14,21 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   `possibly superseded` / `likely superseded` advisory (source branch merged into
   `origin/<default>` or via a merged PR) is a hint to raise first, never an
   autonomous drop. Deduped across linked worktrees by the `--git-common-dir`
-  `StashStore:` key (worktrees share one stash ref). Runs standalone (`stash`)
-  and as part of the `git` tier. (#996)
+  `StashStore:` key (worktrees share one stash ref). Each stash also carries its
+  stable commit id (`Commit:`) — the safe handle when dropping several, since the
+  `stash@{n}` selector renumbers after every drop — and a confirmed `git stash
+  drop`/`clear` is now covered by the session destructive guard (blocked until the
+  `CLEAN_GUARD_ACK=1` acknowledgement). Runs standalone (`stash`) and as part of
+  the `git` tier. (#996)
 - **Branch audit now surfaces unpushed commits per branch, including no-upstream
   branches.** A new `Unpushed:` line reports `N ahead of <upstream>` or, for a
   never-pushed branch, `no upstream, M commits not on origin/<default>` — the
   latter is invisible to `@{upstream}`-based ahead reporting, so unmerged local
   work no longer goes unseen. Such branches form their own REVIEW class ranked
-  above generic stale/orphaned, so the unpushed-commit count is the headline.
-  (#998)
+  above generic stale/orphaned, so the unpushed-commit count is the headline. A
+  branch whose upstream is `gone` but that still carries commits not on
+  origin/<default> is held in REVIEW too, rather than offered as a LIKELY-SAFE
+  deletion candidate that would lose those commits. (#998)
 - **The resolver echoes trailing free text as a `Note:` line.** When a leading
   action token is followed by a question or a live-session constraint (e.g.
   `all mind the 6 live sessions`), the remainder is emitted as advisory context
