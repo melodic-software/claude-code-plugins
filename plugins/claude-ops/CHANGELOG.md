@@ -19,8 +19,12 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   once the path is script-relative, an override can only ever equal that trusted
   default (both test call sites already resolved to it). `CLAUDE_PLUGIN_ROOT` is
   no longer consulted for this sibling file (it equals the script-relative root
-  in production); it is still used for marketplace self-resolution. No behavior
-  change in production.
+  in production); it is still used for marketplace self-resolution. The
+  script-relative path is computed with `builtin cd`/`builtin pwd` and
+  `command dirname` so an inherited environment that exports shell functions of
+  those names (`BASH_FUNC_cd%%` and friends, imported by bash before the script
+  runs) cannot hijack the computation and redirect `source` at an attacker tree.
+  No behavior change in production.
 
 ## [0.17.4]
 

@@ -55,8 +55,13 @@
 
 set -uo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PLUGIN_ROOT_DEFAULT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+# builtin cd/pwd and command dirname resist an inherited environment that
+# exports shell functions named cd/pwd/dirname: bash imports such functions
+# before the script runs, so a plain `cd`/`pwd`/`dirname` here could be
+# hijacked to make PLUGIN_ROOT_DEFAULT resolve to an attacker-chosen tree and
+# redirect the `source` below at an arbitrary file.
+SCRIPT_DIR="$(builtin cd "$(command dirname "${BASH_SOURCE[0]}")" && builtin pwd)"
+PLUGIN_ROOT_DEFAULT="$(builtin cd "$SCRIPT_DIR/../../.." && builtin pwd)"
 
 # hook-utils.sh is a fixed sibling shipped with this plugin. Resolve it only
 # from this script's own location — never from a caller-supplied env var — so

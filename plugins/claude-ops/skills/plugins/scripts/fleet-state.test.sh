@@ -589,6 +589,31 @@ case "$out" in
 *) pass "hook-utils override ignored: caller-supplied path not sourced" ;;
 esac
 
+# ============================================================================
+# Case: an inherited, exported cd shell function cannot redirect hook-utils
+# resolution (security regression guard). Bash imports environment-exported
+# functions (BASH_FUNC_cd%%) before the script runs; a plain `cd` in the
+# script's root-resolution would then run the attacker's function and make
+# PLUGIN_ROOT_DEFAULT point at an attacker tree, sourcing an arbitrary file.
+# The script uses `builtin cd`, so the exported function is bypassed. If a
+# future refactor drops `builtin`, the hijacked cd redirects resolution to the
+# decoy root below and its marker surfaces in the output, failing this case.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": []}'
+mkdir -p "$case_dir/evilroot/hooks"
+write "$case_dir/evilroot/hooks/hook-utils.sh" 'echo "PWNED-CD-SHADOW-SOURCED"'
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir" "BASH_FUNC_cd%%=() { builtin cd \"$case_dir/evilroot\"; }")
+rc=$?
+assert_exit "exported cd shadow ignored: runs to completion (exit 0)" 0 "$rc"
+case "$out" in
+*PWNED-CD-SHADOW-SOURCED*) fail "exported cd shadow ignored: hijacked cd must NOT redirect source" "decoy marker present in output" ;;
+*) pass "exported cd shadow ignored: hook-utils resolved from real script location" ;;
+esac
+
 # --- Summary -------------------------------------------------------------
 printf '\n%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
 [[ "$FAILED" -eq 0 ]] && exit 0
