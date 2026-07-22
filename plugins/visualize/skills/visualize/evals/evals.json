@@ -1,0 +1,79 @@
+{
+  "skill_name": "visualize",
+  "evals": [
+    {
+      "id": 1,
+      "name": "process-to-diagram-picks-form-and-medium",
+      "prompt": "We just walked through the checkout flow: the cart validates stock, then reserves inventory, then charges payment, then on success emits an order-placed event, and on payment failure releases the reservation. visualize this.",
+      "expected_output": "Infers the target (the checkout flow just described), picks a mermaid flowchart (or sequence) as the form, and picks a medium: because the terminal shows a mermaid fence as source rather than a rendered diagram, it either emits the mermaid source for the terminal or renders it on a page (Artifact if that surface is available, else a local HTML file). It does not claim the terminal renders the diagram as a picture, and it does not restate chart/diagram craft.",
+      "files": [],
+      "expectations": [
+        "Infers the checkout flow as the target without being told the form explicitly",
+        "Selects a mermaid diagram family appropriate to a process (flowchart or sequence)",
+        "Treats a terminal mermaid fence as SOURCE, not an inline rendered diagram, and routes the rendered form to a page when a rendered picture is wanted",
+        "Does not restate diagram or chart craft"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "tabular-content-stays-a-terminal-table",
+      "prompt": "visualize the comparison — option A is $5/mo, self-hosted, no SLA; option B is $20/mo, managed, 99.9% SLA; option C is $50/mo, managed, 99.99% SLA.",
+      "expected_output": "Recognizes the content as tabular attribute-comparison, picks a markdown table as the form, and renders it inline in the terminal. It does NOT escalate a small comparison into a rich page or Artifact.",
+      "files": [],
+      "expectations": [
+        "Picks a markdown table as the form for attribute comparison across items",
+        "Renders inline in the terminal rather than producing a page",
+        "Does not overproduce an Artifact/HTML page for a small table"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "chart-routes-craft-presence-gated",
+      "prompt": "visualize these monthly signups: Jan 120, Feb 180, Mar 150, Apr 240, May 300, Jun 280.",
+      "expected_output": "Picks a chart as the form (a trend over months). It routes the chart CRAFT to a chart-craft/dataviz capability WHEN that capability is installed; when it is not, it falls back to a simple honest default (an inline SVG bar/line on a page, or a Unicode bar/sparkline in the terminal) and says the craft capability was unavailable. It does not restate palette/axis/mark craft in the skill itself.",
+      "files": [],
+      "expectations": [
+        "Selects a chart as the form for a quantitative trend",
+        "Routes chart craft to a chart-craft/dataviz capability presence-gated (invoke if installed; documented fallback otherwise)",
+        "Falls back to a simple default chart (inline SVG on a page, or Unicode bars in the terminal) when no craft capability is present, and says so",
+        "Does not restate chart craft (palette, axes, marks) in the skill"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "genuine-ambiguity-asks-one-recommended-question",
+      "prompt": "there's a lot going on in this thread — the module dependency graph, the rollout timeline, and the error-rate numbers. visualize it.",
+      "expected_output": "Detects genuine ambiguity (several equally plausible targets and no form named) and asks exactly ONE question offering the candidate targets, with a RECOMMENDED default listed first. It does not fan out multiple questions and does not silently pick one target without surfacing the choice.",
+      "files": [],
+      "expectations": [
+        "Recognizes multiple equally plausible targets with no form specified as genuine ambiguity",
+        "Asks a single question with a RECOMMENDED default listed first",
+        "Does not ask when the target is obvious or a form was named"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "surface-gate-degrades-visibly-not-silently",
+      "prompt": "render this state machine as a diagram I can actually look at — [in a context where the Artifact publishing surface is unavailable].",
+      "expected_output": "Chooses a mermaid state diagram, and because the published-Artifact surface is unavailable, degrades along the tier order: write a self-contained local HTML file and open it; if no page surface is available at all, emit the mermaid source in the terminal with a visible one-line notice that the rendered surface was unavailable. The degradation is stated, never silent.",
+      "files": [],
+      "expectations": [
+        "Selects a mermaid state diagram as the form",
+        "Detects the Artifact surface is unavailable and degrades to a local HTML file (or terminal source) rather than assuming it exists",
+        "Surfaces the degradation with a visible notice — never a silent failure"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "file-preference-never-publishes",
+      "prompt": "/visualize file — make a dashboard of the release metrics for this sensitive project.",
+      "expected_output": "Honors the explicit `file` medium: renders the dashboard as a self-contained local HTML file on the machine and never publishes an Artifact, even if the Artifact surface is available. Reports the file path.",
+      "files": [],
+      "expectations": [
+        "Honors the `file` argument/preference and renders a local self-contained HTML file",
+        "Never publishes an Artifact when the preference is `file`, even if that surface is available",
+        "Reports the local file path"
+      ]
+    }
+  ]
+}

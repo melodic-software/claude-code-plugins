@@ -269,6 +269,12 @@
       "tags": ["workflow", "handoff", "keep-going", "clean-stop", "resume", "recover", "durable", "retro", "retrospective", "session", "orchestration", "reanchor", "freshness", "skill"]
     },
     {
+      "name": "visualize",
+      "source": "./plugins/visualize",
+      "category": "workflow",
+      "tags": ["visualize", "visualization", "diagram", "mermaid", "chart", "artifact", "render", "skill"]
+    },
+    {
       "name": "tdd",
       "displayName": "TDD",
       "source": "./plugins/tdd",
