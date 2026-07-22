@@ -72,20 +72,24 @@ MAX_COMMAND_LEN=16384
 SUBJECT=$(hook::extract_bash_subject "Bash" "$COMMAND")
 
 # Hook-manager env-var disable prefixes, built once into a regex alternation.
-# The default set covers the common managers; a consumer extends it via the
+# The default set covers the common managers; a consumer overrides it via the
 # block_no_verify_hook_manager_prefixes userConfig (comma-separated, read from
-# the hook-process mirror). Each prefix matches `PREFIX…=0|false`
+# the hook-process mirror) — a supplied value REPLACES the default set wholesale,
+# it does not extend it. Each prefix matches `PREFIX…=0|false`
 # (LEFTHOOK=0, HUSKY=0, LEFTHOOK_VERIFY=false, …). Entries are reduced to
 # identifier chars so a value can never smuggle regex metacharacters into the
 # alternation spliced below.
 HM_ALT=""
-IFS=',' read -ra _hm_list <<<"${CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_HOOK_MANAGER_PREFIXES:-lefthook,husky,pre_commit,simple_git_hooks}"
+HM_DEFAULT_PREFIXES="lefthook,husky,pre_commit,simple_git_hooks"
+IFS=',' read -ra _hm_list <<<"${CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_HOOK_MANAGER_PREFIXES:-$HM_DEFAULT_PREFIXES}"
 for _hm in "${_hm_list[@]}"; do
   _hm="${_hm//[^a-zA-Z0-9_]/}"
   _hm="${_hm,,}"
   [[ -n "$_hm" ]] && HM_ALT="${HM_ALT:+$HM_ALT|}$_hm"
 done
-[[ -n "$HM_ALT" ]] || HM_ALT="lefthook" # never leave the guard patternless
+# Every supplied entry sanitized to empty → fall back to the full default set
+# (comma→pipe), not a single manager, so the guard keeps full coverage.
+[[ -n "$HM_ALT" ]] || HM_ALT="${HM_DEFAULT_PREFIXES//,/|}"
 
 # Emit one telemetry envelope: $1 status, $2 form ("" when not blocked). Gated
 # on the high-res start stamp and the opt-in sink, so the unwired default path

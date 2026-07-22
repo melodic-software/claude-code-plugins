@@ -13,7 +13,9 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   configurable prefix set (`block_no_verify_hook_manager_prefixes` userConfig)
   defaulting to `lefthook, husky, pre_commit, simple_git_hooks`; consumer values
   are reduced to identifier characters before use, so a value can never inject
-  regex metacharacters.
+  regex metacharacters. A supplied value replaces the default set entirely (it
+  does not extend it); if every supplied prefix reduces to empty, the guard falls
+  back to the full default set rather than a single manager.
 - **`hardcoded-path-check` machine-path detection broadened past `repos`.** The
   drive-letter-anchored checkout-parent pattern matched only `X:\repos\…`, so a
   hardcoded `C:\Projects\…` or `C:\Dev\…` path went undetected. It now also

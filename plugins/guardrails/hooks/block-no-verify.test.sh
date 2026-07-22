@@ -181,6 +181,8 @@ run "custom set replaces the default (lefthook now allowed)" "LEFTHOOK=0 git com
   CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_HOOK_MANAGER_PREFIXES="myhooks"
 run "regex metachars in a prefix value are sanitized, not injected" "MYHOOKS=0 git commit -m test" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_HOOK_MANAGER_PREFIXES="my.*hooks,myhooks"
+run "all-non-alphanumeric prefix value falls back to the full default set (husky still blocked)" "HUSKY=0 git commit -m test" 2 \
+  CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_HOOK_MANAGER_PREFIXES="!!!"
 run "LEFTHOOK=false ls (not git, allowed)" "LEFTHOOK=false ls" 0
 run "LEFTHOOK=1 git commit (truthy value, allowed)" "LEFTHOOK=1 git commit -m test" 0
 run "LEFTHOOK=true git push (truthy value, allowed)" "LEFTHOOK=true git push" 0
