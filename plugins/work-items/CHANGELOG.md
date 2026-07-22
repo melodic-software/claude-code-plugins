@@ -3,6 +3,36 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.0]
+
+### Added
+
+- **Issue-conventions reference — `reference/issue-conventions.md` (`#552` member 6).** The title
+  convention (~98% of live org issues conform) and the filing body shape were load-bearing and
+  written down nowhere. The new doc is the single source of truth for the TITLE convention
+  (`<prefix>: <lowercase summary>`, area/path and conventional-commit prefix dialects, `Epic:` for
+  umbrellas, sub-issue edges over title suffixes) and points — never copies — at the existing owners
+  for body (`track add` "Build body", `agent-brief.md`), type/labels (`track add` type resolution,
+  `label-taxonomy.md`), and close reason (`track done`). Cited from `track add`, `decompose`,
+  `triage`, and `dogfood-filing.md`.
+
+### Changed
+
+- **Triage priority default is `p2-medium`; `p1-high` is reserved (`#552` member 4).** 77% of open
+  issues carried `priority: high`, destroying it as a staffing signal. Triage now defaults to
+  `priority:p2-medium` when no directive, category rule, or severity signal sets one, and reserves
+  `priority:p1-high` for items that block other work or carry an imminent external deadline. The
+  `track add` filing default (`p3-low`) is deliberately distinct — an untriaged-signal floor, not a
+  priority assessment — and is now documented as such.
+- **Duplicate / supersede close discipline (`#552` member 5).** Sampled closures were 100%
+  `COMPLETED` — duplicates and superseded items were closing under the wrong reason. Duplicates now close via the
+  provider's native duplicate mechanic where one exists (GitHub: `gh issue close --duplicate-of`,
+  which sets close reason `duplicate` and a structured, API-queryable `duplicateOf` relationship),
+  with the portable fallback — append a queryable `## Duplicate of #N` body section and close
+  `not planned` — for cross-repo targets and providers without a native duplicate reason. Superseded
+  and duplicate items never close as `completed` (triage outcome table, `track done`, GitHub adapter
+  README mechanic).
+
 ## [0.20.0]
 
 ### Added
