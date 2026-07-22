@@ -614,6 +614,42 @@ case "$out" in
 *) pass "exported cd shadow ignored: hook-utils resolved from real script location" ;;
 esac
 
+# ============================================================================
+# Case: an attacker-controlled PATH cannot redirect hook-utils resolution
+# through the directory resolver (security regression guard). The script
+# derives its own directory with parameter expansion, never an external
+# `dirname`, so a hostile `dirname` planted at the front of PATH is never
+# consulted and hook-utils.sh is still sourced from the real script location.
+# If a future refactor reintroduces `dirname` (or any PATH-resolved tool) on
+# the resolution path, the decoy below is sourced and its marker surfaces,
+# failing this case.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": []}'
+decoy_scripts="$case_dir/evilroot/skills/plugins/scripts"
+mkdir -p "$decoy_scripts" "$case_dir/evilroot/hooks"
+write "$case_dir/evilroot/hooks/hook-utils.sh" 'echo "PWNED-DIRNAME-PATH-SOURCED"'
+attack_bash_bin=$(command -v bash)
+attack_bash_dir=$(dirname "$attack_bash_bin")
+attack_bin_dir="$case_dir/attack-bin"
+mkdir -p "$attack_bin_dir"
+cp "$attack_bash_bin" "$attack_bin_dir/"
+shopt -s nullglob
+for dll in "$attack_bash_dir"/*.dll; do cp "$dll" "$attack_bin_dir/"; done
+shopt -u nullglob
+# A hostile `dirname` that ignores its argument and points the resolver at the
+# decoy tree; reachable only if the script resolves its directory via PATH.
+printf '#!/bin/sh\nprintf "%%s\\n" "%s"\n' "$decoy_scripts" >"$attack_bin_dir/dirname"
+chmod +x "$attack_bin_dir/dirname"
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir" "PATH=$attack_bin_dir")
+case "$out" in
+*PWNED-DIRNAME-PATH-SOURCED*) fail "hostile PATH dirname ignored: PATH-planted dirname must NOT redirect source" "decoy marker present in output" ;;
+*) pass "hostile PATH dirname ignored: hook-utils resolved without an external dirname" ;;
+esac
+
 # --- Summary -------------------------------------------------------------
 printf '\n%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
 [[ "$FAILED" -eq 0 ]] && exit 0

@@ -55,12 +55,21 @@
 
 set -uo pipefail
 
-# builtin cd/pwd and command dirname resist an inherited environment that
-# exports shell functions named cd/pwd/dirname: bash imports such functions
-# before the script runs, so a plain `cd`/`pwd`/`dirname` here could be
-# hijacked to make PLUGIN_ROOT_DEFAULT resolve to an attacker-chosen tree and
-# redirect the `source` below at an arbitrary file.
-SCRIPT_DIR="$(builtin cd "$(command dirname "${BASH_SOURCE[0]}")" && builtin pwd)"
+# Resolve this script's own directory using only shell builtins and parameter
+# expansion — nothing external — because the result feeds the `source` below.
+# An inherited environment can subvert an external resolver two ways: an
+# exported shell function named cd/pwd (bash imports it before the script runs),
+# or a PATH prefixed with an attacker's dirname binary. `builtin cd`/`builtin
+# pwd` bypass the function-export channel; deriving the directory with
+# `${BASH_SOURCE[0]%/*}` instead of `dirname` keeps resolution PATH-independent,
+# so the plugin-shipped hook-utils.sh is always sourced from this script's real
+# location regardless of a hostile environment.
+script_src="${BASH_SOURCE[0]}"
+case "$script_src" in
+*/*) script_src_dir="${script_src%/*}" ;;
+*) script_src_dir="." ;;
+esac
+SCRIPT_DIR="$(builtin cd "$script_src_dir" && builtin pwd)"
 PLUGIN_ROOT_DEFAULT="$(builtin cd "$SCRIPT_DIR/../../.." && builtin pwd)"
 
 # hook-utils.sh is a fixed sibling shipped with this plugin. Resolve it only
