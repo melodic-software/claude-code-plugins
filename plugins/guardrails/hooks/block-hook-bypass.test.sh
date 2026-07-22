@@ -469,6 +469,12 @@ run_pwsh "PS: & { Write-Output secret } > file (blocked)" \
 run_pwsh "PS: & { git diff } > file (tool producer, allowed)" \
   "& { git diff } > out.txt" 0
 
+# Review round 8: module-qualified producer heads.
+run_pwsh "PS: module-qualified Write-Output > file (blocked)" \
+  "Microsoft.PowerShell.Utility\\Write-Output secret > f.txt" 2
+run_pwsh "PS: module-qualified Write-Error 2> file (blocked)" \
+  "Microsoft.PowerShell.Utility\\Write-Error secret 2> f.txt" 2
+
 # The block message is shell-agnostic (no 'Bash' assumption).
 psout=$(bash "$HOOK" <<<"$(pwsh_command_json "Set-Content f.txt 'x'")" 2>&1)
 assert_contains "PS write block names Write/Edit" "$psout" "Write or Edit tool"

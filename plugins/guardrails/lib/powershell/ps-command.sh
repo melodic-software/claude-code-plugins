@@ -447,6 +447,9 @@ ps::write_bypass() {
     seg="${seg//\}/}"
     seg="${seg#"${seg%%[![:space:]]*}"}" # re-ltrim after unwrap
     head="${seg%%[[:space:]]*}"
+    # A module-qualified producer (`Microsoft.PowerShell.Utility\Write-Output`)
+    # is the same cmdlet — compare its basename.
+    head="${head##*\\}"
     case "$seg" in
     '>'*) return 0 ;; # leading literal (string stripped away) was the producer
     *) ;;

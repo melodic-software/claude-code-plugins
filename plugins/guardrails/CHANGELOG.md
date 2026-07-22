@@ -85,6 +85,9 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   stays allowed); and `.exe`-suffixed git spellings normalize in the reduced
   command so the POSIX hook matches the basename too (`C:\Git\cmd\git.exe
   reset --hard` blocks on a Linux-run hook, not only under msys).
+- **Review round 8:** a module-qualified redirect producer
+  (`Microsoft.PowerShell.Utility\Write-Output secret > f.txt`) compares by
+  cmdlet basename, closing the last spelling gap in the producer head check.
 - **The PowerShell coverage bar is documented as Bash-parity, not airtight.** These
   guards are accidental-destruction friction, not a boundary against deliberate
   evasion — and the Bash guard they extend does not stop deliberate evasion either.
