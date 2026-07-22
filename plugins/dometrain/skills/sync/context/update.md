@@ -31,20 +31,20 @@ frontmatter). The human in the loop decides what to port.
   for an issue or PR against this plugin's marketplace repository — not something to patch in
   the installed copy, which is an ephemeral cache overwritten on plugin update.
 - **Plugin maintainers** port upstream changes in a working clone of the marketplace repository
-  (using the `--plugin-dir` local development loop). `scripts/update.sh`'s `UPSTREAM_URL` is
-  pinned to a specific commit SHA, not `master` HEAD (supply-chain integrity — an unpinned fetch
-  would silently follow whatever a compromised upstream account pushed next). Bump the pin
-  first, to the specific commit being reviewed, then refresh the baseline:
+  (using the `--plugin-dir` local development loop), then refresh the baseline there:
 
   ```bash
-  # 1. Find the commit to review (or a specific SHA you already know you want):
-  gh api repos/Dometrain/mcp/commits/master --jq '.sha'
-
-  # 2. Edit UPSTREAM_URL in scripts/update.sh to that SHA, commit the pin bump.
-
-  # 3. Refresh the baseline against the newly pinned commit:
   bash "${CLAUDE_PLUGIN_ROOT}/skills/sync/scripts/update.sh" --refresh-baseline
   ```
+
+  **On pinning `UPSTREAM_URL` to a commit SHA (considered, reverted):** an earlier revision of
+  this script pinned the fetch to a fixed commit for supply-chain integrity. A second independent
+  reviewer correctly caught the regression this caused: a pinned URL makes `check` compare the
+  baseline against the same frozen commit forever, so `/dometrain:sync` can never detect real
+  drift once Dometrain's `master` moves — defeating the report-only check's actual purpose. The
+  human diff-review a maintainer performs before choosing to run `--refresh-baseline` is already
+  the integrity gate; a URL pin adds ceremony without adding protection beyond that. Fetching
+  live `master` (matching `context7`'s established precedent) is correct here.
 
   This overwrites `vendor/SKILL.md` with current upstream (re-add the attribution comment
   afterward — `--refresh-baseline` writes raw upstream content, which never carries it) and

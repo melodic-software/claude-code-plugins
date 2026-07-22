@@ -24,11 +24,7 @@ SNAPSHOT_DIR="$SKILL_DIR/vendor"
 GROUNDING_SKILL_MD="$SKILL_DIR/../grounding/SKILL.md"
 BASELINE="$SNAPSHOT_DIR/SKILL.md"
 
-# Pinned to a specific commit, not `master` HEAD — a supply-chain-integrity choice, not an
-# oversight. Fetching an unpinned branch would silently follow whatever a compromised upstream
-# account pushed next. Bumping this pin is itself the maintainer's explicit "I intend to review
-# this specific upstream commit" act; see context/update.md for the bump-then-refresh protocol.
-UPSTREAM_URL="https://raw.githubusercontent.com/Dometrain/mcp/de4be471cdbaf8d2193c51b7bad0ce7c87fd9705/skills/dometrain-grounding/SKILL.md"
+UPSTREAM_URL="https://raw.githubusercontent.com/Dometrain/mcp/master/skills/dometrain-grounding/SKILL.md"
 
 # The vendored baseline carries an attribution HTML comment (plus its surrounding blank
 # lines) after the frontmatter that upstream does not have — added deliberately (MIT
