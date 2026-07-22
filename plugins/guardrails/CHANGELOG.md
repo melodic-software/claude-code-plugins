@@ -67,6 +67,16 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   same way iex does; and an expression-literal redirect producer (`36 > out.txt`,
   `[char]65 > out.txt` — spaced value writes, not attached-digit stream
   redirects) counts as a content write.
+- **Review round 6:** a quoted string merely ending in the characters `@'`/`@"`
+  (`Write-Output '@'`) no longer reads as a here-string opener — paired quote
+  spans are stripped before the opener test, so following code lines cannot be
+  swallowed into a phantom body; backslash path separators normalize to forward
+  slashes in the reduced command so a path-qualified `C:\Git\cmd\git.exe reset
+  --hard` tokenizes to basename git (a safe `…\git.exe status` stays allowed);
+  the call/dot-source probes and both write-gate call checks accept a
+  statement/block separator boundary (`;& …`, `{& …}`), not only whitespace;
+  and every stream's producer cmdlet (`Write-Error … 2>`, `Write-Warning … 3>`,
+  verbose/debug/information) counts as a redirect content write.
 - **The PowerShell coverage bar is documented as Bash-parity, not airtight.** These
   guards are accidental-destruction friction, not a boundary against deliberate
   evasion — and the Bash guard they extend does not stop deliberate evasion either.

@@ -93,7 +93,7 @@ PS_SAFE_COMMAND=""
 # left as the original command and the caller fails closed).
 ps::blank_herestrings() {
   local cmd="$1"
-  local line out="" pending="" in_hs=0 hs_quote="" first2 rest closer
+  local line out="" pending="" in_hs=0 hs_quote="" first2 rest closer opener_scan
   PS_HERESTRING_UNBALANCED=0
 
   while IFS= read -r line || [[ -n "$line" ]]; do
@@ -112,8 +112,14 @@ ps::blank_herestrings() {
       # A body line (no column-zero closer) is dropped.
       continue
     fi
-    # An opener is `@'` or `@"` as the final two characters of the line.
-    if [[ "$line" == *"@'" || "$line" == *'@"' ]]; then
+    # An opener is `@'` or `@"` as the final two characters of the line — as a
+    # TOKEN, not as the tail of an ordinary quoted string (`Write-Output '@'`
+    # ends in the characters @' but is a plain string; treating it as an opener
+    # would swallow following code lines into a phantom here-string body).
+    # Distinguish by stripping PAIRED quote spans first: a real opener's quote
+    # is unpaired, so its `@'` survives, while `'@'` / `'foo@'` disappear.
+    opener_scan=$(printf '%s' "$line" | sed "s/'[^']*'//g" | sed -E 's/"([^"\\]|\\.)*"//g')
+    if [[ "$opener_scan" == *"@'" || "$opener_scan" == *'@"' ]]; then
       hs_quote="${line: -1}" # ' or "
       pending="${line%??}${PS_HERESTRING_PLACEHOLDER}"
       in_hs=1
@@ -190,7 +196,9 @@ ps::might_invoke_git() {
   [[ "$lc" =~ (^|[^[:alnum:]_-])(iex|invoke-expression)([^[:alnum:]_-]|$) ]] && return 0
   # Call / dot-source of a variable, subexpression, or string literal:
   # `& $x …`, `& (…)`, `& 'git …'`, `. $x …` — the target runs as a command.
-  [[ "$lc" =~ (^|[[:space:]])[.\&][[:space:]]*[\$\($q] ]] && return 0
+  # The call operator is also valid immediately after a statement/block
+  # separator (`;& …`, `{& …}`, `|& …`), not only after whitespace.
+  [[ "$lc" =~ (^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*[\$\($q] ]] && return 0
   # A launcher whose program is a computed expression or variable —
   # `Start-Process ('g'+'it') …`, `saps $tool …`, optionally behind one named
   # parameter (`-FilePath (…)`) — may evaluate to git; it cannot be proven
@@ -216,7 +224,7 @@ ps::has_dynamic_invocation() {
   local recovered="${1//\`/}" lc q="\"'"
   lc="${recovered,,}"
   [[ "$lc" =~ (^|[^[:alnum:]_-])(iex|invoke-expression)([^[:alnum:]_-]|$) ]] && return 0
-  [[ "$recovered" =~ (^|[[:space:]])[.\&][[:space:]]*[$q] ]] && return 0
+  [[ "$recovered" =~ (^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*[$q] ]] && return 0
   return 1
 }
 
@@ -270,9 +278,16 @@ ps::classify_git_command() {
     ps::might_invoke_git "$PS_BLANKED" && return 2
     return 1
   fi
+  # Backslash is a PATH SEPARATOR in PowerShell (its escape char is the
+  # backtick, which already routes to the sink above), but the Bash tokenizer
+  # this reduced command is handed to consumes `\` as an escape — so a
+  # path-qualified `C:\Git\cmd\git.exe reset --hard` would tokenize to a word
+  # whose basename never matches git. Normalize to forward slashes so
+  # hook::git_is_bin sees the real basename (and a safe `…\git.exe status`
+  # stays allowed rather than blanket-blocked).
   # Read by the sourcing guard, not within this library.
   # shellcheck disable=SC2034
-  PS_SAFE_COMMAND="$PS_BLANKED"
+  PS_SAFE_COMMAND="${PS_BLANKED//\\//}"
   return 0
 }
 
@@ -332,14 +347,16 @@ ps::write_bypass() {
   # quoted-command-word residual the Bash guard carries.
   lcq="${PS_BLANKED//\`/}"
   lcq="${lcq,,}"
-  if [[ "$lcq" =~ (^|[[:space:]])[.\&][[:space:]]*[$q]([a-z.]+\\)?(set-content|add-content|out-file|tee-object|ac|tee|iex|invoke-expression|new-item|ni|epcsv|export-[a-z]+) ]]; then
+  if [[ "$lcq" =~ (^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*[$q]([a-z.]+\\)?(set-content|add-content|out-file|tee-object|ac|tee|iex|invoke-expression|new-item|ni|epcsv|export-[a-z]+) ]]; then
     return 0
   fi
   # A call/dot-source of a COMPUTED target — `& ('Set-'+'Content') …`, `& $w …`
   # — evaluates an expression into the command name; it cannot be proven
   # non-writer, so it fails closed like iex (review round 5). Mirrors
-  # ps::might_invoke_git's treatment of the same shape on the git side.
-  if [[ "$lcq" =~ (^|[[:space:]])[.\&][[:space:]]*[\(\$] ]]; then
+  # ps::might_invoke_git's treatment of the same shape on the git side. Both
+  # this and the quoted-writer check above accept a statement/block separator
+  # boundary (`;& …`), not only whitespace (review round 6).
+  if [[ "$lcq" =~ (^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*[\(\$] ]]; then
     return 0
   fi
 
@@ -422,7 +439,12 @@ ps::write_bypass() {
     *) ;;
     esac
     case "$head" in
-    echo | write | write-output | write-host | "${PS_HERESTRING_PLACEHOLDER,,}") return 0 ;;
+    # Producer cmdlets for EVERY stream — a non-success stream redirected to a
+    # file (`Write-Error secret 2> creds.txt`, `Write-Warning x 3> f`) writes
+    # that stream's content exactly as a success-stream redirect does.
+    echo | write | write-output | write-host | write-error | write-warning | \
+      write-verbose | write-debug | write-information | \
+      "${PS_HERESTRING_PLACEHOLDER,,}") return 0 ;;
     '$'*) return 0 ;; # a variable / subexpression value redirected to a file
     '['*) return 0 ;; # a cast/type expression value ([char]65 > f)
     *) ;;

@@ -451,6 +451,13 @@ run_pwsh "PS: & computed writer name (fail-closed block)" \
   "& ('Set-'+'Content') -Path f.txt -Value x" 2
 run_pwsh "PS: spaced numeric is a value write, tool redirect still allowed" \
   "git diff 2> err.txt" 0
+# Review round 6: non-success stream producers and separator-adjacent calls.
+run_pwsh "PS: Write-Error 2> file (blocked)" "Write-Error secret 2> creds.txt" 2
+run_pwsh "PS: Write-Warning 3> file (blocked)" "Write-Warning secret 3> creds.txt" 2
+run_pwsh "PS: semicolon-adjacent & 'Set-Content' (blocked)" \
+  "Write-Host ok;& 'Set-Content' -Path f.txt -Value x" 2
+run_pwsh "PS: quoted '@' not a here-string opener (write line not swallowed)" \
+  "$(printf "Write-Output '@'\nSet-Content -Path f.txt -Value x\n'@'")" 2
 
 # The block message is shell-agnostic (no 'Bash' assumption).
 psout=$(bash "$HOOK" <<<"$(pwsh_command_json "Set-Content f.txt 'x'")" 2>&1)

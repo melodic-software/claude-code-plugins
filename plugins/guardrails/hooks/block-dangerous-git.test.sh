@@ -372,4 +372,18 @@ run_pwsh "PS: Start-Process -FilePath computed target (fail-closed block)" \
 run_pwsh "PS: launcher with variable target (fail-closed block)" \
   'saps $tool -ArgumentList "reset --hard"' 2
 
+# Review round 6: quoted-string '@' is not a here-string opener; backslash
+# path-qualified git normalizes for the tokenizer; separator-adjacent call
+# operators are git-capable.
+run_pwsh "PS: quoted '@' does not open a here-string (git line not swallowed)" \
+  "$(printf "Write-Output '@'\ngit reset --hard\n'@'")" 2
+run_pwsh "PS: backslash path-qualified git.exe (blocked)" \
+  'C:\Git\cmd\git.exe reset --hard' 2
+run_pwsh "PS: relative .\\git.exe (blocked)" \
+  '.\git.exe reset --hard' 2
+run_pwsh "PS: backslash path-qualified git.exe, safe op (allowed)" \
+  'C:\Git\cmd\git.exe status' 0
+run_pwsh "PS: semicolon-adjacent computed call (fail-closed block)" \
+  "Write-Host ok;& ('g'+'it') reset --hard" 2
+
 report
