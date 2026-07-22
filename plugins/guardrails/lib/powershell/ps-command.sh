@@ -284,10 +284,15 @@ ps::classify_git_command() {
   # path-qualified `C:\Git\cmd\git.exe reset --hard` would tokenize to a word
   # whose basename never matches git. Normalize to forward slashes so
   # hook::git_is_bin sees the real basename (and a safe `…\git.exe status`
-  # stays allowed rather than blanket-blocked).
+  # stays allowed rather than blanket-blocked). The `.exe` suffix (any case)
+  # normalizes away here too: a PowerShell command carries Windows spellings
+  # regardless of which OS the HOOK runs on, and hook::git_is_bin strips
+  # `.exe` only on its msys/cygwin branch.
+  local reduced="${PS_BLANKED//\\//}"
+  reduced=$(printf '%s' "$reduced" | sed -E 's/[Gg][Ii][Tt]\.[Ee][Xx][Ee]/git/g')
   # Read by the sourcing guard, not within this library.
   # shellcheck disable=SC2034
-  PS_SAFE_COMMAND="${PS_BLANKED//\\//}"
+  PS_SAFE_COMMAND="$reduced"
   return 0
 }
 
@@ -421,17 +426,25 @@ ps::write_bypass() {
   # Producer-scoped redirect. Split the quote-stripped text into pipeline /
   # statement segments; a stripped leading string literal leaves the segment
   # starting at its `>`, which is itself the content-emitter signal.
+  # fd-dup merge redirects (`2>&1`, `*>&1`) are plumbing, not producers — strip
+  # them BEFORE splitting, or the `&` inside `2>&1` cuts a phantom `1 > file`
+  # segment that the numeric-producer test would wrongly block
+  # (`git status 2>&1 > out.txt` is a tool capture, not a content write).
+  lcs=$(printf '%s' "$lcs" | sed -E 's/[0-9*]*>&[0-9]+//g')
   local norm="${lcs//[|;&]/$'\n'}"
   while IFS= read -r seg; do
     seg="${seg#"${seg%%[![:space:]]*}"}" # ltrim
     [[ "$seg" == *'>'* ]] || continue
     # Exclude the `$null` discard (PowerShell's /dev/null).
     [[ "$seg" =~ \>\>?[[:space:]]*\$null([[:space:]]|$) ]] && continue
-    # Unwrap grouping parens so a parenthesized producer is judged by what it
-    # produces: `('secret') > f` (quote-stripped to `() > f`) reduces to the
-    # leading-literal case, `(write-output x) > f` to its real head, and a
-    # grouped tool run (`(git diff) > f`) stays the tool-producer allow.
+    # Unwrap grouping parens AND script-block braces so a grouped producer is
+    # judged by what it produces: `('secret') > f` (quote-stripped to `() > f`)
+    # reduces to the leading-literal case, `(write-output x) > f` and
+    # `& { write-output x } > f` to their real heads, and a grouped tool run
+    # (`(git diff) > f`, `& { git diff } > f`) stays the tool-producer allow.
     seg="${seg//[()]/}"
+    seg="${seg//\{/}"
+    seg="${seg//\}/}"
     seg="${seg#"${seg%%[![:space:]]*}"}" # re-ltrim after unwrap
     head="${seg%%[[:space:]]*}"
     case "$seg" in

@@ -459,6 +459,16 @@ run_pwsh "PS: semicolon-adjacent & 'Set-Content' (blocked)" \
 run_pwsh "PS: quoted '@' not a here-string opener (write line not swallowed)" \
   "$(printf "Write-Output '@'\nSet-Content -Path f.txt -Value x\n'@'")" 2
 
+# Review round 7: fd-dup merge redirects are plumbing, not producers; invoked
+# script blocks are unwrapped like parenthesized producers.
+run_pwsh "PS: tool capture with 2>&1 > file (allowed)" "git status 2>&1 > out.txt" 0
+run_pwsh "PS: Get-ChildItem 2>&1 > file (allowed)" "Get-ChildItem 2>&1 > out.txt" 0
+run_pwsh "PS: echo with 2>&1 > file (still a producer, blocked)" "echo x 2>&1 > f.txt" 2
+run_pwsh "PS: & { Write-Output secret } > file (blocked)" \
+  "& { Write-Output secret } > creds.txt" 2
+run_pwsh "PS: & { git diff } > file (tool producer, allowed)" \
+  "& { git diff } > out.txt" 0
+
 # The block message is shell-agnostic (no 'Bash' assumption).
 psout=$(bash "$HOOK" <<<"$(pwsh_command_json "Set-Content f.txt 'x'")" 2>&1)
 assert_contains "PS write block names Write/Edit" "$psout" "Write or Edit tool"

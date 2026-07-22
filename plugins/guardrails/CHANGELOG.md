@@ -77,6 +77,14 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   statement/block separator boundary (`;& …`, `{& …}`), not only whitespace;
   and every stream's producer cmdlet (`Write-Error … 2>`, `Write-Warning … 3>`,
   verbose/debug/information) counts as a redirect content write.
+- **Review round 7:** fd-dup merge redirects (`2>&1`, `*>&1`) strip before
+  segment splitting, so a tool capture (`git status 2>&1 > out.txt`) is no
+  longer cut into a phantom numeric segment and wrongly blocked (over-block
+  regression from round 5); invoked script blocks unwrap like parenthesized
+  producers (`& { Write-Output secret } > f` blocks, `& { git diff } > f`
+  stays allowed); and `.exe`-suffixed git spellings normalize in the reduced
+  command so the POSIX hook matches the basename too (`C:\Git\cmd\git.exe
+  reset --hard` blocks on a Linux-run hook, not only under msys).
 - **The PowerShell coverage bar is documented as Bash-parity, not airtight.** These
   guards are accidental-destruction friction, not a boundary against deliberate
   evasion — and the Bash guard they extend does not stop deliberate evasion either.
