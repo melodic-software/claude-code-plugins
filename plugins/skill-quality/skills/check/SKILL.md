@@ -93,9 +93,10 @@ that line before editing, since it may be an illustrative example path rather th
   ref before the change (e.g. `HEAD^` or a merge-base) and run on a clean tree; it reroutes checks 3/8/9.
 - Trigger-drop protection tracks single-quoted `'phrase'` triggers. An unquoted `Use when:` list is not
   tracked by check 3; check 12 warns so those phrases get quoted and covered. A dropped phrase found
-  verbatim in a sibling skill's description/when_to_use under the same skills root is a trigger MOVE:
-  it WARNs instead of failing, because the listing still routes the phrase — only phrases absent
-  everywhere fail.
+  verbatim in a sibling skill's description/when_to_use under the same skills root — where the
+  sibling did NOT already carry it at the base ref — is a trigger MOVE: it WARNs instead of failing,
+  because the listing still routes the phrase. Phrases absent everywhere, and phrases the sibling
+  carried all along (coincidental overlap, not a move), still fail.
 - Check 19 (injection shell-declaration) FAILs only when a `!` injection carries *detectable*
   bash-only syntax (`/dev/null`, `command -v`, a pipe into a Unix text tool) AND no `shell:` is
   declared; portable-looking commands downgrade to a WARN, since static analysis cannot prove

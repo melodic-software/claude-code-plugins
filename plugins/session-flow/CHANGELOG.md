@@ -23,7 +23,7 @@
   `${CLAUDE_PLUGIN_ROOT}` (same shape as `reference/topic-docs.md`). No content
   duplicated in either skill; no runtime skill-to-skill invocation.
 
-### Changed (BREAKING)
+### Changed (breaking)
 
 - handoff: `--bg` removed outright — no alias, no deprecation window. `/handoff`
   is now purely the manual `/clear`-then-paste save-point; background delegation
