@@ -155,6 +155,14 @@ settings (an operator who set `observer_analysis_enabled=false` to avoid autonom
 a `claude -p` run from a manual arm). Anchor the ledger dir to the project — the launcher resolves it
 to an absolute path, so a relative `memory_dir` still lands in the consumer repo, not the plugin cache.
 
+**Cross-session continuity (manual arm only).** If this session resumed from a handoff chain or an
+earlier running-retro ledger, resolve the prior ledger and its session id under retro's Phase 1.0
+continuity gate (the same `previous_running_retro` / `previous_session_id` resolution the checkpoint
+flow uses in step 2) and pass them below, so the observer's autonomous ledger links back into the
+cumulative chain. A **detached/headless observer cannot make the continuity-gate judgement safely**
+(blindly linking the newest handoff could splice an unrelated session), so the opt-in SessionStart
+hook leaves these empty; a later in-session checkpoint reconciles continuity for hook-armed sessions.
+
 ```bash
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT}"
 TRANSCRIPT="$SESSION_DATA_DIR/${CLAUDE_CODE_SESSION_ID}.jsonl"   # SESSION_DATA_DIR per retro's "Paths"
@@ -168,6 +176,7 @@ PY=""; for c in python3 python; do command -v "$c" >/dev/null 2>&1 \
 
 args=(--transcript "$TRANSCRIPT" --work-dir "$WORK_DIR" --ledger-dir "$MEMORY_DIR/running-retros"
   --session-id "$CLAUDE_CODE_SESSION_ID" --plugin-root "$PLUGIN_ROOT"
+  --previous-running-retro "${PREV_LEDGER:-}" --previous-session-id "${PREV_SID:-}"
   --model "${CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_MODEL:-claude-haiku-4-5}"
   --idle-seconds "${CLAUDE_PLUGIN_OPTION_OBSERVER_IDLE_SECONDS:-900}"
   --max-seconds "${CLAUDE_PLUGIN_OPTION_OBSERVER_MAX_SECONDS:-86400}")

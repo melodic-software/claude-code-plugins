@@ -115,6 +115,8 @@ class Observer:
         self.model = args.model
         self.plugin_root = args.plugin_root
         self.topic = args.topic or "session"
+        self.prev_running_retro = args.previous_running_retro
+        self.prev_session_id = args.previous_session_id
 
         self.work_dir.mkdir(parents=True, exist_ok=True)
         self.obs_path = self.work_dir / f"observations-{self.session_id}.ndjson"
@@ -475,8 +477,18 @@ class Observer:
                    f"{_redact(findings).strip()}\n")
         if ledger is None:
             ledger = self.ledger_dir / f"{now_ts()}-running-retro-{self.topic}.md"
-            header = (f"---\nsession_id: {self.session_id}\n"
-                      f"observer: autonomous\n---\n\n"
+            # Carry the cross-session continuity pointers when the arming context
+            # resolved them (the in-session `arm` entry applies retro's Phase 1.0
+            # continuity gate). A detached/headless observer cannot make that
+            # judgement safely -- blindly linking the newest handoff could splice
+            # an unrelated session -- so the hook path leaves them empty and a
+            # later in-session checkpoint reconciles continuity.
+            fm = [f"session_id: {self.session_id}", "observer: autonomous"]
+            if self.prev_running_retro:
+                fm.append(f"previous_running_retro: {self.prev_running_retro}")
+            if self.prev_session_id:
+                fm.append(f"previous_session_id: {self.prev_session_id}")
+            header = ("---\n" + "\n".join(fm) + "\n---\n\n"
                       f"# Running retro ledger — {self.topic}\n")
             ledger.write_text(header + section, encoding="utf-8")
             self.log(f"created ledger {ledger.name}")
@@ -619,6 +631,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--session-id", default="", help="defaults to transcript stem")
     p.add_argument("--plugin-root", default="", help="${CLAUDE_PLUGIN_ROOT}")
     p.add_argument("--topic", default="", help="ledger topic slug")
+    p.add_argument("--previous-running-retro", default="",
+                   help="prior ledger path for cross-session continuity (resolved by "
+                        "the in-session arm entry under retro's continuity gate)")
+    p.add_argument("--previous-session-id", default="",
+                   help="prior session id paired with --previous-running-retro")
     p.add_argument("--model", default="claude-haiku-4-5")
     p.add_argument("--analysis", action="store_true",
                    help="fire the headless post-end analysis on idle-detect")

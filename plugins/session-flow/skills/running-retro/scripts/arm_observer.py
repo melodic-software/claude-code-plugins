@@ -49,6 +49,8 @@ def main() -> int:
     p.add_argument("--session-id", default="")
     p.add_argument("--plugin-root", default="")
     p.add_argument("--topic", default="")
+    p.add_argument("--previous-running-retro", default="")
+    p.add_argument("--previous-session-id", default="")
     p.add_argument("--model", default="claude-haiku-4-5")
     p.add_argument("--analysis", action="store_true")
     p.add_argument("--bare", action="store_true")
@@ -85,6 +87,8 @@ def main() -> int:
            "--session-id", args.session_id,
            "--plugin-root", args.plugin_root,
            "--topic", args.topic,
+           "--previous-running-retro", args.previous_running_retro,
+           "--previous-session-id", args.previous_session_id,
            "--model", args.model,
            "--poll-seconds", str(args.poll_seconds),
            "--idle-seconds", str(args.idle_seconds),

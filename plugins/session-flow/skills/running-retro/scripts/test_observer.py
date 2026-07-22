@@ -224,6 +224,23 @@ class LedgerAndRetention(unittest.TestCase):
                 {"target_session": "other", "byte_offset": 999}), encoding="utf-8")
             self.assertEqual(ob._resume_offset(), 0)
 
+    def test_continuity_pointers_in_frontmatter(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            # Without pointers: only session_id + observer marker.
+            a = make_observer(tmp, session_id="c1")
+            a._append_ledger("f")
+            self.assertNotIn("previous_running_retro",
+                             a._find_session_ledger().read_text(encoding="utf-8"))
+            # With pointers (as the in-session arm entry would pass): carried through.
+            b = make_observer(tmp, session_id="c2")
+            b.prev_running_retro = "/mem/running-retros/20260101T000000Z-running-retro-x.md"
+            b.prev_session_id = "prior-sid"
+            b._append_ledger("f")
+            head = b._find_session_ledger().read_text(encoding="utf-8")
+            self.assertIn("previous_running_retro: /mem/running-retros/", head)
+            self.assertIn("previous_session_id: prior-sid", head)
+
     def test_memory_root_self_ignore_guard(self):
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)

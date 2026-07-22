@@ -128,6 +128,12 @@ double-arm.
   mtime-idle ships regardless — it is crash-safe where `SessionEnd` is not.
 - **`retro` parser in the analysis run.** Deferred while the analysis is Read-only over untrusted
   data. **Trigger:** a sandbox that can run the parser safely over untrusted transcript content.
+- **Headless cross-session continuity.** The opt-in SessionStart hook arms the observer without the
+  `previous_running_retro` / `previous_session_id` continuity pointers, because a detached process
+  cannot safely apply retro's Phase 1.0 continuity gate (blindly linking the newest handoff could
+  splice an unrelated session). The manual `arm` entry passes them (it resolves the chain in-session);
+  a later in-session checkpoint reconciles continuity for hook-armed sessions. **Trigger:** a
+  safe headless way to resolve the continuity gate.
 - **In-session consumer of collect-only observations.** Collect-only mode retains the distilled
   observations under the plugin work dir, but no code path in the in-session `running-retro` checkpoint
   reads them today — they are for manual inspection. **Trigger:** wire the checkpoint flow to fold a
