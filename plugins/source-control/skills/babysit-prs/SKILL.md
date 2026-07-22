@@ -114,9 +114,9 @@ the safe tier the table's `no — report` still governs: report the blocker exac
 and do not spawn the conflict worker. Only `worker` and `autopilot` read that same string as
 license to act.
 
-**Cross-tier invariants** — hold in every tier including autopilot: never an unprotected
-force-push (a rebase integration pushes only `--force-with-lease` per
-[reference/loop.md](reference/loop.md)); never `--admin`; never delete a branch or worktree
+**Cross-tier invariants** — hold in every tier including autopilot: never a force-push (freshness is
+merge-only, refspec-pushed fast-forward — [reference/loop.md](reference/loop.md)); never `--admin`;
+never delete a branch or worktree
 that is dirty or unmerged; never change GitHub settings, secrets, branch protection, or
 billing; never act on a repository outside the watched owners; never resolve a thread whose
 finding is not actually addressed. A merge always requires the deterministic gate — autopilot
@@ -337,10 +337,10 @@ Execute for EACH PR discovered, oldest first. Detailed mechanics:
   `${CLAUDE_PLUGIN_ROOT}/scripts/fetch-all-pr-comments.sh` (derives owner/repo from the current directory; from a cwd that is not a checkout of the target repo, export `FETCH_COMMENTS_OWNER`/`FETCH_COMMENTS_REPO` first — also unblocks the readiness gate's exit 4), filter own prior replies, classify
   addressed/unaddressed from GitHub evidence (§5.0.3). GitHub is the source of truth, not model
   memory
-- [ ] **Step 0.2 — Branch checkout:** `gh pr checkout <N>` with worktree/dirty-tree pre-checks;
-  read-only mode when the branch is owned elsewhere (§5.1.2)
+- [ ] **Step 0.2 — Branch checkout:** put this worktree's HEAD at the true PR head (`gh pr view --json headRefOid`) — `gh pr checkout <N>`, or `--detach` when the branch is locked in a sibling worktree (never `git checkout` the locked branch);
+  assert HEAD == that head before any mutate, read-only on mismatch or dirty tree (§5.1.2)
 - [ ] **Step 0.3 — Branch freshness:** fetch + `git merge-base --is-ancestor`; integrate
-  (merge vs rebase per the branch's own history), graduated conflict handling (§5.1.2)
+  merge-only (never rebase — rebasing a PR branch needs a forbidden force-push), graduated conflict handling (§5.1.2)
 - [ ] **Step 1 — Event-delivery gate:** cloud poll / push channel / Monitor watch, re-armed
   per PR (§5.1.1)
 - [ ] **Steps A–F — Per-PR iteration checklist** (§5.1.3): terminal check, CI classification,
@@ -350,7 +350,7 @@ Execute for EACH PR discovered, oldest first. Detailed mechanics:
   the configured extra self identities are `${user_config.babysit_self_logins}` — when that value
   is non-empty and not a literal unexpanded token, append `--extra-self "<value>"`),
   report
-- [ ] **Step 5 — Commit + push** fixes on the PR branch; clean working tree; follow-up replies
+- [ ] **Step 5 — Commit + push** fixes to the PR branch (refspec; works from a detached HEAD); clean working tree; follow-up replies
   cite commit SHAs
 - [ ] **Step 6 — PR transition:** next-oldest PR needing attention (§5.1.6)
 - [ ] **Step 7 — Self-pace:** schedule the next wake per the cadence contract (§5.3)

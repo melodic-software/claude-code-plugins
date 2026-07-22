@@ -27,10 +27,54 @@ value and its unset fallback.
 ## Checkout And Push Invariants
 
 - Reuse an existing clean worktree for a PR rather than creating a second checkout — reuse only
-  when it is already on the target PR branch and `git status --porcelain` is clean; otherwise
-  report it (`worktrees.md`).
+  when `git status --porcelain` is clean and its `HEAD` is the true PR head (the head assertion
+  below), whether it is checked out on the PR branch or in detached HEAD because the branch is
+  locked elsewhere; otherwise report it (`worktrees.md`).
+- **Assigned-worktree head assertion.** Before any merge, edit, or push, resolve the assigned
+  worktree's `HEAD` to a commit and assert it equals the true PR head — `gh pr view <N> --json
+  headRefOid` (authoritative for same-repo and fork PRs; equal to a freshly re-fetched
+  `origin/<headRefName>` for a same-repo PR). This holds whether the worktree is on the PR branch,
+  in **detached HEAD** (the branch is checked out in a sibling worktree, or lives in a foreign dev
+  worktree outside `<worktree-root>`), or on a **stale local branch tip** behind the PR head. If
+  `HEAD` differs from that head, **stop** — never merge, edit, or push onto a stale tip: a naive
+  `git merge origin/<baseRefName>` + push from a behind-head tip silently reverts the newest branch
+  commit(s). Safety comes from this assertion, not from the assigned `HEAD` happening to match. The
+  assertion is also on **identity, not just the commit**: a clean worktree whose tip merely equals
+  `headRefOid` while checked out on some OTHER local branch must not enter full mode — a fix committed
+  there advances that unrelated branch while only the refspec push lands on the PR branch, leaving the
+  other branch locally carrying this PR's work. Require the checkout to be on the PR branch or in
+  detached HEAD (a coincidental same-tip match on another branch heals via `gh pr checkout`). This
+  extends the head-SHA re-check below — which covered only the head moving *mid-work* — to the moment
+  the worktree is first assigned.
 - Re-check the PR head SHA immediately before editing and again immediately before pushing. Stop
   if it changed unexpectedly — someone else moved the branch.
+- **Refspec push to the branch's upstream, never branch checkout.** Do not depend on `git checkout
+  <headRefName>` to reach the branch: when it is locked by a sibling worktree that command dead-ends
+  (`fatal: '<branch>' is already used by worktree at ...`). Once the head assertion holds, push the
+  integrated work with an explicit refspec to the remote `gh pr checkout` configured for the branch —
+  `git push "$PUSH_REMOTE" HEAD:<headRefName>`, where `PUSH_REMOTE` resolves **fail-closed**. Decide
+  same-repo vs fork from `gh pr view --json isCrossRepository`, never by whether `git config` happens
+  to resolve: `origin` for a same-repo head; for a write-allowed cross-repo (in-owner fork) head, the
+  fork destination from `branch.<headRefName>.pushRemote` or `branch.<headRefName>.remote`, validated
+  by URL and gated on the trust boundary. First require the cross-repo head's OWNER to be within
+  `<watched-owners>`, else read-only (Stop And Ask, below) — an external-fork head with maintainer
+  edits enabled must not receive a push just because its URL matches. Then, because a named remote can
+  carry separate `pushurl`(s) that `git push` honors and writes to ALL of, resolve the actual push URLs
+  (`git remote get-url --push --all`) and canonicalize EACH (a remote name, a bare URL, or those
+  `pushurl`s) to **host + owner/repo**, then require EVERY one to equal the head repo's own canonical
+  URL (`gh api repos/<nameWithOwner> --jq .html_url`; `gh pr view --json headRepository` exposes no
+  URL), not merely reject the literal `origin` name or match `owner/repo` on any host. Never hardcode
+  `origin`, and never fall back to it when the destination cannot be validated — a fork head reached via
+  `--detach` leaves no branch config, and a remote named `upstream` (or any name), a same-`owner/repo`
+  path on a different host, a fork fetch URL masking a base-repo `pushurl`, or an extra base/attacker
+  `pushurl` past a matching first one, can point at the base repo, so pushing there silently writes a
+  same-named branch on base instead of updating the fork head; **stop (read-only) instead**. Known
+  limitation: this validates the push URLs resolvable at guard time; git's own push-time URL rewrites
+  (`url.<base>.pushInsteadOf` and similar) are outside the static guard's threat model, as they do not
+  arise from the documented `gh pr checkout` flow. Because `HEAD` equalled the PR head and you only added
+  commits on top, this push is a fast-forward; never `--force` or `--force-with-lease`. A rejected
+  non-fast-forward push means the assertion no longer holds — re-fetch and stop, never force past it.
+  (An external-fork head outside `<watched-owners>` remains the read-only stop-and-ask case below.)
 - Honor `mutation_policy.branch_write_allowed`: never push, and never create a write-capable
   worker or refresh a PR head, when it is false.
 - Head-ref uniqueness guard: two open PRs sharing one head repository/branch is a stop-and-ask —

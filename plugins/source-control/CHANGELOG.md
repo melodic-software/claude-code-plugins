@@ -3,6 +3,40 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.2]
+
+### Fixed
+
+- **Babysit worker-worktree head-safety + merge-only freshness (`#548`).** A babysit worker can be
+  assigned a worktree in detached HEAD (its PR branch locked in a sibling/foreign worktree) or on a
+  stale local branch tip behind `origin`; the checkout/freshness mechanics then merged and pushed
+  from that tip, so a stale-tip integration could silently revert the newest branch commit — a
+  near-miss where safety depended on the assigned `HEAD` happening to match, not a guard.
+  - `reference/safety.md` Checkout And Push Invariants now require asserting the assigned worktree's
+    `HEAD` equals the true PR head (`gh pr view --json headRefOid`) before any merge/edit/push (stop
+    on a stale/detached mismatch) and pushing via an explicit refspec (`git push "$PUSH_REMOTE"
+    HEAD:<headRefName>`) to a **fail-closed** destination — `origin` for a same-repo head; for a
+    write-allowed cross-repo head, the fork destination validated by **host + owner/repo** identity,
+    not by remote name: canonicalize the URL `git push` will actually use (`git remote get-url
+    --push`, which honors a `pushurl` that can differ from the fetch URL) and require it to equal the
+    head repo's own URL (`gh api repos/<nameWithOwner> --jq .html_url`), else read-only — fast-forward
+    by construction, never `--force` — so a branch locked by a sibling worktree is not a `git
+    checkout` dead-end.
+  - The worker mechanics are reconciled to that contract: `reference/loop.md` §5.1.2 acquires the head
+    via `gh pr checkout` and asserts `HEAD == the live headRefOid` in every checkout path (already-at-
+    head, sibling-locked `--detach` reuse, and heal-via-checkout), degrading to read-only on mismatch;
+    `SKILL.md` Step 0.2 + cross-tier invariants and `reference/orchestration.md`'s conflict-worker
+    follow the same assertion + upstream refspec push.
+  - **Freshness is now merge-only.** The prior `loop.md` path rebased-and-`--force-with-lease`d
+    linear-history branches, which both violated the skill's own never-force-push invariant
+    (`safety.md` "Never Do Automatically", `orchestration.md`) and was the silent-revert vector.
+    Behind-default branches now always integrate via `git merge` + a fast-forward refspec push (the
+    final squash merge still flattens interim history). **Behavior change:** linear-history branches
+    now carry an interim merge commit during freshness instead of being rebased.
+
+  Enforcement remains agent discipline; whether the head assertion belongs in a deterministic helper
+  is tracked in `#885`.
+
 ## [0.16.1]
 
 ### Fixed
