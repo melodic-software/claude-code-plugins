@@ -894,7 +894,10 @@ hook::git_alias_expansion() {
   for i in "${!HOOK_GIT_CONFIG_VALUES[@]}"; do
     cv="${HOOK_GIT_CONFIG_VALUES[i]}"
     # git config names are case-insensitive: fold both sides of the key match.
-    [[ "${cv,,}" == "alias.${sub,,}="* ]] || continue
+    # git honors two spellings for a subcommand's alias, `alias.<sub>` and the
+    # `alias.<sub>.command` subkey (the only alias subkey it reads) — both must be
+    # detected or a dangerous alias smuggled via `.command` classifies as non-alias.
+    [[ "${cv,,}" == "alias.${sub,,}="* || "${cv,,}" == "alias.${sub,,}.command="* ]] || continue
     HOOK_GIT_ALIAS_EXP="${cv#*=}"
     found_kind="${HOOK_GIT_CONFIG_VALUE_KINDS[i]:-inline}"
   done

@@ -134,6 +134,18 @@ run "inline alias, uppercase subcommand (blocked)" "git -c alias.c=commit C -m x
 run "inline alias, uppercase alias key (blocked)" "git -c alias.C=commit c -m x" 2
 run "inline alias, uppercase both, to canonical form (allowed)" "git -c alias.C=commit C -F -" 0
 
+# --- `alias.<sub>.command` subkey is an alias definition too ------------------
+# git reads the `alias.<sub>.command` subkey as the alias (`git -c alias.c.command=commit
+# c -m x` commits non-canonically); the guard classifies that spelling inline and by shape.
+run "inline .command-subkey alias to commit -m (blocked)" "git -c alias.c.command=commit c -m bypass" 2
+run "config-env .command-subkey alias for the invoked sub (blocked by shape)" "git --config-env=alias.c.command=AV c" 2
+run ".command-subkey alias, case-folded key (blocked)" "git -c alias.C.command=commit c -m x" 2
+# A non-`command` alias subkey is not an alias to git, so it must not be blocked.
+run "non-command alias subkey is not an alias (allowed)" "git -c alias.c.nope=commit c -m bypass" 0
+# Cross-form last-wins across the plain and .command spellings.
+run ".command decoy last-wins over an earlier commit alias (allowed)" "git -c alias.c=commit -c alias.c.command=status c -m x" 0
+run "plain commit alias last-wins over an earlier .command decoy (blocked)" "git -c alias.c.command=status -c alias.c=commit c -m x" 2
+
 # --- other subcommands are untouched -----------------------------------------
 run "git log (allowed)" "git log --oneline -5" 0
 run "git push (allowed)" "git push origin main" 0

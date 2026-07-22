@@ -25,6 +25,13 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   and bounded, so both guards resolve and re-check it as before — last value wins,
   case-insensitive key match, and `!` shell-alias / git-alias expansions re-parsed one
   level deep.
+- **The `alias.<sub>.command` subkey is now classified as an alias definition too
+  (`#740`).** git reads both `alias.<sub>` and its `alias.<sub>.command` subkey as the
+  alias for `<sub>` (`git -c alias.rh.command='reset --hard' rh` runs it); the classifier
+  previously matched only the plain spelling, so a dangerous alias smuggled through
+  `.command` — via `-c` or `--config-env` — was treated as a non-alias and ran unchecked.
+  Both spellings are now detected, inline (resolved and re-checked) and by `--config-env`
+  shape (refused), with the same last-wins precedence git applies across the two forms.
 - **Removed the env-value-resolution machinery** that existed only to read a `--config-env`
   value and the environment feeding it: `hook::snapshot_env` / `HOOK_ENV_SNAPSHOT`,
   `hook::git_effective_config_values` / `HOOK_GIT_CONFIG_UNRESOLVED`,

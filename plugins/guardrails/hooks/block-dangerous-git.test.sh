@@ -218,6 +218,17 @@ run "env value last-wins over an inline decoy for the same key (blocked)" "git -
 run "inline dangerous alias (blocked)" "git -c alias.rh='reset --hard' rh" 2
 run "inline alias, case-folded subcommand (blocked)" "git -c alias.rh='reset --hard' RH" 2
 run "inline alias, case-folded key (blocked)" "git -c alias.RH='reset --hard' rh" 2
+# git also reads the `alias.<sub>.command` subkey as the alias definition
+# (`git -c alias.rh.command='reset --hard' rh` runs it); the guard classifies that
+# spelling as an alias too, inline and by --config-env shape.
+run "inline dangerous .command-subkey alias (blocked)" "git -c alias.rh.command='reset --hard' rh" 2
+run "env-defined .command-subkey alias for the invoked sub (blocked by shape)" "git --config-env=alias.rh.command=AV rh" 2
+run ".command-subkey alias, case-folded key (blocked)" "git -c alias.RH.command='reset --hard' rh" 2
+# A non-`command` alias subkey is not an alias to git, so it must not be blocked.
+run "non-command alias subkey is not an alias (allowed)" "git -c alias.rh.nope='reset --hard' rh" 0
+# Cross-form last-wins across the plain and .command spellings.
+run ".command decoy last-wins over an earlier dangerous plain alias (allowed)" "git -c alias.rh='reset --hard' -c alias.rh.command=status rh" 0
+run "plain dangerous alias last-wins over an earlier .command decoy (blocked)" "git -c alias.rh.command=status -c alias.rh='reset --hard' rh" 2
 
 # The env-defined alias is refused wherever it APPEARS, through any wrapper — no env
 # propagation is tracked, so every prior env-carrying bypass (export / set -a / command

@@ -729,6 +729,58 @@ else
   fail "git alias (case fold): rc=$rc"
 fi
 
+# git honors the `alias.<sub>.command` subkey as an alias definition too
+# (`git -c alias.rh.command='reset --hard' rh` runs it), so the classifier must
+# treat that form exactly like the plain `alias.<sub>` form.
+hook::git_resolve_subcommand 0 git -c alias.rh.command='reset --hard' rh
+hook::git_alias_expansion rh
+rc=$?
+if ((rc == 0)) && [[ "$HOOK_GIT_ALIAS_EXP" == "reset --hard" ]]; then
+  ok "git alias: inline -c .command subkey returns the literal expansion (rc 0)"
+else
+  fail "git alias (inline .command): rc=$rc exp=[$HOOK_GIT_ALIAS_EXP]"
+fi
+
+hook::git_resolve_subcommand 0 git --config-env=alias.rh.command=AVAR rh
+hook::git_alias_expansion rh
+rc=$?
+if ((rc == 2)); then
+  ok "git alias: --config-env .command subkey for the invoked sub is refused by shape (rc 2)"
+else
+  fail "git alias (env .command): rc=$rc"
+fi
+
+# A non-`command` alias subkey is NOT an alias definition to git, so it must not
+# be classified as one (control — otherwise the detector over-matches).
+hook::git_resolve_subcommand 0 git -c alias.rh.nope=status rh
+hook::git_alias_expansion rh
+rc=$?
+if ((rc == 1)); then
+  ok "git alias: a non-command alias subkey is not treated as an alias (rc 1)"
+else
+  fail "git alias (.nope control): rc=$rc"
+fi
+
+# Cross-form last-wins: git applies the last value across the plain and `.command`
+# spellings alike. A trailing `.command` decoy wins over an earlier plain alias.
+hook::git_resolve_subcommand 0 git -c alias.rh='reset --hard' -c alias.rh.command=status rh
+hook::git_alias_expansion rh
+rc=$?
+if ((rc == 0)) && [[ "$HOOK_GIT_ALIAS_EXP" == "status" ]]; then
+  ok "git alias: .command last-wins over an earlier plain alias -> resolve"
+else
+  fail "git alias (.command last): rc=$rc exp=[$HOOK_GIT_ALIAS_EXP]"
+fi
+
+hook::git_resolve_subcommand 0 git -c alias.rh.command=status --config-env=alias.rh=AVAR rh
+hook::git_alias_expansion rh
+rc=$?
+if ((rc == 2)); then
+  ok "git alias: env plain-form last-wins over an earlier .command decoy -> refuse"
+else
+  fail "git alias (env last over .command): rc=$rc"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]
