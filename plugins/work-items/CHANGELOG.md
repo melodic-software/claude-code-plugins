@@ -25,7 +25,7 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   `track add` filing default (`p3-low`) is deliberately distinct — an untriaged-signal floor, not a
   priority assessment — and is now documented as such.
 - **Duplicate / supersede close discipline (`#552` member 5).** Sampled closures were 100%
-  `COMPLETED` — duplicates and superseded items were being mis-closed. Duplicates now close via the
+  `COMPLETED` — duplicates and superseded items were closing under the wrong reason. Duplicates now close via the
   provider's native duplicate mechanic where one exists (GitHub: `gh issue close --duplicate-of`,
   which sets close reason `duplicate` and a structured, API-queryable `duplicateOf` relationship),
   with the portable fallback — append a queryable `## Duplicate of #N` body section and close
