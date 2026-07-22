@@ -4,6 +4,23 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.9.3]
+
+### Fixed
+
+- **youtube-digest: contact-sheet retention wording + `--target` resolution gap**
+  (#1015): the intro paragraph called the `key-frames/contact-sheets/` snapshot
+  "temp-only handling," contradicting the Output contract's "local DR snapshot,
+  gitignored" characterization of the same directory; reworded to "never-committed
+  handling" so the snapshot reads as a durable-on-disk-but-gitignored instance, not
+  temp state. `--target <repo>` resolution now requires a **local working tree on
+  disk** (not just a name) because `templates/synthesis-item.md`'s grep-backed
+  **Target touchpoints** need a tree to grep; an explicit `--target` with no local
+  checkout now halts and asks for its path instead of falling through to
+  `CLAUDE_PROJECT_DIR`/CWD or inventing paths, and both the target name and its
+  resolved local tree path are recorded in `README.md`'s `**Target:**` line so
+  `resume` re-greps the same tree.
+
 ## [0.9.2]
 
 ### Fixed

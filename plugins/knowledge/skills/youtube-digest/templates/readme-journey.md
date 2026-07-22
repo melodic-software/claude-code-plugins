@@ -6,7 +6,7 @@ updated: YYYY-MM-DDTHH:MM:SSZ
 
 # {Video Title}
 
-**Target:** {resolved synthesis target — SKILL.md "Synthesis target resolution"}
+**Target:** {resolved synthesis target — name + local tree path; SKILL.md "Synthesis target resolution"}
 
 ## TLDR
 
