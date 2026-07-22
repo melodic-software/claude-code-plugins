@@ -138,6 +138,23 @@ class ProbeTests(unittest.TestCase):
         self.assertFalse(result["effective"])
         self.assertEqual("configured", result["source"])
 
+    def test_directory_at_settings_path_degrades(self) -> None:
+        directory = Path(self.tmp.name) / "settings-as-dir"
+        directory.mkdir()
+        result = self.run_probe(["--settings-file", str(directory)])
+        self.assertTrue(result["effective"])
+        self.assertEqual("indeterminate", result["source"])
+        self.assertTrue(result["degraded"])
+
+    def test_uninspectable_settings_path_degrades(self) -> None:
+        with mock.patch.object(
+            probe.Path, "stat", side_effect=PermissionError("denied")
+        ):
+            result = self.run_probe()
+        self.assertTrue(result["effective"])
+        self.assertEqual("indeterminate", result["source"])
+        self.assertTrue(result["degraded"])
+
     def test_non_object_settings_root_degrades_without_crashing(self) -> None:
         self.settings.write_text("[]", encoding="utf-8")
         result = self.run_probe()

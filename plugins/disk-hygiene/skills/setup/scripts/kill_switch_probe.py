@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import stat
 import sys
 from pathlib import Path
 
@@ -72,7 +73,9 @@ def _report(
 
 
 def probe(settings_path: Path) -> dict[str, object]:
-    if not settings_path.is_file():
+    try:
+        settings_stat = settings_path.stat()
+    except FileNotFoundError:
         return _report(
             True,
             "default",
@@ -80,6 +83,26 @@ def probe(settings_path: Path) -> dict[str, object]:
             f"No settings file at {settings_path}; the toggle is not configured "
             "there and the plugin default (enabled) applies. Managed settings or "
             "a --settings flag could still carry a value this probe cannot see.",
+            settings_path,
+            [],
+        )
+    except OSError as exc:
+        return _report(
+            True,
+            "indeterminate",
+            True,
+            f"Could not inspect {settings_path} ({exc}); assuming the default "
+            "(enabled). This is an assumption, not the configured value.",
+            settings_path,
+            [],
+        )
+    if not stat.S_ISREG(settings_stat.st_mode):
+        return _report(
+            True,
+            "indeterminate",
+            True,
+            f"{settings_path} exists but is not a regular file; assuming the "
+            "default (enabled). This is an assumption, not the configured value.",
             settings_path,
             [],
         )
