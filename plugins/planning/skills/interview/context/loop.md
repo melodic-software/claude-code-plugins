@@ -103,12 +103,14 @@ Each round is one numbered set in prose (surface rules: SKILL.md "Question surfa
 
 ### Artifact escape hatch (dense round)
 
-When a round is large or dense enough that inline prose reads as a wall, offer to render the **whole frontier** as an HTML decision-table artifact (SKILL.md "Artifact escape hatch"). It is a rendering surface, not a protocol change — the frontier is still asked whole, never capped or split across cards.
+When a round is large or dense enough that inline prose reads as a wall, offer to render the **whole frontier** as a decision table (SKILL.md "Artifact escape hatch"). It is a rendering surface, not a protocol change — the frontier is still asked whole, never capped or split across cards, and the recommendation+basis+probe contract of an inline round is preserved (below).
 
-- **Columns:** `#` (the terminal `Q<N>`) | `Question` | `Recommendation` (the answer, terse) | `Alternatives` (the other options, one line each) | `Deciding what` (the stakes — what this answer changes downstream).
-- **Answer path:** the row `#` equals the terminal `Q<N>`, so the user answers in the terminal by number ("Q7 = b", "accept all") exactly as with an inline round; the artifact is read-only scanning, not an input surface.
-- **Terminal residue:** the terminal keeps a one-line summary (how many questions, what the round turns on) and the artifact link — never a silent hand-off to the artifact.
-- **Degrade:** when artifact rendering is unavailable, render the same five columns as a fenced markdown table inline.
+- **Delivery:** write a **self-contained** HTML file to the topic's memory slice — `<memory_dir>/<topic-slug>/interview-round-<n>.html` (default `.work/`), resolved per the topic-docs binding. Give the user its path to open; the ledger and terminal stay the tracked record (the HTML is a scannable view, not the source of truth — mirror the repo's HTML-vs-markdown convention when it declares one).
+- **Columns:** `#` (the terminal `Q<N>`) | `Question` | `Recommendation` — the answer **with its 2-3 sentence codebase-grounded basis**, the same grounding an inline round carries, never a terse label | `Alternatives` (the other options, one line each) | `Deciding what` (the stakes — what this answer changes downstream).
+- **Constraint probe kept:** render the round's closing probe (the invitation to surface a constraint that would flip a recommendation) with the table — in the terminal residue or beneath the table — so the challenge mechanism the inline contract requires is not lost.
+- **Answer path:** the row `#` equals the terminal `Q<N>`, so the user answers in the terminal by number ("Q7 = b", "accept all") exactly as with an inline round; the table is read-only scanning, not an input surface.
+- **Terminal residue:** the terminal keeps a one-line summary (how many questions, what the round turns on), the file path, and the closing probe — never a silent hand-off to the artifact.
+- **Degrade:** when HTML rendering is unavailable, render the same columns (with the same grounded basis) and the probe as a fenced markdown table inline.
 
 ### Session-shorthand glossary
 
