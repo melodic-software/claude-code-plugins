@@ -37,8 +37,12 @@ directory, symlink, or Windows reparse point.
 - Never elevate, trigger UAC/sudo, install a dependency, close another process's handle, or disable a
   retention mechanism. Report `needs-elevation` or `handle-state-unverified` and stop that tier.
 - If the `disk_hygiene_enabled` userConfig option is `false` (its value here is
-  `${user_config.disk_hygiene_enabled}`; a literal unexpanded token means unset = enabled), audit
-  only and explain why execution is disabled. In this audit-only mode the guard denies every
+  `${user_config.disk_hygiene_enabled}`), audit only and explain why execution is disabled. A
+  literal unexpanded token is not evidence the toggle is unset — resolve it deterministically by
+  running the bundled probe (the guard allows exactly this argument-free shape):
+  `"<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/kill_switch_probe.py"` and honor
+  the `effective` value it reports; on `degraded: true` proceed as enabled but say the configured
+  value could not be read. In this audit-only mode the guard denies every
   deletion lane, including the flagged PowerShell mutation spellings, not only the Bash engine
   apply. The kill-switch value reaches the guard as a runtime-substituted hook argument
   (`--disk-hygiene-enabled ${user_config.disk_hygiene_enabled}`), so a configured `false` is
@@ -50,7 +54,8 @@ directory, symlink, or Windows reparse point.
   replace them. If either value is not known yet, submit the otherwise exact scan shape once with
   bare `python`: the guard must deny it and report both, after which retry the scan with the
   absolute interpreter and the reported `--data-root`. If the reported interpreter is older than
-  Python 3.11, stop with the declared prerequisite instead of improvising a different scanner or
+  the engine's declared floor (the `MIN_PYTHON` constant in `hygiene.py`, the floor's single
+  origin), stop with the declared prerequisite instead of improvising a different scanner or
   deletion path.
 - Automated, scheduled, remote, unattended, or no-human-in-loop sessions always audit and stop.
 
@@ -62,7 +67,8 @@ stay there, never in the target or `${CLAUDE_PLUGIN_ROOT}`. Run:
 ```text
 "<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" scan \
   --target "<target>" --output "<run-dir>/snapshot.json" [--policy "<policy.json>"] \
-  --project-dir "${CLAUDE_PROJECT_DIR}" --data-root "${CLAUDE_PLUGIN_DATA}"
+  --project-dir "${CLAUDE_PROJECT_DIR}" --data-root "${CLAUDE_PLUGIN_DATA}" \
+  [--max-depth <N>] [--confirmed-large-scan]
 ```
 
 The guard validates `--data-root` against the authorized data root it receives as a
@@ -71,7 +77,14 @@ plugin data directory even when the shell environment lacks `CLAUDE_PLUGIN_DATA`
 
 For a large root (a home directory, anything whose recursive walk could exceed the engine's entry
 cap), start with a bounded pass: add `--max-depth 1` to inventory the target's loose files and
-immediate children, then fan out deeper scans per subtree that the evidence justifies. Every
+immediate children, then fan out deeper scans per subtree that the evidence justifies. The engine
+backs this with a deterministic gate: a scan whose target resolves to the user home directory and
+carries neither `--max-depth` nor `--confirmed-large-scan` returns `large-target-confirmation-required`
+(after a cheap top-level probe, not a full walk) instead of the unbounded traversal, so a forgotten
+bound never becomes an accidental whole-home scan. `--max-depth` is the preferred bounded response.
+Reserve `--confirmed-large-scan` for a deliberate full walk the human has confirmed — ask with
+`AskUserQuestion` first, exactly as the apply lane requires before an expensive step; a general
+"clean my home directory" is not that confirmation. Every
 directory whose descendants were not walked — cut off by `--max-depth`, a protected root, or a VCS
 boundary — is recorded in `truncated_paths`; report them as coverage gaps, never as clean, and
 never plan them for removal (the preview blocks them as `truncated-not-inventoried` and skips the
@@ -238,7 +251,8 @@ sparse files, hard links, compression, and delayed allocation affect it.
 - The guard hook launches in exec form via `python3`, resolved on `PATH` with no shell (`python3`,
   not bare `python`, because stock macOS and many Linux distros ship only `python3` and a legacy
   `python` 2.x would crash the guard on modern syntax). Enforcement is therefore only as strong as
-  that resolution: on a host where `python3` does not resolve to a 3.11+ interpreter the PreToolUse
+  that resolution: on a host where `python3` does not resolve to an interpreter meeting the
+  engine's `MIN_PYTHON` floor the PreToolUse
   launch fails, and Claude Code treats a failed hook launch as a non-blocking error, so the guard
   does not intercept there. Concretely, the exposure is the manual PowerShell deletion lane: engine
   `apply` is unsupported on Windows and macOS and elsewhere runs only behind the guard's own `ask`,
