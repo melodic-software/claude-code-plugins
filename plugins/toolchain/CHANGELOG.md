@@ -14,7 +14,7 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
   Opt-in follows the same per-tool-config pattern as the existing cross-cutting tools: an optional
   `lychee.toml` at repo root customizes the ruleset (exclusions, fragment-check mode), absent means
   lychee's own defaults. `install-hint` gains the `lycheeverse.lychee` winget package / `lychee`
-  brew formula. Per Brief item 3, `docs/topics/lint-static-analysis-gaps/PLAN.md`. Closes #833.
+  brew formula. Per epic #830 ("lint/static-analysis gap closure"), sub-issue #833.
 
 ## [0.8.0]
 
