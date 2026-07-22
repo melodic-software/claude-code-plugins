@@ -100,7 +100,7 @@ Per-project walking (ecosystems with `project-discovery`):
 
 - python: walk each `pyproject.toml` directory and run check/fix from there
 - typescript: walk each `package.json` directory and run check/fix from there
-- go: walk each `go.mod` directory and run check/fix from there (a root `./...` invocation stops at a nested module boundary — see `context/go.md`)
+- go: walk each `go.mod` directory and run check/fix from there (a root `./...` invocation stops at a nested module boundary — see `/toolchain:check`'s per-ecosystem context file)
 
 Tool presence: verify tools on `PATH` before each ecosystem; report `skip` with `install-hint` when missing.
 
