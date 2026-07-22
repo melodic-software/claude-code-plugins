@@ -70,8 +70,11 @@ There are three delivery tiers, in ascending richness: **inline terminal → loc
 HTML file → published Artifact**. Selection layers, first hit wins:
 
 1. **Explicit argument** — a `terminal` / `file` / `artifact` argument forces the tier.
-2. **Configured preference** — `${user_config.medium}` (`auto`, `terminal`,
-   `file`, or `artifact`; an unrecognized value is reported and treated as `auto`).
+2. **Configured preference** — `${user_config.medium}`. Claude Code text-substitutes
+   the configured value into this line; if it still shows the literal
+   `${user_config.medium}` token or is empty, the option is unset — use the default
+   `auto`. Recognized values are `auto`, `terminal`, `file`, and `artifact`; any
+   other value is reported and treated as `auto`.
 3. **Auto** — decide by the form and its weight: terminal for small, static,
    text-representable output (tables, ASCII, short code, a `mermaid` source fence);
    a rich page for a composite, interactive, large, or truly graphical result
