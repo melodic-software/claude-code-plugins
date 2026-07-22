@@ -49,6 +49,13 @@ updates:
       # dependency intentionally tracks the latest Claude Code release.
       interval: daily
     open-pull-requests-limit: 5
+    cooldown:
+      # Biome waits out the supply-chain settle window like every other locked
+      # dependency. Claude Code is excluded so it keeps tracking the latest
+      # release immediately, matching this root's daily schedule.
+      default-days: 7
+      exclude:
+        - "@anthropic-ai/claude-code"
     # Batch minor + patch bumps into one reviewed PR; majors stay individual.
     groups:
       npm-minor-patch:
