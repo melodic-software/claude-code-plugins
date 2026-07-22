@@ -85,13 +85,21 @@ recursively. Each source directory gets its own sibling snapshot `<dir>.bak-<UTC
 ts=$(date -u +%Y%m%dT%H%M%SZ)
 total=$(grep -c . "$manifest")
 copied=0
+declare -A made=()
 while IFS= read -r file; do
   [[ -n "$file" ]] || continue
   # Re-check the entry is still a regular non-symlink file: a symlink swapped in after
   # the Step 2 capture must not be dereferenced into the backup (cp would follow it).
   [[ -f "$file" && ! -L "$file" ]] || { echo "BACKUP FAILED (no longer a regular file): $file" >&2; break; }
   dest="$(dirname -- "$file").bak-$ts"
-  mkdir -p -- "$dest" || { echo "BACKUP FAILED (mkdir): $dest" >&2; break; }
+  # Create each snapshot dir exactly once, and refuse a pre-existing destination
+  # (concurrent same-second purge, or a planted symlink that would redirect the
+  # backup): plain mkdir — never -p — fails on anything already there.
+  if [[ -z "${made[$dest]:-}" ]]; then
+    [[ -e "$dest" || -L "$dest" ]] && { echo "BACKUP FAILED (destination already exists): $dest" >&2; break; }
+    mkdir -- "$dest" || { echo "BACKUP FAILED (mkdir): $dest" >&2; break; }
+    made[$dest]=1
+  fi
   cp -- "$file" "$dest/" || { echo "BACKUP FAILED (cp): $file" >&2; break; }
   copied=$((copied + 1))
 done <"$manifest"
