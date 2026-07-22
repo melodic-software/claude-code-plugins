@@ -80,9 +80,11 @@ unchanged and bind every member.
    honest "clean"). Cap concurrency in bounded waves like the `-deep`
    siblings; retry only a failed subset, once.
 2. **Collect** every ledger.
-3. **Correct once, in rank order.** Walk the members by ascending
-   `re-anchor-batch-rank` and correct forward each finding on the main thread
-   now — the shared loop's step 3, batched. The order:
+3. **Correct once, in rank order.** Walk the in-scope members — the core and
+   situational correctors that ran (never-tier carries no rank and was already
+   excluded at membership resolution) — by ascending `re-anchor-batch-rank`,
+   and correct forward each finding on the main thread now — the shared loop's
+   step 3, batched. The order:
    `use-your-skills` first (fix which skills govern the work) → evidence
    correctors (get the facts right) → structural correctors → `mind-your-maxims`
    (communication) → `tighten-your-output` dead last, so it never tightens
