@@ -250,18 +250,32 @@ class LedgerAndRetention(unittest.TestCase):
             self.assertTrue(gi.exists() and gi.read_text().strip() == "*",
                             "memory root must self-ignore with '*'")
 
-    def test_guard_refuses_repo_root_gitignore(self):
+    def test_guard_refuses_repo_root_and_aborts_write(self):
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
             # memory root == a repo root (has .git): the guard must NOT create a
-            # .gitignore there (that would be the consumer's root .gitignore).
+            # .gitignore there, AND the ledger write must be refused (not left as
+            # an untracked committable file under the repo).
             (tmp / "ledger").mkdir()
             (tmp / ".git").mkdir()
             ob = make_observer(tmp, session_id="rr")
-            # ledger_dir is tmp/ledger; its parent (tmp) has .git -> refuse.
-            ob._ensure_memory_root_ignored()
+            self.assertFalse(ob._ensure_memory_root_ignored())
+            self.assertFalse(ob._append_ledger("f"), "write must be refused")
             self.assertFalse((tmp / ".gitignore").exists(),
                              "guard must never write a repo-root .gitignore")
+            self.assertEqual(list((tmp / "ledger").glob("*.md")), [],
+                             "no ledger may be written under a repo-root memory dir")
+
+    def test_guard_ensures_star_in_existing_gitignore(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            ob = make_observer(tmp, session_id="ex")  # memory root = tmp/ledger's parent = tmp
+            root = ob.ledger_dir.parent
+            (root / ".gitignore").write_text("# notes\n!keep.txt\n", encoding="utf-8")
+            self.assertTrue(ob._ensure_memory_root_ignored())
+            body = (root / ".gitignore").read_text(encoding="utf-8")
+            self.assertIn("*", body.splitlines())
+            self.assertIn("# notes", body)  # existing content preserved
 
     def test_retention_rule(self):
         with tempfile.TemporaryDirectory() as d:

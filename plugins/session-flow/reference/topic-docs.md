@@ -32,8 +32,9 @@ memory-tier artifact: they are transient, machine-local plugin state under
 `${CLAUDE_PLUGIN_DATA}/session-flow-observer/`, deleted after the analysis run consumes them, and
 never committed — only the redacted findings block reaches the ledger. Before its first ledger
 write the observer runs the contract's self-ignore guard on the resolved memory root — ensuring
-`<memory_dir>/.gitignore` contains `*` (creating it when absent) so the memory-tier output is never
-committed — and refuses when the memory root is itself a repo root; it never edits the consumer's
+`<memory_dir>/.gitignore` contains a bare `*` (creating or amending it as needed) so the memory-tier
+output is never committed — and, when the memory root is itself a repo root, refuses and does not write
+the ledger there; it never edits the consumer's
 root `.gitignore`.
 
 All three artifacts are memory-tier and therefore checkout-local (contract ≥ 2.0.0): a handoff

@@ -348,27 +348,37 @@ class Observer:
             self.log(f"resuming from prior observer byte offset {off}")
         return off
 
-    def _ensure_memory_root_ignored(self) -> None:
-        """Self-ignore the resolved memory root before the first ledger write.
+    def _ensure_memory_root_ignored(self) -> bool:
+        """Self-ignore the resolved memory root; return whether it is safe to write.
 
         Mirrors the topic-docs contract's self-ignore guard: the memory root
-        (default `.work`, the parent of `running-retros/`) gets a `.gitignore`
-        containing `*` so the memory-tier output is never committed. It NEVER
-        touches the consumer's root `.gitignore` -- if the memory root is itself a
-        repo root (its `.gitignore` would be the consumer's), the guard refuses.
+        (default `.work`, the parent of `running-retros/`) must contain a
+        `.gitignore` with a bare `*` so the memory-tier output is never committed.
+        Returns True only when that is guaranteed. Returns False -- and the caller
+        must NOT write -- when the memory root is a repo root (its `.gitignore`
+        would be the consumer's, which no plugin may touch) or the guard cannot be
+        established, so autonomous ledgers never land as untracked committable
+        files under the repo.
         """
         memory_root = self.ledger_dir.parent
         if (memory_root / ".git").exists():
-            self.log("memory root is a repo root; skipping self-ignore guard")
-            return
+            self.log("memory root is a repo root; refusing the memory-tier write "
+                     "(would leave an untracked committable ledger under the repo)")
+            return False
         gi = memory_root / ".gitignore"
         try:
             memory_root.mkdir(parents=True, exist_ok=True)
-            if not gi.exists():
-                gi.write_text("*\n", encoding="utf-8")
-                self.log(f"created memory-root self-ignore guard {gi}")
+            content = gi.read_text(encoding="utf-8") if gi.exists() else ""
+            # Verify a bare `*`/`**` line is present -- not merely that the file
+            # exists (a repo-created .gitignore may hold only comments/exceptions).
+            if not any(ln.strip() in ("*", "**") for ln in content.splitlines()):
+                prefix = content if content.endswith("\n") or not content else content + "\n"
+                gi.write_text(prefix + "*\n", encoding="utf-8")
+                self.log(f"ensured memory-root self-ignore '*' in {gi}")
         except OSError as e:
-            self.log(f"self-ignore guard skipped: {e}")
+            self.log(f"self-ignore guard could not be established ({e}); refusing write")
+            return False
+        return True
 
     def _write_status(self, status: dict, merge: bool = False) -> None:
         try:
@@ -458,19 +468,23 @@ class Observer:
         if not findings:
             self.log("analysis returned no result text")
             return False
-        self._append_ledger(findings)
-        return True
+        # Consumed only if the ledger write actually happened; a refused write
+        # (unsafe memory root) retains the observations.
+        return self._append_ledger(findings)
 
-    def _append_ledger(self, findings: str) -> None:
+    def _append_ledger(self, findings: str) -> bool:
         """Append the returned findings to this session's single ledger file.
 
         Discovery rule mirrors running-retro's: locate this session's ledger by
         matching session_id in frontmatter; create it on first write. A mechanical
         shape-marker redaction sweep runs here as the second hop (defense in depth
         over the -p run's semantic pass) exactly as running-retro's ledger write
-        mandates -- this is the durable, portable output.
+        mandates -- this is the durable, portable output. Returns True when the
+        ledger was written, False when the write was refused (unsafe memory root).
         """
-        self._ensure_memory_root_ignored()
+        if not self._ensure_memory_root_ignored():
+            self.log("memory root unsafe; retaining observations, no ledger written")
+            return False
         self.ledger_dir.mkdir(parents=True, exist_ok=True)
         ledger = self._find_session_ledger()
         section = (f"\n## Checkpoint {now_ts()} (autonomous post-end)\n\n"
@@ -496,6 +510,7 @@ class Observer:
             with ledger.open("a", encoding="utf-8") as f:
                 f.write(section)
             self.log(f"appended to ledger {ledger.name}")
+        return True
 
     def _find_session_ledger(self) -> Path | None:
         for path in sorted(self.ledger_dir.glob("*-running-retro-*.md")):
