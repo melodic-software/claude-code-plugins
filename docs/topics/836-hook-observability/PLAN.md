@@ -118,7 +118,7 @@ sequence against. (Registry-row rebase risk against PR #925's `PLUGIN-PHILOSOPHY
 concern, not PR B's, and is a one-line context conflict at worst — same class as prior lanes'
 benign version-bump collisions.)
 
-### statusMessage — mechanical, all 24 wired producer hooks, 12 plugins
+### statusMessage — mechanical, all 27 wired producer hooks, 12 plugins
 
 Add a `statusMessage` field to every `command`-type handler object in each plugin's `hooks.json`.
 One line per handler, present-tense gerund wording. Plugins touched (hooks/ present):
@@ -242,7 +242,7 @@ Two real corrections, both folded into PR B scope below:
 ## Open decisions / not yet locked
 
 - Exact `statusMessage` wording per hook — draft during PR B implementation, not pre-decided here
-  (24 short strings, low-risk, easy to review together).
+  (27 short strings, low-risk, easy to review together).
 - Whether the upstream native-verbose-hooks-UI feature request (brief's optional sub-item) gets
   filed as a GitHub issue against `anthropics/claude-code` or just noted — default: file a brief,
   low-priority issue there if repo conventions allow external filing; otherwise note as declined

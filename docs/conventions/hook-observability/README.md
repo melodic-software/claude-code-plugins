@@ -28,7 +28,7 @@ A static field on a `hooks.json` **handler object**, sibling of `type`/`command`
 
 Displayed as the UI spinner label while the hook process runs. **A hook script never emits this —
 there is no runtime JSON output field by this name.** **Rollout status: pending.** As of this
-doc's introduction, no `hooks.json` in the fleet declares `statusMessage` yet — all 24 wired
+doc's introduction, no `hooks.json` in the fleet declares `statusMessage` yet — all 27 wired
 `type: "command"` handlers across 12 plugins need it added. Tracked as required fleet adoption
 against melodic-software/claude-code-plugins#836 (this doc lands first per the convention-registry
 rule; adoption is the follow-up PR). Wording convention for that rollout: a present-tense gerund
