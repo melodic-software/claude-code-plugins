@@ -20,13 +20,23 @@ back to Claude as advisory context.
 - **Extension-scoped.** Only `.go` files trigger the hook (like
   `ruff-format`'s `*.py`/`*.pyi` filter; unlike `typos-format`'s
   language-agnostic scope).
-- **Skips generated files.** A file whose first non-blank line matches Go's
-  canonical `// Code generated ... DO NOT EDIT.` marker is left untouched.
-  `goimports` itself has no awareness of that convention, so this hook adds
-  the guard itself.
+- **Skips generated files.** A file whose leading comment/blank-line block
+  contains Go's canonical `// Code generated ... DO NOT EDIT.` marker is
+  left untouched — this includes files where a copyright/license header
+  (a `//` or `/* */` block) precedes the marker, common for
+  `addlicense`/`goheader` output. `goimports` itself has no awareness of
+  that convention, so this hook adds the guard itself.
 - **Fix in place.** Formatting and import changes are applied silently — no
   advisory noise on a successful fix, the same posture as a successful
   `ruff-format`/`typos-format` autofix pass.
+- **Groups local imports using your module's own path.** When a `go`
+  toolchain is on `PATH`, the hook resolves the edited file's own module
+  path (`go list -m`) and passes it as goimports' `-local` grouping prefix,
+  so your package's own internal imports stay in their own group instead of
+  being collapsed into the third-party group — matching goimports' own
+  `-local` convention without adding any new consumer config. Falls back to
+  goimports' plain default grouping when `go` is absent or the file isn't
+  in a resolvable module.
 - **Syntax errors surface as advisory findings.** When `goimports` can't
   parse the file, the parse diagnostic is reported via `additionalContext`,
   never auto-"fixed" and never treated as a tool break.
@@ -49,6 +59,9 @@ back to Claude as advisory context.
   [Install](https://pkg.go.dev/golang.org/x/tools/cmd/goimports):
   `go install golang.org/x/tools/cmd/goimports@latest` (requires a
   [Go toolchain](https://go.dev/dl/)).
+- **`go` on `PATH` (optional).** Used only to resolve the `-local` grouping
+  prefix (`go list -m`). Absent: the hook still formats/fixes imports, just
+  without the `-local` grouping (goimports' plain default behavior).
 
 The hook itself runs on Bash 3.2+. Telemetry timing uses `EPOCHREALTIME`
 (Bash 5.0+); on older bash the telemetry envelope is skipped while

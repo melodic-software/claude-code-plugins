@@ -120,23 +120,28 @@ emit_skipped() {
 
 # Generated-file guard: skip files carrying Go's canonical generated-code
 # marker — goimports itself has no awareness of this convention (empirically
-# confirmed it rewrites such files silently). Go's own convention (and its
-# own detector, cmd/go/testdata/script/test_generated_main.txt) requires the
-# marker to appear "before the first non-comment, non-blank text in the
-# file" — NOT necessarily on the very first line. A license/copyright header
-# (common output of addlicense/goheader tooling prepended to generated code)
-# routinely precedes the marker by a few `//` comment lines; scanning only
-# the first non-blank line missed this real-world shape (empirically
-# confirmed against actual stdlib-adjacent generated files carrying a
-# 3-line copyright header before the marker). Scan the file's leading
-# comment/blank-line run instead, stopping at the first line that is
-# neither blank nor a `//` comment (e.g. `package foo`). A trailing CRLF
-# `\r` and a leading UTF-8 BOM are stripped per line so a Windows-checked-out
-# or BOM-prefixed file still matches.
+# confirmed it rewrites such files silently). Go's own convention (`go help
+# generate`, verified live: "This line must appear before the first
+# non-comment, non-blank text in the file") does not restrict "comment" to
+# `//` style — a `/* ... */` block comment (e.g. a conventional block
+# license header) is a comment for this purpose too, so it must not end the
+# leading-block scan early. Scan the file's leading comment/blank-line run,
+# tracking open `/* */` blocks, and stop only at the first line that is
+# genuinely neither blank, a `//` comment, nor inside/starting a `/* */`
+# block (e.g. `package foo`). A trailing CRLF `\r` and a leading UTF-8 BOM
+# are stripped per line so a Windows-checked-out or BOM-prefixed file still
+# matches. (The marker itself can only ever appear on a `//`-prefixed line —
+# `^// Code generated .* DO NOT EDIT\.$` — never inside a `/* */` block, so
+# block-comment lines are only ever scanned-through, not matched against.)
 GENERATED=0
+IN_BLOCK=0
 while IFS= read -r _line || [[ -n "$_line" ]]; do
   _line="${_line%$'\r'}"
   _line="${_line#$'\xEF\xBB\xBF'}"
+  if [[ $IN_BLOCK -eq 1 ]]; then
+    [[ "$_line" == *'*/'* ]] && IN_BLOCK=0
+    continue # still inside (or just closed) a block comment: keep scanning
+  fi
   [[ -n "${_line// /}" ]] || continue # blank line: keep scanning the leading block
   if [[ "$_line" == //* ]]; then
     if [[ "$_line" =~ ^//\ Code\ generated\ .*\ DO\ NOT\ EDIT\.$ ]]; then
@@ -144,6 +149,10 @@ while IFS= read -r _line || [[ -n "$_line" ]]; do
     fi
     [[ $GENERATED -eq 1 ]] && break
     continue # a different // comment line: still within the leading block
+  fi
+  if [[ "$_line" == /\** ]]; then
+    [[ "$_line" == *'*/'* ]] || IN_BLOCK=1 # opens a block comment spanning further lines
+    continue # a /* ... */ comment (single- or multi-line): still within the leading block
   fi
   break # first non-comment, non-blank line: leading block ended, marker absent
 done <"$FILE"
@@ -159,6 +168,28 @@ if [[ -z "$GOIMPORTS_BIN" ]]; then
   emit_skipped
 fi
 
+# Auto-derive goimports' -local grouping prefix from the edited file's own
+# module path (`go list -m`, which walks up to the nearest go.mod using
+# Go's own module resolution — more robust than hand-parsing the module
+# directive). Without -local, goimports lumps a repo's own internal
+# packages into the same group as third-party imports; a repo that already
+# formats with -local (a common Go convention, e.g. wired into its own CI
+# or editor config) would have this hook re-collapse that grouping on every
+# edit — empirically confirmed this materially changes output when a
+# third-party import is also present. Deriving the LOCAL prefix from the
+# file's own module path (self-grouping) requires no new consumer-config
+# surface, so it stays within the unconditional/no-opt-in design while
+# covering the single most common -local use case. `go` absent, the file
+# outside any module, or any other resolution failure all degrade to no
+# -local flag (goimports' plain default grouping), never a hard stop.
+LOCAL_PREFIX=""
+if command -v go >/dev/null 2>&1; then
+  LOCAL_PREFIX="$(cd "$(dirname "$FILE")" 2>/dev/null && go list -m 2>/dev/null)" || LOCAL_PREFIX=""
+  [[ "$LOCAL_PREFIX" == "command-line-arguments" ]] && LOCAL_PREFIX=""
+fi
+GOIMPORTS_ARGS=(-w -l)
+[[ -n "$LOCAL_PREFIX" ]] && GOIMPORTS_ARGS+=(-local "$LOCAL_PREFIX")
+
 # -w writes the fix in place; -l (combined with -w) lists the changed
 # filename on stdout, which this hook doesn't need (a successful autofix
 # carries no advisory noise, same posture as a successful ruff/typos fix
@@ -168,8 +199,10 @@ fi
 # Non-zero exit (verified: 2, with a parseable message on stderr) occurs
 # only on a genuine parse/syntax error — captured via command substitution
 # (stdout discarded, stderr redirected to fd1) the same way every sibling
-# hook in this repo captures tool output, rather than a temp file.
-STDERR=$("$GOIMPORTS_BIN" -w -l "$FILE" 2>&1 >/dev/null)
+# hook in this repo captures tool output, rather than a temp file. `--`
+# ends flag parsing before $FILE — defense-in-depth against a path that
+# happens to start with `-` being misread as a flag by Go's flag package.
+STDERR=$("$GOIMPORTS_BIN" "${GOIMPORTS_ARGS[@]}" -- "$FILE" 2>&1 >/dev/null)
 RC=$?
 
 if [[ $RC -eq 0 ]]; then

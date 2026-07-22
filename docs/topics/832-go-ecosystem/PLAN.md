@@ -278,6 +278,50 @@ lower-severity items, all addressed and re-verified before opening the PR:
    (verified manually via `check-jsonschema`), only the "reuse an existing script" framing was
    wrong. This is a pre-existing repo-wide CI-coverage gap, out of scope here.
 
+**On-PR review round** (`claude-review`, `security-review`, and Codex, both pushes) surfaced eight
+more findings. Six confirmed and fixed, two evaluated and consciously left as-is:
+
+1. **CRITICAL-equivalent (Codex P2, independently confirmed via `go help generate` live) —
+   the generated-file guard still missed a `/* ... */` block-comment preamble.** The authoritative
+   convention text ("This line must appear before the first non-comment, non-blank text in the
+   file") does not restrict "comment" to `//` style; the guard only treated `//` lines as
+   comment-continuation, so a block-comment license header (e.g. `/* Copyright ... */` before
+   `// Code generated`) caused premature loop termination — the same failure class as the
+   pre-PR CRITICAL finding, just a different comment syntax. **Not accepted as "zero practical
+   risk"** (one review pass argued this) — fixed properly: the guard now tracks open `/* */`
+   blocks and continues scanning through them. New regression case (5f) added.
+2. **Real correctness gap (Codex P2) — `goimports` ran with no `-local` grouping prefix,** so a
+   repo already formatting with `-local` (a common Go convention wired into CI/editor config)
+   would have every edit re-collapse its local-import grouping back into the third-party group —
+   empirically confirmed this materially changes output (verified with a real third-party import
+   present). This directly undercut Open Decision 1's "no config-divergence axis" premise a
+   second time. Fixed: the hook now derives `-local` from the edited file's own module path
+   (`go list -m`, walks to the nearest `go.mod` via Go's own resolution) when a `go` toolchain is
+   present — zero new consumer-config surface, covers the single most common `-local` use case
+   (self-grouping), gracefully degrades to goimports' plain default when `go` is absent or the
+   file isn't in a resolvable module. New regression case (4b) added.
+3. **Security SUGGESTION (both security-review passes) — missing `--` end-of-flags separator
+   before `$FILE`.** Low-confidence defense-in-depth; fixed alongside the `-local` change.
+4. **Codex P2 — `go-mod-tidy-drift` gate only triggered on `go.mod`/`go.sum`, missing source-only
+   tidy drift** (e.g. removing the last usage of a dependency leaves `go.mod` over-declared while
+   `go build`/`go test` still pass). One review pass called this an acceptable tradeoff citing the
+   `python.yaml` precedent; **not accepted** — the epic's own stated success criterion is
+   "CI/local parity," and leaving this gap directly contradicts it. Fixed: `trigger-globs` widened
+   to include `*.go`. Remediation text also now notes the Go 1.23+ floor for `go mod tidy -diff`
+   (a separate LOW finding from the first review pass).
+5. **Codex P2 — `/toolchain:lint`'s "Per-project walking" list enumerated python/typescript only,
+   omitting `go`** despite `go.yaml` declaring `project-discovery: ["go.mod"]` — a monorepo with a
+   nested Go module would have `/toolchain:lint go` run `golangci-lint run ./...` from the wrong
+   root. Fixed: added a `go` bullet.
+6. **LOW — README described the generated-file guard as checking only the "first non-blank line,"**
+   stale after the pre-PR CRITICAL fix. Corrected to describe the actual leading-block scan.
+7. **COSMETIC, evaluated and left as-is — BOM-stripping runs on every loop line, not just the
+   first.** A UTF-8 BOM can only appear at byte 0, so this is a harmless no-op after line one, not
+   a bug. Left unchanged (the fix would add branching complexity for zero behavioral gain).
+8. **COSMETIC — key ordering differed between the bundled `go.yaml` (`gates` before
+   `install-hint`) and the example fixture (`install-hint` before `gates`).** Aligned the bundled
+   file to the example's ordering (which matches the `dotnet.yaml` example precedent).
+
 ## Blast radius
 
 **MEDIUM.** New plugin + new ecosystem entry, but both are close pattern-replications of two
