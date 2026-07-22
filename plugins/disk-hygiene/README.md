@@ -45,13 +45,20 @@ at preview. Backups remain the recovery boundary for user data.
 ## Requirements and platform support
 
 - Python 3.11+ available on `PATH` is required for scanning, validation, the skill-scoped guard, and
-  cleanup. Claude Code launches the guard in shell-free exec form; guarded engine calls must use the
-  same absolute interpreter reported by that guard, so Bash aliases and functions cannot replace it.
-  The plugin never downloads a runtime.
+  cleanup (the floor's single origin is the `MIN_PYTHON` constant in
+  `skills/clean/scripts/hygiene.py`; `/disk-hygiene:setup check` derives the enforced value from
+  there, so treat the number printed here as a convenience copy). Claude Code launches the guard in
+  shell-free exec form; guarded engine calls must use the same absolute interpreter reported by that
+  guard, so Bash aliases and functions cannot replace it. The guard is skill-scoped — it fires only
+  within the `clean` skill's context, so driving `hygiene.py` directly outside that skill relies on
+  the engine's built-in containment and preview gate, not the hook. The plugin never downloads a
+  runtime.
 - Git is optional for ordinary trees. If a target contains or sits inside a Git worktree, Git becomes
   required so tracked content can be proven safe; otherwise cleanup for that subtree is blocked.
-- Windows uses Python 3.11's `lstat` reparse metadata plus Win32 APIs exposed by the OS. It never
-  invokes UAC and never enters the execution lane.
+- Windows has the full **audit** lane (Python 3.11's `lstat` reparse metadata plus Win32 APIs
+  exposed by the OS; never invokes UAC) but engine **execution is unsupported**: `preview` returns
+  `execution-platform-unsupported`, and removal is a manual, per-path Recycle-Bin handoff after
+  explicit approval.
 - Linux requires readable `/proc/self/mountinfo`, descriptor-relative filesystem APIs, and `lsof` for
   the optional execution lane. Absence, diagnostics, or authority gaps block cleanup.
 - macOS supports audit/report only because this implementation has no authoritative bind-mount and
@@ -128,7 +135,16 @@ hand-cleaning the zone.
   construction, or downloads are used. Paths cross the process boundary as JSON or individually
   quoted CLI arguments.
 - **MCP / external trust:** no MCP server, agent, dependency, or third-party service is shipped.
-- **Configuration:** no `userConfig` and no credentials. Policy comes from an explicit invocation
+- **Configuration:** one non-sensitive `userConfig` boolean (`disk_hygiene_enabled`, default
+  `true`) gating the execution tiers — setting it `false` puts `/disk-hygiene:clean` in audit-only
+  mode. That mode is enforced by the skill, which resolves the toggle through the bundled kill-switch
+  probe and self-enforces; the skill-scoped guard cannot independently enforce it, because a
+  skill-frontmatter hook reaches the guard with neither the `${user_config.*}` substitution nor the
+  `CLAUDE_PLUGIN_OPTION_*` environment variable, though the guard still forces a human prompt before
+  every mutation. A direct `hygiene.py` invocation outside that skill does not read the toggle and
+  answers only to the engine's own preview/approval-token gate. The toggle can only narrow the
+  destructive surface, never widen it (see [the safety model](skills/clean/reference/safety-model.md)
+  for the degraded-mode detail). No credentials. Policy comes from an explicit invocation
   argument or standing `disk-hygiene.json` files under `~/.claude/` and the consumer project's
   `.claude/`. All policy input is pattern-only and additive: it can add protections and discovery
   hints or disable hints, and cannot weaken hard guards or authorize removal, so ambient config

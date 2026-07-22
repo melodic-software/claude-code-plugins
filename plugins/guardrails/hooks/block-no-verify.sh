@@ -39,6 +39,15 @@ source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
 
 hook::check_enabled "BLOCK_NO_VERIFY"
 
+# Bundled PowerShell-command classifier — the git guards are matched on both the
+# Bash and the (opt-in) PowerShell tool, whose command arrives in the same
+# tool_input.command field with PowerShell grammar. Resolved under the plugin
+# root (CC sets CLAUDE_PLUGIN_ROOT; the BASH_SOURCE fallback keeps the contract
+# tests working when it is unset).
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+# shellcheck source=../lib/powershell/ps-command.sh
+source "$PLUGIN_ROOT/lib/powershell/ps-command.sh"
+
 # High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;
 # on older bash it is unset, so default to empty and skip telemetry (the block
 # still fires). Referencing it bare under `set -u` would abort before exit.
@@ -66,13 +75,14 @@ hook::require_jq "PreToolUse" "guardrails-block-no-verify" "$INPUT"
 
 COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null | tr -d '\r')
 [[ -n "$COMMAND" ]] || exit 0
+TOOL_NAME=$(printf '%s' "$INPUT" | jq -r '.tool_name // "Bash"' 2>/dev/null | tr -d '\r')
 
 # Above this length the command is not parsed — a pathologically long command is
 # assumed to be obfuscation and blocked FAIL-CLOSED (generous cap; real git
 # commands are well under it). The linear parser keeps normal commands cheap.
 MAX_COMMAND_LEN=16384
 
-SUBJECT=$(hook::extract_bash_subject "Bash" "$COMMAND")
+SUBJECT=$(hook::extract_bash_subject "$TOOL_NAME" "$COMMAND")
 
 # Hook-manager env-var disable prefixes, built once into a regex alternation.
 # The default set covers the common managers; a consumer extends it via the
@@ -97,8 +107,8 @@ emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
   local data
-  data=$(jq -n --arg subject "$SUBJECT" --arg form "$2" \
-    '{tool:"Bash",subject:$subject,form:$form}' 2>/dev/null) || data='{"tool":"Bash","subject":"","form":""}'
+  data=$(jq -n --arg tool "$TOOL_NAME" --arg subject "$SUBJECT" --arg form "$2" \
+    '{tool:$tool,subject:$subject,form:$form}' 2>/dev/null) || data='{"tool":"Bash","subject":"","form":""}'
   hook::emit_telemetry "block-no-verify" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
@@ -215,6 +225,19 @@ if ((${#COMMAND} > MAX_COMMAND_LEN)); then
     "BLOCKED: command too long to parse safely (> $MAX_COMMAND_LEN chars)." \
     "Shorten the command, or set the guardrails block_no_verify_enabled option to false (/plugin configure) to bypass."
 fi
+
+# Reduce a PowerShell command to a Bash-tokenizer-faithful form, or fail closed.
+# For the Bash tool this is a no-op (COMMAND unchanged).
+ps::classify_git_command "$TOOL_NAME" "$COMMAND"
+case $? in
+2)
+  ps::print_unparsable_block_message
+  emit_tel "blocked" "powershell-unparsable"
+  exit 2
+  ;;
+1) exit 0 ;; # non-commit PowerShell with an A2b-deferred construct — not this guard's proven surface
+*) COMMAND="$PS_SAFE_COMMAND" ;;
+esac
 
 hook::bash_parse_segments "$COMMAND" check_segment
 

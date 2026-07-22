@@ -3,6 +3,183 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.3]
+
+### Fixed
+
+- **Git/commit guards are no longer bypassed via the PowerShell tool.** The
+  `block-no-verify`, `block-noncanonical-commit`, `block-dangerous-git`, and
+  `flag-commit-pr-skill-bypass` guards matched only the `Bash` tool, so the same
+  `git commit --no-verify` ran unblocked through Claude Code's opt-in PowerShell
+  tool (`CLAUDE_CODE_USE_POWERSHELL_TOOL=1`) — a bypass proven live on Windows.
+  Their PreToolUse matchers are now `Bash|PowerShell`, and a bundled classifier
+  (`lib/powershell/ps-command.sh`) reduces a PowerShell command to a
+  Bash-tokenizer-faithful form or fails closed: the canonical PowerShell commit
+  form (a here-string piped to `git commit -F -`) is allowed exactly as the Bash
+  `-F -` form is, while a PowerShell command carrying a construct the Bash
+  tokenizer cannot faithfully parse (backtick, `--%`, `(`/`)`/`{`/`}` grouping,
+  an unbalanced here-string, a dynamic invocation — `iex`/`invoke-expression` or a
+  call/dot-source of a string literal — or a process launcher / nested shell:
+  `Start-Process`/`saps`, `pwsh`/`powershell`/`cmd`) is refused unless it is
+  provably git-free. The refusal is decided by whether the command could reach git
+  at all — recovering backtick obfuscation (`` g`it com`mit `` → `git commit`),
+  reading quoted command words and launched argv, and treating an opaque run
+  string as possibly-git — never by trusting a negative `commit`/`push` shape
+  match on a scan the obfuscating construct has already mangled (the fail-open
+  class fixed in #740/#903). Because the sink keys on git-presence,
+  `block-dangerous-git` fails closed on ANY git-shaped unparsable PowerShell — not
+  only commit/push — so an obfuscated `git reset --hard` / `clean -fd` /
+  `checkout` cannot slip through, and its block message names those destructive
+  forms rather than the commit form.
+- **`block-hook-bypass` now covers the PowerShell file-write surface.**
+  `Set-Content`, `Add-Content`, `Out-File`, `Tee-Object` (including the `ac` and
+  `tee` aliases and backtick-escaped names), `New-Item -Value` (alias `ni`), the
+  `Export-*` serialize-to-file family (alias `epcsv`), `[IO.File]::WriteAll*`/
+  `AppendAll*` and StreamWriter, `iex`/`invoke-expression` (opaque run string,
+  failed closed), and content-producer `>`/`>>` redirects (echo/Write-Output/
+  Write-Host, a string or here-string literal, or a `$variable` value) that bypass
+  the Write/Edit hook gate are blocked on the PowerShell tool. Producer-scoped like
+  the Bash detection (a tool's own output redirect — e.g. `git diff > out.txt` — is
+  still allowed; `New-Item -ItemType Directory` with no `-Value` is not a content
+  write). `sc` is matched only in its unambiguous Set-Content form (a `-Value`/
+  `-Path`/`-LiteralPath`/`-Stream` parameter): it is Set-Content's alias in Windows
+  PowerShell 5.1 but sc.exe in PowerShell 7, so a genuine `sc query` service call
+  stays allowed. Scope: this closes the write-GATE bypass; secret-pattern and
+  hardcoded-path CONTENT scanning of PowerShell writes remains on the
+  `Write|Edit`-matched guards (deferred).
+- **Review round 4 (post-restack bot findings, all within-parity holes of covered
+  constructs):** the `.exe`-suffixed launcher spellings (`cmd.exe /c git …`,
+  `powershell.exe -Command …`) and the `start` alias of Start-Process now reach the
+  fail-closed launcher sink; the `write` alias of Write-Output counts as a redirect
+  producer; module-qualified writer spellings
+  (`Microsoft.PowerShell.Management\Set-Content`) match the writer cmdlets; a
+  parenthesized redirect producer (`('secret') > f`, `(Write-Output x) > f`) is
+  unwrapped and judged by what it produces (a grouped tool run stays allowed); and a
+  call/dot-source of a QUOTED writer name (`& 'Set-Content' …`,
+  `& 'Invoke-Expression' …`) is detected on the quote-intact text before blanking. A
+  quoted path to an arbitrary program (`& 'C:\tools\x.exe'`) stays allowed — the
+  same quoted-command-word residual the Bash guard carries.
+- **Review round 5 (computed-expression shapes fail closed):** a launcher whose
+  program is a computed expression or variable (`Start-Process ('g'+'it') …`,
+  `saps $tool …`, optionally behind one named parameter) is treated as
+  possibly-git rather than provably git-free; a call/dot-source of a computed
+  target (`& ('Set-'+'Content') …`, `& $w …`) fails the write gate closed the
+  same way iex does; and an expression-literal redirect producer (`36 > out.txt`,
+  `[char]65 > out.txt` — spaced value writes, not attached-digit stream
+  redirects) counts as a content write.
+- **Review round 6:** a quoted string merely ending in the characters `@'`/`@"`
+  (`Write-Output '@'`) no longer reads as a here-string opener — paired quote
+  spans are stripped before the opener test, so following code lines cannot be
+  swallowed into a phantom body; backslash path separators normalize to forward
+  slashes in the reduced command so a path-qualified `C:\Git\cmd\git.exe reset
+  --hard` tokenizes to basename git (a safe `…\git.exe status` stays allowed);
+  the call/dot-source probes and both write-gate call checks accept a
+  statement/block separator boundary (`;& …`, `{& …}`), not only whitespace;
+  and every stream's producer cmdlet (`Write-Error … 2>`, `Write-Warning … 3>`,
+  verbose/debug/information) counts as a redirect content write.
+- **Review round 7:** fd-dup merge redirects (`2>&1`, `*>&1`) strip before
+  segment splitting, so a tool capture (`git status 2>&1 > out.txt`) is no
+  longer cut into a phantom numeric segment and wrongly blocked (over-block
+  regression from round 5); invoked script blocks unwrap like parenthesized
+  producers (`& { Write-Output secret } > f` blocks, `& { git diff } > f`
+  stays allowed); and `.exe`-suffixed git spellings normalize in the reduced
+  command so the POSIX hook matches the basename too (`C:\Git\cmd\git.exe
+  reset --hard` blocks on a Linux-run hook, not only under msys).
+- **Review round 8:** a module-qualified redirect producer
+  (`Microsoft.PowerShell.Utility\Write-Output secret > f.txt`) compares by
+  cmdlet basename, closing the last spelling gap in the producer head check.
+- **The PowerShell coverage bar is documented as Bash-parity, not airtight.** These
+  guards are accidental-destruction friction, not a boundary against deliberate
+  evasion — and the Bash guard they extend does not stop deliberate evasion either.
+  The PowerShell surface is held to what the Bash guard already sees through
+  (`sh -c`/`bash -c` → `pwsh`/`powershell -Command`; `nice`/`sudo`/`env` →
+  `Start-Process`), no higher. Beyond-parity vectors are shared Bash+PS residuals,
+  not covered: a command word supplied entirely by an unexpanded variable
+  (`& $tool commit`, `iex $var`), deep nested-shell / `cmd /c` quoting, .NET
+  reflection beyond the common `[IO.File]`/StreamWriter writes, and any shell
+  variable / command substitution.
+
+### Changed
+
+- **Guard block messages are shell-agnostic.** `block-noncanonical-commit` shows
+  the PowerShell here-string form when the call originates from the PowerShell
+  tool (not a Bash heredoc), and `block-hook-bypass`'s remediation no longer
+  assumes Bash.
+
+## [0.10.2]
+
+### Changed
+
+- **`--config-env` git aliases for a guarded subcommand are now refused by SHAPE, not
+  resolved (`#740`).** `--config-env=<key>=<envvar>` names an environment variable that
+  holds the alias expansion; that value can be fed from an ambient variable, an inline or
+  `env` command-line prefix, an `export` (including `set -a`, an `export NAME` promotion,
+  or an assignment-prefixed `export`), or a nested `bash -c` / `!`-alias in any enclosing
+  wrapper. Every attempt to resolve the value — to decide whether `git <alias>` runs a
+  guarded operation — reopened a fail-open as reviewers found new propagation paths. Since
+  the `--config-env=alias.<sub>=<envvar>` option and the `<sub>` it defines always sit in
+  the same git invocation, the guards no longer read the value at all: an alias for the
+  INVOKED subcommand whose last definition on the command line is `--config-env` is blocked
+  structurally (`hook::git_alias_expansion`). Nobody legitimately defines a commit or reset
+  alias this way on a guarded invocation — the canonical form is a gitconfig alias or the
+  plain subcommand — so the shape alone is sufficient, and the whole env-resolution attack
+  surface is removed rather than backstopped.
+- **Inline `-c`/`--config` aliases are unchanged.** Their expansion is literally present
+  and bounded, so both guards resolve and re-check it as before — last value wins,
+  case-insensitive key match, and `!` shell-alias / git-alias expansions re-parsed one
+  level deep.
+- **The `alias.<sub>.command` subkey is now classified as an alias definition too
+  (`#740`).** git reads both `alias.<sub>` and its `alias.<sub>.command` subkey as the
+  alias for `<sub>` (`git -c alias.rh.command='reset --hard' rh` runs it); the classifier
+  previously matched only the plain spelling, so a dangerous alias smuggled through
+  `.command` — via `-c` or `--config-env` — was treated as a non-alias and ran unchecked.
+  Both spellings are now detected. Because which spelling git runs when both are set is
+  git-version-dependent, the classifier does NOT mirror git's cross-spelling precedence; it
+  fails closed on the MAX-DANGER UNION — the last value WITHIN each spelling decides that
+  spelling, then the guard refuses if EITHER is `--config-env`-shaped and re-checks EVERY
+  inline spelling, blocking if any resolves to a guarded operation and allowing only when
+  both spellings are benign. On a git where a benign later `.command` genuinely overrides a
+  dangerous plain alias this over-blocks, which is fail-safe.
+- **Removed the env-value-resolution machinery** that existed only to read a `--config-env`
+  value and the environment feeding it: `hook::snapshot_env` / `HOOK_ENV_SNAPSHOT`,
+  `hook::git_effective_config_values` / `HOOK_GIT_CONFIG_UNRESOLVED`,
+  `hook::git_reparse_shell_alias` with its shell-alias env inheritance
+  (`HOOK_GIT_ENV_INHERITED`), `hook::shell_track_persistent_env` / `HOOK_SHELL_VARS`, and
+  `HOOK_GIT_ENV_ASSIGNMENTS`. `hook::git_resolve_index` walks env-assignment prefixes only
+  to locate the git token, never to collect their values.
+- **Behavior change for `--config-env` aliases.** A `--config-env` alias for the invoked
+  subcommand now blocks even when the named variable holds a harmless value — the value is
+  never consulted. Still allowed (decidable safe without reading a value): a `--config-env`
+  that sets a NON-alias key, one that defines an alias for a subcommand that is not
+  invoked, and one whose LAST value for the key is an inline `-c`/`--config`.
+- **The shape refusal fires at every alias-recursion depth (`#740`).** A wrapping inline
+  alias whose expansion is itself a `--config-env` alias for the invoked subcommand
+  (`git -c alias.rh='--config-env=alias.foo=AV foo' rh`, which git runs) previously slipped
+  through: the refusal was gated behind `HOOK_NO_ALIAS`, which suppressed it at recursion
+  depth ≥ 2. The value-blind `--config-env` shape refusal is now ungated so it fires at
+  every depth; only the one-level inline-alias re-expansion remains bounded by
+  `HOOK_NO_ALIAS`.
+
+## [0.10.1]
+
+### Fixed
+
+- **`hardcoded-path-check` no longer scans when no project is active.** The
+  scope guard previously fell through and scanned unconditionally when
+  `CLAUDE_PROJECT_DIR` was unset — contradicting the README's "only police
+  files under `$CLAUDE_PROJECT_DIR`" contract — and the gitignore escape hatch
+  was gated on the same variable, so in exactly that case the one documented
+  per-file exemption was unreachable (real incident: forced `~/` rewrites onto
+  a machine-local `~/.gitconfig` edited from a no-project session). The hook
+  now skips entirely with no active project: a no-project target is
+  machine-local, not the portable repo artifact this guard protects.
+  Deliberately different from `secret-pattern-detection`, which scans even
+  without a resolvable root — secrets are dangerous anywhere. README "Consumer
+  seams" bullets updated to state the no-project behavior explicitly.
+  (Official hooks reference consulted per the fresh-docs mandate:
+  <https://code.claude.com/docs/en/hooks> — `CLAUDE_PROJECT_DIR` is "the
+  project root", with no guarantee of presence in no-project sessions.)
+
 ## [0.10.0]
 
 ### Added

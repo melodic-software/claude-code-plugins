@@ -3,6 +3,9 @@ name: use-your-skills
 description: "Re-anchor the discipline of actually using the skills available to you — scan the in-context skill listing, map the conversation and the task to the skills that fit, and invoke them instead of reinventing their procedure from scratch. Then audit the work in flight for a skill that should have fired and did not, and route forward — invoke it now, and name the relevant skills when delegating to a subagent. Use when: 'use your skills', 'you have a skill for that', 'did you check your skills', 'there's a skill for this', 'you reinvented that', 'you skipped the skill', 'invoke your skills', or at conversation start to set the posture that available skills get used."
 user-invocable: true
 disable-model-invocation: false
+metadata:
+  re-anchor-batch: core  # every session carries a skill listing to act on
+  re-anchor-batch-rank: 10
 ---
 
 # Use your skills

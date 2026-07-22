@@ -52,6 +52,13 @@ assert_exit "--help exits 0" 0 $?
 r="$(newrepo $'## subject_pattern\nConventional Commits')"
 assert_eq "CC keyword -> CC_ERE" "$CC_ERE" "$(run "$r")"
 
+# --- self-describing preamble above the first H2 is inert (setup template) ---
+# /source-control:setup apply writes a prose header for non-plugin readers; the
+# parse contract reads only the first non-empty body line under the `## <key>`
+# H2, so a file with the preamble must resolve identically to one without.
+r="$(newrepo $'# source-control configuration\n\nRead by the source-control Claude Code plugin (and, where installed, the\nguardrails commit-convention gate). Without those plugins this file is inert.\nIt is a drafting aid, not team-wide enforcement.\n\n## subject_pattern\nConventional Commits')"
+assert_eq "preamble above first H2 is inert" "$CC_ERE" "$(run "$r")"
+
 # --- a custom ERE passes through unchanged ---
 r="$(newrepo $'## subject_pattern\n^[A-Z]+-[0-9]+: .+')"
 assert_eq "plain ERE unchanged" '^[A-Z]+-[0-9]+: .+' "$(run "$r")"

@@ -111,12 +111,16 @@ repo-specific policy of their own:
 
 - **Project scoping.** `secret-pattern-detection` and `hardcoded-path-check`
   only police files under `$CLAUDE_PROJECT_DIR`; a write into a sibling repo is
-  that repo's concern. Secret scanning fails **closed** — if the project root
-  cannot be resolved, it scans anyway.
+  that repo's concern. With no active project (`CLAUDE_PROJECT_DIR` unset) the
+  two diverge by threat model: `hardcoded-path-check` skips entirely — a
+  no-project target (a `$HOME` dotfile, say) is machine-local, not a portable
+  repo artifact — while secret scanning fails **closed** and scans anyway
+  (secrets are dangerous anywhere).
 - **Gitignore is the allowlist.** `hardcoded-path-check` skips any file
   `git check-ignore` matches against your `$CLAUDE_PROJECT_DIR` — put
   machine-local files (`settings.local.json`, `.venv/`, …) in your
-  `.gitignore` and they are exempt automatically.
+  `.gitignore` and they are exempt automatically. (Applies within an active
+  project; with none, the hook already skips per the scoping rule above.)
 - **Secret allowlist.** A generic built-in allowlist exempts dependency caches
   (`.venv/`, `node_modules/`), `.env.example` / `.sample` / `.template`
   placeholders, `tests/fixtures` / `tests/testdata` trees, `settings.local.json`,

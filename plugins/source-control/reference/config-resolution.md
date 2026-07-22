@@ -30,6 +30,16 @@ Markdown, one `## <key>` H2 per key, the value as the section body:
   line applies. This is the PR-body analogue of `trailer_policy`, and a separate key on purpose: the
   two govern different surfaces (a commit `Co-Authored-By:` trailer vs a Markdown PR-body line), so a
   consumer setting `trailer_policy: none` keeps the PR-body line unless they also set this to `none`.
+- `pr_body_required_sections` — the PR-body section scaffold: a flat Markdown bullet list (`- <H2
+  heading>` per line, one heading per bullet) naming every `## <heading>` section
+  `/source-control:pull-request create` must both draft and pre-check for before `gh pr create`.
+  Absent everywhere → the bundled portable default, `Summary` and `Test plan` only — see
+  [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md)
+  for the default's rationale and the seam's full contract. Like `type_list`, and unlike the single
+  scalar `subject_pattern`, this key is a **closed list**: a winning layer's list is taken whole,
+  never unioned or ordered against an earlier layer's list (per-key override applies to the entire
+  value, per "Merge semantics" below) — the same reasoning `type_list` already documents, applied to
+  headings instead of type names.
 
 Absent sections are absent, never empty.
 
