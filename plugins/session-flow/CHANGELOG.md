@@ -1,6 +1,37 @@
 # Changelog — session-flow plugin
 
-## [0.12.4]
+## [0.13.0]
+
+### Added
+
+- continue-in-background: new skill (#233). Background delegation extracted from
+  `/handoff --bg` into its own honestly named, discoverable entry point: produce a
+  save-point, then launch a detached `claude --bg` session seeded with the rails
+  resume prompt. Owns the delivery: explicit-intent hard gate (model-invocable for
+  discoverability, but launches only on the user's explicit request — never
+  self-elected, with an eval covering the gate), dirty-tree gate,
+  launch + report, fallback-on-failure, and its own STOP rule. Also surfaces the
+  launched-session behavior the flag never documented: the agent is a NEW session
+  that inherits neither the current session's CLI flags nor its model/effort
+  choices — both resolve from the launch command's own flags and the launch
+  directory's settings (per the agent-view and env-vars official docs, cited in
+  the skill).
+- reference/save-point.md: shared save-point engine. Save-point production —
+  destination resolution, locate-position, full-vs-prompt-only choice, mandatory
+  redaction pass, handoff-file write, rails resume prompt — extracted from the
+  handoff skill into a plugin-level reference both delivery skills cite via
+  `${CLAUDE_PLUGIN_ROOT}` (same shape as `reference/topic-docs.md`). No content
+  duplicated in either skill; no runtime skill-to-skill invocation.
+
+### Changed (BREAKING)
+
+- handoff: `--bg` removed outright — no alias, no deprecation window. `/handoff`
+  is now purely the manual `/clear`-then-paste save-point; background delegation
+  lives in `continue-in-background`. The background trigger phrase ("continue in
+  the background") moves from handoff's description to the new skill's — the
+  trigger partition leaves zero overlap. Handoff's two `--bg` evals
+  (no-launch-default, dirty-tree fallback) migrate to the new skill's eval set,
+  rephrased for the new entry point; handoff keeps default-path coverage.
 
 ### Fixed
 
