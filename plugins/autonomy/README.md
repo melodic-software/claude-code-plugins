@@ -95,10 +95,11 @@ session, this gate for a standing lane.
 **Default OFF** — a Stop-blocking hook must never engage for an interactive session. A lane launcher
 opts a *single* session in by overriding the plugin's `userConfig` through `--settings` (which accepts
 inline JSON and applies for that session only, without persisting). The `pluginConfigs` key is the
-marketplace-qualified plugin id:
+marketplace-qualified plugin id — `<plugin-name>@<marketplace-name>` for however this plugin was
+installed:
 
 ```shell
-claude --settings '{"pluginConfigs":{"autonomy@melodic-software":{"options":{"lane_stop_gate_enabled":true,"lane_stop_gate_marker":".lane-complete"}}}}' ...
+claude --settings '{"pluginConfigs":{"autonomy@<marketplace>":{"options":{"lane_stop_gate_enabled":true,"lane_stop_gate_marker":".lane-complete"}}}}' ...
 ```
 
 `--config <key=value>` is an option of `claude plugin install` (it *persists* the value to user
