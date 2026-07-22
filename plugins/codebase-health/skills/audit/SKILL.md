@@ -162,7 +162,7 @@ truth — do NOT let the discovering agent grade its own findings. A model re-ch
 rubber-stamps it; an independent agent re-reading the doc claim AND the actual code catches both
 false positives and miscategorized-but-correct claims. Where the finding set is high-stakes and
 correlated blind spots are the risk, prefer a cross-vendor advisor **when one is installed** —
-e.g. the OpenAI Codex plugin's `/codex:review --wait` or `/codex:adversarial-review --wait` — with the
+e.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs — with the
 fresh-context same-vendor subagent as the fallback, never a route to a command that may not
 resolve. Fence each validator to read-only (its
 findings' files + verification-sources).

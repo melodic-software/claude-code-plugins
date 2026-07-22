@@ -9,7 +9,7 @@ only after that version increases.
 ### Changed
 
 - `fable-5`: the fresh-context verification chapter now names the presence-gated
-  cross-vendor advisor (e.g. the OpenAI Codex plugin's `/codex:review --wait`) with the
+  cross-vendor advisor (e.g. the OpenAI Codex plugin, invoked per its own docs) with the
   fresh-context same-vendor subagent as the stated fallback — aligning the chapter's
   existing independence-gradient sentence to the seam-phrasing gate-plus-fallback shape,
   not adding a duplicate site. The gate lives at the orchestration chapter's

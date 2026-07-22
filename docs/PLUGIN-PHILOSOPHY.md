@@ -345,12 +345,14 @@ the trigger:
 The delegation target has an independence ladder: a same-vendor fresh context removes the session's
 reasoning but can still share the model's blind spots; a different-vendor advisor removes both. Where
 the verdict is high-stakes and correlated blind spots are the risk, a checkpoint site prefers a
-cross-vendor advisor **when one is installed and set up** — e.g. the OpenAI Codex plugin's
-`/codex:review --wait` or `/codex:adversarial-review --wait` — with the fresh-context same-vendor subagent as the
+cross-vendor advisor **when one is installed and set up** — e.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs — with the fresh-context same-vendor subagent as the
 stated fallback, never a route to a command that may not resolve. That reference is optional
 collaboration, so it carries the presence-gate-plus-fallback shape
 ([seam phrasing](conventions/seam-phrasing/README.md)) at each site that instructs it; an advisor
-plugin external to this marketplace is never a manifest dependency.
+plugin external to this marketplace is never a manifest dependency. Invocation mechanics —
+synchronous waiting, diff-base selection, which artifacts a surface can judge — are the advisor
+plugin's own documentation's concern: a checkpoint site names the capability and the fallback,
+never the advisor's command flags, which drift against the surface their owner evolves.
 
 What does not need it: deterministic gates (a script's pass/fail cannot be biased by context — prefer
 one wherever the judgment is mechanical), and judgment over external input the context did not produce

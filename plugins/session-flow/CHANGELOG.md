@@ -8,7 +8,7 @@
   advisor when one is installed, with the fresh-context same-vendor
   subagent as the stated fallback — presence-gated per the seam-phrasing
   convention (#933). `workflow`'s Review stage (`context/steps.md`) names
-  the example command (the OpenAI Codex plugin's `/codex:review --wait`);
+  the example command (the OpenAI Codex plugin, invoked per its own docs);
   `orchestrate`'s fresh-context-verify imperative states the preference
   tool-agnostically and names no command, because that imperative is
   exported verbatim into the skill's model- and tool-agnostic

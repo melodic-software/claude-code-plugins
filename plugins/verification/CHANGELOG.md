@@ -7,10 +7,11 @@ All notable changes to the `verification` plugin are documented here. Format fol
 
 ### Changed
 
-- The cross-vendor reviewer examples in `/verification:confirm`'s "Independence of
-  the verdict" now specify the synchronous form (`/codex:review --wait`) — the bare
-  command can background and return only a status handle, silently leaving the
-  verdict without the preferred reviewer's findings.
+- The cross-vendor reviewer example in `/verification:confirm`'s "Independence of
+  the verdict" no longer names advisor commands: it gates on the advisor's
+  documented surface being able to take the judged artifact and defers invocation
+  mechanics (waiting, diff-base selection) to that plugin's own docs — per-site
+  command flags drift against the surface the advisor owns.
 
 ## [0.3.3]
 

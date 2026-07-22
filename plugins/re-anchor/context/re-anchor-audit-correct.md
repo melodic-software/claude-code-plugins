@@ -49,10 +49,11 @@ Run these in order. Skip a step only when its input is genuinely absent
    fresh-context subagent (blind to the reasoning that produced the drift)
    instead of self-checking in the context that produced it — a self-check
    in the same context is weak by construction. Prefer a cross-vendor
-   advisor for that re-derivation when one is installed (e.g. the OpenAI
-   Codex plugin's `/codex:review --wait`), with the fresh-context same-vendor
-   subagent as the fallback — never a route to a command that may not
-   resolve. Surface anything that cannot be corrected here rather than
+   advisor for that re-derivation when one is installed (e.g. the
+   OpenAI Codex plugin, when its documented surface can take this
+   artifact, invoked per its own docs), with the fresh-context
+   same-vendor subagent as the fallback — never a route to a command
+   that may not resolve. Surface anything that cannot be corrected here rather than
    papering over it. **Outward
    artifacts are the one carve-out:** correcting forward never *files* an
    outward artifact — a pull request, an issue, a published review comment,
