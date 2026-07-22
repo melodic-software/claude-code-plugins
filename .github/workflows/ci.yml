@@ -225,11 +225,11 @@ jobs:
     permissions:
       contents: read
     # Actions security lint; any regular-persona finding blocks the merge gate.
-    uses: melodic-software/ci-workflows/.github/workflows/zizmor.yml@90f1c54935203fa31b5b3d1f41531228be2c2b7f # 90f1c54 2026-07-18
+    uses: melodic-software/ci-workflows/.github/workflows/zizmor.yml@31a5b76c4a0b663023dc1c944e2bcfc01d6f6c46 # 31a5b76 2026-07-21
     with:
       runner: ubuntu-24.04
       paths: .
-      fail-on-findings: true
+      fail-on-severity: low
 
   hook-utils-sync:
     runs-on: ubuntu-24.04
