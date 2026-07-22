@@ -87,6 +87,9 @@ total=$(grep -c . "$manifest")
 copied=0
 while IFS= read -r file; do
   [[ -n "$file" ]] || continue
+  # Re-check the entry is still a regular non-symlink file: a symlink swapped in after
+  # the Step 2 capture must not be dereferenced into the backup (cp would follow it).
+  [[ -f "$file" && ! -L "$file" ]] || { echo "BACKUP FAILED (no longer a regular file): $file" >&2; break; }
   dest="$(dirname -- "$file").bak-$ts"
   mkdir -p -- "$dest" || { echo "BACKUP FAILED (mkdir): $dest" >&2; break; }
   cp -- "$file" "$dest/" || { echo "BACKUP FAILED (cp): $file" >&2; break; }
@@ -94,6 +97,7 @@ while IFS= read -r file; do
 done <"$manifest"
 if [[ "$copied" -ne "$total" ]]; then
   echo "Backup incomplete ($copied/$total) — ABORTING: delete nothing." >&2
+  exit 1
 fi
 ```
 
