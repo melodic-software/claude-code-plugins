@@ -12,6 +12,12 @@
 [[ -n "${_HOOK_UTILS_LOADED:-}" ]] && return 0
 readonly _HOOK_UTILS_LOADED=1
 
+# Ambient-environment snapshot (name -> value), populated by hook::snapshot_env at
+# hook entry and read by hook::git_effective_config_values. An associative array so
+# an arbitrary env-var NAME is a literal subscript, never option-parsed or evaluated.
+# shellcheck disable=SC2034  # consumed by hook::git_effective_config_values / snapshot_env
+declare -gA HOOK_ENV_SNAPSHOT=()
+
 # Per-hook kill switch via the plugin's <name>_enabled userConfig boolean,
 # read from the hook-process CLAUDE_PLUGIN_OPTION_<NAME>_ENABLED mirror.
 # Exits 0 (allow) if disabled. Place after source, before stdin parsing.
@@ -886,6 +892,31 @@ hook::git_resolve_subcommand() {
   return 1
 }
 
+# Snapshot the process environment into HOOK_ENV_SNAPSHOT (name -> value) so the
+# --config-env resolver reads ambient values from a bash associative array instead of
+# an awk/command-substitution child. Such a child inherits the hook's live shell
+# variables, and bash keeps the export attribute on a `local NAME` that shadows an
+# inherited env var — so a resolver-stack local (n, i, key, envvar, w, sub, …) with the
+# same name as the attacker's ambient variable overrode the real value in the child and
+# failed open. A snapshot taken at hook ENTRY, before any function locals are on the
+# stack, removes the shadowing surface entirely.
+#
+# MUST be called once at hook entry — after sourcing this library but BEFORE
+# hook::bash_parse_segments and before any exported global is reassigned (e.g. a
+# `COMMAND=$(…)` that shadows an ambient `COMMAND`). This function declares NO locals
+# for exactly that reason: its only names are HOOK_-namespaced globals, assigned after
+# the awk child that dumps the environment has already been spawned (so an ambient var
+# named after them is still captured). awk's ENVIRON is a portable getenv view; the
+# `%c`/NUL record terminator keeps values with newlines or `=` intact.
+# shellcheck disable=SC2034  # HOOK_ENV_SNAPSHOT is consumed by hook::git_effective_config_values
+hook::snapshot_env() {
+  HOOK_ENV_SNAPSHOT=()
+  while IFS= read -r -d '' HOOK_ENV_SNAPSHOT_KV; do
+    HOOK_ENV_SNAPSHOT["${HOOK_ENV_SNAPSHOT_KV%%=*}"]="${HOOK_ENV_SNAPSHOT_KV#*=}"
+  done < <(awk 'BEGIN { for (k in ENVIRON) printf "%s=%s%c", k, ENVIRON[k], 0 }')
+  unset -v HOOK_ENV_SNAPSHOT_KV
+}
+
 # Project the collected git config values to their EFFECTIVE assignments for a
 # consumer that reads the actual value (e.g. resolving `alias.<sub>=<expansion>`).
 # An "inline" value (-c/--config) passes through unchanged. An "env" value
@@ -897,14 +928,15 @@ hook::git_resolve_subcommand() {
 # hook::git_resolve_index) sets the variable for git and wins (last assignment wins,
 # as in the shell); otherwise the hook's inherited ambient environment is read.
 # Reading the command-line assignment is essential: it is a self-contained one-liner
-# that would otherwise pass an ambient-only check. The name is resolved with getenv()
-# (via awk's ENVIRON), matching git, so any name shape git accepts — a hyphenated or
-# leading-dash one — resolves too and is not dropped. Only a variable that is unset
-# resolves to an empty value: git rejects an unset --config-env variable (fatal), so
-# an empty value is the safe projection (a value-keyed consumer gets no spurious match;
-# a key-keyed consumer still sees the key). A malformed operand with no '=' is passed
-# through untouched. Fills HOOK_GIT_CONFIG_EFFECTIVE, aligned 1:1 with
-# HOOK_GIT_CONFIG_VALUES. Call after hook::git_resolve_index + git_resolve_subcommand.
+# that would otherwise pass an ambient-only check. The ambient value is read from
+# HOOK_ENV_SNAPSHOT (hook::snapshot_env, taken at hook entry) exactly as git's getenv
+# would, so any name shape git accepts — hyphenated, leading-dash — resolves and is not
+# dropped. Only a variable that is unset resolves to an empty value: git rejects an
+# unset --config-env variable (fatal), so an empty value is the safe projection (a
+# value-keyed consumer gets no spurious match; a key-keyed consumer still sees the key).
+# A malformed operand with no '=' is passed through untouched. Fills
+# HOOK_GIT_CONFIG_EFFECTIVE, aligned 1:1 with HOOK_GIT_CONFIG_VALUES. Call after
+# hook::git_resolve_index + git_resolve_subcommand, and after hook::snapshot_env.
 # shellcheck disable=SC2034  # HOOK_GIT_CONFIG_EFFECTIVE is consumed by the sourcing guard
 hook::git_effective_config_values() {
   HOOK_GIT_CONFIG_EFFECTIVE=()
@@ -916,18 +948,19 @@ hook::git_effective_config_values() {
       key="${entry%%=*}"
       envvar="${entry#*=}"
       # git reads the variable with getenv() on the raw name, so resolve any name
-      # shape the same way — awk's ENVIRON is a getenv-equivalent, exact-name-keyed
-      # map. `printenv "$envvar"` (and bash's ${!envvar}) instead break on names git
-      # accepts: printenv reads a leading-dash name as an option and resolves it
-      # empty, bash indirect expansion rejects a non-identifier outright — both
-      # silently drop a real assignment and fail open. The name is fed to awk on
-      # stdin (a here-string) and matched as `$0`, never as an argument, via `-v`, or
-      # through a fixed ENVIRON pivot key: so it is never option-parsed, never
-      # backslash-processed, an injection-shaped name is inert data that cannot
-      # execute, and a name that collides with a helper key cannot overwrite the
-      # value it reads. An unset variable yields empty (git rejects an unset
-      # --config-env variable as fatal), the safe projection.
-      val="$(awk 'NR == 1 { if ($0 in ENVIRON) print ENVIRON[$0] }' <<<"$envvar" 2>/dev/null || true)"
+      # shape the same way — from HOOK_ENV_SNAPSHOT, an exact-name-keyed map of the
+      # ambient environment taken at hook entry (hook::snapshot_env). Reading it as a
+      # `declare -A` subscript keeps every name shape safe: a leading-dash or
+      # non-identifier name is a literal key (not option-parsed like `printenv`, not
+      # rejected like bash's ${!envvar}); `@`/`*` from a variable subscript are literal
+      # keys, not the all-elements operator; an injection-shaped `$( )` name is inert
+      # data, never evaluated. Crucially it is NOT read in an awk/command-substitution
+      # child: such a child inherits the resolver stack's `local` variables, and bash
+      # keeps the export attribute on a `local NAME` shadowing an inherited env var, so
+      # a stack local named like the attacker's ambient variable (n, i, key, envvar, …)
+      # overrode the real value and failed open. An unset name yields empty (git
+      # rejects an unset --config-env variable as fatal), the safe projection.
+      val="${HOOK_ENV_SNAPSHOT[$envvar]-}"
       # A command-line assignment for this variable overrides the ambient value,
       # matching what git's process actually sees; last one wins.
       if [[ -n "${HOOK_GIT_ENV_ASSIGNMENTS+x}" ]]; then

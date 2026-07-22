@@ -647,7 +647,10 @@ else
   fail "git config kinds (two-word): kinds=($(join_a "${HOOK_GIT_CONFIG_VALUE_KINDS[@]}"))"
 fi
 
+# The ambient value is read from a snapshot taken at hook entry; the tests below
+# mutate the real environment then re-snapshot before resolving, mirroring the guard.
 export WIT_TEST_CFG_ENV=commit
+hook::snapshot_env
 hook::git_resolve_subcommand 0 git --config-env=alias.c=WIT_TEST_CFG_ENV c
 hook::git_effective_config_values
 if [[ "$(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")" == "alias.c=commit" ]]; then
@@ -665,6 +668,7 @@ else
 fi
 
 unset WIT_TEST_CFG_ENV
+hook::snapshot_env
 hook::git_resolve_subcommand 0 git --config-env=alias.c=WIT_TEST_CFG_ENV c
 hook::git_effective_config_values
 if [[ "$(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")" == "alias.c=" ]]; then
@@ -680,6 +684,7 @@ fi
 # shellcheck disable=SC2016  # $HOOK_GIT_CONFIG_EFFECTIVE expands in the inner shell, not here
 noniden=$(env 'bad-name=commit' "$BASH" -c '
   source "'"$HOOK_DIR"'/hook-utils.sh"
+  hook::snapshot_env
   hook::git_resolve_subcommand 0 git --config-env=alias.c=bad-name c
   hook::git_effective_config_values
   IFS="|"; printf "%s" "${HOOK_GIT_CONFIG_EFFECTIVE[*]}"')
@@ -691,6 +696,7 @@ fi
 
 # An unset name (identifier-shaped or not) still projects empty — git rejects an unset
 # --config-env variable as fatal, so nothing takes effect.
+hook::snapshot_env
 hook::git_resolve_subcommand 0 git --config-env=alias.c=bad-name c
 hook::git_effective_config_values
 if [[ "$(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")" == "alias.c=" ]]; then
@@ -699,11 +705,12 @@ else
   fail "git config effective (unset non-identifier): $(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")"
 fi
 
-# An injection-shaped env-var name must never be evaluated: printenv receives the name
-# as a single quoted argument (never re-parsed by the shell), so `$(…)` in a name
-# cannot execute; the unset name resolves to empty. Pins injection safety — a refactor
-# interpolating the name into an eval/unquoted context would be an RCE.
+# An injection-shaped env-var name must never be evaluated: it is looked up as a
+# literal associative-array subscript (declare -A), so `$(…)` in a name cannot execute;
+# the absent key resolves to empty. Pins injection safety — a refactor resolving the
+# name through an eval/arithmetic/indexed-array subscript context would be an RCE.
 rm -f "$HOOK_DIR/../pwned-lib"
+hook::snapshot_env
 # shellcheck disable=SC2016  # the literal $(…) is the injection payload under test — must NOT expand
 hook::git_resolve_subcommand 0 git '--config-env=alias.c=$(touch pwned-lib)' c
 hook::git_effective_config_values
@@ -739,6 +746,7 @@ fi
 # A command-line assignment overrides an ambient value of the same name (git sees the
 # command-line one).
 export WIT_TEST_CFG_ENV=status
+hook::snapshot_env
 hook::git_resolve_index WIT_TEST_CFG_ENV=commit git --config-env=alias.c=WIT_TEST_CFG_ENV c
 hook::git_resolve_subcommand "$HOOK_GIT_RESOLVED_GI" "${HOOK_GIT_RESOLVED_WORDS[@]}"
 hook::git_effective_config_values
@@ -780,11 +788,12 @@ fi
 
 # A leading-dash name read from the AMBIENT environment must resolve too: git reads
 # it via getenv, but `printenv "-AV"` parses it as an option and returns empty (a
-# fail-open). The awk/ENVIRON lookup keys on the exact name. Bash cannot name such a
+# fail-open). The snapshot lookup keys on the exact name. Bash cannot name such a
 # variable, so set it via `env --` in a subshell with NO command-line assignment.
 # shellcheck disable=SC2016  # $HOOK_GIT_CONFIG_EFFECTIVE expands in the inner shell, not here
 dashamb=$(env -- '-AV=commit' "$BASH" -c '
   source "'"$HOOK_DIR"'/hook-utils.sh"
+  hook::snapshot_env
   hook::git_resolve_subcommand 0 git --config-env=alias.c=-AV c
   hook::git_effective_config_values
   IFS="|"; printf "%s" "${HOOK_GIT_CONFIG_EFFECTIVE[*]}"')
@@ -851,19 +860,40 @@ fi
 HOOK_GIT_ENV_INHERITED=()
 HOOK_SHELL_VARS=()
 
-# A --config-env name that collides with an internal awk helper key must still
-# resolve from the ambient environment — the name is matched as awk stdin data,
-# never through a pivot ENVIRON key the collision could overwrite.
-# shellcheck disable=SC2016  # $HOOK_GIT_CONFIG_EFFECTIVE expands in the inner shell, not here
-collide=$(env '__HOOK_CE_NAME=reset --hard' "$BASH" -c '
+# An ambient name identical to a resolver-stack LOCAL must still resolve to the real
+# ambient value. The value is read from HOOK_ENV_SNAPSHOT (an associative array
+# populated at hook entry), not from an awk/command-substitution child — such a child
+# inherited `hook::git_effective_config_values`'s own `local envvar`/`local key`,
+# which bash keeps exported when it shadows an inherited env var, so the child read the
+# local (empty) instead of the real value and failed open. `envvar` and `key` are both
+# locals of the resolver; setting them ambiently and resolving must still see the value.
+# shellcheck disable=SC2016  # $HOOK_DIR/$HOOK_GIT_CONFIG_EFFECTIVE expand in the inner shell
+shadow=$(env 'envvar=reset --hard' 'key=commit' "$BASH" -c '
   source "'"$HOOK_DIR"'/hook-utils.sh"
-  hook::git_resolve_subcommand 0 git --config-env=alias.rh=__HOOK_CE_NAME rh
+  hook::snapshot_env
+  hook::git_resolve_subcommand 0 git --config-env=alias.rh=envvar --config-env=alias.c=key rh
   hook::git_effective_config_values
   IFS="|"; printf "%s" "${HOOK_GIT_CONFIG_EFFECTIVE[*]}"')
-if [[ "$collide" == "alias.rh=reset --hard" ]]; then
-  ok "git config: name colliding with awk helper key still resolves from ambient"
+if [[ "$shadow" == "alias.rh=reset --hard|alias.c=commit" ]]; then
+  ok "git config: ambient name equal to a resolver local resolves (no shadowing)"
 else
-  fail "git config effective (pivot-key collision): [$collide]"
+  fail "git config effective (resolver-local shadowing): [$shadow]"
+fi
+
+# hook::snapshot_env captures any name shape (leading-dash, hyphen, `@`) as an exact
+# associative key; a name absent from the snapshot resolves empty (git-fatal, safe).
+# The weird keys are read through variable subscripts so a literal `[@]` is never the
+# all-elements operator.
+# shellcheck disable=SC2016  # $HOOK_DIR expands in the inner shell
+shape=$(env -- '-AV=one' 'bad-name=two' '@=three' "$BASH" -c '
+  source "'"$HOOK_DIR"'/hook-utils.sh"
+  hook::snapshot_env
+  dk="-AV"; hk="bad-name"; ak="@"; mk="NOPE_UNSET_NAME"
+  printf "%s|%s|%s|%s" "${HOOK_ENV_SNAPSHOT[$dk]-}" "${HOOK_ENV_SNAPSHOT[$hk]-}" "${HOOK_ENV_SNAPSHOT[$ak]-}" "${HOOK_ENV_SNAPSHOT[$mk]-}"')
+if [[ "$shape" == "one|two|three|" ]]; then
+  ok "git config: env snapshot keys any name shape, missing key is empty"
+else
+  fail "git config env snapshot (name shapes): [$shape]"
 fi
 
 echo

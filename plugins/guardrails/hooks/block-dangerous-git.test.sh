@@ -262,9 +262,24 @@ run "bare unexported assignment before --config-env (allowed — git rejects uns
   "AV='reset --hard'; git --config-env=alias.rh=AV rh" 0
 run "harmless export before --config-env (allowed)" \
   "export AV=status; git --config-env=alias.rh=AV rh" 0
-# The env-var name may collide with the resolver's internal awk helper key; it must
-# still resolve from the ambient environment rather than reading back the name.
-run "config-env name colliding with awk helper key (ambient, blocked)" \
+# An ambient env-var NAME identical to one of the resolver's own shell LOCALS must
+# still resolve to the real value. The ambient value is read from a snapshot taken at
+# hook entry (an associative array), not an awk/command-substitution child that would
+# inherit a stack `local NAME` shadowing the same-named env var and read the local
+# (empty) — a fail-open in the exact code this PR rewrote. `envvar`, `key`, `n`, `sub`,
+# and `COMMAND` are all live resolver/parser locals or reassigned globals.
+run "ambient name equal to resolver local 'envvar' (blocked)" \
+  "git --config-env=alias.rh=envvar rh" 2 "envvar=reset --hard"
+run "ambient name equal to resolver local 'key' (blocked)" \
+  "git --config-env=alias.rh=key rh" 2 "key=reset --hard"
+run "ambient name equal to parser local 'n' (blocked)" \
+  "git --config-env=alias.rh=n rh" 2 "n=reset --hard"
+run "ambient name equal to reassigned global 'COMMAND' (blocked)" \
+  "git --config-env=alias.rh=COMMAND rh" 2 "COMMAND=reset --hard"
+run "ambient resolver-local name with a harmless value (allowed)" \
+  "git --config-env=alias.rh=envvar rh" 0 "envvar=status"
+# A name that was the removed awk pivot key resolves from the snapshot like any other.
+run "config-env name equal to the old awk pivot key (ambient, blocked)" \
   "git --config-env=alias.rh=__HOOK_CE_NAME rh" 2 "__HOOK_CE_NAME=reset --hard"
 run "command -p git reset --hard (command wrapper option, blocked)" "command -p git reset --hard" 2
 run "command -- git reset --hard (command end-of-options, blocked)" "command -- git reset --hard" 2

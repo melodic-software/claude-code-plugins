@@ -61,12 +61,20 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   across a shell script's segments — `export NAME=VALUE`, `declare -x`/`typeset -x`, and an
   `export NAME` that promotes a prior bare assignment — seeding it into the resolver for
   later segments. A bare, unexported `NAME=VALUE` is deliberately NOT modeled: git rejects
-  the resulting unset `--config-env` as fatal, so it is not a bypass. (7) The ambient
-  resolver keyed the awk `ENVIRON` lookup through a fixed pivot variable
-  (`__HOOK_CE_NAME`); an attacker whose env-var name was literally that key overwrote the
-  pivot and read back the name instead of the value (`__HOOK_CE_NAME='reset --hard'` +
-  `git --config-env=alias.rh=__HOOK_CE_NAME rh`). The name is now matched as awk stdin data
-  (`$0`), never through a pivot key, so no name can collide with it.
+  the resulting unset `--config-env` as fatal, so it is not a bypass.
+- **Ambient `--config-env` values are read from an entry-time environment snapshot, not a
+  command-substitution child (`#740`).** The ambient resolver ran an `awk`/command-
+  substitution child to read the named variable, but such a child inherits the hook's live
+  shell variables, and bash keeps the export attribute on a `local NAME` that shadows an
+  inherited env var. So an ambient variable whose name matched any resolver-stack local
+  (`n`, `i`, `w`, `key`, `envvar`, `sub`, the reassigned `COMMAND`, …) was read back as the
+  local's value (empty) instead of the real value — the guard's own resolver returning a
+  fail-open result (`n='reset --hard'` + `git --config-env=alias.rh=n rh` ran the alias).
+  `hook::snapshot_env` now captures the environment into an associative array once at hook
+  entry, before any function locals are on the stack, and the resolver reads that array;
+  the lookup is a literal `declare -A` subscript, so every name shape (leading-dash,
+  non-identifier, `@`/`*`, an injection-shaped `$( )`) stays exact and inert, and the
+  earlier awk-pivot-key collision (`__HOOK_CE_NAME`) is gone with the child.
 
 ## [0.9.5]
 

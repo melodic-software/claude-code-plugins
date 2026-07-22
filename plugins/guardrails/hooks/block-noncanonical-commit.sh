@@ -60,6 +60,11 @@ set -uo pipefail
 # shellcheck source=hook-utils.sh
 source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
 
+# Snapshot the ambient environment now — at top level, before any function locals
+# exist and before COMMAND is assigned — so the --config-env resolver reads real
+# ambient values, not a stack local that shadows a same-named env var in a child.
+hook::snapshot_env
+
 hook::check_enabled "BLOCK_NONCANONICAL_COMMIT"
 
 # High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;

@@ -143,9 +143,19 @@ run "shell alias carries enclosing git env into nested --config-env commit (bloc
 # command-line assignment — a pass proves the in-body export was modeled.
 run "export inside shell-alias body reaches nested --config-env commit (blocked)" \
   "git -c \"alias.sh=!export AV=commit; git --config-env=alias.c=AV c --allow-empty -m x\" sh" 2
-# The env-var name may collide with the resolver's internal awk helper key; it must
-# still resolve from the ambient environment.
-run "config-env name colliding with awk helper key (ambient, blocked)" \
+# An ambient env-var NAME identical to one of the resolver's own shell LOCALS must
+# still resolve to the real value: it is read from a snapshot taken at hook entry, not
+# an awk/command-substitution child that would inherit a stack `local NAME` shadowing
+# the same-named env var and read the local (empty) — a fail-open. `envvar` and `key`
+# are live resolver locals.
+run "ambient name equal to resolver local 'envvar' (blocked)" \
+  "git --config-env=alias.c=envvar c" 2 "envvar=commit"
+run "ambient name equal to resolver local 'key' (blocked)" \
+  "git --config-env=alias.c=key c" 2 "key=commit"
+run "ambient resolver-local name with a harmless value (allowed)" \
+  "git --config-env=alias.c=envvar c" 0 "envvar=status"
+# A name that was the removed awk pivot key resolves from the snapshot like any other.
+run "config-env name equal to the old awk pivot key (ambient, blocked)" \
   "git --config-env=alias.c=__HOOK_CE_NAME c" 2 "__HOOK_CE_NAME=commit"
 
 # --- case-insensitive alias resolution (git folds config names) --------------
