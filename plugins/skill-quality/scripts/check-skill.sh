@@ -27,7 +27,9 @@
 # Checks:
 #   1. Frontmatter parses; name matches dir; description present
 #   2. description + when_to_use <= 1536 chars (listing-truncation guard)
-#   3. Trigger-keyword preservation vs the base ref (skipped for new skills)
+#   3. Trigger-keyword preservation vs the base ref (skipped for new skills;
+#      a phrase moved verbatim to a sibling skill's listing text WARNs, since
+#      the marketplace listing still routes it — only lost phrases FAIL)
 #   4. SKILL.md < 500 lines (hard cap)
 #   5. Backtick-cited skill-internal supporting files resolve
 #   6. markdownlint clean (markdownlint-cli2; WARN-skip if npx absent)
@@ -219,7 +221,38 @@ if git -C "$REPO_ROOT" cat-file -e "$BASE_REF:$SKILL_REL/SKILL.md" 2>/dev/null; 
   if [[ -n "$BASE_TRIG" ]]; then
     MISSING="$(comm -23 <(printf '%s\n' "$BASE_TRIG") <(printf '%s\n' "$CUR_TRIG"))"
     if [[ -n "$MISSING" ]]; then
-      err "dropped trigger keyword(s) vs $BASE_REF (auto-invocation regression): $(printf '%s' "$MISSING" | tr '\n' ' ')"
+      # A dropped phrase that reappears verbatim in a SIBLING skill's listing
+      # text (same skills root, working tree) is a deliberate trigger MOVE, not
+      # a lost trigger: the marketplace listing still routes the phrase, which
+      # is the regression this check exists to catch. Moves WARN (visible until
+      # merge, never blocking); only phrases absent everywhere FAIL.
+      LOST=""
+      while IFS= read -r phrase; do
+        [[ -n "$phrase" ]] || continue
+        MOVE_HOST=""
+        for other_md in "$SKILLS_ROOT"/*/SKILL.md; do
+          [[ -f "$other_md" ]] || continue
+          [[ "$other_md" -ef "$SKILL_MD" ]] && continue
+          OTHER_FM="$(skill_frontmatter::extract <"$other_md")"
+          OTHER_TRIG="$(printf '%s\n%s\n' \
+            "$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field description <<<"$OTHER_FM")")" \
+            "$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field when_to_use <<<"$OTHER_FM")")" |
+            skill_frontmatter::extract_triggers)"
+          if printf '%s\n' "$OTHER_TRIG" | grep -qxF -- "$phrase"; then
+            MOVE_HOST="${other_md%/SKILL.md}"
+            MOVE_HOST="${MOVE_HOST##*/}"
+            break
+          fi
+        done
+        if [[ -n "$MOVE_HOST" ]]; then
+          warn "trigger phrase $phrase moved to sibling skill '$MOVE_HOST' — listing coverage preserved, confirm the move is deliberate"
+        else
+          LOST="${LOST}${phrase}"$'\n'
+        fi
+      done <<<"$MISSING"
+      if [[ -n "$LOST" ]]; then
+        err "dropped trigger keyword(s) vs $BASE_REF (auto-invocation regression): $(printf '%s' "$LOST" | tr '\n' ' ')"
+      fi
     else
       note "all $(printf '%s\n' "$BASE_TRIG" | grep -c .) base-ref trigger phrase(s) preserved"
     fi

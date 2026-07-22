@@ -37,30 +37,6 @@
         "The save-point / resume prompt is produced, pointing at the next unfinished stage",
         "The skill STOPS — a multi-step pipeline naming /handoff names a /clear boundary, not authorization to keep executing"
       ]
-    },
-    {
-      "id": 4,
-      "name": "no-bg-flag-no-background-launch",
-      "prompt": "handoff — I'm heading out, context is heavy.",
-      "expected_output": "Because --bg was not passed, the skill does NOT launch a background agent. The default exit is the copy/paste resume prompt with the /clear-then-paste instruction; background launch is honored only when the user explicitly passes --bg.",
-      "files": [],
-      "expectations": [
-        "The skill does NOT launch a background agent (no claude --bg invocation) because --bg was not passed",
-        "The default exit is the copy/paste resume prompt with a /clear-then-paste instruction",
-        "The skill does not self-elect background launch even though the user is going AFK"
-      ]
-    },
-    {
-      "id": 5,
-      "name": "bg-dirty-tree-falls-back",
-      "prompt": "/handoff --bg — keep the work moving while I'm away. (Note: the working tree has unrelated uncommitted edits in src/other-feature.ts from a different task.)",
-      "expected_output": "The dirty-tree gate detects unrelated uncommitted changes (outside save-point files under the handoff location) and does NOT launch the background agent — those edits would not carry into the isolated worktree. It reports why and falls back to the standard /clear-then-paste instruction, noting the user can commit or stash and re-run.",
-      "files": [],
-      "expectations": [
-        "The skill runs the dirty-tree gate with git status --porcelain -uall (the -uall is required — default porcelain collapses untracked directories and can hide unrelated dirt behind the exempt handoff directory) and ignores only save-point files under the handoff location, not the unrelated src/other-feature.ts edits",
-        "It does NOT launch the background agent because unrelated uncommitted changes are present (and it is not already inside a linked worktree)",
-        "It reports the reason and falls back to the standard /clear-then-paste instruction, noting the user can commit or stash and re-run /handoff --bg"
-      ]
     }
   ]
 }

@@ -129,6 +129,51 @@ else
   fail "dropped trigger phrase should fail with a trigger-drop message (rc=$rc): $out"
 fi
 
+# 5b. A dropped trigger phrase that reappears verbatim in a SIBLING skill's
+#     description is a trigger MOVE: warns, names the host, and passes — the
+#     listing still routes the phrase (check 3's move exception).
+make_skill mover-src '---
+name: mover-src
+description: "Move fixture. Use when: '"'"'gamma trigger'"'"', '"'"'delta trigger'"'"'."
+---
+
+## Purpose
+
+Committed baseline carrying the phrase that will move.
+'
+git -C "$TMP" add -A
+git -C "$TMP" commit -qm 'add mover-src'
+# Working tree: mover-src drops delta; sibling mover-dst now carries it.
+make_skill mover-src '---
+name: mover-src
+description: "Move fixture. Use when: '"'"'gamma trigger'"'"'."
+---
+
+## Purpose
+
+Working tree drops delta trigger, moved to the sibling below.
+'
+make_skill mover-dst '---
+name: mover-dst
+description: "Move target fixture. Use when: '"'"'delta trigger'"'"'."
+---
+
+## Purpose
+
+Sibling now owning the moved phrase.
+
+## Gotchas
+
+None known.
+'
+out="$(run mover-src 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "moved to sibling skill 'mover-dst'" <<<"$out" && ! grep -q 'dropped trigger keyword' <<<"$out"; then
+  pass "trigger phrase moved to a sibling skill warns and passes (move exception)"
+else
+  fail "moved trigger phrase should warn, name the host, and pass (rc=$rc): $out"
+fi
+
 # 6. A relative skills root resolves against CLAUDE_PROJECT_DIR, not the cwd,
 #    even when invoked from a subdirectory.
 mkdir -p "$TMP/subdir"

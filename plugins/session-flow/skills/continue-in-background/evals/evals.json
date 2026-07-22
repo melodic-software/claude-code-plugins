@@ -1,0 +1,44 @@
+{
+  "skill_name": "continue-in-background",
+  "evals": [
+    {
+      "id": 1,
+      "name": "explicit-request-launches",
+      "prompt": "/continue-in-background — I'm heading out for the evening; pick the work up in a background agent. The working tree is clean apart from the handoff save-points.",
+      "expected_output": "The skill produces the save-point via the shared engine, emits the rails resume prompt, passes the dirty-tree gate (only save-point files under the handoff location), launches a fresh background agent seeded with the rails prompt (claude --bg --name continue-<topic>), reports the launch result with the claude agents management hint and any non-inherited configuration worth flagging, and STOPS — it does not monitor the launched agent.",
+      "files": [],
+      "expectations": [
+        "A save-point is produced per the shared engine doc and the rails resume prompt is emitted first (transparency + manual fallback)",
+        "The dirty-tree gate runs git status --porcelain -uall and exempts only save-point files under the handoff location",
+        "A background agent is launched with the rails prompt via claude --bg and the launch result is reported, replacing the /clear-then-paste instruction",
+        "The report surfaces launched-session behavior: the agent is a NEW session that inherits neither the current session's CLI flags nor its model/effort choices",
+        "The skill STOPS after the launch report — no monitoring, polling, or new work items"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "no-explicit-intent-no-launch",
+      "prompt": "I'm heading out, context is heavy — checkpoint this so nothing is lost.",
+      "expected_output": "The user asked for a checkpoint, not background delegation, so the hard gate blocks the launch: the skill produces the save-point and the rails resume prompt with the standard /clear-then-paste instruction, states that no background agent was launched because background delegation was not explicitly requested, and STOPS.",
+      "files": [],
+      "expectations": [
+        "The skill does NOT launch a background agent (no claude --bg invocation) — going AFK with heavy context is not explicit background-delegation intent",
+        "The exit is the save-point plus the copy/paste resume prompt with a /clear-then-paste instruction",
+        "The response states that background launch was withheld for lack of an explicit request, and how to request it",
+        "The skill does not self-elect the launch even though the user is going AFK"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "dirty-tree-falls-back",
+      "prompt": "/continue-in-background — keep the work moving while I'm away. (Note: the working tree has unrelated uncommitted edits in src/other-feature.ts from a different task.)",
+      "expected_output": "The dirty-tree gate detects unrelated uncommitted changes (outside save-point files under the handoff location) and does NOT launch the background agent — those edits would not carry into the isolated worktree the background session moves into before editing. It reports why and falls back to the standard /clear-then-paste instruction, noting the user can commit or stash and re-run /continue-in-background.",
+      "files": [],
+      "expectations": [
+        "The skill runs the dirty-tree gate with git status --porcelain -uall (the -uall is required — default porcelain collapses untracked directories and can hide unrelated dirt behind the exempt handoff directory) and ignores only save-point files under the handoff location, not the unrelated src/other-feature.ts edits",
+        "It does NOT launch the background agent because unrelated uncommitted changes are present (and it is not already inside a linked worktree)",
+        "It reports the reason and falls back to the standard /clear-then-paste instruction, noting the user can commit or stash and re-run /continue-in-background"
+      ]
+    }
+  ]
+}
