@@ -27,10 +27,14 @@ A static field on a `hooks.json` **handler object**, sibling of `type`/`command`
 ```
 
 Displayed as the UI spinner label while the hook process runs. **A hook script never emits this —
-there is no runtime JSON output field by this name.** Every command-hook handler in the fleet
-declares one. Wording convention: a present-tense gerund phrase naming what the hook is doing,
-specific to the tool or check (`"Formatting Go imports..."`, `"Checking for secrets..."`,
-`"Recording tool-failure telemetry..."`) — not a generic `"Running hook..."`.
+there is no runtime JSON output field by this name.** **Rollout status: pending.** As of this
+doc's introduction, no `hooks.json` in the fleet declares `statusMessage` yet — all 24 wired
+`type: "command"` handlers across 12 plugins need it added. Tracked as required fleet adoption
+against melodic-software/claude-code-plugins#836 (this doc lands first per the convention-registry
+rule; adoption is the follow-up PR). Wording convention for that rollout: a present-tense gerund
+phrase naming what the hook is doing, specific to the tool or check
+(`"Formatting Go imports..."`, `"Checking for secrets..."`, `"Recording tool-failure
+telemetry..."`) — not a generic `"Running hook..."`.
 
 ### 2. `systemMessage` — user-visible, scoped to silently-skipped features
 
@@ -62,10 +66,14 @@ unguarded `hook::emit_skip_notice` call on a broad-matcher hook is a conformance
 
 **Important exit-code caveat, grounded in the fresh fetch:** on exit 0, **stderr is never shown to
 the user or the agent** — only stdout JSON is parsed. A bare `echo "..." >&2; exit 0` skip is
-**not visible**, regardless of intent. `scripts/check-silent-skips.sh` previously treated a bare
-stderr write as a sanctioned visibility signal; that was incorrect for the exit-0 skip shapes the
-gate inspects and has been corrected (see Conformance below) — a quiet skip must use one of the
-sanctioned helper calls or an explicit `# silent-skip-ok: <reason>` annotation.
+**not visible**, regardless of intent. `scripts/check-silent-skips.sh` **still treats a bare
+stderr write as a sanctioned visibility signal as of this doc's introduction** — that is incorrect
+for the exit-0 skip shapes the gate inspects, and the gate does not yet enforce the rule this doc
+states. **Gate correction is pending**, scoped into the same fleet-adoption follow-up PR (against
+issue #836) that converts the 9 fleet sites currently relying on that leniency
+(`plugins/guardrails/hooks/*.sh`) — the gate and its dependent sites land together so CI never
+regresses between them. Once corrected, a quiet skip must use one of the sanctioned helper calls
+or an explicit `# silent-skip-ok: <reason>` annotation.
 
 ### 3. OTel-style telemetry envelope
 
@@ -112,7 +120,8 @@ Fleet audits check, per wired producer hook:
   matcher.
 - The hook emits the telemetry envelope on every exit path.
 
-`scripts/check-silent-skips.sh` enforces the second point mechanically for the `command -v`-gated
-shapes it recognizes — a bare stderr write no longer satisfies it (exit-0 stderr is invisible per
-the fresh fetch above); a quiet skip needs a sanctioned helper call or an explicit
-`# silent-skip-ok:` annotation.
+`scripts/check-silent-skips.sh` mechanically enforces the second point for the `command -v`-gated
+shapes it recognizes, **once its pending gate correction lands** (see the systemMessage section
+above) — a bare stderr write does not actually satisfy the doctrine (exit-0 stderr is invisible
+per the fresh fetch above), even though the gate does not yet reject it. After that correction, a
+quiet skip needs a sanctioned helper call or an explicit `# silent-skip-ok:` annotation.
