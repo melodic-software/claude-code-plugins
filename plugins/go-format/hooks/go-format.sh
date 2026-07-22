@@ -14,8 +14,7 @@
 # statement of intent for exactly this per-file/on-save scenario, and it has
 # no meaningful config-divergence axis when left unconfigured (unlike
 # ruff/dotnet format, whose underlying tools DO have configurable, genuinely
-# divergent output). Full field-survey rationale:
-# docs/topics/832-go-ecosystem/PLAN.md (Open Decision 1), issue #832.
+# divergent output).
 #
 # GENERATED-FILE GUARD: goimports has zero awareness of Go's own
 # `// Code generated ... DO NOT EDIT.` convention — empirically confirmed it
