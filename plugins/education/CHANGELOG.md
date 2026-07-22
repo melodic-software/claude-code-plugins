@@ -3,6 +3,17 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.2]
+
+### Changed
+
+- `/education:explain` description gains a disjoint-trigger boundary vs the new
+  `adhd:digest`: `explain` changes ALTITUDE (plain words, lossy), `digest`
+  changes STRUCTURE (faithful restructure, no altitude loss). This keeps the two
+  auto-firing skills from colliding on the shared "previous response" default
+  target — routing is on intent, not overlapping phrases. All existing `explain`
+  trigger keywords are preserved.
+
 ## [0.5.1]
 
 ### Changed
