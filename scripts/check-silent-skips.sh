@@ -19,11 +19,18 @@
 #
 # A flagged site passes when the skip is visible — the guard line or block
 # carries one of the sanctioned visibility calls (hook::emit_skip_notice,
-# hook::emit_system_message, hook::notice_once, hook::require_jq, or a
-# stderr write) — or when it is a documented quiet classification: an
-# annotation comment `# silent-skip-ok: <reason>` on the guard line, in the
-# comment block immediately above it, or inside the guard block. The
-# annotation is the recorded decision; a bare quiet skip is a defect.
+# hook::emit_system_message, hook::notice_once, hook::require_jq) — or when
+# it is a documented quiet classification: an annotation comment
+# `# silent-skip-ok: <reason>` on the guard line, in the comment block
+# immediately above it, or inside the guard block. The annotation is the
+# recorded decision; a bare quiet skip is a defect.
+#
+# A bare stderr write (`>&2`) is NOT a sanctioned visibility call: every site
+# this gate inspects is, by construction, an exit-0 skip path, and per the
+# official Claude Code hooks reference (fetched 2026-07-22,
+# docs/conventions/hook-observability/) stderr on exit 0 is discarded
+# entirely — never shown to the user or the agent. A `>&2`-only notice on
+# such a path is invisible regardless of intent.
 #
 # This is a grep-level tripwire, not a semantic proof: it does not chase
 # helper-function bodies and does not flag a positive-form
@@ -49,7 +56,7 @@ for hook in plugins/*/hooks/*.sh; do
     function is_comment(l) { return l ~ /^[[:space:]]*#/ }
     function is_visible(l) {
       return l ~ /hook::emit_skip_notice/ || l ~ /hook::emit_system_message/ ||
-        l ~ /hook::notice_once/ || l ~ /hook::require_jq/ || l ~ />&2/
+        l ~ /hook::notice_once/ || l ~ /hook::require_jq/
     }
     {
       line = $0
@@ -114,8 +121,11 @@ if ((errors > 0)); then
   {
     echo
     echo "A missing-CLI skip must be visible (hook::emit_skip_notice /"
-    echo "hook::emit_system_message / a stderr write) or carry a documented"
-    echo "quiet classification: '# silent-skip-ok: <reason>' at the site."
+    echo "hook::emit_system_message / hook::notice_once / hook::require_jq)"
+    echo "or carry a documented quiet classification:"
+    echo "'# silent-skip-ok: <reason>' at the site. A bare stderr write is"
+    echo "NOT sufficient — stderr on exit 0 is never shown to the user or"
+    echo "the agent (docs/conventions/hook-observability/)."
   } >&2
   exit 1
 fi

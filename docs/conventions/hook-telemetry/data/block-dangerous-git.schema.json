@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/hook-telemetry/data/block-dangerous-git.schema.json",
+  "title": "block-dangerous-git telemetry data",
+  "description": "Per-hook `data` payload for the block-dangerous-git guard. Discovered from the envelope `hook` value \"block-dangerous-git\". Evolves additive-only. Carries NO full command string.",
+  "type": "object",
+  "required": ["tool", "subject", "form"],
+  "additionalProperties": true,
+  "properties": {
+    "tool": {
+      "type": "string",
+      "description": "Always \"Bash\" — this guard matches only Bash tool calls."
+    },
+    "subject": {
+      "type": "string",
+      "description": "Privacy-safe command subject `Bash:<first-token>` with leading sudo / env-assignment prefixes stripped and the token basenamed. NEVER the full command or its arguments."
+    },
+    "form": {
+      "type": "string",
+      "description": "The irreversible git form when blocked: \"push-force\" | \"reset-hard\" | \"clean-force\" | \"checkout-dot\" | \"restore-dot\" | \"checkout-force\", or \"too-long\" when the command exceeded the parse-length ceiling. Empty string when the command was allowed (status ok)."
+    }
+  }
+}

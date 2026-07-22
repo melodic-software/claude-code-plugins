@@ -28,24 +28,27 @@ hook::check_enabled "SECRET_PATTERN_DETECTION"
 # High-res start stamp for telemetry (Bash 5.0+; empty on older bash → skip).
 start=${EPOCHREALTIME:-}
 
-# jq is required to parse the tool payload. Fail OPEN when it is absent, but make
-# the degraded state visible rather than silently disabling the guard.
-if ! command -v jq >/dev/null 2>&1; then
-  echo "guardrails/secret-pattern-detection: jq not found on PATH — guard disabled (install jq to enable)." >&2
-  exit 0
-fi
-
 # hook::buffer_stdin encapsulates the Win32-pipe-safe bounded fd0 read; buffer
 # once, parse each field from it. rc 1 (empty stdin) skips like the empty-field
 # guards below; rc 2 (read timed out before a complete payload) FAILS CLOSED —
 # the guard cannot evaluate the tool call, and a silent skip would pass exactly
 # the traffic this guard exists to stop. buffer_stdin already printed the
-# BLOCKED reason to stderr.
+# BLOCKED reason to stderr. Buffering does not require jq (hook::buffer_stdin's
+# own JSON-completeness check is jq-optional), so it runs before the jq gate
+# below — hook::require_jq needs the buffered input for its once-per-session
+# notice scoping.
 INPUT=$(hook::buffer_stdin) || {
   rc=$?
   ((rc == 2)) && exit 2
   exit 0
 }
+
+# jq is required to parse the tool payload. hook::require_jq fails OPEN
+# (advisory hooks never block over a missing prerequisite) but makes the
+# degraded state visible to both the user (systemMessage) and the agent
+# (additionalContext), once per session — see docs/conventions/hook-observability/.
+hook::require_jq "PreToolUse" "guardrails-secret-pattern-detection" "$INPUT"
+
 TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null | tr -d '\r')
 
 case "$TOOL" in
