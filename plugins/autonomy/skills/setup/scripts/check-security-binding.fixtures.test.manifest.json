@@ -215,6 +215,13 @@
         "does not resolve under any configured --credential-roots"
       ]
     },
+    "probe-evidence-credroots-drive-root.json": {
+      "exit": 1,
+      "credential_roots": "C:/",
+      "findings_substrings": [
+        "does not resolve under any configured --credential-roots"
+      ]
+    },
     "probe-evidence-credroots-relative-root.json": {
       "exit": 1,
       "credential_roots": "secrets",
@@ -641,6 +648,7 @@
     "ci-pool-a-l2-doc-3fff.json",
     "ci-pool-a-l2-docnet.json",
     "ci-pool-a-l2-dot-traversal.json",
+    "ci-pool-a-l2-drive-root.json",
     "ci-pool-a-l2-dummy-prefix.json",
     "ci-pool-a-l2-encoded-loopback.json",
     "ci-pool-a-l2-expanded-loopback.json",

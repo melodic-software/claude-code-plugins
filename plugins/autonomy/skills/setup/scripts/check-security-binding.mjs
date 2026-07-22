@@ -225,11 +225,14 @@ function pathUnderConfiguredRoot(candidate, roots) {
   if (normCandidate === null) return false;
   return roots.some((root) => {
     const normRoot = normalizeHostPath(root);
-    // A root that normalizes to "/" (or empty/invalid) is refused: "/" would make
-    // containment `startsWith("/")`, accepting every absolute path and silently
-    // defeating deny-by-default. Trusting the whole filesystem is never valid
-    // credential-absence evidence, so it fails closed like an unconfigured root.
-    if (normRoot === null || normRoot === "" || normRoot === "/") return false;
+    // A root that normalizes to a bare filesystem root — POSIX "/" or a bare
+    // drive root like "c:/" — is refused: either would make containment accept
+    // the entire filesystem (or the whole drive) and silently defeat
+    // deny-by-default (a "c:/" candidate would even satisfy the equality case).
+    // Trusting a whole filesystem root is never valid credential-absence
+    // evidence, so it fails closed like an unconfigured root; a narrower root
+    // such as "c:/creds" is unaffected.
+    if (normRoot === null || normRoot === "" || normRoot === "/" || /^[a-z]:\/$/.test(normRoot)) return false;
     if (normCandidate === normRoot) return true;
     return normCandidate.startsWith(`${normRoot}/`);
   });
