@@ -208,4 +208,65 @@ else
   bad "telemetry: no envelope written on block"
 fi
 
+# --- PowerShell tool coverage ------------------------------------------------
+# The guard is matched on Bash|PowerShell. The proven bypass must be caught on
+# the PowerShell tool; the canonical PowerShell commit form must be allowed; and
+# commit/push-shaped PowerShell the guard cannot parse must fail closed.
+run_pwsh() {
+  local label="$1" command="$2" expected="$3" rc
+  bash "$HOOK" <<<"$(pwsh_command_json "$command")" >/dev/null 2>&1
+  rc=$?
+  assert_exit "$label" "$expected" "$rc"
+}
+run_pwsh "PS: git commit --no-verify (blocked — the proven bypass)" "git commit --no-verify -m x" 2
+run_pwsh "PS: git commit -n (blocked)" "git commit -n -m x" 2
+run_pwsh "PS: git push --no-verify (blocked)" "git push --no-verify" 2
+run_pwsh "PS: canonical here-string | git commit -F - (allowed)" \
+  "$(printf '%s\n%s\n%s' "@'" "fix: x" "'@ | git commit -F -")" 0
+run_pwsh "PS: git commit -m here-string (allowed here — noncanonical's concern, no bypass)" \
+  "$(printf '%s\n%s\n%s' "git commit -m @'" "msg" "'@")" 0
+run_pwsh "PS: git status (allowed)" "git status" 0
+run_pwsh "PS: backtick-continued commit (fail-closed block)" \
+  "$(printf 'git commit `\n --no-verify')" 2
+run_pwsh "PS: unbalanced here-string hiding --no-verify (fail-closed block)" \
+  "$(printf '%s\n%s\n%s' "@'" "body" "'X | git commit --no-verify")" 2
+run_pwsh "PS: brace-grouped commit --no-verify (fail-closed block)" \
+  "& { git commit --no-verify }" 2
+run_pwsh "PS: LEFTHOOK=0 git commit (env bypass, blocked)" "LEFTHOOK=0 git commit -m x" 2
+
+# Obfuscation regressions (independent security review, sink-level fail-closed).
+# A construct that defeats the Bash tokenizer must not let an obfuscated git
+# invocation through — the sink blocks unless the command is provably git-free,
+# rather than trusting a negative shape match on the mangled scan.
+bt='`'
+run_pwsh "PS: backtick inside subcommand (git com\`mit, blocked)" "git com${bt}mit --no-verify" 2
+run_pwsh "PS: backtick inside push (git pu\`sh --force, blocked)" "git pu${bt}sh --force" 2
+run_pwsh "PS: backtick inside git itself (g\`it com\`mit, blocked)" "g${bt}it com${bt}mit --no-verify" 2
+run_pwsh "PS: quoted subcommand + subexpression decoy (blocked)" "git 'commit' --no-verify \$(whoami)" 2
+run_pwsh "PS: quoted git command word (blocked via parser)" "& 'git' commit --no-verify" 2
+# Provably git-free PowerShell carrying an unparsable construct is NOT blocked
+# by the git guards (no over-block of legitimate non-git PowerShell).
+run_pwsh "PS: non-git scriptblock (allowed)" "Get-Process | Where-Object { \$_.CPU -gt 5 }" 0
+run_pwsh "PS: non-git subexpression (allowed)" "Write-Output \$(Get-Date)" 0
+# Dynamic-invocation regressions: iex / string-literal call run an opaque string,
+# so a construct-free form must still route to the fail-closed sink (it otherwise
+# reached the Bash parser, which sees `iex`, not git, and passed).
+run_pwsh "PS: iex of a literal git command (blocked)" "iex 'git commit --no-verify'" 2
+run_pwsh "PS: invoke-expression of a literal (blocked)" "invoke-expression 'git push --force'" 2
+run_pwsh "PS: iex of a here-string (blocked)" \
+  "$(printf 'iex @%s\ngit commit --no-verify\n%s@' "'" "'")" 2
+run_pwsh "PS: call of a string-literal command (blocked)" "& 'git commit --no-verify'" 2
+# A call/dot-source of a bare VARIABLE is the deferred variable-command-word form
+# (same residual the Bash guards carry) — it takes the parser path, not the sink.
+run_pwsh "PS: call of a bare variable (deferred residual — not blocked here)" "& \$sb" 0
+# Launcher / nested-shell parity with the Bash guard's launcher + `-c` see-through.
+# Routed to the sink; blocked only when the launched argv / command names git.
+run_pwsh "PS: Start-Process git -ArgumentList (blocked)" "Start-Process git -ArgumentList 'commit','--no-verify'" 2
+run_pwsh "PS: saps git (Start-Process alias, blocked)" "saps git -ArgumentList 'push','--force'" 2
+run_pwsh "PS: pwsh -Command git (nested shell, blocked)" "pwsh -Command 'git commit --no-verify'" 2
+run_pwsh "PS: powershell -Command git (blocked)" "powershell -Command 'git push --force'" 2
+run_pwsh "PS: cmd /c git (blocked)" "cmd /c git commit --no-verify" 2
+run_pwsh "PS: Start-Process notepad (no git, allowed)" "Start-Process notepad" 0
+run_pwsh "PS: pwsh -File script (no inline git, allowed)" "pwsh -File build.ps1" 0
+
 report
