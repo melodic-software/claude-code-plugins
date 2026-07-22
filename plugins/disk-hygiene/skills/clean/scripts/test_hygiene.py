@@ -1303,6 +1303,7 @@ class GuardTests(unittest.TestCase):
         with (
             mock.patch("sys.stdin", stdin),
             redirect_stdout(stdout),
+            mock.patch.object(guard.sys, "argv", [str(SCRIPT_DIR / "destructive_guard.py")]),
             mock.patch.dict(
                 "os.environ", {"CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED": "true"}, clear=False
             ),
