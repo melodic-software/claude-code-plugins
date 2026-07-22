@@ -45,7 +45,7 @@ State names follow the plugin's vocabulary and the canonical roles ([`${CLAUDE_P
 
 | State | Tracker marker | Meaning |
 |-------|----------------|---------|
-| **raw** | unlabeled or `status:needs-triage` | Untouched intake; every claim in it is unverified |
+| **raw** | unlabeled or the raw marker (`status:needs-triage` / `priority:needs-triage`, whichever axis the repo files it under) | Untouched intake; every claim in it is unverified |
 | **verified** | recorded in triage notes | The claim held up: bug reproduced, or PR diff confirmed to do what it says |
 | **briefed** | brief posted + `status:ready` | Fully specified as a behavioral contract (per [`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md)) |
 | **autonomous-eligible** | role label (default `agent-ready`) | Briefed AND delegable — eligible for autonomous pickup from the frontier |
@@ -74,7 +74,7 @@ Claiming stays coordination state, not a label — assignee + lease via the seam
 Show three buckets (oldest first, one-line summaries):
 
 1. **Unlabeled** — never triaged
-2. **`status:needs-triage`** — explicitly tagged for evaluation
+2. **The raw marker** (`status:needs-triage` / `priority:needs-triage`, whichever axis the repo files it under) — explicitly tagged for evaluation
 3. **`status:needs-info` with reporter activity** — reporter replied since last triage note; ready for re-evaluation
 
 List open items and filter into buckets programmatically (adapter: "List items", bare read). When the repo treats external PRs as a request surface, include them and tag each line `[PR]` or `[issue]` — but surface only *external* PRs (a collaborator's in-flight PR is not triage work; this filter is discovery-only, and an explicitly named PR is always triaged regardless of author). Present as a compact table.

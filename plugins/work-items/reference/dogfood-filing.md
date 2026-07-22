@@ -52,9 +52,11 @@ Four beats, in order. The two **mechanical** beats reuse existing machinery verb
    truth, so a change to the template lands in one place. The item **title** follows the convention
    in [`issue-conventions.md`](issue-conventions.md).
 
-4. **Label `needs-triage`, then hand off (mechanical label + policy).** Apply `status:needs-triage`
-   ([`label-taxonomy.md`](label-taxonomy.md) status axis) so the item lands in the triage attention
-   view for evaluation ([`../skills/triage/SKILL.md`](../skills/triage/SKILL.md) "Attention view").
+4. **Label `needs-triage`, then hand off (mechanical label + policy).** Apply the raw marker
+   (`status:needs-triage` / `priority:needs-triage`, whichever axis the repo files it under —
+   resolved from the live label set, [`label-taxonomy.md`](label-taxonomy.md)) so the item lands in
+   the triage attention view for evaluation ([`../skills/triage/SKILL.md`](../skills/triage/SKILL.md)
+   "Attention view").
    **The filer does not self-triage** — filing surfaces the problem into raw intake; triage verifies,
    categorizes definitively, and routes it. Auto-application of `needs-triage` to a fresh item lacking
    a priority label is tracked separately (`#506`); until it lands, the filing lane applies the label.
