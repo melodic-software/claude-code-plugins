@@ -427,7 +427,7 @@ alternative); `grep -ic 'do not enable both\|don.t enable both\|both.*simultaneo
 present); `grep -c '\-\-config dometrain_api_key' plugins/dometrain/README.md` ≥ 1 (headless install
 form present); `grep -c 'dometrain:setup' plugins/dometrain/README.md` ≥ 1 (setup pointer present).
 
-### Phase 5: Marketplace entry [TODO]
+### Phase 5: Marketplace entry [DONE]
 
 - `.claude-plugin/marketplace.json` — edit. Add a `dometrain` entry after `miro`'s, matching its
   field shape exactly (diffed against `miro`'s and `context7`'s entries per the acceptance
