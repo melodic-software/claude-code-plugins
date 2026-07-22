@@ -64,4 +64,5 @@ observer reconfiguration through Claude Code's native `/plugin configure session
   because the observer added an external prerequisite and a `userConfig` surface (the setup contract's
   trigger).
 - **`observer_analysis_bare` and auth.** `--bare` drops the login credential state on OAuth-login
-  installs — leave it off unless auth is an env-var API key. Full detail in `reference/observer.md`.
+  installs — leave it off unless auth is an env-var API key. Full detail in
+  `${CLAUDE_PLUGIN_ROOT}/reference/observer.md`.
