@@ -9,17 +9,15 @@ disable-model-invocation: false
 # Clarify a dense artifact into something you can act on
 
 You were just handed a wall of text — an interview round with seven
-cross-referenced questions, a design memo thick with session jargon, a
-recommendation paragraph you have to re-read three times. This skill takes
-**that exact artifact** and makes it clear enough to act on: one decision at a
-time, jargon defined, and the actual choices pulled to the surface.
+cross-referenced questions, a design memo thick with session jargon. This skill
+takes **that exact artifact** and makes it clear enough to act on: one decision
+at a time, jargon defined, and the actual choices pulled to the surface.
 
-The move is **clarify by restructuring, never by simplifying**. The content
-stays at full precision and full reading level; only its *arrangement* changes.
-Lowering the altitude — plain words, an analogy, ELI5 — is a different job (see
-[Boundaries](#boundaries)). Clarifying a decision document in a way that loses or
-softens a decision is worse than the wall of text, so the fidelity rules below
-are hard, not aspirational.
+The move is **clarify by restructuring, never by simplifying**. The content stays
+at full precision and full reading level; only its *arrangement* changes. Lowering
+the altitude — plain words, an analogy, ELI5 — is a different job (see
+[Boundaries](#boundaries)). A clarification that loses or softens a decision is
+worse than the wall of text, so the fidelity rules below are hard, not aspirational.
 
 ## The core move
 
@@ -136,6 +134,14 @@ Whichever medium, the decision table has numbered rows and these columns:
   cell is where paraphrase and truncation creep in; resist both. If a
   recommendation is too long for a cell, quote its operative clause verbatim and
   link the row to the fuller original by its `Item` number — never a lossy summary.
+- **Escape copied text before it becomes HTML.** In the artifact and local-file
+  media, treat every copied term as text content and HTML-escape it. Operative
+  terms often contain code-like characters (`<dialog>`, `A && B`, `--force`); left
+  raw, a `<tag>` gets eaten or the table breaks, so escaping is what keeps rule 1's
+  verbatim promise *true in the rendered page*. It also closes an injection vector:
+  the artifact you are clarifying may be untrusted, and unescaped markup copied
+  from it would execute in the published page. In terminal markdown, wrap such
+  terms in backticks so they render literally.
 
 ### Honoring the Artifact contract
 
@@ -180,9 +186,6 @@ rescue a specific wall of text.
 - **Don't lower the altitude to fit the table.** A cramped cell is a reason to
   quote the operative clause and link out, never a license to simplify the
   content. Simplifying is `explain`'s job, not this one.
-- **Define jargon, don't dumb it down.** The glossary points at a term; it does
-  not lower the concept's altitude. "Managed component = a file the upstream owner
-  regenerates" defines; it does not simplify what being upstream-owned implies.
 
 ## What this skill does NOT do
 
