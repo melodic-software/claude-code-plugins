@@ -628,11 +628,32 @@ hook::git_is_bin() {
 # must match on the rewritten words, so the index alone is not enough.
 #   HOOK_GIT_RESOLVED_GI    — index of git in HOOK_GIT_RESOLVED_WORDS
 #   HOOK_GIT_RESOLVED_WORDS — the (possibly rewritten) segment argv
+#   HOOK_GIT_ENV_ASSIGNMENTS — the `NAME=value` assignments the resolver walked past
+#                            before the git token (an inline `VAR=val git …` prefix
+#                            or an `env VAR=val git …` wrapper), in order. git sets
+#                            these in its own environment, so a consumer resolving a
+#                            --config-env value (which names an env var) MUST prefer
+#                            them over the hook's ambient environment. An inline prefix
+#                            keeps only shell-identifier names (the shell treats a
+#                            non-identifier `NAME=val cmd` as a command word, not an
+#                            assignment), but an `env` wrapper keeps ANY name shape —
+#                            env sets non-identifier and leading-dash names too, and git
+#                            reads them via getenv, so identifier-gating them would drop
+#                            a real assignment and fail open. Seeded from
+#                            HOOK_GIT_ENV_INHERITED so a guard re-parsing a `!` shell
+#                            alias can carry the enclosing invocation's git environment
+#                            (git runs shell aliases with its own process environment).
 # shellcheck disable=SC1003  # '\' compares a literal backslash char, not a quote escape
 # shellcheck disable=SC2034  # result globals are consumed by the sourcing guard, not this file
 hook::git_resolve_index() {
   HOOK_GIT_RESOLVED_WORDS=("$@")
   HOOK_GIT_RESOLVED_GI=-1
+  # A `!` shell alias runs with git's process environment, which includes this
+  # invocation's command-line assignments; a guard re-parsing such an alias sets
+  # HOOK_GIT_ENV_INHERITED to that environment so the nested --config-env resolves
+  # against it. Empty by default — a top-level parse starts clean.
+  # shellcheck disable=SC2154  # optional caller-set global (dynamic scope); unset at top level
+  HOOK_GIT_ENV_ASSIGNMENTS=(${HOOK_GIT_ENV_INHERITED[@]+"${HOOK_GIT_ENV_INHERITED[@]}"})
   # shellcheck disable=SC2178  # nameref to the array result global, not a string assignment
   local -n w=HOOK_GIT_RESOLVED_WORDS
   local n=${#w[@]} i=0 tok
@@ -640,41 +661,64 @@ hook::git_resolve_index() {
   while ((i < n)); do
     tok="${w[i]}"
     if [[ "$tok" == *=* ]]; then
+      # A leading NAME=value token is a command-line env assignment git will see;
+      # keep the valid-identifier ones so --config-env resolution can prefer them
+      # over the hook's ambient environment (the shell treats only a valid-name
+      # assignment as an assignment; a non-identifier `1x=y` is a command word).
+      [[ "$tok" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] && HOOK_GIT_ENV_ASSIGNMENTS+=("$tok")
       ((i++))
       continue
     fi
 
     case "${tok##*/}" in
     env)
+      # env [OPTION]... [--] [NAME=VALUE]... [COMMAND ...]: options first, then
+      # operand assignments, then the command. `--` ends option parsing (so a
+      # following leading-dash operand like `-AV=…` is an assignment, not an
+      # option). Unlike a shell prefix, env sets any name — collect every operand
+      # assignment regardless of name shape so a hyphenated/leading-dash name git
+      # reads via --config-env is captured, not dropped.
       ((i++))
-      while ((i < n)) && [[ "${w[i]}" == -* ]]; do
-        case "${w[i]}" in
-        # -S/--split-string re-splits its operand into argv (GNU env), so a
-        # quoted 'git commit --no-verify' would otherwise hide from the
-        # resolver as one non-git word. Splice the split words back into the
-        # scan and restart at the command position.
-        -S | --split-string)
-          local sval=""
-          ((i + 1 < n)) && sval="${w[i + 1]}"
-          hook::env_s_split "$sval"
-          w=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"} "${w[@]:i+2}")
-          n=${#w[@]}
-          i=0
-          continue 2
-          ;;
-        -S* | --split-string=*)
-          local sval="${w[i]#-S}"
-          sval="${sval#--split-string=}"
-          hook::env_s_split "$sval"
-          w=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"} "${w[@]:i+1}")
-          n=${#w[@]}
-          i=0
-          continue 2
-          ;;
-        -u | --unset | -C | --chdir) ((i += 2)) ;;
-        -*) ((i++)) ;;
-        *) ((i++)) ;;
-        esac
+      local env_past_optmark=0
+      while ((i < n)); do
+        if ((env_past_optmark == 0)) && [[ "${w[i]}" == -* ]]; then
+          case "${w[i]}" in
+          --)
+            ((i++))
+            env_past_optmark=1
+            ;;
+          # -S/--split-string re-splits its operand into argv (GNU env), so a
+          # quoted 'git commit --no-verify' would otherwise hide from the
+          # resolver as one non-git word. Splice the split words back into the
+          # scan and restart at the command position.
+          -S | --split-string)
+            local sval=""
+            ((i + 1 < n)) && sval="${w[i + 1]}"
+            hook::env_s_split "$sval"
+            w=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"} "${w[@]:i+2}")
+            n=${#w[@]}
+            i=0
+            continue 2
+            ;;
+          -S* | --split-string=*)
+            local sval="${w[i]#-S}"
+            sval="${sval#--split-string=}"
+            hook::env_s_split "$sval"
+            w=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"} "${w[@]:i+1}")
+            n=${#w[@]}
+            i=0
+            continue 2
+            ;;
+          -u | --unset | -C | --chdir) ((i += 2)) ;;
+          -*) ((i++)) ;;
+          *) ((i++)) ;;
+          esac
+        elif [[ "${w[i]}" == *=* ]]; then
+          HOOK_GIT_ENV_ASSIGNMENTS+=("${w[i]}")
+          ((i++))
+        else
+          break
+        fi
       done
       continue
       ;;
@@ -778,6 +822,14 @@ hook::git_resolve_index() {
 #                            order, so a guard can inspect config assignments
 #                            without re-walking (commit messages and pathspecs
 #                            are never collected here)
+#   HOOK_GIT_CONFIG_VALUE_KINDS — parallel to HOOK_GIT_CONFIG_VALUES (1:1 by
+#                            index): "inline" for a -c/--config value (the literal
+#                            assignment) or "env" for a --config-env value (whose
+#                            operand is `<key>=<envvar>`, an environment-variable
+#                            NAME, not the value). A consumer that reads the actual
+#                            assignment MUST resolve env-kind entries — see
+#                            hook::git_effective_config_values — rather than treat
+#                            the env-var name as the value.
 # Call as: hook::git_resolve_subcommand <git-index> <argv words...>
 # shellcheck disable=SC2034  # result globals are consumed by the sourcing guard, not this file
 hook::git_resolve_subcommand() {
@@ -788,17 +840,34 @@ hook::git_resolve_subcommand() {
   HOOK_GIT_SUB=""
   HOOK_GIT_SUB_IDX=-1
   HOOK_GIT_CONFIG_VALUES=()
+  HOOK_GIT_CONFIG_VALUE_KINDS=()
 
   j=$((gi + 1))
   while ((j < nseg)); do
     gw="${w[j]}"
     case "$gw" in
-    -c | --config | --config-env)
-      ((j + 1 < nseg)) && HOOK_GIT_CONFIG_VALUES+=("${w[j + 1]}")
+    -c | --config)
+      ((j + 1 < nseg)) && {
+        HOOK_GIT_CONFIG_VALUES+=("${w[j + 1]}")
+        HOOK_GIT_CONFIG_VALUE_KINDS+=("inline")
+      }
       ((j += 2))
       ;;
-    --config=* | --config-env=*)
+    --config-env)
+      ((j + 1 < nseg)) && {
+        HOOK_GIT_CONFIG_VALUES+=("${w[j + 1]}")
+        HOOK_GIT_CONFIG_VALUE_KINDS+=("env")
+      }
+      ((j += 2))
+      ;;
+    --config=*)
       HOOK_GIT_CONFIG_VALUES+=("${gw#*=}")
+      HOOK_GIT_CONFIG_VALUE_KINDS+=("inline")
+      ((j++))
+      ;;
+    --config-env=*)
+      HOOK_GIT_CONFIG_VALUES+=("${gw#*=}")
+      HOOK_GIT_CONFIG_VALUE_KINDS+=("env")
       ((j++))
       ;;
     -C | --git-dir | --work-tree | --namespace | --super-prefix | --attr-source | --exec-path)
@@ -815,6 +884,151 @@ hook::git_resolve_subcommand() {
     esac
   done
   return 1
+}
+
+# Project the collected git config values to their EFFECTIVE assignments for a
+# consumer that reads the actual value (e.g. resolving `alias.<sub>=<expansion>`).
+# An "inline" value (-c/--config) passes through unchanged. An "env" value
+# (--config-env) is `<key>=<envvar>`, where <envvar> NAMES an environment variable
+# holding the value; git reads that variable at runtime, so resolve it the same way
+# to `<key>=<value>`. The value comes from git's environment as git sees it: a
+# command-line assignment on THIS invocation (an inline `VAR=val git …` prefix or an
+# `env VAR=val git …` wrapper — collected in HOOK_GIT_ENV_ASSIGNMENTS by
+# hook::git_resolve_index) sets the variable for git and wins (last assignment wins,
+# as in the shell); otherwise the hook's inherited ambient environment is read.
+# Reading the command-line assignment is essential: it is a self-contained one-liner
+# that would otherwise pass an ambient-only check. The name is resolved with getenv()
+# (via awk's ENVIRON), matching git, so any name shape git accepts — a hyphenated or
+# leading-dash one — resolves too and is not dropped. Only a variable that is unset
+# resolves to an empty value: git rejects an unset --config-env variable (fatal), so
+# an empty value is the safe projection (a value-keyed consumer gets no spurious match;
+# a key-keyed consumer still sees the key). A malformed operand with no '=' is passed
+# through untouched. Fills HOOK_GIT_CONFIG_EFFECTIVE, aligned 1:1 with
+# HOOK_GIT_CONFIG_VALUES. Call after hook::git_resolve_index + git_resolve_subcommand.
+# shellcheck disable=SC2034  # HOOK_GIT_CONFIG_EFFECTIVE is consumed by the sourcing guard
+hook::git_effective_config_values() {
+  HOOK_GIT_CONFIG_EFFECTIVE=()
+  local i entry kind key envvar val a
+  for i in "${!HOOK_GIT_CONFIG_VALUES[@]}"; do
+    entry="${HOOK_GIT_CONFIG_VALUES[i]}"
+    kind="${HOOK_GIT_CONFIG_VALUE_KINDS[i]:-inline}"
+    if [[ "$kind" == "env" && "$entry" == *=* ]]; then
+      key="${entry%%=*}"
+      envvar="${entry#*=}"
+      # git reads the variable with getenv() on the raw name, so resolve any name
+      # shape the same way — awk's ENVIRON is a getenv-equivalent, exact-name-keyed
+      # map. `printenv "$envvar"` (and bash's ${!envvar}) instead break on names git
+      # accepts: printenv reads a leading-dash name as an option and resolves it
+      # empty, bash indirect expansion rejects a non-identifier outright — both
+      # silently drop a real assignment and fail open. The name is fed to awk on
+      # stdin (a here-string) and matched as `$0`, never as an argument, via `-v`, or
+      # through a fixed ENVIRON pivot key: so it is never option-parsed, never
+      # backslash-processed, an injection-shaped name is inert data that cannot
+      # execute, and a name that collides with a helper key cannot overwrite the
+      # value it reads. An unset variable yields empty (git rejects an unset
+      # --config-env variable as fatal), the safe projection.
+      val="$(awk 'NR == 1 { if ($0 in ENVIRON) print ENVIRON[$0] }' <<<"$envvar" 2>/dev/null || true)"
+      # A command-line assignment for this variable overrides the ambient value,
+      # matching what git's process actually sees; last one wins.
+      if [[ -n "${HOOK_GIT_ENV_ASSIGNMENTS+x}" ]]; then
+        for a in "${HOOK_GIT_ENV_ASSIGNMENTS[@]}"; do
+          [[ "$a" == "$envvar="* ]] && val="${a#*=}"
+        done
+      fi
+      HOOK_GIT_CONFIG_EFFECTIVE+=("${key}=${val}")
+    else
+      HOOK_GIT_CONFIG_EFFECTIVE+=("$entry")
+    fi
+  done
+}
+
+# Re-parse a `!` git shell-alias expansion (a full shell command) with the
+# callback, carrying the CURRENT invocation's git environment into the nested
+# parse. git runs a shell alias with its own process environment, so a command-
+# line assignment on the enclosing `git …` (in HOOK_GIT_ENV_ASSIGNMENTS) is
+# visible to a nested `git --config-env=<key>=<name> …` inside the expansion;
+# without this the nested resolver sees the name unset and the guard fails open.
+# Sets HOOK_GIT_ENV_INHERITED for the reparse (hook::git_resolve_index seeds
+# HOOK_GIT_ENV_ASSIGNMENTS from it) and restores it after, so nested aliases
+# compose. Also resets HOOK_SHELL_VARS: the alias body runs in a fresh `sh -c`
+# shell that does NOT inherit the enclosing shell's unexported variables, so
+# `export NAME` promotion inside the body must only see the body's own bare
+# assignments (hook::shell_track_persistent_env). A git alias (no leading `!`)
+# needs no analogue: it is re-checked with the env-assignment prefix still spliced
+# in place, so the resolver re-collects.
+# Call as: hook::git_reparse_shell_alias <callback> <expansion-command-string>
+# shellcheck disable=SC2034  # HOOK_GIT_ENV_INHERITED / HOOK_SHELL_VARS consumed elsewhere
+hook::git_reparse_shell_alias() {
+  local cb="$1" reparse="$2"
+  local -a saved_inherited=(${HOOK_GIT_ENV_INHERITED[@]+"${HOOK_GIT_ENV_INHERITED[@]}"})
+  local -a saved_shellvars=(${HOOK_SHELL_VARS[@]+"${HOOK_SHELL_VARS[@]}"})
+  HOOK_GIT_ENV_INHERITED=(${HOOK_GIT_ENV_ASSIGNMENTS[@]+"${HOOK_GIT_ENV_ASSIGNMENTS[@]}"})
+  HOOK_SHELL_VARS=()
+  hook::bash_parse_segments "$reparse" "$cb"
+  HOOK_GIT_ENV_INHERITED=(${saved_inherited[@]+"${saved_inherited[@]}"})
+  HOOK_SHELL_VARS=(${saved_shellvars[@]+"${saved_shellvars[@]}"})
+}
+
+# Model the environment a shell-script segment ESTABLISHES for the segments that
+# follow it in the same shell, so a later `git --config-env=<key>=<name>` (inside a
+# `!` shell alias or a top-level command) resolves a name the script exported.
+# git reads variables via getenv, so ONLY exported state counts: `export NAME=val`
+# (and `declare -x`/`typeset -x NAME=val`) enters git's environment and is appended
+# to HOOK_GIT_ENV_INHERITED (which hook::git_resolve_index seeds a later segment
+# from). A bare `NAME=val` sets an UNEXPORTED shell variable git cannot see (git
+# rejects the resulting unset --config-env as fatal), so it is recorded only in
+# HOOK_SHELL_VARS to resolve a later `export NAME` that promotes it. Identifier
+# names only — the shell rejects a non-identifier assignment or export. Without
+# this, `!export AV='reset --hard'; git --config-env=alias.rh=AV rh` (and the
+# `export AV=commit` shape) resolved AV as unset and the guard failed open.
+# Call once per segment, before that segment's git is resolved.
+# Call as: hook::shell_track_persistent_env <segment-argv...>
+# shellcheck disable=SC2034  # HOOK_GIT_ENV_INHERITED / HOOK_SHELL_VARS consumed elsewhere
+hook::shell_track_persistent_env() {
+  local -a w=("$@")
+  ((${#w[@]})) || return 0
+  local arg name v s has_x=0
+  case "${w[0]##*/}" in
+  export)
+    for arg in "${w[@]:1}"; do
+      case "$arg" in
+      -*) ;; # -n (unexport), -p, -f, --: not modeled; over-resolving only over-blocks
+      *=*) [[ "$arg" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] && HOOK_GIT_ENV_INHERITED+=("$arg") ;;
+      *)
+        # `export NAME` (no value) promotes an already-tracked bare shell variable.
+        [[ "$arg" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
+        name=""
+        v=""
+        if [[ -n "${HOOK_SHELL_VARS+x}" ]]; then
+          for s in "${HOOK_SHELL_VARS[@]}"; do
+            [[ "$s" == "$arg="* ]] && {
+              name="$arg"
+              v="${s#*=}"
+            }
+          done
+        fi
+        [[ -n "$name" ]] && HOOK_GIT_ENV_INHERITED+=("${name}=${v}")
+        ;;
+      esac
+    done
+    ;;
+  declare | typeset)
+    for arg in "${w[@]:1}"; do [[ "$arg" == -*x* ]] && has_x=1; done
+    ((has_x)) && for arg in "${w[@]:1}"; do
+      [[ "$arg" != -* && "$arg" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] && HOOK_GIT_ENV_INHERITED+=("$arg")
+    done
+    ;;
+  *)
+    # A segment that is ONLY bare NAME=value assignments sets unexported shell
+    # variables (git cannot see them, but a later `export NAME` can promote one).
+    # Any non-assignment word means this is a command — its leading assignments are
+    # a per-command prefix (handled by hook::git_resolve_index), not persistent.
+    for arg in "${w[@]}"; do
+      [[ "$arg" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]] || return 0
+    done
+    for arg in "${w[@]}"; do HOOK_SHELL_VARS+=("$arg"); done
+    ;;
+  esac
 }
 
 # Single linear pass: read the command into a char array once (O(n)), then walk
@@ -934,8 +1148,8 @@ hook::bash_parse_segments() {
       # following lines is the command's stdin, so record the delimiter and
       # let the newline handler skip the body. A quoted/backslashed delimiter
       # (`<<'EOF'`, `<<\EOF`) still terminates on a line reading `EOF`.
-      if [[ "$c" == '<' ]] && ((i + 1 < n)) && [[ "${chars[i + 1]}" == '<' ]] \
-        && { ((i + 2 >= n)) || [[ "${chars[i + 2]}" != '<' ]]; }; then
+      if [[ "$c" == '<' ]] && ((i + 1 < n)) && [[ "${chars[i + 1]}" == '<' ]] &&
+        { ((i + 2 >= n)) || [[ "${chars[i + 2]}" != '<' ]]; }; then
         ((i++))
         local hstrip=0
         if ((i + 1 < n)) && [[ "${chars[i + 1]}" == '-' ]]; then

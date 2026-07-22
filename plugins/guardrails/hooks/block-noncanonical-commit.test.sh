@@ -138,6 +138,15 @@ run "config-env alias with an env -- leading-dash operand (blocked)" \
 # the nested resolve sees the name unset and this commit slips past.
 run "shell alias carries enclosing git env into nested --config-env commit (blocked)" \
   "AV=commit git -c alias.sh='!git --config-env=alias.c=AV c --allow-empty -m x' sh" 2
+# An `export` in an earlier shell-alias-body segment reaches a later `git
+# --config-env` in the same body (git reads exported env via getenv). No enclosing
+# command-line assignment — a pass proves the in-body export was modeled.
+run "export inside shell-alias body reaches nested --config-env commit (blocked)" \
+  "git -c \"alias.sh=!export AV=commit; git --config-env=alias.c=AV c --allow-empty -m x\" sh" 2
+# The env-var name may collide with the resolver's internal awk helper key; it must
+# still resolve from the ambient environment.
+run "config-env name colliding with awk helper key (ambient, blocked)" \
+  "git --config-env=alias.c=__HOOK_CE_NAME c" 2 "__HOOK_CE_NAME=commit"
 
 # --- case-insensitive alias resolution (git folds config names) --------------
 run "inline alias, uppercase subcommand (blocked)" "git -c alias.c=commit C -m x" 2

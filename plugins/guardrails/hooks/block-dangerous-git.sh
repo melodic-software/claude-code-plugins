@@ -199,6 +199,11 @@ check_segment() {
   local -a w=()
   local nseg gi k x rest ch sub sub_idx staged worktree dry excl pos opseen
 
+  # An earlier segment may EXPORT a variable this segment's `git --config-env`
+  # then reads (`export AV='reset --hard'; git --config-env=alias.rh=AV rh`, e.g.
+  # inside a `!` shell alias). Record exported state before resolving this segment.
+  hook::shell_track_persistent_env "$@"
+
   # A shell -c wrapper (`bash -lc 'git reset --hard'`) executes its operand as
   # a full shell command — re-parse it with the same tokenizer so the wrapped
   # git invocation is checked faithfully (operators and quoting included).

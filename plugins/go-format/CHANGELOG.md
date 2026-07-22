@@ -3,14 +3,17 @@
 All notable changes to the `go-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.2.0]
+## [0.1.2]
 
-### Added
+### Changed
 
-- **`statusMessage` declared on the hook's `hooks.json` handler** (hook-observability
-  convention, `docs/conventions/hook-observability/`): a spinner label ("Formatting
-  Go imports...") now shows while the hook runs. Config-only — no runtime behavior
-  change.
+- Sync of the shared `hook-utils.sh`: the git-option parser now distinguishes
+  `--config-env` (an env-var name) from `-c`/`--config` (an inline value) and adds the
+  `hook::git_effective_config_values` resolver — hardened so every `--config-env` name git
+  reads (non-identifier, leading-dash, ambient or command-line) resolves, the last value
+  for a key wins, and a `!` shell alias inherits the enclosing git environment,
+  including variables it `export`s (`#740`). No behavior change for this plugin — it does
+  not read git config values; shipped so consumers receive the shared library update.
 
 ## [0.1.1]
 

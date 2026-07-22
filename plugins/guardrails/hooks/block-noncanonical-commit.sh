@@ -186,6 +186,11 @@ check_segment() {
   local gi sub sub_idx nseg k word next stdin_form=0 exempt=0 saw_commit=0
   local inline_alias_handled=0
 
+  # An earlier segment may EXPORT a variable this segment's `git --config-env`
+  # then reads (`export AV=commit; git --config-env=alias.c=AV c`, e.g. inside a
+  # `!` shell alias). Record exported state before resolving this segment.
+  hook::shell_track_persistent_env "$@"
+
   # A shell -c wrapper (`bash -lc 'git commit -m x'`) executes its operand as a
   # full shell command — re-parse it with the same tokenizer.
   if hook::shell_c_operand "$@"; then

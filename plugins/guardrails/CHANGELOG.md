@@ -52,6 +52,21 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   (`AV=commit git -c alias.sh='!git --config-env=alias.c=AV c …' sh`) reaches a nested
   `git --config-env`; both guards now carry that environment across the shell-alias reparse
   (`HOOK_GIT_ENV_INHERITED`) instead of resolving the name as unset.
+- **Two further `--config-env` fail-opens closed (`#740`).** (6) A variable EXPORTED inside
+  a `!` shell-alias body reaches a later `git --config-env` in the same body — git reads
+  exported env via `getenv` — but only the enclosing invocation's assignments were carried,
+  so `git -c "alias.sh=!export AV='reset --hard'; git --config-env=alias.rh=AV rh" sh` (and
+  the `export AV=commit` shape past `block-noncanonical-commit`) resolved `AV` as unset and
+  waved the command through. `hook::shell_track_persistent_env` now models exported state
+  across a shell script's segments — `export NAME=VALUE`, `declare -x`/`typeset -x`, and an
+  `export NAME` that promotes a prior bare assignment — seeding it into the resolver for
+  later segments. A bare, unexported `NAME=VALUE` is deliberately NOT modeled: git rejects
+  the resulting unset `--config-env` as fatal, so it is not a bypass. (7) The ambient
+  resolver keyed the awk `ENVIRON` lookup through a fixed pivot variable
+  (`__HOOK_CE_NAME`); an attacker whose env-var name was literally that key overwrote the
+  pivot and read back the name instead of the value (`__HOOK_CE_NAME='reset --hard'` +
+  `git --config-env=alias.rh=__HOOK_CE_NAME rh`). The name is now matched as awk stdin data
+  (`$0`), never through a pivot key, so no name can collide with it.
 
 ## [0.9.5]
 

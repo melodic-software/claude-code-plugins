@@ -249,6 +249,23 @@ run "later harmless --config-env value wins (allowed)" \
 # expansion. The guard must carry that env across the shell-alias reparse.
 run "shell alias carries enclosing git env into nested --config-env (blocked)" \
   "AV='reset --hard' git -c alias.sh='!git --config-env=alias.rh=AV rh' sh" 2
+# A `!` shell alias runs its body in a shell, so an `export` in an earlier body
+# segment reaches a later `git --config-env` in the same body (git reads exported
+# env via getenv). No enclosing command-line assignment here — a pass proves the
+# in-body export was modeled. A bare (unexported) assignment is NOT a bypass: git
+# rejects the resulting unset --config-env as fatal, so it stays allowed.
+run "export inside shell-alias body reaches nested --config-env (blocked)" \
+  "git -c \"alias.sh=!export AV='reset --hard'; git --config-env=alias.rh=AV rh\" sh" 2
+run "export NAME promotes a bare var inside shell-alias body (blocked)" \
+  "git -c \"alias.sh=!AV='reset --hard'; export AV; git --config-env=alias.rh=AV rh\" sh" 2
+run "bare unexported assignment before --config-env (allowed — git rejects unset)" \
+  "AV='reset --hard'; git --config-env=alias.rh=AV rh" 0
+run "harmless export before --config-env (allowed)" \
+  "export AV=status; git --config-env=alias.rh=AV rh" 0
+# The env-var name may collide with the resolver's internal awk helper key; it must
+# still resolve from the ambient environment rather than reading back the name.
+run "config-env name colliding with awk helper key (ambient, blocked)" \
+  "git --config-env=alias.rh=__HOOK_CE_NAME rh" 2 "__HOOK_CE_NAME=reset --hard"
 run "command -p git reset --hard (command wrapper option, blocked)" "command -p git reset --hard" 2
 run "command -- git reset --hard (command end-of-options, blocked)" "command -- git reset --hard" 2
 run "exec -c git reset --hard (exec wrapper option, blocked)" "exec -c git reset --hard" 2

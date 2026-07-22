@@ -11,9 +11,9 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
   `--config-env` (an env-var name) from `-c`/`--config` (an inline value) and adds the
   `hook::git_effective_config_values` resolver — hardened so every `--config-env` name git
   reads (non-identifier, leading-dash, ambient or command-line) resolves, the last value
-  for a key wins, and a `!` shell alias inherits the enclosing git environment (`#740`).
-  No behavior change for this plugin — it does not read git config values; shipped so
-  consumers receive the shared library update.
+  for a key wins, and a `!` shell alias inherits the enclosing git environment,
+  including variables it `export`s (`#740`). No behavior change for this plugin — it does
+  not read git config values; shipped so consumers receive the shared library update.
 
 ## [0.5.4]
 

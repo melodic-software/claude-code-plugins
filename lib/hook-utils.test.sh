@@ -810,6 +810,62 @@ else
   fail "git config effective (inherited env seed): $(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")"
 fi
 
+# hook::shell_track_persistent_env models the environment a shell segment EXPORTS
+# for later segments — git reads it via getenv, so only exported state counts.
+HOOK_GIT_ENV_INHERITED=()
+HOOK_SHELL_VARS=()
+hook::shell_track_persistent_env export AV='reset --hard'
+if [[ "$(join_a "${HOOK_GIT_ENV_INHERITED[@]}")" == "AV=reset --hard" ]]; then
+  ok "shell env: export NAME=VALUE enters inherited git env"
+else
+  fail "shell env (export): $(join_a "${HOOK_GIT_ENV_INHERITED[@]}")"
+fi
+
+# A bare NAME=value sets an UNEXPORTED shell variable git cannot see; it stays out
+# of the inherited env and is only recorded so a later `export NAME` can promote it.
+HOOK_GIT_ENV_INHERITED=()
+HOOK_SHELL_VARS=()
+hook::shell_track_persistent_env AV='reset --hard'
+if [[ -z "$(join_a ${HOOK_GIT_ENV_INHERITED[@]+"${HOOK_GIT_ENV_INHERITED[@]}"})" ]]; then
+  ok "shell env: bare assignment does not enter git env (unexported)"
+else
+  fail "shell env (bare not exported): $(join_a "${HOOK_GIT_ENV_INHERITED[@]}")"
+fi
+hook::shell_track_persistent_env export AV
+if [[ "$(join_a "${HOOK_GIT_ENV_INHERITED[@]}")" == "AV=reset --hard" ]]; then
+  ok "shell env: export NAME promotes a tracked bare variable"
+else
+  fail "shell env (export promotion): $(join_a "${HOOK_GIT_ENV_INHERITED[@]}")"
+fi
+
+# declare/typeset export only with -x; a plain declare is not git-visible.
+HOOK_GIT_ENV_INHERITED=()
+HOOK_SHELL_VARS=()
+hook::shell_track_persistent_env declare -x AV=commit
+hook::shell_track_persistent_env declare BV=diff
+if [[ "$(join_a "${HOOK_GIT_ENV_INHERITED[@]}")" == "AV=commit" ]]; then
+  ok "shell env: declare -x exports, plain declare does not"
+else
+  fail "shell env (declare -x): $(join_a "${HOOK_GIT_ENV_INHERITED[@]}")"
+fi
+HOOK_GIT_ENV_INHERITED=()
+HOOK_SHELL_VARS=()
+
+# A --config-env name that collides with an internal awk helper key must still
+# resolve from the ambient environment — the name is matched as awk stdin data,
+# never through a pivot ENVIRON key the collision could overwrite.
+# shellcheck disable=SC2016  # $HOOK_GIT_CONFIG_EFFECTIVE expands in the inner shell, not here
+collide=$(env '__HOOK_CE_NAME=reset --hard' "$BASH" -c '
+  source "'"$HOOK_DIR"'/hook-utils.sh"
+  hook::git_resolve_subcommand 0 git --config-env=alias.rh=__HOOK_CE_NAME rh
+  hook::git_effective_config_values
+  IFS="|"; printf "%s" "${HOOK_GIT_CONFIG_EFFECTIVE[*]}"')
+if [[ "$collide" == "alias.rh=reset --hard" ]]; then
+  ok "git config: name colliding with awk helper key still resolves from ambient"
+else
+  fail "git config effective (pivot-key collision): [$collide]"
+fi
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ $FAIL -eq 0 ]]
