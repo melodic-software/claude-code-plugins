@@ -3,6 +3,20 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.6]
+
+### Changed
+
+- **Test isolation only — no runtime behavior change.** The `run_guard_powershell` helper in
+  `test_hygiene.py` — the enabled-PowerShell sibling of the three helpers sealed in 0.4.5 — carried
+  the identical unsealed seam: it mocked `os.environ` to drive the kill switch but left `sys.argv`
+  unpatched, so an ambient `--disk-hygiene-enabled` flag in the real test-runner invocation could
+  override the env-var mock the test intends to exercise. It now patches `guard.sys.argv` to a
+  clean, flag-free argv alongside its existing environment mock — matching the pattern the other
+  four `run_guard*` helpers use — so the environment variable stays the sole channel under test.
+  This completes the seam-sealing left out of 0.4.5 for scope; standard `unittest`/`pytest`
+  invocations never produced such argv, so it seals latent fragility rather than a live failure.
+
 ## [0.4.5]
 
 ### Changed
