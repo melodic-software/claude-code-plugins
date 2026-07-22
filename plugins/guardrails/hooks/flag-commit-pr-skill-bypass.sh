@@ -9,8 +9,11 @@
 # resolves `true` in the consuming project's `.claude/settings.json`, with
 # `.claude/settings.local.json` honored as an override only for a key that
 # already exists in `settings.json` — CC ignores a local-only key). Uncertain
-# state (no jq, no settings file, key absent) fails QUIET (exit 0, no
-# advisory) — an advisory firing on unknown state is noise, not signal.
+# state (no jq, no settings file, key absent) never flags a `gh pr create`
+# call — an advisory firing on unknown state is noise, not signal. A missing
+# jq specifically still surfaces a one-time systemMessage that the guard is
+# disabled (docs/conventions/hook-observability/) — that notice is about the
+# guard's own health, not the advisory content it would otherwise flag.
 #
 # WHAT IT FLAGS:
 #   gh pr create — invoked at all. /pull-request create's value is PROCESS
@@ -50,17 +53,19 @@ hook::check_enabled "FLAG_COMMIT_PR_SKILL_BYPASS"
 # on older bash it is unset, so default to empty and skip telemetry.
 start=${EPOCHREALTIME:-}
 
-# jq is required both to parse the tool payload and to read enabledPlugins.
-# Fail OPEN when it is absent, but make the degraded state visible rather than
-# silently disabling the advisory (this hook never blocks either way).
-if ! command -v jq >/dev/null 2>&1; then
-  echo "guardrails/flag-commit-pr-skill-bypass: jq not found on PATH — advisory disabled (install jq to enable)." >&2
-  exit 0
-fi
-
 # hook::buffer_stdin encapsulates the Win32-pipe-safe bounded fd0 read; empty
-# or timed-out stdin skips this advisory hook.
+# or timed-out stdin skips this advisory hook. Buffering does not require jq
+# (hook::buffer_stdin's own JSON-completeness check is jq-optional), so it
+# runs before the jq gate below — hook::require_jq needs the buffered input
+# for its once-per-session notice scoping.
 INPUT=$(hook::buffer_stdin) || exit 0
+
+# jq is required both to parse the tool payload and to read enabledPlugins.
+# hook::require_jq fails OPEN (this hook never blocks either way) but makes
+# the degraded state visible to both the user (systemMessage) and the agent
+# (additionalContext), once per session — see docs/conventions/hook-observability/.
+hook::require_jq "PreToolUse" "guardrails-flag-commit-pr-skill-bypass" "$INPUT"
+
 COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null | tr -d '\r')
 [[ -n "$COMMAND" ]] || exit 0
 

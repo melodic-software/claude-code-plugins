@@ -3,6 +3,34 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0]
+
+### Added
+
+- **`statusMessage` declared on every hook's `hooks.json` handler** (9 handlers)
+  and **telemetry added to `workflow-resilience-check`**, which previously
+  emitted none — it now emits at every meaningful outcome (no-fan-out /
+  already-throttled / advisory finding), matching every sibling guardrails
+  hook (hook-observability convention, `docs/conventions/hook-observability/`).
+
+### Fixed
+
+- **Missing-`jq` degraded state is now user-visible.** `block-dangerous-git`,
+  `block-hook-bypass`, `block-no-verify`, `block-noncanonical-commit`,
+  `cli-flag-verify`, `flag-commit-pr-skill-bypass`, `hardcoded-path-check`,
+  `secret-pattern-detection`, and `workflow-resilience-check` previously wrote
+  their jq-missing notice to stderr on an exit-0 path — per the official Claude
+  Code hooks reference, exit-0 stderr is discarded entirely and was never shown
+  to the user or Claude. Each now routes through the shared `hook::require_jq`
+  helper (once-per-session `systemMessage` + `additionalContext`, matching the
+  fleet's formatter-hook convention). `cli-flag-verify`'s separate
+  bundled-verifier-missing path (install corruption) gets the same treatment,
+  previously fully silent (not even stderr).
+- **`scripts/check-silent-skips.sh` tightened**: a bare `>&2` write no longer
+  satisfies the gate's visibility requirement (it never actually satisfied the
+  doctrine — exit-0 stderr is invisible; the gate's own assumption was wrong).
+  The 9 hooks above were the only fleet sites relying on that leniency.
+
 ## [0.9.5]
 
 ### Fixed

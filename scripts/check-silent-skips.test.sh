@@ -130,16 +130,22 @@ else
 fi
 rm -rf "$f"
 
-# --- block skip with a stderr notice passes --------------------------------
+# --- block skip with a bare stderr notice FAILS (docs/conventions/
+# hook-observability/: exit-0 stderr is never shown to the user or the
+# agent, so a bare `>&2` write is not a sanctioned visibility signal) -------
 f="$(new_fixture)"
 hook_file "$f" alpha check.sh 'if ! command -v jq >/dev/null 2>&1; then
   echo "alpha: jq not found — advisory disabled" >&2
   exit 0
 fi'
-if run_check "$f" >/dev/null 2>&1; then
-  ok "block skip with stderr notice passes"
+if out="$(run_check "$f" 2>&1)"; then
+  fail "block skip with bare stderr notice should fail, got success: $out"
 else
-  fail "block skip with stderr notice should pass"
+  if echo "$out" | grep -q "silent block skip"; then
+    ok "block skip with bare stderr notice fails"
+  else
+    fail "expected silent block skip message, got: $out"
+  fi
 fi
 rm -rf "$f"
 
