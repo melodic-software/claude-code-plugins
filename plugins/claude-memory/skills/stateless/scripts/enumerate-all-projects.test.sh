@@ -76,7 +76,9 @@ H4="$TEST_TMPDIR/h4"
 M4="$H4/.claude/projects/C--proj-gamma/memory"
 mkdir -p "$M4"
 printf 'loose\n' >"$M4/loose.md"
-OUT=$(HOME="$H4" bash "$SCRIPT")
+rc=0
+OUT=$(HOME="$H4" bash "$SCRIPT") || rc=$?
+assert_exit "no-MEMORY.md store exits 0" 0 "$rc"
 assert_contains "gamma dir listed" "$OUT" "C--proj-gamma/memory"
 assert_contains "gamma MEMORY.md absent" "$OUT" "MEMORY.md:absent"
 assert_contains "gamma topic count" "$OUT" "topics:1"

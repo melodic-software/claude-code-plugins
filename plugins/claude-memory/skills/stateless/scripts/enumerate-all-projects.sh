@@ -25,8 +25,8 @@ enumerate-all-projects.sh — list every per-project auto-memory dir machine-wid
 Usage:
   enumerate-all-projects.sh [--help]
 
-Prints one line per `<config root>/projects/*/memory` directory:
-  <abs path>  MEMORY.md:<line count|absent>  topics:<topic-file count>
+Prints one line per `<config root>/projects/*/memory` directory (tab-separated):
+  <abs path>\tMEMORY.md:<line count|absent>\ttopics:<topic-file count>
 
 The config root is ${CLAUDE_CONFIG_DIR:-~/.claude}. Enumeration only — per-project
 `autoMemoryDirectory` overrides are not read here. Never fails on an absent tree.
@@ -47,12 +47,15 @@ shopt -s nullglob
 for mem in "$projects_root"/*/memory; do
   [[ -d "$mem" ]] || continue
   found=$((found + 1))
-  if [[ -f "$mem/MEMORY.md" ]]; then
-    lines=$(wc -l <"$mem/MEMORY.md" | tr -d ' \r')
-  else
-    lines="absent"
-  fi
-  topics=$(find "$mem" -maxdepth 1 -name '*.md' ! -name 'MEMORY.md' 2>/dev/null | wc -l | tr -d ' \r')
+  # No -f pre-check: a file deleted between check and read (concurrent purge) must
+  # degrade to "absent", never emit a malformed empty field in the tab contract.
+  lines=$(wc -l <"$mem/MEMORY.md" 2>/dev/null | tr -d ' \r') || true
+  [[ -n "$lines" ]] || lines="absent"
+  # Null-delimited count — a filename with an embedded newline must count once.
+  topics=0
+  while IFS= read -r -d '' _; do topics=$((topics + 1)); done < <(
+    find "$mem" -maxdepth 1 -name '*.md' ! -name 'MEMORY.md' -print0 2>/dev/null
+  )
   printf '%s\tMEMORY.md:%s\ttopics:%s\n' "$mem" "$lines" "$topics"
 done
 shopt -u nullglob

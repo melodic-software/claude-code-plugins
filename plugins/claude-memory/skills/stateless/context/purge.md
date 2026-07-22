@@ -13,6 +13,12 @@ AND lists every directory with its per-dir count — a machine-wide delete must 
 single-project-sounding confirmation. The backup offer applies to the whole manifest (each
 source dir gets its own sibling `.bak-<UTC>/`, same timestamp). Steps 4–5 are unchanged.
 
+Known limit — state it in the combined gate: a project that relocated its store via
+`autoMemoryDirectory` in its own repo's `.claude/settings(.local).json` is NOT discoverable
+from enumeration (only that repo's settings scopes know), so its store is absent from the
+manifest and survives `purge all`. Say so in the gate ("relocated per-repo stores are not
+included") and offer to additionally check any repos the user names.
+
 ## Step 1: Resolve EVERY candidate directory
 
 The store may be relocated by `autoMemoryDirectory`, which is read from **any** settings scope
