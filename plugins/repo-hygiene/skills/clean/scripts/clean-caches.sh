@@ -72,6 +72,10 @@ cd "$REPO_ROOT" || exit 1
 
 # --apply with a prebuilt manifest: skip enumeration entirely, just consume it.
 if [[ "$DRY_RUN" -eq 0 && -n "$MANIFEST_ARG" ]]; then
+  if [[ ! -r "$MANIFEST_ARG" ]]; then
+    echo "clean-caches.sh: manifest not readable: $MANIFEST_ARG" >&2
+    exit 1
+  fi
   clean_apply_manifest "$REPO_ROOT" "$MANIFEST_ARG"
   printf 'Summary: removed=%s failed=%s bytes=%s\n' \
     "$CLEAN_REMOVED_COUNT" "$CLEAN_FAILED_COUNT" "$CLEAN_REMOVED_BYTES"

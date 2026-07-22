@@ -76,6 +76,45 @@ rc=$?
 assert_contains "resume removes nothing" "$out" "Summary: removed=0 failed=0 bytes=0"
 assert_exit "resume exit 0" 0 "$rc"
 
+# The manifest is an untrusted --apply surface (a caller supplies it, or a
+# concurrent process alters it). Three hardening guards:
+
+# 1. Containment — an entry escaping the repo (`..`) is rejected, never removed,
+#    and counts as a failure (fail closed). The external victim survives.
+mkdir -p "$TEST_TMPDIR/outside_victim"
+echo v >"$TEST_TMPDIR/outside_victim/keep"
+printf 'caches\t1\t../outside_victim\n' >"$TEST_TMPDIR/r2.escape.manifest"
+out="$(run_r2 --apply --manifest "$TEST_TMPDIR/r2.escape.manifest" 2>&1)"
+rc=$?
+assert_contains "escaping entry rejected" "$out" "Rejected (outside repo): ../outside_victim"
+assert_contains "rejection counts as failure" "$out" "Summary: removed=0 failed=1 bytes=0"
+assert_exit "escape apply exits non-zero" 1 "$rc"
+assert_file_exists "external victim preserved" "$TEST_TMPDIR/outside_victim/keep"
+
+# 2. Byte field as data — a non-numeric byte field must NOT reach Bash arithmetic
+#    (which evaluates array subscripts recursively). The payload would `touch` a
+#    sentinel if evaluated; the guard coerces it to 0, so the path still removes
+#    and the sentinel never appears.
+mkdir -p "$TEST_TMPDIR/r2/.ruff_cache"
+echo r >"$TEST_TMPDIR/r2/.ruff_cache/r"
+SENTINEL="$TEST_TMPDIR/injected"
+# The `$(...)` MUST stay literal in the manifest — expanding it here would defeat
+# the test. shellcheck disable=SC2016 (intentional single quotes).
+# shellcheck disable=SC2016
+printf 'caches\tx[$(touch %s)]\t.ruff_cache\n' "$SENTINEL" >"$TEST_TMPDIR/r2.inject.manifest"
+out="$(run_r2 --apply --manifest "$TEST_TMPDIR/r2.inject.manifest")"
+rc=$?
+assert_file_absent "arithmetic injection did not execute" "$SENTINEL"
+assert_contains "malformed-byte entry still removes" "$out" "Removed: .ruff_cache"
+assert_exit "inject apply exit 0" 0 "$rc"
+
+# 3. Fail closed on an unreadable/missing manifest — silently doing nothing and
+#    exiting 0 would let automation treat a mistyped path as a successful sweep.
+out="$(run_r2 --apply --manifest "$TEST_TMPDIR/does-not-exist.manifest" 2>&1)"
+rc=$?
+assert_contains "missing manifest reported" "$out" "manifest not readable"
+assert_exit "missing manifest exits non-zero" 1 "$rc"
+
 # rm-failure accounting: a manifest entry rm cannot remove must count failed and
 # force a non-zero exit. Deterministic only where the FS enforces a write-denied
 # parent (real POSIX / Linux CI); Cygwin/MSYS ignores it, so probe and skip.

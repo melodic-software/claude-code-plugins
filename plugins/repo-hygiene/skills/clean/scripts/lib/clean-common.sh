@@ -376,24 +376,28 @@ clean_plan() {
     fi
   done
 
+  # Drop any eligible path nested under an eligible ancestor (`du` of the ancestor
+  # already counts it and `rm -rf` already removes it — otherwise the byte total
+  # double-counts and apply hits a spent path). O(n log n), not O(n²): sort each
+  # path with a trailing '/' key so an ancestor sorts immediately before ALL its
+  # descendants and they stay contiguous (the '/' also stops `build` swallowing a
+  # sibling `buildstuff` — `buildstuff/` does not start with `build/`), then skip
+  # anything under the last kept ancestor in a single pass.
   local -a surv_abs=() surv_class=()
-  local a b nested j
-  for i in "${!elig_abs[@]}"; do
-    a="${elig_abs[$i]}"
-    nested=0
-    for j in "${!elig_abs[@]}"; do
-      [[ "$i" == "$j" ]] && continue
-      b="${elig_abs[$j]}"
-      # Anchor on '/' so `build` never swallows a sibling `buildstuff`.
-      if [[ "$a" == "$b"/* ]]; then
-        nested=1
-        break
-      fi
-    done
-    ((nested)) && continue
-    surv_abs+=("$a")
-    surv_class+=("${elig_class[$i]}")
-  done
+  local last_key="" key
+  while IFS=$'\t' read -r key abs class; do
+    [[ -n "$abs" ]] || continue
+    if [[ -n "$last_key" && "$key" == "$last_key"* ]]; then
+      continue
+    fi
+    surv_abs+=("$abs")
+    surv_class+=("$class")
+    last_key="$key"
+  done < <(
+    for i in "${!elig_abs[@]}"; do
+      printf '%s/\t%s\t%s\n' "${elig_abs[$i]}" "${elig_abs[$i]}" "${elig_class[$i]}"
+    done | LC_ALL=C sort
+  )
   ((${#surv_abs[@]})) || return 0
 
   local -A size_of=()
@@ -415,18 +419,43 @@ clean_plan() {
   done
 }
 
+# Return 0 when a manifest-supplied repo-relative path is safe to act on — below
+# REPO_ROOT, never absolute, never traversing a parent (`..`, either separator).
+# The manifest is a documented `--apply --manifest` surface a caller may supply
+# or a concurrent process may alter, so an entry like `../outside` must never let
+# `rm` escape the repository.
+clean_manifest_rel_safe() {
+  local norm="${1//\\//}"
+  [[ -n "$norm" ]] || return 1
+  [[ "$norm" == /* ]] && return 1
+  case "/$norm/" in
+  */../*) return 1 ;;
+  *) return 0 ;;
+  esac
+}
+
 # Consume a manifest: re-stat + re-run the protection gate per entry (the
 # staleness guard), `rm -rf` survivors, and accumulate outcomes. An entry whose
 # path is already gone is idempotent success (resume) — counted neither removed
 # nor failed. A path that became protected since the dry-run is skipped (its
-# `Skip` line re-emitted), not removed. CLEAN_FAILED_COUNT counts only genuine
-# `rm` failures (locked / Unremovable).
+# `Skip` line re-emitted), not removed. CLEAN_FAILED_COUNT counts genuine `rm`
+# failures (locked / Unremovable) and rejected entries (a manifest a caller
+# supplied or a concurrent process altered may carry a path that escapes the repo
+# — fail closed on it). The manifest is untrusted input: paths are containment-
+# checked and the byte field is validated as an unsigned decimal before it ever
+# reaches Bash arithmetic (which evaluates array subscripts recursively).
 #   clean_apply_manifest ROOT MANIFEST
 clean_apply_manifest() {
   local root="$1" manifest="$2"
   local class bytes rel abs skip
   while IFS=$'\t' read -r class bytes rel; do
     [[ -n "$rel" ]] || continue
+    if ! clean_manifest_rel_safe "$rel"; then
+      printf 'Rejected (outside repo): %s\n' "$rel" >&2
+      CLEAN_FAILED_COUNT=$((CLEAN_FAILED_COUNT + 1))
+      continue
+    fi
+    [[ "$bytes" =~ ^[0-9]+$ ]] || bytes=0
     abs="$root/$rel"
     [[ -e "$abs" ]] || continue
     if ! skip="$(clean_target_eligible "$root" "$abs")"; then
