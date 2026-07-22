@@ -107,6 +107,23 @@ run "PS: violating here-string subject blocked" "$r" "$PS_BAD" 2 PowerShell
 run "PS: violating gh pr create --title blocked" "$r" \
   "gh pr create --title 'junk title'" 2 PowerShell
 
+# --- review round 1: raw subject, env-prefixed gh, alias-expanded commit ------
+r="$(newrepo "$TICKET")"
+run "leading-space subject validates RAW (blocked)" "$r" \
+  $'git commit -F - --cleanup=verbatim <<\'EOF\'\n  ABC-123: spaced subject\nEOF' 2
+run "env-assignment-prefixed gh pr create --title (blocked)" "$r" \
+  "GH_PROMPT_DISABLED=1 gh pr create --title 'junk title'" 2
+run "env-wrapper gh pr create --title (blocked)" "$r" \
+  "env GH_TOKEN=x gh pr create --title 'junk title'" 2
+run "inline alias commit: violating subject blocked" "$r" \
+  $'git -c alias.c=commit c -F - --cleanup=verbatim <<\'EOF\'\njunk subject\nEOF' 2
+r="$(newrepo "$TICKET")"
+git -C "$r" config alias.qc commit
+run "configured alias commit: violating subject blocked" "$r" \
+  $'git qc -F - --cleanup=verbatim <<\'EOF\'\njunk subject\nEOF' 2
+run "configured alias commit: conforming subject allowed" "$r" \
+  $'git qc -F - --cleanup=verbatim <<\'EOF\'\nABC-5: fine\nEOF' 0
+
 # --- kill switch ---------------------------------------------------------------
 r="$(newrepo "$TICKET")"
 json=$(jq -n --arg c "$BAD_COMMIT" --arg d "$r" \

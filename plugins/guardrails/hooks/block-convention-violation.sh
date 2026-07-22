@@ -111,8 +111,11 @@ first_heredoc_subject() {
       trimmed="${line#"${line%%[![:space:]]*}"}"
       trimmed="${trimmed%"${trimmed##*[![:space:]]}"}"
       [[ "$trimmed" == "$delim" ]] && return 0
+      # Blank-detection uses the trimmed copy, but the subject git receives is
+      # the RAW line (CR aside) — leading/trailing spaces are part of what a
+      # `--cleanup=verbatim` commit records, so validate exactly that.
       [[ -n "$trimmed" ]] && {
-        printf '%s' "$trimmed"
+        printf '%s' "${line%$'\r'}"
         return 0
       }
       continue
@@ -140,8 +143,10 @@ first_herestring_subject() {
       [[ "${line:0:2}" == "$closer" ]] && return 0
       trimmed="${line#"${line%%[![:space:]]*}"}"
       trimmed="${trimmed%"${trimmed##*[![:space:]]}"}"
+      # Blank-detection uses the trimmed copy; the subject is the RAW line
+      # (CR aside) — a here-string body preserves leading/trailing spaces.
       [[ -n "$trimmed" ]] && {
-        printf '%s' "$trimmed"
+        printf '%s' "${line%$'\r'}"
         return 0
       }
       continue
@@ -216,11 +221,30 @@ check_segment() {
     return 0
   fi
 
-  # gh pr create --title validation (independent of git parsing).
-  if [[ -n "$TITLE_ERE" && "${1:-}" == "gh" && "${2:-}" == "pr" && "${3:-}" == "create" ]]; then
-    local -a gw=("$@")
-    local gn=$# t="" ti
-    for ((ti = 3; ti < gn; ti++)); do
+  # gh pr create --title validation (independent of git parsing). `gh` is
+  # commonly wrapped in command-scoped environment settings
+  # (`GH_PROMPT_DISABLED=1 gh …`, `env GH_TOKEN=… gh …`) — skip leading
+  # assignments and `env`/`command` wrappers before deciding this is not gh.
+  local -a gw=("$@")
+  local gn=$# gs=0 gt
+  while ((gs < gn)); do
+    gt="${gw[gs]}"
+    if [[ "$gt" == *=* && "$gt" != -* ]]; then
+      ((gs++))
+      continue
+    fi
+    case "${gt##*/}" in
+    env | command)
+      ((gs++))
+      while ((gs < gn)) && [[ "${gw[gs]}" == -* || ("${gw[gs]}" == *=* && "${gw[gs]}" != -*) ]]; do ((gs++)); done
+      continue
+      ;;
+    *) break ;;
+    esac
+  done
+  if [[ -n "$TITLE_ERE" && "${gw[gs]:-}" == "gh" && "${gw[gs + 1]:-}" == "pr" && "${gw[gs + 2]:-}" == "create" ]]; then
+    local t="" ti
+    for ((ti = gs + 3; ti < gn; ti++)); do
       case "${gw[ti]}" in
       --title)
         ((ti + 1 < gn)) && t="${gw[ti + 1]}"
@@ -250,6 +274,58 @@ check_segment() {
   hook::git_resolve_subcommand "$gi" "${w[@]}" || return 0
   sub=$HOOK_GIT_SUB
   sub_idx=$HOOK_GIT_SUB_IDX
+
+  # Alias-expanded commits must be content-gated too (`git -c alias.c=commit c
+  # -F - <<EOF` and persisted `git qc` aliases create commits) — mirror the
+  # sibling mechanic guard's expansion: re-check every inline spelling, then
+  # the gitconfig-resolved alias, one level (HOOK_NO_ALIAS bounds recursion).
+  # rc 2 (--config-env-shaped alias) is the MECHANIC guard's fail-closed
+  # concern — it blocks the call outright, so this content gate just skips.
+  local exp reparse a alias_rc inline_alias_handled=0
+  local -a expw=()
+  hook::git_alias_expansion "$sub"
+  alias_rc=$?
+  ((alias_rc == 2)) && return 0
+  if ((${HOOK_NO_ALIAS:-0} == 0)); then
+    if ((alias_rc == 0)); then
+      # shellcheck disable=SC2154  # HOOK_GIT_ALIAS_EXPS is set by hook::git_alias_expansion
+      for exp in ${HOOK_GIT_ALIAS_EXPS[@]+"${HOOK_GIT_ALIAS_EXPS[@]}"}; do
+        [[ -n "$exp" ]] || continue
+        inline_alias_handled=1
+        if [[ "$exp" == '!'* ]]; then
+          reparse="${exp#!}"
+          for a in "${w[@]:sub_idx+1}"; do reparse+=" $(printf '%q' "$a")"; done
+          hook::bash_parse_segments "$reparse" check_segment
+        else
+          hook::env_s_split "$exp"
+          expw=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"})
+          HOOK_NO_ALIAS=1
+          check_segment "${w[@]:0:gi+1}" ${expw[@]+"${expw[@]}"} "${w[@]:sub_idx+1}"
+          HOOK_NO_ALIAS=0
+        fi
+      done
+    fi
+    if ((inline_alias_handled == 0)) && [[ "$sub" != "commit" ]]; then
+      local pexp
+      pexp=$(git -C "$(effective_dir "${w[@]}")" config --get "alias.$sub" 2>/dev/null)
+      if [[ -n "$pexp" ]]; then
+        if [[ "$pexp" == '!'* ]]; then
+          local preparse pa
+          preparse="${pexp#!}"
+          for pa in "${w[@]:sub_idx+1}"; do preparse+=" $(printf '%q' "$pa")"; done
+          hook::bash_parse_segments "$preparse" check_segment
+        else
+          local -a pexpw=()
+          hook::env_s_split "$pexp"
+          pexpw=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"})
+          HOOK_NO_ALIAS=1
+          check_segment "${w[@]:0:gi+1}" ${pexpw[@]+"${pexpw[@]}"} "${w[@]:sub_idx+1}"
+          HOOK_NO_ALIAS=0
+        fi
+      fi
+    fi
+  fi
+
   [[ "$sub" == "commit" ]] || return 0
 
   for ((k = sub_idx + 1; k < nseg; k++)); do
