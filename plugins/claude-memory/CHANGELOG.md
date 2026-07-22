@@ -3,6 +3,21 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.5]
+
+### Changed
+
+- **`stateless` disable: dotfile-manager backfill detection beyond chezmoi.** Step 3 claimed
+  to be repo-agnostic but only checked chezmoi, with a hand-wave to "check any other dotfile
+  manager". It now carries concrete detectors for chezmoi (managed-output check — the previous
+  bare `&&` chain reported TRACKED whenever the binary existed), yadm
+  (`ls-files --error-unmatch`), and GNU stow / symlink managers (settings file is a symlink),
+  plus a fingerprint fallback (`.chezmoiroot`, `~/.local/share/chezmoi`, `~/.local/share/yadm`,
+  `.stow-local-ignore`, `.dotbot`/`install.conf.yaml`) that reports "manager fingerprint
+  present but unconfirmed" instead of silently concluding the file is unmanaged when a
+  manager's artifacts exist without its binary on PATH. Backfill routing now names each
+  manager's own flow and warns against any `apply`/`restow` from the live session. (#980)
+
 ## [0.3.4]
 
 ### Added
