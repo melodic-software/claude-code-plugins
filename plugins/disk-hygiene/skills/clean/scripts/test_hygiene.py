@@ -1507,49 +1507,55 @@ class GuardTests(unittest.TestCase):
         flag_index = args.index(guard._AUTHORIZED_DATA_ROOT_FLAG)
         self.assertEqual("${CLAUDE_PLUGIN_DATA}", args[flag_index + 1])
 
-    def test_skill_hook_interpreter_is_python3_and_resolves(self) -> None:
-        """Lock the guard's launch interpreter and prove it resolves.
+    def test_skill_hook_interpreters_cover_python3_and_python_and_resolve(self) -> None:
+        """Lock the guard's launch interpreters and prove a Python 3 name resolves.
 
-        The PreToolUse hook runs in exec form, so `command` is resolved on PATH
-        with no shell. Bare `python` is absent on stock macOS and many Linux
-        distros (and a legacy 2.x would crash the guard), which fails the launch
-        open — the guard never intercepts. The static half locks the config at
-        `python3`. The runtime half is the "interpreter actually resolves" probe:
-        it skips where `python3` cannot run — absent from PATH, or resolved to a
-        name that will not execute (a Windows App Execution Alias stub resolves
-        to a real path yet exits non-zero) — because that is the documented
-        residual host gap, not a regression; only a runnable `python3` is
-        asserted to be 3.11+.
+        The PreToolUse hook runs in exec form, so each `command` resolves on PATH
+        with no shell. The guard registers two launch entries — `python3` and
+        `python` — so a host exposing a 3.11+ runtime under either name is
+        guarded; a name that is unresolvable, or a legacy 2.x that crashes on
+        modern syntax, is a non-blocking launch error the sibling entry
+        backstops. The static half locks that both names are present, anchoring
+        on each entry's destructive_guard.py args line so an unrelated future
+        `command:` key elsewhere in SKILL.md cannot be matched by accident. The
+        runtime half asserts every Python 3 name that resolves is 3.11+,
+        tolerates a legacy 2.x `python` (its py3 sibling enforces), and skips
+        only where no name yields a runnable 3.11+ interpreter — the documented
+        residual host gap, not a regression.
         """
         skill = SCRIPT_DIR.parent / "SKILL.md"
-        command_line = next(
-            (
-                line
-                for line in skill.read_text(encoding="utf-8").splitlines()
-                if line.strip().startswith("command:")
-            ),
-            None,
-        )
-        self.assertIsNotNone(command_line, "frontmatter hook command line not found")
-        assert command_line is not None
-        interpreter = command_line.split(":", 1)[1].strip().strip('"')
-        self.assertEqual("python3", interpreter)
+        lines = skill.read_text(encoding="utf-8").splitlines()
+        interpreters = [
+            line.split(":", 1)[1].strip().strip('"')
+            for index, line in enumerate(lines)
+            if line.strip().startswith("command:")
+            and index + 1 < len(lines)
+            and "destructive_guard.py" in lines[index + 1]
+            and "args:" in lines[index + 1]
+        ]
+        self.assertEqual(["python", "python3"], sorted(interpreters), interpreters)
 
-        resolved = shutil.which(interpreter)
-        if resolved is None:
-            self.skipTest(f"{interpreter} does not resolve on this host")
-        probe = subprocess.run(
-            [resolved, "-c", "import sys; print('%d.%d' % sys.version_info[:2])"],
-            capture_output=True,
-            text=True,
-        )
-        if probe.returncode != 0 or not probe.stdout.strip():
-            self.skipTest(
-                f"{interpreter} resolved to a non-runnable interpreter "
-                f"({(probe.stderr or probe.stdout).strip()})"
+        covered_by_py3 = False
+        for interpreter in interpreters:
+            resolved = shutil.which(interpreter)
+            if resolved is None:
+                continue
+            probe = subprocess.run(
+                [resolved, "-c", "import sys; print('%d.%d' % sys.version_info[:2])"],
+                capture_output=True,
+                text=True,
             )
-        major, minor = (int(part) for part in probe.stdout.strip().split("."))
-        self.assertGreaterEqual((major, minor), (3, 11), probe.stdout)
+            if probe.returncode != 0 or not probe.stdout.strip():
+                continue
+            major, minor = (int(part) for part in probe.stdout.strip().split("."))
+            if major < 3:
+                continue
+            self.assertGreaterEqual((major, minor), (3, 11), f"{interpreter}: {probe.stdout}")
+            covered_by_py3 = True
+        if not covered_by_py3:
+            self.skipTest(
+                "neither python3 nor python resolves to a runnable 3.11+ interpreter on this host"
+            )
 
     def test_guard_scan_max_depth_accepts_only_positive_integer_literal(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
