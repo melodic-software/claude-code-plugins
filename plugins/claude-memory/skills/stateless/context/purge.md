@@ -3,6 +3,16 @@
 Delete the auto-memory files for the current repo. This is irreversible. Never delete before
 the confirmation gate in Step 3.
 
+For `purge all` (machine-wide): the flow is the same Steps 1–5 with a wider candidate set —
+in Step 1, the candidates are EVERY per-project store from
+`bash "${CLAUDE_PLUGIN_ROOT}/skills/stateless/scripts/enumerate-all-projects.sh"` (plus any
+`autoMemoryDirectory` overrides found in the scopes readable from here), not just the current
+project's. Step 2 captures ONE combined manifest across all candidate dirs (the loop already
+takes a list). Step 3 raises ONE combined gate that states the machine-wide total file count
+AND lists every directory with its per-dir count — a machine-wide delete must never ride on a
+single-project-sounding confirmation. The backup offer applies to the whole manifest (each
+source dir gets its own sibling `.bak-<UTC>/`, same timestamp). Steps 4–5 are unchanged.
+
 ## Step 1: Resolve EVERY candidate directory
 
 The store may be relocated by `autoMemoryDirectory`, which is read from **any** settings scope
