@@ -111,13 +111,19 @@ run "config-env alias with an inline-prefix env var (blocked)" \
   "AV=commit git --config-env=alias.c=AV c" 2
 run "config-env alias with an env-wrapper env var (blocked)" \
   "env AV=commit git --config-env=alias.c=AV c" 2
-# The env-var NAME is resolved through bash indirect expansion, gated to valid shell
-# identifiers — an injection-shaped name must neither match nor be evaluated (the gate
-# is load-bearing: dropping it would be an RCE). Allowed (git rejects it); no exec.
+# The env-var NAME need not be a valid shell identifier: git reads it with getenv() on
+# the raw string, so a hyphenated name resolves and must be caught. The guard reads it
+# via printenv (not bash indirect ${!name}, which rejects a non-identifier and would
+# silently drop the assignment — the #740 fail-open).
+run "config-env alias with a non-identifier env name (blocked)" \
+  "git --config-env=alias.c=bad-name c" 2 bad-name=commit
+# An injection-shaped name is passed to printenv as one quoted argument, never
+# re-parsed — so `$(…)` in a name cannot execute; the unset name resolves to empty.
+# Allowed (git rejects it); no exec.
 rm -f "$TEST_TMPDIR/pwned-nc"
-run "injection-shaped config-env var name (allowed — not an identifier)" \
+run "injection-shaped config-env var name (allowed — resolves empty)" \
   "git --config-env=alias.c=\$(touch $TEST_TMPDIR/pwned-nc) c" 0
-assert_file_absent "identifier gate: no exec for a non-identifier env-var name" "$TEST_TMPDIR/pwned-nc"
+assert_file_absent "injection-safe resolution: no exec for a shell-metachar env name" "$TEST_TMPDIR/pwned-nc"
 
 # --- case-insensitive alias resolution (git folds config names) --------------
 run "inline alias, uppercase subcommand (blocked)" "git -c alias.c=commit C -m x" 2

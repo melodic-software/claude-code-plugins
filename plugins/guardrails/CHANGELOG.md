@@ -17,10 +17,13 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   `AV` and waved the real subcommand through — a verified fail-open. The parser now tags
   each value's origin (`HOOK_GIT_CONFIG_VALUE_KINDS`), and a new
   `hook::git_effective_config_values` resolver projects `--config-env` entries to their
-  actual `<key>=<value>`; both guards match aliases against the resolved values. An unset
-  or invalid-identifier env var projects to an empty value — git itself rejects an unset
-  `--config-env` variable, so the assignment never takes effect (the identifier gate on
-  the indirect expansion also prevents an injection-shaped name from being evaluated).
+  actual `<key>=<value>`; both guards match aliases against the resolved values. The name
+  is resolved with `getenv()` (via `printenv`), exactly as git reads it, so a name that is
+  not a valid shell identifier (e.g. a hyphenated one git still accepts) resolves too and
+  is caught. Only an unset variable projects to an empty value — git itself rejects an
+  unset `--config-env` variable, so the assignment never takes effect. The name is passed
+  to `printenv` as a single quoted argument and never re-parsed, so an injection-shaped
+  name cannot be evaluated.
 - **The `--config-env` value is resolved from the environment git actually sees.** The
   named variable is read preferring a command-line assignment on the same invocation — an
   inline `VAR=val git …` prefix or an `env VAR=val git …` wrapper (collected by

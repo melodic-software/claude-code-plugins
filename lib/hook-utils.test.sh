@@ -673,17 +673,36 @@ else
   fail "git config effective (env unset): $(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")"
 fi
 
-hook::git_resolve_subcommand 0 git --config-env=alias.c=not-an-identifier c
-hook::git_effective_config_values
-if [[ "$(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")" == "alias.c=" ]]; then
-  ok "git config: invalid env var name projects to an empty value"
+# A non-identifier env-var name (e.g. hyphenated) is still read by git via getenv(),
+# so it must RESOLVE, not project empty — projecting empty was a fail-open: git would
+# expand the alias while the guard saw nothing. Bash assignment syntax cannot name
+# such a variable, so set it in a subshell and confirm the value is read.
+# shellcheck disable=SC2016  # $HOOK_GIT_CONFIG_EFFECTIVE expands in the inner shell, not here
+noniden=$(env 'bad-name=commit' "$BASH" -c '
+  source "'"$HOOK_DIR"'/hook-utils.sh"
+  hook::git_resolve_subcommand 0 git --config-env=alias.c=bad-name c
+  hook::git_effective_config_values
+  IFS="|"; printf "%s" "${HOOK_GIT_CONFIG_EFFECTIVE[*]}"')
+if [[ "$noniden" == "alias.c=commit" ]]; then
+  ok "git config: non-identifier env var name resolves via getenv"
 else
-  fail "git config effective (invalid name): $(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")"
+  fail "git config effective (non-identifier name): [$noniden]"
 fi
 
-# An injection-shaped env-var name must never reach bash indirect expansion: the
-# identifier gate rejects it (empty projection), and no evaluation occurs. Pins the
-# gate — a future refactor dropping it would be an RCE.
+# An unset name (identifier-shaped or not) still projects empty — git rejects an unset
+# --config-env variable as fatal, so nothing takes effect.
+hook::git_resolve_subcommand 0 git --config-env=alias.c=bad-name c
+hook::git_effective_config_values
+if [[ "$(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")" == "alias.c=" ]]; then
+  ok "git config: unset non-identifier env var name projects empty"
+else
+  fail "git config effective (unset non-identifier): $(join_a "${HOOK_GIT_CONFIG_EFFECTIVE[@]}")"
+fi
+
+# An injection-shaped env-var name must never be evaluated: printenv receives the name
+# as a single quoted argument (never re-parsed by the shell), so `$(…)` in a name
+# cannot execute; the unset name resolves to empty. Pins injection safety — a refactor
+# interpolating the name into an eval/unquoted context would be an RCE.
 rm -f "$HOOK_DIR/../pwned-lib"
 # shellcheck disable=SC2016  # the literal $(…) is the injection payload under test — must NOT expand
 hook::git_resolve_subcommand 0 git '--config-env=alias.c=$(touch pwned-lib)' c

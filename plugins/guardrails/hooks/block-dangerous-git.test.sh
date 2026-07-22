@@ -217,12 +217,17 @@ run "env-wrapper env var (blocked)" "env AV='reset --hard' git --config-env=alia
 # git config names are case-insensitive: fold both sides of the alias-key match.
 run "case-folded inline alias, uppercase subcommand (blocked)" "git -c alias.rh='reset --hard' RH" 2
 run "case-folded inline alias, uppercase key (blocked)" "git -c alias.RH='reset --hard' rh" 2
-# The env-var NAME resolves via bash indirect expansion, gated to valid shell
-# identifiers — an injection-shaped name must neither match nor be evaluated.
+# The env-var NAME need not be a valid shell identifier: git reads it with getenv() on
+# the raw string, so a hyphenated name resolves and must be caught. The guard reads it
+# via printenv (not bash indirect ${!name}, which rejects a non-identifier and would
+# silently drop the assignment — the #740 fail-open).
+run "git --config-env=alias.rh=bad-rh rh (non-identifier env name, blocked)" "git --config-env=alias.rh=bad-rh rh" 2 "bad-rh=reset --hard"
+# An injection-shaped name is passed to printenv as one quoted argument, never
+# re-parsed — so `$(…)` in a name cannot execute; the unset name resolves to empty.
 rm -f "$TEST_TMPDIR/pwned-dg"
-run "injection-shaped config-env var name (allowed — not an identifier)" \
+run "injection-shaped config-env var name (allowed — resolves empty)" \
   "git --config-env=alias.rh=\$(touch $TEST_TMPDIR/pwned-dg) rh" 0
-assert_file_absent "identifier gate: no exec for a non-identifier env-var name" "$TEST_TMPDIR/pwned-dg"
+assert_file_absent "injection-safe resolution: no exec for a shell-metachar env name" "$TEST_TMPDIR/pwned-dg"
 run "command -p git reset --hard (command wrapper option, blocked)" "command -p git reset --hard" 2
 run "command -- git reset --hard (command end-of-options, blocked)" "command -- git reset --hard" 2
 run "exec -c git reset --hard (exec wrapper option, blocked)" "exec -c git reset --hard" 2

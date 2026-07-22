@@ -865,12 +865,13 @@ hook::git_resolve_subcommand() {
 # hook::git_resolve_index) sets the variable for git and wins (last assignment wins,
 # as in the shell); otherwise the hook's inherited ambient environment is read.
 # Reading the command-line assignment is essential: it is a self-contained one-liner
-# that would otherwise pass an ambient-only check. A named variable that is unset, or
-# a name that is not a valid shell identifier, resolves to an empty value: git rejects
-# an unset --config-env variable (fatal), so the assignment never takes effect and an
-# empty value is the safe projection (a value-keyed consumer gets no spurious match; a
-# key-keyed consumer still sees the key). A malformed operand with no '=' is passed
-# through untouched. Fills HOOK_GIT_CONFIG_EFFECTIVE, aligned 1:1 with
+# that would otherwise pass an ambient-only check. The name is resolved with getenv()
+# (via printenv), matching git, so a name that is not a valid shell identifier (e.g. a
+# hyphenated one git still accepts) resolves too — it is not dropped. Only a variable
+# that is unset resolves to an empty value: git rejects an unset --config-env variable
+# (fatal), so an empty value is the safe projection (a value-keyed consumer gets no
+# spurious match; a key-keyed consumer still sees the key). A malformed operand with
+# no '=' is passed through untouched. Fills HOOK_GIT_CONFIG_EFFECTIVE, aligned 1:1 with
 # HOOK_GIT_CONFIG_VALUES. Call after hook::git_resolve_index + git_resolve_subcommand.
 # shellcheck disable=SC2034  # HOOK_GIT_CONFIG_EFFECTIVE is consumed by the sourcing guard
 hook::git_effective_config_values() {
@@ -882,19 +883,25 @@ hook::git_effective_config_values() {
     if [[ "$kind" == "env" && "$entry" == *=* ]]; then
       key="${entry%%=*}"
       envvar="${entry#*=}"
-      if [[ "$envvar" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
-        val="${!envvar-}"
-        # A command-line assignment for this variable overrides the ambient value,
-        # matching what git's process actually sees; last one wins.
-        if [[ -n "${HOOK_GIT_ENV_ASSIGNMENTS+x}" ]]; then
-          for a in "${HOOK_GIT_ENV_ASSIGNMENTS[@]}"; do
-            [[ "$a" == "$envvar="* ]] && val="${a#*=}"
-          done
-        fi
-        HOOK_GIT_CONFIG_EFFECTIVE+=("${key}=${val}")
-      else
-        HOOK_GIT_CONFIG_EFFECTIVE+=("${key}=")
+      # git reads the variable with getenv() on the raw name, so resolve any name
+      # shape the same way — printenv is a getenv wrapper. bash indirect expansion
+      # (${!envvar}) would instead reject a non-identifier name (e.g. a hyphenated
+      # one git still accepts), silently dropping a real assignment and failing
+      # open. The name is passed as a single quoted argument, never re-parsed, so an
+      # injection-shaped name cannot execute. An unset variable yields empty (git
+      # rejects an unset --config-env variable as fatal), the safe projection. No
+      # `--` end-of-options guard: it is not portable across printenv implementations
+      # (BSD/macOS may read it as the name), and a pathological leading-dash name
+      # resolves empty here, as the prior identifier gate also dropped it.
+      val="$(printenv "$envvar" 2>/dev/null || true)"
+      # A command-line assignment for this variable overrides the ambient value,
+      # matching what git's process actually sees; last one wins.
+      if [[ -n "${HOOK_GIT_ENV_ASSIGNMENTS+x}" ]]; then
+        for a in "${HOOK_GIT_ENV_ASSIGNMENTS[@]}"; do
+          [[ "$a" == "$envvar="* ]] && val="${a#*=}"
+        done
       fi
+      HOOK_GIT_CONFIG_EFFECTIVE+=("${key}=${val}")
     else
       HOOK_GIT_CONFIG_EFFECTIVE+=("$entry")
     fi
