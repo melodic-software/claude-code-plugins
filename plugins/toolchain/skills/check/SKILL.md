@@ -122,7 +122,7 @@ An opt-in-unmet skip (single-condition case) counts toward the table's total eco
 
 - **Fire condition** — if `trigger-globs` is present, run the gate only when ≥1 changed file matches, matched against the **full** changed-files set (not the ecosystem-scoped subset — a gate's trigger files need not classify into the ecosystem's own `globs`). If `trigger-globs` is omitted, run whenever the ecosystem runs. A present `trigger-globs` with no matching changed file (e.g. `check all` on a clean tree) → the gate does not fire.
 - **Independent of the build/test/lint short-circuit** — a fired gate runs even when this ecosystem's build, test, or lint already failed and stopped (line above). Gates mirror CI checks that are independent of build success (a lockfile or `go mod tidy` gate is meaningful whether or not the build compiled), so a failed earlier phase never suppresses them.
-- **Run** `gate.cmd` (an opaque shell string — substitute the same placeholders as other commands: `<files>`, resolved anchor, etc.) from `$REPO_ROOT` with absolute paths.
+- **Run** `gate.cmd` (an opaque shell string — substitute the same placeholders as other commands: `<files>`, resolved anchor, etc.) with absolute paths, from the **same execution location the ecosystem's own build/test/lint use** (§2 placeholders, and Gotchas' "Multiple projects in same ecosystem"): once per resolved `<project-dir>` for a `project-discovery` ecosystem, from the `anchor`'s directory for an `anchor` ecosystem, and from `$REPO_ROOT` only when neither is defined. This matters for the bundled `go.yaml` `go-mod-tidy-drift` gate: `go mod tidy -diff` is inherently per-module, so a `project-discovery: ["go.mod"]` monorepo must run it from each `go.mod` root — a `$REPO_ROOT`-only run falsely fails when the sole module is nested (`go.mod file not found`) and never checks drift in nested modules when a root module also exists. The **fire condition** above stays repo-wide (`trigger-globs` vs the full changed-files set decides *whether* the gate runs); only the execution location is per-project. When a gate `cmd` uses `<files>`, it expands to that project's scoped changed-files subset, exactly as for the ecosystem's other commands (§2).
 - **Tool presence** — as with `check-cmd`, if the gate's tool is missing from `PATH`, report `skip` (reuse the ecosystem's `install-hint`) — never `FAIL`.
 - **Outcome** — report `pass`/`FAIL` by name. On `FAIL`, surface `gate.remediation`. A fired gate that fails is a real failure and **counts toward the run's FAIL verdict** (unlike opt-in/missing-tool skips).
 
@@ -140,12 +140,14 @@ For ecosystem-specific gotchas (xUnit `--nologo` trap, `dotnet test --project`, 
 | dotnet     | pass  | pass | pass | PASS   |
 | python     | —     | pass | FAIL | FAIL   |
 
-Overall: FAIL (1 of 2 ecosystems failed)
+Gates: go-mod-tidy-drift — FAIL (run go mod tidy and commit the updated go.mod/go.sum)
+
+Overall: FAIL (1 of 2 ecosystems failed, 1 gate failed)
 ```
 
 Use `pass`, `FAIL`, `skip` (tool missing) or `skip (opt-in unmet: ...)` (config condition not met), or `—` (not applicable — for ecosystems where the corresponding command is null in the ecosystem config). Show failing command output below the table.
 
-If any CI-parity gates fired, summarize each by name + outcome below the per-ecosystem block, with the remediation pointer on failure. A fired gate that failed flips Overall to `FAIL` and is counted in it — including when every ecosystem's build/test/lint cell passed (e.g. `Overall: FAIL (0 of 2 ecosystems failed, 1 gate failed)`). The Overall line names both counts whenever a gate fires.
+If any CI-parity gates fired, summarize each by name + outcome below the per-ecosystem block, with the remediation pointer on failure. A fired gate that failed flips Overall to `FAIL` and is counted in it — including when every ecosystem's build/test/lint cell passed (e.g. `Overall: FAIL (0 of 2 ecosystems failed, 1 gate failed)`). The Overall line names both counts whenever a gate fires, pass or fail — a fired-and-passed gate still reports its count (e.g. `Overall: PASS (2 of 2 ecosystems passed, 1 gate passed)`), so the report is unambiguous about whether a gate ran.
 
 ## For other skills referencing /toolchain:check
 

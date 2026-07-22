@@ -14,9 +14,14 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
   resolved `gates` after build → test → lint: a gate fires when a changed file matches its
   `trigger-globs` (full changed-files set) or unconditionally when `trigger-globs` is omitted,
   runs independent of the build/test/lint short-circuit, reports `skip` on a missing tool, and on
-  failure surfaces `remediation` and flips Overall to `FAIL`. `go.yaml`'s `go-mod-tidy-drift`
-  bundled default and a consumer's `nuget-lockfile-drift`-shaped gate now actually run. `lint`
-  is unchanged — gates are CI-parity checks beyond lint's fast build-free path. Closes #926.
+  failure surfaces `remediation` and flips Overall to `FAIL`. A gate executes from the same
+  location the ecosystem's own build/test/lint use — once per resolved `<project-dir>` for a
+  `project-discovery` ecosystem, from the `anchor`'s directory otherwise — so the bundled
+  `go.yaml` `go-mod-tidy-drift` gate runs from each `go.mod` root in a monorepo rather than only
+  `$REPO_ROOT` (a repo-root-only `go mod tidy -diff` falsely fails when the sole module is nested
+  and misses drift in nested modules). `go.yaml`'s `go-mod-tidy-drift` bundled default and a
+  consumer's `nuget-lockfile-drift`-shaped gate now actually run. `lint` is unchanged — gates are
+  CI-parity checks beyond lint's fast build-free path. Closes #926.
 
 ## [0.9.0]
 
