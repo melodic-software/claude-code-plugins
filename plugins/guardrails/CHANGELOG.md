@@ -3,6 +3,24 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.1]
+
+### Fixed
+
+- **`flag-commit-pr-skill-bypass` honors local-only plugin enablement (audit f2
+  residual, follow-up to 0.9.9's user-global fix).** `source_control_enabled()`
+  counted a `settings.local.json` value only when the project `settings.json`
+  already declared the same key, so a plugin enabled ONLY at local scope
+  (`claude plugin install --scope local` — a first-class state per the official
+  plugins reference) resolved as disabled and the `gh pr create` advisory never
+  fired. A local value now participates in per-key resolution unconditionally
+  (settings precedence Local > Project > User); the two tests that encoded the
+  old "local-only key is ignored" model are inverted, plus a new
+  local-only-enable-with-no-other-scope case.
+  (Docs consulted per the fresh-docs mandate:
+  <https://code.claude.com/docs/en/settings> scope precedence;
+  <https://code.claude.com/docs/en/plugins-reference> `--scope local`.)
+
 ## [0.12.0]
 
 ### Added
