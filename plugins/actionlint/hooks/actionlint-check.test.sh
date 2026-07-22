@@ -201,7 +201,7 @@ if [[ -s "$TEL" ]]; then
       fail "envelope: $field missing ($(cat "$TEL"))"
     fi
   done
-  if [[ "$(jq -r '.hook' "$TEL")" == "actionlint" ]]; then ok "envelope: hook is actionlint"; else fail "envelope: hook=$(jq -r '.hook' "$TEL")"; fi
+  if [[ "$(jq -r '.hook' "$TEL")" == "actionlint-check" ]]; then ok "envelope: hook is actionlint-check"; else fail "envelope: hook=$(jq -r '.hook' "$TEL")"; fi
   if [[ "$(jq -r '.status' "$TEL")" == "ok" ]]; then ok "envelope: status ok"; else fail "envelope: status=$(jq -r '.status' "$TEL")"; fi
   if [[ "$(jq -r '.schema_version' "$TEL")" == "1.0" ]]; then ok "envelope: schema_version 1.0"; else fail "envelope: schema_version=$(jq -r '.schema_version' "$TEL")"; fi
   if [[ "$(jq '.data.findings | length' "$TEL")" -ge 1 ]]; then ok "envelope: findings populated"; else fail "envelope: findings empty ($(jq '.data.findings' "$TEL"))"; fi
