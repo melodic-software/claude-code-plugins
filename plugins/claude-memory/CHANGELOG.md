@@ -3,6 +3,22 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.3]
+
+### Fixed
+
+- **Non-repo memory-dir resolution implemented (the documented fallback).** The shared
+  `resolve-memory-dir.sh` hard-required a git repo (`exit 1` when `git rev-parse --show-toplevel`
+  was empty) and the `stateless` skill's `scope-report.sh` pre-emptied it with a bail-out telling
+  the user to run from within a repo — but the official memory doc (re-verified 2026-07-22)
+  says "Outside a git repo, the project root is used instead", so a non-repo directory is a
+  fully valid case with a real memory store the skill could neither find nor report. The
+  resolver now derives the project slug from the current directory (same Windows-form
+  normalization as the repo-root path) when no repo is found, `scope-report.sh` calls it
+  unconditionally (with an informational note that the cwd is the project key), and the
+  regression test that had locked the bail-out in as a spec now asserts the resolved
+  cwd-derived path. (#978)
+
 ## [0.3.2]
 
 ### Added

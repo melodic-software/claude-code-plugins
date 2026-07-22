@@ -19,7 +19,8 @@
 #   MEMORY_DIR=$(bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/resolve-memory-dir.sh")
 #
 # Output: absolute path to the memory dir (the dir containing MEMORY.md) on stdout.
-# Exits 1 with a stderr message when not inside a git repo.
+# Outside a git repo the current directory is the project key, per the memory doc:
+# "Outside a git repo, the project root is used instead."
 
 # `set -e` omitted: resolution does explicit error handling via `||` fallbacks and
 # existence checks; must not crash mid-resolve on an optional git sub-command
@@ -35,7 +36,8 @@ Usage:
 
 Derives the Claude Code project-dir slug from the repo root (repo-root absolute path,
 Windows-style on Windows, with `:` `\` `/` `.` -> `-`) and prints the candidate dir that
-holds MEMORY.md (handles bare-clone-hub worktrees). Exits 1 outside a git repository.
+holds MEMORY.md (handles bare-clone-hub worktrees). Outside a git repository the current
+directory is the project key ("Outside a git repo, the project root is used instead").
 EOF
   exit 0
 fi
@@ -46,9 +48,14 @@ fi
 repo_root=$(cygpath -w "$(git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')" 2>/dev/null ||
   git rev-parse --show-toplevel 2>/dev/null | tr -d '\r')
 
+# Outside a git repo the cwd IS the project root Claude Code keys the memory dir on
+# (memory doc: "Outside a git repo, the project root is used instead") — same
+# Windows-form normalization as the repo-root path above. No hub-worktree candidates
+# apply without a repo.
+in_repo=1
 if [[ -z "$repo_root" ]]; then
-  echo "resolve-memory-dir: not inside a git repository" >&2
-  exit 1
+  in_repo=0
+  repo_root=$(cygpath -w "$(pwd)" 2>/dev/null || pwd)
 fi
 
 # Config root: CLAUDE_CONFIG_DIR relocates the whole `~/.claude` tree when set.
@@ -61,18 +68,20 @@ session_data_dir="$config_root/projects/$project_slug"
 # Bare-clone-hub worktree: transcripts are keyed by the worktree cwd, but auto-memory
 # is shared at the HUB (keyed by git-common-dir). HUB_SLUG also maps '.' (e.g. a
 # `/.bare` hub dir -> `--bare`). Decide by which candidate actually holds MEMORY.md —
-# never by guessing the slug algorithm.
-git_common=$(cd "$(git rev-parse --git-common-dir 2>/dev/null | tr -d '\r')" 2>/dev/null && pwd)
-hub_raw=$(cygpath -w "$git_common" 2>/dev/null || printf '%s' "$git_common")
-hub_slug=$(printf '%s' "$hub_raw" | sed 's/[:\\/.]/-/g')
-
+# never by guessing the slug algorithm. Hub candidates only exist inside a repo.
 memory_dir=""
-for cand in "$session_data_dir/memory" "$config_root/projects/$hub_slug/memory"; do
-  if [[ -f "$cand/MEMORY.md" ]]; then
-    memory_dir="$cand"
-    break
-  fi
-done
+if [[ "$in_repo" -eq 1 ]]; then
+  git_common=$(cd "$(git rev-parse --git-common-dir 2>/dev/null | tr -d '\r')" 2>/dev/null && pwd)
+  hub_raw=$(cygpath -w "$git_common" 2>/dev/null || printf '%s' "$git_common")
+  hub_slug=$(printf '%s' "$hub_raw" | sed 's/[:\\/.]/-/g')
+
+  for cand in "$session_data_dir/memory" "$config_root/projects/$hub_slug/memory"; do
+    if [[ -f "$cand/MEMORY.md" ]]; then
+      memory_dir="$cand"
+      break
+    fi
+  done
+fi
 
 # Fresh repo with no memory written yet: emit the normal-clone path so callers have a
 # stable target (MEMORY.md absence is handled downstream by the caller).

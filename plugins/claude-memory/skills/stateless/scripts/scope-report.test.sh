@@ -80,14 +80,23 @@ OUT=$(cd "$REPO" && HOME="$ISO_HOME" bash "$SCRIPT")
 assert_contains "MEMORY.md present is reported" "$OUT" "MEMORY.md: PRESENT"
 assert_contains "topic file count reported" "$OUT" "topic files: 1"
 
-# --- Case 5: outside a git repo, exits 0 with a clear note ---
+# --- Case 5: outside a git repo, the cwd is the project key (docs: "Outside a git
+# repo, the project root is used instead") — resolver and report both resolve, no bail-out ---
 
 NONREPO="$TEST_TMPDIR/plain"
 mkdir -p "$NONREPO"
 rc=0
+RES=$(cd "$NONREPO" && env -u GIT_DIR HOME="$ISO_HOME" bash "$RESOLVER" | tr -d '\r') || rc=$?
+assert_exit "resolver exits 0 outside a git repo" 0 "$rc"
+assert_contains "resolver derives the memory dir under the config root" "$RES" "$ISO_HOME/.claude/projects/"
+assert_contains "resolver slug is cwd-derived" "$RES" "plain"
+
+rc=0
 OUT=$(cd "$NONREPO" && env -u GIT_DIR HOME="$ISO_HOME" bash "$SCRIPT") || rc=$?
 assert_exit "non-git dir exits 0" 0 "$rc"
-assert_contains "non-git dir reports it is not a repo" "$OUT" "Not inside a git repository"
+assert_contains "non-git dir notes the cwd is the project key" "$OUT" "current directory"
+assert_contains "non-git dir reports the resolved memory dir" "$OUT" "$ISO_HOME/.claude/projects/"
+assert_contains "non-git dir reports MEMORY.md state" "$OUT" "MEMORY.md: absent"
 
 # --- Case 6: CLAUDE_CONFIG_DIR relocates the config root (user scope + memory tree) ---
 
