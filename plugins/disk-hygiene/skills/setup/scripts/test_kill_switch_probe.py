@@ -138,6 +138,28 @@ class ProbeTests(unittest.TestCase):
         self.assertFalse(result["effective"])
         self.assertEqual("configured", result["source"])
 
+    def test_non_object_settings_root_degrades_without_crashing(self) -> None:
+        self.settings.write_text("[]", encoding="utf-8")
+        result = self.run_probe()
+        self.assertTrue(result["effective"])
+        self.assertEqual("indeterminate", result["source"])
+        self.assertTrue(result["degraded"])
+
+    def test_default_reports_name_their_user_settings_only_scope(self) -> None:
+        for setup in ("missing", "no-entry"):
+            with self.subTest(setup):
+                if setup == "missing":
+                    argv = [
+                        "--settings-file",
+                        str(Path(self.tmp.name) / "absent.json"),
+                    ]
+                else:
+                    self.write_settings({"pluginConfigs": {}})
+                    argv = None
+                result = self.run_probe(argv)
+                self.assertEqual("default", result["source"])
+                self.assertIn("cannot see", result["detail"])
+
     def test_unparsable_settings_degrade_honestly(self) -> None:
         self.settings.write_text("{not json", encoding="utf-8")
         result = self.run_probe()

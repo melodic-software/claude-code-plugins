@@ -78,13 +78,16 @@ def probe(settings_path: Path) -> dict[str, object]:
             "default",
             False,
             f"No settings file at {settings_path}; the toggle is not configured "
-            "there and the plugin default (enabled) applies.",
+            "there and the plugin default (enabled) applies. Managed settings or "
+            "a --settings flag could still carry a value this probe cannot see.",
             settings_path,
             [],
         )
     try:
         settings = json.loads(settings_path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        if not isinstance(settings, dict):
+            raise ValueError("settings root is not a JSON object")
+    except (OSError, UnicodeDecodeError, ValueError) as exc:
         return _report(
             True,
             "indeterminate",
@@ -115,7 +118,8 @@ def probe(settings_path: Path) -> dict[str, object]:
             False,
             f"{settings_path} carries no {_PLUGIN_NAME} {_OPTION_KEY} entry; the "
             "toggle is not configured there and the plugin default (enabled) "
-            "applies.",
+            "applies. Managed settings or a --settings flag could still carry a "
+            "value this probe cannot see.",
             settings_path,
             entries,
         )
