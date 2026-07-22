@@ -6,22 +6,22 @@ On every `Write` or `Edit` it runs [typos](https://github.com/crate-ci/typos)'s
 Claude as advisory context — including remediation guidance for allowlisting
 a false positive.
 
-It uses **your repository's own typos configuration**. It ships no rules of
-its own and runs only when your repo has opted into typos.
+It ships no rules of its own and runs unconditionally, using typos' built-in
+spelling dictionary. If your repository has its own typos configuration
+(`typos.toml`, `_typos.toml`, `.typos.toml`, `Cargo.toml` with
+`[workspace.metadata.typos]`/`[package.metadata.typos]`, or `pyproject.toml`
+with `[tool.typos]`), typos discovers and honors it automatically — no
+opt-in required.
 
 ## Behavior
 
-- **Opt-in on a typos config.** typos runs **only when a `typos.toml`,
-  `_typos.toml`, `.typos.toml`, `Cargo.toml` (with
-  `[workspace.metadata.typos]`/`[package.metadata.typos]`), or `pyproject.toml`
-  with a `[tool.typos]` section governs the edited file**, found by walking up
-  from the file to the repository root, in that precedence order — the same
-  discovery typos itself uses. A repo without a typos config is left untouched
-  rather than checked against typos' built-in dictionary, so the plugin never
-  imposes a check you did not choose.
+- **Runs on every edit, zero-config or not.** typos ships a built-in spelling
+  dictionary and needs no configuration to be useful, so this hook never gates
+  on a consumer typos config existing. When a config IS present, typos' own
+  file-anchored discovery still finds and applies it (allowlist/exclude), in
+  its documented precedence order — this plugin never re-implements that walk.
 - **No extension filter.** Unlike sibling formatter plugins (Ruff, Markdown),
-  typos is language-agnostic — it runs on any edited file, gated only by the
-  config opt-in above.
+  typos is language-agnostic — it runs on any edited file.
 - **Fix in place.** `typos --write-changes` applies every correction it has
   confidence in. Residual findings — an entry with no known correction (e.g.
   a blank-correction `extend-words` entry marking a term "disallowed") —
@@ -59,10 +59,8 @@ locking/ordering primitive exists in Claude Code today.
   per-repo dependency-manager convention — it is a standalone Rust binary,
   installed at the machine level (cargo, Homebrew, Conda, pacman, or a
   pre-built binary). typos is never downloaded on the fly; if it is not
-  present while a typos config governs the repo, the hook skips with a
-  visible once-per-session notice. [Install typos](https://github.com/crate-ci/typos#install).
-- A **typos config** (`typos.toml`, `_typos.toml`, `.typos.toml`, or an
-  equivalent `Cargo.toml`/`pyproject.toml` section) in the repo — the opt-in.
+  present, the hook skips with a visible once-per-session notice.
+  [Install typos](https://github.com/crate-ci/typos#install).
 
 The hook itself runs on Bash 3.2+. Telemetry timing uses `EPOCHREALTIME`
 (Bash 5.0+); on older bash the telemetry envelope is skipped while typo

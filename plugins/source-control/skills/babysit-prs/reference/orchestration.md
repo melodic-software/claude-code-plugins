@@ -33,7 +33,7 @@ question: **is there a delta since the last snapshot that a worker could actuall
 previously persisted snapshot for that PR. The arms fall into two groups against
 `pr_clean_ready_for_direct_gate` (non-draft, `mergeStateStatus` `CLEAN`/`HAS_HOOKS`, zero
 blockers, and no untriaged material bot feedback): **suppressible** arms are fully re-validated by
-the direct merge gate itself (`source-control-babysit-merge owner/repo#42 --allowed-owners
+the direct merge gate itself (`bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-merge" owner/repo#42 --allowed-owners
 <watched-owners>`, read-only; `mergeStateStatus` already integrates required checks, approvals,
 and conversation resolution), so one of them firing on a cycle where the PR is already, or just
 became, clean/non-draft/zero-blocker/fully triaged would dispatch a worker that finds nothing left
@@ -507,7 +507,7 @@ Each worker must:
 - commit and push only clear branch-owned fixes
 - **auto-resolve only pre-push-outdated threads.** A worker may resolve a review thread only when
   that thread was already `isOutdated` in the pre-push snapshot it was dispatched with, and only
-  through `source-control-babysit-resolve-thread owner/repo#42 --allowed-owners <watched-owners>
+  through `bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners>
   --autonomous --resolve` pinned with `--thread-id`, `--expected-comment-count`, and
   `--expected-last-updated` taken from that same snapshot (`safety.md`, thread-pin pair rule). A
   thread that became outdated only because of the worker's own push has not thereby been addressed
@@ -573,8 +573,8 @@ Stop unless branch writes are allowed. Fix only clear branch-owned CI or bot-rev
 Never refresh branches, post review triggers, merge, enable auto-merge, force-push, change
 GitHub settings, or auto-fix human-authored feedback — classify, reply with evidence, and
 surface human items instead. You may resolve a review thread only if it appears in the pre-push
-outdated-thread list above, via source-control-babysit-resolve-thread owner/repo#42
---allowed-owners <watched-owners> --autonomous --resolve --thread-id <id>
+outdated-thread list above, via bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread"
+owner/repo#42 --allowed-owners <watched-owners> --autonomous --resolve --thread-id <id>
 --expected-comment-count <n> --expected-last-updated <ts>, with the pins taken from that list; a
 thread that becomes outdated only because of your own push is not addressed by that push — leave
 it. Never arm a background monitor or poll loop waiting on CI — check once, report exactly what

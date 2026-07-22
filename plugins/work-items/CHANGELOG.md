@@ -3,6 +3,32 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.0]
+
+### Added
+
+- **Mini-SDLC pipeline-shape SSOT — `reference/pipeline-shape.md` (`#613`, stage 1 of `#513`).** The
+  work lane had no durable definition of the *shape* of the pipeline it runs per item — the lane
+  catalog, the implementer ≠ reviewer ≠ verifier invariant, and the depth tiers lived only as evolving
+  prose and per-issue plans, so the shape drifted and could not be scaled or reviewed in one place. A
+  new reference doc owns that stable policy: the fixed lane set (explore → research → plan →
+  devil's-advocate → implement → test → review → verify, with the re-anchor slot reserved), the
+  "variation in depth, never in shape" principle, the role-separation invariant, and placeholder depth
+  tiers carried as a plan field. It is a reversible reference-doc STOPGAP (form/location/name left to
+  the operator per `#513`) and points at the return-payload contract (`#496`) and convention-gap
+  protocol (`#554`) rather than restating them. **Scope note:** this stage lands the shape and the
+  wire-in only — the depth-scaling dispatcher and the separated-reviewer/verifier runtime are later
+  `#513` stages, so the doc defines the target shape and makes no claim that the runtime already
+  depth-scales or fully separates roles today.
+
+### Changed
+
+- **`work` Step 5 dispatches against the pipeline-shape SSOT (`#613`).** The execute sub-step now
+  points the dispatched chain at `reference/pipeline-shape.md` for the lane shape, additively — the
+  existing instruction to follow the consuming project's own development workflow and domain rules is
+  retained; the chain runs the shape *within* the consumer's workflow and rules, never in place of
+  them.
+
 ## [0.19.0]
 
 ### Added
