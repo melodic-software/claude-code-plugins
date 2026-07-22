@@ -1,0 +1,16 @@
+# Example .claude/ecosystems/go.yaml — a consuming repo's Go command surface.
+# Contract: docs/conventions/ecosystem-commands/README.md (schema: ecosystem.schema.json).
+globs: ["*.go", "go.mod", "go.sum"]
+project-discovery: ["go.mod"]
+build-cmd: "go build ./..."
+test-cmd: "go test ./..."
+check-cmd: "golangci-lint run ./..."
+fix-cmd: "golangci-lint run --fix ./..."
+opt-in: ".golangci.yml, .golangci.yaml, .golangci.toml, or .golangci.json present (walked from the changed file up to the repo root) — otherwise golangci-lint applies its own unconfigured \"standard\" linter preset unconditionally"
+install-hint: "Install golangci-lint: https://golangci-lint.run/docs/welcome/install/ | Go toolchain: https://go.dev/dl/"
+gates:
+  - name: go-mod-tidy-drift
+    cmd: "go mod tidy -diff"
+    trigger-globs: ["go.mod", "go.sum", "*.go"]
+    remediation: "Run go mod tidy and commit the updated go.mod/go.sum. (go mod tidy -diff requires Go 1.23+; on an older toolchain the gate errors on the unrecognized flag rather than reporting drift.)"
+notes: "govulncheck is intentionally not a rung-4 default (per the epic brief's \"optional\" framing) — add it as a consumer-local gate via .claude/ecosystems/go.local.yaml if desired."

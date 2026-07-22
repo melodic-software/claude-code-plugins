@@ -31,7 +31,7 @@ Use `/toolchain:lint` for quick feedback during development. Use `/verification:
 
 **Ecosystem filters** (if omitted, auto-detect from changed files):
 
-`/toolchain:lint` covers `dotnet`, `python`, `typescript`, `bash`, `powershell`, `markdown`, `yaml`, and `cross-cutting` (each resolved per the ladder); any with matching files is exposed as a filter. Aliases: `py` → `python`; `ts`/`node` → `typescript`; `shell` → `bash`; `ps`/`pwsh` → `powershell`; `md` → `markdown`; `xc`/`text` → `cross-cutting`. Literal `all` runs every applicable ecosystem.
+`/toolchain:lint` covers `dotnet`, `python`, `typescript`, `bash`, `powershell`, `markdown`, `go`, `yaml`, and `cross-cutting` (each resolved per the ladder); any with matching files is exposed as a filter. Aliases: `py` → `python`; `ts`/`node` → `typescript`; `shell` → `bash`; `ps`/`pwsh` → `powershell`; `md` → `markdown`; `golang` → `go`; `xc`/`text` → `cross-cutting`. Literal `all` runs every applicable ecosystem.
 
 **Mode flag:**
 
@@ -100,6 +100,7 @@ Per-project walking (ecosystems with `project-discovery`):
 
 - python: walk each `pyproject.toml` directory and run check/fix from there
 - typescript: walk each `package.json` directory and run check/fix from there
+- go: walk each `go.mod` directory and run check/fix from there (a root `./...` invocation stops at a nested module boundary — see `/toolchain:check`'s per-ecosystem context file)
 
 Tool presence: verify tools on `PATH` before each ecosystem; report `skip` with `install-hint` when missing.
 
