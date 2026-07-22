@@ -200,6 +200,32 @@ rc=$?
 assert_exit "trailing --manifest is a usage error" 2 "$rc"
 assert_contains "trailing --manifest reported" "$out" "--manifest requires a value"
 
+# 10. A --manifest path that cannot be created (nonexistent parent) must fail
+#     before planning, not print a Manifest:/Summary: line for a file never
+#     written (which would hand apply a bogus path).
+out="$(run_r2 --dry-run --manifest "$TEST_TMPDIR/nonexistent-dir/sub/m" 2>&1)"
+rc=$?
+assert_contains "uncreatable manifest reported" "$out" "cannot create manifest"
+assert_exit "uncreatable manifest exits non-zero" 1 "$rc"
+assert_not_contains "no bogus plan emitted" "$out" "Summary: planned="
+
+# 11. A symlink/reparse point whose basename is a valid target is rejected — the
+#     enumerator uses `find -type d`/`-type f` and never emits a link, but Bash
+#     `[[ -d ]]` follows one. Skips where the FS cannot create a symlink.
+mkdir -p "$TEST_TMPDIR/r2/realcache"
+echo c >"$TEST_TMPDIR/r2/realcache/c"
+ln -s "$TEST_TMPDIR/r2/realcache" "$TEST_TMPDIR/r2/.turbo" 2>/dev/null || true
+if [[ -L "$TEST_TMPDIR/r2/.turbo" ]]; then
+  printf 'caches\t1\t.turbo\n' >"$TEST_TMPDIR/r2.symlink.manifest"
+  out="$(run_r2 --apply --manifest "$TEST_TMPDIR/r2.symlink.manifest" 2>&1)"
+  rc=$?
+  assert_contains "symlinked dir target rejected" "$out" "Rejected (not a caches target): .turbo"
+  assert_exit "symlink apply exits non-zero" 1 "$rc"
+  assert_file_exists "symlink target contents preserved" "$TEST_TMPDIR/r2/realcache/c"
+else
+  skip_case "symlink dir target — symlinks not creatable here"
+fi
+
 # rm-failure accounting: a manifest entry rm cannot remove must count failed and
 # force a non-zero exit. Deterministic only where the FS enforces a write-denied
 # parent (real POSIX / Linux CI); Cygwin/MSYS ignores it, so probe and skip.

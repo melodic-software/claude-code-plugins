@@ -467,32 +467,41 @@ clean_path_has_pruned_segment() {
 # is one the dry-run could never have planned and must never be removed. Assumes
 # ABS exists (callers `-e`-check first so a resumed, already-gone entry stays an
 # idempotent no-op rather than a rejection).
+# A plain directory / regular file that is NOT a symlink or reparse point. The
+# enumerator matches targets with `find -type d`/`-type f`, which never follow a
+# symlink or Windows junction; Bash `[[ -d ]]`/`[[ -f ]]` DO follow them, so a
+# manifest entry naming a link (or a path swapped for one after the dry-run)
+# would otherwise be accepted and its link removed — never a path the dry-run
+# could have emitted.
+clean_is_plain_dir() { [[ -d "$1" ]] && ! clean_path_is_reparse_point "$1"; }
+clean_is_plain_file() { [[ -f "$1" ]] && ! clean_path_is_reparse_point "$1"; }
+
 #   clean_manifest_target_valid CLASS REL ABS
 clean_manifest_target_valid() {
   local class="$1" rel="${2//\\//}" abs="$3" base="${2##*/}" e pat
   case "$class" in
   caches)
     for e in "${CLEAN_CACHE_EXPLICIT[@]}"; do
-      [[ "$rel" == "$e" ]] && { [[ -d "$abs" ]] && return 0 || return 1; }
+      [[ "$rel" == "$e" ]] && { clean_is_plain_dir "$abs" && return 0 || return 1; }
     done
     for e in "${CLEAN_CACHE_EXPLICIT_FILES[@]}"; do
-      [[ "$rel" == "$e" ]] && { [[ -f "$abs" ]] && return 0 || return 1; }
+      [[ "$rel" == "$e" ]] && { clean_is_plain_file "$abs" && return 0 || return 1; }
     done
     for e in "${CLEAN_CACHE_FIND_DIR_NAMES[@]}"; do
-      [[ "$base" == "$e" ]] && { [[ -d "$abs" ]] && return 0 || return 1; }
+      [[ "$base" == "$e" ]] && { clean_is_plain_dir "$abs" && return 0 || return 1; }
     done
     for pat in "${CLEAN_CACHE_FIND_FILE_GLOBS[@]}"; do
       # shellcheck disable=SC2053
-      [[ "$base" == $pat ]] && { [[ -f "$abs" ]] && return 0 || return 1; }
+      [[ "$base" == $pat ]] && { clean_is_plain_file "$abs" && return 0 || return 1; }
     done
     ;;
   build)
     for e in "${CLEAN_BUILD_DIR_NAMES[@]}"; do
-      [[ "$base" == "$e" ]] && { [[ -d "$abs" ]] && return 0 || return 1; }
+      [[ "$base" == "$e" ]] && { clean_is_plain_dir "$abs" && return 0 || return 1; }
     done
     for pat in "${CLEAN_BUILD_FILE_GLOBS[@]}"; do
       # shellcheck disable=SC2053
-      [[ "$base" == $pat ]] && { [[ -f "$abs" ]] && return 0 || return 1; }
+      [[ "$base" == $pat ]] && { clean_is_plain_file "$abs" && return 0 || return 1; }
     done
     ;;
   *) ;;
@@ -591,8 +600,12 @@ clean_manifest_writable_target() {
 
 # clean_manifest_path [--manifest VALUE] → resolve/create the session manifest.
 # Honors an explicit path (agent passes dry-run's path back at --apply); else
-# mktemp a session-scoped file. Truncates so a reused path starts clean, but
-# refuses (returns 1, prints nothing) to overwrite an existing non-manifest file.
+# mktemp a session-scoped file. Truncates so a reused path starts clean; returns
+# 1 (printing nothing on stdout) if it would overwrite an existing non-manifest
+# file OR if the file cannot actually be created/truncated (an unwritable or
+# nonexistent-parent path) — otherwise the dry-run would print a `Manifest:` line
+# and plan removals against a file that was never written, handing the apply step
+# a bogus path.
 clean_manifest_path() {
   local explicit="$1" path
   if [[ -n "$explicit" ]]; then
@@ -604,6 +617,12 @@ clean_manifest_path() {
   else
     path="$(mktemp 2>/dev/null)" || path="${TMPDIR:-/tmp}/clean-manifest.$$"
   fi
-  : >"$path"
+  # Subshell so the redirect's own failure message is captured by 2>/dev/null
+  # (a bare `: >"$path" 2>/dev/null` still prints it — the target redirect is set
+  # up before stderr is redirected).
+  if ! (: >"$path") 2>/dev/null; then
+    printf 'clean: cannot create manifest: %s\n' "$path" >&2
+    return 1
+  fi
   printf '%s' "$path"
 }
