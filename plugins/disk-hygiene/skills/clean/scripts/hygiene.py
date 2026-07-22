@@ -538,6 +538,46 @@ def os_autoclean_advisory(target: Path) -> dict[str, Any] | None:
     }
 
 
+def user_home() -> Path | None:
+    try:
+        return Path.home()
+    except RuntimeError:
+        return None
+
+
+def large_scan_reasons(target: Path) -> list[str]:
+    """Name deterministically why a target is a known-large scan root.
+
+    A known-large root is one whose unbounded recursive walk is expected to be
+    expensive in time and resources — the user home directory today. The engine
+    gates such a walk behind an explicit bound or confirmation, mirroring the
+    apply lane's "ask before it is expensive" posture, moved earlier because the
+    cost here is time, not data loss. Drive-root reasoning is a separate concern
+    owned elsewhere; a filesystem root is already rejected before this runs.
+    """
+    reasons: list[str] = []
+    home = user_home()
+    if home is not None:
+        try:
+            resolved_home = home.resolve(strict=False)
+        except OSError:
+            resolved_home = home
+        if os.path.normcase(os.fspath(target)) == os.path.normcase(
+            os.fspath(resolved_home)
+        ):
+            reasons.append("user-home")
+    return sorted(set(reasons))
+
+
+def top_level_entry_count(target: Path) -> tuple[int | None, str | None]:
+    """Count immediate children only — a cheap probe that never recurses."""
+    try:
+        with os.scandir(target) as iterator:
+            return sum(1 for _ in iterator), None
+    except OSError as exc:
+        return None, str(exc)
+
+
 def scan_tree(
     target: Path, policy: dict[str, Any], max_depth: int | None = None
 ) -> dict[str, Any]:
@@ -1509,6 +1549,7 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--project-dir")
     scan.add_argument("--data-root")
     scan.add_argument("--max-depth", type=int)
+    scan.add_argument("--confirmed-large-scan", action="store_true")
     for name in ("preview", "apply"):
         command = subparsers.add_parser(name)
         command.add_argument("--snapshot", required=True)
@@ -1568,6 +1609,31 @@ def main(argv: list[str] | None = None) -> int:
                 raise HygieneError("--max-depth must be a positive integer")
             output_path = state_output_path(Path(args.output))
             advisory = os_autoclean_advisory(target)
+            large_reasons = large_scan_reasons(target)
+            if (
+                large_reasons
+                and args.max_depth is None
+                and not args.confirmed_large_scan
+            ):
+                immediate_entries, probe_error = top_level_entry_count(target)
+                return emit(
+                    {
+                        "status": "large-target-confirmation-required",
+                        "target": str(target),
+                        "large_target_reasons": large_reasons,
+                        "immediate_entries": immediate_entries,
+                        "probe_error": probe_error,
+                        "os_autoclean": advisory,
+                        "note": (
+                            "This is a known-large scan root; an unbounded "
+                            "recursive walk is gated at the engine. Re-run with "
+                            "--max-depth N for a bounded pass (start with "
+                            "--max-depth 1), or, only after the human confirms a "
+                            "full walk, add --confirmed-large-scan."
+                        ),
+                    },
+                    5,
+                )
             try:
                 snapshot = scan_tree(target, policy, args.max_depth)
             except HygieneError as exc:

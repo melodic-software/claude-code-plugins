@@ -880,6 +880,115 @@ class HygieneTests(unittest.TestCase):
             self.assertIn("--max-depth", payload["error"])
             self.assertIn("os_autoclean", payload)
 
+    def _home_target_fixture(self) -> tuple[Path, Path, Path]:
+        """A directory tree standing in for the user home target."""
+        base = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, base, ignore_errors=True)
+        root = base / "home"
+        root.mkdir()
+        (root / "loose.tmp").write_text("x", encoding="utf-8")
+        (root / "nested").mkdir()
+        (root / "nested" / "leaf.txt").write_text("y", encoding="utf-8")
+        data_root = base / "plugin-data"
+        data_root.mkdir()
+        return root, data_root, data_root / "run" / "snapshot.json"
+
+    def _run_home_scan(
+        self, extra_args: list[str]
+    ) -> tuple[int, dict[str, object], Path]:
+        root, data_root, output = self._home_target_fixture()
+        stdout_io = io.StringIO()
+        with (
+            mock.patch.object(hygiene.Path, "home", return_value=root.resolve()),
+            redirect_stdout(stdout_io),
+        ):
+            code = hygiene.main(
+                [
+                    "scan",
+                    "--target",
+                    str(root),
+                    "--output",
+                    str(output),
+                    "--data-root",
+                    str(data_root),
+                    *extra_args,
+                ]
+            )
+        return code, json.loads(stdout_io.getvalue()), output
+
+    def test_home_target_without_bound_requires_confirmation_and_never_walks(
+        self,
+    ) -> None:
+        root, data_root, output = self._home_target_fixture()
+        stdout_io = io.StringIO()
+        with (
+            mock.patch.object(hygiene.Path, "home", return_value=root.resolve()),
+            refuse_call("scan_tree"),
+            redirect_stdout(stdout_io),
+        ):
+            code = hygiene.main(
+                [
+                    "scan",
+                    "--target",
+                    str(root),
+                    "--output",
+                    str(output),
+                    "--data-root",
+                    str(data_root),
+                ]
+            )
+        payload = json.loads(stdout_io.getvalue())
+        self.assertEqual(5, code)
+        self.assertEqual("large-target-confirmation-required", payload["status"])
+        self.assertEqual(["user-home"], payload["large_target_reasons"])
+        self.assertEqual(2, payload["immediate_entries"])
+        self.assertIn("os_autoclean", payload)
+        self.assertFalse(output.exists())
+
+    def test_home_target_with_max_depth_proceeds(self) -> None:
+        code, payload, output = self._run_home_scan(["--max-depth", "1"])
+        self.assertEqual(0, code)
+        self.assertEqual("scan-complete", payload["status"])
+        self.assertTrue(output.exists())
+
+    def test_home_target_with_confirmed_flag_proceeds(self) -> None:
+        code, payload, output = self._run_home_scan(["--confirmed-large-scan"])
+        self.assertEqual(0, code)
+        self.assertEqual("scan-complete", payload["status"])
+        self.assertTrue(output.exists())
+
+    def test_ordinary_subdirectory_is_not_gated(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            root = base / "target"
+            root.mkdir()
+            (root / "junk.tmp").write_text("x", encoding="utf-8")
+            data_root = base / "plugin-data"
+            data_root.mkdir()
+            output = data_root / "run" / "snapshot.json"
+            stdout_io = io.StringIO()
+            with (
+                # Home is a different directory, so the target is not known-large.
+                mock.patch.object(
+                    hygiene.Path, "home", return_value=(base / "home").resolve()
+                ),
+                redirect_stdout(stdout_io),
+            ):
+                code = hygiene.main(
+                    [
+                        "scan",
+                        "--target",
+                        str(root),
+                        "--output",
+                        str(output),
+                        "--data-root",
+                        str(data_root),
+                    ]
+                )
+            payload = json.loads(stdout_io.getvalue())
+            self.assertEqual(0, code)
+            self.assertEqual("scan-complete", payload["status"])
+
 
 class StandingPolicyTests(unittest.TestCase):
     @staticmethod
@@ -1721,6 +1830,32 @@ class GuardTests(unittest.TestCase):
                     "permissionDecision"
                 ],
                 value,
+            )
+
+    def test_guard_scan_accepts_single_confirmed_large_scan_flag(self) -> None:
+        script = SCRIPT_DIR / "hygiene.py"
+        base = f'"{self.python_command()}" "{script}" scan --target t --output s'
+        allowed = (
+            f"{base} --confirmed-large-scan",
+            f"{base} --confirmed-large-scan --max-depth 1",
+            f"{base} --max-depth 1 --confirmed-large-scan",
+            f"{base} --confirmed-large-scan --policy p",
+        )
+        denied = (
+            f"{base} --confirmed-large-scan --confirmed-large-scan",
+            f"{base} --confirmed-large-scan v",
+        )
+        for command in allowed:
+            self.assertEqual(
+                "allow",
+                self.run_guard(command)["hookSpecificOutput"]["permissionDecision"],
+                command,
+            )
+        for command in denied:
+            self.assertEqual(
+                "deny",
+                self.run_guard(command)["hookSpecificOutput"]["permissionDecision"],
+                command,
             )
 
     def test_guard_preview_accepts_optional_authorized_data_root(self) -> None:
