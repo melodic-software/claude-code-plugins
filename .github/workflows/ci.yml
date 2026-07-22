@@ -160,10 +160,14 @@ jobs:
           # regex bodies self-match this lane's own detector. The autonomy
           # security-binding fixtures carry ADVERSARIAL host paths on purpose
           # (invented /home users the checker must reject) — sanitizing them
-          # would gut the regressions they pin.
+          # would gut the regressions they pin. Its graded-fixture manifest is
+          # the same corpus: it pins each fixture's trusted --credential-roots
+          # (a real runner home) and expected not-under-root rejections, so it
+          # necessarily carries those same host paths.
           exclude: >-
             :(exclude)plugins/guardrails/lib/path-detection/**
             :(exclude)plugins/autonomy/skills/setup/evals/fixtures/security-binding/**
+            :(exclude)plugins/autonomy/skills/setup/scripts/check-security-binding.fixtures.test.manifest.json
 
       - name: Check index-level EOL drift
         id: eol
