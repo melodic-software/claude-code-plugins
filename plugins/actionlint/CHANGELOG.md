@@ -3,6 +3,30 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0]
+
+### Added
+
+- **`stdin_read_timeout` declared in userConfig (#1134).** The shared hook lib reads
+  `CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT`, but per current docs `--config <key=value>` sets
+  only options "declared in the plugin's manifest" and `/plugin configure` offers declared
+  options — so the knob was unreachable through native config surfaces for this plugin. Declared
+  now (type/default/floor mirroring the claude-ops precedent); other hook plugins reusing the
+  shared lib should declare it the same way. Decision recorded in the setup skill's new Gotchas.
+- **`skills/setup` Gotchas surface (#1134).** Records the manifest-declaration requirement, the
+  undocumented post-install `--config` behavior, and attributes the `-shellcheck=` deadlock
+  rationale as the hook author's own observation (no matching upstream rhysd/actionlint issue as
+  of 2026-07-23; the edit-time latency rationale stands on its own). Clears the skill-quality
+  no-Gotchas WARN.
+
+### Changed
+
+- **Setup skill no longer asserts the undocumented `--config` fresh-install claim (#1134).**
+  "only applies on a fresh install (ignored once installed)" appears nowhere in current official
+  docs; the guidance now cites what the docs do say (`--config` is a `claude plugin install`
+  flag for manifest-declared options), marks post-install behavior undocumented, and keeps the
+  verified uninstall-then-install headless path.
+
 ## [0.6.0]
 
 ### Fixed
