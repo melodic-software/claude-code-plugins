@@ -157,8 +157,12 @@ Proceed with this item? (yes / pick different / skip)
 do not present it and do not block. The confirmation is satisfied by the invoker's own admission
 decision: the invocation names the already-admitted item id and states that its admission gate
 passed (for a loop lane, the work-class gate plus any required ratification marker — the lane's
-own inlined contract). Record the auto-confirmation in the item's claim comment instead of the
-transcript prompt. Every later step is unchanged — the seam claim in Step 5
+own inlined contract). The named id **binds the selection**: skip the selection steps entirely —
+do not recompute priorities or re-select — and proceed from the staleness pre-check with exactly
+that item, so the invoker's admission decision and accounting stay attached to the item actually
+executed (a concurrent invoker relies on this to avoid two slots colliding on the same top
+candidate; the seam claim still arbitrates any true race). Record the auto-confirmation in the
+item's claim comment instead of the transcript prompt. Every later step is unchanged — the seam claim in Step 5
 remains the atomic acquisition point, attended or not.
 
 ### Step 4: Staleness pre-check
