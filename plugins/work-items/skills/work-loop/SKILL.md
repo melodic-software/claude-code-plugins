@@ -189,11 +189,15 @@ Hard gates that override any classification:
   human-gated regardless of class — such items surface-read as mechanical dependency bumps but are
   trust-on-first-download changes on security-critical surfaces. Workers escalate these, never
   edit them.
-- **First-drain C3 ratification (earn-trust).** Until `first_drain_complete` is set in durable
-  state, a C3 bug-fix-shaped admission is not dispatched: queue it for ratification instead —
-  human-gated role label + a `kind=ratify-c3` machine-marked comment stating the classification
-  and intended dispatch. `/work-items:attend-queue` surfaces these; a ratified item returns to the
-  frontier as autonomous-eligible and dispatches on a later cycle.
+- **First-drain C3 ratification (earn-trust).** A C3 bug-fix-shaped item dispatches only when
+  EITHER it carries its own recorded ratification — the ratification reply
+  `/work-items:attend-queue` writes on the item's `kind=ratify-c3` machine-marked comment, which
+  is the recorded human ratification the autonomy matrix's promotion contract requires — OR
+  `first_drain_complete` is set in durable state (the blanket ratification period is over).
+  Before that, an unratified C3 bug-fix candidate is queued, not dispatched: human-gated role
+  label + a `kind=ratify-c3` comment stating the classification and intended dispatch. Once
+  ratified it returns to the frontier autonomous-eligible and dispatches on a later cycle — the
+  ratification travels with the item, so it is never re-queued.
 - **Security-surface work.** Any security-surface class routes to the frontier capability tier,
   always (per the convention's tier rules).
 
