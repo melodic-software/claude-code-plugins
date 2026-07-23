@@ -1885,6 +1885,25 @@ class GuardTests(unittest.TestCase):
         assert compound is not None
         self.assertEqual("deny", compound["hookSpecificOutput"]["permissionDecision"])
 
+    def test_engine_gate_catches_linked_aliases_of_the_bundled_engine(self) -> None:
+        """A link to the engine under another name must gate by identity (P1 review)."""
+        script = SCRIPT_DIR / "hygiene.py"
+        with tempfile.TemporaryDirectory(dir=SCRIPT_DIR) as tmp:
+            alias = Path(tmp) / "clean-engine"
+            try:
+                os.link(script, alias)
+            except OSError as exc:  # pragma: no cover - filesystem-dependent
+                self.skipTest(f"hard links unavailable here: {exc}")
+            posix_alias = str(alias).replace("\\", "/")
+            result = self.run_guard_engine_gate(
+                f'"{posix_alias}" apply --plan p --token t', "Bash", "false"
+            )
+            assert result is not None
+            self.assertEqual(
+                "deny", result["hookSpecificOutput"]["permissionDecision"]
+            )
+            os.unlink(alias)
+
     def test_engine_gate_fails_closed_on_unparsable_marker_commands(self) -> None:
         """Marker + shell operators/expansions the literal parser rejects → gate."""
         result = self.run_guard_engine_gate("python3 hygiene.py scan && echo done")

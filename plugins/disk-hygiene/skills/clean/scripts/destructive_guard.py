@@ -188,35 +188,55 @@ def _engine_gate_relevant(command: str) -> bool:
       mere mention (expansions, operators, unparsable quoting) — fail closed
       into the gate; the belt's own rules then decide.
 
-    This is a belt, not the authority: an invocation smuggled past it still
-    answers to the engine's own preview/approval-token containment (and to the
-    skill-scoped belt during active cleanup).
+    A path-like word (containing a separator) that is the SAME FILE as the
+    bundled engine — a symlink or hard link under any name — gates regardless
+    of its filename. Accepted residuals, all of the copy-evasion class the gate
+    can never close (a byte copy is a different file): a PATH-installed alias
+    with no separator, an alias inside a command the literal parser rejects
+    when the marker is absent, and a copied engine. This is a belt, not the
+    authority: an invocation smuggled past it still answers to the engine's own
+    preview/approval-token containment (and to the skill-scoped belt during
+    active cleanup).
     """
-    lowered = command.casefold()
-    if _ENGINE_MARKER not in lowered:
-        return False
-    words = _literal_shell_words(command)
-    if words is None:
-        return True
 
     def _is_interpreter(word: str) -> bool:
         base = Path(word.casefold()).name
         return base.startswith("python") or base in {"py", "py.exe"}
 
-    bundled_key = _script_path_key(
-        str(Path(__file__).resolve().with_name("hygiene.py"))
-    )
+    bundled = Path(__file__).resolve().with_name("hygiene.py")
+
+    def _samefile(word: str) -> bool:
+        try:
+            return os.path.samefile(word, bundled)
+        except OSError:
+            return False
+
+    def _same_file_as_bundled(word: str) -> bool:
+        # Separator requirement bounds the no-marker scan to path-like words.
+        if "/" not in word and "\\" not in word:
+            return False
+        return _samefile(word)
+
+    lowered = command.casefold()
+    if _ENGINE_MARKER not in lowered:
+        # No marker: the only relevant shape is a linked alias of the bundled
+        # engine invoked by path. Unparsable marker-less commands defer —
+        # failing closed here would gate every command with an operator.
+        words = _literal_shell_words(command)
+        if words is None:
+            return False
+        return any(_same_file_as_bundled(word) for word in words)
+    words = _literal_shell_words(command)
+    if words is None:
+        return True
     for index, word in enumerate(words):
         folded = word.casefold()
         if Path(folded).name == _ENGINE_MARKER:
             resolved_key = _script_path_key(word)
-            if (
-                resolved_key is not None
-                and bundled_key is not None
-                and resolved_key != bundled_key
-            ):
+            if resolved_key is not None and not _samefile(word):
                 # Provably a different existing file — a consumer's own
-                # hygiene.py, not this engine.
+                # hygiene.py, not this engine. (A link to the bundled engine
+                # named hygiene.py is the engine and stays in play.)
                 continue
             if (
                 index == 0
