@@ -8,11 +8,14 @@ All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 ### Added
 
 - **Drift findings name the push state (#1120).** `merged-pr-tip-drift` evidence now states whether
-  the local tip exists on the same-named remote-tracking ref — the fact that flips the cleanup risk
-  profile (pushed drift is recoverable from the remote after deletion; unpushed drift is data
-  loss). Computed from the remote-ref OIDs the enumeration already collected and previously
-  discarded; purely local, no network. When the remote-tracking inventory is unavailable the
-  evidence says "push state unknown" instead of guessing.
+  the local tip matches the last-fetched remote-tracking ref — the fact that changes the cleanup
+  risk profile. The wording is deliberately cached-observation, not current-reachability: a
+  tracking ref only records what the remote advertised at the last fetch (the branch may have been
+  deleted or force-pushed since), so a match reads "pushed as of the last fetch; verify current
+  remote state before relying on recoverability". Computed from the remote-ref OIDs the
+  enumeration already collected and previously discarded; purely local, no network. When the
+  remote-tracking inventory is unavailable the evidence says "push state unknown" instead of
+  guessing.
 - **Report header names the authenticated gh account (#1120).** `GitHub evidence: available
   (account: <login>)` — a dozen `HTTP 404` UNKNOWNNs read very differently under the wrong login
   than under the right one. Probed via a narrowly allowlisted `gh api user` GET with a fixed

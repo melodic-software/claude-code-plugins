@@ -999,17 +999,18 @@ analyze_repo() {
       fi
     elif [[ -n "$pr_any" && "$branch" != "$default_branch" ]]; then
       IFS='|' read -r pr_num pr_oid pr_merged pr_url <<<"$pr_any"
-      # Whether the drift commits were ever pushed flips the risk profile of cleanup (pushed
-      # drift is recoverable from the remote after deletion; unpushed drift is data loss), so the
+      # Whether the drift commits were ever pushed changes the risk profile of cleanup, so the
       # evidence names the push state from the already-collected remote-tracking inventory --
-      # purely local, no network.
+      # purely local, no network. A remote-tracking ref only records what the remote advertised
+      # at the LAST FETCH (the branch may have been deleted or force-pushed since), so the
+      # evidence is framed as cached local observation, never as current remote reachability.
       if [[ "$remote_inventory_failed" == "true" || -z "$canonical_remote" ]]; then
         push_state="remote-tracking inventory unavailable, push state unknown"
       else
-        push_state="local tip absent from the same-named remote-tracking ref (drift commits may be unpushed)"
+        push_state="local tip not on the last-fetched remote-tracking ref (drift commits may never have been pushed)"
         for ((ri = 0; ri < ${#REMOTE_BRANCH_NAMES[@]}; ri++)); do
           if [[ "${REMOTE_BRANCH_NAMES[$ri]}" == "$branch" && "${REMOTE_BRANCH_TIPS[$ri]}" == "$tip" ]]; then
-            push_state="local tip present on the same-named remote-tracking ref (drift commits pushed)"
+            push_state="local tip matches the last-fetched remote-tracking ref (pushed as of the last fetch; verify current remote state before relying on recoverability)"
             break
           fi
         done

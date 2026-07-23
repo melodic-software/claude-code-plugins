@@ -353,9 +353,9 @@ fi
 # Drift push-state evidence: stale/changed has a same-named remote-tracking ref at the SAME OID
 # (pushed); stale/gone has a drift-batch row but NO remote-tracking ref (may be unpushed).
 assert_contains "pushed drift named in evidence" \
-  "current local tip is drift-tip; local tip present on the same-named remote-tracking ref (drift commits pushed)"
+  "current local tip is drift-tip; local tip matches the last-fetched remote-tracking ref (pushed as of the last fetch; verify current remote state before relying on recoverability)"
 assert_contains "unpushed drift named in evidence" \
-  "current local tip is gone-tip; local tip absent from the same-named remote-tracking ref (drift commits may be unpushed)"
+  "current local tip is gone-tip; local tip not on the last-fetched remote-tracking ref (drift commits may never have been pushed)"
 
 # Header names the authenticated gh account; a failed login probe degrades to the plain line.
 assert_contains "header names gh account" "GitHub evidence: available (account: test-login)"
