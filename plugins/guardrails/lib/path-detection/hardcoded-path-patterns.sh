@@ -97,18 +97,18 @@ hpp::scan_text() {
   # OS-context flags — non-empty when file is unambiguously OS-scoped
   local windows_context="" macos_context="" linux_context=""
   case "$norm_file" in
-    *.ps1 | *.psm1 | *.psd1 | *.cmd | *.bat | *.reg) windows_context=1 ;;
-    */scripts/windows/* | */tests/windows/*) windows_context=1 ;;
-    *-windows.* | *-win32.*) windows_context=1 ;;
-    *) ;;
+  *.ps1 | *.psm1 | *.psd1 | *.cmd | *.bat | *.reg) windows_context=1 ;;
+  */scripts/windows/* | */tests/windows/*) windows_context=1 ;;
+  *-windows.* | *-win32.*) windows_context=1 ;;
+  *) ;;
   esac
   case "$norm_file" in
-    */scripts/macos/* | *-macos.* | *-osx.* | *-darwin.*) macos_context=1 ;;
-    *) ;;
+  */scripts/macos/* | *-macos.* | *-osx.* | *-darwin.*) macos_context=1 ;;
+  *) ;;
   esac
   case "$norm_file" in
-    */scripts/linux/* | *-linux.*) linux_context=1 ;;
-    *) ;;
+  */scripts/linux/* | *-linux.*) linux_context=1 ;;
+  *) ;;
   esac
 
   # Windows user home paths: C:\Users\<name>\ or C:/Users/<name>/
@@ -119,12 +119,14 @@ hpp::scan_text() {
     [[ -n "$match" ]] && violations="${violations}Windows user path detected:${nl}${match}${nl}${nl}"
   fi
 
-  # macOS user home paths: /Users/<name>/
+  # macOS user home paths: /Users/<name>
   # Exclusions via pipe (replaces Perl lookbehind/lookahead):
-  #   grep -v '/Users/Shared/'  — legitimate shared directory
+  #   Shared exclusion — legitimate shared directory; the body matches it bare
+  #     (no trailing separator required), so the exclusion accepts EOL,
+  #     whitespace, quote, or slash after the segment
   #   grep -vE '[A-Za-z]:[/\\]' — Windows paths (caught above)
   if [[ -z "$macos_context" ]]; then
-    match=$(printf '%s' "$content" | grep -nE "$HPP_MACOS_USER_BODY" 2>/dev/null | grep -v '/Users/Shared/' | grep -vE '[A-Za-z]:[/\\]' | head -3)
+    match=$(printf '%s' "$content" | grep -nE "$HPP_MACOS_USER_BODY" 2>/dev/null | grep -vE '/Users/Shared($|[[:space:]"/])' | grep -vE '[A-Za-z]:[/\\]' | head -3)
     [[ -n "$match" ]] && violations="${violations}macOS user path detected:${nl}${match}${nl}${nl}"
   fi
 
