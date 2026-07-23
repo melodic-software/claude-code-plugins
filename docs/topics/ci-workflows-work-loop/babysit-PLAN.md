@@ -151,7 +151,7 @@ see `PLAN.md` "Standards grounding" table; additional surfaces below):
   `source-control.md` seam is therefore the correct home for LOOP keys; per-user babysit_*
   keys stay where they are. The two surfaces coexist; B1 documents the split.
 
-### Phase B1: loop config keys on the layered seam [TODO]
+### Phase B1: loop config keys on the layered seam [DONE]
 
 One PR to claude-code-plugins (may share a branch with B2).
 
@@ -167,7 +167,7 @@ build time.
 - **Sanity Check:** `grep -c "loop" docs/conventions/consumer-config-layering/README.md` ≥ 1 (row updated).
 - **Sanity Check:** repo CI green.
 
-### Phase B2: `/source-control:babysit-loop` skill [TODO]
+### Phase B2: `/source-control:babysit-loop` skill [DONE]
 
 Review: architecture
 One PR (or same PR as B1). Thin loop layer over `/source-control:babysit-prs` — never restates

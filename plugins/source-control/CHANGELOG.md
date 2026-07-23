@@ -3,6 +3,32 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.0]
+
+### Added
+
+- **`/babysit-loop` — the loop-lane merge lane, plus repo-scoped lane keys on the layered config
+  seam.** New skill wrapping `/source-control:babysit-prs` in a self-paced standing or drain loop
+  over one repository (required `<owner/repo>` argument): each cycle invokes babysit-prs at the
+  resolved tier and scope, layered with a concurrency-safety activity grace window (default 30
+  minutes — a PR whose head moved or that received comments inside it, or a draft carrying WIP
+  signals, is report-only that cycle), do-not-merge respect (strip only behind the explicit
+  `--strip-do-not-merge` flag), the loop-lane escalation contract, and `#502` lane telemetry with a
+  durable machine-readable state block. Autonomy is decomposed into seven dimensions with tiers as
+  named presets; the merge dimension ships at the loop-lane convention's baseline rung (human merge
+  for everything except gate-proven C2-mechanical PRs — a work-class test irrespective of author)
+  and its raises bind from the team-tracked config layer only. Shared cross-lane concerns —
+  topology, stop shapes including the drain-terminal state, cycle-budget and expiry semantics,
+  capability tiers, the subagent discipline preamble — are held by citation to the marketplace
+  repository's `docs/conventions/loop-lane/` convention, and the rate-limit guard's operable floor
+  is inlined verbatim per that convention's inline-floor rule. `reference/config-resolution.md`
+  widens accordingly: the layered `.claude/source-control.md` surface now documents the
+  `babysit_loop_*` key family (stop mode, tier preset, per-dimension overrides, grace-window width,
+  cycle budget) alongside the commit-subject/PR-title convention keys, with the merge-rung key
+  declared in the consumer-config layering convention's policy-floor class. The existing
+  user-settings-scoped `babysit_*` `userConfig` keys are untouched — the reference documents the
+  personal-scalar vs repo-policy split.
+
 ## [0.23.0]
 
 ### Added
