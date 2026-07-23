@@ -73,6 +73,14 @@ else
 fi
 ```
 
+**Creation race reconcile.** Two sessions racing the first-ever upsert can both see an empty
+lookup and both POST, forking the singleton. After any POST, re-list the sentinel comments: when
+more than one exists, the LOWEST comment id is canonical — every session converges on it
+deterministically. A session whose own POST lost the race PATCHes its state into the canonical
+comment and edits its duplicate's body to a one-line tombstone pointing at the canonical id
+(sentinel line removed, so the duplicate never matches the lookup again). Later cycles read only
+the canonical comment; nothing is deleted.
+
 When the bound provider is not `github`, this upsert is unavailable: carry the same telemetry
 content — including the machine-readable state block — in the lane's cycle report/log instead,
 with a notice that the comment surface is absent.
