@@ -3,6 +3,22 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.3]
+
+### Added
+
+- **Test coverage for the least-observable engine paths (#1114).** Test-only release — no engine
+  behavior change. The paths a consumer can least verify live now have direct tests with mocked OS
+  surfaces, exercised identically on both CI lanes regardless of host platform:
+  `windows_handle_state` CreateFileW error-code mapping (32/33 → open, 5/1314 → needs_elevation,
+  unknown codes fail closed as unverified; handle closed on success; directory probes use
+  backup semantics), `posix_handle_state` lsof parsing (missing lsof, diagnostics on stderr,
+  unexpected exit codes, and timeouts all fail closed; directory vs file command shapes),
+  `windows_storage_sense_state` registry reads (set/zero/missing values, missing key),
+  `_decode_mountinfo_path` octal decoding (escapes, non-octal and truncated sequences left
+  verbatim), and the non-Git VCS marker branch (nested, enclosing, and casefolded markers all
+  flag `vcs-state-unverified`). No latent engine bugs surfaced while writing them.
+
 ## [0.7.2]
 
 ### Fixed
