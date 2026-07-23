@@ -63,6 +63,15 @@ restores the FAIL semantics.
    other than `true` disables the hook).
 8. **Hook registration** — INFO: confirm the plugin is enabled for this project
    (`/plugin` → Installed) rather than parsing settings files.
+9. **Project scope** — INFO: the hook acts only on shell files inside
+   `CLAUDE_PROJECT_DIR` (symlink-resolved membership guard in the shared hook
+   library). A `.sh`/`.bash` file written *outside* the project (temp/scratchpad
+   dirs) is silently skipped — no lint, no format, no notice. Report this so a
+   green `check` is not read as "every shell edit anywhere is covered"; it is not.
+
+When every probe passes, report the result **with the scope caveat** (item 9) —
+never an unqualified "fully operational", which would imply out-of-project shell
+edits are covered when they are deliberately skipped.
 
 ## `apply` (idempotent)
 
@@ -96,3 +105,18 @@ Re-running `apply` after everything passes changes nothing and reports "already 
   Code user settings, not `pluginConfigs`, not the plugin cache. Every prerequisite is a `PATH`
   binary or the native toggle, so remediation is guidance only.
 - Download or execute tools during `check` beyond the read-only `command -v` presence probes.
+
+## Gotchas
+
+- **`ENAMETOOLONG` when grepping the plugin cache.** Installed plugins run from a
+  deeply nested, cache-isolated path. Piping a `grep`/`rg` over the long absolute
+  path to `hooks/hook-utils.sh` (or another bundled file) can spawn-fail with
+  `ENAMETOOLONG` on some hosts. Read the file directly (or `cd` into the plugin
+  hooks dir first and grep a short relative path) rather than passing the full
+  cache path on the command line.
+- **`check` PASS ≠ every shell edit is covered.** The hook is project-scoped
+  (probe 9): shell files written outside `CLAUDE_PROJECT_DIR` are silently
+  skipped. A fully green `check` still does not cover out-of-project edits — say so.
+- **`shfmt` FAIL is opt-in-conditional.** A missing `shfmt` is only a FAIL when an
+  `.editorconfig` section governs shell files; without that opt-in it is INFO, not
+  a defect. Resolve the `.editorconfig` opt-in state before calling `shfmt` a failure.
