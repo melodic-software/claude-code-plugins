@@ -263,8 +263,10 @@ handoff, not an engine plan:
 
 The PowerShell guard lane is *designed* to turn deletion spellings into a final human permission prompt
 (the same bar as the engine apply prompt); confirm that prompt only when the command matches the exact
-approved list. Engine invocations from PowerShell stay hard-denied. **Caveat (Claude Code 2.1.218,
-Windows): this belt does not fire for the PowerShell tool** — the PowerShell tool is in preview and
+approved list. Engine invocations from PowerShell are *designed* to stay hard-denied (also subject to
+the caveat below). **Caveat (Claude Code 2.1.218, Windows): none of this PowerShell interception fires
+for the PowerShell tool** — the deletion-spelling prompt AND the engine-invocation deny are both inert;
+the PowerShell tool is in preview and
 PreToolUse hooks were reproduced not to intercept PowerShell-tool commands, so on Windows do not rely on
 this prompt; the manual lane's per-path `handoff-verify` approval and the baseline permission policy are
 the protections that actually hold. See the PowerShell-preview gotcha below and `reference/safety-model.md`.
