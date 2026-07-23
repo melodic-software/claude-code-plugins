@@ -41,14 +41,23 @@ frontier-tier subagents resolve conflicts, answer review comments, and drive a P
 opt-in per repository.
 
 This shipped default is itself the recorded baseline rung, versioned in this convention and in the
-tracked seam config. Raising any higher rung — including any C3-autonomous merge — is a config change
-on the tracked, layered config seam
-([consumer-config layering](../consumer-config-layering/README.md)), which makes it exactly the
-autonomy matrix's required **human-ratified knob flip recorded on the governance surface**
+tracked seam config. A repository adopts it through its own reviewable lane-enabling change — the
+binding/config PR that turns a lane on in that repo — which is the recorded, human-ratified act for
+the baseline rung, so no lane ever auto-merges without a reviewed change having enabled it. Raising
+any higher rung — including any C3-autonomous merge — is a config change on the tracked, layered
+config seam ([consumer-config layering](../consumer-config-layering/README.md)), which makes it
+exactly the autonomy matrix's required **human-ratified knob flip recorded on the governance
+surface**
 ([`work-classes.md`](../../../plugins/autonomy/reference/guardrails/work-classes.md#promotion-and-demotion)).
 C3-autonomous merge is therefore reachable only through a recorded, reviewable flip, never by
 default — the matrix's promotion contract honored by construction. Demotion stays automatic and
 fail-closed, per the same owner doc.
+
+**Merge-rung raises are seam-only.** Invocation arguments never raise the merge rung: a raise binds
+only from the tracked seam config layer, so every increase in merge authority is the recorded,
+reviewable act above. An argument may select a *lower* (safer) rung for a single run, never a higher
+one — argument precedence, which wins for other lane dimensions, is floored at the seam-config rung
+for merge authority.
 
 ## 2. Escalation contract
 
