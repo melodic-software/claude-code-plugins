@@ -100,7 +100,12 @@ do not turn "no verified finding" into "fleet is clean".
 ## Graceful degradation
 
 - Git missing or too old: stop before scanning and give the prerequisite error.
-- Invalid config/override/path: report the exact invalid input and stop; never silently fall back.
+- Invalid config SYNTAX, invalid override, or an invalid CLI-supplied `--repo`/`--root` path: report
+  the exact invalid input and stop; never silently fall back.
+- A config-sourced `fleet.repo`/`fleet.root` path that is missing or not a Git working tree degrades
+  per-entry, not per-run: the entry becomes an `UNKNOWN` `stale-config-entry` finding and the rest of
+  the fleet is still audited (deleting repositories right after an audit must not abort every
+  subsequent run until the config is edited).
 - `gh` missing/unauthenticated or API/timeout failure: continue Git/worktree checks, report GitHub
   evidence as `UNKNOWN`, and make no merged/migration claim. Compatible `timeout`/`gtimeout` is
   preferred; otherwise use the collector's finite TERM-to-KILL Bash watchdog.
