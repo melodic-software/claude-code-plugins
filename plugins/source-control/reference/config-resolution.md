@@ -62,11 +62,16 @@ Absent sections are absent, never empty.
   merge per key on top. **The neutral file is resolved by a three-rung precedence, identical on the
   drafting and enforcement surfaces:** (1) an explicit `convention_source` pointer (the relocation
   override — path stays repo-owned); absent one, (2) the **well-known default path**
-  `docs/conventions/source-control/commit-convention.yml` when that file exists (the common case —
-  read ONE tool-agnostic file, no pointer needed); absent both, (3) the team markdown H2 sections
-  (legacy / back-compat). Once a neutral file is resolved via rung 1 or 2 it is authoritative and
-  the fail-closed broken-file contract applies; a key it omits still falls back per key to the
-  markdown H2. Value grammar, pointer safety rules, and the fail-closed
+  `docs/conventions/source-control/commit-convention.yml` **when that file is git-tracked** (the
+  common case — read ONE tool-agnostic file, no pointer needed); absent both, (3) the team markdown
+  H2 sections (legacy / back-compat). The rung-2 **git-tracked requirement is a policy floor shared by
+  both surfaces**: an untracked or gitignored file at the default path must NOT drive resolution — it
+  is a generated/local artifact, not team convention, and honoring it would let drafting diverge from
+  the enforcement gate (which enforces the same floor). Verify with
+  `git ls-files --error-unmatch docs/conventions/source-control/commit-convention.yml`; if it is
+  untracked (or git is unavailable), skip rung 2 and fall through to the markdown H2. Once a neutral
+  file is resolved via rung 1 or 2 it is authoritative and the fail-closed broken-file contract
+  applies; a key it omits still falls back per key to the markdown H2. Value grammar, pointer safety rules, and the fail-closed
   broken-pointer contract are owned by the
   [commit-convention seam](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/commit-convention/README.md)
   — drafting honors the same contract (a declared-but-broken pointer is surfaced as a config error,
