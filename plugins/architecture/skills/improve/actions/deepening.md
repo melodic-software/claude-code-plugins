@@ -38,7 +38,7 @@ End with a **Top recommendation** section. Full scaffold and diagram patterns in
 
 Use the project's domain glossary vocabulary for the domain, and [../research/deepening/vocabulary.md](../research/deepening/vocabulary.md) vocabulary for architecture.
 
-**Durable candidate artifact.** Alongside the HTML (the human-readable companion, ephemeral in the temp dir), write a machine-readable candidate list that survives the session. Default location: `${CLAUDE_PLUGIN_DATA}/deepening-candidates-<timestamp>.md`. If the consuming project maintains its own per-task work-artifact convention (e.g. a tracked slice/working directory documented in its `CLAUDE.md` or rules), honor that instead and write the file there. Tell the user the path. This file — not the HTML — is the durable handoff a planning step consumes. One entry per candidate:
+**Durable candidate artifact.** Alongside the HTML (the human-readable companion, ephemeral in the temp dir), write a machine-readable candidate list that survives the session. Resolve its location through the marketplace topic-docs convention per this plugin's binding ([../../../reference/topic-docs.md](../../../reference/topic-docs.md)): the **memory tier** — `<memory_dir>/<topic-slug>/deepening-candidates-<YYYYMMDDTHHMMSSZ>.md`, default `.work/<topic-slug>/…`. The convention's resolution order governs (the consuming repo's `.claude/topic-docs.yaml`, then its own declared working-docs convention, then the documented defaults), as do its slug spec and the memory root's self-ignore guard; create the topic slice directory when absent. Tell the user the path. This file — not the HTML — is the durable handoff a planning step consumes. One entry per candidate:
 
 ```markdown
 ## <candidate title>

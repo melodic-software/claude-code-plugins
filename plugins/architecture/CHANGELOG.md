@@ -3,6 +3,24 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.6]
+
+### Fixed
+
+- Deepening lens: the durable candidate artifact's default location no longer uses
+  `${CLAUDE_PLUGIN_DATA}` — that token does not substitute in skill markdown content
+  (it is a path substitution for hook/monitor commands and MCP/LSP server configs
+  only), so consumers following the default literally wrote to an unexpanded
+  `${CLAUDE_PLUGIN_DATA}/…` directory; and even resolved it points at the
+  plugin-global data dir, colliding per-codebase candidates across projects. The
+  artifact now resolves through the marketplace topic-docs convention via a new
+  `reference/topic-docs.md` binding: memory tier,
+  `<memory_dir>/<topic-slug>/deepening-candidates-<timestamp>.md` (default
+  `.work/<topic-slug>/`, self-ignored — scan output cannot leak into git
+  history), honoring the consuming repo's `.claude/topic-docs.yaml` or declared
+  working-docs convention first. Eval #1 and the README persistence note
+  updated to match. (#1156; topic-docs routing per PR #1160 review)
+
 ## [0.3.5]
 
 ### Changed
