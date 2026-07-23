@@ -306,7 +306,11 @@ _leading_redir='^([0-9]*(>>?|<)&?|&>>?)[[:space:]]*'
 # exempts a stdout discard (`>/dev/null`) — that's not a Write/Edit bypass.
 _echo_file_out='(^|[^0-9&])>>?[[:space:]]*[^|&>[:space:]]'
 _echo_devnull='(^|[^0-9&])>>?[[:space:]]*/dev/null'
-_py_write='open[[:space:]]*\(|\.write[[:space:]]*\(|pathlib|path[[:space:]]*\('
+# python file-write indicators. `pathlib` / `path(` are identifier-boundary
+# anchored so they match the write-capable `pathlib.Path(` producer but NOT the
+# read-only `os.path.*path(` helpers (`normpath(`, `abspath(`, `realpath(`, …)
+# whose trailing `path(` would otherwise substring-match and false-positive.
+_py_write='open[[:space:]]*\(|\.write[[:space:]]*\(|(^|[^[:alnum:]_])pathlib|(^|[^[:alnum:]_])path[[:space:]]*\('
 
 # Flag ONLY when the producer being redirected into a real file is echo/printf
 # authoring content — not any command string that merely co-mentions an `echo`

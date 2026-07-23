@@ -41,6 +41,21 @@ run "cat file (allowed)" "cat README.md" 0
 run "python3 -c json parse (allowed)" \
   "python3 -c \"import json; print(json.loads('{}'))\"" 0
 
+# --- python-write false-positive regression ---------------------------------
+# read-only os.path.*path( helpers end in `path(` and must NOT trip the write
+# indicator; the boundary-anchored `path(` clears them while a real
+# pathlib.Path().write_text still blocks below.
+run "python3 -c os.path.normpath (allowed)" \
+  "python3 -c \"import os; print(os.path.normpath('a/b'))\"" 0
+run "python3 -c os.path.abspath (allowed)" \
+  "python3 -c \"import os; print(os.path.abspath('a'))\"" 0
+run "python3 -c os.path.realpath+relpath (allowed)" \
+  "python3 -c \"import os,sys; print(os.path.realpath(sys.argv[1]), os.path.relpath(sys.argv[1]))\"" 0
+run "python3 -c os.path.join producer (allowed)" \
+  "python3 -c \"import os; print(os.path.join('a','b'))\"" 0
+run "python3 -c pathlib write_text (blocked)" \
+  "python3 -c \"import pathlib; pathlib.Path('x').write_text('a')\"" 2
+
 # --- Redirect false-positive regression -------------------------------------
 # stderr/fd redirects + /dev/null discards are NOT file-write bypasses, even
 # when an `echo` appears in the same compound command.
