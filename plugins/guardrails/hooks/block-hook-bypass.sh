@@ -452,7 +452,13 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   # Bash lane blocks sails through under the PowerShell tool. Mirror the Bash lane's
   # two-part shape: detect the INVOCATION in a quote-blanked form (so a quoted mention
   # stays inert) and scan the RAW command for the write indicators, which legitimately
-  # live inside the quoted `-c` payload the blanking removes.
+  # live inside the quoted `-c` payload the blanking removes. Accepted floor (identical
+  # to the Bash lane's python-write rule): the indicator scan is raw-command-wide, not
+  # scoped to the `-c` argument, so a real `python3 -c` invocation compounded with an
+  # unrelated later segment that merely mentions an indicator (`python3 -c "print(1)";
+  # Write-Output "open("`) over-blocks. Fail-safe direction (over-block, never
+  # under-block) and structurally unusual for LLM output; kept byte-for-byte in step
+  # with the Bash lane rather than diverging one tool's precision from the other.
   _ps_exec_lc="$(ps::blank_quoted_spans "$COMMAND")"
   _ps_exec_lc="${_ps_exec_lc,,}"
   if [[ "$_ps_exec_lc" =~ (^|[[:space:];|&()]+)python3[[:space:]]+-c ]] &&
