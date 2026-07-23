@@ -32,7 +32,7 @@ Verification can be a second cheap read-only subagent pass or inline reproductio
 
 ## Phase 2 — Present candidates as HTML report
 
-**Re-badge first.** Before rendering, map each surviving candidate's scan `confidence` to its `recommendation` badge (`strong` → `Strong`, `worth-exploring` → `Worth exploring`, `speculative` → `Speculative`), then re-badge against the two acceptance heuristics below (deletion-test acceptance form, two-adapter rule) and the Phase 1.5 verification result — scan-time confidence is an input, not the final badge. A candidate whose `shallow-signal` failed to reproduce, or whose value rests on a one-adapter abstraction, cannot carry `Strong`.
+**Re-badge first.** Before rendering, map each surviving candidate's scan `confidence` to its `recommendation` badge (`strong` → `Strong`, `worth-exploring` → `Worth exploring`, `speculative` → `Speculative`), then re-badge against the two acceptance heuristics below (deletion-test acceptance form, two-adapter rule) and the Phase 1.5 verification result — scan-time confidence is an input, not the final badge. A candidate whose `shallow-signal` failed to reproduce, or whose value rests on a one-adapter abstraction, cannot carry `Strong`. **Promotion closes the same gate:** if re-badging lifts a candidate the scan rated below `strong` up to `Strong`, apply the Phase 1.5 reproduction to its `shallow-signal` *before* it carries the badge — a `Strong` claim reaches the report reproduced no matter which way the badge was reached, so the Phase 1.5 guarantee holds across both the original strong set and any promotions.
 
 Write a self-contained HTML file via a secure temp-file primitive so the path is unpredictable and permissions are restrictive. On Unix/Linux, create it with `mktemp` (e.g. `mktemp --tmpdir deepening-review-XXXXXX.html` or `mktemp -t deepening-review.XXXXXX.html`); on Windows, use a user-scoped temp under `%LOCALAPPDATA%\Temp` or equivalent. Open for user: `start <path>` on Windows, `open <path>` on macOS, `xdg-open <path>` on Linux. Report the absolute path.
 
@@ -60,7 +60,8 @@ Use the project's domain glossary vocabulary for the domain, and [../research/de
 - recommendation: Strong | Worth exploring | Speculative
 - problem: <one sentence>
 - deepening: <one sentence, narrative — the shallow-module friction, not an interface proposal; e.g. "three modules wrap a single call each, adding no behavior">
-- shallow-signal: <the concrete, verified observation reproduced in Phase 1.5 — evidence, not narrative; e.g. "OrderHandler/OrderValidator/OrderRepo each forward their one argument unmodified (confirmed by reading all three)">
+- shallow-signal: <the concrete observation — evidence, not narrative; e.g. "OrderHandler/OrderValidator/OrderRepo each forward their one argument unmodified (confirmed by reading all three)". Reproduced in Phase 1.5 for every `Strong` candidate and every runtime-claim; for a candidate left below `Strong` with no runtime-claim it is the scan's as-reported signal, not yet reproduced>
+- signal-verified: <true once Phase 1.5 reproduced this candidate's shallow-signal (all `Strong` candidates, all runtime-claims); false for a candidate that never passed the gate — so the planning handoff never reads an unverified signal as verified>
 - agreed-shape: <empty until Phase 3 — filled when the user picks and the shape is grilled: interface entry points, what sits behind the seam, tests that survive>
 - rejected-reason: <only if status is rejected and the reason is load-bearing>
 ```
