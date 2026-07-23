@@ -68,7 +68,6 @@ run_state() {
     FLEET_STATE_MARKETPLACES_JSON="$case_dir/known_marketplaces.json" \
     FLEET_STATE_USER_SETTINGS="$case_dir/user_settings.json" \
     FLEET_STATE_CATALOG_DIR="$case_dir/catalog" \
-    FLEET_STATE_HOOK_UTILS="$SCRIPT_DIR/../../../hooks/hook-utils.sh" \
     "$@" \
     bash "$SCRIPT" "${ARGS[@]}" 2>&1
 }
@@ -365,7 +364,6 @@ out=$(
     FLEET_STATE_MARKETPLACES_JSON="$case_dir/known_marketplaces.json" \
     FLEET_STATE_USER_SETTINGS="$case_dir/user_settings.json" \
     FLEET_STATE_CATALOG_DIR="$case_dir/catalog" \
-    FLEET_STATE_HOOK_UTILS="$SCRIPT_DIR/../../../hooks/hook-utils.sh" \
     bash "$SCRIPT" --marketplace market1 2>&1
 )
 current_flag=$(jq -r '.installed[0].currentProject' <<<"$out" 2>/dev/null)
@@ -564,11 +562,115 @@ out=$(timeout 10 env \
   FLEET_STATE_MARKETPLACES_JSON="$case_dir/known_marketplaces.json" \
   FLEET_STATE_USER_SETTINGS="$case_dir/user_settings.json" \
   FLEET_STATE_CATALOG_DIR="$case_dir/catalog" \
-  FLEET_STATE_HOOK_UTILS="$SCRIPT_DIR/../../../hooks/hook-utils.sh" \
   bash "$SCRIPT" --marketplace 2>&1)
 rc=$?
 assert_exit "--marketplace no arg: exit 2, not an infinite loop" 2 "$rc"
 assert_contains "--marketplace no arg: actionable error" "$out" "requires a name"
+
+# ============================================================================
+# Case: FLEET_STATE_HOOK_UTILS is no longer honored — a caller-supplied path is
+# never sourced (security regression guard). hook-utils.sh resolves only from
+# the script's own location, so an inherited or hostile environment cannot
+# redirect `source` at an arbitrary file. If a future refactor re-introduces an
+# env-based override, the decoy below is re-sourced and its marker surfaces in
+# the output, failing this case.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": []}'
+write "$case_dir/evil-hook-utils.sh" 'echo "PWNED-HOOK-UTILS-SOURCED"'
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir" "FLEET_STATE_HOOK_UTILS=$case_dir/evil-hook-utils.sh")
+rc=$?
+assert_exit "hook-utils override ignored: runs to completion (exit 0)" 0 "$rc"
+case "$out" in
+*PWNED-HOOK-UTILS-SOURCED*) fail "hook-utils override ignored: caller-supplied path must NOT be sourced" "decoy marker present in output" ;;
+*) pass "hook-utils override ignored: caller-supplied path not sourced" ;;
+esac
+
+# ============================================================================
+# Case: an inherited, exported cd shell function cannot redirect hook-utils
+# resolution (security regression guard). Bash imports environment-exported
+# functions (BASH_FUNC_cd%%) before the script runs; a plain `cd` in the
+# script's root-resolution would then run the attacker's function and make
+# PLUGIN_ROOT_DEFAULT point at an attacker tree, sourcing an arbitrary file.
+# The script uses `builtin cd`, so the exported function is bypassed. If a
+# future refactor drops `builtin`, the hijacked cd redirects resolution to the
+# decoy root below and its marker surfaces in the output, failing this case.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": []}'
+mkdir -p "$case_dir/evilroot/hooks"
+write "$case_dir/evilroot/hooks/hook-utils.sh" 'echo "PWNED-CD-SHADOW-SOURCED"'
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir" "BASH_FUNC_cd%%=() { builtin cd \"$case_dir/evilroot\"; }")
+rc=$?
+assert_exit "exported cd shadow ignored: runs to completion (exit 0)" 0 "$rc"
+case "$out" in
+*PWNED-CD-SHADOW-SOURCED*) fail "exported cd shadow ignored: hijacked cd must NOT redirect source" "decoy marker present in output" ;;
+*) pass "exported cd shadow ignored: hook-utils resolved from real script location" ;;
+esac
+
+# ============================================================================
+# Case: an attacker-controlled PATH cannot redirect hook-utils resolution
+# through the directory resolver (security regression guard). The script
+# derives its own directory with parameter expansion, never an external
+# `dirname`, so a hostile `dirname` planted at the front of PATH is never
+# consulted and hook-utils.sh is still sourced from the real script location.
+# If a future refactor reintroduces `dirname` (or any PATH-resolved tool) on
+# the resolution path, the decoy below is sourced and its marker surfaces,
+# failing this case.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": []}'
+decoy_scripts="$case_dir/evilroot/skills/plugins/scripts"
+mkdir -p "$decoy_scripts" "$case_dir/evilroot/hooks"
+write "$case_dir/evilroot/hooks/hook-utils.sh" 'echo "PWNED-DIRNAME-PATH-SOURCED"'
+attack_bash_bin=$(command -v bash)
+attack_bash_dir=$(dirname "$attack_bash_bin")
+attack_bin_dir="$case_dir/attack-bin"
+mkdir -p "$attack_bin_dir"
+cp "$attack_bash_bin" "$attack_bin_dir/"
+shopt -s nullglob
+for dll in "$attack_bash_dir"/*.dll; do cp "$dll" "$attack_bin_dir/"; done
+shopt -u nullglob
+# A hostile `dirname` that ignores its argument and points the resolver at the
+# decoy tree; reachable only if the script resolves its directory via PATH.
+printf '#!/bin/sh\nprintf "%%s\\n" "%s"\n' "$decoy_scripts" >"$attack_bin_dir/dirname"
+chmod +x "$attack_bin_dir/dirname"
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir" "PATH=$attack_bin_dir")
+case "$out" in
+*PWNED-DIRNAME-PATH-SOURCED*) fail "hostile PATH dirname ignored: PATH-planted dirname must NOT redirect source" "decoy marker present in output" ;;
+*) pass "hostile PATH dirname ignored: hook-utils resolved without an external dirname" ;;
+esac
+
+# ============================================================================
+# Case: an inherited, exported `source` shell function cannot hijack the
+# hook-utils source (security regression guard). Bash imports environment-
+# exported functions (BASH_FUNC_source%%) before the script runs; a plain
+# `source` would then invoke the attacker's function, which receives the
+# correctly resolved real path but can ignore it and run arbitrary code —
+# making the whole trusted-path resolution moot. The script uses `builtin
+# source`, bypassing the exported function. If a future refactor drops
+# `builtin`, the decoy function below runs and its marker surfaces, failing
+# this case.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": []}'
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir" 'BASH_FUNC_source%%=() { echo "PWNED-SOURCE-SHADOW"; }')
+case "$out" in
+*PWNED-SOURCE-SHADOW*) fail "exported source shadow ignored: hijacked source must NOT run" "decoy marker present in output" ;;
+*) pass "exported source shadow ignored: real hook-utils sourced via builtin" ;;
+esac
 
 # --- Summary -------------------------------------------------------------
 printf '\n%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
