@@ -158,6 +158,27 @@ def _plugin_data_root_from_root(plugin_root: str) -> str | None:
     return None
 
 
+_MODE_FLAG = "--mode"
+_MODE_BELT = "belt"
+_MODE_ENGINE_GATE = "engine-gate"
+_ENGINE_MARKER = "hygiene.py"
+
+
+def resolve_mode() -> str:
+    """Resolve which registration surface launched this guard.
+
+    ``belt`` (default) is the skill-scoped deployment: deny-by-default Bash and
+    deletion-spelling PowerShell discipline, tolerable only while the clean skill
+    is the active work. ``engine-gate`` is the plugin-level deployment: it cares
+    ONLY about engine invocations (kill switch + data-root authority must hold in
+    every session), so any command that does not reference the engine defers
+    instantly — a plugin-level hook must never tax unrelated work. An
+    unrecognized or absent value falls back to ``belt``, the stricter mode.
+    """
+    value = _argv_flag_value(sys.argv[1:], _MODE_FLAG)
+    return value if value in {_MODE_BELT, _MODE_ENGINE_GATE} else _MODE_BELT
+
+
 _DISK_HYGIENE_ENABLED_FLAG = "--disk-hygiene-enabled"
 _DISK_HYGIENE_ENABLED_ENV = "CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED"
 _DISK_HYGIENE_ENABLED_PLACEHOLDER = "${user_config.disk_hygiene_enabled}"
@@ -480,6 +501,14 @@ def main() -> int:
                 )
             )
         )
+        return 0
+
+    if (
+        resolve_mode() == _MODE_ENGINE_GATE
+        and _ENGINE_MARKER not in command.casefold()
+    ):
+        # Plugin-level gate: nothing engine-shaped in the command — defer with no
+        # output so unrelated work in every consumer session is untouched.
         return 0
 
     enabled = resolve_disk_hygiene_enabled()

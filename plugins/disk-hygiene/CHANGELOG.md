@@ -3,6 +3,28 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0]
+
+### Added
+
+- **Split guard registration — plugin-level engine gate delivers the kill switch and data-root
+  authority (#1105, #1106, #1107).** The destructive guard now registers on two surfaces. A NEW
+  plugin-level `hooks/hooks.json` PreToolUse hook runs `destructive_guard.py --mode engine-gate`
+  with `${user_config.disk_hygiene_enabled}` and `${CLAUDE_PLUGIN_DATA}` substituted in exec form
+  (both channels docs-verified) — so a configured `false` (audit-only mode) is guard-enforced
+  against engine invocations in every session, and `--data-root` authority no longer depends on
+  reconstruction from the plugin root. In engine-gate mode the guard defers instantly with no
+  output for any command that does not reference the engine, so unrelated work is never taxed. The
+  skill-scoped belt (deny-by-default Bash + deletion-spelling PowerShell discipline) is unchanged
+  and remains scoped to active cleanup. GuardTests now exercise the exact channel set the shipped
+  plugin-level registration receives (`run_guard_engine_gate` grid), closing the
+  tests-prove-undelivered-channels gap. Trust-surface delta recorded in the README's
+  plugin-acceptance security review section. Docs record the observed-vs-documented hook-lifetime
+  discrepancy (session-long belt firing, producer-reported — #1105 tracks the interactive repro)
+  and that PreToolUse hooks fire inside subagents. The maintainer's re-affirmation of the
+  Windows-engine-execution decline (#1116) is recorded in the safety model with its reversal
+  trigger.
+
 ## [0.6.5]
 
 ### Fixed

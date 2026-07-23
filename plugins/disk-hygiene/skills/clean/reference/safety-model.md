@@ -58,6 +58,13 @@ device/inode/type identity, proves it empty through that descriptor, rechecks th
 identity, and only then calls descriptor-relative `rmdir`. Windows and macOS return
 `execution-platform-unsupported`; their audit and report behavior is unchanged.
 
+That decline was re-examined and AFFIRMED by the maintainer on 2026-07-23 (issue #1116), against
+the framing "new-trust-surface risk of a Windows deletion lane vs the residual approval-to-execution
+window the decline leaves in the manual lane": with the manual lane's per-item revalidation rules
+and the planned `handoff-verify` revalidation (#1109), the residual window is small, while a
+descriptor-anchored Windows apply is a large new surface. Recorded reversal trigger: a post-#1109
+near-miss recurrence in the manual lane reopens this as a design issue with full security review.
+
 The skill-scoped Bash guard accepts only complete literal words in the three declared engine command
 shapes. It rejects every Bash expansion family, glob/word-splitting input, redirection, operator,
 escape, and compound-command form before validating arguments. Canonical script-path comparison uses
@@ -102,18 +109,22 @@ switch. When the guard sees execution enabled they are downgraded to a final hum
 when it sees a configured `false` (audit-only mode) they are denied outright, so the kill switch would
 block deletions on the PowerShell lane too and not only the Bash engine apply.
 
-That kill-switch enforcement is, however, only as reachable as the value is. The guard reads it from a
-`--disk-hygiene-enabled` argv flag or the `CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED` environment
-variable, but a skill-frontmatter hook receives neither — Claude Code substitutes only
-`${CLAUDE_PLUGIN_ROOT}` into a skill hook's args and does not inject `CLAUDE_PLUGIN_OPTION_*` into its
-environment. So in the bundled skill deployment the guard defaults to enabled and cannot honor a
-configured `false` by denying; it still forces a human prompt before every mutation, and the model
-itself reads the substituted `disk_hygiene_enabled` value from the skill content and self-enforces
-audit-only. Enforcing the kill switch in the guard needs a delivery channel skill hooks do not yet
-have (a plugin-scoped hook or MCP server that can carry the value, or Claude Code adding
-`${user_config.*}` substitution for skill hooks). Even when the switch is reachable, the PowerShell
-lane is a raised bar, not fail-closed: an unknown mutation spelling passes it, so the engine's own
-containment, revalidation, and platform gates remain the deletion authority.
+Kill-switch enforcement is only as reachable as the value is, and the guard now registers on two
+surfaces with different reach. The **plugin-level engine gate** (`hooks/hooks.json`, exec form,
+`--mode engine-gate`) receives `${user_config.disk_hygiene_enabled}` and `${CLAUDE_PLUGIN_DATA}`
+by substitution — channels Claude Code documents for plugin hooks — so a configured `false` is
+guard-enforced against every engine invocation in every session, whether or not the clean skill is
+active. The gate defers instantly (no output) for any command that does not reference the engine,
+so it never taxes unrelated work; its coverage marker is the engine script name, a belt against
+casual invocation, not an authority (renaming the script evades the gate but not the engine's own
+preview/approval-token containment). The **skill-scoped belt** (the clean skill's frontmatter
+hook) still receives neither the substitution nor the `CLAUDE_PLUGIN_OPTION_*` environment
+variable, so on its surface the guard defaults to enabled; that is now a defense-in-depth
+redundancy rather than the only enforcement, and the model additionally reads the substituted
+`disk_hygiene_enabled` value from the skill content and self-enforces audit-only. Even when the
+switch is reachable, the PowerShell lane is a raised bar, not fail-closed: an unknown mutation
+spelling passes it, so the engine's own containment, revalidation, and platform gates remain the
+deletion authority.
 
 A depth-limited scan records every directory it declined to enter in `truncated_paths`. Truncated
 directories have no captured descendant set, so the preview blocks them (and anything beneath them)

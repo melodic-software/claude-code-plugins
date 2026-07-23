@@ -28,10 +28,11 @@ INFO — a deliberately disabled plugin is not broken. Report the probes informa
 note that re-enabling restores the FAIL semantics.
 
 1. **Python floor on `PATH`** — the interpreter used by scanning, validation, the
-   skill-scoped guard, and cleanup. (The guard is skill-scoped: its PreToolUse hook fires
-   only within the `clean` skill's context, so this skill's own probes — and any direct
-   `hygiene.py` invocation outside `clean` — rely on the engine's built-in containment,
-   not the hook.) The required version has one origin: the `MIN_PYTHON`
+   guard, and cleanup. (The guard registers on two surfaces: a plugin-level engine gate
+   that fires in every session but acts only on engine-referencing commands, and the
+   skill-scoped belt inside the `clean` skill's context. This skill's own probes — and
+   any direct `hygiene.py` invocation — meet the engine gate; the deny-by-default belt
+   applies only during `clean`.) The required version has one origin: the `MIN_PYTHON`
    constant in `${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py` — parse it from
    there (`grep -m1 '^MIN_PYTHON' …`) and probe the interpreter against that value; do not
    recite a version number from this file or the README. FAIL if absent or older, naming

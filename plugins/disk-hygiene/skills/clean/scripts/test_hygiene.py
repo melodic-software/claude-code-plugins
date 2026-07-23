@@ -1785,6 +1785,89 @@ class GuardTests(unittest.TestCase):
                 command,
             )
 
+    def run_guard_engine_gate(
+        self, command: str, tool_name: str = "Bash", enabled_arg: str = "true"
+    ) -> dict[str, object] | None:
+        """Drive the guard as the plugin-level engine-gate deployment would.
+
+        Supplies ``--mode engine-gate`` plus both plugin-level substitution
+        channels (``--disk-hygiene-enabled`` and ``--authorized-data-root``) on
+        argv, with the env channel absent — mirroring the shipped
+        ``hooks/hooks.json`` exec-form registration. Returns None when the guard
+        deferred with no output.
+        """
+        argv = [
+            str(SCRIPT_DIR / "destructive_guard.py"),
+            "--mode",
+            "engine-gate",
+            "--plugin-root",
+            str(SCRIPT_DIR.parent.parent.parent),
+            "--authorized-data-root",
+            str(SCRIPT_DIR / "data-root"),
+            "--disk-hygiene-enabled",
+            enabled_arg,
+        ]
+        environment = {
+            key: value
+            for key, value in os.environ.items()
+            if key != "CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED"
+        }
+        stdin = io.StringIO(
+            json.dumps({"tool_name": tool_name, "tool_input": {"command": command}})
+        )
+        stdout = io.StringIO()
+        with (
+            mock.patch("sys.stdin", stdin),
+            redirect_stdout(stdout),
+            mock.patch.object(guard.sys, "argv", argv),
+            mock.patch.dict("os.environ", environment, clear=True),
+        ):
+            self.assertEqual(0, guard.main())
+        text = stdout.getvalue().strip()
+        return json.loads(text) if text else None
+
+    def test_engine_gate_defers_all_non_engine_commands(self) -> None:
+        """Plugin-level deployment must never tax unrelated work in a session."""
+        for tool_name, command in (
+            ("Bash", "git --version"),
+            ("Bash", "rm -rf /tmp/unrelated"),
+            ("PowerShell", "Remove-Item -Recurse C:/tmp/unrelated"),
+            ("PowerShell", "git status --short"),
+        ):
+            self.assertIsNone(
+                self.run_guard_engine_gate(command, tool_name), (tool_name, command)
+            )
+
+    def test_engine_gate_gates_engine_invocations(self) -> None:
+        script = SCRIPT_DIR / "hygiene.py"
+        powershell = self.run_guard_engine_gate(
+            f'& python "{script}" scan --target t --output s', "PowerShell"
+        )
+        assert powershell is not None
+        self.assertEqual(
+            "deny", powershell["hookSpecificOutput"]["permissionDecision"]
+        )
+        malformed = self.run_guard_engine_gate(f'python3 "{script}" apply --oops')
+        assert malformed is not None
+        self.assertEqual(
+            "deny", malformed["hookSpecificOutput"]["permissionDecision"]
+        )
+
+    def test_engine_gate_fails_closed_on_engine_when_disabled(self) -> None:
+        """Engine-referencing Bash under audit-only mode must deny, never defer.
+
+        The argv kill-switch decision logic itself is proven by
+        ``test_kill_switch_blocks_every_lane_via_argv``; this asserts the
+        engine-gate mode routes an engine-referencing command into that logic
+        instead of deferring past it.
+        """
+        script = SCRIPT_DIR / "hygiene.py"
+        result = self.run_guard_engine_gate(
+            f'python3 "{script}" scan --target t --output s', "Bash", "false"
+        )
+        assert result is not None
+        self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
+
     def run_guard_powershell(self, command: str) -> dict[str, object] | None:
         stdin = io.StringIO(
             json.dumps({"tool_name": "PowerShell", "tool_input": {"command": command}})
