@@ -24,6 +24,16 @@ Launch the `security-reviewer` agent with:
 
 The agent covers per-ecosystem injection/XSS/deserialization/path-traversal checks, the OWASP Top 10, security headers, and auth-specific checks (see the agent definition for the full baseline).
 
+## Deep-scan escalation
+
+When the ask outgrows a diff-scoped agent pass — a whole-repository audit, threat-model depth, or
+independently verified findings with patch suggestions — recommend the official Claude Security
+plugin's `/claude-security` command instead of widening this mode. Presence-gated: route to it only
+when its command appears in the skill listing; otherwise suggest installing
+`claude-security@claude-plugins-official`. Jobs, prerequisites, and output contract are
+upstream-owned — do not restate them; see
+<https://code.claude.com/docs/en/claude-security>.
+
 ## After the review
 
 - **CRITICAL findings** — fix immediately, no exceptions

@@ -5,15 +5,13 @@
 
 # Heavy trees that hold no cleanup targets we own — never descended by the
 # single-walk enumeration (`-prune`) and, symmetrically, never accepted from a
-# manifest at `--apply`, so both sides share one prune set. SSOT: the scan tier
-# still uses the per-glob CLEAN_FIND_EXCLUDE_* below (its migration to this walk
-# is deferred).
+# manifest at `--apply`, so both sides share one prune set. The caches/build/scan
+# tiers all enumerate through this engine; only preflight's narrow recent-build
+# probe still runs a standalone find (CLEAN_FIND_EXCLUDE_GIT below).
 CLEAN_PRUNE_DIRS=(.git node_modules .venv)
 
-# Universal find exclusions (cleanup-config.md intro)
+# Standalone-find exclusion for preflight's recent-build probe (cleanup-config.md intro).
 CLEAN_FIND_EXCLUDE_GIT='*/.git/*'
-CLEAN_FIND_EXCLUDE_VENV='*/.venv/*'
-CLEAN_FIND_EXCLUDE_NODE_MODULES='*/node_modules/*'
 
 # caches — explicit repo-root paths (trailing slash = directory; no slash on files).
 # Generic across ecosystems; regenerated on the next tool run.

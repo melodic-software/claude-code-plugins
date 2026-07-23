@@ -1,0 +1,69 @@
+{
+  "skill_name": "clarify",
+  "evals": [
+    {
+      "id": 1,
+      "name": "restructures-previous-round-faithfully-quoting-terms",
+      "prompt": "make this clear",
+      "expected_output": "Fires on 'make this clear' with an empty argument, targets the previous assistant response (a dense round of several cross-referenced questions), and restructures it: one chunk per decision, each chunk carrying the original question number as a back-link, and each recommendation's operative terms quoted verbatim rather than paraphrased. Does not lower the reading level or replace terms with plain-language substitutes.",
+      "files": [],
+      "expectations": [
+        "Targets the previous assistant response without asking what to clarify",
+        "Splits the content into one-decision-at-a-time chunks",
+        "Each chunk preserves the original item's own number/identifier as a back-link",
+        "Operative terms of each recommendation appear verbatim, not paraphrased",
+        "Does not simplify or lower the altitude of the content"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "declares-omissions-and-states-lens",
+      "prompt": "help me digest this — I can't parse it",
+      "expected_output": "Restructures the target and honors the remaining fidelity rules: anything from the original not carried forward is named in an explicit 'left out' note rather than silently dropped, and the clarification closes by stating it is a lens — final answers are validated against the original text, not the restructuring.",
+      "files": [],
+      "expectations": [
+        "Explicitly names anything omitted from the original rather than dropping it silently",
+        "Closes with a line stating the clarification is a lens and to validate answers against the original",
+        "Keeps every decision the original held (no decisions lost to compression)"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "artifact-forward-decision-table-two-numbering-systems",
+      "prompt": "break this down, this is a wall of text",
+      "expected_output": "For decision-dense content, renders a decision table with numbered rows and the columns item | recommendation | alternative | what-you're-deciding. The row number (the table's own) is used for answer-mapping; the item column carries the original identifier as a back-link — the two numbering systems stay distinct. Recommendation and alternative cells carry verbatim operative terms. If the Artifact surface is available it publishes an HTML artifact (after loading artifact-design); otherwise it degrades to a local HTML file or structured terminal markdown.",
+      "files": [],
+      "expectations": [
+        "Produces a decision table with the columns item | recommendation | alternative | what-you're-deciding",
+        "Uses distinct numbering: the table's own row number for answer-mapping and the original item number as a back-link",
+        "Recommendation/alternative cells carry verbatim operative terms, not paraphrase",
+        "Selects the render medium (published artifact / local HTML file / terminal markdown) by artifact-surface availability and content size"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "boundary-does-not-lower-altitude-for-explain-request",
+      "prompt": "explain this simply, ELI5 — I don't get what the previous message means",
+      "expected_output": "Recognizes this as an altitude request (plain-language / ELI5 comprehension gap), which is education:explain's lane, not a structure problem. Does not respond by lowering the reading level or substituting an analogy under the guise of clarifying; either routes to the plain-language explainer or, if it proceeds, holds altitude fixed and only restructures — never both.",
+      "files": [],
+      "expectations": [
+        "Does not treat an ELI5 / 'explain simply' request as a cue to lower the content's altitude",
+        "Recognizes the altitude-vs-structure boundary and routes plain-language requests to education:explain",
+        "If it acts at all, it changes arrangement only and preserves precision and reading level"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "explicit-target-overrides-and-defines-session-jargon",
+      "prompt": "/adhd:clarify the design memo you wrote three messages ago",
+      "expected_output": "Uses the explicit target (the named earlier message) instead of the immediately previous response, re-reads that artifact's actual text, and restructures it — including a short glossary that defines the session-local shorthand it used (coined terms, internal labels) in plain words at the same altitude, without simplifying the concepts those terms name.",
+      "files": [],
+      "expectations": [
+        "Honors the explicit target rather than defaulting to the immediately previous message",
+        "Re-reads the actual artifact text rather than working from memory of it",
+        "Includes a glossary defining session-local jargon in plain words",
+        "Defines the shorthand without lowering the altitude of the underlying concept"
+      ]
+    }
+  ]
+}
