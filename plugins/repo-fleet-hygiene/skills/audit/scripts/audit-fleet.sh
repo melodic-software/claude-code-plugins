@@ -341,6 +341,12 @@ resolve_input_path() {
   fi
 }
 
+# Entries before these counts came from the command line; entries appended from config below sit
+# at or past them. The failure unit differs by origin: a CLI typo should stop the run, but a
+# config-sourced path that has since been deleted degrades per-entry (stale-config-entry UNKNOWN)
+# so removing five repos right after an audit cannot abort every subsequent fleet run.
+CLI_ROOT_COUNT=${#ROOT_ARGS[@]}
+CLI_REPO_COUNT=${#REPO_ARGS[@]}
 if [[ -n "$CONFIG_FILE" ]]; then
   while IFS= read -r -d '' value; do
     [[ -n "$value" ]] && ROOT_ARGS+=("$(resolve_input_path "$value" "$CONFIG_DIR")")
@@ -391,13 +397,33 @@ path_key() {
 
 TARGETS=()
 TARGET_COMMON_KEYS=()
+# Stale config-sourced entries collected during argument processing; the report header has not
+# printed yet, so they are emitted as per-entry UNKNOWN findings once it has.
+STALE_CONFIG_PATHS=()
+STALE_CONFIG_REASONS=()
+# add_target <path> <origin>: origin "cli" hard-fails on an invalid path (a typo should stop the
+# run); origin "config" records a stale-config-entry and continues (the entry, not the run, is
+# the failure unit for a tracked fleet config). Invalid config SYNTAX still hard-fails upstream.
 add_target() {
-  local candidate="$1" top common common_key existing
-  [[ -d "$candidate" ]] || fail "repository directory not found: $candidate"
-  top="$(run_git_probe -C "$candidate" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')" ||
-    fail "not a Git working tree: $candidate"
-  common="$(run_git_probe -C "$candidate" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | tr -d '\r')" ||
-    fail "cannot resolve Git common directory: $candidate"
+  local candidate="$1" origin="${2:-cli}" top common common_key existing
+  if [[ ! -d "$candidate" ]]; then
+    [[ "$origin" == "config" ]] || fail "repository directory not found: $candidate"
+    STALE_CONFIG_PATHS+=("$candidate")
+    STALE_CONFIG_REASONS+=("configured fleet.repo path is not a directory")
+    return 0
+  fi
+  top="$(run_git_probe -C "$candidate" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')" || {
+    [[ "$origin" == "config" ]] || fail "not a Git working tree: $candidate"
+    STALE_CONFIG_PATHS+=("$candidate")
+    STALE_CONFIG_REASONS+=("configured fleet.repo path is not a Git working tree")
+    return 0
+  }
+  common="$(run_git_probe -C "$candidate" rev-parse --path-format=absolute --git-common-dir 2>/dev/null | tr -d '\r')" || {
+    [[ "$origin" == "config" ]] || fail "cannot resolve Git common directory: $candidate"
+    STALE_CONFIG_PATHS+=("$candidate")
+    STALE_CONFIG_REASONS+=("cannot resolve the Git common directory for the configured path")
+    return 0
+  }
   common_key="$(path_key "$common")"
   for existing in "${TARGET_COMMON_KEYS[@]:-}"; do
     [[ "$existing" == "$common_key" ]] && return 0
@@ -406,8 +432,16 @@ add_target() {
   TARGET_COMMON_KEYS+=("$common_key")
 }
 
+repo_index=0
 for repo in "${REPO_ARGS[@]:-}"; do
-  [[ -n "$repo" ]] && add_target "$repo"
+  if [[ -n "$repo" ]]; then
+    if [[ "$repo_index" -lt "$CLI_REPO_COUNT" ]]; then
+      add_target "$repo" cli
+    else
+      add_target "$repo" config
+    fi
+  fi
+  repo_index=$((repo_index + 1))
 done
 
 discover_repositories() {
@@ -430,9 +464,22 @@ discover_repositories() {
 
 ROOT_LABELS=()
 ROOT_COUNTS=()
+root_index=0
 for root in "${ROOT_ARGS[@]:-}"; do
-  [[ -n "$root" ]] || continue
-  [[ -d "$root" ]] || fail "discovery root not found: $root"
+  [[ -n "$root" ]] || {
+    root_index=$((root_index + 1))
+    continue
+  }
+  if [[ ! -d "$root" ]]; then
+    # Same per-entry degradation as add_target: a configured root that has since been deleted
+    # is a stale-config-entry finding, not a run abort; a CLI --root typo still stops the run.
+    [[ "$root_index" -ge "$CLI_ROOT_COUNT" ]] || fail "discovery root not found: $root"
+    STALE_CONFIG_PATHS+=("$root")
+    STALE_CONFIG_REASONS+=("configured fleet.root path is not a directory")
+    root_index=$((root_index + 1))
+    continue
+  fi
+  root_index=$((root_index + 1))
   # Per-root visibility: attribute newly discovered repositories to this root so a root that
   # contributed none is still reported. Deduplication credits a repo shared by nested/overlapping
   # roots to the first root that reaches it, keeping sum(root counts) + explicit --repo == discovered.
@@ -574,6 +621,9 @@ FINDINGS_LOW=0
 FINDINGS_UNKNOWN=0
 FINDINGS_ACKED=0
 REPOS_AUDITED=0
+# Per-repo GitHub identity observations for the cross-repo duplicate-checkout pass after the loop.
+IDENT_KEYS=()
+IDENT_PATHS=()
 # Per-repository finding tally, reset by analyze_repo: a section that ends with zero findings
 # emits an explicit "Findings: none" marker so clean output is distinguishable from truncation.
 REPO_FINDING_COUNT=0
@@ -657,6 +707,10 @@ analyze_repo() {
   print_field Canonical "$canonical"
   print_field 'Canonical resolution' "$override_source"
   print_field Remote "${discovered_key:-unknown}"
+  if [[ -n "$discovered_key" ]]; then
+    IDENT_KEYS+=("$(lower "$discovered_key")")
+    IDENT_PATHS+=("$discovered")
+  fi
 
   if [[ -z "$discovered_key" ]]; then
     emit_finding UNKNOWN github-identity-unavailable "$discovered" \
@@ -1075,8 +1129,46 @@ for ((root_index = 0; root_index < ${#ROOT_LABELS[@]}; root_index++)); do
   printf ': %s repositories\n' "${ROOT_COUNTS[$root_index]}"
 done
 
+# Config-sourced entries that failed per-entry validation during argument processing (the header
+# had not printed yet); each is a visible finding, never a silent skip.
+for ((stale_index = 0; stale_index < ${#STALE_CONFIG_PATHS[@]}; stale_index++)); do
+  printf '\n'
+  emit_finding UNKNOWN stale-config-entry "${STALE_CONFIG_PATHS[$stale_index]}" \
+    "${STALE_CONFIG_REASONS[$stale_index]} (source: $CONFIG_FILE)" \
+    "Entry skipped; the rest of the fleet was audited" \
+    "Remove or correct the entry via /repo-fleet-hygiene:setup apply, or restore the path, then rerun"
+done
+
 for target in "${TARGETS[@]}"; do
   analyze_repo "$target"
+done
+
+# Cross-repository view: multiple independent checkouts of the same normalized GitHub identity are
+# each audited on their own local state (correct), but the coincidence itself gets one LOW
+# informational line per identity -- never more, since same-identity clones legitimately diverge.
+DUP_REPORTED=()
+for ((di = 0; di < ${#IDENT_KEYS[@]}; di++)); do
+  dup_key="${IDENT_KEYS[$di]}"
+  dup_seen=false
+  for dup_prev in "${DUP_REPORTED[@]:-}"; do
+    [[ -n "$dup_prev" && "$dup_prev" == "$dup_key" ]] && {
+      dup_seen=true
+      break
+    }
+  done
+  [[ "$dup_seen" == "true" ]] && continue
+  DUP_REPORTED+=("$dup_key")
+  DUP_PATHS=()
+  for ((dj = 0; dj < ${#IDENT_KEYS[@]}; dj++)); do
+    [[ "${IDENT_KEYS[$dj]}" == "$dup_key" ]] && DUP_PATHS+=("${IDENT_PATHS[$dj]}")
+  done
+  if [[ "${#DUP_PATHS[@]}" -ge 2 ]]; then
+    printf '\n'
+    emit_finding LOW duplicate-checkout "$dup_key" \
+      "${#DUP_PATHS[@]} distinct checkouts resolve to the same GitHub identity: ${DUP_PATHS[*]}" \
+      "Informational only; same-identity clones have independent local state" \
+      "Consolidate manually if unintended; no automated action"
+  fi
 done
 
 printf '\nSummary: repositories=%s high=%s medium=%s low=%s unknown=%s acknowledged=%s\n' \
