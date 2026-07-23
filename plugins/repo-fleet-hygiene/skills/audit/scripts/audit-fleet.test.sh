@@ -532,6 +532,20 @@ else
   failures=$((failures + 1))
 fi
 
+# The implicit current-project default (no CLI paths, no config) is CLI-equivalent: running the
+# zero-configuration audit from a non-Git directory must still hard-fail, never degrade to a
+# stale-config-entry with an empty source.
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/noconf" HOME="$TMP/nohome" \
+  bash "$SCRIPT" >"$ladder_out" 2>&1; then
+  printf 'FAIL: zero-config non-Git project dir did not hard-fail\n' >&2
+  failures=$((failures + 1))
+elif grep -Fq "not a Git working tree" "$ladder_out" && ! grep -Fq "stale-config-entry" "$ladder_out"; then
+  printf 'PASS: zero-config non-Git project dir hard-fails without stale-config degradation\n'
+else
+  printf 'FAIL: zero-config non-Git project dir hard-fails without stale-config degradation (wrong output)\n' >&2
+  failures=$((failures + 1))
+fi
+
 # A CLI-supplied bad path is a typo, not config drift: the run must still hard-fail.
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --repo "$TMP/never-existed" >"$ladder_out" 2>&1; then
   printf 'FAIL: CLI-supplied missing repo did not hard-fail\n' >&2

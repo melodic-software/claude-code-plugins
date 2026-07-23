@@ -383,6 +383,11 @@ is_acked() {
 
 if [[ ${#ROOT_ARGS[@]} -eq 0 && ${#REPO_ARGS[@]} -eq 0 ]]; then
   REPO_ARGS+=("${CLAUDE_PROJECT_DIR:-$PWD}")
+  # The implicit current-project default is CLI-equivalent, not config-sourced: it is appended
+  # after CLI_REPO_COUNT was captured, so count it there or the zero-configuration audit from a
+  # non-Git directory would degrade to a stale-config-entry (with an empty source) instead of
+  # hard-failing like the explicit-path case it stands in for.
+  CLI_REPO_COUNT=$((CLI_REPO_COUNT + 1))
 fi
 
 path_key() {
