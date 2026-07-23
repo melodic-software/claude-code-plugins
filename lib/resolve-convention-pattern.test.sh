@@ -288,33 +288,62 @@ fi
 
 WELL_KNOWN="docs/conventions/source-control/commit-convention.yml"
 
-# --- well-known file present, NO pointer, NO markdown -> resolves from it ---
+# The well-known rung activates ONLY for a git-TRACKED file (policy floor: an
+# untracked/gitignored artifact at that path must not override team policy), so
+# tests exercising the rung must git-init the repo and stage the neutral file.
+track() {
+  local d="$1" path="$2"
+  git -C "$d" init -q 2>/dev/null || true
+  git -C "$d" add -- "$path" 2>/dev/null || true
+}
+
+# --- well-known file present + TRACKED, NO pointer, NO markdown -> resolves ---
 r="$(newrepo "")"
 addneutral "$r" "$WELL_KNOWN" $'subject_pattern: \047^WK-[0-9]+: .+\047'
+track "$r" "$WELL_KNOWN"
 assert_eq "well-known: resolves with no pointer" '^WK-[0-9]+: .+' "$(run "$r")"
 
-# --- well-known present AND markdown subject_pattern present -> well-known WINS (rung 2 > 3) ---
+# --- well-known present + TRACKED AND markdown subject_pattern -> well-known WINS (rung 2 > 3) ---
 r="$(newrepo $'## subject_pattern\n^old-md: .+')"
 addneutral "$r" "$WELL_KNOWN" $'subject_pattern: \047^wk-wins: .+\047'
+track "$r" "$WELL_KNOWN"
 assert_eq "well-known: wins over markdown H2" '^wk-wins: .+' "$(run "$r")"
+
+# --- POLICY FLOOR: well-known present but UNTRACKED -> rung skipped, falls to markdown ---
+# The core #163434 hardening: a generated/gitignored file at the default path
+# must NOT silently override a tracked markdown policy.
+r="$(newrepo $'## subject_pattern\n^tracked-md-wins: .+')"
+addneutral "$r" "$WELL_KNOWN" $'subject_pattern: \047^untracked-ignored: .+\047'
+git -C "$r" init -q 2>/dev/null || true # repo exists but the well-known file is NOT added
+assert_eq "well-known: untracked file ignored -> markdown wins" '^tracked-md-wins: .+' "$(run "$r")"
+
+# --- POLICY FLOOR: untracked well-known with NO markdown -> no enforcement (not activated) ---
+r="$(newrepo "")"
+addneutral "$r" "$WELL_KNOWN" $'subject_pattern: \047^untracked: .+\047'
+git -C "$r" init -q 2>/dev/null || true
+run "$r" >/dev/null 2>&1
+assert_exit "well-known: untracked file + no markdown -> exit 1" 1 $?
 
 # --- explicit pointer present AND well-known also present -> explicit WINS (rung 1 > 2) ---
 r="$(newrepo $'## convention_source\nconventions.yml')"
 addneutral "$r" "conventions.yml" $'subject_pattern: \047^explicit-wins: .+\047'
 addneutral "$r" "$WELL_KNOWN" $'subject_pattern: \047^wk-loses: .+\047'
+track "$r" "$WELL_KNOWN"
 assert_eq "well-known: explicit pointer overrides well-known" '^explicit-wins: .+' "$(run "$r")"
 
-# --- well-known present but broken (non-posix-ere dialect) -> fail closed ---
+# --- well-known present + TRACKED but broken (non-posix-ere dialect) -> fail closed ---
 r="$(newrepo "")"
 addneutral "$r" "$WELL_KNOWN" $'dialect: pcre\nsubject_pattern: \047^\\d+: .+\047'
+track "$r" "$WELL_KNOWN"
 out="$(run "$r")"
 rc=$?
 assert_exit "well-known: broken dialect -> exit 1" 1 "$rc"
 assert_eq "well-known: broken dialect -> empty stdout" "" "$out"
 
-# --- well-known present but empty key -> fail closed (never markdown fallback) ---
+# --- well-known present + TRACKED but empty key -> fail closed (never markdown) ---
 r="$(newrepo $'## subject_pattern\n^stale-md: .+')"
 addneutral "$r" "$WELL_KNOWN" $'subject_pattern: \047\047'
+track "$r" "$WELL_KNOWN"
 out="$(run "$r")"
 rc=$?
 assert_exit "well-known: empty key -> exit 1 (no stale markdown)" 1 "$rc"
@@ -324,9 +353,10 @@ assert_eq "well-known: empty key -> empty stdout" "" "$out"
 r="$(newrepo $'## subject_pattern\n^md-only: .+')"
 assert_eq "well-known: absent -> markdown back-compat" '^md-only: .+' "$(run "$r")"
 
-# --- well-known: a key it omits falls back to markdown H2 (per-key) ---
+# --- well-known TRACKED: a key it omits falls back to markdown H2 (per-key) ---
 r="$(newrepo $'## pr_title_pattern\n^MDPR: .+')"
 addneutral "$r" "$WELL_KNOWN" $'subject_pattern: \047^WKS-[0-9]+: .+\047'
+track "$r" "$WELL_KNOWN"
 assert_eq "well-known: omitted key -> markdown fallback" '^MDPR: .+' "$(run "$r" pr_title_pattern)"
 
 # --- usage / invalid key ---
