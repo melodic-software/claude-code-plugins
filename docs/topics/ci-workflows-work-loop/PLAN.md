@@ -270,7 +270,7 @@ README.md contract sections (pointer-not-copy — cite owners, never restate):
 - **Sanity Check:** repo CI green on the PR (`ci-status` required check).
 - **Sanity Check:** `grep -En "plugins/(work-items|source-control|claude-ops|autonomy)/" docs/conventions/loop-lane/README.md` returns citations only in pointer form (reviewed: no restated mechanics blocks >3 lines quoting a plugin file).
 
-### Phase 3: `rate-limit-guard` plugin [TODO]
+### Phase 3: `rate-limit-guard` plugin [DONE]
 
 Review: security
 New small plugin in claude-code-plugins. One PR. Pre-flight consumer check N/A (new surface, no

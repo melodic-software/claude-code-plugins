@@ -288,6 +288,12 @@
       "tags": ["operations", "observability", "otel", "telemetry", "troubleshooting", "changelog", "dashboard", "claude-code", "skill"]
     },
     {
+      "name": "rate-limit-guard",
+      "source": "./plugins/rate-limit-guard",
+      "category": "claude-code",
+      "tags": ["rate-limit", "statusline", "tee", "loop-lane", "stopfailure", "hook"]
+    },
+    {
       "name": "songwriting",
       "source": "./plugins/songwriting",
       "category": "music",
