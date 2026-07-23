@@ -3,6 +3,25 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.0]
+
+### Added
+
+- **Drift findings name the push state (#1120).** `merged-pr-tip-drift` evidence now states whether
+  the local tip exists on the same-named remote-tracking ref — the fact that flips the cleanup risk
+  profile (pushed drift is recoverable from the remote after deletion; unpushed drift is data
+  loss). Computed from the remote-ref OIDs the enumeration already collected and previously
+  discarded; purely local, no network. When the remote-tracking inventory is unavailable the
+  evidence says "push state unknown" instead of guessing.
+- **Report header names the authenticated gh account (#1120).** `GitHub evidence: available
+  (account: <login>)` — a dozen `HTTP 404` UNKNOWNNs read very differently under the wrong login
+  than under the right one. Probed via a narrowly allowlisted `gh api user` GET with a fixed
+  template (mirroring the `repos/{slug}` allowlist shape); any probe failure keeps the plain
+  header line. This is the cheap subset of the tracked per-domain-gh-auth request.
+- **Clean repositories say so (#1120).** A finding-less repository section now ends with an
+  explicit `Findings: none` line and the same `---` terminator finding blocks use — clean output
+  is distinguishable from truncated output.
+
 ## [0.5.0]
 
 ### Fixed
