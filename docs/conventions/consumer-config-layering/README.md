@@ -200,7 +200,7 @@ open.
 
 | Surface | Consumer config path | Layers | Conformance |
 |---|---|---|---|
-| `source-control` | `.claude/source-control.md` | all three | conforms (per-key override, #660); enforcement reads team-tracked only per [`commit-convention`](../commit-convention/README.md) |
+| `source-control` | `.claude/source-control.md` | all three | conforms (per-key override, #660); enforcement reads team-tracked only per [`commit-convention`](../commit-convention/README.md); loop-lane keys (`babysit_loop_*`, the surface both loop lanes cite for lane config layering) ride the same surface, with the merge-rung key in the policy-floor class — raises bind from the team-tracked layer only, per [`loop-lane`](../loop-lane/README.md) |
 | `toolchain` / `ecosystem-commands` | `.claude/ecosystems/<ecosystem>.yaml` | all three | conforms |
 | `codebase-health` | `.claude/codebase-health.md` | all three | conforms (concatenating, with a declared empty-list opt-out) |
 | `github` | `.claude/github/` (`routing.yaml` per-key override, `conventions.md` concatenating) | all three | conforms; policy-floor inversion on write-posture routing keys, declared in the plugin's `change-routing.md` |
