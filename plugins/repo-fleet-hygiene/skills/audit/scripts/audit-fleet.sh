@@ -423,10 +423,18 @@ discover_repositories() {
   done
 }
 
+ROOT_LABELS=()
+ROOT_COUNTS=()
 for root in "${ROOT_ARGS[@]:-}"; do
   [[ -n "$root" ]] || continue
   [[ -d "$root" ]] || fail "discovery root not found: $root"
+  # Per-root visibility: attribute newly discovered repositories to this root so a root that
+  # contributed none is still reported. Deduplication credits a repo shared by nested/overlapping
+  # roots to the first root that reaches it, keeping sum(root counts) + explicit --repo == discovered.
+  root_before=${#TARGETS[@]}
   discover_repositories "$root" 0
+  ROOT_LABELS+=("$root")
+  ROOT_COUNTS+=($((${#TARGETS[@]} - root_before)))
 done
 
 [[ ${#TARGETS[@]} -gt 0 ]] || fail "no Git working trees found in the requested scope"
@@ -975,6 +983,11 @@ else
 fi
 printf 'GitHub evidence: %s\n' "$([[ "$GH_READY" == "true" ]] && echo available || echo unavailable)"
 printf 'Repositories discovered: %s\n' "${#TARGETS[@]}"
+for ((root_index = 0; root_index < ${#ROOT_LABELS[@]}; root_index++)); do
+  printf 'Root '
+  display_value "${ROOT_LABELS[$root_index]}"
+  printf ': %s repositories\n' "${ROOT_COUNTS[$root_index]}"
+done
 
 for target in "${TARGETS[@]}"; do
   analyze_repo "$target"

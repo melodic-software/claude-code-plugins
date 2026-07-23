@@ -11,6 +11,7 @@ mkdir -p "$MOCK_BIN" "$TMP/config" "$TMP/discovered-a" "$TMP/canonical-a" "$TMP/
   "$TMP/bad-discovered" "$TMP/bad-canonical" "$TMP/wt-fail" \
   "$TMP/ref-fail" \
   "$TMP/root/acme/root-repo/.git" \
+  "$TMP/emptyroot" \
   "$TMP/wt-a" "$TMP/wt-mismatch" \
   "$TMP/discovered-c" "$TMP/canonical-c" "$TMP/gone-repo" "$TMP/lost-repo" "$TMP/net-repo"
 : >"$TMP/calls.log"
@@ -238,6 +239,7 @@ export EVIL_PATH
 cat >"$TMP/config/repo-fleet-hygiene.conf" <<'EOF'
 [fleet]
     root = ../root
+    root = ../emptyroot
     repo = ../discovered-a
     repo = ../repo-b
     repo = ../old-repo
@@ -301,6 +303,8 @@ assert_not_contains "invalid canonical state was not combined" "Target: $TMP/bad
 assert_not_contains "failed worktree inventory suppressed branch candidate" "Target: $TMP/wt-fail :: feature/fail"
 assert_not_contains "partial branch inventory suppressed branch candidate" "Target: $TMP/ref-fail :: feature/partial"
 assert_contains "failed repositories not counted successful" "Summary: repositories=8"
+assert_contains "per-root discovered count for a contributing root" "../root: 1 repositories"
+assert_contains "zero-contribution root stays visible in the header" "../emptyroot: 0 repositories"
 
 # fleet.ackUnavailable: 404 on an acked identity (mixed-case config entry) is
 # demoted to ACKNOWLEDGED; an unacked 404 stays UNKNOWN; a non-404 failure on

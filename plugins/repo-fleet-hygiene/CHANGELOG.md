@@ -3,6 +3,30 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.1]
+
+### Added
+
+- **Per-root discovery counts in the audit report header (#1101).** The header printed only the total
+  `Repositories discovered: N`; a discovery root that walked to zero repositories left no trace, so a
+  directory the user expected to be a repo had to be diffed against memory. Each `--root`/config `root`
+  now prints `Root <path>: <k> repositories`, keeping a zero-contribution root visible without any
+  per-directory noise. Covered by `audit-fleet.test.sh`.
+- **`## Gotchas` surfaces on both skills (#1101).** The `audit` and `setup` skills now document the
+  real first-contact gotchas: a project-scoped config is consumed only from its own project (fleet
+  configs belong at the user-global path), and absolute paths in tracked config can trip a consumer's
+  write-time path-portability guard where the relative form passes and resolves identically.
+
+### Changed
+
+- **`setup apply` prefers relative-to-config-dir paths (#1101).** `apply` now writes any
+  root/repository/canonical target relative to the config file's directory when expressible that way —
+  the two forms audit identically, and the relative form avoids consumer write-time path guards that
+  reject absolute paths in tracked config.
+- **`audit` skill trigger phrases are single-quoted (#1101).** The `Use when:` triggers are now
+  single-quoted so the skill-quality checker's trigger-drop regression protection tracks them; every
+  existing trigger keyword is preserved.
+
 ## [0.4.0]
 
 ### Added
