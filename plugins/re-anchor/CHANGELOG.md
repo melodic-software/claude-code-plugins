@@ -12,8 +12,9 @@ All notable changes to the `re-anchor` plugin are documented here. Format follow
   entries (observed in a real full-batch run: one recall-based claim flagged independently by
   `do-your-research`, `recheck-against-upstream`, and `mind-your-maxims`), and the main thread had
   to dedup by hand. The batched pass now names step 3 — group entries that share a root cause,
-  carry the union of their evidence, the list of reporting correctors, and the union of each
-  reporter's distinct remedy. Dedup collapses the re-analysis and re-reporting of one root cause,
+  carry the union of their evidence and, keyed by reporting corrector, the remedy that corrector
+  asks for (a reporter→remedy mapping, so each remedy keeps its rank). Dedup collapses the
+  re-analysis and re-reporting of one root cause,
   NOT the corrective work: a shared root cause can demand non-interchangeable remedies (retracting
   an unsupported claim satisfies the research reporters, but `mind-your-maxims` may still require a
   reader-facing uncertainty disclosure), so every reporter's remedy is still applied, each at its

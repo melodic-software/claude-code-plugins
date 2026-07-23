@@ -90,8 +90,10 @@ unchanged and bind every member.
    routinely surface one root cause as separate entries (e.g. a recall-based
    claim flagged independently by `do-your-research`, `recheck-against-upstream`,
    and `mind-your-maxims`). Group them into one finding carrying the union of
-   their located evidence, the list of reporting correctors, AND the union of
-   the distinct remedies each reporter asks for. What dedup collapses is the
+   their located evidence and, keyed BY reporting corrector, the remedy that
+   corrector asks for — a reporter→remedy mapping, not a flat remedy list beside
+   a separate reporter list, so step 4 knows which remedy belongs to which rank.
+   What dedup collapses is the
    re-analysis and the re-reporting of one root cause — NOT the corrective work:
    a shared root cause can demand more than one remedy that are not
    interchangeable (verifying or retracting the unsupported claim satisfies the
