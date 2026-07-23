@@ -288,9 +288,32 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# Config resolution ladder: explicit --config, then the project-scoped file,
+# then the user-global one. A fleet config is inherently machine-scoped, so a
+# user-global ~/.claude file is honored when the current project carries none —
+# that file is recorded user intent, not a guessed broader machine root. The
+# consumed source is named in the report header so silent non-consumption
+# cannot happen.
+CONFIG_SOURCE="none"
 if [[ -n "$CONFIG_FILE" ]]; then
   [[ -f "$CONFIG_FILE" ]] || fail "config file not found: $CONFIG_FILE"
+  CONFIG_SOURCE="explicit --config"
+else
+  if [[ -n "${CLAUDE_PROJECT_DIR:-}" && -f "${CLAUDE_PROJECT_DIR}/.claude/repo-fleet-hygiene.conf" ]]; then
+    CONFIG_FILE="${CLAUDE_PROJECT_DIR}/.claude/repo-fleet-hygiene.conf"
+    CONFIG_SOURCE="project"
+  else
+    home_dir="${HOME:-${USERPROFILE:-}}"
+    if [[ -n "$home_dir" && -f "$home_dir/.claude/repo-fleet-hygiene.conf" ]]; then
+      CONFIG_FILE="$home_dir/.claude/repo-fleet-hygiene.conf"
+      CONFIG_SOURCE="user-global"
+    fi
+  fi
+fi
+if [[ -n "$CONFIG_FILE" ]]; then
   CONFIG_FILE="$(cd "$(dirname "$CONFIG_FILE")" 2>/dev/null && pwd -P)/$(basename "$CONFIG_FILE")"
+  # An invalid config fails loud regardless of how it was found — an
+  # auto-probed file never silently falls back to a narrower scope.
   run_git_probe config --file "$CONFIG_FILE" --list >/dev/null 2>&1 || fail "invalid Git config: $CONFIG_FILE"
   CONFIG_DIR="$(dirname "$CONFIG_FILE")"
 else
@@ -910,6 +933,11 @@ analyze_repo() {
 
 printf 'Repo Fleet Hygiene Audit\n'
 printf 'Mode: read-only (no fetch, prune, repair, delete, checkout, or remote update)\n'
+if [[ -n "$CONFIG_FILE" ]]; then
+  print_field Config "$CONFIG_FILE ($CONFIG_SOURCE)"
+else
+  print_field Config "none (no explicit, project, or user-global config; current-project scope)"
+fi
 printf 'GitHub evidence: %s\n' "$([[ "$GH_READY" == "true" ]] && echo available || echo unavailable)"
 printf 'Repositories discovered: %s\n' "${#TARGETS[@]}"
 

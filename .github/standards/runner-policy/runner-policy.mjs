@@ -253,6 +253,14 @@ function validatePolicy(value) {
       );
     }
   }
+  const optionalStringInputNames = new Set(Object.keys(value.optionalCanonicalSelectorInputs));
+  for (const name of Object.keys(value.optionalBooleanSelectorInputs)) {
+    if (canonicalInputNames.has(name) || optionalStringInputNames.has(name)) {
+      throw new ConfigurationError(
+        `policy optional boolean selector input ${name} duplicates another selector input`,
+      );
+    }
+  }
 
   if (!approvedHostedRunnerLabels.has(value.governedReusableRunnerInput.default)) {
     throw new ConfigurationError(
@@ -305,6 +313,7 @@ function validatePolicy(value) {
     canonicalSelectorInputNames: new Set([
       ...Object.keys(value.canonicalSelectorInputs),
       ...Object.keys(value.optionalCanonicalSelectorInputs),
+      ...Object.keys(value.optionalBooleanSelectorInputs),
     ]),
     canonicalSelectorSecretNames: new Set(Object.keys(value.canonicalSelectorSecrets)),
     approvedHostedRunnerLabels,
@@ -930,10 +939,15 @@ function selectorStatus(job, policy) {
       reason: secretError,
     };
   }
+  // Boolean opt-in inputs share the optional exact-match contract: present or
+  // absent, and when present the caller's parsed value must equal the reviewed
+  // literal (true). Merging them into the optional map reuses that fail-closed
+  // match; the load-time duplicate-name check forbids a key collision between
+  // the two optional maps, so the spread order cannot silently shadow.
   const inputError = exactCanonicalMap(
     job.with,
     policy.canonicalSelectorInputs,
-    policy.optionalCanonicalSelectorInputs,
+    { ...policy.optionalCanonicalSelectorInputs, ...policy.optionalBooleanSelectorInputs },
     policy.canonicalSelectorInputNames,
     "selector inputs",
   );

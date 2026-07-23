@@ -3,6 +3,22 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.0]
+
+### Fixed
+
+- **Fleet config is no longer silently ignored outside the project that wrote it (#1099).**
+  The audit consumed config only from `${CLAUDE_PROJECT_DIR}/.claude/repo-fleet-hygiene.conf`,
+  so a machine-scoped fleet config authored in one directory vanished the moment the audit ran
+  from any real project — silently narrowing to that single project with no mention of the
+  existing file. The collector now owns a resolution ladder: explicit `--config`, else the
+  project-scoped file, else the user-global `~/.claude/repo-fleet-hygiene.conf` (a file placed
+  there is recorded user intent, not a guessed machine root; `$HOME` with `%USERPROFILE%`
+  fallback). The report header names the consumed config and its source — or states that none
+  was consumed — so silent non-consumption cannot recur. An invalid auto-probed config fails
+  loud rather than falling back to a narrower scope. Setup's `check`/`apply` output states the
+  scoping rule and the user-global placement option. Ladder covered by four new test cases.
+
 ## [0.2.0]
 
 ### Changed

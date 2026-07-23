@@ -3,6 +3,47 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.3]
+
+### Fixed
+
+- **`hardcoded-path-check` skips when the project dir is not a git working
+  tree (#1094, residual of #1038).** Claude Code sets `CLAUDE_PROJECT_DIR` for
+  any directory — a home-directory session being the common case — and there
+  the scope guard passed while every per-file exemption rung was unreachable:
+  the `.claude` carve-outs don't cover machine-local plugin config
+  (`~/.claude/<plugin>.conf`), and `git check-ignore` errors outside a work
+  tree, leaving only the global kill switch. The scope guard now also skips
+  when `git rev-parse --is-inside-work-tree` does not report a working tree
+  (same rationale as the #1039 no-project skip: hardcoded paths only harm
+  portable repo artifacts, and a non-worktree project dir has none). Bare
+  repos skip too. README scoping bullet updated; tests pin the skip, the
+  unchanged real-work-tree behavior, and the carve-outs now exercised inside
+  real work trees.
+
+## [0.12.2]
+
+### Fixed
+
+- **Machine-path bodies: right boundary is now the segment class, not a
+  mandatory trailing separator (#1093).** The old bodies required a separator
+  AFTER the child segment, which inverted detection both ways: a real bare
+  path value at end of line (`root = <drive>:/Dev/GitHub`) was MISSED, while
+  prose satisfied the requirement anyway — the space-permitting segment class
+  greedily consumed words until a later slash on the same line, flagging a
+  comment as "Windows repo path detected" while the actual violations passed
+  clean. All five bodies in `machine-path-patterns.sh` now exclude whitespace
+  and the double quote from the child-segment class and drop the trailing
+  separator: bare values at a natural boundary (EOL, whitespace, quote) are
+  detected, prose spans cannot match, and a bare ROOT with no child segment
+  (`C:/Dev`, `/home`) still never matches. The driver's `/Users/Shared`
+  exclusion covers the new bare form. 15 regression cases added (bare values
+  in all five shapes, greedy-prose and root-plus-whitespace negatives, bare
+  `Shared`). Synced-component note: the same pattern change lands upstream in
+  `melodic-software/standards` `components/path-detection/` — the local and
+  upstream copies must stay byte-identical or the next standards sync reverts
+  this fix.
+
 ## [0.12.1]
 
 ### Fixed

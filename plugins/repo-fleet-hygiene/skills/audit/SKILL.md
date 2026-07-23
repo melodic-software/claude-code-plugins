@@ -30,9 +30,14 @@ Parse `$ARGUMENTS` as opaque arguments for the bundled script. Supported flags:
   (repeatable; explicit wins over config).
 - `--max-depth <1..12>`: discovery bound; explicit wins over config/default `5`.
 
-If neither `--root` nor `--repo` is present, the script uses `${CLAUDE_PROJECT_DIR}`. If `--config`
-is absent and `${CLAUDE_PROJECT_DIR}/.claude/repo-fleet-hygiene.conf` exists, pass that file. Never
-guess a broader machine root from the current path.
+If neither `--root` nor `--repo` is present, the script uses `${CLAUDE_PROJECT_DIR}`. Config
+resolution is the script's own ladder — do not pre-resolve or pass a probed path yourself:
+explicit `--config` wins, else the script probes
+`${CLAUDE_PROJECT_DIR}/.claude/repo-fleet-hygiene.conf` (project-scoped), else
+`~/.claude/repo-fleet-hygiene.conf` (user-global — a machine-scoped fleet config placed there is
+recorded user intent, not a guessed root). The report header names the consumed config and its
+source, or states that none was consumed. Never guess a broader machine root from the current
+path beyond that ladder.
 
 Before execution, reject any arguments outside this grammar. Pass every path/override as a quoted
 argument; never assemble a shell fragment from config, repository, remote, or branch text.
