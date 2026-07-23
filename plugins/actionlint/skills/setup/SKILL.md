@@ -10,8 +10,9 @@ disable-model-invocation: true
 
 Thin check-centric setup per the uniform contract: `check` inspects and reports, `apply`
 resolves. This plugin owns no consumer-project configuration — actionlint auto-discovers its
-own optional config from the repository, and the only tunable is the native `userConfig`
-toggle. Every prerequisite is a `PATH` binary the plugin never bundles, and the plugin never
+own optional config from the repository, and the tunables are the native `userConfig`
+options (the `actionlint_enabled` toggle and `stdin_read_timeout`). Every prerequisite is a
+`PATH` binary the plugin never bundles, and the plugin never
 installs system packages, so `apply` is guidance-only with **no write path** — it never
 modifies the repository, user settings, or the plugin cache.
 
@@ -44,6 +45,9 @@ restores the FAIL semantics.
 5. **Hook toggle** — report the effective `actionlint_enabled` value:
    `${user_config.actionlint_enabled}` (unexpanded or empty means default `true`; any value
    other than `true` disables the hook).
+5b. **Stdin read timeout** — INFO: report the effective `stdin_read_timeout` value:
+   `${user_config.stdin_read_timeout}` (unexpanded or empty means default `2` seconds,
+   minimum `1`; bounds reading the hook payload before failing open).
 6. **Hook registration** — INFO: confirm the plugin is enabled for this project
    (`/plugin` → Installed) rather than parsing settings files.
 
