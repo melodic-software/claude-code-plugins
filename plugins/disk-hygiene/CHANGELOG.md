@@ -7,15 +7,15 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 
 ### Fixed
 
-- **PowerShell lane defers read-only inspection of the engine source (#1112).** The lane denied
-  ANY command containing the substring `hygiene.py` — blocking `Select-String`/`Get-Content` over
-  the engine's own source (live-observed, F6) while a renamed copy evaded it anyway. The engine
-  check now uses the same invocation classifier as the plugin-level gate (identity + launcher
-  rules), and a parseable single-cmdlet command whose verb is read-only (`Select-String`,
-  `Get-Content`, `Get-Item`, `Get-ChildItem`, `Get-FileHash`, `Test-Path`, `Resolve-Path`,
-  `Compare-Object`, `Measure-Object`) defers outright — a read verb cannot execute its arguments.
-  Compound/piped commands do not parse and keep the full fail-closed checks; engine invocations
-  still deny.
+- **PowerShell lane narrows the engine deny from substring to invocation classification (#1112).**
+  The lane denied ANY command containing the substring `hygiene.py` — blocking commands that
+  merely NAME the script (live-observed, F6) while a renamed copy evaded it anyway. The engine
+  check now uses the same invocation classifier as the plugin-level gate (bundled-file identity +
+  launcher rules): bare-name and consumer-file mentions defer. Deliberately NOT deferred: a
+  command whose argument IS the bundled engine, even under a read-verb spelling
+  (`Get-Content <engine>`) — PowerShell aliases and profile functions shadow cmdlet names, so a
+  verb name proves nothing about what executes (review finding); the deny message points at
+  non-shell file tools for reading the engine source.
 
 ## [0.7.1]
 

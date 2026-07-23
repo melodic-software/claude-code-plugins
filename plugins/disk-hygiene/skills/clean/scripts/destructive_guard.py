@@ -563,17 +563,6 @@ _POWERSHELL_MUTATION_WORDS = re.compile(
     r")(?![\w-])"
 )
 _POWERSHELL_DOTNET_DELETE = re.compile(r"(?i)(::\s*delete|\.\s*delete\s*\()")
-_POWERSHELL_READ_ONLY_VERBS = {
-    "select-string",
-    "get-content",
-    "get-item",
-    "get-childitem",
-    "get-filehash",
-    "test-path",
-    "resolve-path",
-    "compare-object",
-    "measure-object",
-}
 # robocopy is an executable normally invocable by full path
 # (C:\Windows\System32\robocopy.exe), so unlike the cmdlet word list its
 # lookbehind must permit path separators before the name.
@@ -601,25 +590,20 @@ def powershell_decision(command: str, enabled: bool) -> tuple[str, str] | None:
     false) it is denied outright, so the kill switch blocks every deletion lane
     and not only the Bash engine lane.
     """
-    words = _literal_shell_words(command, allow_backslash=True)
-    if (
-        words
-        and Path(words[0].casefold()).name in _POWERSHELL_READ_ONLY_VERBS
-    ):
-        # A parseable single-cmdlet command whose verb is read-only cannot
-        # execute its arguments — Select-String over the engine source is
-        # inspection, not invocation. Compound/piped commands do not parse
-        # here and keep the full checks.
-        return None
     if _engine_gate_relevant(command, "PowerShell"):
         # Invocation-shaped engine references only — the same classifier the
         # plugin-level engine gate uses, so read-only text processing that
-        # merely NAMES the script (Select-String, git diff) defers instead of
-        # being denied by a raw substring test.
+        # merely NAMES the script (Select-String over a bare name, git diff)
+        # defers instead of being denied by a raw substring test. A command
+        # whose argument IS the bundled engine (file identity) still denies,
+        # even under a read-verb spelling: PowerShell aliases and profile
+        # functions shadow cmdlet names, so a verb name proves nothing about
+        # what executes — inspect the engine source with non-shell tools.
         return (
             "deny",
             "disk-hygiene engine invocations must go through the Bash tool's "
-            "exact guarded command shapes, not PowerShell.",
+            "exact guarded command shapes, not PowerShell. To READ the engine "
+            "source, use non-shell file tools.",
         )
     match = _POWERSHELL_MUTATION_WORDS.search(command)
     if match:
