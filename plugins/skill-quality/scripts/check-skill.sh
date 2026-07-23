@@ -782,9 +782,11 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
     # run of the OTHER character, a shorter run, or a run carrying an info
     # string (```yaml) is fence content, never a toggle. A generic boolean
     # toggle would desync on such examples and leak them into the scanners.
-    /^[ \t]*(```+|~~~+)/ {
+    # Opener/closer indentation caps at three spaces — four or more makes an
+    # indented code block, not a fence, so a deeper-indented run never toggles.
+    /^ {0,3}(```+|~~~+)/ {
       fe_run = $0
-      sub(/^[ \t]*/, "", fe_run)
+      sub(/^ */, "", fe_run)
       fe_char = substr(fe_run, 1, 1)
       fe_len = 0
       while (substr(fe_run, fe_len + 1, 1) == fe_char) fe_len++
@@ -826,7 +828,7 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
       # Delegation wording needs a worker actually named on the line — bare
       # "in a fresh context" prose assigns no one and does not declare.
       if (low ~ /fresh[- ]context/ \
-          && low ~ /agent|worker|advisor|reviewer|verif|dispatch|delegat/) {
+          && low ~ /agent|worker|advisor|reviewer|verifier|dispatch|delegat/) {
         word_n++; w[word_n] = NR
       }
       if (low ~ JR) { judge_n++; j[judge_n] = NR }

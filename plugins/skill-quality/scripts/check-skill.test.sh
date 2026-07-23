@@ -1517,6 +1517,56 @@ else
   fail "worker-less fresh-context wording should not satisfy check 21 (rc=$rc): $out"
 fi
 
+# 37e. Check 21: an unrelated verification word next to fresh-context wording
+#      names no worker — the judgment line still WARNs.
+make_skill fe-verification-word '---
+name: fe-verification-word
+description: "Fresh-eyes fixture. Use when: '"'"'fe verification word fixture'"'"'."
+---
+
+## Steps
+
+Self-review the work in a fresh context before verification.
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-verification-word 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'same-context judgment language with no' <<<"$out"; then
+  pass "verification wording without a worker still warns (check 21)"
+else
+  fail "verification-word bypass should not satisfy check 21 (rc=$rc): $out"
+fi
+
+# 37f. Check 21: a four-space-indented backtick run is an indented code block,
+#      not a fence opener (CommonMark) — a malformed directive after it is
+#      still scanned and still blocks.
+make_skill fe-indented-fence '---
+name: fe-indented-fence
+description: "Fresh-eyes fixture. Use when: '"'"'fe indented fence fixture'"'"'."
+---
+
+## Steps
+
+    ```
+Regular prose resumes here.
+
+<!-- fresh-eyes-exempt: bogus-class -- wrong class stays malformed -->
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-indented-fence 2>&1)"
+rc=$?
+if [[ $rc -ne 0 ]] && grep -q 'malformed fresh-eyes-exempt directive' <<<"$out"; then
+  pass "indented backtick run does not open a fence (check 21)"
+else
+  fail "malformed directive after indented code block should FAIL (rc=$rc): $out"
+fi
+
 # 37. Check 21: a skill with no judgment language emits nothing from check 21
 #     (good-skill re-run guards against detector overreach).
 out="$(run good-skill 2>&1)"

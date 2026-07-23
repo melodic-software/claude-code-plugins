@@ -20,7 +20,7 @@ fresh[- ]context
 ```
 
 Both `fresh-context` and `fresh context` are canonical — and the same line must NAME the worker or
-the dispatch (a token matching `agent|worker|advisor|reviewer|verif|dispatch|delegat`): "dispatch
+the dispatch (a token matching `agent|worker|advisor|reviewer|verifier|dispatch|delegat`): "dispatch
 a fresh-context subagent" declares; a bare "think about it in a fresh context" assigns the
 judgment to no one and does not. The wording is visible prose, not a marker — it IS the model's
 instruction, so a parallel hidden marker would be a second source of truth that drifts.
