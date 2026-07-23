@@ -3,6 +3,33 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.0]
+
+### Added
+
+- **Well-known default path for the neutral convention SSOT (#163434).** The commit-convention
+  resolver now probes a repo-dogfooded default path,
+  `docs/conventions/source-control/commit-convention.yml`, when the team file declares no explicit
+  `## convention_source` pointer. The common case reads ONE tool-agnostic file with no markdown
+  pointer-parse and nothing in agent-rewritable prose to sever. Fixed 3-rung precedence, identical on
+  the drafting and enforcement surfaces: explicit `convention_source` pointer (relocation override) >
+  well-known default path > markdown-H2 (legacy). Full back-compat — absent both a pointer and the
+  well-known file, resolution is unchanged.
+
+### Changed
+
+- **Setup recommends the neutral SSOT as the default when a second enforcement consumer exists (F1).**
+  When inference detects a commit-msg hook, a CI title check, or a user-stated second consumer,
+  `/source-control:setup apply` now recommends the tool-agnostic neutral file (at the well-known
+  path, pointerless) rather than steering to markdown-primary; it falls back to markdown-only only
+  when this plugin is demonstrably the sole consumer.
+- **`setup check` surfaces neutral-SSOT drift (F3).** Two probes: a broken pointer / neutral file
+  (FAIL — was silent fail-closed), and a resolved neutral file shadowing a stale markdown-H2
+  duplicate (WARN).
+- **Neutral-YAML preamble trimmed to a 1–2 line header (F4).** The self-describing multi-line
+  preamble template is reduced to what the file is and who reads it; the human document proper lives
+  in CONTRIBUTING/AGENTS.md.
+
 ## [0.24.0]
 
 ### Added

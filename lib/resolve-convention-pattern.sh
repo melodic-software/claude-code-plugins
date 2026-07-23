@@ -51,6 +51,13 @@ readonly CC_ERE='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)
 # shellcheck disable=SC2016  # backticks are a literal part of the deferral marker, not a substitution
 readonly PR_DEFERRAL='Same as `subject_pattern`.'
 
+# Well-known default path for the neutral convention SSOT — the marketplace's
+# own dogfooded docs/conventions/<concern>/ layout. When the team file declares
+# no explicit convention_source pointer, the resolver probes this path so the
+# common case reads ONE tool-agnostic file with no markdown pointer-parse. An
+# explicit pointer always overrides it; see the pointer-resolution block below.
+readonly WELL_KNOWN_NEUTRAL="docs/conventions/source-control/commit-convention.yml"
+
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   sed -n '2,40p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit 0
@@ -134,6 +141,14 @@ yaml_value() {
 # enforcement (exit 1) with a diagnostic: fail closed, never fall back.
 NEUTRAL_FILE=""
 ptr="$(h2_value "$TEAM_FILE" "convention_source")"
+# Precedence: an explicit convention_source (rung 1) always wins. Absent one,
+# probe the well-known default path (rung 2) so the common case needs no pointer
+# at all; honored only when the file exists, so an absent default falls through
+# to the markdown H2 (rung 3) with full back-compat. The default is a plain
+# repo-relative path and passes the same safety checks below as any pointer.
+if [[ -z "$ptr" && -f "$repo_root/$WELL_KNOWN_NEUTRAL" ]]; then
+  ptr="$WELL_KNOWN_NEUTRAL"
+fi
 if [[ -n "$ptr" ]]; then
   case "$ptr" in
   /* | [A-Za-z]:* | *\\* | *..*)

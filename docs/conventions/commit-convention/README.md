@@ -77,13 +77,32 @@ pr_title_pattern: Same as `subject_pattern`.
 
 Contract points:
 
-- **The pointer is optional and team-only.** Absent → today's markdown-H2 grammar, unchanged —
-  full back-compat, zero action for existing consumers. The pointer is honored from the
-  team-tracked file only (same policy floor: a gitignored overlay must not redirect the gate).
-  The path is ALWAYS repo-declared; the plugin hardcodes no doc-root convention and ships no
-  well-known search list in V1 (recorded decision: a search list is discoverable sugar that adds
-  probe order and shadowing questions with no consumer demanding it yet — the pointer alone keeps
-  every path choice in the consuming repo's hands).
+- **The pointer is optional and team-only.** Absent → the well-known-default probe below, then
+  today's markdown-H2 grammar — full back-compat, zero action for existing consumers. The pointer
+  is honored from the team-tracked file only (same policy floor: a gitignored overlay must not
+  redirect the gate).
+- **Three-rung neutral-file precedence (V2 — reopens V1's "no well-known search").** The neutral
+  file is resolved in a fixed order, identical on the enforcement resolver and the drafting read:
+  1. an **explicit `convention_source` pointer** — the relocation override; the path stays
+     repo-owned, so a repo that keeps its convention elsewhere is unaffected;
+  2. absent a pointer, the **well-known default path**
+     `docs/conventions/source-control/commit-convention.yml` when that file exists — the marketplace's
+     own dogfooded `docs/conventions/<concern>/` layout, so the common case reads ONE tool-agnostic
+     file with no markdown pointer-parse and no pointer to sever;
+  3. absent both, the **team markdown-H2** sections (legacy).
+
+  Once a neutral file resolves via rung 1 or 2 it is authoritative and the fail-closed broken-file
+  contract applies; a key it omits still falls back per key to the markdown H2.
+
+  **Both V1 reasons for shipping no well-known search are engaged, not overridden by fiat** (#163434
+  is the demanding consumer; design: `docs/topics/commit-convention-well-known-path/`). V1 recorded
+  (i) "no consumer demanding it yet" — now void. And (ii) a search list "adds probe order and
+  shadowing questions" and "keeps every path choice in the consuming repo's hands." V2 answers (ii)
+  narrowly: it is a single fixed default path, **not** a search list, so probe order is the bounded
+  3-rung precedence above rather than an open question; and the pointer is retained at rung 1, so
+  path ownership is preserved for any repo that wants it — the default is a convenience for the
+  common case, never a seizure of the path decision. The default is tool-agnostic by placement
+  (`docs/conventions/`, a plain docs path a non-Claude hook or CI reads directly), not `.claude/`-scoped.
 - **Value grammar (one-sed contract).** A key's value is everything after `^<key>:` on the first
   matching column-0 line — whitespace-trimmed, one pair of matching surrounding quotes removed, no
   YAML escape processing. `sed -n 's/^subject_pattern:[[:space:]]*//p'` (plus quote-strip) is the

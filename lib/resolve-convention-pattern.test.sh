@@ -276,6 +276,59 @@ else
   echo "SKIP: symlink cases (ln -s unavailable on this filesystem)"
 fi
 
+# =====================================================================
+# Well-known default neutral path (docs/conventions/source-control/…)
+# The resolver probes a repo-dogfooded default path when no explicit
+# convention_source pointer is declared, so the common case reads ONE
+# tool-agnostic file with no markdown pointer-parse. Precedence:
+#   1. explicit convention_source pointer   (relocation override)
+#   2. well-known docs/conventions/source-control/commit-convention.yml
+#   3. markdown-H2 in .claude/source-control.md   (legacy)
+# =====================================================================
+
+WELL_KNOWN="docs/conventions/source-control/commit-convention.yml"
+
+# --- well-known file present, NO pointer, NO markdown -> resolves from it ---
+r="$(newrepo "")"
+addneutral "$r" "$WELL_KNOWN" $'subject_pattern: \047^WK-[0-9]+: .+\047'
+assert_eq "well-known: resolves with no pointer" '^WK-[0-9]+: .+' "$(run "$r")"
+
+# --- well-known present AND markdown subject_pattern present -> well-known WINS (rung 2 > 3) ---
+r="$(newrepo $'## subject_pattern\n^old-md: .+')"
+addneutral "$r" "$WELL_KNOWN" $'subject_pattern: \047^wk-wins: .+\047'
+assert_eq "well-known: wins over markdown H2" '^wk-wins: .+' "$(run "$r")"
+
+# --- explicit pointer present AND well-known also present -> explicit WINS (rung 1 > 2) ---
+r="$(newrepo $'## convention_source\nconventions.yml')"
+addneutral "$r" "conventions.yml" $'subject_pattern: \047^explicit-wins: .+\047'
+addneutral "$r" "$WELL_KNOWN" $'subject_pattern: \047^wk-loses: .+\047'
+assert_eq "well-known: explicit pointer overrides well-known" '^explicit-wins: .+' "$(run "$r")"
+
+# --- well-known present but broken (non-posix-ere dialect) -> fail closed ---
+r="$(newrepo "")"
+addneutral "$r" "$WELL_KNOWN" $'dialect: pcre\nsubject_pattern: \047^\\d+: .+\047'
+out="$(run "$r")"
+rc=$?
+assert_exit "well-known: broken dialect -> exit 1" 1 "$rc"
+assert_eq "well-known: broken dialect -> empty stdout" "" "$out"
+
+# --- well-known present but empty key -> fail closed (never markdown fallback) ---
+r="$(newrepo $'## subject_pattern\n^stale-md: .+')"
+addneutral "$r" "$WELL_KNOWN" $'subject_pattern: \047\047'
+out="$(run "$r")"
+rc=$?
+assert_exit "well-known: empty key -> exit 1 (no stale markdown)" 1 "$rc"
+assert_eq "well-known: empty key -> empty stdout" "" "$out"
+
+# --- NO well-known, NO pointer, markdown present -> markdown (back-compat rung 3) ---
+r="$(newrepo $'## subject_pattern\n^md-only: .+')"
+assert_eq "well-known: absent -> markdown back-compat" '^md-only: .+' "$(run "$r")"
+
+# --- well-known: a key it omits falls back to markdown H2 (per-key) ---
+r="$(newrepo $'## pr_title_pattern\n^MDPR: .+')"
+addneutral "$r" "$WELL_KNOWN" $'subject_pattern: \047^WKS-[0-9]+: .+\047'
+assert_eq "well-known: omitted key -> markdown fallback" '^MDPR: .+' "$(run "$r" pr_title_pattern)"
+
 # --- usage / invalid key ---
 bash "$SCRIPT" >/dev/null 2>&1
 assert_exit "no args -> exit 2" 2 $?
