@@ -2102,6 +2102,32 @@ class HandoffVerifyTests(unittest.TestCase):
             self.assertIn("needs-elevation", verdict["reasons"])
             self.assertNotIn("changed-since-scan", verdict["reasons"])
 
+    def test_handle_probe_launch_failure_degrades_to_contested(self) -> None:
+        # lsof vanishing between which() and run() (or a ctypes load error)
+        # must contest this path, not abort the run with zero verdicts.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "first.tmp").write_text("stale", encoding="utf-8")
+            (root / "second.tmp").write_text("stale", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            with (
+                mock.patch.object(
+                    hygiene,
+                    "handle_state",
+                    side_effect=FileNotFoundError(2, "lsof vanished"),
+                ),
+                mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+            ):
+                result = hygiene.handoff_verify(snapshot, ["first.tmp", "second.tmp"])
+            self.assertEqual(2, len(result["verdicts"]))
+            for verdict in result["verdicts"]:
+                self.assertEqual("contested", verdict["verdict"])
+                self.assertIn(
+                    "handle-state-unverified: handle-probe-failed",
+                    verdict["reasons"],
+                )
+
     def test_validate_handoff_paths_rejects_malformed_input(self) -> None:
         entries = {"keep/junk.tmp": {}, "keep": {}}
         cases = [

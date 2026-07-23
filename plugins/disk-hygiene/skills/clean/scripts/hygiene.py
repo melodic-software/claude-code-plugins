@@ -1576,7 +1576,15 @@ def handoff_verify(snapshot: dict[str, Any], approved: list[str]) -> dict[str, A
                 vcs = "vcs-state-unverified"
             if vcs:
                 contested.add(vcs)
-            state, detail = candidate_handle_state(target, path, expected_paths)
+            # Same degradation rule as the VCS probe: a probe that fails to
+            # LAUNCH (lsof vanishing after which(), a ctypes load error) is
+            # this path's contested verdict, not a whole-run abort.
+            try:
+                state, detail = candidate_handle_state(
+                    target, path, expected_paths
+                )
+            except (OSError, subprocess.SubprocessError):
+                state, detail = "unverified", "handle-probe-failed"
             if state == "open":
                 contested.add("live-handle" + (f": {detail}" if detail else ""))
             elif state == "needs_elevation":
