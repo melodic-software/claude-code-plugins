@@ -194,6 +194,18 @@
         "States the one-line reason the explicit list is written (overriding the lower layer, not merely restating the default)",
         "Reports the resulting effective merge showing the local overlay's explicit list winning over the team layer's list"
       ]
+    },
+    {
+      "id": 16,
+      "name": "check-reports-none-as-resolved-value",
+      "prompt": "/source-control:setup check\n\nThe team-tracked .claude/source-control.md declares pr_body_required_sections as the literal keyword none. No other layer sets the key.",
+      "expected_output": "The effective-configuration table's pr_body_required_sections row renders `none (no required sections)` with `won by` reading the team layer — a resolved value, reported the same way trailer_policy: none and pr_body_attribution: none are, and clearly distinct from the unset state (which resolves to the portable default with won by 'plugin default'). The row is INFO-class, not FAIL: no required sections is a legitimate, configured convention.",
+      "files": [],
+      "expectations": [
+        "The pr_body_required_sections row renders the resolved value as `none (no required sections)` with the team layer in the won-by column",
+        "A resolved `none` is reported distinctly from the unset state — it does not render as the portable default or as 'plugin default'",
+        "The `none` value is treated as INFO/PASS-class configuration, not a FAIL"
+      ]
     }
   ]
 }

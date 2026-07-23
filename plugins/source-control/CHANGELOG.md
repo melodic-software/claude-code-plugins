@@ -3,6 +3,28 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.0]
+
+### Added
+
+- **`pr_body_required_sections` accepts the literal keyword `none` — no required sections (#1138).**
+  The key could previously express only a list or absence (absence yields the portable default), so
+  a repo whose team convention is no PR-body sections — real consumer evidence: a repo whose merged
+  PRs are overwhelmingly empty-bodied by design — had no way to state that in config. `none` now
+  resolves to zero required sections, parallel to the sibling keys `trailer_policy` and
+  `pr_body_attribution`: `/pull-request create` drafts no section scaffold and the §2.4.2.2
+  pre-create gate has nothing to require (the §2.4.2.1 closing-keyword check is independent and
+  unchanged; ad hoc `## Related` content from real refs is still never dropped). `none` participates
+  in per-key layering as a **resolved value, not an absence** — a layer declaring `none` overrides a
+  lower layer's list wholesale, while a key unset in every layer still falls through to the portable
+  default (`Summary`, `Test plan`). Documented in `reference/config-resolution.md` and the
+  pr-body-convention seam README (which now owns the value's rationale); `/setup check` renders a
+  resolved `none` as `none (no required sections)` with the winning layer, distinct from the unset
+  row, and the `apply` interview offers `none` for repos whose convention requires no sections. New
+  pull-request evals 19 (team-layer `none` resolves to an empty scaffold) and 20 (`none` wins the
+  per-key override across the three layers) and setup eval 16 (check-report rendering) cover the
+  resolution.
+
 ## [0.19.0]
 
 ### Added

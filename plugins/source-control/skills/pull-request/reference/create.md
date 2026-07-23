@@ -204,7 +204,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/push-branch.sh" || exit 
 
 Derive PR title from the commit subject, shaped to satisfy the resolved subject/title convention (the ladder in [SKILL.md](../SKILL.md): layered `source-control.md` config → project convention → Conventional Commits default). Build body with `${CLOSES_LINE}` at top, followed by the resolved section scaffold and a config-gated attribution line.
 
-**Resolve the required section scaffold first.** Read `pr_body_required_sections` across the three `source-control.md` layers per [../../../reference/config-resolution.md](../../../reference/config-resolution.md) (per-key override — a winning layer's list is taken whole, never merged with an earlier layer's). Absent everywhere → the bundled portable default, `Summary` and `Test plan` only (no `Related` — see [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md) for why the portable default excludes it). Track which file/layer supplied the effective list — the §2.4.2 gate cites it verbatim on failure.
+**Resolve the required section scaffold first.** Read `pr_body_required_sections` across the three `source-control.md` layers per [../../../reference/config-resolution.md](../../../reference/config-resolution.md) (per-key override — a winning layer's list is taken whole, never merged with an earlier layer's). Absent everywhere → the bundled portable default, `Summary` and `Test plan` only (no `Related` — see [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md) for why the portable default excludes it). The literal keyword `none` resolves to **zero required sections** — the winning layer's `none` overrides a lower layer's list the same way a list would (a resolved value, never an absence; parallel to `trailer_policy`/`pr_body_attribution`), the template below emits no scaffold blocks, and the §2.4.2.2 gate has nothing to require. Track which file/layer supplied the effective list — the §2.4.2 gate cites it verbatim on failure.
 
 ```bash
 # REQUIRED_SECTIONS: resolved at the model level from the three source-control.md layers'
@@ -216,6 +216,9 @@ REQUIRED_SECTIONS_SOURCE="plugin default (no source-control.md layer sets pr_bod
 # When a layer resolves the key, e.g.:
 #   REQUIRED_SECTIONS=("Summary" "Test plan" "Related")
 #   REQUIRED_SECTIONS_SOURCE="<repo-root>/.claude/source-control.md, ## pr_body_required_sections (team layer)"
+# When the winning layer declares the literal keyword `none` (no required sections):
+#   REQUIRED_SECTIONS=()
+#   REQUIRED_SECTIONS_SOURCE="<repo-root>/.claude/source-control.md, ## pr_body_required_sections (team layer, none)"
 ```
 
 Build one `## <heading>` block per entry in `${REQUIRED_SECTIONS[@]}`, real content in each — never
@@ -229,7 +232,10 @@ the same way `Summary` already does. If `${REFS_LINES}` is non-empty and `Relate
 `${REQUIRED_SECTIONS[@]}`, still append a `## Related` section carrying those lines — real
 user-supplied content is never dropped — but do **not** add it to `${REQUIRED_SECTIONS[@]}`: an ad hoc
 `Related` section is present only because it has real content, and the §2.4.2 gate must never come to
-require a section the resolved config does not list.
+require a section the resolved config does not list. Under a resolved `none` the loop below builds an
+empty `TEMPLATE`, and the assembled body carries only the closing-keyword line, any ad hoc `## Related`
+(the real-refs rule above applies unchanged — `none` suppresses the *required* scaffold, never
+user-supplied content), and the §2.4.3 attribution line.
 
 ```bash
 # One content resolver, reused whether Related is required or ad hoc — the single place
@@ -340,7 +346,7 @@ When user explicitly selected `No related issue: <reason>` in §2.4.0, the gate 
 
 #### 2.4.2.2 Verify required sections (config-driven)
 
-For every heading in `${REQUIRED_SECTIONS[@]}` (resolved in §2.4.1 from `pr_body_required_sections`, or the portable default), confirm a `## <heading>` section exists in `$BODY` **and** its body is non-empty. This is a generic mechanism — it verifies whatever the resolved config lists, never a section name baked into this skill. Deferred beyond presence + non-empty (per [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md)): placeholder-text detection (`TBD`/`TODO`/a restated heading) and per-section min-content rules — `standards#173`.
+For every heading in `${REQUIRED_SECTIONS[@]}` (resolved in §2.4.1 from `pr_body_required_sections`, or the portable default), confirm a `## <heading>` section exists in `$BODY` **and** its body is non-empty. This is a generic mechanism — it verifies whatever the resolved config lists, never a section name baked into this skill. A resolved `none` (§2.4.1) leaves `${REQUIRED_SECTIONS[@]}` empty, so this check passes with nothing to verify — the §2.4.2.1 closing-keyword check is independent and still runs. Deferred beyond presence + non-empty (per [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md)): placeholder-text detection (`TBD`/`TODO`/a restated heading) and per-section min-content rules — `standards#173`.
 
 ```bash
 MISSING_SECTIONS=()
