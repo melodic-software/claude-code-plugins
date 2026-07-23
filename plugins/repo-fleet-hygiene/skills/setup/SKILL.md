@@ -46,6 +46,8 @@ validates the configuration the audit would consume.
 4. **`maxDepth`** — present and outside `1..12` is FAIL; absent is INFO (the audit's own default applies).
 5. **Canonical identity** — INFO for each `[canonical "github.com/owner/repository"]` entry: report the
    normalized key. Flag as FAIL only a key that is not a normalizable `github.com/owner/repository`.
+6. **Acknowledged identities** — INFO listing each `fleet.ackUnavailable` entry (normalized). FAIL any
+   value that is not a normalizable `github.com/owner/repository`.
 
 ## `apply` (idempotent)
 
@@ -89,10 +91,17 @@ Re-running `apply` with the same arguments after everything resolves changes not
     root = ../../repos/github.com   # repeatable discovery root
     repo = ../../special/repo      # repeatable exact target
     maxDepth = 5                   # integer 1..12
+    ackUnavailable = github.com/owner/repository   # repeatable; acknowledge a known-inaccessible identity
 
 [canonical "github.com/owner/repository"]
     path = ../../../canonical-checkout
 ```
+
+`ackUnavailable` demotes a 404/403 `github-identity-unavailable` finding for that identity from
+`UNKNOWN` to `ACKNOWLEDGED` in the audit report — still reported, never suppressed, and never
+affecting non-404/403 failures or successful-response evidence. Use it for foreseeable 404s:
+upstream repositories made private or deleted, or repositories owned by a different GitHub account
+than the authenticated `gh` login.
 
 Resolution priority is explicit audit CLI override, canonical config entry, then discovered checkout's
 `git rev-parse --show-toplevel`. Never add a canonical override merely because two directory names look
