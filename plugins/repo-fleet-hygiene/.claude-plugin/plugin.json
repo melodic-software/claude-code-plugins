@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "repo-fleet-hygiene",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "Read-only Git/GitHub fleet audit for merged local branches, orphaned or mismatched worktree registrations, and repository transfers or renames. Findings are confidence-tiered and hand off exact targets to existing per-repository cleanup tools; this plugin never deletes branches or worktrees.",
   "author": {
     "name": "Melodic Software",
