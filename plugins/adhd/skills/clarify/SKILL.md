@@ -40,6 +40,19 @@ re-read that prior message and clarify it. When there is **no prior assistant
 message** — a cold start where the reader opens with "make this clear" and
 nothing has been said — do not invent a target: ask what to clarify.
 
+**Trivial-target escape hatch.** When the resolved target holds fewer than ~2
+decisions — a short answer, a status line, anything with nothing to untangle —
+do **not** run the full table/glossary apparatus on it. Say in one line that
+the target has nothing dense to clarify, and ask what the reader actually
+wanted clarified. A three-line response restructured into a one-row decision
+table is ceremony, not clarity.
+
+**Conflicting-shaper note.** If a terse-for-tokens output shaper (e.g. caveman
+hooks) is active in the session context, say so before rendering: this skill's
+faithful, structure-adding output directly contradicts a strip-words directive,
+and the two cannot both govern the same response. Advisory only — name the
+source and let the user pick.
+
 ## Fidelity rules (hard)
 
 A clarification is a **lens on the original, not a replacement for it.** These
@@ -56,6 +69,10 @@ defeats the purpose:
    original item's own identifier (Q9, Round 4 · P15b, §3) so the reader can jump
    back to the source. This is separate from any numbering this skill adds for
    itself (see [Rendering](#rendering-artifact-forward)) — never collapse the two.
+   When the original carries **no identifiers** (a dense prose memo with no Q-numbers
+   or section marks), synthesize a locator and say you did: a sequential marker
+   ("¶2", "Para 3") or the chunk's quoted opening phrase — never leave a chunk
+   with no way back to its source passage.
 3. **List omissions explicitly.** Anything in the original you did not carry
    forward — a caveat, a fifth option, a dependency — is named in a short "Left
    out" note, not silently dropped. The reader decides whether an omission
@@ -107,11 +124,16 @@ sessions and absent in others. Detect it: if the Artifact tool is available, tha
 is the top rung; otherwise degrade down the ladder. Never claim a decision table
 was rendered when only prose was produced.
 
-Write any local HTML file to the plugin's own data directory
-(`${CLAUDE_PLUGIN_DATA}`) or an OS temp path and hand back that path — a
-clarified view is transient generated state, so it never lands in the consumer's
-repository tree. If neither a writable location nor the Artifact surface is
-available, drop to the terminal-markdown rung rather than writing into the repo.
+Write any local HTML file to an **OS temp path** (the session's scratchpad
+directory when the harness provides one, else the platform temp dir) and hand
+back that path — a clarified view is transient generated state, so it never
+lands in the consumer's repository tree. Do not rely on a plugin-data
+substitution variable for this location: skill-body substitution is documented
+only for a fixed set of variables, and an undocumented token can substitute
+unpredictably (including to the wrong plugin's directory when the token
+travels through another skill's arguments). If no writable temp location nor
+the Artifact surface is available, drop to the terminal-markdown rung rather
+than writing into the repo.
 
 The fidelity rules hold in **every** medium — verbatim terms, original-number
 back-links, omissions, lens line — table or prose.
@@ -172,7 +194,11 @@ job.
 invoke it once and every response for the rest of the session is shaped. This is
 a **one-shot** reshape of **one** artifact already on screen — it does not change
 how future responses are written. Use `shape` to set the house style; use this to
-rescue a specific wall of text.
+rescue a specific wall of text. Two interaction rules when both are active:
+the decision table is **exempt from shape's five-item list cap** (fidelity
+forbids dropping decisions, and fidelity wins over shaping); and shape-formatted
+output is already restructured, so running clarify on it is usually a no-op —
+say so instead of re-rendering it.
 
 ## Gotchas
 
