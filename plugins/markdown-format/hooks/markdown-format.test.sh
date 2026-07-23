@@ -390,14 +390,21 @@ else
   fail "missing jq warning absent: $OUT_NO_JQ"
 fi
 
-# --- Repository-config trust boundary: visible once per risky state ---------
-# Use the official persistent plugin-data surface so separate hook processes
-# share the acknowledgement marker. A config-content change must produce a new
-# state signature and therefore a fresh warning.
+# --- Repository-config trust gate: risky config blocks lint until approved ---
+# Uses the official persistent plugin-data surface so separate hook processes
+# share the approval marker. A code-loading configuration must SKIP the lint
+# run — with a visible notice on both channels — until the user records an
+# explicit approval for that exact configuration-content state; any config
+# change must revoke the approval. Blocking is observed through MD047: the
+# fixture lacks a final newline, so a lint run is exactly "newline appended".
 TRUST_DATA="$WORK/plugin-data"
 ORIGINAL_CONFIG="$REPO/.markdownlint-cli2.jsonc"
 SAVED_CONFIG="$WORK/original-markdownlint-cli2.jsonc"
 mv "$ORIGINAL_CONFIG" "$SAVED_CONFIG"
+
+has_final_newline() {
+  [[ "$(tail -c 1 "$1" | od -An -tx1 | tr -d ' \n')" == "0a" ]]
+}
 
 cat >"$REPO/.markdownlint-cli2.cjs" <<'CJS'
 module.exports = {
@@ -412,33 +419,61 @@ printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
 OUT_TRUST_1="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
   env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
 RC_TRUST_1=$?
-if [[ $RC_TRUST_1 -eq 0 ]]; then ok "executable config advisory exits 0"; else fail "executable config advisory exit $RC_TRUST_1"; fi
-if printf '%s' "$OUT_TRUST_1" | jq -e '.hookSpecificOutput.additionalContext | contains("trust advisory") and contains(".markdownlint-cli2.cjs")' >/dev/null 2>&1; then
-  ok "executable .cjs config emits visible trust advisory"
+if [[ $RC_TRUST_1 -eq 0 ]]; then ok "unapproved executable config exits 0 (advisory)"; else fail "unapproved executable config exit $RC_TRUST_1"; fi
+if printf '%s' "$OUT_TRUST_1" | jq -e '(.hookSpecificOutput.additionalContext | contains("trust gate") and contains(".markdownlint-cli2.cjs")) and (.systemMessage | contains("trust gate"))' >/dev/null 2>&1; then
+  ok "executable .cjs config emits visible trust-gate notice on both channels"
 else
-  fail "executable .cjs trust advisory absent: $OUT_TRUST_1"
+  fail "executable .cjs trust-gate notice absent: $OUT_TRUST_1"
 fi
-if [[ "$(tail -c 1 "$TRUST_FILE" | od -An -tx1 | tr -d ' \n')" == "0a" ]]; then
-  ok "trust advisory does not block markdownlint --fix"
+if ! has_final_newline "$TRUST_FILE"; then
+  ok "unapproved executable config blocks markdownlint --fix"
 else
-  fail "trust advisory blocked markdownlint --fix"
+  fail "unapproved executable config still ran markdownlint --fix"
 fi
 
+# Same state, same session: the notice dedupes, but the lint run stays blocked.
 OUT_TRUST_2="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
   env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
 if [[ -z "$OUT_TRUST_2" ]]; then
-  ok "unchanged executable config warning appears only once"
+  ok "unchanged unapproved state notices only once per session"
 else
-  fail "unchanged executable config warned again: $OUT_TRUST_2"
+  fail "unchanged unapproved state noticed again: $OUT_TRUST_2"
+fi
+if ! has_final_newline "$TRUST_FILE"; then
+  ok "repeat edit stays blocked while unapproved"
+else
+  fail "repeat edit ran markdownlint --fix while unapproved"
 fi
 
-printf '\n// reviewed configuration revision\n' >>"$REPO/.markdownlint-cli2.cjs"
+# The notice's approval instruction must name a marker under this plugin-data
+# store; creating that marker is the explicit opt-in that enables the lint run.
+TRUST_MARKER="$(printf '%s' "$OUT_TRUST_1" | jq -r '.systemMessage' | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
+if [[ -n "$TRUST_MARKER" && "$TRUST_MARKER" == "$TRUST_DATA"/* ]]; then
+  ok "trust-gate notice carries an approval marker under CLAUDE_PLUGIN_DATA"
+else
+  fail "trust-gate approval marker missing or misplaced: $OUT_TRUST_1"
+fi
+mkdir -p "$TRUST_MARKER"
 OUT_TRUST_3="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
   env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
-if printf '%s' "$OUT_TRUST_3" | jq -e '.hookSpecificOutput.additionalContext | contains("trust advisory")' >/dev/null 2>&1; then
-  ok "changed executable config state warns again"
+RC_TRUST_3=$?
+if [[ $RC_TRUST_3 -eq 0 && -z "$OUT_TRUST_3" ]] && has_final_newline "$TRUST_FILE"; then
+  ok "approved configuration state lints again (fix applied, no notice)"
 else
-  fail "changed executable config state did not warn: $OUT_TRUST_3"
+  fail "approved configuration state did not lint (rc=$RC_TRUST_3 out=$OUT_TRUST_3)"
+fi
+
+# A config-content change produces a new state signature: the approval is
+# revoked, and the gate blocks — and notices, despite the same session — again.
+printf '\n// unreviewed configuration revision\n' >>"$REPO/.markdownlint-cli2.cjs"
+printf '# Executable config\n\nClean text.' >"$TRUST_FILE"
+OUT_TRUST_4="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+if printf '%s' "$OUT_TRUST_4" | jq -e '.hookSpecificOutput.additionalContext | contains("trust gate")' >/dev/null 2>&1 &&
+  ! has_final_newline "$TRUST_FILE"; then
+  ok "changed executable config state revokes approval and blocks again"
+else
+  fail "changed executable config state was not re-gated: $OUT_TRUST_4"
 fi
 
 # Declarative CLI2 configuration still loads modules when these official keys
@@ -457,21 +492,35 @@ cat >"$ORIGINAL_CONFIG" <<'JSONC'
 JSONC
 OUT_TRUST_MODULES="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
   env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
-if printf '%s' "$OUT_TRUST_MODULES" | jq -e '.hookSpecificOutput.additionalContext | contains("trust advisory") and contains(".markdownlint-cli2.jsonc")' >/dev/null 2>&1; then
-  ok "module-loading config keys emit visible trust advisory"
+if printf '%s' "$OUT_TRUST_MODULES" | jq -e '.hookSpecificOutput.additionalContext | contains("trust gate") and contains(".markdownlint-cli2.jsonc")' >/dev/null 2>&1 &&
+  ! has_final_newline "$TRUST_FILE"; then
+  ok "module-loading config keys are gated with a visible notice"
 else
-  fail "module-loading config trust advisory absent: $OUT_TRUST_MODULES"
+  fail "module-loading config keys were not gated: $OUT_TRUST_MODULES"
+fi
+
+# Fail closed: with no CLAUDE_PLUGIN_DATA an approval can be neither recorded
+# nor verified, so a risky config must still skip the lint run (and notice
+# every time — the once-per-session gate fails open toward visibility when it
+# has no marker store).
+OUT_TRUST_NOSTATE="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
+  env -u CLAUDE_PROJECT_DIR -u CLAUDE_PLUGIN_DATA CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+if printf '%s' "$OUT_TRUST_NOSTATE" | jq -e '.systemMessage | contains("trust gate")' >/dev/null 2>&1 &&
+  ! has_final_newline "$TRUST_FILE"; then
+  ok "risky config without a plugin-data store fails closed"
+else
+  fail "risky config without a plugin-data store did not fail closed: $OUT_TRUST_NOSTATE"
 fi
 
 # Negative control: a declarative rule-only config is not executable and loads
-# no modules, so it must not produce trust-warning noise.
+# no modules, so linting proceeds immediately with no gate noise.
 mv "$SAVED_CONFIG" "$ORIGINAL_CONFIG"
 OUT_TRUST_SAFE="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
   env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
-if [[ -z "$OUT_TRUST_SAFE" ]]; then
-  ok "rule-only declarative config emits no trust advisory"
+if [[ -z "$OUT_TRUST_SAFE" ]] && has_final_newline "$TRUST_FILE"; then
+  ok "rule-only declarative config lints with no trust gate"
 else
-  fail "rule-only declarative config emitted advisory: $OUT_TRUST_SAFE"
+  fail "rule-only declarative config gated or noisy: $OUT_TRUST_SAFE"
 fi
 
 # --- Kill switch: disabled hook is a no-op ----------------------------------

@@ -2,9 +2,11 @@
 # PostToolUse hook: auto-format and lint Markdown via markdownlint-cli2.
 # Triggered on Write|Edit of *.md and *.mdc (Cursor MDC = markdown + frontmatter).
 #
-# ADVISORY: always exits 0. markdownlint-cli2 --fix auto-format always applies;
-# unfixable markdownlint violations surface via additionalContext but never
-# block the edit. Uses the consuming repo's own markdownlint config — ships none.
+# ADVISORY: always exits 0 — unfixable markdownlint violations surface via
+# additionalContext but never block the edit. Uses the consuming repo's own
+# markdownlint config — ships none. When that configuration can execute code
+# (.cjs/.mjs config, or module-loading keys), the lint run itself is gated on
+# an explicit per-repo trust approval; see the trust gate below.
 
 set -uo pipefail
 
@@ -227,18 +229,24 @@ collect_risky_configs() {
   done
 }
 
-# Return success only for the first observation of this repo + risky-config
-# content state. CLAUDE_PLUGIN_DATA is the official persistent plugin-state
-# location and survives plugin updates. If it is unavailable or unwritable
-# (for example, a direct development invocation), fail open by warning again;
-# never suppress a trust warning merely because its marker could not be saved.
-claim_trust_advisory() {
-  local state_base="${CLAUDE_PLUGIN_DATA:-}" state_dir signature config digest
-  [[ -n "$state_base" ]] || return 0
+# Resolve the trust-approval marker directory for the current repo +
+# risky-config content state into TRUST_DIR. CLAUDE_PLUGIN_DATA is the
+# official persistent plugin-state location and survives plugin updates; the
+# signature is content-addressed over every risky config, so any configuration
+# change yields a new directory and revokes a prior approval. Returns 1 when
+# the state base is unavailable or a config cannot be digested — the caller
+# must fail CLOSED and skip the lint run: configuration that can execute code
+# and whose approval cannot be verified is never run. Named trust-approvals,
+# NOT trust-advisories: that directory's markers recorded only that a warning
+# had been shown, and reading them as approvals would silently grant trust.
+TRUST_DIR=""
+resolve_trust_dir() {
+  local state_base="${CLAUDE_PLUGIN_DATA:-}" signature config digest
+  TRUST_DIR=""
+  [[ -n "$state_base" ]] || return 1
   if command -v cygpath >/dev/null 2>&1 && [[ "$state_base" == [A-Za-z]:\\* ]]; then
-    state_base="$(cygpath -u "$state_base" 2>/dev/null)" || return 0
+    state_base="$(cygpath -u "$state_base" 2>/dev/null)" || return 1
   fi
-  state_dir="${state_base%/}/trust-advisories"
   signature=$(
     {
       printf '%s\n' "$REPO_ROOT"
@@ -247,22 +255,42 @@ claim_trust_advisory() {
         printf '%s\t%s\n' "$config" "$digest"
       done
     } | git hash-object --stdin 2>/dev/null
-  ) || return 0
-  [[ -n "$signature" ]] || return 0
-  mkdir -p "$state_dir" 2>/dev/null || return 0
-  mkdir "$state_dir/$signature" 2>/dev/null
+  ) || return 1
+  [[ -n "$signature" ]] || return 1
+  TRUST_DIR="${state_base%/}/trust-approvals/$signature"
 }
 
 hook::ctx_reset
 collect_risky_configs
-if ((${#RISK_CONFIGS[@]} > 0)) && claim_trust_advisory; then
-  RISK_LIST=""
-  for config in "${RISK_CONFIGS[@]}"; do
-    config="${config#"$CONFIG_ROOT"/}"
-    RISK_LIST+="${RISK_LIST:+, }$config"
-  done
-  hook::ctx_append \
-    "markdown-format trust advisory: markdownlint-cli2 will load executable or module-loading repository configuration ($RISK_LIST). Formatting continues, but review these files and their installed dependencies before trusting this repository. This warning appears once per configuration state."
+# Trust gate: markdownlint-cli2's configuration contract loads .cjs/.mjs
+# config modules and customRules/markdownItPlugins/outputFormatters module
+# identifiers through Node's require/import machinery, so running the linter
+# under such configuration executes repository-supplied code. That must never
+# happen on the strength of a markdown edit alone: the lint run is skipped
+# until the user, having reviewed the configuration, records an explicit
+# approval of this exact configuration state. The skip is reported on both
+# channels once per session; the notice key carries the state signature so a
+# configuration change re-notices within the same session.
+if ((${#RISK_CONFIGS[@]} > 0)); then
+  resolve_trust_dir || TRUST_DIR=""
+  if [[ -z "$TRUST_DIR" || ! -d "$TRUST_DIR" ]]; then
+    RISK_LIST=""
+    for config in "${RISK_CONFIGS[@]}"; do
+      config="${config#"$CONFIG_ROOT"/}"
+      RISK_LIST+="${RISK_LIST:+, }$config"
+    done
+    if [[ -n "$TRUST_DIR" ]]; then
+      APPROVE_HINT="Review these files and their installed dependencies; to approve this exact configuration state and enable linting, run: mkdir -p '$TRUST_DIR' (any configuration change revokes the approval)."
+    else
+      APPROVE_HINT="Approval state is unavailable (CLAUDE_PLUGIN_DATA unset or unusable), so linting stays disabled for this repository."
+    fi
+    if hook::notice_once "markdown-format-trust-${TRUST_DIR##*/}" "$INPUT"; then
+      hook::emit_skip_notice PostToolUse \
+        "markdown-format trust gate: Markdown lint/format skipped — this repository's markdownlint configuration can execute repository-supplied code ($RISK_LIST). $APPROVE_HINT"
+    fi
+    emit_tel "skipped" '[]'
+    exit 0
+  fi
 fi
 
 if FIX_OUTPUT=$(cd "$REPO_ROOT" && "${MDLINT[@]}" --fix "$FILE" 2>&1); then
@@ -272,8 +300,8 @@ if FIX_OUTPUT=$(cd "$REPO_ROOT" && "${MDLINT[@]}" --fix "$FILE" 2>&1); then
   exit 0
 fi
 
-# Residual findings — append to any trust advisory, surface one JSON object via
-# additionalContext, then emit ok with findings.
+# Residual findings — surface one JSON object via additionalContext, then
+# emit ok with findings.
 # ctx_append receives all output lines (human-readable context for Claude Code).
 # FINDINGS_JSON is filtered to violation lines only — schema requires
 # "Unfixable markdownlint violations remaining after --fix, one per line";

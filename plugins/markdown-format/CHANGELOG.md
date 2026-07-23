@@ -3,6 +3,39 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0]
+
+### Security
+
+- **Code-loading markdownlint configuration is now gated on explicit approval.**
+  When the discovered configuration can execute repository-supplied code
+  (`.cjs`/`.mjs` config files, or `customRules`/`markdownItPlugins`/
+  `outputFormatters` module identifiers), the hook no longer runs
+  `markdownlint-cli2` after a one-time non-blocking advisory — it skips the
+  lint run, with a visible once-per-session notice on both channels, until the
+  user approves that exact configuration-content state by creating the marker
+  directory named in the notice (under `${CLAUDE_PLUGIN_DATA}/trust-approvals`).
+  Any configuration change revokes the approval; the gate fails closed when
+  `CLAUDE_PLUGIN_DATA` is unavailable. Previously the hook warned once and
+  executed anyway, so a malicious repository's checked-in config could run
+  arbitrary code on a routine markdown edit. Declarative rule-only
+  configuration is unaffected. The edit itself is still never blocked — the
+  hook always exits 0.
+
+### Fixed
+
+- **Shared `hook-utils.sh`: a bare or trailing unquoted `NAME=value` Bash
+  command no longer leaks the assignment value into the privacy-safe
+  telemetry/audit subject.** `hook::extract_bash_subject` stripped a leading
+  `VAR=value` prefix only when a following command word consumed it, so a
+  command whose LAST token was an unquoted assignment (e.g. `TOKEN=ghp_…`)
+  survived to the subject and emitted `Bash:TOKEN=ghp_…` into
+  `hook-events.jsonl` and any wired `HOOK_TELEMETRY_SINK`. A resolved token
+  still shaped like a shell assignment now bails to the bare `Bash` subject,
+  matching the existing quoted-value bail (`VAR=x cmd` still reduces to
+  `Bash:cmd`). Synced from `lib/hook-utils.sh`; the subject is
+  telemetry/audit-only, so no guard or formatter block/allow behavior changes.
+
 ## [0.6.1]
 
 ### Changed
