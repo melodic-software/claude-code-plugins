@@ -124,8 +124,9 @@ the first unanswered escalation.
 A standing lane is additionally bounded by the `/loop` launch surface's **seven-day expiry**: a
 self-paced `/loop` ends automatically seven days after it starts, idle backoff notwithstanding
 (<https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry>, verified 2026-07-23). A standing
-lane therefore requires a relaunch owner — the operator while attended, or a launcher that relaunches
-lanes (`claude-ops` `lanes` after the migration). The lane records its loop-started timestamp in the
+lane therefore requires a relaunch owner — today always the operator, for whom `claude-ops` `lanes`
+`restart` is a one-command path (operator-initiated by contract; see the cycle-budget paragraph
+below). The lane records its loop-started timestamp in the
 lane's #502 telemetry block so the approaching expiry is visible ahead of time, and an expiry hit is
 handled exactly like the cycle-budget hit below: a restart-request into the #502 block, then a clean
 stop.
@@ -144,10 +145,14 @@ emits a restart-request into the #502 telemetry block and stops the loop cleanly
 cannot `/clear` or relaunch itself, since a relaunch is the only context reset a lane gets
 ([`claude-ops` lanes](../../../plugins/claude-ops/skills/lanes/SKILL.md), section "A relaunch is the
 only context reset a loop lane gets"). What happens next is launcher-relative. Under a launcher that
-acts on restart-requests (for example `claude-ops` `lanes`), the lane is relaunched and the loop
-continues — the budget restarts the **session**, never ends the **loop**. Under a bare interactive
-`/loop` with no launcher, the same budget hit is a **terminal** manual-restart state: the stop is
-reported in lane telemetry, and the operator — or a migration to a launcher — owns the restart.
+acts on restart-requests, the lane is relaunched and the loop continues — the budget restarts the
+**session**, never ends the **loop**. **No such automatic launcher exists today**: `claude-ops`
+`lanes` is operator-initiated by contract ("no scheduler runs `restart` for you today", per its
+SKILL.md), so until an automatic relaunch trigger exists, *every* budget hit — under `lanes` or a
+bare interactive `/loop` alike — is a **terminal** manual-restart state: the stop is reported in
+lane telemetry, and the operator owns the restart (`lanes` `restart` is the operator's one-command
+path). The restart-request in the #502 block is written so that the operator today, and an
+automatic trigger when one exists, can act on the same surface.
 
 **Telemetry comment (#502).** Each lane maintains exactly **one** status comment on a tracking item,
 identified by a machine sentinel marker and **edited in place** every cycle — never a second comment.
