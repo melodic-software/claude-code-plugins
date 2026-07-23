@@ -1797,6 +1797,209 @@ class LeastObservableEnginePathTests(unittest.TestCase):
             )
 
 
+class HandoffVerifyTests(unittest.TestCase):
+    """handoff-verify: read-only manual-lane revalidation (#1109)."""
+
+    def setUp(self) -> None:
+        patcher = mock.patch.object(hygiene, "standing_policy_paths", return_value=[])
+        self.addCleanup(patcher.stop)
+        patcher.start()
+
+    @staticmethod
+    def clear_probe_mocks():
+        return (
+            mock.patch.object(hygiene, "handle_state", return_value=("clear", None)),
+            mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+        )
+
+    def test_clear_verdict_is_read_only_and_ignores_platform_blockers(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            junk = root / "junk.tmp"
+            junk.write_text("stale", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            handle, vcs = self.clear_probe_mocks()
+            with handle, vcs:
+                result = hygiene.handoff_verify(snapshot, ["junk.tmp"])
+            self.assertEqual("handoff-verify-complete", result["status"])
+            self.assertEqual(1, result["clear"])
+            self.assertEqual(0, result["not_clear"])
+            verdict = result["verdicts"][0]
+            self.assertEqual(
+                {"path": "junk.tmp", "verdict": "clear", "reasons": []}, verdict
+            )
+            # Read-only: the path survives, and the platform execution gate
+            # (which blocks apply on Windows/macOS) must not appear here.
+            self.assertTrue(junk.exists())
+            self.assertNotIn("execution-platform-unsupported", verdict["reasons"])
+
+    def test_gone_verdict_for_removed_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            junk = root / "junk.tmp"
+            junk.write_text("stale", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            junk.unlink()
+            handle, vcs = self.clear_probe_mocks()
+            with handle, vcs:
+                result = hygiene.handoff_verify(snapshot, ["junk.tmp"])
+            self.assertEqual(
+                {"path": "junk.tmp", "verdict": "gone", "reasons": ["no-longer-present"]},
+                result["verdicts"][0],
+            )
+            self.assertEqual(1, result["not_clear"])
+
+    def test_drifted_verdict_for_changed_since_approval_content(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            junk = root / "junk.tmp"
+            junk.write_text("stale", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            junk.write_text("rewritten after approval", encoding="utf-8")
+            handle, vcs = self.clear_probe_mocks()
+            with handle, vcs:
+                result = hygiene.handoff_verify(snapshot, ["junk.tmp"])
+            verdict = result["verdicts"][0]
+            self.assertEqual("drifted", verdict["verdict"])
+            self.assertIn("changed-since-scan", verdict["reasons"])
+
+    def test_drifted_verdict_for_new_descendant(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            stale = root / "stale-cache"
+            stale.mkdir(parents=True)
+            (stale / "old.tmp").write_text("old", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            (stale / "arrived-later.txt").write_text("new", encoding="utf-8")
+            handle, vcs = self.clear_probe_mocks()
+            with handle, vcs:
+                result = hygiene.handoff_verify(snapshot, ["stale-cache"])
+            verdict = result["verdicts"][0]
+            self.assertEqual("drifted", verdict["verdict"])
+            self.assertIn("changed-since-scan", verdict["reasons"])
+
+    def test_contested_verdict_for_live_handle(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "busy.tmp").write_text("held", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            with (
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("open", "win32-error-32")
+                ),
+                mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+            ):
+                result = hygiene.handoff_verify(snapshot, ["busy.tmp"])
+            verdict = result["verdicts"][0]
+            self.assertEqual("contested", verdict["verdict"])
+            # candidate_handle_state prefixes the relative path on Windows.
+            reason = next(
+                value
+                for value in verdict["reasons"]
+                if value.startswith("live-handle")
+            )
+            self.assertIn("win32-error-32", reason)
+
+    def test_contested_verdict_for_vcs_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "tracked.tmp").write_text("tracked", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            with (
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("clear", None)
+                ),
+                mock.patch.object(
+                    hygiene, "tracked_blocker", return_value="vcs-tracked-content"
+                ),
+            ):
+                result = hygiene.handoff_verify(snapshot, ["tracked.tmp"])
+            verdict = result["verdicts"][0]
+            self.assertEqual("contested", verdict["verdict"])
+            self.assertIn("vcs-tracked-content", verdict["reasons"])
+
+    def test_unverified_handle_fails_closed_as_contested(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "murky.tmp").write_text("murky", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            with (
+                mock.patch.object(
+                    hygiene,
+                    "handle_state",
+                    return_value=("unverified", "lsof-not-found"),
+                ),
+                mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+            ):
+                result = hygiene.handoff_verify(snapshot, ["murky.tmp"])
+            verdict = result["verdicts"][0]
+            self.assertEqual("contested", verdict["verdict"])
+            reason = next(
+                value
+                for value in verdict["reasons"]
+                if value.startswith("handle-state-unverified")
+            )
+            self.assertIn("lsof-not-found", reason)
+
+    def test_validate_handoff_paths_rejects_malformed_input(self) -> None:
+        entries = {"keep/junk.tmp": {}, "keep": {}}
+        cases = [
+            ({"version": 2, "paths": ["keep"]}, "version"),
+            ({"version": 1, "paths": []}, "non-empty"),
+            ({"version": 1, "paths": ["/absolute"]}, "outside or absent"),
+            ({"version": 1, "paths": ["../escape"]}, "outside or absent"),
+            ({"version": 1, "paths": ["not-in-snapshot"]}, "outside or absent"),
+            ({"version": 1, "paths": ["keep", "keep/junk.tmp"]}, "overlap"),
+            ({"version": 1, "paths": ["."]}, "non-root"),
+        ]
+        for payload, message in cases:
+            with self.subTest(payload=payload):
+                with self.assertRaisesRegex(hygiene.HygieneError, message):
+                    hygiene.validate_handoff_paths(payload, entries)
+
+    def test_handoff_verify_subcommand_exit_codes(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            junk = root / "junk.tmp"
+            junk.write_text("stale", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            snapshot_path = Path(temporary) / "snapshot.json"
+            snapshot_path.write_text(json.dumps(snapshot), encoding="utf-8")
+            paths_path = Path(temporary) / "handoff-paths.json"
+            paths_path.write_text(
+                json.dumps({"version": 1, "paths": ["junk.tmp"]}), encoding="utf-8"
+            )
+            argv = [
+                "handoff-verify",
+                "--snapshot",
+                str(snapshot_path),
+                "--paths",
+                str(paths_path),
+            ]
+            handle, vcs = self.clear_probe_mocks()
+            output = io.StringIO()
+            with handle, vcs, redirect_stdout(output):
+                self.assertEqual(0, hygiene.main(argv))
+            payload = json.loads(output.getvalue())
+            self.assertEqual("handoff-verify-complete", payload["status"])
+            self.assertEqual("clear", payload["verdicts"][0]["verdict"])
+            junk.write_text("changed after approval", encoding="utf-8")
+            handle, vcs = self.clear_probe_mocks()
+            output = io.StringIO()
+            with handle, vcs, redirect_stdout(output):
+                self.assertEqual(3, hygiene.main(argv))
+            payload = json.loads(output.getvalue())
+            self.assertEqual("drifted", payload["verdicts"][0]["verdict"])
+            self.assertTrue(junk.exists())
+
+
 class GuardTests(unittest.TestCase):
     @staticmethod
     def python_command() -> str:
@@ -2011,6 +2214,50 @@ class GuardTests(unittest.TestCase):
             "deny",
             self.run_guard(malformed)["hookSpecificOutput"]["permissionDecision"],
         )
+
+    def test_guard_allows_exact_handoff_verify_shape(self) -> None:
+        script = SCRIPT_DIR / "hygiene.py"
+        command = (
+            f'"{self.python_command()}" "{script}" handoff-verify '
+            "--snapshot s --paths p"
+        )
+        self.assertEqual(
+            "allow",
+            self.run_guard(command)["hookSpecificOutput"]["permissionDecision"],
+        )
+
+    def test_guard_allows_handoff_verify_in_audit_only_mode(self) -> None:
+        # handoff-verify is read-only, so the kill switch must not block it —
+        # audit-only consumers still get the manual-lane revalidation report.
+        script = SCRIPT_DIR / "hygiene.py"
+        command = (
+            f'"{self.python_command()}" "{script}" handoff-verify '
+            "--snapshot s --paths p"
+        )
+        self.assertEqual(
+            "allow",
+            self.run_guard_disabled(command)["hookSpecificOutput"][
+                "permissionDecision"
+            ],
+        )
+
+    def test_guard_denies_malformed_handoff_verify_shapes(self) -> None:
+        script = SCRIPT_DIR / "hygiene.py"
+        prefix = f'"{self.python_command()}" "{script}" handoff-verify'
+        commands = [
+            f"{prefix} --paths p --snapshot s",  # wrong flag order
+            f"{prefix} --snapshot s",  # missing --paths
+            f"{prefix} --snapshot s --paths p --report r",  # undeclared flag
+            f"{prefix} --snapshot s --paths p extra",  # trailing token
+        ]
+        for command in commands:
+            with self.subTest(command=command):
+                self.assertEqual(
+                    "deny",
+                    self.run_guard(command)["hookSpecificOutput"][
+                        "permissionDecision"
+                    ],
+                )
 
     def test_guard_allows_exact_kill_switch_probe_invocation(self) -> None:
         probe = SCRIPT_DIR.parent.parent / "setup" / "scripts" / "kill_switch_probe.py"

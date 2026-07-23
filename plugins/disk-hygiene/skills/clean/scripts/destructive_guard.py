@@ -463,7 +463,7 @@ def _consume_optional_pairs(
 
 
 def classify_exact_engine_command(command: str, authority: str | None) -> str | None:
-    """Return scan/preview/apply only for one complete, canonical invocation."""
+    """Return scan/preview/handoff-verify/apply for one canonical invocation."""
     tokens = _literal_shell_words(command)
     if tokens is None:
         return None
@@ -510,6 +510,18 @@ def classify_exact_engine_command(command: str, authority: str | None) -> str | 
             )
         )
         return "preview" if valid else None
+    if tokens[2] == "handoff-verify":
+        valid = (
+            len(tokens) in {7, 9}
+            and tokens[3] == "--snapshot"
+            and _argument(tokens[4])
+            and tokens[5] == "--paths"
+            and _argument(tokens[6])
+            and _consume_optional_pairs(
+                tokens[7:], frozenset({"--data-root"}), authority
+            )
+        )
+        return "handoff-verify" if valid else None
     if tokens[2] == "apply":
         if len(tokens) not in {14, 16}:
             return None
@@ -659,7 +671,7 @@ def _bash_denial_guidance(authority: str | None) -> str:
         )
     )
     return (
-        "Disk-hygiene fails closed: Bash is restricted to exact bundled scan, preview, and apply invocations using the hook's absolute Python interpreter "
+        "Disk-hygiene fails closed: Bash is restricted to exact bundled scan, preview, handoff-verify, and apply invocations using the hook's absolute Python interpreter "
         f'"{_display_python()}". Bare python/python3 commands are denied because shell functions and aliases can replace them.'
         + data_sentence
         + " Use non-Bash read-only tools for supporting inspection."
@@ -711,7 +723,7 @@ def main() -> int:
         )
         return 0
     command_kind = classify_exact_engine_command(command, authority)
-    if command_kind in {"scan", "preview"}:
+    if command_kind in {"scan", "preview", "handoff-verify"}:
         print(
             json.dumps(
                 decision(
@@ -732,7 +744,7 @@ def main() -> int:
         )
         return 0
     reason = (
-        "Disk-hygiene execution is disabled; only exact bundled scan and preview invocations are permitted."
+        "Disk-hygiene execution is disabled; only exact bundled scan, preview, and handoff-verify invocations are permitted."
         if command_kind == "apply"
         else _bash_denial_guidance(authority)
     )
