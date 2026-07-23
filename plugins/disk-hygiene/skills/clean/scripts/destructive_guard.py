@@ -562,7 +562,13 @@ _POWERSHELL_MUTATION_WORDS = re.compile(
     r"|sendtorecyclebin|deletefile|deletedirectory|removedirectory"
     r")(?![\w-])"
 )
-_POWERSHELL_DOTNET_DELETE = re.compile(r"(?i)::\s*delete")
+_POWERSHELL_DOTNET_DELETE = re.compile(r"(?i)(::\s*delete|\.\s*delete\s*\()")
+# robocopy is an executable normally invocable by full path
+# (C:\Windows\System32\robocopy.exe), so unlike the cmdlet word list its
+# lookbehind must permit path separators before the name.
+_POWERSHELL_ROBOCOPY_PURGE = re.compile(
+    r"(?i)(?<![\w-])robocopy(\.exe)?(?![\w-]).*(/mir|/purge|/mov|/move)(?![\w-])"
+)
 # Module-qualified cmdlet invocations (Module\Cmdlet) put a backslash before the
 # cmdlet name, which the word pattern's lookbehind rejects; cover the deletion
 # cmdlets explicitly (aliases like rm/del cannot be module-qualified).
@@ -606,6 +612,12 @@ def powershell_decision(command: str, enabled: bool) -> tuple[str, str] | None:
             enabled,
             "disk-hygiene flagged the module-qualified deletion spelling "
             f'"{qualified.group(0)}".',
+        )
+    if _POWERSHELL_ROBOCOPY_PURGE.search(command):
+        return _powershell_mutation_verdict(
+            enabled,
+            "disk-hygiene flagged a robocopy mirror/purge/move invocation "
+            "(mass deletion via mirroring).",
         )
     return None
 
