@@ -3,6 +3,74 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.1]
+
+### Fixed
+
+- **Well-known rung's git-tracked requirement now stated on both resolution surfaces.** #1185's review
+  hardening (an untracked/gitignored file at the well-known path must not drive resolution) landed only
+  in the enforcement resolver. `config-resolution.md` (drafting) and the commit-convention seam README
+  still described rung 2 as firing "when that file exists" while claiming the surfaces were "identical"
+  — false after the fix, and a real divergence risk (drafting would use an untracked file the gate
+  skips). Both specs now require rung 2 to be **git-tracked** and tell the drafting reader how to check
+  it (`git ls-files --error-unmatch`), so drafting and enforcement resolve the same file. Docs-only;
+  the resolver already enforced this.
+
+## [0.25.0]
+
+### Added
+
+- **Well-known default path for the neutral convention SSOT (#163434).** The commit-convention
+  resolver now probes a repo-dogfooded default path,
+  `docs/conventions/source-control/commit-convention.yml`, when the team file declares no explicit
+  `## convention_source` pointer. The common case reads ONE tool-agnostic file with no markdown
+  pointer-parse and nothing in agent-rewritable prose to sever. Fixed 3-rung precedence, identical on
+  the drafting and enforcement surfaces: explicit `convention_source` pointer (relocation override) >
+  well-known default path > markdown-H2 (legacy). Full back-compat — absent both a pointer and the
+  well-known file, resolution is unchanged.
+
+### Changed
+
+- **Setup recommends the neutral SSOT as the default when a second enforcement consumer exists (F1).**
+  When inference detects a commit-msg hook, a CI title check, or a user-stated second consumer,
+  `/source-control:setup apply` now recommends the tool-agnostic neutral file (at the well-known
+  path, pointerless) rather than steering to markdown-primary; it falls back to markdown-only only
+  when this plugin is demonstrably the sole consumer.
+- **`setup check` surfaces neutral-SSOT drift (F3).** Two probes: a broken pointer / neutral file
+  (FAIL — was silent fail-closed), and a resolved neutral file shadowing a stale markdown-H2
+  duplicate (WARN).
+- **Neutral-YAML preamble trimmed to a 1–2 line header (F4).** The self-describing multi-line
+  preamble template is reduced to what the file is and who reads it; the human document proper lives
+  in CONTRIBUTING/AGENTS.md.
+
+## [0.24.0]
+
+### Added
+
+- **`/babysit-loop` — the loop-lane merge lane, plus repo-scoped lane keys on the layered config
+  seam.** New skill wrapping `/source-control:babysit-prs` in a self-paced standing or drain loop
+  over one repository (required `<owner/repo>` argument): each cycle invokes babysit-prs at the
+  resolved tier and scope, layered with a concurrency-safety activity grace window (default 30
+  minutes — a PR whose head moved or that received comments inside it, or a draft carrying WIP
+  signals, is report-only that cycle), do-not-merge respect (strip only behind the explicit
+  `--strip-do-not-merge` flag), the loop-lane escalation contract, and `#502` lane telemetry with a
+  durable machine-readable state block. Autonomy is decomposed into seven dimensions with tiers as
+  named presets; the merge dimension resolves human-only until the target repository's team-tracked
+  config carries loop-lane keys — that tracked file, landed by a reviewable PR, is the recorded
+  lane-enabling act — after which it defaults to the loop-lane convention's baseline rung (human
+  merge for everything except gate-proven C2-mechanical PRs — a work-class test irrespective of
+  author), and its raises bind from the team-tracked config layer only. Shared cross-lane concerns —
+  topology, stop shapes including the drain-terminal state, cycle-budget and expiry semantics,
+  capability tiers, the subagent discipline preamble — are held by citation to the marketplace
+  repository's `docs/conventions/loop-lane/` convention, and the rate-limit guard's operable floor
+  is inlined verbatim per that convention's inline-floor rule. `reference/config-resolution.md`
+  widens accordingly: the layered `.claude/source-control.md` surface now documents the
+  `babysit_loop_*` key family (stop mode, tier preset, per-dimension overrides, grace-window width,
+  cycle budget) alongside the commit-subject/PR-title convention keys, with the merge-rung key
+  declared in the consumer-config layering convention's policy-floor class. The existing
+  user-settings-scoped `babysit_*` `userConfig` keys are untouched — the reference documents the
+  personal-scalar vs repo-policy split.
+
 ## [0.23.0]
 
 ### Added

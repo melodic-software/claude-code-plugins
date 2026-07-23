@@ -367,7 +367,7 @@ Cross-cutting work items (both skills, reviewer findings):
 - **Sanity Check:** `grep -c "conventions/loop-lane" plugins/work-items/skills/work-loop/SKILL.md` ≥ 1 and same for `attend-queue` (convention cited, not restated).
 - **Sanity Check:** `grep -En "claude-(opus|sonnet|haiku|fable)-[0-9]" plugins/work-items/skills/{work-loop,attend-queue}/SKILL.md` returns empty (no hard-coded model IDs; tiers only).
 
-### Phase 5: ci-workflows tracker binding [TODO]
+### Phase 5: ci-workflows tracker binding [DONE]
 
 One PR to ci-workflows. Pre-flight consumer check (contract surface = new tracked file): grep
 ci-workflows workflows/scripts for `.work-item-tracker.json` readers — none expected (file is
@@ -394,7 +394,7 @@ outside the ruleset's ref scope. Retain a one-command build-time confirmation as
   listing propagation window — consequence is a duplicate PR, recoverable, caught by
   babysit/HITL; a jittered delay before the lease re-read shrinks it cheaply).
 
-### Phase 6: standards lease-activation PR draft [TODO]
+### Phase 6: standards lease-activation PR draft [DONE]
 
 Prepare (never file) the standards change editing `conventions/process/issue-tracker.md` L37
 block: record activation of assignee+lease claiming (trigger met: autonomous multi-worker

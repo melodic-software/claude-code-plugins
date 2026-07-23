@@ -241,7 +241,7 @@ one increment past the precedent). Behavioral gaps the docs leave open are resol
      (profile axis) — the two compose (`.claude/<concern>/<profile-name>/`). Reference adopter:
      [`ai-briefing`](ai-briefing-design.md).
    - **Resolution + override semantics, overlay naming, and the recommended consumer `.gitignore`
-     line** are owned by [`docs/conventions/consumer-config-layering/`](conventions/consumer-config-layering/README.md)
+     line** are owned by [`docs/conventions/config-cascade/`](conventions/config-cascade/README.md)
      — the layering axis is cross-cutting, so it is contracted once there rather than restated per
      seam. A surface declares its own keys and schema here or in its own owner doc, and points there
      for how its layers merge.
