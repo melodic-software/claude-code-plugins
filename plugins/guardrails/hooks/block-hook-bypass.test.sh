@@ -51,6 +51,8 @@ run "python3 -c os.path.abspath (allowed)" \
   "python3 -c \"import os; print(os.path.abspath('a'))\"" 0
 run "python3 -c os.path.realpath+relpath (allowed)" \
   "python3 -c \"import os,sys; print(os.path.realpath(sys.argv[1]), os.path.relpath(sys.argv[1]))\"" 0
+run "python3 -c os.path.commonpath (allowed)" \
+  "python3 -c \"import os; print(os.path.commonpath(['a/b','a/c']))\"" 0
 run "python3 -c os.path.join producer (allowed)" \
   "python3 -c \"import os; print(os.path.join('a','b'))\"" 0
 run "python3 -c pathlib write_text (blocked)" \
