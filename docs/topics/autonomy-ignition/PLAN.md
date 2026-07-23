@@ -293,6 +293,14 @@ in telemetry = Sonnet; live checkout clean; any fire-without-row = Phase 1 defec
 > corrected runs; currently exactly one, scratch#24) until the mechanical exclusion lands
 > in the predicate filter (scratch#60). Dispatch's `Closes` guard (scratch#47) prevents
 > the defect class recurring.
+>
+> **Forward policy (external review, 2026-07-23):** this record is a disclosed caveat on
+> the rows already merged that way, not standing authorization. From this note forward,
+> pre-promotion drain-PR merges are human-gated — each merge is a per-PR human action (or
+> an explicit per-PR human instruction naming the PR); no standing directive lets a
+> session merge counted evidence on its own schedule. Rationale: a session-initiated
+> merge before the flip would already exercise the C2 auto-merge cell the accumulation is
+> meant to earn, making the evidence circular.
 
 Standing lane: missed-fire detector + failure tracker items are the automated signal; human
 merges the day's drain PRs (this is the pre-promotion policy, not a kick); weekly usage
