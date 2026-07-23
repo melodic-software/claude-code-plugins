@@ -223,8 +223,17 @@ handoff, not an engine plan:
    audit evidence; no reparse point/symlink; any owner process named in the evidence still absent;
    an exclusive-open probe succeeds (no live handle).
 2. Prefer reversible removal (Windows Recycle Bin / macOS Trash) over permanent deletion, and say
-   which was used.
-3. Skip and report any path that fails revalidation; never substitute a sibling or retry around a
+   which was used. That reversibility is conditional, not guaranteed: bin size caps, a
+   policy-disabled bin, or a non-NTFS/network volume can silently make the same operation
+   permanent — disclose when a target's volume or policy may turn "reversible" removal permanent.
+3. Container-wide deletion commands (`Clear-RecycleBin`, emptying the Trash, or any "delete
+   everything in this container" spelling) are forbidden in the manual lane — they execute
+   against the live container, so items arriving between approval (or even re-enumeration) and
+   execution die under an approval that never saw them. Satisfy "empty the container" by
+   enumerating the container and deleting per item under steps 1, 2, and 4; items that arrive
+   after enumeration are simply not deleted. This is the engine lane's changed-since-scan threat
+   in the manual lane, where no snapshot token protects execution.
+4. Skip and report any path that fails revalidation; never substitute a sibling or retry around a
    lock.
 
 The PowerShell guard lane turns deletion spellings into a final human permission prompt (the same
@@ -249,7 +258,9 @@ sparse files, hard links, compression, and delayed allocation affect it.
   directory is reopened without following links, matched by device/inode/type, and proven empty after
   its captured children are removed.
 - A directory's contents can change after preview. Apply revalidates each captured entry and removes
-  bottom-up; it never follows a new link or recursively discovers new entries.
+  bottom-up; it never follows a new link or recursively discovers new entries. The manual-handoff
+  lane's container re-enumeration rule applies this same changed-since-scan discipline where no
+  snapshot token exists.
 - `allowed-tools` would pre-approve rather than restrict tools, so this destructive skill intentionally
   grants none. Consumer permission policy remains authoritative.
 - The Bash hook denies unknown commands rather than trying to enumerate deletion spellings. Supporting
