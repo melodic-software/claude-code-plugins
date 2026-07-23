@@ -316,4 +316,74 @@ else
   bad "telemetry: no envelope written on block"
 fi
 
+# --- PowerShell tool coverage ------------------------------------------------
+# The guard is matched on Bash|PowerShell. PowerShell-simple dangerous ops are
+# caught; push-shaped PowerShell the guard cannot parse fails closed.
+run_pwsh() {
+  local label="$1" command="$2" expected="$3" rc
+  bash "$HOOK" <<<"$(pwsh_command_json "$command")" >/dev/null 2>&1
+  rc=$?
+  assert_exit "$label" "$expected" "$rc"
+}
+run_pwsh "PS: git push --force (blocked)" "git push --force" 2
+run_pwsh "PS: git reset --hard (blocked)" "git reset --hard" 2
+run_pwsh "PS: git push --force-with-lease (allowed — safe force)" "git push --force-with-lease" 0
+run_pwsh "PS: git push (plain, allowed)" "git push origin main" 0
+run_pwsh "PS: git status (allowed)" "git status" 0
+run_pwsh "PS: backtick-continued force push (fail-closed block)" \
+  "$(printf 'git push `\n --force')" 2
+
+# This guard owns destructive non-commit forms (reset/clean/checkout/restore), so
+# unlike the commit/push guards it cannot defer an unparsable NON-commit/push git
+# command — it must fail closed on ANY git-shaped PowerShell it cannot parse.
+run_pwsh "PS: git --% reset --hard (stop-parsing token, fail-closed block)" \
+  "git --% reset --hard" 2
+run_pwsh "PS: git --% clean -fd (stop-parsing token, fail-closed block)" \
+  "git --% clean -fd" 2
+run_pwsh "PS: backtick-continued git reset --hard (fail-closed block)" \
+  "$(printf 'git `\n reset --hard')" 2
+# Single-quoted `$(...)` is deliberately literal PowerShell subexpression text
+# (the construct under test), not a Bash expansion.
+# shellcheck disable=SC2016
+run_pwsh "PS: git checkout via subexpression (fail-closed block)" \
+  'git checkout $(Get-Branch)' 2
+# Negative control: a non-git unparsable PowerShell command is not this guard's
+# concern — no over-block past git.
+# shellcheck disable=SC2016
+run_pwsh "PS: non-git unparsable command (allowed — not git-shaped)" \
+  'Remove-Item $(Get-Foo)' 0
+
+# Launcher-spelling parity (review round 4): the .exe-suffixed spellings of the
+# covered launchers and the `start` alias of Start-Process are the same
+# see-through surface — a spelling gap, not a new launcher class.
+run_pwsh "PS: cmd.exe /c git reset --hard (fail-closed block)" \
+  "cmd.exe /c git reset --hard" 2
+run_pwsh "PS: powershell.exe -Command git reset --hard (fail-closed block)" \
+  "powershell.exe -Command 'git reset --hard'" 2
+run_pwsh "PS: start alias launches git (fail-closed block)" \
+  "start git -ArgumentList 'reset --hard'" 2
+run_pwsh "PS: start alias, no git (allowed)" "start notepad" 0
+# A launcher whose program is a computed expression cannot be proven git-free.
+run_pwsh "PS: Start-Process computed target (fail-closed block)" \
+  "Start-Process ('g'+'it') -ArgumentList 'reset --hard'" 2
+run_pwsh "PS: Start-Process -FilePath computed target (fail-closed block)" \
+  "Start-Process -FilePath ('g'+'it') -ArgumentList 'reset --hard'" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: launcher with variable target (fail-closed block)" \
+  'saps $tool -ArgumentList "reset --hard"' 2
+
+# Review round 6: quoted-string '@' is not a here-string opener; backslash
+# path-qualified git normalizes for the tokenizer; separator-adjacent call
+# operators are git-capable.
+run_pwsh "PS: quoted '@' does not open a here-string (git line not swallowed)" \
+  "$(printf "Write-Output '@'\ngit reset --hard\n'@'")" 2
+run_pwsh "PS: backslash path-qualified git.exe (blocked)" \
+  'C:\Git\cmd\git.exe reset --hard' 2
+run_pwsh "PS: relative .\\git.exe (blocked)" \
+  '.\git.exe reset --hard' 2
+run_pwsh "PS: backslash path-qualified git.exe, safe op (allowed)" \
+  'C:\Git\cmd\git.exe status' 0
+run_pwsh "PS: semicolon-adjacent computed call (fail-closed block)" \
+  "Write-Host ok;& ('g'+'it') reset --hard" 2
+
 report

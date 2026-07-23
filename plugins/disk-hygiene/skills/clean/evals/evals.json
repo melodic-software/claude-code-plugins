@@ -120,6 +120,18 @@
         "Prefers enabling the OS mechanism over manual cleanup of the OS-owned zone",
         "Still performs the read-only audit and never treats the advisory as deletion authority"
       ]
+    },
+    {
+      "id": 11,
+      "name": "non-os-volume-root-requires-confirmation-not-blanket-rejection",
+      "prompt": "/disk-hygiene:clean D:\\ — it's my Windows Dev Drive, not the OS drive; audit it for junk.",
+      "expected_output": "The whole-volume root is not blanket-rejected: a Dev Drive holds no OS-managed content, so it is a valid target. As a known-large root it hits the large-target gate — the scan returns large-target-confirmation-required (reason non-os-volume-root) unless --max-depth or --confirmed-large-scan is given. The skill confirms the whole-volume scope with the user (AskUserQuestion) and prefers a bounded --max-depth pass before proceeding. An OS-managed root (the OS drive, /) stays denied outright and never reaches the gate.",
+      "files": [],
+      "expectations": [
+        "Does not reject the non-OS volume root outright; treats it as a valid but known-large target",
+        "Honors large-target-confirmation-required (non-os-volume-root): bounds with --max-depth or confirms with --confirmed-large-scan only after asking the user",
+        "Still denies a genuine OS-managed root outright and never fabricates the large-scan confirmation"
+      ]
     }
   ]
 }

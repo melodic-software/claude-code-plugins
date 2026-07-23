@@ -256,6 +256,7 @@ knob-picking signals in [`context/session-config.md`](context/session-config.md)
 | Need external evidence | `/discovery:research` (if installed) | Reads PLAN.md Brief as scope |
 | Plan the implementation | `/planning:plan` | Reads PLAN.md Brief + explore + research findings |
 | Stress-test the plan | `/devils-advocate` | Adversarial pass on `/planning:plan` output |
+| Validate the interview's answers via agents | `/planning:audit-answers` | Fresh validators challenge each answer in the filled ledger (hand-answered or auto-accepted); only the doubtful ones return as human questions |
 | Pause and resume later | `/session-flow:handoff` (if installed) | Captures session state, distinct from the Brief (mid-task pause vs pre-execution intent) |
 
 **Mid-interview composition (`me` mode):** research, exploration, and handoff are not only downstream — invoke them *during* the interview when a recommendation needs external/codebase grounding or when branches outgrow the session. Return to the open branch after.

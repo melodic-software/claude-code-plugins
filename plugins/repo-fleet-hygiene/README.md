@@ -41,8 +41,11 @@ Audit exact repositories without recursive discovery:
 /repo-fleet-hygiene:audit --repo <repo-root>/github.com/acme/api --repo <repo-root>/github.com/acme/web
 ```
 
-The skill automatically uses `.claude/repo-fleet-hygiene.conf` in the consumer project when present,
-or accepts `--config <path>` explicitly. Explicit CLI roots/repos are additive.
+Config resolution is a whole-file precedence ladder: explicit `--config <path>`, else
+`.claude/repo-fleet-hygiene.conf` in the consumer project, else the user-global
+`~/.claude/repo-fleet-hygiene.conf` (a machine-scoped fleet config that applies from every
+project). The audit report header names which config was consumed. Explicit CLI roots/repos are
+additive.
 
 ## Configuration
 

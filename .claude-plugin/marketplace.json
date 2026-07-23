@@ -269,6 +269,12 @@
       "tags": ["workflow", "handoff", "keep-going", "clean-stop", "resume", "recover", "durable", "retro", "retrospective", "session", "orchestration", "reanchor", "freshness", "skill"]
     },
     {
+      "name": "visualization",
+      "source": "./plugins/visualization",
+      "category": "workflow",
+      "tags": ["visualize", "visualization", "diagram", "mermaid", "chart", "artifact", "render", "skill"]
+    },
+    {
       "name": "tdd",
       "displayName": "TDD",
       "source": "./plugins/tdd",
@@ -298,7 +304,7 @@
       "name": "planning",
       "source": "./plugins/planning",
       "category": "design",
-      "tags": ["planning", "wayfind", "decision-map", "brainstorm", "prd", "interview", "domain-modeling", "ubiquitous-language", "glossary", "design", "design-handoff", "devils-advocate", "plan", "stress-test", "skill"]
+      "tags": ["planning", "wayfind", "decision-map", "brainstorm", "prd", "interview", "audit-answers", "domain-modeling", "ubiquitous-language", "glossary", "design", "design-handoff", "devils-advocate", "plan", "stress-test", "skill"]
     },
     {
       "name": "domain-driven-design",

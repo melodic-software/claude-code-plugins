@@ -48,17 +48,18 @@ format_size() {
 }
 
 emit_path_line() {
-  local category="$1" tier="$2" rel="$3" abs
-  abs="$REPO_ROOT/$rel"
+  local category="$1" tier="$2" abs="$3" rel kb
   [[ -e "$abs" ]] || return 0
   if clean_path_is_protected "$REPO_ROOT" "$abs"; then
     return 0
   fi
+  rel="${abs#"$REPO_ROOT"/}"
   printf 'Category: %s\n' "$category"
   printf 'Path: %s\n' "$rel"
   printf 'Size: %s\n' "$(format_size "$abs")"
   printf 'Tier: %s\n' "$tier"
-  TOTAL_BYTES=$((TOTAL_BYTES + $(du -sk "$abs" 2>/dev/null | awk '{print $1}') * 1024))
+  kb="$(du -sk "$abs" 2>/dev/null | awk '{print $1}')"
+  TOTAL_BYTES=$((TOTAL_BYTES + ${kb:-0} * 1024))
 }
 
 REPO_ROOT="$(clean_repo_root)"
@@ -71,57 +72,18 @@ fi
 
 cd "$REPO_ROOT" || exit 0
 
-for rel in "${CLEAN_CACHE_EXPLICIT[@]}"; do
-  emit_path_line "Caches" "caches" "$rel"
-done
+# Enumeration shares the single pruned-walk engine with the mutating caches/build
+# tiers (clean-common.sh) so the read-only inventory and the tiers that act on it
+# report the same targets from one walk that never descends .git/node_modules/.venv.
+while IFS= read -r abs; do
+  [[ -z "$abs" ]] && continue
+  emit_path_line "Caches" "caches" "$abs"
+done < <(clean_caches_candidates "$REPO_ROOT")
 
-for rel in "${CLEAN_CACHE_EXPLICIT_FILES[@]}"; do
-  emit_path_line "Caches" "caches" "$rel"
-done
-
-for name in "${CLEAN_CACHE_FIND_DIR_NAMES[@]}"; do
-  while IFS= read -r abs; do
-    [[ -z "$abs" ]] && continue
-    rel="${abs#"$REPO_ROOT"/}"
-    emit_path_line "Caches" "caches" "$rel"
-  done < <(find "$REPO_ROOT" -type d -name "$name" \
-    ! -path "$CLEAN_FIND_EXCLUDE_GIT" \
-    ! -path "$CLEAN_FIND_EXCLUDE_VENV" \
-    ! -path "$CLEAN_FIND_EXCLUDE_NODE_MODULES" 2>/dev/null)
-done
-
-for glob in "${CLEAN_CACHE_FIND_FILE_GLOBS[@]}"; do
-  while IFS= read -r abs; do
-    [[ -z "$abs" ]] && continue
-    rel="${abs#"$REPO_ROOT"/}"
-    emit_path_line "Caches" "caches" "$rel"
-  done < <(find "$REPO_ROOT" -type f -name "$glob" \
-    ! -path "$CLEAN_FIND_EXCLUDE_GIT" \
-    ! -path "$CLEAN_FIND_EXCLUDE_VENV" \
-    ! -path "$CLEAN_FIND_EXCLUDE_NODE_MODULES" 2>/dev/null | head -50)
-done
-
-for name in "${CLEAN_BUILD_DIR_NAMES[@]}"; do
-  while IFS= read -r abs; do
-    [[ -z "$abs" ]] && continue
-    rel="${abs#"$REPO_ROOT"/}"
-    emit_path_line "Build artifacts" "build" "$rel"
-  done < <(find "$REPO_ROOT" -type d -name "$name" \
-    ! -path "$CLEAN_FIND_EXCLUDE_GIT" \
-    ! -path "$CLEAN_FIND_EXCLUDE_VENV" \
-    ! -path "$CLEAN_FIND_EXCLUDE_NODE_MODULES" 2>/dev/null | head -100)
-done
-
-for glob in "${CLEAN_BUILD_FILE_GLOBS[@]}"; do
-  while IFS= read -r abs; do
-    [[ -z "$abs" ]] && continue
-    rel="${abs#"$REPO_ROOT"/}"
-    emit_path_line "Build artifacts" "build" "$rel"
-  done < <(find "$REPO_ROOT" -type f -name "$glob" \
-    ! -path "$CLEAN_FIND_EXCLUDE_GIT" \
-    ! -path "$CLEAN_FIND_EXCLUDE_VENV" \
-    ! -path "$CLEAN_FIND_EXCLUDE_NODE_MODULES" 2>/dev/null | head -50)
-done
+while IFS= read -r abs; do
+  [[ -z "$abs" ]] && continue
+  emit_path_line "Build artifacts" "build" "$abs"
+done < <(clean_build_candidates "$REPO_ROOT")
 
 WT_COUNT="$(git worktree list 2>/dev/null | wc -l | tr -d ' ')"
 echo "Git worktrees: ${WT_COUNT:-0}"

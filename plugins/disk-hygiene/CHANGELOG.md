@@ -3,6 +3,26 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.4]
+
+### Fixed
+
+- **A non-OS volume root (e.g. a Windows Dev Drive) is no longer blanket-rejected (#984).** A
+  whole-volume root was refused purely structurally — on Windows by the mount-point gate (every drive
+  letter is `os.path.ismount` True), backed by a `parent == root` filesystem-root check — with no
+  reasoning about the volume's purpose, blocking a legitimate non-OS volume. Root classification is
+  now reasoned: an OS-managed root (the OS drive holding an existing Windows install / `Program Files`
+  / `ProgramData`, or `/` holding `/bin`, `/etc`, …) is still denied, while a non-OS volume root — a
+  drive root carrying only the per-volume metadata every volume has (`System Volume Information`,
+  `$Recycle.Bin`) and no OS-install marker — is now a valid target. The target-level mount rejection
+  is scoped to non-root mount points, so nested and bind mounts stay hard-blocked; per-entry
+  mount/OS-managed/VCS/identity protections and the preview + per-tier approval gate are unchanged.
+  Scan and preview share one unverified → OS-managed → non-root-mount target-check ordering. A
+  now-valid non-OS volume root composes with the large-target scan gate (0.5.0): it is a known-large
+  root (`large_scan_reasons` reason `non-os-volume-root`), so an unbounded whole-volume walk returns
+  `large-target-confirmation-required` unless bounded with `--max-depth` or confirmed with
+  `--confirmed-large-scan`.
+
 ## [0.6.3]
 
 ### Fixed

@@ -20,6 +20,13 @@ prompting.
 Default config path: `${CLAUDE_PROJECT_DIR}/.claude/repo-fleet-hygiene.conf`. An explicit `--config`
 may choose another path. Resolve relative roots/repos/canonical paths from the config file directory.
 
+**Scoping rule (state it in `check`/`apply` output):** the audit consumes config through a ladder —
+explicit `--config`, else the project-scoped default above, else the user-global
+`~/.claude/repo-fleet-hygiene.conf`. A project-scoped config is therefore consumed only when the
+audit runs with that same project directory; a fleet config meant to apply from every project
+belongs at the user-global path (`apply --config ~/.claude/repo-fleet-hygiene.conf`). The audit
+report header names which config (if any) was consumed.
+
 ## `check` (read-only)
 
 The audit script (`${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/audit-fleet.sh`) and the config file are
@@ -27,9 +34,10 @@ the source of truth. Probe, report a PASS/FAIL/INFO table with one remediation l
 modify nothing. Do NOT run the fleet walk itself — that is `/repo-fleet-hygiene:audit`; `check` only
 validates the configuration the audit would consume.
 
-1. **Config presence** — resolve the config path (`--config` or the default). Absent → INFO: the audit
-   defaults to the current project; `apply` scaffolds a config only if the user wants bounded roots or
-   overrides.
+1. **Config presence** — resolve the config path (`--config` or the default). Absent → INFO naming
+   the full ladder: the audit next probes the user-global `~/.claude/repo-fleet-hygiene.conf` (report
+   whether one exists there) and otherwise defaults to the current project; `apply` scaffolds a
+   config only if the user wants bounded roots or overrides.
 2. **Parse validity** — present config: `git config --file "<path>" --list >/dev/null`. A non-zero exit
    is FAIL with the parse error in the remediation line. Never `source` the file.
 3. **Entry resolution** — for each `[fleet] root`/`repo` and each `[canonical …] path`, resolve it from

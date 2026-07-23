@@ -37,6 +37,17 @@ assert_contains "finds untracked cache" "$out" ".ruff_cache"
 assert_contains "emits category" "$out" "Category:"
 assert_contains "emits total" "$out" "Total reclaimable:"
 
+# Single pruned-walk engine: a build dir NESTED inside a pruned tree
+# (node_modules) is never descended into, while a top-level build dir still
+# enumerates. This proves the walk prunes rather than merely filters output.
+mkdir -p "$TEST_TMPDIR/repo/node_modules/pkg/bin"
+echo z >"$TEST_TMPDIR/repo/node_modules/pkg/bin/z"
+mkdir -p "$TEST_TMPDIR/repo/src/bin"
+echo z >"$TEST_TMPDIR/repo/src/bin/z"
+out="$(GIT_DIR="$TEST_TMPDIR/repo/.git" GIT_WORK_TREE="$TEST_TMPDIR/repo" bash -c "cd '$TEST_TMPDIR/repo' && bash '$SCAN'")"
+assert_contains "top-level build dir inventoried" "$out" "src/bin"
+assert_not_contains "build dir under pruned node_modules skipped" "$out" "node_modules/pkg/bin"
+
 if [[ $FAILED -ne 0 ]]; then
   echo "FAILED: $FAILED test(s)"
   exit 1

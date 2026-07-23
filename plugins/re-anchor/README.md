@@ -18,7 +18,7 @@ first-class use, and the audit may honestly return clean.
 | Skill | Discipline it re-anchors |
 |---|---|
 | `/re-anchor:do-your-research` | Research and no-assumptions before assertion |
-| `/re-anchor:do-your-research-deep` | The verification-fan-out tier of do-your-research — subagents verify every load-bearing claim |
+| `/re-anchor:do-your-research-deep` | The verification-fan-out tier of do-your-research — a typed full inventory of the session's claims, verified at a configurable depth |
 | `/re-anchor:follow-our-standards` | Alignment to the consuming org's engineering conventions |
 | `/re-anchor:point-dont-copy` | Pointer over copy — cite the living source, don't duplicate it |
 | `/re-anchor:reason-dont-recite` | Interrogate inherited content — precedent describes, it doesn't justify |
@@ -62,18 +62,25 @@ turns for unbacked claims and skipped verification, then corrects forward.
 ### do-your-research-deep
 
 The verification-fan-out tier of `do-your-research` — same research
-discipline, heavier execution. Enumerates every load-bearing claim made so
-far and dispatches fresh-context subagents to verify each against a primary
-source, throttled in bounded waves so a claim-heavy session does not trip a
-burst overload, then reports a per-claim verified / corrected / unverifiable
-ledger. Reserved for when the accumulated claims justify the subagent cost;
-for a single inline re-anchor + audit, use `do-your-research`. It is a
-sibling skill rather than a `deep` argument because the subagent fan-out is a
-heavier execution tier, fixed in frontmatter (mirrors the
+discipline, heavier execution. Enumerates a **typed full inventory** of the
+session's claims — assumptions, asserted facts, concrete specifics, and
+load-bearing premises, as a checklist so coverage is provable — and verifies
+each against a primary source, throttled in bounded waves so a claim-heavy
+session does not trip a burst overload. Reports one ledger row per inventory
+item (no silent drops), each carrying verdict, source, source tier, consensus
+count, and recency. Verification depth is **configurable** (this is the
+expensive tier by design): `tiered` by default (fan subagents out only over
+load-bearing items, resolve the rest inline) or `full` (subagent-verify every
+item), set via the `research_deep_verification` `userConfig` option and
+overridable by an invocation argument. Reserved for when the accumulated
+claims justify the subagent cost; for a single inline re-anchor + audit, use
+`do-your-research`. It is a sibling skill rather than a `deep` argument because
+the subagent fan-out is a heavier execution tier (mirrors the
 `/discovery:research-deep` precedent).
 
 ```shell
-/re-anchor:do-your-research-deep   # fan out subagents to verify every load-bearing claim
+/re-anchor:do-your-research-deep         # typed inventory, verified at the configured depth
+/re-anchor:do-your-research-deep full    # override the default: subagent-verify every item
 ```
 
 ### follow-our-standards
@@ -339,21 +346,23 @@ No persistent state — each skill reads the conversation and the consuming
 project's own instruction layer. `follow-our-standards` may fetch a remote
 standards source when the consumer declares one and no local checkout exists.
 
-The correctors themselves are zero-config. The `sweep-all-disciplines` runbook
-adds three optional `userConfig` scalars that overlay batch membership without
-editing any corrector — each a comma-separated list of corrector names, empty
-by default (tiers run exactly as declared):
+The correctors themselves are zero-config. Two skills expose optional
+`userConfig` scalars. The `sweep-all-disciplines` runbook adds three that
+overlay batch membership without editing any corrector — each a comma-separated
+list of corrector names, empty by default (tiers run exactly as declared) — and
+`do-your-research-deep` adds one that sets its verification depth:
 
 | Option | Effect |
 |---|---|
 | `batch_exclude` | Drop these correctors from the batch |
 | `batch_promote` | Run these situational correctors every session instead of gating them on relevance |
 | `batch_demote` | Run these core correctors only when relevant instead of every session |
+| `research_deep_verification` | `do-your-research-deep` verification depth: `tiered` (default — subagents only over load-bearing items) or `full` (subagent-verify every item); an invocation argument overrides it |
 
 Set them through Claude Code's native plugin-config flow
 (`/plugin configure re-anchor`); they are personal scalars, not repository
-configuration. `/re-anchor:setup check` reports the effective overlay read-only
-(it never writes config — reconfiguration stays the native flow). Batch
-membership and order otherwise live in each corrector's own colocated tier
-metadata (`metadata.re-anchor-batch` + `re-anchor-batch-rank`), so changing a
-shipped tier is a PR to that corrector.
+configuration. `/re-anchor:setup check` reports the effective configuration
+read-only (it never writes config — reconfiguration stays the native flow).
+Batch membership and order otherwise live in each corrector's own colocated
+tier metadata (`metadata.re-anchor-batch` + `re-anchor-batch-rank`), so changing
+a shipped tier is a PR to that corrector.

@@ -43,7 +43,6 @@
 #   FLEET_STATE_CATALOG_DIR        — dir of <marketplace>.json catalog
 #                                     fixtures, read instead of each
 #                                     marketplace's installLocation clone
-#   FLEET_STATE_HOOK_UTILS         — path to hook-utils.sh
 #
 # Real env vars this script honors (set by Claude Code, not test-only):
 #   CLAUDE_PLUGIN_ROOT   — this plugin's own install dir; used to self-resolve
@@ -56,13 +55,38 @@
 
 set -uo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PLUGIN_ROOT_DEFAULT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+# Resolve this script's own directory with parameter expansion and no external
+# process, because the result feeds the `source` below. Deriving the directory
+# with `${BASH_SOURCE[0]%/*}` instead of `dirname` keeps resolution
+# PATH-independent (no attacker-planted `dirname` binary in the loop), and the
+# `builtin cd`/`builtin pwd` prefixes bypass an inherited exported `cd`/`pwd`
+# function. This is defense against the common cd/pwd/dirname channels, not a
+# guarantee against a fully attacker-controlled environment: an exported
+# `BASH_FUNC_builtin%%` shadows `builtin` itself, and `BASH_ENV` runs before
+# this script's first line — both sit at the same environment-trust boundary as
+# the PATH-resolved jq/git/tr used later, out of scope for an in-script fix.
+script_src="${BASH_SOURCE[0]}"
+case "$script_src" in
+*/*) script_src_dir="${script_src%/*}" ;;
+*) script_src_dir="." ;;
+esac
+SCRIPT_DIR="$(builtin cd "$script_src_dir" && builtin pwd)"
+PLUGIN_ROOT_DEFAULT="$(builtin cd "$SCRIPT_DIR/../../.." && builtin pwd)"
 
-HOOK_UTILS="${FLEET_STATE_HOOK_UTILS:-${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT_DEFAULT}/hooks/hook-utils.sh}"
+# hook-utils.sh is a fixed sibling shipped with this plugin. Resolve it from
+# this script's own location, never from a caller-supplied env var, so a stray
+# FLEET_STATE_* override cannot redirect `source` at an arbitrary file.
+# CLAUDE_PLUGIN_ROOT is deliberately not consulted here (it equals the
+# script-relative root in production, and is set to a fake value by tests
+# exercising marketplace self-resolution).
+HOOK_UTILS="$PLUGIN_ROOT_DEFAULT/hooks/hook-utils.sh"
 if [[ -f "$HOOK_UTILS" ]]; then
+  # `builtin source` bypasses an inherited exported `source` function
+  # (BASH_FUNC_source%%). Like the resolution above this covers the common
+  # single-function shadow, not a shadowed `builtin` or BASH_ENV — see the
+  # environment-trust boundary noted there.
   # shellcheck source=/dev/null
-  source "$HOOK_UTILS"
+  builtin source "$HOOK_UTILS"
 else
   echo "ERROR: hook-utils.sh not found at $HOOK_UTILS" >&2
   exit 2
