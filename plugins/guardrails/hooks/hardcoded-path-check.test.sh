@@ -12,6 +12,9 @@ HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOOK="$HOOK_DIR/hardcoded-path-check.sh"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
+# The scope guard skips any project dir that is not a git working tree, so
+# the default active-project fixture root must BE one for scan cases to run.
+git -C "$TEST_TMPDIR" init -q
 
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
@@ -165,6 +168,34 @@ RC=$?
 assert_exit "no project + Edit dotfile-style path → exit 0 (skip)" 0 "$RC"
 assert_silent "no project Edit → no stderr" "$OUT"
 
+# ======================= NON-WORKTREE PROJECT SKIP ==========================
+# CLAUDE_PROJECT_DIR set but NOT a git working tree (home-directory sessions —
+# the harness sets a project dir for any directory): skip entirely. The target
+# is machine-local, and no exemption rung is reachable there (the .claude
+# carve-outs don't cover machine-local plugin config; git check-ignore errors
+# outside a work tree), so scanning would leave only the global kill switch.
+# The reported incident shape: Write of ~/.claude/<plugin>.conf naming
+# absolute machine roots.
+# Own tmpdir — $TEST_TMPDIR is itself a work tree now, so a subdir of it
+# would not exercise the non-worktree path.
+NONREPO="$(mktemp -d)"
+mkdir -p "$NONREPO/.claude"
+OUT=$(CLAUDE_PROJECT_DIR="$NONREPO" bash "$HOOK" <<<"$(write_json "$NONREPO/.claude/tool.conf" "root = ${LINUX_HOME}")" 2>&1)
+RC=$?
+assert_exit "non-worktree project + machine-local conf → exit 0 (skip)" 0 "$RC"
+assert_silent "non-worktree project → no stderr" "$OUT"
+rm -rf "$NONREPO"
+
+# Same content under a REAL work tree still fires — the skip keys on the
+# work-tree probe, not on path shape.
+WT="$TEST_TMPDIR/realwt"
+mkdir -p "$WT"
+git -C "$WT" init -q
+OUT=$(CLAUDE_PROJECT_DIR="$WT" bash "$HOOK" <<<"$(write_json "$WT/notes.txt" "root = ${LINUX_HOME}")" 2>&1)
+RC=$?
+assert_exit "same content in real work tree → exit 2" 2 "$RC"
+assert_contains "real work tree → linux message" "$OUT" "Linux user path"
+
 # ============================ ALLOW (exit 0) ================================
 OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$FIXTURE" 'echo "hello world"')" 2>&1)
 RC=$?
@@ -239,19 +270,24 @@ OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "/tmp/othe
 RC=$?
 assert_exit "outside CLAUDE_PROJECT_DIR → exit 0" 0 "$RC"
 
-OUT=$(CLAUDE_PROJECT_DIR="/some/repo" bash "$HOOK" <<<"$(write_json "/some/repo/.claude/hooks/foo.sh" "pattern ${LINUX_HOME}")" 2>&1)
+# Case-exemption pins run inside a REAL work tree — the scope guard's
+# non-worktree skip would otherwise exit before the carve-outs and leave them
+# unpinned.
+OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$TEST_TMPDIR/.claude/hooks/foo.sh" "pattern ${LINUX_HOME}")" 2>&1)
 RC=$?
 assert_exit ".claude/hooks/ self-exemption → exit 0" 0 "$RC"
 
-OUT=$(CLAUDE_PROJECT_DIR="/some/repo" bash "$HOOK" <<<"$(write_json "/some/repo/.lefthook/pre-commit/foo.sh" "pattern ${LINUX_HOME}")" 2>&1)
+OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$TEST_TMPDIR/.lefthook/pre-commit/foo.sh" "pattern ${LINUX_HOME}")" 2>&1)
 RC=$?
 assert_exit ".lefthook/ self-exemption → exit 0" 0 "$RC"
 
-# CC session/workflow state under ~/.claude/projects/. Project dir set to the
-# enclosing home so the case-exemption itself is exercised (a no-project run
-# would exit 0 earlier via the scope guard's skip).
-projects_fp="C:${BS}Users${BS}bob${BS}.claude${BS}projects${BS}my-repo${BS}wf.js"
-OUT=$(CLAUDE_PROJECT_DIR="C:${BS}Users${BS}bob" bash "$HOOK" <<<"$(write_json "$projects_fp" "const out = '${WIN_HOME}'")" 2>&1)
+# CC session/workflow state under ~/.claude/projects/, with home itself a
+# checkout (dotfiles-as-home) so the run reaches the case-exemption rather
+# than exiting at the non-worktree skip.
+HOMECO="$TEST_TMPDIR/homeco"
+mkdir -p "$HOMECO"
+git -C "$HOMECO" init -q
+OUT=$(CLAUDE_PROJECT_DIR="$HOMECO" bash "$HOOK" <<<"$(write_json "$HOMECO/.claude/projects/my-repo/wf.js" "const out = '${WIN_HOME}'")" 2>&1)
 RC=$?
 assert_exit ".claude/projects/ CC-state self-exemption → exit 0" 0 "$RC"
 
