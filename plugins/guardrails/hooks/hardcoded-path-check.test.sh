@@ -210,6 +210,22 @@ OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$FIXTURE"
 RC=$?
 assert_exit "single-quoted Shared → exit 0" 0 "$RC"
 
+# Left boundary: a URL whose path merely CONTAINS a home-root suffix is not a
+# filesystem root — must stay clean (macOS and Linux shapes).
+OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$FIXTURE" "see https://example.test${SL}home${SL}alice for docs")" 2>&1)
+RC=$?
+assert_exit "URL containing home suffix → exit 0" 0 "$RC"
+assert_silent "URL home suffix → no stderr" "$OUT"
+
+OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$FIXTURE" "see https://example.test${SL}Users${SL}alice page")" 2>&1)
+RC=$?
+assert_exit "URL containing Users suffix → exit 0" 0 "$RC"
+
+# Colon-prefixed value position (yaml/docker) is a boundary — must still flag.
+OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$FIXTURE" "vol:${SL}home${SL}alice mount")" 2>&1)
+RC=$?
+assert_exit "colon-prefixed linux home → exit 2" 2 "$RC"
+
 OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$PS1_FIXTURE" "\$cfg = '${WIN_HOME}'")" 2>&1)
 RC=$?
 assert_exit "Windows path in .ps1 → suppressed → exit 0" 0 "$RC"

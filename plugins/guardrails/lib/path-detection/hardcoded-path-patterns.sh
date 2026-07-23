@@ -119,6 +119,15 @@ hpp::scan_text() {
     [[ -n "$match" ]] && violations="${violations}Windows user path detected:${nl}${match}${nl}${nl}"
   fi
 
+  # Left boundary for the slash-rooted macOS/Linux bodies — the driver-owned
+  # prefix the pattern lib's contract calls for, so a URL or relative-path
+  # suffix (https://example.test + the home root) is not treated as a
+  # filesystem root. Line start, whitespace, quote, backtick, paren, "=", ":"
+  # (yaml/docker value position), or a file:// scheme. Mirrors the
+  # ci-workflows/medley verification drivers' boundary, plus ":".
+  local _posix_boundary
+  _posix_boundary="(^|[[:space:]\"'\`(=:]|file://)"
+
   # macOS user home paths (the Users root with a child segment).
   # Exclusions (replace Perl lookbehind/lookahead):
   #   grep -vE '[A-Za-z]:[/\\]' — Windows paths (caught above)
@@ -141,18 +150,18 @@ hpp::scan_text() {
     local _shared _shared_defused
     _shared='/Use''rs/Shared'
     _shared_defused='/Use''rs-Shared'
-    match=$(printf '%s' "$content" | grep -nE "$HPP_MACOS_USER_BODY" 2>/dev/null | grep -vE '[A-Za-z]:[/\\]' |
+    match=$(printf '%s' "$content" | grep -nE "${_posix_boundary}${HPP_MACOS_USER_BODY}" 2>/dev/null | grep -vE '[A-Za-z]:[/\\]' |
       while IFS= read -r _line; do
         _defanged=$(printf '%s' "$_line" | sed -e "s|${_shared}\([^A-Za-z0-9._-]\)|${_shared_defused}\1|g" \
           -e "s|${_shared}\$|${_shared_defused}|")
-        printf '%s' "$_defanged" | grep -qE "$HPP_MACOS_USER_BODY" && printf '%s\n' "$_line"
+        printf '%s' "$_defanged" | grep -qE "${_posix_boundary}${HPP_MACOS_USER_BODY}" && printf '%s\n' "$_line"
       done | head -3)
     [[ -n "$match" ]] && violations="${violations}macOS user path detected:${nl}${match}${nl}${nl}"
   fi
 
-  # Linux user home paths
+  # Linux user home paths (same driver-owned left boundary).
   if [[ -z "$linux_context" ]]; then
-    match=$(printf '%s' "$content" | grep -nE "$HPP_LINUX_USER_BODY" 2>/dev/null | head -3)
+    match=$(printf '%s' "$content" | grep -nE "${_posix_boundary}${HPP_LINUX_USER_BODY}" 2>/dev/null | head -3)
     [[ -n "$match" ]] && violations="${violations}Linux user path detected:${nl}${match}${nl}${nl}"
   fi
 
