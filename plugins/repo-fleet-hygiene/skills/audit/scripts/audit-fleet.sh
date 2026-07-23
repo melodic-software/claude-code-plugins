@@ -142,9 +142,14 @@ gh_probe_allowed() {
     [[ $# -eq 4 && "$2" == "status" && "$3" == "--hostname" && "$4" == "github.com" ]]
     ;;
   api)
+    # Exactly two read-only endpoints: the repository identity probe and the authenticated-login
+    # probe for the report header. Both are GET with a fixed template; nothing else is admitted.
     [[ $# -eq 8 && "$2" =~ ^repos/[^/[:cntrl:][:space:]]+/[^/[:cntrl:][:space:]]+$ &&
       "$3" == "--hostname" && "$4" == "github.com" && "$5" == "--method" && "$6" == "GET" &&
-      "$7" == "--template" && "$8" == '{{printf "%s\t%s" .full_name .default_branch}}' ]]
+      "$7" == "--template" && "$8" == '{{printf "%s\t%s" .full_name .default_branch}}' ]] ||
+      [[ $# -eq 8 && "$2" == "user" &&
+        "$3" == "--hostname" && "$4" == "github.com" && "$5" == "--method" && "$6" == "GET" &&
+        "$7" == "--template" && "$8" == '{{.login}}' ]]
     ;;
   pr)
     [[ "${2:-}" == "list" && "${3:-}" == "--repo" &&
@@ -444,6 +449,15 @@ if command -v gh >/dev/null 2>&1 && run_bounded_gh auth status --hostname github
   GH_READY=true
 fi
 
+# Which gh account produced the GitHub evidence changes how UNKNOWNs read (a dozen HTTP 404s under
+# the wrong login is expected, under the right one it is a real signal), so the header names it.
+# Best-effort: any probe failure keeps the plain header line. This is the cheap subset of the
+# tracked per-domain-gh-auth request (multiple accounts per host) — see the plugin backlog.
+GH_ACCOUNT=""
+if [[ "$GH_READY" == "true" ]]; then
+  GH_ACCOUNT="$(run_bounded_gh api user --hostname github.com --method GET --template '{{.login}}' 2>/dev/null | tr -d '\r\n')" || GH_ACCOUNT=""
+fi
+
 select_remote() {
   local repo="$1" remotes count
   if run_git_probe -C "$repo" remote get-url origin >/dev/null 2>&1; then
@@ -559,9 +573,13 @@ FINDINGS_LOW=0
 FINDINGS_UNKNOWN=0
 FINDINGS_ACKED=0
 REPOS_AUDITED=0
+# Per-repository finding tally, reset by analyze_repo: a section that ends with zero findings
+# emits an explicit "Findings: none" marker so clean output is distinguishable from truncation.
+REPO_FINDING_COUNT=0
 
 emit_finding() {
   local confidence="$1" kind="$2" target="$3" evidence="$4" disposition="$5" handoff="$6"
+  REPO_FINDING_COUNT=$((REPO_FINDING_COUNT + 1))
   case "$confidence" in
   HIGH) FINDINGS_HIGH=$((FINDINGS_HIGH + 1)) ;;
   MEDIUM) FINDINGS_MEDIUM=$((FINDINGS_MEDIUM + 1)) ;;
@@ -590,7 +608,10 @@ analyze_repo() {
   local repo_pr_rows="" exact_pr_rows="" repo_pr_available=false protected=false
   local remote_inventory_failed=false
   local -a WT_PATHS=() WT_BRANCHES=() WT_PRUNABLE=() WT_LOCKED=()
-  local -a BRANCH_NAMES=() BRANCH_TIPS=() REMOTE_BRANCH_NAMES=() PRIVACY_GATED_BRANCHES=()
+  local -a BRANCH_NAMES=() BRANCH_TIPS=() REMOTE_BRANCH_NAMES=() REMOTE_BRANCH_TIPS=()
+  local -a PRIVACY_GATED_BRANCHES=()
+  local remote_tip push_state ri
+  REPO_FINDING_COUNT=0
 
   select_remote "$discovered" && {
     discovered_remote="$SELECTED_REMOTE"
@@ -842,12 +863,16 @@ analyze_repo() {
       fi
       [[ "$remote_ref_record" == *$'\t'* ]] || continue
       remote_branch_short="${remote_ref_record%%$'\t'*}"
+      remote_tip="${remote_ref_record#*$'\t'}"
       # refs/remotes/<remote>/ also yields a bare "<remote>" entry (the symbolic HEAD pointer to
       # the remote's default branch, e.g. refs/remotes/origin/HEAD -> refname:short "origin") --
       # require the literal "<remote>/" prefix so that entry is excluded, not misread as a branch.
       if [[ "$remote_branch_short" == "$canonical_remote/"* ]]; then
         remote_branch_short="${remote_branch_short#"$canonical_remote"/}"
-        [[ -n "$remote_branch_short" ]] && REMOTE_BRANCH_NAMES+=("$remote_branch_short")
+        if [[ -n "$remote_branch_short" ]]; then
+          REMOTE_BRANCH_NAMES+=("$remote_branch_short")
+          REMOTE_BRANCH_TIPS+=("$remote_tip")
+        fi
       fi
     done < <(
       run_git_probe -C "$canonical" for-each-ref \
@@ -861,6 +886,7 @@ analyze_repo() {
       # flag keeps the per-branch privacy-gap aggregate quiet: this repo-wide finding already says
       # every exact lookup is skipped, so repeating it per branch would double-report.
       REMOTE_BRANCH_NAMES=()
+      REMOTE_BRANCH_TIPS=()
       remote_inventory_failed=true
       emit_finding UNKNOWN remote-branch-inventory-unavailable "$canonical" \
         "git for-each-ref for refs/remotes/$canonical_remote/ failed" \
@@ -972,8 +998,23 @@ analyze_repo() {
       fi
     elif [[ -n "$pr_any" && "$branch" != "$default_branch" ]]; then
       IFS='|' read -r pr_num pr_oid pr_merged pr_url <<<"$pr_any"
+      # Whether the drift commits were ever pushed flips the risk profile of cleanup (pushed
+      # drift is recoverable from the remote after deletion; unpushed drift is data loss), so the
+      # evidence names the push state from the already-collected remote-tracking inventory --
+      # purely local, no network.
+      if [[ "$remote_inventory_failed" == "true" || -z "$canonical_remote" ]]; then
+        push_state="remote-tracking inventory unavailable, push state unknown"
+      else
+        push_state="local tip absent from the same-named remote-tracking ref (drift commits may be unpushed)"
+        for ((ri = 0; ri < ${#REMOTE_BRANCH_NAMES[@]}; ri++)); do
+          if [[ "${REMOTE_BRANCH_NAMES[$ri]}" == "$branch" && "${REMOTE_BRANCH_TIPS[$ri]}" == "$tip" ]]; then
+            push_state="local tip present on the same-named remote-tracking ref (drift commits pushed)"
+            break
+          fi
+        done
+      fi
       emit_finding MEDIUM merged-pr-tip-drift "$canonical :: $branch" \
-        "GitHub PR #$pr_num MERGED at headRefOid $pr_oid, but current local tip is $tip" \
+        "GitHub PR #$pr_num MERGED at headRefOid $pr_oid, but current local tip is $tip; $push_state" \
         "Manual review; not a cleanup candidate" "Inspect commits added after PR #$pr_num"
     elif [[ "$protected" == "false" && "$attached" == "false" && -n "$canonical_remote" && -n "$default_branch" ]]; then
       run_git_probe -C "$canonical" merge-base --is-ancestor "$tip" \
@@ -1001,6 +1042,13 @@ analyze_repo() {
       "Push or re-fetch the branch to restore remote evidence, or verify manually on GitHub, then rerun"
   fi
 
+  # A clean section previously ended after its header fields with no marker -- indistinguishable
+  # from truncated output. Say so explicitly, with the same terminator finding blocks use.
+  if [[ "$REPO_FINDING_COUNT" -eq 0 ]]; then
+    printf 'Findings: none\n'
+    printf '%s\n' '---'
+  fi
+
   REPOS_AUDITED=$((REPOS_AUDITED + 1))
 }
 
@@ -1011,7 +1059,13 @@ if [[ -n "$CONFIG_FILE" ]]; then
 else
   print_field Config "none (no explicit, project, or user-global config; current-project scope)"
 fi
-printf 'GitHub evidence: %s\n' "$([[ "$GH_READY" == "true" ]] && echo available || echo unavailable)"
+if [[ "$GH_READY" == "true" && -n "$GH_ACCOUNT" ]]; then
+  printf 'GitHub evidence: available (account: '
+  display_value "$GH_ACCOUNT"
+  printf ')\n'
+else
+  printf 'GitHub evidence: %s\n' "$([[ "$GH_READY" == "true" ]] && echo available || echo unavailable)"
+fi
 printf 'Repositories discovered: %s\n' "${#TARGETS[@]}"
 for ((root_index = 0; root_index < ${#ROOT_LABELS[@]}; root_index++)); do
   printf 'Root '
