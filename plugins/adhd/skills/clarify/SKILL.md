@@ -196,9 +196,13 @@ a **one-shot** reshape of **one** artifact already on screen — it does not cha
 how future responses are written. Use `shape` to set the house style; use this to
 rescue a specific wall of text. Two interaction rules when both are active:
 the decision table is **exempt from shape's five-item list cap** (fidelity
-forbids dropping decisions, and fidelity wins over shaping); and shape-formatted
-output is already restructured, so running clarify on it is usually a no-op —
-say so instead of re-rendering it.
+forbids dropping decisions, and fidelity wins over shaping); and when the
+target is shape-formatted output, judge by the target's **actual decision
+density, never its provenance** — an already action-shaped, low-density
+response has nothing left to restructure (take the trivial-target escape
+hatch), but a dense multi-decision artifact still gets the full faithful
+restructure even though shape produced it (shape's explain override emits
+long, decision-heavy responses with no glossary, locators, or table).
 
 ## Gotchas
 
