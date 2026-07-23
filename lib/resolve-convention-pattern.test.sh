@@ -158,6 +158,124 @@ assert_eq "pr explicit value" '^PR: .+' "$(run "$r" pr_title_pattern)"
 r="$(newrepo $'## subject_pattern\n\n^spaced: .+')"
 assert_eq "blank line before value skipped" '^spaced: .+' "$(run "$r")"
 
+# =====================================================================
+# Neutral convention SSOT (convention_source pointer + flat-scalar YAML)
+# =====================================================================
+
+# Write a neutral YAML file at a repo-relative path inside repo $1.
+addneutral() {
+  local d="$1" path="$2" body="$3"
+  mkdir -p "$d/$(dirname "$path")"
+  printf '%s\n' "$body" >"$d/$path"
+}
+
+# --- pointer + single-quoted YAML value resolves ---
+r="$(newrepo $'## convention_source\ndocs/conventions/commits.yml')"
+addneutral "$r" "docs/conventions/commits.yml" $'# team commit convention\nsubject_pattern: \047^SW2-[0-9]+: .+\047'
+assert_eq "neutral: quoted YAML subject" '^SW2-[0-9]+: .+' "$(run "$r")"
+
+# --- double-quoted YAML value strips its quotes too ---
+r="$(newrepo $'## convention_source\nconventions.yml')"
+addneutral "$r" "conventions.yml" $'subject_pattern: "^DQ-[0-9]+: .+"'
+assert_eq "neutral: double-quoted value" '^DQ-[0-9]+: .+' "$(run "$r")"
+
+# --- unquoted YAML value passes through ---
+r="$(newrepo $'## convention_source\nconventions.yml')"
+addneutral "$r" "conventions.yml" $'subject_pattern: ^plain: .+'
+assert_eq "neutral: unquoted value" '^plain: .+' "$(run "$r")"
+
+# --- CC keyword works in the neutral file exactly as in markdown ---
+r="$(newrepo $'## convention_source\nconventions.yml')"
+addneutral "$r" "conventions.yml" $'subject_pattern: Conventional Commits'
+assert_eq "neutral: CC keyword -> CC_ERE" "$CC_ERE" "$(run "$r")"
+
+# --- pr_title deferral marker works in the neutral file ---
+r="$(newrepo $'## convention_source\nconventions.yml')"
+addneutral "$r" "conventions.yml" $'subject_pattern: \047^N-[0-9]+: .+\047\npr_title_pattern: Same as `subject_pattern`.'
+assert_eq "neutral: pr deferral -> subject" '^N-[0-9]+: .+' "$(run "$r" pr_title_pattern)"
+
+# --- dialect: posix-ere (explicit) still resolves ---
+r="$(newrepo $'## convention_source\nconventions.yml')"
+addneutral "$r" "conventions.yml" $'dialect: posix-ere\nsubject_pattern: \047^D-[0-9]+: .+\047'
+assert_eq "neutral: dialect posix-ere ok" '^D-[0-9]+: .+' "$(run "$r")"
+
+# --- dialect other than posix-ere -> no enforcement ---
+r="$(newrepo $'## convention_source\nconventions.yml')"
+addneutral "$r" "conventions.yml" $'dialect: pcre\nsubject_pattern: \047^\\d+: .+\047'
+out="$(run "$r")"
+rc=$?
+assert_exit "neutral: dialect pcre -> exit 1" 1 "$rc"
+assert_eq "neutral: dialect pcre -> empty stdout" "" "$out"
+
+# --- declared pointer, missing file -> FAIL CLOSED (never markdown fallback) ---
+r="$(newrepo $'## convention_source\nmissing.yml\n\n## subject_pattern\n^stale: .+')"
+out="$(run "$r")"
+rc=$?
+assert_exit "neutral: missing file -> exit 1" 1 "$rc"
+assert_eq "neutral: missing file -> empty (no stale markdown fallback)" "" "$out"
+
+# --- absolute and traversal pointers are rejected ---
+r="$(newrepo $'## convention_source\n/etc/conventions.yml')"
+run "$r" >/dev/null 2>&1
+assert_exit "neutral: absolute pointer -> exit 1" 1 $?
+r="$(newrepo $'## convention_source\n../outside.yml')"
+run "$r" >/dev/null 2>&1
+assert_exit "neutral: traversal pointer -> exit 1" 1 $?
+
+# --- a key the neutral file omits falls back to the team markdown H2 ---
+r="$(newrepo $'## convention_source\nconventions.yml\n\n## pr_title_pattern\n^MD: .+')"
+addneutral "$r" "conventions.yml" $'subject_pattern: \047^Y-[0-9]+: .+\047'
+assert_eq "neutral: omitted key -> markdown fallback" '^MD: .+' "$(run "$r" pr_title_pattern)"
+
+# --- neutral value WINS over a not-yet-retired markdown duplicate ---
+r="$(newrepo $'## convention_source\nconventions.yml\n\n## subject_pattern\n^old-md: .+')"
+addneutral "$r" "conventions.yml" $'subject_pattern: \047^new-yaml: .+\047'
+assert_eq "neutral: YAML wins over markdown duplicate" '^new-yaml: .+' "$(run "$r")"
+
+# --- comment and blank lines in the neutral file are inert ---
+r="$(newrepo $'## convention_source\nconventions.yml')"
+addneutral "$r" "conventions.yml" $'# convention SSOT\n\n# see CONTRIBUTING.md\nsubject_pattern: \047^C-[0-9]+: .+\047'
+assert_eq "neutral: comments/blanks inert" '^C-[0-9]+: .+' "$(run "$r")"
+
+# --- pointer in the LOCAL overlay only is ignored (team-only policy floor) ---
+r="$(newrepo "" $'## convention_source\nconventions.yml')"
+addneutral "$r" "conventions.yml" $'subject_pattern: \047^evil: .+\047'
+run "$r" >/dev/null 2>&1
+assert_exit "neutral: overlay pointer ignored (team-only)" 1 $?
+
+# --- a present-but-EMPTY neutral key fails closed (never stale markdown) ---
+r="$(newrepo $'## convention_source\nconventions.yml\n\n## subject_pattern\n^stale-md: .+')"
+addneutral "$r" "conventions.yml" $'subject_pattern: \047\047'
+out="$(run "$r")"
+rc=$?
+assert_exit "neutral: empty quoted key -> exit 1" 1 "$rc"
+assert_eq "neutral: empty quoted key -> empty stdout (no stale fallback)" "" "$out"
+r="$(newrepo $'## convention_source\nconventions.yml\n\n## subject_pattern\n^stale-md: .+')"
+addneutral "$r" "conventions.yml" $'subject_pattern:'
+run "$r" >/dev/null 2>&1
+assert_exit "neutral: bare empty key -> exit 1" 1 $?
+
+# --- symlink escapes are rejected (skipped where ln -s can't make symlinks) ---
+outside="$TEST_TMPDIR/outside.yml"
+printf '%s\n' "subject_pattern: '^outside: .+'" >"$outside"
+r="$(newrepo $'## convention_source\nlink.yml')"
+ln -s "$outside" "$r/link.yml" 2>/dev/null
+if [[ -L "$r/link.yml" ]]; then
+  run "$r" >/dev/null 2>&1
+  assert_exit "neutral: symlinked file rejected" 1 $?
+  # A symlinked DIRECTORY segment escaping the repo is rejected too.
+  mkdir -p "$TEST_TMPDIR/outdir"
+  printf '%s\n' "subject_pattern: '^outdir: .+'" >"$TEST_TMPDIR/outdir/c.yml"
+  r="$(newrepo $'## convention_source\nsub/c.yml')"
+  ln -s "$TEST_TMPDIR/outdir" "$r/sub" 2>/dev/null
+  if [[ -L "$r/sub" ]]; then
+    run "$r" >/dev/null 2>&1
+    assert_exit "neutral: symlinked dir segment rejected" 1 $?
+  fi
+else
+  echo "SKIP: symlink cases (ln -s unavailable on this filesystem)"
+fi
+
 # --- usage / invalid key ---
 bash "$SCRIPT" >/dev/null 2>&1
 assert_exit "no args -> exit 2" 2 $?

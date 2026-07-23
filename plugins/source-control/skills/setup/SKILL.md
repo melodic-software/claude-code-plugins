@@ -141,6 +141,11 @@ In brief:
   layer (team = tracked and staged; local = ignored and untracked, two independent probes; user =
   no git command at all), and report the new **effective merge**, not just what was written.
 
+- **Neutral SSOT (optional):** a `team` write may declare `## convention_source` pointing at a
+  repo-relative flat-scalar YAML file other tools consume too — offered when another consumer
+  exists, with migration retiring keys the neutral file takes over (spoke section "Neutral
+  convention SSOT").
+
 Every step's exact contract — the interview steps, the written-file template, the per-layer
 verification scripts, and the failure remediations — lives in the spoke; this summary never
 overrides it.
@@ -197,6 +202,9 @@ Skill-behavior failure patterns hit in real runs. Add to this section when new o
   the window silently — probe `git rev-parse --is-shallow-repository` and report the actual span.
 - **Same-session `userConfig` reads are stale.** Reconfigured babysit values become visible only
   in a fresh session — re-running `check` in the same session reports a false failure.
+- **A broken `convention_source` pointer fails closed.** Enforcement and drafting surface it as a
+  config error rather than silently falling back to markdown values a migration may have retired —
+  verify the pointer round-trips through the resolver at write time.
 
 ## What this skill does NOT do
 

@@ -49,6 +49,78 @@ The two reads are deliberately not identical:
    *drafting* side may still author PCRE-shaped patterns, but a team that wants a pattern *enforced*
    writes it in ERE.
 
+## The neutral convention SSOT (`convention_source`)
+
+Reopen of #913's "no YAML / no path rename" decision, author-directed (#1141 carries the four
+reopen grounds: author directive, an observed three-copy drift surface on a real consuming machine,
+the ecosystem's move to prose-only AGENTS.md pointers with no machine format, and the audit
+checklist's own recurring-concerns memory contradicting the decline).
+
+The team-tracked `.claude/source-control.md` MAY declare one additional H2 key:
+
+```markdown
+## convention_source
+
+docs/conventions/commits.yml
+```
+
+— a **repo-relative, forward-slash** path to a neutral flat-scalar YAML file, the tool-agnostic
+SSOT any consumer (this seam's resolver, a commit-msg hook, CI, another agent) reads with one sed:
+
+```yaml
+# Commit-subject / PR-title convention — single source of truth.
+# Consumed by the source-control plugin, commit hooks, and CI alike.
+dialect: posix-ere
+subject_pattern: '^[A-Z]+-[0-9]+: .+'
+pr_title_pattern: Same as `subject_pattern`.
+```
+
+Contract points:
+
+- **The pointer is optional and team-only.** Absent → today's markdown-H2 grammar, unchanged —
+  full back-compat, zero action for existing consumers. The pointer is honored from the
+  team-tracked file only (same policy floor: a gitignored overlay must not redirect the gate).
+  The path is ALWAYS repo-declared; the plugin hardcodes no doc-root convention and ships no
+  well-known search list in V1 (recorded decision: a search list is discoverable sugar that adds
+  probe order and shadowing questions with no consumer demanding it yet — the pointer alone keeps
+  every path choice in the consuming repo's hands).
+- **Value grammar (one-sed contract).** A key's value is everything after `^<key>:` on the first
+  matching column-0 line — whitespace-trimmed, one pair of matching surrounding quotes removed, no
+  YAML escape processing. `sed -n 's/^subject_pattern:[[:space:]]*//p'` (plus quote-strip) is the
+  reference extraction. Write patterns that need no quote escaping (prefer single quotes; a pattern
+  containing a single quote goes unquoted or double-quoted). Full-line `#` comments are inert;
+  trailing `#` is NOT comment-stripped — a regex may contain `#`.
+- **The `Conventional Commits` keyword and the `` Same as `subject_pattern`. `` deferral marker
+  work identically on both surfaces** — one literal each, owned here, no per-surface variants.
+- **`dialect:`** (optional, default `posix-ere`) declares the regex dialect for NON-enforcement
+  consumers (a JS CI runner, a PCRE hook) so they know what they are reading instead of silently
+  misreading it. Enforcement itself stays POSIX-ERE-only: a declared non-`posix-ere` dialect
+  disables this seam's enforcement with a diagnostic, exactly like a PCRE-ism in the pattern.
+- **Per-key precedence, fail-closed pointer.** When the pointer is declared, the neutral file is
+  authoritative for the machine keys it carries; a key it omits falls back to the team markdown H2
+  (plugin-only keys — `trailer_policy`, `pr_body_attribution` — stay `.claude/`-side; the drafting
+  side may also read a flat `pr_body_required_sections:` list from the neutral file). A
+  declared-but-broken pointer — absolute, backslash, or `..` path; missing file; a symlinked file
+  or a symlinked path segment whose physical target leaves the repository root (the target must be
+  a regular file physically under the repo) — disables enforcement with a diagnostic rather than
+  falling back: a silent markdown fallback could enforce a stale pattern the migration retired,
+  and a symlink escape would let untracked external content steer the gate. User-global and `*.local.md` overlay layers are unchanged.
+- **Monorepo per-directory scoping is out of scope for V1** (recorded, not designed for).
+
+**Incumbent steelman, walked before replacing.** Markdown-H2 was chosen (#913) so the config file
+doubles as human-readable documentation: a self-describing preamble, prose beside values, one file
+readable with no schema knowledge. Those purposes survive the move: YAML `#` comments carry the
+preamble and per-value prose (the example above is self-describing), and the human document proper
+lives in CONTRIBUTING/AGENTS.md pointing at the YAML — prose and machine values no longer share a
+grammar, which is the very coupling that produced three hand-synced copies. What markdown-H2 could
+not offer any non-plugin consumer is a parse it doesn't have to reimplement: the H2 grammar
+(first-non-empty-body-line, preamble inertness, deferral literals) exists only in this repo,
+while flat-scalar YAML is extractable by sed, yq, any YAML loader, and any agent. The
+frontmatter-hybrid compromise (YAML frontmatter + markdown body in one file) was re-examined and
+declined for V1: it splits parsing across two grammars in one file — the exact brittleness
+recurring-concerns #4 records — and the two-file shape (YAML + prose pointer) covers the same
+purposes without it.
+
 ## Two load-bearing contracts
 
 - **Unresolved = no enforcement.** No team-tracked pattern (or a non-enforceable one) → the gate does

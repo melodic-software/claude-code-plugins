@@ -49,6 +49,20 @@ Markdown, one `## <key>` H2 per key, the value as the section body:
 
 Absent sections are absent, never empty.
 
+- `convention_source` — optional, **honored in the team-tracked layer only**: a repo-relative
+  forward-slash path to a neutral flat-scalar YAML file, the tool-agnostic convention SSOT other
+  consumers (commit-msg hooks, CI, other agents) read too. When declared, the neutral file is
+  authoritative for the machine keys it carries (`subject_pattern`, `pr_title_pattern`, optionally
+  a flat `pr_body_required_sections:` list and `dialect:`); a key it omits falls back to the team
+  file's own H2 sections, and plugin-only keys (`trailer_policy`, `pr_body_attribution`) stay in
+  the markdown surface. The `Conventional Commits` keyword and the pr-title deferral marker work
+  identically in the neutral file. User-global and local-overlay layers are unchanged and still
+  merge per key on top. Value grammar, pointer safety rules, and the fail-closed
+  broken-pointer contract are owned by the
+  [commit-convention seam](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/commit-convention/README.md)
+  — drafting honors the same contract (a declared-but-broken pointer is surfaced as a config error,
+  never silently re-read from markdown values a migration may have retired).
+
 ## The three layers
 
 Resolve every read from the repo root — `${CLAUDE_PROJECT_DIR}` when set, otherwise
