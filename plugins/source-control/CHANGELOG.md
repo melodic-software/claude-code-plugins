@@ -3,6 +3,31 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.0]
+
+### Added
+
+- **Neutral tool-agnostic convention SSOT — `convention_source` (#1141, author-directed reopen of
+  #913).** The team-tracked `.claude/source-control.md` may now declare `## convention_source`: a
+  repo-relative flat-scalar YAML file (`subject_pattern`, `pr_title_pattern`, optional
+  `pr_body_required_sections` list or `none`, optional `dialect:` defaulting `posix-ere`) that
+  enforcement (commit-msg hooks, CI) and drafting (any agent) consume as ONE source — decoupling
+  the convention values from the markdown-H2 grammar that previously left consuming machines
+  hand-syncing byte-identical regex copies. Absent pointer → today's behavior, zero action for
+  existing consumers; the path is always repo-declared (no hardcoded doc root, no well-known
+  search list in V1 — recorded decision); the `Conventional Commits` keyword and the pr-title
+  deferral marker work identically on both surfaces; the neutral file is authoritative per key with
+  markdown-H2 fallback, plugin-only keys stay `.claude/`-side, and user/local overlay layers are
+  unchanged. Enforcement contract unchanged (POSIX ERE only, unresolved = no enforcement,
+  team-only policy floor — the pointer too is honored from the team file only); a
+  declared-but-broken pointer or non-`posix-ere` dialect fails closed with a diagnostic.
+  `lib/resolve-convention-pattern.sh` extended (guardrails vendored copy synced byte-identical,
+  guardrails 0.13.0); 14 new resolver test cases (44 total). The incumbent markdown-H2 steelman and
+  the format decision walk-through are recorded in `docs/conventions/commit-convention/README.md`;
+  `setup apply` gains the offer-and-migrate path (spoke section, eval 18) that retires duplicated
+  keys rather than leaving both surfaces authoritative. Monorepo per-directory scoping: out of
+  scope V1, recorded.
+
 ## [0.22.0]
 
 ### Changed

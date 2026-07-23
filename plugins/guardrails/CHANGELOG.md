@@ -3,6 +3,20 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.13.0]
+
+### Added
+
+- **Vendored convention resolver understands the neutral convention SSOT (#1141).** The synced copy
+  of `lib/resolve-convention-pattern.sh` now honors a team-tracked `## convention_source` pointer to
+  a repo-relative flat-scalar YAML file: machine keys resolve from that file when it declares them
+  (markdown-H2 fallback per key), the `Conventional Commits` keyword and the `pr_title_pattern`
+  deferral marker work identically on both surfaces, a non-`posix-ere` `dialect:` declaration
+  disables enforcement with a diagnostic, and a declared-but-broken pointer (absolute/backslash/`..`
+  path, missing file) fails closed to no-enforcement rather than silently re-reading markdown values
+  a migration may have retired. Policy floor unchanged: the pointer is honored from the team file
+  only. Seam contract: `docs/conventions/commit-convention/README.md`.
+
 ## [0.12.3]
 
 ### Fixed

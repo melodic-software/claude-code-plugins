@@ -330,3 +330,29 @@ With no argument in an interactive session, run the interview:
    NOT team-wide enforcement. Committers without the plugin are bound only by a commit-msg hook or CI
    check; when the team wants that, point at the guardrails plugin's opt-in commit-msg hook or the
    repo's own hook manager rather than implying this file enforces anything by itself.
+
+## Neutral convention SSOT (`convention_source`)
+
+For a `team` write, offer (never require) the neutral-file shape — one tool-agnostic flat-scalar
+YAML file other consumers (commit-msg hooks, CI, other agents) read alongside this plugin. Contract
+and value grammar are owned by the
+[commit-convention seam](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/commit-convention/README.md);
+this skill's part:
+
+- **Offer it when it earns its keep** — the user says another tool consumes the convention (a hook,
+  CI, another agent), or asks for a tool-agnostic/SSOT shape. A repo where only this plugin reads
+  the convention loses nothing by staying markdown-only; say so rather than upselling the split.
+- **Writing it:** ask the repo's own path preference (the plugin ships no doc-root convention —
+  `docs/conventions/…`, `.github/…`, a root dotfile are all the repo's call; repo-relative,
+  forward slashes, no `..`), write the YAML with machine keys (`subject_pattern`,
+  `pr_title_pattern`, optionally `pr_body_required_sections`, `dialect: posix-ere`) plus `#`
+  comments carrying the self-describing preamble, and declare `## convention_source` with that path
+  in `.claude/source-control.md`.
+- **Migration retires duplicates.** When the team markdown file already carries a key the neutral
+  file now declares, REMOVE it from the markdown in the same apply — the resolver would prefer the
+  neutral value anyway, but leaving both invites hand-edit drift, which is the disease this shape
+  cures. Plugin-only keys (`trailer_policy`, `pr_body_attribution`) stay in the markdown file.
+- **Verification adds one probe:** the pointer's target exists, is repo-relative, and round-trips
+  through the enforcement resolver (`lib/resolve-convention-pattern.sh <repo_root>
+  subject_pattern` emits the expected pattern). A broken pointer fails closed to no-enforcement by
+  contract — surface it at write time, not at the team's first blocked commit.

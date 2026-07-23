@@ -74,6 +74,16 @@ esac
 # Team-tracked layer only — the enforcement authority (see header).
 readonly TEAM_FILE="$repo_root/.claude/source-control.md"
 
+# --- Neutral convention SSOT (docs/conventions/commit-convention/, #1141) ---
+# The team file MAY declare `## convention_source` naming a repo-relative
+# flat-scalar YAML file (the tool-agnostic SSOT other consumers — commit-msg
+# hooks, CI — read with one sed). When declared, that file is authoritative for
+# the machine keys it carries; a key it omits falls back to the team markdown
+# H2. The pointer is honored from the TEAM file only (same policy floor — a
+# gitignored overlay must not redirect the gate), and a declared-but-broken
+# pointer FAILS CLOSED to no-enforcement with a diagnostic rather than silently
+# re-reading markdown values migration may have retired.
+
 # First non-empty body line under `## <key>`, CR-stripped. Empty when the
 # section is absent or bodyless. Awk over sed: needs section-state, not a line
 # match.
@@ -97,6 +107,70 @@ h2_value() {
   ' "$file"
 }
 
+# First matching flat-scalar value for a key from the neutral YAML file:
+# `^<key>:` at column 0, CR-stripped, surrounding whitespace trimmed, ONE pair
+# of matching surrounding quotes ('…' or "…") removed. No YAML quote-escape
+# processing — the one-sed extraction contract other consumers rely on can't
+# either, so the seam doc tells authors to write patterns that need no escaping.
+# Full-line `#` comments never match the key anchor; trailing `#` text is NOT
+# stripped (a regex may legitimately contain `#`).
+yaml_value() {
+  local file="$1" k="$2" line v
+  [[ -f "$file" ]] || return 0
+  line="$(grep -m1 -E "^${k}:" "$file" | tr -d '\r')"
+  [[ -n "$line" ]] || return 0
+  v="${line#"${k}":}"
+  v="${v#"${v%%[![:space:]]*}"}"
+  v="${v%"${v##*[![:space:]]}"}"
+  if [[ ${#v} -ge 2 && ("$v" == \'*\' || "$v" == \"*\") && "${v:0:1}" == "${v: -1}" ]]; then
+    v="${v:1:${#v}-2}"
+  fi
+  printf '%s' "$v"
+}
+
+# Resolve the optional neutral-file pointer. Sets NEUTRAL_FILE (empty when no
+# pointer is declared). A declared pointer that cannot be honored — absolute or
+# traversal path, missing file, or a dialect other than posix-ere — disables
+# enforcement (exit 1) with a diagnostic: fail closed, never fall back.
+NEUTRAL_FILE=""
+ptr="$(h2_value "$TEAM_FILE" "convention_source")"
+if [[ -n "$ptr" ]]; then
+  case "$ptr" in
+  /* | [A-Za-z]:* | *\\* | *..*)
+    # Repo-relative forward-slash paths only: no absolute paths (POSIX or
+    # drive-lettered), no backslash separators, no `..` traversal — a tracked
+    # pointer must not read outside the repository the gate governs.
+    printf '%s\n' "resolve-convention-pattern: convention_source '$ptr' is not a plain repo-relative path (absolute, backslash, or '..' segment); enforcement disabled." >&2
+    exit 1
+    ;;
+  *) ;; # plain repo-relative path — proceed
+  esac
+  NEUTRAL_FILE="$repo_root/$ptr"
+  if [[ ! -f "$NEUTRAL_FILE" ]]; then
+    printf '%s\n' "resolve-convention-pattern: convention_source declares '$ptr' but no such file exists under the repo root; enforcement disabled (fix the pointer or restore the file)." >&2
+    exit 1
+  fi
+  dialect="$(yaml_value "$NEUTRAL_FILE" dialect)"
+  if [[ -n "$dialect" && "$dialect" != "posix-ere" ]]; then
+    printf '%s\n' "resolve-convention-pattern: convention_source file declares dialect '$dialect'; enforcement consumes posix-ere only — enforcement disabled." >&2
+    exit 1
+  fi
+fi
+
+# Team-layer value for a machine key: the neutral file when the pointer is
+# declared AND that file carries the key; the team markdown H2 otherwise.
+team_value() {
+  local k="$1" v
+  if [[ -n "$NEUTRAL_FILE" ]]; then
+    v="$(yaml_value "$NEUTRAL_FILE" "$k")"
+    if [[ -n "$v" ]]; then
+      printf '%s' "$v"
+      return 0
+    fi
+  fi
+  h2_value "$TEAM_FILE" "$k"
+}
+
 # Enforcement patterns are POSIX ERE, NOT PCRE. The resolver does not translate
 # a pattern (translating PCRE->ERE by string rewriting is unsound — bracket
 # expressions, POSIX classes, and escaped backslashes all break naive
@@ -118,10 +192,13 @@ is_non_ere() {
   return 1
 }
 
-# Resolve one key's raw value from the team layer, expanding the CC keyword.
+# Resolve one key's raw value from the team layer (neutral file first when the
+# pointer is declared — team_value), expanding the CC keyword. The keyword and
+# the deferral marker work identically on both surfaces: one literal each, no
+# per-surface variants to drift.
 raw_value() {
   local k="$1" v
-  v="$(h2_value "$TEAM_FILE" "$k")"
+  v="$(team_value "$k")"
   [[ -n "$v" ]] || return 0
   if [[ "$v" == "Conventional Commits" ]]; then
     printf '%s' "$CC_ERE"
@@ -135,7 +212,7 @@ value="$(raw_value "$key")"
 # pr_title_pattern deferral: `Same as `subject_pattern`.` enforces the effective
 # subject pattern. Resolve against the raw (pre-expansion) pr_title value.
 if [[ "$key" == "pr_title_pattern" ]]; then
-  raw_pr="$(h2_value "$TEAM_FILE" "pr_title_pattern")"
+  raw_pr="$(team_value "pr_title_pattern")"
   if [[ "$raw_pr" == "$PR_DEFERRAL" ]]; then
     value="$(raw_value "subject_pattern")"
   fi
