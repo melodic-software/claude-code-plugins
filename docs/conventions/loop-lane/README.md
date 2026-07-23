@@ -33,11 +33,16 @@ attended queue. No lane crosses into another's authority.
 ### Autonomy ladder (merge authority)
 
 Merge authority is a configurable ladder with the safest rung shipped by default: **human merge for
-every PR except gate-proven bot and C2-mechanical PRs**. Higher rungs — up to full autonomy, where
+every PR except gate-proven C2-mechanical ones**. The exception is a *work-class* test, not an
+authorship test — a PR qualifies only when the item classifies C2 (mechanical), whether a bot, a
+human, or a worker authored it; bot authorship alone is never sufficient. C3, C4, C5, and
+unclassified items stay human-gated regardless of author. Higher rungs — up to full autonomy, where
 frontier-tier subagents resolve conflicts, answer review comments, and drive a PR to merge — are
 opt-in per repository.
 
-Raising a rung is a config change on the tracked, layered config seam
+This shipped default is itself the recorded baseline rung, versioned in this convention and in the
+tracked seam config. Raising any higher rung — including any C3-autonomous merge — is a config change
+on the tracked, layered config seam
 ([consumer-config layering](../consumer-config-layering/README.md)), which makes it exactly the
 autonomy matrix's required **human-ratified knob flip recorded on the governance surface**
 ([`work-classes.md`](../../../plugins/autonomy/reference/guardrails/work-classes.md#promotion-and-demotion)).
@@ -116,11 +121,15 @@ ceiling. The `source-control` babysit lane's own self-pacing section
 ([`babysit-prs` loop reference](../../../plugins/source-control/skills/babysit-prs/reference/loop.md))
 is the worked precedent.
 
-**Cycle budget (#691).** A per-session cycle budget restarts the **session**, never ends the
-**loop**. A running loop cannot `/clear` or relaunch itself — a relaunch is the only context reset a
-lane gets ([`claude-ops` lanes](../../../plugins/claude-ops/skills/lanes/SKILL.md), section "A
-relaunch is the only context reset a loop lane gets") — so a budget hit emits a restart-request
-through telemetry and stops the loop cleanly, leaving the relaunch to the launcher or operator.
+**Cycle budget (#691).** A per-session cycle budget bounds one session; a budget hit **always**
+emits a restart-request into the #502 telemetry block and stops the loop cleanly — a running loop
+cannot `/clear` or relaunch itself, since a relaunch is the only context reset a lane gets
+([`claude-ops` lanes](../../../plugins/claude-ops/skills/lanes/SKILL.md), section "A relaunch is the
+only context reset a loop lane gets"). What happens next is launcher-relative. Under a launcher that
+acts on restart-requests (for example `claude-ops` `lanes`), the lane is relaunched and the loop
+continues — the budget restarts the **session**, never ends the **loop**. Under a bare interactive
+`/loop` with no launcher, the same budget hit is a **terminal** manual-restart state: the stop is
+reported in lane telemetry, and the operator — or a migration to a launcher — owns the restart.
 
 **Telemetry comment (#502).** Each lane maintains exactly **one** status comment on a tracking item,
 identified by a machine sentinel marker and **edited in place** every cycle — never a second comment.

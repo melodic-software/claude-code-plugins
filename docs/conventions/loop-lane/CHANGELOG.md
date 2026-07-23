@@ -13,9 +13,10 @@ these concerns across two plugins.
 
 - **Three-session topology** — worker loop authors PRs (never merges), babysit lane owns merges
   within the autonomy matrix's merge-policy column, attended queue holds judgment.
-- **Autonomy ladder** — human merge is the shipped default for all but gate-proven bot and
-  C2-mechanical PRs; higher rungs are opt-in per repo, and raising one is the matrix's recorded
-  human-ratified config flip.
+- **Autonomy ladder** — human merge is the shipped default for all but gate-proven C2-mechanical
+  PRs (a work-class test, not an authorship one: bot authorship alone never qualifies, and C3/C4/C5/
+  unclassified stay human-gated); this default is the recorded baseline rung, and every higher rung
+  is opt-in per repo through the matrix's recorded human-ratified config flip.
 - **Escalation contract** — `needs-human` role label resolved via `config.role_labels` plus a
   machine-marked discriminator comment; event classes owned by the autonomy guardrails.
 - **Capability tiers** — order-defined (frontier / strong / fast), never family names; runtime
