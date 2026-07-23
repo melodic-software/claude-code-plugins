@@ -85,11 +85,24 @@ unchanged and bind every member.
    honest "clean"). Cap concurrency in bounded waves like the `-deep`
    siblings; retry only a failed subset, once.
 2. **Collect** every ledger.
-3. **Correct once, in rank order.** Walk the in-scope members — the core and
+3. **Dedup by root cause.** Before correcting, group ledger entries across
+   correctors that name the SAME underlying finding — distinct disciplines
+   routinely surface one root cause as separate entries (e.g. a recall-based
+   claim flagged independently by `do-your-research`, `recheck-against-upstream`,
+   and `mind-your-maxims`). Merge those into one finding, carrying the union of
+   their located evidence and the list of correctors that reported it, so the
+   correction in step 4 happens once and is attributed to all reporters instead
+   of being applied — and reported — three times. This merge is the ONLY place
+   ledgers combine: the forks stay independent by design (no shared ledger
+   across forks — that independence is what keeps each audit's perspective
+   un-anchored), and grouping is by root cause, not by corrector. A finding only
+   one corrector raised passes through unchanged.
+4. **Correct once, in rank order.** Walk the in-scope members — the core and
    situational correctors that ran (never-tier carries no rank and was already
    excluded at membership resolution) — by ascending `re-anchor-batch-rank`,
    and correct forward each finding on the main thread now — the shared loop's
-   step 3, batched. The order:
+   step 3, batched. A finding merged in step 3 is corrected at the rank of the
+   highest-priority (lowest-rank) corrector that reported it. The order:
    `use-your-skills` first (fix which skills govern the work) → evidence
    correctors (get the facts right) → structural correctors → `mind-your-maxims`
    (communication) → `tighten-your-output` dead last, so it never tightens
@@ -99,10 +112,11 @@ unchanged and bind every member.
    fresh-context (non-fork) subagent blind to that reasoning, per the method
    doc's Non-negotiable — the batch orchestrates the correction here, it does
    not waive that escalation. (The fork *audit* inherits context on purpose:
-   step 2 is a same-context self-audit; this carve-out is about step 3.)
-4. **Report** one consolidated ledger: per corrector — corrected / clean /
-   open; plus which situational members ran versus were skipped, and which
-   never-members exist for direct use.
+   step 2 is a same-context self-audit; this carve-out is about step 4.)
+5. **Report** one consolidated ledger: per corrector — corrected / clean /
+   open; a root-cause finding merged in step 3 is listed once, attributed to
+   every corrector that reported it; plus which situational members ran versus
+   were skipped, and which never-members exist for direct use.
 
 ## Member human-gates survive batching
 
@@ -159,7 +173,12 @@ relevance-gated. Report the net effect whenever the overlay changes the set.
   override and inherits the whole conversation, so each in-scope corrector's
   audit runs at the parent model over the full transcript; the wave cap bounds
   burst, not per-fork cost. Keeping the `never` tier out and relevance-gating
-  the situational tier are what hold the fan-out small.
+  the situational tier are what hold the fan-out small. Order of magnitude from
+  a real full-batch run on a mid-length session: each fork consumed
+  ~170K tokens (inherited transcript), so an 8-in-scope pass in two waves of
+  four ran ~1.4M tokens for the audit phase alone. Budget the sweep as a
+  deliberate spend, not a reflex — on a long transcript the per-fork cost only
+  grows.
 - **`tighten-your-output` stays last** — tightening before the other
   corrections would tighten text they then rewrite.
 - **A situational skip is reported, not silent** — the user sees what was
