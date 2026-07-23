@@ -189,10 +189,36 @@ With no argument in an interactive session, run the interview:
      hook. Resolve the hooks directory with `git rev-parse --git-path hooks` rather than assuming
      `.git/hooks` — in a linked worktree `.git` is a file, not a directory, and the hooks directory
      (or a `core.hooksPath` override) can live elsewhere.
-   - Recent history — `git log --format=%s -50` (subjects only, no abbreviated commit hash —
-     `git log --oneline` prefixes every subject with one and will break anchored matching) for a
-     stable, repeating subject shape (e.g. every subject matches `^[A-Z]+-\d+: .+`, or every subject
-     is already Conventional-Commits-shaped).
+   - Commit-history consensus — the default history signal, a year-scale volume-weighted read, not
+     a small fixed sample (a `-50` tail misses a convention shift and any informal variant family
+     entirely). One pass:
+     `git log --since="<window>" --no-merges --date=short --format='%cd|%s'` — subjects with an ISO
+     date for the recency split; never `git log --oneline` (the abbreviated-hash prefix breaks
+     anchored matching). `%cd` (committer date), not `%ad`: `--since` filters the walk by committer
+     timestamp, so rendering author dates would let a rebased or cherry-picked commit enter the
+     window yet land in the wrong recency bucket — one clock for both the filter and the split. Every knob is plugin `userConfig`, never a constant — a surviving literal
+     `${user_config.…}` placeholder means the key is unset, so apply its manifest default:
+     - `${user_config.setup_inference_window}` — the `--since` window (git-approxidate; default
+       `1 year`).
+     - `${user_config.setup_inference_recency_days}` — the recent-vs-older split boundary (default
+       `90`).
+     - `${user_config.setup_inference_min_commits}` — the low-confidence threshold (default `50`).
+     Exclude auto-generated subjects before classifying: merges are gone via `--no-merges`; also
+     drop `Revert`-, `fixup!`-, and `squash!`-prefixed subjects — auto-subjects restate other
+     commits' shapes and would double-count them. Bucket-classify the survivors in-context —
+     Conventional-Commits-shaped, ticket-prefix-shaped, informal near-variants of either (e.g.
+     type-word without colon), other — and report volume-weighted percentages split at the recency
+     boundary (e.g. `ticket-prefix 78.8% recent vs 71.9% older · Conventional Commits 0%`): a
+     rising recent share is the live convention even when all-time volume says otherwise. Present
+     the evidence table and let the user pick from it; never silently promote a bucket into config.
+     Generic caveats — handle each and STATE it in the report whenever it applies:
+     - **Shallow clone** (`git rev-parse --is-shallow-repository` → `true`): history is truncated —
+       report the actual covered span rather than presenting a partial window as the full one.
+     - **Young repo** (fewer classifiable subjects than the min-commits threshold): widen to full
+       history; still below it, mark the inference low-confidence rather than authoritative.
+     - **Squash-merge-only repo**: subjects ARE the PR titles — one signal, not two independently
+       corroborating ones; say so when recommending both `subject_pattern` and `pr_title_pattern`
+       from the same history.
    Present the inferred candidate as the recommendation, naming its source. If nothing is inferable,
    say so plainly and move to the interview with the bundled default as the recommendation.
 3. **Interview, one decision at a time, recommendation first.** Ask: "What commit-subject / PR-title

@@ -3,6 +3,29 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.0]
+
+### Changed
+
+- **`/setup` convention inference reads a configurable year-scale consensus window, not
+  `git log -50` (#1139).** A fixed 50-commit tail misses convention shifts and informal variant
+  families entirely — live-run evidence: a 2,122-subject year-scale analysis found a rising
+  ticket-prefix pattern at 78.8% recent vs 71.9% older with Conventional Commits at 0%, invisible
+  at n=50. The history signal is now one
+  `git log --since="<window>" --no-merges --date=short --format='%cd|%s'` pass (committer dates —
+  the same clock `--since` filters by, so a rebased commit can't land in the wrong recency bucket;
+  review-caught during #1139), auto-subjects
+  (`Revert`/`fixup!`/`squash!`; merges via `--no-merges`) excluded, bucket-classified in-context
+  and reported as volume-weighted percentages with a recent-vs-older recency split — the user picks
+  from the evidence table; no bucket is silently promoted into config. Every knob is plugin
+  `userConfig`, never a constant: `setup_inference_window` (git-approxidate, default `1 year`),
+  `setup_inference_recency_days` (default `90`), `setup_inference_min_commits` (default `50`),
+  documented in the README config table. Generic caveats are handled and stated in the report when
+  they apply: shallow clones report the actual covered span, young repos widen to full history and
+  degrade to low-confidence below the threshold, and squash-merge-only repos are flagged as one
+  signal (subjects ARE the PR titles), not two corroborating ones. New setup eval 17 covers the
+  consensus-window inference.
+
 ## [0.20.0]
 
 ### Added
