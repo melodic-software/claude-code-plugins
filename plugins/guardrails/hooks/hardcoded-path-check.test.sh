@@ -98,6 +98,56 @@ RC=$?
 assert_exit "windows Projects checkout root → exit 2" 2 "$RC"
 assert_contains "windows Projects root → message" "$OUT" "Windows repo path"
 
+# --- Right-boundary regressions (#1093): a bare path VALUE at end of line has
+# no trailing separator and must still fire. The old bodies required one, so
+# exactly the config-value shape the guard exists to catch was missed while
+# prose satisfied the requirement via a greedy space-permitting segment. ---
+WIN_BARE_REPO="C:${SL}Dev${SL}GitHub"
+OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$FIXTURE" "root = ${WIN_BARE_REPO}")" 2>&1)
+RC=$?
+assert_exit "bare windows repo value at EOL → exit 2" 2 "$RC"
+assert_contains "bare repo value → message" "$OUT" "Windows repo path"
+
+WIN_BARE_HOME="C:${BS}Users${BS}bob"
+OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$FIXTURE" "home = ${WIN_BARE_HOME}")" 2>&1)
+RC=$?
+assert_exit "bare windows user home at EOL → exit 2" 2 "$RC"
+assert_contains "bare windows home → message" "$OUT" "Windows user path"
+
+LINUX_BARE_HOME="${SL}home${SL}jdoe"
+OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$FIXTURE" "cd ${LINUX_BARE_HOME}")" 2>&1)
+RC=$?
+assert_exit "bare linux home at EOL → exit 2" 2 "$RC"
+assert_contains "bare linux home → message" "$OUT" "Linux user path"
+
+MAC_BARE_HOME="${SL}Users${SL}alice"
+OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$FIXTURE" "backup ${MAC_BARE_HOME}")" 2>&1)
+RC=$?
+assert_exit "bare macos home at EOL → exit 2" 2 "$RC"
+assert_contains "bare macos home → message" "$OUT" "macOS user path"
+
+# JSON-escaped bare value (doubled separators, end of string value).
+ESC_BARE_REPO="C:${BS}${BS}Dev${BS}${BS}GitHub"
+OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$FIXTURE" "cfg = \"${ESC_BARE_REPO}\"")" 2>&1)
+RC=$?
+assert_exit "escaped bare windows repo value → exit 2" 2 "$RC"
+assert_contains "escaped bare repo value → message" "$OUT" "Escaped Windows repo path"
+
+# The prose false positive the old greedy segment produced: checkout-root
+# words plus a later slash on the same line, but no drive-letter anchor.
+# Must stay clean under the whitespace-excluding segment class.
+OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$FIXTURE" "projects - personal repos (reference${SL}reading only)")" 2>&1)
+RC=$?
+assert_exit "checkout-root prose with later slash → exit 0" 0 "$RC"
+assert_silent "checkout-root prose → no stderr" "$OUT"
+
+# Root-with-no-child prose: separator then whitespace. The class requires at
+# least one non-space child character, so this must not match.
+OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$FIXTURE" "see ${SL}Users${SL} for details")" 2>&1)
+RC=$?
+assert_exit "bare Users root + prose → exit 0" 0 "$RC"
+assert_silent "bare Users root prose → no stderr" "$OUT"
+
 # ============================ NO-PROJECT SKIP ================================
 # No active project (CLAUDE_PROJECT_DIR unset): the hook does not scan at all.
 # A no-project target (e.g. a $HOME dotfile) is machine-local, not a portable
@@ -130,6 +180,51 @@ assert_silent "dynamic refs → no stderr" "$OUT"
 OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$FIXTURE" "cp file ${MAC_SHARED}")" 2>&1)
 RC=$?
 assert_exit "macos Shared dir → exit 0" 0 "$RC"
+
+# Bare Shared at EOL: the body now matches it (no trailing separator needed),
+# so the driver's Shared exclusion must cover the bare form too.
+OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$FIXTURE" "ls ${SL}Users${SL}Shared")" 2>&1)
+RC=$?
+assert_exit "bare macos Shared at EOL → exit 0" 0 "$RC"
+
+# Shared exclusion must be match-level, not line-level: a line holding a bare
+# Shared path AND a user-specific path still fires on the user-specific one.
+OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$FIXTURE" "cp ${SL}Users${SL}Shared ${SL}Users${SL}alice")" 2>&1)
+RC=$?
+assert_exit "Shared + user path on one line → exit 2" 2 "$RC"
+assert_contains "Shared + user path → macOS message" "$OUT" "macOS user path"
+
+# Defang boundary guard: a real segment merely PREFIXED with Shared is a user
+# directory, not the shared one — it must still flag.
+OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$FIXTURE" "ls ${SL}Users${SL}SharedStuff")" 2>&1)
+RC=$?
+assert_exit "SharedStuff segment → exit 2" 2 "$RC"
+
+# Shell / prose punctuation right after Shared is a boundary, not a longer
+# segment — common command shapes must stay clean.
+OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$FIXTURE" "cd ${SL}Users${SL}Shared; ls")" 2>&1)
+RC=$?
+assert_exit "Shared followed by semicolon → exit 0" 0 "$RC"
+
+OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$FIXTURE" "cp '${SL}Users${SL}Shared' out")" 2>&1)
+RC=$?
+assert_exit "single-quoted Shared → exit 0" 0 "$RC"
+
+# Left boundary: a URL whose path merely CONTAINS a home-root suffix is not a
+# filesystem root — must stay clean (macOS and Linux shapes).
+OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$FIXTURE" "see https://example.test${SL}home${SL}alice for docs")" 2>&1)
+RC=$?
+assert_exit "URL containing home suffix → exit 0" 0 "$RC"
+assert_silent "URL home suffix → no stderr" "$OUT"
+
+OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$FIXTURE" "see https://example.test${SL}Users${SL}alice page")" 2>&1)
+RC=$?
+assert_exit "URL containing Users suffix → exit 0" 0 "$RC"
+
+# Colon-prefixed value position (yaml/docker) is a boundary — must still flag.
+OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$FIXTURE" "vol:${SL}home${SL}alice mount")" 2>&1)
+RC=$?
+assert_exit "colon-prefixed linux home → exit 2" 2 "$RC"
 
 OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$PS1_FIXTURE" "\$cfg = '${WIN_HOME}'")" 2>&1)
 RC=$?
