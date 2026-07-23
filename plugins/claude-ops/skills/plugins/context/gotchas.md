@@ -14,6 +14,12 @@ and `catalog`-joined ids already are. `sync.md`'s Step 3 and `converge.md`'s CLI
 the fully-qualified form for this reason — never shorten an id to the bare name when constructing an
 actual `claude plugin update|install|uninstall|enable` command, even for readability in a report.
 
+Caveat — same symptom, different cause: a `Plugin "<name>" not found` failure with the
+**fully-qualified** `<name>@<marketplace>` id passed is NOT this gotcha. On Windows that is almost
+always a trailing `\r` silently corrupting the marketplace suffix (`<marketplace>\r`) — see
+"[Captured values on Windows carry `\r`](#captured-values-on-windows-carry-r--strip-it-before-embedding-in-any-command-or-json)"
+below. Check the id for a trailing CR before concluding the id form is wrong.
+
 ## Trusting `plugin list` / `plugin details` for "what's loaded here"
 
 Both show the highest installed version across every scope, not the cwd-effective one. Reporting a
@@ -60,12 +66,24 @@ changes this shape, that exit-2 failure is the signal to re-verify against a liv
 training-data recall) and update the parser — never widen the shape check to "whatever doesn't
 crash the script."
 
-## This host's `jq` build CRLF-terminates its output
+## Captured values on Windows carry `\r` — strip it before embedding in any command or JSON
 
 Discovered empirically while implementing `fleet-state.sh` (Windows/MSYS `jq`): even single-line
-compact JSON output ends `\r\n`, not just `\n`. `$(...)` command substitution strips only the
-trailing `\n`, so a stray `\r` survives at the end of a captured value and corrupts it once
-re-embedded in another `--argjson` argument (`jq: invalid JSON text passed to --argjson`). Any new
-script in this skill that shells out to `jq` and captures its output should route every call through
-the same `jq() { command jq "$@" | tr -d '\r'; }`-style wrapper `fleet-state.sh` already uses —
-don't rediscover this the hard way in a second script.
+compact JSON output ends `\r\n`, not just `\n`. But this is **not a `jq`-only hazard** — *any* value
+captured on Windows/MSYS (a native `python` `print(...)`, a PowerShell interop line, `git config`
+output, a CRLF-terminated file read) can arrive with a trailing `\r`. `$(...)` command substitution
+strips only the trailing `\n`, so the `\r` survives at the end of the captured value and corrupts it
+once it is either:
+
+- re-embedded in another `jq --argjson` argument (`jq: invalid JSON text passed to --argjson`), or
+- **embedded in a constructed `claude plugin` id.** A `<name>@<marketplace>\r` id is passed with the
+  full id present, yet the CLI reports `Plugin "<name>" not found` — the marketplace suffix is
+  silently corrupted. The symptom is byte-identical to the bare-name gotcha above and actively
+  misdirects diagnosis (the full id *was* passed). Observed live: extracting ids via
+  `python -c "print(...)"` on Windows gave every id but the last a trailing `\r`, and 57/58
+  `claude plugin update` calls failed this way.
+
+Route every `jq` call through the `jq() { command jq "$@" | tr -d '\r'; }`-style wrapper
+`fleet-state.sh` already uses, **and** strip `\r` (`tr -d '\r'`, or `${var%$'\r'}`) from every value
+captured from any other source before embedding it in a `claude plugin` command or a JSON argument.
+Don't rediscover this the hard way in a second script.

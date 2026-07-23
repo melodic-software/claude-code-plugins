@@ -202,16 +202,41 @@ msys* | cygwin* | win32) case_insensitive_os="true" ;;
 esac
 
 # --- Resolve default marketplace: the one this plugin was installed from ---
+# Two-stage match against installed_plugins.json's version-pinned installPath:
+#   1. exact — installPath == this plugin's normalized root (the precise case).
+#   2. version-agnostic fallback — installPath and the running root differ ONLY
+#      by their trailing `/<version>` segment. This is common, not an edge case:
+#      marketplace autoUpdate bumps the install shortly after session start while
+#      the session keeps rendering the old version's skill, and `sync`'s own
+#      Step 3 updates claude-ops itself — so every subsequent same-session call of
+#      the bare (no --marketplace) default path would otherwise fail. The fallback
+#      matches the version-stripped `…/cache/<marketplace>/<plugin>` prefix, which
+#      still carries the marketplace (so two marketplaces shipping the same plugin
+#      stay distinguishable). Takes the caller's already-normalized root as $1 so
+#      the caller can reuse it in the error message (a var set here would be lost
+#      across the `$(...)` the caller wraps this in).
 resolve_default_marketplace() {
-  local plugin_root norm_root
-  plugin_root="${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT_DEFAULT}"
-  norm_root=$(hook::normalize_path "$(hook::physical_path "$plugin_root")")
-  norm_root="${norm_root%/}"
-  jq -r --arg root "$norm_root" --argjson ci "$case_insensitive_os" '
+  local norm_root="$1" norm_root_parent result
+  # Stage 1: exact installPath match.
+  result=$(jq -r --arg root "$norm_root" --argjson ci "$case_insensitive_os" '
     .plugins
     | to_entries[]
     | select(.value[] | (.installPath // "" | gsub("\\\\";"/")) as $p |
              if $ci then ($p | ascii_downcase) == ($root | ascii_downcase) else $p == $root end)
+    | .key
+  ' "$INSTALLED_JSON" | head -1 | sed 's/.*@//')
+  if [[ -n "$result" ]]; then
+    printf '%s' "$result"
+    return 0
+  fi
+  # Stage 2: version-agnostic parent-prefix match (survives mid-session skew).
+  norm_root_parent="${norm_root%/*}"
+  [[ -n "$norm_root_parent" && "$norm_root_parent" != "$norm_root" ]] || return 0
+  jq -r --arg parent "$norm_root_parent" --argjson ci "$case_insensitive_os" '
+    .plugins
+    | to_entries[]
+    | select(.value[] | (.installPath // "" | gsub("\\\\";"/") | rtrimstr("/") | sub("/[^/]*$";"")) as $pp |
+             if $ci then ($pp | ascii_downcase) == ($parent | ascii_downcase) else $pp == $parent end)
     | .key
   ' "$INSTALLED_JSON" | head -1 | sed 's/.*@//'
 }
@@ -417,9 +442,18 @@ done
 
 case "$MODE" in
 default)
-  TARGET=$(resolve_default_marketplace)
+  plugin_root="${CLAUDE_PLUGIN_ROOT:-$PLUGIN_ROOT_DEFAULT}"
+  norm_root=$(hook::normalize_path "$(hook::physical_path "$plugin_root")")
+  norm_root="${norm_root%/}"
+  TARGET=$(resolve_default_marketplace "$norm_root")
   if [[ -z "$TARGET" ]]; then
-    echo "ERROR: could not resolve the default marketplace (this plugin's CLAUDE_PLUGIN_ROOT was not found in installed_plugins.json). Pass --marketplace <name> explicitly." >&2
+    echo "ERROR: could not resolve the default marketplace. This plugin's install dir" >&2
+    echo "  ${norm_root:-<unresolved>}" >&2
+    echo "matched no installed_plugins.json entry — searched by exact installPath and by" >&2
+    echo "version-agnostic .../cache/<marketplace>/<plugin> prefix. This usually means the" >&2
+    echo "session's loaded version differs from the installed one AND the cache layout is" >&2
+    echo "not the expected .../cache/<marketplace>/<plugin>/<version> shape. Pass" >&2
+    echo "--marketplace <name> explicitly." >&2
     exit 1
   fi
   emit_marketplace "$TARGET" || exit 1
