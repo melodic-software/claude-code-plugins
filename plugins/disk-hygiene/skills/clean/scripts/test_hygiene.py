@@ -2046,6 +2046,62 @@ class HandoffVerifyTests(unittest.TestCase):
             self.assertNotEqual("clear", verdict["verdict"])
             self.assertIn("truncated-not-inventoried", verdict["reasons"])
 
+    def test_vcs_probe_timeout_degrades_to_contested_not_abort(self) -> None:
+        # A hung git must not abort the run with zero verdicts: every
+        # approved path still gets its verdict, the timed-out one contested.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "first.tmp").write_text("stale", encoding="utf-8")
+            (root / "second.tmp").write_text("stale", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            with (
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("clear", None)
+                ),
+                mock.patch.object(
+                    hygiene,
+                    "tracked_blocker",
+                    side_effect=subprocess.TimeoutExpired("git", 20),
+                ),
+            ):
+                result = hygiene.handoff_verify(snapshot, ["first.tmp", "second.tmp"])
+            self.assertEqual(2, len(result["verdicts"]))
+            for verdict in result["verdicts"]:
+                self.assertEqual("contested", verdict["verdict"])
+                self.assertIn("vcs-state-unverified", verdict["reasons"])
+
+    def test_denied_descendant_stat_is_contested_not_drifted(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            stale = root / "stale-cache"
+            stale.mkdir(parents=True)
+            (stale / "sealed.tmp").write_text("sealed", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            real_lstat = Path.lstat
+
+            def selective_lstat(self: Path):
+                if self.name == "sealed.tmp":
+                    raise PermissionError(13, "access denied")
+                return real_lstat(self)
+
+            handle, vcs = self.clear_probe_mocks()
+            with (
+                handle,
+                vcs,
+                mock.patch.object(
+                    hygiene,
+                    "current_descendants",
+                    return_value={"stale-cache", "stale-cache/sealed.tmp"},
+                ),
+                mock.patch.object(Path, "lstat", selective_lstat),
+            ):
+                result = hygiene.handoff_verify(snapshot, ["stale-cache"])
+            verdict = result["verdicts"][0]
+            self.assertEqual("contested", verdict["verdict"])
+            self.assertIn("needs-elevation", verdict["reasons"])
+            self.assertNotIn("changed-since-scan", verdict["reasons"])
+
     def test_validate_handoff_paths_rejects_malformed_input(self) -> None:
         entries = {"keep/junk.tmp": {}, "keep": {}}
         cases = [

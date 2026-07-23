@@ -1543,8 +1543,21 @@ def handoff_verify(snapshot: dict[str, Any], approved: list[str]) -> dict[str, A
         for name in expected_paths:
             entry = entries[name]
             current = target.joinpath(*PurePosixPath(name).parts)
-            if not same_identity(current, entry):
+            # Distinguish unverifiable descendant state from real drift:
+            # same_identity's blanket OSError->False would report a denied
+            # lstat as changed-since-scan, telling the lane to rescan when
+            # the actual remedy is resolving access (review finding).
+            try:
+                info = current.lstat()
+            except FileNotFoundError:
                 drifted.add("changed-since-scan")
+            except PermissionError:
+                contested.add("needs-elevation")
+            except OSError:
+                contested.add("filesystem-state-unverified")
+            else:
+                if not same_stat_identity(info, entry):
+                    drifted.add("changed-since-scan")
             contested.update(
                 hard_protection(current, target, exact_names, known_mounts)
             )
@@ -1554,7 +1567,13 @@ def handoff_verify(snapshot: dict[str, Any], approved: list[str]) -> dict[str, A
             ):
                 contested.add("consumer-protected-path")
         if not truncated:
-            vcs = tracked_blocker(path, target)
+            # A hung git (TimeoutExpired) must degrade to this one path's
+            # contested verdict, not abort the whole run with no verdicts —
+            # the subcommand promises a verdict per approved path.
+            try:
+                vcs = tracked_blocker(path, target)
+            except (OSError, subprocess.SubprocessError):
+                vcs = "vcs-state-unverified"
             if vcs:
                 contested.add(vcs)
             state, detail = candidate_handle_state(target, path, expected_paths)
