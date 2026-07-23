@@ -150,6 +150,23 @@ if [[ -n "$ptr" ]]; then
     printf '%s\n' "resolve-convention-pattern: convention_source declares '$ptr' but no such file exists under the repo root; enforcement disabled (fix the pointer or restore the file)." >&2
     exit 1
   fi
+  # The lexical checks above don't stop a symlink escape: a repo-relative
+  # pointer can name a symlink (or sit under a symlinked directory) whose
+  # physical target is outside the repository, letting untracked external
+  # content steer the gate. Require a REGULAR file whose physical directory
+  # (pwd -P canonicalizes every symlinked path segment) stays under the
+  # physical repo root. Pure-bash on purpose — the vendored hook copy cannot
+  # assume realpath exists on every consumer machine.
+  if [[ -L "$NEUTRAL_FILE" ]]; then
+    printf '%s\n' "resolve-convention-pattern: convention_source '$ptr' is a symlink; the neutral file must be a regular tracked file — enforcement disabled." >&2
+    exit 1
+  fi
+  canon_root="$(cd "$repo_root" 2>/dev/null && pwd -P)"
+  canon_dir="$(cd "$(dirname "$NEUTRAL_FILE")" 2>/dev/null && pwd -P)"
+  if [[ -z "$canon_root" || -z "$canon_dir" || "$canon_dir/" != "$canon_root/"* ]]; then
+    printf '%s\n' "resolve-convention-pattern: convention_source '$ptr' resolves outside the repository root (symlinked path segment); enforcement disabled." >&2
+    exit 1
+  fi
   dialect="$(yaml_value "$NEUTRAL_FILE" dialect)"
   if [[ -n "$dialect" && "$dialect" != "posix-ere" ]]; then
     printf '%s\n' "resolve-convention-pattern: convention_source file declares dialect '$dialect'; enforcement consumes posix-ere only — enforcement disabled." >&2

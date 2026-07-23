@@ -100,9 +100,11 @@ Contract points:
   authoritative for the machine keys it carries; a key it omits falls back to the team markdown H2
   (plugin-only keys — `trailer_policy`, `pr_body_attribution` — stay `.claude/`-side; the drafting
   side may also read a flat `pr_body_required_sections:` list from the neutral file). A
-  declared-but-broken pointer — absolute, backslash, or `..` path; missing file — disables
-  enforcement with a diagnostic rather than falling back: a silent markdown fallback could enforce
-  a stale pattern the migration retired. User-global and `*.local.md` overlay layers are unchanged.
+  declared-but-broken pointer — absolute, backslash, or `..` path; missing file; a symlinked file
+  or a symlinked path segment whose physical target leaves the repository root (the target must be
+  a regular file physically under the repo) — disables enforcement with a diagnostic rather than
+  falling back: a silent markdown fallback could enforce a stale pattern the migration retired,
+  and a symlink escape would let untracked external content steer the gate. User-global and `*.local.md` overlay layers are unchanged.
 - **Monorepo per-directory scoping is out of scope for V1** (recorded, not designed for).
 
 **Incumbent steelman, walked before replacing.** Markdown-H2 was chosen (#913) so the config file

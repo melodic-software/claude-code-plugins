@@ -243,6 +243,27 @@ addneutral "$r" "conventions.yml" $'subject_pattern: \047^evil: .+\047'
 run "$r" >/dev/null 2>&1
 assert_exit "neutral: overlay pointer ignored (team-only)" 1 $?
 
+# --- symlink escapes are rejected (skipped where ln -s can't make symlinks) ---
+outside="$TEST_TMPDIR/outside.yml"
+printf '%s\n' "subject_pattern: '^outside: .+'" >"$outside"
+r="$(newrepo $'## convention_source\nlink.yml')"
+ln -s "$outside" "$r/link.yml" 2>/dev/null
+if [[ -L "$r/link.yml" ]]; then
+  run "$r" >/dev/null 2>&1
+  assert_exit "neutral: symlinked file rejected" 1 $?
+  # A symlinked DIRECTORY segment escaping the repo is rejected too.
+  mkdir -p "$TEST_TMPDIR/outdir"
+  printf '%s\n' "subject_pattern: '^outdir: .+'" >"$TEST_TMPDIR/outdir/c.yml"
+  r="$(newrepo $'## convention_source\nsub/c.yml')"
+  ln -s "$TEST_TMPDIR/outdir" "$r/sub" 2>/dev/null
+  if [[ -L "$r/sub" ]]; then
+    run "$r" >/dev/null 2>&1
+    assert_exit "neutral: symlinked dir segment rejected" 1 $?
+  fi
+else
+  echo "SKIP: symlink cases (ln -s unavailable on this filesystem)"
+fi
+
 # --- usage / invalid key ---
 bash "$SCRIPT" >/dev/null 2>&1
 assert_exit "no args -> exit 2" 2 $?
