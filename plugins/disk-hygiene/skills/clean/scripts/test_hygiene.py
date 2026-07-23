@@ -2682,6 +2682,11 @@ class GuardTests(unittest.TestCase):
             "Microsoft.PowerShell.Management\\Clear-RecycleBin -Force",
             "Microsoft.PowerShell.Management\\Remove-Item -Recurse C:/tmp/example",
             "[IO.File]::Delete('C:/tmp/example')",
+            "$item.Delete()",
+            "(Get-Item C:/tmp/example).Delete()",
+            "robocopy C:/src C:/dst /MIR",
+            "robocopy C:/src C:/dst /E /PURGE",
+            "robocopy C:/src C:/dst /MOV",
             "[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile('x', 'OnlyErrorDialogs', 'SendToRecycleBin')",
         ):
             result = self.run_guard_powershell(command)
@@ -2698,6 +2703,8 @@ class GuardTests(unittest.TestCase):
             "gh pr list --repo owner/repo",
             "Get-ChildItem -Force C:/tmp",
             "Get-Item C:/tmp/example | Select-Object Length",
+            "robocopy C:/src C:/dst /E",
+            "Get-Item C:/tmp/example | Select-Object IsDeleted",
         ):
             self.assertIsNone(self.run_guard_powershell(command), command)
 
@@ -2710,6 +2717,8 @@ class GuardTests(unittest.TestCase):
             "Clear-RecycleBin -Force",
             "Microsoft.PowerShell.Management\\Clear-RecycleBin -Force",
             "[IO.File]::Delete('C:/tmp/example')",
+            "$item.Delete()",
+            "robocopy C:/src C:/dst /MIR",
             "[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile('x', 'OnlyErrorDialogs', 'SendToRecycleBin')",
         ):
             result = self.run_guard_powershell_disabled(command)

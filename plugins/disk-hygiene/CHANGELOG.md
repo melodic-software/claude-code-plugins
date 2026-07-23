@@ -3,6 +3,20 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.1]
+
+### Fixed
+
+- **PowerShell mutation guard covers instance-method `.Delete()`, and robocopy mirror/purge/move
+  (#1111).** The .NET-delete pattern required `::` before `delete`, so `$item.Delete()` executed
+  with no guard flag (live-observed in the 0.6.4 consumer audit, F4); it now also matches
+  `.Delete(`. `robocopy` with `/MIR`, `/PURGE`, `/MOV`, or `/MOVE` (mass deletion via mirroring)
+  now raises the final ask prompt and is denied in audit-only mode; plain `robocopy /E` copies
+  stay untouched. The truncation family (`Set-Content`, `Out-File`, `New-Item -Force`) is
+  DECLINED with reason: those spellings are ordinary file-writing work, and an ask-tier belt that
+  fires on every write during a cleanup session trades too much friction for a raised bar the
+  engine's own containment already backs — design stays raised-bar-not-fail-closed.
+
 ## [0.7.0]
 
 ### Added
