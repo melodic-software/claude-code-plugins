@@ -164,6 +164,47 @@ _MODE_ENGINE_GATE = "engine-gate"
 _ENGINE_MARKER = "hygiene.py"
 
 
+def _engine_gate_relevant(command: str) -> bool:
+    """Decide whether the plugin-level engine gate should act on ``command``.
+
+    A plugin-level hook fires on every shell call in every session, so a bare
+    mention of the engine's filename (``git diff -- hygiene.py``,
+    ``rg hygiene.py README.md``, ``echo hygiene.py``) must defer — routing
+    mentions into the belt's fail-closed parser would block ordinary work
+    session-wide. The gate acts only on what parses as an INVOCATION:
+
+    - a literal word whose basename is the engine script, either as the command
+      itself or preceded by an interpreter token (``python*``/``py``);
+    - a quoted compound word (e.g. a ``bash -c``/``pwsh -Command`` payload) that
+      carries both the engine marker and an interpreter token;
+    - any command carrying the marker that the literal parser cannot prove is a
+      mere mention (expansions, operators, unparsable quoting) — fail closed
+      into the gate; the belt's own rules then decide.
+
+    This is a belt, not the authority: an invocation smuggled past it still
+    answers to the engine's own preview/approval-token containment (and to the
+    skill-scoped belt during active cleanup).
+    """
+    lowered = command.casefold()
+    if _ENGINE_MARKER not in lowered:
+        return False
+    words = _literal_shell_words(command)
+    if words is None:
+        return True
+    for index, word in enumerate(words):
+        folded = word.casefold()
+        if Path(folded).name == _ENGINE_MARKER:
+            if index == 0:
+                return True
+            previous = Path(words[index - 1].casefold()).name
+            if previous.startswith("python") or previous in {"py", "py.exe"}:
+                return True
+            continue
+        if _ENGINE_MARKER in folded and "python" in folded:
+            return True
+    return False
+
+
 def resolve_mode() -> str:
     """Resolve which registration surface launched this guard.
 
@@ -503,11 +544,8 @@ def main() -> int:
         )
         return 0
 
-    if (
-        resolve_mode() == _MODE_ENGINE_GATE
-        and _ENGINE_MARKER not in command.casefold()
-    ):
-        # Plugin-level gate: nothing engine-shaped in the command — defer with no
+    if resolve_mode() == _MODE_ENGINE_GATE and not _engine_gate_relevant(command):
+        # Plugin-level gate: no engine invocation in the command — defer with no
         # output so unrelated work in every consumer session is untouched.
         return 0
 

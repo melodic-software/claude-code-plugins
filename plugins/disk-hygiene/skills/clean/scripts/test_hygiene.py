@@ -1838,6 +1838,27 @@ class GuardTests(unittest.TestCase):
                 self.run_guard_engine_gate(command, tool_name), (tool_name, command)
             )
 
+    def test_engine_gate_defers_mere_mentions_of_the_engine(self) -> None:
+        """Read-only commands that merely NAME the script must defer (P2 review)."""
+        for tool_name, command in (
+            ("Bash", "git diff -- hygiene.py"),
+            ("Bash", "rg hygiene.py README.md"),
+            ("Bash", "echo hygiene.py"),
+            ("PowerShell", "Select-String -Pattern guard hygiene.py"),
+        ):
+            self.assertIsNone(
+                self.run_guard_engine_gate(command, tool_name), (tool_name, command)
+            )
+
+    def test_engine_gate_fails_closed_on_unparseable_marker_commands(self) -> None:
+        """Marker + shell operators/expansions the literal parser rejects → gate."""
+        result = self.run_guard_engine_gate("python3 hygiene.py scan && echo done")
+        assert result is not None
+        self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
+        embedded = self.run_guard_engine_gate('bash -c "python3 hygiene.py scan --target t --output s"')
+        assert embedded is not None
+        self.assertEqual("deny", embedded["hookSpecificOutput"]["permissionDecision"])
+
     def test_engine_gate_gates_engine_invocations(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         powershell = self.run_guard_engine_gate(

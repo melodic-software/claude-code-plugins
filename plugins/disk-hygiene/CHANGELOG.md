@@ -16,7 +16,9 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   reconstruction from the plugin root. In engine-gate mode the guard defers instantly with no
   output for any command that does not reference the engine, so unrelated work is never taxed. The
   skill-scoped belt (deny-by-default Bash + deletion-spelling PowerShell discipline) is unchanged
-  and remains scoped to active cleanup. GuardTests now exercise the exact channel set the shipped
+  and remains scoped to active cleanup. The gate acts on parsed engine INVOCATIONS, not mentions —
+  `git diff -- hygiene.py`, `rg hygiene.py`, or `echo hygiene.py` defer; unparsable
+  marker-carrying commands fail closed into the gate (review finding on the implementation PR). GuardTests now exercise the exact channel set the shipped
   plugin-level registration receives (`run_guard_engine_gate` grid), closing the
   tests-prove-undelivered-channels gap. Trust-surface delta recorded in the README's
   plugin-acceptance security review section. Docs record the observed-vs-documented hook-lifetime
