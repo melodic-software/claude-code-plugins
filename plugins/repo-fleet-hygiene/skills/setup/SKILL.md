@@ -3,7 +3,7 @@ name: setup
 description: "Verify and configure repo-fleet-hygiene for a consumer project. check inspects the optional .claude/repo-fleet-hygiene.conf read-only (presence, parse validity, path resolution); apply creates or updates it — adding bounded fleet roots, exact repositories, and remote-keyed canonical checkout overrides — preserving unrelated entries. Use when: 'set up repo fleet audit', 'is repo-fleet-hygiene configured', 'configure fleet roots', 'canonical repo override', 'dotfiles-manager checkout'. Re-runnable and safe."
 user-invocable: true
 disable-model-invocation: true
-argument-hint: "check | apply [--config <path>] [--root <dir>]... [--repo <dir>]... [--canonical <github.com/owner/repo=path>]..."
+argument-hint: "check | apply [--config <path>] [--root <dir>]... [--repo <dir>]... [--canonical <github.com/owner/repo=path>]... [--ack-unavailable <github.com/owner/repo>]..."
 ---
 
 ## Purpose
@@ -46,6 +46,8 @@ validates the configuration the audit would consume.
 4. **`maxDepth`** — present and outside `1..12` is FAIL; absent is INFO (the audit's own default applies).
 5. **Canonical identity** — INFO for each `[canonical "github.com/owner/repository"]` entry: report the
    normalized key. Flag as FAIL only a key that is not a normalizable `github.com/owner/repository`.
+6. **Acknowledged identities** — INFO listing each `fleet.ackUnavailable` entry (normalized). FAIL any
+   value that is not a normalizable `github.com/owner/repository`.
 
 ## `apply` (idempotent)
 
@@ -54,6 +56,11 @@ Run `check`, then create or update the config from the supplied arguments.
 1. Parse only the declared argument grammar. Validate every root/repository/canonical path with
    read-only filesystem and `git rev-parse` checks. Normalize canonical keys to
    `github.com/owner/repository` (lowercase host, case-preserving owner/name is acceptable).
+   Validate each `--ack-unavailable` value as a normalizable `github.com/owner/repository`
+   (no filesystem probe — the identity is expected to be inaccessible); write it as a repeatable
+   `[fleet] ackUnavailable` entry, deduplicating case-insensitively against entries already
+   present. Like roots/repos, apply is additive — removing an acknowledgment is a manual edit of
+   the consumer's own config file.
 2. If the config exists, read it with `git config --file <path> --list --show-origin`. Preserve every
    unrelated entry. Never source it.
 3. State the proposed additions/updates before writing. With complete arguments, proceed
@@ -89,10 +96,17 @@ Re-running `apply` with the same arguments after everything resolves changes not
     root = ../../repos/github.com   # repeatable discovery root
     repo = ../../special/repo      # repeatable exact target
     maxDepth = 5                   # integer 1..12
+    ackUnavailable = github.com/owner/repository   # repeatable; acknowledge a known-inaccessible identity
 
 [canonical "github.com/owner/repository"]
     path = ../../../canonical-checkout
 ```
+
+`ackUnavailable` demotes a 404/403 `github-identity-unavailable` finding for that identity from
+`UNKNOWN` to `ACKNOWLEDGED` in the audit report — still reported, never suppressed, and never
+affecting non-404/403 failures or successful-response evidence. Use it for foreseeable 404s:
+upstream repositories made private or deleted, or repositories owned by a different GitHub account
+than the authenticated `gh` login.
 
 Resolution priority is explicit audit CLI override, canonical config entry, then discovered checkout's
 `git rev-parse --show-toplevel`. Never add a canonical override merely because two directory names look
