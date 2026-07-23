@@ -155,8 +155,9 @@ observed effect; the mechanism (matcher firing vs Windows payload delivery vs th
 is not yet isolated. Treat every "prompt"/"deny" claim in this section as the guard's *intended* design,
 **not a protection in force on Windows**: on Windows the only deletion protection that actually holds is
 the manual lane's per-path human `handoff-verify` approval plus the consumer's baseline permission
-policy. **Recheck** when the PowerShell tool exits preview, or verify firing directly with the plugin's
-fresh-session hook-firing probe before relying on the lane.
+policy. **Recheck** when the PowerShell tool exits preview, or verify firing directly: in a fresh session
+add a logging `PreToolUse` hook with `matcher: "PowerShell"` and confirm it runs for a PowerShell-*tool*
+command (or check whether a known deletion spelling is actually prompted), before relying on the lane.
 
 Kill-switch enforcement is only as reachable as the value is, and the guard now registers on two
 surfaces with different reach. The **plugin-level engine gate** (`hooks/hooks.json`, exec form,

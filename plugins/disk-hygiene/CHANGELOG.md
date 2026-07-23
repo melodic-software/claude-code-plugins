@@ -19,8 +19,9 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   version-pinned preview caveat + recheck trigger; on Windows the protections that actually hold are the
   manual lane's per-path `handoff-verify` approval and the consumer's baseline permission policy.
   Observed effect only — the mechanism (matcher firing vs Windows payload delivery vs `tool_name`) is not
-  yet isolated; a fresh-session hook-firing probe is bundled for the maintainer, and the upstream
-  docs-vs-behavior divergence is held for a report once isolated.
+  yet isolated (recheck by adding a logging `PreToolUse` `matcher: "PowerShell"` hook in a fresh session
+  and confirming it fires for a PowerShell-tool command); the upstream docs-vs-behavior divergence is
+  held for a report once isolated.
 
 ## [0.8.1]
 
