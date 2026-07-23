@@ -54,13 +54,23 @@ EVENTS="$GUARD_DIR/stop-events.jsonl"
 # StopFailure hook (output and exit code are ignored); the setup skill's
 # check probe is the visibility surface for a broken contract path.
 mkdir -p "$GUARD_DIR" 2>/dev/null || exit 0
+# Owner-only contract dir + owner-only files from here on (records, lock,
+# rotation temp). Best-effort on filesystems without POSIX modes.
+chmod 700 "$GUARD_DIR" 2>/dev/null || true
+umask 077
 
 ts=$(date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null) || ts=""
 
 record='{"detected_at":"'"$(hook::json_escape "$ts")"'","hook_event_name":"StopFailure","matcher":"rate_limit"'
 if [[ -n "$SESSION" ]]; then
-  # SESSION is captured from the raw JSON between unescaped quotes, so it is
-  # already JSON-escaped text; re-escaping would double the backslashes.
+  # SESSION is captured between unescaped quotes of a JSON string token, so
+  # it is already JSON-escaped text and re-escaping would double the
+  # backslashes. The record's validity therefore also leans on the emitter
+  # having produced RFC-valid JSON (the harness does): a raw control byte
+  # inside the source value would carry through and break this JSONL line.
+  # Not adversary-reachable via well-formed hook input, but not
+  # unconditionally safe either — consumers parse records with a JSON
+  # parser and skip lines that fail to parse.
   record+=',"session_id":"'"$SESSION"'"'
 fi
 record+='}'

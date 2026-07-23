@@ -46,7 +46,10 @@ never sees torn JSON; the file is **last-writer-wins** across all sessions on th
   subscription windows; each window may be independently absent.
 - Session-distinguishing fields — `session_id`, `session_name`, and any future top-level field whose
   key matches `account` (case-insensitive) are copied through automatically, so the release that
-  adds an account identifier upgrades this file without a plugin change.
+  adds an account identifier upgrades this file without a plugin change. Treat these values as
+  **untrusted**: `session_name` (and potentially a future account field) is user/AI-influenced, so
+  consumers parse them only with a JSON parser and never string-interpolate them into a shell
+  command, another interpreter, or a prompt.
 
 ## Capability detection (fail-open)
 

@@ -59,6 +59,10 @@ tee_snapshot() {
   local dir="$HOME/.claude/rate-limit-guard"
   local target="$dir/rate-limits.json"
   mkdir -p "$dir" 2>/dev/null || return 0
+  # Owner-only contract dir: keeps other local users from pre-planting
+  # symlinks or reading the snapshot. Best-effort (no-op on filesystems
+  # without POSIX modes, e.g. Windows ACL volumes under Git Bash).
+  chmod 700 "$dir" 2>/dev/null || true
 
   local ts payload
   ts=$(date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null) || return 0
@@ -72,7 +76,12 @@ tee_snapshot() {
   [[ -n "$payload" ]] || return 0
 
   local tmp="$dir/.rate-limits.json.tmp.$$.$RANDOM"
-  printf '%s\n' "$payload" >"$tmp" 2>/dev/null || {
+  # Subshell umask so the snapshot lands owner-only without altering the
+  # umask the wrapped statusline command inherits.
+  (
+    umask 077
+    printf '%s\n' "$payload" >"$tmp"
+  ) 2>/dev/null || {
     rm -f "$tmp" 2>/dev/null
     return 0
   }
