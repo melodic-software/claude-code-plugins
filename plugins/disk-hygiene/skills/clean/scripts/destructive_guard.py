@@ -241,6 +241,21 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
         return any(_same_file_as_bundled(word) for word in words)
     words = _literal_shell_words(command, allow_backslash=allow_backslash)
     if words is None:
+        # Marker present but not literally parseable (operators, compounds).
+        # Fail closed UNLESS every marker-carrying token is provably a
+        # DIFFERENT existing file (a consumer's own hygiene.py in a compound
+        # command) and no token is the bundled engine under any name.
+        tokens = [token.strip("'\"") for token in command.split()]
+        if any(_same_file_as_bundled(token) for token in tokens):
+            return True
+        marker_tokens = [
+            token for token in tokens if _ENGINE_MARKER in token.casefold()
+        ]
+        if marker_tokens and all(
+            _script_path_key(token) is not None and not _samefile(token)
+            for token in marker_tokens
+        ):
+            return False
         return True
     for index, word in enumerate(words):
         folded = word.casefold()

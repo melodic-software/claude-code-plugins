@@ -1937,6 +1937,38 @@ class GuardTests(unittest.TestCase):
                 )
             )
 
+    def test_engine_gate_defers_consumer_script_in_compound_commands(self) -> None:
+        """A provably-different hygiene.py defers even beside operators (P2 r7)."""
+        with tempfile.TemporaryDirectory(dir=SCRIPT_DIR) as tmp:
+            consumer = Path(tmp) / "hygiene.py"
+            consumer.write_text("print('consumer tool')\n", encoding="utf-8")
+            posix = str(consumer).replace("\\", "/")
+            self.assertIsNone(
+                self.run_guard_engine_gate(f"python3 {posix} --help && echo done")
+            )
+            self.assertIsNone(
+                self.run_guard_engine_gate(
+                    f"python {posix} --help; echo done", "PowerShell"
+                )
+            )
+
+    def test_engine_gate_still_gates_engine_beside_consumer_decoy(self) -> None:
+        """A decoy consumer file must not launder a real engine invocation (r7)."""
+        script = SCRIPT_DIR / "hygiene.py"
+        with tempfile.TemporaryDirectory(dir=SCRIPT_DIR) as tmp:
+            consumer = Path(tmp) / "hygiene.py"
+            consumer.write_text("print('consumer tool')\n", encoding="utf-8")
+            posix = str(consumer).replace("\\", "/")
+            result = self.run_guard_engine_gate(
+                f'python3 {posix} --help && python3 "{script}" apply --plan p --token t',
+                "Bash",
+                "false",
+            )
+            assert result is not None
+            self.assertEqual(
+                "deny", result["hookSpecificOutput"]["permissionDecision"]
+            )
+
     def test_engine_gate_fails_closed_on_unparsable_marker_commands(self) -> None:
         """Marker + shell operators/expansions the literal parser rejects → gate."""
         result = self.run_guard_engine_gate("python3 hygiene.py scan && echo done")
