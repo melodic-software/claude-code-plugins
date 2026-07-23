@@ -1138,3 +1138,35 @@ with a revisit trigger. (Contrast the "Deferred surfaces" record above, where th
 - **Checker hardening** (block-scalar description unfolding, an unquoted-`Use when:` warning, a
   `CHECK_SKILL_BASE_REF` post-commit audit ref for the git-backed checks, and a line-1 frontmatter-fence
   requirement): the one worker-executable slice — **landed** with this record.
+
+## Convention-seam ratification & the shared-identity limitation — decision record (2026-07-23)
+
+Recorded from the #1187 audit (triggered when the operator did not recall ratifying the
+`consumer-config-layering` → `config-cascade` seam). All 12 `docs/conventions/*` seams are
+PR-introduced across the repo's whole history and each cites a ratifying issue/PR — that citation **is**
+the ratification norm (e.g. `config-cascade`'s exception class ratified by #649). No seam was silently
+accreted.
+
+**The limitation, stated plainly.** In this solo-autonomous setup the operator and every agent act as
+the **same `kyle-sexton` GitHub identity** (the account `gh` is scoped to). So authored-by /
+reviewed-by / merged-by / commit-signature all resolve to `kyle-sexton` whether the human or an
+agent-as-Kyle did the work. **No in-repo signal distinguishes human ratification from agent
+accretion** — and this is a **repo-wide property**, applying to every change here, not a defect of any
+one seam.
+
+**Decision — decline forgery-prone gates; they are theater.** A `CODEOWNERS` rule or a `human-ratified`
+label requiring a `kyle-sexton` review does **not** distinguish anything: an agent satisfies the same
+gate under the same identity. Commit signing already runs (`required_signatures`) but under the shared
+key, so it does not separate either. Standing up such a gate would manufacture *false* assurance —
+worse than naming the limitation. So none is added.
+
+**The only real distinguisher (flagged, not imposed).** Cryptographic separation requires an identity
+agents do **not** hold — a distinct human-only GitHub account and/or a signing key kept off the agent
+runners, with branch protection requiring that identity's review on `docs/conventions/**`. That is an
+infrastructure change with real operator cost. **Revisit trigger:** the operator wants provable human
+ratification, or a second human contributor joins (at which point identity separation exists naturally).
+
+**Interim posture.** Ratification stays **trust-based and visible**: a convention-seam change cites a
+ratifying issue/PR, and the operator's explicit engagement on that thread (as in the #163434 session)
+is the ratification signal. The audit trail — issue, review comments, this record — is the durable
+account, in place of an assurance the shared identity cannot provide.
