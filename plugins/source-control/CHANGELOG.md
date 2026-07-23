@@ -3,6 +3,26 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.0]
+
+### Changed
+
+- **`/setup` clears the skill-quality static gate; Gotchas surface added; hub split (#1140).** The
+  audit flagged MD041/MD013 lint findings, a missing Gotchas surface, and a 453-line hub. Verified
+  against the REPO's actual markdownlint config first (per the item's instruction): this repo
+  disables MD013 and MD041 in `.markdownlint-cli2.jsonc`, so those findings do not apply under the
+  repo's own gate — no lint edits made for them; markdownlint reports clean. A `## Gotchas` section
+  now records real first-contact failure patterns from the live audits (omission-never-resets
+  per-key fallthrough, `none` vs absence, resolved-value inference gating, nested-directory
+  cwd-relative reads, linked-worktree hooks dir, `--since` committer-date vs `%ad` author-date
+  recency skew, same-session stale `userConfig` reads). **Hub-split decision: DONE** (not deferred)
+  — the `apply` convention write path (layer selection, non-interactive update semantics, the
+  7-step interview, the written-file template, per-layer verification scripts) moved verbatim to a
+  progressive-disclosure spoke, `skills/setup/reference/apply-convention.md`, with a normative
+  pointer and summary in the hub; the growth from #1139's consensus-window inference had pushed the
+  hub to 512 lines, over the gate's 500-line hard cap, so the split fell out naturally rather than
+  optionally. Hub now 211 lines; `skill-quality:check` passes with zero errors.
+
 ## [0.21.0]
 
 ### Changed
