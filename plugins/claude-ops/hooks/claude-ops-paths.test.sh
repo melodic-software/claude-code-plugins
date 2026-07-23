@@ -155,6 +155,22 @@ if git -C "$REPO" init -q 2>/dev/null; then
   else
     bad "glob-metachar configured dir written as literal exclude pattern"
   fi
+  # skill_usage_dir=. → store is a bare file at the repo root; exclude the FILE.
+  REPO5="$TEST_TMPDIR/repo5"
+  mkdir -p "$REPO5"
+  git -C "$REPO5" init -q 2>/dev/null
+  claude_ops::ensure_git_exclude "$REPO5" '.'
+  if grep -qxF -- '/skill-usage.jsonl' "$REPO5/.git/info/exclude" 2>/dev/null; then
+    ok "repo-root store excludes the store file, not the tree"
+  else
+    bad "repo-root store excludes the store file, not the tree"
+  fi
+  : >"$REPO5/skill-usage.jsonl"
+  if [[ -z "$(git -C "$REPO5" status --porcelain 2>/dev/null)" ]]; then
+    ok "repo-root store file invisible to git status"
+  else
+    bad "repo-root store file invisible to git status"
+  fi
 fi
 NONREPO="$TEST_TMPDIR/nonrepo"
 mkdir -p "$NONREPO"

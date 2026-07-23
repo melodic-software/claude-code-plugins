@@ -26,7 +26,8 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   keep repo identity; the data-dir key uses the same collision-resistant slug, and the
   exclude line is segment-normalized (a configured `./x` or `x//y` still matches) and
   glob-escaped (`*` `?` `[` in a configured dir write a literal exclude pattern, not a
-  glob that over-matches sibling dirs).
+  glob that over-matches sibling dirs). A `skill_usage_dir=.` (repo-root) store excludes
+  the store file (`/skill-usage.jsonl`) rather than the whole tree.
   **Default-flip decision (recorded):** the default deliberately stays `repo` — the store
   sits beside `hook-events.jsonl` per the observability skill's project-local posture (that
   skill reads only `hook-events.jsonl` and the OTEL store, so colocation is convention, not

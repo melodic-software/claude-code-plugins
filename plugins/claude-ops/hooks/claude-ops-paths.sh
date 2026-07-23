@@ -119,14 +119,17 @@ claude_ops::resolve_skill_usage_dir() {
 }
 
 # Keep `git status` clean when the store lives inside a repo work tree: append
-# a root-anchored ignore line for the store dir to the repo's machine-local
-# exclude file (git rev-parse --git-path info/exclude — correct in linked
-# worktrees too). Idempotent; never touches tracked files or .gitignore; only
-# ignore semantics change, so tracked content under the dir is unaffected.
-# Disable with skill_usage_git_exclude=false. Best-effort: every failure is a
-# silent no-op (the write path must never break on ignore hygiene).
+# a root-anchored ignore line to the repo's machine-local exclude file (git
+# rev-parse --git-path info/exclude — correct in linked worktrees too).
+# Normally ignores the store DIR (`/<dir>/`); when the configured dir resolves
+# to the repo root itself (e.g. skill_usage_dir=.), the store is a bare file at
+# the root, so ignore just that FILE (`/<store_file>`) rather than the whole
+# repo. Idempotent; never touches tracked files or .gitignore; only ignore
+# semantics change, so tracked content is unaffected. Disable with
+# skill_usage_git_exclude=false. Best-effort: every failure is a silent no-op
+# (the write path must never break on ignore hygiene).
 claude_ops::ensure_git_exclude() {
-  local project_dir="$1" rel_dir="$2" exclude_file line
+  local project_dir="$1" rel_dir="$2" store_file="${3:-skill-usage.jsonl}" exclude_file dir line
   [[ "${CLAUDE_PLUGIN_OPTION_SKILL_USAGE_GIT_EXCLUDE:-true}" == "true" ]] || return 0
   exclude_file=$(git -C "$project_dir" rev-parse --git-path info/exclude 2>/dev/null | tr -d '\r')
   [[ -n "$exclude_file" ]] || return 0
@@ -134,9 +137,13 @@ claude_ops::ensure_git_exclude() {
   /* | [A-Za-z]:*) ;;
   *) exclude_file="${project_dir%/}/$exclude_file" ;;
   esac
-  line="$(claude_ops::normalize_rel_segments "$rel_dir")"
-  [[ -n "$line" ]] || return 0
-  line="/$(claude_ops::gitignore_escape "$line")/"
+  dir="$(claude_ops::normalize_rel_segments "$rel_dir")"
+  if [[ -n "$dir" ]]; then
+    line="/$(claude_ops::gitignore_escape "$dir")/"
+  else
+    # Store dir IS the repo root — ignore the specific store file, not the tree.
+    line="/$(claude_ops::gitignore_escape "$store_file")"
+  fi
   if [[ -f "$exclude_file" ]] && grep -qxF -- "$line" "$exclude_file" 2>/dev/null; then
     return 0
   fi
