@@ -77,17 +77,33 @@ record+='}'
 
 hook::append_jsonl "$EVENTS" "$record"
 
-# Best-effort rotation: bound the file at ~200 records, keeping the newest
-# 100. Advisory data — a lost race with a concurrent writer costs at most a
-# few records, never the newest one on this path.
-lines=$(wc -l <"$EVENTS" 2>/dev/null | tr -d ' \r') || lines=""
-if [[ "$lines" =~ ^[0-9]+$ ]] && ((lines > 200)); then
+# Bound the file at ~200 records, keeping the newest 100.
+rotate_events() {
+  local lines tmp
+  lines=$(wc -l <"$EVENTS" 2>/dev/null | tr -d ' \r') || return 0
+  [[ "$lines" =~ ^[0-9]+$ ]] || return 0
+  ((lines > 200)) || return 0
   tmp="$EVENTS.tmp.$$"
   if tail -n 100 "$EVENTS" >"$tmp" 2>/dev/null; then
     mv -f "$tmp" "$EVENTS" 2>/dev/null || rm -f "$tmp" 2>/dev/null
   else
     rm -f "$tmp" 2>/dev/null
   fi
+  return 0
+}
+
+# Rotation runs under the SAME advisory lock hook::append_jsonl uses (the
+# sibling .lock file), so a record another session appends mid-rotation is
+# never dropped by the tail+rename. Without flock the append itself is
+# already best-effort, and so is this — a lost race there costs at most a
+# few advisory records, never this process's own (already appended above).
+if command -v flock >/dev/null 2>&1; then
+  (
+    flock -w 2 9 || exit 0
+    rotate_events
+  ) 9>"$EVENTS.lock" 2>/dev/null
+else
+  rotate_events
 fi
 
 exit 0

@@ -47,9 +47,18 @@
 set -uo pipefail
 
 INPUT=""
-# Bounded read of the whole stdin payload (Win32 pipes can stall before EOF;
-# a truncated payload just fails jq below and tees nothing this refresh).
-IFS= read -r -d '' -t 5 INPUT || true
+# Bounded buffered read of the whole stdin payload (Win32 pipes can stall
+# before EOF; a truncated payload just fails jq below and tees nothing this
+# refresh). read -N buffers in blocks, which matters on Windows/MSYS pipes
+# where the -d '' byte-at-a-time loop moves ~40KB/s and can truncate a large
+# payload at the timeout (measured on Git Bash); Bash below 4.1 (macOS ships
+# 3.2) lacks -N and falls back to the delimiter form, fast enough on native
+# POSIX pipes. 1MiB bound: statusline payloads are a few KB.
+if ((BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 1))); then
+  IFS= read -r -N 1048576 -t 5 INPUT || true
+else
+  IFS= read -r -d '' -t 5 INPUT || true
+fi
 
 # Write one contract snapshot. Every failure path returns 0: the tee must
 # never propagate into the statusline pipeline.
@@ -101,9 +110,15 @@ tee_snapshot
 
 if (($#)); then
   # Wrapped mode: transparent passthrough. The wrapped command sees the same
-  # stdin bytes and owns stdout; its exit code is the wrapper's.
-  printf '%s' "$INPUT" | "$@"
+  # stdin bytes and owns stdout; its exit code is the wrapper's. pipefail is
+  # dropped for exactly this pipeline: a wrapped command that never reads
+  # stdin closes the pipe under printf, and pipefail would surface printf's
+  # SIGPIPE (141) instead of the wrapped command's own exit code. printf's
+  # stderr is silenced for the same case (bash prints a broken-pipe notice).
+  set +o pipefail
+  printf '%s' "$INPUT" 2>/dev/null | "$@"
   rc=$?
+  set -o pipefail
   if ! command -v jq >/dev/null 2>&1; then
     printf 'rate-limit-guard: jq not found — rate-limit tee disabled (https://jqlang.org/download/)\n'
   fi

@@ -213,7 +213,24 @@ RC=$?
 if [[ $RC -eq 0 && "$OUT" == "not json at all" ]]; then ok "malformed stdin → bytes pass through"; else fail "malformed stdin (rc=$RC out=$OUT)"; fi
 if [[ ! -e "$HOME11/$TEE_REL" ]]; then ok "malformed stdin → no snapshot written"; else fail "malformed stdin wrote a snapshot"; fi
 
-# --- Case 12: newest write wins (last-writer-wins contract) ------------------
+# --- Case 12: non-stdin-reading wrapped command + oversized payload ----------
+# A wrapped command that never reads stdin closes the pipe while printf still
+# has more than a pipe buffer to write; the wrapper must report the wrapped
+# command's own exit code, not printf's SIGPIPE (141).
+HOME12="$WORK/home12"
+mkdir -p "$HOME12"
+BIG_FILLER="$(head -c 200000 /dev/zero | tr '\0' 'x')"
+BIG_INPUT="$(printf '{"session_id":"sess-big","filler":"%s","rate_limits":{"five_hour":{"used_percentage":5,"resets_at":1738425600}}}' "$BIG_FILLER")"
+printf '%s' "$BIG_INPUT" | HOME="$HOME12" bash "$TEE" sh -c 'exit 7' >/dev/null 2>&1
+RC=$?
+if [[ $RC -eq 7 ]]; then ok "oversized payload + stdin-ignoring command → wrapped exit code (7), not SIGPIPE"; else fail "oversized payload exit code: $RC, want 7"; fi
+if [[ -f "$HOME12/$TEE_REL" ]] && [[ "$(jq -r '.session_id' <"$HOME12/$TEE_REL")" == "sess-big" ]]; then
+  ok "oversized payload still teed"
+else
+  fail "oversized payload not teed"
+fi
+
+# --- Case 13: newest write wins (last-writer-wins contract) ------------------
 run "$HOME1" "$(build_input)" cat >/dev/null
 printf '{"session_id":"sess-later","rate_limits":{"five_hour":{"used_percentage":91,"resets_at":1738425600}}}' |
   HOME="$HOME1" bash "$TEE" cat >/dev/null

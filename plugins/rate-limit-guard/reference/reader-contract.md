@@ -33,11 +33,14 @@ never sees torn JSON; the file is **last-writer-wins** across all sessions on th
   "captured_at": "2026-07-23T17:41:02Z",
   "session_id": "abc123",
   "rate_limits": {
-    "five_hour": { "used_percentage": 23.5, "resets_at": 1738425600 },
-    "seven_day": { "used_percentage": 41.2, "resets_at": 1738857600 }
+    "five_hour": { "used_percentage": 23.5, "resets_at": 1784841300 },
+    "seven_day": { "used_percentage": 41.2, "resets_at": 1785142800 }
   }
 }
 ```
+
+(The example is internally consistent: `1784841300` is 2026-07-23T21:15:00Z — within five hours of
+`captured_at` — and `1785142800` is 2026-07-27T09:00:00Z, within the seven-day window.)
 
 - `captured_at` — ISO-8601 UTC write time; always present. Drives the staleness rule.
 - `rate_limits` — copied verbatim from the statusline stdin schema
@@ -84,6 +87,10 @@ appended by the hook:
 The hook is side-effect-only (the harness ignores StopFailure output and exit codes) and the
 payload carries no reset or quota data — a record means "a rate limit stopped a turn at this time",
 nothing more. The file is bounded (rotated to the newest 100 records past 200).
+
+The contract directory holds one more file: `stop-events.jsonl.lock`, the advisory-lock sibling the
+hook's serialized append and rotation use (present wherever `flock` exists). Readers ignore it; it
+is part of the seam only in the sense that tooling sweeping the directory should expect it.
 
 ## Invariants and boundaries
 
