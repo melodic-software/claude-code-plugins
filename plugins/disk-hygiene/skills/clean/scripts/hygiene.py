@@ -1584,8 +1584,10 @@ def handoff_verify(snapshot: dict[str, Any], approved: list[str]) -> dict[str, A
         "note": (
             "Read-only revalidation for the manual handoff lane; this "
             "subcommand has no deletion capability. A clear verdict is valid "
-            "only at emission time — delete only verdict-clear paths, "
-            "immediately, one item at a time, and re-verify after any delay."
+            "only at emission time — in a multi-path run the earliest checks "
+            "age while later paths are still probed, so verify ONE path per "
+            "deletion (verify one, delete that one, then the next) and "
+            "re-verify after any delay. The multi-path form is for reporting."
         ),
     }
 

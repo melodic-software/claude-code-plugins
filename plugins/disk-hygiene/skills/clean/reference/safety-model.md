@@ -83,7 +83,7 @@ per item, under the final human permission prompt the PowerShell guard raises.
 
 | Verdict | Meaning | Manual-lane action |
 |---|---|---|
-| `clear` | Every check passed against live state at emission time | Delete this exact path immediately, one item at a time |
+| `clear` | Every check passed against live state at emission time | Delete this exact path immediately — verify one path per deletion, never one batch for all (earlier checks age while later paths are probed) |
 | `gone` | The path no longer exists | Nothing to delete; report it |
 | `drifted` | Identity, kind, or the captured descendant set changed since the snapshot | Keep; the approval no longer describes what is on disk — rescan |
 | `contested` | Protection, VCS state, a live handle, elevation, or unverifiable state | Keep; the reasons list names each contest — resolve and re-verify |

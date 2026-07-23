@@ -234,9 +234,14 @@ handoff, not an engine plan:
    set changed since the snapshot), `gone` (no longer present), or `contested` (protection,
    VCS state, a live handle, elevation, or unverifiable state) — and never deletes anything.
    Act only on verdict-`clear` paths. Additionally confirm any owner process named in the audit
-   evidence is still absent — that evidence is report-level, outside the engine's checks. A
-   clear verdict is valid only at emission time: delete immediately, one item at a time, and
-   re-run handoff-verify after any delay or interruption.
+   evidence is still absent — that evidence is report-level, outside the engine's checks.
+
+   **Verify one path per deletion, not one batch for all.** In a multi-path run, the first
+   path's check ages while every later path is still being walked and probed, so its `clear`
+   is already stale at emission — and staler after each intervening deletion. Pair each
+   deletion with its own fresh single-path handoff-verify run (verify one → delete that one →
+   next); reserve the multi-path form for reporting. A clear verdict is valid only at emission
+   time: delete immediately, and re-run handoff-verify after any delay or interruption.
 2. Prefer reversible removal (Windows Recycle Bin / macOS Trash) over permanent deletion, and say
    which was used. That reversibility is conditional, not guaranteed: bin size caps, a
    policy-disabled bin, or a non-NTFS/network volume can silently make the same operation
