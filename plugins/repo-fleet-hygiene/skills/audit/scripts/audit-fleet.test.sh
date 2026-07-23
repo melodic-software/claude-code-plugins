@@ -295,6 +295,45 @@ else
   printf 'PASS: control-bearing path stayed within one encoded field\n'
 fi
 
+# Config resolution ladder: explicit --config > project-scoped > user-global > none,
+# with the consumed source named in the report header.
+assert_contains "explicit config named in header" "(explicit --config)"
+
+mkdir -p "$TMP/proj/.claude" "$TMP/noconf" "$TMP/homeg/.claude" "$TMP/nohome"
+cat >"$TMP/proj/.claude/repo-fleet-hygiene.conf" <<'LADDER'
+[fleet]
+    repo = ../../discovered-a
+LADDER
+cp "$TMP/proj/.claude/repo-fleet-hygiene.conf" "$TMP/homeg/.claude/repo-fleet-hygiene.conf"
+ladder_out="$TMP/ladder.txt"
+
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/proj" HOME="$TMP/nohome" \
+  bash "$SCRIPT" >"$ladder_out"
+if grep -Fq -- "repo-fleet-hygiene.conf (project)" "$ladder_out"; then
+  printf 'PASS: project config auto-probed and named\n'
+else
+  printf 'FAIL: project config auto-probed and named\n' >&2
+  failures=$((failures + 1))
+fi
+
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/noconf" HOME="$TMP/homeg" \
+  bash "$SCRIPT" >"$ladder_out"
+if grep -Fq -- "repo-fleet-hygiene.conf (user-global)" "$ladder_out"; then
+  printf 'PASS: user-global config fallback consumed and named\n'
+else
+  printf 'FAIL: user-global config fallback consumed and named\n' >&2
+  failures=$((failures + 1))
+fi
+
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
+  bash "$SCRIPT" >"$ladder_out"
+if grep -Fq -- "Config: none" "$ladder_out"; then
+  printf 'PASS: no-config run states none was consumed\n'
+else
+  printf 'FAIL: no-config run states none was consumed\n' >&2
+  failures=$((failures + 1))
+fi
+
 # Exercise the collector's own fail-closed command gate, rather than relying on a denylist that can
 # miss a new mutation spelling. None of these forbidden vectors may reach the fake executables.
 calls_before="$(wc -l <"$CALL_LOG")"
