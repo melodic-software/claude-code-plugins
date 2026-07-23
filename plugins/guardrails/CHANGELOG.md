@@ -3,6 +3,22 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.2]
+
+### Fixed
+
+- **`block-hook-bypass` no longer lets an interpreter-producer write bypass the gate under the PowerShell
+  tool (live-reproduced bypass).** The PowerShell branch classified only PowerShell cmdlet/redirect write
+  forms (`ps::write_bypass`) and then `exit 0`ed **before** the shell-agnostic scans, so
+  `python3 -c "open('x','w')…"` — the identical command the Bash lane blocks — executed unguarded when
+  issued through the PowerShell tool. Reproduced end-to-end: same command, Bash → blocked, PowerShell →
+  file written. The interpreter rule now also runs on the PowerShell lane, mirroring the Bash lane's
+  two-part shape: the **invocation** is detected in a quote-blanked form (`ps::blank_quoted_spans`, so a
+  quoted mention stays inert) while the write **indicators** are scanned on the raw command, where they
+  legitimately live inside the quoted `-c` payload. PowerShell cmdlet/redirect coverage is unchanged.
+  Four regression fixtures added (real `open(`/`pathlib` writes MUST block; read-only `os.path.normpath`
+  and a quoted mention MUST stay quiet). This was the in-comment "deferred to A2b" gap.
+
 ## [0.14.1]
 
 ### Fixed

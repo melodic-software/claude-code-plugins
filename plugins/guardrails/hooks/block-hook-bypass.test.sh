@@ -486,6 +486,18 @@ run_pwsh "PS: & { Write-Output secret } > file (blocked)" \
 run_pwsh "PS: & { git diff } > file (tool producer, allowed)" \
   "& { git diff } > out.txt" 0
 
+# Interpreter-producer writes are shell-agnostic: the PowerShell branch must not
+# exit before the python3 -c rule, or the identical command the Bash lane blocks
+# sails through under the PowerShell tool (live-reproduced bypass).
+run_pwsh "PS: python3 -c open write (blocked)" \
+  "python3 -c \"open('x','w').write('a')\"" 2
+run_pwsh "PS: python3 -c pathlib write_text (blocked)" \
+  "python3 -c \"import pathlib; pathlib.Path('x').write_text('a')\"" 2
+run_pwsh "PS: python3 -c read-only os.path.normpath (allowed)" \
+  "python3 -c \"import os; print(os.path.normpath('a/b'))\"" 0
+run_pwsh "PS: quoted mention of python3 -c open (allowed)" \
+  "Write-Output 'run python3 -c open() later'" 0
+
 # Review round 8: module-qualified producer heads.
 run_pwsh "PS: module-qualified Write-Output > file (blocked)" \
   "Microsoft.PowerShell.Utility\\Write-Output secret > f.txt" 2

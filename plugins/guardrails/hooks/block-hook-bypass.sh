@@ -446,6 +446,19 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   if ps::write_bypass "$COMMAND"; then
     block_bypass "powershell-write" "PowerShell file-write cmdlet/redirect bypasses Write/Edit hooks"
   fi
+  # Interpreter-producer writes are shell-AGNOSTIC: `python3 -c '<write>'` bypasses
+  # Write/Edit identically whichever tool launches it, and ps::write_bypass models only
+  # PowerShell cmdlet/redirect forms — so without this the identical command that the
+  # Bash lane blocks sails through under the PowerShell tool. Mirror the Bash lane's
+  # two-part shape: detect the INVOCATION in a quote-blanked form (so a quoted mention
+  # stays inert) and scan the RAW command for the write indicators, which legitimately
+  # live inside the quoted `-c` payload the blanking removes.
+  _ps_exec_lc="$(ps::blank_quoted_spans "$COMMAND")"
+  _ps_exec_lc="${_ps_exec_lc,,}"
+  if [[ "$_ps_exec_lc" =~ (^|[[:space:];|&()]+)python3[[:space:]]+-c ]] &&
+    [[ "$COMMAND_LC" =~ $_py_write ]]; then
+    block_bypass "python-write" "python3 -c file write bypasses Write/Edit hooks"
+  fi
   emit_tel "ok" ""
   exit 0
 fi
