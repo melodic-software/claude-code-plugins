@@ -100,6 +100,11 @@ if git -C "$PROJG" init -q 2>/dev/null; then
     "$(jq -r '.skill' "$PROJG/.claude/observability/skill-usage.jsonl" 2>/dev/null)"
   assert_eq "row carries project field" "projg" \
     "$(jq -r '.project' "$PROJG/.claude/observability/skill-usage.jsonl" 2>/dev/null)"
+  PROJG_ID="$(jq -r '.project_id // empty' "$PROJG/.claude/observability/skill-usage.jsonl" 2>/dev/null)"
+  case "$PROJG_ID" in
+  projg-*) ok "row carries collision-resistant project_id ($PROJG_ID)" ;;
+  *) bad "row carries collision-resistant project_id (got '$PROJG_ID')" ;;
+  esac
   if grep -qxF -- '/.claude/observability/' "$PROJG/.git/info/exclude" 2>/dev/null; then
     ok "exclude entry keeps git status clean"
   else

@@ -187,7 +187,8 @@ options tune the skills:
   second store lives. `repo` (default) keeps it in the project tree, with a
   machine-local `.git/info/exclude` entry so `git status` stays clean; `user`
   resolves the same `skill_usage_dir` subpath under `$HOME` for one cross-repo
-  operator store (rows carry a `project` field); `data-dir` writes
+  operator store (rows carry `project` + collision-resistant `project_id`
+  fields); `data-dir` writes
   `${CLAUDE_PLUGIN_DATA}/skill-usage/<repo-slug>` — plugin-owned, update-safe,
   never in any repo tree. Prose-validated (no `enum` in the manifest schema);
   an unknown value falls back to `repo` with a one-time advisory. The default

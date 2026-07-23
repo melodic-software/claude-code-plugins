@@ -42,14 +42,35 @@ claude_ops::resolve_project_relative_dir() {
   printf '%s' "$candidate"
 }
 
-# Stable slug for a project directory, used to key per-repo stores under
-# machine-level bases (${CLAUDE_PLUGIN_DATA}). Physical path, separators and
-# reserved bytes folded to '-'.
+# Stable, collision-resistant slug for a project directory, used to key
+# per-repo stores under machine-level bases (${CLAUDE_PLUGIN_DATA}) and to
+# identify the repo in cross-repo store rows. Readable basename + an 8-char
+# digest of the full physical path — folding alone is lossy (/tmp/a-b and
+# /tmp/a/b would collide), so the digest carries the uniqueness. sha1sum ships
+# with Git Bash and Linux; cksum is the POSIX fallback.
 claude_ops::repo_slug() {
-  local p
+  local p base hash
   p=$(hook::normalize_path "$(hook::physical_path "$1")")
-  p="${p//[^A-Za-z0-9._-]/-}"
-  printf '%s' "${p:-project}"
+  base="${p##*/}"
+  base="${base//[^A-Za-z0-9._-]/-}"
+  hash=$(printf '%s' "$p" | sha1sum 2>/dev/null | cut -c1-8)
+  [[ -n "$hash" ]] || hash=$(printf '%s' "$p" | cksum 2>/dev/null | cut -d' ' -f1)
+  printf '%s' "${base:-project}${hash:+-$hash}"
+}
+
+# Collapse a configured relative dir to clean segments: both separators to '/',
+# empty and '.' segments dropped. The resolver tolerates ./x and x//y when
+# writing (mkdir normalizes), but a git ignore pattern is matched literally, so
+# the exclude line must be canonical.
+claude_ops::normalize_rel_segments() {
+  local raw="${1//\\//}" out="" seg
+  local -a segs
+  IFS='/' read -r -a segs <<<"$raw"
+  for seg in "${segs[@]}"; do
+    [[ -z "$seg" || "$seg" == "." ]] && continue
+    out+="${seg}/"
+  done
+  printf '%s' "${out%/}"
 }
 
 # Resolve the skill-usage store directory for a scope:
@@ -94,8 +115,9 @@ claude_ops::ensure_git_exclude() {
   /* | [A-Za-z]:*) ;;
   *) exclude_file="${project_dir%/}/$exclude_file" ;;
   esac
-  line="${rel_dir//\\//}"
-  line="/${line%/}/"
+  line="$(claude_ops::normalize_rel_segments "$rel_dir")"
+  [[ -n "$line" ]] || return 0
+  line="/${line}/"
   if [[ -f "$exclude_file" ]] && grep -qxF -- "$line" "$exclude_file" 2>/dev/null; then
     return 0
   fi

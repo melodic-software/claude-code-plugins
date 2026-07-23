@@ -70,6 +70,18 @@ case "$slug" in
 '') bad "repo_slug non-empty" ;;
 *) ok "repo_slug emits only safe bytes" ;;
 esac
+mkdir -p "$TEST_TMPDIR/a-b" "$TEST_TMPDIR/a/b"
+if [[ "$(claude_ops::repo_slug "$TEST_TMPDIR/a-b")" != "$(claude_ops::repo_slug "$TEST_TMPDIR/a/b")" ]]; then
+  ok "repo_slug distinguishes fold-colliding paths"
+else
+  bad "repo_slug distinguishes fold-colliding paths"
+fi
+assert_eq "repo_slug is stable across calls" "$slug" "$(claude_ops::repo_slug "$PROJECT")"
+
+assert_eq "normalize_rel_segments drops ./ and //" ".claude/observability" \
+  "$(claude_ops::normalize_rel_segments './.claude//observability/')"
+assert_eq "normalize_rel_segments folds backslashes" "telemetry/skills" \
+  "$(claude_ops::normalize_rel_segments 'telemetry\skills')"
 assert_eq "data-dir scope keys by repo slug" "$DATA_DIR/skill-usage/$slug" \
   "$(CLAUDE_PLUGIN_DATA="$DATA_DIR" claude_ops::resolve_skill_usage_dir data-dir "$PROJECT" '.claude/observability')"
 if CLAUDE_PLUGIN_DATA="" claude_ops::resolve_skill_usage_dir data-dir "$PROJECT" '.claude/observability' >/dev/null; then
@@ -99,6 +111,22 @@ if git -C "$REPO" init -q 2>/dev/null; then
     ok "store dir invisible to git status"
   else
     bad "store dir invisible to git status"
+  fi
+  REPO3="$TEST_TMPDIR/repo3"
+  mkdir -p "$REPO3"
+  git -C "$REPO3" init -q 2>/dev/null
+  claude_ops::ensure_git_exclude "$REPO3" './.claude//observability/'
+  if grep -qxF -- '/.claude/observability/' "$REPO3/.git/info/exclude" 2>/dev/null; then
+    ok "denormalized configured dir yields canonical exclude line"
+  else
+    bad "denormalized configured dir yields canonical exclude line"
+  fi
+  mkdir -p "$REPO3/.claude/observability"
+  : >"$REPO3/.claude/observability/skill-usage.jsonl"
+  if [[ -z "$(git -C "$REPO3" status --porcelain 2>/dev/null)" ]]; then
+    ok "status clean under denormalized configured dir"
+  else
+    bad "status clean under denormalized configured dir"
   fi
   REPO2="$TEST_TMPDIR/repo2"
   mkdir -p "$REPO2"

@@ -69,8 +69,9 @@ elif mkdir -p "$log_dir" 2>/dev/null &&
       --arg skill "$SKILL" \
       --arg branch "$branch" \
       --arg project "$(basename -- "$project_dir")" \
+      --arg project_id "$(claude_ops::repo_slug "$project_dir")" \
       --arg hook "skill-usage-audit" \
-      '{ts: $ts, event: "SkillUse", skill: $skill, branch: $branch, project: $project, hook: $hook, source: "tool"}'
+      '{ts: $ts, event: "SkillUse", skill: $skill, branch: $branch, project: $project, project_id: $project_id, hook: $hook, source: "tool"}'
   ) && hook::append_jsonl "${log_dir}/skill-usage.jsonl" "$line"
 else
   if hook::notice_once "skill-usage-audit-nodest" "$INPUT"; then

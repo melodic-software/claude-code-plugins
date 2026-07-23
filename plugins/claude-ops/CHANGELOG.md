@@ -21,7 +21,10 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   operator store; `data-dir` writes `${CLAUDE_PLUGIN_DATA}/skill-usage/<repo-slug>` —
   plugin-owned, update-safe, keyed by repo. Unknown scope values fall back to `repo` with a
   one-time advisory (prose-validated; the manifest schema has no enum type). Store rows gain
-  a `project` field (project-root basename) so cross-repo scopes keep repo identity.
+  `project` (project-root basename, display) and `project_id` (basename + 8-char digest of
+  the physical path — same-basename checkouts stay distinguishable) so cross-repo scopes
+  keep repo identity; the data-dir key uses the same collision-resistant slug, and the
+  exclude line is segment-normalized so a configured `./x` or `x//y` still matches.
   **Default-flip decision (recorded):** the default deliberately stays `repo` — the store
   sits beside `hook-events.jsonl` per the observability skill's project-local posture (that
   skill reads only `hook-events.jsonl` and the OTEL store, so colocation is convention, not
