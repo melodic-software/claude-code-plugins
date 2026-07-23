@@ -3,6 +3,20 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.2]
+
+### Fixed
+
+- **PowerShell lane defers read-only inspection of the engine source (#1112).** The lane denied
+  ANY command containing the substring `hygiene.py` — blocking `Select-String`/`Get-Content` over
+  the engine's own source (live-observed, F6) while a renamed copy evaded it anyway. The engine
+  check now uses the same invocation classifier as the plugin-level gate (identity + launcher
+  rules), and a parseable single-cmdlet command whose verb is read-only (`Select-String`,
+  `Get-Content`, `Get-Item`, `Get-ChildItem`, `Get-FileHash`, `Test-Path`, `Resolve-Path`,
+  `Compare-Object`, `Measure-Object`) defers outright — a read verb cannot execute its arguments.
+  Compound/piped commands do not parse and keep the full fail-closed checks; engine invocations
+  still deny.
+
 ## [0.7.1]
 
 ### Fixed
