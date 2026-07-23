@@ -3,6 +3,24 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.1]
+
+### Documentation
+
+- **`check` gotcha: markdownlint (check 6) defers to the consuming repo's markdownlint config —
+  run the checker from inside that repo (`#1153`).** Running the gate from outside the target
+  repo, or against a marketplace-installed skill in the plugin cache (which carries no config),
+  applies markdownlint DEFAULTS, so rules a repo deliberately disables (commonly `MD013`
+  line-length, `MD041` first-line-heading, `MD060` table-pipe) fire as spurious failures on a
+  skill that passes in-repo. This is the usual cause of a "shipped marketplace skill fails the
+  marketplace's own gate" report — a wrong-config artifact, not a regression. The note also
+  records the deliberate decision the report asked for: **injection blocks are not special-cased**
+  — a declared `shell:` block with long lines is `MD013`-subject like any other content, and
+  whether it fails is the consumer's markdownlint config's call (this gate never overrides it) —
+  and documents this marketplace's own CI division of labor (the skill-quality gate skips
+  markdownlint; the hygiene lane lints all repo markdown, SKILL.md included, under the repo
+  config). No behavior change; the CI gate over changed skills already exists.
+
 ## [0.10.0]
 
 ### Changed
