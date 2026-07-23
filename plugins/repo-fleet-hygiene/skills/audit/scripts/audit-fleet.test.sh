@@ -340,8 +340,10 @@ assert_contains "failed repositories not counted successful" "Summary: repositor
 # Stale CONFIG-sourced entries degrade per-entry (deleted-repo, gone-root) and the run continues;
 # a CLI-supplied bad path must still hard-fail (checked in a separate run below).
 assert_contains "stale config repo degrades per-entry" "Finding: stale-config-entry"
-assert_contains "stale config repo names the path" "Target: $TMP/deleted-repo"
-assert_contains "stale config root names the path" "Target: $TMP/gone-root"
+# The script may canonicalize CONFIG_DIR (e.g. /tmp -> its symlink target on Git Bash), so match
+# the stable config-relative suffix rather than the $TMP prefix.
+assert_contains "stale config repo names the path" "config/../deleted-repo"
+assert_contains "stale config root names the path" "config/../gone-root"
 assert_contains "stale root reason names fleet.root" "configured fleet.root path is not a directory"
 
 # Duplicate checkouts of one identity (repo-b + dup-a) get ONE LOW informational finding listing
