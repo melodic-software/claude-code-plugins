@@ -20,8 +20,10 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   **drops the entire hook entry** (proven: token-carrying hooks vanish while token-free controls fire, and
   return once the key is configured). So the gate has never run for any consumer who never set the key — on
   Bash and PowerShell alike, which is the real shape of the reported "PowerShell bypass". The skill-scoped
-  belt carries no such token and is unaffected. `SKILL.md` + `reference/safety-model.md` corrected; the code
-  fix (a delivery channel that does not depend on the unimplemented `default`) is tracked separately.
+  belt carries no such token and is unaffected. `SKILL.md`, `reference/safety-model.md`, and the consumer
+  `README.md` (which still claimed the gate "fires in every session" and audit-only is "guard-enforced")
+  corrected; the code fix (a delivery channel that does not depend on the unimplemented `default`) is
+  tracked separately.
   Recheck when the upstream gap closes (#46477 / #39455 / #39827).
 
 ## [0.8.2]
