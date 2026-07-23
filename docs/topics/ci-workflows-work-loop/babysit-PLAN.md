@@ -188,7 +188,9 @@ headless-config floor); stop modes (default standing with idle backoff toward 1h
 `--drain` stops at 0 open PRs AND 0 open issues — intentionally outlives work-loop's exit);
 autonomy-dimension contract (dimensions 1–7 + always-on safety knobs + loop knobs; tiers =
 named presets; dimension 6 (merge) shipped default = human merge for everything except
-gate-proven bot/C2 mechanical PRs, higher rungs opt-in per the autonomy ladder — a
+gate-proven C2-mechanical PRs (a work-class test irrespective of author; bot authorship
+alone never qualifies, per the loop-lane convention), higher rungs opt-in per the autonomy
+ladder — a
 tracked-seam config edit is the recorded human-ratified promotion (work-loop PLAN Phase 2
 item 1); per-bot allowlists deferred post-V1); concurrency safety (30-min activity grace
 window — never elevate/resolve/merge a PR whose head moved or received comments inside it;

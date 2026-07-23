@@ -202,8 +202,9 @@ README.md contract sections (pointer-not-copy — cite owners, never restate):
 1. **3-session topology** — worker loop authors PRs (never merges); babysit lane owns merges
    WITHIN the autonomy guardrail matrix's merge-policy column; HITL decides. Merge authority
    (operator-resolved 2026-07-23): a configurable AUTONOMY LADDER with the safest default —
-   **human merge is the shipped default for everything except gate-proven bot/C2 mechanical
-   PRs** (dependabot/small/easy/safe candidates); higher rungs up to full autonomy (frontier
+   **human merge is the shipped default for everything except gate-proven C2-mechanical
+   PRs** (dependabot/small/easy/safe candidates; a work-class test irrespective of author — bot
+   authorship alone never qualifies, per the loop-lane convention); higher rungs up to full autonomy (frontier
    subagents resolving conflicts, responding to comments, making changes, driving to merge)
    are opt-in per repo. The ratification mechanism: raising a merge rung is a config change on
    the TRACKED layered seam (reviewable, versioned) — exactly the matrix's required
@@ -511,7 +512,8 @@ None — all seven approval-round decisions resolved by the operator 2026-07-23:
    supporting, one-directional launcher; loop skills never depend on claude-ops (guarded
    if-installed, `/loop` fallback documented).
 5. Merge authority → configurable autonomy ladder; shipped default = human merge for all but
-   gate-proven bot/C2 mechanical PRs; higher rungs (through full autonomy with frontier
+   gate-proven C2-mechanical PRs (any author; bot authorship alone never qualifies, per the
+   loop-lane convention); higher rungs (through full autonomy with frontier
    subagents driving to merge) opt-in via tracked-config flip = the matrix's recorded
    human-ratified promotion.
 6. Babysit tier for ci-workflows → WORKER (autopilot premise invalidated post-launch).
