@@ -210,7 +210,7 @@ open.
 | `ai-briefing` | `.claude/ai-briefing/` | team only | undeclared: overlay recommended, never resolved |
 | `code-tidying` | `.claude/tidy-lanes/<lane>.md` | team only | team layer over a bundled default. A project lane declaring `## Merge semantics` merges per-section with its bundled lane (`docs-prose` decomposed: `Scope` per-section override, watch-for patterns additive — #701); lanes without the declaration still resolve project-only wholesale (`shell-tooling` — #724). No user-global or `*.local.*` overlay (#723) |
 | `topic-docs` | `.claude/topic-docs.yaml` | team only | single-layer |
-| `repo-fleet-hygiene` | `.claude/repo-fleet-hygiene.conf` | team only | single-layer |
+| `repo-fleet-hygiene` | `.claude/repo-fleet-hygiene.conf` | user-global + team | declared deviation; whole-file precedence (explicit `--config` > team > user-global fallback), no per-key merge, no overlay layer (#1099) |
 | `work-items` | `.work-item-tracker.json` | team only | single-layer; resolves by CWD-to-root climb rather than anchoring at the repo root |
 | `testing` (`run-e2e`) | `.claude/testing/e2e.md` | all three | conforms; per-key override on `recording` / `browser_mode`, keys owned by `run-e2e/context/e2e-config.md` |
 
