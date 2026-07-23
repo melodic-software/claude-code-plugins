@@ -200,6 +200,16 @@ OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$FIXTURE"
 RC=$?
 assert_exit "SharedStuff segment → exit 2" 2 "$RC"
 
+# Shell / prose punctuation right after Shared is a boundary, not a longer
+# segment — common command shapes must stay clean.
+OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$FIXTURE" "cd ${SL}Users${SL}Shared; ls")" 2>&1)
+RC=$?
+assert_exit "Shared followed by semicolon → exit 0" 0 "$RC"
+
+OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$FIXTURE" "cp '${SL}Users${SL}Shared' out")" 2>&1)
+RC=$?
+assert_exit "single-quoted Shared → exit 0" 0 "$RC"
+
 OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$PS1_FIXTURE" "\$cfg = '${WIN_HOME}'")" 2>&1)
 RC=$?
 assert_exit "Windows path in .ps1 → suppressed → exit 0" 0 "$RC"
