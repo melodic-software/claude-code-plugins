@@ -157,7 +157,7 @@ One PR to claude-code-plugins (may share a branch with B2).
 
 | File | Action | What |
 |---|---|---|
-| `plugins/source-control/reference/config-resolution.md` | Modify | widen scope statement beyond the commit-subject convention; add loop-lane key table: `babysit_loop_stop_mode` (standing\|drain), `babysit_loop_tier_preset`, per-dimension override keys (dimensions 1–7), `babysit_loop_grace_window_minutes` (default 30), `babysit_loop_cycle_budget`; precedence: invocation args win over all layers; per-key merge unchanged |
+| `plugins/source-control/reference/config-resolution.md` | Modify | widen scope statement beyond the commit-subject convention; add loop-lane key table: `babysit_loop_stop_mode` (standing\|drain), `babysit_loop_tier_preset`, per-dimension override keys (dimensions 1–7), `babysit_loop_grace_window_minutes` (default 30), `babysit_loop_cycle_budget`; precedence: invocation args win over all layers, EXCEPT dimension 6 (merge) where an argument may only select a lower rung — merge-rung raises bind only from the tracked seam config, per the loop-lane convention's "Merge-rung raises are seam-only" rule; per-key merge unchanged |
 | `docs/conventions/consumer-config-layering/README.md` | Modify | update source-control implementers row: both loop lanes cite the row (Q14) |
 
 Key-name shapes above are working names — final names follow the seam's existing conventions at
