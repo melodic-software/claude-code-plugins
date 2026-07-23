@@ -1,0 +1,231 @@
+# Loop-lane convention
+
+Owner doc for the concerns shared by every **loop lane** — a session that wraps a single-pass
+mechanic in a self-paced drain loop over a repository's backlog. Three lanes adopt it: the
+`work-items` `work-loop` and `attend-queue` skills and the `source-control` `babysit-loop` skill.
+Because those live in two different plugins, the topology, escalation contract, capability-tier
+vocabulary, and loop-layer invariants they share cannot live inside either plugin — a
+sibling-plugin file import is a defect
+([`PLUGIN-PHILOSOPHY.md`](../../PLUGIN-PHILOSOPHY.md#design-boundary)), and a cross-plugin convention
+lands in an owner doc before the second plugin adopts it
+([convention registry](../../PLUGIN-PHILOSOPHY.md#convention-registry)). This is that owner doc.
+
+**Pointer-not-copy.** Each mechanic below is owned by a plugin or a sibling convention; this doc
+fixes the *contract* every lane holds to and points at the owner for the *mechanism*. It never
+restates a mechanics block. The `autonomy` plugin remains the governing-policy pointer (the
+guardrail matrix), and the loop lanes are the interim executor for the not-yet-built autonomy runner
+([`runner.md`](../../../plugins/autonomy/reference/runner.md)); this convention is the loop-layer
+contract that operates within that policy.
+
+## 1. Three-session topology
+
+A drained repository runs three cooperating sessions, each with exactly one authority:
+
+| Session | Authority | Never does |
+|---|---|---|
+| Worker loop (`work-loop`) | Claims items, authors PRs | Merges |
+| Babysit lane (`babysit-loop`) | Advances and merges PRs within the matrix's merge-policy column | Decides operator-owned questions |
+| Attended queue (`attend-queue`) | Human-in-the-loop triage and escalation answers | Runs unattended |
+
+The worker loop is PR-only; merge authority belongs to the babysit lane; judgment belongs to the
+attended queue. No lane crosses into another's authority.
+
+### Autonomy ladder (merge authority)
+
+Merge authority is a configurable ladder with the safest rung shipped by default: **human merge for
+every PR except gate-proven C2-mechanical ones**. The exception is a *work-class* test, not an
+authorship test — a PR qualifies only when the item classifies C2 (mechanical), whether a bot, a
+human, or a worker authored it; bot authorship alone is never sufficient. C3, C4, C5, and
+unclassified items stay human-gated regardless of author. Higher rungs — up to full autonomy, where
+frontier-tier subagents resolve conflicts, answer review comments, and drive a PR to merge — are
+opt-in per repository.
+
+This shipped default is itself the recorded baseline rung, versioned in this convention and in the
+tracked seam config. A repository adopts it through its own reviewable lane-enabling change — the
+binding/config PR that turns a lane on in that repo — which is the recorded, human-ratified act for
+the baseline rung, so no lane ever auto-merges without a reviewed change having enabled it. Raising
+any higher rung — including any C3-autonomous merge — is a config change on the tracked, layered
+config seam ([consumer-config layering](../consumer-config-layering/README.md)), which makes it
+exactly the autonomy matrix's required **human-ratified knob flip recorded on the governance
+surface**
+([`work-classes.md`](../../../plugins/autonomy/reference/guardrails/work-classes.md#promotion-and-demotion)).
+C3-autonomous merge is therefore reachable only through a recorded, reviewable flip, never by
+default — the matrix's promotion contract honored by construction. Demotion stays automatic and
+fail-closed, per the same owner doc.
+
+**Merge-rung raises are seam-only.** Invocation arguments never raise the merge rung: a raise binds
+only from the tracked seam config layer, so every increase in merge authority is the recorded,
+reviewable act above. An argument may select a *lower* (safer) rung for a single run, never a higher
+one — argument precedence, which wins for other lane dimensions, is floored at the seam-config rung
+for merge authority.
+
+## 2. Escalation contract
+
+A lane escalates by creating or labeling a tracker item that carries the **`needs-human` role
+label**, resolved through the consumer's `.work-item-tracker.json` `config.role_labels` map and
+never compared as a string literal
+([`label-taxonomy.md`](../../../plugins/work-items/reference/label-taxonomy.md#canonical-roles) owns
+the canonical roles and the resolution). A machine-marked bot comment discriminates a
+worker-*escalated* item from an operator-*parked* one — both wear the same role label, so the marker,
+not a second label, carries the distinction. No lane creates labels; the label set is IaC-owned.
+
+The event classes that oblige escalation are governing policy owned by
+[`guardrails.md`](../../../plugins/autonomy/reference/guardrails.md#escalation) (gate failure,
+verification divergence, admission rejection, demotion, structural-plan approval, and
+untrusted-provenance). This convention adds no second escalation channel; the telemetry comment (§4)
+is the report surface, never the sole path when human action is required.
+
+## 3. Capability tiers
+
+Model selection is expressed as **capability tiers defined by order, never by family name** —
+capability does not track family across generations (a current mid-tier model can equal a prior
+top-tier one), so a tier named for a family silently rots. Three ordered tiers:
+
+| Tier | Role |
+|---|---|
+| frontier | Complex-stamped items; every security-surface work class, always |
+| strong | Default implementer / worker |
+| fast | Orchestrator and mechanical items; never weaker than the implementer it reviews |
+
+Fixed rules: an advisor or reviewer is **at least as capable** as the main model it checks (equal
+pairings are valid, and a fast orchestrator paired with an advisor at or above the main tier is the
+recommended shape); a reviewer or verifier is never weaker than the implementer; a security-surface
+work class routes to the frontier tier unconditionally.
+
+**Runtime resolution is by model alias only.** The bare family-word aliases
+(`fable` / `opus` / `sonnet` / `haiku`) are the live-updating handles that resolve to the current
+recommended model for the provider and update over time; a dated model name is a pinned snapshot and
+is never written into a lane body. Aliases are the only handle guaranteed under subscription OAuth,
+so they are the runtime path; the Models API list endpoint is the **build/audit-time** verification
+path, since it may require an API key a loop session lacks. No lane hard-codes a model ID. (Alias
+semantics verified against <https://code.claude.com/docs/en/model-config> on 2026-07-23.)
+
+Tier tables are built from a live official-docs fetch at authoring time, never from recall. Any new
+model release re-audits the tier table — the trigger is recorded in this convention's
+[`CHANGELOG.md`](CHANGELOG.md).
+
+### Rate-limit windows
+
+Subscription (Pro/Max) usage is bounded by a rolling five-hour window and a weekly cap. The weekly
+cap's exact model scoping and numeric limits are volatile and are **not** restated here — see the
+official [Anthropic support article](https://support.claude.com/en/articles/11049741-what-is-the-max-plan)
+(verified 2026-07-23). The operable pause floor lives in the rate-limit guard binding (§6).
+
+## 4. Loop-layer invariants
+
+Every loop lane holds these, whatever single-pass mechanic it wraps.
+
+**Stop shapes.** A lane runs in one of two shapes: *standing* (idle backs off toward longer wakeups;
+no activity-timeout stop) or *drain* (stops when its backlog is empty). Drain carries a **terminal
+state**: when every remaining open item is human-gated or escalated and no PR is in flight, the lane
+reports and stops cleanly rather than idling forever — without it, an overnight drain deadlocks on
+the first unanswered escalation.
+
+A standing lane is additionally bounded by the `/loop` launch surface's **seven-day expiry**: a
+self-paced `/loop` ends automatically seven days after it starts, idle backoff notwithstanding
+(<https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry>, verified 2026-07-23). A standing
+lane therefore requires a relaunch owner — today always the operator, for whom `claude-ops` `lanes`
+`restart` is a one-command path (operator-initiated by contract; see the cycle-budget paragraph
+below). The lane records its loop-started timestamp in the
+lane's #502 telemetry block so the approaching expiry is visible ahead of time, and an expiry hit is
+handled exactly like the cycle-budget hit below: a restart-request into the #502 block, then a clean
+stop.
+
+**Self-pacing.** A lane paces itself through `/loop` with the interval omitted; Claude schedules the
+next iteration with `ScheduleWakeup`, whose delay is clamped between one minute and one hour.
+`ScheduleWakeup` is called at the end of each iteration and is not operator-callable (verified
+against <https://code.claude.com/docs/en/tools-reference> and
+<https://code.claude.com/docs/en/scheduled-tasks> on 2026-07-23). Idle raises the delay toward the
+ceiling. The `source-control` babysit lane's own self-pacing section
+([`babysit-prs` loop reference](../../../plugins/source-control/skills/babysit-prs/reference/loop.md))
+is the worked precedent.
+
+**Cycle budget (#691).** A per-session cycle budget bounds one session; a budget hit **always**
+emits a restart-request into the #502 telemetry block and stops the loop cleanly — a running loop
+cannot `/clear` or relaunch itself, since a relaunch is the only context reset a lane gets
+([`claude-ops` lanes](../../../plugins/claude-ops/skills/lanes/SKILL.md), section "A relaunch is the
+only context reset a loop lane gets"). What happens next is launcher-relative. Under a launcher that
+acts on restart-requests, the lane is relaunched and the loop continues — the budget restarts the
+**session**, never ends the **loop**. **No such automatic launcher exists today**: `claude-ops`
+`lanes` is operator-initiated by contract ("no scheduler runs `restart` for you today", per its
+SKILL.md), so until an automatic relaunch trigger exists, *every* budget hit — under `lanes` or a
+bare interactive `/loop` alike — is a **terminal** manual-restart state: the stop is reported in
+lane telemetry, and the operator owns the restart (`lanes` `restart` is the operator's one-command
+path). The restart-request in the #502 block is written so that the operator today, and an
+automatic trigger when one exists, can act on the same surface.
+
+**Telemetry comment (#502).** Each lane maintains exactly **one** status comment on a tracking item,
+identified by a machine sentinel marker and **edited in place** every cycle — never a second comment.
+`claude-ops`'s `telemetry-upsert.sh` is the interim home of this contract and a compatible reader
+(`morning-brief` reads the same surface); an installed plugin cannot invoke a sibling plugin's
+script, so each lane **inlines** the small `gh api` upsert and the coupling to `claude-ops` stays
+one-directional.
+
+**Durable loop state.** Conversation context is lossy across compaction, so a lane persists its
+adaptive-cap streak counter, its rate-limit-warning latch, and its cycle count in a machine-readable
+block of that same #502 telemetry comment, and re-reads them at each cycle start.
+
+**Headless-config floor.** A headless lane launch never blocks on an interview: it takes explicit or
+persisted config, or tier defaults, and logs the assumption. The interactive path may run a
+mini-interview and offer to persist the answer; the headless path never waits on one.
+
+**Provider backoff (seam exit 8).** A tracker-seam exit 8 — provider unavailable, or secondary forge
+limits under one credential — is handled as backoff-and-retry and counted as a **dirty** signal for
+the adaptive cap.
+
+**Snapshot drain exit.** The drain-exit condition is evaluated against a snapshot taken at cycle
+start; new automated intake arriving mid-cycle is **reported, never chased**, so an item-producing
+bot cannot hold a drain open indefinitely.
+
+**Subagent discipline preamble.** Every subagent a lane dispatches carries a standing discipline
+preamble. When the `re-anchor` plugin is installed, the dispatch prompt invokes its sweep —
+sweep-all-disciplines, use-your-skills, do-your-research; when it is absent, the dispatch prompt
+inlines the equivalent standing instructions (verify claims against authoritative sources before
+acting, prefer installed skills over ad-hoc approaches, and re-check work against the active
+conventions). The reference is presence-gated with this inline fallback per the
+[seam-phrasing convention](../seam-phrasing/README.md) — `re-anchor` is never a hard dependency.
+
+## 5. Consumers and launch surfaces
+
+| Consumer | Plugin | Lane |
+|---|---|---|
+| `work-loop` | `work-items` | worker (PR-authoring drain) |
+| `attend-queue` | `work-items` | attended triage / escalation queue |
+| `babysit-loop` | `source-control` | merge lane over [`babysit-prs`](../../../plugins/source-control/skills/babysit-prs/SKILL.md) |
+
+The skill paths `plugins/work-items/skills/work-loop/`, `plugins/work-items/skills/attend-queue/`,
+and `plugins/source-control/skills/babysit-loop/` are introduced by later phases; they are named
+here as the adopters this owner doc lands ahead of.
+
+**Launch surfaces.** A lane launches interactively via `/loop` — the primary surface, built-in and
+dependency-free — or headless via the `claude-ops` `lanes` launcher, which stores the one-line lane
+prompt through its `prompt_dir` seam (#480). `lanes` is a **supporting, strictly one-directional**
+launcher: it launches the lane; no lane body ever requires, imports, or degrades without
+`claude-ops`. Every mention of `lanes` in a lane body is presence-gated with the `/loop` fallback
+documented at the site, per the [seam-phrasing convention](../seam-phrasing/README.md).
+
+## 6. Rate-limit guard binding
+
+All three lanes consume the shared subscription rate-limit windows (§3). An installed plugin cannot
+read a sibling plugin's files or this repo's `docs/` at runtime, so each consuming lane body
+**inlines the operable floor** — the fixed tee-file path, the 90%-of-either-window pause threshold,
+the staleness rule, and drain-then-pause — and cites the guard's reader contract for provenance only.
+That reader contract is `plugins/rate-limit-guard/reference/reader-contract.md`, introduced with the
+`rate-limit-guard` plugin in a later phase. This convention records the inline-floor rule so the
+values stay byte-identical across lanes; fleet audits check conformance per consumer.
+
+**Single-account-per-machine invariant.** The tee file is last-writer-wins and carries no account
+identifier, so a mid-drain switch to a second account feeds one account's healthy windows to lanes
+running on the exhausted one. The guard cannot detect this; operation assumes one account per
+machine.
+
+**Guard-mode telemetry.** Each lane records the guard's mode — proactive, reactive, or unknown — in
+its #502 telemetry block every cycle, so a silent degradation to reactive-only stays visible on the
+tracking surface.
+
+## Versioning
+
+This contract is versioned in [`CHANGELOG.md`](CHANGELOG.md). A change to the topology, the
+escalation contract, the tier vocabulary, or any loop-layer invariant is a major bump; additive
+guidance is a minor bump. **Re-derivation trigger:** any new model release re-audits the
+capability-tier table (§3), recorded as a changelog entry.
