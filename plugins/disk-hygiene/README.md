@@ -59,6 +59,18 @@ at preview. Backups remain the recovery boundary for user data.
   exposed by the OS; never invokes UAC) but engine **execution is unsupported**: `preview` returns
   `execution-platform-unsupported`, and removal is a manual, per-path Recycle-Bin handoff after
   explicit approval.
+- **Windows `python3` gotcha — the Store alias stub fails the guard open.** The `clean` guard hook
+  launches the literal command `python3`. On stock Windows that name resolves to a zero-length
+  `WindowsApps\python3.exe` App Execution Alias — a reparse stub that opens the Microsoft Store (or
+  exits) instead of running an interpreter, so the guard process never starts. A PreToolUse hook
+  blocks a tool call only by emitting exit code 2 or a `deny` decision ([Hooks](https://code.claude.com/docs/en/hooks));
+  a guard that never runs emits neither, and Claude Code treats the non-blocking result as approval —
+  the destructive Bash/PowerShell command proceeds ungated (the same fail-open shape as the 0.6.3
+  launch-failure fix, via a different vector). `/disk-hygiene:setup check` detects this explicitly and
+  FAILs: disable the `python3` App execution alias (Settings > Apps > Advanced app settings > App
+  execution aliases) or install real Python and ensure it precedes WindowsApps on `PATH`. A bare
+  `command -v python3` / `where python3` success is not proof the interpreter is real — the stub
+  answers to the name too.
 - Linux requires readable `/proc/self/mountinfo`, descriptor-relative filesystem APIs, and `lsof` for
   the optional execution lane. Absence, diagnostics, or authority gaps block cleanup.
 - macOS supports audit/report only because this implementation has no authoritative bind-mount and

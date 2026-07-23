@@ -3,6 +3,24 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.5]
+
+### Fixed
+
+- **`setup check` now detects the Windows Store `python3` alias stub that fails the guard open
+  (#1110).** The `clean` destructive-action guard hook launches the literal command `python3`. On
+  stock Windows that name resolves to a zero-length `WindowsApps\python3.exe` App Execution Alias — a
+  reparse stub that opens the Microsoft Store instead of running an interpreter, so the guard process
+  never starts. A PreToolUse hook blocks a tool call only by emitting exit code 2 or a `deny` decision;
+  a guard that never runs emits neither, so Claude Code lets the destructive Bash/PowerShell command
+  proceed ungated. This recurs the 0.6.3 fail-open shape (hook launch failure treated as non-blocking)
+  through a new vector — the guard's launch name resolving to the Store stub rather than a real
+  interpreter. `setup check` now runs a bundled inspect-only probe
+  (`skills/setup/scripts/python3_alias_probe.py`, covered by `test_python3_alias_probe.py`) that
+  classifies the `python3` resolution — zero length under a `WindowsApps` path component is the stub —
+  without executing it, and FAILs with remediation (disable the App execution alias, or put real Python
+  ahead of WindowsApps on `PATH`). The README requirements section documents the vector.
+
 ## [0.6.4]
 
 ### Fixed

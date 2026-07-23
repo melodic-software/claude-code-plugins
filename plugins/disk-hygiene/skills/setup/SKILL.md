@@ -38,6 +38,22 @@ note that re-enabling restores the FAIL semantics.
    the parsed floor in the remediation; the plugin never downloads a runtime. Report the
    absolute interpreter path (guarded engine calls must use the same absolute interpreter
    the guard reports — Bash aliases and functions cannot substitute).
+
+   On Windows, also confirm the name the guard launches is real, not the Store stub. The
+   `clean` guard hook runs the literal command `python3` (`skills/clean/SKILL.md`); on stock
+   Windows `python3` resolves to a zero-length `WindowsApps\python3.exe` App Execution Alias
+   that opens the Microsoft Store instead of an interpreter — so the guard never runs and
+   cannot block, a silent fail-open. After finding the working interpreter above, run the
+   bundled probe with it (it inspects the resolution, never executing the stub):
+   `"<python>" "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/python3_alias_probe.py"`. Only
+   verdict `ok` passes; fail closed on everything else, using the probe's `detail` as the
+   remediation. FAIL on `store-alias-stub` (disable the `python3` App execution alias, or
+   install real Python ahead of WindowsApps on `PATH`) and equally on `indeterminate` — an
+   interpreter whose identity the probe could not read is uncertainty about the guard's own
+   launch, which fails closed like every other guard-relevant unknown in this plugin, never
+   silently passes. `not-found` means the name the guard launches does not resolve at all;
+   report it as the floor's absent-interpreter FAIL. A bare `command -v python3` success is
+   not evidence on its own — it matches the stub too.
 2. **Git** — `command -v git`. Conditional per the README: optional for ordinary trees,
    required when a target contains or sits inside a Git worktree. Report presence as INFO
    with that conditionality stated; absence is only a FAIL for worktree-containing targets.
