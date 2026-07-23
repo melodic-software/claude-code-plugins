@@ -15,9 +15,11 @@ All notable changes to the `source-control` plugin are documented here. Format f
   signals, is report-only that cycle), do-not-merge respect (strip only behind the explicit
   `--strip-do-not-merge` flag), the loop-lane escalation contract, and `#502` lane telemetry with a
   durable machine-readable state block. Autonomy is decomposed into seven dimensions with tiers as
-  named presets; the merge dimension ships at the loop-lane convention's baseline rung (human merge
-  for everything except gate-proven C2-mechanical PRs — a work-class test irrespective of author)
-  and its raises bind from the team-tracked config layer only. Shared cross-lane concerns —
+  named presets; the merge dimension resolves human-only until the target repository's team-tracked
+  config carries loop-lane keys — that tracked file, landed by a reviewable PR, is the recorded
+  lane-enabling act — after which it defaults to the loop-lane convention's baseline rung (human
+  merge for everything except gate-proven C2-mechanical PRs — a work-class test irrespective of
+  author), and its raises bind from the team-tracked config layer only. Shared cross-lane concerns —
   topology, stop shapes including the drain-terminal state, cycle-budget and expiry semantics,
   capability tiers, the subagent discipline preamble — are held by citation to the marketplace
   repository's `docs/conventions/loop-lane/` convention, and the rate-limit guard's operable floor

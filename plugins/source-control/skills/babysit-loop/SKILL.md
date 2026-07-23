@@ -1,6 +1,6 @@
 ---
 name: babysit-loop
-description: "Run one repository's pull-request queue as the merge lane of the loop-lane three-session topology: a self-paced standing or drain loop that invokes /source-control:babysit-prs each cycle at the resolved autonomy tier, layered with an activity grace window, do-not-merge respect, escalation, and lane telemetry. Merge authority defaults to human merge for everything except gate-proven C2-mechanical PRs; merge-rung raises bind only from the tracked config seam. Use when: 'babysit loop', 'run the babysit loop', 'stand up the merge lane', 'babysit the PR queue continuously', 'drain the PR queue', 'keep merges flowing'. Required argument: <owner/repo>. Launch via /loop (self-paced). Sibling skills: /source-control:babysit-prs (the single-pass tiered mechanic), /source-control:pull-request (single-PR lifecycle)."
+description: "Run one repository's pull-request queue as the merge lane of the loop-lane three-session topology: a self-paced standing or drain loop that invokes /source-control:babysit-prs each cycle at the resolved autonomy tier, layered with an activity grace window, do-not-merge respect, escalation, and lane telemetry. Merge authority is human-only until the target repo's tracked config adopts the lane; the adopted baseline is human merge for everything except gate-proven C2-mechanical PRs, and merge-rung raises bind only from the tracked config seam. Use when: 'babysit loop', 'run the babysit loop', 'stand up the merge lane', 'babysit the PR queue continuously', 'drain the PR queue', 'keep merges flowing'. Required argument: <owner/repo>. Launch via /loop (self-paced). Sibling skills: /source-control:babysit-prs (the single-pass tiered mechanic), /source-control:pull-request (single-PR lifecycle)."
 argument-hint: "<owner/repo> [safe|worker|autopilot] [--drain] [--strip-do-not-merge] [--<dimension> <value>] · repo is required; default: standing mode at the configured tier"
 user-invocable: true
 disable-model-invocation: false
@@ -62,11 +62,11 @@ Everything else resolves in order:
 3. **Tier defaults** — the resolved tier's own dimension values (`safe` when nothing resolves a
    tier).
 
-**The merge dimension is the exception.** An invocation argument, the user-global layer, or the
-local overlay may only select a *lower* (safer) rung than the effective team-tracked value —
-merge-rung raises bind from the tracked seam only, per the convention ("Merge-rung raises are
-seam-only"). A raise supplied anywhere else is ignored and reported. Report the effective config
-and which source supplied each value at lane start.
+**The merge dimension is the exception**: raises bind from the team-tracked layer only — every
+other source may only select a *lower* (safer) rung, per the convention ("Merge-rung raises are
+seam-only"). The full precedence mechanics, including the tracked-adoption activation of the
+baseline rung, are owned by the config reference above. Report the effective config and which
+source supplied each value at lane start.
 
 **Interactive ambiguity** — an interactive launch with absent or ambiguous config (no stop mode, no
 tier, or conflicting signals) runs a short `AskUserQuestion` mini-interview over exactly the
@@ -82,34 +82,31 @@ config, else tier defaults, and log the assumption.
 Autonomy is decomposed into seven dimensions; a **tier is a named preset** over them, in the
 babysit-prs tier vocabulary (`safe`, `worker`, `autopilot`). What each tier grants per dimension is
 owned by babysit-prs's "Autonomy tiers (per action class)" table and is not restated here. The
-per-dimension seam keys override single dimensions out of the preset:
+dimensions: 1 — discovery scope (which PRs enter the queue); 2 — fixing (branch-owned CI/review
+fixes); 3 — thread resolution; 4 — draft elevation; 5 — barrier handling (escalate vs
+attempt-with-research); 6 — merge authority (the autonomy-ladder rung); 7 — escalation posture.
+Each has a per-dimension override key on the layered seam; the key table, defaults, and precedence
+— including the merge dimension's policy-floor exception — are owned by the config reference above.
 
-| # | Dimension | Seam key |
-|---|---|---|
-| 1 | Discovery scope (which PRs enter the queue) | `babysit_loop_discovery_scope` |
-| 2 | Fixing (branch-owned CI/review fixes) | `babysit_loop_fixing` |
-| 3 | Thread resolution | `babysit_loop_thread_resolution` |
-| 4 | Draft elevation | `babysit_loop_draft_elevation` |
-| 5 | Barrier handling (escalate vs attempt-with-research) | `babysit_loop_barrier_overrides` |
-| 6 | Merge authority (autonomy-ladder rung) | `babysit_loop_merge` |
-| 7 | Escalation posture | `babysit_loop_escalation` |
-
-**Dimension 6 ships at the convention's baseline rung: human merge for everything except
-gate-proven C2-mechanical PRs.** The exception is a work-class test irrespective of author — a PR
-qualifies only when its work item classifies C2 mechanical, whoever authored it; bot authorship
-alone never qualifies. Higher rungs (`c3-autonomous`, `full-autonomy`) are opt-in per repository
-through the tracked seam — the recorded, human-ratified flip — per the convention's autonomy
-ladder. The rung composes with the tier, never overrides it: a merge happens only when the resolved
-babysit-prs tier is merge-capable AND its deterministic gate proves the PR ready AND the PR's work
-item sits within the rung.
+**Dimension 6 ships safe: with no tracked adoption, every merge is human.** The convention's
+baseline rung — human merge for everything except gate-proven C2-mechanical PRs — is what a
+repository gets by *adopting* the lane in its team-tracked config: while the target repo's tracked
+`.claude/source-control.md` carries no loop-lane keys, the merge dimension resolves to
+`human-only`, and a merge-capable tier from the invocation or any other source never substitutes
+for that recorded adoption — the lane merges nothing and reports why. Once tracked adoption is in
+place, the C2-mechanical exception is a work-class test irrespective of author: a PR qualifies only
+when its work item classifies C2 mechanical, whoever authored it; bot authorship alone never
+qualifies. Higher rungs (`c3-autonomous`, `full-autonomy`) are further tracked-seam flips —
+recorded, human-ratified — per the convention's autonomy ladder. The rung composes with the tier,
+never overrides it: a merge happens only when the resolved babysit-prs tier is merge-capable AND
+its deterministic gate proves the PR ready AND the PR's work item sits within the rung.
 
 **Always-on safety knobs** — never configurable off, whatever the tier or rung: the activity grace
 window (width configurable, existence not), babysit-prs's head-move yield and expected-head
 pinning, its no-background-monitor clause ("Once ready, stop"), and its watched-owner boundary.
 
-**Loop knobs**: stop mode (`babysit_loop_stop_mode`), cycle budget (`babysit_loop_cycle_budget`,
-`#691` semantics per the convention), grace-window width (`babysit_loop_grace_window_minutes`), and
-the `#502` telemetry contract below.
+**Loop knobs**: stop mode, cycle budget (`#691` semantics per the convention), grace-window width,
+and the `#502` telemetry contract below — seam keys and defaults in the config reference above.
 
 ## Stop modes
 

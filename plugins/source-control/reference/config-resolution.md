@@ -89,7 +89,7 @@ per-key override semantics below apply unchanged.
 | `babysit_loop_thread_resolution` | tier name — dimension 3 (review-thread resolution) | preset value |
 | `babysit_loop_draft_elevation` | tier name — dimension 4 (draft handling / ready-marking) | preset value |
 | `babysit_loop_barrier_overrides` | tier name — dimension 5 (blocker handling: escalate vs attempt-with-research) | preset value |
-| `babysit_loop_merge` | an autonomy-ladder rung, ordered `human-only` < `c2-mechanical` < `c3-autonomous` < `full-autonomy` — dimension 6 (merge authority) | `c2-mechanical` (the loop-lane convention's shipped baseline) |
+| `babysit_loop_merge` | an autonomy-ladder rung, ordered `human-only` < `c2-mechanical` < `c3-autonomous` < `full-autonomy` — dimension 6 (merge authority) | `human-only` with no tracked adoption; `c2-mechanical` (the loop-lane convention's baseline) once the team-tracked layer carries loop-lane keys — see baseline activation below |
 | `babysit_loop_escalation` | tier name — dimension 7 (escalation posture); the escalation *surface* is fixed by the loop-lane convention, never by config | preset value |
 | `babysit_loop_grace_window_minutes` | positive integer — the concurrency-safety activity grace window | `30` |
 | `babysit_loop_cycle_budget` | positive integer — cycles per session before the budget-hit stop | none — no per-session budget |
@@ -108,6 +108,17 @@ increase in merge authority is a reviewable, versioned config change, per the lo
 "Merge-rung raises are seam-only" rule. The user-global layer, the local overlay, and an invocation
 argument may each select a *lower* (safer) rung than the effective team-tracked value, never a higher
 one; a raise supplied by any of them is ignored and reported.
+
+**Baseline activation is tracked adoption.** The convention's baseline rung — human merge for
+everything except gate-proven C2-mechanical PRs — is the value a repository gets by *adopting* the
+lane, and adoption itself must be a recorded change: no lane ever auto-merges without a reviewed
+change having enabled it (loop-lane convention, "Autonomy ladder (merge authority)"). Concretely:
+while the target repository's team-tracked `.claude/source-control.md` carries no `babysit_loop_*`
+keys, the merge dimension resolves to `human-only`. Landing loop-lane keys in that tracked file — a
+reviewable PR in the target repository — is the recorded, human-ratified lane-enabling act, after
+which an absent merge key defaults to the `c2-mechanical` baseline. A merge-capable tier supplied by
+an invocation keyword or any other layer never substitutes for the tracked adoption: with the tier
+merge-capable but no tracked adoption, merges stay `human-only` and the lane reports why.
 
 ## The three layers
 
