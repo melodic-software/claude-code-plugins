@@ -13,7 +13,7 @@ mkdir -p "$MOCK_BIN" "$TMP/config" "$TMP/discovered-a" "$TMP/canonical-a" "$TMP/
   "$TMP/root/acme/root-repo/.git" \
   "$TMP/emptyroot" \
   "$TMP/wt-a" "$TMP/wt-mismatch" \
-  "$TMP/discovered-c" "$TMP/canonical-c"
+  "$TMP/discovered-c" "$TMP/canonical-c" "$TMP/gone-repo" "$TMP/lost-repo" "$TMP/net-repo"
 : >"$TMP/calls.log"
 
 cat >"$MOCK_BIN/git" <<'EOF'
@@ -50,6 +50,9 @@ rev-parse)
     ref-fail) printf '%s\n' "$TEST_ROOT/ref-fail" ;;
     root-repo) printf '%s\n' "$TEST_ROOT/root/acme/root-repo" ;;
     discovered-c | canonical-c) printf '%s\n' "$TEST_ROOT/canonical-c" ;;
+    gone-repo) printf '%s\n' "$TEST_ROOT/gone-repo" ;;
+    lost-repo) printf '%s\n' "$TEST_ROOT/lost-repo" ;;
+    net-repo) printf '%s\n' "$TEST_ROOT/net-repo" ;;
     *) exit 1 ;;
     esac
     ;;
@@ -65,6 +68,9 @@ rev-parse)
     ref-fail) printf '%s\n' "$TEST_ROOT/ref-fail/.git" ;;
     root-repo) printf '%s\n' "$TEST_ROOT/root/acme/root-repo/.git" ;;
     discovered-c | canonical-c) printf '%s\n' "$TEST_ROOT/canonical-c/.git" ;;
+    gone-repo) printf '%s\n' "$TEST_ROOT/gone-repo/.git" ;;
+    lost-repo) printf '%s\n' "$TEST_ROOT/lost-repo/.git" ;;
+    net-repo) printf '%s\n' "$TEST_ROOT/net-repo/.git" ;;
     *) exit 1 ;;
     esac
     ;;
@@ -83,6 +89,9 @@ remote)
     ref-fail) printf '%s\n' 'https://github.com/acme/ref-fail.git' ;;
     root-repo) printf '%s\n' 'https://github.com/acme/root-repo.git' ;;
     discovered-c | canonical-c) printf '%s\n' 'https://github.com/acme/repo-c.git' ;;
+    gone-repo) printf '%s\n' 'https://github.com/gone/away.git' ;;
+    lost-repo) printf '%s\n' 'https://github.com/lost/cause.git' ;;
+    net-repo) printf '%s\n' 'https://github.com/gone/net.git' ;;
     *) exit 1 ;;
     esac
   else
@@ -114,6 +123,15 @@ worktree)
   canonical-c)
     printf 'worktree %s\0HEAD main-c\0branch refs/heads/main\0\0' "$TEST_ROOT/canonical-c"
     ;;
+  gone-repo)
+    printf 'worktree %s\0HEAD gone-main\0branch refs/heads/main\0\0' "$TEST_ROOT/gone-repo"
+    ;;
+  lost-repo)
+    printf 'worktree %s\0HEAD lost-main\0branch refs/heads/main\0\0' "$TEST_ROOT/lost-repo"
+    ;;
+  net-repo)
+    printf 'worktree %s\0HEAD net-main\0branch refs/heads/main\0\0' "$TEST_ROOT/net-repo"
+    ;;
   esac
   ;;
 symbolic-ref)
@@ -122,7 +140,7 @@ symbolic-ref)
 branch)
   case "$base" in
   canonical-a) printf '%s\n' main ;;
-  repo-b | old-repo | root-repo | wt-fail | ref-fail | canonical-c) printf '%s\n' main ;;
+  repo-b | old-repo | root-repo | wt-fail | ref-fail | canonical-c | gone-repo | lost-repo | net-repo) printf '%s\n' main ;;
   esac
   ;;
 for-each-ref)
@@ -148,6 +166,9 @@ for-each-ref)
   ref-fail) printf 'main\tref-main\0\nfeature/partial\tpartial-tip\0'; exit 9 ;;
   root-repo) printf 'main\troot-main\0\n' ;;
   canonical-c) printf 'main\tmain-c\0\n' ;;
+  gone-repo) printf 'main\tgone-main\0\n' ;;
+  lost-repo) printf 'main\tlost-main\0\n' ;;
+  net-repo) printf 'main\tnet-main\0\n' ;;
   esac
   ;;
 merge-base) exit 1 ;;
@@ -180,6 +201,7 @@ api)
   repos/acme/ref-fail) printf 'acme/ref-fail\tmain' ;;
   repos/old/repo) printf 'new/repo\tmain' ;;
   repos/acme/repo-c) printf 'acme/repo-c\tmain' ;;
+  repos/gone/net) printf 'gh: connection reset by peer\n' >&2; exit 1 ;;
   *) printf 'gh: Not Found (HTTP 404)\n' >&2; exit 1 ;;
   esac
   ;;
@@ -225,7 +247,12 @@ cat >"$TMP/config/repo-fleet-hygiene.conf" <<'EOF'
     repo = ../wt-fail
     repo = ../ref-fail
     repo = ../discovered-c
+    repo = ../gone-repo
+    repo = ../lost-repo
+    repo = ../net-repo
     maxDepth = 5
+    ackUnavailable = github.com/Gone/Away
+    ackUnavailable = github.com/gone/net
 [canonical "github.com/acme/repo-a"]
     path = ../canonical-a
 [canonical "github.com/acme/bad"]
@@ -275,9 +302,33 @@ assert_not_contains "repo B branch did not inherit repo A merge" "Target: $TMP/r
 assert_not_contains "invalid canonical state was not combined" "Target: $TMP/bad-canonical ::"
 assert_not_contains "failed worktree inventory suppressed branch candidate" "Target: $TMP/wt-fail :: feature/fail"
 assert_not_contains "partial branch inventory suppressed branch candidate" "Target: $TMP/ref-fail :: feature/partial"
-assert_contains "failed repositories not counted successful" "Summary: repositories=5"
+assert_contains "failed repositories not counted successful" "Summary: repositories=8"
 assert_contains "per-root discovered count for a contributing root" "../root: 1 repositories"
 assert_contains "zero-contribution root stays visible in the header" "../emptyroot: 0 repositories"
+
+# fleet.ackUnavailable: 404 on an acked identity (mixed-case config entry) is
+# demoted to ACKNOWLEDGED; an unacked 404 stays UNKNOWN; a non-404 failure on
+# an acked identity stays UNKNOWN with its real reason.
+if grep -B2 -F "Target: github.com/gone/away" "$output" | grep -Fq "Confidence: ACKNOWLEDGED"; then
+  printf 'PASS: acked 404 demoted to ACKNOWLEDGED\n'
+else
+  printf 'FAIL: acked 404 demoted to ACKNOWLEDGED\n' >&2
+  failures=$((failures + 1))
+fi
+assert_contains "acked finding names its ack source" "acknowledged known-inaccessible via fleet.ackUnavailable"
+if grep -B2 -F "Target: github.com/lost/cause" "$output" | grep -Fq "Confidence: UNKNOWN"; then
+  printf 'PASS: unacked 404 stays UNKNOWN\n'
+else
+  printf 'FAIL: unacked 404 stays UNKNOWN\n' >&2
+  failures=$((failures + 1))
+fi
+if grep -B2 -F "Target: github.com/gone/net" "$output" | grep -Fq "Confidence: UNKNOWN"; then
+  printf 'PASS: non-404 failure on acked identity stays UNKNOWN\n'
+else
+  printf 'FAIL: non-404 failure on acked identity stays UNKNOWN\n' >&2
+  failures=$((failures + 1))
+fi
+assert_contains "summary counts acknowledged separately" "acknowledged=1"
 
 if grep -Fq -- '--head feature/mismatch' "$CALL_LOG"; then
   printf 'FAIL: local-only branch name was sent to GitHub via --head\n' >&2

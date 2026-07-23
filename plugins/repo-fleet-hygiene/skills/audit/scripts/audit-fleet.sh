@@ -63,7 +63,7 @@ git_probe_allowed() {
       return
     fi
     if [[ $# -eq 6 && "$4" == "--null" && "$5" == "--get-all" ]]; then
-      [[ "$6" == "fleet.root" || "$6" == "fleet.repo" ]]
+      [[ "$6" == "fleet.root" || "$6" == "fleet.repo" || "$6" == "fleet.ackUnavailable" ]]
       return
     fi
     if [[ $# -eq 6 && "$4" == "--get-regexp" && "$5" == "-z" ]]; then
@@ -345,6 +345,31 @@ if [[ -n "$CONFIG_FILE" ]]; then
   done < <(run_git_probe config --file "$CONFIG_FILE" --null --get-all fleet.repo 2>/dev/null || true)
 fi
 
+# Acknowledged known-inaccessible GitHub identities (fleet.ackUnavailable,
+# repeatable). An acknowledgment only demotes a 404/403
+# github-identity-unavailable finding to ACKNOWLEDGED prominence — it never
+# suppresses the finding, never touches non-404/403 failures, and never
+# affects evidence from a successful API response.
+ACK_KEYS=()
+if [[ -n "$CONFIG_FILE" ]]; then
+  while IFS= read -r -d '' value; do
+    [[ -n "$value" ]] || continue
+    ack_key="$(lower "$value")"
+    [[ "$ack_key" =~ ^github\.com/[^/[:cntrl:][:space:]]+/[^/[:cntrl:][:space:]]+$ ]] ||
+      fail "invalid fleet.ackUnavailable value (expected github.com/owner/repository): $value"
+    ACK_KEYS+=("$ack_key")
+  done < <(run_git_probe config --file "$CONFIG_FILE" --null --get-all fleet.ackUnavailable 2>/dev/null || true)
+fi
+
+is_acked() {
+  local key a
+  key="$(lower "$1")"
+  for a in "${ACK_KEYS[@]:-}"; do
+    [[ -n "$a" && "$a" == "$key" ]] && return 0
+  done
+  return 1
+}
+
 if [[ ${#ROOT_ARGS[@]} -eq 0 && ${#REPO_ARGS[@]} -eq 0 ]]; then
   REPO_ARGS+=("${CLAUDE_PROJECT_DIR:-$PWD}")
 fi
@@ -532,6 +557,7 @@ FINDINGS_HIGH=0
 FINDINGS_MEDIUM=0
 FINDINGS_LOW=0
 FINDINGS_UNKNOWN=0
+FINDINGS_ACKED=0
 REPOS_AUDITED=0
 
 emit_finding() {
@@ -540,6 +566,7 @@ emit_finding() {
   HIGH) FINDINGS_HIGH=$((FINDINGS_HIGH + 1)) ;;
   MEDIUM) FINDINGS_MEDIUM=$((FINDINGS_MEDIUM + 1)) ;;
   LOW) FINDINGS_LOW=$((FINDINGS_LOW + 1)) ;;
+  ACKNOWLEDGED) FINDINGS_ACKED=$((FINDINGS_ACKED + 1)) ;;
   *) FINDINGS_UNKNOWN=$((FINDINGS_UNKNOWN + 1)) ;;
   esac
   print_field Finding "$kind"
@@ -624,6 +651,14 @@ analyze_repo() {
           "GitHub REST resolved the configured remote identity to canonical full_name $expected_actual" \
           "Human-reviewed remote update" "Review git remote set-url for $discovered_remote in $discovered"
       fi
+    elif [[ "$expected_reason" == *"HTTP 404"* || "$expected_reason" == *"HTTP 403"* ]] && is_acked "$discovered_key"; then
+      # Acked demotion applies ONLY to the foreseeable-inaccessible statuses;
+      # any other failure (network, timeout, malformed response) keeps full
+      # UNKNOWN prominence with its real reason even for an acked identity.
+      emit_finding ACKNOWLEDGED github-identity-unavailable "$discovered_key" \
+        "$expected_reason; acknowledged known-inaccessible via fleet.ackUnavailable" \
+        "Acknowledged; no GitHub evidence combined" \
+        "Remove the fleet.ackUnavailable entry to restore UNKNOWN prominence"
     else
       emit_finding UNKNOWN github-identity-unavailable "$discovered_key" "$expected_reason" \
         "Do not infer moved, deleted, or clean" "Restore GitHub access/authentication and rerun"
@@ -958,6 +993,6 @@ for target in "${TARGETS[@]}"; do
   analyze_repo "$target"
 done
 
-printf '\nSummary: repositories=%s high=%s medium=%s low=%s unknown=%s\n' \
-  "$REPOS_AUDITED" "$FINDINGS_HIGH" "$FINDINGS_MEDIUM" "$FINDINGS_LOW" "$FINDINGS_UNKNOWN"
+printf '\nSummary: repositories=%s high=%s medium=%s low=%s unknown=%s acknowledged=%s\n' \
+  "$REPOS_AUDITED" "$FINDINGS_HIGH" "$FINDINGS_MEDIUM" "$FINDINGS_LOW" "$FINDINGS_UNKNOWN" "$FINDINGS_ACKED"
 printf 'Mutation count: 0\n'

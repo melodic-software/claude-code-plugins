@@ -61,6 +61,8 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
 2. **GitHub identity:** read the selected fetch remote with `git remote get-url`; accept only
    `github.com/owner/repo`; query `GET /repos/{owner}/{repo}`. If returned `full_name` differs, report
    `HIGH` transfer/rename evidence. A 404/403/network error is `UNKNOWN`, never "deleted" or "moved".
+   A 404/403 on an identity listed in `fleet.ackUnavailable` is demoted to `ACKNOWLEDGED` — still
+   reported, never suppressed; acks never touch non-404/403 failures or successful-response evidence.
 3. **Merged branch:** query `gh pr list --repo <this-repo> --state merged --head <this-branch>` for
    each local branch in each repository. Identical branch names in another repository are unrelated.
    `HIGH` requires the PR `headRefOid` to equal the current local tip. Tip drift is `MEDIUM` manual
@@ -80,12 +82,14 @@ Full tier/disposition table: [reference/confidence-model.md](reference/confidenc
 
 ## Presentation
 
-Return the script's repository sections and finish with four grouped lists:
+Return the script's repository sections and finish with five grouped lists:
 
 1. `HIGH — candidate handoffs`
 2. `MEDIUM — manual review`
 3. `LOW — informational only`
 4. `UNKNOWN — evidence gaps`
+5. `ACKNOWLEDGED — configured known-inaccessible identities` (`fleet.ackUnavailable` demotions;
+   present the group only when non-empty)
 
 For each candidate, keep repository, canonical path, exact branch/worktree/remote target, PR/API
 evidence, and handoff. Never collapse same-named branches across repositories.

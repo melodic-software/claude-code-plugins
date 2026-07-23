@@ -3,7 +3,7 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.3.1]
+## [0.4.1]
 
 ### Added
 
@@ -26,6 +26,23 @@ All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 - **`audit` skill trigger phrases are single-quoted (#1101).** The `Use when:` triggers are now
   single-quoted so the skill-quality checker's trigger-drop regression protection tracks them; every
   existing trigger keyword is preserved.
+
+## [0.4.0]
+
+### Added
+
+- **`fleet.ackUnavailable` — acknowledge known-inaccessible GitHub identities (#1100).** In real
+  fleets, many `github-identity-unavailable` UNKNOWNNs are foreseeable 404s (upstream repos made
+  private/deleted; repos owned by a different GitHub account than the authenticated `gh` login) and
+  re-reported at full prominence every run. The repeatable `ackUnavailable = github.com/owner/repo`
+  config key demotes a 404/403 identity failure for that identity to a new `ACKNOWLEDGED`
+  confidence — still reported with its real HTTP reason and the ack source, never suppressed, and
+  counted separately in the summary (`acknowledged=N`). Acks never touch non-404/403 failures
+  (network errors keep UNKNOWN prominence even for acked identities) or successful-response
+  evidence (a rename still reports HIGH). The read-probe allowlist is extended narrowly
+  (`--null --get-all fleet.ackUnavailable`); malformed ack values fail loud. Documented in the
+  setup grammar and `check` (INFO listing); covered by ack-hit, unacked-404, and
+  non-404-on-acked-identity test cases.
 
 ## [0.3.0]
 
