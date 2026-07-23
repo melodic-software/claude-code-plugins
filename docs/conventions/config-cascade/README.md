@@ -1,4 +1,8 @@
-# Consumer-Config Layering Convention
+# Config Cascade Convention
+
+> Formerly `consumer-config-layering` (renamed #1188). "Cascade" (CSS `@layer`/`!important`) is the
+> established term that natively carries both per-key override and a ratified precedence-inversion —
+> matching this seam's user→team→local + policy-floor model.
 
 A versioned, marketplace-wide contract for **how** a plugin's consumer-tracked configuration layers —
 which layers exist, what order they resolve in, and what a later layer may do to an earlier one. Every

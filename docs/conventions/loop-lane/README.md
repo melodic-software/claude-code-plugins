@@ -45,7 +45,7 @@ tracked seam config. A repository adopts it through its own reviewable lane-enab
 binding/config PR that turns a lane on in that repo — which is the recorded, human-ratified act for
 the baseline rung, so no lane ever auto-merges without a reviewed change having enabled it. Raising
 any higher rung — including any C3-autonomous merge — is a config change on the tracked, layered
-config seam ([consumer-config layering](../consumer-config-layering/README.md)), which makes it
+config seam ([config-cascade](../config-cascade/README.md)), which makes it
 exactly the autonomy matrix's required **human-ratified knob flip recorded on the governance
 surface**
 ([`work-classes.md`](../../../plugins/autonomy/reference/guardrails/work-classes.md#promotion-and-demotion)).

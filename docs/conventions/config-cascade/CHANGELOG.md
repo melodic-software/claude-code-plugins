@@ -1,10 +1,18 @@
-# Consumer-Config Layering Convention — Changelog
+# Config Cascade Convention — Changelog
 
-Notable changes to the consumer-config layering contract. The contract is versioned by
+Notable changes to the config-cascade contract. The contract is versioned by
 `contract_version` (SemVer) and governs the layering axis only — layer set, precedence, override
 semantics, and overlay naming. Per-concern keys and schema are versioned by their own owner docs and
 change independently. A change to the precedence order or the meaning of a layer is a major bump;
 adding an optional layer or relaxing a rule additively is a minor bump.
+
+## Renamed — 2026-07-23
+
+Folder + concept renamed `consumer-config-layering` → `config-cascade` (#1188). No contract change:
+`contract_version` and every layer/precedence rule are unchanged — this is a name/path rename only,
+so no version bump. The former clunky three-noun label is replaced by "cascade" (the established
+CSS-cascade term for precedence-ordered resolution with override + ratified inversion). All live
+references updated; historical topic docs and CHANGELOGs retain the former name as frozen record.
 
 ## 1.1 — 2026-07-20
 
