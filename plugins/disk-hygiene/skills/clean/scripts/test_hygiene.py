@@ -1850,6 +1850,27 @@ class GuardTests(unittest.TestCase):
                 self.run_guard_engine_gate(command, tool_name), (tool_name, command)
             )
 
+    def test_engine_gate_catches_interpreter_options_before_the_script(self) -> None:
+        """Interpreter options must not slip the kill switch (P1 review)."""
+        script = SCRIPT_DIR / "hygiene.py"
+        result = self.run_guard_engine_gate(
+            f'/usr/bin/python3 -B "{script}" apply --plan p --token t', "Bash", "false"
+        )
+        assert result is not None
+        self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
+
+    def test_engine_gate_defers_consumer_owned_hygiene_scripts(self) -> None:
+        """A different existing file named hygiene.py is not this engine (P2 review)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            # realpath expands Windows 8.3 short segments (KYLESE~1): the guard
+            # rejects `~` anywhere in a Bash command as a shell-expansion
+            # character, and this test needs a parseable consumer path.
+            consumer = Path(os.path.realpath(tmp)) / "hygiene.py"
+            consumer.write_text("print('consumer tool')\n", encoding="utf-8")
+            self.assertIsNone(
+                self.run_guard_engine_gate(f'python3 "{consumer}" --help')
+            )
+
     def test_engine_gate_fails_closed_on_unparsable_marker_commands(self) -> None:
         """Marker + shell operators/expansions the literal parser rejects → gate."""
         result = self.run_guard_engine_gate("python3 hygiene.py scan && echo done")

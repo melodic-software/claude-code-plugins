@@ -173,8 +173,15 @@ def _engine_gate_relevant(command: str) -> bool:
     mentions into the belt's fail-closed parser would block ordinary work
     session-wide. The gate acts only on what parses as an INVOCATION:
 
-    - a literal word whose basename is the engine script, either as the command
-      itself or preceded by an interpreter token (``python*``/``py``);
+    - a literal word carrying the engine's filename that is not provably a
+      DIFFERENT file: a word that resolves to an existing file other than the
+      bundled ``hygiene.py`` (a consumer's own ``tools/hygiene.py``) is not this
+      engine and defers; the bundled script itself, or an unresolvable word,
+      stays in play;
+    - such a word counts as an INVOCATION when it is the command itself or ANY
+      earlier word is an interpreter token (``python*``/``py``) — "immediately
+      preceding" is not required, so interpreter options
+      (``python3 -B .../hygiene.py``) cannot slip the gate;
     - a quoted compound word (e.g. a ``bash -c``/``pwsh -Command`` payload) that
       carries both the engine marker and an interpreter token;
     - any command carrying the marker that the literal parser cannot prove is a
@@ -191,13 +198,27 @@ def _engine_gate_relevant(command: str) -> bool:
     words = _literal_shell_words(command)
     if words is None:
         return True
+
+    def _is_interpreter(word: str) -> bool:
+        base = Path(word.casefold()).name
+        return base.startswith("python") or base in {"py", "py.exe"}
+
+    bundled_key = _script_path_key(
+        str(Path(__file__).resolve().with_name("hygiene.py"))
+    )
     for index, word in enumerate(words):
         folded = word.casefold()
         if Path(folded).name == _ENGINE_MARKER:
-            if index == 0:
-                return True
-            previous = Path(words[index - 1].casefold()).name
-            if previous.startswith("python") or previous in {"py", "py.exe"}:
+            resolved_key = _script_path_key(word)
+            if (
+                resolved_key is not None
+                and bundled_key is not None
+                and resolved_key != bundled_key
+            ):
+                # Provably a different existing file — a consumer's own
+                # hygiene.py, not this engine.
+                continue
+            if index == 0 or any(_is_interpreter(w) for w in words[:index]):
                 return True
             continue
         if _ENGINE_MARKER in folded and "python" in folded:

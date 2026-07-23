@@ -17,7 +17,9 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   output for any command that does not reference the engine, so unrelated work is never taxed. The
   skill-scoped belt (deny-by-default Bash + deletion-spelling PowerShell discipline) is unchanged
   and remains scoped to active cleanup. The gate acts on parsed engine INVOCATIONS, not mentions —
-  `git diff -- hygiene.py`, `rg hygiene.py`, or `echo hygiene.py` defer; unparsable
+  `git diff -- hygiene.py`, `rg hygiene.py`, or `echo hygiene.py` defer, a word resolving to a
+  DIFFERENT existing file named `hygiene.py` (a consumer's own tool) defers, and interpreter
+  options before the script (`python3 -B`) cannot slip the gate; unparsable
   marker-carrying commands fail closed into the gate (review finding on the implementation PR). GuardTests now exercise the exact channel set the shipped
   plugin-level registration receives (`run_guard_engine_gate` grid), closing the
   tests-prove-undelivered-channels gap. Trust-surface delta recorded in the README's
