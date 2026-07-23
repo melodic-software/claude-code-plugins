@@ -112,6 +112,15 @@ state**: when every remaining open item is human-gated or escalated and no PR is
 reports and stops cleanly rather than idling forever — without it, an overnight drain deadlocks on
 the first unanswered escalation.
 
+A standing lane is additionally bounded by the `/loop` launch surface's **seven-day expiry**: a
+self-paced `/loop` ends automatically seven days after it starts, idle backoff notwithstanding
+(<https://code.claude.com/docs/en/scheduled-tasks#seven-day-expiry>, verified 2026-07-23). A standing
+lane therefore requires a relaunch owner — the operator while attended, or a launcher that relaunches
+lanes (`claude-ops` `lanes` after the migration). The lane records its loop-started timestamp in the
+lane's #502 telemetry block so the approaching expiry is visible ahead of time, and an expiry hit is
+handled exactly like the cycle-budget hit below: a restart-request into the #502 block, then a clean
+stop.
+
 **Self-pacing.** A lane paces itself through `/loop` with the interval omitted; Claude schedules the
 next iteration with `ScheduleWakeup`, whose delay is clamped between one minute and one hour.
 `ScheduleWakeup` is called at the end of each iteration and is not operator-callable (verified

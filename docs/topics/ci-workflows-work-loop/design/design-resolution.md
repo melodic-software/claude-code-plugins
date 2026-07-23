@@ -17,7 +17,11 @@ Design threads and their resolutions live in:
 
 - `../PLAN.md` Brief (goals 1/1b/2/3/4, constraints, deferred questions with arbiters)
 - `../babysit-PLAN.md` Brief (Q1–Q15 + HITL probe, placement reconciliation)
-- Rationale ledgers: `../interview-checklist.md`, `../babysit-interview-checklist.md`
+
+The full rationale ledgers (`interview-checklist.md`, `babysit-interview-checklist.md`) are
+session-local working state in the gitignored `.work` memory slice, deliberately not part of this
+tracked contract slice. The durable do-not-relitigate record travels with the slice instead: the
+"Stress-test summary" and "Open questions" sections of `../PLAN.md` and `../babysit-PLAN.md`.
 
 A separate `/planning:design` pass would re-derive contracts the operator already confirmed
 (handoff marks them do-not-relitigate). The handoff's operator-confirmed next step routes
