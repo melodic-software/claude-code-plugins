@@ -1904,6 +1904,39 @@ class GuardTests(unittest.TestCase):
             )
             os.unlink(alias)
 
+    def test_engine_gate_catches_alias_beside_shell_operator(self) -> None:
+        """A literal alias path gates even in an operator-carrying command (P1 r6)."""
+        script = SCRIPT_DIR / "hygiene.py"
+        with tempfile.TemporaryDirectory(dir=SCRIPT_DIR) as tmp:
+            alias = Path(tmp) / "clean-engine"
+            try:
+                os.link(script, alias)
+            except OSError as exc:  # pragma: no cover - filesystem-dependent
+                self.skipTest(f"hard links unavailable here: {exc}")
+            posix_alias = str(alias).replace("\\", "/")
+            result = self.run_guard_engine_gate(
+                f'"{posix_alias}" apply --plan p --token t && true', "Bash", "false"
+            )
+            assert result is not None
+            self.assertEqual(
+                "deny", result["hookSpecificOutput"]["permissionDecision"]
+            )
+            os.unlink(alias)
+
+    def test_engine_gate_defers_consumer_windows_path_on_powershell(self) -> None:
+        """Backslash consumer paths must defer on PowerShell, not fail closed (P2 r6)."""
+        with tempfile.TemporaryDirectory(dir=SCRIPT_DIR) as tmp:
+            consumer = Path(tmp) / "hygiene.py"
+            consumer.write_text("print('consumer tool')\n", encoding="utf-8")
+            windows_path = str(consumer)  # native backslashes on Windows
+            if "\\" not in windows_path:
+                windows_path = windows_path.replace("/", "\\")
+            self.assertIsNone(
+                self.run_guard_engine_gate(
+                    f"python {windows_path} --help", "PowerShell"
+                )
+            )
+
     def test_engine_gate_fails_closed_on_unparsable_marker_commands(self) -> None:
         """Marker + shell operators/expansions the literal parser rejects → gate."""
         result = self.run_guard_engine_gate("python3 hygiene.py scan && echo done")

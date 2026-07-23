@@ -51,8 +51,15 @@ def _argument(value: str) -> bool:
     return bool(value) and not value.startswith("-")
 
 
-def _literal_shell_words(command: str) -> list[str] | None:
-    """Parse only space-delimited literal words with optional whole-word quotes."""
+def _literal_shell_words(
+    command: str, *, allow_backslash: bool = False
+) -> list[str] | None:
+    """Parse only space-delimited literal words with optional whole-word quotes.
+
+    ``allow_backslash`` permits ``\\`` inside words for surfaces where it is a
+    path separator rather than an escape character (PowerShell commands); the
+    Bash default keeps rejecting it.
+    """
     if not command or any(
         value in _SHELL_EXPANSION_OR_OPERATOR_CHARS for value in command
     ):
@@ -71,7 +78,7 @@ def _literal_shell_words(command: str) -> list[str] | None:
             word = command[index + 1 : end]
             if not word or "'" in word or '"' in word:
                 return None
-            if quote == '"' and "\\\\" in word:
+            if quote == '"' and "\\\\" in word and not allow_backslash:
                 return None
             index = end + 1
             if index < len(command) and command[index] != " ":
@@ -83,7 +90,7 @@ def _literal_shell_words(command: str) -> list[str] | None:
             word = command[index:end]
             if (
                 not word
-                or "\\" in word
+                or ("\\" in word and not allow_backslash)
                 or "'" in word
                 or '"' in word
                 or any(value.isspace() for value in word)
@@ -164,7 +171,7 @@ _MODE_ENGINE_GATE = "engine-gate"
 _ENGINE_MARKER = "hygiene.py"
 
 
-def _engine_gate_relevant(command: str) -> bool:
+def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
     """Decide whether the plugin-level engine gate should act on ``command``.
 
     A plugin-level hook fires on every shell call in every session, so a bare
@@ -217,16 +224,22 @@ def _engine_gate_relevant(command: str) -> bool:
             return False
         return _samefile(word)
 
+    allow_backslash = tool_name == "PowerShell"
     lowered = command.casefold()
     if _ENGINE_MARKER not in lowered:
         # No marker: the only relevant shape is a linked alias of the bundled
-        # engine invoked by path. Unparsable marker-less commands defer —
-        # failing closed here would gate every command with an operator.
-        words = _literal_shell_words(command)
+        # engine invoked by path. Unparsable marker-free commands cannot fail
+        # closed (that would gate every command with an operator), so scan
+        # their whitespace tokens for separator-carrying words and identity-
+        # check those — a literal alias path gates even beside an operator.
+        words = _literal_shell_words(command, allow_backslash=allow_backslash)
         if words is None:
-            return False
+            return any(
+                _same_file_as_bundled(token.strip("'\""))
+                for token in command.split()
+            )
         return any(_same_file_as_bundled(word) for word in words)
-    words = _literal_shell_words(command)
+    words = _literal_shell_words(command, allow_backslash=allow_backslash)
     if words is None:
         return True
     for index, word in enumerate(words):
@@ -599,7 +612,9 @@ def main() -> int:
         )
         return 0
 
-    if resolve_mode() == _MODE_ENGINE_GATE and not _engine_gate_relevant(command):
+    if resolve_mode() == _MODE_ENGINE_GATE and not _engine_gate_relevant(
+        command, tool_name
+    ):
         # Plugin-level gate: no engine invocation in the command — defer with no
         # output so unrelated work in every consumer session is untouched.
         return 0
