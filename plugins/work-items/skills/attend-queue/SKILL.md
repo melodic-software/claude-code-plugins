@@ -97,24 +97,34 @@ handled, the answers written, and the guard mode. Same inlined upsert as the wor
 ```bash
 MARKER="work-items:attend-queue"
 SENT="<!-- claude-ops:lane-telemetry marker=$MARKER -->"   # first line of $BODY_FILE
-if ! LIST=$(gh api --paginate "repos/$REPO/issues/$ISSUE/comments" \
-  --jq ".[] | select(.body | startswith(\"$SENT\")) | .id"); then
+LOOKUP() { gh api --paginate "repos/$REPO/issues/$ISSUE/comments" \
+  --jq ".[] | select(.body | startswith(\"$SENT\")) | .id"; }
+if ! LIST=$(LOOKUP); then
   echo "telemetry: comment lookup failed; skipping upsert this cycle (fail closed)" >&2
 else
-  CID=$(printf '%s\n' "$LIST" | head -n1)
-  if [ -n "$CID" ]; then gh api -X PATCH "repos/$REPO/issues/comments/$CID" -F body=@"$BODY_FILE"
-  else gh api -X POST "repos/$REPO/issues/$ISSUE/comments" -F body=@"$BODY_FILE"; fi
+  if [ -z "$LIST" ]; then
+    gh api -X POST "repos/$REPO/issues/$ISSUE/comments" -F body=@"$BODY_FILE" >/dev/null
+    LIST=$(LOOKUP) || LIST=""   # re-list; a failure here converges next cycle
+  fi
+  CANON=$(printf '%s\n' "$LIST" | sort -n | head -n1)
+  if [ -n "$CANON" ]; then
+    gh api -X PATCH "repos/$REPO/issues/comments/$CANON" -F body=@"$BODY_FILE"
+    for DUP in $(printf '%s\n' "$LIST" | sort -n | tail -n +2); do
+      gh api -X PATCH "repos/$REPO/issues/comments/$DUP" \
+        -f body="Superseded duplicate - canonical telemetry comment: $CANON" || true
+    done
+  fi
 fi
 ```
 
-**Creation race reconcile.** Two sessions racing the first-ever upsert can both see an empty
-lookup and both POST, forking the singleton. Reconcile whenever duplicates are visible — after
-any POST, and on ANY later lookup that returns more than one sentinel comment (covering a racer
-that died between its POST and its own re-list): the LOWEST comment id is canonical — every
-session converges on it deterministically. The reconciling session merges any newer state from a
-duplicate into the canonical comment via PATCH and edits the duplicate's body to a one-line
-tombstone pointing at the canonical id (sentinel line removed, so it never matches the lookup
-again). Later cycles read only the canonical comment; nothing is deleted.
+**Creation race reconcile (encoded above).** Two sessions racing the first-ever upsert can both
+see an empty lookup and both POST, forking the singleton. The upsert converges every cycle
+duplicates are visible: the LOWEST comment id is canonical (numeric sort, deterministic for
+every session), the canonical comment receives the current cycle's full state, and every other
+sentinel comment is edited to a one-line tombstone so it never matches a lookup again — this
+covers a racer that died between its POST and its own re-list, because the NEXT session's
+ordinary upsert performs the same reconcile. A crashed racer's unmerged counters are an
+accepted loss (durable state re-derives over a cycle); nothing is deleted.
 
 When the bound provider is not `github`, this upsert is unavailable: carry the same telemetry
 content in the lane's pass report/log instead, with a notice that the comment surface is absent.
