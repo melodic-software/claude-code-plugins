@@ -1850,7 +1850,7 @@ class GuardTests(unittest.TestCase):
                 self.run_guard_engine_gate(command, tool_name), (tool_name, command)
             )
 
-    def test_engine_gate_fails_closed_on_unparseable_marker_commands(self) -> None:
+    def test_engine_gate_fails_closed_on_unparsable_marker_commands(self) -> None:
         """Marker + shell operators/expansions the literal parser rejects → gate."""
         result = self.run_guard_engine_gate("python3 hygiene.py scan && echo done")
         assert result is not None
