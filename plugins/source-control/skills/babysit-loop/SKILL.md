@@ -101,7 +101,10 @@ when its work item classifies C2 mechanical, whoever authored it; bot authorship
 qualifies. Higher rungs (`c3-autonomous`, `full-autonomy`) are further tracked-seam flips —
 recorded, human-ratified — per the convention's autonomy ladder. The rung composes with the tier,
 never overrides it: a merge happens only when the resolved babysit-prs tier is merge-capable AND
-its deterministic gate proves the PR ready AND the PR's work item sits within the rung.
+its deterministic gate proves the PR ready AND the PR's work item sits within the rung. The rung
+is enforced by the cycle's deterministic pre-partition (Cycle shape, step 3) — merge-capable
+invocations only ever receive rung-eligible PR refs — never by standing instructions the invoked
+skill is trusted to honor.
 
 **Always-on safety knobs** — never configurable off, whatever the tier or rung: the activity grace
 window (width configurable, existence not), babysit-prs's head-move yield and expected-head
@@ -137,14 +140,32 @@ new intake arriving mid-cycle is reported, never chased.
    comments within the grace window (default 30 minutes), and every draft carrying a WIP signal (a
    work-in-progress title marker, a do-not-merge label, or non-green checks). Marked PRs are
    report-only this cycle: never elevated, never thread-resolved, never merged.
-3. **Invoke the mechanic.** Run `/source-control:babysit-prs <tier> <owner/repo>` for one bounded
-   pass, carrying the cycle's standing instructions: the grace-window report-only set, the
-   do-not-merge stance, and the merge-rung narrowing (which gate-proven PRs a merge-capable tier
-   may actually merge this cycle). All per-PR mechanics — discovery, checkout, fixes, threads,
-   gates, fan-out — run under that skill's own contract.
-4. **Escalate.** Anything needing an operator decision follows the convention's escalation
+3. **Rung partition (deterministic, fail closed).** When the resolved tier is merge-capable,
+   compute the merge-eligible set mechanically before any babysit-prs invocation: for each open
+   PR in the snapshot not already excluded by step 2, resolve its close-linked work item (the
+   provider's own computed close-linkage — `gh api graphql`, `closingIssuesReferences`) and read
+   that item's recorded work-class classification (the triage stamp in the item body or labels).
+   A PR is merge-eligible only when its item's class sits within the effective rung: at
+   `c2-mechanical`, C2 mechanical only; at `c3-autonomous`, C2 and C3; at `full-autonomy`, every
+   PR. A PR with no close-linked item, or an item with no recorded classification, is NOT
+   eligible — no classification = no merge. This is a deterministic pre-partition, never
+   narrative guidance handed to the invoked skill. At `human-only` (including the
+   no-tracked-adoption default), or under a non-merge-capable tier, the eligible set is empty.
+4. **Invoke the mechanic.** Two scoped passes, using babysit-prs's own `[mode] [scope]` grammar
+   (its single-PR scope form, `owner/repo#N`): the merge-capable tier is invoked only against
+   merge-eligible refs — one `/source-control:babysit-prs <tier> <owner/repo>#<N>` per eligible
+   PR — so a PR outside the rung is never presented to a merge-capable invocation; the remaining
+   PRs get one `/source-control:babysit-prs safe <owner/repo>` pass (safe fixes and reports, and
+   never resolves threads or merges), with the cycle's context scoping it to the non-eligible
+   set. An empty eligible set collapses to the single safe pass. The deliberate cost: worker-tier
+   bot-thread auto-resolution is foregone on non-eligible PRs — in babysit-prs's tiers, thread
+   resolution and merge authority travel together, and failing closed gives up only thread
+   resolution on PRs that could not merge this cycle anyway. Both passes carry the grace-window
+   report-only set and the do-not-merge stance; all per-PR mechanics — discovery, checkout,
+   fixes, threads, gates, fan-out — run under that skill's own contract.
+5. **Escalate.** Anything needing an operator decision follows the convention's escalation
    contract (below); a blocked action is escalated, never routed around.
-5. **Report and pace.** Upsert the telemetry comment (cycle report + updated state block + guard
+6. **Report and pace.** Upsert the telemetry comment (cycle report + updated state block + guard
    mode), evaluate the stop condition; if not stopping, `ScheduleWakeup` the next cycle.
 
 ## do-not-merge
@@ -267,8 +288,11 @@ terminal manual-restart state, per the convention.
 ## Gotchas
 
 - **The loop never merges — babysit-prs does, through its pinned gate.** This layer holds no merge
-  command; the merge rung only NARROWS which gate-proven PRs a merge-capable tier may merge. A
-  rung can never make the safe tier merge, and no rung ever bypasses the deterministic gate.
+  command; the rung binds by scoping — a merge-capable invocation only ever receives the
+  rung-eligible PR refs the pre-partition computed. A rung can never make the safe tier merge, and
+  no rung ever bypasses the deterministic gate.
+- **Unlinked or unclassified PRs never auto-merge.** Rung eligibility requires a close-linked work
+  item with a recorded classification; missing either fails closed to the non-merge pass.
 - **A tier keyword is not a merge raise.** `autopilot` in the invocation widens dimensions 1–5 and
   7 at most; dimension 6 stays floored at the seam rung. Raising merge authority is a team-tracked
   config edit, never an argument.
