@@ -3,6 +3,31 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.0]
+
+### Added
+
+- **`skill_usage_scope` userConfig — the skill-usage store's home is now scope-selectable
+  (`repo` | `user` | `data-dir`), and the repo scope keeps `git status` clean via a
+  machine-local `.git/info/exclude` entry (`#1151`).** Previously the store was forced into
+  every consuming repo's tree (`.claude/observability/skill-usage.jsonl` as untracked
+  `git status` noise) and the `skill_usage_dir` containment validation made user/machine
+  scope unreachable by config — containment as a ceiling instead of a default. Now: `repo`
+  (default, unchanged location) resolves the contained `skill_usage_dir` subpath under the
+  repo root and idempotently adds the store dir to `.git/info/exclude` (machine-local; never
+  `.gitignore` or tracked files; tracked content is unaffected by ignore semantics; opt out
+  with the new `skill_usage_git_exclude=false` for teams that deliberately commit the
+  telemetry); `user` resolves the same contained subpath under `$HOME` — one cross-repo
+  operator store; `data-dir` writes `${CLAUDE_PLUGIN_DATA}/skill-usage/<repo-slug>` —
+  plugin-owned, update-safe, keyed by repo. Unknown scope values fall back to `repo` with a
+  one-time advisory (prose-validated; the manifest schema has no enum type). Store rows gain
+  a `project` field (project-root basename) so cross-repo scopes keep repo identity.
+  **Default-flip decision (recorded):** the default deliberately stays `repo` — the store
+  sits beside `hook-events.jsonl` per the observability skill's project-local posture (that
+  skill reads only `hook-events.jsonl` and the OTEL store, so colocation is convention, not
+  a read dependency), the exclude entry removes the status noise that motivated the change,
+  and flipping would silently relocate existing consumers' data.
+
 ## [0.18.3]
 
 ### Security

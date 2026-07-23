@@ -10,8 +10,9 @@
 #
 # Same two outputs as the tool-path producer:
 #   1. The bespoke second store, skill-usage.jsonl (SkillUse events), written
-#      UNCONDITIONALLY, at the same project-relative destination (the
-#      skill_usage_dir userConfig, else .claude/observability).
+#      UNCONDITIONALLY, at the same scope-selected destination as the tool-path
+#      producer (skill_usage_scope: repo | user | data-dir; skill_usage_dir,
+#      else .claude/observability, for the repo/user scopes).
 #   2. The unified skill-usage-audit telemetry envelope, emitted only when a
 #      consumer wires HOOK_TELEMETRY_SINK. Keeps the same `hook` id and data
 #      schema so the store stays unified across both producers.
@@ -48,15 +49,27 @@ EXP_TYPE=$(jq -r '(.expansion_type // empty) | gsub("\r";"")' <<<"$INPUT" 2>/dev
 # --- Second store: skill-usage.jsonl (unconditional) ------------------------
 project_dir=$(hook::repo_root "${CLAUDE_PROJECT_DIR:-.}")
 rel_dir="${CLAUDE_PLUGIN_OPTION_SKILL_USAGE_DIR:-.claude/observability}"
+scope="${CLAUDE_PLUGIN_OPTION_SKILL_USAGE_SCOPE:-repo}"
+case "$scope" in
+repo | user | data-dir) ;;
+*)
+  if hook::notice_once "skill-usage-expansion-audit-badscope" "$INPUT"; then
+    hook::emit_skip_notice "UserPromptExpansion" \
+      "claude-ops skill-usage logging: unknown skill_usage_scope \"${scope}\" (valid: repo, user, data-dir) — using the default repo scope."
+  fi
+  scope="repo"
+  ;;
+esac
 log_dir=""
-if ! log_dir=$(claude_ops::resolve_project_relative_dir "$project_dir" "$rel_dir"); then
+if ! log_dir=$(claude_ops::resolve_skill_usage_dir "$scope" "$project_dir" "$rel_dir"); then
   if hook::notice_once "skill-usage-expansion-audit-badconfig" "$INPUT"; then
     hook::emit_skip_notice "UserPromptExpansion" \
-      "claude-ops skipped skill-usage logging: skill_usage_dir must be a contained project-relative path (no absolute, drive, UNC, traversal, or escaping symlink path)."
+      "claude-ops skipped skill-usage logging: the skill-usage destination is invalid for scope \"${scope}\" (repo/user scopes need a contained relative skill_usage_dir — no absolute, drive, UNC, traversal, or escaping symlink path; data-dir needs CLAUDE_PLUGIN_DATA)."
   fi
-elif mkdir -p "$log_dir" 2>/dev/null \
-  && verified_log_dir=$(claude_ops::resolve_project_relative_dir "$project_dir" "$rel_dir") \
-  && [[ "$verified_log_dir" == "$log_dir" ]]; then
+elif mkdir -p "$log_dir" 2>/dev/null &&
+  verified_log_dir=$(claude_ops::resolve_skill_usage_dir "$scope" "$project_dir" "$rel_dir") &&
+  [[ "$verified_log_dir" == "$log_dir" ]]; then
+  [[ "$scope" == "repo" ]] && claude_ops::ensure_git_exclude "$project_dir" "$rel_dir"
   ts=$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%S)
   branch=$(git -C "$project_dir" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
   line=$(
@@ -64,15 +77,16 @@ elif mkdir -p "$log_dir" 2>/dev/null \
       --arg ts "$ts" \
       --arg skill "$SKILL" \
       --arg branch "$branch" \
+      --arg project "$(basename -- "$project_dir")" \
       --arg hook "skill-usage-audit" \
       --arg exp "$EXP_TYPE" \
-      '{ts: $ts, event: "SkillUse", skill: $skill, branch: $branch, hook: $hook, source: "expansion"}
+      '{ts: $ts, event: "SkillUse", skill: $skill, branch: $branch, project: $project, hook: $hook, source: "expansion"}
        + (if $exp != "" then {expansion_type: $exp} else {} end)'
   ) && hook::append_jsonl "${log_dir}/skill-usage.jsonl" "$line"
 else
   if hook::notice_once "skill-usage-expansion-audit-nodest" "$INPUT"; then
     hook::emit_skip_notice "UserPromptExpansion" \
-      "claude-ops skipped skill-usage logging: the configured project-relative destination could not be created safely."
+      "claude-ops skipped skill-usage logging: the configured destination could not be created safely."
   fi
 fi
 
