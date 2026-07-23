@@ -136,7 +136,10 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
    the attended queue's escalated view instead of vanishing behind a bare label.
 3. **Admission gate.** Classify each frontier candidate and admit per the gate below — fail-closed.
 4. **Execute.** Work admitted items via `/work-items:work` (one invocation per item slot), up to
-   the adaptive item cap. Selection, claim (assignee + lease), staleness pre-check, dispatch
+   the adaptive item cap. Each invocation uses that skill's **autonomous invocation** path: it
+   names the admitted item id and states that this loop's admission gate (and any required
+   ratification marker) passed, so `/work` proceeds without its interactive confirmation prompt.
+   Selection, claim (assignee + lease), staleness pre-check, dispatch
    mechanics, the PR contract, the review pass, and the never-merge boundary are all owned there —
    this loop restates none of them. Loop-level deltas only:
    - **`#572` workaround — worker-side provisioning, never parent-side.** `/source-control:worktree`

@@ -152,6 +152,15 @@ Type: Bug · Labels: area: <your-area>, priority:<your-priority>
 Proceed with this item? (yes / pick different / skip)
 ```
 
+**Autonomous invocation (no interactive user).** When this skill is invoked by a loop lane (e.g.
+`/work-items:work-loop`) or in another unattended context, there is no user to answer this prompt —
+do not present it and do not block. The confirmation is satisfied by the invoker's own admission
+decision: the invocation names the already-admitted item id and states that its admission gate
+passed (for a loop lane, the work-class gate plus any required ratification marker — the lane's
+own inlined contract). Record the auto-confirmation in the item's claim comment instead of the
+transcript prompt. Every later step is unchanged — the seam claim in Step 5
+remains the atomic acquisition point, attended or not.
+
 ### Step 4: Staleness pre-check
 
 Before claiming, verify the item is still actionable:

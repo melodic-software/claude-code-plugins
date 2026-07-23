@@ -27,6 +27,11 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   rate-limit guard's operable floor byte-identically per its inline-floor rule, and inline the
   `claude-ops`-compatible sentinel telemetry upsert (an installed plugin cannot invoke a sibling
   plugin's scripts).
+- **`work` gains an autonomous invocation path.** When invoked by a loop lane or another
+  unattended context, the Step 3 confirmation prompt is not presented: the invoker names the
+  already-admitted item id and states its admission gate passed, the auto-confirmation is recorded
+  in the item's claim comment, and every later step — including the seam claim as the atomic
+  acquisition point — is unchanged. Attended invocations keep the interactive prompt.
 - **GitHub adapter "Open linked PRs" operation is draft-aware.** The GraphQL selection now
   requests `isDraft` and the operation documents two reductions: the default (drafts count — a
   draft closing PR is still in-flight work for `work`'s frontier exclusion) and a non-draft
