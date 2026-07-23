@@ -38,7 +38,7 @@ End with a **Top recommendation** section. Full scaffold and diagram patterns in
 
 Use the project's domain glossary vocabulary for the domain, and [../research/deepening/vocabulary.md](../research/deepening/vocabulary.md) vocabulary for architecture.
 
-**Durable candidate artifact.** Alongside the HTML (the human-readable companion, ephemeral in the temp dir), write a machine-readable candidate list that survives the session. Default location: `${CLAUDE_PLUGIN_DATA}/deepening-candidates-<timestamp>.md`. If the consuming project maintains its own per-task work-artifact convention (e.g. a tracked slice/working directory documented in its `CLAUDE.md` or rules), honor that instead and write the file there. Tell the user the path. This file — not the HTML — is the durable handoff a planning step consumes. One entry per candidate:
+**Durable candidate artifact.** Alongside the HTML (the human-readable companion, ephemeral in the temp dir), write a machine-readable candidate list that survives the session. Default location: `${CLAUDE_PROJECT_DIR}/.claude/architecture/deepening-candidates-<timestamp>.md` (per-project — candidates belong to the codebase they were scanned from). If the consuming project maintains its own per-task work-artifact convention (e.g. a tracked slice/working directory documented in its `CLAUDE.md` or rules), honor that instead and write the file there. Tell the user the path. This file — not the HTML — is the durable handoff a planning step consumes. One entry per candidate:
 
 ```markdown
 ## <candidate title>

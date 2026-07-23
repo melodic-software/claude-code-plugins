@@ -45,7 +45,9 @@ scan", "make this more testable", "module seams", "locality".
 
 ## Persistence
 
-The durable candidate list is written to `${CLAUDE_PLUGIN_DATA}` by default. If
+The durable candidate list is written to
+`.claude/architecture/deepening-candidates-<timestamp>.md` in your project by
+default. If
 your project maintains its own per-task work-artifact convention (a tracked
 working directory documented in your `CLAUDE.md` or rules), the skill honors that
 location instead and reports the path either way.

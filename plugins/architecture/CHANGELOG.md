@@ -3,6 +3,20 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.6]
+
+### Fixed
+
+- Deepening lens: the durable candidate artifact's default location no longer uses
+  `${CLAUDE_PLUGIN_DATA}` — that token does not substitute in skill markdown content
+  (it is a path substitution for hook/monitor commands and MCP/LSP server configs
+  only), so consumers following the default literally wrote to an unexpanded
+  `${CLAUDE_PLUGIN_DATA}/…` directory; and even resolved it points at the
+  plugin-global data dir, colliding per-codebase candidates across projects. The
+  default is now `${CLAUDE_PROJECT_DIR}/.claude/architecture/deepening-candidates-<timestamp>.md`
+  (per-project). The honor-project-convention override branch is unchanged. Eval #1
+  and the README persistence note updated to match. (#1156)
+
 ## [0.3.5]
 
 ### Changed
