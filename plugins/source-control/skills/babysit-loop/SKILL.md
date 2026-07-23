@@ -148,7 +148,11 @@ new intake arriving mid-cycle is reported, never chased.
    A PR is merge-eligible only when its item's class sits within the effective rung: at
    `c2-mechanical`, C2 mechanical only; at `c3-autonomous`, C2 and C3; at `full-autonomy`, every
    PR. A PR with no close-linked item, or an item with no recorded classification, is NOT
-   eligible — no classification = no merge. This is a deterministic pre-partition, never
+   eligible — no classification = no merge. A PR carrying the do-not-merge label is NOT eligible
+   at any rung or class — the label veto binds here, in the partition, because a merge-capable
+   babysit-prs tier's ordinary gate has no label input (its `--block-labels` criterion is
+   confined to the autopilot merge tier); such a PR routes to the `safe` per-PR pass like any
+   other non-eligible PR. This is a deterministic pre-partition, never
    narrative guidance handed to the invoked skill. At `human-only` (including the
    no-tracked-adoption default), or under a non-merge-capable tier, the eligible set is empty.
 4. **Invoke the mechanic.** Every invocation uses babysit-prs's own `[mode] [scope]` grammar in
