@@ -2687,6 +2687,8 @@ class GuardTests(unittest.TestCase):
             "robocopy C:/src C:/dst /MIR",
             "robocopy C:/src C:/dst /E /PURGE",
             "robocopy C:/src C:/dst /MOV",
+            "C:\\Windows\\System32\\robocopy.exe C:\\src C:\\dst /MIR",
+            "& 'C:/Windows/System32/robocopy.exe' C:/src C:/dst /PURGE",
             "[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile('x', 'OnlyErrorDialogs', 'SendToRecycleBin')",
         ):
             result = self.run_guard_powershell(command)
@@ -2704,6 +2706,7 @@ class GuardTests(unittest.TestCase):
             "Get-ChildItem -Force C:/tmp",
             "Get-Item C:/tmp/example | Select-Object Length",
             "robocopy C:/src C:/dst /E",
+            "C:\\Windows\\System32\\robocopy.exe C:\\src C:\\dst /E",
             "Get-Item C:/tmp/example | Select-Object IsDeleted",
         ):
             self.assertIsNone(self.run_guard_powershell(command), command)

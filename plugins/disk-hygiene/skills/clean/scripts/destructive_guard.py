@@ -563,8 +563,11 @@ _POWERSHELL_MUTATION_WORDS = re.compile(
     r")(?![\w-])"
 )
 _POWERSHELL_DOTNET_DELETE = re.compile(r"(?i)(::\s*delete|\.\s*delete\s*\()")
+# robocopy is an executable normally invocable by full path
+# (C:\Windows\System32\robocopy.exe), so unlike the cmdlet word list its
+# lookbehind must permit path separators before the name.
 _POWERSHELL_ROBOCOPY_PURGE = re.compile(
-    r"(?i)(?<![\w./\\-])robocopy(?![\w-]).*(/mir|/purge|/mov|/move)(?![\w-])"
+    r"(?i)(?<![\w-])robocopy(\.exe)?(?![\w-]).*(/mir|/purge|/mov|/move)(?![\w-])"
 )
 # Module-qualified cmdlet invocations (Module\Cmdlet) put a backslash before the
 # cmdlet name, which the word pattern's lookbehind rejects; cover the deletion
