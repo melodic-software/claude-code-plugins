@@ -31,3 +31,12 @@ When the project ships per-concern review criteria documents, each one becomes a
 ## Total roster
 
 4 agents + N discovered ownerless slices (N varies by project). Report the resolved roster in the tier-transparency line before dispatch.
+
+## Deep-scan escalation (not a leaf)
+
+The official Claude Security plugin's `/claude-security` scan is a self-orchestrating multi-agent
+workflow, not a dispatchable leaf — never add it to the fan-out. When the request is a whole-repo
+security audit rather than a change-set review, recommend it (presence-gated: only when its command
+appears in the skill listing; otherwise suggest installing
+`claude-security@claude-plugins-official`). Contract:
+<https://code.claude.com/docs/en/claude-security>.

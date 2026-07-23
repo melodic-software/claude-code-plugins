@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "claude-ops",
-  "version": "0.18.2",
+  "version": "0.18.3",
   "description": "Claude Code operations toolkit. Seven skills: observability (read locally captured telemetry — OTEL store, collector, hook-event JSONL, ccusage — with trend reports and store pruning), known-issues (search known Claude product GitHub bugs, check service health, maintain a persistent tracked-issue registry), changelog (ingest Claude Code changelog entries and integrate them into the current repo), plugins (bring a machine's plugin fleet current on demand — marketplace refresh, effective-scope updates including in-repo project/local installs, new-plugin install per policy, scope-divergence detection and explicit convergence), morning-brief (read-only gh-based operator morning view — queue-label counts, merge-ready PRs, parked decisions with their RECOMMENDED lines, and loop-lane telemetry freshness), lanes (start/restart/stop/status loop lanes as named background Claude Code sessions seeded from canonical prompt files, with per-lane model/effort and a repo-pull + marketplace-refresh launch step), and a re-runnable setup action that settles where the known-issues registry lives. Plus a family of seven advisory *-audit telemetry-emitter hooks (API errors, config changes, instruction loads, permission denials, pre-compaction, skill usage, tool failures) that emit the shared hook-telemetry envelope, and a reference sink that maps envelopes into the hook-events.jsonl the observability skill reads.",
   "author": {
     "name": "Melodic Software",

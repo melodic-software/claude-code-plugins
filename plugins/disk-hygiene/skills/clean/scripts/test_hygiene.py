@@ -7,6 +7,7 @@ import importlib.util
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -162,6 +163,115 @@ class HygieneTests(unittest.TestCase):
         self.assertIn("d:/system volume information", roots)
         self.assertIn("d:/$recycle.bin", roots)
 
+    def test_os_drive_markers_exclude_per_volume_metadata(self) -> None:
+        markers = {
+            str(path).replace("\\", "/").casefold()
+            for path in hygiene.os_drive_markers(
+                platform_key="windows", windows_roots=[Path("C:/"), Path("D:/")]
+            )
+        }
+        # OS-install markers stay; the per-volume metadata every Windows volume
+        # carries — a provisioned non-OS Dev Drive included — must NOT count as
+        # an OS-drive signal, or every drive root would classify OS-managed.
+        self.assertIn("d:/windows", markers)
+        self.assertIn("d:/programdata", markers)
+        self.assertNotIn("d:/system volume information", markers)
+        self.assertNotIn("d:/$recycle.bin", markers)
+
+    def test_os_managed_target_flags_drive_holding_os_install(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            drive = Path(temporary) / "drive"
+            (drive / "Windows").mkdir(parents=True)
+            self.assertTrue(
+                hygiene.is_os_managed_target(
+                    drive, roots=[], markers=[drive / "Windows"]
+                )
+            )
+
+    def test_os_managed_target_ignores_per_volume_metadata_only(self) -> None:
+        # The Dev Drive case: a volume root whose only system-looking folders
+        # are the per-volume metadata every volume carries is NOT OS-managed —
+        # the synthesized OS-install marker does not exist on it.
+        with tempfile.TemporaryDirectory() as temporary:
+            drive = Path(temporary) / "dev-drive"
+            (drive / "System Volume Information").mkdir(parents=True)
+            (drive / "$Recycle.Bin").mkdir()
+            self.assertFalse(
+                hygiene.is_os_managed_target(
+                    drive,
+                    roots=[],
+                    markers=[drive / name for name in ("Windows", "ProgramData")],
+                )
+            )
+
+    def test_os_managed_target_flags_path_within_a_system_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "sysroot"
+            inside = root / "sub"
+            inside.mkdir(parents=True)
+            self.assertTrue(
+                hygiene.is_os_managed_target(inside, roots=[root], markers=[])
+            )
+
+    def test_hard_protection_names_the_target_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / "target"
+            target.mkdir()
+            self.assertIn(
+                "target-root", hygiene.hard_protection(target, target, set())
+            )
+
+    def test_hard_protection_reasons_about_volume_root_purpose(self) -> None:
+        # The cited hard_protection branch is now reasoned, not structural: a
+        # volume-root path is flagged os-managed only when reasoned OS-managed.
+        # No live call path reaches it with a root-shaped entry, so exercise it
+        # directly to lock the intent.
+        path, target = Path("X:/"), Path("Y:/")
+        with (
+            mock.patch.object(hygiene, "is_volume_root", return_value=True),
+            mock.patch.object(hygiene, "is_os_managed_target", return_value=True),
+        ):
+            self.assertIn(
+                "os-managed-root", hygiene.hard_protection(path, target, set())
+            )
+        with (
+            mock.patch.object(hygiene, "is_volume_root", return_value=True),
+            mock.patch.object(hygiene, "is_os_managed_target", return_value=False),
+        ):
+            self.assertNotIn(
+                "os-managed-root", hygiene.hard_protection(path, target, set())
+            )
+
+    def test_hard_protection_exempts_admitted_volume_root_from_mount_reason(
+        self,
+    ) -> None:
+        # Regression: a descendant of an admitted non-OS volume-root target must
+        # not inherit target-is-mount-point from the ancestor walk reaching the
+        # (mounted) volume root — that blanket-protected every entry and defeated
+        # the admitted scan. A nested mount below the target stays blocked.
+        target, child, nested = Path("X:/"), Path("X:/scratch"), Path("X:/mnt")
+        with (
+            mock.patch.object(
+                hygiene, "is_volume_root", side_effect=lambda p: p == target
+            ),
+            mock.patch.object(hygiene, "is_linkish", return_value=False),
+        ):
+            with mock.patch.object(
+                hygiene, "mount_state", side_effect=lambda p, *a: (p == target, None)
+            ):
+                child_reasons = hygiene.hard_protection(child, target, set())
+            self.assertNotIn("target-is-mount-point", child_reasons)
+            self.assertNotIn("nested-mount-point", child_reasons)
+
+            with mock.patch.object(
+                hygiene,
+                "mount_state",
+                side_effect=lambda p, *a: (p in {target, nested}, None),
+            ):
+                nested_reasons = hygiene.hard_protection(nested, target, set())
+            self.assertIn("nested-mount-point", nested_reasons)
+            self.assertNotIn("target-is-mount-point", nested_reasons)
+
     @unittest.skipUnless(
         hygiene.os_key() == "linux", "real mountinfo is available only on Linux"
     )
@@ -304,6 +414,179 @@ class HygieneTests(unittest.TestCase):
             self.assertEqual(2, code)
             self.assertIn("protected shell-folder", output.getvalue())
             self.assertFalse((data_root / "snapshot.json").exists())
+
+    def _scan_target(
+        self,
+        target: Path,
+        data_root: Path,
+        patches: list[object],
+        extra_args: list[str] | None = None,
+    ) -> tuple[int, dict[str, object]]:
+        output = io.StringIO()
+        with (
+            mock.patch.dict(
+                "os.environ", {"CLAUDE_PLUGIN_DATA": str(data_root)}, clear=False
+            ),
+            redirect_stdout(output),
+        ):
+            for patch in patches:
+                self.enterContext(patch)
+            code = hygiene.main(
+                [
+                    "scan",
+                    "--target",
+                    str(target),
+                    "--output",
+                    str(data_root / "snapshot.json"),
+                    *(extra_args or []),
+                ]
+            )
+        return code, json.loads(output.getvalue())
+
+    def _non_os_volume_root_patches(self) -> list[object]:
+        # A drive-letter root is always os.path.ismount True; it holds no
+        # OS-managed content (a Windows Dev Drive), so it is a valid non-OS
+        # volume root rather than a rejected OS root.
+        return [
+            mock.patch.object(hygiene, "is_volume_root", return_value=True),
+            mock.patch.object(hygiene, "is_os_managed_target", return_value=False),
+            mock.patch.object(hygiene, "mount_state", return_value=(True, None)),
+        ]
+
+    def test_non_os_volume_root_without_bound_requires_large_confirmation(self) -> None:
+        # A non-OS volume root is no longer blanket-rejected, but an unbounded
+        # whole-volume walk is gated the same way a home target is (#985's
+        # large-target gate) rather than silently proceeding.
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "dev-drive"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            (target / "scratch.tmp").write_text("x", encoding="utf-8")
+            data_root.mkdir()
+            code, payload = self._scan_target(
+                target, data_root, self._non_os_volume_root_patches()
+            )
+            self.assertEqual(5, code)
+            self.assertEqual("large-target-confirmation-required", payload["status"])
+            self.assertIn("non-os-volume-root", payload["large_target_reasons"])
+            self.assertFalse((data_root / "snapshot.json").exists())
+
+    def test_non_os_volume_root_with_confirmed_flag_scans(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "dev-drive"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            (target / "scratch.tmp").write_text("x", encoding="utf-8")
+            data_root.mkdir()
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                self._non_os_volume_root_patches(),
+                extra_args=["--confirmed-large-scan"],
+            )
+            self.assertEqual(0, code)
+            self.assertEqual("scan-complete", payload["status"])
+            self.assertTrue((data_root / "snapshot.json").exists())
+
+    def test_large_scan_reasons_flags_non_os_volume_root(self) -> None:
+        with (
+            mock.patch.object(hygiene, "is_volume_root", return_value=True),
+            mock.patch.object(hygiene, "is_os_managed_target", return_value=False),
+        ):
+            self.assertEqual(
+                ["non-os-volume-root"], hygiene.large_scan_reasons(Path("X:/"))
+            )
+        # An OS-managed volume root never reaches the gate (denied upstream), and
+        # even called directly it is not named a large target here.
+        with (
+            mock.patch.object(hygiene, "is_volume_root", return_value=True),
+            mock.patch.object(hygiene, "is_os_managed_target", return_value=True),
+        ):
+            self.assertEqual([], hygiene.large_scan_reasons(Path("X:/")))
+
+    def test_scan_denies_os_managed_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "os-root"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            data_root.mkdir()
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                [mock.patch.object(hygiene, "is_os_managed_target", return_value=True)],
+            )
+            self.assertEqual(2, code)
+            self.assertIn("OS-managed roots", payload["error"])
+            self.assertFalse((data_root / "snapshot.json").exists())
+
+    def test_scan_rejects_non_root_mount_point(self) -> None:
+        # A mount point that is not a volume root (a nested or bind mount as the
+        # target) stays hard-blocked — the real cross-boundary danger, unchanged.
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "mounted"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            data_root.mkdir()
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                [
+                    mock.patch.object(
+                        hygiene, "is_os_managed_target", return_value=False
+                    ),
+                    mock.patch.object(hygiene, "is_volume_root", return_value=False),
+                    mock.patch.object(
+                        hygiene, "mount_state", return_value=(True, None)
+                    ),
+                ],
+            )
+            self.assertEqual(2, code)
+            self.assertIn("mount points are not valid audit targets", payload["error"])
+            self.assertFalse((data_root / "snapshot.json").exists())
+
+    def test_preview_denies_os_managed_root_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "orphan.tmp").write_text("x", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            plan = {
+                "version": 1,
+                "tier": "high",
+                "candidates": [candidate("orphan.tmp")],
+            }
+            with mock.patch.object(hygiene, "is_os_managed_target", return_value=True):
+                with self.assertRaisesRegex(hygiene.HygieneError, "OS-managed root"):
+                    hygiene.preview(snapshot, plan)
+
+    def test_preview_allows_non_os_volume_root_snapshot(self) -> None:
+        # Symmetry with scan: a non-OS volume-root snapshot reaches candidate
+        # evaluation instead of a target-level root/mount veto (the confirmation
+        # gate lived at scan; preview must not re-reject the same root).
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "orphan.tmp").write_text("x", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            plan = {
+                "version": 1,
+                "tier": "high",
+                "candidates": [candidate("orphan.tmp")],
+            }
+            with (
+                mock.patch.object(hygiene, "is_volume_root", return_value=True),
+                mock.patch.object(hygiene, "is_os_managed_target", return_value=False),
+                mock.patch.object(hygiene, "mount_state", return_value=(True, None)),
+            ):
+                result = hygiene.preview(snapshot, plan)
+            self.assertEqual("high", result["tier"])
+            self.assertEqual(
+                ["orphan.tmp"], [item["path"] for item in result["candidates"]]
+            )
 
     @unittest.skipUnless(
         shutil.which("git"), "git is required for the VCS regression fixture"
@@ -1020,6 +1303,45 @@ class HygieneTests(unittest.TestCase):
             self.assertEqual([], hygiene.large_scan_reasons(Path("/home/target")))
 
 
+class VersionFloorTests(unittest.TestCase):
+    """The Python floor has one origin: hygiene.MIN_PYTHON."""
+
+    def test_min_python_line_keeps_its_greppable_shape(self) -> None:
+        # setup check and the .test.sh wrappers derive the floor by parsing
+        # this exact line shape out of hygiene.py.
+        source = (SCRIPT_DIR / "hygiene.py").read_text(encoding="utf-8")
+        matches = re.findall(
+            r"^MIN_PYTHON = \((\d+), (\d+)\)$", source, flags=re.MULTILINE
+        )
+        self.assertEqual(1, len(matches))
+        self.assertEqual(tuple(map(int, matches[0])), hygiene.MIN_PYTHON)
+
+    def test_engine_enforces_the_constant_and_names_it_in_the_error(self) -> None:
+        below = (hygiene.MIN_PYTHON[0], hygiene.MIN_PYTHON[1] - 1, 0)
+        with (
+            mock.patch.object(hygiene.sys, "version_info", below),
+            redirect_stdout(io.StringIO()),
+        ):
+            code = hygiene.main(
+                ["scan", "--target", "irrelevant", "--output", "irrelevant"]
+            )
+        self.assertNotEqual(0, code)
+
+    def test_error_message_derives_from_the_constant(self) -> None:
+        floor = ".".join(str(part) for part in hygiene.MIN_PYTHON)
+        below = (hygiene.MIN_PYTHON[0], hygiene.MIN_PYTHON[1] - 1, 0)
+        stdout = io.StringIO()
+        with (
+            mock.patch.object(hygiene.sys, "version_info", below),
+            redirect_stdout(stdout),
+        ):
+            hygiene.main(
+                ["scan", "--target", "irrelevant", "--output", "irrelevant"]
+            )
+        payload = json.loads(stdout.getvalue())
+        self.assertIn(floor, payload["error"])
+
+
 class StandingPolicyTests(unittest.TestCase):
     @staticmethod
     def write_policy(root: Path, body: dict[str, object]) -> Path:
@@ -1230,11 +1552,13 @@ class GuardTests(unittest.TestCase):
     ) -> dict[str, object] | None:
         """Drive the guard with the kill switch supplied via hook argv, not the env.
 
-        Mirrors the skill-frontmatter hook, which substitutes
-        ``--disk-hygiene-enabled ${user_config.disk_hygiene_enabled}`` into the
-        guard's own argv while CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED is absent
-        from the hook process environment — the exact env-injection failure this
-        fix addresses.
+        Exercises the ``--disk-hygiene-enabled`` argv channel with
+        CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED absent — the delivery a host that
+        can substitute ``${user_config.disk_hygiene_enabled}`` (a plugin
+        ``hooks.json`` hook) would use. The bundled skill-frontmatter hook cannot
+        supply this value (Claude Code substitutes only ``${CLAUDE_PLUGIN_ROOT}``
+        into skill-hook args), so this proves the guard's argv path itself, not the
+        shipped skill deployment.
         """
         argv = [
             str(SCRIPT_DIR / "destructive_guard.py"),
@@ -1552,11 +1876,13 @@ class GuardTests(unittest.TestCase):
     def run_guard_hook_argv(
         self, command: str, authorized: str | None
     ) -> dict[str, object]:
-        """Drive the guard with the data root supplied via hook argv, not the env.
+        """Drive the guard with the data root supplied directly via hook argv.
 
-        Mirrors the skill-frontmatter hook, which substitutes
-        ``--authorized-data-root ${CLAUDE_PLUGIN_DATA}`` into the guard's own argv
-        while CLAUDE_PLUGIN_DATA is absent from the hook process environment.
+        Exercises the ``--authorized-data-root`` channel — the direct path a host
+        that can substitute ``${CLAUDE_PLUGIN_DATA}`` itself (a plugin ``hooks.json``
+        hook) may pass — with CLAUDE_PLUGIN_DATA absent from the process
+        environment. The bundled ``clean`` skill instead uses ``--plugin-root``
+        (see ``run_guard_plugin_root``), the only substitution a skill hook gets.
         """
         argv = [str(SCRIPT_DIR / "destructive_guard.py")]
         if authorized is not None:
@@ -1660,6 +1986,57 @@ class GuardTests(unittest.TestCase):
                 result["hookSpecificOutput"]["permissionDecisionReason"],
             )
 
+    def run_guard_plugin_root(
+        self, command: str, plugin_root: str
+    ) -> dict[str, object]:
+        """Drive the guard exactly as the shipped skill hook does.
+
+        The skill-frontmatter hook passes ``--plugin-root ${CLAUDE_PLUGIN_ROOT}``
+        (the only substitution a skill hook receives) and nothing else; the guard
+        derives the authorized data root from it. CLAUDE_PLUGIN_DATA is absent from
+        the process environment, the exact skill-hook condition.
+        """
+        argv = [str(SCRIPT_DIR / "destructive_guard.py"), "--plugin-root", plugin_root]
+        environment = {
+            key: value
+            for key, value in os.environ.items()
+            if key != "CLAUDE_PLUGIN_DATA"
+        }
+        environment["CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED"] = "true"
+        stdin = io.StringIO(json.dumps({"tool_input": {"command": command}}))
+        stdout = io.StringIO()
+        with (
+            mock.patch("sys.stdin", stdin),
+            redirect_stdout(stdout),
+            mock.patch.object(guard.sys, "argv", argv),
+            mock.patch.dict("os.environ", environment, clear=True),
+        ):
+            self.assertEqual(0, guard.main())
+        return json.loads(stdout.getvalue())
+
+    def test_guard_derives_data_root_from_plugin_root_argv(self) -> None:
+        script = SCRIPT_DIR / "hygiene.py"
+        with tempfile.TemporaryDirectory() as temporary:
+            plugins = Path(temporary).resolve() / "plugins"
+            # The install root is the version leaf under cache/<mkt>/<name>/.
+            plugin_root = plugins / "cache" / "acme" / "disk-hygiene" / "0.4.8"
+            plugin_root.mkdir(parents=True)
+            authorized = str(plugins / "data" / "disk-hygiene-acme")
+            other = str(plugins / "data" / "elsewhere")
+            base = f'"{self.python_command()}" "{script}" scan --target t --output s'
+            self.assertEqual(
+                "allow",
+                self.run_guard_plugin_root(
+                    f'{base} --data-root "{authorized}"', str(plugin_root)
+                )["hookSpecificOutput"]["permissionDecision"],
+            )
+            self.assertEqual(
+                "deny",
+                self.run_guard_plugin_root(
+                    f'{base} --data-root "{other}"', str(plugin_root)
+                )["hookSpecificOutput"]["permissionDecision"],
+            )
+
     def test_argv_authorized_data_root_parses_both_arg_spellings(self) -> None:
         self.assertEqual(
             "/data", guard._argv_authorized_data_root(["--authorized-data-root", "/data"])
@@ -1702,6 +2079,82 @@ class GuardTests(unittest.TestCase):
                     "only the exact placeholder is rejected; a real path that merely "
                     "contains ${ must be preserved as the argv authority",
                 )
+
+    def test_resolve_authorized_data_root_derives_from_plugin_root(self) -> None:
+        script = str(SCRIPT_DIR / "destructive_guard.py")
+        plugin_root = os.fspath(
+            Path("/x/plugins/cache/acme/disk-hygiene/0.4.8")
+        )
+        derived = os.fspath(Path("/x/plugins/data/disk-hygiene-acme"))
+        environment = {
+            key: value
+            for key, value in os.environ.items()
+            if key != "CLAUDE_PLUGIN_DATA"
+        }
+        with mock.patch.dict("os.environ", environment, clear=True):
+            with mock.patch.object(
+                guard.sys, "argv", [script, "--plugin-root", plugin_root]
+            ):
+                self.assertEqual(derived, guard.resolve_authorized_data_root())
+            # A direct --authorized-data-root outranks plugin-root derivation.
+            with mock.patch.object(
+                guard.sys,
+                "argv",
+                [script, "--authorized-data-root", "/direct", "--plugin-root", plugin_root],
+            ):
+                self.assertEqual("/direct", guard.resolve_authorized_data_root())
+            # An unresolvable plugin-root layout yields no authority, then env.
+            with mock.patch.object(
+                guard.sys, "argv", [script, "--plugin-root", "/not/a/plugin/layout"]
+            ):
+                self.assertIsNone(guard.resolve_authorized_data_root())
+        with mock.patch.dict(
+            "os.environ", {"CLAUDE_PLUGIN_DATA": "/from-env"}, clear=False
+        ):
+            with mock.patch.object(
+                guard.sys, "argv", [script, "--plugin-root", "/not/a/plugin/layout"]
+            ):
+                self.assertEqual("/from-env", guard.resolve_authorized_data_root())
+
+    def test_plugin_data_root_from_root_follows_documented_layout(self) -> None:
+        # Real marketplace install: the install root is the VERSION leaf under
+        # <plugins>/cache/<marketplace>/<name>/<version>; data is <plugins>/data/<id>
+        # with <id> the sanitized "<name>@<marketplace>". The version is ignored.
+        self.assertEqual(
+            os.fspath(Path("/x/plugins/data/disk-hygiene-melodic-software")),
+            guard._plugin_data_root_from_root(
+                os.fspath(
+                    Path("/x/plugins/cache/melodic-software/disk-hygiene/0.4.8")
+                )
+            ),
+        )
+        # A directly-linked local install omits the <version> leaf; the name is
+        # then the root itself.
+        self.assertEqual(
+            os.fspath(Path("/x/plugins/data/disk-hygiene-melodic-software")),
+            guard._plugin_data_root_from_root(
+                os.fspath(Path("/x/plugins/cache/melodic-software/disk-hygiene"))
+            ),
+        )
+        # The "@" separator and every other disallowed character (".") collapse
+        # to "-", per the documented id-sanitization rule.
+        self.assertEqual(
+            os.fspath(Path("/x/plugins/data/my-plugin-my-market")),
+            guard._plugin_data_root_from_root(
+                os.fspath(Path("/x/plugins/cache/my.market/my.plugin/1.2.3"))
+            ),
+        )
+        # No <plugins>/cache marker, "cache" not under a "plugins" parent, or no
+        # name segment after the marketplace: fail closed.
+        for stray in (
+            "/somewhere/else/plugin",
+            "/a/b",
+            "/x/store/cache/m/n",
+            "/x/plugins/cache/only-marketplace",
+        ):
+            self.assertIsNone(
+                guard._plugin_data_root_from_root(os.fspath(Path(stray))), stray
+            )
 
     def test_argv_flag_value_parses_both_arg_spellings(self) -> None:
         self.assertEqual(
@@ -1767,65 +2220,65 @@ class GuardTests(unittest.TestCase):
         # No channel supplies a value: fail safe to enabled (guard active).
         self.assertTrue(drive([], {}))
 
-    def test_skill_hook_passes_disk_hygiene_enabled_flag_matching_constant(
+    @staticmethod
+    def _skill_hook_command_and_args() -> tuple[str, list[str]]:
+        """Return the frontmatter guard hook's `command` and parsed `args`."""
+        text = (SCRIPT_DIR.parent / "SKILL.md").read_text(encoding="utf-8")
+        args_line = next(
+            line
+            for line in text.splitlines()
+            if "destructive_guard.py" in line and "args:" in line
+        )
+        args = json.loads(args_line[args_line.index("[") : args_line.rindex("]") + 1])
+        command_line = next(
+            line
+            for line in text.splitlines()
+            if line.strip().startswith("command:")
+        )
+        command = command_line.split(":", 1)[1].strip().strip('"')
+        return command, args
+
+    def test_skill_hook_args_launch_with_only_skill_available_substitutions(
         self,
     ) -> None:
-        """Lock the config<->code seam the kill switch depends on.
+        """Guard the guard's launch: the hook must reference only skill-available tokens.
+
+        Claude Code refuses to launch a skill-frontmatter hook whose command or
+        args reference any substitution token it does not provide to skill hooks,
+        and treats that refusal as a non-blocking error — so the destructive-action
+        guard silently never runs. Empirically the only token available to a skill
+        hook is `${CLAUDE_PLUGIN_ROOT}`: `${CLAUDE_PLUGIN_DATA}` is plugin-only and
+        `${user_config.*}` is not substituted for skill hooks, and either one
+        reintroduces the fail-open. This asserts the declared tokens are within that
+        allowlist; that the hook then launches is only fully verifiable in a live
+        Claude Code session with the plugin installed.
+        """
+        command, args = self._skill_hook_command_and_args()
+        tokens = set(re.findall(r"\$\{[^}]+\}", command))
+        for value in args:
+            tokens.update(re.findall(r"\$\{[^}]+\}", value))
+        allowed = {"${CLAUDE_PLUGIN_ROOT}"}
+        self.assertLessEqual(
+            tokens,
+            allowed,
+            "skill-hook command/args reference tokens Claude Code does not "
+            f"substitute for skill hooks: {sorted(tokens - allowed)}",
+        )
+
+    def test_skill_hook_passes_plugin_root_flag_matching_constant(self) -> None:
+        """Lock the config<->code seam the data-root derivation depends on.
 
         The frontmatter hook must pass the exact flag literal the guard parses,
-        immediately followed by the ${user_config.disk_hygiene_enabled} token. If
-        either side is renamed without the other, the guard silently loses the
-        configured value and falls back to the (absent) env var — defaulting to
-        enabled and defeating the kill switch, the regression this test guards.
+        immediately followed by the ${CLAUDE_PLUGIN_ROOT} token from which the
+        guard derives the authorized data root. If either side is renamed without
+        the other, the guard loses its authority and the engine lane fails closed —
+        the regression this test guards.
         """
-        skill = SCRIPT_DIR.parent / "SKILL.md"
-        text = skill.read_text(encoding="utf-8")
-        args_line = next(
-            (
-                line
-                for line in text.splitlines()
-                if "destructive_guard.py" in line and "args:" in line
-            ),
-            None,
-        )
-        self.assertIsNotNone(args_line, "frontmatter hook args line not found")
-        assert args_line is not None
-        array_text = args_line[args_line.index("[") : args_line.rindex("]") + 1]
-        args = json.loads(array_text)
-        self.assertIn(guard._DISK_HYGIENE_ENABLED_FLAG, args)
-        flag_index = args.index(guard._DISK_HYGIENE_ENABLED_FLAG)
-        self.assertEqual(
-            guard._DISK_HYGIENE_ENABLED_PLACEHOLDER, args[flag_index + 1]
-        )
-
-    def test_skill_hook_passes_authorized_data_root_flag_matching_constant(
-        self,
-    ) -> None:
-        """Lock the config<->code seam the fix depends on.
-
-        The frontmatter hook must pass the exact flag literal the guard parses,
-        immediately followed by the ${CLAUDE_PLUGIN_DATA} placeholder. If either
-        side is renamed without the other, the guard silently loses its authority
-        and the engine lane fails closed — the regression this test guards.
-        """
-        skill = SCRIPT_DIR.parent / "SKILL.md"
-        text = skill.read_text(encoding="utf-8")
-        args_line = next(
-            (
-                line
-                for line in text.splitlines()
-                if "destructive_guard.py" in line and "args:" in line
-            ),
-            None,
-        )
-        self.assertIsNotNone(args_line, "frontmatter hook args line not found")
-        assert args_line is not None
-        array_text = args_line[args_line.index("[") : args_line.rindex("]") + 1]
-        args = json.loads(array_text)
+        _command, args = self._skill_hook_command_and_args()
         self.assertTrue(args[0].endswith("destructive_guard.py"), args)
-        self.assertIn(guard._AUTHORIZED_DATA_ROOT_FLAG, args)
-        flag_index = args.index(guard._AUTHORIZED_DATA_ROOT_FLAG)
-        self.assertEqual("${CLAUDE_PLUGIN_DATA}", args[flag_index + 1])
+        self.assertIn(guard._PLUGIN_ROOT_FLAG, args)
+        flag_index = args.index(guard._PLUGIN_ROOT_FLAG)
+        self.assertEqual(guard._PLUGIN_ROOT_PLACEHOLDER, args[flag_index + 1])
 
     def test_skill_hook_interpreter_is_python3_and_resolves(self) -> None:
         """Lock the guard's launch interpreter and prove it resolves.
@@ -2003,9 +2456,10 @@ class GuardTests(unittest.TestCase):
             )
 
     def test_kill_switch_blocks_every_lane_via_argv_without_env(self) -> None:
-        """Acceptance (B2+D3 together): a configured ``false`` reaching the guard
-        only through the hook argv — the env var UNSET, the exact env-injection
-        failure — must block deletions on both the PowerShell and Bash lanes."""
+        """A configured ``false`` reaching the guard only through the
+        ``--disk-hygiene-enabled`` argv channel — the env var UNSET — must block
+        deletions on both the PowerShell and Bash lanes. Proves the guard's argv
+        kill-switch logic for a host that can deliver the value there."""
         script = SCRIPT_DIR / "hygiene.py"
         powershell = self.run_guard_enabled_argv(
             "Remove-Item -Recurse -Force C:/tmp/example", "PowerShell", "false"
