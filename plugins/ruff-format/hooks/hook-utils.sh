@@ -279,6 +279,11 @@ hook::jq_field() {
 # A quoted assignment value (e.g. `TOKEN="a b" curl …`) would otherwise leak a
 # fragment of the value into the token, so any token carrying a quote aborts to a
 # bare "Bash" subject rather than risk exposing part of the value.
+#
+# A bare or trailing unquoted assignment that no following command consumed
+# (e.g. the whole command is `TOKEN=ghp_…`) is likewise a value the subject must
+# not carry, so a resolved token still shaped like a NAME=value assignment aborts
+# to the bare "Bash" subject too.
 #   SUBJECT=$(hook::extract_bash_subject "$TOOL" "$CMD")
 hook::extract_bash_subject() {
   local tool="$1" cmd="${2:-}"
@@ -304,6 +309,15 @@ hook::extract_bash_subject() {
   # The resolved command token itself must not carry a quote (e.g. a value that
   # ended here), which would likewise be a value fragment.
   if [[ "$first_token" == *[\"\']* ]]; then
+    printf '%s' "$tool"
+    return 0
+  fi
+  # A resolved token still shaped like a bare/trailing NAME=value assignment (no
+  # following command word consumed it in the strip loop) would emit the
+  # assignment's value — a possible credential — as the subject; bail to the bare
+  # "Bash" subject as with a quoted value. This runs BEFORE the basename strip so
+  # a path-valued assignment (TOKEN=/a/b/secret) cannot lose its "=" first.
+  if [[ "$first_token" =~ ^[a-zA-Z_][a-zA-Z0-9_]*= ]]; then
     printf '%s' "$tool"
     return 0
   fi
