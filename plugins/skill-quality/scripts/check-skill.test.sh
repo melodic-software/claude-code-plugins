@@ -58,8 +58,8 @@ just a heading
 
 run() {
   # Run from inside the fixture repo so `git rev-parse` resolves to it.
-  (cd "$TMP" \
-    && CHECK_SKILL_SKILLS_ROOT="$SKILLS" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+  (cd "$TMP" &&
+    CHECK_SKILL_SKILLS_ROOT="$SKILLS" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
       bash "$SUT" "$@")
 }
 
@@ -95,6 +95,28 @@ if [[ $rc -eq 1 ]]; then
   pass "missing skill exits 1"
 else
   fail "missing skill should exit 1 (rc=$rc)"
+fi
+
+# 4a. Missing bare-name skill hints at CHECK_SKILL_SKILLS_ROOT.
+out="$(run does-not-exist 2>&1)"
+if grep -q 'CHECK_SKILL_SKILLS_ROOT' <<<"$out"; then
+  pass "missing bare-name skill hints at CHECK_SKILL_SKILLS_ROOT"
+else
+  fail "missing bare-name skill should hint at CHECK_SKILL_SKILLS_ROOT: $out"
+fi
+
+# 4b. A plugin:skill name gets targeted installed-skill guidance (exit 1, no
+#     cache-layout reverse-engineering — the checker points the operator at the
+#     root instead).
+out="$(run source-control:setup 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] &&
+  grep -q 'plugin:skill name' <<<"$out" &&
+  grep -q 'CHECK_SKILL_SKILLS_ROOT=~/.claude/plugins/cache' <<<"$out" &&
+  grep -q 'setup' <<<"$out"; then
+  pass "plugin:skill name gets installed-skill resolution guidance"
+else
+  fail "plugin:skill name should get installed-skill guidance (rc=$rc): $out"
 fi
 
 # 5. Dropping a committed single-quoted trigger phrase fails (check 3, the
@@ -221,8 +243,8 @@ fi
 # 6. A relative skills root resolves against CLAUDE_PROJECT_DIR, not the cwd,
 #    even when invoked from a subdirectory.
 mkdir -p "$TMP/subdir"
-out="$(cd "$TMP/subdir" \
-  && CLAUDE_PROJECT_DIR="$TMP" CHECK_SKILL_SKILLS_ROOT=".claude/skills" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+out="$(cd "$TMP/subdir" &&
+  CLAUDE_PROJECT_DIR="$TMP" CHECK_SKILL_SKILLS_ROOT=".claude/skills" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
     bash "$SUT" good-skill 2>&1)"
 rc=$?
 if [[ $rc -eq 0 ]] && grep -q 'PASS' <<<"$out"; then
@@ -330,8 +352,8 @@ git -C "$TMP" add -A
 git -C "$TMP" commit -qm 'baseref v2 drops beta'
 run baseref-skill >/dev/null 2>&1
 rc_head=$?
-out_base="$(cd "$TMP" \
-  && CHECK_SKILL_SKILLS_ROOT="$SKILLS" CHECK_SKILL_SKIP_MARKDOWNLINT=1 CHECK_SKILL_BASE_REF=HEAD^ \
+out_base="$(cd "$TMP" &&
+  CHECK_SKILL_SKILLS_ROOT="$SKILLS" CHECK_SKILL_SKIP_MARKDOWNLINT=1 CHECK_SKILL_BASE_REF=HEAD^ \
     bash "$SUT" baseref-skill 2>&1)"
 rc_base=$?
 if [[ $rc_head -eq 0 ]] && [[ $rc_base -eq 1 ]] && grep -q 'ref beta' <<<"$out_base"; then

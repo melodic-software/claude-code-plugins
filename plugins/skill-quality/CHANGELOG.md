@@ -3,9 +3,31 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.9.0]
+## [0.10.0]
 
 ### Changed
+
+- **`check` gives actionable guidance for a marketplace-installed skill instead of a bare
+  "not found" (`#1152`).** A `plugin:skill` argument (e.g. `source-control:setup`) — the common
+  case when gating an installed skill — now prints exactly how to run the gate against the
+  install: point `CHECK_SKILL_SKILLS_ROOT` at the cache skills dir, with the note that the cache
+  is a **copy, not a git checkout**, so the git-backed checks (3 trigger-preservation, 8 vendor,
+  9 stale-metadata) correctly no-op there (a "new skill / skipped" result is expected). A missing
+  bare name now names the `CHECK_SKILL_SKILLS_ROOT` remedy too. SKILL.md documents the
+  installed-skill resolution path.
+
+  **Scope note — the originating report (`#1152`) is partly falsified.** It claimed the plugin
+  cache "IS a git checkout of the marketplace repo, so HEAD exists" and asked to wire check 3 to
+  it. Primary-source evidence contradicts this: Claude Code *copies* marketplace plugins into
+  `~/.claude/plugins/cache` (docs: "rather than using them in-place"), and the on-disk cache
+  carries no `.git`. Check 3's "new skill / skipped" on a cache path is therefore **correct
+  behavior, not a bug** — there is no rewrite baseline in a copy — and is not "fixed." The cache
+  sub-layout (`<marketplace>/<plugin>/<version>`) is also undocumented and version-dir-churning,
+  so the checker deliberately does **not** reverse-engineer it to auto-resolve a `plugin:skill`
+  name; the target root stays operator-provided. First-class installed-skill resolution is left
+  as a tracked follow-up.
+
+
 
 - **Check 3 (trigger-keyword preservation) — move exception.** A quoted trigger phrase
   dropped from a skill's listing text but present verbatim in a SIBLING skill's
