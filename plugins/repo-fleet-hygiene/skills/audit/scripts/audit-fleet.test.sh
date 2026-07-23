@@ -9,7 +9,7 @@ trap 'rm -rf "$TMP"' EXIT
 MOCK_BIN="$TMP/bin"
 mkdir -p "$MOCK_BIN" "$TMP/config" "$TMP/discovered-a" "$TMP/canonical-a" "$TMP/repo-b" "$TMP/old-repo" \
   "$TMP/bad-discovered" "$TMP/bad-canonical" "$TMP/wt-fail" \
-  "$TMP/ref-fail" "$TMP/rref-fail" \
+  "$TMP/ref-fail" "$TMP/rref-fail" "$TMP/dup-a" \
   "$TMP/root/acme/root-repo/.git" \
   "$TMP/emptyroot" \
   "$TMP/wt-a" "$TMP/wt-mismatch" \
@@ -49,6 +49,7 @@ rev-parse)
     wt-fail) printf '%s\n' "$TEST_ROOT/wt-fail" ;;
     ref-fail) printf '%s\n' "$TEST_ROOT/ref-fail" ;;
     rref-fail) printf '%s\n' "$TEST_ROOT/rref-fail" ;;
+    dup-a) printf '%s\n' "$TEST_ROOT/dup-a" ;;
     root-repo) printf '%s\n' "$TEST_ROOT/root/acme/root-repo" ;;
     discovered-c | canonical-c) printf '%s\n' "$TEST_ROOT/canonical-c" ;;
     gone-repo) printf '%s\n' "$TEST_ROOT/gone-repo" ;;
@@ -68,6 +69,7 @@ rev-parse)
     wt-fail) printf '%s\n' "$TEST_ROOT/wt-fail/.git" ;;
     ref-fail) printf '%s\n' "$TEST_ROOT/ref-fail/.git" ;;
     rref-fail) printf '%s\n' "$TEST_ROOT/rref-fail/.git" ;;
+    dup-a) printf '%s\n' "$TEST_ROOT/dup-a/.git" ;;
     root-repo) printf '%s\n' "$TEST_ROOT/root/acme/root-repo/.git" ;;
     discovered-c | canonical-c) printf '%s\n' "$TEST_ROOT/canonical-c/.git" ;;
     gone-repo) printf '%s\n' "$TEST_ROOT/gone-repo/.git" ;;
@@ -90,6 +92,7 @@ remote)
     wt-fail) printf '%s\n' 'https://github.com/acme/wt-fail.git' ;;
     ref-fail) printf '%s\n' 'https://github.com/acme/ref-fail.git' ;;
     rref-fail) printf '%s\n' 'https://github.com/acme/rref-fail.git' ;;
+    dup-a) printf '%s\n' 'https://github.com/acme/repo-b.git' ;;
     root-repo) printf '%s\n' 'https://github.com/acme/root-repo.git' ;;
     discovered-c | canonical-c) printf '%s\n' 'https://github.com/acme/repo-c.git' ;;
     gone-repo) printf '%s\n' 'https://github.com/gone/away.git' ;;
@@ -123,6 +126,9 @@ worktree)
   rref-fail)
     printf 'worktree %s\0HEAD rr-main\0branch refs/heads/main\0\0' "$TEST_ROOT/rref-fail"
     ;;
+  dup-a)
+    printf 'worktree %s\0HEAD dup-main\0branch refs/heads/main\0\0' "$TEST_ROOT/dup-a"
+    ;;
   root-repo)
     printf 'worktree %s\0HEAD root-main\0branch refs/heads/main\0\0' "$TEST_ROOT/root/acme/root-repo"
     ;;
@@ -146,7 +152,7 @@ symbolic-ref)
 branch)
   case "$base" in
   canonical-a) printf '%s\n' main ;;
-  repo-b | old-repo | root-repo | wt-fail | ref-fail | rref-fail | canonical-c | gone-repo | lost-repo | net-repo) printf '%s\n' main ;;
+  repo-b | old-repo | root-repo | wt-fail | ref-fail | rref-fail | dup-a | canonical-c | gone-repo | lost-repo | net-repo) printf '%s\n' main ;;
   esac
   ;;
 for-each-ref)
@@ -179,6 +185,7 @@ for-each-ref)
   wt-fail) printf 'main\twt-main\0\nfeature/fail\tfail-tip\0\n' ;;
   ref-fail) printf 'main\tref-main\0\nfeature/partial\tpartial-tip\0'; exit 9 ;;
   rref-fail) printf 'main\trr-main\0\nfeature/gated\trr-tip\0\n' ;;
+  dup-a) printf 'main\tdup-main\0\n' ;;
   root-repo) printf 'main\troot-main\0\n' ;;
   canonical-c) printf 'main\tmain-c\0\n' ;;
   gone-repo) printf 'main\tgone-main\0\n' ;;
@@ -269,6 +276,9 @@ cat >"$TMP/config/repo-fleet-hygiene.conf" <<'EOF'
     repo = ../wt-fail
     repo = ../ref-fail
     repo = ../rref-fail
+    repo = ../dup-a
+    repo = ../deleted-repo
+    root = ../gone-root
     repo = ../discovered-c
     repo = ../gone-repo
     repo = ../lost-repo
@@ -325,7 +335,36 @@ assert_not_contains "repo B branch did not inherit repo A merge" "Target: $TMP/r
 assert_not_contains "invalid canonical state was not combined" "Target: $TMP/bad-canonical ::"
 assert_not_contains "failed worktree inventory suppressed branch candidate" "Target: $TMP/wt-fail :: feature/fail"
 assert_not_contains "partial branch inventory suppressed branch candidate" "Target: $TMP/ref-fail :: feature/partial"
-assert_contains "failed repositories not counted successful" "Summary: repositories=9"
+assert_contains "failed repositories not counted successful" "Summary: repositories=10"
+
+# Stale CONFIG-sourced entries degrade per-entry (deleted-repo, gone-root) and the run continues;
+# a CLI-supplied bad path must still hard-fail (checked in a separate run below).
+assert_contains "stale config repo degrades per-entry" "Finding: stale-config-entry"
+assert_contains "stale config repo names the path" "Target: $TMP/deleted-repo"
+assert_contains "stale config root names the path" "Target: $TMP/gone-root"
+assert_contains "stale root reason names fleet.root" "configured fleet.root path is not a directory"
+
+# Duplicate checkouts of one identity (repo-b + dup-a) get ONE LOW informational finding listing
+# both paths; a single-checkout identity gets none.
+if grep -A3 -F "Finding: duplicate-checkout" "$output" | grep -Fq "Confidence: LOW"; then
+  printf 'PASS: duplicate-checkout stays LOW\n'
+else
+  printf 'FAIL: duplicate-checkout stays LOW\n' >&2
+  failures=$((failures + 1))
+fi
+if grep -A3 -F "Finding: duplicate-checkout" "$output" | grep -F "Evidence:" | grep -Fq "$TMP/repo-b" &&
+  grep -A3 -F "Finding: duplicate-checkout" "$output" | grep -F "Evidence:" | grep -Fq "$TMP/dup-a"; then
+  printf 'PASS: duplicate-checkout lists both checkout paths\n'
+else
+  printf 'FAIL: duplicate-checkout lists both checkout paths\n' >&2
+  failures=$((failures + 1))
+fi
+if grep -A3 -F "Finding: duplicate-checkout" "$output" | grep -Fq "Target: github.com/acme/repo-a"; then
+  printf 'FAIL: single-checkout identity wrongly reported as duplicate\n' >&2
+  failures=$((failures + 1))
+else
+  printf 'PASS: single-checkout identity not reported as duplicate\n'
+fi
 assert_contains "per-root discovered count for a contributing root" "../root: 1 repositories"
 assert_contains "zero-contribution root stays visible in the header" "../emptyroot: 0 repositories"
 
@@ -454,6 +493,17 @@ if grep -Fq -- "Config: none" "$ladder_out"; then
   printf 'PASS: no-config run states none was consumed\n'
 else
   printf 'FAIL: no-config run states none was consumed\n' >&2
+  failures=$((failures + 1))
+fi
+
+# A CLI-supplied bad path is a typo, not config drift: the run must still hard-fail.
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --repo "$TMP/never-existed" >"$ladder_out" 2>&1; then
+  printf 'FAIL: CLI-supplied missing repo did not hard-fail\n' >&2
+  failures=$((failures + 1))
+elif grep -Fq "repository directory not found" "$ladder_out"; then
+  printf 'PASS: CLI-supplied missing repo hard-fails\n'
+else
+  printf 'FAIL: CLI-supplied missing repo hard-fails (wrong error)\n' >&2
   failures=$((failures + 1))
 fi
 
