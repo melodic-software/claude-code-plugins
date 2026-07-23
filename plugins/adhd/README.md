@@ -56,7 +56,12 @@ you invoke `/adhd:shape` directly.
 Once invoked, `shape`'s rules persist as a **standing instruction for the rest of
 the session** — invoke it once at the start of a session and every following
 response is shaped, no need to repeat it. Invoke it whenever you want that
-output shape; skip it when you don't.
+output shape; skip it when you don't. Turn it off mid-session with **"stop
+shaping"** or **"normal output"**.
+
+One durability caveat: the standing posture is content-based persistence, so
+context compaction/summarization in a long session can erode it. If responses
+stop being shaped after a compaction, re-invoke `/adhd:shape`.
 
 `clarify` is on-demand too, but **one-shot, not session-standing**: it surfaces on
 a plain-language cue ("make this clear", "clarify this", "help me digest this",
