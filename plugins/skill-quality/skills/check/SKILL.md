@@ -34,6 +34,23 @@ CHECK_SKILL_SKILLS_ROOT="${user_config.skills_root}" \
 
 When it is unset, invoke the script plain — it falls back to `${CLAUDE_PROJECT_DIR}/.claude/skills`.
 
+**Gating a marketplace-installed skill.** A `plugin:skill` name (e.g. `source-control:setup`) is
+NOT auto-resolved: the checker resolves a bare skill name under one root and deliberately does not
+reverse-engineer Claude Code's plugin-cache layout to locate an install. That layout is internal —
+only the cache's existence is documented, the `<marketplace>/<plugin>/<version>` nesting is not, and
+the version dir changes on every update
+([plugins-reference](https://code.claude.com/docs/en/plugins-reference)). To gate an installed skill,
+point the root at its installed skills dir explicitly:
+
+```shell
+CHECK_SKILL_SKILLS_ROOT=~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/skills \
+  bash "${CLAUDE_PLUGIN_ROOT}/scripts/check-skill.sh" <skill-leaf-name>
+```
+
+The cache is a **copy, not a git checkout**, so the git-backed checks (3 trigger-preservation, 8
+vendor byte-identity, 9 stale-metadata) no-op against it — a "new skill / skipped" result is
+expected there, not a defect. Passing a `plugin:skill` name unresolved prints this exact guidance.
+
 ## Arguments
 
 Parse `$ARGUMENTS`:
