@@ -778,9 +778,10 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
   done < <(awk -v P="$FRESH_EYES_PROXIMITY_LINES" -v JR="$FRESH_EYES_JUDGE_RE" '
     { sub(/\r$/, "") }
     # CommonMark fence matching: a fence closes only on a same-character run at
-    # least as long as its opener — a nested run of the OTHER character (or a
-    # shorter run) is fence content, never a toggle. A generic boolean toggle
-    # would desync on nested-fence examples and leak them into the scanners.
+    # least as long as its opener with nothing but spaces after it — a nested
+    # run of the OTHER character, a shorter run, or a run carrying an info
+    # string (```yaml) is fence content, never a toggle. A generic boolean
+    # toggle would desync on such examples and leak them into the scanners.
     /^[ \t]*(```+|~~~+)/ {
       fe_run = $0
       sub(/^[ \t]*/, "", fe_run)
@@ -788,14 +789,28 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
       fe_len = 0
       while (substr(fe_run, fe_len + 1, 1) == fe_char) fe_len++
       if (!fe_fence) { fe_fence = 1; fe_open_char = fe_char; fe_open_len = fe_len }
-      else if (fe_char == fe_open_char && fe_len >= fe_open_len) fe_fence = 0
+      else if (fe_char == fe_open_char && fe_len >= fe_open_len \
+               && substr(fe_run, fe_len + 1) ~ /^[ \t]*$/) fe_fence = 0
       next
     }
     fe_fence { next }
     {
       line = $0
-      while (match(line, /`[^`]*`/)) {
-        line = substr(line, 1, RSTART - 1) substr(line, RSTART + RLENGTH)
+      # Inline code spans, CommonMark pairing: an opening backtick run pairs
+      # with the next run of EXACTLY the same length; a run with no matching
+      # closer is literal text. A naive /`[^`]*`/ would split a ``…`` span at
+      # its first two backticks and expose the span content to the detectors.
+      while (match(line, /`+/)) {
+        sp_start = RSTART; sp_len = RLENGTH
+        sp_rest = substr(line, sp_start + sp_len)
+        sp_close = 0; sp_base = 0; sp_search = sp_rest
+        while (match(sp_search, /`+/)) {
+          if (RLENGTH == sp_len) { sp_close = sp_base + RSTART; break }
+          sp_base += RSTART + RLENGTH - 1
+          sp_search = substr(sp_search, RSTART + RLENGTH)
+        }
+        if (!sp_close) break
+        line = substr(line, 1, sp_start - 1) " " substr(sp_rest, sp_close + sp_len)
       }
       if (line ~ /<!--[ \t]*fresh-eyes-exempt/) {
         dir_n++
@@ -808,7 +823,12 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
         }
       }
       low = tolower(line)
-      if (low ~ /fresh[- ]context/) { word_n++; w[word_n] = NR }
+      # Delegation wording needs a worker actually named on the line — bare
+      # "in a fresh context" prose assigns no one and does not declare.
+      if (low ~ /fresh[- ]context/ \
+          && low ~ /agent|worker|advisor|reviewer|verif|dispatch|delegat/) {
+        word_n++; w[word_n] = NR
+      }
       if (low ~ JR) { judge_n++; j[judge_n] = NR }
     }
     END {

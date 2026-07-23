@@ -15,7 +15,10 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   judgment-language hit nearby WARNs as stale (advisory). Both detectors are fence- and
   inline-code-span-aware (literal examples in docs never trip them) and tolerate CRLF.
   Contract spec for authors: `skills/check/reference/fresh-eyes-declarations.md`; the
-  heuristic list's curation policy lives there too.
+  heuristic list's curation policy lives there too. Fence matching follows CommonMark
+  (an info-string line inside a fence is content, not a closer), spans pair backtick
+  runs of exactly equal length (multi-backtick spans hide their content), and
+  delegation wording only counts when the line also names the worker or dispatch.
 
 ### Fixed
 

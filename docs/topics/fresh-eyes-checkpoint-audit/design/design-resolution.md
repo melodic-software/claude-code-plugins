@@ -22,7 +22,10 @@ the spec owner (convention-registry style). No cross-plugin or cross-repo file r
 A same-context judgment step delegates by matching the POSIX ERE **`fresh[- ]context`** (both the
 hyphenated and spaced forms are canonical — already-compliant skills use both), plus the
 dispatch-ladder conventions the doctrine specifies: generic-fallback rung when a named agent is
-preferred, artifact-not-story inputs, degrade-when-absent. Visible prose, not a marker: the
+preferred, artifact-not-story inputs, degrade-when-absent. *(Amended 2026-07-22, Phase-1 review:
+the matching line must also name the worker or dispatch — `agent|worker|advisor|reviewer|`
+`verif|dispatch|delegat` — because a bare "in a fresh context" phrase assigns the judgment to no one;
+surfaced by external review on the Phase-1 PR.)* Visible prose, not a marker: the
 wording IS the model's instruction, so it must be visible regardless — a parallel marker would be
 a second source of truth that drifts.
 

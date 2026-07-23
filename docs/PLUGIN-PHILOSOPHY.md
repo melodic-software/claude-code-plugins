@@ -496,8 +496,8 @@ the session default model changes):
 ### Declared patterns
 
 Conformance is declared in the skill text itself, in one of two greppable forms: **delegation
-wording** (the POSIX ERE `fresh[- ]context` plus the ladder conventions above) or an **exemption
-directive** (`<!-- fresh-eyes-exempt: <class> -- <reason> -->`, closed class set
+wording** (the POSIX ERE `fresh[- ]context` on a line that also names the worker or dispatch,
+plus the ladder conventions above) or an **exemption directive** (`<!-- fresh-eyes-exempt: <class> -- <reason> -->`, closed class set
 `deterministic-gate` | `external-input` | `deferred`). The mechanical contract — grammar, classes,
 canonical wording, check semantics — is owned by the `skill-quality` plugin
 (`skills/check/reference/fresh-eyes-declarations.md`), where the conformance check points third-party

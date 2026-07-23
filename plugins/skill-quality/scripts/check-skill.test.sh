@@ -1444,6 +1444,79 @@ else
   fail "both-declared case should pass with contradictory INFO (rc=$rc): $out"
 fi
 
+# 37b. Check 21: an info-string fence line inside an open fence is content, not
+#      a closer — the literal directive after it stays fenced (CommonMark:
+#      closers allow only trailing spaces).
+make_skill fe-fence-info '---
+name: fe-fence-info
+description: "Fresh-eyes fixture. Use when: '"'"'fe fence info fixture'"'"'."
+---
+
+## Docs
+
+```
+```yaml
+<!-- fresh-eyes-exempt: bogus-class -- info-string line must not close the fence -->
+```
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-fence-info 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'fresh-eyes-exempt' <<<"$out"; then
+  pass "info-string fence line does not close the fence (check 21)"
+else
+  fail "info-string fence line should not desync the fence guard (rc=$rc): $out"
+fi
+
+# 37c. Check 21: a multi-backtick inline span hides its content (CommonMark
+#      exact-length pairing — a naive single-backtick stripper would expose it).
+make_skill fe-span-double '---
+name: fe-span-double
+description: "Fresh-eyes fixture. Use when: '"'"'fe span double fixture'"'"'."
+---
+
+## Docs
+
+Span form: `` <!-- fresh-eyes-exempt: bogus-class -- literal --> `` stays unscanned.
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-span-double 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'fresh-eyes-exempt directive' <<<"$out"; then
+  pass "double-backtick span content is not scanned (check 21)"
+else
+  fail "double-backtick span should hide the literal directive (rc=$rc): $out"
+fi
+
+# 37d. Check 21: bare fresh-context wording naming no worker does not declare —
+#      the judgment line still WARNs.
+make_skill fe-bare-wording '---
+name: fe-bare-wording
+description: "Fresh-eyes fixture. Use when: '"'"'fe bare wording fixture'"'"'."
+---
+
+## Steps
+
+Self-review the work in a fresh context before presenting it.
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-bare-wording 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'same-context judgment language with no' <<<"$out"; then
+  pass "bare fresh-context wording without a worker still warns (check 21)"
+else
+  fail "worker-less fresh-context wording should not satisfy check 21 (rc=$rc): $out"
+fi
+
 # 37. Check 21: a skill with no judgment language emits nothing from check 21
 #     (good-skill re-run guards against detector overreach).
 out="$(run good-skill 2>&1)"

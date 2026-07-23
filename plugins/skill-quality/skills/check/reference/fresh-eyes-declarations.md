@@ -19,9 +19,11 @@ The step's own text says the judgment goes to a fresh-context worker, matching t
 fresh[- ]context
 ```
 
-Both `fresh-context` and `fresh context` are canonical. The wording is visible prose, not a marker —
-it IS the model's instruction, so a parallel hidden marker would be a second source of truth that
-drifts.
+Both `fresh-context` and `fresh context` are canonical — and the same line must NAME the worker or
+the dispatch (a token matching `agent|worker|advisor|reviewer|verif|dispatch|delegat`): "dispatch
+a fresh-context subagent" declares; a bare "think about it in a fresh context" assigns the
+judgment to no one and does not. The wording is visible prose, not a marker — it IS the model's
+instruction, so a parallel hidden marker would be a second source of truth that drifts.
 
 ## Form 2 — exemption directive (HTML comment)
 
@@ -60,8 +62,12 @@ Rows evaluate top-down; the first match wins per detection site.
   Plugin-level shared files outside the skill directory are NOT scanned — anchor your declaration
   in the skill's own files even when the judgment mechanics live in a shared spoke.
 - **Fence- and span-aware:** fenced code blocks and inline code spans are ignored by both
-  detectors, so docs (like this page) can show literal examples. Keep literal directive examples
-  inside fences — a bare `<class>` placeholder in prose would FAIL as an unknown class.
+  detectors, so docs (like this page) can show literal examples. Fences follow CommonMark
+  matching: a closer is a same-character run at least as long as its opener with only spaces
+  after it — an info-string line inside a fence never closes it. Spans pair a backtick run with
+  the next run of exactly the same length (multi-backtick spans included); an unpaired run is
+  literal. Keep literal directive examples inside fences — a bare `<class>` placeholder in prose
+  would FAIL as an unknown class.
 - **Proximity is per-file and line-based** (`FRESH_EYES_PROXIMITY_LINES` in `check-skill.sh`). A
   declaration in a different file of the same skill does not satisfy proximity; the WARN message
   says so ("declaration may live in a referenced spoke — hand-verify").
