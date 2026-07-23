@@ -382,6 +382,12 @@ _POWERSHELL_MUTATION_WORDS = re.compile(
     r")(?![\w-])"
 )
 _POWERSHELL_DOTNET_DELETE = re.compile(r"(?i)::\s*delete")
+# Module-qualified cmdlet invocations (Module\Cmdlet) put a backslash before the
+# cmdlet name, which the word pattern's lookbehind rejects; cover the deletion
+# cmdlets explicitly (aliases like rm/del cannot be module-qualified).
+_POWERSHELL_QUALIFIED_DELETE = re.compile(
+    r"(?i)[a-z][\w.]*\\(remove-item|clear-content|clear-recyclebin)(?![\w-])"
+)
 
 
 def powershell_decision(command: str, enabled: bool) -> tuple[str, str] | None:
@@ -412,6 +418,13 @@ def powershell_decision(command: str, enabled: bool) -> tuple[str, str] | None:
     if _POWERSHELL_DOTNET_DELETE.search(command):
         return _powershell_mutation_verdict(
             enabled, "disk-hygiene flagged a .NET Delete call."
+        )
+    qualified = _POWERSHELL_QUALIFIED_DELETE.search(command)
+    if qualified:
+        return _powershell_mutation_verdict(
+            enabled,
+            "disk-hygiene flagged the module-qualified deletion spelling "
+            f'"{qualified.group(0)}".',
         )
     return None
 

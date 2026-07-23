@@ -12,14 +12,16 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   emptying the Trash) was bound to a prose item list that could go stale between approval and
   execution — items landing in the container after approval would be destroyed under an approval
   that predated their existence (a live near-miss in the 0.6.4 consumer audit, F2). The clean
-  skill's unsupported-platform handoff now forbids container-wide operations unless the container
-  is re-enumerated immediately before execution and matches the approved count and set exactly,
-  aborting on any drift — the engine lane's changed-since-scan discipline applied to the manual
-  lane. Also documents that Recycle Bin / Trash reversibility is conditional: bin size caps,
+  skill's unsupported-platform handoff now forbids container-wide deletion commands outright —
+  review showed even immediate re-enumeration leaves an approval-to-execution window against a
+  live container — and satisfies "empty the container" by per-item deletion under the lane's
+  per-path revalidation, so unenumerated arrivals survive. Also documents that Recycle Bin / Trash reversibility is conditional: bin size caps,
   policy-disabled bins, or non-NTFS/network volumes can silently make removal permanent.
-  `Clear-RecycleBin` added to the PowerShell guard's mutation words (review finding on the same
-  PR: the newly blessed-with-re-enumeration container op must still raise the guard's final
-  ask prompt, and be denied in audit-only mode) — the broader F4 spelling additions
+  `Clear-RecycleBin` added to the PowerShell guard's mutation words, and module-qualified
+  deletion cmdlets (`Module\Remove-Item`, `Module\Clear-Content`, `Module\Clear-RecycleBin`) now
+  match a companion pattern the word boundary's lookbehind previously rejected (review findings
+  on the same PR; the guard word is defense-in-depth for attempted container ops, which the
+  manual lane now forbids) — the broader F4 spelling additions
   (`.Delete(`, robocopy purge flags) remain tracked in #1111. Engine-side changed-since-scan
   gotcha now cross-references the manual lane's re-enumeration rule (closes #1108's third
   acceptance criterion in both directions).

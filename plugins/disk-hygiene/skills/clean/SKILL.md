@@ -226,12 +226,13 @@ handoff, not an engine plan:
    which was used. That reversibility is conditional, not guaranteed: bin size caps, a
    policy-disabled bin, or a non-NTFS/network volume can silently make the same operation
    permanent — disclose when a target's volume or policy may turn "reversible" removal permanent.
-3. Container-wide operations (`Clear-RecycleBin`, emptying the Trash, or any "delete everything in
-   this container" spelling) are forbidden unless the container is re-enumerated immediately
-   before execution and the result matches the approved count and set exactly; on any drift, abort
-   and re-ask. An approval bound to a prose list goes stale the moment new items land in the
-   container — the engine lane's changed-since-scan threat resurfacing in the manual lane, where
-   no snapshot token protects it.
+3. Container-wide deletion commands (`Clear-RecycleBin`, emptying the Trash, or any "delete
+   everything in this container" spelling) are forbidden in the manual lane — they execute
+   against the live container, so items arriving between approval (or even re-enumeration) and
+   execution die under an approval that never saw them. Satisfy "empty the container" by
+   enumerating the container and deleting per item under steps 1, 2, and 4; items that arrive
+   after enumeration are simply not deleted. This is the engine lane's changed-since-scan threat
+   in the manual lane, where no snapshot token protects execution.
 4. Skip and report any path that fails revalidation; never substitute a sibling or retry around a
    lock.
 
