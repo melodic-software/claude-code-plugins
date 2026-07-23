@@ -168,7 +168,9 @@ for-each-ref)
   fi
   case "$base" in
   canonical-a)
-    printf 'main\tmain-a\0\nfeature/shared\tsha-a\0\nstale/changed\tdrift-tip\0\nfeature/mismatch\tmismatch\0\n'
+    # stale/gone: merged-PR batch row exists at a different OID (drift) but the branch has no
+    # remote-tracking ref -- the drift finding must state the local tip is absent (unpushed).
+    printf 'main\tmain-a\0\nfeature/shared\tsha-a\0\nstale/changed\tdrift-tip\0\nfeature/mismatch\tmismatch\0\nstale/gone\tgone-tip\0\n'
     ;;
   repo-b)
     printf 'main\tmain-b\0\nfeature/shared\tsha-b\0\n'
@@ -206,6 +208,10 @@ auth) exit 0 ;;
 api)
   endpoint="${2:-}"
   case "$endpoint" in
+  user)
+    [[ "${MOCK_GH_USER_FAIL:-}" == "1" ]] && exit 1
+    printf 'test-login'
+    ;;
   repos/acme/repo-a) printf 'acme/repo-a\tmain' ;;
   repos/acme/repo-b) printf 'acme/repo-b\tmain' ;;
   repos/acme/root-repo) printf 'acme/root-repo\tmain' ;;
@@ -228,6 +234,7 @@ pr)
   github.com/acme/repo-a)
     printf '18\tfeature/shared\tsha-a\t2026-07-01T00:00:00Z\thttps://github.com/acme/repo-a/pull/18\n'
     printf '42\tstale/changed\tmerged-tip\t2026-07-02T00:00:00Z\thttps://github.com/acme/repo-a/pull/42\n'
+    printf '43\tstale/gone\tother-tip\t2026-07-03T00:00:00Z\thttps://github.com/acme/repo-a/pull/43\n'
     ;;
   github.com/acme/repo-b | github.com/acme/root-repo | github.com/new/repo | github.com/acme/repo-c) ;;
   github.com/acme/rref-fail) ;;
@@ -343,6 +350,30 @@ else
   printf 'PASS: failed remote inventory not double-reported as privacy gap\n'
 fi
 
+# Drift push-state evidence: stale/changed has a same-named remote-tracking ref at the SAME OID
+# (pushed); stale/gone has a drift-batch row but NO remote-tracking ref (may be unpushed).
+assert_contains "pushed drift named in evidence" \
+  "current local tip is drift-tip; local tip matches the last-fetched remote-tracking ref (pushed as of the last fetch; verify current remote state before relying on recoverability)"
+assert_contains "unpushed drift named in evidence" \
+  "current local tip is gone-tip; local tip not on the last-fetched remote-tracking ref (drift commits may never have been pushed)"
+
+# Header names the authenticated gh account; a failed login probe degrades to the plain line.
+assert_contains "header names gh account" "GitHub evidence: available (account: test-login)"
+
+# Clean repos say so explicitly instead of ending the section without a marker.
+if grep -A6 -F "Repo: $TMP/root/acme/root-repo" "$output" | grep -Fq "Findings: none"; then
+  printf 'PASS: clean repo emits explicit Findings: none marker\n'
+else
+  printf 'FAIL: clean repo emits explicit Findings: none marker\n' >&2
+  failures=$((failures + 1))
+fi
+if grep -A6 -F "Repo: $TMP/discovered-a" "$output" | grep -Fq "Findings: none"; then
+  printf 'FAIL: finding-bearing repo wrongly emitted Findings: none\n' >&2
+  failures=$((failures + 1))
+else
+  printf 'PASS: finding-bearing repo does not emit Findings: none\n'
+fi
+
 # fleet.ackUnavailable: 404 on an acked identity (mixed-case config entry) is
 # demoted to ACKNOWLEDGED; an unacked 404 stays UNKNOWN; a non-404 failure on
 # an acked identity stays UNKNOWN with its real reason.
@@ -423,6 +454,16 @@ if grep -Fq -- "Config: none" "$ladder_out"; then
   printf 'PASS: no-config run states none was consumed\n'
 else
   printf 'FAIL: no-config run states none was consumed\n' >&2
+  failures=$((failures + 1))
+fi
+
+# A failed authenticated-login probe must degrade the header to the plain line, never block.
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 MOCK_GH_USER_FAIL=1 CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
+  bash "$SCRIPT" >"$ladder_out"
+if grep -Fq -- "GitHub evidence: available" "$ladder_out" && ! grep -Fq -- "(account:" "$ladder_out"; then
+  printf 'PASS: failed account probe degrades to plain header line\n'
+else
+  printf 'FAIL: failed account probe degrades to plain header line\n' >&2
   failures=$((failures + 1))
 fi
 
