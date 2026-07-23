@@ -1,6 +1,6 @@
 ---
 name: check
-description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', or before shipping a skill or plugin. Actions: `check [<skill-name>]` runs a twenty-check static contract gate (frontmatter, listing-budget cap, trigger-keyword preservation vs HEAD, line caps, broken internal refs, markdownlint, gotchas surface, evals presence, precompute opportunity, injection shell-declaration) and reports PASS/FAIL with warnings; `validate-evals [<skill-name>]` checks a skill's evals/evals.json against the bundled schema. Not for: writing new skills, or running model-graded evals."
+description: "Skill-authoring QA for Claude Code skills. Use when: 'check this skill', 'skill quality', 'lint my skill', 'is this SKILL.md valid', 'validate skill frontmatter', 'check skill before publishing', 'validate evals.json', or before shipping a skill or plugin. Actions: `check [<skill-name>]` runs a twenty-one-check static contract gate (frontmatter, listing-budget cap, trigger-keyword preservation vs HEAD, line caps, broken internal refs, markdownlint, gotchas surface, evals presence, precompute opportunity, injection shell-declaration, fresh-eyes declaration conformance) and reports PASS/FAIL with warnings; `validate-evals [<skill-name>]` checks a skill's evals/evals.json against the bundled schema. Not for: writing new skills, or running model-graded evals."
 argument-hint: "[check|validate-evals] [<skill-name>] — omit the action for check; omit the skill name to run over every skill"
 user-invocable: true
 disable-model-invocation: false
@@ -10,7 +10,7 @@ shell: bash
 ## Purpose
 
 Static, deterministic quality gate for skill authoring. The `check` action runs the bundled
-`check-skill.sh` — twenty checks with no model invocation, so results are reproducible in CI or a
+`check-skill.sh` — twenty-one checks with no model invocation, so results are reproducible in CI or a
 pre-commit hook. The `validate-evals` action checks a skill's `<skill>/evals/evals.json` against the bundled
 JSON schema. Catches the failure that static analysis catches best: a rewrite silently dropping a
 `description` trigger phrase, which degrades auto-invocation.
@@ -60,7 +60,8 @@ Parse `$ARGUMENTS`:
    - The `FAIL:` lines verbatim (each is an actionable defect).
    - `WARN:` lines grouped after failures (advisory — soft line target, missing gotchas surface,
      action-router without evals, orphan spokes, an injection with no `shell:` whose commands
-     only *look* portable, and an injected command carrying no `|| <fallback>`).
+     only *look* portable, an injected command carrying no `|| <fallback>`, and same-context
+     judgment language with no fresh-eyes declaration or a stale exemption directive).
 4. For a multi-skill run, end with a one-line rollup: `N passed, M failed`.
 
 The `FAIL:` messages are self-describing. Do not re-derive their meaning; surface them and, when the
@@ -86,7 +87,7 @@ that line before editing, since it may be an illustrative example path rather th
   byte-identity, committed-artifact scan) read `git show HEAD:` / `git ls-files`. Outside a repo it
   exits 2 (env error).
 - `check-skill.sh` runs `npx markdownlint-cli2` for check 6; when `npx` is absent that check downgrades
-  to a WARN rather than failing, so a run on a machine without Node still gates on the other sixteen.
+  to a WARN rather than failing, so a run on a machine without Node still gates on the other twenty.
 - Trigger-keyword preservation compares the working tree against `HEAD` by default, so a brand-new skill
   (no committed version) skips check 3 — that is expected, not a silent pass. For a post-commit audit
   (where `HEAD` == the working tree hides an already-committed change), set `CHECK_SKILL_BASE_REF` to a
@@ -104,6 +105,12 @@ that line before editing, since it may be an illustrative example path rather th
   injected commands actually match the declared shell (so `shell: pwsh` with bash-only commands is
   out of scope). Both checks 19 and 20 scan the injected command text only — a bash-only token in a
   plain `` ```bash `` example or in prose never trips them.
+- Check 21 (fresh-eyes declaration conformance) is WARN-only on its judgment-language heuristic;
+  only a malformed or reason-less `fresh-eyes-exempt` directive FAILs. Its proximity window is
+  per-file, so a declaration living in a referenced spoke file cannot satisfy it — the WARN says
+  so; hand-verify before editing. Literal directive examples belong inside code fences (both
+  detectors are fence- and inline-span-aware); a bare `<class>` placeholder in prose FAILs as an
+  unknown class. Spec: `reference/fresh-eyes-declarations.md`.
 - Check 18 (precompute opportunity) is an advisory heuristic, never a FAIL. It cannot tell an
   instruction-to-run shell block from an illustrative example, so a WARN is a candidate to judge, not a
   defect — like a check-5 ref, hand-verify the block before converting it. It reads only fenced shell

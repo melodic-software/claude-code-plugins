@@ -52,6 +52,10 @@
 #      (FAIL bash-only syntax + no shell:; WARN portable-looking but undeclared)
 #  20. `!`-injected commands carry a `|| <fallback>` (WARN; undocumented injection
 #      failure semantics — degrade to a known string, not a surprise)
+#  21. Fresh-eyes declaration conformance: same-context judgment language carries
+#      fresh-context delegation wording or a fresh-eyes-exempt directive nearby
+#      (WARN; heuristic); malformed/reason-less directives FAIL
+#      (spec: skills/check/reference/fresh-eyes-declarations.md)
 #
 # Notes (static, git-diff-based design):
 #   - Checks 3/8/9 diff the working tree against CHECK_SKILL_BASE_REF (default
@@ -707,6 +711,129 @@ if ((${#INJECTIONS[@]} > 0)); then
     warn "$missing_fallback \`!\`-injected command(s) carry no \`|| <fallback>\` — injection failure/timeout/stderr semantics are undocumented, so an unguarded command can inline an error string into the prompt. Add a \`|| echo \"<fallback>\"\` (or shell-appropriate) continuation"
   fi
 fi
+
+# --- Check 21: fresh-eyes declaration conformance ---------------------------
+# Deterministic proxy for the fresh-eyes rule: a step whose output judges work
+# produced in the same context declares either fresh-context delegation or an
+# exemption directive IN THE SKILL'S OWN FILES. The judgment-language detector
+# is a curated heuristic (WARN-only); directive syntax errors FAIL. Contract
+# spec for authors: skills/check/reference/fresh-eyes-declarations.md.
+# Scan surface excludes vendor/ (byte-frozen per check 8 — findings would be
+# permanently unclearable) and evals/ (fixtures contain arbitrary prose).
+# Fenced blocks and inline code spans are ignored by both detectors so docs
+# can show literal examples (self-reference guard); a trailing \r is tolerated
+# per line (third-party checkouts without eol=lf normalization).
+FRESH_EYES_PROXIMITY_LINES=8
+# Lowercase POSIX ERE (matched against the lowercased, span-stripped line).
+# Seeded from the phrasing of the audited skills and their exempted steps;
+# curation policy (triggers + disposition ladder) lives in the reference page.
+# [[:space:]] instead of \t: awk -v escape processing differs across awks, a
+# POSIX class does not. (^|[^a-z]) boundary guards keep substrings quiet —
+# "upgrade your own", "underscore its own" must not read as grade/score.
+FRESH_EYES_JUDGE_RE='(^|[^a-z])self[- ](review|audit|assess|score|grade|verif)|(^|[^a-z])(review|verify|assess|grade|score|judge|critique)[a-z]*[[:space:]]+(your|its|their)[[:space:]]+own|(^|[^a-z])spot[- ]check|(^|[^a-z])outcome[[:space:]]+gate|(^|[^a-z])score[[:space:]]+each'
+
+FRESH_EYES_FILES=("$SKILL_MD")
+for spoke_dir in context templates reference references actions lanes catalog; do
+  [[ -d "$SKILL_DIR/$spoke_dir" ]] || continue
+  while IFS= read -r f; do
+    [[ -n "$f" ]] && FRESH_EYES_FILES+=("$f")
+  done < <(find "$SKILL_DIR/$spoke_dir" -type f -name '*.md' \
+    -not -path '*/vendor/*' -not -path '*/evals/*' 2>/dev/null | sort)
+done
+
+for fe_file in "${FRESH_EYES_FILES[@]}"; do
+  fe_rel="${fe_file#"$SKILL_DIR"/}"
+  [[ "$fe_file" == "$SKILL_MD" ]] && fe_rel="SKILL.md"
+  while IFS= read -r fe_line; do
+    fe_kind="${fe_line%% *}"
+    fe_ln="${fe_line#* }"
+    case "$fe_kind" in
+      DIRECTIVE_MALFORMED)
+        err "malformed fresh-eyes-exempt directive ($fe_rel:$fe_ln) — expected '<!-- fresh-eyes-exempt: <class> -- <reason> -->' with class deterministic-gate|external-input|deferred (spec: skill-quality plugin, skills/check/reference/fresh-eyes-declarations.md)"
+        ;;
+      DIRECTIVE_NOREASON)
+        err "fresh-eyes-exempt directive missing its '-- <reason>' ($fe_rel:$fe_ln) — justification is recorded at the suppression site (spec: skill-quality plugin, skills/check/reference/fresh-eyes-declarations.md)"
+        ;;
+      HIT_BOTH)
+        note "fresh-eyes: judgment language at $fe_rel:$fe_ln carries BOTH delegation wording and an exemption directive — contradictory declaration, hand-verify"
+        ;;
+      HIT_WORDING)
+        note "fresh-eyes: judgment language at $fe_rel:$fe_ln — fresh-context delegation declared nearby"
+        ;;
+      HIT_DIRECTIVE)
+        note "fresh-eyes: judgment language at $fe_rel:$fe_ln — exemption directive declared nearby"
+        ;;
+      HIT_NONE)
+        warn "same-context judgment language with no fresh-context delegation or exemption directive within $FRESH_EYES_PROXIMITY_LINES lines ($fe_rel:$fe_ln) — declaration may live in a referenced spoke — hand-verify (spec: skill-quality plugin, skills/check/reference/fresh-eyes-declarations.md)"
+        ;;
+      DIRECTIVE_STALE)
+        warn "stale fresh-eyes-exempt directive ($fe_rel:$fe_ln) — no judgment-language hit within $FRESH_EYES_PROXIMITY_LINES lines; the heuristic list, not the directive, may be the gap — verify before removing"
+        ;;
+      *)
+        # Scanner and dispatcher ship together; an unknown record is a bug here,
+        # never the audited skill's fault — fail loud, not silent.
+        err "check 21 internal error: unknown scan record '$fe_kind' ($fe_rel)"
+        ;;
+    esac
+  done < <(awk -v P="$FRESH_EYES_PROXIMITY_LINES" -v JR="$FRESH_EYES_JUDGE_RE" '
+    { sub(/\r$/, "") }
+    # CommonMark fence matching: a fence closes only on a same-character run at
+    # least as long as its opener — a nested run of the OTHER character (or a
+    # shorter run) is fence content, never a toggle. A generic boolean toggle
+    # would desync on nested-fence examples and leak them into the scanners.
+    /^[ \t]*(```+|~~~+)/ {
+      fe_run = $0
+      sub(/^[ \t]*/, "", fe_run)
+      fe_char = substr(fe_run, 1, 1)
+      fe_len = 0
+      while (substr(fe_run, fe_len + 1, 1) == fe_char) fe_len++
+      if (!fe_fence) { fe_fence = 1; fe_open_char = fe_char; fe_open_len = fe_len }
+      else if (fe_char == fe_open_char && fe_len >= fe_open_len) fe_fence = 0
+      next
+    }
+    fe_fence { next }
+    {
+      line = $0
+      while (match(line, /`[^`]*`/)) {
+        line = substr(line, 1, RSTART - 1) substr(line, RSTART + RLENGTH)
+      }
+      if (line ~ /<!--[ \t]*fresh-eyes-exempt/) {
+        nd++
+        if (line ~ /<!--[ \t]*fresh-eyes-exempt:[ \t]*(deterministic-gate|external-input|deferred)[ \t]+--[ \t]+[^ \t].*-->/) {
+          d[nd] = NR; dt[nd] = "valid"
+        } else if (line ~ /<!--[ \t]*fresh-eyes-exempt:[ \t]*(deterministic-gate|external-input|deferred)[ \t]*(--[ \t]*)?-->/) {
+          d[nd] = NR; dt[nd] = "noreason"
+        } else {
+          d[nd] = NR; dt[nd] = "malformed"
+        }
+      }
+      low = tolower(line)
+      if (low ~ /fresh[- ]context/) { nw++; w[nw] = NR }
+      if (low ~ JR) { nj++; j[nj] = NR }
+    }
+    END {
+      for (i = 1; i <= nd; i++) {
+        if (dt[i] == "noreason") printf "DIRECTIVE_NOREASON %d\n", d[i]
+        else if (dt[i] == "malformed") printf "DIRECTIVE_MALFORMED %d\n", d[i]
+      }
+      for (i = 1; i <= nj; i++) {
+        hasw = 0; hasd = 0
+        for (k = 1; k <= nw; k++) if (w[k] >= j[i] - P && w[k] <= j[i] + P) hasw = 1
+        for (k = 1; k <= nd; k++) if (dt[k] == "valid" && d[k] >= j[i] - P && d[k] <= j[i] + P) hasd = 1
+        if (hasw && hasd) printf "HIT_BOTH %d\n", j[i]
+        else if (hasw) printf "HIT_WORDING %d\n", j[i]
+        else if (hasd) printf "HIT_DIRECTIVE %d\n", j[i]
+        else printf "HIT_NONE %d\n", j[i]
+      }
+      for (i = 1; i <= nd; i++) {
+        if (dt[i] != "valid") continue
+        used = 0
+        for (k = 1; k <= nj; k++) if (j[k] >= d[i] - P && j[k] <= d[i] + P) used = 1
+        if (!used) printf "DIRECTIVE_STALE %d\n", d[i]
+      }
+    }
+  ' "$fe_file")
+done
 
 # --- Summary ---------------------------------------------------------------
 

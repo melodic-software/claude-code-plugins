@@ -1229,6 +1229,231 @@ else
   fail "prose #! code span should not trip the injection checks (rc=$rc): $out"
 fi
 
+# 29. Check 21: malformed fresh-eyes-exempt directive FAILs.
+make_skill fe-malformed '---
+name: fe-malformed
+description: "Fresh-eyes fixture. Use when: '"'"'fe malformed fixture'"'"'."
+---
+
+## Steps
+
+<!-- fresh-eyes-exempt deterministic-gate no colon -->
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-malformed 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'malformed fresh-eyes-exempt' <<<"$out"; then
+  pass "malformed fresh-eyes directive fails (check 21)"
+else
+  fail "malformed fresh-eyes directive should FAIL (rc=$rc): $out"
+fi
+
+# 30. Check 21: unknown exemption class FAILs.
+make_skill fe-unknown-class '---
+name: fe-unknown-class
+description: "Fresh-eyes fixture. Use when: '"'"'fe unknown class fixture'"'"'."
+---
+
+## Steps
+
+<!-- fresh-eyes-exempt: because-i-said-so -- not a real class -->
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-unknown-class 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'malformed fresh-eyes-exempt' <<<"$out"; then
+  pass "unknown fresh-eyes class fails (check 21)"
+else
+  fail "unknown fresh-eyes class should FAIL (rc=$rc): $out"
+fi
+
+# 31. Check 21: directive missing its reason FAILs.
+make_skill fe-no-reason '---
+name: fe-no-reason
+description: "Fresh-eyes fixture. Use when: '"'"'fe no reason fixture'"'"'."
+---
+
+## Steps
+
+Score each item against the rubric.
+<!-- fresh-eyes-exempt: deterministic-gate -->
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-no-reason 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q "missing its '-- <reason>'" <<<"$out"; then
+  pass "reason-less fresh-eyes directive fails (check 21)"
+else
+  fail "reason-less fresh-eyes directive should FAIL (rc=$rc): $out"
+fi
+
+# 32. Check 21: undeclared judgment language WARNs (skill still passes).
+make_skill fe-undeclared '---
+name: fe-undeclared
+description: "Fresh-eyes fixture. Use when: '"'"'fe undeclared fixture'"'"'."
+---
+
+## Steps
+
+Self-review the diff before presenting it.
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-undeclared 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'same-context judgment language with no fresh-context delegation' <<<"$out"; then
+  pass "undeclared judgment language warns (check 21)"
+else
+  fail "undeclared judgment language should WARN and pass (rc=$rc): $out"
+fi
+
+# 33. Check 21: valid directive with no judgment-language hit nearby WARNs stale.
+make_skill fe-stale '---
+name: fe-stale
+description: "Fresh-eyes fixture. Use when: '"'"'fe stale fixture'"'"'."
+---
+
+## Steps
+
+<!-- fresh-eyes-exempt: external-input -- triage of another author'"'"'s report -->
+
+Nothing here reads like a judgment step.
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-stale 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'stale fresh-eyes-exempt directive' <<<"$out"; then
+  pass "stale fresh-eyes directive warns (check 21)"
+else
+  fail "stale fresh-eyes directive should WARN and pass (rc=$rc): $out"
+fi
+
+# 34. Check 21: delegation prose satisfies proximity — both spellings.
+make_skill fe-delegated '---
+name: fe-delegated
+description: "Fresh-eyes fixture. Use when: '"'"'fe delegated fixture'"'"'."
+---
+
+## Steps
+
+Self-review the plan by dispatching a fresh-context subagent with the artifact.
+Later, score each finding via a fresh context worker, artifact-not-story.
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-delegated 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'same-context judgment language with no' <<<"$out" \
+  && ! grep -q 'stale fresh-eyes-exempt' <<<"$out"; then
+  pass "fresh-context delegation prose passes both spellings (check 21)"
+else
+  fail "delegation prose should satisfy check 21 (rc=$rc): $out"
+fi
+
+# 35. Check 21: valid exemption directive near judgment language passes clean.
+make_skill fe-exempt-valid '---
+name: fe-exempt-valid
+description: "Fresh-eyes fixture. Use when: '"'"'fe exempt valid fixture'"'"'."
+---
+
+## Steps
+
+<!-- fresh-eyes-exempt: deterministic-gate -- the test script'"'"'s exit code is the verdict -->
+Verify its own output by running the test suite and score each case.
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-exempt-valid 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q 'same-context judgment language with no' <<<"$out" \
+  && ! grep -q 'stale fresh-eyes-exempt' <<<"$out"; then
+  pass "valid exemption directive near judgment language passes (check 21)"
+else
+  fail "valid exemption directive should satisfy check 21 (rc=$rc): $out"
+fi
+
+# 36. Check 21: literal directive examples and judgment phrases inside code
+#     fences and inline spans are ignored (self-reference guard).
+make_skill fe-fenced '---
+name: fe-fenced
+description: "Fresh-eyes fixture. Use when: '"'"'fe fenced fixture'"'"'."
+---
+
+## Docs
+
+The directive form, shown literally:
+
+```markdown
+<!-- fresh-eyes-exempt: bogus-class -- fenced example never scanned -->
+Self-review your own work here.
+```
+
+Inline span mention: `self-review` stays unscanned.
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-fenced 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -qE 'fresh-eyes-exempt|same-context judgment' <<<"$out"; then
+  pass "fenced/inline-span fresh-eyes content is not scanned (check 21)"
+else
+  fail "fenced fresh-eyes content should be ignored (rc=$rc): $out"
+fi
+
+# 37a. Check 21: judgment language with BOTH delegation wording and a valid
+#      directive in window passes with the contradictory-declaration INFO.
+make_skill fe-contradictory '---
+name: fe-contradictory
+description: "Fresh-eyes fixture. Use when: '"'"'fe contradictory fixture'"'"'."
+---
+
+## Steps
+
+<!-- fresh-eyes-exempt: deterministic-gate -- the suite exit code is the verdict -->
+Self-review the output, then dispatch a fresh-context subagent for the verdict.
+
+## Gotchas
+
+None known.
+'
+out="$(run fe-contradictory 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q 'contradictory declaration' <<<"$out"; then
+  pass "both wording and directive in window notes contradictory (check 21)"
+else
+  fail "both-declared case should pass with contradictory INFO (rc=$rc): $out"
+fi
+
+# 37. Check 21: a skill with no judgment language emits nothing from check 21
+#     (good-skill re-run guards against detector overreach).
+out="$(run good-skill 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -qE 'fresh-eyes|same-context judgment' <<<"$out"; then
+  pass "no judgment language stays silent (check 21)"
+else
+  fail "check 21 should stay silent on good-skill (rc=$rc): $out"
+fi
+
 if [[ $fails -ne 0 ]]; then
   printf '%d assertion(s) failed\n' "$fails" >&2
   exit 1

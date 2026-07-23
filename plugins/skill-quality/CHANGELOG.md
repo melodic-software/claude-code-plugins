@@ -3,6 +3,26 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0]
+
+### Added
+
+- **Check 21 — fresh-eyes declaration conformance.** A skill step whose text reads as
+  same-context judgment (curated POSIX-ERE heuristic, WARN-only) is expected to carry
+  fresh-context delegation wording (`fresh-context` / `fresh context`) or a
+  `fresh-eyes-exempt` directive within a per-file proximity window. Directive syntax is
+  enforced: an unknown class or a missing `-- <reason>` FAILs; a directive with no
+  judgment-language hit nearby WARNs as stale (advisory). Both detectors are fence- and
+  inline-code-span-aware (literal examples in docs never trip them) and tolerate CRLF.
+  Contract spec for authors: `skills/check/reference/fresh-eyes-declarations.md`; the
+  heuristic list's curation policy lives there too.
+
+### Fixed
+
+- README check-count references were stale (still "eighteen"/"seventeen" after checks
+  19–20 shipped); counts now derive from the current twenty-one and the checks list
+  includes the injection-portability and fresh-eyes rows.
+
 ## [0.9.0]
 
 ### Changed
