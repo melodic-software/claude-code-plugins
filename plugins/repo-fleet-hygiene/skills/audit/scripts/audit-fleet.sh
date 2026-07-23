@@ -489,7 +489,12 @@ for root in "${ROOT_ARGS[@]:-}"; do
   ROOT_COUNTS+=($((${#TARGETS[@]} - root_before)))
 done
 
-[[ ${#TARGETS[@]} -gt 0 ]] || fail "no Git working trees found in the requested scope"
+# An all-stale config (every entry deleted since the last run) must still produce a report whose
+# stale-config-entry findings tell the user what to remediate -- hard-fail only when there is
+# neither a target to audit nor a stale entry to report.
+if [[ ${#TARGETS[@]} -eq 0 && ${#STALE_CONFIG_PATHS[@]} -eq 0 ]]; then
+  fail "no Git working trees found in the requested scope"
+fi
 
 GH_READY=false
 if command -v gh >/dev/null 2>&1 && run_bounded_gh auth status --hostname github.com >/dev/null 2>&1; then
@@ -707,10 +712,6 @@ analyze_repo() {
   print_field Canonical "$canonical"
   print_field 'Canonical resolution' "$override_source"
   print_field Remote "${discovered_key:-unknown}"
-  if [[ -n "$discovered_key" ]]; then
-    IDENT_KEYS+=("$(lower "$discovered_key")")
-    IDENT_PATHS+=("$discovered")
-  fi
 
   if [[ -z "$discovered_key" ]]; then
     emit_finding UNKNOWN github-identity-unavailable "$discovered" \
@@ -740,6 +741,17 @@ analyze_repo() {
       emit_finding UNKNOWN github-identity-unavailable "$discovered_key" "$expected_reason" \
         "Do not infer moved, deleted, or clean" "Restore GitHub access/authentication and rerun"
     fi
+  fi
+
+  # Duplicate-checkout keys use the GitHub-canonicalized identity when resolution succeeded, so an
+  # old checkout whose remote still says old/repo pairs with a fresh clone of new/repo; the parsed
+  # remote is only the fallback when canonical resolution is unavailable.
+  if [[ -n "$github_repo" ]]; then
+    IDENT_KEYS+=("github.com/$(lower "$github_repo")")
+    IDENT_PATHS+=("$discovered")
+  elif [[ -n "$discovered_key" ]]; then
+    IDENT_KEYS+=("$(lower "$discovered_key")")
+    IDENT_PATHS+=("$discovered")
   fi
 
   if [[ "$canonical" != "$discovered" ]]; then

@@ -9,7 +9,7 @@ trap 'rm -rf "$TMP"' EXIT
 MOCK_BIN="$TMP/bin"
 mkdir -p "$MOCK_BIN" "$TMP/config" "$TMP/discovered-a" "$TMP/canonical-a" "$TMP/repo-b" "$TMP/old-repo" \
   "$TMP/bad-discovered" "$TMP/bad-canonical" "$TMP/wt-fail" \
-  "$TMP/ref-fail" "$TMP/rref-fail" "$TMP/dup-a" \
+  "$TMP/ref-fail" "$TMP/rref-fail" "$TMP/dup-a" "$TMP/new-clone" \
   "$TMP/root/acme/root-repo/.git" \
   "$TMP/emptyroot" \
   "$TMP/wt-a" "$TMP/wt-mismatch" \
@@ -50,6 +50,7 @@ rev-parse)
     ref-fail) printf '%s\n' "$TEST_ROOT/ref-fail" ;;
     rref-fail) printf '%s\n' "$TEST_ROOT/rref-fail" ;;
     dup-a) printf '%s\n' "$TEST_ROOT/dup-a" ;;
+    new-clone) printf '%s\n' "$TEST_ROOT/new-clone" ;;
     root-repo) printf '%s\n' "$TEST_ROOT/root/acme/root-repo" ;;
     discovered-c | canonical-c) printf '%s\n' "$TEST_ROOT/canonical-c" ;;
     gone-repo) printf '%s\n' "$TEST_ROOT/gone-repo" ;;
@@ -70,6 +71,7 @@ rev-parse)
     ref-fail) printf '%s\n' "$TEST_ROOT/ref-fail/.git" ;;
     rref-fail) printf '%s\n' "$TEST_ROOT/rref-fail/.git" ;;
     dup-a) printf '%s\n' "$TEST_ROOT/dup-a/.git" ;;
+    new-clone) printf '%s\n' "$TEST_ROOT/new-clone/.git" ;;
     root-repo) printf '%s\n' "$TEST_ROOT/root/acme/root-repo/.git" ;;
     discovered-c | canonical-c) printf '%s\n' "$TEST_ROOT/canonical-c/.git" ;;
     gone-repo) printf '%s\n' "$TEST_ROOT/gone-repo/.git" ;;
@@ -93,6 +95,7 @@ remote)
     ref-fail) printf '%s\n' 'https://github.com/acme/ref-fail.git' ;;
     rref-fail) printf '%s\n' 'https://github.com/acme/rref-fail.git' ;;
     dup-a) printf '%s\n' 'https://github.com/acme/repo-b.git' ;;
+    new-clone) printf '%s\n' 'https://github.com/new/repo.git' ;;
     root-repo) printf '%s\n' 'https://github.com/acme/root-repo.git' ;;
     discovered-c | canonical-c) printf '%s\n' 'https://github.com/acme/repo-c.git' ;;
     gone-repo) printf '%s\n' 'https://github.com/gone/away.git' ;;
@@ -129,6 +132,9 @@ worktree)
   dup-a)
     printf 'worktree %s\0HEAD dup-main\0branch refs/heads/main\0\0' "$TEST_ROOT/dup-a"
     ;;
+  new-clone)
+    printf 'worktree %s\0HEAD nc-main\0branch refs/heads/main\0\0' "$TEST_ROOT/new-clone"
+    ;;
   root-repo)
     printf 'worktree %s\0HEAD root-main\0branch refs/heads/main\0\0' "$TEST_ROOT/root/acme/root-repo"
     ;;
@@ -152,7 +158,7 @@ symbolic-ref)
 branch)
   case "$base" in
   canonical-a) printf '%s\n' main ;;
-  repo-b | old-repo | root-repo | wt-fail | ref-fail | rref-fail | dup-a | canonical-c | gone-repo | lost-repo | net-repo) printf '%s\n' main ;;
+  repo-b | old-repo | root-repo | wt-fail | ref-fail | rref-fail | dup-a | new-clone | canonical-c | gone-repo | lost-repo | net-repo) printf '%s\n' main ;;
   esac
   ;;
 for-each-ref)
@@ -186,6 +192,7 @@ for-each-ref)
   ref-fail) printf 'main\tref-main\0\nfeature/partial\tpartial-tip\0'; exit 9 ;;
   rref-fail) printf 'main\trr-main\0\nfeature/gated\trr-tip\0\n' ;;
   dup-a) printf 'main\tdup-main\0\n' ;;
+  new-clone) printf 'main\tnc-main\0\n' ;;
   root-repo) printf 'main\troot-main\0\n' ;;
   canonical-c) printf 'main\tmain-c\0\n' ;;
   gone-repo) printf 'main\tgone-main\0\n' ;;
@@ -227,6 +234,7 @@ api)
   repos/acme/ref-fail) printf 'acme/ref-fail\tmain' ;;
   repos/acme/rref-fail) printf 'acme/rref-fail\tmain' ;;
   repos/old/repo) printf 'new/repo\tmain' ;;
+  repos/new/repo) printf 'new/repo\tmain' ;;
   repos/acme/repo-c) printf 'acme/repo-c\tmain' ;;
   repos/gone/net) printf 'gh: connection reset by peer\n' >&2; exit 1 ;;
   *) printf 'gh: Not Found (HTTP 404)\n' >&2; exit 1 ;;
@@ -277,6 +285,7 @@ cat >"$TMP/config/repo-fleet-hygiene.conf" <<'EOF'
     repo = ../ref-fail
     repo = ../rref-fail
     repo = ../dup-a
+    repo = ../new-clone
     repo = ../deleted-repo
     root = ../gone-root
     repo = ../discovered-c
@@ -335,7 +344,17 @@ assert_not_contains "repo B branch did not inherit repo A merge" "Target: $TMP/r
 assert_not_contains "invalid canonical state was not combined" "Target: $TMP/bad-canonical ::"
 assert_not_contains "failed worktree inventory suppressed branch candidate" "Target: $TMP/wt-fail :: feature/fail"
 assert_not_contains "partial branch inventory suppressed branch candidate" "Target: $TMP/ref-fail :: feature/partial"
-assert_contains "failed repositories not counted successful" "Summary: repositories=10"
+assert_contains "failed repositories not counted successful" "Summary: repositories=11"
+
+# Duplicate detection keys on the CANONICALIZED identity: old-repo (remote still says old/repo,
+# resolved to new/repo) must pair with new-clone (cloned from new/repo directly).
+if grep -A3 -F "Finding: duplicate-checkout" "$output" | grep -F "Evidence:" | grep -Fq "$TMP/old-repo" &&
+  grep -A3 -F "Finding: duplicate-checkout" "$output" | grep -F "Evidence:" | grep -Fq "$TMP/new-clone"; then
+  printf 'PASS: moved-remote checkout pairs with fresh clone via canonical identity\n'
+else
+  printf 'FAIL: moved-remote checkout pairs with fresh clone via canonical identity\n' >&2
+  failures=$((failures + 1))
+fi
 
 # Stale CONFIG-sourced entries degrade per-entry (deleted-repo, gone-root) and the run continues;
 # a CLI-supplied bad path must still hard-fail (checked in a separate run below).
@@ -495,6 +514,21 @@ if grep -Fq -- "Config: none" "$ladder_out"; then
   printf 'PASS: no-config run states none was consumed\n'
 else
   printf 'FAIL: no-config run states none was consumed\n' >&2
+  failures=$((failures + 1))
+fi
+
+# An ALL-stale config must still complete and render its stale-config-entry findings -- the
+# remediation detail matters most exactly when every entry is gone.
+cat >"$TMP/stale-only.conf" <<'STALEONLY'
+[fleet]
+    repo = ./no-such-dir-anywhere
+STALEONLY
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --config "$TMP/stale-only.conf" >"$ladder_out" 2>&1 &&
+  grep -Fq "Finding: stale-config-entry" "$ladder_out" &&
+  grep -Fq "Repositories discovered: 0" "$ladder_out"; then
+  printf 'PASS: all-stale config completes with stale findings instead of hard-failing\n'
+else
+  printf 'FAIL: all-stale config completes with stale findings instead of hard-failing\n' >&2
   failures=$((failures + 1))
 fi
 
