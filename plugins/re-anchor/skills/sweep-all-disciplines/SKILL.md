@@ -81,8 +81,13 @@ unchanged and bind every member.
    audit fan-out cannot run and stop, rather than auditing blind. Instruct
    each fork: load exactly this ONE corrector's
    `SKILL.md`, run shared-loop steps 1–2 only (re-anchor + self-audit), make
-   NO writes, and return a findings ledger (concrete located findings, or an
-   honest "clean"). Cap concurrency in bounded waves like the `-deep`
+   NO writes, and return a findings ledger. Each ledger entry carries the
+   concrete located finding AND the remedy this corrector would apply for it
+   (the shared loop's step-3 corrective action, *described* not performed — the
+   fork still writes nothing), or an honest "clean". Capturing the proposed
+   remedy in the audit is what gives step 3 the reporter→remedy data to key on;
+   a ledger of bare violations would leave the dedup with nothing to preserve.
+   Cap concurrency in bounded waves like the `-deep`
    siblings; retry only a failed subset, once.
 2. **Collect** every ledger.
 3. **Dedup by root cause.** Before correcting, group ledger entries across
