@@ -162,9 +162,14 @@ which would let the gate resolve its declared default instead of dropping.
 Kill-switch enforcement is only as reachable as the value is, and the guard now registers on two
 surfaces with different reach. The **plugin-level engine gate** (`hooks/hooks.json`, exec form,
 `--mode engine-gate`) receives `${user_config.disk_hygiene_enabled}` and `${CLAUDE_PLUGIN_DATA}`
-by substitution — channels Claude Code documents for plugin hooks — so a configured `false` is
-guard-enforced against every engine invocation in every session, whether or not the clean skill is
-active. The gate defers instantly (no output) for any command that does not reference the engine,
+by substitution — channels Claude Code documents for plugin hooks — so **when the value is explicitly
+configured** `false` is guard-enforced against every engine invocation, whether or not the clean skill
+is active. **Caveat (verified on Claude Code 2.1.218):** that reach exists only for a configured value.
+Upstream never implemented the declared userConfig `default`, so while `disk_hygiene_enabled` is unset
+its `${user_config.*}` argument is neither substituted nor exported and its presence **drops the whole
+engine-gate hook** — on a default install the gate does not register at all, and this surface enforces
+nothing (the skill's own kill-switch probe + skill-content value become the only honoring path). Recheck
+when the upstream gap closes (#46477 / #39455 / #39827). The gate defers instantly (no output) for any command that does not reference the engine,
 so it never taxes unrelated work; its coverage marker is the engine script name, a belt against
 casual invocation, not an authority (renaming the script evades the gate but not the engine's own
 preview/approval-token containment). The **skill-scoped belt** (the clean skill's frontmatter
