@@ -27,6 +27,11 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   rate-limit guard's operable floor byte-identically per its inline-floor rule, and inline the
   `claude-ops`-compatible sentinel telemetry upsert (an installed plugin cannot invoke a sibling
   plugin's scripts).
+- **GitHub adapter "Open linked PRs" operation is draft-aware.** The GraphQL selection now
+  requests `isDraft` and the operation documents two reductions: the default (drafts count — a
+  draft closing PR is still in-flight work for `work`'s frontier exclusion) and a non-draft
+  reduction for `work-loop`'s drain-exit evaluation, which must not treat a draft as satisfying
+  the exit (review-caught).
 - **Four `userConfig` keys for the work-loop adaptive cap bounds:** `work_loop_item_cap_start`
   (default 2), `work_loop_item_cap_ceiling` (default 3), `work_loop_item_cap_floor` (default 1),
   and `work_loop_frontier_item_cap_ceiling` (default 2). Enforcement is the loop body's own

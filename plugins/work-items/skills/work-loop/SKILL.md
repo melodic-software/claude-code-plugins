@@ -139,11 +139,17 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
    the adaptive item cap. Selection, claim (assignee + lease), staleness pre-check, dispatch
    mechanics, the PR contract, the review pass, and the never-merge boundary are all owned there —
    this loop restates none of them. Loop-level deltas only:
-   - **`#572` workaround — explicit provisioning before dispatch.** Before `work`'s dispatch step
-     runs for an item, provision its branch and out-of-tree worktree via `/source-control:worktree`
-     create (when the `source-control` plugin is installed; otherwise do not dispatch the item —
-     park it and escalate for operator-provided branch setup). The autonomous-provisioning seam is
-     not yet landed (`#572`), so this loop template carries the provisioning step explicitly.
+   - **`#572` workaround — worker-side provisioning, never parent-side.** `/source-control:worktree`
+     create ends by ENTERING the created worktree, transitioning the calling session — so the loop
+     orchestrator never invokes it itself. The dispatch brief instead makes provisioning the
+     worker's own first step: the dispatched subagent creates and enters the item's branch +
+     out-of-tree worktree in its own context via `/source-control:worktree` create (when the
+     `source-control` plugin is installed — that skill owns naming, placement, and cleanup
+     conventions), or a plain `git worktree add` from its own context when it is not. A worker
+     that cannot provision an isolated worktree parks the item and escalates for
+     operator-provided branch setup rather than editing the default checkout. The
+     autonomous-provisioning seam is not yet landed (`#572`), so this loop template carries the
+     provisioning step explicitly.
    - **Dispatch discipline.** Worker briefs enumerate the required skills per phase and carry the
      convention's subagent discipline preamble (presence-gated re-anchor sweep with the inline
      fallback). Subagent escalation authority is an open-ended duty — escalate decisions that are
@@ -224,6 +230,11 @@ Evaluate at cycle end, against the cycle-start snapshot:
 2. Every open issue in the snapshot is closed or has an **open, non-draft** PR the bound
    adapter's "Open linked PRs" operation reports as close-linked — the provider's own computed
    close-linkage, whose query mechanics (and the draft exclusion) the adapter owns.
+
+Lane-infrastructure items never gate the drain: the per-lane telemetry tracking issues (the
+`Lane telemetry: <lane>` title contract — this lane's and any sibling lane's) are excluded from
+the cycle-start snapshot, the intake sweep, and both exit evaluations. The loop never works,
+closes, or waits on them; an open telemetry issue is the lane operating, not backlog.
 
 Both true → the drain is complete: set `first_drain_complete`, write the final report (items
 closed, PR'd, escalated), and stop cleanly. The **drain-terminal state** (per the convention) also
