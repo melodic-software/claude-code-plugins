@@ -81,15 +81,43 @@ unchanged and bind every member.
    audit fan-out cannot run and stop, rather than auditing blind. Instruct
    each fork: load exactly this ONE corrector's
    `SKILL.md`, run shared-loop steps 1–2 only (re-anchor + self-audit), make
-   NO writes, and return a findings ledger (concrete located findings, or an
-   honest "clean"). Cap concurrency in bounded waves like the `-deep`
+   NO writes, and return a findings ledger. Each ledger entry carries the
+   concrete located finding AND the remedy this corrector would apply for it
+   (the shared loop's step-3 corrective action, *described* not performed — the
+   fork still writes nothing), or an honest "clean". Capturing the proposed
+   remedy in the audit is what gives step 3 the reporter→remedy data to key on;
+   a ledger of bare violations would leave the dedup with nothing to preserve.
+   Cap concurrency in bounded waves like the `-deep`
    siblings; retry only a failed subset, once.
 2. **Collect** every ledger.
-3. **Correct once, in rank order.** Walk the in-scope members — the core and
+3. **Dedup by root cause.** Before correcting, group ledger entries across
+   correctors that name the SAME underlying finding — distinct disciplines
+   routinely surface one root cause as separate entries (e.g. a recall-based
+   claim flagged independently by `do-your-research`, `recheck-against-upstream`,
+   and `mind-your-maxims`). Group them into one finding carrying the union of
+   their located evidence and, keyed BY reporting corrector, the remedy that
+   corrector asks for — a reporter→remedy mapping, not a flat remedy list beside
+   a separate reporter list, so step 4 knows which remedy belongs to which rank.
+   What dedup collapses is the
+   re-analysis and the re-reporting of one root cause — NOT the corrective work:
+   a shared root cause can demand more than one remedy that are not
+   interchangeable (verifying or retracting the unsupported claim satisfies the
+   research reporters, but `mind-your-maxims` may still require a reader-facing
+   uncertainty disclosure), and every reporter's remedy is still applied. This
+   grouping is the ONLY place ledgers combine: the forks stay independent by
+   design (no shared ledger across forks — that independence is what keeps each
+   audit's perspective un-anchored), and grouping is by root cause, not by
+   corrector. A finding only one corrector raised passes through unchanged.
+4. **Correct once, in rank order.** Walk the in-scope members — the core and
    situational correctors that ran (never-tier carries no rank and was already
    excluded at membership resolution) — by ascending `re-anchor-batch-rank`,
    and correct forward each finding on the main thread now — the shared loop's
-   step 3, batched. The order:
+   step 3, batched. For a grouped finding, "once" means the root cause is
+   analyzed and corrected in a single pass, not that its remedies collapse to
+   one: apply every reporter's distinct remedy, each at its own reporting
+   corrector's rank (so the research retraction and the `mind-your-maxims`
+   disclosure both happen, in rank order), rather than dropping the
+   lower-priority reporters' corrective work. The order:
    `use-your-skills` first (fix which skills govern the work) → evidence
    correctors (get the facts right) → structural correctors → `mind-your-maxims`
    (communication) → `tighten-your-output` dead last, so it never tightens
@@ -99,10 +127,11 @@ unchanged and bind every member.
    fresh-context (non-fork) subagent blind to that reasoning, per the method
    doc's Non-negotiable — the batch orchestrates the correction here, it does
    not waive that escalation. (The fork *audit* inherits context on purpose:
-   step 2 is a same-context self-audit; this carve-out is about step 3.)
-4. **Report** one consolidated ledger: per corrector — corrected / clean /
-   open; plus which situational members ran versus were skipped, and which
-   never-members exist for direct use.
+   step 2 is a same-context self-audit; this carve-out is about step 4.)
+5. **Report** one consolidated ledger: per corrector — corrected / clean /
+   open; a root-cause finding merged in step 3 is listed once, attributed to
+   every corrector that reported it; plus which situational members ran versus
+   were skipped, and which never-members exist for direct use.
 
 ## Member human-gates survive batching
 
@@ -159,7 +188,12 @@ relevance-gated. Report the net effect whenever the overlay changes the set.
   override and inherits the whole conversation, so each in-scope corrector's
   audit runs at the parent model over the full transcript; the wave cap bounds
   burst, not per-fork cost. Keeping the `never` tier out and relevance-gating
-  the situational tier are what hold the fan-out small.
+  the situational tier are what hold the fan-out small. Order of magnitude from
+  a real full-batch run on a mid-length session: each fork consumed
+  ~170K tokens (inherited transcript), so an 8-in-scope pass in two waves of
+  four ran ~1.4M tokens for the audit phase alone. Budget the sweep as a
+  deliberate spend, not a reflex — on a long transcript the per-fork cost only
+  grows.
 - **`tighten-your-output` stays last** — tightening before the other
   corrections would tighten text they then rewrite.
 - **A situational skip is reported, not silent** — the user sees what was

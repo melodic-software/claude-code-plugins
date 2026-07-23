@@ -3,6 +3,33 @@
 All notable changes to the `re-anchor` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0]
+
+### Added
+
+- **`sweep-all-disciplines`: an explicit dedup-by-root-cause step between collect and correct
+  (`#1154`).** Distinct correctors routinely surface one underlying finding as separate ledger
+  entries (observed in a real full-batch run: one recall-based claim flagged independently by
+  `do-your-research`, `recheck-against-upstream`, and `mind-your-maxims`), and the main thread had
+  to dedup by hand. The batched pass now names step 3 — group entries that share a root cause,
+  carry the union of their evidence and, keyed by reporting corrector, the remedy that corrector
+  asks for (a reporter→remedy mapping, so each remedy keeps its rank). Dedup collapses the
+  re-analysis and re-reporting of one root cause,
+  NOT the corrective work: a shared root cause can demand non-interchangeable remedies (retracting
+  an unsupported claim satisfies the research reporters, but `mind-your-maxims` may still require a
+  reader-facing uncertainty disclosure), so every reporter's remedy is still applied, each at its
+  own rank. The merged finding is reported once with full attribution. Fork independence is
+  unchanged and explicitly reaffirmed: the forks never share a ledger (that independence keeps each
+  audit un-anchored), and the grouping is the single point where ledgers combine. The pass steps
+  renumber 1–5 (fan out → collect → dedup → correct → report).
+
+### Changed
+
+- **Cost gotcha carries a real datapoint.** The "forks run at the parent model's cost" gotcha now
+  records order-of-magnitude from a full-batch run — ~170K tokens per fork (inherited transcript),
+  ~1.4M for an 8-in-scope pass in two waves of four — so the sweep is budgeted as a deliberate
+  spend rather than a reflex.
+
 ## [0.7.0]
 
 ### Added

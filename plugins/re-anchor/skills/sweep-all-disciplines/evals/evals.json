@@ -17,12 +17,12 @@
       "id": 2,
       "name": "full-batch-fork-audit-then-ordered-correction",
       "prompt": "sweep all disciplines — run the whole re-anchor bundle over what we've done so far.",
-      "expected_output": "The skill resolves membership by globbing the correctors and reading their tier metadata, fans out one conversation-inheriting fork subagent per in-scope corrector for an audit-only pass (steps 1-2, no writes, one SKILL.md each), collects the findings ledgers, then applies corrections once on the main thread in ascending rank order (use-your-skills first, tighten-your-output last). It never names members inline and never batches the never tier.",
+      "expected_output": "The skill resolves membership by globbing the correctors and reading their tier metadata, fans out one conversation-inheriting fork subagent per in-scope corrector for an audit-only pass (steps 1-2, no writes, one SKILL.md each, each ledger entry carrying the finding AND the remedy that corrector would apply), collects the findings ledgers, dedups them by root cause, then applies corrections once on the main thread in ascending rank order (use-your-skills first, tighten-your-output last). It never names members inline and never batches the never tier.",
       "files": [],
       "expectations": [
         "Resolves membership from tier metadata by globbing, not from a hardcoded member list",
         "Uses conversation-inheriting fork subagents for audit-only work, applying corrections on the main thread",
-        "Applies corrections in rank order with tighten-your-output last"
+        "Dedups ledgers by root cause between collect and correct, then applies corrections in rank order with tighten-your-output last"
       ]
     },
     {
@@ -59,6 +59,18 @@
         "Applies the userConfig exclude/promote/demote overlay after tier resolution",
         "Drops an excluded corrector and always-runs a promoted situational corrector",
         "Reports how the overlay changed the resolved set"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "dedup-by-root-cause-preserves-per-reporter-remedies",
+      "prompt": "sweep all disciplines — we've been leaning on a couple of unverified from-memory claims about the API this whole session.",
+      "expected_output": "In the correct-once phase, the skill dedups ledger entries by root cause: the from-memory claims are one root cause that several correctors flag independently (e.g. do-your-research, recheck-against-upstream, and mind-your-maxims), so it merges them into a single finding rather than re-analyzing and re-reporting the same cause three times. The merge preserves a reporter->remedy mapping — each corrector's distinct remedy is kept keyed to the corrector that asked for it (verify/retract the claim for the research reporters; a reader-facing uncertainty disclosure for mind-your-maxims) — and step 4 applies every remedy, each at its own reporting corrector's rank, rather than collapsing them to one action or dropping the lower-priority ones. The consolidated report lists the finding once, attributed to every reporter.",
+      "files": [],
+      "expectations": [
+        "Merges ledger entries that share a root cause into one finding instead of correcting the same cause multiple times",
+        "Keeps each reporter's distinct remedy keyed to its reporting corrector and applies every remedy at its own rank",
+        "Reports the merged finding once with attribution to all reporting correctors, and keeps the forks' ledgers independent (merge only at consolidation)"
       ]
     }
   ]
