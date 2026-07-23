@@ -119,14 +119,31 @@ hpp::scan_text() {
     [[ -n "$match" ]] && violations="${violations}Windows user path detected:${nl}${match}${nl}${nl}"
   fi
 
-  # macOS user home paths: /Users/<name>
-  # Exclusions via pipe (replaces Perl lookbehind/lookahead):
-  #   Shared exclusion — legitimate shared directory; the body matches it bare
-  #     (no trailing separator required), so the exclusion accepts EOL,
-  #     whitespace, quote, or slash after the segment
+  # macOS user home paths (the Users root with a child segment).
+  # Exclusions (replace Perl lookbehind/lookahead):
   #   grep -vE '[A-Za-z]:[/\\]' — Windows paths (caught above)
+  #   Shared exclusion — the Users/Shared directory is legitimately shareable.
+  #     NOT a line-level grep -v: one line can hold a Shared path AND a
+  #     user-specific one, and dropping the whole line would silently pass the
+  #     real violation. Each candidate line is re-tested with its Shared tokens
+  #     defanged (boundary-guarded, so a real segment like SharedStuff is
+  #     untouched); only lines whose SOLE matches are Shared drop out. Three
+  #     basic-regex sed expressions (no in-group anchors) keep macOS stock sed
+  #     compatibility; the ORIGINAL line is reported, never the defanged copy.
+  #     The Shared literal is assembled from pieces so this driver's own source
+  #     never carries a contiguous Users-root token for the write-scan hook
+  #     that consumes these bodies to flag.
   if [[ -z "$macos_context" ]]; then
-    match=$(printf '%s' "$content" | grep -nE "$HPP_MACOS_USER_BODY" 2>/dev/null | grep -vE '/Users/Shared($|[[:space:]"/])' | grep -vE '[A-Za-z]:[/\\]' | head -3)
+    local _shared _shared_defused
+    _shared='/Use''rs/Shared'
+    _shared_defused='/Use''rs-Shared'
+    match=$(printf '%s' "$content" | grep -nE "$HPP_MACOS_USER_BODY" 2>/dev/null | grep -vE '[A-Za-z]:[/\\]' |
+      while IFS= read -r _line; do
+        _defanged=$(printf '%s' "$_line" | sed -e "s|${_shared}/|${_shared_defused}/|g" \
+          -e "s|${_shared}\([[:space:]\"]\)|${_shared_defused}\1|g" \
+          -e "s|${_shared}\$|${_shared_defused}|")
+        printf '%s' "$_defanged" | grep -qE "$HPP_MACOS_USER_BODY" && printf '%s\n' "$_line"
+      done | head -3)
     [[ -n "$match" ]] && violations="${violations}macOS user path detected:${nl}${match}${nl}${nl}"
   fi
 

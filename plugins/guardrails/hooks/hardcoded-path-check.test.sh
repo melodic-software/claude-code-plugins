@@ -187,6 +187,19 @@ OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$FIXTURE"
 RC=$?
 assert_exit "bare macos Shared at EOL → exit 0" 0 "$RC"
 
+# Shared exclusion must be match-level, not line-level: a line holding a bare
+# Shared path AND a user-specific path still fires on the user-specific one.
+OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$FIXTURE" "cp ${SL}Users${SL}Shared ${SL}Users${SL}alice")" 2>&1)
+RC=$?
+assert_exit "Shared + user path on one line → exit 2" 2 "$RC"
+assert_contains "Shared + user path → macOS message" "$OUT" "macOS user path"
+
+# Defang boundary guard: a real segment merely PREFIXED with Shared is a user
+# directory, not the shared one — it must still flag.
+OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$FIXTURE" "ls ${SL}Users${SL}SharedStuff")" 2>&1)
+RC=$?
+assert_exit "SharedStuff segment → exit 2" 2 "$RC"
+
 OUT=$(CLAUDE_PROJECT_DIR="$TEST_TMPDIR" bash "$HOOK" <<<"$(write_json "$PS1_FIXTURE" "\$cfg = '${WIN_HOME}'")" 2>&1)
 RC=$?
 assert_exit "Windows path in .ps1 → suppressed → exit 0" 0 "$RC"
