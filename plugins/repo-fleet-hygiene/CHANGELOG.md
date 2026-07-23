@@ -3,6 +3,29 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0]
+
+### Changed
+
+- **Stale config entries degrade per-entry, not per-run (#1121).** A config-sourced
+  `fleet.repo`/`fleet.root` path that is missing or no longer a Git working tree becomes an
+  `UNKNOWN stale-config-entry` finding (naming the path, the reason, and the config source) and the
+  rest of the fleet is still audited — deleting five repositories right after an audit no longer
+  aborts every subsequent run until the config is edited. CLI-supplied `--repo`/`--root` paths still
+  hard-fail (a typo should stop the run), as does invalid config syntax. SKILL.md graceful
+  degradation updated to match.
+
+### Added
+
+- **Duplicate checkouts surfaced (#1121).** Multiple audited checkouts resolving to the same
+  normalized GitHub identity are still audited independently (correct — same-identity clones have
+  independent local state), but the coincidence now yields one LOW informational
+  `duplicate-checkout` finding per identity listing the checkout paths. Guaranteed LOW-only.
+- **README names the deletion-triage owner (#1121).** "Can I delete this repository safely?" is
+  disposability analysis owned by `/repo-hygiene:clean` (scan/stash/git tiers); the README's new
+  "What this does not answer" section points there. The deletion-triage inventory itself was
+  declined by design for this read-only report — recorded in the source handoff item's resolution.
+
 ## [0.6.0]
 
 ### Added

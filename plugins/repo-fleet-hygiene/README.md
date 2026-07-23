@@ -96,6 +96,13 @@ accepts only its documented command, option, operand, and environment shapes. A 
 branch inventory becomes `UNKNOWN`; partial output is discarded and the repository is not counted as
 successfully audited.
 
+## What this does not answer
+
+"Can I delete this repository safely?" is deletion triage — an inventory of dirty files, stashes,
+and unpushed branches — and belongs to `/repo-hygiene:clean` (its scan/stash/git tiers), which owns
+per-repository disposability analysis. This audit is a read-only cross-repository evidence REPORT;
+it names candidates and hands off, and deliberately does not judge whether a checkout is disposable.
+
 ## Requirements
 
 - Git with `git worktree list --porcelain -z` and `git rev-parse --path-format=absolute` support.
