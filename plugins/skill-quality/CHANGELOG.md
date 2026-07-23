@@ -27,7 +27,9 @@ All notable changes to the `skill-quality` plugin are documented here. Format fo
   name; the target root stays operator-provided. First-class installed-skill resolution is left
   as a tracked follow-up.
 
+## [0.9.0]
 
+### Changed
 
 - **Check 3 (trigger-keyword preservation) — move exception.** A quoted trigger phrase
   dropped from a skill's listing text but present verbatim in a SIBLING skill's

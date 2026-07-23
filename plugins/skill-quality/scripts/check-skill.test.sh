@@ -113,11 +113,27 @@ rc=$?
 if [[ $rc -eq 1 ]] &&
   grep -q 'plugin:skill name' <<<"$out" &&
   grep -q 'CHECK_SKILL_SKILLS_ROOT=~/.claude/plugins/cache' <<<"$out" &&
+  grep -qF '${CLAUDE_PLUGIN_ROOT}/scripts/check-skill.sh' <<<"$out" &&
   grep -q 'setup' <<<"$out"; then
   pass "plugin:skill name gets installed-skill resolution guidance"
 else
   fail "plugin:skill name should get installed-skill guidance (rc=$rc): $out"
 fi
+
+# 4c. A leaf carrying shell syntax is escaped in the pasteable command (paste
+#     safety — a copied command must not execute a substitution). Scope the
+#     check to the rerun-command line: the diagnostic prefix echoes the raw
+#     name (single-quoted, not pasteable) and that echo is fine.
+out="$(run 'x:$(touch pwn)' 2>&1)"
+cmd_line="$(grep 'check-skill.sh' <<<"$out")"
+if grep -qF '$(touch pwn)' <<<"$cmd_line"; then
+  fail "leaf with shell syntax should be escaped in the rerun command, not left bare: $cmd_line"
+elif grep -qF 'touch' <<<"$cmd_line"; then
+  pass "leaf with shell syntax is shell-escaped in the suggested command"
+else
+  fail "leaf-escape assertion did not find the escaped leaf: $cmd_line"
+fi
+[[ -e "$TMP/pwn" ]] && fail "escaping test must not create a file"
 
 # 5. Dropping a committed single-quoted trigger phrase fails (check 3, the
 #    regression-critical path — exercises the git-backed SKILL_REL resolution).
