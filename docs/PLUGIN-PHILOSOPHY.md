@@ -338,7 +338,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Lifecycle artifact protocol | [`docs/PLUGIN-ARTIFACT-PROTOCOL.md`](PLUGIN-ARTIFACT-PROTOCOL.md) |
 | Shared hook utility library | `lib/hook-utils.sh`, synced by `scripts/sync-hook-utils.sh` |
 | Cross-plugin shared-source clusters | `scripts/cross-plugin-source-registry.txt` |
-| Consumer-config layering and precedence | [`docs/conventions/consumer-config-layering/`](conventions/consumer-config-layering/README.md) |
+| Config cascade — consumer-config layering and precedence | [`docs/conventions/config-cascade/`](conventions/config-cascade/README.md) |
 | Commit-convention enforcement seam | [`docs/conventions/commit-convention/`](conventions/commit-convention/README.md) |
 | PR-body required-sections convention | [`docs/conventions/pr-body-convention/`](conventions/pr-body-convention/README.md) |
 | Ecosystem command resolution | [`docs/conventions/ecosystem-commands/`](conventions/ecosystem-commands/README.md) |
