@@ -45,11 +45,12 @@ note that re-enabling restores the FAIL semantics.
 3. **Platform posture** — detect the current OS family and report its documented lane per
    the README, keeping the audit and execution lanes visibly separate: Windows (full
    **audit** — `lstat` reparse + Win32, never UAC; engine **execution unsupported** —
-   `preview` returns `execution-platform-unsupported`, removal is a manual, per-path
-   Recycle-Bin handoff after explicit approval), Linux (full audit; execution when
+   `preview` reports `execution-platform-unsupported` as a per-candidate blocker, removal is
+   a manual, per-path Recycle-Bin handoff only under `--execute` and after explicit
+   approval), Linux (full audit; execution when
    `/proc/self/mountinfo` is readable — `lsof` needed only for that optional execution
    lane, absent `lsof` is INFO with the reduced-capability note), macOS (audit/report
-   only by design; manual Trash handoff — INFO, not a defect).
+   only by design; manual Trash handoff only under `--execute` — INFO, not a defect).
 4. **Execution kill switch** — resolve the effective `disk_hygiene_enabled` value
    deterministically; never present an assumed value as the configured one. Run the bundled
    probe with the step-1 interpreter:

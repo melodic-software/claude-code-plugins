@@ -22,7 +22,10 @@ filename pattern is a discovery hint, never proof that an entry is junk. Read
 ## Arguments and boundaries
 
 Parse `$ARGUMENTS` as optional `--execute`, optional `--policy <file>`, and one target directory.
-`--execute` means “offer the gated lane”; it is not approval. With no target, ask once. Reject an
+`--execute` means "deletion may be offered" on every platform — the gated engine lane where the
+platform supports it, the manual handoff elsewhere; it is not approval. (Deliberate semantic
+unification, not a restatement: the flag previously read as engine-lane-only, which left the
+manual lane's gate ambiguous — consumer sessions read it both ways.) With no target, ask once. Reject an
 OS-managed root, a non-root mount target, a protected shell-folder root or descendant, a missing
 directory, a symlink, or a Windows reparse point. A whole-volume root that is not OS-managed (a
 Windows Dev Drive) is no longer rejected outright — it is a valid target, but as a known-large root
@@ -213,8 +216,10 @@ token.
 
 ### Unsupported-platform handoff (Windows, macOS)
 
-Preview returns `execution-platform-unsupported` on these platforms, so the engine never deletes
-there. The default outcome is the report. If — and only if — the human reviews the report and
+Preview reports `execution-platform-unsupported` as a per-candidate blocker on these platforms, so
+the engine never deletes there. The default outcome is the report. The manual lane is gated by
+`--execute` exactly as the engine lane is — without it, no deletion lane may be offered on any
+platform. If — and only if — `--execute` was requested and the human reviews the report and
 approves an exact path list in this interactive session (the same `AskUserQuestion` exact-tier-and-
 list bar as the engine lane; a general "clean it up" is still not approval), removal is a manual
 handoff, not an engine plan:

@@ -63,9 +63,13 @@ at preview. Backups remain the recovery boundary for user data.
 - Git is optional for ordinary trees. If a target contains or sits inside a Git worktree, Git becomes
   required so tracked content can be proven safe; otherwise cleanup for that subtree is blocked.
 - Windows has the full **audit** lane (Python 3.11's `lstat` reparse metadata plus Win32 APIs
-  exposed by the OS; never invokes UAC) but engine **execution is unsupported**: `preview` returns
-  `execution-platform-unsupported`, and removal is a manual, per-path Recycle-Bin handoff after
-  explicit approval.
+  exposed by the OS; never invokes UAC) but engine **execution is unsupported**: `preview` reports
+  `execution-platform-unsupported` as a per-candidate blocker, and removal is a manual, per-path
+  Recycle-Bin handoff offered only when `--execute` was requested and after explicit approval
+  (the flag gates every deletion lane, manual included). The Recycle-Bin / Trash naming is a model-layer
+  distinction only — the engine treats Windows and macOS identically (execution unsupported); which
+  reversible-removal container the manual lane prefers is the model's instruction, not engine
+  behavior.
 - Linux requires readable `/proc/self/mountinfo`, descriptor-relative filesystem APIs, and `lsof` for
   the optional execution lane. Absence, diagnostics, or authority gaps block cleanup.
 - macOS supports audit/report only because this implementation has no authoritative bind-mount and

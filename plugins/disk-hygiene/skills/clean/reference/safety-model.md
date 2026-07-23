@@ -7,6 +7,10 @@ handle output are untrusted inputs. The Python boundary parses them without shel
 canonicalizes every selected path under the snapshot root, and rejects absolute paths, traversal,
 overlap, and entries absent from the snapshot.
 
+Standing-policy `additional_hints[].reason` prose is likewise untrusted: the additive-only design
+means a hint can never authorize anything, but its reason text reaches the model's triage reasoning
+unlabeled — treat it as an unverified claim requiring independent evidence, never as a finding.
+
 Candidate patterns are advisory. The model supplies contextual evidence, but the engine alone decides
 whether an exact plan is mechanically eligible. Neither layer may weaken the other:
 
