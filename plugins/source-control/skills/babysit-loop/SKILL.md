@@ -37,11 +37,13 @@ The single-pass mechanics belong to `/source-control:babysit-prs`: the tier matr
 resolution, the guarded mutation wrappers and deterministic gates, fan-out and the worker contract,
 review discipline, and the cross-tier safety invariants. Each cycle **invokes**
 `/source-control:babysit-prs <tier> <owner/repo>` with the resolved tier and scope; this loop
-restates none of that. In particular, the head-move yield (expected-head pins and HEAD assertion —
-the merge gate refuses when the pinned head no longer matches, and mutation requires HEAD asserted
-at the true PR head) and the foreign-activity discipline (never touching another session's WIP) are
-babysit-prs's own, held here by citation (its SKILL.md "Guarded mutations" and its
-[loop reference](../babysit-prs/reference/loop.md) §5.1.2–§5.1.3). The grace window below is
+restates none of that. In particular, two disciplines are babysit-prs's own, held here by
+citation: the head-move yield (expected-head pins and HEAD assertion — the merge gate refuses when
+the pinned head no longer matches, and mutation requires HEAD asserted at the true PR head; its
+SKILL.md "Guarded mutations" and its [loop reference](../babysit-prs/reference/loop.md)
+§5.1.2–§5.1.3), and the foreign-activity discipline (the `foreign_activity` dispatch suppressor —
+never race a foreign session for the same PR; its
+[orchestration reference](../babysit-prs/reference/orchestration.md)). The grace window below is
 an additional loop-level overlay, never a replacement for them.
 
 ## Required argument and config resolution
