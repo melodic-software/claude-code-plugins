@@ -3,6 +3,20 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.2]
+
+### Fixed
+
+- **PowerShell lane narrows the engine deny from substring to invocation classification (#1112).**
+  The lane denied ANY command containing the substring `hygiene.py` — blocking commands that
+  merely NAME the script (live-observed, F6) while a renamed copy evaded it anyway. The engine
+  check now uses the same invocation classifier as the plugin-level gate (bundled-file identity +
+  launcher rules): bare-name and consumer-file mentions defer. Deliberately NOT deferred: a
+  command whose argument IS the bundled engine, even under a read-verb spelling
+  (`Get-Content <engine>`) — PowerShell aliases and profile functions shadow cmdlet names, so a
+  verb name proves nothing about what executes (review finding); the deny message points at
+  non-shell file tools for reading the engine source.
+
 ## [0.7.1]
 
 ### Fixed

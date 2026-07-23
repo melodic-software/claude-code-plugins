@@ -590,11 +590,20 @@ def powershell_decision(command: str, enabled: bool) -> tuple[str, str] | None:
     false) it is denied outright, so the kill switch blocks every deletion lane
     and not only the Bash engine lane.
     """
-    if "hygiene.py" in command.casefold():
+    if _engine_gate_relevant(command, "PowerShell"):
+        # Invocation-shaped engine references only — the same classifier the
+        # plugin-level engine gate uses, so read-only text processing that
+        # merely NAMES the script (Select-String over a bare name, git diff)
+        # defers instead of being denied by a raw substring test. A command
+        # whose argument IS the bundled engine (file identity) still denies,
+        # even under a read-verb spelling: PowerShell aliases and profile
+        # functions shadow cmdlet names, so a verb name proves nothing about
+        # what executes — inspect the engine source with non-shell tools.
         return (
             "deny",
             "disk-hygiene engine invocations must go through the Bash tool's "
-            "exact guarded command shapes, not PowerShell.",
+            "exact guarded command shapes, not PowerShell. To READ the engine "
+            "source, use non-shell file tools.",
         )
     match = _POWERSHELL_MUTATION_WORDS.search(command)
     if match:

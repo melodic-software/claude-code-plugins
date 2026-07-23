@@ -2699,6 +2699,37 @@ class GuardTests(unittest.TestCase):
                 command,
             )
 
+    def test_powershell_bare_name_mentions_defer_but_engine_identity_denies(self) -> None:
+        """F6 (#1112): mentions defer via the invocation classifier; a command
+        whose argument IS the bundled engine still denies — verb names prove
+        nothing under alias/function shadowing (review round on this PR)."""
+        script = SCRIPT_DIR / "hygiene.py"
+        with tempfile.TemporaryDirectory() as tmp, chdir_context(tmp):
+            self.assertIsNone(
+                self.run_guard_powershell("Select-String -Pattern guard hygiene.py")
+            )
+        for command in (
+            f'Select-String -Pattern "def main" {script}',
+            f"Get-Content {script} -TotalCount 5",
+        ):
+            result = self.run_guard_powershell(command)
+            assert result is not None, command
+            self.assertEqual(
+                "deny", result["hookSpecificOutput"]["permissionDecision"], command
+            )
+
+    def test_powershell_engine_invocation_still_denied_after_narrowing(self) -> None:
+        script = SCRIPT_DIR / "hygiene.py"
+        for command in (
+            f'python3 "{script}" scan --target t --output s',
+            f'& python "{script}" scan --target t --output s',
+        ):
+            result = self.run_guard_powershell(command)
+            assert result is not None, command
+            self.assertEqual(
+                "deny", result["hookSpecificOutput"]["permissionDecision"], command
+            )
+
     def test_powershell_read_only_support_work_defers(self) -> None:
         for command in (
             "git status --short",
