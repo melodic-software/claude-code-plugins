@@ -9,7 +9,7 @@ trap 'rm -rf "$TMP"' EXIT
 MOCK_BIN="$TMP/bin"
 mkdir -p "$MOCK_BIN" "$TMP/config" "$TMP/discovered-a" "$TMP/canonical-a" "$TMP/repo-b" "$TMP/old-repo" \
   "$TMP/bad-discovered" "$TMP/bad-canonical" "$TMP/wt-fail" \
-  "$TMP/ref-fail" \
+  "$TMP/ref-fail" "$TMP/rref-fail" \
   "$TMP/root/acme/root-repo/.git" \
   "$TMP/emptyroot" \
   "$TMP/wt-a" "$TMP/wt-mismatch" \
@@ -48,6 +48,7 @@ rev-parse)
     bad-canonical) printf '%s\n' "$TEST_ROOT/bad-canonical" ;;
     wt-fail) printf '%s\n' "$TEST_ROOT/wt-fail" ;;
     ref-fail) printf '%s\n' "$TEST_ROOT/ref-fail" ;;
+    rref-fail) printf '%s\n' "$TEST_ROOT/rref-fail" ;;
     root-repo) printf '%s\n' "$TEST_ROOT/root/acme/root-repo" ;;
     discovered-c | canonical-c) printf '%s\n' "$TEST_ROOT/canonical-c" ;;
     gone-repo) printf '%s\n' "$TEST_ROOT/gone-repo" ;;
@@ -66,6 +67,7 @@ rev-parse)
     bad-canonical) printf '%s\n' "$TEST_ROOT/bad-canonical/.git" ;;
     wt-fail) printf '%s\n' "$TEST_ROOT/wt-fail/.git" ;;
     ref-fail) printf '%s\n' "$TEST_ROOT/ref-fail/.git" ;;
+    rref-fail) printf '%s\n' "$TEST_ROOT/rref-fail/.git" ;;
     root-repo) printf '%s\n' "$TEST_ROOT/root/acme/root-repo/.git" ;;
     discovered-c | canonical-c) printf '%s\n' "$TEST_ROOT/canonical-c/.git" ;;
     gone-repo) printf '%s\n' "$TEST_ROOT/gone-repo/.git" ;;
@@ -87,6 +89,7 @@ remote)
     bad-canonical) printf '%s\n' 'https://gitlab.com/other/unrelated.git' ;;
     wt-fail) printf '%s\n' 'https://github.com/acme/wt-fail.git' ;;
     ref-fail) printf '%s\n' 'https://github.com/acme/ref-fail.git' ;;
+    rref-fail) printf '%s\n' 'https://github.com/acme/rref-fail.git' ;;
     root-repo) printf '%s\n' 'https://github.com/acme/root-repo.git' ;;
     discovered-c | canonical-c) printf '%s\n' 'https://github.com/acme/repo-c.git' ;;
     gone-repo) printf '%s\n' 'https://github.com/gone/away.git' ;;
@@ -117,6 +120,9 @@ worktree)
   ref-fail)
     printf 'worktree %s\0HEAD ref-main\0branch refs/heads/main\0\0' "$TEST_ROOT/ref-fail"
     ;;
+  rref-fail)
+    printf 'worktree %s\0HEAD rr-main\0branch refs/heads/main\0\0' "$TEST_ROOT/rref-fail"
+    ;;
   root-repo)
     printf 'worktree %s\0HEAD root-main\0branch refs/heads/main\0\0' "$TEST_ROOT/root/acme/root-repo"
     ;;
@@ -140,17 +146,23 @@ symbolic-ref)
 branch)
   case "$base" in
   canonical-a) printf '%s\n' main ;;
-  repo-b | old-repo | root-repo | wt-fail | ref-fail | canonical-c | gone-repo | lost-repo | net-repo) printf '%s\n' main ;;
+  repo-b | old-repo | root-repo | wt-fail | ref-fail | rref-fail | canonical-c | gone-repo | lost-repo | net-repo) printf '%s\n' main ;;
   esac
   ;;
 for-each-ref)
   # refs/remotes/<remote>/ scans (case-branch below) prove a local-only branch never becomes a
   # --head argument to gh: canonical-a's remote mirror deliberately omits feature/mismatch.
+  # repo-b deliberately matches NO case here (empty output, exit 0): it is the empty-remote-
+  # inventory regression fixture for #1119 -- its non-default feature/shared branch has no PR-batch
+  # row, so the exact-fallback gate loop must run over an empty REMOTE_BRANCH_NAMES without
+  # aborting the fleet (unguarded expansion is fatal under set -u on bash <= 4.3) and must report
+  # the skipped lookup as a visible privacy gap.
   if [[ "${3:-}" == refs/remotes/*/ ]]; then
     case "$base" in
     canonical-a)
       printf 'origin\thead-a\0\norigin/main\tmain-a\0\norigin/feature/shared\tsha-a\0\norigin/stale/changed\tdrift-tip\0\n'
       ;;
+    rref-fail) exit 9 ;;
     esac
     exit 0
   fi
@@ -164,6 +176,7 @@ for-each-ref)
   old-repo) printf 'main\told-main\0\n' ;;
   wt-fail) printf 'main\twt-main\0\nfeature/fail\tfail-tip\0\n' ;;
   ref-fail) printf 'main\tref-main\0\nfeature/partial\tpartial-tip\0'; exit 9 ;;
+  rref-fail) printf 'main\trr-main\0\nfeature/gated\trr-tip\0\n' ;;
   root-repo) printf 'main\troot-main\0\n' ;;
   canonical-c) printf 'main\tmain-c\0\n' ;;
   gone-repo) printf 'main\tgone-main\0\n' ;;
@@ -199,6 +212,7 @@ api)
   repos/acme/bad) printf 'acme/bad\tmain' ;;
   repos/acme/wt-fail) printf 'acme/wt-fail\tmain' ;;
   repos/acme/ref-fail) printf 'acme/ref-fail\tmain' ;;
+  repos/acme/rref-fail) printf 'acme/rref-fail\tmain' ;;
   repos/old/repo) printf 'new/repo\tmain' ;;
   repos/acme/repo-c) printf 'acme/repo-c\tmain' ;;
   repos/gone/net) printf 'gh: connection reset by peer\n' >&2; exit 1 ;;
@@ -216,6 +230,7 @@ pr)
     printf '42\tstale/changed\tmerged-tip\t2026-07-02T00:00:00Z\thttps://github.com/acme/repo-a/pull/42\n'
     ;;
   github.com/acme/repo-b | github.com/acme/root-repo | github.com/new/repo | github.com/acme/repo-c) ;;
+  github.com/acme/rref-fail) ;;
   github.com/acme/wt-fail)
     printf '88\tfeature/fail\tfail-tip\t2026-07-03T00:00:00Z\thttps://github.com/acme/wt-fail/pull/88\n'
     ;;
@@ -246,6 +261,7 @@ cat >"$TMP/config/repo-fleet-hygiene.conf" <<'EOF'
     repo = ../bad-discovered
     repo = ../wt-fail
     repo = ../ref-fail
+    repo = ../rref-fail
     repo = ../discovered-c
     repo = ../gone-repo
     repo = ../lost-repo
@@ -302,9 +318,30 @@ assert_not_contains "repo B branch did not inherit repo A merge" "Target: $TMP/r
 assert_not_contains "invalid canonical state was not combined" "Target: $TMP/bad-canonical ::"
 assert_not_contains "failed worktree inventory suppressed branch candidate" "Target: $TMP/wt-fail :: feature/fail"
 assert_not_contains "partial branch inventory suppressed branch candidate" "Target: $TMP/ref-fail :: feature/partial"
-assert_contains "failed repositories not counted successful" "Summary: repositories=8"
+assert_contains "failed repositories not counted successful" "Summary: repositories=9"
 assert_contains "per-root discovered count for a contributing root" "../root: 1 repositories"
 assert_contains "zero-contribution root stays visible in the header" "../emptyroot: 0 repositories"
+
+# Empty remote-ref inventory (repo-b: refs/remotes scan returns nothing with exit 0) must reach
+# and survive the exact-fallback gate loop -- on bash <= 4.3 an unguarded empty-array expansion
+# under set -u aborts the whole fleet -- and the privacy-gated skip must be visible, never silent.
+if grep -A3 -F "Finding: merge-evidence-privacy-gated" "$output" | grep -Fq "Target: $TMP/repo-b"; then
+  printf 'PASS: empty remote inventory survives gate loop and reports privacy gap\n'
+else
+  printf 'FAIL: empty remote inventory survives gate loop and reports privacy gap\n' >&2
+  failures=$((failures + 1))
+fi
+assert_contains "local-only branch named in aggregate privacy gap" \
+  "absent from the local remote-tracking inventory: feature/mismatch"
+# A FAILED remote-ref scan (rref-fail) already reports remote-branch-inventory-unavailable
+# repo-wide; the per-repo privacy-gap aggregate must stay quiet there, not double-report.
+assert_contains "failed remote-ref scan reported repo-wide" "Finding: remote-branch-inventory-unavailable"
+if grep -A3 -F "Finding: merge-evidence-privacy-gated" "$output" | grep -Fq "Target: $TMP/rref-fail"; then
+  printf 'FAIL: failed remote inventory double-reported as privacy gap\n' >&2
+  failures=$((failures + 1))
+else
+  printf 'PASS: failed remote inventory not double-reported as privacy gap\n'
+fi
 
 # fleet.ackUnavailable: 404 on an acked identity (mixed-case config entry) is
 # demoted to ACKNOWLEDGED; an unacked 404 stays UNKNOWN; a non-404 failure on
