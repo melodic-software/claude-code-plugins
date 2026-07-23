@@ -1,5 +1,14 @@
 # Changelog — topic-docs convention
 
+## 2.1.0 — 2026-07-23
+
+- **Implementers table: architecture row added** (additive). The architecture
+  plugin's deepening lens writes its per-lens candidate ledger
+  (`deepening-candidates-<timestamp>.md`) to the memory tier via a delta-doc
+  binding, replacing its prior broken `${CLAUDE_PLUGIN_DATA}` default (the
+  token never substituted in skill content, and even resolved it is
+  machine-global). No tier, key, slug-spec, or visibility change.
+
 ## 2.0.0 — 2026-07-17
 
 Visibility semantics are now normative contract guarantees. No tier moves, no
