@@ -97,10 +97,14 @@ handled, the answers written, and the guard mode. Same inlined upsert as the wor
 ```bash
 MARKER="work-items:attend-queue"
 SENT="<!-- claude-ops:lane-telemetry marker=$MARKER -->"   # first line of $BODY_FILE
-CID=$(gh api --paginate "repos/$REPO/issues/$ISSUE/comments" \
-  --jq ".[] | select(.body | startswith(\"$SENT\")) | .id" | head -n1)
-if [ -n "$CID" ]; then gh api -X PATCH "repos/$REPO/issues/comments/$CID" -F body=@"$BODY_FILE"
-else gh api -X POST "repos/$REPO/issues/$ISSUE/comments" -F body=@"$BODY_FILE"; fi
+if ! LIST=$(gh api --paginate "repos/$REPO/issues/$ISSUE/comments" \
+  --jq ".[] | select(.body | startswith(\"$SENT\")) | .id"); then
+  echo "telemetry: comment lookup failed; skipping upsert this cycle (fail closed)" >&2
+else
+  CID=$(printf '%s\n' "$LIST" | head -n1)
+  if [ -n "$CID" ]; then gh api -X PATCH "repos/$REPO/issues/comments/$CID" -F body=@"$BODY_FILE"
+  else gh api -X POST "repos/$REPO/issues/$ISSUE/comments" -F body=@"$BODY_FILE"; fi
+fi
 ```
 
 When the bound provider is not `github`, this upsert is unavailable: carry the same telemetry
