@@ -798,37 +798,37 @@ for fe_file in "${FRESH_EYES_FILES[@]}"; do
         line = substr(line, 1, RSTART - 1) substr(line, RSTART + RLENGTH)
       }
       if (line ~ /<!--[ \t]*fresh-eyes-exempt/) {
-        nd++
+        dir_n++
         if (line ~ /<!--[ \t]*fresh-eyes-exempt:[ \t]*(deterministic-gate|external-input|deferred)[ \t]+--[ \t]+[^ \t].*-->/) {
-          d[nd] = NR; dt[nd] = "valid"
+          d[dir_n] = NR; dt[dir_n] = "valid"
         } else if (line ~ /<!--[ \t]*fresh-eyes-exempt:[ \t]*(deterministic-gate|external-input|deferred)[ \t]*(--[ \t]*)?-->/) {
-          d[nd] = NR; dt[nd] = "noreason"
+          d[dir_n] = NR; dt[dir_n] = "noreason"
         } else {
-          d[nd] = NR; dt[nd] = "malformed"
+          d[dir_n] = NR; dt[dir_n] = "malformed"
         }
       }
       low = tolower(line)
-      if (low ~ /fresh[- ]context/) { nw++; w[nw] = NR }
-      if (low ~ JR) { nj++; j[nj] = NR }
+      if (low ~ /fresh[- ]context/) { word_n++; w[word_n] = NR }
+      if (low ~ JR) { judge_n++; j[judge_n] = NR }
     }
     END {
-      for (i = 1; i <= nd; i++) {
+      for (i = 1; i <= dir_n; i++) {
         if (dt[i] == "noreason") printf "DIRECTIVE_NOREASON %d\n", d[i]
         else if (dt[i] == "malformed") printf "DIRECTIVE_MALFORMED %d\n", d[i]
       }
-      for (i = 1; i <= nj; i++) {
+      for (i = 1; i <= judge_n; i++) {
         hasw = 0; hasd = 0
-        for (k = 1; k <= nw; k++) if (w[k] >= j[i] - P && w[k] <= j[i] + P) hasw = 1
-        for (k = 1; k <= nd; k++) if (dt[k] == "valid" && d[k] >= j[i] - P && d[k] <= j[i] + P) hasd = 1
+        for (k = 1; k <= word_n; k++) if (w[k] >= j[i] - P && w[k] <= j[i] + P) hasw = 1
+        for (k = 1; k <= dir_n; k++) if (dt[k] == "valid" && d[k] >= j[i] - P && d[k] <= j[i] + P) hasd = 1
         if (hasw && hasd) printf "HIT_BOTH %d\n", j[i]
         else if (hasw) printf "HIT_WORDING %d\n", j[i]
         else if (hasd) printf "HIT_DIRECTIVE %d\n", j[i]
         else printf "HIT_NONE %d\n", j[i]
       }
-      for (i = 1; i <= nd; i++) {
+      for (i = 1; i <= dir_n; i++) {
         if (dt[i] != "valid") continue
         used = 0
-        for (k = 1; k <= nj; k++) if (j[k] >= d[i] - P && j[k] <= d[i] + P) used = 1
+        for (k = 1; k <= judge_n; k++) if (j[k] >= d[i] - P && j[k] <= d[i] + P) used = 1
         if (!used) printf "DIRECTIVE_STALE %d\n", d[i]
       }
     }
