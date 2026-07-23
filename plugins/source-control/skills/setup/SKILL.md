@@ -192,9 +192,11 @@ With no argument in an interactive session, run the interview:
    - Commit-history consensus — the default history signal, a year-scale volume-weighted read, not
      a small fixed sample (a `-50` tail misses a convention shift and any informal variant family
      entirely). One pass:
-     `git log --since="<window>" --no-merges --date=short --format='%ad|%s'` — subjects with an ISO
+     `git log --since="<window>" --no-merges --date=short --format='%cd|%s'` — subjects with an ISO
      date for the recency split; never `git log --oneline` (the abbreviated-hash prefix breaks
-     anchored matching). Every knob is plugin `userConfig`, never a constant — a surviving literal
+     anchored matching). `%cd` (committer date), not `%ad`: `--since` filters the walk by committer
+     timestamp, so rendering author dates would let a rebased or cherry-picked commit enter the
+     window yet land in the wrong recency bucket — one clock for both the filter and the split. Every knob is plugin `userConfig`, never a constant — a surviving literal
      `${user_config.…}` placeholder means the key is unset, so apply its manifest default:
      - `${user_config.setup_inference_window}` — the `--since` window (git-approxidate; default
        `1 year`).

@@ -12,7 +12,9 @@ All notable changes to the `source-control` plugin are documented here. Format f
   families entirely — live-run evidence: a 2,122-subject year-scale analysis found a rising
   ticket-prefix pattern at 78.8% recent vs 71.9% older with Conventional Commits at 0%, invisible
   at n=50. The history signal is now one
-  `git log --since="<window>" --no-merges --date=short --format='%ad|%s'` pass, auto-subjects
+  `git log --since="<window>" --no-merges --date=short --format='%cd|%s'` pass (committer dates —
+  the same clock `--since` filters by, so a rebased commit can't land in the wrong recency bucket;
+  review-caught during #1139), auto-subjects
   (`Revert`/`fixup!`/`squash!`; merges via `--no-merges`) excluded, bucket-classified in-context
   and reported as volume-weighted percentages with a recent-vs-older recency split — the user picks
   from the evidence table; no bucket is silently promoted into config. Every knob is plugin
