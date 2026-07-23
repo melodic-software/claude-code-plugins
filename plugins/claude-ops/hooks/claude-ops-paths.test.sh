@@ -82,6 +82,11 @@ assert_eq "normalize_rel_segments drops ./ and //" ".claude/observability" \
   "$(claude_ops::normalize_rel_segments './.claude//observability/')"
 assert_eq "normalize_rel_segments folds backslashes" "telemetry/skills" \
   "$(claude_ops::normalize_rel_segments 'telemetry\skills')"
+
+assert_eq "gitignore_escape escapes glob metachars" 'telemetry\*/a\?b/\[x]' \
+  "$(claude_ops::gitignore_escape 'telemetry*/a?b/[x]')"
+assert_eq "gitignore_escape leaves ordinary paths intact" '.claude/observability' \
+  "$(claude_ops::gitignore_escape '.claude/observability')"
 assert_eq "data-dir scope keys by repo slug" "$DATA_DIR/skill-usage/$slug" \
   "$(CLAUDE_PLUGIN_DATA="$DATA_DIR" claude_ops::resolve_skill_usage_dir data-dir "$PROJECT" '.claude/observability')"
 if CLAUDE_PLUGIN_DATA="" claude_ops::resolve_skill_usage_dir data-dir "$PROJECT" '.claude/observability' >/dev/null; then
@@ -137,6 +142,18 @@ if git -C "$REPO" init -q 2>/dev/null; then
     bad "skill_usage_git_exclude=false suppresses the exclude write"
   else
     ok "skill_usage_git_exclude=false suppresses the exclude write"
+  fi
+  # Glob-metachar configured dir writes a LITERAL exclude pattern (no dir
+  # created — * is illegal in a filename on Windows; the string path is the
+  # subject here).
+  REPO4="$TEST_TMPDIR/repo4"
+  mkdir -p "$REPO4"
+  git -C "$REPO4" init -q 2>/dev/null
+  claude_ops::ensure_git_exclude "$REPO4" 'telemetry*'
+  if grep -qxF -- '/telemetry\*/' "$REPO4/.git/info/exclude" 2>/dev/null; then
+    ok "glob-metachar configured dir written as literal exclude pattern"
+  else
+    bad "glob-metachar configured dir written as literal exclude pattern"
   fi
 fi
 NONREPO="$TEST_TMPDIR/nonrepo"

@@ -24,7 +24,9 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   `project` (project-root basename, display) and `project_id` (basename + 8-char digest of
   the physical path — same-basename checkouts stay distinguishable) so cross-repo scopes
   keep repo identity; the data-dir key uses the same collision-resistant slug, and the
-  exclude line is segment-normalized so a configured `./x` or `x//y` still matches.
+  exclude line is segment-normalized (a configured `./x` or `x//y` still matches) and
+  glob-escaped (`*` `?` `[` in a configured dir write a literal exclude pattern, not a
+  glob that over-matches sibling dirs).
   **Default-flip decision (recorded):** the default deliberately stays `repo` — the store
   sits beside `hook-events.jsonl` per the observability skill's project-local posture (that
   skill reads only `hook-events.jsonl` and the OTEL store, so colocation is convention, not

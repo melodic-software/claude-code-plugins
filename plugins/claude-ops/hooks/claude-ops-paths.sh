@@ -73,6 +73,25 @@ claude_ops::normalize_rel_segments() {
   printf '%s' "${out%/}"
 }
 
+# Backslash-escape gitignore glob metacharacters (* ? [) and a literal
+# backslash so a configured dir like `telemetry*` writes a LITERAL exclude
+# pattern, not a glob that over-matches sibling dirs. Leading #/! need no
+# handling: the exclude line always begins with the root anchor `/`, so the
+# comment/negation meaning (first-char-only) never applies.
+claude_ops::gitignore_escape() {
+  local s="$1" out="" ch i
+  for ((i = 0; i < ${#s}; i++)); do
+    ch="${s:i:1}"
+    # shellcheck disable=SC1003  # '\' is a literal single-backslash case pattern, not a botched quote escape
+    case "$ch" in
+    '*' | '?' | '[' | '\') out+='\' ;;
+    *) ;;
+    esac
+    out+="$ch"
+  done
+  printf '%s' "$out"
+}
+
 # Resolve the skill-usage store directory for a scope:
 #   repo (default) — skill_usage_dir (default .claude/observability) as a
 #     contained project-relative path under the project root.
@@ -117,7 +136,7 @@ claude_ops::ensure_git_exclude() {
   esac
   line="$(claude_ops::normalize_rel_segments "$rel_dir")"
   [[ -n "$line" ]] || return 0
-  line="/${line}/"
+  line="/$(claude_ops::gitignore_escape "$line")/"
   if [[ -f "$exclude_file" ]] && grep -qxF -- "$line" "$exclude_file" 2>/dev/null; then
     return 0
   fi
