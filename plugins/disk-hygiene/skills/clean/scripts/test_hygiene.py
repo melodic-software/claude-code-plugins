@@ -1514,6 +1514,289 @@ class OsAutocleanAdvisoryTests(unittest.TestCase):
         self.assertEqual(expected, advisory["mechanism"])
 
 
+class LeastObservableEnginePathTests(unittest.TestCase):
+    """Direct coverage for the engine paths a consumer can least verify live (F8).
+
+    Each test mocks the OS surface (Win32 handle probe, lsof, the registry,
+    /proc/self/mountinfo encoding, VCS markers) so both CI lanes exercise the
+    same branch regardless of host platform.
+    """
+
+    @staticmethod
+    def fake_windows_ctypes(create_result: int, error_code: int = 0):
+        dll = types.SimpleNamespace(
+            CreateFileW=mock.Mock(return_value=create_result),
+            CloseHandle=mock.Mock(),
+        )
+        fake = types.SimpleNamespace(
+            WinDLL=mock.Mock(return_value=dll),
+            c_wchar_p=object(),
+            c_uint32=object(),
+            c_void_p=lambda value=None: types.SimpleNamespace(value=value),
+            get_last_error=mock.Mock(return_value=error_code),
+        )
+        return fake, dll
+
+    def windows_handle_probe(
+        self, probe: Path, create_result: int, error_code: int = 0
+    ):
+        fake, dll = self.fake_windows_ctypes(create_result, error_code)
+        with mock.patch.object(hygiene, "ctypes", fake):
+            return hygiene.windows_handle_state(probe), dll
+
+    def test_windows_handle_sharing_violation_codes_map_to_open(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            probe = Path(temporary) / "probe.tmp"
+            probe.write_text("busy", encoding="utf-8")
+            for code in (32, 33):  # ERROR_SHARING_VIOLATION / ERROR_LOCK_VIOLATION
+                state, dll = self.windows_handle_probe(probe, -1, code)
+                self.assertEqual(("open", f"win32-error-{code}"), state)
+                dll.CloseHandle.assert_not_called()
+
+    def test_windows_handle_access_denied_codes_map_to_needs_elevation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            probe = Path(temporary) / "probe.tmp"
+            probe.write_text("guarded", encoding="utf-8")
+            for code in (5, 1314):  # ERROR_ACCESS_DENIED / ERROR_PRIVILEGE_NOT_HELD
+                state, _ = self.windows_handle_probe(probe, -1, code)
+                self.assertEqual(("needs_elevation", f"win32-error-{code}"), state)
+
+    def test_windows_handle_unknown_error_fails_closed_as_unverified(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            probe = Path(temporary) / "probe.tmp"
+            probe.write_text("gone", encoding="utf-8")
+            state, _ = self.windows_handle_probe(probe, -1, 2)
+            self.assertEqual(("unverified", "win32-error-2"), state)
+
+    def test_windows_handle_success_reports_clear_and_closes_handle(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            probe = Path(temporary) / "probe.tmp"
+            probe.write_text("idle", encoding="utf-8")
+            state, dll = self.windows_handle_probe(probe, 42)
+            self.assertEqual(("clear", None), state)
+            dll.CloseHandle.assert_called_once()
+
+    def test_windows_handle_directory_probe_uses_backup_semantics(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary) / "held-dir"
+            directory.mkdir()
+            probe = directory / "probe.tmp"
+            probe.write_text("file", encoding="utf-8")
+            _, directory_dll = self.windows_handle_probe(directory, 42)
+            _, file_dll = self.windows_handle_probe(probe, 42)
+        directory_flags = directory_dll.CreateFileW.call_args.args[5]
+        file_flags = file_dll.CreateFileW.call_args.args[5]
+        self.assertEqual(0x02000000, directory_flags)  # FILE_FLAG_BACKUP_SEMANTICS
+        self.assertEqual(0x00000080, file_flags)  # FILE_ATTRIBUTE_NORMAL
+
+    @staticmethod
+    def lsof_result(returncode: int, stdout: str = "", stderr: str = ""):
+        return types.SimpleNamespace(
+            returncode=returncode, stdout=stdout, stderr=stderr
+        )
+
+    def posix_handle_probe(self, path: Path, result=None, side_effect=None):
+        captured: dict[str, list[str]] = {}
+
+        def fake_run(command, **kwargs):
+            captured["command"] = command
+            if side_effect is not None:
+                raise side_effect
+            return result
+
+        with (
+            mock.patch.object(hygiene.shutil, "which", return_value="/usr/bin/lsof"),
+            mock.patch.object(hygiene.subprocess, "run", side_effect=fake_run),
+        ):
+            return hygiene.posix_handle_state(path), captured
+
+    def test_posix_handle_without_lsof_fails_closed(self) -> None:
+        with mock.patch.object(hygiene.shutil, "which", return_value=None):
+            self.assertEqual(
+                ("unverified", "lsof-not-found"),
+                hygiene.posix_handle_state(Path("/anywhere")),
+            )
+
+    def test_posix_handle_open_file_reported_by_lsof(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            probe = Path(temporary) / "probe.tmp"
+            probe.write_text("busy", encoding="utf-8")
+            state, captured = self.posix_handle_probe(
+                probe, self.lsof_result(0, stdout=f"n{probe}\n")
+            )
+        self.assertEqual(("open", "lsof-reported-open-file"), state)
+        self.assertEqual(["--", str(probe)], captured["command"][-2:])
+
+    def test_posix_handle_directory_probe_walks_descendants(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary) / "held-dir"
+            directory.mkdir()
+            state, captured = self.posix_handle_probe(
+                directory, self.lsof_result(1)
+            )
+        self.assertEqual(("clear", None), state)
+        self.assertEqual(["+D", str(directory)], captured["command"][-2:])
+
+    def test_posix_handle_clear_when_lsof_finds_nothing(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            probe = Path(temporary) / "probe.tmp"
+            probe.write_text("idle", encoding="utf-8")
+            state, _ = self.posix_handle_probe(probe, self.lsof_result(1))
+        self.assertEqual(("clear", None), state)
+
+    def test_posix_handle_diagnostics_fail_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            probe = Path(temporary) / "probe.tmp"
+            probe.write_text("busy", encoding="utf-8")
+            state, _ = self.posix_handle_probe(
+                probe,
+                self.lsof_result(
+                    0, stdout=f"n{probe}\n", stderr="lsof: WARNING: unreadable dir"
+                ),
+            )
+        self.assertEqual("unverified", state[0])
+        self.assertTrue(state[1] and state[1].startswith("lsof-diagnostic:"))
+
+    def test_posix_handle_unexpected_exit_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            probe = Path(temporary) / "probe.tmp"
+            probe.write_text("odd", encoding="utf-8")
+            state, _ = self.posix_handle_probe(probe, self.lsof_result(3))
+        self.assertEqual(("unverified", "lsof-exit-3"), state)
+
+    def test_posix_handle_timeout_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            probe = Path(temporary) / "probe.tmp"
+            probe.write_text("slow", encoding="utf-8")
+            state, _ = self.posix_handle_probe(
+                probe, side_effect=subprocess.TimeoutExpired("lsof", 20)
+            )
+        self.assertEqual(("unverified", "lsof-timeout"), state)
+
+    @staticmethod
+    def fake_winreg(values=None, open_error=None):
+        class FakeKey:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc_info):
+                return False
+
+        def open_key(root, key_path):
+            if open_error is not None:
+                raise open_error
+            return FakeKey()
+
+        def query_value_ex(key, name):
+            if values is not None and name in values:
+                return values[name], 4  # REG_DWORD
+            raise OSError(2, "value not found")
+
+        # `import winreg` returns whatever object sys.modules holds; a plain
+        # namespace stands in for the real module on every platform.
+        return types.SimpleNamespace(
+            HKEY_CURRENT_USER=object(),
+            OpenKey=open_key,
+            QueryValueEx=query_value_ex,
+        )
+
+    def test_storage_sense_reads_policy_values(self) -> None:
+        fake = self.fake_winreg({"01": 1, "04": 1, "2048": 7})
+        with mock.patch.dict("sys.modules", {"winreg": fake}):
+            state = hygiene.windows_storage_sense_state()
+        self.assertEqual(
+            {"enabled": True, "temporary_files_cleanup": True, "cadence_days": 7},
+            state,
+        )
+
+    def test_storage_sense_zero_values_read_as_disabled(self) -> None:
+        fake = self.fake_winreg({"01": 0, "04": 0, "2048": 0})
+        with mock.patch.dict("sys.modules", {"winreg": fake}):
+            state = hygiene.windows_storage_sense_state()
+        self.assertEqual(
+            {"enabled": False, "temporary_files_cleanup": False, "cadence_days": 0},
+            state,
+        )
+
+    def test_storage_sense_missing_values_stay_unknown(self) -> None:
+        fake = self.fake_winreg({})
+        with mock.patch.dict("sys.modules", {"winreg": fake}):
+            state = hygiene.windows_storage_sense_state()
+        self.assertEqual(
+            {"enabled": None, "temporary_files_cleanup": None, "cadence_days": None},
+            state,
+        )
+
+    def test_storage_sense_missing_key_reports_unknown_state(self) -> None:
+        fake = self.fake_winreg(open_error=OSError(2, "key not found"))
+        with mock.patch.dict("sys.modules", {"winreg": fake}):
+            state = hygiene.windows_storage_sense_state()
+        self.assertEqual(
+            {"enabled": None, "temporary_files_cleanup": None, "cadence_days": None},
+            state,
+        )
+
+    def test_mountinfo_decoder_decodes_octal_escapes(self) -> None:
+        self.assertEqual(
+            "/mnt/data disk", hygiene._decode_mountinfo_path("/mnt/data\\040disk")
+        )
+        self.assertEqual("/mnt/a\tb", hygiene._decode_mountinfo_path("/mnt/a\\011b"))
+        self.assertEqual(
+            "/mnt/back\\slash", hygiene._decode_mountinfo_path("/mnt/back\\134slash")
+        )
+        self.assertEqual(
+            "/mnt/two  spaces",
+            hygiene._decode_mountinfo_path("/mnt/two\\040\\040spaces"),
+        )
+
+    def test_mountinfo_decoder_leaves_non_octal_sequences_verbatim(self) -> None:
+        self.assertEqual("/plain/path", hygiene._decode_mountinfo_path("/plain/path"))
+        # "8" is not an octal digit, so the sequence is not an escape.
+        self.assertEqual("/mnt/x\\81a", hygiene._decode_mountinfo_path("/mnt/x\\81a"))
+        # Truncated escape at end of string stays verbatim.
+        self.assertEqual("/mnt/x\\04", hygiene._decode_mountinfo_path("/mnt/x\\04"))
+
+    def test_nested_non_git_vcs_marker_is_flagged_and_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = (Path(temporary) / "target").resolve()
+            nested = target / "vendored"
+            (nested / ".hg").mkdir(parents=True)
+            repositories, errors = hygiene.discover_current_repositories(
+                target, target
+            )
+            self.assertIn(nested, repositories)
+            self.assertIn(
+                f"{nested}: non-Git VCS state is not independently verified", errors
+            )
+            self.assertEqual(
+                "vcs-state-unverified", hygiene.tracked_blocker(target, target)
+            )
+
+    def test_enclosing_non_git_vcs_marker_is_flagged(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = (Path(temporary) / "checkout").resolve()
+            inner = root / "inner"
+            (root / ".svn").mkdir(parents=True)
+            inner.mkdir()
+            _, errors = hygiene.discover_current_repositories(root, inner)
+            self.assertIn(
+                f"{root}: non-Git VCS state is not independently verified", errors
+            )
+
+    def test_casefolded_non_git_marker_is_still_flagged(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = (Path(temporary) / "target").resolve()
+            nested = target / "vendored"
+            (nested / ".SVN").mkdir(parents=True)
+            repositories, errors = hygiene.discover_current_repositories(
+                target, target
+            )
+            self.assertIn(nested, repositories)
+            self.assertIn(
+                f"{nested}: non-Git VCS state is not independently verified", errors
+            )
+
+
 class GuardTests(unittest.TestCase):
     @staticmethod
     def python_command() -> str:
