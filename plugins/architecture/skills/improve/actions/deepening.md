@@ -2,13 +2,13 @@
 
 The `deepening` action implements Ousterhout's "deepening" concept — finding shallow modules (interface nearly as complex as implementation) and proposing how to deepen them (small interface, large behavior behind it).
 
-Three phases. Each has a hard gate before the next.
+Three phases, with a verification gate (Phase 1.5) between the scan and the report. Each has a hard gate before the next.
 
 ## Phase 1 — Explore for friction
 
 Read the project's domain glossary if it maintains one — the nearest `UBIQUITOUS-LANGUAGE.md` (or equivalent), found by walking UP from the directory being examined toward the repo root and stopping at the first match (the same way `.editorconfig` / `.gitignore` resolve). Also read any architecture decision records in the area being examined.
 
-Use the Agent tool with `subagent_type=Explore` (or any read-only exploration subagent available) to walk the codebase. Explore organically — note where friction appears:
+Use the Agent tool with `subagent_type=Explore` (or any read-only exploration subagent available) to walk the codebase. Brief each scan subagent with the canonical template in [../research/deepening/scan-briefing.md](../research/deepening/scan-briefing.md) — vocabulary primer, friction checklist, dependency categories, the two badge-acceptance heuristics, and the per-candidate return schema — so scan quality does not vary run-to-run and confidence is calibrated against the heuristics at scan time (not left to Phase 2). Explore organically — note where friction appears:
 
 - Where does understanding one concept require bouncing between many small modules?
 - Where are modules **shallow** — interface nearly as complex as implementation?
@@ -21,7 +21,18 @@ Apply the **deletion test** to anything suspected shallow: would deleting it con
 
 Classify each candidate's dependencies per [../research/deepening/dependencies.md](../research/deepening/dependencies.md) — the category determines testing strategy.
 
+## Phase 1.5 — Verify before publishing
+
+Hard gate between the scan and the report. Scan-agent accuracy is mixed, and the HTML report is a user-facing artifact that lends every claim its authority — an overstated claim there is cheap to make and expensive to reputation. Before rendering Phase 2, adversarially verify:
+
+- **Every candidate that will carry a `Strong` badge** — reproduce its `shallow-signal` (the concrete observation from the scan-briefing return schema). If the signal does not reproduce, the candidate is not `Strong`; downgrade or drop it.
+- **Every `runtime-claim`** — any candidate asserting a live bug or dead code. These are grep-cheap to check and the most damaging to get wrong (the worked failure: a scan reporting a service "registered but never composed" that a single grep showed *is* consumed, via a different consumer, with tests). Reproduce the claim against the actual code before it reaches the report; correct or drop it if it does not hold.
+
+Verification can be a second cheap read-only subagent pass or inline reproduction — the bar is that no `Strong` badge and no runtime-bug/dead-code claim reaches Phase 2 unreproduced. Record what changed (downgraded, dropped, corrected) so the candidate artifact reflects the verified state, not the raw scan.
+
 ## Phase 2 — Present candidates as HTML report
+
+**Re-badge first.** Before rendering, re-badge each surviving candidate against the two acceptance heuristics below (deletion-test acceptance form, two-adapter rule) and the Phase 1.5 verification result — scan-time confidence is an input, not the final badge. A candidate whose `shallow-signal` failed to reproduce, or whose value rests on a one-adapter abstraction, cannot carry `Strong`.
 
 Write a self-contained HTML file via a secure temp-file primitive so the path is unpredictable and permissions are restrictive. On Unix/Linux, create it with `mktemp` (e.g. `mktemp --tmpdir deepening-review-XXXXXX.html` or `mktemp -t deepening-review.XXXXXX.html`); on Windows, use a user-scoped temp under `%LOCALAPPDATA%\Temp` or equivalent. Open for user: `start <path>` on Windows, `open <path>` on macOS, `xdg-open <path>` on Linux. Report the absolute path.
 
@@ -49,6 +60,7 @@ Use the project's domain glossary vocabulary for the domain, and [../research/de
 - recommendation: Strong | Worth exploring | Speculative
 - problem: <one sentence>
 - deepening: <one sentence — the shallow-module friction signal, not an interface proposal>
+- shallow-signal: <the concrete observation reproduced in Phase 1.5 — the verified evidence for shallowness, not a bare assertion>
 - agreed-shape: <empty until Phase 3 — filled when the user picks and the shape is grilled: interface entry points, what sits behind the seam, tests that survive>
 - rejected-reason: <only if status is rejected and the reason is load-bearing>
 ```

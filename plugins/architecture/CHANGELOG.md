@@ -3,6 +3,30 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0]
+
+### Added
+
+- Deepening lens: canonical scan-subagent briefing template
+  (`research/deepening/scan-briefing.md`) — vocabulary primer, friction checklist,
+  dependency categories, both badge-acceptance heuristics, and a per-candidate
+  return schema (incl. `shallow-signal` and `runtime-claim` fields). Phase 1 now
+  briefs every scan agent from it, so scan quality no longer varies run-to-run and
+  confidence is calibrated against the acceptance heuristics at scan time rather
+  than arriving only at report time (F3, F4).
+- Deepening lens: a verification gate (Phase 1.5) between the scan and the HTML
+  report. Every `Strong`-badge candidate has its `shallow-signal` reproduced, and
+  every runtime-bug / dead-code claim is checked against the actual code, before it
+  reaches the user-facing report — closing the gap where an overstated scan claim
+  shipped with the report's authority (F2). Phase 2 opens with an explicit re-badge
+  against the two acceptance heuristics plus the verification result. The durable
+  candidate artifact gains a `shallow-signal` field so the verified evidence
+  survives the handoff.
+
+Pure-ADD extension: existing phase contracts and vocabulary discipline are
+unchanged. Minor version bump — new capability, no behavior removed. Follow-up to
+the SW2030 consumer audit of 0.3.5 (#1157).
+
 ## [0.3.6]
 
 ### Fixed
