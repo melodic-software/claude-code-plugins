@@ -61,7 +61,9 @@ above it) — render it comma-joined for this report regardless of how many line
 file spells it across. When every layer leaves it unset, the row still resolves — to the plugin's
 portable default, `Summary` and `Test plan` — so `won by` reads `plugin default` rather than the row
 going blank; this is the one key whose "no layer sets it" state is itself a reportable, named value,
-not a bare absence.
+not a bare absence. A winning layer declaring the literal keyword `none` renders the row's value as
+`none (no required sections)` with that layer in `won by` — a resolved value distinct from the unset
+row above, per config-resolution.md.
 
 Per-layer verdicts:
 
@@ -239,7 +241,10 @@ With no argument in an interactive session, run the interview:
      if it were a universal default; a linked-issue section presumes an issue-tracker convention this
      plugin cannot assume for every repo. Ask what the repo's actual convention requires (a PR
      template, a CI gate like `pr-issue-linkage`, team practice) rather than proposing one, and write
-     only what the repo genuinely needs.
+     only what the repo genuinely needs. A repo whose convention is **no** PR-body sections states
+     that as the literal keyword `none` (a resolved value overriding any lower layer's list, parallel
+     to `trailer_policy`/`pr_body_attribution`) — omitting the section would inherit or fall through
+     to the portable default instead.
      **Omitting this section does NOT always mean "use the portable default"** — per-key fallthrough
      (config-resolution.md's "Merge semantics") means an omitted section keeps whatever an *earlier*
      layer already resolves to. Check the effective merge from step 1 first: omit only when the layers
@@ -295,7 +300,8 @@ With no argument in an interactive session, run the interview:
    (Summary, Test plan) — a flat bullet list, one `- <H2 heading>` per line, e.g.:
    - Summary
    - Test plan
-   - Related>
+   - Related
+   or the literal keyword `none` for a repo whose convention requires no PR-body sections>
    ```
 
    Drop any section with no content rather than leaving it empty. Writing a non-`team` layer, add one

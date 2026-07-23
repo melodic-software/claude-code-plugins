@@ -227,6 +227,32 @@
         "A fenced code block's content is preserved even if it contains comment-marker-shaped text (`<!--`), and an HTML comment's content is dropped even if it contains fence-marker-shaped text (```` ``` ````) — each construct's own parsing rules win inside it, never the other's",
         "A heading line carrying a trailing inline comment is still treated as a real section-exit boundary, not swallowed by comment handling"
       ]
+    },
+    {
+      "id": 19,
+      "name": "pr-body-required-sections-none-resolves-empty",
+      "prompt": "/pull-request create from branch feat/512-add-widget. The team's source-control.md config is captured in evals/fixtures/source-control-required-none.md relative to the skill directory (declares pr_body_required_sections: none). No other layer sets the key. Assemble and create the PR.",
+      "expected_output": "The skill resolves pr_body_required_sections to the literal keyword `none` from the team layer: zero required sections. The assembled body carries the `${CLOSES_LINE}` closing-keyword line and the attribution line but NO `## Summary` / `## Test plan` scaffold — `none` is a resolved value, not an absence, so the portable default does not apply. The §2.4.2.2 required-section gate passes with nothing to verify; the §2.4.2.1 closing-keyword check is independent and still runs and must still pass.",
+      "files": ["evals/fixtures/source-control-required-none.md"],
+      "expectations": [
+        "pr_body_required_sections resolving to the literal keyword `none` yields zero required sections — the assembled body carries no `## Summary` / `## Test plan` scaffold",
+        "`none` is treated as a resolved value, not as an unset key — the portable default (Summary, Test plan) is NOT applied",
+        "The §2.4.2.2 required-section gate passes vacuously with an empty required-section list",
+        "The §2.4.2.1 closing-keyword check still runs and is still enforced — `none` does not disable the closing-keyword / no-issue-marker mechanism"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "pr-body-required-sections-none-overrides-lower-layer",
+      "prompt": "/pull-request create from branch feat/512-add-widget. The user-global ~/.claude/source-control.md declares pr_body_required_sections as the bullet list Summary, Test plan, Related. The repo's team-tracked .claude/source-control.md declares pr_body_required_sections as the literal keyword none. The gitignored local overlay .claude/source-control.local.md exists but does not set pr_body_required_sections. Resolve the effective section scaffold.",
+      "expected_output": "Per config-resolution.md's per-key override across the three layers, the team layer's `none` REPLACES the user-global list wholesale — the effective value is zero required sections, and the overlay's silence on the key changes nothing (an absent key in a later layer keeps the earlier winner; it never resets or re-imports a lower layer's list). The skill distinguishes `none` (a resolved value that wins the per-key override like any list would) from absence (which would have fallen through to the user-global list here). A local overlay declaring `none` over a team list would win the same way — the semantics are per-key precedence, identical to trailer_policy / pr_body_attribution.",
+      "files": [],
+      "expectations": [
+        "The team layer's `none` overrides the user-global layer's Summary/Test plan/Related list — the effective resolution is zero required sections",
+        "The local overlay omitting the key does not disturb the team layer's `none` — per-key fallthrough keeps the later layer's resolved value",
+        "`none` wins the per-key override as a resolved value exactly like a list would, with the same precedence semantics as trailer_policy and pr_body_attribution",
+        "Absence and `none` are distinguished: had the team layer omitted the key, the user-global list would have won instead"
+      ]
     }
   ]
 }

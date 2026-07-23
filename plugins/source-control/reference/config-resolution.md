@@ -32,14 +32,20 @@ Markdown, one `## <key>` H2 per key, the value as the section body:
   consumer setting `trailer_policy: none` keeps the PR-body line unless they also set this to `none`.
 - `pr_body_required_sections` — the PR-body section scaffold: a flat Markdown bullet list (`- <H2
   heading>` per line, one heading per bullet) naming every `## <heading>` section
-  `/source-control:pull-request create` must both draft and pre-check for before `gh pr create`.
-  Absent everywhere → the bundled portable default, `Summary` and `Test plan` only — see
+  `/source-control:pull-request create` must both draft and pre-check for before `gh pr create`, or
+  the literal keyword `none` — no required sections: the draft emits no section scaffold and the
+  pre-create gate requires nothing. Absent everywhere → the bundled portable default, `Summary` and
+  `Test plan` only — see
   [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md)
   for the default's rationale and the seam's full contract. Like `type_list`, and unlike the single
   scalar `subject_pattern`, this key is a **closed list**: a winning layer's list is taken whole,
   never unioned or ordered against an earlier layer's list (per-key override applies to the entire
   value, per "Merge semantics" below) — the same reasoning `type_list` already documents, applied to
-  headings instead of type names.
+  headings instead of type names. `none` participates in that same per-key override as a **resolved
+  value, not an absence** — exactly like its sibling keys `trailer_policy` and `pr_body_attribution`:
+  a layer declaring `none` replaces a lower layer's list (a team file requiring `Summary`/`Test plan`
+  is overridden to zero sections by a local overlay's `none`), while a key absent from every layer
+  still falls through to the portable default.
 
 Absent sections are absent, never empty.
 
