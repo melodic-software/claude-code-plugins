@@ -1,8 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "adhd",
-  "version": "0.1.0",
-  "description": "Shape the assistant's output for a reader with ADHD — action-first, low-friction responses: lead with the concrete next action, number multi-step work, restate state across turns, cap and rank lists, give concrete time estimates, make wins visible, and cut preamble, recap, and closers. On-demand and session-standing once invoked. Reauthored from ayghri/i-have-adhd (MIT). Deliberately mutually exclusive with terse-for-tokens output shapers like caveman — opposite objectives.",
+  "version": "0.2.0",
+  "description": "Shape and restructure the assistant's output for a reader with ADHD — action-first, low-friction, and digestible. adhd:shape is a standing session posture: lead with the concrete next action, number multi-step work, restate state across turns, cap and rank lists, give concrete time estimates, make wins visible, and cut preamble, recap, and closers. adhd:clarify is a one-shot reshape of a dense, decision-heavy artifact already on screen — chunk it one-decision-at-a-time, define the session's own jargon, and surface exactly what you must decide, faithfully (operative terms quoted verbatim, no altitude loss), rendered as an HTML decision table for big content. Reauthored in part from ayghri/i-have-adhd (MIT). Deliberately mutually exclusive with terse-for-tokens output shapers like caveman — opposite objectives.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -17,6 +17,10 @@
     "response-style",
     "executive-function",
     "brevity",
+    "clarify",
+    "restructure",
+    "working-memory",
+    "decision-table",
     "skill"
   ]
 }

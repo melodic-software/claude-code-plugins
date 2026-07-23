@@ -48,12 +48,20 @@ single layer's value as the effective convention; a reader who cannot see which 
 tell why `/commit` behaves as it does.
 
 ```text
-key                 value                       won by
-subject_pattern     ^[A-Z]+-\d+: .+             team
-pr_title_pattern    Same as subject_pattern      team
-trailer_policy      none                         local overlay
-pr_body_attribution none                         local overlay
+key                        value                       won by
+subject_pattern            ^[A-Z]+-\d+: .+             team
+pr_title_pattern           Same as subject_pattern      team
+trailer_policy             none                         local overlay
+pr_body_attribution        none                         local overlay
+pr_body_required_sections  Summary, Test plan           plugin default
 ```
+
+`pr_body_required_sections` is a **list**-valued key (like `type_list`, and unlike every scalar row
+above it) — render it comma-joined for this report regardless of how many lines the winning layer's
+file spells it across. When every layer leaves it unset, the row still resolves — to the plugin's
+portable default, `Summary` and `Test plan` — so `won by` reads `plugin default` rather than the row
+going blank; this is the one key whose "no layer sets it" state is itself a reportable, named value,
+not a bare absence.
 
 Per-layer verdicts:
 
@@ -222,10 +230,36 @@ With no argument in an interactive session, run the interview:
      `trailer_policy: none` still keeps the PR-body line unless this is also set). Recommend keeping the
      default `🤖 Generated with [Claude Code]…` line unless the user wants a custom line or `none` to
      omit it. Omit this section entirely to keep the default.
+   - **`pr_body_required_sections`** (optional) — the required `## <heading>` section scaffold
+     `/pull-request create` drafts and pre-checks before opening a PR (one bullet per heading; see
+     [config-resolution.md](../../reference/config-resolution.md) and
+     [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md)).
+     **RECOMMENDED: keep the plugin's own portable default** (`Summary`, `Test plan`) — this interview
+     must not suggest a `Related`/linked-issue section, or any other specific organization's list, as
+     if it were a universal default; a linked-issue section presumes an issue-tracker convention this
+     plugin cannot assume for every repo. Ask what the repo's actual convention requires (a PR
+     template, a CI gate like `pr-issue-linkage`, team practice) rather than proposing one, and write
+     only what the repo genuinely needs.
+     **Omitting this section does NOT always mean "use the portable default"** — per-key fallthrough
+     (config-resolution.md's "Merge semantics") means an omitted section keeps whatever an *earlier*
+     layer already resolves to. Check the effective merge from step 1 first: omit only when the layers
+     *below* the one being written already resolve to the portable default (or the key is unset
+     everywhere) — writing the explicit default there would just add redundant noise. When the intent
+     is genuinely to reset back to the portable default *over* a lower layer that sets something else
+     (a team config requiring `Related`, and this write is a personal overlay or a team rewrite meant
+     to drop it), the portable default must be written out explicitly as the bullet list (`- Summary`,
+     `- Test plan`) — an omitted section would silently keep inheriting the lower layer's list instead.
+     State the one-line reason when this applies ("written explicitly to override the team layer's
+     list, not merely to restate the default").
 5. **Write the config.** Materialize the target layer's path with these sections:
 
    ```markdown
    # source-control configuration
+
+   Read by the source-control Claude Code plugin (and, where installed, the guardrails
+   commit-convention gate). Without those plugins this file is inert — safe to ignore.
+   It is a drafting aid for plugin users, not team-wide enforcement: tool-agnostic
+   enforcement for every committer (plugin or not) is a commit-msg hook or CI check.
 
    Commit-subject / PR-title convention for the source-control plugin, resolved by
    `/source-control:commit` and `/source-control:pull-request` before they infer from the repo's own
@@ -254,11 +288,27 @@ With no argument in an interactive session, run the interview:
 
    <only present if the repo overrides the default PR-body attribution line — a custom line, or
    `none` to omit it>
+
+   ## pr_body_required_sections
+
+   <only present if the repo's required-section scaffold differs from the plugin's portable default
+   (Summary, Test plan) — a flat bullet list, one `- <H2 heading>` per line, e.g.:
+   - Summary
+   - Test plan
+   - Related>
    ```
 
    Drop any section with no content rather than leaving it empty. Writing a non-`team` layer, add one
    line under the heading naming which layer this file is and that it overrides per key — the file
    sits next to (or looks identical to) the team file, and the next reader has no other signal.
+
+   The self-describing preamble above the first `##` heading exists for the reader who does NOT run
+   these plugins — the team file lands in shared history, and a teammate opening it deserves to know
+   it binds nothing on its own. It is part of the template, not an append: a reconfiguration run
+   rewrites the whole header block in place, never stacks a second copy. Prose above the first H2 is
+   inert to every consumer by construction — the enforcement resolver reads only the first non-empty
+   body line under a `## <key>` heading (`lib/resolve-convention-pattern.sh` parse contract), and the
+   drafting read is per-H2-key — so the preamble can never change a resolved value.
 
 6. **Verify the write, per layer.** The post-write check inverts between layers and there is no
    shared shortcut: the team file must be tracked, the local overlay must be ignored, and the
@@ -357,6 +407,12 @@ With no argument in an interactive session, run the interview:
    overridden by an existing team file, and a `layer=team` write can be overridden by an existing
    local overlay — a user who is told only "wrote `subject_pattern`" and then sees `/commit` use a
    different pattern has been misled by the success message.
+
+   For a `team` write, the report also states plainly what the file is and is not: a drafting aid
+   (plus CC-layer enforcement input) for teammates who run these plugins, inert for everyone else —
+   NOT team-wide enforcement. Committers without the plugin are bound only by a commit-msg hook or CI
+   check; when the team wants that, point at the guardrails plugin's opt-in commit-msg hook or the
+   repo's own hook manager rather than implying this file enforces anything by itself.
 
 ### Babysit config
 

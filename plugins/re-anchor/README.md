@@ -18,7 +18,7 @@ first-class use, and the audit may honestly return clean.
 | Skill | Discipline it re-anchors |
 |---|---|
 | `/re-anchor:do-your-research` | Research and no-assumptions before assertion |
-| `/re-anchor:do-your-research-deep` | The verification-fan-out tier of do-your-research — subagents verify every load-bearing claim |
+| `/re-anchor:do-your-research-deep` | The verification-fan-out tier of do-your-research — a typed full inventory of the session's claims, verified at a configurable depth |
 | `/re-anchor:follow-our-standards` | Alignment to the consuming org's engineering conventions |
 | `/re-anchor:point-dont-copy` | Pointer over copy — cite the living source, don't duplicate it |
 | `/re-anchor:reason-dont-recite` | Interrogate inherited content — precedent describes, it doesn't justify |
@@ -30,11 +30,20 @@ first-class use, and the audit may honestly return clean.
 | `/re-anchor:script-the-deterministic-work` | Script deterministic sub-work — run it, then reason over the output |
 | `/re-anchor:use-your-skills` | Actually use the skills in context — scan the listing, invoke the fitting skill, name skills when delegating |
 | `/re-anchor:reuse-or-replace` | Anti-fragmentation — reuse the established way or openly replace it, never silently stand up a second parallel way |
+| `/re-anchor:scrutinize-dont-coast` | Adversarial self-scrutiny — stop coasting on your own recent output; re-examine it through a fresh-context pass and remediate with the user |
 
 The shared method — re-anchor, audit the work in flight, correct forward,
 report — lives once at plugin scope in
 [`context/re-anchor-audit-correct.md`](context/re-anchor-audit-correct.md);
 each skill carries only its own delta.
+
+Beyond the correctors, the plugin ships one **composed runbook** — a declared
+second species that is *not* a corrector and re-anchors no discipline of its
+own:
+
+| Runbook | What it composes |
+|---|---|
+| `/re-anchor:sweep-all-disciplines` | Runs the whole bundle as one pass — fans out an audit-only subagent per in-scope corrector, then applies the corrections on the main thread in a fixed order; at session start it reports a cheap posture digest instead |
 
 ## What each skill does
 
@@ -53,18 +62,25 @@ turns for unbacked claims and skipped verification, then corrects forward.
 ### do-your-research-deep
 
 The verification-fan-out tier of `do-your-research` — same research
-discipline, heavier execution. Enumerates every load-bearing claim made so
-far and dispatches fresh-context subagents to verify each against a primary
-source, throttled in bounded waves so a claim-heavy session does not trip a
-burst overload, then reports a per-claim verified / corrected / unverifiable
-ledger. Reserved for when the accumulated claims justify the subagent cost;
-for a single inline re-anchor + audit, use `do-your-research`. It is a
-sibling skill rather than a `deep` argument because the subagent fan-out is a
-heavier execution tier, fixed in frontmatter (mirrors the
+discipline, heavier execution. Enumerates a **typed full inventory** of the
+session's claims — assumptions, asserted facts, concrete specifics, and
+load-bearing premises, as a checklist so coverage is provable — and verifies
+each against a primary source, throttled in bounded waves so a claim-heavy
+session does not trip a burst overload. Reports one ledger row per inventory
+item (no silent drops), each carrying verdict, source, source tier, consensus
+count, and recency. Verification depth is **configurable** (this is the
+expensive tier by design): `tiered` by default (fan subagents out only over
+load-bearing items, resolve the rest inline) or `full` (subagent-verify every
+item), set via the `research_deep_verification` `userConfig` option and
+overridable by an invocation argument. Reserved for when the accumulated
+claims justify the subagent cost; for a single inline re-anchor + audit, use
+`do-your-research`. It is a sibling skill rather than a `deep` argument because
+the subagent fan-out is a heavier execution tier (mirrors the
 `/discovery:research-deep` precedent).
 
 ```shell
-/re-anchor:do-your-research-deep   # fan out subagents to verify every load-bearing claim
+/re-anchor:do-your-research-deep         # typed inventory, verified at the configured depth
+/re-anchor:do-your-research-deep full    # override the default: subagent-verify every item
 ```
 
 ### follow-our-standards
@@ -267,6 +283,41 @@ win).
 /re-anchor:reuse-or-replace        # re-anchor + audit + correct
 ```
 
+### scrutinize-dont-coast
+
+Re-anchors a *meta* discipline rather than a single content axis: don't coast
+on your own recent output — confidence that work is sound is not evidence that
+it is. The load-bearing adversarial re-examination runs in a fresh-context
+(non-fork) subagent blind to the reasoning that produced the output. It makes
+two deliberate, documented deltas to the shared loop — it **stops the
+trajectory first** and **remediates with the user** rather than autonomously.
+Negative routing: pre-implementation plan stress-tests go to
+`/planning:devils-advocate`, review checkpoints to `/review:quality-gate`, and
+single-axis flaws to the sibling that owns them.
+
+```shell
+/re-anchor:scrutinize-dont-coast   # re-anchor + audit + correct
+```
+
+### sweep-all-disciplines (composed runbook)
+
+The plugin's one **second species** — a router that composes the correctors,
+carrying no discipline of its own. Two modes: at conversation start it derives
+a cheap posture digest from the skill listing and each corrector's tier
+metadata (no bodies load, no audit); mid-session it runs the full pass —
+fanning out a conversation-inheriting fork subagent per in-scope corrector for
+an audit-only walk, then applying the corrections once on the main thread in a
+fixed order (`use-your-skills` first, `tighten-your-output` last). Membership
+is resolved by reading each corrector's colocated `metadata.re-anchor-batch`
+tier (`core` / `situational` / `never`) and `re-anchor-batch-rank` — the
+runbook names no members — layered with an optional `batch_exclude` /
+`batch_promote` / `batch_demote` user overlay. It files no outward artifact and
+preserves every member's human gate.
+
+```shell
+/re-anchor:sweep-all-disciplines   # batch re-anchor, or a session-start posture digest
+```
+
 ## Consumer conventions
 
 The correctors adapt to the consuming repo rather than imposing a source
@@ -291,7 +342,27 @@ of truth:
 
 ## Configuration
 
-No `userConfig`, no persistent state — each skill reads the conversation and
-the consuming project's own instruction layer. `follow-our-standards` may
-fetch a remote standards source when the consumer declares one and no local
-checkout exists.
+No persistent state — each skill reads the conversation and the consuming
+project's own instruction layer. `follow-our-standards` may fetch a remote
+standards source when the consumer declares one and no local checkout exists.
+
+The correctors themselves are zero-config. Two skills expose optional
+`userConfig` scalars. The `sweep-all-disciplines` runbook adds three that
+overlay batch membership without editing any corrector — each a comma-separated
+list of corrector names, empty by default (tiers run exactly as declared) — and
+`do-your-research-deep` adds one that sets its verification depth:
+
+| Option | Effect |
+|---|---|
+| `batch_exclude` | Drop these correctors from the batch |
+| `batch_promote` | Run these situational correctors every session instead of gating them on relevance |
+| `batch_demote` | Run these core correctors only when relevant instead of every session |
+| `research_deep_verification` | `do-your-research-deep` verification depth: `tiered` (default — subagents only over load-bearing items) or `full` (subagent-verify every item); an invocation argument overrides it |
+
+Set them through Claude Code's native plugin-config flow
+(`/plugin configure re-anchor`); they are personal scalars, not repository
+configuration. `/re-anchor:setup check` reports the effective configuration
+read-only (it never writes config — reconfiguration stays the native flow).
+Batch membership and order otherwise live in each corrector's own colocated
+tier metadata (`metadata.re-anchor-batch` + `re-anchor-batch-rank`), so changing
+a shipped tier is a PR to that corrector.

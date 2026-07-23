@@ -3,7 +3,7 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.21.3]
+## [0.21.4]
 
 ### Changed
 
@@ -17,6 +17,23 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   canonical. On the Priority axis the marker is passed as the `track add` `--priority` value (a
   single-label group), replacing the `priority:p3-low` filing default rather than adding a second
   `priority:` label.
+
+## [0.21.3]
+
+### Fixed
+
+- **`work`'s dispatch brief no longer lists `## Related` as a standing PR obligation (#975).**
+  `/source-control:pull-request`'s PR-body scaffold is now configurable via
+  `pr_body_required_sections` and no longer includes `## Related` by default — the prior wording
+  enumerated it alongside `Closes #N` as if every PR carried it. The dispatch brief and the
+  post-green deferred-finding step (`skills/work/SKILL.md`) now: point at pull-request's
+  configurable scaffold instead of restating it, drop `## Related` from the standing-obligations
+  list, and have the deferred-finding step ensure the section exists before citing a follow-up issue
+  in it, rather than assuming pull-request already created one. That step is documented as a
+  **read-modify-write** (`gh pr view --json body` then `gh pr edit --body-file -`), matching the
+  GitHub adapter's own PR-body-edit identity note — `gh pr edit --body`/`--body-file` REPLACES the
+  whole body, so a bare append-flavored write would silently drop `Closes #N` and the rest of the
+  scaffold (review-caught). Eval 3 updated to match.
 
 ## [0.21.2]
 

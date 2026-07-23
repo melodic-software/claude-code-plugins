@@ -58,6 +58,11 @@ other_tool_json() {
 command_json() {
   jq -n --arg cmd "$1" '{tool_name:"Bash",tool_input:{command:$cmd}}'
 }
+# PreToolUse payload for the opt-in PowerShell tool: same tool_input.command
+# field as Bash, distinguished by tool_name so dispatch keys on the tool.
+pwsh_command_json() {
+  jq -n --arg cmd "$1" '{tool_name:"PowerShell",tool_input:{command:$cmd}}'
+}
 
 # make_sink <body> -> path to an executable single-command stub sink running
 # <body> (which reads the telemetry envelope on stdin). HOOK_TELEMETRY_SINK

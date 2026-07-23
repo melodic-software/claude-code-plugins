@@ -3,6 +3,78 @@
 All notable changes to the `re-anchor` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0]
+
+### Added
+
+- **`fact-check` trigger routing** on both research correctors. `do-your-research`
+  and `do-your-research-deep` now list `'fact-check'` / `'fact check this'` (and
+  adjacent phrasing) in their descriptions, so the reflex phrase routes to the
+  research discipline. Every prior trigger phrase is preserved.
+- **`do-your-research-deep` step 1 is now a TYPED FULL INVENTORY.** It enumerates
+  every claim the session rests on as a typed checklist — assumptions, asserted
+  facts, concrete specifics, and load-bearing premises — not just the obviously
+  load-bearing ones, so coverage is provable. The ledger reports one row per
+  inventory item (no silent drops), each carrying verdict, source, **source tier**,
+  **consensus count** (independent authoritative sources), and **recency** where the
+  fact can go stale. Source tier and consensus resolve against the consuming
+  project's own research discipline via the shared method's source-of-truth ladder;
+  an internal assumption with no external referent is covered by an honest
+  re-derived / needs-confirm verdict rather than a fabricated citation.
+- **Configurable verification depth** for `do-your-research-deep` — the expensive
+  tier by design. New `research_deep_verification` `userConfig` scalar (the plugin's
+  fourth option): `tiered` (default — resolve trivial and non-load-bearing items
+  inline, fan subagents out only over load-bearing ones) or `full` (subagent-verify
+  every item). An invocation argument (`argument-hint: [tiered|full]`) overrides the
+  configured default; an empty value, an unexpanded token, or an unrecognized string
+  all fall back to `tiered` without erroring. Existing wave-throttle, failed-subset
+  retry, and blind-subagent mechanics are unchanged.
+
+### Changed
+
+- **`setup` broadened from the posture-batch overlay to the whole re-anchor
+  configuration surface.** It now also reports and validates
+  `research_deep_verification` alongside the three `batch_*` overlay options,
+  treating an unrecognized depth as a WARN that still resolves to `tiered`.
+
+## [0.6.0]
+
+### Added
+
+- **`sweep-all-disciplines`** — a posture-batch runbook, the plugin's first
+  **declared second species**: not a corrector (it re-anchors no discipline of
+  its own) but a router that composes the correctors. It fans out a
+  conversation-inheriting fork subagent per in-scope corrector for an
+  audit-only pass (shared-loop steps 1–2, no writes), then applies the
+  corrections once on the main thread in a fixed rank order (`use-your-skills`
+  first, `tighten-your-output` last). At conversation start it instead reports
+  a cheap posture digest from the listing and tier metadata, loading no
+  corrector bodies. Recorded in the skill as a **declared delta** from the
+  shared loop's per-corrector "correct forward now" step; member human-gates
+  and the outward-artifact carve-out survive batching.
+- **Colocated batch-tier metadata on every corrector.** Each corrector
+  self-classifies in its own frontmatter `metadata:` block — `re-anchor-batch`
+  (`core` / `situational` / `never`) plus `re-anchor-batch-rank` — so the
+  runbook resolves membership and order by globbing and reading, never from a
+  hand-maintained list; changing a shipped tier is a PR to that corrector.
+  `core` runs every session, `situational` is relevance-gated, and `never`
+  covers the `-deep` fan-out tiers plus `scrutinize-dont-coast` (its non-fork
+  fresh-context pass and stop-to-remediate gate are incompatible with the
+  autonomous fork fan-out).
+- **`userConfig` overlay** (`batch_exclude` / `batch_promote` /
+  `batch_demote`) — the plugin's first `userConfig` surface — adjusts batch
+  membership without a PR.
+- **`setup` skill** — a check-only `/re-anchor:setup` conforming to the setup
+  contract's userConfig-only carve-out: it reports the effective batch overlay
+  (treating an unexpanded `${user_config.…}` token as unset) and routes
+  reconfiguration to the native `/plugin configure re-anchor` flow; it writes
+  no config.
+
+### Fixed
+
+- README corrector table and per-skill detail now list `scrutinize-dont-coast`
+  (added in 0.5.0), closing a 13-listed-versus-14-shipped drift.
+
 ## [0.5.1]
 
 ### Changed

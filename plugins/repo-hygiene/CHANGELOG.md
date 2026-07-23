@@ -3,6 +3,125 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0]
+
+### Added
+
+- **`stash` action — stash audit and triage across every tier that previously
+  ignored stashes.** `git-stash-audit.sh` reports each stash's age, source
+  branch, diffstat, and a PR/merge signal, with a per-stash keep/drop advisory —
+  and **never drops a stash**; the agent confirms keep-or-drop per entry. A
+  `possibly superseded` / `likely superseded` advisory (source branch merged into
+  `origin/<default>` or via a merged PR) is a hint to raise first, never an
+  autonomous drop. Deduped across linked worktrees by the `--git-common-dir`
+  `StashStore:` key (worktrees share one stash ref). Each stash also carries its
+  stable commit id (`Commit:`) — the safe handle when dropping several, since the
+  `stash@{n}` selector renumbers after every drop — and a confirmed `git stash
+  drop`/`clear` is now covered by the session destructive guard (blocked until the
+  `CLEAN_GUARD_ACK=1` acknowledgement). Runs standalone (`stash`) and as part of
+  the `git` tier. (#996)
+- **Branch audit now surfaces unpushed commits per branch, including no-upstream
+  branches.** A new `Unpushed:` line reports `N ahead of <upstream>` or, for a
+  never-pushed branch, `no upstream, M commits not on origin/<default>` — the
+  latter is invisible to `@{upstream}`-based ahead reporting, so unmerged local
+  work no longer goes unseen. Such branches form their own REVIEW class ranked
+  above generic stale/orphaned, so the unpushed-commit count is the headline. A
+  branch whose upstream is `gone` but that still carries commits not on
+  origin/<default> is held in REVIEW too, rather than offered as a LIKELY-SAFE
+  deletion candidate that would lose those commits. (#998)
+- **The resolver echoes trailing free text as a `Note:` line.** When a leading
+  action token is followed by a question or a live-session constraint (e.g.
+  `all mind the 6 live sessions`), the remainder is emitted as advisory context
+  the agent must address, instead of being silently dropped during action
+  resolution. (#1000)
+
+### Changed
+
+- **Branches checked out in a linked worktree are their own `WORKTREE` bucket, no
+  longer folded into `PROTECTED`.** Such a branch is a real cleanup candidate but
+  `git branch -d` on it fails or, forced, breaks the worktree — so it is
+  subtracted from the deletion set and routed to the worktree-management tool
+  ("clean up the worktree first") rather than mislabeled untouchable. The
+  protected-name checks now rank above the worktree check so a `release/*` or
+  default branch checked out in a worktree stays PROTECTED. `Summary:` gains a
+  `worktree=` count. (#997)
+- **`scan.sh` enumerates through the shared single pruned-walk engine.** The
+  read-only inventory dropped its per-pattern unpruned `find` walks (which still
+  descended `.git/`, `node_modules/`, `.venv/` despite `! -path` filters) for
+  `clean_caches_candidates` / `clean_build_candidates`, so the scan and the
+  mutating caches/build tiers now share one enumeration way and one prune set.
+  (#1011)
+
+## [0.6.0]
+
+### Added
+
+- **Fleet (batch) mode for the selective `caches` / `build` / `git` / `all`
+  tiers.** A new `clean-batch.sh --tier <caches|build|git|all>` orchestrator runs
+  the single-repo tiers across a set of repositories behind ONE confirmation gate,
+  the way `tree-batch` already does for the destructive `tree` tier. It runs no
+  removal itself — each per-repo action delegates to the unchanged single-repo
+  child (`clean-caches.sh`, `clean-build.sh`, `git-prune.sh`), so every child gate
+  (protection classes, submodule/reparse guards, the dry-run manifest + re-stat
+  staleness guard) is reused verbatim. New action spellings `caches-batch` /
+  `build-batch` / `git-batch` / `all-batch` (plus `*-fleet` aliases) resolve to it.
+  (#994)
+- **The batch plan is the gated set.** `--dry-run` writes a plan enumerating
+  exactly the repos and shared object stores to act on (plus a per-repo child
+  manifest for `caches`/`build`), prints `BatchPlan: <path>` and an aggregate
+  `Summary: repos=N planned=P bytes=K`. `--apply --batch-plan <plan>` acts on that
+  plan ONLY and is a usage error without it — so a live fleet that races the sweep
+  is tolerated exactly: a repo that vanished after the dry-run applies idempotently
+  (its manifest paths are already gone), a repo that appeared is not in the plan and
+  is never touched. (#994)
+- **Central path normalization + shared-object-store dedup in the batch layer**
+  (`lib/batch-common.sh`). `ghq list -p` backslash paths are normalized once to the
+  git-friendly `D:/repos/...` forward-slash form (backslashes break `xargs` and
+  `[[ -d ]]`; `git check-ignore` rejects MSYS `/d/…` forms). The `git` tier groups
+  repos by unique `git rev-parse --git-common-dir` and prunes each shared object
+  store once, not once per linked worktree. (#994)
+
+## [0.5.0]
+
+### Fixed
+
+- **Selective `caches`/`build` tiers now run a single pruned walk per tier instead
+  of ~10 unpruned full-tree `find` walks.** The old `! -path` exclusions filtered
+  output but did not `-prune`, so every per-pattern walk still descended `.git/`,
+  `node_modules/`, and `.venv/`. Enumeration now prunes those three trees once and
+  `-print`s all directory-name and file-glob matches in one walk, then applies
+  per-path protection on the result list. Measured on a large .NET + node repo
+  (Windows/NTFS): one pruned walk incl. `du` sizing ~17s vs a 10-walk unpruned
+  dry-run that exceeded 10 min (killed). (#993)
+
+### Added
+
+- **Dry-run writes a manifest and states reclaimable space; `--apply` consumes it
+  instead of re-walking.** The dry-run emits a session-scoped manifest
+  (`<class>\t<bytes>\t<relpath>` per eligible target), prints its path
+  (`Manifest: <path>`), and a `Summary: planned=N bytes=K` total so the
+  confirmation gate can state reclaimable bytes. `--apply --manifest <path>`
+  removes the manifest's entries with a re-stat + re-classify staleness guard (no
+  second walk); a killed apply resumes by re-running the same command
+  (already-gone entries are idempotent no-ops). `--apply` without a manifest
+  builds one then applies it, preserving the standalone CLI contract. With
+  `--include-caches` the caches tier folds into the same manifest — one walk per
+  tier, no subprocess. (#995)
+- **Apply ends with a machine-parseable summary and fails closed.** Each `--apply`
+  run prints `Summary: removed=N failed=M bytes=K` (bytes actually reclaimed) and
+  exits non-zero when any removal fails, so a fleet sweep no longer requires
+  grepping every per-repo log to confirm success. (#1002)
+
+### Removed
+
+- **The `dotnet clean` build-system driver.** `clean-build.sh` no longer runs
+  `dotnet clean <solution>` before removing `bin/`/`obj/`. The universal artifact
+  removal already deletes everything the driver would, so running it first was
+  pure overhead — a full MSBuild evaluation (minutes on a large solution) that
+  also re-created `obj/` evaluation artifacts. One walk + `rm` is strictly faster
+  and equally complete. Removes the `Planned: dotnet clean …` (dry-run) and
+  `DRIVER_FAILED:` (apply) output markers. (#999)
+
 ## [0.4.6]
 
 ### Fixed

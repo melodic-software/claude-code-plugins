@@ -3,6 +3,9 @@ name: mind-your-maxims
 description: "Re-anchor cooperative-communication discipline — Grice's conversational maxims plus the AI-augmented transparency maxim — then audit recent responses and agent-authored artifacts for what the reader actually needed: completeness in both directions, relevance, clarity, and disclosed boundaries. Use when: 'mind your maxims', 'communication quality', 'answer what I asked', 'you buried the answer', 'you didn't answer the question', 'too vague', 'stay on topic', 'is this clear', 'grice', 'maxims', or at conversation start to set the communication posture."
 user-invocable: true
 disable-model-invocation: false
+metadata:
+  re-anchor-batch: core  # every session communicates with the user
+  re-anchor-batch-rank: 100
 ---
 
 # Mind your maxims

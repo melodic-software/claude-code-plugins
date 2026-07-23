@@ -8,13 +8,13 @@ Per-ecosystem teaching tables for the clean skill. Each entry includes command s
 
 | Target | Tier | Command | Safety | Regen cost |
 |--------|------|---------|--------|-----------|
-| bin/, obj/ | build | `dotnet clean <detected-solution> -v q` then `find . -type d \( -name bin -o -name obj \) -not -path '*/.git/*' -not -path '*/.venv/*' -not -path '*/node_modules/*' -exec rm -rf {} +` | Safe | `dotnet build` (~15s) |
+| bin/, obj/ | build | `find . \( -name .git -o -name node_modules -o -name .venv \) -prune -o -type d \( -name bin -o -name obj \) -print` then `rm -rf` each eligible path | Safe | `dotnet build` (~15s) |
 | TestResults/ | build | `find . -type d -name TestResults -exec rm -rf {} +` | Safe | `dotnet test` |
 | *.binlog | build | `find . -name '*.binlog' -delete` | Safe | Intentional capture only |
 | App log dirs | build | Not swept generically (no portable path) — reclaim via the `tree` action | Safe | App sink creates on next run |
 | `*.csproj.user` / `*.suo` | NEVER | — | Protected | VS / IDE debug profile preference |
 
-The `.NET` solution/project is detected at runtime (`*.slnx` then `*.sln` at repo root); the driver is skipped when `dotnet` or a solution is absent.
+No build-system clean driver runs (e.g. `dotnet clean`): the single pruned walk + `rm -rf` already removes every `bin/`/`obj/` output such a driver would, so invoking one first is pure overhead.
 
 ## Python
 
