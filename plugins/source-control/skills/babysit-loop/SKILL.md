@@ -151,18 +151,27 @@ new intake arriving mid-cycle is reported, never chased.
    eligible — no classification = no merge. This is a deterministic pre-partition, never
    narrative guidance handed to the invoked skill. At `human-only` (including the
    no-tracked-adoption default), or under a non-merge-capable tier, the eligible set is empty.
-4. **Invoke the mechanic.** Two scoped passes, using babysit-prs's own `[mode] [scope]` grammar
-   (its single-PR scope form, `owner/repo#N`): the merge-capable tier is invoked only against
-   merge-eligible refs — one `/source-control:babysit-prs <tier> <owner/repo>#<N>` per eligible
-   PR — so a PR outside the rung is never presented to a merge-capable invocation; the remaining
-   PRs get one `/source-control:babysit-prs safe <owner/repo>` pass (safe fixes and reports, and
-   never resolves threads or merges), with the cycle's context scoping it to the non-eligible
-   set. An empty eligible set collapses to the single safe pass. The deliberate cost: worker-tier
-   bot-thread auto-resolution is foregone on non-eligible PRs — in babysit-prs's tiers, thread
-   resolution and merge authority travel together, and failing closed gives up only thread
-   resolution on PRs that could not merge this cycle anyway. Both passes carry the grace-window
-   report-only set and the do-not-merge stance; all per-PR mechanics — discovery, checkout,
-   fixes, threads, gates, fan-out — run under that skill's own contract.
+4. **Invoke the mechanic.** Every invocation uses babysit-prs's own `[mode] [scope]` grammar in
+   its single-PR scope form (`owner/repo#N`) — the lane's own step-2 snapshot is the discovery
+   surface, so no repo-wide invocation ever runs and a PR the lane withheld is never presented
+   to the mechanic at all. Three enforcement rules bind each per-PR invocation:
+   - **Report-only PRs get zero invocations.** A PR marked report-only in step 2 (grace window,
+     WIP-signal draft) appears in the cycle report and nowhere else — no tier, not even `safe`,
+     is invoked against it, because `safe` still makes and pushes clear branch-owned fixes.
+   - **Rung binds the tier.** Merge-eligible PRs (step 3) are invoked at the resolved
+     merge-capable tier, one `/source-control:babysit-prs <tier> <owner/repo>#<N>` per PR;
+     every other non-report-only PR is invoked at `safe` (fixes and reports; never resolves
+     threads or merges). An empty eligible set means only `safe` per-PR invocations this cycle.
+   - **Dimension overrides bind by tier flooring, never narrative.** Before invoking, lower the
+     tier for a PR to the highest babysit-prs tier whose behavior exceeds NO resolved dimension
+     override (babysit-prs's tier keyword is its only enforcement surface — a natural-language
+     narrowing handed to a higher tier is not enforcement). Capabilities the floor forgoes are
+     reported as override-constrained this cycle. The deliberate cost, both here and in the rung
+     partition: coupled higher-tier actions (e.g. worker-tier bot-thread auto-resolution) are
+     foregone on floored PRs — failing closed gives up only actions the overrides or rung
+     already denied.
+   All per-PR mechanics — checkout, fixes, threads, gates, fan-out — run under that skill's own
+   contract, and the do-not-merge stance rides every invocation.
 5. **Escalate.** Anything needing an operator decision follows the convention's escalation
    contract (below); a blocked action is escalated, never routed around.
 6. **Report and pace.** Upsert the telemetry comment (cycle report + updated state block + guard
