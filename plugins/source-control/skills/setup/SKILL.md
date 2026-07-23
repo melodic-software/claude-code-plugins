@@ -87,6 +87,23 @@ With **all three layers absent**: INFO — no declared convention; `/commit` and
 from the repo's own `CLAUDE.md`/rules/commit-msg hook, then fall back to the bundled Conventional
 Commits default. The remediation is `apply` to persist a convention.
 
+**Neutral-SSOT drift probes.** When a `convention_source` pointer is declared or a neutral file is
+resolved (explicit pointer, or the well-known default `docs/conventions/source-control/commit-convention.yml`),
+`check` surfaces two drift conditions the resolver otherwise handles silently — round-trip the
+enforcement resolver (`lib/resolve-convention-pattern.sh <REPO_ROOT> subject_pattern`) and read its
+diagnostics:
+
+- **Broken pointer / neutral file → FAIL.** A declared `convention_source` whose target is missing,
+  or a resolved neutral file that fails the seam's safety/dialect/empty-key contract, disables
+  enforcement fail-closed. This is easy to miss because nothing signals it until a commit is
+  unexpectedly blocked or allowed — so surface it here, naming the resolver's diagnostic and the
+  remediation (restore the file, fix the pointer, or `apply` to rewrite it).
+- **Shadowed markdown → WARN.** A neutral file resolves (via pointer or the well-known default) **and**
+  `.claude/source-control.md` still carries a markdown-H2 `subject_pattern`/`pr_title_pattern` for the
+  same key: the neutral value wins (rungs 1–2 over rung 3) and the stale markdown is inert but
+  misleading. Recommend `apply` to retire the duplicate (migration removes it), per
+  [reference/apply-convention.md](reference/apply-convention.md) "Migration retires duplicates".
+
 ### Babysit config
 
 1. **Effective configuration.** Report every babysit `userConfig` key with its resolved value or its
@@ -141,10 +158,12 @@ In brief:
   layer (team = tracked and staged; local = ignored and untracked, two independent probes; user =
   no git command at all), and report the new **effective merge**, not just what was written.
 
-- **Neutral SSOT (optional):** a `team` write may declare `## convention_source` pointing at a
-  repo-relative flat-scalar YAML file other tools consume too — offered when another consumer
-  exists, with migration retiring keys the neutral file takes over (spoke section "Neutral
-  convention SSOT").
+- **Neutral SSOT:** a `team` write may materialize a tool-agnostic flat-scalar YAML file other tools
+  consume too. It defaults to the well-known path `docs/conventions/source-control/commit-convention.yml`
+  (resolved with no pointer); `## convention_source` is written only to relocate it. **Recommended as
+  the default when a second enforcement consumer exists** (commit-msg hook, CI title check), markdown-only
+  when this plugin is the sole consumer; migration retires markdown keys the neutral file takes over
+  (spoke section "Neutral convention SSOT").
 
 Every step's exact contract — the interview steps, the written-file template, the per-layer
 verification scripts, and the failure remediations — lives in the spoke; this summary never
@@ -202,9 +221,12 @@ Skill-behavior failure patterns hit in real runs. Add to this section when new o
   the window silently — probe `git rev-parse --is-shallow-repository` and report the actual span.
 - **Same-session `userConfig` reads are stale.** Reconfigured babysit values become visible only
   in a fresh session — re-running `check` in the same session reports a false failure.
-- **A broken `convention_source` pointer fails closed.** Enforcement and drafting surface it as a
-  config error rather than silently falling back to markdown values a migration may have retired —
-  verify the pointer round-trips through the resolver at write time.
+- **A broken `convention_source` pointer or well-known file fails closed.** Enforcement and drafting
+  surface it as a config error rather than silently falling back to markdown values a migration may
+  have retired — verify the neutral file round-trips through the resolver at write time. The neutral
+  file resolves by a fixed 3-rung precedence (explicit pointer > well-known
+  `docs/conventions/source-control/commit-convention.yml` > markdown-H2); `check` warns when a
+  resolved neutral file shadows a stale markdown-H2 duplicate.
 
 ## What this skill does NOT do
 

@@ -339,26 +339,38 @@ and value grammar are owned by the
 [commit-convention seam](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/commit-convention/README.md);
 this skill's part:
 
-- **Offer it when it earns its keep** — the user says another tool consumes the convention (a hook,
-  CI, another agent), or asks for a tool-agnostic/SSOT shape. A repo where only this plugin reads
-  the convention loses nothing by staying markdown-only; say so rather than upselling the split.
-- **Writing it:** ask the repo's own path preference (the plugin ships no doc-root convention —
-  `docs/conventions/…`, `.github/…`, a root dotfile are all the repo's call; repo-relative,
-  forward slashes, no `..`), write the YAML with machine keys (`subject_pattern`,
-  `pr_title_pattern`, optionally `pr_body_required_sections`, `dialect: posix-ere`) plus `#`
-  comments carrying the self-describing preamble, and declare `## convention_source` with that path
-  in `.claude/source-control.md`.
+- **Recommend it as the default when a second enforcement consumer exists (F1).** Inference (step 2)
+  already resolves the commit-msg hooks dir via `git rev-parse --git-path hooks`; when a second
+  consumer of the convention is present — a commit-msg hook, a CI title check, or a user-stated one —
+  **recommend the neutral SSOT as the default**, because the tool-agnostic file is what that second
+  consumer reads without reimplementing this plugin's markdown-H2 grammar. Fall back to markdown-only
+  only when this plugin is demonstrably the sole consumer — a repo where nothing else reads the
+  convention loses nothing by staying markdown-only; say so rather than forcing the split.
+- **Default the path to the well-known location.** The neutral file's well-known default path is
+  `docs/conventions/source-control/commit-convention.yml` (the marketplace's own dogfooded
+  `docs/conventions/<concern>/` layout). Writing it **there** means the resolver finds it with **no
+  `## convention_source` pointer at all** (the resolver probes the well-known path at rung 2), so the
+  common case leaves nothing in agent-rewritable markdown to sever. Only when the repo insists on a
+  different location do you declare `## convention_source` with that repo-relative path (forward
+  slashes, no `..`) in `.claude/source-control.md` — the rung-1 relocation override. Write the YAML
+  with machine keys (`subject_pattern`, `pr_title_pattern`, optionally `pr_body_required_sections`,
+  `dialect: posix-ere`) plus a **1–2 line** `#` header (what the file is, who reads it) — not a
+  multi-line preamble; the flat YAML is self-describing and the human document proper lives in
+  CONTRIBUTING/AGENTS.md, not in ceremony comments (F4).
 - **Migration retires duplicates.** When the team markdown file already carries a key the neutral
   file now declares, REMOVE it from the markdown in the same apply — the resolver would prefer the
   neutral value anyway, but leaving both invites hand-edit drift, which is the disease this shape
   cures. Plugin-only keys (`trailer_policy`, `pr_body_attribution`) stay in the markdown file.
-- **Verification adds two probes.** (1) The pointer's target exists, is repo-relative, and
-  round-trips through the enforcement resolver (`lib/resolve-convention-pattern.sh <repo_root>
-  subject_pattern` emits the expected pattern) — a broken pointer fails closed to no-enforcement by
-  contract, so surface it at write time, not at the team's first blocked commit. (2) The neutral
-  file is **staged together with the pointer**, by explicit path, in the same team-write
-  verification (step 6's team guard covers only `.claude/source-control.md`) — a commit carrying
-  `convention_source` without its tracked YAML target would hand every fresh checkout the
-  missing-file fail-closed path and silently disable enforcement repo-wide. Run the same
-  ignore-check + stage + `git diff --quiet` sequence against the neutral file's path, and treat an
-  ignore-rule match on it as the same hard STOP as an ignored team file.
+- **Verification adds two probes.** (1) The neutral file round-trips through the enforcement
+  resolver (`lib/resolve-convention-pattern.sh <repo_root> subject_pattern` emits the expected
+  pattern) — this exercises the whole precedence chain, so it confirms resolution whether the file
+  sits at the well-known default path (no pointer) or at a relocated `convention_source` target; a
+  broken file or pointer fails closed to no-enforcement by contract, so surface it at write time, not
+  at the team's first blocked commit. (2) The neutral file is **staged**, by explicit path, in the
+  same team-write verification (step 6's team guard covers only `.claude/source-control.md`) — a
+  commit that resolves to a neutral file whose tracked target is absent (an unstaged well-known file,
+  or a `convention_source` pointer without its YAML) would hand every fresh checkout the missing-file
+  fail-closed path and silently disable enforcement repo-wide. Run the same ignore-check + stage +
+  `git diff --quiet` sequence against the neutral file's path (the well-known default path, or the
+  pointer target when relocated), and treat an ignore-rule match on it as the same hard STOP as an
+  ignored team file.

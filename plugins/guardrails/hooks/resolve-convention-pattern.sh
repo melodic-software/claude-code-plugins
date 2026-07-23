@@ -51,6 +51,13 @@ readonly CC_ERE='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)
 # shellcheck disable=SC2016  # backticks are a literal part of the deferral marker, not a substitution
 readonly PR_DEFERRAL='Same as `subject_pattern`.'
 
+# Well-known default path for the neutral convention SSOT — the marketplace's
+# own dogfooded docs/conventions/<concern>/ layout. When the team file declares
+# no explicit convention_source pointer, the resolver probes this path so the
+# common case reads ONE tool-agnostic file with no markdown pointer-parse. An
+# explicit pointer always overrides it; see the pointer-resolution block below.
+readonly WELL_KNOWN_NEUTRAL="docs/conventions/source-control/commit-convention.yml"
+
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   sed -n '2,40p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit 0
@@ -134,6 +141,23 @@ yaml_value() {
 # enforcement (exit 1) with a diagnostic: fail closed, never fall back.
 NEUTRAL_FILE=""
 ptr="$(h2_value "$TEAM_FILE" "convention_source")"
+# Precedence: an explicit convention_source (rung 1) always wins. Absent one,
+# probe the well-known default path (rung 2) so the common case needs no pointer
+# at all; absent that too, resolution falls through to the markdown H2 (rung 3)
+# with full back-compat. The default is a plain repo-relative path and passes the
+# same safety checks below as any pointer.
+#
+# POLICY FLOOR: the well-known rung activates ONLY when the file is git-TRACKED.
+# Unlike an explicit convention_source — whose opt-in is a tracked edit to the
+# team file — this rung has no other tracked signal, so honoring an untracked or
+# gitignored file at this path would let a generated/local artifact silently
+# override team policy (or, if malformed, disable enforcement) on one checkout.
+# git unavailable, or the file untracked -> skip this rung and fall through to
+# the markdown H2 (fail toward the prior behavior, never toward the hole).
+if [[ -z "$ptr" && -f "$repo_root/$WELL_KNOWN_NEUTRAL" ]] &&
+  git -C "$repo_root" ls-files --error-unmatch -- "$WELL_KNOWN_NEUTRAL" >/dev/null 2>&1; then
+  ptr="$WELL_KNOWN_NEUTRAL"
+fi
 if [[ -n "$ptr" ]]; then
   case "$ptr" in
   /* | [A-Za-z]:* | *\\* | *..*)
@@ -163,7 +187,13 @@ if [[ -n "$ptr" ]]; then
   fi
   canon_root="$(cd "$repo_root" 2>/dev/null && pwd -P)"
   canon_dir="$(cd "$(dirname "$NEUTRAL_FILE")" 2>/dev/null && pwd -P)"
-  if [[ -z "$canon_root" || -z "$canon_dir" || "$canon_dir/" != "$canon_root/"* ]]; then
+  # Pure string-prefix test, not a glob: a `!= "$canon_root/"*` match would let a
+  # glob metacharacter in the physical repo path (`[`, `*`, `?`) be interpreted
+  # rather than compared literally. Compare the leading bytes of "$canon_dir/"
+  # against "$canon_root/" directly.
+  canon_prefix="$canon_root/"
+  canon_dir_slash="$canon_dir/"
+  if [[ -z "$canon_root" || -z "$canon_dir" || "${canon_dir_slash:0:${#canon_prefix}}" != "$canon_prefix" ]]; then
     printf '%s\n' "resolve-convention-pattern: convention_source '$ptr' resolves outside the repository root (symlinked path segment); enforcement disabled." >&2
     exit 1
   fi

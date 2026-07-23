@@ -222,15 +222,15 @@
     },
     {
       "id": 18,
-      "name": "apply-neutral-ssot-migration-retires-duplicates",
+      "name": "apply-neutral-ssot-well-known-default-retires-duplicates",
       "prompt": "/source-control:setup apply\n\nThe team .claude/source-control.md already declares subject_pattern as a ticket-prefix regex. The user says: our commit-msg hook and CI also need to read this convention — move it to a tool-agnostic single source of truth.",
-      "expected_output": "The skill offers the neutral convention SSOT: it asks the repo's own path preference (never hardcoding a doc root), writes a flat-scalar YAML file (subject_pattern, pr_title_pattern, dialect: posix-ere, self-describing # comments), declares `## convention_source` with that repo-relative path in .claude/source-control.md, and — critically — RETIRES the now-duplicated subject_pattern from the markdown file in the same apply rather than leaving both authoritative. Verification round-trips the pointer through the enforcement resolver and reports the effective merge. Plugin-only keys (trailer_policy, pr_body_attribution) stay in the markdown file.",
+      "expected_output": "The skill recommends the neutral convention SSOT (a second consumer exists) and materializes it at the WELL-KNOWN DEFAULT path docs/conventions/source-control/commit-convention.yml WITHOUT declaring a `## convention_source` pointer — the resolver probes the well-known path, so nothing needs to live in agent-rewritable markdown. It writes a flat-scalar YAML file (subject_pattern, pr_title_pattern, dialect: posix-ere) with a 1-2 line self-describing header, and — critically — RETIRES the now-duplicated subject_pattern from the markdown file in the same apply rather than leaving both authoritative. Verification round-trips the neutral file through the enforcement resolver, confirms it is staged/tracked, and reports the effective merge. Plugin-only keys (trailer_policy, pr_body_attribution) stay in the markdown file. A `## convention_source` pointer is written ONLY if the user asks to place the file at a non-default location.",
       "files": [],
       "expectations": [
-        "Asks the repo's path preference for the neutral file instead of hardcoding a doc-root convention; the pointer written is repo-relative with forward slashes",
-        "Writes flat-scalar YAML with the machine keys and declares convention_source in the team .claude/source-control.md",
+        "Writes the neutral file at the well-known default path docs/conventions/source-control/commit-convention.yml and does NOT declare a convention_source pointer for the default location (the pointer is written only for a non-default relocation, repo-relative with forward slashes)",
+        "Writes flat-scalar YAML with the machine keys and dialect, plus a 1-2 line header rather than a multi-line preamble",
         "Retires the duplicated subject_pattern from the markdown file in the same apply — both surfaces are never left authoritative for the same key",
-        "Verifies the pointer round-trips through the enforcement resolver (broken pointer fails closed) and keeps plugin-only keys markdown-side"
+        "Verifies the neutral file round-trips through the enforcement resolver (broken file fails closed), is staged/tracked so a fresh checkout resolves it, and keeps plugin-only keys markdown-side"
       ]
     }
   ]

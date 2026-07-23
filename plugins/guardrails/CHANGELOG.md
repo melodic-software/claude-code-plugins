@@ -3,6 +3,18 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.0]
+
+### Changed
+
+- **Vendored convention resolver probes the well-known default neutral path (#163434).** The synced
+  copy of `lib/resolve-convention-pattern.sh` now resolves the neutral convention SSOT by a fixed
+  3-rung precedence: an explicit `## convention_source` pointer, else the well-known default path
+  `docs/conventions/source-control/commit-convention.yml` when present, else the team markdown-H2.
+  The CC-layer content gate enforces the same pattern the drafting side drafts against, with no
+  pointer required in the common case. Back-compat: absent both a pointer and the well-known file,
+  enforcement resolves from the markdown-H2 exactly as before.
+
 ## [0.13.0]
 
 ### Added
