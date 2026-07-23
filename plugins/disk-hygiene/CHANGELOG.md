@@ -3,6 +3,30 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.0]
+
+### Added
+
+- **`hygiene.py handoff-verify` — deterministic revalidation for the manual lane (#1109).** New
+  read-only subcommand: takes the snapshot plus the human-approved exact path list
+  (`{"version": 1, "paths": [...]}`, same containment rules as plan candidates) and reruns the
+  engine's identity/reparse/protection/descendant/VCS/handle checks per path against live state,
+  emitting one machine-readable verdict each — `clear` / `drifted` / `gone` / `contested` — and
+  never deleting anything. Platform execution blockers deliberately do not apply (the subcommand
+  exists exactly where apply is unsupported); every unverifiable condition fails closed into
+  `contested`. Exit 0 all-clear, exit 3 otherwise. The target-root gate reuses preview's checks but
+  tolerates the root directory's own metadata churn (stable device/inode/type identity instead of
+  full stat identity — deleting an approved root-level item changes the root's mtime, and the
+  manual lane deletes one item at a time with a re-verify between items); a replaced root still
+  refuses. The clean skill's manual-handoff lane now writes `handoff-paths.json`, runs
+  handoff-verify immediately before deletion, and acts only on verdict-`clear` paths — bringing
+  snapshot binding to Windows/macOS without adding an engine deletion lane (captures most of the
+  declined F12 value; #1116's affirmation records this as the intended alternative). The Bash
+  guard admits the exact `handoff-verify --snapshot <s> --paths <p> [--data-root <d>]` shape as a
+  read-only invocation, including in audit-only mode (kill switch keeps blocking every deletion
+  lane; verification is reporting). Safety model documents the verdict vocabulary and the
+  emission-time-only validity of `clear`.
+
 ## [0.7.3]
 
 ### Added

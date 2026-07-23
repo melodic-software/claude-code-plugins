@@ -61,11 +61,42 @@ identity, and only then calls descriptor-relative `rmdir`. Windows and macOS ret
 That decline was re-examined and AFFIRMED by the maintainer on 2026-07-23 (issue #1116), against
 the framing "new-trust-surface risk of a Windows deletion lane vs the residual approval-to-execution
 window the decline leaves in the manual lane": with the manual lane's per-item revalidation rules
-and the planned `handoff-verify` revalidation (#1109), the residual window is small, while a
+and the `handoff-verify` revalidation (#1109, landed), the residual window is small, while a
 descriptor-anchored Windows apply is a large new surface. Recorded reversal trigger: a post-#1109
 near-miss recurrence in the manual lane reopens this as a design issue with full security review.
 
-The skill-scoped Bash guard accepts only complete literal words in the three declared engine command
+## Manual-handoff revalidation (`handoff-verify`)
+
+`handoff-verify` brings snapshot binding to the platforms where apply is unsupported, without
+adding an engine deletion lane. It takes the snapshot plus the human-approved exact path list
+(same containment rules as plan candidates: relative, non-root, no traversal, present in the
+snapshot, non-overlapping), re-validates the target root with preview's link/mount/OS-managed/
+protected-path checks but a deliberately tolerant root-identity check — stable device/inode/type
+(the same object identity apply uses for directories) instead of preview's full stat identity,
+because deleting one approved root-level item changes the root's own mtime and the manual lane
+re-verifies between items; a replaced root still refuses. It then reruns the per-path
+identity/reparse/protection/descendant/VCS/handle checks against live state and emits one
+machine-readable verdict per path. It deliberately does not apply platform execution blockers —
+it exists exactly where `execution-platform-unsupported` blocks the engine lane — and it has no
+deletion capability of any kind: the model deletes only verdict-`clear` paths in the manual lane,
+per item, under the final human permission prompt the PowerShell guard raises.
+
+| Verdict | Meaning | Manual-lane action |
+|---|---|---|
+| `clear` | Every check passed against live state at emission time | Delete this exact path immediately — verify one path per deletion, never one batch for all (earlier checks age while later paths are probed) |
+| `gone` | The path no longer exists | Nothing to delete; report it |
+| `drifted` | Identity, kind, or the captured descendant set changed since the snapshot | Keep; the approval no longer describes what is on disk — rescan |
+| `contested` | Protection, VCS state, a live handle, elevation, or unverifiable state | Keep; the reasons list names each contest — resolve and re-verify |
+
+Fail-closed mapping: every unverifiable condition (handle tool missing or timing out, unreadable
+state, truncated coverage) lands in `contested`, never `clear`. A `clear` verdict authorizes
+nothing by itself — it reports that revalidation found no change and no contest at that instant;
+the human approval and the per-item prompt remain the authorization. Verdicts expire immediately:
+any delay or interruption means re-running handoff-verify. Managed-state exclusion stays where it
+always was in the manual lane — model judgment plus human review of the audit report — because
+snapshot entries carry no owner claim for the engine to check.
+
+The skill-scoped Bash guard accepts only complete literal words in the four declared engine command
 shapes. It rejects every Bash expansion family, glob/word-splitting input, redirection, operator,
 escape, and compound-command form before validating arguments. Canonical script-path comparison uses
 the host platform's path case rules; POSIX path identity is never case-folded. A `--data-root` value

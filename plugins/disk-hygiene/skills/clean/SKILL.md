@@ -219,9 +219,29 @@ approves an exact path list in this interactive session (the same `AskUserQuesti
 list bar as the engine lane; a general "clean it up" is still not approval), removal is a manual
 handoff, not an engine plan:
 
-1. Revalidate each path immediately before removal: size, mtime, and kind unchanged since the
-   audit evidence; no reparse point/symlink; any owner process named in the evidence still absent;
-   an exclusive-open probe succeeds (no live handle).
+1. Write the approved exact paths to `<run-dir>/handoff-paths.json` as
+   `{"version": 1, "paths": ["relative/exact.tmp"]}` (snapshot-relative, exact, non-overlapping,
+   never globs), then run the engine's deterministic revalidation immediately before deletion:
+
+   ```text
+   "<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" handoff-verify \
+     --snapshot "<run-dir>/snapshot.json" --paths "<run-dir>/handoff-paths.json" \
+     --data-root "${CLAUDE_PLUGIN_DATA}"
+   ```
+
+   It reruns the engine's identity/reparse/protection/descendant/VCS/handle checks per path
+   against live state and emits one verdict each — `clear`, `drifted` (identity or descendant
+   set changed since the snapshot), `gone` (no longer present), or `contested` (protection,
+   VCS state, a live handle, elevation, or unverifiable state) — and never deletes anything.
+   Act only on verdict-`clear` paths. Additionally confirm any owner process named in the audit
+   evidence is still absent — that evidence is report-level, outside the engine's checks.
+
+   **Verify one path per deletion, not one batch for all.** In a multi-path run, the first
+   path's check ages while every later path is still being walked and probed, so its `clear`
+   is already stale at emission — and staler after each intervening deletion. Pair each
+   deletion with its own fresh single-path handoff-verify run (verify one → delete that one →
+   next); reserve the multi-path form for reporting. A clear verdict is valid only at emission
+   time: delete immediately, and re-run handoff-verify after any delay or interruption.
 2. Prefer reversible removal (Windows Recycle Bin / macOS Trash) over permanent deletion, and say
    which was used. That reversibility is conditional, not guaranteed: bin size caps, a
    policy-disabled bin, or a non-NTFS/network volume can silently make the same operation
@@ -233,8 +253,8 @@ handoff, not an engine plan:
    enumerating the container and deleting per item under steps 1, 2, and 4; items that arrive
    after enumeration are simply not deleted. This is the engine lane's changed-since-scan threat
    in the manual lane, where no snapshot token protects execution.
-4. Skip and report any path that fails revalidation; never substitute a sibling or retry around a
-   lock.
+4. Skip and report any path whose verdict is not `clear`; never substitute a sibling, retry
+   around a lock, or delete under a stale verdict.
 
 The PowerShell guard lane turns deletion spellings into a final human permission prompt (the same
 bar as the engine apply prompt); confirm that prompt only when the command matches the exact
@@ -264,9 +284,9 @@ sparse files, hard links, compression, and delayed allocation affect it.
 - `allowed-tools` would pre-approve rather than restrict tools, so this destructive skill intentionally
   grants none. Consumer permission policy remains authoritative.
 - The Bash hook denies unknown commands rather than trying to enumerate deletion spellings. Supporting
-  research uses non-Bash read-only tools; only literal-word bundled scan, preview, and apply shapes
-  using the hook runtime's same absolute executable pass. Shell expansions, globs, splitting/escape
-  forms, operators, redirections, aliases, and exported functions fail closed.
+  research uses non-Bash read-only tools; only literal-word bundled scan, preview, handoff-verify, and
+  apply shapes using the hook runtime's same absolute executable pass. Shell expansions, globs,
+  splitting/escape forms, operators, redirections, aliases, and exported functions fail closed.
 - The guard registers twice: a plugin-level engine gate (`hooks/hooks.json`, `--mode engine-gate`)
   that fires in every session, receives the kill switch and data root by plugin-hook substitution,
   and defers instantly on any command not referencing the engine; and this skill's frontmatter belt,
