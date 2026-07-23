@@ -261,9 +261,15 @@ handoff, not an engine plan:
 4. Skip and report any path whose verdict is not `clear`; never substitute a sibling, retry
    around a lock, or delete under a stale verdict.
 
-The PowerShell guard lane turns deletion spellings into a final human permission prompt (the same
-bar as the engine apply prompt); confirm that prompt only when the command matches the exact
-approved list. Engine invocations from PowerShell stay hard-denied.
+The PowerShell guard lane is *designed* to turn deletion spellings into a final human permission prompt
+(the same bar as the engine apply prompt); confirm that prompt only when the command matches the exact
+approved list. Engine invocations from PowerShell are *designed* to stay hard-denied (also subject to
+the caveat below). **Caveat (Claude Code 2.1.218, Windows): none of this PowerShell interception fires
+for the PowerShell tool** — the deletion-spelling prompt AND the engine-invocation deny are both inert;
+the PowerShell tool is in preview and
+PreToolUse hooks were reproduced not to intercept PowerShell-tool commands, so on Windows do not rely on
+this prompt; the manual lane's per-path `handoff-verify` approval and the baseline permission policy are
+the protections that actually hold. See the PowerShell-preview gotcha below and `reference/safety-model.md`.
 
 Summarize removed paths, logical bytes removed, observed free-space delta, and every skip grouped by
 `locked`, `changed-or-link`, `protected`, `needs-elevation`, `handle-state-unverified`, or
@@ -310,9 +316,21 @@ sparse files, hard links, compression, and delayed allocation affect it.
   manual-handoff lane already requires and the consumer's baseline permission policy — defense-in-depth
   lost, not preserved. `/disk-hygiene:setup check` reports whether the interpreter resolves on this
   machine.
+- **The PowerShell deletion belt does not fire for the PowerShell *tool* on current builds (Claude Code
+  2.1.218, Windows) — distinct from the `python3`-resolution loss above.** Even with `python3` resolving,
+  a `Bash|PowerShell` PreToolUse hook was reproduced to fire for the Bash tool but NOT intercept
+  PowerShell-*tool* commands. The PowerShell tool is a documented *preview* feature
+  ([tools-reference](https://code.claude.com/docs/en/tools-reference)); PreToolUse interception of it is
+  not a listed preview limitation, so this is an observed docs-vs-behavior gap (mechanism not yet
+  isolated — matcher firing vs Windows payload delivery vs the tool's `tool_name`). Consequence on
+  Windows: the PowerShell deletion belt AND the `disk_hygiene_enabled` kill switch's reach into the
+  manual PowerShell lane are both inert; the protections that hold are the manual lane's per-path
+  `handoff-verify` approval and the consumer's baseline permission policy. Recheck when the PowerShell
+  tool exits preview or when interception is verified directly.
 - The PowerShell lane is the inverse tradeoff: it stays open for read-only support work (git, gh,
   metadata probes) and instead hard-denies engine invocations and turns known deletion spellings
-  into a final human permission prompt. It is a raised bar, not a fail-closed lane; the engine's
+  into a final human permission prompt (**subject to the preview caveat above — this does not fire for
+  the PowerShell tool on 2.1.218**). It is a raised bar, not a fail-closed lane; the engine's
   own containment and the Bash lane remain the deletion authority.
 - The guard rejects `~` anywhere in a Bash command as a shell-expansion character, which includes
   Windows 8.3 short names (`SOMEUS~1`). Always pass long-form paths; the guard's own disclosures
