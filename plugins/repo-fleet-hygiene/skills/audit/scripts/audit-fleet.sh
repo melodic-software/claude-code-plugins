@@ -449,7 +449,8 @@ if command -v gh >/dev/null 2>&1 && run_bounded_gh auth status --hostname github
   GH_READY=true
 fi
 
-# Which gh account produced the GitHub evidence changes how UNKNOWNs read (a dozen HTTP 404s under
+# Which gh account produced the GitHub evidence changes how UNKNOWN findings read (a dozen HTTP
+# 404s under
 # the wrong login is expected, under the right one it is a real signal), so the header names it.
 # Best-effort: any probe failure keeps the plain header line. This is the cheap subset of the
 # tracked per-domain-gh-auth request (multiple accounts per host) — see the plugin backlog.
