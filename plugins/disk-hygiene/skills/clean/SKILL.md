@@ -257,7 +257,9 @@ sparse files, hard links, compression, and delayed allocation affect it.
   directory is reopened without following links, matched by device/inode/type, and proven empty after
   its captured children are removed.
 - A directory's contents can change after preview. Apply revalidates each captured entry and removes
-  bottom-up; it never follows a new link or recursively discovers new entries.
+  bottom-up; it never follows a new link or recursively discovers new entries. The manual-handoff
+  lane's container re-enumeration rule applies this same changed-since-scan discipline where no
+  snapshot token exists.
 - `allowed-tools` would pre-approve rather than restrict tools, so this destructive skill intentionally
   grants none. Consumer permission policy remains authoritative.
 - The Bash hook denies unknown commands rather than trying to enumerate deletion spellings. Supporting

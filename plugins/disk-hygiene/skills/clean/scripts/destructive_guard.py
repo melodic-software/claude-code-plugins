@@ -377,7 +377,7 @@ def is_exact_kill_switch_probe(command: str) -> bool:
 
 _POWERSHELL_MUTATION_WORDS = re.compile(
     r"(?i)(?<![\w./\\-])("
-    r"remove-item|rm|rmdir|del|erase|rd|ri|clear-content|rimraf|unlink"
+    r"remove-item|rm|rmdir|del|erase|rd|ri|clear-content|clear-recyclebin|rimraf|unlink"
     r"|sendtorecyclebin|deletefile|deletedirectory|removedirectory"
     r")(?![\w-])"
 )

@@ -2418,6 +2418,7 @@ class GuardTests(unittest.TestCase):
             "Remove-Item -Recurse -Force C:/tmp/example",
             "rm C:/tmp/example",
             "del C:/tmp/example",
+            "Clear-RecycleBin -Force",
             "[IO.File]::Delete('C:/tmp/example')",
             "[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile('x', 'OnlyErrorDialogs', 'SendToRecycleBin')",
         ):
@@ -2444,6 +2445,7 @@ class GuardTests(unittest.TestCase):
             "Remove-Item -Recurse -Force C:/tmp/example",
             "rm C:/tmp/example",
             "del C:/tmp/example",
+            "Clear-RecycleBin -Force",
             "[IO.File]::Delete('C:/tmp/example')",
             "[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile('x', 'OnlyErrorDialogs', 'SendToRecycleBin')",
         ):

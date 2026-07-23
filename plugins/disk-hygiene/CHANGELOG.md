@@ -17,6 +17,12 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   aborting on any drift — the engine lane's changed-since-scan discipline applied to the manual
   lane. Also documents that Recycle Bin / Trash reversibility is conditional: bin size caps,
   policy-disabled bins, or non-NTFS/network volumes can silently make removal permanent.
+  `Clear-RecycleBin` added to the PowerShell guard's mutation words (review finding on the same
+  PR: the newly blessed-with-re-enumeration container op must still raise the guard's final
+  ask prompt, and be denied in audit-only mode) — the broader F4 spelling additions
+  (`.Delete(`, robocopy purge flags) remain tracked in #1111. Engine-side changed-since-scan
+  gotcha now cross-references the manual lane's re-enumeration rule (closes #1108's third
+  acceptance criterion in both directions).
 
 ## [0.6.4]
 
