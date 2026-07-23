@@ -3,7 +3,7 @@ name: setup
 description: "Verify and configure repo-fleet-hygiene for a consumer project. check inspects the optional .claude/repo-fleet-hygiene.conf read-only (presence, parse validity, path resolution); apply creates or updates it — adding bounded fleet roots, exact repositories, and remote-keyed canonical checkout overrides — preserving unrelated entries. Use when: 'set up repo fleet audit', 'is repo-fleet-hygiene configured', 'configure fleet roots', 'canonical repo override', 'dotfiles-manager checkout'. Re-runnable and safe."
 user-invocable: true
 disable-model-invocation: true
-argument-hint: "check | apply [--config <path>] [--root <dir>]... [--repo <dir>]... [--canonical <github.com/owner/repo=path>]..."
+argument-hint: "check | apply [--config <path>] [--root <dir>]... [--repo <dir>]... [--canonical <github.com/owner/repo=path>]... [--ack-unavailable <github.com/owner/repo>]..."
 ---
 
 ## Purpose
@@ -56,6 +56,11 @@ Run `check`, then create or update the config from the supplied arguments.
 1. Parse only the declared argument grammar. Validate every root/repository/canonical path with
    read-only filesystem and `git rev-parse` checks. Normalize canonical keys to
    `github.com/owner/repository` (lowercase host, case-preserving owner/name is acceptable).
+   Validate each `--ack-unavailable` value as a normalizable `github.com/owner/repository`
+   (no filesystem probe — the identity is expected to be inaccessible); write it as a repeatable
+   `[fleet] ackUnavailable` entry, deduplicating case-insensitively against entries already
+   present. Like roots/repos, apply is additive — removing an acknowledgment is a manual edit of
+   the consumer's own config file.
 2. If the config exists, read it with `git config --file <path> --list --show-origin`. Preserve every
    unrelated entry. Never source it.
 3. State the proposed additions/updates before writing. With complete arguments, proceed
