@@ -3,7 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.6.5]
+## [0.6.6]
 
 ### Fixed
 
@@ -18,8 +18,33 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   interpreter. `setup check` now runs a bundled inspect-only probe
   (`skills/setup/scripts/python3_alias_probe.py`, covered by `test_python3_alias_probe.py`) that
   classifies the `python3` resolution — zero length under a `WindowsApps` path component is the stub —
-  without executing it, and FAILs with remediation (disable the App execution alias, or put real Python
-  ahead of WindowsApps on `PATH`). The README requirements section documents the vector.
+  without executing it. The check fails closed on every verdict except `ok`: the stub and an
+  unreadable-identity (`indeterminate`) verdict both FAIL with remediation (disable the App execution
+  alias, or put real Python ahead of WindowsApps on `PATH`), and an absent `python3` folds into the
+  floor's missing-interpreter FAIL. The README requirements section documents the vector.
+
+## [0.6.5]
+
+### Fixed
+
+- **Manual-handoff lane: container-wide deletions now require immediate pre-execution
+  re-enumeration (#1108).** An approval for a container-wide operation (`Clear-RecycleBin`,
+  emptying the Trash) was bound to a prose item list that could go stale between approval and
+  execution — items landing in the container after approval would be destroyed under an approval
+  that predated their existence (a live near-miss in the 0.6.4 consumer audit, F2). The clean
+  skill's unsupported-platform handoff now forbids container-wide deletion commands outright —
+  review showed even immediate re-enumeration leaves an approval-to-execution window against a
+  live container — and satisfies "empty the container" by per-item deletion under the lane's
+  per-path revalidation, so unenumerated arrivals survive. Also documents that Recycle Bin / Trash reversibility is conditional: bin size caps,
+  policy-disabled bins, or non-NTFS/network volumes can silently make removal permanent.
+  `Clear-RecycleBin` added to the PowerShell guard's mutation words, and module-qualified
+  deletion cmdlets (`Module\Remove-Item`, `Module\Clear-Content`, `Module\Clear-RecycleBin`) now
+  match a companion pattern the word boundary's lookbehind previously rejected (review findings
+  on the same PR; the guard word is defense-in-depth for attempted container ops, which the
+  manual lane now forbids) — the broader F4 spelling additions
+  (`.Delete(`, robocopy purge flags) remain tracked in #1111. Engine-side changed-since-scan
+  gotcha now cross-references the manual lane's re-enumeration rule (closes #1108's third
+  acceptance criterion in both directions).
 
 ## [0.6.4]
 
