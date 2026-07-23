@@ -169,7 +169,12 @@ new intake arriving mid-cycle is reported, never chased.
      reported as override-constrained this cycle. The deliberate cost, both here and in the rung
      partition: coupled higher-tier actions (e.g. worker-tier bot-thread auto-resolution) are
      foregone on floored PRs — failing closed gives up only actions the overrides or rung
-     already denied.
+     already denied. The same tier-granularity limit cuts the other way: an UPWARD override on a
+     single dimension (e.g. `thread_resolution` above an otherwise-`safe` preset) is
+     unenforceable when honoring it would exceed another dimension — the raise is ignored and
+     reported as override-unenforceable, never smuggled in as narrative to a higher tier.
+     Raising one dimension's behavior means raising the preset (every dimension consents), until
+     the invoked mechanic exposes per-dimension enforcement (follow-up candidate).
    All per-PR mechanics — checkout, fixes, threads, gates, fan-out — run under that skill's own
    contract, and the do-not-merge stance rides every invocation.
 5. **Escalate.** Anything needing an operator decision follows the convention's escalation
