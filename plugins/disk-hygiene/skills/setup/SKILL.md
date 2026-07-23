@@ -45,8 +45,8 @@ note that re-enabling restores the FAIL semantics.
 3. **Platform posture** — detect the current OS family and report its documented lane per
    the README, keeping the audit and execution lanes visibly separate: Windows (full
    **audit** — `lstat` reparse + Win32, never UAC; engine **execution unsupported** —
-   `preview` returns `execution-platform-unsupported`, removal is a manual, per-path
-   Recycle-Bin handoff after explicit approval), Linux (full audit; execution when
+   `preview` reports `execution-platform-unsupported` as a per-candidate blocker, removal is
+   a manual, per-path Recycle-Bin handoff after explicit approval), Linux (full audit; execution when
    `/proc/self/mountinfo` is readable — `lsof` needed only for that optional execution
    lane, absent `lsof` is INFO with the reduced-capability note), macOS (audit/report
    only by design; manual Trash handoff — INFO, not a defect).

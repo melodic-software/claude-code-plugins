@@ -3,6 +3,30 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.1]
+
+### Changed
+
+- **`--execute` now gates every deletion lane, including the manual handoff (#1113, F7).** A
+  deliberate semantic unification, not a restatement: the flag previously read as "offer the gated
+  ENGINE lane", which can never apply on Windows/macOS — leaving the manual lane's gate ambiguous,
+  and consumer sessions read it both ways (one proceeded to manual deletion without `--execute`).
+  The clean skill now states the unified contract in one sentence at the argument definition and
+  requires `--execute` in the manual-handoff precondition, for lane symmetry.
+
+### Fixed
+
+- **Doc corrections from the 0.6.4 consumer audit (#1113, F9/F10).** Safety-model trust boundaries
+  now name standing-policy `additional_hints[].reason` prose as untrusted claims requiring
+  independent evidence (additive-only design means hints cannot authorize, but the prose reached
+  triage reasoning unlabeled). Setup SKILL.md and the README now say `preview` *reports
+  `execution-platform-unsupported` as a per-candidate blocker* rather than "returns" it (it was
+  never a top-level status), and the README states once that the Recycle-Bin / Trash naming is a
+  model-layer distinction only — the engine treats Windows and macOS identically. F10(c)'s
+  restructure-the-hub suggestion is DECLINED with evidence: the repo's `.markdownlint-cli2.jsonc`
+  sets `"MD013": false` (no line-length rule — the complaint came from an out-of-repo lint run) and
+  the skill-quality gate passes the hub at its current length.
+
 ## [0.8.0]
 
 ### Added
