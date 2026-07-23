@@ -65,7 +65,8 @@ at preview. Backups remain the recovery boundary for user data.
 - Windows has the full **audit** lane (Python 3.11's `lstat` reparse metadata plus Win32 APIs
   exposed by the OS; never invokes UAC) but engine **execution is unsupported**: `preview` reports
   `execution-platform-unsupported` as a per-candidate blocker, and removal is a manual, per-path
-  Recycle-Bin handoff after explicit approval. The Recycle-Bin / Trash naming is a model-layer
+  Recycle-Bin handoff offered only when `--execute` was requested and after explicit approval
+  (the flag gates every deletion lane, manual included). The Recycle-Bin / Trash naming is a model-layer
   distinction only — the engine treats Windows and macOS identically (execution unsupported); which
   reversible-removal container the manual lane prefers is the model's instruction, not engine
   behavior.
