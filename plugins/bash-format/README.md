@@ -30,12 +30,14 @@ and `.editorconfig` for formatting. It ships no rules of its own.
 - **Config from the consumer.** ShellCheck discovers `.shellcheckrc` by walking
   up from the file's directory; shfmt reads `.editorconfig` the same way. No
   working-directory assumptions — the tools are anchored to the edited file.
-- **Scope: files inside the current project only.** The hook acts on shell files
-  under `CLAUDE_PROJECT_DIR` (symlink-resolved). A `.sh`/`.bash` file written
-  *outside* the project — e.g. to a temp or scratchpad directory — is silently
-  skipped: no lint, no format, no notice. This is deliberate defense-in-depth
-  scoping inherited from the shared hook library; if you need such a file linted,
-  run `shellcheck` on it directly.
+- **Scope: files inside the current project — when `CLAUDE_PROJECT_DIR` is set.**
+  With `CLAUDE_PROJECT_DIR` set, the hook acts only on shell files under it
+  (symlink-resolved): a `.sh`/`.bash` file written *outside* the project — e.g. to
+  a temp or scratchpad directory — is silently skipped (no lint, no format, no
+  notice), deliberate defense-in-depth scoping inherited from the shared hook
+  library. If `CLAUDE_PROJECT_DIR` is **unset** (e.g. some headless `-p` sessions),
+  the membership check is skipped and any existing edited file is processed. Either
+  way, to lint a file the hook skipped, run `shellcheck` on it directly.
 
 ## Requirements
 

@@ -7,11 +7,13 @@ All notable changes to the `bash-format` plugin are documented here. Format foll
 
 ### Changed
 
-- **Documented the in-project-only scope.** The hook acts only on shell files under
-  `CLAUDE_PROJECT_DIR` (symlink-resolved membership guard in the shared library); a `.sh`/`.bash`
-  file written outside the project is silently skipped. README gains a "Scope" note and the setup
-  skill's `check` gains a project-scope probe (and no longer reports "fully operational" without the
-  caveat) so an advisory linter's out-of-project no-op is not a surprise (`#1168`, finding F1).
+- **Documented the project scope.** When `CLAUDE_PROJECT_DIR` is set, the hook acts only on shell
+  files under it (symlink-resolved membership guard in the shared library); a `.sh`/`.bash` file
+  written outside the project is silently skipped. When `CLAUDE_PROJECT_DIR` is unset (e.g. some
+  headless `-p` sessions) the guard is skipped and any existing edited file is processed. README
+  gains a "Scope" note and the setup skill's `check` gains a project-scope probe (and no longer
+  reports "fully operational" without the caveat) so an advisory linter's out-of-project no-op is
+  not a surprise (`#1168`, finding F1; scope-qualification per PR review).
 - Setup skill: added a `## Gotchas` section (cache-path `ENAMETOOLONG`, `check`-PASS-≠-full-coverage,
   opt-in-conditional `shfmt` FAIL) (`#1168`, finding F6).
 
