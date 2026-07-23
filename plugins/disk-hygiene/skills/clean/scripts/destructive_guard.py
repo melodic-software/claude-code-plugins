@@ -218,9 +218,23 @@ def _engine_gate_relevant(command: str) -> bool:
                 # Provably a different existing file — a consumer's own
                 # hygiene.py, not this engine.
                 continue
-            if index == 0 or any(_is_interpreter(w) for w in words[:index]):
+            if (
+                index == 0
+                or os.path.isabs(word)
+                or any(_is_interpreter(w) for w in words[:index])
+            ):
+                # An absolute engine path is an invocation target whatever the
+                # launcher (env, a wrapper) — mentions use bare relative names.
                 return True
             continue
+        if _ENGINE_MARKER in folded and " " in word:
+            first_token = folded.split()[0]
+            if Path(first_token).name == _ENGINE_MARKER or _is_interpreter(
+                first_token
+            ):
+                # A quoted compound payload (sh -c / pwsh -Command) whose first
+                # token is the engine or an interpreter is an invocation.
+                return True
         if _ENGINE_MARKER in folded and "python" in folded:
             return True
     return False

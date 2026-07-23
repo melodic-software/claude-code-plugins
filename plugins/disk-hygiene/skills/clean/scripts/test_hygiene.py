@@ -1871,6 +1871,20 @@ class GuardTests(unittest.TestCase):
                 self.run_guard_engine_gate(f'python3 "{consumer}" --help')
             )
 
+    def test_engine_gate_catches_wrapper_launchers_of_the_bundled_engine(self) -> None:
+        """env / sh -c wrappers around the absolute engine path must gate (P1 review)."""
+        script = SCRIPT_DIR / "hygiene.py"
+        wrapped = self.run_guard_engine_gate(
+            f'/usr/bin/env "{script}" apply --plan p --token t', "Bash", "false"
+        )
+        assert wrapped is not None
+        self.assertEqual("deny", wrapped["hookSpecificOutput"]["permissionDecision"])
+        compound = self.run_guard_engine_gate(
+            f'sh -c "{script} apply --plan p --token t"', "Bash", "false"
+        )
+        assert compound is not None
+        self.assertEqual("deny", compound["hookSpecificOutput"]["permissionDecision"])
+
     def test_engine_gate_fails_closed_on_unparsable_marker_commands(self) -> None:
         """Marker + shell operators/expansions the literal parser rejects → gate."""
         result = self.run_guard_engine_gate("python3 hygiene.py scan && echo done")
