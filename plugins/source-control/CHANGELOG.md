@@ -3,6 +3,19 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.1]
+
+### Fixed
+
+- **Well-known rung's git-tracked requirement now stated on both resolution surfaces.** #1185's review
+  hardening (an untracked/gitignored file at the well-known path must not drive resolution) landed only
+  in the enforcement resolver. `config-resolution.md` (drafting) and the commit-convention seam README
+  still described rung 2 as firing "when that file exists" while claiming the surfaces were "identical"
+  — false after the fix, and a real divergence risk (drafting would use an untracked file the gate
+  skips). Both specs now require rung 2 to be **git-tracked** and tell the drafting reader how to check
+  it (`git ls-files --error-unmatch`), so drafting and enforcement resolve the same file. Docs-only;
+  the resolver already enforced this.
+
 ## [0.25.0]
 
 ### Added

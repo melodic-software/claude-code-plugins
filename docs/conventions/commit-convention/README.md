@@ -86,13 +86,19 @@ Contract points:
   1. an **explicit `convention_source` pointer** — the relocation override; the path stays
      repo-owned, so a repo that keeps its convention elsewhere is unaffected;
   2. absent a pointer, the **well-known default path**
-     `docs/conventions/source-control/commit-convention.yml` when that file exists — the marketplace's
-     own dogfooded `docs/conventions/<concern>/` layout, so the common case reads ONE tool-agnostic
-     file with no markdown pointer-parse and no pointer to sever;
+     `docs/conventions/source-control/commit-convention.yml` **when that file is git-tracked** — the
+     marketplace's own dogfooded `docs/conventions/<concern>/` layout, so the common case reads ONE
+     tool-agnostic file with no markdown pointer-parse and no pointer to sever;
   3. absent both, the **team markdown-H2** sections (legacy).
 
-  Once a neutral file resolves via rung 1 or 2 it is authoritative and the fail-closed broken-file
-  contract applies; a key it omits still falls back per key to the markdown H2.
+  **Rung 2 requires the file to be git-TRACKED — a policy floor both surfaces enforce identically.**
+  An untracked or gitignored file at the default path is a generated/local artifact, not team
+  convention; honoring it would let a personal/local file drive the gate (the same floor the team-only
+  reads protect) and would let drafting diverge from enforcement. Enforcement checks this with
+  `git ls-files --error-unmatch` (git-absent or untracked → skip rung 2, fall through to the markdown
+  H2); the drafting read (`config-resolution.md`) applies the identical requirement, so both surfaces
+  resolve the same file. Once a neutral file resolves via rung 1 or 2 it is authoritative and the
+  fail-closed broken-file contract applies; a key it omits still falls back per key to the markdown H2.
 
   **Both V1 reasons for shipping no well-known search are engaged, not overridden by fiat** (#163434
   is the demanding consumer; design: `docs/topics/commit-convention-well-known-path/`). V1 recorded

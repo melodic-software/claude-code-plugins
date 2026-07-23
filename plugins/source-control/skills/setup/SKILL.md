@@ -225,8 +225,9 @@ Skill-behavior failure patterns hit in real runs. Add to this section when new o
   surface it as a config error rather than silently falling back to markdown values a migration may
   have retired — verify the neutral file round-trips through the resolver at write time. The neutral
   file resolves by a fixed 3-rung precedence (explicit pointer > well-known
-  `docs/conventions/source-control/commit-convention.yml` > markdown-H2); `check` warns when a
-  resolved neutral file shadows a stale markdown-H2 duplicate.
+  `docs/conventions/source-control/commit-convention.yml` **when git-tracked** > markdown-H2); an
+  untracked/gitignored file at the well-known path is skipped on both surfaces (policy floor), and
+  `check` warns when a resolved neutral file shadows a stale markdown-H2 duplicate.
 
 ## What this skill does NOT do
 
