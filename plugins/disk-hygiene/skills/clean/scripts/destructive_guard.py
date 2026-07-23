@@ -281,11 +281,18 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
     for index, word in enumerate(words):
         folded = word.casefold()
         if Path(folded).name == _ENGINE_MARKER:
+            if _samefile(word):
+                # The word IS the bundled engine — gate regardless of launcher
+                # (pypy3, an unknown interpreter, anything). Identity beats
+                # launcher enumeration. Accepted overbreadth: a MENTION of the
+                # bundled engine by a resolving path gates too; real-world
+                # mentions use names that resolve to nothing (deferred below)
+                # or to consumer files (deferred below).
+                return True
             resolved_key = _script_path_key(word)
-            if resolved_key is not None and not _samefile(word):
+            if resolved_key is not None:
                 # Provably a different existing file — a consumer's own
-                # hygiene.py, not this engine. (A link to the bundled engine
-                # named hygiene.py is the engine and stays in play.)
+                # hygiene.py, not this engine.
                 continue
             if (
                 index == 0

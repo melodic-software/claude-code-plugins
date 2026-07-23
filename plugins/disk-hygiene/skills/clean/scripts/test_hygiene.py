@@ -13,7 +13,7 @@ import subprocess
 import tempfile
 import types
 import unittest
-from contextlib import redirect_stdout
+from contextlib import chdir as chdir_context, redirect_stdout
 from pathlib import Path
 from unittest import mock
 
@@ -1839,16 +1839,24 @@ class GuardTests(unittest.TestCase):
             )
 
     def test_engine_gate_defers_mere_mentions_of_the_engine(self) -> None:
-        """Read-only commands that merely NAME the script must defer (P2 review)."""
-        for tool_name, command in (
-            ("Bash", "git diff -- hygiene.py"),
-            ("Bash", "rg hygiene.py README.md"),
-            ("Bash", "echo hygiene.py"),
-            ("PowerShell", "Select-String -Pattern guard hygiene.py"),
-        ):
-            self.assertIsNone(
-                self.run_guard_engine_gate(command, tool_name), (tool_name, command)
-            )
+        """Read-only commands that merely NAME the script must defer (P2 review).
+
+        Runs from a neutral cwd: a bare `hygiene.py` mention in a real consumer
+        session resolves to nothing (or to the consumer's own file) — resolving
+        to the BUNDLED engine (cwd inside the plugin scripts dir) gates by
+        identity, deliberately.
+        """
+        with tempfile.TemporaryDirectory() as tmp, chdir_context(tmp):
+            for tool_name, command in (
+                ("Bash", "git diff -- hygiene.py"),
+                ("Bash", "rg hygiene.py README.md"),
+                ("Bash", "echo hygiene.py"),
+                ("PowerShell", "Select-String -Pattern guard hygiene.py"),
+            ):
+                self.assertIsNone(
+                    self.run_guard_engine_gate(command, tool_name),
+                    (tool_name, command),
+                )
 
     def test_engine_gate_catches_interpreter_options_before_the_script(self) -> None:
         """Interpreter options must not slip the kill switch (P1 review)."""
@@ -1986,6 +1994,15 @@ class GuardTests(unittest.TestCase):
             "Bash",
             "false",
         )
+        assert result is not None
+        self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
+
+    def test_engine_gate_catches_non_cpython_launch_of_bundled_engine(self) -> None:
+        """A relative bundled-engine path gates under ANY launcher (P1 r10)."""
+        with chdir_context(SCRIPT_DIR):
+            result = self.run_guard_engine_gate(
+                "pypy3 ./hygiene.py apply --plan p --token t", "Bash", "false"
+            )
         assert result is not None
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
 
