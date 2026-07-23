@@ -3,6 +3,36 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.0]
+
+### Added
+
+- **Two loop-lane skills: `work-loop` and `attend-queue`.** The work-items adopters of the
+  loop-lane convention (`docs/conventions/loop-lane/` in the marketplace repository). `work-loop`
+  is the worker lane — a self-paced drain loop that sweeps raw intake through `triage`'s
+  autonomous lane each cycle, admits items through a fail-closed work-class gate (C2 autonomous;
+  C3 bug-fix-shaped autonomous behind a first-drain ratification queue; C3 feature-shaped, C4, C5,
+  and unclassified human-gated; plus a path/topic hard gate over SHA pins, checksum recomputation,
+  and consumer CLAUDE.md ground-rule surfaces, and a bot-authored-advisory default to human-gated),
+  executes admitted items via `work` under an adaptive item cap (start 2, +1 after 3 clean,
+  ceiling 3, -1 on dirty, floor 1; frontier-tier items at concurrency 1 with ceiling 2; no ramp
+  while a rate-limit warning is latched), provisions worktrees explicitly before dispatch as the
+  `#572` workaround, and exits on the seam-frontier-empty plus GraphQL close-linkage condition or
+  the convention's drain-terminal state. `attend-queue` is the attended lane — one merged
+  attention view of worker-escalated items (human-gated role + machine-marked escalation comment),
+  first-drain C3 ratifications, and untriaged intake (composing `triage`'s attention view),
+  driving decisions via `/planning:interview` (presence-gated), writing answers back as issue
+  comments, and flipping unblocked items to the autonomous-eligible role in a single edit. Both
+  lanes hold shared loop-layer concerns by citation to the loop-lane convention, inline the
+  rate-limit guard's operable floor byte-identically per its inline-floor rule, and inline the
+  `claude-ops`-compatible sentinel telemetry upsert (an installed plugin cannot invoke a sibling
+  plugin's scripts).
+- **Four `userConfig` keys for the work-loop adaptive cap bounds:** `work_loop_item_cap_start`
+  (default 2), `work_loop_item_cap_ceiling` (default 3), `work_loop_item_cap_floor` (default 1),
+  and `work_loop_frontier_item_cap_ceiling` (default 2). Enforcement is the loop body's own
+  arithmetic; the composed budget with `/implementation:implement-dispatch`'s per-item wave cap
+  remains interim pending `#573`.
+
 ## [0.21.4]
 
 ### Changed
