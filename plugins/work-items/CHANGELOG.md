@@ -3,6 +3,21 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.21.4]
+
+### Changed
+
+- **Raw-intake marker canonicalized as dual-axis across `triage` docs and evals (`#818`).** The live
+  raw marker is applied on whichever axis a consuming repo files it under — `priority:needs-triage`
+  or `status:needs-triage` — but `SKILL.md`'s Triage-states table and Attention-view buckets,
+  `reference/dogfood-filing.md`'s filing step, `reference/label-taxonomy.md` and
+  `reference/tracker-seam.md`'s axis-grammar tables, and two triage evals described or asserted it
+  as status-axis-only. All now match the dual-axis wording the "Scope: raw intake only" section
+  already carries (`#802`): a consuming repo may file the raw marker under either axis, and both are
+  canonical. On the Priority axis the marker is passed as the `track add` `--priority` value (a
+  single-label group), replacing the `priority:p3-low` filing default rather than adding a second
+  `priority:` label.
+
 ## [0.21.3]
 
 ### Fixed
