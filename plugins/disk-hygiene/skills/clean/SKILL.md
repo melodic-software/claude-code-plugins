@@ -223,8 +223,16 @@ handoff, not an engine plan:
    audit evidence; no reparse point/symlink; any owner process named in the evidence still absent;
    an exclusive-open probe succeeds (no live handle).
 2. Prefer reversible removal (Windows Recycle Bin / macOS Trash) over permanent deletion, and say
-   which was used.
-3. Skip and report any path that fails revalidation; never substitute a sibling or retry around a
+   which was used. That reversibility is conditional, not guaranteed: bin size caps, a
+   policy-disabled bin, and non-NTFS or network volumes silently make the same operation
+   permanent — disclose when a target's volume or policy turns "reversible" removal permanent.
+3. Container-wide operations (`Clear-RecycleBin`, emptying the Trash, or any "delete everything in
+   this container" spelling) are forbidden unless the container is re-enumerated immediately
+   before execution and the result matches the approved count and set exactly; on any drift, abort
+   and re-ask. An approval bound to a prose list goes stale the moment new items land in the
+   container — the engine lane's changed-since-scan threat resurfacing in the manual lane, where
+   no snapshot token protects it.
+4. Skip and report any path that fails revalidation; never substitute a sibling or retry around a
    lock.
 
 The PowerShell guard lane turns deletion spellings into a final human permission prompt (the same

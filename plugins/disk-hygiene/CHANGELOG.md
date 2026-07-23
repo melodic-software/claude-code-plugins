@@ -3,6 +3,21 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.5]
+
+### Fixed
+
+- **Manual-handoff lane: container-wide deletions now require immediate pre-execution
+  re-enumeration (#1108).** An approval for a container-wide operation (`Clear-RecycleBin`,
+  emptying the Trash) was bound to a prose item list that could go stale between approval and
+  execution — items landing in the container after approval would be destroyed under an approval
+  that predated their existence (a live near-miss in the 0.6.4 consumer audit, F2). The clean
+  skill's unsupported-platform handoff now forbids container-wide operations unless the container
+  is re-enumerated immediately before execution and matches the approved count and set exactly,
+  aborting on any drift — the engine lane's changed-since-scan discipline applied to the manual
+  lane. Also documents that Recycle Bin / Trash reversibility is conditional: bin size caps,
+  policy-disabled bins, and non-NTFS/network volumes silently make removal permanent.
+
 ## [0.6.4]
 
 ### Fixed
