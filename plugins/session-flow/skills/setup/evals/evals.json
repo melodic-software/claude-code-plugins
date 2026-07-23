@@ -1,0 +1,30 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "check-only-verifies-observer-prereqs-no-writes",
+      "prompt": "/session-flow:setup",
+      "expected_output": "Runs the read-only check: probes Python 3.10+, jq, and the claude CLI on PATH as the observer's prerequisites, reports the effective observer userConfig values, flags the --bare/OAuth-auth and idle-threshold hazards, and writes nothing (no settings files, no pluginConfigs). Notes that only the observer has prerequisites and the other session-flow skills are zero-config.",
+      "files": [],
+      "expectations": [
+        "Probes Python 3.10+, jq, and the claude CLI as the observer's prerequisites",
+        "Reports the effective observer userConfig values without editing settings files or pluginConfigs",
+        "Flags observer_analysis_bare on an OAuth-login install and observer_idle_seconds below the longest single turn",
+        "Scopes setup to the observer only and treats the other skills as zero-config"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "apply-has-no-write-path-routes-to-native-configure",
+      "prompt": "/session-flow:setup apply",
+      "expected_output": "Runs the check first, then for each finding offers only guidance (install the missing tool, or reconfigure via Claude Code's native /plugin configure session-flow). It never writes pluginConfigs, mutates user settings, or edits the installed plugin cache.",
+      "files": [],
+      "expectations": [
+        "Runs the check before offering any resolution",
+        "Offers install/guidance remediation but has no config write path",
+        "Routes reconfiguration to /plugin configure session-flow, never writing pluginConfigs or user settings"
+      ]
+    }
+  ]
+}
