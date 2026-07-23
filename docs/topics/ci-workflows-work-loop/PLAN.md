@@ -413,7 +413,9 @@ means: the session pushes the branch + prepares the PR body file and notifies th
 2. Launch three lanes: `work-loop` + `attend-queue` + babysit (babysit-PLAN Phase B3). Launch
    surface `[FALLBACK — confirm or override]`: FIRST cycle attended via interactive `/loop`
    (observability); unattended operation then moves to `claude-ops:lanes` (background named
-   sessions) so budget-hit restart-requests have a launcher to act on them — reviewer finding:
+   sessions) so budget-hit restart-requests reach the operator's one-command relaunch surface
+   (`lanes restart` — operator-invoked by its contract; no automatic trigger consumes
+   restart-requests today, per the loop-lane convention) — reviewer finding:
    an interactive `/loop` with nobody watching turns a #691 budget-hit into a silent drain
    stall. Until lanes-managed, the stall risk is documented in the lane report.
    PHASE-ENTRY GATE before any lanes migration (stress-test finding: statusline is verified
