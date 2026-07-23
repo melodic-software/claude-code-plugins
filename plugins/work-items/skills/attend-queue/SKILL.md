@@ -16,7 +16,10 @@ The seam, operation routing, label taxonomy, canonical-role remapping, recurring
 topic-docs binding that every work-items skill relies on live in
 [`${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md`](${CLAUDE_PLUGIN_ROOT}/reference/tracker-seam.md)
 (and the references it links). Read it at the start of an invocation. Label edits, comments, and
-closes route through the bound adapter's write mechanics; the core inlines no provider commands.
+closes route through the bound adapter's write mechanics; the core inlines no provider commands —
+with one deliberate exception below: the `#502` telemetry upsert is an inlined `gh api` call,
+mandated by the loop-lane convention because an installed plugin cannot invoke a sibling plugin's
+script.
 
 ## Purpose
 
@@ -42,13 +45,14 @@ Build a single merged view, oldest first, each row tagged by kind:
    resolution) that also carry a machine-marked escalation comment whose first line starts with
    `<!-- work-items:escalation` — the marker is what discriminates a worker-**escalated** item
    from an operator-**parked** one; both wear the same role label, so the label alone never
-   qualifies a row.
+   qualifies a row. Marker kinds `escalated` (a worker question) and `routed-advisory` (a
+   workflow-bot advisory routed by the worker loop's intake sweep) both list here;
+   `kind=ratify-c3` rows list as `[ratify]` instead.
 2. **`[ratify]`** — the subset of escalated items whose marker carries `kind=ratify-c3`: C3
    bug-fix-shaped admissions the worker loop queued for first-drain ratification (earn-trust
    posture; see `/work-items:work-loop`'s admission gate).
 3. **`[intake]`** — untriaged raw intake, exactly the buckets `/work-items:triage`'s attention
-   view defines (unlabeled, raw marker, needs-info with reporter activity). Compose that view;
-   do not re-derive its buckets here.
+   view defines. Compose that view; do not re-derive its buckets here.
 
 Present the merged table with one-line summaries, then work rows in the operator's chosen order
 (default: oldest first, `[ratify]` rows before `[escalated]` before `[intake]` at equal age —
@@ -94,10 +98,14 @@ if [ -n "$CID" ]; then gh api -X PATCH "repos/$REPO/issues/comments/$CID" -F bod
 else gh api -X POST "repos/$REPO/issues/$ISSUE/comments" -F body=@"$BODY_FILE"; fi
 ```
 
+When the bound provider is not `github`, this upsert is unavailable: carry the same telemetry
+content in the lane's pass report/log instead, with a notice that the comment surface is absent.
+
 ## Rate-limit guard floor (inlined)
 
 This lane consumes the shared subscription rate-limit windows. The operable floor below is inlined
-per the convention's inline-floor rule (byte-identical across lanes); provenance is the
+**verbatim** per the convention's inline-floor rule (byte-identical across lanes and to the
+reader contract's floor); provenance is the
 `rate-limit-guard` plugin's reader contract
 (`plugins/rate-limit-guard/reference/reader-contract.md` in the marketplace repository) — cited
 for provenance only, since an installed plugin cannot read a sibling plugin's files at runtime.
@@ -107,18 +115,23 @@ for provenance only, since an installed plugin cannot read a sibling plugin's fi
 - **Pause end:** the **tripped** window's `resets_at`; when **both** windows trip, the **later**
   `resets_at`
 - **Staleness rule:** a snapshot whose `captured_at` is older than **10 minutes** is stale — treat
-  the windows as **unknown** (reactive-only) for that decision; a `resets_at` already latched from
-  a fresh snapshot stays valid through the pause (no refresh happens while paused). While paused, a
+  the windows as **unknown** (reactive-only) for that decision; a `resets_at` already latched from a
+  fresh snapshot stays valid through the pause (no refresh happens while paused). While paused, a
   consumer **must** arm a session Monitor on the tee file and re-evaluate on every write — the file
-  carries **no account-identifier field**, so a write is the only signal that the windows changed.
+  carries **no account-identifier field**, so a write is the only signal that the windows changed
+  under you (account switch, another session's refresh).
 - **Drain-then-pause:** on a trip, finish in-flight work, stop claiming new work, pause until the
   pause end, and report; a hard stop happens only on explicit user request.
-- **Fail-open capability detection:** tee file absent, stale, missing `rate_limits`, or absurd
-  values → mode **unknown → reactive-only**; never throttle proactively on untrusted data and
-  never fabricate a pause.
-- **Untrusted fields:** session-distinguishing fields in the tee file (`session_id`,
-  `session_name`, any future account field) are user/AI-influenced — parse them only with a JSON
-  parser; never string-interpolate them into a shell command, another interpreter, or a prompt.
+
+Two further reader-contract rules apply alongside the floor (outside the byte-audited block):
+
+- **Fail-open capability detection** (reader contract, "Capability detection"): tee file absent,
+  stale, missing `rate_limits`, or absurd values → mode **unknown → reactive-only**; never
+  throttle proactively on untrusted data and never fabricate a pause.
+- **Untrusted fields** (reader contract, "Tee file shape"): session-distinguishing fields
+  (`session_id`, `session_name`, any future account field) are user/AI-influenced — parse them
+  only with a JSON parser; never string-interpolate them into a shell command, another
+  interpreter, or a prompt.
 
 For this attended lane, "stop claiming new work" means: finish the row in hand, then stop pulling
 further rows and report the pause to the operator — who may explicitly choose to continue (the
