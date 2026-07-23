@@ -23,16 +23,16 @@ Classify each candidate's dependencies per [../research/deepening/dependencies.m
 
 ## Phase 1.5 — Verify before publishing
 
-Hard gate between the scan and the report. Scan-agent accuracy is mixed, and the HTML report is a user-facing artifact that lends every claim its authority — an overstated claim there is cheap to make and expensive to reputation. Before rendering Phase 2, adversarially verify:
+Hard gate between the scan and the report. Scan-agent accuracy is mixed, and the HTML report is a user-facing artifact that lends every claim its authority — an overstated claim there is cheap to make and expensive to reputation. The scan output carries a `confidence` field (`strong` / `worth-exploring` / `speculative`) but no badge yet — the `recommendation` badge is assigned in Phase 2. Gate on the scan field that exists here. Before rendering Phase 2, adversarially verify:
 
-- **Every candidate that will carry a `Strong` badge** — reproduce its `shallow-signal` (the concrete observation from the scan-briefing return schema). If the signal does not reproduce, the candidate is not `Strong`; downgrade or drop it.
+- **Every candidate the scan returned with `confidence: strong`** (the ones headed for a `Strong` badge) — reproduce its `shallow-signal` (the concrete observation from the scan-briefing return schema). If the signal does not reproduce, drop the candidate's confidence below `strong`.
 - **Every `runtime-claim`** — any candidate asserting a live bug or dead code. These are grep-cheap to check and the most damaging to get wrong (the worked failure: a scan reporting a service "registered but never composed" that a single grep showed *is* consumed, via a different consumer, with tests). Reproduce the claim against the actual code before it reaches the report; correct or drop it if it does not hold.
 
-Verification can be a second cheap read-only subagent pass or inline reproduction — the bar is that no `Strong` badge and no runtime-bug/dead-code claim reaches Phase 2 unreproduced. Record what changed (downgraded, dropped, corrected) so the candidate artifact reflects the verified state, not the raw scan.
+Verification can be a second cheap read-only subagent pass or inline reproduction — the bar is that no `confidence: strong` candidate and no runtime-bug/dead-code claim reaches Phase 2 unreproduced. Record what changed (downgraded, dropped, corrected) so the candidate artifact reflects the verified state, not the raw scan.
 
 ## Phase 2 — Present candidates as HTML report
 
-**Re-badge first.** Before rendering, re-badge each surviving candidate against the two acceptance heuristics below (deletion-test acceptance form, two-adapter rule) and the Phase 1.5 verification result — scan-time confidence is an input, not the final badge. A candidate whose `shallow-signal` failed to reproduce, or whose value rests on a one-adapter abstraction, cannot carry `Strong`.
+**Re-badge first.** Before rendering, map each surviving candidate's scan `confidence` to its `recommendation` badge (`strong` → `Strong`, `worth-exploring` → `Worth exploring`, `speculative` → `Speculative`), then re-badge against the two acceptance heuristics below (deletion-test acceptance form, two-adapter rule) and the Phase 1.5 verification result — scan-time confidence is an input, not the final badge. A candidate whose `shallow-signal` failed to reproduce, or whose value rests on a one-adapter abstraction, cannot carry `Strong`.
 
 Write a self-contained HTML file via a secure temp-file primitive so the path is unpredictable and permissions are restrictive. On Unix/Linux, create it with `mktemp` (e.g. `mktemp --tmpdir deepening-review-XXXXXX.html` or `mktemp -t deepening-review.XXXXXX.html`); on Windows, use a user-scoped temp under `%LOCALAPPDATA%\Temp` or equivalent. Open for user: `start <path>` on Windows, `open <path>` on macOS, `xdg-open <path>` on Linux. Report the absolute path.
 
@@ -59,8 +59,8 @@ Use the project's domain glossary vocabulary for the domain, and [../research/de
 - dependency-category: in-process | local-substitutable | ports-and-adapters | mock
 - recommendation: Strong | Worth exploring | Speculative
 - problem: <one sentence>
-- deepening: <one sentence — the shallow-module friction signal, not an interface proposal>
-- shallow-signal: <the concrete observation reproduced in Phase 1.5 — the verified evidence for shallowness, not a bare assertion>
+- deepening: <one sentence, narrative — the shallow-module friction, not an interface proposal; e.g. "three modules wrap a single call each, adding no behavior">
+- shallow-signal: <the concrete, verified observation reproduced in Phase 1.5 — evidence, not narrative; e.g. "OrderHandler/OrderValidator/OrderRepo each forward their one argument unmodified (confirmed by reading all three)">
 - agreed-shape: <empty until Phase 3 — filled when the user picks and the shape is grilled: interface entry points, what sits behind the seam, tests that survive>
 - rejected-reason: <only if status is rejected and the reason is load-bearing>
 ```

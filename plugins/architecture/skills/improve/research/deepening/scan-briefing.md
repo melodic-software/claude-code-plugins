@@ -5,10 +5,10 @@ structure below, the same way [interface-design.md](interface-design.md) briefs 
 agents — so scan quality does not vary run-to-run and the badge-acceptance heuristics reach the
 agents at scan time instead of arriving only in Phase 2.
 
-Assemble one briefing per subagent. Each briefing has four parts: vocabulary primer, friction
-checklist, dependency categories, and the per-candidate return schema. Include the project's own
-glossary terms (if it maintains one) alongside the architecture vocabulary so every agent names
-things the same way.
+Assemble one briefing per subagent. Each briefing has five parts: vocabulary primer, friction
+checklist, dependency categories, badge-acceptance heuristics, and the per-candidate return schema.
+Include the project's own glossary terms (if it maintains one) alongside the architecture vocabulary
+so every agent names things the same way.
 
 ## 1. Vocabulary primer
 
