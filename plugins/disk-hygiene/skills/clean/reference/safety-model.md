@@ -144,6 +144,20 @@ switch. When the guard sees execution enabled they are downgraded to a final hum
 when it sees a configured `false` (audit-only mode) they are denied outright, so the kill switch would
 block deletions on the PowerShell lane too and not only the Bash engine apply.
 
+**Preview caveat — PowerShell-tool interception does NOT fire on current builds (verified on Claude
+Code 2.1.218, Windows).** The PowerShell tool is a documented *preview* feature
+([tools-reference](https://code.claude.com/docs/en/tools-reference)); on 2.1.218 a `Bash|PowerShell`
+PreToolUse hook was reproduced to fire for the Bash tool but **not** intercept PowerShell-*tool*
+commands. So the entire PowerShell paragraph above — the deletion-spelling belt, the `ask` downgrade,
+and the audit-only `deny` — **does not take effect for the PowerShell tool on this build**, and the
+`disk_hygiene_enabled` kill switch does not reach the PowerShell manual-deletion lane. This is an
+observed effect; the mechanism (matcher firing vs Windows payload delivery vs the tool's `tool_name`)
+is not yet isolated. Treat every "prompt"/"deny" claim in this section as the guard's *intended* design,
+**not a protection in force on Windows**: on Windows the only deletion protection that actually holds is
+the manual lane's per-path human `handoff-verify` approval plus the consumer's baseline permission
+policy. **Recheck** when the PowerShell tool exits preview, or verify firing directly with the plugin's
+fresh-session hook-firing probe before relying on the lane.
+
 Kill-switch enforcement is only as reachable as the value is, and the guard now registers on two
 surfaces with different reach. The **plugin-level engine gate** (`hooks/hooks.json`, exec form,
 `--mode engine-gate`) receives `${user_config.disk_hygiene_enabled}` and `${CLAUDE_PLUGIN_DATA}`

@@ -3,6 +3,25 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.2]
+
+### Fixed
+
+- **Docs no longer promise PowerShell-tool deletion protection that does not fire on current builds
+  (inbox `173656`).** `skills/clean/SKILL.md` and `reference/safety-model.md` asserted the PowerShell
+  guard belt "turns deletion spellings into a final human permission prompt" and that a configured
+  `disk_hygiene_enabled=false` blocks the PowerShell lane. On Claude Code 2.1.218 (Windows, reproduced)
+  a `Bash|PowerShell` PreToolUse hook fires for the Bash tool but does **not** intercept
+  PowerShell-*tool* commands — the PowerShell tool is a documented *preview* feature
+  ([tools-reference](https://code.claude.com/docs/en/tools-reference)) and PreToolUse interception of it
+  is not a listed preview limitation, so the belt and the kill switch's reach into the manual PowerShell
+  lane are inert there. The claims are now scoped as the guard's *intended* design with an explicit
+  version-pinned preview caveat + recheck trigger; on Windows the protections that actually hold are the
+  manual lane's per-path `handoff-verify` approval and the consumer's baseline permission policy.
+  Observed effect only — the mechanism (matcher firing vs Windows payload delivery vs `tool_name`) is not
+  yet isolated; a fresh-session hook-firing probe is bundled for the maintainer, and the upstream
+  docs-vs-behavior divergence is held for a report once isolated.
+
 ## [0.8.1]
 
 ### Changed
