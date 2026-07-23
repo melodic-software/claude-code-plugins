@@ -3,6 +3,31 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.1]
+
+### Security
+
+- **Source-URL schemes are allowlisted at every deck sink.** A shared
+  `lib/url-policy.js` seam now exposes `isAllowedUrlScheme`, reused at schema
+  validation and at each href/hyperlink sink. `http:`, `https:`, `mailto:`, and
+  `tel:` — the schemes a legitimate briefing may contain, inert at every sink —
+  are preserved and continue to render as working links. **Every other scheme is
+  now rejected**: the `javascript:`, `data:`, and `file:` attack vectors that
+  could inject script into the HTML deck or embed a local-file hyperlink in the
+  PPTX, and — as deliberate fail-closed hardening — rarer schemes such as `ftp:`
+  that the previous permissive `z.string().url()` accepted. Two layers: the Zod
+  schema hard-fails a deck containing a disallowed scheme (loud fail-closed on an
+  attack indicator), and the HTML and PPTX builders drop the individual unsafe
+  link (defense-in-depth on the `--skip-emit` rebuild path).
+- **Link-reachability checks refuse private/loopback hosts (SSRF guard).**
+  `shouldSkipLinkCheck` now skips URLs whose literal host is loopback, private,
+  link-local, or reserved (127/8, 10/8, 172.16/12, 192.168/16, 169.254/16, 0/8,
+  `localhost`/`*.localhost`, IPv6 `::`/`::1`/`fc00::/7`/`fe80::/10`, and
+  IPv4-mapped forms), relying on WHATWG URL canonicalization of
+  decimal/hex/octal/integer IPv4. A public hostname that resolves to a private
+  address at fetch time (DNS rebind) is not covered — the checker resolves DNS
+  itself, so that case remains outside this offline literal gate.
+
 ## [0.6.0]
 
 ### Changed
