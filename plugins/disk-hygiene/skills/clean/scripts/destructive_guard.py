@@ -257,6 +257,30 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
         ):
             return False
         return True
+    # The effective command word: skip launcher wrappers, VAR=value
+    # assignments, and option words — `env PATH=... hygiene.py apply` makes the
+    # bare marker word the command even though it is not word 0.
+    _WRAPPERS = {
+        "env",
+        "nohup",
+        "nice",
+        "time",
+        "timeout",
+        "setsid",
+        "stdbuf",
+        "sudo",
+        "doas",
+        "exec",
+        "command",
+    }
+    effective_index = None
+    for index, word in enumerate(words):
+        folded = word.casefold()
+        base = Path(folded).name
+        if base in _WRAPPERS or "=" in word or word.startswith("-"):
+            continue
+        effective_index = index
+        break
     for index, word in enumerate(words):
         folded = word.casefold()
         if Path(folded).name == _ENGINE_MARKER:
@@ -268,11 +292,14 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
                 continue
             if (
                 index == 0
+                or index == effective_index
                 or os.path.isabs(word)
                 or any(_is_interpreter(w) for w in words[:index])
             ):
                 # An absolute engine path is an invocation target whatever the
-                # launcher (env, a wrapper) — mentions use bare relative names.
+                # launcher (env, a wrapper) — mentions use bare relative names
+                # in ARGUMENT position (`git diff -- hygiene.py`), never as the
+                # effective command.
                 return True
             continue
         if _ENGINE_MARKER in folded and " " in word:

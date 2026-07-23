@@ -1969,6 +1969,16 @@ class GuardTests(unittest.TestCase):
                 "deny", result["hookSpecificOutput"]["permissionDecision"]
             )
 
+    def test_engine_gate_catches_path_resolved_engine_after_env_wrapper(self) -> None:
+        """env VAR=... hygiene.py must gate as the effective command (P1 r8)."""
+        result = self.run_guard_engine_gate(
+            f"env PATH={SCRIPT_DIR}:/usr/bin hygiene.py apply --plan p --token t",
+            "Bash",
+            "false",
+        )
+        assert result is not None
+        self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
+
     def test_engine_gate_fails_closed_on_unparsable_marker_commands(self) -> None:
         """Marker + shell operators/expansions the literal parser rejects → gate."""
         result = self.run_guard_engine_gate("python3 hygiene.py scan && echo done")
