@@ -13,7 +13,9 @@
 # the hook both gates on that file and passes it through. A repo that has not
 # adopted a settings file is left untouched rather than formatted and linted with
 # PSScriptAnalyzer's built-in defaults, so the plugin never imposes a style it did
-# not choose.
+# not choose. A settings file that declares CustomRulePath would make the analyzer
+# execute repository-supplied rule modules, so that state is further gated on an
+# explicit per-content trust approval (see the trust gate below).
 #
 # Graceful degrade: pwsh absent (pwsh-less contributor box, Linux cloud session
 # without PowerShell) OR the PSScriptAnalyzer module not installed -> clean silent
@@ -122,8 +124,9 @@ root="$(hook::normalize_path "$(hook::physical_path "$REPO_ROOT")")" || root=""
 # there, so the settings ceiling matches the file-membership ceiling that
 # hook::read_file_path already enforced — a settings file above the project dir
 # (which the agent was never allowed to write under) can never govern the edit,
-# and a settings file discovered under CustomRulePath is executed during analysis
-# (see README "Trust model"). The git-root ceiling is the fallback when unset.
+# and a settings file that declares CustomRulePath is gated on explicit trust
+# approval before analysis (see README "Trust model"). The git-root ceiling is
+# the fallback when unset.
 CEILING="$root"
 if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
   CEILING="$(hook::normalize_path "$(hook::physical_path "$CLAUDE_PROJECT_DIR")")"
@@ -170,20 +173,80 @@ to_pwsh_path() {
 PSSA_FILE_ARG="$(to_pwsh_path "$FILE")"
 PSSA_SETTINGS_ARG="$(to_pwsh_path "$SETTINGS_FOUND")"
 
-# Single pwsh invocation — probe the module, format in place, then lint. File
-# and settings pass via env vars to avoid pwsh argument parsing issues.
+# Trust gate state for the code-loading settings check inside the pwsh block
+# below. A settings file may declare CustomRulePath, and PSScriptAnalyzer loads
+# and RUNS those rule modules during analysis — repository-supplied code must
+# never execute on the strength of a PowerShell edit alone. Approval is an
+# explicit marker directory the user creates after reviewing the settings file
+# and every rule module it references. CLAUDE_PLUGIN_DATA is the official
+# persistent plugin-state location and survives plugin updates; the signature
+# is content-addressed over the repo root and the settings file, so any
+# settings change yields a new directory and revokes a prior approval.
+# resolve_trust_dir returns 1 when the state base is unavailable or the
+# settings cannot be digested — the exit-6 arm then fails CLOSED: a
+# code-loading settings state whose approval cannot be verified is never run.
+# (Same shape as markdown-format's trust gate; a future refactor could hoist
+# the shared primitive into the hook-utils library.)
+TRUST_DIR=""
+resolve_trust_dir() {
+  local state_base="${CLAUDE_PLUGIN_DATA:-}" signature digest
+  TRUST_DIR=""
+  [[ -n "$state_base" ]] || return 1
+  if command -v cygpath >/dev/null 2>&1 && [[ "$state_base" == [A-Za-z]:\\* ]]; then
+    state_base="$(cygpath -u "$state_base" 2>/dev/null)" || return 1
+  fi
+  signature=$(
+    {
+      printf '%s\n' "$REPO_ROOT"
+      digest=$(git hash-object "$SETTINGS_FOUND" 2>/dev/null) || return 1
+      printf '%s\t%s\n' "$SETTINGS_FOUND" "$digest"
+    } | git hash-object --stdin 2>/dev/null
+  ) || return 1
+  [[ -n "$signature" ]] || return 1
+  TRUST_DIR="${state_base%/}/trust-approvals/$signature"
+}
+resolve_trust_dir || TRUST_DIR=""
+PSSA_APPROVED=0
+[[ -n "$TRUST_DIR" && -d "$TRUST_DIR" ]] && PSSA_APPROVED=1
+
+# Single pwsh invocation — probe the module, gate code-loading settings, format
+# in place, then lint. File and settings pass via env vars to avoid pwsh
+# argument parsing issues.
 #   exit 3  PSScriptAnalyzer module not installed -> clean skip (no findings)
 #   exit 0  clean
 #   exit 1  findings (written to stderr, one line each)
 #   exit 4  Invoke-Formatter / Invoke-ScriptAnalyzer threw -> tool break
 #   exit 5  file is neither BOM'd nor valid UTF-8 (legacy ANSI) -> clean skip
 #           (cannot round-trip the bytes safely, so never rewrite)
+#   exit 6  settings declare CustomRulePath (or could not be verified code-free)
+#           and this settings-content state is unapproved -> trust-gate skip
 # SC2016: PowerShell uses $env:VAR syntax inside single quotes — not bash expansion.
 # shellcheck disable=SC2016
 PSSA_OUTPUT=$(PSSA_FILE="$PSSA_FILE_ARG" PSSA_SETTINGS="$PSSA_SETTINGS_ARG" \
+  PSSA_SETTINGS_APPROVED="$PSSA_APPROVED" \
   pwsh -NoProfile -NonInteractive -Command '
     if (-not (Get-Module -ListAvailable -Name PSScriptAnalyzer)) {
         exit 3
+    }
+
+    # Trust gate: a settings file may declare CustomRulePath, which makes
+    # Invoke-ScriptAnalyzer load and execute repository-supplied rule modules.
+    # Detect the key via the restricted data-file parser PowerShell itself
+    # provides — a textual grep is evadable through quoting and escape
+    # sequences (e.g. a backtick escape inside a double-quoted key still
+    # evaluates to CustomRulePath). A settings file the restricted parser
+    # rejects cannot be proven code-free (PSScriptAnalyzer settings parsing is
+    # more lenient, for example taking the first hashtable of a
+    # multi-statement file), so it gates too: fail closed.
+    if ($env:PSSA_SETTINGS_APPROVED -ne "1") {
+        $loadsCode = $true
+        try {
+            $sd = Import-PowerShellDataFile -LiteralPath $env:PSSA_SETTINGS -ErrorAction Stop
+            $loadsCode = ($sd -is [hashtable]) -and $sd.ContainsKey("CustomRulePath")
+        } catch {
+            $loadsCode = $true
+        }
+        if ($loadsCode) { exit 6 }
     }
     try {
         $file = $env:PSSA_FILE
@@ -287,6 +350,27 @@ case $PWSH_EXIT in
   # File is neither BOM'd nor valid UTF-8 (legacy ANSI) — rewriting it would
   # transcode bytes the hook cannot round-trip. Clean silent skip; the repo's
   # commit hook / CI remains the gate for such files.
+  emit_skipped
+  ;;
+6)
+  # Trust gate — the settings file can make the analyzer execute
+  # repository-supplied code (CustomRulePath), or could not be verified
+  # code-free, and this exact settings-content state carries no approval
+  # marker. Skip the run with a visible once-per-session notice on both
+  # channels; the notice key carries the state signature so a settings change
+  # re-notices within the same session. When the approval store is unavailable
+  # the gate fails closed: analysis stays disabled rather than trusted.
+  SETTINGS_REL="$SETTINGS_FOUND"
+  [[ -n "$root" ]] && SETTINGS_REL="${SETTINGS_FOUND#"$root"/}"
+  if [[ -n "$TRUST_DIR" ]]; then
+    APPROVE_HINT="Review that file and every rule module it references; to approve this exact settings-content state and enable analysis, run: mkdir -p '$TRUST_DIR' (any settings change revokes the approval)."
+  else
+    APPROVE_HINT="Approval state is unavailable (CLAUDE_PLUGIN_DATA unset or unusable), so analysis stays disabled for this repository."
+  fi
+  if hook::notice_once "powershell-format-trust-${TRUST_DIR##*/}" "$INPUT"; then
+    hook::emit_skip_notice PostToolUse \
+      "powershell-format trust gate: PSScriptAnalyzer run skipped — $SETTINGS_REL declares CustomRulePath (analysis would load and execute repository-supplied rule modules) or cannot be verified code-free. $APPROVE_HINT"
+  fi
   emit_skipped
   ;;
 *)

@@ -19,7 +19,8 @@ and runs only when your repo has opted into a `PSScriptAnalyzerSettings.psd1`.
   so the hook both gates on that file and passes it through. A repo without a
   settings file is left untouched rather than formatted and linted with
   PSScriptAnalyzer's built-in defaults, so the plugin never imposes a style you
-  did not choose.
+  did not choose. A settings file that declares `CustomRulePath` is additionally
+  gated on explicit approval — see [Trust model](#trust-model).
 - **Format on edit.** `Invoke-Formatter` applies your settings' formatting rules
   (indentation, alias expansion, brace placement, and so on) in place.
 - **Findings are advisory.** Semantic diagnostics your settings enable (for
@@ -37,12 +38,24 @@ The opt-in `PSScriptAnalyzerSettings.psd1` is **executed-adjacent configuration*
 not inert data. A settings file may declare a
 [`CustomRulePath`](https://learn.microsoft.com/powershell/utility-modules/psscriptanalyzer/using-scriptanalyzer#custom-rules)
 pointing at PowerShell rule modules, and PSScriptAnalyzer **loads and runs** those
-modules' exported functions during analysis. Treat the settings file — and any
-module it references — with the same trust you give your build and CI
-configuration: it runs on your machine on every edit. The hook only reads a
-settings file at or below your project root (bounded by `CLAUDE_PROJECT_DIR` when
-set), so it never picks up one from an ancestor directory outside the project.
-Do not enable this plugin against an untrusted working tree.
+modules' exported functions during analysis. The hook therefore never runs the
+analyzer under such a settings file without an explicit approval: it skips the
+format/lint run and reports a visible trust-gate notice (once per session, on
+both the agent and user channels) naming the settings file and the approval
+marker to create. To approve, review the settings file and every rule module it
+references — treat them with the same trust you give your build and CI
+configuration — then create the marker directory using the exact `mkdir -p`
+command the notice carries. The marker lives under
+`${CLAUDE_PLUGIN_DATA}/trust-approvals` and is content-addressed over the
+repository and the settings file, so any settings change revokes the approval
+and re-gates the run. Detection uses PowerShell's restricted data-file parser,
+not a textual scan; a settings file that parser cannot read is treated as
+code-loading and stays gated, and when `CLAUDE_PLUGIN_DATA` is unavailable the
+gate fails closed and the run stays skipped. A settings file without
+`CustomRulePath` is declarative rule configuration and runs immediately. The
+hook only reads a settings file at or below your project root (bounded by
+`CLAUDE_PROJECT_DIR` when set), so it never picks up one from an ancestor
+directory outside the project.
 
 ## Requirements
 

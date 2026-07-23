@@ -5,7 +5,8 @@
 # PSScriptAnalyzer's formatting (alias expansion), surfaces residual findings via
 # additionalContext (advisory, exit 0), honors the kill switch, gates on a
 # consumer PSScriptAnalyzerSettings.psd1 (present -> run, absent -> leave bytes
-# untouched), degrades cleanly when the PSScriptAnalyzer module is unavailable,
+# untouched), trust-gates a CustomRulePath-declaring settings state on explicit
+# approval, degrades cleanly when the PSScriptAnalyzer module is unavailable,
 # and emits a schema-valid telemetry envelope.
 #
 # Self-contained: builds throwaway git repos with runtime-generated fixtures. The
@@ -350,11 +351,14 @@ else
   fail "ANSI file -> bytes changed"
 fi
 
-# --- Case 10: relative CustomRulePath resolves from the settings dir ----------
-# PSScriptAnalyzer resolves a relative CustomRulePath from the current
-# PowerShell location; the hook runs from an unrelated cwd, so it must anchor
-# at the settings directory first. Without that anchor this repo's analysis
-# throws (rule path not found) -> tool break; with it, the format applies.
+# --- Case 10: CustomRulePath trust gate + relative rule path resolution ------
+# A settings file that declares CustomRulePath makes PSScriptAnalyzer load and
+# execute repository-supplied rule modules, so the hook must SKIP the run —
+# with a visible notice on both channels — until the user approves that exact
+# settings-content state; any settings change must revoke the approval. Once
+# approved, the run must succeed from an unrelated cwd, proving the hook
+# anchors relative CustomRulePath resolution at the settings directory
+# (without that anchor this repo's analysis throws -> tool break).
 REPO_CRP="$WORK/customrule"
 new_repo "$REPO_CRP" NO_SETTINGS
 mkdir -p "$REPO_CRP/rules"
@@ -380,13 +384,90 @@ cat >"$REPO_CRP/PSScriptAnalyzerSettings.psd1" <<'EOF'
 }
 EOF
 printf "%s\n" "get-childitem -Path '.'" >"$REPO_CRP/crp.ps1"
-OUT=$(run_hook "$REPO_CRP/crp.ps1")
-RC=$?
-if [[ $RC -eq 0 && -z "$OUT" ]]; then ok "CustomRulePath -> exit 0, no tool break"; else fail "CustomRulePath (rc=$RC out=$OUT)"; fi
-if grep -q 'Get-ChildItem' "$REPO_CRP/crp.ps1"; then
-  ok "CustomRulePath -> relative rule path resolved, formatter ran"
+CRP_DATA="$WORK/crp-plugin-data"
+
+OUT_GATE_1=$(run_hook_env "$REPO_CRP/crp.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
+RC_GATE_1=$?
+if [[ $RC_GATE_1 -eq 0 ]]; then ok "unapproved CustomRulePath -> exit 0 (advisory)"; else fail "unapproved CustomRulePath exit $RC_GATE_1"; fi
+if printf '%s' "$OUT_GATE_1" | jq -e '(.hookSpecificOutput.additionalContext | contains("trust gate") and contains("CustomRulePath")) and (.systemMessage | contains("trust gate"))' >/dev/null 2>&1; then
+  ok "unapproved CustomRulePath -> trust-gate notice on both channels"
 else
-  fail "CustomRulePath -> formatter did not run: $(cat "$REPO_CRP/crp.ps1")"
+  fail "trust-gate notice absent: $OUT_GATE_1"
+fi
+if grep -q 'get-childitem' "$REPO_CRP/crp.ps1"; then
+  ok "unapproved CustomRulePath -> analyzer blocked (file untouched)"
+else
+  fail "unapproved CustomRulePath still ran the analyzer: $(cat "$REPO_CRP/crp.ps1")"
+fi
+
+# Same state, same session: the notice dedupes, but the run stays blocked.
+OUT_GATE_2=$(run_hook_env "$REPO_CRP/crp.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
+if [[ -z "$OUT_GATE_2" ]] && grep -q 'get-childitem' "$REPO_CRP/crp.ps1"; then
+  ok "unchanged unapproved state notices once, stays blocked"
+else
+  fail "unchanged unapproved state (out=$OUT_GATE_2 file=$(cat "$REPO_CRP/crp.ps1"))"
+fi
+
+# The notice's approval instruction must name a marker under this plugin-data
+# store; creating that marker is the explicit opt-in that enables the run.
+CRP_MARKER="$(printf '%s' "$OUT_GATE_1" | jq -r '.systemMessage' | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
+if [[ -n "$CRP_MARKER" && "$CRP_MARKER" == "$CRP_DATA"/* ]]; then
+  ok "trust-gate notice carries an approval marker under CLAUDE_PLUGIN_DATA"
+else
+  fail "trust-gate approval marker missing or misplaced: $OUT_GATE_1"
+fi
+mkdir -p "$CRP_MARKER"
+OUT_GATE_3=$(run_hook_env "$REPO_CRP/crp.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
+RC_GATE_3=$?
+if [[ $RC_GATE_3 -eq 0 && -z "$OUT_GATE_3" ]]; then ok "approved CustomRulePath -> exit 0, no tool break, no notice"; else fail "approved CustomRulePath (rc=$RC_GATE_3 out=$OUT_GATE_3)"; fi
+if grep -q 'Get-ChildItem' "$REPO_CRP/crp.ps1"; then
+  ok "approved CustomRulePath -> relative rule path resolved, formatter ran"
+else
+  fail "approved CustomRulePath -> formatter did not run: $(cat "$REPO_CRP/crp.ps1")"
+fi
+
+# A settings-content change produces a new state signature: the approval is
+# revoked, and the gate blocks — and notices, despite the same session — again.
+printf '%s\n' '# unreviewed settings revision' >>"$REPO_CRP/PSScriptAnalyzerSettings.psd1"
+printf "%s\n" "get-childitem -Path '.'" >"$REPO_CRP/crp2.ps1"
+OUT_GATE_4=$(run_hook_env "$REPO_CRP/crp2.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
+if printf '%s' "$OUT_GATE_4" | jq -e '.hookSpecificOutput.additionalContext | contains("trust gate")' >/dev/null 2>&1 &&
+  grep -q 'get-childitem' "$REPO_CRP/crp2.ps1"; then
+  ok "changed settings state revokes approval and blocks again"
+else
+  fail "changed settings state was not re-gated: $OUT_GATE_4"
+fi
+
+# Fail closed: with no CLAUDE_PLUGIN_DATA an approval can be neither recorded
+# nor verified, so a CustomRulePath settings state must still skip the run (and
+# notice every time — the once-per-session gate fails open toward visibility
+# when it has no marker store).
+OUT_GATE_5=$(run_hook_env "$REPO_CRP/crp2.ps1" -u CLAUDE_PLUGIN_DATA CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
+if printf '%s' "$OUT_GATE_5" | jq -e '.systemMessage | contains("trust gate")' >/dev/null 2>&1 &&
+  grep -q 'get-childitem' "$REPO_CRP/crp2.ps1"; then
+  ok "CustomRulePath without a plugin-data store fails closed"
+else
+  fail "CustomRulePath without a plugin-data store did not fail closed: $OUT_GATE_5"
+fi
+
+# Textual-scan evasion: key detection uses PowerShell's restricted data-file
+# parser, so a backtick-escaped double-quoted key ("CustomRule`Path" evaluates
+# to CustomRulePath) must still gate — a grep for the literal key would miss it.
+REPO_ESC="$WORK/customrule-escaped"
+new_repo "$REPO_ESC" NO_SETTINGS
+cat >"$REPO_ESC/PSScriptAnalyzerSettings.psd1" <<'EOF'
+@{
+    "CustomRule`Path" = './rules/CleanRules.psm1'
+    IncludeRules = @('PSUseCorrectCasing')
+}
+EOF
+printf "%s\n" "get-childitem -Path '.'" >"$REPO_ESC/esc.ps1"
+OUT_GATE_6=$(run_hook_env "$REPO_ESC/esc.ps1" CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true)
+if printf '%s' "$OUT_GATE_6" | jq -e '.systemMessage | contains("trust gate")' >/dev/null 2>&1 &&
+  grep -q 'get-childitem' "$REPO_ESC/esc.ps1"; then
+  ok "escaped CustomRulePath key still gates (restricted-parser detection)"
+else
+  fail "escaped CustomRulePath key evaded the gate: $OUT_GATE_6"
 fi
 
 # ============================================================================

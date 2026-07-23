@@ -3,6 +3,43 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.0]
+
+### Security
+
+- **Code-loading analyzer settings are now gated on explicit approval.** A
+  `PSScriptAnalyzerSettings.psd1` that declares `CustomRulePath` makes
+  PSScriptAnalyzer load and execute repository-supplied rule modules during
+  analysis, so the hook no longer runs the formatter/analyzer under such a
+  settings file automatically: it skips the run — with a visible
+  once-per-session notice on both channels — until the user approves that exact
+  settings-content state by creating the marker directory named in the notice
+  (under `${CLAUDE_PLUGIN_DATA}/trust-approvals`). Any settings change revokes
+  the approval; the gate fails closed when `CLAUDE_PLUGIN_DATA` is unavailable.
+  Detection uses PowerShell's restricted data-file parser
+  (`Import-PowerShellDataFile`), not a textual scan, so quoting/escape
+  obfuscation of the key cannot evade it — and a settings file the restricted
+  parser rejects stays gated rather than run, since it cannot be proven
+  code-free. Previously the hook ran the analyzer unconditionally, so a
+  malicious repository's checked-in settings could execute arbitrary PowerShell
+  on a routine `.ps1`/`.psm1`/`.psd1` edit. Settings without `CustomRulePath`
+  are unaffected. The edit itself is still never blocked — the hook always
+  exits 0.
+
+### Fixed
+
+- **Shared `hook-utils.sh`: a bare or trailing unquoted `NAME=value` Bash
+  command no longer leaks the assignment value into the privacy-safe
+  telemetry/audit subject.** `hook::extract_bash_subject` stripped a leading
+  `VAR=value` prefix only when a following command word consumed it, so a
+  command whose LAST token was an unquoted assignment (e.g. `TOKEN=ghp_…`)
+  survived to the subject and emitted `Bash:TOKEN=ghp_…` into
+  `hook-events.jsonl` and any wired `HOOK_TELEMETRY_SINK`. A resolved token
+  still shaped like a shell assignment now bails to the bare `Bash` subject,
+  matching the existing quoted-value bail (`VAR=x cmd` still reduces to
+  `Bash:cmd`). Synced from `lib/hook-utils.sh`; the subject is
+  telemetry/audit-only, so no guard or formatter block/allow behavior changes.
+
 ## [0.5.1]
 
 ### Changed
