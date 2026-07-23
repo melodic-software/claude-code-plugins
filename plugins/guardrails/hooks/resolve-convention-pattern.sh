@@ -174,6 +174,20 @@ if [[ -n "$ptr" ]]; then
   fi
 fi
 
+# A key the neutral file CARRIES must hold a value. Present-but-empty
+# (`subject_pattern:` or `subject_pattern: ''`) is a configuration error, not
+# an omission — silently falling back to the markdown H2 would enforce a stale
+# pattern the migration meant to retire. Runs at top level (not inside a
+# command substitution) so the exit reaches the caller.
+check_neutral_key() {
+  local k="$1"
+  [[ -n "$NEUTRAL_FILE" ]] || return 0
+  grep -q -E "^${k}:" "$NEUTRAL_FILE" || return 0
+  [[ -n "$(yaml_value "$NEUTRAL_FILE" "$k")" ]] && return 0
+  printf '%s\n' "resolve-convention-pattern: convention_source file carries '$k' with an empty value; a carried key must hold a value (delete the line to fall back to the markdown H2) — enforcement disabled." >&2
+  exit 1
+}
+
 # Team-layer value for a machine key: the neutral file when the pointer is
 # declared AND that file carries the key; the team markdown H2 otherwise.
 team_value() {
@@ -223,6 +237,12 @@ raw_value() {
     printf '%s' "$v"
   fi
 }
+
+# Present-but-empty neutral keys fail closed BEFORE resolution (top-level so
+# the exit propagates; both keys checked for pr_title_pattern since its
+# deferral marker re-reads subject_pattern).
+check_neutral_key "$key"
+[[ "$key" == "pr_title_pattern" ]] && check_neutral_key "subject_pattern"
 
 value="$(raw_value "$key")"
 

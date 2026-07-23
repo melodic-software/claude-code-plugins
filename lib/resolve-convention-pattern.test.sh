@@ -243,6 +243,18 @@ addneutral "$r" "conventions.yml" $'subject_pattern: \047^evil: .+\047'
 run "$r" >/dev/null 2>&1
 assert_exit "neutral: overlay pointer ignored (team-only)" 1 $?
 
+# --- a present-but-EMPTY neutral key fails closed (never stale markdown) ---
+r="$(newrepo $'## convention_source\nconventions.yml\n\n## subject_pattern\n^stale-md: .+')"
+addneutral "$r" "conventions.yml" $'subject_pattern: \047\047'
+out="$(run "$r")"
+rc=$?
+assert_exit "neutral: empty quoted key -> exit 1" 1 "$rc"
+assert_eq "neutral: empty quoted key -> empty stdout (no stale fallback)" "" "$out"
+r="$(newrepo $'## convention_source\nconventions.yml\n\n## subject_pattern\n^stale-md: .+')"
+addneutral "$r" "conventions.yml" $'subject_pattern:'
+run "$r" >/dev/null 2>&1
+assert_exit "neutral: bare empty key -> exit 1" 1 $?
+
 # --- symlink escapes are rejected (skipped where ln -s can't make symlinks) ---
 outside="$TEST_TMPDIR/outside.yml"
 printf '%s\n' "subject_pattern: '^outside: .+'" >"$outside"

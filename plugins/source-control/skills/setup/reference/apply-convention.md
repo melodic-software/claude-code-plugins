@@ -352,7 +352,13 @@ this skill's part:
   file now declares, REMOVE it from the markdown in the same apply — the resolver would prefer the
   neutral value anyway, but leaving both invites hand-edit drift, which is the disease this shape
   cures. Plugin-only keys (`trailer_policy`, `pr_body_attribution`) stay in the markdown file.
-- **Verification adds one probe:** the pointer's target exists, is repo-relative, and round-trips
-  through the enforcement resolver (`lib/resolve-convention-pattern.sh <repo_root>
-  subject_pattern` emits the expected pattern). A broken pointer fails closed to no-enforcement by
-  contract — surface it at write time, not at the team's first blocked commit.
+- **Verification adds two probes.** (1) The pointer's target exists, is repo-relative, and
+  round-trips through the enforcement resolver (`lib/resolve-convention-pattern.sh <repo_root>
+  subject_pattern` emits the expected pattern) — a broken pointer fails closed to no-enforcement by
+  contract, so surface it at write time, not at the team's first blocked commit. (2) The neutral
+  file is **staged together with the pointer**, by explicit path, in the same team-write
+  verification (step 6's team guard covers only `.claude/source-control.md`) — a commit carrying
+  `convention_source` without its tracked YAML target would hand every fresh checkout the
+  missing-file fail-closed path and silently disable enforcement repo-wide. Run the same
+  ignore-check + stage + `git diff --quiet` sequence against the neutral file's path, and treat an
+  ignore-rule match on it as the same hard STOP as an ignored team file.
