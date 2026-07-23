@@ -273,14 +273,11 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
         "exec",
         "command",
     }
-    effective_index = None
-    for index, word in enumerate(words):
-        folded = word.casefold()
-        base = Path(folded).name
-        if base in _WRAPPERS or "=" in word or word.startswith("-"):
-            continue
-        effective_index = index
-        break
+    wrapper_indices = [
+        index
+        for index, word in enumerate(words)
+        if Path(word.casefold()).name in _WRAPPERS
+    ]
     for index, word in enumerate(words):
         folded = word.casefold()
         if Path(folded).name == _ENGINE_MARKER:
@@ -292,14 +289,19 @@ def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
                 continue
             if (
                 index == 0
-                or index == effective_index
                 or os.path.isabs(word)
                 or any(_is_interpreter(w) for w in words[:index])
+                or any(w_index < index for w_index in wrapper_indices)
             ):
                 # An absolute engine path is an invocation target whatever the
-                # launcher (env, a wrapper) — mentions use bare relative names
-                # in ARGUMENT position (`git diff -- hygiene.py`), never as the
-                # effective command.
+                # launcher, and a bare marker word ANYWHERE after a known
+                # launcher wrapper gates conservatively (wrapper option
+                # operands like `nice -n 10` defeat effective-command
+                # inference, and PATH injection can make the bare name the
+                # command). A deliberate overbreadth: a mere MENTION after a
+                # wrapper (`sudo grep x hygiene.py`) gates too — rare, and the
+                # kill-switch bypass risk outweighs it. Plain-command mentions
+                # (`git diff -- hygiene.py`) still defer.
                 return True
             continue
         if _ENGINE_MARKER in folded and " " in word:
