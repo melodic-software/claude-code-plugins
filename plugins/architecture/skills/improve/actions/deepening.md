@@ -60,8 +60,8 @@ Use the project's domain glossary vocabulary for the domain, and [../research/de
 - recommendation: Strong | Worth exploring | Speculative
 - problem: <one sentence>
 - deepening: <one sentence, narrative — the shallow-module friction, not an interface proposal; e.g. "three modules wrap a single call each, adding no behavior">
-- shallow-signal: <the concrete observation — evidence, not narrative; e.g. "OrderHandler/OrderValidator/OrderRepo each forward their one argument unmodified (confirmed by reading all three)". Reproduced in Phase 1.5 for every `Strong` candidate and every runtime-claim; for a candidate left below `Strong` with no runtime-claim it is the scan's as-reported signal, not yet reproduced>
-- signal-verified: <true once Phase 1.5 reproduced this candidate's shallow-signal (all `Strong` candidates, all runtime-claims); false for a candidate that never passed the gate — so the planning handoff never reads an unverified signal as verified>
+- shallow-signal: <the concrete observation — evidence, not narrative; e.g. "OrderHandler/OrderValidator/OrderRepo each forward their one argument unmodified (confirmed by reading all three)". Reproduced in Phase 1.5 for every `Strong` candidate; a runtime-claim candidate has its *claim* reproduced, not this signal, so unless it is also `Strong` the signal here is the scan's as-reported observation, not yet reproduced>
+- signal-verified: <true only once Phase 1.5 reproduced *this signal* — i.e. every `Strong` candidate. A runtime-claim reproduction verifies the claim, not the shallow-signal, so a runtime-claim candidate left below `Strong` keeps `signal-verified: false`. This keeps the planning handoff from ever reading an unverified shallowness observation as verified>
 - agreed-shape: <empty until Phase 3 — filled when the user picks and the shape is grilled: interface entry points, what sits behind the seam, tests that survive>
 - rejected-reason: <only if status is rejected and the reason is load-bearing>
 ```
