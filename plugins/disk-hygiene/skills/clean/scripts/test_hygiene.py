@@ -13,7 +13,7 @@ import subprocess
 import tempfile
 import types
 import unittest
-from contextlib import redirect_stdout
+from contextlib import chdir as chdir_context, redirect_stdout
 from pathlib import Path
 from unittest import mock
 
@@ -1784,6 +1784,266 @@ class GuardTests(unittest.TestCase):
                 self.run_guard(command)["hookSpecificOutput"]["permissionDecision"],
                 command,
             )
+
+    def run_guard_engine_gate(
+        self, command: str, tool_name: str = "Bash", enabled_arg: str = "true"
+    ) -> dict[str, object] | None:
+        """Drive the guard as the plugin-level engine-gate deployment would.
+
+        Supplies ``--mode engine-gate`` plus both plugin-level substitution
+        channels (``--disk-hygiene-enabled`` and ``--authorized-data-root``) on
+        argv, with the env channel absent — mirroring the shipped
+        ``hooks/hooks.json`` exec-form registration. Returns None when the guard
+        deferred with no output.
+        """
+        argv = [
+            str(SCRIPT_DIR / "destructive_guard.py"),
+            "--mode",
+            "engine-gate",
+            "--plugin-root",
+            str(SCRIPT_DIR.parent.parent.parent),
+            "--authorized-data-root",
+            str(SCRIPT_DIR / "data-root"),
+            "--disk-hygiene-enabled",
+            enabled_arg,
+        ]
+        environment = {
+            key: value
+            for key, value in os.environ.items()
+            if key != "CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED"
+        }
+        stdin = io.StringIO(
+            json.dumps({"tool_name": tool_name, "tool_input": {"command": command}})
+        )
+        stdout = io.StringIO()
+        with (
+            mock.patch("sys.stdin", stdin),
+            redirect_stdout(stdout),
+            mock.patch.object(guard.sys, "argv", argv),
+            mock.patch.dict("os.environ", environment, clear=True),
+        ):
+            self.assertEqual(0, guard.main())
+        text = stdout.getvalue().strip()
+        return json.loads(text) if text else None
+
+    def test_engine_gate_defers_all_non_engine_commands(self) -> None:
+        """Plugin-level deployment must never tax unrelated work in a session."""
+        for tool_name, command in (
+            ("Bash", "git --version"),
+            ("Bash", "rm -rf /tmp/unrelated"),
+            ("PowerShell", "Remove-Item -Recurse C:/tmp/unrelated"),
+            ("PowerShell", "git status --short"),
+        ):
+            self.assertIsNone(
+                self.run_guard_engine_gate(command, tool_name), (tool_name, command)
+            )
+
+    def test_engine_gate_defers_mere_mentions_of_the_engine(self) -> None:
+        """Read-only commands that merely NAME the script must defer (P2 review).
+
+        Runs from a neutral cwd: a bare `hygiene.py` mention in a real consumer
+        session resolves to nothing (or to the consumer's own file) — resolving
+        to the BUNDLED engine (cwd inside the plugin scripts dir) gates by
+        identity, deliberately.
+        """
+        with tempfile.TemporaryDirectory() as tmp, chdir_context(tmp):
+            for tool_name, command in (
+                ("Bash", "git diff -- hygiene.py"),
+                ("Bash", "rg hygiene.py README.md"),
+                ("Bash", "echo hygiene.py"),
+                ("PowerShell", "Select-String -Pattern guard hygiene.py"),
+            ):
+                self.assertIsNone(
+                    self.run_guard_engine_gate(command, tool_name),
+                    (tool_name, command),
+                )
+
+    def test_engine_gate_catches_interpreter_options_before_the_script(self) -> None:
+        """Interpreter options must not slip the kill switch (P1 review)."""
+        script = SCRIPT_DIR / "hygiene.py"
+        result = self.run_guard_engine_gate(
+            f'/usr/bin/python3 -B "{script}" apply --plan p --token t', "Bash", "false"
+        )
+        assert result is not None
+        self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
+
+    def test_engine_gate_defers_consumer_owned_hygiene_scripts(self) -> None:
+        """A different existing file named hygiene.py is not this engine (P2 review)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            # realpath expands Windows 8.3 short segments (KYLESE~1): the guard
+            # rejects `~` anywhere in a Bash command as a shell-expansion
+            # character, and this test needs a parseable consumer path.
+            consumer = Path(os.path.realpath(tmp)) / "hygiene.py"
+            consumer.write_text("print('consumer tool')\n", encoding="utf-8")
+            self.assertIsNone(
+                self.run_guard_engine_gate(f'python3 "{consumer}" --help')
+            )
+
+    def test_engine_gate_catches_wrapper_launchers_of_the_bundled_engine(self) -> None:
+        """env / sh -c wrappers around the absolute engine path must gate (P1 review)."""
+        script = SCRIPT_DIR / "hygiene.py"
+        wrapped = self.run_guard_engine_gate(
+            f'/usr/bin/env "{script}" apply --plan p --token t', "Bash", "false"
+        )
+        assert wrapped is not None
+        self.assertEqual("deny", wrapped["hookSpecificOutput"]["permissionDecision"])
+        compound = self.run_guard_engine_gate(
+            f'sh -c "{script} apply --plan p --token t"', "Bash", "false"
+        )
+        assert compound is not None
+        self.assertEqual("deny", compound["hookSpecificOutput"]["permissionDecision"])
+
+    def test_engine_gate_catches_linked_aliases_of_the_bundled_engine(self) -> None:
+        """A link to the engine under another name must gate by identity (P1 review)."""
+        script = SCRIPT_DIR / "hygiene.py"
+        with tempfile.TemporaryDirectory(dir=SCRIPT_DIR) as tmp:
+            alias = Path(tmp) / "clean-engine"
+            try:
+                os.link(script, alias)
+            except OSError as exc:  # pragma: no cover - filesystem-dependent
+                self.skipTest(f"hard links unavailable here: {exc}")
+            posix_alias = str(alias).replace("\\", "/")
+            result = self.run_guard_engine_gate(
+                f'"{posix_alias}" apply --plan p --token t', "Bash", "false"
+            )
+            assert result is not None
+            self.assertEqual(
+                "deny", result["hookSpecificOutput"]["permissionDecision"]
+            )
+            os.unlink(alias)
+
+    def test_engine_gate_catches_alias_beside_shell_operator(self) -> None:
+        """A literal alias path gates even in an operator-carrying command (P1 r6)."""
+        script = SCRIPT_DIR / "hygiene.py"
+        with tempfile.TemporaryDirectory(dir=SCRIPT_DIR) as tmp:
+            alias = Path(tmp) / "clean-engine"
+            try:
+                os.link(script, alias)
+            except OSError as exc:  # pragma: no cover - filesystem-dependent
+                self.skipTest(f"hard links unavailable here: {exc}")
+            posix_alias = str(alias).replace("\\", "/")
+            result = self.run_guard_engine_gate(
+                f'"{posix_alias}" apply --plan p --token t && true', "Bash", "false"
+            )
+            assert result is not None
+            self.assertEqual(
+                "deny", result["hookSpecificOutput"]["permissionDecision"]
+            )
+            os.unlink(alias)
+
+    def test_engine_gate_defers_consumer_windows_path_on_powershell(self) -> None:
+        """Backslash consumer paths must defer on PowerShell, not fail closed (P2 r6)."""
+        with tempfile.TemporaryDirectory(dir=SCRIPT_DIR) as tmp:
+            consumer = Path(tmp) / "hygiene.py"
+            consumer.write_text("print('consumer tool')\n", encoding="utf-8")
+            windows_path = str(consumer)  # native backslashes on Windows
+            if "\\" not in windows_path:
+                windows_path = windows_path.replace("/", "\\")
+            self.assertIsNone(
+                self.run_guard_engine_gate(
+                    f"python {windows_path} --help", "PowerShell"
+                )
+            )
+
+    def test_engine_gate_defers_consumer_script_in_compound_commands(self) -> None:
+        """A provably-different hygiene.py defers even beside operators (P2 r7)."""
+        with tempfile.TemporaryDirectory(dir=SCRIPT_DIR) as tmp:
+            consumer = Path(tmp) / "hygiene.py"
+            consumer.write_text("print('consumer tool')\n", encoding="utf-8")
+            posix = str(consumer).replace("\\", "/")
+            self.assertIsNone(
+                self.run_guard_engine_gate(f"python3 {posix} --help && echo done")
+            )
+            self.assertIsNone(
+                self.run_guard_engine_gate(
+                    f"python {posix} --help; echo done", "PowerShell"
+                )
+            )
+
+    def test_engine_gate_still_gates_engine_beside_consumer_decoy(self) -> None:
+        """A decoy consumer file must not launder a real engine invocation (r7)."""
+        script = SCRIPT_DIR / "hygiene.py"
+        with tempfile.TemporaryDirectory(dir=SCRIPT_DIR) as tmp:
+            consumer = Path(tmp) / "hygiene.py"
+            consumer.write_text("print('consumer tool')\n", encoding="utf-8")
+            posix = str(consumer).replace("\\", "/")
+            result = self.run_guard_engine_gate(
+                f'python3 {posix} --help && python3 "{script}" apply --plan p --token t',
+                "Bash",
+                "false",
+            )
+            assert result is not None
+            self.assertEqual(
+                "deny", result["hookSpecificOutput"]["permissionDecision"]
+            )
+
+    def test_engine_gate_catches_path_resolved_engine_after_env_wrapper(self) -> None:
+        """env VAR=... hygiene.py must gate as the effective command (P1 r8)."""
+        result = self.run_guard_engine_gate(
+            f"env PATH={SCRIPT_DIR}:/usr/bin hygiene.py apply --plan p --token t",
+            "Bash",
+            "false",
+        )
+        assert result is not None
+        self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
+
+    def test_engine_gate_catches_engine_after_wrapper_with_option_operands(self) -> None:
+        """Wrapper option operands must not hide the bare engine name (P1 r9)."""
+        result = self.run_guard_engine_gate(
+            f"env -i PATH=/usr/bin nice -n 10 hygiene.py apply --plan p --token t",
+            "Bash",
+            "false",
+        )
+        assert result is not None
+        self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
+
+    def test_engine_gate_catches_non_cpython_launch_of_bundled_engine(self) -> None:
+        """A relative bundled-engine path gates under ANY launcher (P1 r10)."""
+        with chdir_context(SCRIPT_DIR):
+            result = self.run_guard_engine_gate(
+                "pypy3 ./hygiene.py apply --plan p --token t", "Bash", "false"
+            )
+        assert result is not None
+        self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
+
+    def test_engine_gate_fails_closed_on_unparsable_marker_commands(self) -> None:
+        """Marker + shell operators/expansions the literal parser rejects → gate."""
+        result = self.run_guard_engine_gate("python3 hygiene.py scan && echo done")
+        assert result is not None
+        self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
+        embedded = self.run_guard_engine_gate('bash -c "python3 hygiene.py scan --target t --output s"')
+        assert embedded is not None
+        self.assertEqual("deny", embedded["hookSpecificOutput"]["permissionDecision"])
+
+    def test_engine_gate_gates_engine_invocations(self) -> None:
+        script = SCRIPT_DIR / "hygiene.py"
+        powershell = self.run_guard_engine_gate(
+            f'& python "{script}" scan --target t --output s', "PowerShell"
+        )
+        assert powershell is not None
+        self.assertEqual(
+            "deny", powershell["hookSpecificOutput"]["permissionDecision"]
+        )
+        malformed = self.run_guard_engine_gate(f'python3 "{script}" apply --oops')
+        assert malformed is not None
+        self.assertEqual(
+            "deny", malformed["hookSpecificOutput"]["permissionDecision"]
+        )
+
+    def test_engine_gate_fails_closed_on_engine_when_disabled(self) -> None:
+        """Engine-referencing Bash under audit-only mode must deny, never defer.
+
+        The argv kill-switch decision logic itself is proven by
+        ``test_kill_switch_blocks_every_lane_via_argv``; this asserts the
+        engine-gate mode routes an engine-referencing command into that logic
+        instead of deferring past it.
+        """
+        script = SCRIPT_DIR / "hygiene.py"
+        result = self.run_guard_engine_gate(
+            f'python3 "{script}" scan --target t --output s', "Bash", "false"
+        )
+        assert result is not None
+        self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
 
     def run_guard_powershell(self, command: str) -> dict[str, object] | None:
         stdin = io.StringIO(

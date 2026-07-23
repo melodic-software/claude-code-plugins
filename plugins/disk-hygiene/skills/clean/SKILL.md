@@ -267,6 +267,11 @@ sparse files, hard links, compression, and delayed allocation affect it.
   research uses non-Bash read-only tools; only literal-word bundled scan, preview, and apply shapes
   using the hook runtime's same absolute executable pass. Shell expansions, globs, splitting/escape
   forms, operators, redirections, aliases, and exported functions fail closed.
+- The guard registers twice: a plugin-level engine gate (`hooks/hooks.json`, `--mode engine-gate`)
+  that fires in every session, receives the kill switch and data root by plugin-hook substitution,
+  and defers instantly on any command not referencing the engine; and this skill's frontmatter belt,
+  which adds the deny-by-default Bash and deletion-spelling PowerShell discipline while cleanup is
+  the active work. Verdicts are idempotent where both fire.
 - The guard hook launches in exec form via `python3`, resolved on `PATH` with no shell (`python3`,
   not bare `python`, because stock macOS and many Linux distros ship only `python3` and a legacy
   `python` 2.x would crash the guard on modern syntax). Enforcement is therefore only as strong as
