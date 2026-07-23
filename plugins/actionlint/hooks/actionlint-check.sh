@@ -51,7 +51,19 @@ esac
 # notice instead of a silent no-op (dim-9 doctrine).
 hook::require_jq PostToolUse actionlint "$INPUT"
 
-FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
+# Deliberately NOT hook::read_file_path: its CLAUDE_PROJECT_DIR membership
+# guard is wrong for an advisory PostToolUse linter. PostToolUse cannot block
+# or undo the write (the tool already ran), so the guard protects nothing --
+# every guard false-negative is a silent coverage loss. The concrete one: GNU
+# realpath under Git Bash does not expand Windows 8.3 short names, so a
+# short-form file_path (<drive>:\...\SOMEDIR~1\... form) fails the prefix
+# match against a long-form project dir and the lint silently never runs,
+# violating the prerequisite-visibility doctrine (a silently skipped feature
+# is a defect). The workflow-location filters above and below bound what gets
+# linted; membership adds nothing. Parse + existence check only (the shared
+# lib is synced fleet-wide and other consumers keep the guard).
+FILE=$(printf '%s' "$INPUT" | jq -r '(.tool_input.file_path // empty) | gsub("\r";"")' 2>/dev/null)
+[[ -n "$FILE" && -f "$FILE" ]] || exit 0
 # Only GitHub Actions workflow files. actionlint recognizes both .yml and .yaml
 # under .github/workflows/; other YAML is not a workflow and must be skipped.
 FILE_NORM="$(hook::normalize_path "$FILE")"
@@ -81,6 +93,14 @@ if command -v cygpath >/dev/null 2>&1; then
 else
   FILE_REL="${FILE#"$REPO_ROOT"/}"
 fi
+# The schema's data.file contract is repo-relative. When the prefix strip did
+# not match (mount/symlink mismatch, cygpath disagreement), FILE_REL is still
+# an absolute path -- degrade to the basename rather than leaking the absolute
+# path into telemetry.
+case "$FILE_REL" in
+[A-Za-z]:* | /* | \\\\*) FILE_REL="$(basename "$FILE")" ;;
+*) ;;
+esac
 
 # Build the telemetry data object for the current TOOL/FILE_REL. $1 is the
 # findings JSON array. jq is authoritative. The fallback is a fixed empty-shape
@@ -115,7 +135,30 @@ fi
 # subprocess IPC path in actionlint 1.7.x, and either adds latency unsuited to
 # an edit-time advisory hook. Native workflow diagnostics (the value of this
 # hook) are unaffected; deep run-block linting belongs in a commit hook or CI.
-AL_OUTPUT=$(cd "$REPO_ROOT" && actionlint -shellcheck= -pyflakes= -- "$FILE_REL" 2>&1) || true
+# A failed cd (repo root vanished, permission) must never read as a clean
+# pass: without this branch an empty AL_OUTPUT would fall through to the
+# clean-workflow telemetry (status ok, findings []), indistinguishable from a
+# real pass. Changing this process's cwd is safe -- the hook exits below.
+if ! cd "$REPO_ROOT" 2>/dev/null; then
+  data_json=$(build_data_json '[]')
+  emit_tel "actionlint-check" "PostToolUse" "error" "$start" "$data_json" "$REPO_ROOT"
+  exit 0
+fi
+AL_OUTPUT=$(actionlint -shellcheck= -pyflakes= -- "$FILE_REL" 2>&1)
+AL_STATUS=$?
+
+# actionlint exits 0 (clean) or 1 (problems found); anything else -- 2 invalid
+# CLI, 3 fatal, 126/127 launch failure -- means the lint DID NOT run. Report it
+# as an error (output captured as findings for the sink), never as clean.
+if [[ "$AL_STATUS" -ge 2 ]]; then
+  FINDINGS_JSON='[]'
+  if [[ -n "$AL_OUTPUT" ]]; then
+    FINDINGS_JSON=$(printf '%s' "$AL_OUTPUT" | jq -R . | jq -s . 2>/dev/null) || FINDINGS_JSON='[]'
+  fi
+  data_json=$(build_data_json "$FINDINGS_JSON")
+  emit_tel "actionlint-check" "PostToolUse" "error" "$start" "$data_json" "$REPO_ROOT"
+  exit 0
+fi
 
 if [[ -n "$AL_OUTPUT" ]]; then
   hook::ctx_reset

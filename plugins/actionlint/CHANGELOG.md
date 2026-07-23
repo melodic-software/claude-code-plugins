@@ -3,6 +3,33 @@
 All notable changes to the `actionlint` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.0]
+
+### Fixed
+
+- **Membership guard removed — 8.3 short-form paths no longer silently skip the lint (#1133).**
+  The hook parsed `file_path` through the shared lib's `hook::read_file_path`, whose
+  `CLAUDE_PROJECT_DIR` membership guard compares realpath-normalized forms; GNU `realpath` under
+  Git Bash does not expand Windows 8.3 short names, so a short-form `file_path` (the shape Claude
+  Code's own scratchpad paths take) failed the prefix match and the hook exited silently — no
+  lint, no notice, no telemetry. For an advisory PostToolUse linter the guard protects nothing
+  (the tool already ran; the hook cannot block), so every false-negative is pure coverage loss.
+  The hook now parses the path itself (existence check retained; the workflow-location filters
+  still bound what gets linted); the synced shared lib is untouched for consumers that need the
+  guard. Regression tests: a deliberately mismatched `CLAUDE_PROJECT_DIR` still lints, and a
+  short-prefix 8.3 path still lints where the volume generates short names.
+- **A failed `cd`/actionlint launch no longer reads as a clean pass (#1133).** The lint invocation
+  discarded its exit status; a failed `cd` (or an actionlint exit ≥ 2 — invalid CLI, fatal, launch
+  failure) produced empty output and fell through to the clean-workflow branch, emitting telemetry
+  `status:"ok", findings:[]` indistinguishable from a real pass. Both now emit `status:"error"`
+  (captured output as `data.findings`) and stay silent on the advisory channels. Covered by a
+  stubbed exit-3 actionlint test.
+- **`data.file` can no longer leak an absolute path (#1133).** When the repo-root prefix strip did
+  not match (mount/symlink mismatch), the telemetry `data.file` silently carried the absolute
+  path, violating the schema's repo-relative contract; it now degrades to the basename.
+- **Test gap closed: `-pyflakes=` regression fixture (#1133).** Only `-shellcheck=` was exercised;
+  a `shell: python` run-block fixture now pins the pyflakes integration off.
+
 ## [0.5.2]
 
 ### Fixed
