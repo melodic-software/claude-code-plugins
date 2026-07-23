@@ -6,7 +6,9 @@ Three phases, with a verification gate (Phase 1.5) between the scan and the repo
 
 ## Phase 1 — Explore for friction
 
-Read the project's domain glossary if it maintains one — the nearest `UBIQUITOUS-LANGUAGE.md` (or equivalent), found by walking UP from the directory being examined toward the repo root and stopping at the first match (the same way `.editorconfig` / `.gitignore` resolve). Also read any architecture decision records in the area being examined.
+Read the project's domain glossary if it maintains one — the nearest `UBIQUITOUS-LANGUAGE.md` (or equivalent), found by walking UP from the directory being examined toward the repo root and stopping at the first match (the same way `.editorconfig` / `.gitignore` resolve).
+
+Also read any architecture decision records (ADRs) in the area being examined — give them the same discovery discipline as the glossary rather than one shallow glob. If the consuming project declares where its decisions live (a path in its `CLAUDE.md` / rules, or a documented convention), honor that. Otherwise walk a short ladder of the common homes, from the examined directory up to the repo root: `docs/adr/`, `docs/decisions/`, `doc/adr/`, `.adr/`, `adr/`, plus any `*.md` whose name matches `adr-*` / `*-decision*`. ADR placement varies widely; a single default glob misses most of them.
 
 Use the Agent tool with `subagent_type=Explore` (or any read-only exploration subagent available) to walk the codebase. Brief each scan subagent with the canonical template in [../research/deepening/scan-briefing.md](../research/deepening/scan-briefing.md) — vocabulary primer, friction checklist, dependency categories, the two badge-acceptance heuristics, and the per-candidate return schema — so scan quality does not vary run-to-run and confidence is calibrated against the heuristics at scan time (not left to Phase 2). Explore organically — note where friction appears:
 
@@ -85,6 +87,7 @@ Side effects inline as decisions crystallize:
   in its own shape. If no convention exists, offer discovery-first lazy creation without prescribing
   a filename.
 - **User rejects a candidate with a load-bearing reason?** Offer to record it as an architecture decision — only when the reason would help a future explorer avoid re-suggesting it.
+- **Naming an exemplar call site to anchor the shape?** Read it before locking the shape around it. An exemplar chosen from memory or a candidate's file list can turn out not to fit once actually read; validate the fit first, and if it does not hold, search for a call site that does rather than shaping the interface around the wrong one.
 
 ### Design-It-Twice exploration mode
 

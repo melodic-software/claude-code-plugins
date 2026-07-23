@@ -3,6 +3,29 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.1]
+
+### Added
+
+- Deepening lens: ADRs now get the same discovery discipline as the domain
+  glossary — honor a project-declared decisions location, else walk a short
+  ladder of common homes (`docs/adr/`, `docs/decisions/`, `.adr/`, …) from the
+  examined directory up to the repo root, instead of one shallow glob that
+  missed most layouts (F6).
+- Phase 3 interview loop: validate an exemplar call site by reading it before
+  locking the deepened shape around it — an exemplar chosen from memory can turn
+  out not to fit; search for one that does rather than shaping the interface
+  around the wrong site (audit appendix).
+- `improve` skill: a `## Gotchas` surface recording the observed failure history
+  — the `${CLAUDE_PLUGIN_DATA}` artifact-path trap (F1) and the unverified
+  scan-claim shipping risk that Phase 1.5 now guards (F2) (F5).
+
+Declined (F5, with evidence): the audit's markdownlint failures (MD041/MD013/
+MD060) do not reproduce under this repo's `.markdownlint-cli2.jsonc` — all three
+are disabled there, and `markdownlint-cli2` over the skill reports 0 issues.
+Docs-only + discovery guidance; no behavior change to the scan/verify/report
+pipeline. Follow-up to the SW2030 consumer audit of 0.3.5 (#1158).
+
 ## [0.4.0]
 
 ### Added
