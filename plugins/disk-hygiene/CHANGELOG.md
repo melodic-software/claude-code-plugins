@@ -16,7 +16,7 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   is re-enumerated immediately before execution and matches the approved count and set exactly,
   aborting on any drift — the engine lane's changed-since-scan discipline applied to the manual
   lane. Also documents that Recycle Bin / Trash reversibility is conditional: bin size caps,
-  policy-disabled bins, and non-NTFS/network volumes silently make removal permanent.
+  policy-disabled bins, or non-NTFS/network volumes can silently make removal permanent.
 
 ## [0.6.4]
 

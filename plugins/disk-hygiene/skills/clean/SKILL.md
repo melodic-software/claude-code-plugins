@@ -224,8 +224,8 @@ handoff, not an engine plan:
    an exclusive-open probe succeeds (no live handle).
 2. Prefer reversible removal (Windows Recycle Bin / macOS Trash) over permanent deletion, and say
    which was used. That reversibility is conditional, not guaranteed: bin size caps, a
-   policy-disabled bin, and non-NTFS or network volumes silently make the same operation
-   permanent — disclose when a target's volume or policy turns "reversible" removal permanent.
+   policy-disabled bin, or a non-NTFS/network volume can silently make the same operation
+   permanent — disclose when a target's volume or policy may turn "reversible" removal permanent.
 3. Container-wide operations (`Clear-RecycleBin`, emptying the Trash, or any "delete everything in
    this container" spelling) are forbidden unless the container is re-enumerated immediately
    before execution and the result matches the approved count and set exactly; on any drift, abort
