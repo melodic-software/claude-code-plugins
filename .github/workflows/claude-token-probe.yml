@@ -1,0 +1,40 @@
+# TEMPORARY diagnostic — DO NOT MERGE.
+#
+# Probes why claude-review/security-review fail in <1s with is_error:true,
+# $0, num_turns:1 on every PR since 2026-07-22 ~21:00Z (#1122). The reusable
+# workflow deliberately keeps show_full_output off (public-repo log-leak
+# hygiene), so the literal API error is unreadable there; this one-shot probe
+# runs the same pinned action with the same org secret, a 1-turn budget, and
+# show_full_output enabled to surface the exact API error text (expected:
+# 401 invalid/revoked OAuth token vs 429 usage-limit). GitHub masks the
+# secret value itself in logs; a 1-turn instant failure carries no
+# conversation content. This workflow lives only on a closed draft PR and is
+# deleted after the error is read.
+name: claude-token-probe
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'debug/claude-token-probe'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v5.0.1
+        with:
+          persist-credentials: false
+      - name: Probe Claude credential
+        uses: anthropics/claude-code-action@12531344451323133b0493233c759991ac61da12 # v1.0.174
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: "Reply with the single word OK and stop."
+          show_full_output: true
+          claude_args: --model claude-sonnet-4-6 --max-turns 1
