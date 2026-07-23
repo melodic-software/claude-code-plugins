@@ -144,20 +144,20 @@ switch. When the guard sees execution enabled they are downgraded to a final hum
 when it sees a configured `false` (audit-only mode) they are denied outright, so the kill switch would
 block deletions on the PowerShell lane too and not only the Bash engine apply.
 
-**Preview caveat — PowerShell-tool interception does NOT fire on current builds (verified on Claude
-Code 2.1.218, Windows).** The PowerShell tool is a documented *preview* feature
-([tools-reference](https://code.claude.com/docs/en/tools-reference)); on 2.1.218 a `Bash|PowerShell`
-PreToolUse hook was reproduced to fire for the Bash tool but **not** intercept PowerShell-*tool*
-commands. So the entire PowerShell paragraph above — the deletion-spelling belt, the `ask` downgrade,
-and the audit-only `deny` — **does not take effect for the PowerShell tool on this build**, and the
-`disk_hygiene_enabled` kill switch does not reach the PowerShell manual-deletion lane. This is an
-observed effect; the mechanism (matcher firing vs Windows payload delivery vs the tool's `tool_name`)
-is not yet isolated. Treat every "prompt"/"deny" claim in this section as the guard's *intended* design,
-**not a protection in force on Windows**: on Windows the only deletion protection that actually holds is
-the manual lane's per-path human `handoff-verify` approval plus the consumer's baseline permission
-policy. **Recheck** when the PowerShell tool exits preview, or verify firing directly: in a fresh session
-add a logging `PreToolUse` hook with `matcher: "PowerShell"` and confirm it runs for a PowerShell-*tool*
-command (or check whether a known deletion spelling is actually prompted), before relying on the lane.
+**Caveat — the plugin-level engine gate is inert by default (verified on Claude Code 2.1.218).** The
+gate (`hooks/hooks.json`, exec form) passes a bare `${user_config.disk_hygiene_enabled}`. A declared
+userConfig `default` is **not implemented**: an unset-but-defaulted `${user_config.*}` is neither
+substituted nor exported as `CLAUDE_PLUGIN_OPTION_*`, and its presence in an exec-form arg **drops the
+entire hook entry**. (Fresh-session controlled test: the token-carrying hooks vanish while token-free
+control hooks fire, and reappear unchanged once the key is configured.) So for every consumer who never
+explicitly set `disk_hygiene_enabled`, this engine gate has never run — on the Bash tool and the
+PowerShell tool alike, which is the real shape of the "PowerShell bypass" originally reported.
+
+The **skill-scoped belt is unaffected** — it carries no `${user_config.*}` token — and PreToolUse hooks
+with a `Bash|PowerShell` matcher **do** fire for the PowerShell tool on 2.1.218 (payload `tool_name` is
+literally `PowerShell`, confirmed by a live block through that tool). There is no harness firing
+divergence. **Recheck** when the upstream `userConfig` `default` gap is fixed (#46477 / #39455 / #39827),
+which would let the gate resolve its declared default instead of dropping.
 
 Kill-switch enforcement is only as reachable as the value is, and the guard now registers on two
 surfaces with different reach. The **plugin-level engine gate** (`hooks/hooks.json`, exec form,
