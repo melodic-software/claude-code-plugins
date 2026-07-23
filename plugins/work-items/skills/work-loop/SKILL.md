@@ -164,8 +164,9 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
 ## Admission gate (work-class, fail-closed)
 
 Class vocabulary and admission policy are governing policy owned by the `autonomy` plugin's
-guardrail references, per the convention; when that plugin is installed, read its work-class and
-admission-policy references for classification. Installed or not, these dispositions bind:
+guardrail references (its `work-classes.md` and `admission-policy.md`), per the convention; when
+that plugin is installed, read those references for classification. Installed or not, these
+dispositions bind:
 
 | Class | Disposition |
 |---|---|
@@ -220,9 +221,9 @@ body's arithmetic over those two factors is the interim enforcement).
 Evaluate at cycle end, against the cycle-start snapshot:
 
 1. The seam frontier is empty — `list-frontier --autonomous` returns no candidates, **and**
-2. Every open issue in the snapshot is closed or has an **open, non-draft** PR that GitHub itself
-   links as closing it — the GraphQL close-linkage the bound adapter's "Open linked PRs" operation
-   queries (`closedByPullRequestsReferences`; additionally exclude drafts via `isDraft`).
+2. Every open issue in the snapshot is closed or has an **open, non-draft** PR the bound
+   adapter's "Open linked PRs" operation reports as close-linked — the provider's own computed
+   close-linkage, whose query mechanics (and the draft exclusion) the adapter owns.
 
 Both true → the drain is complete: set `first_drain_complete`, write the final report (items
 closed, PR'd, escalated), and stop cleanly. The **drain-terminal state** (per the convention) also
