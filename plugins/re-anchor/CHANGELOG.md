@@ -12,11 +12,15 @@ All notable changes to the `re-anchor` plugin are documented here. Format follow
   entries (observed in a real full-batch run: one recall-based claim flagged independently by
   `do-your-research`, `recheck-against-upstream`, and `mind-your-maxims`), and the main thread had
   to dedup by hand. The batched pass now names step 3 — group entries that share a root cause,
-  carry the union of their evidence and the list of reporting correctors, correct once at the
-  highest-priority reporter's rank, and report the merged finding once with full attribution.
-  Fork independence is unchanged and explicitly reaffirmed: the forks never share a ledger (that
-  independence keeps each audit un-anchored), and the merge is the single point where ledgers
-  combine. The pass steps renumber 1–5 (fan out → collect → dedup → correct → report).
+  carry the union of their evidence, the list of reporting correctors, and the union of each
+  reporter's distinct remedy. Dedup collapses the re-analysis and re-reporting of one root cause,
+  NOT the corrective work: a shared root cause can demand non-interchangeable remedies (retracting
+  an unsupported claim satisfies the research reporters, but `mind-your-maxims` may still require a
+  reader-facing uncertainty disclosure), so every reporter's remedy is still applied, each at its
+  own rank. The merged finding is reported once with full attribution. Fork independence is
+  unchanged and explicitly reaffirmed: the forks never share a ledger (that independence keeps each
+  audit un-anchored), and the grouping is the single point where ledgers combine. The pass steps
+  renumber 1–5 (fan out → collect → dedup → correct → report).
 
 ### Changed
 

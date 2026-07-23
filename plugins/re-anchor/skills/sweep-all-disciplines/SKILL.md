@@ -89,20 +89,28 @@ unchanged and bind every member.
    correctors that name the SAME underlying finding — distinct disciplines
    routinely surface one root cause as separate entries (e.g. a recall-based
    claim flagged independently by `do-your-research`, `recheck-against-upstream`,
-   and `mind-your-maxims`). Merge those into one finding, carrying the union of
-   their located evidence and the list of correctors that reported it, so the
-   correction in step 4 happens once and is attributed to all reporters instead
-   of being applied — and reported — three times. This merge is the ONLY place
-   ledgers combine: the forks stay independent by design (no shared ledger
-   across forks — that independence is what keeps each audit's perspective
-   un-anchored), and grouping is by root cause, not by corrector. A finding only
-   one corrector raised passes through unchanged.
+   and `mind-your-maxims`). Group them into one finding carrying the union of
+   their located evidence, the list of reporting correctors, AND the union of
+   the distinct remedies each reporter asks for. What dedup collapses is the
+   re-analysis and the re-reporting of one root cause — NOT the corrective work:
+   a shared root cause can demand more than one remedy that are not
+   interchangeable (verifying or retracting the unsupported claim satisfies the
+   research reporters, but `mind-your-maxims` may still require a reader-facing
+   uncertainty disclosure), and every reporter's remedy is still applied. This
+   grouping is the ONLY place ledgers combine: the forks stay independent by
+   design (no shared ledger across forks — that independence is what keeps each
+   audit's perspective un-anchored), and grouping is by root cause, not by
+   corrector. A finding only one corrector raised passes through unchanged.
 4. **Correct once, in rank order.** Walk the in-scope members — the core and
    situational correctors that ran (never-tier carries no rank and was already
    excluded at membership resolution) — by ascending `re-anchor-batch-rank`,
    and correct forward each finding on the main thread now — the shared loop's
-   step 3, batched. A finding merged in step 3 is corrected at the rank of the
-   highest-priority (lowest-rank) corrector that reported it. The order:
+   step 3, batched. For a grouped finding, "once" means the root cause is
+   analyzed and corrected in a single pass, not that its remedies collapse to
+   one: apply every reporter's distinct remedy, each at its own reporting
+   corrector's rank (so the research retraction and the `mind-your-maxims`
+   disclosure both happen, in rank order), rather than dropping the
+   lower-priority reporters' corrective work. The order:
    `use-your-skills` first (fix which skills govern the work) → evidence
    correctors (get the facts right) → structural correctors → `mind-your-maxims`
    (communication) → `tighten-your-output` dead last, so it never tightens
