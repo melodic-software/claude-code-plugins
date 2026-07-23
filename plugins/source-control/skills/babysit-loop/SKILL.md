@@ -66,9 +66,18 @@ Everything else resolves in order:
 
 **The merge dimension is the exception**: raises bind from the team-tracked layer only — every
 other source may only select a *lower* (safer) rung, per the convention ("Merge-rung raises are
-seam-only"). The full precedence mechanics, including the tracked-adoption activation of the
-baseline rung, are owned by the config reference above. Report the effective config and which
-source supplied each value at lane start.
+seam-only"). **And that team-tracked layer is the TARGET repository's, never the caller's.** The
+lane's required `<owner/repo>` argument may name a repository other than the current checkout
+(or the lane may launch from a neutral directory), and the config resolver's ambient team layer
+reads the current git root — so for every policy key that can raise behavior (the merge rung and
+its tracked-adoption activation above all), the lane reads the TARGET repository's tracked
+`.claude/source-control.md` from its default branch (`gh api` contents) whenever the current
+checkout is not that repository. Unreadable or absent = no tracked adoption = merges stay
+human-only (fail closed). A caller-side tracked file can never enable merges for a target that
+did not adopt the lane. The full precedence mechanics, including the tracked-adoption activation
+of the baseline rung, are owned by the config reference above. Report the effective config,
+which source supplied each value, and which repository's team layer bound the merge rung, at
+lane start.
 
 **Interactive ambiguity** — an interactive launch with absent or ambiguous config (no stop mode, no
 tier, or conflicting signals) runs a short `AskUserQuestion` mini-interview over exactly the
@@ -231,6 +240,14 @@ else
   else gh api -X POST "repos/$REPO/issues/$ISSUE/comments" -F body=@"$BODY_FILE"; fi
 fi
 ```
+
+**Creation race reconcile.** Two sessions racing the first-ever upsert can both see an empty
+lookup and both POST, forking the singleton. After any POST, re-list the sentinel comments: when
+more than one exists, the LOWEST comment id is canonical — every session converges on it
+deterministically. A session whose own POST lost the race PATCHes its state into the canonical
+comment and edits its duplicate's body to a one-line tombstone pointing at the canonical id
+(sentinel line removed, so the duplicate never matches the lookup again). Later cycles read only
+the canonical comment; nothing is deleted.
 
 The comment carries the human-readable cycle report plus a machine-readable **durable loop state**
 block, re-read at every cycle start:
