@@ -13,7 +13,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   ticket-prefix pattern at 78.8% recent vs 71.9% older with Conventional Commits at 0%, invisible
   at n=50. The history signal is now one
   `git log --since="<window>" --no-merges --date=short --format='%ad|%s'` pass, auto-subjects
-  (`Revert `/`fixup!`/`squash!`; merges via `--no-merges`) excluded, bucket-classified in-context
+  (`Revert`/`fixup!`/`squash!`; merges via `--no-merges`) excluded, bucket-classified in-context
   and reported as volume-weighted percentages with a recent-vs-older recency split — the user picks
   from the evidence table; no bucket is silently promoted into config. Every knob is plugin
   `userConfig`, never a constant: `setup_inference_window` (git-approxidate, default `1 year`),

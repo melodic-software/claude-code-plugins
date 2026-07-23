@@ -202,7 +202,7 @@ With no argument in an interactive session, run the interview:
        `90`).
      - `${user_config.setup_inference_min_commits}` — the low-confidence threshold (default `50`).
      Exclude auto-generated subjects before classifying: merges are gone via `--no-merges`; also
-     drop `Revert `-, `fixup!`-, and `squash!`-prefixed subjects — auto-subjects restate other
+     drop `Revert`-, `fixup!`-, and `squash!`-prefixed subjects — auto-subjects restate other
      commits' shapes and would double-count them. Bucket-classify the survivors in-context —
      Conventional-Commits-shaped, ticket-prefix-shaped, informal near-variants of either (e.g.
      type-word without colon), other — and report volume-weighted percentages split at the recency
