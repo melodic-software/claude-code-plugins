@@ -3,6 +3,32 @@
 All notable changes to `repo-fleet-hygiene` are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0]
+
+### Fixed
+
+- **One repository with zero remote-tracking refs no longer aborts the whole fleet report (#1119).**
+  The merged-PR exact-fallback gate expanded `REMOTE_BRANCH_NAMES` unguarded — the script's only
+  value-expansion of a possibly-empty array without the `:-` idiom its siblings use. Under `set -u`
+  on bash ≤ 4.3 (macOS system bash is 3.2.57; bash 4.4 removed the behavior) that expansion is a
+  fatal unbound-variable error, and `analyze_repo` runs in the main shell — a never-fetched clone,
+  a fully-pruned repo, or the partial-failure reset killed the entire run mid-report. Guarded with
+  the sibling idiom plus an empty-string skip; repo-b in the test suite is documented as the
+  empty-remote-inventory regression fixture.
+
+### Added
+
+- **Privacy-gated merged-branch misses are now visible (#1119).** The exact `--head` fallback stays
+  fail-closed (a branch name never observed on the remote is never transmitted to GitHub), but the
+  skip is no longer silent: branches with no batch evidence that the gate blocks from exact lookup
+  are reported once per repository as an `UNKNOWN merge-evidence-privacy-gated` aggregate finding —
+  the merged-then-auto-deleted-then-pruned branch now surfaces as a reportable evidence gap instead
+  of vanishing. A repo-wide failed remote-ref scan keeps the aggregate quiet (the existing
+  `remote-branch-inventory-unavailable` finding already covers every branch; new `rref-fail`
+  fixture proves no double-report). The misleading fallback comment ("prevents a false negative" —
+  untrue after head auto-delete + prune) is corrected, and the deferred widenings
+  (`branch.<name>.merge`/`.remote` proof of prior push; batch-window pagination) are recorded there.
+
 ## [0.4.1]
 
 ### Added

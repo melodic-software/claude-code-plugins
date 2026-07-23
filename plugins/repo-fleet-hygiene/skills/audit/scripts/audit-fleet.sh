@@ -588,8 +588,9 @@ analyze_repo() {
   local ref_record branch_status=1 branch_inventory_valid=true
   local remote_ref_record remote_branch_status=1 remote_branch_short remote_branch_known
   local repo_pr_rows="" exact_pr_rows="" repo_pr_available=false protected=false
+  local remote_inventory_failed=false
   local -a WT_PATHS=() WT_BRANCHES=() WT_PRUNABLE=() WT_LOCKED=()
-  local -a BRANCH_NAMES=() BRANCH_TIPS=() REMOTE_BRANCH_NAMES=()
+  local -a BRANCH_NAMES=() BRANCH_TIPS=() REMOTE_BRANCH_NAMES=() PRIVACY_GATED_BRANCHES=()
 
   select_remote "$discovered" && {
     discovered_remote="$SELECTED_REMOTE"
@@ -856,8 +857,11 @@ analyze_repo() {
     if [[ "$remote_branch_status" != "0" ]]; then
       # The producer may have emitted and appended some records before failing partway through;
       # discard them so a partial remote-ref inventory can never make remote_branch_known true
-      # below and drive the exact --head fallback query on stale/incomplete evidence.
+      # below and drive the exact --head fallback query on stale/incomplete evidence. The failure
+      # flag keeps the per-branch privacy-gap aggregate quiet: this repo-wide finding already says
+      # every exact lookup is skipped, so repeating it per branch would double-report.
       REMOTE_BRANCH_NAMES=()
+      remote_inventory_failed=true
       emit_finding UNKNOWN remote-branch-inventory-unavailable "$canonical" \
         "git for-each-ref for refs/remotes/$canonical_remote/ failed" \
         "Exact per-branch GitHub lookups are skipped for every branch in this repository" \
@@ -905,13 +909,23 @@ analyze_repo() {
           break
         fi
       done <<<"$repo_pr_rows"
-      # The batch is an optimization, not an evidence boundary. An exact repository+head fallback
-      # prevents an older local branch from becoming a false negative outside the recent-PR window.
-      # Only send a branch name GitHub can already see: --head transmits it verbatim to github.com,
-      # so a purely local branch (never pushed) must never reach this query at all.
+      # The batch is an optimization, not an evidence boundary: an exact repository+head fallback
+      # catches a merged PR outside the recent-created batch window -- but only for a branch still
+      # present in the local remote-tracking inventory. After the common merge flow (head branch
+      # auto-deleted by GitHub, then a prune fetch) that ref is gone and the privacy gate below
+      # skips this lookup, so the gap is reported as merge-evidence-privacy-gated rather than
+      # passing silently. Only send a branch name GitHub can already see: --head transmits it
+      # verbatim to github.com, so a purely local branch (never pushed) must never reach this
+      # query at all. Deferred (revisit if the gap keeps biting): widening proof-of-prior-push
+      # via branch.<name>.merge/.remote config, and paginating the batch window.
       if [[ -z "$pr_match" ]]; then
         remote_branch_known=false
-        for remote_branch_short in "${REMOTE_BRANCH_NAMES[@]}"; do
+        # ":-" guard: expanding an empty array under set -u is a fatal unbound-variable error on
+        # bash <= 4.3 (fixed in 4.4; macOS system bash is 3.2), and analyze_repo runs in the main
+        # shell -- one
+        # repo with zero remote-tracking refs would abort the whole fleet report without it.
+        for remote_branch_short in "${REMOTE_BRANCH_NAMES[@]:-}"; do
+          [[ -n "$remote_branch_short" ]] || continue
           [[ "$remote_branch_short" == "$branch" ]] && {
             remote_branch_known=true
             break
@@ -934,6 +948,12 @@ analyze_repo() {
               "exact repository-and-head merged-PR query failed" "Do not infer branch merge state" \
               "Restore GitHub access/authentication and rerun"
           fi
+        elif [[ "$protected" == "false" && -z "$pr_any" && "$remote_inventory_failed" == "false" ]]; then
+          # Privacy gate engaged with zero batch evidence: this branch cannot be checked against
+          # GitHub without transmitting a name the remote may not carry. Collect it so the gap is
+          # reported once per repository below -- a silent miss here is exactly the merged-then-
+          # auto-deleted-then-pruned branch disappearing from the report.
+          PRIVACY_GATED_BRANCHES+=("$branch")
         fi
       fi
     fi
@@ -970,6 +990,16 @@ analyze_repo() {
       fi
     fi
   done
+
+  # One aggregate line per repository (not per branch) keeps a fleet full of local-only branches
+  # from drowning the report while still honoring the no-silent-caps ethos: every skipped exact
+  # lookup is named. The branch names appear only in this local report, never in a GitHub query.
+  if [[ "${#PRIVACY_GATED_BRANCHES[@]}" -gt 0 ]]; then
+    emit_finding UNKNOWN merge-evidence-privacy-gated "$canonical" \
+      "exact merged-PR lookup skipped for ${#PRIVACY_GATED_BRANCHES[@]} branch(es) absent from the local remote-tracking inventory: ${PRIVACY_GATED_BRANCHES[*]}" \
+      "Merged state unverified; a merged branch whose remote ref was auto-deleted and pruned reports no merged finding" \
+      "Push or re-fetch the branch to restore remote evidence, or verify manually on GitHub, then rerun"
+  fi
 
   REPOS_AUDITED=$((REPOS_AUDITED + 1))
 }
