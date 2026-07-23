@@ -270,7 +270,7 @@ README.md contract sections (pointer-not-copy — cite owners, never restate):
 - **Sanity Check:** repo CI green on the PR (`ci-status` required check).
 - **Sanity Check:** `grep -En "plugins/(work-items|source-control|claude-ops|autonomy)/" docs/conventions/loop-lane/README.md` returns citations only in pointer form (reviewed: no restated mechanics blocks >3 lines quoting a plugin file).
 
-### Phase 3: `rate-limit-guard` plugin [TODO]
+### Phase 3: `rate-limit-guard` plugin [DONE]
 
 Review: security
 New small plugin in claude-code-plugins. One PR. Pre-flight consumer check N/A (new surface, no
@@ -298,7 +298,7 @@ stdin schema fields present on this CLI version (live probe); shell-run fields r
 - **Sanity Check:** `bash scripts/validate-plugins.sh` exit 0.
 - **Sanity Check:** `bash scripts/run-plugin-tests.sh` exit 0 (includes new `.test.sh` files).
 - **Sanity Check:** `bash scripts/sync-hook-utils.sh --check` exit 0.
-- **Sanity Check:** live probe — with wrapper wired, `jq -e '.rate_limits and .captured_at' <tee-file>` exit 0 after one statusline refresh.
+- **Sanity Check:** live probe — with wrapper wired, `jq -e '.rate_limits and .captured_at' <tee-file>` exit 0 after one statusline refresh. `[OPERATOR-GATED — the statusline wiring is the operator's settings.json edit (setup is check-only by philosophy; the skill prints the exact edit); the build verified the same probe against the wrapper fed the documented schema payload in a scratch HOME. Runs live as a Phase 7 pre-flight once the operator applies the edit.]`
 - **Sanity Check:** `/skill-quality:check setup` PASS.
 
 ### Phase 4: work-items `work-loop` + `attend-queue` skills [TODO]
