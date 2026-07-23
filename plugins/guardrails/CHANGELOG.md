@@ -3,6 +3,21 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.1]
+
+### Fixed
+
+- **`block-hook-bypass` `python-write` no longer false-positives on read-only `os.path.*path(` helpers
+  (#1178).** The `_py_write` write indicator's `path[[:space:]]*\(` was an unanchored substring: it
+  matched `path(` as the suffix of a longer identifier, so a pure path-arithmetic command
+  (`python3 -c "…os.path.normpath(os.path.join(a,b))…"`) — and every other `os.path.*path(` helper
+  (`abspath`, `realpath`, `relpath`, `commonpath`) — was blocked as a file-write bypass despite writing
+  nothing. The `pathlib` / `path(` indicators are now identifier-boundary anchored so they still catch
+  the write-capable `pathlib.Path(` producer while clearing the read-only helpers. Real writes stay
+  blocked (`.write_text(`/`open('f','w')` match independently). Regression fixtures for each `*path(`
+  helper (MUST-stay-quiet) plus a `pathlib.Path().write_text` (MUST-block) added to
+  `block-hook-bypass.test.sh`.
+
 ## [0.14.0]
 
 ### Changed
