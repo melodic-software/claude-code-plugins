@@ -3,6 +3,35 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.1]
+
+### Fixed
+
+- **`plugins` skill: the default (no-`--marketplace`) path no longer breaks after a mid-session
+  version bump of claude-ops itself (`#1176`, audit finding F1).** `fleet-state.sh`'s
+  `resolve_default_marketplace` exact-matched the running plugin root against the version-pinned
+  `installPath` in `installed_plugins.json`; any time the session's loaded version differed from the
+  installed one — a marketplace `autoUpdate` shortly after session start, or `sync`'s own Step-3
+  self-update — the join found nothing and the skill's primary invocation form failed with "could not
+  resolve the default marketplace". Added a version-agnostic fallback that matches the version-stripped
+  `…/cache/<marketplace>/<plugin>` prefix (exact match still tried first; marketplace stays
+  distinguishable), plus a clearer error that prints the searched root and names the version-skew cause.
+  Covered by a new version-skew case in `fleet-state.test.sh`.
+
+### Changed
+
+- **`context/gotchas.md`: generalized the CRLF gotcha (audit finding F2).** The trailing-`\r` hazard
+  is not `jq`-only — any captured Windows value (`python` `print`, PowerShell interop, `git config`,
+  a CRLF file read) can corrupt a constructed `claude plugin` id so the CLI reports
+  `Plugin "<name>" not found` with the full id passed (marketplace suffix silently corrupted). Rescoped
+  the entry to "any captured value", documented the collision with the bare-name symptom, and
+  cross-referenced the two.
+- **`plugins` SKILL.md: corrected the `install_new` render contract (audit finding F3).** An unset
+  `${user_config.install_new}` renders the literal placeholder (the manifest `default` is not
+  substituted for an unset key; verified against CC 2.1.218) — the common default-config case. The doc
+  now reads that literal placeholder as the expected unset state → use the default `ask` without
+  flagging it as an invalid value; only an explicitly-set unsupported value is the invalid case.
+
 ## [0.19.0]
 
 ### Added
