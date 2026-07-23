@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import tempfile
 import threading
 import time
@@ -121,6 +122,19 @@ class Locking(unittest.TestCase):
             ob.lock_path.write_text("", encoding="utf-8")  # created, not yet written
             self.assertFalse(ob.acquire_lock(),
                              "empty/mid-write lock (fresh mtime) must not be reclaimed")
+
+    def test_live_lock_not_reclaimed_by_age(self):
+        # A lock held by a LIVE pid must never be reclaimed, even if its recorded
+        # start is far past the tailing cap -- an idle-ended observer can hold its
+        # lock for the whole analysis run (its own timeout).
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            ob = make_observer(tmp)
+            ob.lock_path.write_text(json.dumps({
+                "pid": os.getpid(), "started": "2000-01-01T00:00:00+00:00",
+                "session_id": "sid"}), encoding="utf-8")
+            self.assertFalse(ob.acquire_lock(),
+                             "a live pid must not be reclaimed regardless of age")
 
     def test_race_exactly_one_winner(self):
         with tempfile.TemporaryDirectory() as d:
@@ -323,6 +337,28 @@ class LedgerAndRetention(unittest.TestCase):
             # Consumed analysis: observations deleted.
             ob._cleanup_observations()
             self.assertFalse(ob.obs_path.exists())
+
+
+class ArmLauncher(unittest.TestCase):
+    @staticmethod
+    def _arm():
+        spec = importlib.util.spec_from_file_location(
+            "arm_observer", str(Path(__file__).with_name("arm_observer.py")))
+        m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(m)
+        return m
+
+    def test_live_observer_detected_for_manual_arm(self):
+        arm = self._arm()
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            self.assertIsNone(arm.live_observer_pid(str(tmp), "s"))  # no lock
+            (tmp / "observer-s.lock").write_text(
+                json.dumps({"pid": os.getpid()}), encoding="utf-8")
+            self.assertEqual(arm.live_observer_pid(str(tmp), "s"), os.getpid())
+            (tmp / "observer-s.lock").write_text(
+                json.dumps({"pid": 2 ** 30}), encoding="utf-8")  # dead pid
+            self.assertIsNone(arm.live_observer_pid(str(tmp), "s"))
 
 
 if __name__ == "__main__":

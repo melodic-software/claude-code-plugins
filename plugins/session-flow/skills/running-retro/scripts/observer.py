@@ -179,15 +179,23 @@ class Observer:
         try:
             data = json.loads(self.lock_path.read_text(encoding="utf-8"))
             other_pid = int(data.get("pid", -1))
-            age = time.time() - _to_epoch(data.get("started", ""))
         except (OSError, ValueError, json.JSONDecodeError):
             if mtime_age >= cap:
                 self.log(f"reclaiming unreadable/abandoned lock (mtime age {mtime_age:.0f}s)")
                 return True
             return False  # partial/mid-write lock -> treat as LIVE
-        stale = (not _pid_alive(other_pid)) or age >= cap
+        # A LIVE pid is never reclaimed, regardless of age: an idle-ended observer
+        # can legitimately hold its lock for the whole analysis run (its own
+        # timeout), which may exceed the tailing cap. Age is a fallback ONLY when
+        # liveness cannot be determined (pid missing / unknowable); the observer
+        # bounds its own lifetime via --max-seconds and the analysis timeout, so a
+        # live holder always exits on its own.
+        if other_pid > 0:
+            stale = not _pid_alive(other_pid)
+        else:
+            stale = mtime_age >= cap
         if stale:
-            self.log(f"reclaiming stale lock (pid={other_pid}, age={age:.0f}s)")
+            self.log(f"reclaiming stale lock (pid={other_pid}, mtime age {mtime_age:.0f}s)")
         return stale
 
     def release_lock(self) -> None:

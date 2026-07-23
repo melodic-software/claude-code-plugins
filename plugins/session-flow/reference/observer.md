@@ -102,8 +102,13 @@ a naive arming hook would spawn an observer for the analysis run. The hook arms 
 `CLAUDE_CODE_ENTRYPOINT == "cli"` (a real interactive session; the `-p` run reports `sdk-cli`), skips
 when the stdin `agent_type` field is present (subagent / `--agent` run), skips `source` values other
 than `startup`/`resume`, and skips when `SESSION_FLOW_OBSERVER_ANALYSIS` is set (the analysis run's
-own marker). The tailer additionally self-guards on `session_id` via a lock file so a resume does not
-double-arm.
+own marker). The tailer additionally self-guards on `session_id` via an atomic (`O_CREAT|O_EXCL`) lock
+file so a resume does not double-arm. A lock held by a **live pid is never reclaimed** (staleness is a
+dead pid; age/mtime is only a fallback when liveness is unknowable) — an idle-ended observer can
+legitimately hold its lock through the whole analysis run. Because the same session-id maps to one
+lock, a manual `arm` against an already-live (e.g. auto-armed) observer **reports it visibly** and does
+not spawn a redundant one, rather than silently dropping the manual arm's memory-dir / continuity /
+config overrides — stop the live observer to re-arm with new settings.
 
 ## Findings-return channel
 
