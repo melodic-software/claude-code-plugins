@@ -1490,12 +1490,21 @@ def handoff_verify(snapshot: dict[str, Any], approved: list[str]) -> dict[str, A
                 {"path": relative, "verdict": "gone", "reasons": ["no-longer-present"]}
             )
             continue
-        except OSError as exc:
+        except PermissionError:
             verdicts.append(
                 {
                     "path": relative,
                     "verdict": "contested",
-                    "reasons": [f"state-unverified: {exc}"],
+                    "reasons": ["needs-elevation"],
+                }
+            )
+            continue
+        except OSError:
+            verdicts.append(
+                {
+                    "path": relative,
+                    "verdict": "contested",
+                    "reasons": ["filesystem-state-unverified"],
                 }
             )
             continue
@@ -1520,6 +1529,9 @@ def handoff_verify(snapshot: dict[str, Any], approved: list[str]) -> dict[str, A
         else:
             try:
                 current_paths = current_descendants(target, path)
+            # On failure, treat the live set as unknown rather than empty
+            # (preview's choice): an unreadable subtree is contested, not
+            # provably drifted — "changed" cannot be claimed without a read.
             except PermissionError:
                 current_paths = expected_paths
                 contested.add("needs-elevation")

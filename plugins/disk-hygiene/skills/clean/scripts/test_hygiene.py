@@ -1947,6 +1947,105 @@ class HandoffVerifyTests(unittest.TestCase):
             )
             self.assertIn("lsof-not-found", reason)
 
+    def test_root_metadata_churn_from_prior_deletion_does_not_refuse(self) -> None:
+        # The motivating scenario for the tolerant root check: deleting one
+        # approved root-level item changes the root's own mtime; the next
+        # item's re-verify must still run and verdict cleanly.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            first = root / "first.tmp"
+            second = root / "second.tmp"
+            first.write_text("stale", encoding="utf-8")
+            second.write_text("stale", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            first.unlink()  # manual-lane deletion of the prior approved item
+            handle, vcs = self.clear_probe_mocks()
+            with handle, vcs:
+                result = hygiene.handoff_verify(snapshot, ["second.tmp"])
+            self.assertEqual(
+                {"path": "second.tmp", "verdict": "clear", "reasons": []},
+                result["verdicts"][0],
+            )
+
+    def test_replaced_root_still_refuses(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "junk.tmp").write_text("stale", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            with mock.patch.object(
+                hygiene, "same_object_identity", return_value=False
+            ):
+                with self.assertRaisesRegex(hygiene.HygieneError, "replaced"):
+                    hygiene.handoff_verify(snapshot, ["junk.tmp"])
+
+    def test_unstatable_path_maps_permission_to_needs_elevation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            guarded = root / "guarded.tmp"
+            guarded.write_text("held", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            real_lstat = Path.lstat
+
+            def selective_lstat(self: Path):
+                if self.name == "guarded.tmp":
+                    raise PermissionError(13, "access denied")
+                return real_lstat(self)
+
+            handle, vcs = self.clear_probe_mocks()
+            with handle, vcs, mock.patch.object(Path, "lstat", selective_lstat):
+                result = hygiene.handoff_verify(snapshot, ["guarded.tmp"])
+            self.assertEqual(
+                {
+                    "path": "guarded.tmp",
+                    "verdict": "contested",
+                    "reasons": ["needs-elevation"],
+                },
+                result["verdicts"][0],
+            )
+
+    def test_unreadable_descendants_are_contested_not_drifted(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            stale = root / "stale-cache"
+            stale.mkdir(parents=True)
+            (stale / "old.tmp").write_text("old", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            handle, vcs = self.clear_probe_mocks()
+            with (
+                handle,
+                vcs,
+                mock.patch.object(
+                    hygiene,
+                    "current_descendants",
+                    side_effect=PermissionError(13, "access denied"),
+                ),
+            ):
+                result = hygiene.handoff_verify(snapshot, ["stale-cache"])
+            verdict = result["verdicts"][0]
+            self.assertEqual("contested", verdict["verdict"])
+            self.assertIn("needs-elevation", verdict["reasons"])
+            self.assertNotIn("changed-since-scan", verdict["reasons"])
+
+    def test_truncated_path_can_never_be_clear(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            deep = root / "outer" / "inner"
+            deep.mkdir(parents=True)
+            (deep / "leaf.tmp").write_text("deep", encoding="utf-8")
+            snapshot = hygiene.scan_tree(
+                root.resolve(), hygiene.load_policy(None), 1
+            )
+            self.assertIn("outer", snapshot["truncated_paths"])
+            handle, vcs = self.clear_probe_mocks()
+            with handle, vcs:
+                result = hygiene.handoff_verify(snapshot, ["outer"])
+            verdict = result["verdicts"][0]
+            self.assertNotEqual("clear", verdict["verdict"])
+            self.assertIn("truncated-not-inventoried", verdict["reasons"])
+
     def test_validate_handoff_paths_rejects_malformed_input(self) -> None:
         entries = {"keep/junk.tmp": {}, "keep": {}}
         cases = [
