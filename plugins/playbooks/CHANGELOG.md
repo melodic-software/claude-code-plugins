@@ -8,6 +8,29 @@ only after that version increases.
 
 ### Added
 
+- **`boris`: four reference buckets for the twenty sections upstream added since
+  the last sync** — [`unknowns.md`](skills/boris/reference/unknowns.md)
+  (96–99, finding your unknowns), [`loops.md`](skills/boris/reference/loops.md)
+  (100–103, the four loop types),
+  [`automation.md`](skills/boris/reference/automation.md) (104–109, `/checkup`
+  and automation as infrastructure), and
+  [`context-engineering.md`](skills/boris/reference/context-engineering.md)
+  (110–115, the Claude 5 context-engineering rules and Opus 5). Buckets follow
+  upstream's own thread grouping — Parts 18, 19, 20–21, and 22.
+
+### Changed
+
+- **`boris`: vendored baseline synced 8.8.1 → 8.13.0** through
+  `/playbooks:update --apply`, never a hand-copy. The delta is additive:
+  sections 1–95 are unchanged, and the counts move 107 → 127 tips across
+  95 → 115 sections. The hub's hardcoded counts (frontmatter description and
+  body), the Topic Index, the Quick Reference, the source-date footer, and the
+  plugin README's pack row all move with them.
+
+## [0.4.0]
+
+### Added
+
 - `fable-5`: a show-moves section in the problem-framing chapter, split out of the
   unknown-knowns cell so the two signals that gate it — a criterion judgable only on
   sight, and a description costlier than an example — trigger those moves without firing
