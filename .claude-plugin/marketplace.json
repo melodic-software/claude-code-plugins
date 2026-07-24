@@ -294,6 +294,12 @@
       "tags": ["rate-limit", "statusline", "tee", "loop-lane", "stopfailure", "hook"]
     },
     {
+      "name": "context-guard",
+      "source": "./plugins/context-guard",
+      "category": "claude-code",
+      "tags": ["context-window", "statusline", "tee", "zones", "context-degradation", "session", "skill"]
+    },
+    {
       "name": "songwriting",
       "source": "./plugins/songwriting",
       "category": "music",

@@ -800,6 +800,44 @@ Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this 
 conform; 5 bounded to two justified, non-telemetry channels; 6 dual third-party surfaces both
 gated (credential scope + human-reviewed sync).
 
+### Review record — `context-guard` (ACCEPT, 2026-07-24)
+
+Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this review.
+
+- **Code execution (1).** No hooks. Two bash scripts, neither wired to any event:
+  `statusline-tee.sh` runs only when the OPERATOR wires it into their own `settings.json`
+  statusline (the setup skill prints the edit, never applies it), and `context-zone.sh` runs only
+  on explicit invocation. Both reviewed: no `eval`, no `curl | sh`, no outbound network; the one
+  untrusted input that reaches the filesystem (`session_id` from statusline stdin) is sanitized to
+  `[A-Za-z0-9_-]` before filename use; `captured_at` is format-gated to strict ISO-8601 UTC before
+  being passed to `date -d`; no snapshot value is passed to `eval`, `sh -c`, or any code
+  executor. Every failure path is transparent (wrapped statusline output
+  and exit code unchanged). No kill-switch `userConfig` needed — nothing runs unless the operator
+  wires it, and unwiring is the same one-line edit.
+- **MCP servers (2).** None.
+- **Consumer config (3).** No `userConfig`. The one machine file the plugin owns
+  (`~/.claude/context-guard/zones.json`) is written only by the setup skill's explicit `apply`.
+- **Cache isolation (4).** Skills reference bundled files via `${CLAUDE_PLUGIN_ROOT}`; no `../`
+  reach-outs. Writes go only to `~/.claude/context-guard/` — the operator-home carve-out —
+  deliberately outside `${CLAUDE_PLUGIN_DATA}` because the directory is a documented cross-plugin
+  artifact seam (per-session snapshots + zones SSOT) that sibling-plugin sessions read by path;
+  `${CLAUDE_PLUGIN_DATA}` resolves per-plugin-identity and would hide the seam. Same accepted
+  pattern as `rate-limit-guard`.
+- **Data egress (5).** None. No network, no telemetry. Snapshot data (context-window token
+  counts + session id) never leaves the machine. Residual local-integrity limitation, stated
+  honestly: the contract dir's `chmod 700` is best-effort — a no-op on filesystems without POSIX
+  modes (Windows ACL volumes under Git Bash), where another local user could read or forge
+  snapshots. The reader contract therefore forbids consumers from attaching security decisions to
+  zone words (routing hints only), and the resolver format-gates `captured_at` and requires the
+  embedded session id to match, so forgery cannot ride a lenient parser.
+- **Provenance & third-party trust (6).** First-party (Melodic Software authored), MIT, no
+  third-party delegation.
+- **Main-thread / PATH (7).** None; no `settings.json` `agent`, no `bin/`.
+
+**Verdict: ACCEPT** — surfaces 2/5/6/7 absent; 1 bounded to operator-wired transparent scripts
+with sanitized untrusted input; 3 empty; 4 conforms under the documented operator-home seam
+carve-out.
+
 ## Local development loop
 
 For a plugin that already ships here, iterate against your local clone without re-publishing and
