@@ -50,6 +50,11 @@ zone bands, zones.json shape) are owned by
    - **Present but differing** — INFO, not FAIL: the installed copy is an older (or hand-edited)
      revision that still resolves the newest tee. Report the shipped `# shim-revision:` marker
      against the installed one and offer `apply` as the refresh.
+   - **The SHIPPED source is absent** (no `${CLAUDE_PLUGIN_ROOT}/scripts/statusline-shim.sh`) —
+     INFO, and skip the comparison entirely: this installed plugin version predates the shim
+     (< 0.2.0). Never report the operator's installed copy as drifted on this branch. Remediation:
+     `/plugin update context-guard`, then re-run `check`. Until then the legacy version-pinned
+     wiring in step 3 is the only wiring this version can offer.
 3. **Statusline wiring state** — read (never write) every settings scope that can carry a
    `statusLine` (user `~/.claude/settings.json`, project `.claude/settings.json`, local
    `.claude/settings.local.json`) and determine which one owns the EFFECTIVE command (the most

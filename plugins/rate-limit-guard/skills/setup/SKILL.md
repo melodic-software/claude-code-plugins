@@ -49,6 +49,11 @@ owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
    - **Present but differing** — INFO, not FAIL: the installed copy is an older (or hand-edited)
      revision that still resolves the newest tee. Report the shipped `# shim-revision:` marker
      against the installed one and offer `apply` as the refresh.
+   - **The SHIPPED source is absent** (no `${CLAUDE_PLUGIN_ROOT}/scripts/statusline-shim.sh`) —
+     INFO, and skip the comparison entirely: this installed plugin version predates the shim
+     (< 0.2.0). Never report the operator's installed copy as drifted on this branch. Remediation:
+     `/plugin update rate-limit-guard`, then re-run `check`. Until then the legacy version-pinned
+     wiring in step 3 is the only wiring this version can offer.
 3. **Statusline wiring state** — read (never write) the user's `~/.claude/settings.json`, and note
    any project-level `statusLine` that shadows it. Distinguish four states:
    - **No `statusLine` configured** — the wrapper is not running because nothing is. Print the

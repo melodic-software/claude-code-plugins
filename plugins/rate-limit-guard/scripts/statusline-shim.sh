@@ -35,6 +35,16 @@
 # both ship a plugin named rate-limit-guard, the most recently installed one
 # wins.
 #
+# Verified empirically 2026-07-24: the cache copy does NOT preserve the source
+# file's timestamps — an installed tee carries its INSTALL time (measured: a
+# source committed at 03:08 installed at 12:38 carried 12:38), so "newest
+# mtime" is "most recently installed" even against an orphaned older version
+# directory lingering from a previous install. An alternative authoritative
+# source exists — ~/.claude/plugins/installed_plugins.json maps
+# <plugin>@<marketplace> to the current installPath — but it is an UNDOCUMENTED
+# internal file carrying its own schema version, and reading it would put a jq
+# spawn on every statusline refresh. Revisit only if upstream documents it.
+#
 # Pure builtins — glob + `-nt` tests, no subprocesses — because the statusline
 # command runs on every session event and on the refresh interval.
 
