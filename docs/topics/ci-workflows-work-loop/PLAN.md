@@ -407,7 +407,36 @@ means: the session pushes the branch + prepares the PR body file and notifies th
   PR body file present in the topic slice, operator notified in the session report;
   `gh pr list -R melodic-software/standards --head <branch>` returns EMPTY (nothing auto-filed).
 
-### Phase 7: attended triage + launch + drain [TODO]
+> **Close-out disposition (2026-07-24):** branch `docs/activate-lease-claiming` remains
+> pushed (head `ce1b9a7c`) and UNFILED — operator filing still outstanding. The verified
+> operator one-liner (title from the head commit subject; body = the prepared file's
+> content below its memo separator) was handed to the operator 2026-07-24. The body file
+> stays in the ci-workflows memory slice until filed; it is machine-local working memory,
+> not a tracked artifact.
+
+### Phase 7: attended triage + launch + drain [DONE]
+
+> **Close-out note (2026-07-24):** all four sanity checks recorded; the drain reached an
+> operator-stabilized terminal state rather than the strict exit condition. Evidence
+> (distilled; gathered 2026-07-24 ~02:10Z):
+>
+> - Triage: 19/19 attended pass completed 2026-07-23 (prior session, quoted in handoff);
+>   later intake drift (new telemetry issues + one intake row) is live-tracker steady
+>   state, not plan scope.
+> - Exit-condition query: run against live state — NOT met on both conjuncts:
+>   `list-frontier --autonomous` returned 4 lane-telemetry issues (a seam defect — the
+>   telemetry contract says these never gate; tracked in ci-workflows) plus holdouts
+>   #238 (blocked) and #177 (operator-assigned); 20 needs-human; 0 open PRs. The
+>   operator stopped all three lanes 2026-07-23 ~23:15-23:20Z with the work-loop rate
+>   guard tripped (seven-day 98%, pause to 2026-07-29T03:00Z); remaining items are
+>   needs-human/design-gated — the drain-terminal remainder lives in the tracker, not
+>   this plan.
+> - Guard pause+resume: demonstrated via the plan-authorized synthetic probe (pause at
+>   future `resets_at`, resume on back-dated `resets_at`; tee restored byte-identical,
+>   sha256 verified). Live trip also observed operationally: work-loop wound down on a
+>   real seven-day 98% trip.
+> - Attend-queue attention view: real data — 2 escalated + 2 ratify + 1 intake rows in
+>   one view.
 
 1. Attended triage pass (operator present) over live untriaged intake via `/work-items:triage`
    attention view — 10 zero-label issues at plan time (Brief said 14; count drifted, use live).

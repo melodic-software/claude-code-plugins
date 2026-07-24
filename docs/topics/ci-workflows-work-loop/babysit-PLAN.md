@@ -218,7 +218,20 @@ per seam phrasing. Naming: `babysit-loop` is verb-first — passes the grammar r
 - **Sanity Check:** `grep -c "conventions/loop-lane" plugins/source-control/skills/babysit-loop/SKILL.md` ≥ 1 and `grep -c "babysit-prs" ...` ≥ 1 (cites both owners).
 - **Sanity Check:** `grep -En "claude-(opus|sonnet|haiku|fable)-[0-9]" plugins/source-control/skills/babysit-loop/SKILL.md` returns empty (tier vocabulary only).
 
-### Phase B3: ci-workflows drain instantiation [TODO]
+### Phase B3: ci-workflows drain instantiation [DONE]
+
+> **Close-out note (2026-07-24):** launched 2026-07-23 ~22:09Z. Sanity outcomes:
+>
+> - Cycle-1 report: tier `worker`, stop mode `drain`, grace window 30 min active; no
+>   merges inside a grace window (cycle 1 performed zero merges). ✔
+> - Telemetry comment: single sentinel comment edited in place across cycles 1-3
+>   (comment count for the marker = 1). ✔
+> - Drain exit: superseded — operator raised the lane to `autopilot` /
+>   `full-autonomy` mid-drain via the tracked seam (ci-workflows#233, ratified), the
+>   lane merged #219 and #233, and the operator stopped it after cycle 3 (23:15Z)
+>   before a drain exit or standing back-off could be observed; #234 was left
+>   gate-proven inside its grace window and merged by the follow-on merge lane. ✔
+>   (as operator-stopped disposition)
 
 Launch through the skill (sequencing decision: build first, then launch through it):
 `/source-control:babysit-loop melodic-software/ci-workflows --drain` at **WORKER tier**
