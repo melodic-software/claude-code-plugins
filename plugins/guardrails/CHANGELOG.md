@@ -35,7 +35,10 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   `-NoNewWindow -FilePath $exe`) — while a literal non-python launcher (`Start-Process notepad …`) carries
   no such construct and stays allowed. A `-c` concatenated with an adjacent variable/subexpression
   (`python3 -c$code`, `python3 -c(…)`), which PowerShell joins into one `-c<source>` argument, is treated
-  as a computed inline-code flag and fails closed (a longer literal flag like `-config` is not `-c`). **Accepted behavior
+  as a computed inline-code flag and fails closed (a longer literal flag like `-config` is not `-c`). A call
+  operator / dot-source of a DOUBLE-quoted interpolated target (`& "$env:PYTHON_BIN" …`, `& "$(…)" …`) runs a
+  computed interpreter and fails closed; a SINGLE-quoted target does not interpolate (`& '$x'` is a literal
+  name) and stays allowed. **Accepted behavior
   change (fail-closed):** a command that only *mentions* `python3 … -c` + a write indicator in prose, a
   line/block comment, or a quoted string now **over-blocks** (three prior allow-fixtures flipped to
   expect-block); here-string mentions stay inert (blanked first, like the git lane). **Accepted residual:**

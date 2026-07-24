@@ -586,6 +586,13 @@ run_pwsh "PS: python3 -config longer flag, pathlib in arg (allowed)" \
 # token, so the co-occurrence probe does not fire (write_bypass allows quoted progs).
 run_pwsh "PS: & 'C:\\...\\app.exe' with open mention (allowed)" \
   "& 'C:\\Program Files\\app.exe' -c \"print open(\"" 0
+# Call operator with a DOUBLE-QUOTED interpolated target resolves a computed
+# interpreter — fail closed. A SINGLE-quoted target does not interpolate (literal
+# name), so it stays allowed via write_bypass's arbitrary-quoted-program residual.
+run_pwsh "PS: & \"\$env:PYTHON_BIN\" -c interpolated target (blocked)" \
+  "& \"\$env:PYTHON_BIN\" -c \"open('x','w').write('a')\"" 2
+run_pwsh "PS: & '\$x' single-quoted literal target (allowed)" \
+  "& '\$x' -c \"print open(\"" 0
 
 # Review round 8: module-qualified producer heads.
 run_pwsh "PS: module-qualified Write-Output > file (blocked)" \

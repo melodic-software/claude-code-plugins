@@ -247,6 +247,15 @@ ps::might_write_via_python3() {
   if ps::has_launcher "$recovered" && [[ "$blanked" == *'$'* || "$blanked" == *'('* ]]; then
     return 0
   fi
+  # A call `&` / dot-source `.` of a DOUBLE-QUOTED target that INTERPOLATES a
+  # variable or subexpression (`& "$env:PYTHON_BIN" …`, `& "$(…)" …`) runs a
+  # COMPUTED program that could resolve to python3. blank_quoted_spans erases the
+  # target (so the launcher/token tests miss it) and it is not a launcher, so match
+  # it here on the quote-INTACT text and fail closed. A SINGLE-quoted target does
+  # NOT interpolate in PowerShell (`& '$x'` is the literal name `$x`), so it is not
+  # matched. ps::write_bypass catches only an UNQUOTED `& $`/`& (`; this closes the
+  # quoted-interpolated form for the python-write lane.
+  [[ "$lc" =~ (^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*\"[^\"]*\$ ]] && return 0
   # Must name a python3 interpreter token at all (quote-intact, backtick-recovered).
   [[ "$lc" =~ (^|[^[:alnum:]_.])python3([.]exe)?([^[:alnum:]_]|$) ]] || return 1
   # A literal `-c` inline-code flag settles it (quote-bounded, so an arg-split
