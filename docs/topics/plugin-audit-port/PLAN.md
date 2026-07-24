@@ -274,7 +274,7 @@ Create `plugins/context-guard/`:
 
 ### Lane B — `plugin-quality` (opens after lane A merges; inlines lane A's reader contract)
 
-#### Phase B1: `audit` skill hub [TODO]
+#### Phase B1: `audit` skill hub [DONE]
 
 - [ ] `plugins/plugin-quality/.claude-plugin/plugin.json` — CREATE (`0.1.0`, no `userConfig` v1).
 - [ ] `skills/audit/SKILL.md` — CREATE: `/plugin-quality:audit <plugin>[:<component>]`. Six-step
@@ -357,7 +357,7 @@ Create `plugins/context-guard/`:
   as a B6 pre-PR check — B4's config reference is written after this phase and is the likeliest
   violator (stress-test #13).
 
-#### Phase B3: Auditor agent [TODO]
+#### Phase B3: Auditor agent [DONE]
 
 - [ ] `agents/auditor.md` — CREATE: the fresh-context named subagent for workflow steps 2–3.
   Tools: Read/Grep/Glob/WebFetch plus Bash — named honestly (Bash is NOT read-only; it is needed
