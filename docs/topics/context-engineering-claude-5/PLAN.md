@@ -340,11 +340,22 @@ user-approval gate, not an implementation detail.
   states that the operator approved re-deriving the shape rather than continuing with the full
   machinery, on 2026-07-24.
 
-### Phase 3: Write the criteria edits into the two host catalogs [TODO]
+### Phase 3: Specify the criteria edits [SPECIFIED — execution moves to Phase 8]
 
-Task #34, **re-derived.** There is no new catalog, no canonical relocation, and no per-plugin
-materialization — Phase 2.5 deleted the multi-plugin premise and Phase 2 found the mechanism would
-not have worked here anyway. What remains is edits to two files that already exist.
+Task #34, **re-derived, and then re-sequenced.** There is no new catalog, no canonical relocation,
+and no per-plugin materialization — Phase 2.5 deleted the multi-plugin premise and Phase 2 found the
+mechanism would not have worked here anyway. What remains is edits to two files that already exist.
+
+**Those edits are implementation, and this phase cannot perform them.** The original Phase 3 built a
+*design artifact*; the re-derived one edits `plugins/claude-config/**` and `plugins/claude-memory/**`,
+which are live plugin files. Phase 8 is where the branch splits, and Phase 11 requires documentation
+and implementation to land as separate PRs — so writing them here would put implementation on the
+docs branch and break that rule. The re-derivation created this collision by changing what the phase
+produces without changing where it sits.
+
+**Resolution: this phase is discharged as a specification.** The exact per-file edit list below is
+the deliverable, and it is executed under Phase 8 on the implementation branch. Nothing is lost and
+the phase count does not change; only the commit boundary moves.
 
 **`plugins/claude-config/skills/audit-instructions/reference/criteria.md`**
 
@@ -376,12 +387,13 @@ The convention-registry work item is **dropped**: the registry gates a new cross
 and extending one plugin's own reference file is not one. Task #43 decides separately whether the
 version stops being body prose and becomes assertable frontmatter.
 
-- **Sanity Check:** `scripts/check-catalog-coverage.sh` (new, per the repo's `check-*.sh` idiom)
-  exits 0: it extracts every `S<n>` id from `design/article-sections.md` and asserts each appears in
-  a catalog entry or in a stated exclusion list. Traceability is an acceptance criterion, and it is
-  the one thing the smaller shape must not lose.
-- **Sanity Check:** `/skill-quality:check` passes for both modified skills, and
-  `scripts/check-cross-plugin-source-drift.sh --check` still exits 0 — proving no edit accidentally
+- **Sanity Check — this phase.** Every `S<n>` id in `design/article-sections.md` maps to a named edit
+  above or to a stated exclusion. That is assertable against the specification alone, and it is what
+  keeps traceability — an acceptance criterion — from being the thing the smaller shape loses.
+- **Sanity Check — carried to Phase 8, where the edits land.**
+  `scripts/check-catalog-coverage.sh` (new, per the repo's `check-*.sh` idiom) exits 0;
+  `/skill-quality:check` passes for both modified skills; and
+  `scripts/check-cross-plugin-source-drift.sh --check` still exits 0, proving no edit accidentally
   created a byte-identical cluster.
 
 ### Phase 4: Define the re-run contract [DONE]
@@ -609,6 +621,12 @@ Review: architecture
 
 Per the Phase 5 map. Each check ships with its criteria citation (never a restatement), its
 false-positive carve-out, and evals where the owning plugin's conventions require them.
+
+**Phase 3's specified criteria edits execute here**, on the implementation branch, because they touch
+live plugin files. Two further live-file corrections ride with them, both found during design and
+neither belonging to the docs branch: the stale path-scoping claim in `claude-memory`'s
+`reference/official-guidance.md` (task #47), and the setup-corpus fixes (task #45), whose first two
+items are owner-doc changes to `docs/PLUGIN-PHILOSOPHY.md`.
 
 **Branch split happens here, before the first implementation commit.** Phase 11 requires documentation
 and implementation to land as separate PRs; the fork point is the tip of
