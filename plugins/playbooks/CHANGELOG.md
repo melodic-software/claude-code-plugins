@@ -26,10 +26,22 @@ only after that version increases.
   trigger keys on loss or degradation, none on success), the note's decision content, and
   the note's disposition at task end so the debris sweep has an answer.
 - `fable-5`: the communication chapter gains the offer-the-round rule for a large question
-  residue, and the closing message must now name behavior that changed in code the diff
-  does not show.
+  residue, a volunteer question closing that round, a second trigger site for the
+  evaluation-capacity gate, and a closing message that must name behavior which changed in
+  code the diff does not show.
+- `fable-5`: the show-moves section licenses a deliberately divergent spread — several
+  directions differing along the dimension the user cannot put words to — as the
+  extraction instrument when the criterion is recognition-only, handed over for them to
+  react to rather than as an option survey owing a pick.
 
 ### Changed
+
+- `fable-5`: the recommend-an-option rule and the attach-a-recommended-answer rule are both
+  narrowed at their own sites: neither fires when the options exist to elicit the ranking
+  criterion itself, because naming a favourite front-loads the judgment being asked for.
+  The carve-out is defined by the missing criterion, not by a missing preference, and
+  resolves without loading another chapter — trigger-gated loading means the communication
+  chapter is often the only one held.
 
 - `fable-5`: `SKILL.md` stated three of the problem-framing chapter trigger's four arms,
   in both the core-doctrine line and the routing table — the because-clause arm never

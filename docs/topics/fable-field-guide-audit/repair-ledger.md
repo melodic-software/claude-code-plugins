@@ -17,16 +17,18 @@ written out in §3 rather than left to the landing editor.
 - **ship** — lands as `dispositions.md` §5 describes it. No reviewer finding against it.
 - **ship repaired** — lands, with the repair in §3. The substance survives; the wording, scope,
   trigger, or justification does not.
-- **hold** — does not land until the operator rules. Either it fails the skill's own admission bar
+- **hold** — did not land until the operator ruled. Either it failed the skill's own admission bar
   (`SKILL.md:11` — every line encodes something a strong model does not reliably do untold), or the
-  repair changes it into something materially different from what was approved.
+  repair changed it into something materially different from what was approved. All six holds are
+  ruled in §4; **dropped** is what two of them became.
+- **dropped** — a proposed remediation the operator declined. No edit, and it is not deferred work.
 - **decision** — an operator decision, not a remediation. Recorded, not edited.
 
 **Approval context.** The operator authorized "full set live" — everything recommended under D1
 split, D3 option (a), D4 decline, D2 blocked. That authorization was given against
 `dispositions.md`'s recommendations. Five items below cannot honor it as written: D3(a) and R4 were
 refuted by both reviewers, D2 has no implementable form, and R18/R26 fail the admission bar on
-reviewer analysis. Those five are `hold`; the rest proceed.
+reviewer analysis. Those five were held for a ruling and all five were ruled in §4; the verdicts in §2 are post-ruling.
 
 **The standing objection is not reopened here.** `codex-review.md` §4 argues the whole batch lacks
 behavioral evidence — textual differences against one article, no failure cases. The operator saw it
@@ -37,18 +39,18 @@ and chose the full set. It belongs in the PR body, not in this ledger's verdicts
 | Item | Verdict | Ground |
 |---|---|---|
 | **D1** — `problem-framing.md:60` trigger split | ship repaired | Both reviewers back option (ii). Arm 4 as written is not agent-observable (Codex: the agent knows only the user's *disclosed* starting point, never whether the user has worked in an area). Repair R-D1 in §3. Null option (review finding 8) is noted and declined — see §4. |
-| **D2** — `context/opus-adaptation.md` boundary | hold | Both reviewers: presents no options and no recommendation (review finding 9), and its stated reason is wrong (finding 6 — `:52` is structurally identical to its five siblings; applied consistently the reason strips the whole section). Not implementable. Options written out in §4. R16 is separable and proceeds. |
-| **D3** — divergent-spread collision | hold | Option (a) refuted by both. It narrows the exact trigger R3 depends on (finding 2), and misses `communication.md:65` (Codex §3). The repair — narrow both sites — is a **new option (a′)**, not the one approved. Written out in §3; needs a ruling. |
+| **D2** — `context/opus-adaptation.md` boundary | decision | Both reviewers: presents no options and no recommendation (review finding 9), and its stated reason is wrong (finding 6 — `:52` is structurally identical to its five siblings; applied consistently the reason strips the whole section). Not implementable. Options written out in §4. R16 is separable and proceeds. |
+| **D3** — divergent-spread collision | ship repaired | Option (a) refuted by both. It narrows the exact trigger R3 depends on (finding 2), and misses `communication.md:65` (Codex §3). The repair — narrow both sites — is a **new option (a′)**, not the one approved. Written out in §3; ruled in §4 (H1, taken). |
 | **D4** — scope-setting opener | decision | Decline upheld, on the duplication ground (`planning.md:5-11` question 1 already fails on the boundary-not-derivable case), **not** on the erodes-act-directly ground, which Codex showed is overstated. No edit. |
 | **R1** — cost asymmetry gets an owner | ship repaired | Codex §3: R1 avoids duplication **only if it actually converts the dispersed per-tactic clauses to citations**. Adding the paragraph alone is a net-negative edit. The conversion is in scope or R1 does not land. Repair R-R1 in §3. |
 | **R2** — standing prior that requests carry unknowns | ship | No finding against it. One edit with R1 at `problem-framing.md:3` plus the ungated `SKILL.md` bullet. |
-| **R3** — operator evaluation capacity is clearable | ship repaired | Finding 11: "cite-forward in the `:53` shape" understates it — `communication.md:53` states its rule operatively *and* names the owner, so the second site carries operative text. R3 is a two-site edit. Its second site is gated on D3. |
-| **R4** — transfer enough literacy to judge | hold | Finding 1, two independent legs: its object (annotating the blind-spot list) cannot deliver S13 F4 (domain literacy at option-presentation time), and it is gated on *disclosed* unfamiliarity while R3's detection fires on *undisclosed* inability. Codex §3 adds the unresolved `communication.md:16-23` collision. Repair R-R4 in §3 changes what it is; needs a ruling. |
+| **R3** — operator evaluation capacity is clearable | ship repaired | Finding 11: "cite-forward in the `:53` shape" understates it — `communication.md:53` states its rule operatively *and* names the owner, so the second site carries operative text. R3 is a two-site edit; its second site landed as its own trigger line under the H1 ruling, carrying R4's merged literacy clause. |
+| **R4** — transfer enough literacy to judge | ship repaired | Finding 1, two independent legs: its object (annotating the blind-spot list) cannot deliver S13 F4 (domain literacy at option-presentation time), and it is gated on *disclosed* unfamiliarity while R3's detection fires on *undisclosed* inability. Codex §3 adds the unresolved `communication.md:16-23` collision. Repair R-R4 in §3 changes what it is; ruled in §4 (H2, merged into R3). |
 | **R5** — offer the round when residue is large | ship | No finding against it. |
 | **R6** — the volunteer slot | ship repaired | Codex §3: collides with `communication.md:65` ("attach your recommended answer to every question you pose") — there is no recommended answer to "what do you know that I did not ask about". Fixed by D3(a′)'s narrowing of `:65`, which R6 therefore depends on. |
 | **R7** — rank the ask path by downstream invalidation | ship | Codex names it among the safer set (pointer-shaped). |
 | **R8** — elicit an undisclosed starting point | ship | No finding against it. |
-| **R9** — license the divergent spread | ship | Substance clean. **Gated on D3.** |
+| **R9** — license the divergent spread | ship | Substance clean. Unblocked by the H1 ruling; lands at the show-moves site. |
 | **R10** — name the elicitation artifact as an artifact kind | ship repaired | Finding 7: two of three supporting citations are overstated — `reasoning-moves.md:168`'s total rule carries an explicit "prediction does not apply here → strike it" escape, and `problem-framing.md:107`'s negative-criterion mandate is scoped to fixes, with `:109` already routing judgment-shaped tasks. Only the `execution.md:133` debris leg holds. Repair R-R10 in §3. |
 | **R11** — re-run the ambiguity sort on show-move residue | ship | No finding against it. |
 | **R12** — reference fidelity, cross-language port, ask ordering | ship repaired | Finding 5: the fidelity definition ("carries naming, structure and edge-case handling") reproduces the five-tier ordinal it rejects — those are code/spec-shaped properties an image carries none of, so the 2L stamp is unearned. Repair R-R12 in §3. |
@@ -56,18 +58,18 @@ and chose the full set. It belongs in the PR body, not in this ledger's verdicts
 | **R15** — phase-boundary reset | ship | No finding against it. Every existing reset trigger is keyed to loss or degradation; none to successful completion. |
 | **R16** — promote the lesson-note purpose | ship repaired | Finding 6: the promotion is right, the stated reason is wrong. Real ground: `:52` is the only bullet in `opus-adaptation.md:45-52` whose pointer target does not exist. Codex adds a substance risk — "decisions made and why" collides with `context-economy.md:32-33` ("do not pad the note with cheap facts") and partly duplicates `recovery.md:22-26`. Repair R-R16 in §3. |
 | **R17** — the work note's disposition at task end | ship | Codex names it among the safer set (lifecycle completion). |
-| **R18** — a fourth critic: the approver | hold | Finding 10: the `:126` ownership citation says something else ("No other chapter runs this critic" is about the maintainer critic). Codex §3 is the harder objection: `:128`'s bar is already total — *"run every critic whose audience this artifact actually has"* — so an approver who is a real audience is already in scope. Under the admission bar this is an example, not a missing doctrine. Needs a ruling: ship as a named example, or drop. |
+| **R18** — a fourth critic: the approver | dropped | Finding 10: the `:126` ownership citation says something else ("No other chapter runs this critic" is about the maintainer critic). Codex §3 is the harder objection: `:128`'s bar is already total — *"run every critic whose audience this artifact actually has"* — so an approver who is a real audience is already in scope. Under the admission bar this is an example, not a missing doctrine. Ruled in §4 (H4, dropped). |
 | **R19** — name the behavior that changed in code you did not edit | ship | No finding against it. Completes the existing `:118` test, which currently leans on the diff for information the diff structurally cannot carry. |
 | **R20** — route feasibility unknowns out of the ambiguity sort | ship | Codex names it among the safer set. An active mis-route, not a location preference. |
 | **R21** — frame-attribution before execution-attribution | ship repaired | Codex §3: the "returned as wrong" trigger overlaps `debugging.md:5-13`, which requires a deterministic reproduction first for a reported broken behavior. Under trigger-gated loading, whichever chapter loads first decides. Repair R-R21 in §3 narrows the trigger to the not-what-was-meant case. |
 | **R23** — parameterize the blind-spot checklist by domain | ship | Low priority, unchanged. Depends on A1 landing first to be reachable at all. |
 | **R24** — make the scope bound bidirectional | ship | Codex names it among the safer set (pointer, not new doctrine). |
-| **R26** — external-source branch in the check/skip matrix | hold | `dispositions.md` itself concedes it may be stylistic; Codex §3 agrees — `calibration.md:30-38` already requires check-or-downgrade/escalate and `:16` already names doc fetch as an observation source. Fails the admission bar on both reviews. Needs a ruling. |
+| **R26** — external-source branch in the check/skip matrix | dropped | `dispositions.md` itself concedes it may be stylistic; Codex §3 agrees — `calibration.md:30-38` already requires check-or-downgrade/escalate and `:16` already names doc fetch as an observation source. Fails the admission bar on both reviews. Ruled in §4 (H5, dropped). |
 | **A1** — `SKILL.md` states three of four chapter-trigger arms | ship | Both reviewers verified the fact. Finding 4's caveat is recorded, not fatal: fixing it makes the fourth arm operative for the first time, so A1 is narrower in *edit size*, not blast radius. That is the correct trade — the alternative is a documented trigger that structurally never fires. |
 | **A2** — no read-radius rule for a read-only reference tree | ship | `dispositions.md` §7: report-only *unless R12 lands*, in which case it is cheap at the same site. R12 lands. |
 | **A3** — output register vs reader expertise | — | Subsumed by R4; ships or dies with it. Its vocabulary half is rejected independently on 2L. |
 
-**Counts.** 20 ship (11 as written, 9 repaired), 5 hold, 1 decision, 1 subsumed.
+**Counts, after the §4 rulings.** 22 ship (11 as written, 11 repaired), 2 dropped (R18, R26), 2 decisions (D2, D4), 1 subsumed (A3).
 
 ## 3. The repairs, written out
 
@@ -192,9 +194,13 @@ the complaint is about the target, not about a behavior that demonstrably misbeh
 broken behavior routes to `debugging.md`'s reproduction-first rule unchanged, and the new section
 says so in one line, so an agent holding only `problem-framing.md` does not pre-empt it.
 
-## 4. Held for operator ratification
+## 4. Held for operator ratification — all six ruled
 
-Restated in full, each with a recommendation. Nothing in this section lands until ruled.
+**Ruling: every recommendation below was taken.** H1 (a′), H2 (merge into R3), H3 (accept the
+coupling and close D2), H4 (drop R18), H5 (drop R26), H6 (null option declined). Nothing in this
+section is held any longer; the §2 counts become **22 ship, 2 dropped, 2 decisions, 1 subsumed**,
+and §5's sequencing runs to completion. Each entry stays as written, so the recommendation the
+ruling answered remains legible.
 
 **H1 — D3 becomes option (a′).** Approved: (a), one narrowing at `communication.md:80`. Repaired:
 three narrowings across `:80` and `:65` plus a separate trigger line for R3's gate (§3, R-D3).

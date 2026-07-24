@@ -76,7 +76,9 @@ TRIGGER: the acceptance criterion is one the user can only judge on sight, OR de
 
 Before spending on candidates, test the assumption the move rests on: that the user will recognize the answer when they see it. When you cannot name a reference point for how good this class of artifact gets, and neither can they, N candidates cost N times one and settle nothing. Establish what separates a strong version from an obvious one first, and put that in the frame. Run this at frame time, before the approach is chosen — that is what keeps it clear of the reasoning-moves chapter, section "Taste breaks ties; it never reopens verified work", which governs a choice already made.
 
-Then show instead of asking: a sketch, a throwaway prototype, or one fully worked example surfaces the criterion at a fraction of a full build.
+The gate is their ability, not their disclosure of it. Someone who has never seen this class of work usually cannot say so, because not knowing what separates a good one from a bad one is the same condition as not knowing that you don't. Where the gap is there, whatever you surface for judgment carries enough with it that they can judge — what the question is, why it bites in this domain, what a good answer looks like. Functional bar only: enough to evaluate the item, never a reading level chosen for them.
+
+Then show instead of asking: a sketch, a throwaway prototype, or one fully worked example surfaces the criterion at a fraction of a full build. When the criterion is one they can only recognize on sight, several deliberately different directions beat one refined candidate — and the divergence has to run along the dimension they cannot put words to, not produce N variations of a single idea, which surfaces nothing but polish. What you hand over is a deliverable for them to react to, never an option survey you owe a pick on.
 
 When the user describes a desired pattern in prose, hunt a concrete exemplar rather than interpreting the description — a reference carries the dozen decisions their prose dropped. Three rules govern the hunt, and one governs what you do with what you find:
 
