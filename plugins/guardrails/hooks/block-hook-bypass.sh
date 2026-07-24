@@ -459,20 +459,28 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   # Write-Output "open("`) over-blocks. Fail-safe direction (over-block, never
   # under-block) and structurally unusual for LLM output; kept byte-for-byte in step
   # with the Bash lane rather than diverging one tool's precision from the other.
-  # Blank here-strings and quoted spans, then drop line comments, before the
-  # INVOCATION scan — so an inert `python3 -c` mentioned inside a here-string body
-  # or a `#` comment is not read as a real invocation (parity with the Bash lane's
-  # strip_literals, which drops heredocs and comments). ps::blank_herestrings sets
-  # PS_BLANKED (the RAW command when a here-string is unbalanced — fail-safe toward
-  # over-block, never under-block). The INDICATOR scan below still runs raw (see the
-  # accepted-floor note above): the write tokens legitimately live in the quoted
-  # `-c` payload, exactly as the Bash lane scans them.
+  # Normalize evasions before the INVOCATION scan, mirroring ps::write_bypass:
+  # blank here-strings; DELETE backticks (a `python3<bt><newline>-c` line
+  # continuation then joins under `[[:space:]]+`, and `pyth<bt>on3` escape
+  # obfuscation resolves); drop `#` line comments. Then two invocation scans:
+  #  (1) a call/dot-source of a QUOTED `python3` command word on the quote-INTACT
+  #      text (`& 'python3' -c`) — quote-blanking would erase the command word, so
+  #      it is matched before blanking, exactly as ps::write_bypass catches a
+  #      quoted writer name; and
+  #  (2) the bare invocation on the quote-blanked text (`python3 -c`, an unquoted
+  #      `& python3 -c`, and the backtick-joined continuation).
+  # The write INDICATOR is still scanned raw (the tokens live in the quoted `-c`
+  # payload) — the accepted-floor note above.
+  _q="\"'"
   ps::blank_herestrings "$COMMAND"
-  _ps_exec_lc="$(ps::blank_quoted_spans "$PS_BLANKED")"
-  _ps_exec_lc="$(printf '%s' "$_ps_exec_lc" | sed 's/#.*$//')"
-  _ps_exec_lc="${_ps_exec_lc,,}"
-  if [[ "$_ps_exec_lc" =~ (^|[[:space:];|&()]+)python3[[:space:]]+-c ]] &&
-    [[ "$COMMAND_LC" =~ $_py_write ]]; then
+  _ps_nobt="${PS_BLANKED//\`/}"
+  _ps_nobt="$(printf '%s' "$_ps_nobt" | sed 's/#.*$//')"
+  _ps_lcq="${_ps_nobt,,}"
+  _ps_bare="$(ps::blank_quoted_spans "$_ps_nobt")"
+  _ps_bare="${_ps_bare,,}"
+  if [[ "$COMMAND_LC" =~ $_py_write ]] &&
+    { [[ "$_ps_bare" =~ (^|[[:space:];|&()]+)python3[[:space:]]+-c ]] ||
+      [[ "$_ps_lcq" =~ (^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*[$_q]python3[$_q][[:space:]]+-c ]]; }; then
     block_bypass "python-write" "python3 -c file write bypasses Write/Edit hooks"
   fi
   emit_tel "ok" ""

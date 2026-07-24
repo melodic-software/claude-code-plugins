@@ -503,6 +503,14 @@ run_pwsh "PS: here-string mentions python3 -c open (allowed)" \
   "$(printf "@'\npython3 -c open(\n'@\nWrite-Output ok")" 0
 run_pwsh "PS: line comment mentions python3 -c open (allowed)" \
   "Write-Output ok # python3 -c open(" 0
+# Evasion parity with ps::write_bypass: a call/dot-source of a QUOTED python3, and a
+# backtick line-continuation between python3 and -c, are the same interpreter write.
+run_pwsh "PS: & 'python3' -c open write (blocked)" \
+  "& 'python3' -c \"open('x','w').write('a')\"" 2
+run_pwsh "PS: & \"python3\" -c open write (blocked)" \
+  "& \"python3\" -c \"open('x','w').write('a')\"" 2
+run_pwsh "PS: backtick-continuation python3 -c open (blocked)" \
+  "$(printf 'python3 `\n-c "open('"'"'x'"'"','"'"'w'"'"').write('"'"'a'"'"')"')" 2
 
 # Review round 8: module-qualified producer heads.
 run_pwsh "PS: module-qualified Write-Output > file (blocked)" \
