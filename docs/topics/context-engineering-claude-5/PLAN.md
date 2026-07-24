@@ -509,7 +509,24 @@ is testable, and the dispatch order is fixed. If Phase 2 chose the consumer-arti
 no-shared-catalog shape, re-evaluate whether the catalog now warrants its own `/planning:design`
 pass before Phase 8.
 
-### Phase 7: Bring the setup-skill corpus to its owner doc [TODO]
+### Phase 7: Bring the setup-skill corpus to its owner doc [AUDITED]
+
+**The audit is done and recorded in [design/setup-corpus-audit.md](design/setup-corpus-audit.md);
+the fixes are task #45.** 43 setup skills across 60 plugins: 41 conforming, 2 partial, 0 fully
+non-conforming, 4 legitimately check-only with their premises settled from manifests rather than
+from the skills' own prose. No setup skill reads a sibling plugin's files.
+
+The two most useful findings are not plugin defects. `context-guard` and `rate-limit-guard` share one
+configuration shape — the user's own `settings.json` plus a plugin-owned machine file — resolved two
+different ways, and the owner doc sanctions neither; and "non-trivial `userConfig`", which the
+requirement gate turns on, is never defined, leaving three plugins' status unanswerable from the
+doc's own text. Both are owner-doc fixes that dissolve plugin-level findings.
+
+One duplication decision remains open: a 61-line byte-identical block, about two thirds of each file,
+shared by `discovery` and `verification`. It cannot ride the existing cluster registry, which takes
+whole files only — extracting it to a per-plugin `reference/` file would make it registrable.
+
+The original phase text follows.
 
 Task #29, **reclassified.** The original framing — extract a new SSOT across the 43 `setup` skills —
 is plugin-form-illegal: any single home is either a repo-level doc, unreachable from an installed
@@ -592,6 +609,26 @@ Tasks #31, #30, #20. Order matters and is not the task order.
    this machine, where no managed policy file exists today.
 3. **Then apply**, repo first: `claude-code-plugins` itself, recording hit rate, false positives, and
    dispatch cost per check.
+
+**This repository cannot exercise every rule, and the gap is measured rather than assumed.** Counted
+at `cbf27e88a9`: **0** `@`-imports in the one root `CLAUDE.md` (63 lines) or in `AGENTS.md`
+(28 lines); **0** nested `CLAUDE.md` files; **0** files under `.claude/rules/` — the directory does
+not exist; **0** files carrying `paths:` frontmatter anywhere in the tree. So D6's two target
+defects — `@path`-as-context-saving, and content in a compaction-losing destination that needs to
+survive compaction — have **zero instances here**, because the destination class is empty. The repo
+also already prohibits the practice in synced text: "Never `@import` (imports expand at launch,
+defeating lazy load)" appears at line 211 of three files.
+
+Two consequences. A green dogfood run is not evidence that D6 works — it is evidence the repository
+is clean, and the two must not be conflated in the Phase 10 report. And D6 needs a **synthetic
+fixture** to be validated at all, which is a Phase 6 design obligation rather than a Phase 10
+discovery. The rules still ship: the pass targets organizations, not only this machine, and an
+absent defect class here says nothing about a consumer's tree.
+
+Two further counts that shape what the run will surface: 27 of 181 skill bodies exceed 200 lines and
+the largest is 499, one line under the hard cap; and 73 of 181 already carry a `reference/` or
+`context/` directory, with only 19 genuinely flat — so the progressive-disclosure surface is
+narrower than the raw skill count suggests.
 4. **Then route** the user-scope findings. Every one is a recommendation backfilled through
    `melodic-software/dotfiles` — never an in-place edit.
 
