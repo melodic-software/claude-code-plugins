@@ -269,6 +269,24 @@ else
   fail "oversized payload not teed"
 fi
 
+# --- Case 15b: payload beyond one read chunk still passes through whole ------
+HOME15B="$WORK/home15b"
+mkdir -p "$HOME15B"
+HUGE_FILLER="$(head -c 1500000 /dev/zero | tr '\0' 'y')"
+HUGE_INPUT="$(printf '{"session_id":"sess-huge","filler":"%s","context_window":{"used_percentage":9}}' "$HUGE_FILLER")"
+WANT_BYTES=${#HUGE_INPUT}
+GOT_BYTES=$(printf '%s' "$HUGE_INPUT" | HOME="$HOME15B" bash "$TEE" wc -c | tr -d ' \r\n')
+if [[ "$GOT_BYTES" == "$WANT_BYTES" ]]; then
+  ok ">1MiB payload → wrapped command receives every byte ($GOT_BYTES)"
+else
+  fail ">1MiB payload truncated: wrapped command saw $GOT_BYTES of $WANT_BYTES bytes"
+fi
+if [[ -f "$HOME15B/$CTX_REL/sess-huge.json" ]] && [[ "$(jq -r '.context_window.used_percentage' <"$HOME15B/$CTX_REL/sess-huge.json")" == "9" ]]; then
+  ok ">1MiB payload still teed"
+else
+  fail ">1MiB payload not teed"
+fi
+
 # --- Case 16: same-session re-write → newest wins ----------------------------
 printf '{"session_id":"sess-42","context_window":{"used_percentage":77}}' | HOME="$HOME1" bash "$TEE" cat >/dev/null
 if [[ "$(jq -r '.context_window.used_percentage' <"$SNAP1")" == "77" ]]; then
