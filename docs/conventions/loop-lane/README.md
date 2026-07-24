@@ -214,10 +214,20 @@ That reader contract is `plugins/rate-limit-guard/reference/reader-contract.md`,
 `rate-limit-guard` plugin in a later phase. This convention records the inline-floor rule so the
 values stay byte-identical across lanes; fleet audits check conformance per consumer.
 
-**Single-account-per-machine invariant.** The tee file is last-writer-wins and carries no account
-identifier, so a mid-drain switch to a second account feeds one account's healthy windows to lanes
-running on the exhausted one. The guard cannot detect this; operation assumes one account per
-machine.
+**Account-scoped tee record.** The tee file is last-writer-wins, so a machine running lanes under
+more than one account would otherwise feed one account's healthy windows to lanes running on the
+exhausted one. The record therefore carries the **account identifier** its windows were observed
+under — an opaque, non-secret handle; the record never carries a credential — and a lane treats a
+record whose identifier does not match its own active account exactly as it treats a stale one: the
+guard mode drops to `unknown` and the conservative floor applies, rather than trusting another
+account's headroom.
+
+This replaces a prior single-account-per-machine assumption, which was descriptive of how the guard
+happened to be built rather than normative, and which fail-**opened** in a contract that fail-closes
+on every other unresolvable input. It also removed a solo-operator premise from a contract whose
+sibling states that it "assumes no machine, org size, or budget"
+([`routines.md`](../../../plugins/autonomy/reference/routines.md) §Hosting stance) — a multi-account
+machine is an ordinary team and multi-tenant shape, not an exotic one.
 
 **Guard-mode telemetry.** Each lane records the guard's mode — proactive, reactive, or unknown — in
 its #502 telemetry block every cycle, so a silent degradation to reactive-only stays visible on the
@@ -227,5 +237,18 @@ tracking surface.
 
 This contract is versioned in [`CHANGELOG.md`](CHANGELOG.md). A change to the topology, the
 escalation contract, the tier vocabulary, or any loop-layer invariant is a major bump; additive
-guidance is a minor bump. **Re-derivation trigger:** any new model release re-audits the
-capability-tier table (§3), recorded as a changelog entry.
+guidance is a minor bump.
+
+**Re-derivation triggers.** Two, and every one of them is recorded as a changelog entry:
+
+- Any new model release re-audits the capability-tier table (§3).
+- Any change to this convention, or to a consuming lane, that RELIES on an upstream-sourced claim
+  re-verifies that claim against its cited page first and refreshes the claim's verification date
+  with the outcome.
+
+A dated verification stamp in this document is an as-of record, never standing authority. The
+upstream surfaces these claims rest on — the `/loop` seven-day expiry, the `ScheduleWakeup` bounds,
+model-alias semantics, the rate-limit windows — move on a research-preview cadence, and a stamp
+carrying no re-derivation trigger reads as a settled fact the longer it sits. Where re-verification
+finds drift, the changed value lands here as a recorded entry rather than silently inside a lane
+body.

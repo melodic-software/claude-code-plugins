@@ -5,6 +5,30 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3) and is recorded here.
 
+## Unreleased — bump classification USER-RESERVED
+
+Two corrections land together. Their SemVer tier is genuinely ambiguous under this contract's own
+rule, so the version is deliberately unassigned and the arbiter is the operator; each entry states
+the case both ways rather than picking one.
+
+- **Account-scoped tee record (§6).** The tee record now carries the account identifier its windows
+  were observed under, and a lane treats an identifier mismatch exactly as it treats a stale record
+  — guard mode `unknown`, conservative floor — instead of trusting another account's headroom. This
+  replaces the prior single-account-per-machine assumption, whose stated rationale was descriptive
+  of how the guard happened to be built and which fail-**opened** where the rest of the contract
+  fail-closes. **Bump ambiguity:** §6 is the rate-limit guard binding rather than a §4 loop-layer
+  invariant, which reads as additive guidance and a **minor**; but the change replaces a stated
+  operating assumption that every consuming lane inlines, which reads as a change to a shared
+  invariant and a **major**.
+- **Second re-derivation trigger (§Versioning).** Any change relying on an upstream-sourced claim
+  now re-verifies that claim against its cited page first and refreshes its date. Previously only a
+  new model release triggered re-derivation, so the upstream-sourced claims — `/loop` expiry,
+  `ScheduleWakeup` bounds, alias semantics, rate-limit windows — carried a dated stamp with no
+  expiry, which reads as standing authority the longer it sits. **Bump ambiguity:** adding a trigger
+  is additive guidance and a **minor**; but the §Versioning trigger set governs when this contract
+  must change at all, so altering it changes the contract's own maintenance obligations, which reads
+  as a **major**.
+
 ## 1.0.0 — 2026-07-23
 
 Initial published contract. Lands before the second adopter, per the convention-registry rule: the
