@@ -12,21 +12,29 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   forms (`ps::write_bypass`) and then `exit 0`ed **before** the shell-agnostic scans, so
   `python3 -c "open('x','w')…"` — the identical command the Bash lane blocks — executed unguarded when
   issued through the PowerShell tool. Reproduced end-to-end: same command, Bash → blocked, PowerShell →
-  file written. The interpreter rule now also runs on the PowerShell lane, mirroring the Bash lane's
-  two-part shape: the **invocation** is detected in a quote-blanked form (`ps::blank_quoted_spans`, so a
-  quoted mention stays inert) while the write **indicators** are scanned on the raw command, where they
-  legitimately live inside the quoted `-c` payload. PowerShell cmdlet/redirect coverage is unchanged.
-  Both lanes also recognize a **path-qualified** interpreter (`/usr/bin/python3 -c`,
-  `& 'C:\Python313\python3.exe' -c`, bare `C:\Python313\python3.exe -c`): the command-word boundary
-  admits `/` `\` path separators and an optional `.exe`, and the quoted-call scan admits a path prefix
-  inside the quotes — all anchored on the `python3` basename, so `notpython3` and a non-python quoted exe
-  (`& 'C:\...\app.exe'`) stay inert. The PowerShell lane also normalizes invoked script blocks (`{`/`}` →
-  space) before the scan, so a compact `&{python3 -c …}`, a spaced `& {python3 …}`, and a quoted name
-  inside the block (`&{'python3' …}`) collapse to the covered `& python3` / `& 'python3'` forms (this is
-  PowerShell-only — `&{cmd}` has no Bash `{ …; }` analogue). Regression fixtures added for real
-  `open(`/`pathlib` writes (MUST block), path-qualified + script-block forms (MUST block), and read-only
-  `os.path.normpath` / quoted mention / `notpython3` / non-python exe / a fully-quoted `&{python3 …}`
-  string (MUST stay quiet). This was the in-comment "deferred to A2b" gap.
+  file written. The interpreter rule now also runs on the PowerShell lane. The **Bash** lane keeps its
+  precise `python3 -c` scan (its `strip_literals` is genuinely quote-aware and Bash has no `<# #>` block
+  comments or `&{}` script blocks) and additionally recognizes a **path-qualified** interpreter
+  (`/usr/bin/python3 -c`, `.exe`), anchored on the `python3` basename so `notpython3` stays inert.
+- **The PowerShell lane deliberately DIVERGES from the Bash lane and uses a fail-closed sink instead of a
+  precise scan.** PowerShell is not faithfully bash-tokenizable, and a precise regex/normalize stack could
+  not keep up — successive review rounds each surfaced a fresh evasion (path-qualified target, `&{python3}`
+  script block, quoted-`#` comment truncation, with `<# #>` block comments and `-ArgumentList`
+  arg-splitting still open). Following the repo's SINK DOCTRINE (`ps::classify_git_command` /
+  `ps::might_invoke_git`), the lane now blocks on the mangle-resistant **co-occurrence** of (a) a raw write
+  indicator (`_py_write`) and (b) a python3 interpreter token **plus** a `-c` inline-code flag, both seen
+  on the quote-intact, backtick-recovered command (`ps::might_write_via_python3`). This uniformly closes
+  the quoted / path-qualified / brace-glued / backtick-obfuscated / block-comment / arg-split forms. `-c`
+  is **required** (position-independent), so a legitimate script or module run (`python3 build.py`,
+  `python3 -m tool …`) that merely touches an `open(`-like path is **not** blocked. **Accepted behavior
+  change (fail-closed):** a command that only *mentions* `python3 … -c` + a write indicator in prose, a
+  line/block comment, or a quoted string now **over-blocks** (three prior allow-fixtures flipped to
+  expect-block); here-string mentions stay inert (blanked first, like the git lane). **Accepted residual:**
+  a stdin heredoc (`python3 - <<PY … PY`, no `-c`) is uncovered, as it is today. Regression fixtures cover
+  real `open(`/`pathlib` writes, every evasion form (path-qualified, script block, block comment,
+  arg-split — MUST block), the flipped mention cases (MUST block), and script/module runs + read-only
+  `os.path.normpath` + non-python quoted exe + here-string mention (MUST stay quiet). This was the
+  in-comment "deferred to A2b" gap.
 
 ## [0.14.1]
 

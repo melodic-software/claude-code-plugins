@@ -495,60 +495,65 @@ run_pwsh "PS: & { Write-Output secret } > file (blocked)" \
 run_pwsh "PS: & { git diff } > file (tool producer, allowed)" \
   "& { git diff } > out.txt" 0
 
-# Interpreter-producer writes are shell-agnostic: the PowerShell branch must not
-# exit before the python3 -c rule, or the identical command the Bash lane blocks
-# sails through under the PowerShell tool (live-reproduced bypass).
+# Interpreter-producer writes under the PowerShell tool: PowerShell is not
+# faithfully bash-tokenizable, so this lane follows the SINK DOCTRINE — block on
+# the mangle-resistant co-occurrence of a raw write indicator (_py_write) AND a
+# python3 token + `-c` inline-code flag (ps::might_write_via_python3), rather than a
+# precise `python3 -c` scan that review rounds defeated. `-c` is REQUIRED so script
+# and module runs stay allowed; MENTIONS over-block (the accepted fail-closed cost).
 run_pwsh "PS: python3 -c open write (blocked)" \
   "python3 -c \"open('x','w').write('a')\"" 2
 run_pwsh "PS: python3 -c pathlib write_text (blocked)" \
   "python3 -c \"import pathlib; pathlib.Path('x').write_text('a')\"" 2
+# No write indicator (read-only os.path.normpath) — allowed even with python3 -c.
 run_pwsh "PS: python3 -c read-only os.path.normpath (allowed)" \
   "python3 -c \"import os; print(os.path.normpath('a/b'))\"" 0
-run_pwsh "PS: quoted mention of python3 -c open (allowed)" \
-  "Write-Output 'run python3 -c open() later'" 0
-# here-string body / line comment mentioning python3 -c + a write indicator is inert
-# text, not an invocation — blanked before the invocation scan (Bash-lane parity).
+# `-c` REQUIRED: a script run / module run that merely touches an `open(`-like path
+# is NOT an inline-code write — stays allowed (spares legitimate python3 invocations).
+run_pwsh "PS: python3 script run, open( in an arg, no -c (allowed)" \
+  "python3 build.py --path \"open('x','w')\"" 0
+run_pwsh "PS: python3 -m module run, open( in an arg, no -c (allowed)" \
+  "python3 -m mytool \"open('x','w')\"" 0
+# here-string mention stays inert (blanked before the probe, like the git lane).
 run_pwsh "PS: here-string mentions python3 -c open (allowed)" \
   "$(printf "@'\npython3 -c open(\n'@\nWrite-Output ok")" 0
-run_pwsh "PS: line comment mentions python3 -c open (allowed)" \
-  "Write-Output ok # python3 -c open(" 0
-# Evasion parity with ps::write_bypass: a call/dot-source of a QUOTED python3, and a
-# backtick line-continuation between python3 and -c, are the same interpreter write.
+# ACCEPTED OVER-BLOCK (fail-closed): a MENTION of python3 … -c + a write indicator in
+# prose, a line comment, or a quoted string now blocks — the guard cannot prove a
+# non-tokenizable PowerShell command is a mere mention.
+run_pwsh "PS: prose mention of python3 -c open now over-blocks (blocked)" \
+  "Write-Output 'run python3 -c open() later'" 2
+run_pwsh "PS: line-comment mention of python3 -c open now over-blocks (blocked)" \
+  "Write-Output ok # python3 -c open(" 2
+run_pwsh "PS: quoted &{python3 -c open( string now over-blocks (blocked)" \
+  "Write-Output '&{python3 -c open(}'" 2
+# Quoted / path-qualified / brace-glued / backtick-obfuscated python3 with -c: all
+# caught by the token+`-c` probe (quote-intact, backtick-recovered).
 run_pwsh "PS: & 'python3' -c open write (blocked)" \
   "& 'python3' -c \"open('x','w').write('a')\"" 2
 run_pwsh "PS: & \"python3\" -c open write (blocked)" \
   "& \"python3\" -c \"open('x','w').write('a')\"" 2
 run_pwsh "PS: backtick-continuation python3 -c open (blocked)" \
   "$(printf 'python3 `\n-c "open('"'"'x'"'"','"'"'w'"'"').write('"'"'a'"'"')"')" 2
-# Path-qualified call target: `& 'C:\Python313\python3.exe' -c` runs the covered
-# interpreter by absolute path. Unlike the writer-cmdlet residual (cmdlets are not
-# invoked by path), python3.exe IS path-invocable, so the quoted-call scan anchors
-# on the python3 basename inside the quotes. Bare unquoted path-qualified too.
 run_pwsh "PS: & 'C:\\...\\python3.exe' -c open write (blocked)" \
   "& 'C:\\Python313\\python3.exe' -c \"open('x','w').write('a')\"" 2
 run_pwsh "PS: bare C:\\...\\python3.exe -c open write (blocked)" \
   "C:\\Python313\\python3.exe -c \"open('x','w').write('a')\"" 2
-# A quoted call to a NON-python program stays allowed even with a write indicator
-# nearby — the anchor is the python3 basename, not any quoted exe path.
-run_pwsh "PS: & 'C:\\...\\app.exe' with open mention (allowed)" \
-  "& 'C:\\Program Files\\app.exe' -c \"print open(\"" 0
-# Invoked script block: `&{python3 -c ...}` runs the interpreter with the command
-# glued to the opening brace, so the char before python3 is `{`. Braces are
-# normalized to spaces before the scan (both lanes' quote-intact + blanked forms),
-# so the compact `&{...}`, the spaced `& {...}`, AND a quoted name inside the block
-# (`&{'python3' -c}`) all resolve to the already-covered `& python3` / `& 'python3'`
-# forms. This is PowerShell-only: `&{cmd}` is a script-block invocation with no Bash
-# analogue (a Bash `{ …; }` group requires surrounding spaces, already covered).
 run_pwsh "PS: compact &{python3 -c} open write (blocked)" \
   "&{python3 -c \"open('x','w').write('a')\"}" 2
 run_pwsh "PS: spaced & {python3 -c} open write (blocked)" \
   "& {python3 -c \"open('x','w').write('a')\"}" 2
 run_pwsh "PS: &{'python3' -c} quoted-in-block open write (blocked)" \
   "&{'python3' -c \"open('x','w').write('a')\"}" 2
-# A python3 write mention fully INSIDE a quoted string is still inert — brace
-# normalization does not defeat quote-blanking.
-run_pwsh "PS: quoted string containing &{python3 -c open( (allowed)" \
-  "Write-Output '&{python3 -c open(}'" 0
+# Block comment as decoy + real invocation after it: token+`-c` still fires.
+run_pwsh "PS: block-comment decoy then python3 -c open write (blocked)" \
+  "$(printf '<# note #> python3 -c "open('"'"'x'"'"','"'"'w'"'"').write('"'"'a'"'"')"')" 2
+# Arg-splitting: `-c` hidden in -ArgumentList is still a `-c` token (quote-bounded).
+run_pwsh "PS: Start-Process python3 -ArgumentList '-c',open (blocked)" \
+  "Start-Process python3 -ArgumentList '-c','open(\"x\",\"w\").write(\"a\")'" 2
+# A non-python quoted program with a write indicator stays ALLOWED — no python3
+# token, so the co-occurrence probe does not fire (write_bypass allows quoted progs).
+run_pwsh "PS: & 'C:\\...\\app.exe' with open mention (allowed)" \
+  "& 'C:\\Program Files\\app.exe' -c \"print open(\"" 0
 
 # Review round 8: module-qualified producer heads.
 run_pwsh "PS: module-qualified Write-Output > file (blocked)" \

@@ -207,6 +207,33 @@ ps::might_invoke_git() {
   return 1
 }
 
+# True (0) when the command both names a python3 interpreter TOKEN and carries a
+# `-c` inline-code flag. Paired with a raw write indicator by the caller, this is
+# the mangle-resistant sink for the interpreter-write lane under the PowerShell
+# tool — the python3 analogue of ps::might_invoke_git, following the same SINK
+# DOCTRINE: PowerShell is not faithfully bash-tokenizable, so rather than trust a
+# precise `python3 -c` scan that successive review rounds defeated (path-qualified
+# target, `&{python3}` script block, quoted-`#` comment truncation, block comments,
+# arg-splitting), ask the weaker question "could an inline-code python3 write be
+# here at all?" and let the caller block on the co-occurrence.
+#
+# `q` carries the two quote characters so neither appears literally in the regex.
+# Both probes run on the quote-INTACT, backtick-recovered text so a quoted
+# (`& 'python3'`), path-qualified (`…\python3.exe`), brace-glued (`&{python3`), or
+# comment-adjacent python3 — and a `-c` split from it or hidden in an arg list
+# (`-ArgumentList '-c',…`) — are all seen; a python3 token inside a here-string is
+# not (the caller blanks here-strings first). The `-c` boundary admits whitespace
+# or a quote on each side, so `'-c'` matches while a longer token (`-Command`,
+# `-Confirm`) does not. python3-ONLY by design: `py -3` / bare `python` and a
+# stdin heredoc (`python3 - <<PY … PY`, no `-c`) stay uncovered, as they are today.
+ps::might_write_via_python3() {
+  local recovered="${1//\`/}" lc q="\"'"
+  lc="${recovered,,}"
+  [[ "$lc" =~ (^|[^[:alnum:]_.])python3([.]exe)?([^[:alnum:]_]|$) ]] || return 1
+  [[ "$lc" =~ (^|[[:space:]$q])-c([[:space:]$q]|$) ]] || return 1
+  return 0
+}
+
 # True (0) when the command uses a dynamic-invocation form that runs an arbitrary
 # string as a command: `iex`/`invoke-expression` (of anything), or a call `&` /
 # dot-source `.` of a STRING LITERAL (`& 'git commit …'`, `. "…"`). These defeat

@@ -446,58 +446,34 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   if ps::write_bypass "$COMMAND"; then
     block_bypass "powershell-write" "PowerShell file-write cmdlet/redirect bypasses Write/Edit hooks"
   fi
-  # Interpreter-producer writes are shell-AGNOSTIC: `python3 -c '<write>'` bypasses
-  # Write/Edit identically whichever tool launches it, and ps::write_bypass models only
-  # PowerShell cmdlet/redirect forms — so without this the identical command that the
-  # Bash lane blocks sails through under the PowerShell tool. Mirror the Bash lane's
-  # two-part shape: detect the INVOCATION in a quote-blanked form (so a quoted mention
-  # stays inert) and scan the RAW command for the write indicators, which legitimately
-  # live inside the quoted `-c` payload the blanking removes. Accepted floor (identical
-  # to the Bash lane's python-write rule): the indicator scan is raw-command-wide, not
-  # scoped to the `-c` argument, so a real `python3 -c` invocation compounded with an
-  # unrelated later segment that merely mentions an indicator (`python3 -c "print(1)";
-  # Write-Output "open("`) over-blocks. Fail-safe direction (over-block, never
-  # under-block) and structurally unusual for LLM output; kept byte-for-byte in step
-  # with the Bash lane rather than diverging one tool's precision from the other.
-  # Normalize evasions before the INVOCATION scan, mirroring ps::write_bypass:
-  # blank here-strings; DELETE backticks (a `python3<bt><newline>-c` line
-  # continuation then joins under `[[:space:]]+`, and `pyth<bt>on3` escape
-  # obfuscation resolves); drop `#` line comments. Then two invocation scans:
-  #  (1) a call/dot-source of a QUOTED `python3` command word on the quote-INTACT
-  #      text (`& 'python3' -c`) — quote-blanking would erase the command word, so
-  #      it is matched before blanking, exactly as ps::write_bypass catches a
-  #      quoted writer name. A path-qualified quoted target
-  #      (`& 'C:\Python313\python3.exe' -c`) is the same interpreter: the optional
-  #      `[^quote]*[\/]` prefix and `.exe` suffix anchor on the python3 BASENAME.
-  #      Unlike write_bypass's arbitrary-quoted-program residual (cmdlets are not
-  #      invoked by path), python3.exe IS path-invocable, so this is in scope; the
-  #      basename anchor keeps a non-python quoted exe (`& 'C:\...\app.exe'`) inert.
-  #  (2) the bare invocation on the quote-blanked text (`python3 -c`, an unquoted
-  #      `& python3 -c`, a path-qualified `C:\Python313\python3.exe -c` via the `/`
-  #      `\` boundary + optional `.exe`, and the backtick-joined continuation).
-  # The write INDICATOR is still scanned raw (the tokens live in the quoted `-c`
-  # payload) — the accepted-floor note above.
-  _q="\"'"
+  # Interpreter-producer writes (`python3 -c "<inline code that writes>"`) route
+  # around Write/Edit whichever tool launches them, and ps::write_bypass models only
+  # PowerShell cmdlet/redirect forms. On the BASH tool the precise `python3 -c` scan
+  # (further below) is reliable: strip_literals is genuinely quote-aware, and Bash
+  # has no `<# #>` block comments or `&{}` script blocks. PowerShell is NOT
+  # faithfully bash-tokenizable, and successive review rounds proved that a precise
+  # regex/normalize stack cannot keep up — each round exposed a fresh evasion
+  # (path-qualified target, `&{python3}` script block, quoted-`#` comment
+  # truncation, with block comments and `-ArgumentList` arg-splitting still open).
+  # So this lane CONSCIOUSLY DIVERGES from the Bash lane (justified above) and
+  # follows the repo's SINK DOCTRINE (ps::classify_git_command / ps::might_invoke_git):
+  # do not trust a precise negative on a mangled command — block on the
+  # mangle-resistant CO-OCCURRENCE of
+  #   (a) a write INDICATOR in the raw command (_py_write — the tokens live in the
+  #       quoted `-c` payload, so the scan is raw, exactly as the Bash lane), AND
+  #   (b) a python3 interpreter TOKEN plus a `-c` inline-code flag both present
+  #       (ps::might_write_via_python3, quote-INTACT + backtick-recovered).
+  # `-c` is REQUIRED and position-independent, so a legitimate script/module run
+  # (`python3 build.py`, `python3 -m tool …`) that merely touches an `open(`-like
+  # path is NOT blocked — only inline-code writes are. ACCEPTED OVER-BLOCK (the
+  # fail-closed choice the user approved for this lane): a command that only MENTIONS
+  # `python3 … -c` + a write indicator in prose, a line/block comment, or a quoted
+  # string now blocks; here-string mentions stay inert (blanked first, like the git
+  # lane). ACCEPTED RESIDUAL: a stdin heredoc (`python3 - <<PY … PY`, no `-c`) is
+  # uncovered here, as it is today.
   ps::blank_herestrings "$COMMAND"
-  _ps_nobt="${PS_BLANKED//\`/}"
-  _ps_nobt="$(printf '%s' "$_ps_nobt" | sed 's/#.*$//')"
-  # Invoked script blocks glue the first command straight onto the brace
-  # (`&{python3 -c …}`), so the char before the interpreter is `{` — absent from
-  # the boundary classes below. Normalize `{`/`}` to spaces here, before BOTH
-  # derived forms, so the compact `&{…}`, the spaced `& {…}`, and a quoted name
-  # inside the block (`&{'python3' …}`) all collapse to the already-covered
-  # `& python3` / `& 'python3'` shapes. PowerShell-only: `&{cmd}` is a script-block
-  # invocation with no Bash analogue (a Bash `{ …; }` group needs surrounding
-  # spaces, already covered), so the Bash lane needs no matching change.
-  _ps_nobt="${_ps_nobt//\{/ }"
-  _ps_nobt="${_ps_nobt//\}/ }"
-  _ps_lcq="${_ps_nobt,,}"
-  _ps_bare="$(ps::blank_quoted_spans "$_ps_nobt")"
-  _ps_bare="${_ps_bare,,}"
-  if [[ "$COMMAND_LC" =~ $_py_write ]] &&
-    { [[ "$_ps_bare" =~ (^|[[:space:];|&()/\\]+)python3(\.exe)?[[:space:]]+-c ]] ||
-      [[ "$_ps_lcq" =~ (^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*[$_q]([^$_q]*[\\/])?python3(\.exe)?[$_q][[:space:]]+-c ]]; }; then
-    block_bypass "python-write" "python3 -c file write bypasses Write/Edit hooks"
+  if [[ "$COMMAND_LC" =~ $_py_write ]] && ps::might_write_via_python3 "$PS_BLANKED"; then
+    block_bypass "python-write" "python3 -c inline-code file write bypasses Write/Edit hooks"
   fi
   emit_tel "ok" ""
   exit 0
