@@ -148,26 +148,81 @@ Restarting from zero wastes the whole run and, worse, tempts an operator to narr
 
 ## 6. The idempotence properties
 
-Stated as assertions over two runs, `R1` then `R2`. `M(R)` is the mechanical-tier identity set;
-`B(R)` is the behavioral-tier set.
+### The tiers had to be re-derived first — the two-tier split did not survive contact
 
-- **P1 — determinism.** Tree unchanged between `R1` and `R2` ⇒ `M(R1) = M(R2)`, exactly. Not a
-  subset, not a tolerance: equal.
-- **P2 — convergence.** Accepted fixes applied between `R1` and `R2` ⇒ `M(R2) ⊊ M(R1)`, and every
-  member of `M(R1) \ M(R2)` corresponds to a fix that was actually applied. A finding that vanishes
+The original two tiers came from the `audit-instructions` catalog: `mechanical` (pattern-detectable
+by static reading) and `behavioral` (ground truth is observed model behavior). The determinism
+property was defined over the mechanical tier. **Verified against the implementations, that split
+cannot carry it**, for two independently sufficient reasons.
+
+- **No dispatched check reaches the report without model judgment.** `audit-instructions`' own
+  `SKILL.md` says the deterministic pre-scan "is advisory and a grep cannot judge whether a
+  rationale is genuinely present, so the lane refines every candidate rather than reporting it
+  verbatim" — and Phase C then re-judges *every* removal or rewrite proposal, not only behavioral
+  ones, where "a proposal the verifier defends is demoted to `info` or dropped." So a check the
+  catalog labels `mechanical` passes through two model stages before it is a finding. Two runs can
+  differ on a borderline case from ordinary sampling variance.
+- **Half the dispatched catalog has no tier at all.** `claude-memory`'s `reference/criteria.md`
+  carries **17 checks and zero occurrences** of `mechanical` or `behavioral`; it labels
+  `FAIL`/`WARN`/`INFO`. A property defined over a vocabulary that half the catalog does not use is
+  undefined for that half.
+
+**Three tiers, replacing two.** The fix is not to weaken the guarantee everywhere — it is to state
+it over the part of the run that genuinely is deterministic, which turns out to be substantial and
+was previously unnamed.
+
+| Tier | What it contains | Produced by | Property |
+|---|---|---|---|
+| **Derived** | the three-scope surface inventory, the exclusion set, shadowed-definition findings, and raw script candidate rows | scripts and enumeration only — no model in the path | **exact equality** |
+| **Judged** | every finding from a dispatched catalog check, whatever that catalog calls it | a model, through lane refinement and the Phase C verifier | **stability tolerance** |
+| **Delegated** | `/doctor`'s output | a prompt-based bundled skill | **no property**, diffed by nobody |
+
+The derived tier is not a consolation prize. It is the answer to "did the sweep look at the same
+things", which is the question an operator actually asks first — and it is where a silent scope
+regression would show up. A surface that vanished from the inventory between runs is a defect the
+old two-tier split could not have caught, because the inventory was never a reported artifact.
+
+**Consequence for the deliverable, stated plainly.** D1 is a judged finding, so the deliverable's
+primary check does not contribute to the diff-clean gate. That was already conceded; what is new is
+that *no* catalog check contributes, so the concession is not specific to D1 and is not evidence
+against it.
+
+### The properties
+
+Stated as assertions over two runs, `R1` then `R2`. `D(R)` is the derived-tier identity set; `J(R)`
+is the judged-tier set.
+
+- **P1 — determinism, over the derived tier.** Tree unchanged between `R1` and `R2` ⇒
+  `D(R1) = D(R2)`, exactly. Not a subset, not a tolerance: equal. This is assertable because nothing
+  in `D` passes through a model — it is file enumeration, registry parsing, `git worktree list`, and
+  name comparison across a fixed precedence order.
+- **P2 — convergence.** Accepted fixes applied between `R1` and `R2` ⇒ `D(R2) ⊊ D(R1)`, and every
+  member of `D(R1) \ D(R2)` corresponds to a fix that was actually applied. A finding that vanishes
   without a fix is a defect in the check, not a success.
-- **P3 — no spontaneous growth.** Tree unchanged and catalog version unchanged ⇒ `M(R2) ⊆ M(R1)`. The
+- **P3 — no spontaneous growth.** Tree unchanged and catalog version unchanged ⇒ `D(R2) ⊆ D(R1)`. The
   set may grow only on a catalog version bump or a change to the tree — and a skill authored between
   runs is a change to the tree.
-- **P4 — behavioral stability, not identity.** Behavioral-tier detection is a model judgement and
-  cannot be made deterministic; an identity function normalizes how a finding is *reported* and
-  cannot make the *detection* reproducible. So behavioral findings are reported in a separate
-  section, excluded from P1–P3, and held instead to:
-  - `|B(R2) \ B(R1)| ≤ max(2, ceil(0.10 × |B(R1)|))` over an unchanged tree — **the stated
+- **P3a — the inventory is part of the gate, not scaffolding for it.** The derived tier includes the
+  three-scope surface inventory and the exclusion set, so a surface that silently drops out of scope
+  between two runs **fails P1**. This is the property the old two-tier split could not express,
+  because the inventory was never a reported artifact — and a silent scope regression is worse than a
+  changed finding, since it looks like an improvement.
+- **P4 — judged-tier stability, not identity.** Judged detection is a model judgement and cannot be
+  made deterministic; an identity function normalizes how a finding is *reported* and cannot make the
+  *detection* reproducible. So judged findings are reported in a separate section, excluded from
+  P1–P3, and held instead to:
+  - `|J(R2) \ J(R1)| ≤ max(2, ceil(0.10 × |J(R1)|))` over an unchanged tree — **the stated
     tolerance**, measured across three consecutive runs, with the worst pair taken;
-  - no member of `B(R2)` contradicts an accepted suppression.
-- **P5 — `/doctor` is excluded from both tiers.** It is prompt-based rather than fixed logic, so it
-  cannot contribute to a determinism gate, and its output is reported in its own section and diffed
+  - no member of `J(R2)` contradicts an accepted suppression.
+- **P4a — a violation has a consequence, or the property is decoration.** Exceeding the tolerance
+  **fails the run's self-check and is reported as an instability finding against the sweep itself**,
+  naming the checks whose output moved. It is not silently absorbed by recalibrating the constant.
+  The tolerance may be revised only by an explicit, recorded decision citing the observed
+  distribution — never as an implicit response to a failure. Without that clause the metric absorbs
+  its own counterevidence, which is what a placeholder does.
+- **P5 — `/doctor` is the delegated tier and is excluded from both properties.** It is prompt-based
+  rather than fixed logic, so it cannot contribute to a determinism gate, and its output is reported
+  in its own section and diffed
   by nobody.
 
 **Why the tolerance is a floor of 2 rather than a pure percentage.** With a small behavioral set, a

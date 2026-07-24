@@ -16,11 +16,17 @@ The deliverable's entire officially-backed payload. It ships as check **I12** in
 
 Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all.
 
-`behavioral`, not `mechanical`: deciding that two instructions cannot both be satisfied is a
-judgement about meaning, not a pattern match. That places it outside the diff-clean gate and inside
-the stability tolerance, per [rerun-contract.md](rerun-contract.md) P4 — a consequence worth stating
-plainly, because it means **the deliverable's primary check does not contribute to its headline
-determinism property.** The mechanical part is the inventory, not the comparison.
+`behavioral`, not `mechanical`, in the host catalog's own vocabulary: deciding that two instructions
+cannot both be satisfied is a judgement about meaning, not a pattern match. In the sweep's re-derived
+tiers it is a **judged** finding, outside the diff-clean gate and inside the stability tolerance, per
+[rerun-contract.md](rerun-contract.md) P4.
+
+**That is no longer a mark against D1 specifically.** The first draft flagged it as a consequence
+worth stating plainly — the payload not contributing to the headline property. Verification since
+showed that *no* dispatched catalog check contributes: `audit-instructions` refines every candidate
+through a lane subagent and re-judges every proposal in Phase C, so even `mechanical`-tagged checks
+are model-gated. The determinism gate belongs to the derived tier — inventory, exclusion set,
+shadowing, raw candidate rows — and D1's exclusion from it is the norm rather than a weakness.
 
 ### Detect
 
@@ -54,7 +60,7 @@ finding set with non-conflicts.
 The split also buys a property the sweep needs. Detecting a shadowing is **name comparison across a
 known precedence order: mechanical and fully deterministic**, where D1 proper is behavioral. So the
 shadowing finding lands in the **mechanical** tier and contributes to the diff-clean gate, while D1's
-conflict findings sit in the behavioral tier under the stability tolerance. Merging them would have
+conflict findings sit in the judged tier under the stability tolerance. Merging them would have
 dragged a deterministic check into a non-deterministic section and weakened the determinism property
 for nothing.
 

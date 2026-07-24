@@ -113,20 +113,33 @@ source with explicit staleness triggers — not restated across the skills that 
 - Every source section maps to either a check that runs, an incumbent that already covers it, or an
   explicit recorded exclusion — traceable back to
   [design/article-sections.md](design/article-sections.md).
-- A rerun over an unchanged tree produces the same **mechanical-tier** finding set, never a different
-  one. A rerun after accepted fixes produces a strictly smaller one. Absent a change to the tree, the
-  set grows again only when the anchored catalog is bumped — a skill authored between runs
-  legitimately grows it, and the tree is moving under a parallel session. That is the acceptance test
-  for "regular audit"; task #35 specifies it, including the finding-identity function that makes "the
-  same set" diffable.
-- **Behavioral-tier findings are held to a stability property, not to identity.** The existing
-  catalog defines the tier as one whose "ground truth is observed model behavior, so findings ship as
-  proposals verified by the delete-and-watch loop, never confident removals" — detection is a model
-  judgement, so two runs over an identical tree may legitimately differ. A finding-identity function
-  normalizes how a finding is *reported*; it cannot make the *detection* deterministic. Behavioral
-  findings are therefore reported in a separate section, excluded from the diff-clean gate, and held
-  instead to: no behavioral finding contradicts an accepted suppression, and the behavioral set does
-  not grow on an unchanged tree by more than a stated tolerance. Task #35 sets the tolerance.
+- A rerun over an unchanged tree produces the same **derived-tier** result, never a different one. A
+  rerun after accepted fixes produces a strictly smaller one. Absent a change to the tree, it grows
+  again only on a catalog version bump — a skill authored between runs legitimately grows it, and the
+  tree is moving under a parallel session. That is the acceptance test for "regular audit";
+  [design/rerun-contract.md](design/rerun-contract.md) specifies it, including the finding-identity
+  function that makes "the same set" diffable.
+
+  **The tier vocabulary changed, and this criterion changed with it.** It originally scoped the
+  diff-clean gate to the `mechanical` tier. Verified against the implementations, that tier cannot
+  carry it: `audit-instructions` says its deterministic pre-scan "is advisory… so the lane refines
+  every candidate rather than reporting it verbatim", and its Phase C re-judges *every* proposal, so
+  no dispatched check reaches the report without model judgment — including `mechanical`-tagged ones.
+  And `claude-memory`'s criteria carries 17 checks with **zero** occurrences of `mechanical` or
+  `behavioral`, so half the dispatched catalog was never in the vocabulary at all. The **derived**
+  tier — the three-scope inventory, the exclusion set, shadowed-definition findings, and raw script
+  candidate rows — is what is genuinely model-free, and it is where the exact-equality gate now sits.
+- **Judged findings are held to a stability property, not to identity.** Detection there is a model
+  judgement, so two runs over an identical tree may legitimately differ; a finding-identity function
+  normalizes how a finding is *reported* and cannot make the *detection* deterministic. Judged
+  findings are reported separately, excluded from the diff-clean gate, and held instead to: none
+  contradicts an accepted suppression, and the set does not grow on an unchanged tree beyond a stated
+  tolerance — **whose violation fails the run's self-check** rather than being absorbed by
+  recalibrating the tolerance.
+- **A surface that silently leaves the inventory fails the gate.** The inventory and exclusion set are
+  *in* the derived tier, not scaffolding beneath it, so a scope regression is caught. This is the
+  property the original two-tier split could not express, and it matters more than a changed finding:
+  a shrinking scope looks like an improving report.
 
 ## Plan
 
@@ -454,7 +467,7 @@ definition before any detector is designed against it.
   resumes from the last completed lane rather than restarting.
 
 Then the properties themselves: unchanged tree yields an identical finding set; accepted fixes yield a
-strictly smaller one; behavioral-tier findings carry the delete-and-watch follow-through; the set grows
+strictly smaller one; judged-tier findings carry the delete-and-watch follow-through where their host check defines one; the set grows
 again only on a catalog version bump or a change to the tree.
 
 - **Sanity Check:** `design/rerun-contract.md` states the identity tuple, the report location rule, the
@@ -558,7 +571,7 @@ because it deliberately builds nothing on `/doctor`'s half of the surface:
   states what goes unchecked. Deciding whether to build a fallback beyond that is a Phase 6 call, and
   either answer is acceptable if it is recorded.
 - **A prompt-based delegate is not deterministic.** Any step that delegates to `/doctor` cannot
-  contribute to a diff-clean gate. Keep `/doctor`'s output out of the mechanical-tier finding set.
+  contribute to a diff-clean gate. Keep `/doctor`'s output in its own delegated tier, out of both the derived and judged finding sets.
 
 **Every detector asserts non-overlap with `/doctor`.** Per detector, against a freshly fetched commands
 and memory doc — and the catalog carries a `/doctor` recheck trigger alongside its per-source-page
@@ -721,9 +734,11 @@ narrower than the raw skill count suggests.
    `melodic-software/dotfiles` — never an in-place edit.
 
 - **Sanity Check:** two consecutive runs over an unchanged tree emit machine-readable finding files
-  whose **mechanical-tier** sections diff clean, per the Phase 4 identity function. The
-  behavioral-tier section is held to Phase 4's stability tolerance instead, and any step delegating to
-  `/doctor` is excluded from both — a prompt-based delegate cannot contribute to a determinism gate.
+  whose **derived-tier** sections diff clean, per the Phase 4 identity function — including the
+  three-scope inventory and the exclusion set, so a silent scope regression fails here. The
+  **judged-tier** section is held to Phase 4's stability tolerance instead, and exceeding it fails
+  the run's self-check rather than prompting a recalibration. `/doctor`'s output is the **delegated**
+  tier and is excluded from both — a prompt-based delegate cannot contribute to a determinism gate.
 - **Sanity Check:** after an apply, the repo's cross-plugin drift checks still pass —
   `scripts/check-cross-plugin-source-drift.sh`, `scripts/sync-hook-utils.sh --check`,
   `scripts/sync-standards-contract.sh --check` — proving no registered cluster copy or vendored file
@@ -800,7 +815,7 @@ No runtime code — the deliverables are skills, a catalog, and their evals. Ver
 | A detector or the sweep self-grades its own output | Medium | High | Phase 6 requires each to name a fresh-context non-fork checkpoint; a fork inherits the parent conversation and is not independent |
 | The machinery outweighs the payload: a versioned catalog, a convention-registry owner doc, a seam decision, a re-run contract, and a sweep built to carry one well-grounded detector | High | High | **Fired, and the mitigation worked.** Exactly one detector survived, the operator approved re-deriving the shape, and the catalog, the owner doc, the registry row, and the materialization are gone. What survives is the sweep and the re-run contract, whose justification was never detector count |
 | `OPINION`-tier rules mutate a consumer's instruction corpus under the same banner as documented doctrine | Medium | High | The tier is populated for the first time by this work, so this work defines it: disabled on bare invocation, opt-in, with a severity ceiling — Phase 6 |
-| Idempotence is asserted over behavioral-tier detection, which is a model judgement and cannot be deterministic | High | High | Acceptance criteria scope the diff-clean gate to mechanical-tier findings; behavioral findings report separately under a stated stability tolerance set in Phase 4 |
+| Idempotence is asserted over detection that is a model judgement and cannot be deterministic | High | High | **Fired, and the first mitigation was itself wrong.** Scoping the gate to the `mechanical` tier did not work: no dispatched check reaches the report without model judgment, and half the dispatched catalog has no tier axis at all. Re-derived into three tiers — derived (model-free: inventory, exclusion set, shadowing, raw candidate rows) carries exact equality; judged carries a tolerance whose violation fails the run; delegated carries neither |
 | `/doctor` is absent on a consumer machine — `DISABLE_DOCTOR_COMMAND` or `skillOverrides: {"doctor": "off"}` — leaving its half of the surface with no incumbent and nothing built to replace it | Medium | High | Phase 6 treats presence as a prerequisite alongside the version floor; the sweep names the missing capability and states what goes unchecked |
 | D1 is blind to the managed-policy `CLAUDE.md` tier and proposes edits to a lower surface whose conflict is with unremovable org policy | Medium | High | Phase 10 inventories three scopes; the managed tier is read-only and never remediated, and its absence degrades cleanly |
 | Phase 1's page list omits a load-bearing doc and its sanity check cannot notice | Medium | Medium | Four pages added; a second check walks `llms.txt` and records every instruction/memory/configuration page as fetched or explicitly out of scope |

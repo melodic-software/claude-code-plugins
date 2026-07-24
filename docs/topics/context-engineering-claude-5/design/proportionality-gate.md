@@ -133,7 +133,8 @@ sweep consumes.
 
 - **The re-run contract survives, scoped down.** Idempotence is still the headline acceptance
   criterion and still needs a machine-comparable definition, but it is now defined over the sweep's
-  own mechanical-tier output rather than over a multi-detector program.
+  own derived-tier output rather than over a multi-detector program. The tier vocabulary was later
+  re-derived — see [rerun-contract.md](rerun-contract.md), "The tiers had to be re-derived first".
 - **Phase 5's homing map is discharged here** — see below. It would have been a seven-row table
   restating this one.
 
