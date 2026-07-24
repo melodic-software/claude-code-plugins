@@ -109,7 +109,16 @@ vars are read at session start, so nested spawning is inert until the next sessi
 | 5 | Coverage discipline | A new **mandatory** discipline in `research/SKILL.md`, its recipe in `context/discipline.md`, materialized as a `research-checklist.md` in the memory slice. Kept distinct from the existing Phase-1 numbered-gap list: that one chases *unknowns*, this one enforces exhaustive coverage of a *bounded corpus*. The file is mandatory because dispatched agents have no Task tools. |
 | 6 | Corpus enumeration | Gets its **own Phase 0** — enumerate the corpus and write the checklist before any query. Sections, topics, subjects, and the per-item depth criterion are fixed up front and become the ledger; Phase 1 researches against it. Folding enumeration into Phase 1 lets breadth queries crowd it out, which is the speed-reading failure being fixed. |
 
-### Amendments pending confirmation (from the marketplace sweep)
+| 7 | **Dispatch is the default posture; INLINE-ONLY is the claim needing justification** | Preserving the MAIN agent's context is the primary goal of this effort. A skill that would flood main context dispatches unless there is a real reason it cannot. This inverts the sweep's original burden of proof and is what re-derived 15 of the original 57 INLINE-ONLY verdicts. |
+| 8 | **The orchestration boundary** (the unifying principle) | The parent owns the **pre-dispatch envelope** — precomputed values, scope confirmation, intake answers, budget authorization, capability checks — resolved in main context and passed into the dispatch prompt. The agent owns a bounded middle: no load-time machinery, no user turn, no unresolved scope. The parent also owns the **post-dispatch boundary**: verification hand-off. **A dispatched agent never verifies its own work.** Three independent agents converged on the second half without seeing each other. |
+| 9 | Nested spawning (supersedes Decision 3's degradation clause) | Classify every nested spawn by what it buys. **Throughput** nesting (N independent units, identical epistemic standing) — Decision 3 stands: absent nesting the agent goes sequential, slower with the same coverage. **Independence** nesting (a context that has not seen what the parent produced) — Decision 3's clause is false: self-critique is not a slower control, it is the absence of one. Remedy is neither the env var nor blocking dispatch: the dispatched agent does **not** run the step, returns `verification: pending` plus a verification request, and the orchestrator dispatches the verifier as a **sibling**. Independence is a property of context provenance, not spawn parentage — a verifier reading the artifact off disk has never seen the producing context, whoever spawned it. `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` reverts to a recommended optimization. |
+| 10 | Dispatch and producer ≠ critic | Dispatch **satisfies** the requirement by construction under a criteria-only envelope; the dispatched agent then runs the checklist inline rather than re-dispatching, because it *is* the fresh pair of eyes. Hoisting, not nesting. Distinguish two guarantees: **independence** (who renders the verdict — dispatch buys it) from **decorrelation** (how many priors examine it — dispatch does not, and never claimed to; the remedy is a cross-vendor reviewer, orthogonal to dispatch). |
+| 11 | Interactive gates — the three-cell test (supersedes the positional "mid-flow" wording) | **Parameter** question: answerable from intent, arguments, and the conversation before the run starts — never a blocker. Test: *could the parent ask this without having read a single file the skill reads?* **Discovered** question: existence or content depends on what the run finds — blocks only if it steers. **Elicitation** question: blocks when the answer IS the deliverable. Batches split because "mid-flow" was read positionally (inside the step list) rather than temporally. |
+| 12 | Discipline delivery to a dispatched agent | Preload the **existing** `discovery:research` skill via the agent's `skills:` field. Author no new contract skill: the thin-mandate / heavy-reference split already exists in the file tree (SKILL.md carries the bars, phases, and outcome gate; `context/discipline.md` carries tier tables, recipes, calibration). Measured: preload injects the SKILL.md body **only** — supporting files stay on demand — and `${CLAUDE_PLUGIN_ROOT}` expands on the preload path, so the pointer to the sibling arrives working at turn zero. The mandate must arrive **guaranteed**, not on request, because the skill exists to stop an agent doing less than the bars require. Dispatch the skill **by name**; never transcribe it into a prompt (that breaks `${CLAUDE_PLUGIN_ROOT}` expansion, drops `!` precompute, and freezes a drifting copy). |
+| 13 | Dispatch granularity (revises Decision 1) | **Phase-level.** The dispatch unit is a phase or action; the whole-skill verdict is a **roll-up**, so the 138-row ledger survives as an index. No new frontmatter — two shipped declaration shapes suffice: an execution-site column on an action-router table, and per-step annotation plus a handoff contract. For `/discovery:research`: one dispatched span covering Phase 0 through Phase 4 and the outcome gate's mechanical criteria; parent keeps topic resolution at the front and presentation at the back; the gate's confidence criterion moves to a **parent-dispatched sibling verifier**; project-fit stays with the parent, which alone holds the consuming project's conventions. |
+| 14 | `-deep` variants | **Split, not symmetric.** **Keep `research-deep`** — Tier 1 needs `Workflow` and the multi-topic path needs `Agent`, which errors even inside a true fork, so its heaviest tier is genuinely not runtime-selectable from a dispatched context. The governing convention's operative test is *same execution path vs. a second execution path*, not frontmatter-vs-runtime, so runtime dispatch does not void it. **Retire `explore-deep` conditionally** — relocate into `plugins/discovery/agents/explorer.md`, but only once that agent reproduces its project-memory loading and sidecar-on-collision behavior. `plugins/discovery/agents/` does not exist yet. |
+
+### Amendments (ratified 2026-07-24)
 
 1. **Decision 2 under-specified the discipline-delivery path.** A plugin agent can receive its
    discipline via `skills:` preload or by granting the `Skill` tool and invoking at runtime. All
@@ -241,14 +250,25 @@ vars are read at session start, so nested spawning is inert until the next sessi
 
 ### Deferred questions
 
-- **Do the `-deep` variants collapse into their parents once the parents dispatch by default, or do
-  the parents become dispatchers and the `-deep` skills retire?** — arbiter: USER-RESERVED. Resolution
-  changes the acceptance criteria and the public skill surface.
-- **Does dispatch-by-default apply when the invoking context is itself a subagent** (avoiding a
-  needless second hop at spawn depth > 1)? — arbiter: `/planning:plan`.
-- **Which of the 138 non-setup marketplace skills adopt the same dispatch posture** — being
-  determined by the audit sweep recorded in
+- ~~**Do the `-deep` variants collapse?**~~ — **RESOLVED 2026-07-24**, Decision 14. Split: keep
+  `research-deep`, retire `explore-deep` conditionally.
+- ~~**Which of the 138 skills adopt the dispatch posture?**~~ — **RESOLVED**. Sweep complete and
+  ratified: DISPATCH-DEFAULT 22, DISPATCH-OPTIONAL 42, INLINE-ONLY 42, NO-CHANGE 32. Per-skill in
   `.work/discovery-subagent-dispatch/skill-dispatch-audit-checklist.md`.
+- **Does dispatch-by-default apply when the invoking context is itself a subagent** (avoiding a
+  needless second hop at spawn depth > 1)? — arbiter: `/planning:plan`. Still open, and Decision 10's
+  hoisting rule is the likely answer: the outer dispatch already supplied the fresh context, so the
+  inner hop dissolves rather than repeating.
+- **Coverage residual:** 32 of the original 57 INLINE-ONLY rows were upheld without an independent
+  read — inherited from batch rationale rather than verified against the skill's own text. A
+  scripted predictor over those 32 returned three hits, all benign, so the estimated risk is low but
+  unmeasured. A close-out pass is running; results land in
+  `.work/discovery-subagent-dispatch/decide/D9-close-unverified.md`.
+- **Harness-adaptive detection.** Skills must detect capability at runtime — version, fork
+  availability, nesting depth — rather than assume it. The version floor above shows the cost of
+  assuming: several claims are false on releases still in the field, and shipped skill text still
+  cites a gate removed in v2.1.161. Mechanism for detection is unspecified; arbiter:
+  `/planning:plan`.
 
 ## Plan
 
