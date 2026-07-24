@@ -43,9 +43,14 @@ data = "@<plugin-data-dir>/x-request-<id>.json"
 proto = "=https"
 max-time = 30
 max-filesize = 5000000
+write-out = "\n%{http_code}\n"
 silent
 show-error
 ```
+
+`write-out` is not optional here. This config is the complete request, so without it the status code
+never reaches the transcript and the reporting rule below — capture the code, classify `400`/`429`/
+`500`/`502` — cannot be followed. Its absence is how an error body gets mistaken for content.
 
 Then a command line carrying exactly one argument, and no embedded quotes for any marshalling mode to
 strip:
