@@ -880,6 +880,120 @@ surfaces named exhaustively — this plugin READS more than most, and that is it
 standing instructions; 3/4 conform with every cross-boundary read justified at its seam; 5 is a
 single confirm-gated egress plus docs-only WebFetch; 6 first-party with the split as containment.
 
+### Review record — `x` (ACCEPT, 2026-07-24)
+
+Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this review. This is a
+**third-party trust delegation** — the plugin's entire function is routing a URL through converters
+operated by others — so surfaces 5 and 6 carry the weight here.
+
+- **Code execution (1). Present — remediated, and the remediation is instruction-level.** No hooks,
+  no scripts, no `bin/`; no `eval`, no `curl … | sh`. But the skill does interpolate untrusted input
+  into a shell command line: the X URL becomes part of a `curl` request body. A first review draft
+  claimed this was not shell interpolation of untrusted input; that claim was **false** and is
+  retracted here. An adversarial pass demonstrated the breakout against a real `argv` dump — a URL
+  containing an apostrophe terminates the body's quoting and contributes new `argv` words,
+  yielding a second unconstrained URL and an `-o` arbitrary-write flag in the receiving process.
+  Because `disable-model-invocation` is `false` and the description carries a research trigger, the
+  URL can arrive from attacker-authored web content, closing an indirect-injection chain into a
+  shell argument.
+
+  Remediation: a mandatory gate ahead of step 1 anchors the input against post/article patterns,
+  **refuses** on no match, and on match discards the input entirely and rebuilds the URL from
+  captures restricted to `[A-Za-z0-9_]` and `[0-9]` — classes that cannot express a quote, space, or
+  metacharacter. Rebuild-from-captures, not escaping, so the emitted command is quote-safe by
+  construction. Every URL re-enters the gate, including ones offered at step 3 or surfaced by
+  fetched content. Stated honestly: **the gate is model-honored, not runtime-enforced.** It is the
+  primary defense, not a guarantee.
+
+  No kill-switch `userConfig` needed: nothing runs unless the skill is invoked, and scope-level
+  `enabledPlugins` is the off switch.
+
+- **Tool pre-approval — no Bash or PowerShell grant.** An earlier draft pre-approved
+  `Bash(curl … https://xtomd.com/api/*)` and a PowerShell mirror. **Removed.** A prefix rule cannot
+  express "and no further flags": the trailing wildcard admits every appended argument, so the grant
+  would have suppressed the prompt on exactly the injected command above. The permissions
+  documentation warns against argument-constraining Bash patterns for this reason. The network call
+  now prompts, showing the operator the exact command — the only runtime-enforced layer available
+  without shipping a hook. `allowed-tools` retains only
+  `WebFetch(domain:threadreaderapp.com)`, which involves no shell. A validating `PreToolUse` hook is
+  the stronger control and is **deferred**, with re-introducing a Bash/PowerShell grant as its
+  trigger.
+- **MCP servers (2).** None. The user's stated growth path includes a future MCP surface; that would
+  be a new trust surface and re-triggers this review at that version.
+- **Consumer config (3).** No `userConfig`. No credential exists to store — both providers are
+  unauthenticated.
+- **Cache isolation (4). One bounded write.** A first draft claimed "no file reads or writes at
+  all"; that was **wrong** — the skill instructs redirecting a long article to a file and reading
+  the slice needed, which is a write plus a read carrying third-party content. Retracted and
+  corrected: the redirect target is now constrained to `${CLAUDE_PLUGIN_DATA}`, explicitly never an
+  agent-chosen absolute path and never a path derived from fetched content. No
+  `${CLAUDE_PLUGIN_ROOT}` references beyond the skill body, no consumer-repository reads, no `../`
+  reach-outs.
+- **Data egress (5). Present and accepted — conditional on the criterion-1 gate.** Per invocation
+  the machine emits one datum: the gate's *rebuilt* URL `https://x.com/<handle>/status/<id>`, to
+  `xtomd.com` (step 1) and, only on a chain fragment, `threadreaderapp.com` (step 2). No
+  credentials — neither endpoint takes auth. No repository content, no conversation text, no
+  telemetry.
+
+  A first draft asserted this unconditionally; that was **false as built**, because the pre-gate
+  request body was attacker-steerable (criterion 1) and could carry `@file` contents or reach an
+  attacker-chosen host. The claim is sound only downstream of the gate, and is recorded that way.
+
+  Two residuals stated rather than glossed: rebuilding drops the query string, so `?s=`/`?t=` share
+  tracking tokens are **not** transmitted — but the URL itself still identifies both the post and
+  the reader's interest in it, and neither vendor publishes a retention policy, so assume every
+  submitted URL is logged indefinitely. `--proto '=https'`, `--max-time`, and `--max-filesize` bound
+  the transport; no `-L`, so no redirect-driven egress.
+- **Provenance & third-party trust (6). Present and accepted.** Two vendors, neither first-party:
+  - `xtomd.com` — publishes a `POST /api/markdown` endpoint under a documented public contract
+    (`/llms.txt`, `/llms-full.txt`, and an OpenAPI 3.1.0 document at `/.well-known/openapi.json`),
+    unauthenticated and free. **The operating entity is not identified** on the site, and no terms,
+    jurisdiction, or retention policy is published — material for a trust delegation, and recorded
+    as an unknown rather than passed over. Its docs instruct installing an `@xtomd/mcp-server` npm
+    package that **does not exist** (registry `404`). That is not merely a documentation-quality
+    caveat: the name is unregistered and claimable by anyone, so the vendor's own docs steer users
+    into a standing dependency-confusion hazard. The plugin does not wire, install, or reference it,
+    and the skill body instructs against hunting for it.
+  - `threadreaderapp.com` — a long-running public thread-unroll service, fetched read-only over
+    `WebFetch` with no key. Operator likewise not identified on the fetched surfaces; retention
+    unstated.
+
+  Both return **attacker-authored content**: X post bodies written by arbitrary third parties. This
+  is the prompt-injection vector criterion 2 names, arriving through a different door. Containment
+  lives in the skill body — returned bytes are data to report, never instructions, and fetched text
+  may never introduce a URL, host, or file path — with dedicated eval coverage including a URL
+  harvested from page content. Consistent with the `github`, `dometrain`, and `plugin-quality`
+  records, this is **an advisory, model-honored defense, not a runtime-enforced one**; an earlier
+  draft called it "mandatory" without that qualifier and is corrected here.
+
+  Two residual risks stated rather than assumed away: a converter could return content that differs
+  from the source post, and the plugin cannot detect that — consumers get attribution and the echoed
+  source URL so a claim can be checked against the original. And step 2's escalation is a decision
+  made on the shape of step-1 output, which is third-party text; it is constrained to reusing the
+  gate-captured id and can therefore change *whether* a second fetch happens, never *where* it goes.
+- **Main-thread / PATH (7).** None; no `settings.json` `agent`, no `bin/`.
+
+**Review history.** A first draft of this record reached ACCEPT on claims that an adversarial
+fresh-context pass then falsified: criterion 1's "no shell interpolation of untrusted input",
+criterion 4's "no file reads or writes at all", and criterion 5's unconditional no-credential-egress
+assertion. The argument-injection breakout was demonstrated at `argv` level in both bash and
+PowerShell and independently reproduced before remediation. Each retraction is recorded inline above
+rather than silently rewritten, because a review record whose failures are edited out of history
+teaches nothing to the next reviewer.
+
+**Verdict: ACCEPT at the remediated state** — surfaces 2/7 absent; 3 empty. Criterion 1 carries a
+real shell-interpolation surface, remediated by a validate-and-rebuild gate whose model-honored
+nature is stated rather than glossed, and backed by the deliberate absence of any Bash/PowerShell
+pre-approval so the call prompts. Criterion 4 is one write bounded to `${CLAUDE_PLUGIN_DATA}`.
+Criteria 5 and 6 are the substance: egress is a single rebuilt, query-stripped, already-public URL
+with no credential, and the trust delegation buys a capability with no unauthenticated first-party
+alternative. Both vendors are unidentified operators with unstated retention — recorded as a known
+unknown, not waved through — and the untrusted-content risk is contained by advisory instruction
+that is labeled advisory.
+
+**Re-trigger:** re-introducing a Bash or PowerShell pre-approval, shipping the deferred validating
+`PreToolUse` hook, or adding an MCP surface each re-opens this review.
+
 ## Local development loop
 
 For a plugin that already ships here, iterate against your local clone without re-publishing and
