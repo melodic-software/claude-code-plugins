@@ -50,6 +50,35 @@ Pages fetched in the Phase 1 sweep (2026-07-24):
 | S14 | Prefer code references; HTML mockup beats a screenshot | **Partly confirmed.** Best practices, "Provide rich content": reference files with `@`, paste images, give URLs, pipe data. It recommends screenshots for UI verification rather than ranking them below code. The ranking is the post's. |
 | S15 | `claude doctor` automates simplification; the Fable field guide covers model-specific prompting | **Confirmed.** Both exist; the field guide is the Fable 5 prompting page cited above. |
 
+## The authority axis, written out
+
+The table above uses prose verdicts — "Confirmed", "Partly confirmed", "Split", "Half confirmed" —
+while the catalog's authority axis takes literal tokens. PLAN.md asserts one of those tokens
+(S3 is "`ANTHROPIC-DOCS`-backed") that this document never actually wrote, and the mapping was left
+as an unstated inference. Written out here, because a catalog entry has to carry a token and
+inferring it per entry is how S14 slipped through untagged.
+
+Several rows split. A row that splits carries two tokens, never one averaged verdict.
+
+| § | Authority | Note |
+|---|---|---|
+| S2 | `ANTHROPIC-DOCS` / `OPINION` | The `/doctor` capability is documented; the 80% removal figure appears on no page |
+| S3 | `ANTHROPIC-DOCS` | Memory doc, "Consistency", plus the troubleshooting repeat |
+| S4 | `ANTHROPIC-DOCS` / `OPINION` | Skills and path-scoped rules as destinations are documented; artifacts as a destination are not |
+| S5 | `ANTHROPIC-DOCS` | Fable 5 guide, twice |
+| S6 | `ANTHROPIC-DOCS` / `OPINION` | Brevity-over-enumeration is documented; the interface-design half is not |
+| S7 | `ANTHROPIC-DOCS` | Best practices, memory doc, skills doc, and `mcp` for the tool half |
+| S8 | `ANTHROPIC-DOCS` / `OPINION` | **Split, corrected.** `features-overview` states *surface routing* — the three-way table, the 200-line rule, the request-versus-enforcement boundary. It does not state *definition-site locality*: no page says an instruction belongs next to the thing it governs. The routing half is backed; the locality half is not, and that half is what D3 detects |
+| S9 | `ANTHROPIC-DOCS` | Memory doc, with the correction that `CLAUDE.md` stays the operator's |
+| S10 | `ANTHROPIC-DOCS` / `OPINION` | The verifier-agent mechanism is documented; HTML artifacts as a reference format are not, and the word "rubric" appears on no page |
+| S11 | `ANTHROPIC-DOCS` | Confirmed indirectly, through `--append-system-prompt` |
+| S12 | `ANTHROPIC-DOCS` | Best practices, verbatim include/exclude table |
+| S13 | `ANTHROPIC-DOCS` / `OPINION` | De-prescription is the Fable 5 guide's; the "except in highly important areas" carve-out appears on no page — and it is the load-bearing calibration knob |
+| S14 | `ANTHROPIC-DOCS` / `OPINION` | **Previously untagged, corrected.** Providing rich content is documented; the *ranking* (code above prose above screenshot) is the post's, and best practices recommends screenshots for UI verification rather than ranking them below code. Same evidentiary status as S10's artifacts claim, which was tagged while this one was not |
+| S15 | `ANTHROPIC-DOCS` | Both tools exist and are documented |
+
+S1 carries no token: it is framing with no rule to enforce.
+
 ## Official material the source omits, relevant to this work
 
 - **`InstructionsLoaded` hook** — "log exactly which instruction files are loaded, when they load,

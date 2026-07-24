@@ -13,26 +13,27 @@ against official documentation in [official-corroboration.md](official-corrobora
 Every section resolves to a task, an incumbent that already covers it, or a recorded exclusion.
 No section is unaccounted for.
 
-The task named in each row designs that section's check. Which skill *owns* it is task #33, the
-catalog it is anchored in is task #34, and the order it runs in is task #28 — so a row's task is
-where the rule is worked out, not where it finally lives.
+The task named in each row designs that section's check. Which skill *owns* it, and what disposition
+it received, are recorded in [proportionality-gate.md](proportionality-gate.md) — there is no new
+catalog for a rule to be anchored in. The order it runs in is task #28. So a row's task is where the
+rule is worked out, not where it finally lives.
 
 | § | Subject | Where it goes |
 |---|---|---|
 | S1 | Context is assembled, reused, general | **Excluded — framing.** No rule to enforce. It is the problem statement in `PLAN.md`; nothing is auditable from it. |
 | S2 | 80% removal; `/doctor` | Task #2 (closed — verified). `/doctor` is the incumbent; task #28 decides where the runbook hands off to it. |
-| S3 | Cross-surface conflict | Task #19 (detector D1) |
-| S4 | Memory / artifacts / skills as destinations | Task #27 (detector D7) |
-| S5 | Rules give way to judgement | **Covered** by `audit-instructions` checks I6 + I8. Task #24 sets where the trimming stops. |
-| S6 | Examples give way to interface design | Task #22 (detector D2) |
-| S7 | Progressive disclosure | Task #26 (detector D6) |
-| S8 | Repetition gives way to tool descriptions | Task #23 (detector D3) |
+| S3 | Cross-surface conflict | Task #19 — new check I12 in `claude-config:audit-instructions`. The one officially-backed new check. |
+| S4 | Memory / artifacts / skills as destinations | Task #27 — folded into one consolidated C3 revision in `claude-memory:audit`, together with S7's memory half; they are the same rule. |
+| S5 | Rules give way to judgement | **Partly covered** by `audit-instructions` checks I6 + I8, which de-prescribe but carry no a-priori bound on how far. Task #24 supplies the stopping condition, which is the remainder. |
+| S6 | Examples give way to interface design | Task #22 — extends check I9's Remediate line in `audit-instructions` with the interface destination. `OPINION`-tier. |
+| S7 | Progressive disclosure | Task #26 — splits by surface partition: tightens I3's Remediate line in `audit-instructions` for non-memory surfaces; the memory half joins S4's C3 revision. |
+| S8 | Repetition gives way to tool descriptions | Task #23 — new locality check in `audit-instructions`, beside I3 and on a different axis from it (I3 is load timing; this is definition-site locality). `OPINION`-tier. |
 | S9 | Auto-memory | **Covered** by `claude-memory:audit` / `stateless` and `/memory`. The auto-memory surface itself is audited under task #27. |
-| S10 | Rich references, rubrics, verifier agents | Task #25 (detector D5) |
+| S10 | Rich references, rubrics, verifier agents | Task #25 — deferred with a trigger; nothing is built. Trigger: an official page ranks reference formats or names artifacts as a plan/spec reference destination. |
 | S11 | The system prompt | **Excluded — out of reach.** Claude Code's system prompt is not user-modifiable. The local analogue (agent definitions, prompt-type hooks, `--append-system-prompt`) is already inside `audit-instructions`' inventory and inside task #23's placement rule. |
 | S12 | CLAUDE.md guidance | **Covered** by `/doctor` and `audit-instructions` I1–I5 routed to `claude-memory`. Verified verbatim against the official include/exclude table. |
-| S13 | Skills guidance and the importance carve-out | Task #24 (detector D4) |
-| S14 | References | Task #25 (detector D5), with S10 |
+| S13 | Skills guidance and the importance carve-out | Task #24 — a stopping condition on checks I6 and I8, `claude-config`-local. Enabled by default despite being `OPINION`-tier, because it withholds findings rather than emitting them. |
+| S14 | References | Task #25, with S10 — deferred with a trigger; nothing is built. |
 | S15 | Simplify; `claude doctor`; the Fable field guide | Task #15 (closed — both located and read). Ongoing: `criteria.md` already carries a supersession trigger for the model-specific guide. |
 
 ---

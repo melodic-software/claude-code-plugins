@@ -282,6 +282,25 @@ Rationale: shipping them enabled would let one practitioner's unconfirmed prefer
 consumer's instruction corpus under the same banner as documented doctrine. Dropping them instead
 would violate the Brief's settled scope, which keeps every rule and marks the unbacked ones.
 
+**Advice attached to a backed finding — the case the two-way split missed.** D2 is `OPINION`-tier
+and lands as an extension of **I9's Remediate line**, and I9 is `ANTHROPIC-DOCS` and default-on. A
+line inside a default-on check's remediation cannot itself be default-off without splitting that
+check's output, so the emitting-rule policy above would make the merge impossible as specified.
+
+The resolution is that **D2 does not emit anything.** I9 already fires on the artifact — an example
+block pinning the model's approach — on officially-backed grounds. D2 changes only what the operator
+is told to do about a finding that was going to be reported anyway. So:
+
+- **The finding's enablement and severity follow the host check**, because the detection is the
+  host's and is backed.
+- **The `OPINION`-derived remediation is labelled inline as such**, so an operator can see which part
+  of the advice rests on a practitioner's preference rather than on documentation.
+- **It is never fix-applied**, which is the one clause of the emitting-rule policy that does carry
+  over, and the one that actually protects the consumer's corpus.
+
+The general rule: `OPINION` enablement attaches to *detection*, not to *advice*. Any future
+`OPINION` content folded into a backed check is governed the same way.
+
 **Withholding rules — those that suppress findings.** D4's carve-out is the only one today, and it
 is `OPINION`-tier.
 
@@ -343,13 +362,27 @@ merge. Where the layering rule already picks a winner, two differing instruction
 unresolved conflict — they are a resolved override, and flagging one is a false positive.
 
 D1's detection rule is therefore: *two instructions conflict **and** the layering rule does not
-already determine which wins.* The surfaces where that is possible are the `CLAUDE.md` family
-(additive), hooks (merge), and output styles (they modify the system prompt directly and by default
-remove built-in instructions). The same page supplies D1's other primary carve-out: for `CLAUDE.md`
-conflicts, "Claude uses judgment to reconcile them, with more specific instructions typically taking
-precedence" — so a more-specific instruction narrowing a broader one is lawful, not a defect.
+already determine which wins.*
 
-Task #19 owns the rule; this is the scope it is written against.
+**Corrected while drafting Phase 6, because the first statement of this narrowing was wrong in a way
+that would have gutted the payload.** It said the comparison set was the `CLAUDE.md` family, hooks,
+and output styles, and excluded skills, subagents, and MCP servers wholesale on the grounds that
+they "override by name". That misreads the rule. Override-by-name resolves a collision between two
+entities *sharing a name* at different scopes — the shadowed one is inert, not conflicting. It says
+nothing about a skill body contradicting `CLAUDE.md`, which is **the source article's own headline
+example**: "leave documentation as appropriate" against "DO NOT add comments", with the system
+prompt, a skill, and the user request clashing in one request. Excluding skill bodies would have
+excluded the failure D1 exists to detect.
+
+The exclusion is therefore narrow and specific, not surface-wide: a same-named skill, subagent, or
+MCP server shadowed at a higher-precedence scope is **not** a conflict, because exactly one is live.
+Everything else that can hold instruction text is in the comparison set.
+
+The same page supplies D1's other primary carve-out: for `CLAUDE.md` conflicts, "Claude uses
+judgment to reconcile them, with more specific instructions typically taking precedence" — so a
+more-specific instruction narrowing a broader one is lawful, not a defect.
+
+Task #19 owns the rule; [checks-and-sweep.md](checks-and-sweep.md) states it in full.
 
 ## Corrections this gate forces on upstream documents
 
@@ -362,10 +395,16 @@ tracked as work rather than silently fixed, because two of them weaken arguments
    The two are also not independent inputs: both descend from `article-sections.md`. The gate's
    conclusion survives on the per-row evidence in the disposition table above, but the agreement
    argument does not support it and must be struck from PLAN.md.
-2. **`features-overview` covers D3 and D6 substantively, not only D7.** Its three-way routing table
-   and its verbatim request-versus-enforcement boundary are placement guidance, which contradicts
-   `official-corroboration.md:43` still recording the S8 placement rule as "no page states" it. That
-   entry needs re-verification against the page. The effect strengthens the D3 and D6 demotions.
+2. **`features-overview` covers D3 and D6 substantively, not only D7 — and the S8 entry needs
+   splitting rather than flipping.** Resolved here, because D3's enablement turns on it. The page
+   states *surface routing* — a three-way `CLAUDE.md` versus `.claude/rules/` versus skills table,
+   the 200-line rule, and the verbatim request-versus-enforcement boundary. It does **not** state
+   *definition-site locality*: nothing on it says an instruction belongs next to the thing it
+   governs. D3's axis is locality, so **S8's routing half is confirmed and its locality half stays
+   unconfirmed**, and D3 ships `OPINION`-tier and default-off. The corroboration entry should record
+   both halves instead of one verdict for both. The effect on D6 is different and simpler: the
+   200-line rule and "move reference content to skills or split into `.claude/rules/` files" are
+   direct backing, which is part of why D6 is default-on.
 3. **The `ANTHROPIC-DOCS` authority token is asserted but never recorded.** The corroboration table
    uses prose verdicts ("Confirmed", "Partly confirmed", "Split") and never writes the token, yet
    PLAN.md asserts S3 is "`ANTHROPIC-DOCS`-backed". S14 is the case that breaks: identical

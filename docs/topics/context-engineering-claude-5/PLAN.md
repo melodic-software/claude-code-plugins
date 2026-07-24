@@ -202,11 +202,11 @@ pass audits or a native mechanism the Phase 6 gate must rule on:
   `https://code.claude.com/docs/llms.txt` and record every page whose subject is an instruction,
   memory, or configuration surface as fetched or explicitly out of scope with a reason.
 
-**Outcome.** All eleven slugs are recorded in `design/official-corroboration.md` and both sanity
-checks pass. The `llms.txt` walk covered all 172 listed pages and surfaced three the eleven-slug list
-had missed — `features-overview`, `output-styles`, and `mcp` — which were fetched rather than
-deferred. Two findings change what later phases are built against, and both are carried into
-Phase 2.5 rather than resolved here:
+**Outcome.** All fourteen slugs are recorded in `design/official-corroboration.md` and both sanity
+checks pass. The list started at eleven; the `llms.txt` walk covered all 172 listed pages and
+surfaced three more — `features-overview`, `output-styles`, and `mcp` — which were fetched rather
+than deferred, and the check was widened to the fourteen it now names. Two findings change what
+later phases are built against, and both are carried into Phase 2.5 rather than resolved here:
 
 - **`features-overview` already prescribes D7's routing.** Its "Compare similar features" section is
   official guidance on choosing between `CLAUDE.md`, `.claude/rules/`, and skills, including the
@@ -295,12 +295,21 @@ cross-surface instruction conflict, which is `ANTHROPIC-DOCS`-backed (the memory
 review under "Consistency" and repeats it in troubleshooting) and which no incumbent performs. The
 matrix files the other three as *"authoring guidance, not an auditable defect"*, *"plausibly a check
 added to `skill-quality:check`"*, and *"calibration refinements to incumbents, not standalone
-surface"*. `design/official-corroboration.md` lands independently on the same set: the interface half
-of S6, the S8 placement rule, the S13 carve-out, and artifacts-as-references are all `OPINION`-tier,
-unconfirmed by any fetched page.
+surface"*. `design/official-corroboration.md` separately finds the interface half of S6, the S8
+placement rule, the S13 carve-out, and artifacts-as-references all `OPINION`-tier, unconfirmed by any
+fetched page.
 
-Those two documents were produced from different inputs and agree. So D1 is a first-class new
-detector; D2–D5 are the weak gaps and the `OPINION` set at once. Assign dispositions accordingly:
+**Corrected — the original argument here was an axis conflation and is struck.** It read "those two
+documents were produced from different inputs and agree", and used that agreement as evidence. It is
+not evidence. The matrix measures *who enforces a rule*; the corroboration document measures
+*whether the rule is true*. A rule can be fully confirmed and still be the largest gap — S3 is
+exactly that, and S7 is the mirror image — so the two axes run in opposite directions on the rows
+that matter most. Nor are they independent inputs: both descend from `design/article-sections.md`.
+The dispositions survive on the per-row evidence recorded in
+[design/proportionality-gate.md](design/proportionality-gate.md), not on this argument.
+
+So D1 is a first-class new detector; D2–D5 are the weak gaps and the `OPINION` set at once. Assign
+dispositions accordingly:
 
 - **D1 is a detector**, and is the deliverable's primary payload.
 - **D2–D5 are calibration inputs to their incumbents by default** — a check added to
@@ -375,7 +384,34 @@ version stops being body prose and becomes assertable frontmatter.
   `scripts/check-cross-plugin-source-drift.sh --check` still exits 0 — proving no edit accidentally
   created a byte-identical cluster.
 
-### Phase 4: Define the re-run contract [TODO]
+### Phase 4: Define the re-run contract [DONE]
+
+Recorded in [design/rerun-contract.md](design/rerun-contract.md). Every work item below is answered
+there as a numbered assertion rather than as prose intent, which the phase's own sanity check
+demands and which the gate's argument for the sweep now depends on.
+
+The decisions that carry the most weight, because a later phase could plausibly have chosen
+otherwise:
+
+- **The anchor is content-derived, never line-derived.** A line number shifts when anything above it
+  changes, so a line-anchored identity would churn the whole report on an unrelated edit and destroy
+  the property the contract exists to protect.
+- **A run never writes into its own scan set**, and the whole property reduces to one command:
+  after a run against a clean worktree with no redirect argument, `git status --porcelain` is empty.
+- **State is keyed by canonical repository identity plus a worktree discriminator**, so two
+  worktrees of one repository on different branches do not share a report — and the working
+  directory is never an input.
+- **Read-only runs take no lock; applying runs refuse rather than queue**, because a sweep over a
+  large tree runs long and a silent queue looks like a hang.
+- **Inline suppression is permitted only where the pass may write.** For a file it does not own, a
+  chezmoi-managed user-scope file, or a registered cluster copy, suppression is central and keyed by
+  finding id — an inline marker in a cluster copy would break the sync path the exclusion set exists
+  to protect.
+- **The behavioral tolerance is `max(2, ceil(0.10 × |B|))`**, with the floor there so a small
+  behavioral set cannot collapse the tolerance to zero and reintroduce identity by the back door.
+  It is a starting calibration, and Phase 10 is what tests it.
+
+The original work items follow.
 
 Task #35. Idempotence is the headline acceptance criterion, so it needs a machine-comparable
 definition before any detector is designed against it.
@@ -436,6 +472,22 @@ Review: architecture
 Tasks #19 and #22–#27 (now two new checks plus four edits to existing ones, per Phase 2.5) and #28
 (the sweep). Each check needs a false-positive story before it ships. Naming resolves here via
 `/naming:name-it-better`, constrained by the fixed verb meanings.
+
+**In progress — the design is in [design/checks-and-sweep.md](design/checks-and-sweep.md).** D1's
+detection rule, its five must-not-flag cases, its remediation split by scope, the native-first
+inventory ruling, the sweep's posture, its derived exclusion set, the `/doctor` prerequisite
+contract, the dispatch order, and the `OPINION` discovery line are all written. Naming is dispatched
+and the sweep is carried as `<sweep>` until it lands. Still open there: the report schema, the
+suppression file's path and format, the lane decomposition, and whether a shadowed same-named
+definition is reported at all.
+
+**One correction that phase drafting forced back upstream.** The first statement of D1's scope
+excluded skills, subagents, and MCP servers wholesale because they "override by name". That misreads
+the rule — override-by-name resolves a collision between two entities *sharing a name*, where one is
+simply inert. It says nothing about a skill body contradicting `CLAUDE.md`, which is the source
+article's own headline example. Excluding skill bodies would have excluded the failure D1 exists to
+detect. The exclusion is now narrow: a shadowed same-named definition is not a conflict; everything
+else that holds instruction text is in the comparison set.
 
 **The sweep is the phase's centre of gravity now, not the detectors.** With one new
 officially-backed check, the design work that carries risk is the run contract — the derived
@@ -504,10 +556,15 @@ same-vendor fresh subagent as the stated fallback.
 ### Gate — re-evaluate before implementation [TODO]
 
 Phases 2–6 are the design. Confirm the seam is chosen, Phase 2.5's dispositions held, every
-surviving check has an owner, the re-run contract
-is testable, and the dispatch order is fixed. If Phase 2 chose the consumer-artifact or
-no-shared-catalog shape, re-evaluate whether the catalog now warrants its own `/planning:design`
-pass before Phase 8.
+surviving check has an owner, the re-run contract is testable, and the dispatch order is fixed.
+
+**The conditional `/planning:design` question is already answered: no.** Phase 2 chose the
+no-shared-catalog shape, which fires this gate's condition, and the re-derived tier answers it —
+that pass was warranted by a *new contract*, and there is no new contract. What remains is D1's
+detection rule, the re-run contract, and the sweep's dispatch design, all already sequenced as
+phases. Recorded in [design/proportionality-gate.md](design/proportionality-gate.md) under "The
+design tier, actually re-derived", and this line closes the same question where
+`design-resolution.md` also poses it.
 
 ### Phase 7: Bring the setup-skill corpus to its owner doc [AUDITED]
 

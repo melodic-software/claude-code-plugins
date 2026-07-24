@@ -9,7 +9,7 @@ covers it, and states what is left over. Verdict values: `COVERED` (an incumbent
 
 | Incumbent | Surface it owns | How verified |
 |---|---|---|
-| `/doctor` (built-in, alias `/checkup`) | Deduplicates local `CLAUDE.md` against checked-in ones; trims checked-in `CLAUDE.md` by cutting content Claude could derive from the codebase; migrates the always-loaded remainder into skills and nested `CLAUDE.md` files; finds unused skills, MCP servers, and plugins against their context cost; flags slow hooks. Reports first, confirms before changing. | Fetched <https://code.claude.com/docs/en/commands> this session |
+| `/doctor` (a bundled skill as of Claude Code v2.1.205; a built-in command before that) | Deduplicates local `CLAUDE.md` against checked-in ones; trims checked-in `CLAUDE.md` by cutting content Claude could derive from the codebase; migrates the always-loaded remainder into skills and nested `CLAUDE.md` files; finds unused skills, MCP servers, and plugins against their context cost; flags slow hooks. Reports first, confirms before changing. | Fetched <https://code.claude.com/docs/en/commands> this session; bundled-skill status per [official-corroboration.md](official-corroboration.md) |
 | `claude-config:audit-instructions` | Checks I1–I11 over user + project `CLAUDE.md`, `.claude/rules`, skill bodies, agent definitions, prompt-type hooks, output styles. Report-only, human-gated. | Read `SKILL.md` + `reference/criteria.md` this session |
 | `claude-memory:audit` / `stateless` | Memory-layer hygiene (I1–I5 on memory surfaces); auto-memory inspection and disablement | Skill descriptions read this session |
 | `docs-hygiene:extract-ssot` / `compress` / `audit-derivability` / `audit-noise` | Duplicate content into one SSOT; brevity; whether a doc earns its existence; five noise shapes | Skill descriptions read this session |
@@ -25,7 +25,7 @@ covers it, and states what is left over. Verdict values: `COVERED` (an incumbent
 | S2 | 80% system-prompt removal; `/doctor` rightsizes skills and `CLAUDE.md` | `/doctor` | `COVERED` — and it is Anthropic's own tool, so anything built here must complement it |
 | S3 | Instructions conflict *across* surfaces, and reconciling them costs reasoning | none — I1–I11 all judge a line or a file in isolation; `extract-ssot` finds *repetition*, not *contradiction* | **`GAP`** — the largest one, and the article's own headline example |
 | S4 | Memory, artifacts, and skills are now destinations that `CLAUDE.md` content should move to | `/doctor` (migrates to skills + nested `CLAUDE.md`); `audit-instructions` I3 (move to skill or path-scoped rule); `claude-memory` (auto-memory) | `PARTIAL` — artifacts are named as a destination by neither |
-| S5 | Absolute rules give way to context-sensitive judgement | `audit-instructions` I6 (bare prohibition → positive reframing), I8 (model-era re-audit of over-prescriptive scaffolding) | `COVERED` |
+| S5 | Absolute rules give way to context-sensitive judgement | `audit-instructions` I6 (bare prohibition → positive reframing), I8 (model-era re-audit of over-prescriptive scaffolding) | `PARTIAL` — I6 and I8 cover the de-prescription itself, but neither carries any a-priori bound on how far it goes, so the stopping condition (S13's carve-out) is a real remainder rather than a covered concern |
 | S6 | Examples constrain; design expressive interfaces instead | `audit-instructions` I9 covers the *negative* half (approach-pinning example blocks) | `PARTIAL` — the *positive* half is unowned: nothing audits whether a skill's `argument-hint`, arguments, enumerations, and frontmatter are expressive enough that prose examples become unnecessary |
 | S7 | Progressive disclosure — file trees, on-demand loading, deferred tools | `/doctor` (migrate always-loaded guidance); `audit-instructions` I3; `skill-quality:check` (line caps) | `PARTIAL` — splitting one long `SKILL.md` into a chapter tree is implied by line caps but never prescribed as a remediation; deferred tool loading is unowned |
 | S8 | Do not repeat an instruction across surfaces; it belongs at the definition of the thing it governs | `docs-hygiene:extract-ssot` (dedupe to one SSOT) | `PARTIAL` — dedupe picks *a* home; nothing encodes *which* home is correct (the placement rule) |
@@ -55,3 +55,6 @@ Four genuine gaps, in descending order of how much they justify new surface:
 Everything else is already enforced, most of it by `/doctor` — which is Anthropic's own tool,
 shipping the same doctrine, and improving on its own release cadence. Any surface added here must
 be defensible against "`/doctor` already does this."
+
+These rankings fed the Phase 2.5 proportionality gate; the dispositions it reached are recorded in
+[proportionality-gate.md](proportionality-gate.md), which supersedes any disposition implied here.
