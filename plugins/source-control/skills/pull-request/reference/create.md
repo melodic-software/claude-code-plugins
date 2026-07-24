@@ -523,9 +523,13 @@ BRANCH=$(git -C "$WT" branch --show-current)
 - **Pushed to the remote at HEAD:** confirm the branch's remote tip equals local HEAD **without relying on `@{u}`** — a worker that pushed with `git push origin <branch>` (no `-u`) has no upstream configured, so `git log @{u}..` would exit 128 on a branch that is in fact fully pushed. Resolve the fetch remote and compare the refs directly:
 
   ```bash
-  REMOTE=$(git -C "$WT" config "branch.$BRANCH.remote" 2>/dev/null || echo origin)
+  # Resolve the PUSH remote (the destination the worker pushed to) via the shared
+  # resolver in --push mode, run FROM the worktree so it reads $BRANCH's config —
+  # never a hardcoded `origin`, so a `git clone -o vendor` or a triangular fork
+  # flow (fetch upstream, push fork) verifies the ref at the right destination.
+  REMOTE=$( cd "$WT" && bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/resolve-remote.sh" --push ) || exit 1
   git -C "$WT" fetch -q "$REMOTE" "$BRANCH"
-  [ "$(git -C "$WT" rev-parse HEAD)" = "$(git -C "$WT" rev-parse "$REMOTE/$BRANCH" 2>/dev/null)" ] \
+  [ "$(git -C "$WT" rev-parse HEAD)" = "$(git -C "$WT" rev-parse FETCH_HEAD)" ] \
     || { echo 'worker branch is not fully pushed to the remote' >&2; exit 1; }
   ```
 
