@@ -2188,15 +2188,13 @@ class GuardTests(unittest.TestCase):
 
     def setUp(self) -> None:
         # Hermetic kill switch: the guard resolves disk_hygiene_enabled by reading
-        # the user settings.json. Point it at an isolated CLAUDE_CONFIG_DIR whose
-        # settings.json we own (absent = enabled default; present-false =
-        # audit-only), independent of the developer's own ~/.claude/settings.json.
-        # The plain guard helpers use the CLAUDE_CONFIG_DIR fallback channel rather
-        # than injecting a --plugin-root, so they never perturb the guard's
-        # data-root authority resolution. The engine-gate helper (which must pass
-        # --plugin-root to mirror hooks.json) points it at the fake cache layout
-        # below, which derives back to the same owned settings.json — so both
-        # channels are hermetic and consistent no matter where the tests run.
+        # settings.json files. The plain guard helpers patch the guard's own
+        # `_resolve_user_settings_path` to our owned settings file directly (absent
+        # = enabled default; present-false = audit-only) and stub the managed path
+        # to a temp file — so they never touch the developer's real settings and
+        # never perturb data-root authority resolution. The engine-gate helper
+        # (which must pass --plugin-root to mirror hooks.json) points it at the fake
+        # cache layout below, which derives back to the same owned settings.json.
         self._cfg = tempfile.TemporaryDirectory()
         self.addCleanup(self._cfg.cleanup)
         cfg = Path(self._cfg.name)
@@ -2240,8 +2238,10 @@ class GuardTests(unittest.TestCase):
             mock.patch("sys.stdin", stdin),
             redirect_stdout(stdout),
             mock.patch.object(guard.sys, "argv", argv),
-            mock.patch.dict(
-                "os.environ", {"CLAUDE_CONFIG_DIR": self._cfg.name}, clear=False
+            # Drive the kill switch through the trusted resolver directly (no env,
+            # no --plugin-root), so data-root authority resolution is untouched.
+            mock.patch.object(
+                guard, "_resolve_user_settings_path", lambda: self._settings
             ),
             mock.patch.object(
                 guard.killswitch_config,
@@ -2825,7 +2825,6 @@ class GuardTests(unittest.TestCase):
                 for key, value in os.environ.items()
                 if key != "CLAUDE_PLUGIN_DATA"
             }
-            environment["CLAUDE_CONFIG_DIR"] = self._cfg.name
             stdin = io.StringIO(json.dumps({"tool_input": {"command": command}}))
             stdout = io.StringIO()
             with (
@@ -2858,7 +2857,6 @@ class GuardTests(unittest.TestCase):
             for key, value in os.environ.items()
             if key != "CLAUDE_PLUGIN_DATA"
         }
-        environment["CLAUDE_CONFIG_DIR"] = self._cfg.name
         stdin = io.StringIO(json.dumps({"tool_input": {"command": command}}))
         stdout = io.StringIO()
         with (
@@ -2968,7 +2966,6 @@ class GuardTests(unittest.TestCase):
             for key, value in os.environ.items()
             if key != "CLAUDE_PLUGIN_DATA"
         }
-        environment["CLAUDE_CONFIG_DIR"] = self._cfg.name
         stdin = io.StringIO(json.dumps({"tool_input": {"command": command}}))
         stdout = io.StringIO()
         with (
@@ -3506,9 +3503,10 @@ class DirectReadKillSwitchTests(unittest.TestCase):
     Post-C′ the guard ignores the ``--disk-hygiene-enabled`` argv flag and the
     ``CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED`` env var (both repo-tamperable
     or un-delivered) and instead reads ``disk_hygiene_enabled`` out of the
-    user's ``settings.json`` ``pluginConfigs``. The settings file is located
-    from the tamper-resistant ``--plugin-root`` (``${CLAUDE_PLUGIN_ROOT}``)
-    first, then the ``CLAUDE_CONFIG_DIR``/``HOME`` env fallback. Every
+    ``settings.json`` ``pluginConfigs``. The user file is located **solely** from
+    the tamper-resistant ``--plugin-root`` (``${CLAUDE_PLUGIN_ROOT}``), never an
+    environment value; a managed policy at its fixed system path overrides it, and
+    a marker-less (``--plugin-dir``) root leaves no trusted user path. Every
     absent/degraded read fails closed to enabled (safety on).
     """
 
@@ -3612,11 +3610,35 @@ class DirectReadKillSwitchTests(unittest.TestCase):
             )
         )
 
-    def test_config_dir_env_fallback_when_no_plugin_root(self) -> None:
-        self.write_toggle(False)
-        self.assertFalse(
+    def test_no_plugin_root_ignores_env_config_dir_and_fails_closed_enabled(
+        self,
+    ) -> None:
+        # Without a trusted --plugin-root (e.g. a --plugin-dir checkout install),
+        # the guard must NOT trust a repo-injectable CLAUDE_CONFIG_DIR: even a
+        # configured `false` reachable only through the environment is ignored and
+        # the switch fails closed to enabled, so a repo cannot forge a settings
+        # path to flip it.
+        self.write_toggle(False)  # config_dir/settings.json
+        self.assertTrue(
             self.resolve([], {"CLAUDE_CONFIG_DIR": os.fspath(self.config_dir)})
         )
+
+    def test_plugin_dir_install_ignores_env_user_settings_but_honors_managed(
+        self,
+    ) -> None:
+        # A --plugin-dir root carries no plugins/cache marker, so there is no
+        # trusted user-settings path: a repo-injectable CLAUDE_CONFIG_DIR is
+        # ignored. A managed policy (fixed system path) is still enforced.
+        checkout = self.config_dir / "checkout"  # marker-less root
+        checkout.mkdir()
+        checkout_argv = ["--plugin-root", os.fspath(checkout)]
+        env = {"CLAUDE_CONFIG_DIR": os.fspath(self.config_dir)}
+        self.write_toggle(False)  # reachable only via env -> ignored
+        self.write_managed_toggle(False)  # managed policy -> honored
+        self.assertFalse(self.resolve(checkout_argv, env))
+        # Without the managed policy, the marker-less install fails closed to enabled.
+        self.managed.unlink()
+        self.assertTrue(self.resolve(checkout_argv, env))
 
     def test_plugin_root_channel_beats_tamperable_config_dir_env(self) -> None:
         """A repo-injected CLAUDE_CONFIG_DIR cannot override the real settings.

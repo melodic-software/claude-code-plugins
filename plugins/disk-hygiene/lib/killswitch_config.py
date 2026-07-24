@@ -286,7 +286,7 @@ def _managed_effective(
 
 
 def resolve_effective(
-    settings_path: Path,
+    settings_path: Path | None,
     managed_settings_path: Path | None = None,
     plugin_id: str | None = None,
 ) -> bool:
@@ -297,11 +297,19 @@ def resolve_effective(
     ``managed-settings.d/`` drop-in — wins over the user settings, which is how an
     organization enforces audit-only mode. When managed configures no value (all
     managed sources absent, entry-less, or unreadable/ambiguous) the user settings
-    decide. Every read is ``probe()``'s effective value, which fails **closed to
-    enabled**.
+    decide.
+
+    ``settings_path`` is ``None`` when the caller has no *trusted* user-settings
+    location (e.g. a ``--plugin-dir`` install whose root carries no ``plugins/cache``
+    marker, where the only remaining locator would be a repo-tamperable environment
+    variable). In that case the user scope contributes no verdict and, absent a
+    managed one, the switch fails **closed to enabled**. Every file read is
+    ``probe()``'s effective value, itself closed to enabled.
     """
     if managed_settings_path is not None:
         managed_verdict = _managed_effective(managed_settings_path, plugin_id)
         if managed_verdict is not None:
             return managed_verdict
+    if settings_path is None:
+        return True
     return bool(probe(settings_path, plugin_id)["effective"])

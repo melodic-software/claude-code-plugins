@@ -444,25 +444,27 @@ def _plugin_id_from_root(plugin_root: str) -> str | None:
     return None
 
 
-def _resolve_user_settings_path() -> Path:
-    """Locate the user settings file that carries the kill switch.
+def _resolve_user_settings_path() -> Path | None:
+    """Locate the user settings file that carries the kill switch, or ``None``.
 
-    Precedence, highest first:
-
-    1. Derived from ``--plugin-root ${CLAUDE_PLUGIN_ROOT}`` — the tamper-resistant
-       channel. Claude Code substitutes the plugin's true install path, which a
-       hostile repo cannot forge, so the settings file it points at is the real
-       user one regardless of any repo-supplied ``CLAUDE_CONFIG_DIR`` / ``HOME``.
-    2. ``CLAUDE_CONFIG_DIR`` / ``HOME`` (via
-       ``killswitch_config.default_settings_path``) — the fallback for non-hook
-       invocations (the report CLI, unit tests) where ``--plugin-root`` is absent.
+    The **only** trusted locator is ``--plugin-root ${CLAUDE_PLUGIN_ROOT}``: Claude
+    Code substitutes the plugin's true install path, which a hostile repo cannot
+    forge, and the user settings file is derived from its ``plugins/cache`` marker.
+    The guard deliberately does **not** fall back to ``CLAUDE_CONFIG_DIR`` / ``HOME``:
+    those are environment values, and a repo ``.claude/settings.json`` ``env`` block
+    reaches hook subprocesses, so trusting them would let a repo point the read at a
+    forged settings file and flip the switch (the exact provenance hole this design
+    closes). When the plugin root carries no marker — e.g. a ``--plugin-dir``
+    checkout install — no trusted user-settings location exists and this returns
+    ``None``; the caller then relies on managed settings (fixed system paths) and
+    otherwise fails closed to enabled.
     """
     plugin_root = _argv_flag_value(sys.argv[1:], _PLUGIN_ROOT_FLAG)
     if plugin_root and plugin_root != _PLUGIN_ROOT_PLACEHOLDER:
         derived = _user_settings_path_from_root(plugin_root)
         if derived:
             return Path(derived)
-    return killswitch_config.default_settings_path()
+    return None
 
 
 def resolve_disk_hygiene_enabled() -> bool:

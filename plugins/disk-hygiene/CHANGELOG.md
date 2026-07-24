@@ -22,13 +22,14 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
 
 - **Kill-switch delivery is a settings read, not a hook argument or environment variable.** The engine gate
   drops its `${user_config.*}` argument (fixing the hook-drop) and both surfaces call the new shared
-  `lib/killswitch_config.py` reader. The user `settings.json` is located from the tamper-resistant
-  `${CLAUDE_PLUGIN_ROOT}` both surfaces already receive (falling back to `CLAUDE_CONFIG_DIR`/`HOME` only
-  when `--plugin-root` is absent, e.g. the report CLI or unit tests). The environment is deliberately not
-  consulted for the toggle or the settings path: a repo `.claude/settings.json` `env` block reaches hook
-  subprocesses and carries no provenance, and since Claude Code 2.1.207 `pluginConfigs` is honored only from
-  user, managed, and `--settings` scope (project/local ignored), so a hostile repo cannot forge the value.
-  Every absent, unreadable, or ambiguous read fails **closed to enabled**.
+  `lib/killswitch_config.py` reader. The user `settings.json` is located **solely** from the
+  tamper-resistant `${CLAUDE_PLUGIN_ROOT}` both surfaces receive — the guard never falls back to
+  `CLAUDE_CONFIG_DIR`/`HOME` for it, because those are environment values a repo `.claude/settings.json`
+  `env` block can inject into hook subprocesses (carrying no provenance). A marker-less `--plugin-dir`
+  checkout root leaves no trusted user path, so the user scope is skipped and the switch relies on managed
+  settings, failing closed to enabled otherwise. Since Claude Code 2.1.207 `pluginConfigs` is honored only
+  from user, managed, and `--settings` scope (project/local ignored), so a hostile repo cannot forge the
+  value. Every absent, unreadable, or ambiguous read fails **closed to enabled**.
 - **Managed (enterprise) settings are honored as the highest-precedence scope.** The reader also reads the
   platform managed-settings.json (`/Library/Application Support/ClaudeCode/` on macOS, `/etc/claude-code/`
   on Linux/WSL, `C:\Program Files\ClaudeCode\` on Windows — a fixed path, not `%ProgramFiles%`-derived, so a

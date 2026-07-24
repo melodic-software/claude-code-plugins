@@ -152,8 +152,11 @@ resolve `disk_hygiene_enabled` the same single way: by reading it from `pluginCo
 skill's `kill_switch_probe.py` reports). Neither surface takes the value from the process environment.
 Claude Code honors that key only from user, managed, and `--settings` scope since 2.1.207 — a project or
 local `.claude/settings.json` is ignored — so a hostile repo cannot flip it. The **user** file is located
-from `${CLAUDE_PLUGIN_ROOT}` (the plugin's true install path, which a repo cannot forge), not from
-`CLAUDE_CONFIG_DIR`/`HOME`, which a repo `settings.json` `env` block could redirect. The **managed**
+from `${CLAUDE_PLUGIN_ROOT}` (the plugin's true install path, which a repo cannot forge) and **never**
+from `CLAUDE_CONFIG_DIR`/`HOME`, which a repo `settings.json` `env` block could inject. A marker-less
+install root (a `--plugin-dir` checkout, whose path has no `plugins/cache` segment) yields no trusted
+user-settings path, so the user scope is skipped there and the switch relies on managed settings, failing
+closed to enabled otherwise. The **managed**
 (enterprise) file at its fixed root-owned system path is read too and, as the highest-precedence
 non-overridable scope, an explicitly configured value there **wins over the user file** — so an
 organization can enforce audit-only mode; the sibling `managed-settings.d/` drop-in directory is merged
