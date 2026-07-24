@@ -505,3 +505,35 @@ Record the expected set for comparison in Phase 3.
 ## 2.6 Report and stop
 
 Report the PR URL, captured `<pr_number>`, and recorded list of expected CI workflows. End Phase 2 there. Monitor (Phase 3), if needed, is invoked explicitly via `/pull-request monitor` or `/pull-request full`.
+
+## 2.7 `create --pushed` — PR-only entry for an orchestrated flow
+
+`create --pushed --worktree <path>` opens the PR when the branch is **already committed and pushed** — the orchestrated case where a dispatched worker did the edits, commit, and push inside its own out-of-tree worktree and returned that worktree's path (`/work-items:work`, `#572`). The invoking orchestrator is typically **out-of-tree** (its session sits on the default branch or elsewhere), so this mode runs neither the commit/push half of the normal `create` path nor trusts the session cwd.
+
+**Ignore the pre-computed context.** [SKILL.md](../SKILL.md)'s `!`-substituted frontmatter (`git branch --show-current`, `git diff --name-only HEAD`, working-tree status) reflects the **session cwd**, which for an out-of-tree orchestrator is the wrong branch and diff — and a `!`-substituted line cannot be `git -C`-redirected. Under `--pushed`, re-resolve everything from the target worktree instead:
+
+```bash
+WT="<path>"                                   # from --worktree
+BRANCH=$(git -C "$WT" branch --show-current)
+```
+
+**Preconditions (assert, never redo).** The worker's contract is to commit, push, and be current with the default branch before returning; verify rather than repeat:
+
+- **Clean tree:** `git -C "$WT" status --porcelain` empty — else STOP (the worker returned with uncommitted work).
+- **Nothing unpushed:** `git -C "$WT" log @{u}..` empty and the branch resolves on the remote — else STOP (the worker returned without pushing).
+
+**Sub-steps relative to the normal `create` path:**
+
+- **§2.1 / §2.3 (branch-name prompts, stage + commit):** skipped — the worker already committed; the preconditions above replace them.
+- **§2.2 (rebase onto the default branch):** skipped — bringing the branch current is the worker's pre-return responsibility, and residual staleness is caught by `gh pr view --json mergeable` and CI in Phase 3. The out-of-tree orchestrator cannot rebase a branch it is not on with a clean tree, so it never owns this step.
+- **§2.4.1 (push):** skipped — replaced by the unpushed-commits assertion above.
+- **§2.4.0 (`Closes #N`), §2.4.1 (body assembly), §2.4.2 (pre-create gates):** run unchanged, except every `git`/diff read is anchored with `git -C "$WT"` and the branch is `$BRANCH`, never the session branch. In §2.4.0 this means passing `$BRANCH` as `parse-branch-issue.sh`'s explicit first positional (`parse-branch-issue.sh "$BRANCH" ['<branch-issue-pattern>']`) — the script defaults to `git branch --show-current` **in its own process**, which an out-of-tree orchestrator cannot redirect with `git -C`, so leaving it implicit would parse `Closes #N` from the orchestrator's own branch and silently drop the linkage.
+- **§2.4.3 (create):** `gh pr create` MUST pass `--head "$BRANCH"` explicitly, since the invoker is not on the branch:
+
+  ```bash
+  PR_URL=$(gh pr create --head "$BRANCH" --title "<type>: <description>" --body "$BODY")
+  ```
+
+- **§2.5 / §2.6:** unchanged — record expected workflows, report the PR URL + number, and stop.
+
+This mode is create-only: it never merges, and (like standalone `create`) it hands monitoring off to `/pull-request monitor` / `/pull-request full` or, in the orchestrated lane, back to the calling orchestrator.

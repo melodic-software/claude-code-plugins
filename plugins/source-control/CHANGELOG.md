@@ -3,6 +3,28 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.0]
+
+### Added
+
+- **`pull-request` gains a `create --pushed --worktree <path>` PR-only entry (`#572`).** For an
+  orchestrated flow where a dispatched worker already committed and pushed inside its own out-of-tree
+  worktree, an out-of-tree orchestrator opens the PR without redoing commit / push / rebase: the mode
+  re-resolves branch and diff from the target worktree (ignoring the session-cwd pre-computed
+  context), asserts the tree is clean and fully pushed, runs body assembly and the pre-create gates,
+  and calls `gh pr create --head <branch>` explicitly. Body shape, `Closes #N` injection, and the
+  required-section gate are the existing `create` mechanics, unchanged. See
+  `skills/pull-request/reference/create.md` §2.7.
+
+### Changed
+
+- **`worktree`'s `create` action now documents that orchestrated (autonomous) provisioning does not
+  use it (`#572`).** An orchestrator that must stay resident to keep dispatching — e.g.
+  `/work-items:work` — cannot invoke `create`, whose `EnterWorktree` terminal transitions the calling
+  session; such runs provision non-interactively via the shared `worktree-create.sh` helper (omitting
+  the `EnterWorktree` step) or a plain `git worktree add`, then work the worktree via `git -C` without
+  entering it.
+
 ## [0.25.1]
 
 ### Fixed
