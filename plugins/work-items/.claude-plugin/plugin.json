@@ -22,7 +22,7 @@
     "work_dispatch_concurrency_cap": {
       "type": "number",
       "title": "Autonomous dispatch concurrency cap",
-      "description": "Maximum concurrent dispatch waves /work-items:work's autonomous execute step allows per invocation (it runs exactly one item per invocation). When set, /work-items:work threads it into /implementation:implement-dispatch as that skill's --wave-cap ceiling. Leave unset to let implement-dispatch apply its own internal 3-5 wave default — this key declares no default, so an unset value stays distinguishable from a configured one (which a declared default would collapse into a hard cap).",
+      "description": "Maximum concurrent dispatch waves /work-items:work's autonomous execute step allows per invocation (it runs exactly one item per invocation). Give a whole number of waves; a fractional value is floored to whole waves since a wave is discrete. When set, /work-items:work threads it into /implementation:implement-dispatch as that skill's --wave-cap ceiling. Leave unset to let implement-dispatch apply its own internal 3-5 wave default — this key declares no default, so an unset value stays distinguishable from a configured one (which a declared default would collapse into a hard cap).",
       "min": 1
     },
     "work_loop_item_cap_start": {

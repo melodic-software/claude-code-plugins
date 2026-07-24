@@ -12,7 +12,8 @@ All notable changes to the `implementation` plugin are documented here. Format f
   caller-configured concurrency ceiling: passed, it caps concurrent dispatch waves at `N`; omitted, the
   internal 3–5 default stands, so existing callers are unaffected. `/work-items:work` threads its
   `work_dispatch_concurrency_cap` here (and passes nothing when the key is unset), wiring the
-  previously-inert config to real enforcement.
+  previously-inert config to real enforcement. A fractional argument is floored to whole waves and a
+  value below 1 is treated as 1, since a wave is discrete.
 
 ## [0.8.0]
 

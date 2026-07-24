@@ -80,12 +80,13 @@
       "id": 7,
       "name": "wave-cap-argument-overrides-internal-default",
       "prompt": "/implementation:implement-dispatch --wave-cap 2 — autonomous run, execute the approved plan; a phase routes eight parallelizable worker rows.",
-      "expected_output": "The passed --wave-cap 2 replaces the internal 3–5 default: concurrent dispatch waves are capped at 2 workers, so the eight rows run in waves of at most 2 rather than 3–5. With no --wave-cap the internal 3–5 default would stand instead; the argument is the single enforcement point for a caller-configured concurrency ceiling and does not otherwise change the dispatch cadence.",
+      "expected_output": "The passed --wave-cap 2 replaces the internal 3–5 default: concurrent dispatch waves are capped at 2 workers, so the eight rows run in waves of at most 2 rather than 3–5. With no --wave-cap the internal 3–5 default would stand instead; the argument is the single enforcement point for a caller-configured concurrency ceiling and does not otherwise change the dispatch cadence. A fractional cap (e.g. --wave-cap 2.5) is floored to whole waves (2), since a wave is discrete, and a value below 1 is treated as 1 — never a fractional or zero cap.",
       "files": [],
       "expectations": [
         "Honors --wave-cap 2 as the concurrent-wave ceiling, capping at 2 workers rather than the internal 3–5",
         "Runs the eight rows in waves bounded by the passed cap instead of the internal default",
-        "Treats the argument as the only change — the rest of the dispatch cadence (scope-fenced briefs, verify-returns, main-side build) is unchanged"
+        "Treats the argument as the only change — the rest of the dispatch cadence (scope-fenced briefs, verify-returns, main-side build) is unchanged",
+        "Floors a fractional cap to whole waves and treats a value below 1 as 1 — never a fractional or zero concurrent-wave cap"
       ]
     }
   ]
