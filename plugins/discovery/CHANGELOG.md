@@ -11,8 +11,8 @@
   reorder authority: the tier table still ranks that, and the recency gate's changelog cross-check
   stays unconditional. Stopping at an announcement page — the shallowest rung that still carries the
   claim — and reporting a figure as unsourced is the failure this closes. Gate criterion 9 checks it.
-- **Outcome-gate criterion 9** — the fetch log must show the topmost existing rung for every vendor
-  claim, and any absence must be reported as an enumeration.
+- **Outcome-gate criteria 9 and 10** — 9: the fetch log must show the topmost existing rung for every
+  vendor-published claim. 10: every reported absence must name both the checked and unchecked sets.
 
 ### Changed
 
@@ -22,7 +22,7 @@
 - **Absence claims ship their enumeration.** A negative finding states the sources actually checked
   AND the sources left unchecked, never a bare "unsourced" / "not found" — an absence claim is only
   as strong as the set it was checked against. Stated at the `Gaps` output contract, gated by
-  criterion 9.
+  criterion 10.
 
 ## [0.8.2]
 
