@@ -274,7 +274,7 @@ Create `plugins/context-guard/`:
 
 ### Lane B — `plugin-quality` (opens after lane A merges; inlines lane A's reader contract)
 
-#### Phase B1: `audit` skill hub [TODO]
+#### Phase B1: `audit` skill hub [DONE]
 
 - [ ] `plugins/plugin-quality/.claude-plugin/plugin.json` — CREATE (`0.1.0`, no `userConfig` v1).
 - [ ] `skills/audit/SKILL.md` — CREATE: `/plugin-quality:audit <plugin>[:<component>]`. Six-step
@@ -341,7 +341,7 @@ Create `plugins/context-guard/`:
   default zone bands quoted in `skills/audit/SKILL.md` grep-match the values in
   `plugins/context-guard/reference/reader-contract.md` exactly.
 
-#### Phase B2: References port + generalization [TODO]
+#### Phase B2: References port + generalization [DONE]
 
 - [ ] `skills/audit/references/recurring-concerns.md` — CREATE from the local skill's file,
   machine paths and melodic name-drops stripped.
@@ -357,7 +357,7 @@ Create `plugins/context-guard/`:
   as a B6 pre-PR check — B4's config reference is written after this phase and is the likeliest
   violator (stress-test #13).
 
-#### Phase B3: Auditor agent [TODO]
+#### Phase B3: Auditor agent [DONE]
 
 - [ ] `agents/auditor.md` — CREATE: the fresh-context named subagent for workflow steps 2–3.
   Tools: Read/Grep/Glob/WebFetch plus Bash — named honestly (Bash is NOT read-only; it is needed
@@ -371,7 +371,7 @@ Create `plugins/context-guard/`:
 - [ ] Agent file frontmatter validates (`claude plugin validate` covers agents dir); SKILL.md step
   2 dispatches by this agent's name.
 
-#### Phase B4: Config surface + sink reference [TODO]
+#### Phase B4: Config surface + sink reference [DONE]
 
 - [ ] `reference/config.md` — CREATE: `.claude/plugin-quality.md` keys (sink, zone-behavior
   criteria, repo-map overrides), layering per config-cascade (all three layers, merge semantics
@@ -388,7 +388,7 @@ Create `plugins/context-guard/`:
 
 - [ ] `grep -c 'plugin-quality' docs/conventions/config-cascade/README.md` ≥ 1.
 
-#### Phase B5: Setup skill [TODO]
+#### Phase B5: Setup skill [DONE]
 
 - [ ] `skills/setup/SKILL.md` — CREATE: `check` (gh present + authed, context-guard snapshot seam
   present → reports dispatch mode, config layers found + effective sink with layer provenance) /
@@ -401,7 +401,7 @@ Create `plugins/context-guard/`:
 
 - [ ] `/skill-quality:check` passes on `plugin-quality/setup`; `validate-evals` passes.
 
-#### Phase B6: Evals + release chores (lane B) [TODO]
+#### Phase B6: Evals + release chores (lane B) [DONE]
 
 - [ ] `skills/audit/evals/evals.json` — CREATE: triggering (mapped from the local skill's trigger
   vocabulary per the B1 continuity table), routing incl. negative boundaries
