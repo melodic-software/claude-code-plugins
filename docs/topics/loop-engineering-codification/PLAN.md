@@ -97,6 +97,41 @@ This topic:
 - Retiring or amending the `boris-video-absorption` slice beyond repointing
   its two citations of the retired `consumer-config-layering` path.
 
+### Answers derived from the corpus (Phase 2, partial)
+
+Sourced from `plugins/autonomy/reference/trigger-dispatch.md` and
+`routines.md`, both read in full. The remaining owner docs are unread; the
+substrate/cost answer is therefore still open.
+
+- **"Loops that generate prompts" is the wrong frame.** The load-bearing
+  split is by lifetime, not by a four-rung progression: session-scoped
+  (`loop`, `goal`, `batch`, `dynamic workflow`) versus standing (`schedule`,
+  `routine`). The vendor's "time-based" bucket straddles that boundary —
+  `/loop` dies with its session, `/schedule` does not — which is the
+  conflation `routines.md` is annotated to prevent.
+- **Nothing generates prompts at run time.** A routine is a standing schedule
+  plus a saved task definition firing a fresh session per run, and
+  §Instruction provenance requires the stored prompt be a thin pointer to a
+  version-controlled artifact; pasted prose is non-compliant because a
+  scheduling surface exposes no prompt history, diff, or rollback.
+- **Jira and any other tracker resolve through `tracker-vcs-event`.** The
+  conforming shape is an adapter that normalizes and enqueues. A central
+  webhook application that prompts headless executors is the second
+  signal-to-execution path adapter obligation 1 forbids. Note that a routine
+  `/fire` payload is caller-supplied, while `signal.producer_identity` must
+  resolve from the platform's authenticated run context — so fired
+  provenance can never come from the payload.
+- **Post-merge triggering is not justified for PR queue work.**
+  `pr-queue-tending` is a `v1` class whose trigger slot is `schedule`, daily.
+  Event-riding wakes the routine's own ratified surface and the run stays
+  `temporal` with identity and classification invariant, so an event trigger
+  adds no observation the daily sweep lacks. The earlier
+  `pull_request.closed` recommendation is withdrawn rather than narrowed.
+- **Vendor-hosted executors cap at human-gated merge policy**
+  (§Hosting stance). Cloud routines are vendor-hosted, so they can never
+  auto-merge regardless of configuration. This is a structural ceiling on any
+  design that puts merge authority behind a hosted routine.
+
 ### Deferred questions
 
 - Whether contract slices should persist on the default branch at all —
