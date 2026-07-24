@@ -341,7 +341,7 @@ Create `plugins/context-guard/`:
   default zone bands quoted in `skills/audit/SKILL.md` grep-match the values in
   `plugins/context-guard/reference/reader-contract.md` exactly.
 
-#### Phase B2: References port + generalization [TODO]
+#### Phase B2: References port + generalization [DONE]
 
 - [ ] `skills/audit/references/recurring-concerns.md` — CREATE from the local skill's file,
   machine paths and melodic name-drops stripped.
