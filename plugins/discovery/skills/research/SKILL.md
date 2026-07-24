@@ -156,7 +156,7 @@ Present research findings as:
 1. **Summary** — 2-3 sentence answer to the research question
 2. **Evidence table** — `Claim | Sources (Tier 0/1 entries cite the URL/command fetched THIS turn) | Tier | Tool diversity | Confidence`
 3. **Conflicts** — disagreements between sources (flagged explicitly; primary wins over blog consensus)
-4. **Gaps** — claims not at ≥1 primary + 2 independent corroborators, OR LOW confidence (flagged for follow-up)
+4. **Gaps** — claims not at ≥1 primary + 2 independent corroborators, OR LOW confidence (flagged for follow-up). A gap asserting absence names the sources checked AND the sources left unchecked — never a bare "not found"
 5. **Recency status** — primary-source age per tool/library claim
 6. **Project fit** — how findings align with the consuming project's conventions and stated direction
 7. **Outcome gate result** — pass, or which criterion failed and what was re-run

@@ -1,5 +1,24 @@
 # Changelog — discovery plugin
 
+## [0.8.3]
+
+### Added
+
+- **`/discovery:research` — vendor-claim artifact ladder.** The primary-source-first protocol now
+  ranks the artifact CLASSES a vendor publishes the same claim at (system/model card → platform docs
+  → product docs → changelog → announcement → third-party), complementing the doc-index probe that
+  enumerates pages. Stopping at an announcement page — the rung a SERP surfaces first and the
+  shallowest one carrying the claim — and reporting a figure as unsourced is the failure this closes.
+- **Large-primary fetch fallback.** A content-length failure or a silent truncation is a fetcher
+  limit, not a source limit: download to the scratch dir, extract text with whatever extractor the
+  machine has, grep the result. A large primary is not "unreachable" until that has run and failed.
+
+### Changed
+
+- **Absence claims must ship their enumeration.** A negative finding publishes the sources actually
+  checked AND the sources left unchecked, never a bare "unsourced" / "not found" — an absence claim
+  is only as strong as the set it was checked against. Enforced at the `Gaps` output contract.
+
 ## [0.8.2]
 
 ### Changed

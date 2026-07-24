@@ -94,11 +94,30 @@ The "top of Google" is a ranking artifact, not an authority signal — SEO conte
 2. **Fetch it directly** — with whatever direct-fetch tool is connected this session. Discover what's available from your tool list, the injected MCP server-instruction blocks, and the project's MCP registry; don't hard-depend on a specific server. Fetching the canonical home directly bypasses ranking entirely.
 3. **Synthesis + SERP discover and corroborate only** — find the canonical home when unknown, surface independent corroborators. A synthesized answer points you AT the source; it is never the terminal source for an accepted claim.
 
+**A vendor publishes the same claim at several depths — walk the artifact ladder top-down.** The doc-index probe below enumerates *pages*; this ranks *artifact classes*, and step 1 is not satisfied until the top rung has been checked. Descend only when the rung above genuinely lacks the claim:
+
+1. The deepest per-release artifact for the claim's class — for a model / benchmark / eval claim, the **system or model card** (usually a PDF). Carries methodology, harness, and per-run numbers
+2. Platform / API reference — normative behavior, parameters, limits
+3. Product docs — feature-level description
+4. Changelog / release notes — what changed, when
+5. Announcement / news post — the **headline** number only
+6. Third-party — corroborators, never terminal
+
+**Rungs 5-6 are what a SERP surfaces first, and they are the shallowest.** An announcement carries the headline figure; the specific run, its conditions, and its methodology live in the card. Concluding a figure is unsourced after checking the announcement, an intro page, and a couple of searches means the ladder was never walked — every one of those is rung 2 or below.
+
 **Authoritative is not a waiver for corroboration.** Even the canonical doc still needs ≥2 independent corroborators and a freshness check — first-party docs routinely lag major releases. When the topic post-dates a major version, cross-check the canonical doc against the upstream changelog/release and treat any lag as a conflict to resolve.
 
 **Escalate on block, never downgrade.** A direct-fetch 403/429 means wrong fetcher, not vanished source. Escalation order: (1) a headless-browser URL reader if connected; (2) a managed scraping tool if available; (3) a synthesis tool forced to the blocked domain (domain-filter option). Only after those fail, fall back to secondary sources — and document the gap.
 
-**Negative claims need the primary fetched this turn.** "X is undocumented / removed / unsupported" requires fetching the canonical doc this turn and confirming absence — absence in training data ≠ absence in current docs.
+**A size failure is a fetcher limit, not a source limit — download and extract locally.** Rung-1 artifacts are routinely large PDFs, and an in-context fetcher may hard-fail on one (observed: `maxContentLength size of 10485760 exceeded`) or silently truncate it — Claude Code's WebFetch documents truncating large pages to a fixed character limit and names `curl` via Bash as the unprocessed-page path ([tools-reference](https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior)). Either outcome means change fetcher, never downgrade the claim. Recipe:
+
+1. Download to the session's scratch dir with any available downloader — e.g. `curl -sL -o <scratch>/doc.pdf <url>`
+2. Extract text with whatever the machine has — probe for a local extractor (`pdftotext`, `pypdf`) before reaching for a connected parse/scrape tool that extracts server-side
+3. Grep the extracted text for the claim, and cite the section it lands in
+
+A large primary is never "unreachable" until this has run and failed.
+
+**Negative claims need the primary fetched this turn, and ship their enumeration.** "X is undocumented / removed / unsupported" requires fetching the canonical doc this turn and confirming absence — absence in training data ≠ absence in current docs. Never publish "unsourced" / "unsupported" / "not found" bare: publish the enumeration — *"not found in [the sources actually checked]; unchecked: [the sources not reached]"*. An absence claim is only as strong as the set it was checked against, and naming the unchecked set is what lets a reader close the gap in one step instead of a round trip.
 
 ## Machine-readable doc-index discovery
 
