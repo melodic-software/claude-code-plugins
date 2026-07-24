@@ -7,11 +7,11 @@ table (§3) and is recorded here.
 
 ## 2.0.0 — 2026-07-24
 
-**Bump tier is USER-RESERVED and provisionally set to the safer reading.** Two corrections land
-together, and their tier is genuinely ambiguous under this contract's own rule: `2.0.0` if either
-touches a shared invariant, `1.1.0` if both are additive guidance. `2.0.0` is the conservative
-choice, never the resolved one — downgrading is a one-line change to this heading, and the arbiter
-is the operator. Each entry below states the case both ways rather than picking one.
+Tier ratified as **major**. Both corrections touch a shared invariant: B4 replaces a stated
+operating assumption every consuming lane inlines, and B6 alters the §Versioning trigger set that
+governs when this contract must change at all. The narrower minor reading — that §6 is the guard
+binding rather than a §4 loop-layer invariant, and that a new trigger is additive guidance — was
+considered and not taken. Each entry below records both cases.
 
 - **Account-scoped tee record (§6).** The tee record now carries the account identifier its windows
   were observed under, and a lane treats an identifier mismatch exactly as it treats a stale record

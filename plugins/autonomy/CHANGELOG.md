@@ -8,11 +8,10 @@ merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
 
 ## [0.10.0]
 
-**Bump tier is USER-RESERVED and provisionally set to the safer reading.** One of the three changes
-below has a genuinely ambiguous tier under this contract's own rules. Under the plugin's `0.x`
-scheme a contract-vocabulary change lands as a minor bump (`0.10.0`) and a clarification as a patch
-(`0.9.1`); `0.10.0` is the conservative choice, never the resolved one. Downgrading is a two-line
-change — this heading and `.claude-plugin/plugin.json` — and the arbiter is the operator.
+Tier ratified as **minor**: the determinism rule below is contract vocabulary an adopting org
+classifies novel routine classes against, and both its wording and its named rule token change. The
+narrower patch reading — that the classification's substance is unchanged and every derived
+guardrail row is identical — was considered and not taken.
 
 ### Changed
 
