@@ -385,7 +385,8 @@ Every rule cites its source URL rather than restating doctrine, and carries the 
 recheck triggers so one staleness event fires all of them. The pre-flight consumer check is **done**
 and its result is why the catalog stays put: three parse paths, all bare skill-relative markdown
 links in `audit-instructions/SKILL.md`, no script or CI workflow reads the file, and a reverse
-`[SKILL.md](../SKILL.md)` back-link at `criteria.md:167` constrains where it could live at all.
+`[SKILL.md](../SKILL.md)` back-link in `criteria.md`'s "Output format" section constrains where it
+could live at all.
 
 The convention-registry work item is **dropped**: the registry gates a new cross-plugin convention,
 and extending one plugin's own reference file is not one. Task #43 decides separately whether the

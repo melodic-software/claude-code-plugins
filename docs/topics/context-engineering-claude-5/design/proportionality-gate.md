@@ -58,9 +58,9 @@ Each row carries two independent answers, because conflating them is what the fi
 | D2 | S6 | extends **I9's Remediate line** in `audit-instructions` | off — `OPINION` | Fails the *evidence* test, not the coverage test — the first draft reported it the other way round. I9 already detects the same artifact (an example block pinning the model's approach); R-A adds only where the information should go instead. `skill-quality:check` cannot host it: its contract is "NO model invocation… reproducible in CI", and representational-equivalence judgement is not reproducible. `official-corroboration.md`, the S6 row; `check-skill.sh:4`, the header contract comment, plus `skill-quality:check`'s `SKILL.md`, "Purpose" |
 | D3 | S8 | **new check** in `audit-instructions`, beside I3 | off — `OPINION` (pending S8 re-verification) | Not `extract-ssot`: that refuses below three instances and picks a home by content type, never by proximity to what is governed. Not I3 either — **different axis**: I3 is load *timing*, D3 is definition-site *locality*, and an instruction can be correctly deferred and still misplaced. `extract-ssot/SKILL.md`, "Decision framework" — the Rule of Three gate; `criteria.md`, check I3 |
 | D4 | S13 | extends **I6 and I8** with a stopping condition, `claude-config`-local | **on** — suppressor inversion | Neither I6 nor I8 carries any a-priori bound: I6's escape is a rewrite concession, I8's remediation is unconditional. And no trimming rule outside `claude-config` needs to consult it — every `docs-hygiene` trimmer already owns a local stopping condition. One consumer, so a local check, not a shared artifact. `criteria.md`, checks I6 and I8 |
-| D5 | S10+S14 | **nothing built** | deferred | The one remainder with no incumbent to calibrate. **Trigger:** an official page names artifacts or a reference ranking as normative, or a reproducible defect shape makes it auditable. `coverage-matrix.md:47-49`; `official-corroboration.md:46, 50, 268-269` |
-| D6 | S7 remainder | **splits by the surface partition** — tightens I3's Remediate for non-memory surfaces; folds into the C3 revision for memory surfaces | on — `ANTHROPIC-DOCS` | I3 names the right destinations but supplies no qualifying test and no cost: nothing in it says `@path` fails to defer, so an auditor could satisfy its letter and change the load profile not at all. And I3 is contractually barred from memory surfaces, which is where the rule matters most. `criteria.md:25-30, 66-74`; `official-corroboration.md:68, 104-107` |
-| D7 | S4 remainder | folded into **one consolidated C3 revision** in `claude-memory:audit` | on — `ANTHROPIC-DOCS` | Its premise is official policy on an existing page, so it is not a gap — but C3 *already is* the routing table and is missing two rows the plugin's own reference material supplies: auto-memory as a destination, and `@path` as a non-deferring one. **D7 and D6's memory half are the same rule**; filing them separately would emit two findings on one misplaced section. `official-corroboration.md:188-196`; `claude-memory` `criteria.md:56-72` |
+| D5 | S10+S14 | **nothing built** | deferred | The one remainder with no incumbent to calibrate. **Trigger:** an official page names artifacts or a reference ranking as normative, or a reproducible defect shape makes it auditable. `coverage-matrix.md`, "What the matrix says", the S10+S14 entry; `official-corroboration.md`, the S10 artifacts row, the S14 row, and the `artifacts` entry under "Out of scope, with reason" |
+| D6 | S7 remainder | **splits by the surface partition** — tightens I3's Remediate for non-memory surfaces; folds into the C3 revision for memory surfaces | on — `ANTHROPIC-DOCS` | I3 names the right destinations but supplies no qualifying test and no cost: nothing in it says `@path` fails to defer, so an auditor could satisfy its letter and change the load profile not at all. And I3 is contractually barred from memory surfaces, which is where the rule matters most. `criteria.md`, "Surface partition" and check I3; `official-corroboration.md`, the "`@path` imports do not save context" bullet and the compaction-table section |
+| D7 | S4 remainder | folded into **one consolidated C3 revision** in `claude-memory:audit` | on — `ANTHROPIC-DOCS` | Its premise is official policy on an existing page, so it is not a gap — but C3 *already is* the routing table and is missing two rows the plugin's own reference material supplies: auto-memory as a destination, and `@path` as a non-deferring one. **D7 and D6's memory half are the same rule**; filing them separately would emit two findings on one misplaced section. `official-corroboration.md`, the `features-overview` entry under "Pages the plan's list missed"; `claude-memory` `criteria.md`, check C3 |
 
 **One new officially-backed check survives** (D1). One further new check ships `OPINION`-tier and
 default-off (D3). Everything else is an edit to a check that already exists. Nothing lands in
@@ -149,11 +149,13 @@ Two read-only verification passes checked `design-resolution.md`'s factual basis
 repository at `cbf27e88a9`. Three of its load-bearing claims are refuted, and every refutation cuts
 the same direction — *against* relocating or sharing the catalog.
 
-- **The drift checker is structurally blind to a criteria catalog.** `design-resolution.md:60-65`
-  and PLAN.md both claim a byte-identical catalog copy landing in a second plugin trips
-  `check-cross-plugin-source-drift.sh` as an unregistered cluster, and that registering the cluster
-  is the sanctioned resolution. False. The script clusters on the **full path-within-plugin**
-  (`check-cross-plugin-source-drift.sh:58`), and a criteria catalog lives at
+- **The drift checker is structurally blind to a criteria catalog.** `design-resolution.md`,
+  "Shape 4 is the repo's own established mechanism" — where the claim is now struck under
+  "Refuted 2026-07-24" — and PLAN.md both claim a byte-identical catalog copy landing in a second
+  plugin trips `check-cross-plugin-source-drift.sh` as an unregistered cluster, and that registering
+  the cluster is the sanctioned resolution. False. The script clusters on the **full
+  path-within-plugin** (`check-cross-plugin-source-drift.sh:58`, the `rel` assignment in the
+  cluster-building loop), and a criteria catalog lives at
   `skills/<skill-name>/reference/criteria.md` where the skill name differs by construction —
   `audit-instructions`, `audit-permission-grants`, `audit`, `quality-gate`. Four such files exist
   today at four distinct paths and form **zero clusters**; `--check` exits 0. The skip-list argument
@@ -336,14 +338,16 @@ that withholds. Caught by the blind-derivation reviewer; no prior document notic
 rather than resolving them silently. Each is answered here.
 
 - **Prompt-carrying configuration surfaces** — `routines`, `scheduled-tasks`, `goal`, `channels`,
-  `statusline` (`official-corroboration.md:246-248`). **In scope for D1's inventory, out of scope
-  for D1's conflict comparison, in this pass.** They can hold instruction text, so an inventory that
+  `statusline` (`official-corroboration.md`, their entry under "`llms.txt` walk — falsifiability
+  check"). **In scope for D1's inventory, out of scope for D1's conflict comparison, in this pass.**
+  They can hold instruction text, so an inventory that
   omits them under-reports the surface; but their text is scoped to a single invocation rather than
   layered into every request, so a contradiction between one of them and `CLAUDE.md` is not the
   failure mode the memory doc's "Consistency" section describes. Recorded as an explicit exclusion
   with a trigger: promote to the comparison set if a consumer reports a conflict originating there.
-- **Output styles** (`official-corroboration.md:197-203`). **In scope for both**, and a first-class
-  D1 conflict source. They modify the system prompt directly, default to *removing* Claude Code's
+- **Output styles** (`official-corroboration.md`, the `output-styles` entry under "Pages the plan's
+  list missed"). **In scope for both**, and a first-class D1 conflict source. They modify the system
+  prompt directly, default to *removing* Claude Code's
   built-in software-engineering instructions, and `force-for-plugin` lets a plugin override the
   operator's own selection. A filesystem-walk inventory would miss the override entirely — which is
   itself evidence for the native-first inventory Phase 6 must clear.
@@ -357,7 +361,8 @@ rather than resolving them silently. Each is answered here.
 Raised by the blind-derivation reviewer and adopted here, because D1 is now the deliverable's entire
 payload and an over-broad scope would be the single most expensive error available.
 
-`official-corroboration.md:208-212` records the official per-surface layering rules: `CLAUDE.md`
+`official-corroboration.md`'s `features-overview#understand-how-features-layer` entry, under "Pages
+the plan's list missed", records the official per-surface layering rules: `CLAUDE.md`
 files are additive across levels; skills, subagents, and MCP servers override **by name**; hooks
 merge. Where the layering rule already picks a winner, two differing instructions are not an
 unresolved conflict — they are a resolved override, and flagging one is a false positive.
@@ -427,8 +432,9 @@ document is this record of the defect, not a second live instance.
    trimming pass without a stopping condition is not covered.
 5. **[DONE — the alias is removed and `/doctor` is described as a bundled skill as of v2.1.205.]**
    It had been described as "(built-in, alias `/checkup`)" in `coverage-matrix.md:12`, but
-   `official-corroboration.md:78` records it as a bundled skill as of v2.1.205. The `/checkup` alias
-   appears in no quoted source and must be verified against a fetched page or removed.
+   `official-corroboration.md`, "`/doctor` presence is configurable, exactly as assumed", records it
+   as a bundled skill as of v2.1.205. The `/checkup` alias appears in no quoted source and must be
+   verified against a fetched page or removed.
 6. **[DONE — the count is now cited by command rather than transcribed, and Phase 1's Outcome names
    fourteen slugs.]** PLAN.md had carried both "178 skills" and 181; and Phase 1's
    Outcome says "All eleven slugs are recorded" under a check that was deliberately widened to
@@ -436,9 +442,9 @@ document is this record of the defect, not a second live instance.
 
 ## The design tier, actually re-derived
 
-`design-resolution.md:104-106` says the Tier A classification is contingent on this gate and must be
-re-derived if the escalation fires. It fired, so the label is not carried forward on its old
-grounds — it is recomputed here.
+`design-resolution.md`, "Gate before implementation", says the Tier A classification is contingent on
+this gate and must be re-derived if the escalation fires. It fired, so the label is not carried
+forward on its old grounds — it is recomputed here.
 
 **The two signals that originally carried it are gone.** There is no versioned criteria catalog
 consumed by more than one plugin, and there are no new checks across four plugins — there is one new
@@ -463,7 +469,7 @@ sequenced as phases.
 
 ## Deferred tool loading — a remainder that is not D6's
 
-`coverage-matrix.md:30` states two remainders under S7, and only one of them is about
+`coverage-matrix.md`'s S7 row states two remainders, and only one of them is about
 progressive-disclosure destinations. The second — "deferred tool loading is unowned" — is a bare
 `GAP` by the same logic that made D1 a detector, and folding it silently into D6's disposition would
 have buried it. Raised by the cross-vendor review; recorded here as its own item.
@@ -534,10 +540,10 @@ recorded here on completion.
    PLAN.md gives for it do not (corrections 1 and 2 above).
 
    **It also found that most `GAP` and `PARTIAL` verdicts are negative claims about bodies nobody
-   read** — `coverage-matrix.md:13-18` verifies most incumbents by "Skill description read this
-   session". D2's entire remainder is an assertion about `skill-quality:check`'s contents drawn from
-   a one-line listing description. That evidence gap is being closed before the homing table is
-   final.
+   read** — `coverage-matrix.md`'s "Incumbents, as verified 2026-07-24" table verifies most
+   incumbents by "Skill description read this session". D2's entire remainder is an assertion about
+   `skill-quality:check`'s contents drawn from a one-line listing description. That evidence gap is
+   being closed before the homing table is final.
 2. **Cross-vendor architecture review — complete.** The written gate reviewed through
    `codex:codex-rescue` (codex-cli 0.145.0), artifact-first, asked seven adversarial questions
    including "what is the strongest argument this entire re-derivation is wrong". It returned eight
@@ -547,9 +553,10 @@ recorded here on completion.
    - The re-derived shape contradicted PLAN.md's settled "one versioned source... not restated
      across the skills that consume it" criterion, uncited. Reconciled above, and the reconciliation
      surfaced the real underlying gap: `skill-quality:check` has no staleness surface at all.
-   - D2's demotion did not satisfy this gate's own stated test — `coverage-matrix.md:29` describes
-     the same "no incumbent does this" shape that made D1 a detector, and the demotion actually
-     rested on evidentiary tier, a different axis. The two-test correction above is the response.
+   - D2's demotion did not satisfy this gate's own stated test — `coverage-matrix.md`'s S6 row
+     describes the same "no incumbent does this" shape that made D1 a detector, and the demotion
+     actually rested on evidentiary tier, a different axis. The two-test correction above is the
+     response.
 
    Four further findings are absorbed above: the disposition vocabulary was incomplete and now says
    so; the `OPINION` tier was unreachable as specified and now carries a discovery requirement; the
