@@ -418,6 +418,32 @@ def _user_settings_path_from_root(plugin_root: str) -> str | None:
     return None
 
 
+def _plugin_id_from_root(plugin_root: str) -> str | None:
+    """Return this install's exact ``<name>@<marketplace>`` ``pluginConfigs`` key.
+
+    Claude Code lays a marketplace plugin out at
+    ``<config>/plugins/cache/<marketplace>/<name>/<version>`` and keys its options
+    under ``<name>@<marketplace>``. Deriving that exact key lets the kill-switch
+    read match only this install, so a second marketplace's ``disk-hygiene`` entry
+    cannot mask this one's configured value. A root without the ``plugins/cache``
+    marker (or missing the name/marketplace segments) yields ``None`` and the read
+    falls back to matching any ``disk-hygiene`` entry.
+    """
+    parts = Path(plugin_root).parts
+    for index in range(1, len(parts)):
+        if (
+            parts[index].casefold() == _PLUGIN_CACHE_DIRNAME
+            and parts[index - 1].casefold() == _PLUGINS_DIRNAME
+        ):
+            if index + 2 >= len(parts):
+                return None
+            marketplace, name = parts[index + 1], parts[index + 2]
+            if not marketplace or not name:
+                return None
+            return f"{name}@{marketplace}"
+    return None
+
+
 def _resolve_user_settings_path() -> Path:
     """Locate the user settings file that carries the kill switch.
 
@@ -468,9 +494,16 @@ def resolve_disk_hygiene_enabled() -> bool:
     both run ``main()``, and both receive ``--plugin-root ${CLAUDE_PLUGIN_ROOT}`` —
     so the belt needs no environment channel it does not have.
     """
+    plugin_root = _argv_flag_value(sys.argv[1:], _PLUGIN_ROOT_FLAG)
+    plugin_id = (
+        _plugin_id_from_root(plugin_root)
+        if plugin_root and plugin_root != _PLUGIN_ROOT_PLACEHOLDER
+        else None
+    )
     return killswitch_config.resolve_effective(
         _resolve_user_settings_path(),
         killswitch_config.managed_settings_path(),
+        plugin_id,
     )
 
 

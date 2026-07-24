@@ -3673,6 +3673,29 @@ class DirectReadKillSwitchTests(unittest.TestCase):
         self.write_toggle(False)
         self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
 
+    def test_installed_marketplace_id_isolates_from_other_marketplace(self) -> None:
+        # A second marketplace's disk-hygiene entry must not mask this install's
+        # configured value: the guard derives its exact <name>@<marketplace> key
+        # from --plugin-root (here disk-hygiene@melodic-software) and matches only
+        # that, rather than aggregating every disk-hygiene@* entry into an
+        # ambiguous read that would fall back to enabled.
+        self.settings.write_text(
+            json.dumps(
+                {
+                    "pluginConfigs": {
+                        "disk-hygiene@melodic-software": {
+                            "options": {"disk_hygiene_enabled": False}
+                        },
+                        "disk-hygiene@other-marketplace": {
+                            "options": {"disk_hygiene_enabled": True}
+                        },
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -50,8 +50,16 @@ def managed_settings_path() -> Path | None:
 
     - macOS:      ``/Library/Application Support/ClaudeCode/managed-settings.json``
     - Linux/WSL:  ``/etc/claude-code/managed-settings.json``
-    - Windows:    ``%ProgramFiles%\\ClaudeCode\\managed-settings.json`` (the legacy
-      ``%ProgramData%`` path is unsupported as of Claude Code v2.1.75)
+    - Windows:    ``C:\\Program Files\\ClaudeCode\\managed-settings.json`` (the
+      legacy ``%ProgramData%`` path is unsupported as of Claude Code v2.1.75)
+
+    The Windows path is hard-coded, **not** ``%ProgramFiles%``-derived: a repo
+    ``settings.json`` ``env`` block can set ``ProgramFiles`` for hook subprocesses,
+    and because managed settings are the highest-precedence scope, an
+    environment-derived base path would let a repo point this at a forged
+    ``ClaudeCode/managed-settings.json`` that force-enables the switch. The docs
+    give this literal absolute path, so trusting it (not the environment) preserves
+    the tamper-resistance.
 
     Residuals not read here: the ``managed-settings.d/`` drop-in directory, and a
     session's ``--settings`` file (a runtime CLI flag a hook cannot observe). A
@@ -60,14 +68,23 @@ def managed_settings_path() -> Path | None:
     if sys.platform == "darwin":
         return Path("/Library/Application Support/ClaudeCode/managed-settings.json")
     if sys.platform == "win32":
-        program_files = os.environ.get("ProgramFiles", r"C:\Program Files")
-        return Path(program_files) / "ClaudeCode" / "managed-settings.json"
+        return Path(r"C:\Program Files\ClaudeCode\managed-settings.json")
     if sys.platform.startswith("linux"):
         return Path("/etc/claude-code/managed-settings.json")
     return None
 
 
-def _matches_plugin(key: str) -> bool:
+def _matches_plugin(key: str, plugin_id: str | None = None) -> bool:
+    """Match a ``pluginConfigs`` key for this plugin.
+
+    With ``plugin_id`` (the exact ``<name>@<marketplace>`` the guard derives from
+    its install root) only that key matches — so a second marketplace's
+    ``disk-hygiene`` entry cannot mask this install's configured value. Without it
+    (the report-only CLI, which cannot know its marketplace) any ``disk-hygiene``
+    or ``disk-hygiene@*`` key matches.
+    """
+    if plugin_id is not None:
+        return key == plugin_id
     return key == PLUGIN_NAME or key.startswith(f"{PLUGIN_NAME}@")
 
 
@@ -102,8 +119,13 @@ def _report(
     }
 
 
-def probe(settings_path: Path) -> dict[str, object]:
-    """Read the effective kill switch from ``settings_path`` with provenance."""
+def probe(settings_path: Path, plugin_id: str | None = None) -> dict[str, object]:
+    """Read the effective kill switch from ``settings_path`` with provenance.
+
+    ``plugin_id`` narrows the matched ``pluginConfigs`` key to that exact
+    ``<name>@<marketplace>`` (see ``_matches_plugin``); ``None`` matches any
+    ``disk-hygiene`` marketplace entry.
+    """
     try:
         settings_stat = settings_path.stat()
     except FileNotFoundError:
@@ -157,7 +179,7 @@ def probe(settings_path: Path) -> dict[str, object]:
     entries: list[dict[str, object]] = []
     if isinstance(plugin_configs, dict):
         for key in sorted(plugin_configs):
-            if not _matches_plugin(key):
+            if not _matches_plugin(key, plugin_id):
                 continue
             entry = plugin_configs.get(key)
             options = entry.get("options") if isinstance(entry, dict) else None
@@ -217,7 +239,9 @@ def probe(settings_path: Path) -> dict[str, object]:
 
 
 def resolve_effective(
-    settings_path: Path, managed_settings_path: Path | None = None
+    settings_path: Path,
+    managed_settings_path: Path | None = None,
+    plugin_id: str | None = None,
 ) -> bool:
     """The boolean kill switch, honoring managed precedence, closed to enabled.
 
@@ -230,7 +254,7 @@ def resolve_effective(
     enabled**.
     """
     if managed_settings_path is not None:
-        managed = probe(managed_settings_path)
+        managed = probe(managed_settings_path, plugin_id)
         if managed["source"] == "configured":
             return bool(managed["effective"])
-    return bool(probe(settings_path)["effective"])
+    return bool(probe(settings_path, plugin_id)["effective"])
