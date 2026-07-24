@@ -2186,70 +2186,94 @@ class GuardTests(unittest.TestCase):
     def python_command() -> str:
         return guard._display_python()
 
-    def run_guard(self, command: str) -> dict[str, object]:
-        stdin = io.StringIO(json.dumps({"tool_input": {"command": command}}))
-        stdout = io.StringIO()
-        with (
-            mock.patch("sys.stdin", stdin),
-            redirect_stdout(stdout),
-            mock.patch.object(guard.sys, "argv", [str(SCRIPT_DIR / "destructive_guard.py")]),
-            mock.patch.dict(
-                "os.environ", {"CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED": "true"}, clear=False
-            ),
-        ):
-            self.assertEqual(0, guard.main())
-        return json.loads(stdout.getvalue())
-
-    def run_guard_disabled(self, command: str) -> dict[str, object]:
-        stdin = io.StringIO(json.dumps({"tool_input": {"command": command}}))
-        stdout = io.StringIO()
-        with (
-            mock.patch("sys.stdin", stdin),
-            redirect_stdout(stdout),
-            mock.patch.object(guard.sys, "argv", [str(SCRIPT_DIR / "destructive_guard.py")]),
-            mock.patch.dict(
-                "os.environ", {"CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED": "false"}, clear=False
-            ),
-        ):
-            self.assertEqual(0, guard.main())
-        return json.loads(stdout.getvalue())
-
-    def run_guard_enabled_argv(
-        self, command: str, tool_name: str, enabled_arg: str
-    ) -> dict[str, object] | None:
-        """Drive the guard with the kill switch supplied via hook argv, not the env.
-
-        Exercises the ``--disk-hygiene-enabled`` argv channel with
-        CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED absent — the delivery a host that
-        can substitute ``${user_config.disk_hygiene_enabled}`` (a plugin
-        ``hooks.json`` hook) would use. The bundled skill-frontmatter hook cannot
-        supply this value (Claude Code substitutes only ``${CLAUDE_PLUGIN_ROOT}``
-        into skill-hook args), so this proves the guard's argv path itself, not the
-        shipped skill deployment.
-        """
-        argv = [
-            str(SCRIPT_DIR / "destructive_guard.py"),
-            "--disk-hygiene-enabled",
-            enabled_arg,
-        ]
-        environment = {
-            key: value
-            for key, value in os.environ.items()
-            if key != "CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED"
-        }
-        stdin = io.StringIO(
-            json.dumps({"tool_name": tool_name, "tool_input": {"command": command}})
+    def setUp(self) -> None:
+        # Hermetic kill switch: the guard resolves disk_hygiene_enabled by reading
+        # settings.json files. The plain guard helpers patch the guard's own
+        # `_resolve_user_settings_path` to our owned settings file directly (absent
+        # = enabled default; present-false = audit-only) and stub the managed path
+        # to a temp file — so they never touch the developer's real settings and
+        # never perturb data-root authority resolution. The engine-gate helper
+        # (which must pass --plugin-root to mirror hooks.json) points it at the fake
+        # cache layout below, which derives back to the same owned settings.json.
+        self._cfg = tempfile.TemporaryDirectory()
+        self.addCleanup(self._cfg.cleanup)
+        cfg = Path(self._cfg.name)
+        self._plugin_root = (
+            cfg / "plugins" / "cache" / "melodic-software" / "disk-hygiene" / "1.2.3"
         )
+        self._plugin_root.mkdir(parents=True)
+        self._settings = cfg / "settings.json"
+        # Managed settings stay absent (points into the temp dir, never written),
+        # so tests never read a real /etc or Program Files managed-settings.json.
+        self._managed = cfg / "managed-settings.json"
+
+    def _set_kill_switch(self, enabled: bool) -> None:
+        if enabled:
+            self._settings.unlink(missing_ok=True)
+            return
+        self._settings.write_text(
+            json.dumps(
+                {
+                    "pluginConfigs": {
+                        "disk-hygiene@melodic-software": {
+                            "options": {"disk_hygiene_enabled": False}
+                        }
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    def _invoke_guard(
+        self, command: str, *, tool_name: str = "Bash", enabled: bool = True
+    ) -> dict[str, object] | None:
+        self._set_kill_switch(enabled)
+        argv = [str(SCRIPT_DIR / "destructive_guard.py")]
+        payload: dict[str, object] = {"tool_input": {"command": command}}
+        if tool_name:
+            payload["tool_name"] = tool_name
+        stdin = io.StringIO(json.dumps(payload))
         stdout = io.StringIO()
         with (
             mock.patch("sys.stdin", stdin),
             redirect_stdout(stdout),
             mock.patch.object(guard.sys, "argv", argv),
-            mock.patch.dict("os.environ", environment, clear=True),
+            # Drive the kill switch through the trusted resolver directly (no env,
+            # no --plugin-root), so data-root authority resolution is untouched.
+            mock.patch.object(
+                guard, "_resolve_user_settings_path", lambda: self._settings
+            ),
+            mock.patch.object(
+                guard.killswitch_config,
+                "managed_settings_path",
+                lambda: self._managed,
+            ),
         ):
             self.assertEqual(0, guard.main())
         value = stdout.getvalue()
         return json.loads(value) if value.strip() else None
+
+    def run_guard(self, command: str) -> dict[str, object]:
+        result = self._invoke_guard(command, enabled=True)
+        assert result is not None
+        return result
+
+    def run_guard_disabled(self, command: str) -> dict[str, object]:
+        result = self._invoke_guard(command, enabled=False)
+        assert result is not None
+        return result
+
+    def run_guard_tool(
+        self, command: str, tool_name: str, enabled: bool
+    ) -> dict[str, object] | None:
+        """Drive a specific tool lane with the kill switch set via user settings.
+
+        Post-C′ the switch reaches the guard only by reading ``disk_hygiene_enabled``
+        out of the user ``settings.json`` (located from ``--plugin-root``); the old
+        ``--disk-hygiene-enabled`` argv and ``CLAUDE_PLUGIN_OPTION_*`` env channels
+        are gone. This exercises that one real channel per tool.
+        """
+        return self._invoke_guard(command, tool_name=tool_name, enabled=enabled)
 
     def test_guard_denies_direct_recursive_delete(self) -> None:
         result = self.run_guard("rm -rf /tmp/example")
@@ -2497,32 +2521,28 @@ class GuardTests(unittest.TestCase):
             )
 
     def run_guard_engine_gate(
-        self, command: str, tool_name: str = "Bash", enabled_arg: str = "true"
+        self, command: str, tool_name: str = "Bash", enabled: bool = True
     ) -> dict[str, object] | None:
         """Drive the guard as the plugin-level engine-gate deployment would.
 
-        Supplies ``--mode engine-gate`` plus both plugin-level substitution
-        channels (``--disk-hygiene-enabled`` and ``--authorized-data-root``) on
-        argv, with the env channel absent — mirroring the shipped
-        ``hooks/hooks.json`` exec-form registration. Returns None when the guard
-        deferred with no output.
+        Supplies ``--mode engine-gate`` plus the ``--plugin-root`` and
+        ``--authorized-data-root`` substitution channels on argv, mirroring the
+        shipped ``hooks/hooks.json`` exec-form registration. ``--plugin-root``
+        points at the hermetic fake cache layout so the kill switch resolves from
+        the owned settings.json — the sole post-C′ channel — while the explicit
+        ``--authorized-data-root`` still drives data-root authority. Returns None
+        when the guard deferred with no output.
         """
+        self._set_kill_switch(enabled)
         argv = [
             str(SCRIPT_DIR / "destructive_guard.py"),
             "--mode",
             "engine-gate",
             "--plugin-root",
-            str(SCRIPT_DIR.parent.parent.parent),
+            os.fspath(self._plugin_root),
             "--authorized-data-root",
             str(SCRIPT_DIR / "data-root"),
-            "--disk-hygiene-enabled",
-            enabled_arg,
         ]
-        environment = {
-            key: value
-            for key, value in os.environ.items()
-            if key != "CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED"
-        }
         stdin = io.StringIO(
             json.dumps({"tool_name": tool_name, "tool_input": {"command": command}})
         )
@@ -2531,7 +2551,12 @@ class GuardTests(unittest.TestCase):
             mock.patch("sys.stdin", stdin),
             redirect_stdout(stdout),
             mock.patch.object(guard.sys, "argv", argv),
-            mock.patch.dict("os.environ", environment, clear=True),
+            mock.patch.dict("os.environ", {}, clear=True),
+            mock.patch.object(
+                guard.killswitch_config,
+                "managed_settings_path",
+                lambda: self._managed,
+            ),
         ):
             self.assertEqual(0, guard.main())
         text = stdout.getvalue().strip()
@@ -2573,7 +2598,7 @@ class GuardTests(unittest.TestCase):
         """Interpreter options must not slip the kill switch (P1 review)."""
         script = SCRIPT_DIR / "hygiene.py"
         result = self.run_guard_engine_gate(
-            f'/usr/bin/python3 -B "{script}" apply --plan p --token t', "Bash", "false"
+            f'/usr/bin/python3 -B "{script}" apply --plan p --token t', "Bash", enabled=False
         )
         assert result is not None
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
@@ -2594,12 +2619,12 @@ class GuardTests(unittest.TestCase):
         """env / sh -c wrappers around the absolute engine path must gate (P1 review)."""
         script = SCRIPT_DIR / "hygiene.py"
         wrapped = self.run_guard_engine_gate(
-            f'/usr/bin/env "{script}" apply --plan p --token t', "Bash", "false"
+            f'/usr/bin/env "{script}" apply --plan p --token t', "Bash", enabled=False
         )
         assert wrapped is not None
         self.assertEqual("deny", wrapped["hookSpecificOutput"]["permissionDecision"])
         compound = self.run_guard_engine_gate(
-            f'sh -c "{script} apply --plan p --token t"', "Bash", "false"
+            f'sh -c "{script} apply --plan p --token t"', "Bash", enabled=False
         )
         assert compound is not None
         self.assertEqual("deny", compound["hookSpecificOutput"]["permissionDecision"])
@@ -2615,7 +2640,7 @@ class GuardTests(unittest.TestCase):
                 self.skipTest(f"hard links unavailable here: {exc}")
             posix_alias = str(alias).replace("\\", "/")
             result = self.run_guard_engine_gate(
-                f'"{posix_alias}" apply --plan p --token t', "Bash", "false"
+                f'"{posix_alias}" apply --plan p --token t', "Bash", enabled=False
             )
             assert result is not None
             self.assertEqual(
@@ -2634,7 +2659,7 @@ class GuardTests(unittest.TestCase):
                 self.skipTest(f"hard links unavailable here: {exc}")
             posix_alias = str(alias).replace("\\", "/")
             result = self.run_guard_engine_gate(
-                f'"{posix_alias}" apply --plan p --token t && true', "Bash", "false"
+                f'"{posix_alias}" apply --plan p --token t && true', "Bash", enabled=False
             )
             assert result is not None
             self.assertEqual(
@@ -2681,7 +2706,7 @@ class GuardTests(unittest.TestCase):
             result = self.run_guard_engine_gate(
                 f'python3 {posix} --help && python3 "{script}" apply --plan p --token t',
                 "Bash",
-                "false",
+                enabled=False,
             )
             assert result is not None
             self.assertEqual(
@@ -2693,7 +2718,7 @@ class GuardTests(unittest.TestCase):
         result = self.run_guard_engine_gate(
             f"env PATH={SCRIPT_DIR}:/usr/bin hygiene.py apply --plan p --token t",
             "Bash",
-            "false",
+            enabled=False,
         )
         assert result is not None
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
@@ -2703,7 +2728,7 @@ class GuardTests(unittest.TestCase):
         result = self.run_guard_engine_gate(
             f"env -i PATH=/usr/bin nice -n 10 hygiene.py apply --plan p --token t",
             "Bash",
-            "false",
+            enabled=False,
         )
         assert result is not None
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
@@ -2712,7 +2737,7 @@ class GuardTests(unittest.TestCase):
         """A relative bundled-engine path gates under ANY launcher (P1 r10)."""
         with chdir_context(SCRIPT_DIR):
             result = self.run_guard_engine_gate(
-                "pypy3 ./hygiene.py apply --plan p --token t", "Bash", "false"
+                "pypy3 ./hygiene.py apply --plan p --token t", "Bash", enabled=False
             )
         assert result is not None
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
@@ -2751,48 +2776,18 @@ class GuardTests(unittest.TestCase):
         """
         script = SCRIPT_DIR / "hygiene.py"
         result = self.run_guard_engine_gate(
-            f'python3 "{script}" scan --target t --output s', "Bash", "false"
+            f'python3 "{script}" scan --target t --output s', "Bash", enabled=False
         )
         assert result is not None
         self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
 
     def run_guard_powershell(self, command: str) -> dict[str, object] | None:
-        stdin = io.StringIO(
-            json.dumps({"tool_name": "PowerShell", "tool_input": {"command": command}})
-        )
-        stdout = io.StringIO()
-        with (
-            mock.patch("sys.stdin", stdin),
-            redirect_stdout(stdout),
-            mock.patch.object(guard.sys, "argv", [str(SCRIPT_DIR / "destructive_guard.py")]),
-            mock.patch.dict(
-                "os.environ", {"CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED": "true"}, clear=False
-            ),
-        ):
-            self.assertEqual(0, guard.main())
-        value = stdout.getvalue()
-        return json.loads(value) if value.strip() else None
+        return self._invoke_guard(command, tool_name="PowerShell", enabled=True)
 
     def run_guard_powershell_disabled(
         self, command: str
     ) -> dict[str, object] | None:
-        stdin = io.StringIO(
-            json.dumps({"tool_name": "PowerShell", "tool_input": {"command": command}})
-        )
-        stdout = io.StringIO()
-        with (
-            mock.patch("sys.stdin", stdin),
-            redirect_stdout(stdout),
-            mock.patch.object(guard.sys, "argv", [str(SCRIPT_DIR / "destructive_guard.py")]),
-            mock.patch.dict(
-                "os.environ",
-                {"CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED": "false"},
-                clear=False,
-            ),
-        ):
-            self.assertEqual(0, guard.main())
-        value = stdout.getvalue()
-        return json.loads(value) if value.strip() else None
+        return self._invoke_guard(command, tool_name="PowerShell", enabled=False)
 
     def test_guard_scan_accepts_only_hook_authorized_data_root(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
@@ -2830,7 +2825,6 @@ class GuardTests(unittest.TestCase):
                 for key, value in os.environ.items()
                 if key != "CLAUDE_PLUGIN_DATA"
             }
-            environment["CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED"] = "true"
             stdin = io.StringIO(json.dumps({"tool_input": {"command": command}}))
             stdout = io.StringIO()
             with (
@@ -2863,7 +2857,6 @@ class GuardTests(unittest.TestCase):
             for key, value in os.environ.items()
             if key != "CLAUDE_PLUGIN_DATA"
         }
-        environment["CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED"] = "true"
         stdin = io.StringIO(json.dumps({"tool_input": {"command": command}}))
         stdout = io.StringIO()
         with (
@@ -2973,7 +2966,6 @@ class GuardTests(unittest.TestCase):
             for key, value in os.environ.items()
             if key != "CLAUDE_PLUGIN_DATA"
         }
-        environment["CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED"] = "true"
         stdin = io.StringIO(json.dumps({"tool_input": {"command": command}}))
         stdout = io.StringIO()
         with (
@@ -3143,54 +3135,6 @@ class GuardTests(unittest.TestCase):
             guard._argv_flag_value(["--disk-hygiene-enabled"], "--disk-hygiene-enabled")
         )
 
-    def test_resolve_disk_hygiene_enabled_precedence(self) -> None:
-        script = str(SCRIPT_DIR / "destructive_guard.py")
-
-        def drive(argv_tail: list[str], env: dict[str, str]) -> bool:
-            with (
-                mock.patch.object(guard.sys, "argv", [script, *argv_tail]),
-                mock.patch.dict("os.environ", env, clear=True),
-            ):
-                return guard.resolve_disk_hygiene_enabled()
-
-        # Argv is authoritative over the environment, both directions.
-        self.assertFalse(
-            drive(
-                ["--disk-hygiene-enabled", "false"],
-                {"CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED": "true"},
-            ),
-            "a configured false in argv must disable even when the env says true",
-        )
-        self.assertTrue(
-            drive(
-                ["--disk-hygiene-enabled", "true"],
-                {"CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED": "false"},
-            )
-        )
-        # Case-insensitive, whitespace-tolerant false.
-        self.assertFalse(drive(["--disk-hygiene-enabled", " FALSE "], {}))
-        # A literal, unsubstituted placeholder falls back to the environment.
-        self.assertFalse(
-            drive(
-                ["--disk-hygiene-enabled", "${user_config.disk_hygiene_enabled}"],
-                {"CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED": "false"},
-            ),
-            "an unsubstituted placeholder must fall back to the environment",
-        )
-        # An empty substituted value falls back to the environment.
-        self.assertFalse(
-            drive(
-                ["--disk-hygiene-enabled", ""],
-                {"CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED": "false"},
-            )
-        )
-        # No argv, env supplies the value.
-        self.assertFalse(
-            drive([], {"CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED": "false"})
-        )
-        # No channel supplies a value: fail safe to enabled (guard active).
-        self.assertTrue(drive([], {}))
-
     @staticmethod
     def _skill_hook_command_and_args() -> tuple[str, list[str]]:
         """Return the frontmatter guard hook's `command` and parsed `args`."""
@@ -3250,6 +3194,48 @@ class GuardTests(unittest.TestCase):
         self.assertIn(guard._PLUGIN_ROOT_FLAG, args)
         flag_index = args.index(guard._PLUGIN_ROOT_FLAG)
         self.assertEqual(guard._PLUGIN_ROOT_PLACEHOLDER, args[flag_index + 1])
+
+    @staticmethod
+    def _engine_gate_hook_args() -> list[str]:
+        """Return the plugin-level engine-gate hook's `args` from hooks.json."""
+        hooks_path = SCRIPT_DIR.parents[2] / "hooks" / "hooks.json"
+        config = json.loads(hooks_path.read_text(encoding="utf-8"))
+        entries = config["hooks"]["PreToolUse"]
+        commands = [
+            hook
+            for entry in entries
+            for hook in entry.get("hooks", [])
+            if hook.get("args")
+            and any("destructive_guard.py" in arg for arg in hook["args"])
+        ]
+        assert len(commands) == 1, commands
+        return commands[0]["args"]
+
+    def test_engine_gate_hook_resolves_kill_switch_from_plugin_root_not_user_config(
+        self,
+    ) -> None:
+        """Lock the engine-gate hook seam the kill-switch read now depends on.
+
+        Post-C′ the plugin-level gate resolves ``disk_hygiene_enabled`` by reading
+        user settings located from ``--plugin-root ${CLAUDE_PLUGIN_ROOT}`` — so that
+        flag/token pair is load-bearing for the kill switch, not only the data root.
+        And the bare ``${user_config.disk_hygiene_enabled}`` argument MUST stay
+        removed: an unset-but-defaulted userConfig token drops the whole hook entry
+        (the inert-by-default regression this fix closed). This test fails if either
+        is reverted in hooks.json.
+        """
+        args = self._engine_gate_hook_args()
+        self.assertIn(guard._PLUGIN_ROOT_FLAG, args)
+        flag_index = args.index(guard._PLUGIN_ROOT_FLAG)
+        self.assertEqual(guard._PLUGIN_ROOT_PLACEHOLDER, args[flag_index + 1])
+        self.assertNotIn("--disk-hygiene-enabled", args)
+        for arg in args:
+            self.assertNotIn(
+                "${user_config.",
+                arg,
+                "engine-gate hook must carry no ${user_config.*} token — its "
+                "unset-default form drops the whole hook entry",
+            )
 
     def test_skill_hook_interpreter_is_python3_and_resolves(self) -> None:
         """Lock the guard's launch interpreter and prove it resolves.
@@ -3474,14 +3460,16 @@ class GuardTests(unittest.TestCase):
                 command,
             )
 
-    def test_kill_switch_blocks_every_lane_via_argv_without_env(self) -> None:
-        """A configured ``false`` reaching the guard only through the
-        ``--disk-hygiene-enabled`` argv channel — the env var UNSET — must block
-        deletions on both the PowerShell and Bash lanes. Proves the guard's argv
-        kill-switch logic for a host that can deliver the value there."""
+    def test_kill_switch_blocks_every_lane_when_configured_false(self) -> None:
+        """A configured ``disk_hygiene_enabled=false`` in user settings must block
+        deletions on both the PowerShell and Bash lanes. This is the sole delivery
+        channel post-C′: the guard reads the toggle out of the user settings file
+        it locates from ``--plugin-root``; there is no argv or env channel."""
         script = SCRIPT_DIR / "hygiene.py"
-        powershell = self.run_guard_enabled_argv(
-            "Remove-Item -Recurse -Force C:/tmp/example", "PowerShell", "false"
+        powershell = self.run_guard_tool(
+            "Remove-Item -Recurse -Force C:/tmp/example",
+            "PowerShell",
+            enabled=False,
         )
         assert powershell is not None
         self.assertEqual(
@@ -3491,22 +3479,269 @@ class GuardTests(unittest.TestCase):
             f'"{self.python_command()}" "{script}" apply --execute --snapshot s '
             f'--plan p --confirm-tier high --approval-token {"a" * 24} --report r'
         )
-        bash = self.run_guard_enabled_argv(apply_command, "Bash", "false")
+        bash = self.run_guard_tool(apply_command, "Bash", enabled=False)
         assert bash is not None
         self.assertEqual("deny", bash["hookSpecificOutput"]["permissionDecision"])
 
-    def test_kill_switch_enabled_via_argv_without_env_still_gates(self) -> None:
-        """The argv channel with the env var unset also carries an enabling value:
-        an ``apply`` is gated (``ask``) rather than denied, confirming the argv
-        value — not a hardcoded default — drives the decision."""
+    def test_kill_switch_enabled_gates_apply_as_ask(self) -> None:
+        """With the switch enabled (settings absent → default on), an ``apply`` is
+        gated (``ask``) rather than denied, confirming the resolved toggle — not a
+        hardcoded deny — drives the decision."""
         script = SCRIPT_DIR / "hygiene.py"
         apply_command = (
             f'"{self.python_command()}" "{script}" apply --execute --snapshot s '
             f'--plan p --confirm-tier high --approval-token {"a" * 24} --report r'
         )
-        result = self.run_guard_enabled_argv(apply_command, "Bash", "true")
+        result = self.run_guard_tool(apply_command, "Bash", enabled=True)
         assert result is not None
         self.assertEqual("ask", result["hookSpecificOutput"]["permissionDecision"])
+
+
+class DirectReadKillSwitchTests(unittest.TestCase):
+    """The kill switch resolves by reading user-scope pluginConfigs directly.
+
+    Post-C′ the guard ignores the ``--disk-hygiene-enabled`` argv flag and the
+    ``CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED`` env var (both repo-tamperable
+    or un-delivered) and instead reads ``disk_hygiene_enabled`` out of the
+    ``settings.json`` ``pluginConfigs``. The user file is located **solely** from
+    the tamper-resistant ``--plugin-root`` (``${CLAUDE_PLUGIN_ROOT}``), never an
+    environment value; a managed policy at its fixed system path overrides it, and
+    a marker-less (``--plugin-dir``) root leaves no trusted user path. Every
+    absent/degraded read fails closed to enabled (safety on).
+    """
+
+    SCRIPT = str(SCRIPT_DIR / "destructive_guard.py")
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.config_dir = Path(self.tmp.name)
+        # Reconstruct the real install layout so --plugin-root derivation finds
+        # the sibling settings.json: <config>/plugins/cache/<mkt>/<name>/<ver>.
+        self.plugin_root = (
+            self.config_dir
+            / "plugins"
+            / "cache"
+            / "melodic-software"
+            / "disk-hygiene"
+            / "1.2.3"
+        )
+        self.plugin_root.mkdir(parents=True)
+        self.settings = self.config_dir / "settings.json"
+        # Managed settings default to absent; managed tests write this file.
+        self.managed = self.config_dir / "managed-settings.json"
+
+    def _toggle_json(self, value: object) -> str:
+        return json.dumps(
+            {
+                "pluginConfigs": {
+                    "disk-hygiene@melodic-software": {
+                        "options": {"disk_hygiene_enabled": value}
+                    }
+                }
+            }
+        )
+
+    def write_toggle(self, value: object) -> None:
+        self.settings.write_text(self._toggle_json(value), encoding="utf-8")
+
+    def write_managed_toggle(self, value: object) -> None:
+        self.managed.write_text(self._toggle_json(value), encoding="utf-8")
+
+    def write_managed_dropin(self, name: str, value: object) -> None:
+        dropin = self.config_dir / "managed-settings.d"
+        dropin.mkdir(exist_ok=True)
+        (dropin / name).write_text(self._toggle_json(value), encoding="utf-8")
+
+    def resolve(self, argv_tail: list[str], env: dict[str, str]) -> bool:
+        with (
+            mock.patch.object(guard.sys, "argv", [self.SCRIPT, *argv_tail]),
+            mock.patch.dict("os.environ", env, clear=True),
+            mock.patch.object(
+                guard.killswitch_config,
+                "managed_settings_path",
+                lambda: self.managed,
+            ),
+        ):
+            return guard.resolve_disk_hygiene_enabled()
+
+    def plugin_root_argv(self) -> list[str]:
+        return ["--plugin-root", os.fspath(self.plugin_root)]
+
+    def test_configured_false_via_plugin_root_channel_disables(self) -> None:
+        self.write_toggle(False)
+        self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
+
+    def test_configured_true_via_plugin_root_channel_stays_enabled(self) -> None:
+        self.write_toggle(True)
+        self.assertTrue(self.resolve(self.plugin_root_argv(), {}))
+
+    def test_absent_settings_fails_closed_to_enabled(self) -> None:
+        # No settings.json written under the derived path.
+        self.assertTrue(self.resolve(self.plugin_root_argv(), {}))
+
+    def test_degraded_settings_fail_closed_to_enabled(self) -> None:
+        self.settings.write_text("{not json", encoding="utf-8")
+        self.assertTrue(self.resolve(self.plugin_root_argv(), {}))
+
+    def test_env_toggle_is_ignored(self) -> None:
+        # Configured false must hold even though the legacy env var says true...
+        self.write_toggle(False)
+        self.assertFalse(
+            self.resolve(
+                self.plugin_root_argv(),
+                {"CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED": "true"},
+            )
+        )
+        # ...and a legacy env false cannot force audit-only when unconfigured.
+        self.settings.unlink()
+        self.assertTrue(
+            self.resolve(
+                self.plugin_root_argv(),
+                {"CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED": "false"},
+            )
+        )
+
+    def test_legacy_argv_flag_is_ignored(self) -> None:
+        # The dropped --disk-hygiene-enabled flag no longer disables anything.
+        self.assertTrue(
+            self.resolve(
+                [*self.plugin_root_argv(), "--disk-hygiene-enabled", "false"], {}
+            )
+        )
+
+    def test_no_plugin_root_ignores_env_config_dir_and_fails_closed_enabled(
+        self,
+    ) -> None:
+        # Without a trusted --plugin-root (e.g. a --plugin-dir checkout install),
+        # the guard must NOT trust a repo-injectable CLAUDE_CONFIG_DIR: even a
+        # configured `false` reachable only through the environment is ignored and
+        # the switch fails closed to enabled, so a repo cannot forge a settings
+        # path to flip it.
+        self.write_toggle(False)  # config_dir/settings.json
+        self.assertTrue(
+            self.resolve([], {"CLAUDE_CONFIG_DIR": os.fspath(self.config_dir)})
+        )
+
+    def test_plugin_dir_install_ignores_env_user_settings_but_honors_managed(
+        self,
+    ) -> None:
+        # A --plugin-dir root carries no plugins/cache marker, so there is no
+        # trusted user-settings path: a repo-injectable CLAUDE_CONFIG_DIR is
+        # ignored. A managed policy (fixed system path) is still enforced.
+        checkout = self.config_dir / "checkout"  # marker-less root
+        checkout.mkdir()
+        checkout_argv = ["--plugin-root", os.fspath(checkout)]
+        env = {"CLAUDE_CONFIG_DIR": os.fspath(self.config_dir)}
+        self.write_toggle(False)  # reachable only via env -> ignored
+        self.write_managed_toggle(False)  # managed policy -> honored
+        self.assertFalse(self.resolve(checkout_argv, env))
+        # Without the managed policy, the marker-less install fails closed to enabled.
+        self.managed.unlink()
+        self.assertTrue(self.resolve(checkout_argv, env))
+
+    def test_plugin_root_channel_beats_tamperable_config_dir_env(self) -> None:
+        """A repo-injected CLAUDE_CONFIG_DIR cannot override the real settings.
+
+        ``${CLAUDE_PLUGIN_ROOT}`` is substituted by Claude Code from the plugin's
+        true install path and carries provenance a repo env block cannot forge;
+        ``CLAUDE_CONFIG_DIR`` from the environment does not. So the plugin-root
+        channel must win, or a hostile repo re-opens the kill switch by pointing
+        the config dir at a settings.json it controls.
+        """
+        self.write_toggle(False)  # real user settings: audit-only
+        evil = Path(self.tmp.name) / "evil"
+        evil.mkdir()
+        (evil / "settings.json").write_text(
+            json.dumps(
+                {
+                    "pluginConfigs": {
+                        "disk-hygiene@melodic-software": {
+                            "options": {"disk_hygiene_enabled": True}
+                        }
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        self.assertFalse(
+            self.resolve(
+                self.plugin_root_argv(),
+                {"CLAUDE_CONFIG_DIR": os.fspath(evil)},
+            )
+        )
+
+    def test_managed_configured_false_overrides_user_true(self) -> None:
+        # Managed is the highest-precedence, non-overridable scope: an
+        # organization enforcing audit-only must win over a user-enabled toggle.
+        self.write_managed_toggle(False)
+        self.write_toggle(True)
+        self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
+
+    def test_managed_configured_true_overrides_user_false(self) -> None:
+        self.write_managed_toggle(True)
+        self.write_toggle(False)
+        self.assertTrue(self.resolve(self.plugin_root_argv(), {}))
+
+    def test_managed_absent_falls_back_to_user(self) -> None:
+        # No managed file written; the user toggle decides.
+        self.write_toggle(False)
+        self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
+
+    def test_managed_without_toggle_entry_falls_back_to_user(self) -> None:
+        # Managed file exists but carries no disk-hygiene entry (source=default),
+        # so it yields no verdict and the user toggle decides.
+        self.managed.write_text(json.dumps({"pluginConfigs": {}}), encoding="utf-8")
+        self.write_toggle(False)
+        self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
+
+    def test_managed_malformed_falls_back_to_user(self) -> None:
+        self.managed.write_text("{not json", encoding="utf-8")
+        self.write_toggle(False)
+        self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
+
+    def test_installed_marketplace_id_isolates_from_other_marketplace(self) -> None:
+        # A second marketplace's disk-hygiene entry must not mask this install's
+        # configured value: the guard derives its exact <name>@<marketplace> key
+        # from --plugin-root (here disk-hygiene@melodic-software) and matches only
+        # that, rather than aggregating every disk-hygiene@* entry into an
+        # ambiguous read that would fall back to enabled.
+        self.settings.write_text(
+            json.dumps(
+                {
+                    "pluginConfigs": {
+                        "disk-hygiene@melodic-software": {
+                            "options": {"disk_hygiene_enabled": False}
+                        },
+                        "disk-hygiene@other-marketplace": {
+                            "options": {"disk_hygiene_enabled": True}
+                        },
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
+
+    def test_managed_dropin_false_overrides_user(self) -> None:
+        # A false configured only in the managed drop-in directory must win over a
+        # user-enabled toggle, just like the primary managed file.
+        self.write_managed_dropin("10-org-policy.json", False)
+        self.write_toggle(True)
+        self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
+
+    def test_managed_dropin_overrides_primary_managed_file(self) -> None:
+        # Drop-ins are merged over the primary managed file.
+        self.write_managed_toggle(True)
+        self.write_managed_dropin("50-override.json", False)
+        self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
+
+    def test_later_managed_dropin_wins_over_earlier(self) -> None:
+        # Sorted order: 20- overrides 10-.
+        self.write_managed_dropin("10-first.json", True)
+        self.write_managed_dropin("20-second.json", False)
+        self.write_toggle(True)
+        self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
 
 
 if __name__ == "__main__":

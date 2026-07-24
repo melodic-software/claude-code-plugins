@@ -30,11 +30,9 @@ note that re-enabling restores the FAIL semantics.
 1. **Python floor on `PATH`** — the interpreter used by scanning, validation, the
    guard, and cleanup. (The guard registers on two surfaces: a plugin-level engine gate
    that acts only on engine-referencing commands, and the skill-scoped belt inside the
-   `clean` skill's context. Caveat, verified on Claude Code 2.1.218: the engine gate only
-   registers once `disk_hygiene_enabled` is explicitly configured — its bare
-   `${user_config.*}` argument drops the whole hook while the option is unset, so on a
-   default install direct `hygiene.py` invocations meet NO plugin-level hook; the
-   deny-by-default belt applies only during `clean`.) The required version has one origin: the `MIN_PYTHON`
+   `clean` skill's context. Both register unconditionally and resolve the kill switch by
+   reading `disk_hygiene_enabled` from the user `settings.json`; the deny-by-default belt
+   applies only during `clean`.) The required version has one origin: the `MIN_PYTHON`
    constant in `${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py` — parse it from
    there (`grep -m1 '^MIN_PYTHON' …`) and probe the interpreter against that value; do not
    recite a version number from this file or the README. FAIL if absent or older, naming

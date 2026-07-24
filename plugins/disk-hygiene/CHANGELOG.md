@@ -3,6 +3,56 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.0]
+
+### Fixed
+
+- **The `disk_hygiene_enabled` kill switch now enforces on both guard surfaces — closing the
+  inert-by-default engine gate (#1019).** Through 0.8.3 the plugin-level engine gate (`hooks/hooks.json`)
+  carried a bare `${user_config.disk_hygiene_enabled}` argument. Because the declared userConfig `default`
+  is unimplemented upstream (#46477 / #39455 / #39827), an unset-but-defaulted token dropped the whole hook
+  entry, so on a default install the gate never ran; the skill-frontmatter belt could not receive the value
+  either (skill hooks get neither the `${user_config.*}` substitution nor `CLAUDE_PLUGIN_OPTION_*`). Audit-only
+  mode therefore degraded from deny-outright to prompt-gated. Both surfaces now resolve the toggle by
+  **reading it directly** from user-scope `pluginConfigs` in `settings.json`, so a configured `false` is
+  denied outright on the Bash engine lane and the PowerShell deletion lane, whether or not the clean skill
+  is active.
+
+### Changed
+
+- **Kill-switch delivery is a settings read, not a hook argument or environment variable.** The engine gate
+  drops its `${user_config.*}` argument (fixing the hook-drop) and both surfaces call the new shared
+  `lib/killswitch_config.py` reader. The user `settings.json` is located **solely** from the
+  tamper-resistant `${CLAUDE_PLUGIN_ROOT}` both surfaces receive — the guard never falls back to
+  `CLAUDE_CONFIG_DIR`/`HOME` for it, because those are environment values a repo `.claude/settings.json`
+  `env` block can inject into hook subprocesses (carrying no provenance). A marker-less `--plugin-dir`
+  checkout root leaves no trusted user path, so the user scope is skipped and the switch relies on managed
+  settings, failing closed to enabled otherwise. Since Claude Code 2.1.207 `pluginConfigs` is honored only
+  from user, managed, and `--settings` scope (project/local ignored), so a hostile repo cannot forge the
+  value. Every absent, unreadable, or ambiguous read fails **closed to enabled**.
+- **Managed (enterprise) settings are honored as the highest-precedence scope.** The reader also reads the
+  platform managed-settings.json (`/Library/Application Support/ClaudeCode/` on macOS, `/etc/claude-code/`
+  on Linux/WSL, `C:\Program Files\ClaudeCode\` on Windows — a fixed path, not `%ProgramFiles%`-derived, so a
+  repo `env` block cannot redirect it); a value configured there overrides the user file, so an organization
+  can enforce audit-only mode; the sibling `managed-settings.d/` drop-in directory is merged over it
+  (later files win). The reader also matches only this install's exact `<name>@<marketplace>` key
+  (derived from `${CLAUDE_PLUGIN_ROOT}`), so another marketplace's `disk-hygiene` entry cannot mask it. The
+  one residual: a value supplied only through a session `--settings` file (a runtime CLI flag no hook can
+  observe) is not enforced by the guard.
+- **`kill_switch_probe.py` now delegates to the shared reader** (its behavior and single-line JSON output
+  contract unchanged) so the report-only probe and the guard resolve the switch one way, not two.
+- Docs corrected across `clean`/`setup` `SKILL.md`, `reference/safety-model.md`, and `README.md`: the
+  "engine gate is inert until configured" and "audit-only reaches only the model, not the guard" caveats
+  are removed; the guard is again the audit-only backstop.
+
+### Design note
+
+- This supersedes the planned SessionStart-hook + state-file delivery ("C′"). Both guard surfaces are the
+  same script funnelling through one resolve point, so there is nothing to distribute between sessions or
+  surfaces: a direct read is a smaller trust surface (a settings *read*, no state-file *write*), honors a
+  mid-session settings change, and needs no session-start timing dependency. Semantics are unchanged from
+  the locked resolver decision — read user-scope `pluginConfigs`, ignore env, fail closed to enabled.
+
 ## [0.8.3]
 
 ### Fixed
