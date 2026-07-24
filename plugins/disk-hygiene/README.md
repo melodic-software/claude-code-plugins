@@ -164,14 +164,18 @@ hand-cleaning the zone.
   `${user_config.*}` substitution nor `CLAUDE_PLUGIN_OPTION_*`) and still forces a human prompt before
   every mutation.
 - **Trust-surface record (0.7.0):** the plugin-level `hooks/hooks.json` PreToolUse registration is a
-  NEW trust surface (a hook that launches in every consumer session), added deliberately for
-  guard-enforced audit-only mode and data-root authority (#1106 decision, Option E — split
-  registration). Its blast radius is bounded by design: exec form (no shell), bundled
-  standard-library script only, instant no-output deferral for any command not referencing the
-  engine, and no new capability beyond what the skill-scoped deployment already did during active
-  cleanup. Known costs, accepted: one `python3` launch per Bash/PowerShell call, and on a machine
-  where `python3` resolves to the Windows Store alias stub the launch fails on every call (tracked
-  with remediation detection in #1110). This entry is the plugin-acceptance review delta for the
+  NEW trust surface (a hook that launches in every consumer session **once `disk_hygiene_enabled` is
+  explicitly configured** — see the caveat below), added deliberately for guard-enforced audit-only
+  mode and data-root authority (#1106 decision, Option E — split registration). Its blast radius is
+  bounded by design: exec form (no shell), bundled standard-library script only, instant no-output
+  deferral for any command not referencing the engine, and no new capability beyond what the
+  skill-scoped deployment already did during active cleanup. Known costs, accepted: one `python3`
+  launch per Bash/PowerShell call **on a configured install**, and on a machine where `python3`
+  resolves to the Windows Store alias stub the launch fails on every call (tracked with remediation
+  detection in #1110). **Caveat (verified on Claude Code 2.1.218):** while `disk_hygiene_enabled` is
+  unset, the bare `${user_config.*}` argument drops the whole hook, so on a default install this hook
+  does not register or launch at all — neither the trust surface nor its per-call cost applies until
+  the option is configured. This entry is the plugin-acceptance review delta for the
   change. A direct `hygiene.py` invocation outside that skill does not read the toggle and
   answers only to the engine's own preview/approval-token gate. The toggle can only narrow the
   destructive surface, never widen it (see [the safety model](skills/clean/reference/safety-model.md)
