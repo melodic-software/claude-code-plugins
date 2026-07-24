@@ -518,6 +518,17 @@ the next; single-worktree file ownership). Shared-file conflicts (`marketplace.j
 don't arise because the lanes are serialized. Post-plan next step: `/work-items:decompose` this
 plan into the two lanes' work items (Brief sequencing decision B13).
 
+> **Scope change (2026-07-24, owner override at execution start):** both lanes are AUTHORED IN
+> PARALLEL worktrees in one session — overriding this section's serialized-lanes row. **Merges stay
+> serialized: lane A merges first**, then lane B rebases onto main and merges (seams-first becomes
+> a merge constraint, not an authorship constraint). Split-brain guard: lane A's
+> `reference/reader-contract.md` is authored EARLY and its inline-floor values treated as frozen;
+> lane B's byte-identity drift grep re-runs after lane A merges and after any lane-A review change
+> to those values. Expected shared-file conflicts at lane-B rebase (`marketplace.json`, repo
+> `README.md`, `docs/MIGRATION-PLAYBOOK.md`, this file's phase tags) are trivial appends — resolve
+> by keeping both sides. The native edge #1237←#1230 stays (it encodes merge order); #1237 is
+> claimed explicitly by id.
+
 | Phase | Surface | Basis |
 |---|---|---|
 | A1–A2 | implementation session (lane A worktree), main thread | TDD shell work, tightly coupled to fresh-docs grounding |
