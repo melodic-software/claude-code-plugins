@@ -809,8 +809,9 @@ Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this 
   statusline (the setup skill prints the edit, never applies it), and `context-zone.sh` runs only
   on explicit invocation. Both reviewed: no `eval`, no `curl | sh`, no outbound network; the one
   untrusted input that reaches the filesystem (`session_id` from statusline stdin) is sanitized to
-  `[A-Za-z0-9_-]` before filename use, and snapshot values are only ever passed through `jq`,
-  never interpolated into a shell. Every failure path is transparent (wrapped statusline output
+  `[A-Za-z0-9_-]` before filename use; `captured_at` is format-gated to strict ISO-8601 UTC before
+  being passed to `date -d`; no snapshot value is passed to `eval`, `sh -c`, or any code
+  executor. Every failure path is transparent (wrapped statusline output
   and exit code unchanged). No kill-switch `userConfig` needed — nothing runs unless the operator
   wires it, and unwiring is the same one-line edit.
 - **MCP servers (2).** None.
