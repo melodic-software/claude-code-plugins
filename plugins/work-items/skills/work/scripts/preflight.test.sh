@@ -352,6 +352,14 @@ assert_eq "tilde-form entry expands → zero gaps" "0" "$(run_home "$HOME19" "$R
 # expanded home is still an uncovered (c) gap, and non-tilde probes are unchanged.
 assert_eq "tilde-form entry does not cover a root outside the home" "1" "$(run_home "$HOME19" "$REPO" "$CFG19" --count --worktree-root "$POSIX_CHILD")"
 
+# --- Case 19b: backslash-form tilde entry (~\...) also expands ----------------
+# A Windows entry may be written ~\.worktrees; that separator must expand the
+# same as ~/.worktrees (the repo's other portable expanders accept both forms).
+CFG19B="$TEST_TMPDIR/cfg19b"
+# shellcheck disable=SC2088  # the literal ~ entry is the input under test, not a path to expand
+write_settings "$CFG19B" "$FULL_ALLOW" "~${BS}.worktrees"
+assert_eq "backslash-form tilde entry expands → zero gaps" "0" "$(run_home "$HOME19" "$REPO" "$CFG19B" --count --worktree-root "$HOME19/.worktrees/999-x")"
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0

@@ -234,15 +234,17 @@ normalize_path() {
   # Literal only — no symlink resolution, since permission rules match the
   # command string literally.
   local p="$1" drive rest home="${HOME:-${USERPROFILE:-}}"
-  # A leading ~ (~ alone or ~/…) expands to the user home so a tilde-form
+  # A leading ~ (~ alone, or ~/… / ~\… — both separators, since a Windows entry
+  # may be written ~\…) expands to the user home so a tilde-form
   # additionalDirectories entry compares equal to the absolute probed root the
   # harness derives from that same home. HOME first, then USERPROFILE (its
-  # backslashes are folded by the tr below); neither set leaves ~ literal.
+  # backslashes, and any in the stripped remainder, are folded by the tr below);
+  # neither set leaves ~ literal.
   if [[ -n "$home" ]]; then
     # shellcheck disable=SC2088  # the literal ~ arms are patterns being matched, not paths to expand
     case "$p" in
       "~") p="$home" ;;
-      "~/"*) p="$home/${p:2}" ;;
+      "~/"* | "~\\"*) p="$home/${p:2}" ;;
       *) ;;
     esac
   fi
