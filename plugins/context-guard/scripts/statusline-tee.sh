@@ -143,8 +143,14 @@ tee_snapshot() {
     # Never regress the snapshot: an overlapping same-session refresh may
     # have landed a NEWER captured_at while this process was still building
     # its payload (ISO-8601 UTC compares lexically). Re-checked on every
-    # retry; the remaining check-to-rename microsecond race is accepted —
-    # zone bands are coarse and the next refresh supersedes either way.
+    # retry. Two residual races are ACCEPTED by design rather than
+    # serialized: the check-to-rename microsecond window, and an
+    # equal-second tie (captured_at is second-precision, so strict > cannot
+    # order two writers born in the same second and the older may win).
+    # Worst case for both is a snapshot carrying context data at most one
+    # refresh/one second older than the newest — zone bands are coarse and
+    # the next refresh supersedes; a lock would add a cross-platform
+    # dependency (flock is absent on macOS) for no behavioral difference.
     existing_ts=$(jq -r '.captured_at // empty' "$target" 2>/dev/null) || existing_ts=""
     if [[ -n "$existing_ts" && "$existing_ts" > "$ts" ]]; then
       rm -f "$tmp" 2>/dev/null
