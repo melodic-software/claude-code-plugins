@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Single source of truth for reading the ``disk_hygiene_enabled`` kill switch.
 
 Claude Code stores merged plugin options under
