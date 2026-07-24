@@ -182,7 +182,7 @@ Create `plugins/context-guard/`:
 #### Phase A2: Zone resolver + zones contract [DONE]
 
 - [ ] `scripts/context-zone.sh` — CREATE: `context-zone.sh <session_id>` reads the session snapshot
-  + optional `~/.claude/context-guard/zones.json`, prints one word: `smart` / `acceptable` / `dumb`
+  plus the optional `~/.claude/context-guard/zones.json`, prints one word: `smart` / `acceptable` / `dumb`
   / `unknown` (absent, stale, or unparsable snapshot → `unknown`). Shipped default bands live in
   this script (zones.json absent = zero-config). Grounding outcome (fetched 2026-07-23): **no
   auto-compaction threshold percentage is documented anywhere** — how-claude-code-works,
