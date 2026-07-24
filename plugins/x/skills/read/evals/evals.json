@@ -68,7 +68,7 @@
       "expected_output": "Matches the post form, captures handle and id, and rebuilds https://x.com/jack/status/20 — sending no query string to the third party. The original input string is discarded rather than passed through.",
       "files": [],
       "expectations": [
-        "Rebuilds a canonical https://x.com/<handle>/<id> URL from captures only",
+        "Rebuilds a canonical https://x.com/<handle>/status/<id> URL from captures only",
         "The tracking parameters never appear in the emitted command",
         "Accepts the twitter.com host form rather than refusing it"
       ]

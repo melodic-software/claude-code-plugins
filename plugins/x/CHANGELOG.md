@@ -84,8 +84,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   a post's long-form representation, and a chain can legitimately begin with a note tweet, so the
   earlier unconditional stop would have returned only the root even when the whole thread was asked
   for. Escalation now requires positive continuation evidence and ignores length in both directions.
-- The Windows PowerShell body is passed by file reference (`-d "@..."`) rather than inline. Neither
-  inline form is portable: PowerShell 7.3 changed native-argument parsing in a way Microsoft
-  documents as a breaking change from 5.1, so unescaped quotes are stripped under `Legacy` while
-  backslash-escaped quotes arrive literally under `Standard`/`Windows`. A `@path` argument carries no
-  embedded quotes and survives either mode.
+- The Windows PowerShell request is issued through a curl config file (`curl.exe -K <path>`) rather
+  than inline arguments. PowerShell 7.3 changed native-argument parsing in a way Microsoft documents
+  as a breaking change from 5.1, so no inline form is portable: unescaped quotes are stripped under
+  `Legacy` while backslash-escaped quotes arrive literally under `Standard`/`Windows`. A config file
+  leaves the command line with a single unquoted-content argument, so quoting is parsed by curl and
+  the marshalling-mode question does not arise. Both the config and the body file are named for the
+  gate-captured id, so concurrent sessions cannot race on a shared path.
+- Reference files use a `<plugin-data-dir>` slot rather than `${CLAUDE_PLUGIN_DATA}`, per the
+  repository convention that SKILL.md is the only surface where that token expands. PowerShell would
+  in any case read `${NAME}` as its own brace-variable syntax and resolve an undefined variable.

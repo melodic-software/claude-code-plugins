@@ -8,46 +8,56 @@ classify a response.
 Without Git Bash the PowerShell tool is the active shell, and `curl` may not resolve to the binary —
 use the explicit `.exe`.
 
-**Do not put the JSON body on the command line.** Neither inline form is portable across PowerShell
-versions, because 7.3 changed native-argument parsing in a way Microsoft documents as a breaking
-change from Windows PowerShell 5.1 (`about_Parsing`, "Passing arguments that contain quote
-characters"; `$PSNativeCommandArgumentPassing` — `Windows`/`Standard` preserve embedded quotes,
-`Legacy` does not):
+**Keep every quote off the command line.** PowerShell 7.3 changed native-argument parsing in a way
+Microsoft documents as a breaking change from Windows PowerShell 5.1 (`about_Parsing`, "Passing
+arguments that contain quote characters"; `$PSNativeCommandArgumentPassing` — `Windows`/`Standard`
+preserve embedded quotes, `Legacy` does not). So no inline form is portable: `'{"url":"..."}'` loses
+its quotes under `Legacy`, and `'{\"url\":\"...\"}'` arrives with literal backslashes under
+`Standard`/`Windows`. Rather than pick a mode to bet on, put the whole request in a curl config file
+so the command line has no quotes to marshal at all.
 
-- `'{"url":"..."}'` works under `Standard`/`Windows` but loses its quotes under `Legacy`
-  (PowerShell 5.1), so `curl.exe` receives `{url:https://...}` and the server rejects it.
-- `'{\"url\":\"...\"}'` is what `Legacy` needs, but under `Standard`/`Windows` the backslashes
-  arrive literally and the server rejects that too.
-
-Write the body to a file with the Write tool and pass it by reference — a `@path` argument carries no
-embedded quotes, so no marshalling mode can corrupt it:
-
-`<plugin-data-dir>` below is the concrete absolute path SKILL.md resolved — this file is Read raw, so
-no placeholder in it expands. Substitute the real path before running anything, and never write a
+`<plugin-data-dir>` is the concrete absolute path SKILL.md resolved — this file is Read raw, so no
+placeholder in it expands. Substitute the real path before running anything, and never write a
 `${...}` token into a PowerShell command line: PowerShell reads that as its own variable syntax and
-resolves it to an undefined variable, not to an environment value.
+resolves an undefined variable, not an environment value.
 
-Name the file for the gate-captured id — `<plugin-data-dir>/x-request-<id>.json` — never a fixed
-name. A fixed path is shared state: two concurrent sessions would race between the Write and
-`curl.exe` reading it, and the permission prompt widens that window, so one invocation could fetch
-the other's URL. Keying on the id makes a collision mean identical content, which is harmless.
+Name both files for the gate-captured id — never a fixed name. A fixed path is shared state: two
+concurrent sessions would race between the Write and `curl.exe` reading it, and the permission prompt
+widens that window, so one invocation could fetch the other's URL. Keying on the id makes a collision
+mean identical content, which is harmless.
 
-File `<plugin-data-dir>/x-request-<id>.json`:
+Body, at `<plugin-data-dir>/x-request-<id>.json`:
 
 ```json
 {"url": "<REBUILT-URL>"}
 ```
 
-Then:
+Config, at `<plugin-data-dir>/x-request-<id>.conf`:
 
-```powershell
-curl.exe -sS --proto '=https' --max-time 30 --max-filesize 5000000 -X POST https://xtomd.com/api/markdown -H "Content-Type: application/json" -H "Accept: text/markdown" -d "@<plugin-data-dir>/x-request-<id>.json"
+```text
+url = "https://xtomd.com/api/markdown"
+request = "POST"
+header = "Content-Type: application/json"
+header = "Accept: text/markdown"
+data = "@<plugin-data-dir>/x-request-<id>.json"
+proto = "=https"
+max-time = 30
+max-filesize = 5000000
+silent
+show-error
 ```
 
-Only the `-d` argument ever carried embedded quotes; `@path` has none, so no marshalling mode can
-corrupt it. The URL written into the file is the gate's rebuilt one, so the body stays as
-constrained as the inline form was. Where Git Bash is available, the bash form in SKILL.md is the
-better-exercised path.
+Then a command line carrying exactly one argument, and no embedded quotes for any marshalling mode to
+strip:
+
+```powershell
+curl.exe -K "<plugin-data-dir>/x-request-<id>.conf"
+```
+
+Quoting inside the config file is parsed by curl, never by PowerShell, so the mode question does not
+arise. The URL written into the body is the gate's rebuilt one, and the config file is authored here
+rather than derived from any response, so the request stays as constrained as the inline form was.
+Where Git Bash is available, the bash form in SKILL.md is the better-exercised path.
 
 ## Long-article file redirects
 
