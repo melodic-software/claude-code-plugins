@@ -569,6 +569,10 @@ run_pwsh "PS: Start-Process -FilePath ('py'+'thon3') computed target (blocked)" 
 # whitespace-separated form — both must fail closed.
 run_pwsh "PS: Start-Process -FilePath:\$p colon-bound computed target (blocked)" \
   "\$p = 'py'+'thon3'; Start-Process -FilePath:\$p -ArgumentList '-c','open(\"x\",\"w\").write(\"a\")'" 2
+# Options before the computed target: any launcher + an unquoted computed construct
+# fails closed regardless of how many options precede -FilePath.
+run_pwsh "PS: Start-Process -NoNewWindow -FilePath \$exe computed target (blocked)" \
+  "\$exe = 'py'+'thon3'; Start-Process -NoNewWindow -FilePath \$exe -ArgumentList '-c','open(\"x\",\"w\").write(\"a\")'" 2
 run_pwsh "PS: Start-Process notepad (literal non-python launcher, allowed)" \
   "Start-Process notepad -ArgumentList '-c','open(\"x\",\"w\")'" 0
 # `-c` concatenated with a variable/subexpression: PowerShell joins the adjacent

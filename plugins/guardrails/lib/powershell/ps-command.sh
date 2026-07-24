@@ -229,19 +229,24 @@ ps::might_invoke_git() {
 ps::might_write_via_python3() {
   local recovered="${1//\`/}" lc q="\"'" blanked
   lc="${recovered,,}"
-  # A launcher (Start-Process/saps/start/pwsh/powershell/cmd) whose PROGRAM is a
-  # computed expression — `Start-Process -FilePath ('py'+'thon3') …`,
-  # `saps $exe …`, optionally behind one named parameter — could evaluate to
-  # python3 running inline code. The literal python3-token test below cannot see a
-  # computed name, so this runs FIRST and fails closed (the caller still gates on a
-  # write indicator). Mirrors ps::might_invoke_git's computed-launcher clause; a
-  # LITERAL launcher target (`Start-Process notepad …`) is not matched here and
-  # falls through to the token test, so a non-python launch stays allowed. The
-  # optional parameter name accepts a COLON-bound value (`-FilePath:$p`) as well as
-  # a whitespace-separated one (`-FilePath ('py'+'thon3')`) — PowerShell treats both
-  # as the same argument binding. (ps::might_invoke_git carries the identical clause
-  # and the same whitespace-only gap; a matching fix there is tracked separately.)
-  [[ "$lc" =~ (^|[[:space:]\;\|\&\(])(start-process|saps|start|pwsh|powershell|cmd)(\.exe)?[[:space:]]+(-[a-z]+([[:space:]]+|:))?[\(\$] ]] && return 0
+  # The quote-BLANKED command: an `open(` or a quoted mention inside the write
+  # payload is removed, so an UNQUOTED `(` (subexpression) or `$` (variable) that
+  # survives here is a genuine computed construct, not payload text.
+  blanked=$(ps::blank_quoted_spans "$1")
+  # A launcher (Start-Process/saps/start/pwsh/powershell/cmd) whose PROGRAM name is
+  # COMPUTED cannot be proven non-python. Rather than model parameter ordering /
+  # binding with a regex (which successive rounds defeated — one preceding option,
+  # then colon binding, then multiple options), fail closed CONSERVATIVELY: any
+  # launcher present together with an unquoted computed construct (`$` or `(`) →
+  # block (the caller still gates on a write indicator). This runs FIRST because a
+  # computed program has no literal python3 token for the test below to see. A
+  # launcher with only LITERAL args (`Start-Process notepad …`) carries no such
+  # construct and falls through to the token test, so a non-python launch stays
+  # allowed. (ps::might_invoke_git models this with a narrower per-parameter regex;
+  # a matching hardening there is tracked separately, out of this PR's scope.)
+  if ps::has_launcher "$recovered" && [[ "$blanked" == *'$'* || "$blanked" == *'('* ]]; then
+    return 0
+  fi
   # Must name a python3 interpreter token at all (quote-intact, backtick-recovered).
   [[ "$lc" =~ (^|[^[:alnum:]_.])python3([.]exe)?([^[:alnum:]_]|$) ]] || return 1
   # A literal `-c` inline-code flag settles it (quote-bounded, so an arg-split
@@ -257,9 +262,7 @@ ps::might_write_via_python3() {
   # so `python3 ('-'+'c') …` / `-ArgumentList ('-'+'c'),…` construct the flag with no
   # literal token. A computed `-c` cannot be ruled out when the args carry a
   # non-tokenizable construct — reuse the git lane's un-parsable test on the
-  # quote-BLANKED text (so an `open(` or a quoted mention inside the write payload
-  # does not count). Fail closed, exactly as the git lane refuses a computed target.
-  blanked=$(ps::blank_quoted_spans "$1")
+  # quote-BLANKED text. Fail closed, exactly as the git lane refuses a computed target.
   ps::has_special_constructs "$blanked" && return 0
   return 1
 }

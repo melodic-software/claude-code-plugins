@@ -30,9 +30,10 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   (`python3 ('-'+'c') …`, `-ArgumentList ('-'+'c'),…`) is caught by fail-closing on a non-tokenizable arg
   subexpression (`ps::has_special_constructs`) when no literal `-c` is present, and a computed launcher
   TARGET that hides the interpreter name (`Start-Process -FilePath ('py'+'thon3') …`, `saps $exe …`) fails
-  closed via the same computed-launcher clause the git lane uses (accepting both whitespace- and
-  colon-bound parameter binding, `-FilePath ('py'+'thon3')` / `-FilePath:$p`) — while a literal non-python
-  launcher (`Start-Process notepad …`) stays allowed. A `-c` concatenated with an adjacent variable/subexpression
+  closed: any launcher present together with an unquoted computed construct (`$`/`(`) blocks, regardless of
+  how the target is bound or how many options precede it (`-FilePath ('py'+'thon3')`, `-FilePath:$p`,
+  `-NoNewWindow -FilePath $exe`) — while a literal non-python launcher (`Start-Process notepad …`) carries
+  no such construct and stays allowed. A `-c` concatenated with an adjacent variable/subexpression
   (`python3 -c$code`, `python3 -c(…)`), which PowerShell joins into one `-c<source>` argument, is treated
   as a computed inline-code flag and fails closed (a longer literal flag like `-config` is not `-c`). **Accepted behavior
   change (fail-closed):** a command that only *mentions* `python3 … -c` + a write indicator in prose, a
