@@ -137,6 +137,16 @@ tee_snapshot() {
     rm -f "$tmp" 2>/dev/null
     return 0
   }
+  # Plausibility ceiling for the no-regression guard below: a target whose
+  # captured_at is more than ~5 minutes ahead of this write's own timestamp
+  # (clock correction, tampering) must be REPLACED, not honored — honoring
+  # it would suppress every refresh until that date and wedge the session
+  # in conservative mode. Lexical ISO compare; failure to compute the
+  # ceiling disables the guard (write proceeds — fail toward freshness).
+  local guard_ceiling
+  guard_ceiling=$(date -u -d '+5 minutes' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null ||
+    date -u -v '+5M' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null) || guard_ceiling=""
+
   local _try existing_ts
   # shellcheck disable=SC2034  # bounded-retry counter; the value itself is unused
   for _try in 1 2 3; do
@@ -152,7 +162,8 @@ tee_snapshot() {
     # the next refresh supersedes; a lock would add a cross-platform
     # dependency (flock is absent on macOS) for no behavioral difference.
     existing_ts=$(jq -r '.captured_at // empty' "$target" 2>/dev/null) || existing_ts=""
-    if [[ -n "$existing_ts" && "$existing_ts" > "$ts" ]]; then
+    if [[ -n "$existing_ts" && -n "$guard_ceiling" && "$existing_ts" > "$ts" &&
+      ! "$existing_ts" > "$guard_ceiling" ]]; then
       rm -f "$tmp" 2>/dev/null
       return 0
     fi

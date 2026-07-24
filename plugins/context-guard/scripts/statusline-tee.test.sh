@@ -310,6 +310,17 @@ else
   fail "older write regressed a newer snapshot: $(jq -c . <"$CTXDIR16B/sess-42.json")"
 fi
 
+# --- Case 16c: implausibly-future target is replaced, not honored ------------
+# A far-future captured_at (clock correction, tampering) must not wedge the
+# guard into suppressing every refresh until that date.
+printf '{"captured_at":"9999-12-31T23:59:59Z","session_id":"sess-42","context_window":{"used_percentage":66}}\n' >"$CTXDIR16B/sess-42.json"
+run "$HOME16B" "$(build_input)" cat >/dev/null
+if [[ "$(jq -r '.context_window.used_percentage' <"$CTXDIR16B/sess-42.json")" == "8" ]]; then
+  ok "implausibly-future target replaced (guard cannot be wedged)"
+else
+  fail "far-future snapshot wedged the tee: $(jq -c . <"$CTXDIR16B/sess-42.json")"
+fi
+
 # --- Case 17: pruning — old siblings die, idle + recent + tmp survive --------
 HOME17="$WORK/home17"
 CTXDIR17="$HOME17/$CTX_REL"
