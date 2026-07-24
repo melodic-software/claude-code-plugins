@@ -2,8 +2,12 @@
 
 A Claude Code plugin that makes the machine's shared subscription rate-limit windows observable to
 every session that needs them — so autonomous loop lanes can pause **before** hitting a limit and
-resume on their own after the reset. Three parts:
+resume on their own after the reset. Four parts:
 
+- **Statusline shim** (`scripts/statusline-shim.sh`) — the durable wiring target. Installed once to
+  `~/.claude/rate-limit-guard/bin/`, it resolves whichever tee version is installed at run time, so
+  a plugin update never requires re-wiring and an uninstall degrades to your statusline running
+  alone. Pure Bash builtins: it adds no measurable time to a refresh.
 - **Statusline tee** (`scripts/statusline-tee.sh`) — a transparent wrapper around your statusline
   command. Each refresh it atomically writes the session's `rate_limits` (both the 5-hour and
   7-day windows), a `captured_at` timestamp, and the session-distinguishing fields to the fixed
@@ -40,10 +44,25 @@ resume on their own after the reset. Three parts:
 /plugin install rate-limit-guard@melodic-software
 ```
 
-The StopFailure hook is active immediately. The statusline tee needs one operator step: run
-`/rate-limit-guard:setup check`, which verifies prerequisites and prints the exact `settings.json`
-statusline edit (wrapping your existing command, or standalone) for you to apply — the plugin never
-edits your settings itself.
+The StopFailure hook is active immediately. The statusline tee needs two operator steps, both
+one-time:
+
+1. `/rate-limit-guard:setup apply` — installs the statusline shim to
+   `~/.claude/rate-limit-guard/bin/statusline-shim.sh`. The shim is inert until step 2.
+2. `/rate-limit-guard:setup check` — verifies prerequisites and prints the exact `settings.json`
+   statusline edit (wrapping your existing command, or standalone) for you to apply. The plugin
+   never edits your settings itself.
+
+You wire the **shim**, not the tee, and that wiring is permanent: `${CLAUDE_PLUGIN_ROOT}` is
+version-pinned and the old version directory is pruned ~14 days after an update, so a statusline
+wired straight to `<plugin-root>/scripts/statusline-tee.sh` silently stops teeing on the next
+version bump and then takes the whole statusline down when the path disappears. The shim resolves
+the newest installed tee at run time, so plugin updates need no re-wiring, and it passes your
+statusline through unchanged when no tee is installed (including after uninstall).
+
+Running alongside `context-guard`? The tees are transparent wrappers, so they nest — each through
+its own shim, with the innermost command still owning stdout and the exit code. Both setup skills
+print that combined form.
 
 ## Requirements
 
@@ -54,6 +73,11 @@ the standalone statusline. Proactive window data requires Claude.ai subscription
 `rate_limits` appears only there, per the
 [statusline reference](https://code.claude.com/docs/en/statusline); on other auth the guard is
 reactive-only. The tee updates only while an interactive session refreshes the statusline.
+
+Cost: the tee adds roughly 0.6–0.9 s per statusline refresh on Windows/Git Bash (process-spawn
+bound — `jq` and `date`), and correspondingly less on native POSIX shells. The statusline is not on
+the input path, so this is display latency, not typing latency; `refreshInterval` in your settings
+governs how often it runs.
 
 ## Configuration
 
