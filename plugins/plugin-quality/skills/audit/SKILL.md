@@ -30,10 +30,26 @@ elsewhere: **static skill QA** (frontmatter/lint/trigger checks with no behavior
 → `mcp-tools:audit` when installed (presence-gated; absent, treat the server's client-side config
 as a `config` component here and say the server itself is out of scope).
 
+## Config resolution (once, at invocation)
+
+Resolve the merged consumer config per the plugin's `${CLAUDE_PLUGIN_ROOT}/reference/config.md`
+(user-global `~/.claude/plugin-quality.md` → tracked `.claude/plugin-quality.md` → `.local`
+overlay; per-key override). Every documented key is CONSUMED, not decorative:
+
+- `sink` + `markdown_dir` — bind step 6's ladder rung 1 (a `markdown-dir` sink writes the item to
+  `markdown_dir`, not beside the packet).
+- `zone_behavior: always-conservative` — the context-gate below reports the unknown/dumb row
+  regardless of a fresh smart snapshot (tighten-only).
+- `repo_map` — overrides step 6's rung-2 registration inference for the named plugins.
+
+All layers absent → every key unset → defaults apply exactly as written below.
+
 ## Context-gate (before step 1, re-evaluated at steps 2 and 5)
 
 This skill consumes the `context-guard` plugin's per-session snapshots as a **soft dependency** —
 no manifest dependency; fresh data informs dispatch, absence degrades conservatively.
+`zone_behavior: always-conservative` from the resolved config short-circuits this gate to the
+unknown row (with the notice naming the config, not a missing snapshot, as the reason).
 
 Resolve the zone with `jq` (a data seam — never invoke another plugin's scripts from the cache):
 
@@ -67,8 +83,16 @@ Steps 2–3 run in the fresh `auditor` subagent in EVERY zone — the zone modul
 
 ## Evidence packet (created in step 1, survives compaction)
 
-Path: `${CLAUDE_PLUGIN_DATA}/evidence/<session_id>/<target-slug>/<run-nonce>/`
+Path: `<plugin-data-dir>/evidence/<session_id>/<target-slug>/<run-nonce>/`
 
+- `<plugin-data-dir>` = this plugin's persistent data directory. The `${CLAUDE_PLUGIN_DATA}`
+  token does NOT substitute in skill markdown (it is a hook/monitor/MCP path substitution), so
+  derive the directory deterministically per the plugins reference:
+  `~/.claude/plugins/data/<plugin-id>/`, where `<plugin-id>` is this plugin's install identifier
+  with characters outside `[A-Za-z0-9_-]` replaced by `-` (marketplace install →
+  `plugin-quality-<marketplace-name>`; a `--plugin-dir` dev load gets its own id such as
+  `plugin-quality-inline`). Before the first write, list `~/.claude/plugins/data/` and use the
+  matching entry; if none exists yet, create the id-form directory for this install.
 - `<target-slug>` = the `<plugin>[:<component>]` argument sanitized to `[A-Za-z0-9_-]` (every
   other character → `-`) — the same character class the context-guard tee applies; path
   containment.
@@ -136,19 +160,26 @@ one-line fallback when absent:
 Resolve the sink by the ladder (first hit wins; full key reference in the plugin's
 `${CLAUDE_PLUGIN_ROOT}/reference/config.md`):
 
-1. **Tracked config** — `.claude/plugin-quality.md` layers (user-global `~/.claude/`, project
-   tracked, `.local` overlay) naming a sink.
-2. **Infer** — the audited plugin's marketplace registration names its source repo; propose it.
+1. **Tracked config** — the resolved `sink` from Config resolution above: `gh-issues` targets the
+   repo per rung 2's inference (or `repo_map`); `markdown-dir` writes the item into the resolved
+   `markdown_dir` (the configured directory, NOT beside the packet); `local-fallback` goes
+   straight to rung 4's shape.
+2. **Infer** — the audited plugin's marketplace registration names its source repo, unless the
+   resolved `repo_map` carries an entry for this plugin — the mapped `owner/repo` wins; propose
+   the result.
 3. **Ask** — no config, no inference: ask the user for the target, offer to persist it to the
    tracked config.
 4. **Local markdown fallback** — no `gh` or no repo: write the item as a local markdown work item
    next to the packet (`item.md`) and tell the user where it is.
 
-**Egress gate (unconditional, every `gh issue create`):** show the user, in one confirm surface —
-(a) the FULL issue draft (title + body), (b) the target repo, and (c) the ACTING `gh` account
-from `gh auth status` (machines can hold multiple GitHub identities; the wrong one
-cross-pollinates identity domains). Only on explicit confirmation run `gh issue create`. There is
-no auto-file mode.
+**Egress gate (unconditional, every externally-visible emit):** show the user, in one confirm
+surface — (a) the FULL item draft (title + body), (b) the destination (target repo, tracker, or
+directory), and (c) the ACTING identity (`gh auth status` for `gh`; the tracker's acting identity
+for a seam emit — machines can hold multiple identity domains and the wrong one cross-pollinates
+them). Only on explicit confirmation perform the emit. This gate covers `gh issue create` AND any
+presence-gated `work-items` seam emit (`create-item` writes to an external tracker — invoking
+this audit is not itself authorization); only the rung-4 local file next to the packet skips it.
+There is no auto-file mode.
 
 > Verb-contract note (recorded deviation): the fleet's `audit` verb is read-only with "mutation
 > only behind an explicit user override". Here the unconditional draft+confirm IS that override —

@@ -26,17 +26,17 @@ All three layers absent → fall through to the sink ladder's inference rung.
 
 Markdown with a fenced YAML block (human-readable, shell-greppable):
 
-```markdown
+````markdown
 # plugin-quality config
 
-​```yaml
+```yaml
 sink: gh-issues            # gh-issues | markdown-dir | local-fallback
 markdown_dir: ~/somewhere  # required when sink: markdown-dir
 zone_behavior: default     # default | always-conservative
 repo_map:
   some-plugin: some-org/some-repo
-​```
 ```
+````
 
 ## Keys
 
@@ -59,13 +59,15 @@ First hit wins:
 4. **Local fallback** — no `gh`, no repo, or the user declines: write the markdown item next to
    the evidence packet and report its path.
 
-Every `gh issue create` — whatever rung resolved the target — passes the unconditional
-draft+confirm egress gate (full draft + target repo + ACTING `gh` account), owned by the audit
+Every externally-visible emit — whatever rung resolved the target — passes the unconditional
+draft+confirm egress gate (full draft + destination + ACTING identity), owned by the audit
 skill. This file documents the ladder; the gate lives in the skill.
 
 When the `work-items` plugin is installed, the audit offers its seam (`create-item` via the
 tracker CLI) as the emit vehicle for rungs 1–3 — never by hand-writing files into another
-plugin's storage format (see reconciliation below).
+plugin's storage format (see reconciliation below). The seam emit sits behind the SAME confirm
+surface as `gh issue create`: the tracker performs provider writes, and invoking the audit is
+not itself authorization to create an external item.
 
 ## Markdown item schema (markdown-dir and local-fallback sinks)
 
