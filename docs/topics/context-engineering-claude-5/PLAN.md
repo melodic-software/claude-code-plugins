@@ -181,11 +181,13 @@ pass audits or a native mechanism the Phase 6 gate must rule on:
   `disableBundledSkills` / `skillOverrides`, which decide whether `/doctor` is present at all.
 - `context-window` — where `CLAUDE.md` sits in startup context, and what survives compaction.
 
-- **Sanity Check:** for each of the eleven page slugs (`skills`, `plugins`, `plugins-reference`,
+- **Sanity Check:** for each of the fourteen page slugs (`skills`, `plugins`, `plugins-reference`,
   `hooks`, `sub-agents`, `tools-reference`, `claude-directory`, `debug-your-config`,
-  `large-codebases`, `settings`, `context-window`),
-  `rg -c "docs/en/<slug>" design/official-corroboration.md` returns ≥ 1. Counting `https://` lines
-  does not work — a line may carry two URLs.
+  `large-codebases`, `settings`, `context-window`, `features-overview`, `output-styles`, `mcp`),
+  `rg -c "docs/en/<slug>>" design/official-corroboration.md` returns ≥ 1. Counting `https://` lines
+  does not work — a line may carry two URLs. The trailing `>` closing the autolink is required: a
+  bare `docs/en/plugins` also matches `docs/en/plugins-reference`, and `docs/en/mcp` also matches
+  `docs/en/mcp-quickstart`, so either slug would pass without its own page ever being fetched.
 - **Sanity Check — the list itself is falsifiable.** The check above can only prove the slugs it
   already names were fetched; it cannot notice a page nobody listed. Before closing the phase, walk
   `https://code.claude.com/docs/llms.txt` and record every page whose subject is an instruction,
