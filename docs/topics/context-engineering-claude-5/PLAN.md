@@ -521,9 +521,17 @@ all verified present:
   any copy breaks the sync path and reds CI.
 - **Vendored upstream materializations** — six `SKILL.md` files under `plugins/*/skills/*/vendor/`.
   Hand-editing an upstream copy is a standing prohibition.
-- **Worktrees** — three exist under `.claude/worktrees/`, which is gitignored at `.gitignore:15`. Derive
-  from `git worktree list` plus gitignore-awareness; a git-tracked enumeration excludes them for free
-  where a filesystem walk does not. The earlier "doubles every count" premise was wrong and is dropped.
+- **Worktrees** — derive from `git worktree list` plus gitignore-awareness; a git-tracked enumeration
+  excludes them for free where a filesystem walk does not.
+
+  **The narrative claim here was wrong twice and is now checked rather than asserted.** It read
+  "three exist under `.claude/worktrees/`, which is gitignored at `.gitignore:15`". On this machine
+  `.claude/worktrees/` **does not exist**, and `git worktree list` reports **26** registered
+  worktrees, living in a sibling directory outside the repository entirely. The derivation mechanism
+  is robust to both errors — which is the point of deriving rather than transcribing — but a plan
+  that audits other people's instruction files for stale unverified counts had a stale unverified
+  count of its own, twice, in the paragraph arguing for derivation. Counts here are cited by command
+  or not at all.
 
 **The inventory clears the native-first gate first.** Adopt, reject with a reason, or defer with a
 trigger: the `InstructionsLoaded` hook ("log exactly which instruction files are loaded, when they

@@ -12,12 +12,13 @@ disposition with its reason, the escalation verdict, the operator's decision on 
 map Phase 5 would otherwise have produced separately.
 
 **Sequencing note.** This gate ran *before* Phase 2, inverting PLAN.md's stated order. The reason is
-in [design-resolution.md](design-resolution.md) lines 103–106: the Tier A classification, and with it
-Phase 2's existence, "rests on 'new checks across four plugins' and 'a versioned criteria catalog
-consumed by more than one plugin'", and "if the proportionality gate leaves one detector and a set of
-calibration inputs, neither signal fires as stated." Information flows one way — this gate's verdict
-narrows Phase 2, while Phase 2's shape narrows nothing here. Deciding the seam first would have
-decided it against a premise this gate deletes. Operator approved the swap.
+in [design-resolution.md](design-resolution.md), "Gate before implementation": the Tier A
+classification, and with it Phase 2's existence, "rests on 'new checks across four plugins' and 'a
+versioned criteria catalog consumed by more than one plugin'", and "if the proportionality gate
+leaves one detector and a set of calibration inputs, neither signal fires as stated." Information
+flows one way — this gate's verdict narrows Phase 2, while Phase 2's shape narrows nothing here.
+Deciding the seam first would have decided it against a premise this gate deletes. Operator approved
+the swap.
 
 ## The test
 
@@ -53,10 +54,10 @@ Each row carries two independent answers, because conflating them is what the fi
 
 | D | § | Lands as | Enablement | Reason and evidence |
 |---|---|---|---|---|
-| D1 | S3 | **new check I12** in `audit-instructions` | on — `ANTHROPIC-DOCS` | No incumbent compares two instruction surfaces against each other; `extract-ssot` finds repetition, not contradiction. `coverage-matrix.md:26` (`GAP`, "the largest one"); `official-corroboration.md:38` — memory doc "Consistency", plus "**No tool performs this review**" |
-| D2 | S6 | extends **I9's Remediate line** in `audit-instructions` | off — `OPINION` | Fails the *evidence* test, not the coverage test — the first draft reported it the other way round. I9 already detects the same artifact (an example block pinning the model's approach); R-A adds only where the information should go instead. `skill-quality:check` cannot host it: its contract is "NO model invocation… reproducible in CI", and representational-equivalence judgement is not reproducible. `official-corroboration.md:41`; `check-skill.sh:3-4` |
-| D3 | S8 | **new check** in `audit-instructions`, beside I3 | off — `OPINION` (pending S8 re-verification) | Not `extract-ssot`: that refuses below three instances and picks a home by content type, never by proximity to what is governed. Not I3 either — **different axis**: I3 is load *timing*, D3 is definition-site *locality*, and an instruction can be correctly deferred and still misplaced. `extract-ssot/SKILL.md:15,84`; `criteria.md:66-74` |
-| D4 | S13 | extends **I6 and I8** with a stopping condition, `claude-config`-local | **on** — suppressor inversion | Neither I6 nor I8 carries any a-priori bound: I6's escape is a rewrite concession, I8's remediation is unconditional. And no trimming rule outside `claude-config` needs to consult it — every `docs-hygiene` trimmer already owns a local stopping condition. One consumer, so a local check, not a shared artifact. `criteria.md:97-105, 117-126` |
+| D1 | S3 | **new check I12** in `audit-instructions` | on — `ANTHROPIC-DOCS` | No incumbent compares two instruction surfaces against each other; `extract-ssot` finds repetition, not contradiction. `coverage-matrix.md`, the S3 row (`GAP`, "the largest one"); `official-corroboration.md`, the S3 row — memory doc "Consistency", plus "**No tool performs this review**" |
+| D2 | S6 | extends **I9's Remediate line** in `audit-instructions` | off — `OPINION` | Fails the *evidence* test, not the coverage test — the first draft reported it the other way round. I9 already detects the same artifact (an example block pinning the model's approach); R-A adds only where the information should go instead. `skill-quality:check` cannot host it: its contract is "NO model invocation… reproducible in CI", and representational-equivalence judgement is not reproducible. `official-corroboration.md`, the S6 row; `check-skill.sh:4`, the header contract comment, plus `skill-quality:check`'s `SKILL.md`, "Purpose" |
+| D3 | S8 | **new check** in `audit-instructions`, beside I3 | off — `OPINION` (pending S8 re-verification) | Not `extract-ssot`: that refuses below three instances and picks a home by content type, never by proximity to what is governed. Not I3 either — **different axis**: I3 is load *timing*, D3 is definition-site *locality*, and an instruction can be correctly deferred and still misplaced. `extract-ssot/SKILL.md`, "Decision framework" — the Rule of Three gate; `criteria.md`, check I3 |
+| D4 | S13 | extends **I6 and I8** with a stopping condition, `claude-config`-local | **on** — suppressor inversion | Neither I6 nor I8 carries any a-priori bound: I6's escape is a rewrite concession, I8's remediation is unconditional. And no trimming rule outside `claude-config` needs to consult it — every `docs-hygiene` trimmer already owns a local stopping condition. One consumer, so a local check, not a shared artifact. `criteria.md`, checks I6 and I8 |
 | D5 | S10+S14 | **nothing built** | deferred | The one remainder with no incumbent to calibrate. **Trigger:** an official page names artifacts or a reference ranking as normative, or a reproducible defect shape makes it auditable. `coverage-matrix.md:47-49`; `official-corroboration.md:46, 50, 268-269` |
 | D6 | S7 remainder | **splits by the surface partition** — tightens I3's Remediate for non-memory surfaces; folds into the C3 revision for memory surfaces | on — `ANTHROPIC-DOCS` | I3 names the right destinations but supplies no qualifying test and no cost: nothing in it says `@path` fails to defer, so an auditor could satisfy its letter and change the load profile not at all. And I3 is contractually barred from memory surfaces, which is where the rule matters most. `criteria.md:25-30, 66-74`; `official-corroboration.md:68, 104-107` |
 | D7 | S4 remainder | folded into **one consolidated C3 revision** in `claude-memory:audit` | on — `ANTHROPIC-DOCS` | Its premise is official policy on an existing page, so it is not a gap — but C3 *already is* the routing table and is missing two rows the plugin's own reference material supplies: auto-memory as a destination, and `@path` as a non-deferring one. **D7 and D6's memory half are the same rule**; filing them separately would emit two findings on one misplaced section. `official-corroboration.md:188-196`; `claude-memory` `criteria.md:56-72` |
@@ -467,16 +468,37 @@ progressive-disclosure destinations. The second — "deferred tool loading is un
 `GAP` by the same logic that made D1 a detector, and folding it silently into D6's disposition would
 have buried it. Raised by the cross-vendor review; recorded here as its own item.
 
-**Disposition: out of scope for this pass, with a trigger.** Deferred tool loading is governed by
-tool-search configuration and MCP server exposure — `official-corroboration.md:155-163` places it at
-`mcp#scale-with-mcp-tool-search`, with `ENABLE_TOOL_SEARCH` as the control. That is a
-context-*budget* surface, not an instruction surface, and this pass audits instruction surfaces.
-An existing plugin already owns the adjacent concern (`mcp-tools:audit`).
+**Disposition: out of scope for this pass — but the reason first given was wrong, and the trigger
+fired.** Deferred tool loading is governed by tool-search configuration and MCP server exposure;
+`official-corroboration.md`, "Deferred tool loading is owned by the MCP page, not `tools-reference`",
+places it at `mcp#scale-with-mcp-tool-search` with `ENABLE_TOOL_SEARCH` as the control.
 
-**Trigger:** if the pass's scope widens from instruction content to context budget, or if
-`mcp-tools:audit` is found not to cover tool-search configuration, this becomes a check and needs an
-owner. Verifying that second condition is a work item, not an assumption — it is exactly the
-"negative claim about a body nobody read" failure the blind-derivation pass called out.
+The original deferral rested on two claims. One holds: this is a context-*budget* surface, not an
+instruction surface, and this pass audits instruction surfaces. **The other was false.** It said "an
+existing plugin already owns the adjacent concern (`mcp-tools:audit`)" — verified by reading that
+plugin's body, and it does not. `mcp-tools:audit` owns **tool-definition quality in source**, scoring
+each tool's description, parameters, name, annotations, granularity, and schema against sixteen
+criteria, and it **explicitly disclaims configuration**: "Not for: MCP server configuration or
+connection issues." Nothing in the plugin reasons about the aggregate context cost of a loaded tool
+set. Zero occurrences of `ToolSearch`, `tool search`, `ENABLE_TOOL_SEARCH`, `defer`, `token`, or
+`context cost` anywhere in it. Adjacent in noun, not in plane — and that was exactly the "negative
+claim about a body nobody read" failure the blind-derivation pass warned about, committed by this
+document one section after recording the warning.
+
+**So the stated trigger fired.** It is also **partially statically auditable**, so it cannot be
+dismissed as out of reach: `ENABLE_TOOL_SEARCH`'s declared value lives in a settings `env` block and
+the server inventory driving tool count lives in `.mcp.json` and plugin manifests — all repository
+files. What a static pass cannot see is whether deferral *actually occurred*, since tool search
+requires a supporting model and platform, and under `auto` the upfront/deferred split depends on
+measured schema sizes against 10% of the live context window. A file-reading pass sees intent, never
+outcome.
+
+**Revised disposition: real, officially backed, unowned, and not this deliverable's.** It stays out
+of scope because the subject is context budget rather than instruction content, and widening the
+deliverable's subject is the exact move this gate exists to refuse. It is recorded instead as a
+**recommendation to `mcp-tools`**, which owns the MCP plane, as a new check scoped to declared
+configuration and server inventory with the outcome half named as unobservable. That is a separate
+work item against a different plugin, not an addition here.
 
 ## What this gate does not decide
 

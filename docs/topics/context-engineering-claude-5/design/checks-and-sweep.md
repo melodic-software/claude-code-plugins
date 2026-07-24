@@ -96,8 +96,42 @@ phase's own requirement that every check ship with at least one case it must not
 
 Memory doc, "Consistency": "if two rules contradict each other, Claude may pick one arbitrarily.
 Review your CLAUDE.md files, nested CLAUDE.md files in subdirectories, and `.claude/rules/`
-periodically to remove outdated or conflicting instructions." The docs prescribe the review and ship
-no tool that performs it.
+periodically to remove outdated or conflicting instructions."
+
+### An incumbent exists after all, and D1 is scoped around it
+
+**"No tool performs this review" is false, and it was the premise of this whole check.**
+`claude-memory/skills/audit/reference/criteria.md` ships **C6: Consistency [FAIL]** — *"Do any
+instructions contradict each other across CLAUDE.md, CLAUDE.local.md, and rules files?"*, with
+"FAIL for contradictions (Claude picks one arbitrarily)" — citing the **same official line** this
+plan cites as evidence that nothing performs the review. Found by cross-vendor review; verified
+verbatim. It is the third time this work has made a negative claim about a body nobody read, and the
+first time it happened to the deliverable's only officially-backed payload.
+
+**What survives, and why it is still the article's headline case.** C6 compares *within the memory
+layer only* — `CLAUDE.md`, `CLAUDE.local.md`, and rules files. It does not reach skill bodies, agent
+definitions, prompt-type hooks, or output styles, it does not compare *across* layers, and it does
+not know about the managed-policy tier. The source article's own example — "leave documentation as
+appropriate" against "DO NOT add comments", system prompt versus skill versus request — is a
+**cross-layer** conflict, which no incumbent detects.
+
+**So D1 is scoped by routing, using the convention this catalog already runs.** I1–I5 route
+memory-layer findings to `claude-memory:audit` when it is installed and fall back to official
+guidance when it is not. I12 takes the same shape:
+
+- **A contradiction wholly inside the memory layer** routes to `claude-memory:audit` C6. I12 does not
+  report it, so the sweep emits one finding, not two from two plugins with no reconciliation rule.
+- **A contradiction with at least one side outside the memory layer** — a skill body, an agent
+  definition, a prompt-type hook, an output style — is I12's, and is unowned by anything today.
+- **Anything involving the managed-policy tier** is I12's, read-only, per the remediation above.
+- **When `claude-memory` is not installed**, I12 states that memory-layer contradictions go
+  unchecked and names the skill that performs them, per the design boundary's report-the-gap floor.
+
+**Consequences recorded rather than absorbed quietly.** `coverage-matrix.md`'s S3 verdict is
+`GAP` and should be `PARTIAL` with C6 named as the incumbent. The proportionality gate's "no
+incumbent compares two instruction surfaces against each other" is true only outside the memory
+layer. D1 remains a detector and remains the payload — the cross-layer case is real, unowned, and
+officially prescribed — but its scope is smaller than the gate recorded.
 
 ### The inventory D1 depends on, and the native-first gate
 
