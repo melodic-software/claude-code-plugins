@@ -25,6 +25,7 @@ from __future__ import annotations
 import json
 import os
 import stat
+import sys
 from pathlib import Path
 
 PLUGIN_NAME = "disk-hygiene"
@@ -36,6 +37,34 @@ def default_settings_path() -> Path:
     config_dir = os.environ.get("CLAUDE_CONFIG_DIR")
     base = Path(config_dir) if config_dir else Path.home() / ".claude"
     return base / "settings.json"
+
+
+def managed_settings_path() -> Path | None:
+    """The enterprise/managed settings file for this platform, or ``None``.
+
+    Managed settings are the highest-precedence scope Claude Code honors for
+    ``pluginConfigs`` and **cannot be overridden** by user/project/local settings
+    (settings docs, "Settings precedence"), so an organization can enforce
+    audit-only mode there. The file lives at a fixed, root-owned system path per
+    platform, so a repo cannot forge it:
+
+    - macOS:      ``/Library/Application Support/ClaudeCode/managed-settings.json``
+    - Linux/WSL:  ``/etc/claude-code/managed-settings.json``
+    - Windows:    ``%ProgramFiles%\\ClaudeCode\\managed-settings.json`` (the legacy
+      ``%ProgramData%`` path is unsupported as of Claude Code v2.1.75)
+
+    Residuals not read here: the ``managed-settings.d/`` drop-in directory, and a
+    session's ``--settings`` file (a runtime CLI flag a hook cannot observe). A
+    value supplied only through those is not honored by the guard.
+    """
+    if sys.platform == "darwin":
+        return Path("/Library/Application Support/ClaudeCode/managed-settings.json")
+    if sys.platform == "win32":
+        program_files = os.environ.get("ProgramFiles", r"C:\Program Files")
+        return Path(program_files) / "ClaudeCode" / "managed-settings.json"
+    if sys.platform.startswith("linux"):
+        return Path("/etc/claude-code/managed-settings.json")
+    return None
 
 
 def _matches_plugin(key: str) -> bool:
@@ -187,6 +216,21 @@ def probe(settings_path: Path) -> dict[str, object]:
     )
 
 
-def resolve_effective(settings_path: Path) -> bool:
-    """The boolean kill switch: ``probe()``'s effective value, closed to enabled."""
+def resolve_effective(
+    settings_path: Path, managed_settings_path: Path | None = None
+) -> bool:
+    """The boolean kill switch, honoring managed precedence, closed to enabled.
+
+    Managed settings are the highest-precedence, non-overridable scope, so an
+    explicitly *configured* value there wins over the user settings — that is how
+    an organization enforces audit-only mode. A managed file that is absent, has
+    no ``disk_hygiene_enabled`` entry, or is unreadable/ambiguous (any source
+    other than ``configured``) yields no managed verdict and the user settings
+    decide. Every read is ``probe()``'s effective value, which fails **closed to
+    enabled**.
+    """
+    if managed_settings_path is not None:
+        managed = probe(managed_settings_path)
+        if managed["source"] == "configured":
+            return bool(managed["effective"])
     return bool(probe(settings_path)["effective"])

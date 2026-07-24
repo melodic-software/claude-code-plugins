@@ -147,13 +147,18 @@ block deletions on the PowerShell lane too and not only the Bash engine apply.
 **Kill-switch enforcement (since 0.9.0): both surfaces resolve it by reading user settings.** The guard
 registers on two surfaces — the **plugin-level engine gate** (`hooks/hooks.json`, exec form,
 `--mode engine-gate`) and the **skill-scoped belt** (the clean skill's frontmatter hook) — and both
-resolve `disk_hygiene_enabled` the same single way: by reading it from user-scope `pluginConfigs` in
-`settings.json`, through the shared `lib/killswitch_config.py` reader (the same read the setup skill's
-`kill_switch_probe.py` reports). Neither surface takes the value from the process environment. Claude
-Code honors that key only from user, managed, and `--settings` scope since 2.1.207 — a project or local
-`.claude/settings.json` is ignored — so a hostile repo cannot flip it. The settings file is located from
-`${CLAUDE_PLUGIN_ROOT}` (the plugin's true install path, which a repo cannot forge), not from
-`CLAUDE_CONFIG_DIR`/`HOME`, which a repo `settings.json` `env` block could redirect. When the value
+resolve `disk_hygiene_enabled` the same single way: by reading it from `pluginConfigs` in the
+`settings.json` files, through the shared `lib/killswitch_config.py` reader (the same read the setup
+skill's `kill_switch_probe.py` reports). Neither surface takes the value from the process environment.
+Claude Code honors that key only from user, managed, and `--settings` scope since 2.1.207 — a project or
+local `.claude/settings.json` is ignored — so a hostile repo cannot flip it. The **user** file is located
+from `${CLAUDE_PLUGIN_ROOT}` (the plugin's true install path, which a repo cannot forge), not from
+`CLAUDE_CONFIG_DIR`/`HOME`, which a repo `settings.json` `env` block could redirect. The **managed**
+(enterprise) file at its fixed root-owned system path is read too and, as the highest-precedence
+non-overridable scope, an explicitly configured value there **wins over the user file** — so an
+organization can enforce audit-only mode. Two honored sources the guard cannot read remain residual: a
+session's `--settings` file (a runtime CLI flag no hook observes) and the `managed-settings.d/` drop-in
+directory; a value supplied only through those is not enforced. When the value
 resolves `false` (audit-only mode), `false` is guard-enforced — denied outright, not merely prompted — but
 the two surfaces reach different lanes. The **always-on engine gate** enforces it against every Bash
 engine invocation **whether or not the clean skill is active**; it defers (no output) on any command that

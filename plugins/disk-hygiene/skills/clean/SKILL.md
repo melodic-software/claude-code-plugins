@@ -324,10 +324,12 @@ sparse files, hard links, compression, and delayed allocation affect it.
   neither substituted nor exported to `CLAUDE_PLUGIN_OPTION_*`, and its presence **dropped the whole hook
   entry** — making the engine gate inert for any consumer who never set the key. The gate no longer carries
   a `${user_config.*}` token; both the gate and the belt resolve `disk_hygiene_enabled` by reading it from
-  user-scope `pluginConfigs` in `settings.json`. Claude Code honors that key only from user, managed, and
-  `--settings` scope since 2.1.207 (a project/local `settings.json` is ignored), so a hostile repo cannot
-  forge it; the file is located from `${CLAUDE_PLUGIN_ROOT}` rather than the environment, which a repo `env`
-  block could redirect. Absent or unreadable settings fail closed to enabled.
+  `pluginConfigs` in `settings.json`. Claude Code honors that key only from user, managed, and `--settings`
+  scope since 2.1.207 (a project/local `settings.json` is ignored), so a hostile repo cannot forge it. The
+  reader reads the **user** file (located from `${CLAUDE_PLUGIN_ROOT}` rather than repo-redirectable
+  environment) and the **managed** enterprise file (highest precedence — a value there wins, so an org can
+  enforce audit-only); a session `--settings` file and the `managed-settings.d/` drop-in dir are the
+  residuals a hook cannot read. Absent or unreadable settings fail closed to enabled.
 - **PreToolUse hooks DO fire for the PowerShell tool** (2.1.218; payload `tool_name` is literally
   `PowerShell`, confirmed by a live block through that tool). A `Bash|PowerShell` matcher is correct and
   there is no harness firing divergence — read `tool_name` from the stdin payload, not from an env var

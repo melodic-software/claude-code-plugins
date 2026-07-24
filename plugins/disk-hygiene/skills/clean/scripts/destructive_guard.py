@@ -444,16 +444,22 @@ def resolve_disk_hygiene_enabled() -> bool:
 
     The kill switch is a safety control: ``false`` is audit-only mode and must
     prevent every deletion lane. The guard reads ``disk_hygiene_enabled`` straight
-    out of the user ``settings.json`` (``lib/killswitch_config.py``, the single
+    out of the ``settings.json`` files (``lib/killswitch_config.py``, the single
     reader it shares with the report-only probe) — never the process environment.
     Since Claude Code 2.1.207 that key is honored only from user, managed, and
     ``--settings`` scope, never a project or local ``settings.json``
     (plugins-reference, "User configuration"), so a hostile repo cannot flip the
-    switch. The environment is rejected on purpose: a repo ``settings.json``
-    ``env`` block reaches hook subprocesses and carries no provenance a hook could
-    check, so an env-borne toggle (or an env-borne settings path) would reopen the
-    hole this closes — hence the settings file is located from the tamper-resistant
-    ``--plugin-root`` first (see ``_resolve_user_settings_path``).
+    switch. Managed settings are the highest-precedence, non-overridable scope, so
+    a value configured there wins over the user file — that is how an organization
+    enforces audit-only mode. The ``--settings`` file is a session CLI flag a hook
+    cannot observe, the one honored source not read here (see
+    ``killswitch_config.managed_settings_path`` for the full residual list). The
+    environment is rejected on purpose: a repo ``settings.json`` ``env`` block
+    reaches hook subprocesses and carries no provenance a hook could check, so an
+    env-borne toggle (or an env-borne user-settings path) would reopen the hole
+    this closes — hence the user settings file is located from the tamper-resistant
+    ``--plugin-root`` first (see ``_resolve_user_settings_path``), and the managed
+    file from its fixed root-owned system path.
 
     Every absent, unreadable, or ambiguous read fails **closed to enabled**: the
     guard stays active and gates every mutation behind the final human prompt even
@@ -462,7 +468,10 @@ def resolve_disk_hygiene_enabled() -> bool:
     both run ``main()``, and both receive ``--plugin-root ${CLAUDE_PLUGIN_ROOT}`` —
     so the belt needs no environment channel it does not have.
     """
-    return killswitch_config.resolve_effective(_resolve_user_settings_path())
+    return killswitch_config.resolve_effective(
+        _resolve_user_settings_path(),
+        killswitch_config.managed_settings_path(),
+    )
 
 
 def _is_authorized_data_root(value: str, authority: str | None) -> bool:

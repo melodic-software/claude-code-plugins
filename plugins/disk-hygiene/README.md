@@ -158,9 +158,12 @@ hand-cleaning the zone.
   PowerShell deletion spellings are denied outright by the skill-scoped belt while `/disk-hygiene:clean`
   is active (the always-on gate defers on non-engine commands). The read is honored only from user, managed, and
   `--settings` scope (Claude Code 2.1.207+), so a project or local repo `settings.json` cannot flip
-  it; the file is located from `${CLAUDE_PLUGIN_ROOT}`, not from repo-redirectable environment. An
-  absent or unreadable value fails closed to enabled. The skill's own kill-switch probe + skill-content
-  value remain a defense-in-depth honoring layer over the guard.
+  it; the user file is located from `${CLAUDE_PLUGIN_ROOT}`, not from repo-redirectable environment, and
+  the managed (enterprise) file at its fixed system path wins as the highest-precedence scope so an org
+  can enforce audit-only. An absent or unreadable value fails closed to enabled. A value supplied only via
+  a session `--settings` file or the `managed-settings.d/` drop-in dir is the one residual a hook cannot
+  read. The skill's own kill-switch probe + skill-content value remain a defense-in-depth honoring layer
+  over the guard.
 - **Trust-surface record (0.7.0; updated 0.9.0):** the plugin-level `hooks/hooks.json` PreToolUse
   registration is a NEW trust surface (a hook that launches in every consumer session), added
   deliberately for guard-enforced audit-only mode and data-root authority (#1106 decision, Option E —
@@ -171,10 +174,12 @@ hand-cleaning the zone.
   `python3` resolves to the Windows Store alias stub the launch fails on every call (tracked with
   remediation detection in #1110). **0.9.0 delta:** the gate no longer carries a `${user_config.*}`
   argument (which, unset, dropped the whole hook and left the gate inert on a default install); it now
-  registers unconditionally and resolves the kill switch by **reading** the user `settings.json`. The
-  added trust surface is that settings-file *read* — bounded to a single user-scope `pluginConfigs`
-  value, located from `${CLAUDE_PLUGIN_ROOT}`, no write. This entry is the plugin-acceptance review
-  delta for the change. A direct `hygiene.py` invocation outside that skill does not read the toggle and
+  registers unconditionally and resolves the kill switch by **reading** the user `settings.json` and the
+  platform managed-settings.json. The added trust surface is that settings-file *read* — bounded to a
+  single `pluginConfigs` value, from the user file (located from `${CLAUDE_PLUGIN_ROOT}`) and the
+  root-owned managed file at its fixed system path, no write. Both are the plugin's own documented CC
+  config, sanctioned by the acceptance review's operator-home carve-out (criterion 4). This entry is the
+  plugin-acceptance review delta for the change. A direct `hygiene.py` invocation outside that skill does not read the toggle and
   answers only to the engine's own preview/approval-token gate. The toggle can only narrow the
   destructive surface, never widen it (see [the safety model](skills/clean/reference/safety-model.md)
   for the degraded-mode detail). No credentials. Policy comes from an explicit invocation

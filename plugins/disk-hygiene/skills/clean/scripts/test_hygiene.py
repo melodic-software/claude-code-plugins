@@ -2205,6 +2205,9 @@ class GuardTests(unittest.TestCase):
         )
         self._plugin_root.mkdir(parents=True)
         self._settings = cfg / "settings.json"
+        # Managed settings stay absent (points into the temp dir, never written),
+        # so tests never read a real /etc or Program Files managed-settings.json.
+        self._managed = cfg / "managed-settings.json"
 
     def _set_kill_switch(self, enabled: bool) -> None:
         if enabled:
@@ -2239,6 +2242,11 @@ class GuardTests(unittest.TestCase):
             mock.patch.object(guard.sys, "argv", argv),
             mock.patch.dict(
                 "os.environ", {"CLAUDE_CONFIG_DIR": self._cfg.name}, clear=False
+            ),
+            mock.patch.object(
+                guard.killswitch_config,
+                "managed_settings_path",
+                lambda: self._managed,
             ),
         ):
             self.assertEqual(0, guard.main())
@@ -2544,6 +2552,11 @@ class GuardTests(unittest.TestCase):
             redirect_stdout(stdout),
             mock.patch.object(guard.sys, "argv", argv),
             mock.patch.dict("os.environ", {}, clear=True),
+            mock.patch.object(
+                guard.killswitch_config,
+                "managed_settings_path",
+                lambda: self._managed,
+            ),
         ):
             self.assertEqual(0, guard.main())
         text = stdout.getvalue().strip()
@@ -3517,25 +3530,35 @@ class DirectReadKillSwitchTests(unittest.TestCase):
         )
         self.plugin_root.mkdir(parents=True)
         self.settings = self.config_dir / "settings.json"
+        # Managed settings default to absent; managed tests write this file.
+        self.managed = self.config_dir / "managed-settings.json"
 
-    def write_toggle(self, value: object) -> None:
-        self.settings.write_text(
-            json.dumps(
-                {
-                    "pluginConfigs": {
-                        "disk-hygiene@melodic-software": {
-                            "options": {"disk_hygiene_enabled": value}
-                        }
+    def _toggle_json(self, value: object) -> str:
+        return json.dumps(
+            {
+                "pluginConfigs": {
+                    "disk-hygiene@melodic-software": {
+                        "options": {"disk_hygiene_enabled": value}
                     }
                 }
-            ),
-            encoding="utf-8",
+            }
         )
+
+    def write_toggle(self, value: object) -> None:
+        self.settings.write_text(self._toggle_json(value), encoding="utf-8")
+
+    def write_managed_toggle(self, value: object) -> None:
+        self.managed.write_text(self._toggle_json(value), encoding="utf-8")
 
     def resolve(self, argv_tail: list[str], env: dict[str, str]) -> bool:
         with (
             mock.patch.object(guard.sys, "argv", [self.SCRIPT, *argv_tail]),
             mock.patch.dict("os.environ", env, clear=True),
+            mock.patch.object(
+                guard.killswitch_config,
+                "managed_settings_path",
+                lambda: self.managed,
+            ),
         ):
             return guard.resolve_disk_hygiene_enabled()
 
@@ -3620,6 +3643,35 @@ class DirectReadKillSwitchTests(unittest.TestCase):
                 {"CLAUDE_CONFIG_DIR": os.fspath(evil)},
             )
         )
+
+    def test_managed_configured_false_overrides_user_true(self) -> None:
+        # Managed is the highest-precedence, non-overridable scope: an
+        # organization enforcing audit-only must win over a user-enabled toggle.
+        self.write_managed_toggle(False)
+        self.write_toggle(True)
+        self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
+
+    def test_managed_configured_true_overrides_user_false(self) -> None:
+        self.write_managed_toggle(True)
+        self.write_toggle(False)
+        self.assertTrue(self.resolve(self.plugin_root_argv(), {}))
+
+    def test_managed_absent_falls_back_to_user(self) -> None:
+        # No managed file written; the user toggle decides.
+        self.write_toggle(False)
+        self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
+
+    def test_managed_without_toggle_entry_falls_back_to_user(self) -> None:
+        # Managed file exists but carries no disk-hygiene entry (source=default),
+        # so it yields no verdict and the user toggle decides.
+        self.managed.write_text(json.dumps({"pluginConfigs": {}}), encoding="utf-8")
+        self.write_toggle(False)
+        self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
+
+    def test_managed_malformed_falls_back_to_user(self) -> None:
+        self.managed.write_text("{not json", encoding="utf-8")
+        self.write_toggle(False)
+        self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
 
 
 if __name__ == "__main__":

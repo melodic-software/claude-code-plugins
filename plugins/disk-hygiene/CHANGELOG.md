@@ -29,6 +29,12 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   subprocesses and carries no provenance, and since Claude Code 2.1.207 `pluginConfigs` is honored only from
   user, managed, and `--settings` scope (project/local ignored), so a hostile repo cannot forge the value.
   Every absent, unreadable, or ambiguous read fails **closed to enabled**.
+- **Managed (enterprise) settings are honored as the highest-precedence scope.** The reader also reads the
+  platform managed-settings.json (`/Library/Application Support/ClaudeCode/` on macOS, `/etc/claude-code/`
+  on Linux/WSL, `%ProgramFiles%\ClaudeCode\` on Windows); a value configured there overrides the user file,
+  so an organization can enforce audit-only mode. The one residual: a value supplied only through a session
+  `--settings` file (a CLI flag no hook observes) or the `managed-settings.d/` drop-in directory is not
+  enforced by the guard.
 - **`kill_switch_probe.py` now delegates to the shared reader** (its behavior and single-line JSON output
   contract unchanged) so the report-only probe and the guard resolve the switch one way, not two.
 - Docs corrected across `clean`/`setup` `SKILL.md`, `reference/safety-model.md`, and `README.md`: the
