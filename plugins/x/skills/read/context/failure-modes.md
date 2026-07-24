@@ -29,25 +29,30 @@ therefore loses both separators and parses as `datarequest.json` — curl cannot
 and every step-1 POST fails. Doubling the backslashes also works but is easy to get wrong on a later
 edit; forward slashes are the safer form.
 
-Name both files for the gate-captured id — never a fixed name. A fixed path is shared state: two
-concurrent sessions would race between the Write and `curl.exe` reading it, and the permission prompt
-widens that window, so one invocation could fetch the other's URL. Keying on the id makes a collision
-mean identical content, which is harmless.
+Name both files for the gate-captured id **plus a per-invocation nonce** — say
+`x-request-<id>-<nonce>.json`, the nonce being a short random token generated fresh each time. A
+fixed path is shared state: two concurrent sessions would race between the Write and `curl.exe`
+reading it, and the permission prompt widens that window, so one could fetch the other's URL.
 
-Body, at `<plugin-data-dir>/x-request-<id>.json`:
+Keying on the id alone is not enough once the cleanup rule below applies. Two sessions reading the
+*same* post would share a path, and the first to finish deletes both files while the second still
+waits at its prompt — so its `curl.exe -K` opens nothing. Identical content stops making a collision
+harmless the moment the files are removed. The nonce keeps each invocation's pair private to it.
+
+Body, at `<plugin-data-dir>/x-request-<id>-<nonce>.json`:
 
 ```json
 {"url": "<REBUILT-URL>"}
 ```
 
-Config, at `<plugin-data-dir>/x-request-<id>.conf`:
+Config, at `<plugin-data-dir>/x-request-<id>-<nonce>.conf`:
 
 ```text
 url = "https://xtomd.com/api/markdown"
 request = "POST"
 header = "Content-Type: application/json"
 header = "Accept: text/markdown"
-data = "@<plugin-data-dir>/x-request-<id>.json"
+data = "@<plugin-data-dir>/x-request-<id>-<nonce>.json"
 proto = "=https"
 max-time = 30
 max-filesize = 5000000
@@ -65,7 +70,7 @@ curl reads a default `.curlrc` "even when `--config` is used", so without it a c
 config could re-enable redirect following and defeat the bounds set in the file above.
 
 ```powershell
-curl.exe -q -K "<plugin-data-dir>/x-request-<id>.conf"
+curl.exe -q -K "<plugin-data-dir>/x-request-<id>-<nonce>.conf"
 ```
 
 **Delete both files once the request returns**, success or failure. They are scratch, not state:

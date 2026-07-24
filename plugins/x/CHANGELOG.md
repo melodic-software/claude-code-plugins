@@ -26,8 +26,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `-L`, so no redirect-driven egress. The byte cap is documented as best-effort — before curl 8.4.0
   `--max-filesize` does not stop an unknown-length response, so `--max-time` is the bound that always
   holds.
-- The Windows scratch files (request body and curl config) are deleted once the request returns, so
-  reading many posts neither accumulates files nor builds a local history of submitted X URLs.
+- The Windows scratch files (request body and curl config) are named for the gate-captured id plus a
+  per-invocation nonce, and deleted once the request returns. The nonce matters because of the
+  cleanup: without it two sessions reading the same post share a path, and the first to finish
+  deletes both files while the second still waits at its permission prompt. Cleanup keeps reading
+  many posts from accumulating files or building a local history of submitted X URLs.
 - `-q` leads every curl invocation on both paths. curl reads a default `.curlrc` "even when
   `--config` is used" and skips it only when `--disable` "is used as the first parameter on the
   command line", so without it a consumer's ambient config could set `location` and silently
