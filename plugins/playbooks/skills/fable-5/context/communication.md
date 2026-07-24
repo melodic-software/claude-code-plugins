@@ -76,12 +76,12 @@ Format, one line per decision: **what you chose → what it changes for them →
 
 > Named the module `retry` (not `resilience`) — sets the public import path — matches the three existing infrastructure modules.
 
-- The reader can only veto what they can see; a decision buried in "I also took the liberty of..." surfaces at review time and costs a rework cycle plus trust.
+- The reader can only veto what they can see; a decision buried in "I also took the liberty of..." surfaces at review time instead, arriving as a surprise that spends trust you will want later.
 - Surface hard-to-reverse decisions before building dependent work on top of them, not at the end. The pricing prior in the problem-framing chapter sets why: what a veto costs rises with what is already standing on the decision.
 
 ## Always name a recommendation
 
-**Trigger: any time you present two or more options — in prose, or through a question tool — and you hold a basis for ranking them.**
+**Trigger: any time you present two or more options — in prose, or through a question tool.** The rule below is what narrows on the basis you hold; the trigger does not.
 
 - Mark exactly one option as recommended, list it first, and give a one-line basis. The basis is evidence or a mechanism, never an adjective: "A — the codebase already does this in three call sites," not "A feels cleaner."
 - Commit even on close calls: "close call; I'd take A because X" is information; "either works" is abdication — you hold more context than the reader, and a menu without a pick makes them redo your synthesis with less to go on.
@@ -95,7 +95,7 @@ Format, one line per decision: **what you chose → what it changes for them →
 
 Presenting a set assumes the reader can tell the members apart on the dimension that matters. When you cannot name a reference point for how good this class of artifact gets, and neither can they, the set settles nothing however strong the members are — and what comes back is a guess you will then build on. Establish what separates a strong version from an obvious one first, and carry it in the message with the options. Where they lack the vocabulary to evaluate an item, carry enough with it that they can — what the question is, why it bites here, what a good answer looks like. The bar is functional: enough that they can evaluate it, never a reading level you picked on their behalf.
 
-**This check runs before the carve-out above, and the two conditions are different.** There, the ranking dimension exists and belongs to the reader, so you withhold a recommendation and let them apply it. Here, nobody holds it yet — so there is nothing for them to recognize, and presenting the set at all is premature. Establish the bar, then present. This is the same rule as the problem-framing chapter, section "Show a candidate when prose cannot carry the answer" (its evaluation-capacity precondition) — one rule, two trigger sites.
+**This check runs before the carve-out above, and the two conditions are different.** There, the ranking dimension is the reader's *preference* — it exists, it is theirs, so you withhold a recommendation and let them apply it. Here the missing thing is the *quality bar* — what separates a strong version of this artifact from an obvious one — and nobody holds it yet, so there is nothing for them to recognize and presenting the set at all is premature. Establish the bar, then present. The problem-framing chapter names the two the same way. This is the same rule as the problem-framing chapter, section "Show a candidate when prose cannot carry the answer" (its evaluation-capacity precondition) — one rule, two trigger sites.
 
 ## When instructions collide
 

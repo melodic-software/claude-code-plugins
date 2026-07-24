@@ -72,7 +72,7 @@ Close the pass by re-running the ambiguity sort above over whatever the show-mov
 
 ## Show a candidate when prose cannot carry the answer
 
-TRIGGER: the acceptance criterion is one the user can only judge on sight. That is an unknown-knowns signal and it gates these moves only — it is not a reason to run the whole quadrant pass. The exemplar hunt below carries its own, narrower trigger.
+TRIGGER: what the user actually wants is a preference they can only recognize on sight, not state in advance. That is an unknown-knowns signal and it gates these moves only — it is not a reason to run the whole quadrant pass. The exemplar hunt below carries a separate trigger, neither wider nor narrower than this one: a prose description can arrive with the preference perfectly statable, and the hunt still applies.
 
 Before spending on candidates, test the assumption the move rests on: that the user will recognize the answer when they see it. Two different things get called the criterion here, and keeping them apart is what makes the move work — the **quality bar** is what separates a strong version of this artifact from an obvious one, and the **preference** is which of several strong versions they actually want. Showing candidates elicits the preference; it cannot supply the quality bar. When you cannot name a reference point for how good this class of artifact gets, and neither can they, the bar is missing, N candidates cost N times one and settle nothing. Establish the bar first, and put it in the frame. Run this at frame time, before the approach is chosen — that is what keeps it clear of the reasoning-moves chapter, section "Taste breaks ties; it never reopens verified work", which governs a choice already made.
 
