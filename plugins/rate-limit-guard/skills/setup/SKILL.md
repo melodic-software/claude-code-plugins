@@ -112,6 +112,26 @@ owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
    }
    ```
 
+   Shell-syntax guard: the wrapped form passes the user's command as ARGV — it only works for
+   plain `executable arg…` commands. If the current command contains shell syntax (an inline env
+   assignment like `THEME=dark my-statusline`, a pipe, `&&`, `;`, or quoting), print the
+   shell-wrapped variant instead:
+
+   ```json
+   {
+     "statusLine": {
+       "type": "command",
+       "command": "bash ~/.claude/rate-limit-guard/bin/statusline-shim.sh sh -c '<escaped original command>'"
+     }
+   }
+   ```
+
+   `<escaped original command>` is the original command POSIX-escaped for single-quote embedding:
+   replace every `'` in it with `'\''` before substituting (then JSON-escape the whole `command`
+   string as usual). Show the final, fully escaped line — never hand the operator a template with
+   raw quotes left to fix. Verify your printed edit round-trips: mentally unquote it back and
+   confirm it reproduces the original command byte-for-byte.
+
    Sibling tees compose by nesting, each through its OWN shim — the tees are transparent wrappers,
    so the innermost command still owns stdout and the exit code. Print this form when
    `context-guard` is also installed (its tee outermost, matching that plugin's setup skill):
@@ -125,8 +145,25 @@ owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
    }
    ```
 
-   State the measured cost with that form: each tee adds roughly 0.6–0.9 s per statusline refresh
-   on Windows/Git Bash (process-spawn bound), on top of the operator's own statusline command.
+   The shell-syntax guard applies UNCHANGED to this form: `<current statusline command>` is the
+   innermost ARGV here too, so a command carrying shell syntax must be substituted as
+   `sh -c '<escaped original command>'` — never raw. Substituting `THEME=dark my-statusline` raw
+   makes `THEME=dark` the executable, which fails `command not found` (127) instead of setting the
+   variable. The shim paths are the only part that nests; the innermost substitution rule never
+   changes:
+
+   ```json
+   {
+     "statusLine": {
+       "type": "command",
+       "command": "bash ~/.claude/context-guard/bin/statusline-shim.sh bash ~/.claude/rate-limit-guard/bin/statusline-shim.sh sh -c '<escaped original command>'"
+     }
+   }
+   ```
+
+   State the measured cost with the combined form: each tee adds roughly 0.6–0.9 s per statusline
+   refresh on Windows/Git Bash (process-spawn bound), on top of the operator's own statusline
+   command.
    `refreshInterval` sets how often that runs; the statusline is not on the input path, so the
    cost is display latency, not typing latency.
 
