@@ -253,7 +253,7 @@ vars are read at session start, so nested spawning is inert until the next sessi
 - ~~**Do the `-deep` variants collapse?**~~ — **RESOLVED 2026-07-24**, Decision 14. Split: keep
   `research-deep`, retire `explore-deep` conditionally.
 - ~~**Which of the 138 skills adopt the dispatch posture?**~~ — **RESOLVED**. Sweep complete and
-  ratified: DISPATCH-DEFAULT 22, DISPATCH-OPTIONAL 42, INLINE-ONLY 42, NO-CHANGE 32. Per-skill in
+  ratified: DISPATCH-DEFAULT 22, DISPATCH-OPTIONAL 44, INLINE-ONLY 39, NO-CHANGE 33. Per-skill in
   `.work/discovery-subagent-dispatch/skill-dispatch-audit-checklist.md`.
 - **Does dispatch-by-default apply when the invoking context is itself a subagent** (avoiding a
   needless second hop at spawn depth > 1)? — arbiter: `/planning:plan`. Still open, and Decision 10's
