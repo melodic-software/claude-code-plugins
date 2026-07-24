@@ -3,6 +3,51 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.2]
+
+### Fixed
+
+- **`block-hook-bypass` no longer lets an interpreter-producer write bypass the gate under the PowerShell
+  tool (live-reproduced bypass).** The PowerShell branch classified only PowerShell cmdlet/redirect write
+  forms (`ps::write_bypass`) and then `exit 0`ed **before** the shell-agnostic scans, so
+  `python3 -c "open('x','w')…"` — the identical command the Bash lane blocks — executed unguarded when
+  issued through the PowerShell tool. Reproduced end-to-end: same command, Bash → blocked, PowerShell →
+  file written. The interpreter rule now also runs on the PowerShell lane. The **Bash** lane keeps its
+  precise `python3 -c` scan (its `strip_literals` is genuinely quote-aware and Bash has no `<# #>` block
+  comments or `&{}` script blocks) and additionally recognizes a **path-qualified** interpreter
+  (`/usr/bin/python3 -c`, `.exe`), anchored on the `python3` basename so `notpython3` stays inert.
+- **The PowerShell lane deliberately DIVERGES from the Bash lane and uses a fail-closed sink instead of a
+  precise scan.** PowerShell is not faithfully bash-tokenizable, and a precise regex/normalize stack could
+  not keep up — successive review rounds each surfaced a fresh evasion (path-qualified target, `&{python3}`
+  script block, quoted-`#` comment truncation, with `<# #>` block comments and `-ArgumentList`
+  arg-splitting still open). Following the repo's SINK DOCTRINE (`ps::classify_git_command` /
+  `ps::might_invoke_git`), the lane now blocks on the mangle-resistant **co-occurrence** of (a) a raw write
+  indicator (`_py_write`) and (b) a python3 interpreter token **plus** a `-c` inline-code flag, both seen
+  on the quote-intact, backtick-recovered command (`ps::might_write_via_python3`). This uniformly closes
+  the quoted / path-qualified / brace-glued / backtick-obfuscated / block-comment / arg-split forms. `-c`
+  is **required** (position-independent), so a legitimate script or module run (`python3 build.py`,
+  `python3 -m tool …`) that merely touches an `open(`-like path is **not** blocked; a **computed** flag
+  (`python3 ('-'+'c') …`, `-ArgumentList ('-'+'c'),…`) is caught by fail-closing on a non-tokenizable arg
+  subexpression (`ps::has_special_constructs`) when no literal `-c` is present, and a computed launcher
+  TARGET that hides the interpreter name (`Start-Process -FilePath ('py'+'thon3') …`, `saps $exe …`) fails
+  closed: any launcher present together with an unquoted computed construct (`$`/`(`) blocks, regardless of
+  how the target is bound or how many options precede it (`-FilePath ('py'+'thon3')`, `-FilePath:$p`,
+  `-NoNewWindow -FilePath $exe`) — while a literal non-python launcher (`Start-Process notepad …`) carries
+  no such construct and stays allowed. A `-c` concatenated with an adjacent variable/subexpression
+  (`python3 -c$code`, `python3 -c(…)`), which PowerShell joins into one `-c<source>` argument, is treated
+  as a computed inline-code flag and fails closed (a longer literal flag like `-config` is not `-c`). A call
+  operator / dot-source of a DOUBLE-quoted interpolated target (`& "$env:PYTHON_BIN" …`, `& "$(…)" …`) runs a
+  computed interpreter and fails closed; a SINGLE-quoted target does not interpolate (`& '$x'` is a literal
+  name) and stays allowed. **Accepted behavior
+  change (fail-closed):** a command that only *mentions* `python3 … -c` + a write indicator in prose, a
+  line/block comment, or a quoted string now **over-blocks** (three prior allow-fixtures flipped to
+  expect-block); here-string mentions stay inert (blanked first, like the git lane). **Accepted residual:**
+  a stdin heredoc (`python3 - <<PY … PY`, no `-c`) is uncovered, as it is today. Regression fixtures cover
+  real `open(`/`pathlib` writes, every evasion form (path-qualified, script block, block comment,
+  arg-split — MUST block), the flipped mention cases (MUST block), and script/module runs + read-only
+  `os.path.normpath` + non-python quoted exe + here-string mention (MUST stay quiet). This was the
+  in-comment "deferred to A2b" gap.
+
 ## [0.14.1]
 
 ### Fixed
