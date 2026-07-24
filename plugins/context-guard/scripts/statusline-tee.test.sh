@@ -295,6 +295,21 @@ else
   fail "stale per-session snapshot retained: $(jq -c . <"$SNAP1")"
 fi
 
+# --- Case 16b: never regress a newer same-session snapshot -------------------
+# An overlapping older refresh must not overwrite a target that already
+# carries a NEWER captured_at (the delayed-writer race, observable form).
+HOME16B="$WORK/home16b"
+CTXDIR16B="$HOME16B/$CTX_REL"
+mkdir -p "$CTXDIR16B"
+FUTURE_TS=$(date -u -d '2 minutes' '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || date -u -v '+2M' '+%Y-%m-%dT%H:%M:%SZ')
+printf '{"captured_at":"%s","session_id":"sess-42","context_window":{"used_percentage":66}}\n' "$FUTURE_TS" >"$CTXDIR16B/sess-42.json"
+run "$HOME16B" "$(build_input)" cat >/dev/null
+if [[ "$(jq -r '.context_window.used_percentage' <"$CTXDIR16B/sess-42.json")" == "66" ]]; then
+  ok "newer target preserved against an older overlapping write"
+else
+  fail "older write regressed a newer snapshot: $(jq -c . <"$CTXDIR16B/sess-42.json")"
+fi
+
 # --- Case 17: pruning — old siblings die, idle + recent + tmp survive --------
 HOME17="$WORK/home17"
 CTXDIR17="$HOME17/$CTX_REL"

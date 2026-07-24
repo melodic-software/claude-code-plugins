@@ -137,9 +137,19 @@ tee_snapshot() {
     rm -f "$tmp" 2>/dev/null
     return 0
   }
-  local _try
+  local _try existing_ts
   # shellcheck disable=SC2034  # bounded-retry counter; the value itself is unused
   for _try in 1 2 3; do
+    # Never regress the snapshot: an overlapping same-session refresh may
+    # have landed a NEWER captured_at while this process was still building
+    # its payload (ISO-8601 UTC compares lexically). Re-checked on every
+    # retry; the remaining check-to-rename microsecond race is accepted —
+    # zone bands are coarse and the next refresh supersedes either way.
+    existing_ts=$(jq -r '.captured_at // empty' "$target" 2>/dev/null) || existing_ts=""
+    if [[ -n "$existing_ts" && "$existing_ts" > "$ts" ]]; then
+      rm -f "$tmp" 2>/dev/null
+      return 0
+    fi
     if mv -f "$tmp" "$target" 2>/dev/null; then
       return 0
     fi
