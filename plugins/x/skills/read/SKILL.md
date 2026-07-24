@@ -110,8 +110,9 @@ curl -q -sS --proto '=https' --max-time 30 --max-filesize 5000000 \
 **`-q` must stay first.** curl reads a default `.curlrc` "even when `--config` is used", skipping it
 only when `--disable` "is used as the first parameter on the command line" (curl's manual). Without
 it, an ambient `.curlrc` setting `location` silently re-enables redirect following and the bounds
-below stop holding. `--proto '=https'` refuses non-HTTPS, `--max-time` bounds a hung endpoint, and
-`--max-filesize` bounds returned text. No `-L`, so the request cannot be steered to another host.
+below stop holding. `--proto '=https'` refuses non-HTTPS and no `-L` means the request cannot be
+steered to another host. `--max-filesize` is best-effort — `--max-time` is the bound that always
+holds; see [`context/failure-modes.md`](context/failure-modes.md).
 
 On Windows without Git Bash the PowerShell tool is the active shell and needs a different form —
 see [`context/failure-modes.md`](context/failure-modes.md).

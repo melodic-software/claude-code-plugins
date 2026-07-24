@@ -943,7 +943,9 @@ operated by others — so surfaces 5 and 6 carry the weight here.
   tracking tokens are **not** transmitted — but the URL itself still identifies both the post and
   the reader's interest in it, and neither vendor publishes a retention policy, so assume every
   submitted URL is logged indefinitely. `--proto '=https'`, `--max-time`, and `--max-filesize` bound
-  the transport; no `-L`, so no redirect-driven egress.
+  the transport; no `-L`, so no redirect-driven egress. The byte cap is best-effort rather than
+  absolute — before curl 8.4.0 `--max-filesize` does not stop an unknown-length response, so a
+  chunked reply can exceed it and `--max-time` is the bound that always holds.
 
   Those bounds are only enforceable because `-q` leads every invocation. Review surfaced that curl
   reads a default `.curlrc` "even when `--config` is used", skipping it only when `--disable` "is
@@ -974,8 +976,9 @@ operated by others — so surfaces 5 and 6 carry the weight here.
   draft called it "mandatory" without that qualifier and is corrected here.
 
   Two residual risks stated rather than assumed away: a converter could return content that differs
-  from the source post, and the plugin cannot detect that — consumers get attribution and the echoed
-  source URL so a claim can be checked against the original. And step 2's escalation is a decision
+  from the source post, and the plugin cannot detect that — consumers get attribution and the gate's
+  **rebuilt** URL, never the converter-echoed one, so a claim can be checked against the original
+  without trusting a value the converter chose. And step 2's escalation is a decision
   made on the shape of step-1 output, which is third-party text; it is constrained to reusing the
   gate-captured id and can therefore change *whether* a second fetch happens, never *where* it goes.
 - **Main-thread / PATH (7).** None; no `settings.json` `agent`, no `bin/`.

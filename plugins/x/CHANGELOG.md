@@ -23,7 +23,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   path. Every URL re-enters the gate, including ones supplied at step 3 or surfaced inside fetched
   content. Documented as an advisory, model-honored defense rather than a runtime-enforced one.
 - Transport bounds on the step-1 call: `--proto '=https'`, `--max-time`, `--max-filesize`, and no
-  `-L`, so no redirect-driven egress.
+  `-L`, so no redirect-driven egress. The byte cap is documented as best-effort — before curl 8.4.0
+  `--max-filesize` does not stop an unknown-length response, so `--max-time` is the bound that always
+  holds.
+- The Windows scratch files (request body and curl config) are deleted once the request returns, so
+  reading many posts neither accumulates files nor builds a local history of submitted X URLs.
 - `-q` leads every curl invocation on both paths. curl reads a default `.curlrc` "even when
   `--config` is used" and skips it only when `--disable` "is used as the first parameter on the
   command line", so without it a consumer's ambient config could set `location` and silently
