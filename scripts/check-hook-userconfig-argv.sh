@@ -59,6 +59,21 @@ flag() {
   errors=$((errors + 1))
 }
 
+# scan_manifest_path <plugin-dir> <manifest> <relative hooks path> — trust
+# boundary: a manifest-pointed hook config must stay inside its own plugin
+# directory. Reject absolute paths and any `..` segment (portable string
+# check — no realpath dependency) with a visible skip, so a crafted manifest
+# cannot point this gate at files outside the tree it claims to scan.
+scan_manifest_path() {
+  local plugin="$1" manifest="$2" rel="$3"
+  [[ -n "$rel" ]] || return 0
+  if [[ "$rel" == /* || "$rel" =~ ^[A-Za-z]: || "/$rel/" == *"/../"* ]]; then
+    echo "check-hook-userconfig-argv: skipping out-of-tree hooks path in $manifest: $rel" >&2
+    return 0
+  fi
+  scan_file "$plugin/${rel#./}"
+}
+
 # scan_file <repo-relative hook config path>
 scan_file() {
   local file="$1" hits line
@@ -82,12 +97,12 @@ for plugin in plugins/*/; do
   case "$hooks_type" in
   string)
     rel="$(jq -r '.hooks' "$manifest" | tr -d '\r')"
-    scan_file "$plugin/${rel#./}"
+    scan_manifest_path "$plugin" "$manifest" "$rel"
     ;;
   array)
     while IFS= read -r rel; do
       rel="${rel%$'\r'}"
-      [[ -n "$rel" ]] && scan_file "$plugin/${rel#./}"
+      scan_manifest_path "$plugin" "$manifest" "$rel"
     done < <(jq -r '.hooks[] | select(type == "string")' "$manifest" 2>/dev/null || true)
     ;;
   object)

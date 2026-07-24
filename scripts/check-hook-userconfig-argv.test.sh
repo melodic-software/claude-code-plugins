@@ -211,6 +211,49 @@ else
 fi
 rm -rf "$f"
 
+# --- manifest with no hooks key passes --------------------------------------
+f="$(new_fixture)"
+plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha"}'
+plugin_file "$f" alpha hooks/hooks.json "$CLEAN_HOOK"
+if out="$(run_check "$f" 2>&1)"; then
+  ok "manifest without a hooks key passes"
+else
+  fail "manifest without a hooks key should pass, got: $out"
+fi
+rm -rf "$f"
+
+# --- out-of-tree manifest hooks path is skipped, visibly --------------------
+f="$(new_fixture)"
+plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","hooks":"../../outside.json"}'
+printf '%s\n' "$BARE_HOOK" >"$f/outside.json"
+if out="$(run_check "$f" 2>&1)"; then
+  if echo "$out" | grep -q 'skipping out-of-tree hooks path'; then
+    ok "out-of-tree manifest hooks path is skipped with a visible notice"
+  else
+    fail "expected visible out-of-tree skip notice, got: $out"
+  fi
+else
+  fail "out-of-tree path should be skipped (pass), got: $out"
+fi
+rm -rf "$f"
+
+# --- default and manifest-pointed configs both flagged ----------------------
+f="$(new_fixture)"
+plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha","hooks":"./config/extra-hooks.json"}'
+plugin_file "$f" alpha hooks/hooks.json "$BARE_HOOK"
+plugin_file "$f" alpha config/extra-hooks.json "$BARE_HOOK"
+if out="$(run_check "$f" 2>&1)"; then
+  fail "composite (default + manifest-pointed) should fail, got success: $out"
+else
+  if echo "$out" | grep -q 'USERCONFIG ARGV: plugins/alpha/hooks/hooks.json:' &&
+    echo "$out" | grep -q 'USERCONFIG ARGV: plugins/alpha/config/extra-hooks.json:'; then
+    ok "composite case flags both the default and the manifest-pointed config"
+  else
+    fail "expected both files flagged, got: $out"
+  fi
+fi
+rm -rf "$f"
+
 # --- unparsable manifest does not crash the gate ----------------------------
 f="$(new_fixture)"
 plugin_file "$f" alpha .claude-plugin/plugin.json '{not json'

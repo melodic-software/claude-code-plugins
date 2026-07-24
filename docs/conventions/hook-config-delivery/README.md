@@ -60,8 +60,10 @@ list and the matrix; it does not fork a private convention.
 - **F. Direct settings read** — the hook script reads `pluginConfigs["<name>@<marketplace>"].options`
   itself from the user `settings.json` plus fixed-path managed settings (and `managed-settings.d/`
   drop-ins), locating the user file **only** from the tamper-resistant `${CLAUDE_PLUGIN_ROOT}` cache
-  anchor — never from an env-derived path (`CLAUDE_CONFIG_DIR`, `HOME`, `%ProgramFiles%`), because a
-  repo `env` block reaches hook subprocesses and env carries no provenance. Shipped exemplar:
+  anchor — tamper-resistant because the harness substitutes it from the plugin's install cache under
+  the user's own config dir, a path no repo file can redirect — never from an env-derived path
+  (`CLAUDE_CONFIG_DIR`, `HOME`, `%ProgramFiles%`), because a repo `env` block reaches hook
+  subprocesses and env carries no provenance. Shipped exemplar:
   disk-hygiene's shared kill-switch reader, `plugins/disk-hygiene/lib/killswitch_config.py`
   (see its `[0.9.0]` [CHANGELOG entry](../../../plugins/disk-hygiene/CHANGELOG.md) for the full
   trust analysis and residuals).
