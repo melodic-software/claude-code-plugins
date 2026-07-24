@@ -148,7 +148,7 @@ sketches there). Decision ledger: `.work/plugin-audit-port/interview-checklist.m
 
 ### Lane A — `context-guard` (merges first; its reader contract is the seam)
 
-#### Phase A1: Plugin scaffold + statusline tee [TODO]
+#### Phase A1: Plugin scaffold + statusline tee [DONE]
 
 Create `plugins/context-guard/`:
 
