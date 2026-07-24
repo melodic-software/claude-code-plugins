@@ -111,7 +111,9 @@
         "Evidence table tracks Tier + tool-diversity + confidence per claim; rejects any claim whose sources are all Tier 2 or all from one tool category",
         "Source-tier ratio enforced — every accepted claim has >=1 Tier 0/1 source plus >=2 independent corroborators; three citations of the same secondary pool count as one source, not three",
         "Confidence calibration applied — every comparison claim marked HIGH/MEDIUM/LOW; LOW-confidence claims are not used as the basis for a recommendation",
-        "Runs the outcome gate before presenting — all 8 binary criteria checked against the evidence table and written gap lists; reports pass or the failing criterion and what was re-run",
+        "Runs the outcome gate before presenting — all 10 binary criteria checked against the evidence table, written gap lists, and fetch log; reports pass or the failing criterion and what was re-run",
+        "Walks the artifact ladder per tool rather than stopping at an announcement or landing page — criterion 9 reads the topmost existing rung off the fetch log, and a rung that exists but is unreachable is carried as an enumerated Gap, not silently skipped",
+        "Any absence reported about a tool (an unsupported feature, a missing benchmark) names both the sources checked and the sources left unchecked — criterion 10 rejects a bare 'not found'",
         "Output names an explicit per-tool comparison conclusion, or explicitly reports insufficient evidence as a Gap, rather than picking a favorite without evidence backing"
       ]
     }

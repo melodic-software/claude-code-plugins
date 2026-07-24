@@ -12,7 +12,9 @@
   stays unconditional. Stopping at an announcement page — the shallowest rung that still carries the
   claim — and reporting a figure as unsourced is the failure this closes. Gate criterion 9 checks it.
 - **Outcome-gate criteria 9 and 10** — 9: the fetch log must show the topmost existing rung for every
-  vendor-published claim. 10: every reported absence must name both the checked and unchecked sets.
+  ACCEPTED vendor-published claim, with an unreachable rung passing only as an enumerated Gap so the
+  graceful-degradation contract still holds. 10: every reported absence must name both the checked
+  and the unchecked set. The broad-topic eval's outcome-gate expectation is updated to match.
 
 ### Changed
 
