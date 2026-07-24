@@ -466,9 +466,15 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   #  (1) a call/dot-source of a QUOTED `python3` command word on the quote-INTACT
   #      text (`& 'python3' -c`) — quote-blanking would erase the command word, so
   #      it is matched before blanking, exactly as ps::write_bypass catches a
-  #      quoted writer name; and
+  #      quoted writer name. A path-qualified quoted target
+  #      (`& 'C:\Python313\python3.exe' -c`) is the same interpreter: the optional
+  #      `[^quote]*[\/]` prefix and `.exe` suffix anchor on the python3 BASENAME.
+  #      Unlike write_bypass's arbitrary-quoted-program residual (cmdlets are not
+  #      invoked by path), python3.exe IS path-invocable, so this is in scope; the
+  #      basename anchor keeps a non-python quoted exe (`& 'C:\...\app.exe'`) inert.
   #  (2) the bare invocation on the quote-blanked text (`python3 -c`, an unquoted
-  #      `& python3 -c`, and the backtick-joined continuation).
+  #      `& python3 -c`, a path-qualified `C:\Python313\python3.exe -c` via the `/`
+  #      `\` boundary + optional `.exe`, and the backtick-joined continuation).
   # The write INDICATOR is still scanned raw (the tokens live in the quoted `-c`
   # payload) — the accepted-floor note above.
   _q="\"'"
@@ -479,8 +485,8 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   _ps_bare="$(ps::blank_quoted_spans "$_ps_nobt")"
   _ps_bare="${_ps_bare,,}"
   if [[ "$COMMAND_LC" =~ $_py_write ]] &&
-    { [[ "$_ps_bare" =~ (^|[[:space:];|&()]+)python3[[:space:]]+-c ]] ||
-      [[ "$_ps_lcq" =~ (^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*[$_q]python3[$_q][[:space:]]+-c ]]; }; then
+    { [[ "$_ps_bare" =~ (^|[[:space:];|&()/\\]+)python3(\.exe)?[[:space:]]+-c ]] ||
+      [[ "$_ps_lcq" =~ (^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*[$_q]([^$_q]*[\\/])?python3(\.exe)?[$_q][[:space:]]+-c ]]; }; then
     block_bypass "python-write" "python3 -c file write bypasses Write/Edit hooks"
   fi
   emit_tel "ok" ""
@@ -504,7 +510,11 @@ fi
 # the literal-stripped form (EXEC_LC) so prose/commit text merely mentioning it
 # is not a false positive; scan the RAW command (COMMAND_LC) for the write
 # indicators — they legitimately live inside the quoted `-c` payload the strip removes.
-if [[ "$EXEC_LC" =~ (^|[[:space:];|&()]+)python3[[:space:]]+-c ]] &&
+# The command-word boundary admits a leading path (`/` `\` in the class) and an
+# optional `.exe`, so a path-qualified interpreter (`/usr/bin/python3 -c`,
+# `/c/Python313/python3.exe -c`) is the same write — anchored on the python3
+# basename, so `notpython3` (no separator before it) stays inert.
+if [[ "$EXEC_LC" =~ (^|[[:space:];|&()/\\]+)python3(\.exe)?[[:space:]]+-c ]] &&
   [[ "$COMMAND_LC" =~ $_py_write ]]; then
   block_bypass "python-write" "python3 -c file write bypasses Write/Edit hooks"
 fi

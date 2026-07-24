@@ -57,6 +57,15 @@ run "python3 -c os.path.join producer (allowed)" \
   "python3 -c \"import os; print(os.path.join('a','b'))\"" 0
 run "python3 -c pathlib write_text (blocked)" \
   "python3 -c \"import pathlib; pathlib.Path('x').write_text('a')\"" 2
+# Path-qualified interpreter: an absolute/relative path to python3 is the same
+# write, so the command-word anchor admits a leading path (and a `.exe` suffix).
+run "abs-path python3 -c open write (blocked)" \
+  "/usr/bin/python3 -c \"open('x','w').write('a')\"" 2
+run "path-qualified python3.exe -c open write (blocked)" \
+  "/c/Python313/python3.exe -c \"open('x','w').write('a')\"" 2
+# The basename anchor must NOT match a longer name that merely ends in python3.
+run "notpython3 -c open (allowed)" \
+  "notpython3 -c \"open('x','w').write('a')\"" 0
 
 # --- Redirect false-positive regression -------------------------------------
 # stderr/fd redirects + /dev/null discards are NOT file-write bypasses, even
@@ -511,6 +520,18 @@ run_pwsh "PS: & \"python3\" -c open write (blocked)" \
   "& \"python3\" -c \"open('x','w').write('a')\"" 2
 run_pwsh "PS: backtick-continuation python3 -c open (blocked)" \
   "$(printf 'python3 `\n-c "open('"'"'x'"'"','"'"'w'"'"').write('"'"'a'"'"')"')" 2
+# Path-qualified call target: `& 'C:\Python313\python3.exe' -c` runs the covered
+# interpreter by absolute path. Unlike the writer-cmdlet residual (cmdlets are not
+# invoked by path), python3.exe IS path-invocable, so the quoted-call scan anchors
+# on the python3 basename inside the quotes. Bare unquoted path-qualified too.
+run_pwsh "PS: & 'C:\\...\\python3.exe' -c open write (blocked)" \
+  "& 'C:\\Python313\\python3.exe' -c \"open('x','w').write('a')\"" 2
+run_pwsh "PS: bare C:\\...\\python3.exe -c open write (blocked)" \
+  "C:\\Python313\\python3.exe -c \"open('x','w').write('a')\"" 2
+# A quoted call to a NON-python program stays allowed even with a write indicator
+# nearby — the anchor is the python3 basename, not any quoted exe path.
+run_pwsh "PS: & 'C:\\...\\app.exe' with open mention (allowed)" \
+  "& 'C:\\Program Files\\app.exe' -c \"print open(\"" 0
 
 # Review round 8: module-qualified producer heads.
 run_pwsh "PS: module-qualified Write-Output > file (blocked)" \

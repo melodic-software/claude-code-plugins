@@ -16,8 +16,13 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   two-part shape: the **invocation** is detected in a quote-blanked form (`ps::blank_quoted_spans`, so a
   quoted mention stays inert) while the write **indicators** are scanned on the raw command, where they
   legitimately live inside the quoted `-c` payload. PowerShell cmdlet/redirect coverage is unchanged.
-  Four regression fixtures added (real `open(`/`pathlib` writes MUST block; read-only `os.path.normpath`
-  and a quoted mention MUST stay quiet). This was the in-comment "deferred to A2b" gap.
+  Both lanes also recognize a **path-qualified** interpreter (`/usr/bin/python3 -c`,
+  `& 'C:\Python313\python3.exe' -c`, bare `C:\Python313\python3.exe -c`): the command-word boundary
+  admits `/` `\` path separators and an optional `.exe`, and the quoted-call scan admits a path prefix
+  inside the quotes — all anchored on the `python3` basename, so `notpython3` and a non-python quoted exe
+  (`& 'C:\...\app.exe'`) stay inert. Regression fixtures added for real `open(`/`pathlib` writes (MUST
+  block), path-qualified forms in both lanes (MUST block), and read-only `os.path.normpath` / quoted
+  mention / `notpython3` / non-python exe (MUST stay quiet). This was the in-comment "deferred to A2b" gap.
 
 ## [0.14.1]
 
