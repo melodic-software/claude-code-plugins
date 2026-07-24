@@ -559,6 +559,14 @@ run_pwsh "PS: python3 ('-'+'c') computed flag open write (blocked)" \
   "python3 ('-'+'c') \"open('x','w').write('a')\"" 2
 run_pwsh "PS: Start-Process -ArgumentList ('-'+'c') computed (blocked)" \
   "Start-Process python3 -ArgumentList ('-'+'c'),'open(\"x\",\"w\").write(\"a\")'" 2
+# Computed launcher TARGET: `Start-Process -FilePath ('py'+'thon3')` hides the
+# interpreter name itself, so the literal python3-token test cannot see it. A
+# launcher with a computed program arg could be python3 — fail closed (mirrors
+# might_invoke_git). A LITERAL non-python launcher target stays allowed.
+run_pwsh "PS: Start-Process -FilePath ('py'+'thon3') computed target (blocked)" \
+  "Start-Process -FilePath ('py'+'thon3') -ArgumentList '-c','open(\"x\",\"w\").write(\"a\")'" 2
+run_pwsh "PS: Start-Process notepad (literal non-python launcher, allowed)" \
+  "Start-Process notepad -ArgumentList '-c','open(\"x\",\"w\")'" 0
 # A non-python quoted program with a write indicator stays ALLOWED — no python3
 # token, so the co-occurrence probe does not fire (write_bypass allows quoted progs).
 run_pwsh "PS: & 'C:\\...\\app.exe' with open mention (allowed)" \

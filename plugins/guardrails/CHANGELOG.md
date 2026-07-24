@@ -28,7 +28,10 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   is **required** (position-independent), so a legitimate script or module run (`python3 build.py`,
   `python3 -m tool …`) that merely touches an `open(`-like path is **not** blocked; a **computed** flag
   (`python3 ('-'+'c') …`, `-ArgumentList ('-'+'c'),…`) is caught by fail-closing on a non-tokenizable arg
-  subexpression (`ps::has_special_constructs`) when no literal `-c` is present. **Accepted behavior
+  subexpression (`ps::has_special_constructs`) when no literal `-c` is present, and a computed launcher
+  TARGET that hides the interpreter name (`Start-Process -FilePath ('py'+'thon3') …`, `saps $exe …`) fails
+  closed via the same computed-launcher clause the git lane uses — while a literal non-python launcher
+  (`Start-Process notepad …`) stays allowed. **Accepted behavior
   change (fail-closed):** a command that only *mentions* `python3 … -c` + a write indicator in prose, a
   line/block comment, or a quoted string now **over-blocks** (three prior allow-fixtures flipped to
   expect-block); here-string mentions stay inert (blanked first, like the git lane). **Accepted residual:**

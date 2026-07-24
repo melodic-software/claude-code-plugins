@@ -229,6 +229,15 @@ ps::might_invoke_git() {
 ps::might_write_via_python3() {
   local recovered="${1//\`/}" lc q="\"'" blanked
   lc="${recovered,,}"
+  # A launcher (Start-Process/saps/start/pwsh/powershell/cmd) whose PROGRAM is a
+  # computed expression — `Start-Process -FilePath ('py'+'thon3') …`,
+  # `saps $exe …`, optionally behind one named parameter — could evaluate to
+  # python3 running inline code. The literal python3-token test below cannot see a
+  # computed name, so this runs FIRST and fails closed (the caller still gates on a
+  # write indicator). Mirrors ps::might_invoke_git's computed-launcher clause; a
+  # LITERAL launcher target (`Start-Process notepad …`) is not matched here and
+  # falls through to the token test, so a non-python launch stays allowed.
+  [[ "$lc" =~ (^|[[:space:]\;\|\&\(])(start-process|saps|start|pwsh|powershell|cmd)(\.exe)?[[:space:]]+(-[a-z]+[[:space:]]+)?[\(\$] ]] && return 0
   # Must name a python3 interpreter token at all (quote-intact, backtick-recovered).
   [[ "$lc" =~ (^|[^[:alnum:]_.])python3([.]exe)?([^[:alnum:]_]|$) ]] || return 1
   # A literal `-c` inline-code flag settles it (quote-bounded, so an arg-split
