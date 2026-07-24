@@ -597,7 +597,7 @@ R19's content is precisely what it is not, and the two must be reconciled at the
 **R20 — Route feasibility unknowns out of the ambiguity sort.** *(S13 F2)* Home:
 `problem-framing.md:65`, one pointer line. Substance: unknowns of the can-this-work-at-all shape route
 to `planning.md` §"Order by risk and information gain". This survives meta-rule 2 because it is an
-**active mis-route**, not a chapter-location preference: `:65` sends the known-unknowns cell to a
+**active misroute**, not a chapter-location preference: `:65` sends the known-unknowns cell to a
 *named* section (`:43-56`) that handles request-*reading* ambiguity only, so a feasibility unknown
 lands where it structurally cannot be processed. Pointer-not-copy; no new doctrine —
 feasibility-first ordering is already fully owned by `planning.md:35` and `:41-43`, and giving it a
@@ -804,7 +804,7 @@ One row per source claim. `→ Rn` points at §5; `→ Dn` at §3.
 |---|---|---|---|
 | F1 generating options is useless until you can evaluate them | partial (highest-value gap) | `problem-framing.md:66` asserts recognition as a given; `calibration.md:60-61` aims the principle at the agent; `communication.md:80-85` locates the defect in specification; `problem-framing.md:109` has the right shape, wrong trigger, and is uncited from the option path | amend → **R3** (owner `:66`, gate `communication.md:80`) |
 | F2 probe the uncertain capability first — as doctrine | covered | `planning.md:35`, `:41-43`, `:49` | no change — covered; a second home would violate meta-rule 2 |
-| F2 …as routing | partial (active mis-route) | `problem-framing.md:65` sends the cell to `:43-56`, which handles request-*reading* ambiguity only | amend → **R20** |
+| F2 …as routing | partial (active misroute) | `problem-framing.md:65` sends the cell to `:43-56`, which handles request-*reading* ambiguity only | amend → **R20** |
 | F2 residual: "prototype" reads as a taste move only | partial | `:66` is the only prototype the framing chapter names | subsumed by **R20**'s pointer |
 | F3 no trigger fires on evaluator-side failure | missing | every `recovery.md` signal is keyed to a failed action (`:7`, `:11-14`, `:35`, `:50-54`); in S13 nothing failed | subsumed by **R3** — a fifth loop signal would open a second home |
 | F4 ask the agent to explain the underlying mechanism | missing | every hit is agent-internal orientation, never operator-facing | amend → **R4**, *not* S11's critic (§2 judgment 3, §4 correction 3) |
