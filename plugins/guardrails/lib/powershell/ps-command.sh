@@ -227,11 +227,22 @@ ps::might_invoke_git() {
 # `-Confirm`) does not. python3-ONLY by design: `py -3` / bare `python` and a
 # stdin heredoc (`python3 - <<PY … PY`, no `-c`) stay uncovered, as they are today.
 ps::might_write_via_python3() {
-  local recovered="${1//\`/}" lc q="\"'"
+  local recovered="${1//\`/}" lc q="\"'" blanked
   lc="${recovered,,}"
+  # Must name a python3 interpreter token at all (quote-intact, backtick-recovered).
   [[ "$lc" =~ (^|[^[:alnum:]_.])python3([.]exe)?([^[:alnum:]_]|$) ]] || return 1
-  [[ "$lc" =~ (^|[[:space:]$q])-c([[:space:]$q]|$) ]] || return 1
-  return 0
+  # A literal `-c` inline-code flag settles it (quote-bounded, so an arg-split
+  # `-ArgumentList '-c',…` counts; a longer token like `-Command`/`-Confirm` does not).
+  [[ "$lc" =~ (^|[[:space:]$q])-c([[:space:]$q]|$) ]] && return 0
+  # No literal `-c`: PowerShell evaluates expression-valued arguments before launching,
+  # so `python3 ('-'+'c') …` / `-ArgumentList ('-'+'c'),…` construct the flag with no
+  # literal token. A computed `-c` cannot be ruled out when the args carry a
+  # non-tokenizable construct — reuse the git lane's un-parsable test on the
+  # quote-BLANKED text (so an `open(` or a quoted mention inside the write payload
+  # does not count). Fail closed, exactly as the git lane refuses a computed target.
+  blanked=$(ps::blank_quoted_spans "$1")
+  ps::has_special_constructs "$blanked" && return 0
+  return 1
 }
 
 # True (0) when the command uses a dynamic-invocation form that runs an arbitrary

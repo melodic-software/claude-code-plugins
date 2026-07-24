@@ -550,6 +550,15 @@ run_pwsh "PS: block-comment decoy then python3 -c open write (blocked)" \
 # Arg-splitting: `-c` hidden in -ArgumentList is still a `-c` token (quote-bounded).
 run_pwsh "PS: Start-Process python3 -ArgumentList '-c',open (blocked)" \
   "Start-Process python3 -ArgumentList '-c','open(\"x\",\"w\").write(\"a\")'" 2
+# Computed `-c`: PowerShell evaluates expression-valued arguments before launching,
+# so `('-'+'c')` builds the flag with no literal `-c` token. A python3 write whose
+# args carry a non-tokenizable subexpression construct (`(…)`, via
+# ps::has_special_constructs on the quote-blanked text) cannot be ruled out — fail
+# closed (sink doctrine), the same construct class the git lane refuses to parse.
+run_pwsh "PS: python3 ('-'+'c') computed flag open write (blocked)" \
+  "python3 ('-'+'c') \"open('x','w').write('a')\"" 2
+run_pwsh "PS: Start-Process -ArgumentList ('-'+'c') computed (blocked)" \
+  "Start-Process python3 -ArgumentList ('-'+'c'),'open(\"x\",\"w\").write(\"a\")'" 2
 # A non-python quoted program with a write indicator stays ALLOWED — no python3
 # token, so the co-occurrence probe does not fire (write_bypass allows quoted progs).
 run_pwsh "PS: & 'C:\\...\\app.exe' with open mention (allowed)" \

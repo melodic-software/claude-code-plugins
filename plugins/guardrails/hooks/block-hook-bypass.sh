@@ -462,7 +462,9 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   #   (a) a write INDICATOR in the raw command (_py_write — the tokens live in the
   #       quoted `-c` payload, so the scan is raw, exactly as the Bash lane), AND
   #   (b) a python3 interpreter TOKEN plus a `-c` inline-code flag both present
-  #       (ps::might_write_via_python3, quote-INTACT + backtick-recovered).
+  #       (ps::might_write_via_python3, quote-INTACT + backtick-recovered) — where a
+  #       COMPUTED `-c` (`python3 ('-'+'c') …`) is caught by fail-closing on a
+  #       non-tokenizable arg construct when no literal `-c` is present.
   # `-c` is REQUIRED and position-independent, so a legitimate script/module run
   # (`python3 build.py`, `python3 -m tool …`) that merely touches an `open(`-like
   # path is NOT blocked — only inline-code writes are. ACCEPTED OVER-BLOCK (the
