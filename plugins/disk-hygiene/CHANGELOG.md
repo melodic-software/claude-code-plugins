@@ -3,6 +3,29 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.3]
+
+### Fixed
+
+- **RETRACTS 0.8.2's PowerShell claim, which was wrong (#1195).** 0.8.2 documented that "PreToolUse guards
+  do not intercept PowerShell-tool commands" and scoped the PowerShell lane behind a preview caveat. A
+  fresh-session controlled test falsified that: a `Bash|PowerShell` PreToolUse matcher **does** fire for the
+  PowerShell tool on 2.1.218, the payload `tool_name` is literally `PowerShell`, and a live `Set-Content`
+  through that tool was blocked. There is no harness firing divergence and no preview limitation involved —
+  0.8.2's caveat overstated an un-isolated inference and is removed.
+- **The real defect, now documented accurately: the plugin-level engine gate is inert whenever
+  `disk_hygiene_enabled` is unconfigured.** `hooks/hooks.json` passes a bare
+  `${user_config.disk_hygiene_enabled}`; upstream never implemented the declared userConfig `default`, so an
+  unset-but-defaulted token is neither substituted nor exported as `CLAUDE_PLUGIN_OPTION_*` and its presence
+  **drops the entire hook entry** (proven: token-carrying hooks vanish while token-free controls fire, and
+  return once the key is configured). So the gate has never run for any consumer who never set the key — on
+  Bash and PowerShell alike, which is the real shape of the reported "PowerShell bypass". The skill-scoped
+  belt carries no such token and is unaffected. Every doc that claimed the gate "fires in every session"
+  or that audit-only mode is "guard-enforced" corrected: the `clean` and `setup` `SKILL.md` files,
+  `reference/safety-model.md`, and the consumer `README.md`. The code fix (a delivery channel that does
+  not depend on the unimplemented `default`) is tracked separately.
+  Recheck when the upstream gap closes (#46477 / #39455 / #39827).
+
 ## [0.8.2]
 
 ### Fixed

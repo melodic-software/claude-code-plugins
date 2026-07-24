@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "disk-hygiene",
-  "version": "0.8.2",
+  "version": "0.8.3",
   "description": "Context-aware disk hygiene for arbitrary directory trees: inventories orphaned and temporary artifacts, classifies evidence into review tiers, and offers exact-path cleanup only after a fresh safety preview and explicit per-tier approval. The target is read-only by default; OS-managed paths, links and mount points, VCS-tracked content, changed entries, and live-handle uncertainty fail closed.",
   "author": {
     "name": "Melodic Software",

@@ -261,15 +261,15 @@ handoff, not an engine plan:
 4. Skip and report any path whose verdict is not `clear`; never substitute a sibling, retry
    around a lock, or delete under a stale verdict.
 
-The PowerShell guard lane is *designed* to turn deletion spellings into a final human permission prompt
-(the same bar as the engine apply prompt); confirm that prompt only when the command matches the exact
-approved list. Engine invocations from PowerShell are *designed* to stay hard-denied (also subject to
-the caveat below). **Caveat (Claude Code 2.1.218, Windows): none of this PowerShell interception fires
-for the PowerShell tool** — the deletion-spelling prompt AND the engine-invocation deny are both inert;
-the PowerShell tool is in preview and
-PreToolUse hooks were reproduced not to intercept PowerShell-tool commands, so on Windows do not rely on
-this prompt; the manual lane's per-path `handoff-verify` approval and the baseline permission policy are
-the protections that actually hold. See the PowerShell-preview gotcha below and `reference/safety-model.md`.
+The PowerShell guard lane turns deletion spellings into a final human permission prompt (the same
+bar as the engine apply prompt); confirm that prompt only when the command matches the exact
+approved list. Engine invocations from PowerShell stay hard-denied. **Caveat — the plugin-level engine
+gate is inert until `disk_hygiene_enabled` is explicitly configured (verified on Claude Code 2.1.218):**
+that gate (`hooks/hooks.json`) passes a bare `${user_config.disk_hygiene_enabled}`, and an
+unset-but-defaulted userConfig value drops the whole hook entry, so for any consumer who never set the
+key the gate never runs — on the Bash tool and the PowerShell tool alike. The skill-scoped belt (this
+skill's frontmatter hook) carries no such token and is unaffected; `Bash|PowerShell` PreToolUse hooks do
+fire for the PowerShell tool. See `reference/safety-model.md`.
 
 Summarize removed paths, logical bytes removed, observed free-space delta, and every skip grouped by
 `locked`, `changed-or-link`, `protected`, `needs-elevation`, `handle-state-unverified`, or
@@ -299,10 +299,13 @@ sparse files, hard links, compression, and delayed allocation affect it.
   apply shapes using the hook runtime's same absolute executable pass. Shell expansions, globs,
   splitting/escape forms, operators, redirections, aliases, and exported functions fail closed.
 - The guard registers twice: a plugin-level engine gate (`hooks/hooks.json`, `--mode engine-gate`)
-  that fires in every session, receives the kill switch and data root by plugin-hook substitution,
-  and defers instantly on any command not referencing the engine; and this skill's frontmatter belt,
-  which adds the deny-by-default Bash and deletion-spelling PowerShell discipline while cleanup is
-  the active work. Verdicts are idempotent where both fire.
+  that receives the kill switch and data root by plugin-hook substitution and defers instantly on any
+  command not referencing the engine; and this skill's frontmatter belt, which adds the deny-by-default
+  Bash and deletion-spelling PowerShell discipline while cleanup is the active work. Verdicts are
+  idempotent where both fire. **Caveat (verified on Claude Code 2.1.218):** the engine gate only
+  registers once `disk_hygiene_enabled` is explicitly configured — its bare `${user_config.*}` argument
+  drops the whole hook while the option is unset (upstream never implemented the declared `default`), so
+  on a default install only the frontmatter belt runs, and only during `clean`.
 - The guard hook launches in exec form via `python3`, resolved on `PATH` with no shell (`python3`,
   not bare `python`, because stock macOS and many Linux distros ship only `python3` and a legacy
   `python` 2.x would crash the guard on modern syntax). Enforcement is therefore only as strong as
@@ -316,21 +319,21 @@ sparse files, hard links, compression, and delayed allocation affect it.
   manual-handoff lane already requires and the consumer's baseline permission policy — defense-in-depth
   lost, not preserved. `/disk-hygiene:setup check` reports whether the interpreter resolves on this
   machine.
-- **The PowerShell deletion belt does not fire for the PowerShell *tool* on current builds (Claude Code
-  2.1.218, Windows) — distinct from the `python3`-resolution loss above.** Even with `python3` resolving,
-  a `Bash|PowerShell` PreToolUse hook was reproduced to fire for the Bash tool but NOT intercept
-  PowerShell-*tool* commands. The PowerShell tool is a documented *preview* feature
-  ([tools-reference](https://code.claude.com/docs/en/tools-reference)); PreToolUse interception of it is
-  not a listed preview limitation, so this is an observed docs-vs-behavior gap (mechanism not yet
-  isolated — matcher firing vs Windows payload delivery vs the tool's `tool_name`). Consequence on
-  Windows: the PowerShell deletion belt AND the `disk_hygiene_enabled` kill switch's reach into the
-  manual PowerShell lane are both inert; the protections that hold are the manual lane's per-path
-  `handoff-verify` approval and the consumer's baseline permission policy. Recheck when the PowerShell
-  tool exits preview or when interception is verified directly.
+- **The plugin-level engine gate is dropped whenever `disk_hygiene_enabled` is unconfigured (Claude Code
+  2.1.218) — distinct from the `python3`-resolution loss above.** `hooks/hooks.json` passes a bare
+  `${user_config.disk_hygiene_enabled}`; a declared userConfig `default` is not implemented upstream, so an
+  unset-but-defaulted token is neither substituted nor exported to `CLAUDE_PLUGIN_OPTION_*` and its presence
+  **drops the whole hook entry**. Fresh-session controlled test: token-carrying hooks vanish while token-free
+  controls fire, and return once the key is configured. Consequence: for any consumer who never set the key,
+  this gate has never run — on Bash and PowerShell alike. The skill-scoped belt carries no such token and is
+  unaffected. Recheck when the upstream `default` gap closes (#46477 / #39455 / #39827).
+- **PreToolUse hooks DO fire for the PowerShell tool** (2.1.218; payload `tool_name` is literally
+  `PowerShell`, confirmed by a live block through that tool). A `Bash|PowerShell` matcher is correct and
+  there is no harness firing divergence — read `tool_name` from the stdin payload, not from an env var
+  (`CLAUDE_TOOL_NAME` does not exist).
 - The PowerShell lane is the inverse tradeoff: it stays open for read-only support work (git, gh,
   metadata probes) and instead hard-denies engine invocations and turns known deletion spellings
-  into a final human permission prompt (**subject to the preview caveat above — this does not fire for
-  the PowerShell tool on 2.1.218**). It is a raised bar, not a fail-closed lane; the engine's
+  into a final human permission prompt. It is a raised bar, not a fail-closed lane; the engine's
   own containment and the Bash lane remain the deletion authority.
 - The guard rejects `~` anywhere in a Bash command as a shell-expansion character, which includes
   Windows 8.3 short names (`SOMEUS~1`). Always pass long-form paths; the guard's own disclosures

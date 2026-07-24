@@ -50,9 +50,14 @@ at preview. Backups remain the recovery boundary for user data.
   there, so treat the number printed here as a convenience copy). Claude Code launches the guard in
   shell-free exec form; guarded engine calls must use the same absolute interpreter reported by that
   guard, so Bash aliases and functions cannot replace it. The guard registers on two surfaces: a
-  plugin-level **engine gate** (`hooks/hooks.json`) that fires in every session but acts only on
-  commands referencing the engine — deferring everything else instantly — and enforces the
-  configured kill switch and data-root authority through plugin-hook substitution; and the
+  plugin-level **engine gate** (`hooks/hooks.json`) that acts only on commands referencing the
+  engine — deferring everything else instantly — and enforces the configured kill switch and
+  data-root authority through plugin-hook substitution. **Caveat (verified on Claude Code 2.1.218):**
+  that gate only registers once `disk_hygiene_enabled` is **explicitly configured**. Upstream never
+  implemented the declared userConfig `default`, so while the option is unset its
+  `${user_config.disk_hygiene_enabled}` argument is neither substituted nor exported, and its
+  presence **drops the whole hook entry** — the gate does not run at all, on either tool. The
+  skill-scoped belt below carries no such token and is unaffected. And the
   skill-scoped **belt** inside the `clean` skill's context, which adds the deny-by-default Bash and
   deletion-spelling PowerShell discipline during active cleanup work. Hook-lifetime caveat: docs
   scope a skill hook to the component's lifetime, but session-long firing of the belt has been
@@ -148,21 +153,29 @@ hand-cleaning the zone.
 - **MCP / external trust:** no MCP server, agent, dependency, or third-party service is shipped.
 - **Configuration:** one non-sensitive `userConfig` boolean (`disk_hygiene_enabled`, default
   `true`) gating the execution tiers — setting it `false` puts `/disk-hygiene:clean` in audit-only
-  mode. That mode is now guard-enforced: the plugin-level engine gate receives the configured value
-  by exec-form substitution and denies engine invocations outright when it is `false`, in every
-  session. The skill self-enforcement (kill-switch probe + skill-content value) and the skill-scoped
-  belt remain as redundant layers; the belt still cannot receive the value (skill-frontmatter hooks
-  get neither `${user_config.*}` substitution nor `CLAUDE_PLUGIN_OPTION_*`), and still forces a
-  human prompt before every mutation.
+  mode. When the value is **explicitly configured `false`**, the plugin-level engine gate receives it
+  by exec-form substitution and denies engine invocations outright. **Caveat (verified on Claude Code
+  2.1.218):** this holds only for a configured value — because upstream never implemented the declared
+  userConfig `default`, an *unset* `disk_hygiene_enabled` is neither substituted nor exported, and its
+  presence in the gate's args drops the whole hook, so on a default (unconfigured) install the engine
+  gate does not run at all. The skill self-enforcement (kill-switch probe + skill-content value) is
+  therefore the primary kill-switch honoring on a default install, not a redundant layer; the
+  skill-scoped belt cannot receive the value either (skill-frontmatter hooks get neither
+  `${user_config.*}` substitution nor `CLAUDE_PLUGIN_OPTION_*`) and still forces a human prompt before
+  every mutation.
 - **Trust-surface record (0.7.0):** the plugin-level `hooks/hooks.json` PreToolUse registration is a
-  NEW trust surface (a hook that launches in every consumer session), added deliberately for
-  guard-enforced audit-only mode and data-root authority (#1106 decision, Option E — split
-  registration). Its blast radius is bounded by design: exec form (no shell), bundled
-  standard-library script only, instant no-output deferral for any command not referencing the
-  engine, and no new capability beyond what the skill-scoped deployment already did during active
-  cleanup. Known costs, accepted: one `python3` launch per Bash/PowerShell call, and on a machine
-  where `python3` resolves to the Windows Store alias stub the launch fails on every call (tracked
-  with remediation detection in #1110). This entry is the plugin-acceptance review delta for the
+  NEW trust surface (a hook that launches in every consumer session **once `disk_hygiene_enabled` is
+  explicitly configured** — see the caveat below), added deliberately for guard-enforced audit-only
+  mode and data-root authority (#1106 decision, Option E — split registration). Its blast radius is
+  bounded by design: exec form (no shell), bundled standard-library script only, instant no-output
+  deferral for any command not referencing the engine, and no new capability beyond what the
+  skill-scoped deployment already did during active cleanup. Known costs, accepted: one `python3`
+  launch per Bash/PowerShell call **on a configured install**, and on a machine where `python3`
+  resolves to the Windows Store alias stub the launch fails on every call (tracked with remediation
+  detection in #1110). **Caveat (verified on Claude Code 2.1.218):** while `disk_hygiene_enabled` is
+  unset, the bare `${user_config.*}` argument drops the whole hook, so on a default install this hook
+  does not register or launch at all — neither the trust surface nor its per-call cost applies until
+  the option is configured. This entry is the plugin-acceptance review delta for the
   change. A direct `hygiene.py` invocation outside that skill does not read the toggle and
   answers only to the engine's own preview/approval-token gate. The toggle can only narrow the
   destructive surface, never widen it (see [the safety model](skills/clean/reference/safety-model.md)
