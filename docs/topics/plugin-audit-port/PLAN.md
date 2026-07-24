@@ -211,7 +211,7 @@ Create `plugins/context-guard/`:
 - [ ] The reader contract's zone-defaults section states the shipped numbers AND that no official
   compaction threshold was documented as of the cited fetch date (grep both).
 
-#### Phase A3: Reader contract doc [TODO]
+#### Phase A3: Reader contract doc [DONE]
 
 - [ ] `reference/reader-contract.md` — CREATE, modeled on
   `plugins/rate-limit-guard/reference/reader-contract.md`: snapshot path pattern, file shape,
