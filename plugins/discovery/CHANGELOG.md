@@ -4,20 +4,25 @@
 
 ### Added
 
-- **`/discovery:research` — vendor-claim artifact ladder.** The primary-source-first protocol now
-  ranks the artifact CLASSES a vendor publishes the same claim at (system/model card → platform docs
-  → product docs → changelog → announcement → third-party), complementing the doc-index probe that
-  enumerates pages. Stopping at an announcement page — the rung a SERP surfaces first and the
-  shallowest one carrying the claim — and reporting a figure as unsourced is the failure this closes.
-- **Large-primary fetch fallback.** A content-length failure or a silent truncation is a fetcher
-  limit, not a source limit: download to the scratch dir, extract text with whatever extractor the
-  machine has, grep the result. A large primary is not "unreachable" until that has run and failed.
+- **`/discovery:research` — artifact ladder for the primary-source-first protocol.** A SEARCH order
+  over the artifact CLASSES the same claim is published at (deepest technical artifact — for a model
+  or benchmark claim the system/model card — → platform reference → product docs → changelog →
+  announcement → third-party), complementing the doc-index probe that enumerates pages. It does not
+  reorder authority: the tier table still ranks that, and the recency gate's changelog cross-check
+  stays unconditional. Stopping at an announcement page — the shallowest rung that still carries the
+  claim — and reporting a figure as unsourced is the failure this closes. Gate criterion 9 checks it.
+- **Outcome-gate criterion 9** — the fetch log must show the topmost existing rung for every vendor
+  claim, and any absence must be reported as an enumeration.
 
 ### Changed
 
-- **Absence claims must ship their enumeration.** A negative finding publishes the sources actually
-  checked AND the sources left unchecked, never a bare "unsourced" / "not found" — an absence claim
-  is only as strong as the set it was checked against. Enforced at the `Gaps` output contract.
+- **A fetch size failure now routes into the existing escalate-on-block ladder** rather than reading
+  as a dead end: a content-length rejection or a silent truncation is a fetcher limit, not a source
+  limit. Recipe — download out of context, extract with whatever extractor the machine has, grep.
+- **Absence claims ship their enumeration.** A negative finding states the sources actually checked
+  AND the sources left unchecked, never a bare "unsourced" / "not found" — an absence claim is only
+  as strong as the set it was checked against. Stated at the `Gaps` output contract, gated by
+  criterion 9.
 
 ## [0.8.2]
 

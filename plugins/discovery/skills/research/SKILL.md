@@ -40,7 +40,7 @@ Full recipes and rationale: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/disci
 9. **Phases chain through a WRITTEN analysis** — Phase 2 consumes the gap/conflict/leading-hypothesis list emitted at the end of Phase 1; each Phase 2 query maps to a named entry in it. Phase 3 chains the same way off the Phase 1+2 list. A query not traceable to a prior-phase gap is unchained — the written list IS the broad→deep link, intent is not
 10. **Task size does NOT reduce phase count** — a one-line config change gets the same treatment as a multi-file feature
 11. **Confidence tracked per claim** — HIGH / MEDIUM / LOW per the discipline file's "Confidence calibration." Do NOT accept LOW-confidence claims as a basis for code edits — iterate until HIGH
-12. **Primary source fetched directly, not via the SERP** — for every accepted claim, name the canonical doc home and fetch it directly with whatever direct-fetch tool is connected this session; SERP + synthesis tools only DISCOVER what to fetch and find corroborators, never serve as the terminal source
+12. **Primary source fetched directly, not via the SERP** — for every accepted claim, name the canonical doc home and fetch it directly with whatever direct-fetch tool is connected this session, top-down through the discipline file's artifact ladder (an announcement page is not the vendor's deepest artifact); SERP + synthesis tools only DISCOVER what to fetch and find corroborators, never serve as the terminal source
 13. **Outcome gate before presenting (MANDATORY)** — the run self-checks its own evidence table + written gap lists + fetch log against binary criteria; any FAIL returns to the named phase (see "Outcome gate")
 
 ## Phase 1: Broad Research (3+ queries, 3+ tool types)
@@ -144,6 +144,7 @@ Each criterion is binary — read it off an artifact, not from memory. **Any FAI
 | 6 | Recency gate satisfied for every tool/library/API claim: the LATEST upstream changelog/release was fetched THIS turn and cross-checked against the claim (a stable project whose latest release is older than the 30/14/90d window passes once that release is confirmed as current; a major version bump since the cited doc invalidates it, first-party docs included) | Phase 2 — fetch changelog |
 | 7 | Every accepted claim is HIGH confidence | Phase 4 follow-up — iterate to HIGH |
 | 8 | Project fit checked against the consuming project's own conventions and stated direction | revisit before presenting |
+| 9 | For every vendor claim, the fetch log shows the topmost EXISTING rung of the artifact ladder — no announcement or intro page standing in for the deeper artifact, and any absence reported as an enumeration of what was and was not checked | Phase 2 — walk the ladder from rung 1 |
 
 **Authoritative + consensus, reconciled:** the primary source is the SPINE of each claim; independent corroborators are the CONFIRMATION. When a top-ranked blog consensus contradicts the primary, the primary wins and the conflict is flagged explicitly — consensus never overrides a fetched authoritative source. Subagent returns are Tier 3 (synthesis), not corroborators, until their cited primaries are fetched this turn.
 
