@@ -42,9 +42,23 @@ catch.
 
 **The one exclusion is narrow and is not surface-wide.** Skills, subagents, and MCP servers override
 **by name**: where two of them share a name at different scopes, exactly one is live and the other is
-inert. That is a shadowed definition, not a conflict, and it is reported — if at all — as a separate
-and much weaker finding. Override-by-name says nothing about a skill's *content* contradicting
-another surface's content, and the first draft of this scoping wrongly read it as though it did.
+inert. That is a shadowed definition, not a conflict. Override-by-name says nothing about a skill's
+*content* contradicting another surface's content, and the first draft of this scoping wrongly read
+it as though it did.
+
+**Shadowed definitions are reported, separately, and the split earns something.** A shadowing is
+worth telling an operator about — it is usually unintentional, and an inert definition that looks
+live is its own trap — but it is not the conflict D1 detects, and folding it in would inflate D1's
+finding set with non-conflicts.
+
+The split also buys a property the sweep needs. Detecting a shadowing is **name comparison across a
+known precedence order: mechanical and fully deterministic**, where D1 proper is behavioral. So the
+shadowing finding lands in the **mechanical** tier and contributes to the diff-clean gate, while D1's
+conflict findings sit in the behavioral tier under the stability tolerance. Merging them would have
+dragged a deterministic check into a non-deterministic section and weakened the determinism property
+for nothing.
+
+Reported at `info`, in its own section, naming the live definition and the shadowed one.
 
 ### Must NOT flag
 
@@ -212,12 +226,38 @@ therefore have no instances here, and a green dogfood run would be evidence the 
 rather than evidence the check works. The fixture is a Phase 6 obligation precisely so Phase 10 does
 not mistake one for the other.
 
+## The report and the lanes
+
+Constrained by [rerun-contract.md](rerun-contract.md); specified here now that the dispatch order is
+fixed.
+
+**Two files, because incremental persistence and a sectioned report want different shapes.**
+
+- **During the run:** `findings.partial.jsonl` — one JSON object per finding, appended as each lane
+  completes. Append-only is what makes §5's incremental persistence real rather than aspirational; a
+  single JSON document would have to be rewritten whole on every append, which is exactly the
+  operation an interrupted run leaves half-done.
+- **At the end:** `findings.json` — a single document assembled from the partial, carrying
+  `schemaVersion`, the run and target identity, the version of every catalog consulted, and then the
+  finding sections: `mechanical`, `behavioral`, `suppressed`, `delegated` (`/doctor`'s output, which
+  is diffed by nobody), and `skipped` — every surface excluded, **with its reason**. A silent
+  exclusion reads as coverage; that section is what stops it.
+
+**Resume reads the partial, not the report.** A lane is complete when its terminating record is in
+the JSONL, which makes the completion state derivable from the artifact rather than tracked beside
+it and able to disagree with it.
+
+**Lanes are (check × surface class), not (check) and not (file).** Per-check lanes would serialize a
+check across the whole tree and make a mid-run interruption expensive; per-file lanes would multiply
+manifest overhead by the corpus size. Surface class is also the granularity the exclusion set and the
+three-scope inventory already work at, so the lane key falls out of structure that exists rather than
+being imposed on it.
+
 ## Open in this phase
 
 - **Naming.** Dispatched; the shortlist lands separately and `<sweep>` is a placeholder until it does.
-- **The report schema, the suppression file's path and format, and the lane decomposition** —
-  constrained by [rerun-contract.md](rerun-contract.md), specified here once the dispatch structure
-  is fixed.
-- **Whether the shadowed-definition case is reported at all**, and at what severity. It is not a
-  conflict, but an inert same-named skill at a lower scope is worth knowing about, and the answer
-  affects D1's output shape.
+- **The suppression record's location and format.** Deliberately not decided here. This repository has
+  config-cascade and consumer-config-layering conventions plus at least one live consumer-side config
+  file, and inventing a new consumer surface against an existing convention is precisely the failure
+  this work audits others for. Under research; the answer must come from the conventions and the
+  existing population, not from what seems reasonable.
