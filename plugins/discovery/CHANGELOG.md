@@ -1,5 +1,25 @@
 # Changelog — discovery plugin
 
+## [0.8.3]
+
+### Fixed
+
+- `explore-deep` and `explore` no longer condition forked execution on
+  `CLAUDE_CODE_FORK_SUBAGENT=1`. That variable gates the Agent tool's `fork`
+  subagent type, not skill-level `context: fork`, which the skills reference
+  documents with no environment gate. Setting it also runs the opposite
+  direction from what the docs claimed — it forces every subagent to the
+  background and nullifies the `background` frontmatter field.
+- `explore-deep` no longer claims it inherits the parent's full toolset. A
+  backgrounded fork runs with the narrower background built-in tool set, now
+  enumerated in the skill; `background: false` restores the full pool.
+
+### Removed
+
+- `explore-deep` eval case `fallback-when-fork-unavailable`. The skill declares
+  `context: fork` in its own frontmatter, so the body executes inside the fork
+  and cannot detect fork-unavailability — the branch it asserted cannot fire.
+
 ## [0.8.2]
 
 ### Changed
