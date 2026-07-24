@@ -300,6 +300,12 @@
       "tags": ["context-window", "statusline", "tee", "zones", "context-degradation", "session", "skill"]
     },
     {
+      "name": "plugin-quality",
+      "source": "./plugins/plugin-quality",
+      "category": "claude-code",
+      "tags": ["plugin-audit", "audit", "review", "quality", "work-item", "context-guard", "skill"]
+    },
+    {
       "name": "songwriting",
       "source": "./plugins/songwriting",
       "category": "music",

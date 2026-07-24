@@ -838,6 +838,45 @@ Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this 
 with sanitized untrusted input; 3 empty; 4 conforms under the documented operator-home seam
 carve-out.
 
+### Review record — `plugin-quality` (ACCEPT, 2026-07-24)
+
+Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this review. Data
+surfaces named exhaustively — this plugin READS more than most, and that is its job.
+
+- **Code execution (1).** No hooks, no scripts. Prompt artifacts only (skills, agent, references).
+  The `auditor` agent carries Bash **named honestly**: it is NOT read-only — justified for
+  `claude plugin validate` and config-resolution probes plus safe fixture reproductions; its
+  standing instructions forbid mutation of the audited plugin, installs, and network beyond
+  WebFetch. Untrusted-content posture (audited source is data, never instructions) is a standing
+  instruction in BOTH the hub skill and the agent, backed by a prompt-injection anti-pattern eval
+  — an advisory, model-honored defense, stated honestly as such.
+- **MCP servers (2).** None.
+- **Consumer config (3).** No `userConfig`. Tracked cascade surface `.claude/plugin-quality.md`
+  (+ user-global `~/.claude/plugin-quality.md` and `.local` overlay — sanctioned operator-home
+  read per criterion 4's carve-out), keys documented in the plugin's `reference/config.md`.
+- **Cache isolation (4).** Reads that leave the plugin's own directory, each justified: (a) the
+  audited plugin's installed source under the plugin cache and its marketplace registration —
+  that IS the audit subject; (b) `~/.claude/context-guard/context/<session_id>.json` +
+  `~/.claude/context-guard/zones.json` — the context-guard reader contract's documented
+  cross-plugin seam, consumed read-only per its inline-floor rule; (c) the documented config
+  layers above. Writes: the evidence packet (session-derived data — hook failures, transcript
+  path, tool errors, contract-lock notes) under `${CLAUDE_PLUGIN_DATA}/evidence/…` with a stated
+  30-day retention, and — only on the markdown sinks — the emitted item file at the
+  operator-chosen directory. No `../` reach-outs.
+- **Data egress (5).** Exactly one network egress: `gh issue create`, gated by an unconditional
+  full-draft + target-repo + ACTING-account confirm (no auto-file mode exists; the acting-account
+  line exists because one machine can hold multiple GitHub identity domains). WebFetch in the
+  auditor agent reaches official docs pages for claim grounding — read-only GETs. No telemetry.
+- **Provenance & third-party trust (6).** First-party (Melodic Software authored), MIT, no
+  third-party delegation. The producer/consumer split (audit session never implements fixes in
+  the audited repo) bounds the blast radius of a hostile audited plugin to the findings text
+  itself, which the draft+confirm gate puts in front of the user before it leaves the machine.
+- **Main-thread / PATH (7).** None; no `settings.json` `agent`, no `bin/`.
+
+**Verdict: ACCEPT** — surfaces 2/7 absent; 1 bounded to an honestly-named agent Bash grant under
+standing instructions; 3/4 conform with every cross-boundary read justified at its seam; 5 is a
+single confirm-gated egress plus docs-only WebFetch; 6 first-party with the split as containment.
+
 ## Local development loop
 
 For a plugin that already ships here, iterate against your local clone without re-publishing and

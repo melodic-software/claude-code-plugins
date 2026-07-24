@@ -401,7 +401,7 @@ Create `plugins/context-guard/`:
 
 - [ ] `/skill-quality:check` passes on `plugin-quality/setup`; `validate-evals` passes.
 
-#### Phase B6: Evals + release chores (lane B) [TODO]
+#### Phase B6: Evals + release chores (lane B) [DONE]
 
 - [ ] `skills/audit/evals/evals.json` — CREATE: triggering (mapped from the local skill's trigger
   vocabulary per the B1 continuity table), routing incl. negative boundaries
