@@ -22,10 +22,19 @@ enforced at the seam, and the routine's bound definition is what derives the
 [classification rules](trigger-dispatch.md#work-class-classification) — and the
 [guardrail matrix](guardrails.md#the-matrix) governs from the moment the item is queued.
 
-Deterministic checks are never routines: judgment-free date, threshold, and pipeline
-mechanics run as plain cron with zero agent tokens, filing work items on failure through the
-same trigger adapters. The catalog flags such classes `not-a-routine` — they stay visible as
-rows, never silent exclusions.
+A **wholly** deterministic check is not a routine. Judgment-free date, threshold, and
+pipeline mechanics run with **no agent session and zero agent tokens** — that property is
+the invariant this contract fixes, and the substrate carrying it is a deployment-owned
+binding like every other hosting choice (§Hosting stance), never a mechanism named here.
+Failures file work items through the same trigger adapters. The catalog flags such classes
+`not-a-routine` — they stay visible as rows, never silent exclusions.
+
+Determinism is a per-PORTION verdict, so a deterministic portion is rarely a reason to stop
+classifying a class. A class whose detection is judgment-free but whose disposition is not
+SPLITS rather than exits: the detection portion carries the same no-agent-session property,
+and the judgment portion IS the routine, deriving its row through the `AGT` rules below.
+The catalog carries this split on nearly as many rows as it flags `not-a-routine`; reading
+the paragraph above as a categorical exit is the error it is worded to prevent.
 
 ## Two families of repetition
 
@@ -84,10 +93,11 @@ class on the catalog's axes, then apply the rules below.
 
 ### Judgment and output
 
-- Judgment `DET` → not a routine. Plain cron, zero agent tokens; failures file work items
-  through trigger adapters. Flagged `not-a-routine` in the catalog.
-- Hybrid `DET` detect + `AGT` judgment → split: the detection portion routes to plain cron;
-  the judgment portion IS the routine and derives through the `AGT` rules below.
+- Judgment `DET` → not a routine. No agent session, zero agent tokens; failures file work
+  items through trigger adapters. Flagged `not-a-routine` in the catalog.
+- Hybrid `DET` detect + `AGT` judgment → split: the detection portion carries the
+  no-agent-session property; the judgment portion IS the routine and derives through the
+  `AGT` rules below.
 - `AGT` + report → `C1`.
 - `AGT` + work item → `C1` (a governed-queue write; no repository mutation).
 - `AGT` + direct change → `C2` where the change's truth is mechanically checkable; `C3`
@@ -144,7 +154,7 @@ prepares, human decides · hybrid rows show the split. Output: `R` report · `WI
 | Status | Meaning |
 |---|---|
 | `v1` | proven manual pattern; definition leaf ships under `routines/` |
-| `not-a-routine` | pure deterministic class: plain cron, zero agent tokens |
+| `not-a-routine` | wholly deterministic class: no agent session, zero agent tokens |
 | join: … | deferred class; it gains a leaf when the named join trigger fires |
 
 | Class | Judgment | Output | Access | Derived row | Status |
@@ -305,8 +315,9 @@ Hosting stance below. The following are illustrative bindings, not fixed require
 
 Hosting is a deployment-owned binding. This contract fixes invariants only:
 
-- the queue contract — every routine enqueues through the trigger contract; no second
-  execution, merge, or scheduling path;
+- the queue contract — every routine enqueues through the trigger contract and is bound by
+  its [one-entrypoint invariant](trigger-dispatch.md#dispatch), stated canonically there;
+  a routine additionally opens no scheduling or merge path of its own;
 - the per-class isolation floor — the [matrix](guardrails.md#the-matrix) min-isolation
   column;
 - merge-policy caps — including that vendor-hosted
