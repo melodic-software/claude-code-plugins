@@ -253,7 +253,7 @@ Create `plugins/context-guard/`:
 
 - [ ] `/skill-quality:check` passes on `context-guard/setup`; `validate-evals` passes.
 
-#### Phase A5: Release chores (lane A) [TODO]
+#### Phase A5: Release chores (lane A) [DONE]
 
 - [ ] `README.md` (plugin) — CREATE: capability, prerequisites (bash + jq, declared per
   failure-behavior rules; Windows = Git Bash), wiring, reader contract pointer, security posture.
