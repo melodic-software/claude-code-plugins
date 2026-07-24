@@ -123,8 +123,9 @@ using the gate-captured id — and `Read` the slice you need. Never derive any p
 the response body; see [`context/failure-modes.md`](context/failure-modes.md).
 
 **Capture the status — `-sS` alone prints none.** Append `-w '\n%{http_code}'`. A `200` is not by
-itself success: confirm the response carries converted content before reporting it. Code meanings and
-every non-`200` path are in [`context/failure-modes.md`](context/failure-modes.md).
+itself success: confirm the response carries converted content, validating against the form you asked
+for — under `Accept: text/markdown` success is raw Markdown with no JSON envelope, so a missing
+`markdown` field proves nothing. Both shapes: [`context/failure-modes.md`](context/failure-modes.md).
 
 ### Step 2 — Thread Reader App (unrolled reply chain)
 

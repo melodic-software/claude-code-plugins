@@ -73,3 +73,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The PowerShell request body drops its backslash escaping. PowerShell single-quoted strings are
   fully literal, so `'{\"url\":...}'` sends literal backslashes and the server rejects the body as
   malformed JSON — silently breaking step 1 on Windows without Git Bash.
+- Response validation is scoped to the requested form. The documented step-1 call sends
+  `Accept: text/markdown`, whose success response is raw Markdown with no JSON envelope; the earlier
+  blanket "`200` with no `markdown` field is a failure" rule therefore classified every successful
+  conversion as a failure. The field check now applies only to the JSON form.
+- Eval 1 no longer expects attribution from the converter-echoed URL, which contradicted the
+  reporting contract's requirement to attribute with the gate's rebuilt URL.

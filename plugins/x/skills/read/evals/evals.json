@@ -5,12 +5,13 @@
       "id": 1,
       "name": "single-article-resolves-at-step-one",
       "prompt": "/x:read https://x.com/trq212/status/2080710971228918066",
-      "expected_output": "Posts the URL to xtomd's /api/markdown endpoint and returns the article as Markdown, attributed with author handle, date, and the echoed source URL. Does not reach for Thread Reader App.",
+      "expected_output": "Posts the URL to xtomd's /api/markdown endpoint and returns the article as Markdown, attributed with author handle and date from the converted body plus the gate's rebuilt canonical URL. Does not reach for Thread Reader App.",
       "files": [],
       "expectations": [
         "Uses POST with a JSON body; never attempts a GET against /api/markdown",
         "Stops at step 1 — no threadreaderapp.com fetch on a result that is not a chain fragment",
-        "Attributes the output with handle, date, and source URL"
+        "Attributes with the gate's rebuilt URL, never the URL the converter echoed back",
+        "Treats the raw Markdown body as success rather than looking for a markdown field that the text/markdown form does not carry"
       ]
     },
     {

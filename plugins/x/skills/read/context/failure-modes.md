@@ -41,11 +41,19 @@ code is observable rather than inferred from body shape.
 | `502` | X unreachable: private, protected, or deleted | Report and stop. Never retry in a loop. |
 | `500` | vendor-side error | Report. At most one retry. |
 | `429` or timeout | rate-limited or hung | Report and stop. Do not hammer. |
-| `200` with no `markdown` field, or an HTML body | not a conversion — a stub or bot-challenge page | Treat as failure, not content. |
+| `200` carrying no converted content | a stub or bot-challenge page | Treat as failure, not content. |
 
-A `200` is not by itself success: confirm the response actually carries converted content before
-reporting it. Any other outcome — DNS failure, connection reset, empty body — is a failed fetch,
-never an empty post.
+**Validate against the form you requested — the two differ.** The documented step-1 call sends
+`Accept: text/markdown`, whose success response is *raw Markdown with no JSON envelope*, so there is
+no `markdown` field to look for and its absence proves nothing:
+
+| Request | Success looks like | Failure looks like |
+|---|---|---|
+| With `Accept: text/markdown` | Markdown body — the post or article text, typically opening with attribution or a heading | an HTML document, a JSON stub such as the `"method":"POST"` GET response, or an empty body |
+| Without that header (JSON) | a JSON object carrying a non-empty `markdown` field | valid JSON with no `markdown` field, an HTML document, or an empty body |
+
+Only apply the `markdown`-field check to the JSON form. Any other outcome — DNS failure, connection
+reset, empty body — is a failed fetch, never an empty post.
 
 ## Step 2 — Thread Reader App miss detection
 
