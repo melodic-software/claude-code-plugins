@@ -371,7 +371,7 @@ Create `plugins/context-guard/`:
 - [ ] Agent file frontmatter validates (`claude plugin validate` covers agents dir); SKILL.md step
   2 dispatches by this agent's name.
 
-#### Phase B4: Config surface + sink reference [TODO]
+#### Phase B4: Config surface + sink reference [DONE]
 
 - [ ] `reference/config.md` — CREATE: `.claude/plugin-quality.md` keys (sink, zone-behavior
   criteria, repo-map overrides), layering per config-cascade (all three layers, merge semantics
