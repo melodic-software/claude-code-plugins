@@ -844,10 +844,13 @@ Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this 
 surfaces named exhaustively — this plugin READS more than most, and that is its job.
 
 - **Code execution (1).** No hooks, no scripts. Prompt artifacts only (skills, agent, references).
-  The `auditor` agent carries Bash **named honestly**: it is NOT read-only — justified for
-  `claude plugin validate` and config-resolution probes plus safe fixture reproductions; its
-  standing instructions forbid mutation of the audited plugin, installs, and network beyond
-  WebFetch. Untrusted-content posture (audited source is data, never instructions) is a standing
+  The `auditor` agent carries Bash and Write, **named honestly**: neither is read-only — Bash is
+  justified for `claude plugin validate` and config-resolution probes plus safe fixture
+  reproductions; Write is scoped by standing instruction to the evidence-packet directory only
+  (the dumb-zone contract needs the agent to persist its own `findings.md` so the main thread can
+  stay summary-only — surfaced by the dumb-zone smoke). Its standing instructions forbid mutation
+  of the audited plugin, installs, writes outside the packet, and network beyond WebFetch.
+  Untrusted-content posture (audited source is data, never instructions) is a standing
   instruction in BOTH the hub skill and the agent, backed by a prompt-injection anti-pattern eval
   — an advisory, model-honored defense, stated honestly as such.
 - **MCP servers (2).** None.
