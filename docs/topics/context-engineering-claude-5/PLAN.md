@@ -2,7 +2,8 @@
 
 ## Brief
 
-Status: **in progress** — shape decided in principle (a runbook), detector design open.
+Status: **in progress** — shape decided (a runbook), seam resolved, proportionality gate closed.
+Phases 1, 2, 2.5, and 5 are done; design continues at Phase 3.
 
 ### TLDR
 
@@ -12,7 +13,7 @@ already enforced — by `/doctor` and by `claude-config:audit-instructions`. The
 that applies every relevant existing skill in a fixed order, plus detectors for the four gaps
 nothing covers.
 
-### The four documents
+### The design documents
 
 - [design/article-sections.md](design/article-sections.md) — the source decomposed into 15 sections,
   every paragraph and claim, nothing dropped
@@ -20,8 +21,14 @@ nothing covers.
   documentation fetched 2026-07-24, marked confirmed / partly confirmed / `OPINION`-tier
 - [design/coverage-matrix.md](design/coverage-matrix.md) — each rule against the incumbent that
   already enforces it
-- [design/skill-inventory.md](design/skill-inventory.md) — 60 plugins, 178 skills: which are
-  instruments of the pass, which are only targets, and the workload that inventory exposes
+- [design/skill-inventory.md](design/skill-inventory.md) — which plugins are instruments of the pass,
+  which are only targets, and the workload that inventory exposes. Counts are cited by command in
+  "Standards grounding" rather than transcribed here, because they drift
+- [design/proportionality-gate.md](design/proportionality-gate.md) — Phase 2.5's record: the D1–D7
+  dispositions with per-row evidence, the escalation and the operator's decision, the re-derived
+  deliverable shape, the homing map, the `OPINION`-tier policy, and both independent reviews
+- [design/seam-resolution.md](design/seam-resolution.md) — Phase 2's record: no shared criteria
+  artifact, with shape 4 reversed on four verified findings
 
 ### Goal
 
@@ -94,7 +101,9 @@ source with explicit staleness triggers — not restated across the skills that 
 ### Open
 
 1. Naming, once the sweep's surface is drafted (`/naming:name-it-better`).
-2. Which detectors extend an existing skill versus become new ones — the homing map, task #33.
+2. ~~Which detectors extend an existing skill versus become new ones.~~ **Closed** — the homing map
+   is discharged in [design/proportionality-gate.md](design/proportionality-gate.md). Two host
+   plugins: `claude-config` and `claude-memory`.
 
 ### Acceptance criteria
 
@@ -208,52 +217,77 @@ Phase 2.5 rather than resolved here:
   an `output-styles/` directory, and can override the operator's selection via `force-for-plugin`.
   D1's surface partition is incomplete without them.
 
-### Phase 2: Resolve the cross-plugin criteria seam [TODO]
+### Phase 2: Resolve the cross-plugin criteria seam [DONE]
 
-Review: architecture
+Review: architecture — satisfied by a cross-vendor review and a blind derivation, both recorded in
+[design/proportionality-gate.md](design/proportionality-gate.md).
 
-The design-resolution document names four surviving shapes: artifact contract in the consumer
-project, catalog owned by one plugin and passed as an invocation argument, no shared catalog with
-each plugin owning its own criteria, or a canonical repo-level source materialized per carrying
-plugin by a sync script. Pick one, write down why, and state what drift risk the choice accepts.
-This is the load-bearing decision — every later phase inherits it.
+**Ran after Phase 2.5, not before it.** [design/design-resolution.md](design/design-resolution.md)
+says the Tier A classification and Phase 2's own existence rest on "a versioned criteria catalog
+consumed by more than one plugin". Phase 2.5 decides whether there is one, so deciding the seam
+first would have decided it against a premise the gate deletes. Information flows one way.
 
-**Shape 4 is the starting position, not merely an option.** It is the mechanism this repository
-already runs three times — `standards-contract.md`, `hook-utils.sh`, `artifact-protocol.md` — two of
-which hold convention-registry rows. It keeps the catalog marketplace-owned, keeps every check
-standalone-useful, and converts drift into a CI failure. A shape other than 4 must say what it buys
-that is worth giving those up. The evidence and the price are in
-[design/design-resolution.md](design/design-resolution.md).
+**Outcome: no shared criteria artifact.** Each plugin owns its criteria outright; cooperation is a
+presence-gated namespaced skill invocation with a documented standalone fallback — the seam these
+two plugins already run in both directions. Shape 4 was the starting position and is **reversed**;
+Shapes 1 and 2 are rejected with reasons. Full record, including the drift risk the choice accepts:
+[design/seam-resolution.md](design/seam-resolution.md).
 
-Consequences the decision record must carry explicitly rather than discover later:
+Four verified findings reversed shape 4, and every one of them was unavailable when it was proposed:
 
-- Under the consumer-artifact shape, `claude-memory` and `docs-hygiene` gain a consumer-project
-  configuration surface and neither has a `setup` skill (verified: `claude-config`, `skill-quality`,
-  and `plugin-quality` do). A conforming `setup` skill becomes mandatory for both.
-- A catalog path inside another skill's `reference/` directory is a private surface. Reaching it from
-  outside is exactly what `docs-hygiene:audit-encapsulation` exists to detect. This is the
-  invocation-argument shape's problem; under shape 4 each plugin reads only its own
-  `${CLAUDE_PLUGIN_ROOT}/reference/`.
-- Under shape 4, one catalog bump bumps every carrying plugin together, because
-  `sync-standards-contract.sh --check-bump` is the precedent and it gates on the manifest version,
-  the frontmatter semver, and a new CHANGELOG entry. That release coupling is the price and belongs
-  in the decision record, not in a later surprise.
-- Whatever the shape, a byte-identical copy landing in a second plugin trips
-  `check-cross-plugin-source-drift.sh --check` as an unregistered cluster —
-  `reference/criteria.md` is not in that script's skip list. Registering the cluster behind a
-  dedicated sync script is the repository's sanctioned resolution.
+- **Its cited CI guarantee never fires for this artifact.** `check-cross-plugin-source-drift.sh`
+  clusters on the full path-within-plugin, and a criteria catalog lives at
+  `skills/<skill-name>/reference/criteria.md` where the skill name differs by construction. Four
+  `criteria.md` files exist today at four distinct paths and form zero clusters; `--check` exits 0.
+  This plan's own claim that a byte-identical copy trips the check as an unregistered cluster is
+  **false** — the skip-list argument was necessary but not sufficient.
+- **Relocation breaks a currently-green gate**, and then stops watching: `check-skill.sh`
+  existence-checks skill-internal refs, so the move emits `broken skill-internal ref`, while the
+  post-move `](../../reference/criteria.md)` form escapes its extractor entirely.
+- **Adoption is six to seven registration points**, not one — and one of them, the cluster registry
+  entry, is unreachable because no cluster can form.
+- **The catalog has no frontmatter to bump.** `Version: 1.0.0` is body prose under an H1; the
+  precedent's bump machinery reads a YAML key.
 
-- **Sanity Check:** `design/seam-resolution.md` exists, names the chosen shape, cites
-  `PLUGIN-PHILOSOPHY.md` "Design boundary", and records why each of the other three was rejected —
-  `rg -c "rejected" design/seam-resolution.md` ≥ 3.
-- **Sanity Check:** `/docs-hygiene:audit-encapsulation` run against the chosen seam reports no
-  encapsulation violation.
+The strongest argument is one no shape analysis had: **the corpus contains no instance of one plugin
+reading another's `reference/criteria.md`**, and `docs-hygiene:audit-encapsulation` classifies
+`reference/` as private surface. A shared catalog would be the first violation of the encapsulation
+contract this repository enforces.
 
-### Phase 2.5: Proportionality gate — which detectors survive [TODO]
+- **Sanity Check — passes.** `rg -c "rejected" design/seam-resolution.md` returns 6 (≥ 3), and the
+  document names the chosen shape and cites `PLUGIN-PHILOSOPHY.md` "Design boundary" verbatim.
+- **Sanity Check — satisfied by construction, re-asserted at Phase 8.** The design introduces no
+  cross-plugin file read, so there is no surface for `/docs-hygiene:audit-encapsulation` to flag.
+  Verified by inspection too: every criteria reference in the corpus is same-plugin and relative.
+  Running the skill against the implemented result remains a Phase 8 gate.
 
-Runs before Phase 3 and Phase 5, because it decides what those two phases are built against. A
-catalog and a homing map sized for seven detectors are the wrong artifacts if three of them are
-calibration inputs to incumbents.
+### Phase 2.5: Proportionality gate — which detectors survive [DONE]
+
+Ran first, ahead of Phase 2. Full record with per-row evidence, the escalation, the operator's
+decision, the re-derived shape, the homing map, the `OPINION`-tier policy, the D1 scope answers, and
+both independent reviews: [design/proportionality-gate.md](design/proportionality-gate.md).
+
+**Outcome.** One officially-backed new check survives (D1, as I12). One further new check ships
+`OPINION`-tier and default-off (D3). Everything else is an edit to a check that already exists.
+The escalation condition fired and **the operator approved re-deriving the deliverable's shape**:
+the cross-plugin catalog, its convention-registry owner doc, and the sync-script materialization are
+dropped; the sweep, the re-run contract, and D1 survive. Two host plugins receive rules —
+`claude-config` and `claude-memory` — not four. Nothing lands in `docs-hygiene` or `skill-quality`.
+
+Three findings from the gate that later phases inherit:
+
+- **The gate's own test had to be split in two.** "Does an incumbent already cover it" and "is it
+  officially backed" are orthogonal, and the first draft demoted D2 on the second while reporting it
+  as the first. Every disposition now names which test it fails.
+- **`OPINION`-tier enablement inverts for suppressors.** D4 withholds findings rather than emitting
+  them, so defaulting it off deletes the mitigation for this plan's own High/High "detectors flag
+  correct constraint as over-constraint" risk and makes trimming strictly more aggressive.
+- **D1's detection rule is narrower than "two instructions differ."** Where the official layering
+  rule already picks a winner — skills, subagents, and MCP servers override by name — differing
+  instructions are a resolved override, not a conflict. The comparison set is the `CLAUDE.md`
+  family, hooks, and output styles.
+
+The original phase text follows, retained because the dispositions were assigned against it.
 
 The seven detectors are not equal-weight, and the plan's own evidence says so.
 `design/coverage-matrix.md` ranks the four gaps and finds only one justifies new surface: S3,
@@ -288,33 +322,58 @@ contract, and a sweep are machinery sized for a multi-detector program; carrying
 plus a set of incumbent refinements is a different, smaller artifact. That re-derivation is a
 user-approval gate, not an implementation detail.
 
-- **Sanity Check:** every D1–D7 carries one of {detector, calibration input to a named incumbent,
-  deferred with a trigger} plus its reason, and no `OPINION`-tier rule is enabled on bare invocation.
-- **Sanity Check:** if exactly one detector survives, the decision record states whether the operator
-  approved continuing with the full machinery or re-deriving the shape.
+- **Sanity Check — passes, with the vocabulary corrected.** Every D1–D7 carries a disposition and a
+  reason. The three-value vocabulary proved incomplete: D4 emits nothing, so `suppression input` was
+  added rather than stretching a bad fit, and the gate says so instead of leaving the up-front claim
+  standing. The `OPINION` clause is amended for the same reason — no `OPINION` rule that *emits* is
+  enabled on bare invocation, while a rule that *withholds* must be.
+- **Sanity Check — passes.** Exactly one officially-backed detector survived; the decision record
+  states that the operator approved re-deriving the shape rather than continuing with the full
+  machinery, on 2026-07-24.
 
-### Phase 3: Build the anchored criteria catalog [TODO]
+### Phase 3: Write the criteria edits into the two host catalogs [TODO]
 
-Task #34, shaped by Phase 2. Encode every rule from `design/article-sections.md` with its official
-status from `design/official-corroboration.md`, preserving the three axes the existing catalog
-already uses (evidence tier, authority, severity) and adding a recheck trigger per source page.
-`OPINION`-tier rules are recorded as such, never dropped. Follows
-`claude-config/skills/audit-instructions/reference/criteria.md` as the precedent — extend it, sibling
-it, or (under seam shape 4) relocate it to a canonical `docs/conventions/` path and materialize
-copies back into each carrying plugin. The relocation path makes the pre-flight consumer check below
-a hard prerequisite rather than a courtesy, because it moves a live contract surface.
+Task #34, **re-derived.** There is no new catalog, no canonical relocation, and no per-plugin
+materialization — Phase 2.5 deleted the multi-plugin premise and Phase 2 found the mechanism would
+not have worked here anyway. What remains is edits to two files that already exist.
 
-- **Pre-flight consumer check (FIRST work item):** the catalog is a contract surface. `rg` for every
-  existing citation of `criteria.md` across `plugins/` and `docs/` before changing its shape; record
-  each parse path and citing skill.
-- **Second work item — the convention registry.** Write the owner doc and add its row to
-  `docs/PLUGIN-PHILOSOPHY.md` "Convention registry" BEFORE any second plugin adopts the catalog. Four
-  plugins adopt it in Phase 8; the registry row is the gate they pass through.
-- **Sanity Check:** `scripts/check-catalog-coverage.sh` (new, per the repo's `check-*.sh` idiom — 16
-  such gates exist) exits 0: it extracts every `S<n>` id from `design/article-sections.md` and asserts
-  each appears in the catalog or in the catalog's stated exclusion list.
-- **Sanity Check:** the "Convention registry" table in `docs/PLUGIN-PHILOSOPHY.md` gained one row
-  whose target path exists on disk.
+**`plugins/claude-config/skills/audit-instructions/reference/criteria.md`**
+
+- New check **I12** — D1, cross-surface instruction conflict, scoped per the gate's narrowing
+  (task #19).
+- New locality check beside I3 — D3, on the definition-site axis rather than I3's load-timing axis,
+  `OPINION`-tier and default-off (task #23).
+- **I9's Remediate line extended** with the interface destination — D2, `OPINION`-tier, default-off
+  (task #22).
+- **I3's Remediate line gains a destination-qualifying test** ("a destination qualifies only if it
+  defers loading — `@path` imports do not") **and a move cost** (task #26, non-memory half).
+- **A stopping condition on I6 and I8** — D4, default-**on**, per the suppressor inversion
+  (task #24).
+
+**`plugins/claude-memory/skills/audit/reference/criteria.md`**
+
+- **One consolidated C3 revision** — D7 and D6's memory half are the same rule. Adds an auto-memory
+  destination row, an `@path` non-deferring row, and a per-destination move cost drawn from the
+  compaction table the plugin already ships in `reference/official-guidance.md` and no check cites
+  (task #27).
+
+Every rule cites its source URL rather than restating doctrine, and carries the catalog's existing
+recheck triggers so one staleness event fires all of them. The pre-flight consumer check is **done**
+and its result is why the catalog stays put: three parse paths, all bare skill-relative markdown
+links in `audit-instructions/SKILL.md`, no script or CI workflow reads the file, and a reverse
+`[SKILL.md](../SKILL.md)` back-link at `criteria.md:167` constrains where it could live at all.
+
+The convention-registry work item is **dropped**: the registry gates a new cross-plugin convention,
+and extending one plugin's own reference file is not one. Task #43 decides separately whether the
+version stops being body prose and becomes assertable frontmatter.
+
+- **Sanity Check:** `scripts/check-catalog-coverage.sh` (new, per the repo's `check-*.sh` idiom)
+  exits 0: it extracts every `S<n>` id from `design/article-sections.md` and asserts each appears in
+  a catalog entry or in a stated exclusion list. Traceability is an acceptance criterion, and it is
+  the one thing the smaller shape must not lose.
+- **Sanity Check:** `/skill-quality:check` passes for both modified skills, and
+  `scripts/check-cross-plugin-source-drift.sh --check` still exits 0 — proving no edit accidentally
+  created a byte-identical cluster.
 
 ### Phase 4: Define the re-run contract [TODO]
 
@@ -349,29 +408,41 @@ again only on a catalog version bump or a change to the tree.
   state key, the concurrency posture, the per-class suppression surface, the checkpoint property, and
   each idempotence property as a condition a test could assert — not as prose intent.
 
-### Phase 5: Map each check to its owning plugin [TODO]
+### Phase 5: Map each check to its owning plugin [DONE]
 
-Task #33. One table: check, owning plugin, disposition, reason — where disposition is `extend`, `new`,
-`calibration-input-to-<plugin>`, or `deferred-with-trigger`, per Phase 2.5's verdict. Starting
-positions are recorded in task #33. The D4 carve-out is not a check — it is a suppression input every
-trimming detector consults, so it needs a home reachable under Phase 2's seam.
+Task #33, discharged inside [design/proportionality-gate.md](design/proportionality-gate.md) rather
+than as a separate artifact — it would have been a seven-row table restating that document's own.
 
-- **Sanity Check:** one row per D1–D7 carrying the disposition Phase 2.5 assigned it; every named
-  owning plugin exists under `plugins/`; every `extend` and `calibration-input-to-` row names a skill
-  directory that already exists and every `new` row names one that does not; every
-  `deferred-with-trigger` row names its trigger; no row reads "TBD". A non-empty string is not a
-  verified owner.
+Two corrections the mapping forced, both from reading the incumbents' bodies instead of their
+listing descriptions:
+
+- **The D4 carve-out needs no seam.** It was expected to be consulted by trimming rules in three
+  plugins. Every `docs-hygiene` trimmer already owns a stopping condition shaped to its own content
+  model — semantic-loss revert, always-admitted categories, fact ownership, reasoning-stays-inline —
+  and `skill-quality`'s skills remove no content. The gap is `claude-config`'s I6 and I8 alone.
+- **`skill-quality:check` hosts nothing.** Its contract is "NO model invocation… reproducible in CI
+  or a pre-commit hook", and `argument-hint` is read by nothing in the plugin. A
+  representational-equivalence judgement would be the first non-reproducible check in a gate whose
+  value is that every check is reproducible.
+
+- **Sanity Check — passes.** One row per D1–D7 with its disposition; both named owning plugins exist
+  under `plugins/`; every row names a skill directory that already exists; the
+  `deferred-with-trigger` row names its trigger; no row reads "TBD".
 
 ### Phase 6: Design the detectors and the sweep [TODO]
 
 Review: architecture
 
-Tasks #19, #22–#27 (the seven detector designs) and #28 (the sweep). Each detector needs a
-false-positive story before it ships. Naming resolves here via `/naming:name-it-better`, constrained
-by the fixed verb meanings.
+Tasks #19 and #22–#27 (now two new checks plus four edits to existing ones, per Phase 2.5) and #28
+(the sweep). Each check needs a false-positive story before it ships. Naming resolves here via
+`/naming:name-it-better`, constrained by the fixed verb meanings.
 
-Detector designs follow Phase 2.5's dispositions: only what survives that gate as `new` or `extend`
-is designed here.
+**The sweep is the phase's centre of gravity now, not the detectors.** With one new
+officially-backed check, the design work that carries risk is the run contract — the derived
+exclusion set, the three-scope inventory, finding identity, suppression, resumability, and the apply
+posture. That is also the argument for the sweep existing at all: the checks are delegated, the run
+semantics are not, and invoking the incumbents by hand yields none of them. Recorded in
+[design/proportionality-gate.md](design/proportionality-gate.md).
 
 **The exclusion set is derived, never hardcoded.** Three classes a fix-capable pass would corrupt,
 all verified present:
@@ -469,9 +540,12 @@ false-positive carve-out, and evals where the owning plugin's conventions requir
 and implementation to land as separate PRs; the fork point is the tip of
 `docs/context-engineering-claude-5-topic` after Phase 7.
 
-**Conditional work item — new `setup` skills.** If Phase 2 chose the consumer-artifact shape,
-`claude-memory` and `docs-hygiene` each gain a consumer-project configuration surface and neither has
-a `setup` skill today. Both become mandatory.
+**The conditional `setup`-skill work item is dropped.** It was contingent on Phase 2 choosing the
+consumer-artifact shape, which it did not: no plugin gains a consumer-project configuration surface,
+so neither `claude-memory` nor `docs-hygiene` needs a `setup` skill on this work's account.
+
+**Two plugins are modified, not four** — `claude-config` and `claude-memory`. `docs-hygiene` and
+`skill-quality` are targets of the pass, never instruments of it.
 
 - **Sanity Check:** `/skill-quality:check` passes for every skill created or modified; no new skill
   restates catalog content that Phase 2's seam makes citable.
@@ -616,16 +690,23 @@ byte-identical cluster copies and six vendored upstream materializations.
 
 ## Open questions
 
-- Phase 2's seam choice — the plan's load-bearing unknown. Four shapes now, with shape 4 as the
-  starting position.
-- Whether D2–D7 survive Phase 2.5's proportionality gate as detectors or land as calibration inputs
-  to their incumbents. If most land as calibration inputs, the sweep, the versioned catalog, and the
-  convention-registry owner doc are carrying one detector, and the shape of the whole deliverable is
-  re-derived at that gate — which is why the gate precedes Phase 3.
-- What an `OPINION`-tier finding means to a consumer — default enablement, severity ceiling, opt-in
-  mechanism. Undefined today because the tier has never been populated.
-- Whether the sweep's dispatch exceeds a session's ceiling and must become a dynamic workflow.
-- Naming, deferred to Phase 6 under the fixed verb meanings.
+Three of the five are closed. Kept with their answers rather than deleted, because later phases cite
+them.
+
+- ~~Phase 2's seam choice.~~ **Closed:** no shared criteria artifact —
+  [design/seam-resolution.md](design/seam-resolution.md).
+- ~~Whether D2–D7 survive as detectors.~~ **Closed:** they do not. One officially-backed new check
+  (D1), one `OPINION`-tier new check (D3), four edits to existing checks, one deferred —
+  [design/proportionality-gate.md](design/proportionality-gate.md).
+- ~~What an `OPINION`-tier finding means to a consumer.~~ **Closed:** emitting rules default off with
+  an `info` severity ceiling, never fix-applied, and every run reports the tier's existence and the
+  argument that enables it; withholding rules default **on**.
+- **Open** — whether the sweep's dispatch exceeds a session's ceiling and must become a dynamic
+  workflow. Phase 6.
+- **Open** — naming, under the fixed verb meanings. Phase 6.
+- **Open, new** — whether `mcp-tools:audit` actually covers tool-search configuration. The gate
+  defers the "deferred tool loading is unowned" remainder out of scope on that basis, which is a
+  negative claim about a body nobody has read. Task #44.
 
 ## Handoff to implementation
 
