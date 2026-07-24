@@ -184,12 +184,20 @@ vars are read at session start, so nested spawning is inert until the next sessi
      tested including slash invocation, so no positive control was achieved; the probe rig's
      `--plugin-dir` plugin likely has no resolvable `pluginConfigs` identity. A real verdict needs a
      marketplace-installed plugin with a confirmed-live value. 25 skills carry the substitution.
-9b. **Three preload behaviors remain undocumented and untested.** Whether `!`
-   `${CLAUDE_SKILL_DIR}`/`${CLAUDE_PROJECT_DIR}` resolve in preloaded content; whether preload still
-   fires when `Skill` is absent from `tools` or listed in `disallowedTools` (strongly implied by two
-   doc sentences read together, never asserted); and whether preloaded content survives
-   auto-compaction — the re-attachment budget is defined over "the most recent *invocation*", and a
-   preloaded skill was never invoked. Amendment 8 is chosen so none of these is load-bearing.
+9b. **Two further preload behaviors settled empirically** (probe against installed discovery v0.8.2
+   via plugin-agent frontmatter; scripts and transcripts in the session scratchpad, `run11`/`run12`):
+   - **Preload injects the `SKILL.md` body ONLY.** Supporting files under the skill directory stay
+     on-demand — they are not dragged into the agent's startup context. This is the property that
+     makes the recommended shape work: the mandate arrives guaranteed while the heavy reference stays
+     lazy, so preload and progressive disclosure are not in tension.
+   - **`${CLAUDE_PLUGIN_ROOT}` expands on the preload path.** The pointer a preloaded skill carries to
+     its sibling reference file therefore arrives as a working absolute path at turn zero, with no
+     resolution step required of the agent.
+9c. **Two preload behaviors remain undocumented and untested.** Whether preload still fires when
+   `Skill` is absent from `tools` or listed in `disallowedTools` (strongly implied by two doc
+   sentences read together, never asserted); and whether preloaded content survives auto-compaction —
+   the re-attachment budget is defined over "the most recent *invocation*", and a preloaded skill was
+   never invoked. Amendment 8 is chosen so neither is load-bearing.
    Note that `!` firing does **not** argue for preloading precompute: it fires at every spawn before
    the agent knows it needs the data, which multiplies under fan-out.
 
