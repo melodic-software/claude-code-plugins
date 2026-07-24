@@ -24,6 +24,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   content. Documented as an advisory, model-honored defense rather than a runtime-enforced one.
 - Transport bounds on the step-1 call: `--proto '=https'`, `--max-time`, `--max-filesize`, and no
   `-L`, so no redirect-driven egress.
+- `-q` leads every curl invocation on both paths. curl reads a default `.curlrc` "even when
+  `--config` is used" and skips it only when `--disable` "is used as the first parameter on the
+  command line", so without it a consumer's ambient config could set `location` and silently
+  re-enable redirect following, defeating the egress bounds above.
 - `curl` declared as a required-for-correctness prerequisite at step 1, with a visible degrade to
   step 2 on absence — the xtomd endpoint is POST-only, so `WebFetch` cannot substitute.
 - Thread Reader App miss detection by final URL (`.../thread/<id>/error`) rather than status code,

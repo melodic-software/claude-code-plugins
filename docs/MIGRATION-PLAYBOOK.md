@@ -944,6 +944,13 @@ operated by others — so surfaces 5 and 6 carry the weight here.
   the reader's interest in it, and neither vendor publishes a retention policy, so assume every
   submitted URL is logged indefinitely. `--proto '=https'`, `--max-time`, and `--max-filesize` bound
   the transport; no `-L`, so no redirect-driven egress.
+
+  Those bounds are only enforceable because `-q` leads every invocation. Review surfaced that curl
+  reads a default `.curlrc` "even when `--config` is used", skipping it only when `--disable` "is
+  used as the first parameter on the command line" (curl's own manual, verified against the local
+  binary). A consumer's ambient `.curlrc` setting `location` would otherwise re-enable redirect
+  following and silently defeat the no-redirect egress claim on both the bash and the Windows
+  config-file paths — an environment-supplied bypass of a control this record asserts.
 - **Provenance & third-party trust (6). Present and accepted.** Two vendors, neither first-party:
   - `xtomd.com` — publishes a `POST /api/markdown` endpoint under a documented public contract
     (`/llms.txt`, `/llms-full.txt`, and an OpenAPI 3.1.0 document at `/.well-known/openapi.json`),

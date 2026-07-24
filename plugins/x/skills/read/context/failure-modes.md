@@ -52,11 +52,12 @@ show-error
 never reaches the transcript and the reporting rule below — capture the code, classify `400`/`429`/
 `500`/`502` — cannot be followed. Its absence is how an error body gets mistaken for content.
 
-Then a command line carrying exactly one argument, and no embedded quotes for any marshalling mode to
-strip:
+Then a command line carrying no embedded quotes for any marshalling mode to strip. `-q` stays first:
+curl reads a default `.curlrc` "even when `--config` is used", so without it a consumer's ambient
+config could re-enable redirect following and defeat the bounds set in the file above.
 
 ```powershell
-curl.exe -K "<plugin-data-dir>/x-request-<id>.conf"
+curl.exe -q -K "<plugin-data-dir>/x-request-<id>.conf"
 ```
 
 Quoting inside the config file is parsed by curl, never by PowerShell, so the mode question does not

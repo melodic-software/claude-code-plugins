@@ -100,16 +100,18 @@ quote tweets. This resolves the large majority of pasted links.
 `<REBUILT-URL>` below is the gate's output, never the string the user supplied.
 
 ```bash
-curl -sS --proto '=https' --max-time 30 --max-filesize 5000000 \
+curl -q -sS --proto '=https' --max-time 30 --max-filesize 5000000 \
   -X POST https://xtomd.com/api/markdown \
   -H "Content-Type: application/json" \
   -H "Accept: text/markdown" \
   -d '{"url":"<REBUILT-URL>"}'
 ```
 
-`--proto '=https'` refuses any non-HTTPS scheme, `--max-time` bounds a hung endpoint, and
-`--max-filesize` bounds how much third-party text can be streamed back. No `-L`: redirects are not
-followed, so the request cannot be steered to another host.
+**`-q` must stay first.** curl reads a default `.curlrc` "even when `--config` is used", skipping it
+only when `--disable` "is used as the first parameter on the command line" (curl's manual). Without
+it, an ambient `.curlrc` setting `location` silently re-enables redirect following and the bounds
+below stop holding. `--proto '=https'` refuses non-HTTPS, `--max-time` bounds a hung endpoint, and
+`--max-filesize` bounds returned text. No `-L`, so the request cannot be steered to another host.
 
 On Windows without Git Bash the PowerShell tool is the active shell and needs a different form —
 see [`context/failure-modes.md`](context/failure-modes.md).
