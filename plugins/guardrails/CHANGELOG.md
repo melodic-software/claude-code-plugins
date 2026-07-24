@@ -20,9 +20,13 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   `& 'C:\Python313\python3.exe' -c`, bare `C:\Python313\python3.exe -c`): the command-word boundary
   admits `/` `\` path separators and an optional `.exe`, and the quoted-call scan admits a path prefix
   inside the quotes — all anchored on the `python3` basename, so `notpython3` and a non-python quoted exe
-  (`& 'C:\...\app.exe'`) stay inert. Regression fixtures added for real `open(`/`pathlib` writes (MUST
-  block), path-qualified forms in both lanes (MUST block), and read-only `os.path.normpath` / quoted
-  mention / `notpython3` / non-python exe (MUST stay quiet). This was the in-comment "deferred to A2b" gap.
+  (`& 'C:\...\app.exe'`) stay inert. The PowerShell lane also normalizes invoked script blocks (`{`/`}` →
+  space) before the scan, so a compact `&{python3 -c …}`, a spaced `& {python3 …}`, and a quoted name
+  inside the block (`&{'python3' …}`) collapse to the covered `& python3` / `& 'python3'` forms (this is
+  PowerShell-only — `&{cmd}` has no Bash `{ …; }` analogue). Regression fixtures added for real
+  `open(`/`pathlib` writes (MUST block), path-qualified + script-block forms (MUST block), and read-only
+  `os.path.normpath` / quoted mention / `notpython3` / non-python exe / a fully-quoted `&{python3 …}`
+  string (MUST stay quiet). This was the in-comment "deferred to A2b" gap.
 
 ## [0.14.1]
 

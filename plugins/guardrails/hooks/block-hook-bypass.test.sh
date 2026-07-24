@@ -532,6 +532,23 @@ run_pwsh "PS: bare C:\\...\\python3.exe -c open write (blocked)" \
 # nearby — the anchor is the python3 basename, not any quoted exe path.
 run_pwsh "PS: & 'C:\\...\\app.exe' with open mention (allowed)" \
   "& 'C:\\Program Files\\app.exe' -c \"print open(\"" 0
+# Invoked script block: `&{python3 -c ...}` runs the interpreter with the command
+# glued to the opening brace, so the char before python3 is `{`. Braces are
+# normalized to spaces before the scan (both lanes' quote-intact + blanked forms),
+# so the compact `&{...}`, the spaced `& {...}`, AND a quoted name inside the block
+# (`&{'python3' -c}`) all resolve to the already-covered `& python3` / `& 'python3'`
+# forms. This is PowerShell-only: `&{cmd}` is a script-block invocation with no Bash
+# analogue (a Bash `{ …; }` group requires surrounding spaces, already covered).
+run_pwsh "PS: compact &{python3 -c} open write (blocked)" \
+  "&{python3 -c \"open('x','w').write('a')\"}" 2
+run_pwsh "PS: spaced & {python3 -c} open write (blocked)" \
+  "& {python3 -c \"open('x','w').write('a')\"}" 2
+run_pwsh "PS: &{'python3' -c} quoted-in-block open write (blocked)" \
+  "&{'python3' -c \"open('x','w').write('a')\"}" 2
+# A python3 write mention fully INSIDE a quoted string is still inert — brace
+# normalization does not defeat quote-blanking.
+run_pwsh "PS: quoted string containing &{python3 -c open( (allowed)" \
+  "Write-Output '&{python3 -c open(}'" 0
 
 # Review round 8: module-qualified producer heads.
 run_pwsh "PS: module-qualified Write-Output > file (blocked)" \

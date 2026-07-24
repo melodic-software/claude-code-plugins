@@ -481,6 +481,16 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   ps::blank_herestrings "$COMMAND"
   _ps_nobt="${PS_BLANKED//\`/}"
   _ps_nobt="$(printf '%s' "$_ps_nobt" | sed 's/#.*$//')"
+  # Invoked script blocks glue the first command straight onto the brace
+  # (`&{python3 -c …}`), so the char before the interpreter is `{` — absent from
+  # the boundary classes below. Normalize `{`/`}` to spaces here, before BOTH
+  # derived forms, so the compact `&{…}`, the spaced `& {…}`, and a quoted name
+  # inside the block (`&{'python3' …}`) all collapse to the already-covered
+  # `& python3` / `& 'python3'` shapes. PowerShell-only: `&{cmd}` is a script-block
+  # invocation with no Bash analogue (a Bash `{ …; }` group needs surrounding
+  # spaces, already covered), so the Bash lane needs no matching change.
+  _ps_nobt="${_ps_nobt//\{/ }"
+  _ps_nobt="${_ps_nobt//\}/ }"
   _ps_lcq="${_ps_nobt,,}"
   _ps_bare="$(ps::blank_quoted_spans "$_ps_nobt")"
   _ps_bare="${_ps_bare,,}"
