@@ -360,6 +360,11 @@ CFG19B="$TEST_TMPDIR/cfg19b"
 write_settings "$CFG19B" "$FULL_ALLOW" "~${BS}.worktrees"
 assert_eq "backslash-form tilde entry expands → zero gaps" "0" "$(run_home "$HOME19" "$REPO" "$CFG19B" --count --worktree-root "$HOME19/.worktrees/999-x")"
 
+# --- Case 19c: a trailing separator on the home does not double on the join --
+# HOME ending in / (or \) must not yield //.worktrees, which normalize_path does
+# not collapse and so would not match the absolute probed root.
+assert_eq "trailing-slash home still covers the child → zero gaps" "0" "$(run_home "$HOME19/" "$REPO" "$CFG19" --count --worktree-root "$HOME19/.worktrees/999-x")"
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0

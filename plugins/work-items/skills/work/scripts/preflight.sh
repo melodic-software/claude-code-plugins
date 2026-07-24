@@ -241,6 +241,11 @@ normalize_path() {
   # backslashes, and any in the stripped remainder, are folded by the tr below);
   # neither set leaves ~ literal.
   if [[ -n "$home" ]]; then
+    # Strip one trailing separator (either form — HOME=/, USERPROFILE=…\) so the
+    # join below cannot double it; normalize_path does not collapse an internal
+    # //, so //.worktrees would never match an absolute /.worktrees/… root.
+    home="${home%/}"
+    home="${home%\\}"
     # shellcheck disable=SC2088  # the literal ~ arms are patterns being matched, not paths to expand
     case "$p" in
       "~") p="$home" ;;

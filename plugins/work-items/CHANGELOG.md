@@ -14,8 +14,9 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   its `(c)` gap even though the grant was live. `normalize_path` now expands a leading `~` (`~` alone,
   or `~/…` / `~\…` — both separators, since a Windows entry may use a backslash) to the user home
   (`HOME`, then `USERPROFILE`) before folding, so tilde-form entries compare equal to the absolute
-  probed root. Regression cases cover the forward- and backslash-separator matches, the outside-home
-  non-match, and unchanged non-tilde behavior.
+  probed root. A trailing separator on the home (including `HOME=/`) is stripped before the join so
+  it cannot produce a non-collapsing `//`. Regression cases cover the forward- and backslash-separator
+  matches, the trailing-separator home, the outside-home non-match, and unchanged non-tilde behavior.
 
 ## [0.22.0]
 
