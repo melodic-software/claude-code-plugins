@@ -317,6 +317,42 @@ the wrapper gate has already proven ready and in-tier. That denial is an environ
 ceiling this skill's own contract has no authority over — a normal, expected outcome to plan for,
 not a bug in this skill, a stalled worker, or a reason to retry with broader permissions.
 
+### Lane-Script Reachability (operator prerequisite)
+
+That ceiling reaches the lane's own scripts, not just GitHub-mutating commands. Every tier proves
+readiness with a bundled script — the Python engine and gates under `skills/babysit-prs/scripts/`,
+the guarded wrappers under `bin/`, and the plugin-scope helpers under `scripts/` that the
+Python-free degrade path itself depends on — including the **read-only** merge-readiness check,
+which mutates nothing and is still a shell invocation the host may deny. So those scripts being
+invocable without a per-call denial is a declared prerequisite of the lane, on the same footing as
+Python, and unlike Python it has no degrade tier: there is no permission-free path to a proven
+readiness verdict.
+
+The grant is the operator's, never the plugin's — a plugin cannot ship permission rules, and an
+agent must not broaden its own. The allow-rule shape guidance, and the official sources behind it,
+are owned by the marketplace's permission-rule-hygiene convention:
+<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/permission-rule-hygiene/README.md>.
+
+Reachability is **not** implied by a `permissions.allow` rule. Whether shell allow rules resolve at
+all while a host safety classifier is active is governed by the host's own auto-mode configuration
+— read [auto-mode-config](https://code.claude.com/docs/en/auto-mode-config) for the current
+semantics of `autoMode.classifyAllShell`, of the prose `autoMode.allow` exceptions, and of which
+settings scopes the classifier reads `autoMode` from; never infer them from this file, and never
+assume a prose entry guarantees a given command runs. What the lane requires is only the outcome:
+a configuration under which this plugin's bundled scripts, invoked in the path forms this file
+mandates (§Guarded Mutation Wrappers), run without a denial. The operator confirms the effective
+configuration with `claude auto-mode config`.
+
+**A denied gate is never downgraded to weaker evidence.** When the harness blocks the read-only
+merge-readiness check, that PR's readiness is simply **not gate-proven**. `mergeStateStatus`, the
+check rollup, or any other live `gh` state a worker reports is NOT a substitute verdict — it misses
+exactly the cross-checks the gate exists to run (dependency author, unprotected base, self-login
+exemption, head match). Report that PR as **readiness unproven — harness blocked the gate**, name
+the exact command attempted, and surface the prerequisite above once for the cycle rather than
+re-attempting the call per PR. Pinned-Command Degradation below covers the denied-*mutation* case;
+this clause covers the denied-*check* case, which has no ready-to-execute handoff precisely because
+nothing was ever proven ready.
+
 ### Pinned-Command Degradation
 
 When the runtime denies a guarded mutation that this skill's own gate already proved ready —

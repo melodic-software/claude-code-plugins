@@ -3,6 +3,36 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.0]
+
+### Added
+
+- **`babysit-prs` declares auto-mode reachability of its own scripts as a prerequisite (`#787`).**
+  A host permission classifier can deny the lane's bundled scripts — including the *read-only*
+  merge-readiness check, which mutates nothing — leaving the lane unable to gate-prove readiness.
+  That reachability is now a declared prerequisite alongside Python, stated with the difference that
+  matters: it has **no degrade tier**, because the Python-free path also proves readiness with a
+  bundled script. The contract lives in `skills/babysit-prs/reference/safety.md` "Lane-Script
+  Reachability", which points at the host's auto-mode configuration reference for the permission
+  semantics rather than restating them, and names the operator's verification step
+  (`claude auto-mode config`).
+- **A denied readiness gate is reported, never downgraded (`#787`).** The observed failure was the
+  orchestrator substituting live `gh` state (`mergeStateStatus`, check rollup) for the blocked
+  gate's verdict — evidence that misses the gate's dependency-author, unprotected-base, self-login,
+  and head-match cross-checks. A denied check now reports the PR as *readiness unproven — harness
+  blocked the gate* with the exact command attempted. Pinned-Command Degradation continues to cover
+  the denied-*mutation* case; this covers the denied-*check* case, which has no ready-to-execute
+  handoff because nothing was proven ready.
+
+### Changed
+
+- **`setup`'s babysit `check` gained a lane-script reachability probe (`#787`).** So the
+  prerequisite surfaces before a cycle rather than mid-cycle. It reports the operator-side surface
+  (an `autoMode` block in the scopes the classifier reads, and `claude auto-mode config` coverage of
+  the plugin's bundled scripts) as INFO with remediation — reachability cannot be proven from
+  settings alone, since a classifier decides per call, so the probe never FAILs and never writes
+  settings.
+
 ## [0.26.0]
 
 ### Added

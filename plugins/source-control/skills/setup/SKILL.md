@@ -1,6 +1,6 @@
 ---
 name: setup
-description: "Configure the source-control plugin. check (read-only): report the effective commit-subject / PR-title convention merged across its user-global, team, and personal-overlay layers, and the babysit-prs userConfig surface (effective config, branch-protection posture, Windows long paths). apply: interview the repo and write the convention config to a chosen layer, and walk the sanctioned babysit reconfigure paths. Use when: 'set up source-control', 'configure commit convention', 'source-control setup', 'what commit format does this repo use', 'set my personal commit convention', 'override the team convention locally', 'configure babysit', 'check babysit config', or /commit, /pull-request, or /babysit-prs report missing configuration. Actions: check (read-only verification, default) | apply (write the convention config; document the babysit config paths). Re-runnable and safe."
+description: "Configure the source-control plugin. check (read-only): report the effective commit-subject / PR-title convention merged across its user-global, team, and personal-overlay layers, and the babysit-prs userConfig surface (effective config, branch-protection posture, Windows long paths, lane-script permission reachability). apply: interview the repo and write the convention config to a chosen layer, and walk the sanctioned babysit reconfigure paths. Use when: 'set up source-control', 'configure commit convention', 'source-control setup', 'what commit format does this repo use', 'set my personal commit convention', 'override the team convention locally', 'configure babysit', 'check babysit config', or /commit, /pull-request, or /babysit-prs report missing configuration. Actions: check (read-only verification, default) | apply (write the convention config; document the babysit config paths). Re-runnable and safe."
 argument-hint: "check | apply [layer=user|team|local] [subject_pattern=<anchored-regex | 'Conventional Commits'>]"
 user-invocable: true
 disable-model-invocation: true
@@ -131,6 +131,18 @@ diagnostics:
    `HKLM\SYSTEM\CurrentControlSet\Control\FileSystem`); report each as enabled/disabled with the
    remediation (`git config --global core.longpaths true`; the OS value needs an elevated change, so
    report it — never attempt it). Skip this probe silently on non-Windows.
+4. **Lane-script reachability under the host permission layer.** The babysit lane declares its own
+   bundled scripts — engine, gates, and guarded wrappers — invocable without a per-call permission
+   denial as a prerequisite with no degrade tier (`babysit-prs` "Engine and degrade"; the contract
+   is `skills/babysit-prs/reference/safety.md` "Lane-Script Reachability"). Report it here so the
+   operator learns of a gap before a cycle stalls on it. **Nothing can prove reachability from
+   settings alone** — a host safety classifier decides per call, at call time — so probe the
+   operator-side surface, not the outcome: whether an `autoMode` block exists in the scopes the
+   classifier actually reads (user-global and managed settings; not a project's `.claude/`
+   settings), and whether `claude auto-mode config` shows effective rules covering this plugin's
+   bundled scripts. Report the finding as INFO with the operator-side remediation and the
+   [auto-mode configuration reference](https://code.claude.com/docs/en/auto-mode-config) — never
+   FAIL on it (absence is not proof of a denial) and never write the settings.
 
 ## `apply` (idempotent)
 
