@@ -159,7 +159,7 @@ Counts are cited by command rather than transcribed, because they drift and the 
 `ls plugins/*/skills/*/SKILL.md | wc -l` (181 top-level skills at time of writing),
 `find plugins -name SKILL.md | wc -l` (187, the extra six being vendored upstream materializations).
 
-### Phase 1: Finish the fresh-docs sweep [TODO]
+### Phase 1: Finish the fresh-docs sweep [DONE]
 
 Task #18. Gates every subsequent phase: the remaining checks' premises are unverified until the
 pages land. Fetch and record in `design/official-corroboration.md`, each with its URL: skills
@@ -190,6 +190,21 @@ pass audits or a native mechanism the Phase 6 gate must rule on:
   already names were fetched; it cannot notice a page nobody listed. Before closing the phase, walk
   `https://code.claude.com/docs/llms.txt` and record every page whose subject is an instruction,
   memory, or configuration surface as fetched or explicitly out of scope with a reason.
+
+**Outcome.** All eleven slugs are recorded in `design/official-corroboration.md` and both sanity
+checks pass. The `llms.txt` walk covered all 172 listed pages and surfaced three the eleven-slug list
+had missed — `features-overview`, `output-styles`, and `mcp` — which were fetched rather than
+deferred. Two findings change what later phases are built against, and both are carried into
+Phase 2.5 rather than resolved here:
+
+- **`features-overview` already prescribes D7's routing.** Its "Compare similar features" section is
+  official guidance on choosing between `CLAUDE.md`, `.claude/rules/`, and skills, including the
+  200-line rule and the enforcement boundary between an instruction and a hook. D7 must show what it
+  detects beyond restating that page.
+- **Output styles are an unenumerated instruction surface.** They modify the system prompt directly,
+  default to *removing* Claude Code's built-in software-engineering instructions, ship from plugins in
+  an `output-styles/` directory, and can override the operator's selection via `force-for-plugin`.
+  D1's surface partition is incomplete without them.
 
 ### Phase 2: Resolve the cross-plugin criteria seam [TODO]
 
