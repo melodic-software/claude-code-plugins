@@ -132,4 +132,6 @@ Sweep the entire working state — every file modified or untracked beyond your 
 - **Transitive orphans:** when you delete a call site, chase the chain — the helper only it called, the import only that helper needed, the fixture only that test used, the config key nothing reads anymore.
 - Scratch files, experiment outputs, and generated artifacts that landed inside the project tree.
 
+One exemption, and only one: an artifact built to elicit a preference from the user — a sketch, a throwaway prototype, a deliberately unwired mock — is not debris while the question it exists to surface is still open. It is scratch-file-shaped and would otherwise sweep on sight. It retires by explicit decision once that question is answered, per the problem-framing chapter, section "Show a candidate when prose cannot carry the answer". Sweeping it early destroys the artifact the user was asked to react to.
+
 **Failure mode prevented:** every piece of debris is a cost transfer — five seconds of cleanup you skipped becomes minutes for every future reader deciding whether the dead line is load-bearing.

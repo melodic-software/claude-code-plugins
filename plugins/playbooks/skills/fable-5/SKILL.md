@@ -51,7 +51,7 @@ The distillation of every chapter, grouped in operating-loop order. Each line is
 
 ### Framing — problem-framing
 
-- Assume every request carries unknowns it does not name — reading complete is evidence about how it was written, never about what it covers. Price each discovery move against the rework it prevents: the same unknown costs one sentence at frame time and an implementation change once the work is standing on it.
+- Assume every request carries unknowns it does not name: no trigger firing is not evidence there is nothing to find, and a request that reads complete is evidence about how it was written, never about what it covers. Price each discovery move against the rework it prevents — the same unknown costs one sentence at frame time and an implementation change once the work is standing on it.
 - For any request that names a mechanism, changes behavior, touches 2+ files, or whose because-clause you cannot fill from the request alone (except a single-edit mechanical fix, which is exempt): restate it as "user needs [outcome] because [why]; done looks like [observable]" — an unfillable because-clause means you hold an instruction, not a problem.
 - A mechanism with no symptom is the user's hypothesis: spend 1-3 tool calls linking it to a symptom before implementing. Never silently substitute your own solution; never silently build known-wrong work.
 - Ask the user only ambiguities whose plausible readings produce different work; take the conventional reading of the rest and flag the assumption in one line.

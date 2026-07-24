@@ -57,7 +57,12 @@ only after that version increases.
   it would change the pass width; and the scope bound is tested in both directions.
 - `fable-5`: the long-horizon-memory bullet in the model-adaptation chapter now points at
   the context-economy chapter like its five siblings, instead of carrying general doctrine
-  that had no owner elsewhere.
+  that had no owner elsewhere. The note-granularity and delete-when-disproved rules it used
+  to carry land in the context-economy chapter, which now owns them.
+- `fable-5`: the execution chapter's debris sweep carries one exemption — an artifact built
+  to elicit a preference is not debris while the question it exists to surface is open. It
+  is stated at the sweep itself, so an agent holding only that chapter honors it; the
+  problem-framing chapter cites rather than restates it.
 
 ## [0.3.2]
 
