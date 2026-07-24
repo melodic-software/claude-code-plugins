@@ -459,7 +459,17 @@ if [[ "$TOOL_NAME" == "PowerShell" ]]; then
   # Write-Output "open("`) over-blocks. Fail-safe direction (over-block, never
   # under-block) and structurally unusual for LLM output; kept byte-for-byte in step
   # with the Bash lane rather than diverging one tool's precision from the other.
-  _ps_exec_lc="$(ps::blank_quoted_spans "$COMMAND")"
+  # Blank here-strings and quoted spans, then drop line comments, before the
+  # INVOCATION scan — so an inert `python3 -c` mentioned inside a here-string body
+  # or a `#` comment is not read as a real invocation (parity with the Bash lane's
+  # strip_literals, which drops heredocs and comments). ps::blank_herestrings sets
+  # PS_BLANKED (the RAW command when a here-string is unbalanced — fail-safe toward
+  # over-block, never under-block). The INDICATOR scan below still runs raw (see the
+  # accepted-floor note above): the write tokens legitimately live in the quoted
+  # `-c` payload, exactly as the Bash lane scans them.
+  ps::blank_herestrings "$COMMAND"
+  _ps_exec_lc="$(ps::blank_quoted_spans "$PS_BLANKED")"
+  _ps_exec_lc="$(printf '%s' "$_ps_exec_lc" | sed 's/#.*$//')"
   _ps_exec_lc="${_ps_exec_lc,,}"
   if [[ "$_ps_exec_lc" =~ (^|[[:space:];|&()]+)python3[[:space:]]+-c ]] &&
     [[ "$COMMAND_LC" =~ $_py_write ]]; then

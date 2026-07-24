@@ -497,6 +497,12 @@ run_pwsh "PS: python3 -c read-only os.path.normpath (allowed)" \
   "python3 -c \"import os; print(os.path.normpath('a/b'))\"" 0
 run_pwsh "PS: quoted mention of python3 -c open (allowed)" \
   "Write-Output 'run python3 -c open() later'" 0
+# here-string body / line comment mentioning python3 -c + a write indicator is inert
+# text, not an invocation — blanked before the invocation scan (Bash-lane parity).
+run_pwsh "PS: here-string mentions python3 -c open (allowed)" \
+  "$(printf "@'\npython3 -c open(\n'@\nWrite-Output ok")" 0
+run_pwsh "PS: line comment mentions python3 -c open (allowed)" \
+  "Write-Output ok # python3 -c open(" 0
 
 # Review round 8: module-qualified producer heads.
 run_pwsh "PS: module-qualified Write-Output > file (blocked)" \
