@@ -327,6 +327,31 @@ CFG18="$TEST_TMPDIR/cfg18"
 MSYS_NO_PATHCONV=1 write_settings "$CFG18" "$FULL_ALLOW" "/"
 assert_eq "root additionalDirectories entry covers any worktree root" "0" "$(run "$REPO" "$CFG18" --count --worktree-root "$POSIX_CHILD")"
 
+# --- Case 19: tilde-form additionalDirectories entry expands to the user home -
+# A ~-form entry (~/.worktrees) must expand to $HOME and cover an absolute probed
+# root beneath it — the grant the harness's own tilde expansion makes live but
+# normalize_path previously left unmatched. HOME is set explicitly so the case is
+# independent of the tester's real home.
+HOME19="$TEST_TMPDIR/home19"
+mkdir -p "$HOME19"
+CFG19="$TEST_TMPDIR/cfg19"
+# shellcheck disable=SC2088  # the literal ~ entry is the input under test, not a path to expand
+write_settings "$CFG19" "$FULL_ALLOW" "~/.worktrees"
+# run_home <home> <fixture-dir> <config-dir> [args...] — like run(), with HOME set
+# so a tilde-form entry expands deterministically. CLAUDE_CONFIG_DIR still points
+# settings at the fixture, so HOME only steers normalize_path's ~ expansion.
+run_home() {
+  local home="$1" fx="$2" cfg="$3"
+  shift 3
+  HOME="$home" PREFLIGHT_FIXTURE_DIR="$fx" CLAUDE_CONFIG_DIR="$cfg" bash "$SCRIPT" "$@"
+}
+OUT=$(run_home "$HOME19" "$REPO" "$CFG19" --worktree-root "$HOME19/.worktrees/999-x")
+assert_not_contains "tilde-form entry covers an absolute child → no (c) gap" "$OUT" "GAP (c)"
+assert_eq "tilde-form entry expands → zero gaps" "0" "$(run_home "$HOME19" "$REPO" "$CFG19" --count --worktree-root "$HOME19/.worktrees/999-x")"
+# The expansion is a real ancestor check, not a blanket pass: a root outside the
+# expanded home is still an uncovered (c) gap, and non-tilde probes are unchanged.
+assert_eq "tilde-form entry does not cover a root outside the home" "1" "$(run_home "$HOME19" "$REPO" "$CFG19" --count --worktree-root "$POSIX_CHILD")"
+
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"
   exit 0

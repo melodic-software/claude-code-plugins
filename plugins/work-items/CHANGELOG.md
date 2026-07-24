@@ -3,6 +3,19 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.1]
+
+### Fixed
+
+- **Permission preflight no longer reports a false `additionalDirectories` gap for a tilde-form
+  grant.** `normalize_path` folded backslashes and Windows drive letters but never expanded a
+  leading `~`, so a `permissions.additionalDirectories` entry written in `~/…` form never matched
+  the absolute worktree root the harness derives from that same home — the preflight wrongly emitted
+  its `(c)` gap even though the grant was live. `normalize_path` now expands a leading `~` (`~` alone
+  or `~/…`) to the user home (`HOME`, then `USERPROFILE`) before folding, so tilde-form entries
+  compare equal to the absolute probed root. A regression case covers the match, the outside-home
+  non-match, and unchanged non-tilde behavior.
+
 ## [0.22.0]
 
 ### Added

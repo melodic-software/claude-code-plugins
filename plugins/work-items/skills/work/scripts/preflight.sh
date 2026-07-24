@@ -228,11 +228,24 @@ verb_denied() { verb_in_rules "$1" "$ALL_DENY" "bare"; }
 verb_bare_exact() { verb_in_rules "$1" "$ALL_ALLOW" "bare-exact-only"; }
 
 normalize_path() {
-  # Fold a path to one comparable form: backslashes → slashes, lower-case and
-  # de-colon a leading Windows drive (D:\repos → /d/repos, matching the git-bash
-  # /d/repos spelling), strip a trailing slash. Literal only — no symlink
-  # resolution, since permission rules match the command string literally.
-  local p="$1" drive rest
+  # Fold a path to one comparable form: expand a leading ~, backslashes →
+  # slashes, lower-case and de-colon a leading Windows drive (D:\repos →
+  # /d/repos, matching the git-bash /d/repos spelling), strip a trailing slash.
+  # Literal only — no symlink resolution, since permission rules match the
+  # command string literally.
+  local p="$1" drive rest home="${HOME:-${USERPROFILE:-}}"
+  # A leading ~ (~ alone or ~/…) expands to the user home so a tilde-form
+  # additionalDirectories entry compares equal to the absolute probed root the
+  # harness derives from that same home. HOME first, then USERPROFILE (its
+  # backslashes are folded by the tr below); neither set leaves ~ literal.
+  if [[ -n "$home" ]]; then
+    # shellcheck disable=SC2088  # the literal ~ arms are patterns being matched, not paths to expand
+    case "$p" in
+      "~") p="$home" ;;
+      "~/"*) p="$home/${p:2}" ;;
+      *) ;;
+    esac
+  fi
   # shellcheck disable=SC1003  # '\\' is tr's escaped backslash (one char), not a quote escape
   p="$(printf '%s' "$p" | tr '\\' '/')"
   case "$p" in
