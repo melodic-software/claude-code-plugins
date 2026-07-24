@@ -64,5 +64,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   showing the operator the exact command. `allowed-tools` retains only
   `WebFetch(domain:threadreaderapp.com)`, which involves no shell. A validating `PreToolUse` hook is
   deferred, with re-introducing a shell grant as its trigger.
-- Long-article file redirects are bounded to `${CLAUDE_PLUGIN_DATA}` — never an agent-chosen absolute
-  path, never a path derived from fetched content.
+- Long-article file redirects are bounded to a fixed `${CLAUDE_PLUGIN_DATA}/x-article-<id>.md`
+  template built from the gate-captured id — never an agent-chosen path, never one derived from
+  fetched content.
+- Gate patterns are presented in fenced code blocks rather than a Markdown table. In table cells the
+  alternation had to be written `\|` to survive the renderer, and a model reading the raw source
+  could take that as a literal backslash-pipe and refuse every `twitter.com` URL.
+- The PowerShell request body drops its backslash escaping. PowerShell single-quoted strings are
+  fully literal, so `'{\"url\":...}'` sends literal backslashes and the server rejects the body as
+  malformed JSON — silently breaking step 1 on Windows without Git Bash.
