@@ -70,6 +70,8 @@ Create a new worktree with guided naming and setup verification. Full procedure 
 - **On a non-zero helper exit, STOP — never fall back to `EnterWorktree(name:)`.** Exit 3 means `worktree_root` is unconfigured: surface the helper's guidance and stop, do not create anything (silent in-repo fallback is exactly the #400 regression this closes).
 - **Enter with `EnterWorktree(path: "<printed-path>")` as the final action** — working directory changes and session state transitions on that call, so nothing may execute after it. The out-of-`.claude/worktrees/` path prompts for approval (not suppressible outside `bypassPermissions`).
 
+**Orchestrated (autonomous) provisioning does not use this action.** An autonomous orchestrator that must stay resident to keep dispatching — e.g. `/work-items:work` — cannot invoke `create`: the `EnterWorktree` terminal above would transition the orchestrator's own session and end its ability to orchestrate. Such a run provisions **non-interactively** instead — the dispatched worker runs the shared `worktree-create.sh` helper directly (its output contract prints the path; the caller simply omits the `EnterWorktree` step) or a plain `git worktree add`, then works the worktree via `git -C <path>` **without entering it**. `#572` owns that end-to-end worker-side lifecycle.
+
 ---
 
 ## Action: `status`

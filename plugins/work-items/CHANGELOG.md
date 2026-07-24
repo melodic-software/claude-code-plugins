@@ -3,6 +3,29 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.23.0]
+
+### Changed
+
+- **`work`'s autonomous execute step now specifies the full orchestrator-dispatch lifecycle (`#572`),**
+  resolving the previously-deferred seam across branch/worktree provisioning, PR-creation ownership,
+  and fix re-dispatch:
+  - **Provisioning is worker-side.** The dispatched worker materializes its own out-of-tree worktree
+    as its first step and works it via `git -C` without entering it — the orchestrator never invokes
+    `/source-control:worktree create`, whose `EnterWorktree` terminal would transition the
+    orchestrator's session. The worker commits, pushes, and brings the branch current with the default
+    branch before returning the worktree path + branch name; a worker that cannot provision parks and
+    escalates.
+  - **PR creation is orchestrator-owned.** After the worker returns and the pre-PR diff gate passes,
+    the orchestrator (never the worker) opens the PR via the new `/source-control:pull-request create
+    --pushed` PR-only entry; the worker scope-fence forbids PR creation. Detection of a consuming
+    project's own PR stage lives in the orchestrator (invoke-vs-defer).
+  - **Branch-owned fixes (failing CI, review findings) re-dispatch a fresh scope-fenced subagent into
+    the same persisted worktree** — the worktree is the state carrier across dispatches and persists
+    through the PR lifecycle, cleaned up only by whoever merges, never by this lane.
+  - `work-loop`'s former interim `#572` workaround is reframed as this now-canonical behavior it
+    inherits from `work`.
+
 ## [0.22.1]
 
 ### Fixed

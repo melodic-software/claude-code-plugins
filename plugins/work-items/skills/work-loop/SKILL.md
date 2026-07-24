@@ -165,17 +165,13 @@ while the latch is set (clear it on a fresh healthy snapshot after the pause end
    Selection, claim (assignee + lease), staleness pre-check, dispatch
    mechanics, the PR contract, the review pass, and the never-merge boundary are all owned there —
    this loop restates none of them. Loop-level deltas only:
-   - **`#572` workaround — worker-side provisioning, never parent-side.** `/source-control:worktree`
-     create ends by ENTERING the created worktree, transitioning the calling session — so the loop
-     orchestrator never invokes it itself. The dispatch brief instead makes provisioning the
-     worker's own first step: the dispatched subagent creates and enters the item's branch +
-     out-of-tree worktree in its own context via `/source-control:worktree` create (when the
-     `source-control` plugin is installed — that skill owns naming, placement, and cleanup
-     conventions), or a plain `git worktree add` from its own context when it is not. A worker
-     that cannot provision an isolated worktree parks the item and escalates for
-     operator-provided branch setup rather than editing the default checkout. The
-     autonomous-provisioning seam is not yet landed (`#572`), so this loop template carries the
-     provisioning step explicitly.
+   - **Worker-side provisioning — owned by `/work-items:work` (landed `#572`).** The execute step's
+     worker-side provisioning — the dispatched subagent materializes its own out-of-tree worktree
+     first and works against it via `git -C` **without entering it**, the orchestrator never invoking
+     `/source-control:worktree create` (whose `EnterWorktree` terminal would transition the calling
+     session, acutely relevant to this long-lived loop session) — is now canonical behavior owned by
+     `/work-items:work` and `/implementation:implement-dispatch`; this loop inherits it and restates
+     nothing beyond this caution.
    - **Dispatch discipline.** Worker briefs enumerate the required skills per phase and carry the
      convention's subagent discipline preamble (presence-gated re-anchor sweep with the inline
      fallback). Subagent escalation authority is an open-ended duty — escalate decisions that are
