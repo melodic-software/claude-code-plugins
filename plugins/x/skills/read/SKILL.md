@@ -133,18 +133,17 @@ for — under `Accept: text/markdown` success is raw Markdown with no JSON envel
 response schema has no field for sibling or child posts, and `replies` is an integer count, not an
 array. So a genuine multi-post reply chain comes back truncated to its root.
 
-**Decide with metadata, not prose.** `isNoteTweet` from `/api/fetch` is the reliable discriminator,
-empirically confirmed: a genuine 12-post chain returns `isNoteTweet: false` with a short root, while
-a long single post returns `isNoteTweet: true` and is already complete.
+**Escalate on evidence, never on length.** `isNoteTweet` from `/api/fetch` says the post has a
+long-form representation — it does **not** say the post has no replies, and a chain can legitimately
+begin with a note tweet.
 
-- `isNoteTweet: true` — a single post, complete. **Do not escalate**, however long it is.
-- `isNoteTweet: false` **and** the text shows continuation (ends mid-thought, carries `1/`-style
-  markers, or the user called it a thread) — escalate.
-- `isNoteTweet: false` with no continuation signal — a genuine standalone short post. Do not
-  escalate.
+- Escalate whenever there is positive evidence of continuation: the user asked for the thread, the
+  text ends mid-thought, or it carries `1/`-style markers. This holds regardless of `isNoteTweet`.
+- Without such evidence, do not escalate. `isNoteTweet: true` in particular is never on its own a
+  reason to escalate — its job is to stop a long post from *looking* like a fragment.
 
-Length alone is never the signal. When the step-1 call used the Markdown form and `isNoteTweet` is
-therefore unavailable, re-request `/api/fetch` for the flag rather than guessing from prose.
+Length is not evidence in either direction. When step 1 used the Markdown form, `isNoteTweet` is
+absent; re-request `/api/fetch` only if the flag would change the decision.
 
 The thread id is the numeric id the gate captured — `[0-9]{1,20}`, reused directly, never re-parsed
 from the original input or from fetched text:

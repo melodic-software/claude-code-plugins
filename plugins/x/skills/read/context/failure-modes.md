@@ -6,16 +6,37 @@ classify a response.
 ## Step 1 on Windows PowerShell
 
 Without Git Bash the PowerShell tool is the active shell, and `curl` may not resolve to the binary —
-use the explicit `.exe`:
+use the explicit `.exe`.
 
-```powershell
-curl.exe -sS --proto '=https' --max-time 30 --max-filesize 5000000 -X POST https://xtomd.com/api/markdown -H "Content-Type: application/json" -H "Accept: text/markdown" -d '{"url":"<REBUILT-URL>"}'
+**Do not put the JSON body on the command line.** Neither inline form is portable across PowerShell
+versions, because 7.3 changed native-argument parsing in a way Microsoft documents as a breaking
+change from Windows PowerShell 5.1 (`about_Parsing`, "Passing arguments that contain quote
+characters"; `$PSNativeCommandArgumentPassing` — `Windows`/`Standard` preserve embedded quotes,
+`Legacy` does not):
+
+- `'{"url":"..."}'` works under `Standard`/`Windows` but loses its quotes under `Legacy`
+  (PowerShell 5.1), so `curl.exe` receives `{url:https://...}` and the server rejects it.
+- `'{\"url\":\"...\"}'` is what `Legacy` needs, but under `Standard`/`Windows` the backslashes
+  arrive literally and the server rejects that too.
+
+Write the body to a file with the Write tool and pass it by reference — a `@path` argument carries no
+embedded quotes, so no marshalling mode can corrupt it:
+
+File `${CLAUDE_PLUGIN_DATA}/x-request.json`:
+
+```json
+{"url": "<REBUILT-URL>"}
 ```
 
-PowerShell single-quoted strings are fully literal, so the `"` need no backslash. Adding one sends a
-literal `\` and the server rejects the body as malformed JSON — if a `400` comes back on Windows,
-inspect the emitted body before assuming the URL was at fault. Where Git Bash is available, the bash
-form in SKILL.md is the better-exercised path.
+Then:
+
+```powershell
+curl.exe -sS --proto '=https' --max-time 30 --max-filesize 5000000 -X POST https://xtomd.com/api/markdown -H "Content-Type: application/json" -H "Accept: text/markdown" -d "@${CLAUDE_PLUGIN_DATA}/x-request.json"
+```
+
+The URL written into that file is the gate's rebuilt one, so the file's contents are as constrained
+as the inline form would have been. Where Git Bash is available, the bash form in SKILL.md is the
+better-exercised path.
 
 ## Long-article file redirects
 

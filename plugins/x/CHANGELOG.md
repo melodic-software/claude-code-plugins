@@ -79,3 +79,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   conversion as a failure. The field check now applies only to the JSON form.
 - Eval 1 no longer expects attribution from the converter-echoed URL, which contradicted the
   reporting contract's requirement to attribute with the gate's rebuilt URL.
+- Escalation no longer treats `isNoteTweet: true` as proof a post has no replies. The flag describes
+  a post's long-form representation, and a chain can legitimately begin with a note tweet, so the
+  earlier unconditional stop would have returned only the root even when the whole thread was asked
+  for. Escalation now requires positive continuation evidence and ignores length in both directions.
+- The Windows PowerShell body is passed by file reference (`-d "@..."`) rather than inline. Neither
+  inline form is portable: PowerShell 7.3 changed native-argument parsing in a way Microsoft
+  documents as a breaking change from 5.1, so unescaped quotes are stripped under `Legacy` while
+  backslash-escaped quotes arrive literally under `Standard`/`Windows`. A `@path` argument carries no
+  embedded quotes and survives either mode.

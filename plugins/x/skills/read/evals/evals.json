@@ -111,18 +111,29 @@
     },
     {
       "id": 10,
-      "name": "note-tweet-flag-governs-escalation",
-      "prompt": "/x:read https://x.com/someone/status/3333333333333333333\n\n(The /api/fetch response carries isNoteTweet: true and a very long body containing the markers 1/ and 2/.)",
-      "expected_output": "Does not escalate. isNoteTweet: true means a single complete post, and that metadata outranks the prose signals — length and numbered markers alike.",
+      "name": "note-tweet-root-of-a-chain-still-escalates",
+      "prompt": "/x:read https://x.com/someone/status/3333333333333333333\n\nI want the whole thread.\n\n(The /api/fetch response carries isNoteTweet: true and a long body ending with the marker 1/.)",
+      "expected_output": "Escalates to step 2. isNoteTweet: true describes the post's long-form representation, not the absence of replies — a chain can begin with a note tweet, and the explicit thread request plus the 1/ marker are positive continuation evidence.",
       "files": [],
       "expectations": [
-        "Consults isNoteTweet rather than deciding from prose shape",
-        "Treats isNoteTweet: true as complete despite 1/ and 2/ markers",
-        "No threadreaderapp.com fetch occurs"
+        "Does not treat isNoteTweet: true as proof the post has no replies",
+        "Escalates on the explicit thread request and continuation marker",
+        "Uses the gate-captured id for the threadreaderapp.com lookup"
       ]
     },
     {
       "id": 11,
+      "name": "long-post-without-continuation-evidence-does-not-escalate",
+      "prompt": "/x:read https://x.com/karpathy/status/2015883857489522876",
+      "expected_output": "Returns the long single post from step 1 alone. No continuation evidence exists — no thread request, no mid-thought ending, no numbered markers — so length by itself is not a reason to escalate.",
+      "files": [],
+      "expectations": [
+        "Does not escalate on length alone",
+        "No threadreaderapp.com fetch occurs"
+      ]
+    },
+    {
+      "id": 12,
       "name": "step-one-success-plus-step-two-miss-reaches-step-three",
       "prompt": "/x:read https://x.com/someone/status/4444444444444444444\n\n(Step 1 succeeds and returns a chain root with isNoteTweet: false; the Thread Reader App page for that id redirects to /error.)",
       "expected_output": "Recognizes the thread is known-truncated even though step 1 succeeded, and reaches step 3 — reporting what each step did and asking for the remaining post URLs. Never presents the root alone as the complete thread.",
@@ -134,7 +145,7 @@
       ]
     },
     {
-      "id": 12,
+      "id": 13,
       "name": "http-200-without-conversion-is-a-failure",
       "prompt": "/x:read https://x.com/someone/status/5555555555555555555\n\n(The endpoint returns HTTP 200 with an HTML bot-challenge body and no markdown field.)",
       "expected_output": "Treats the 200 as a failed fetch because the response carries no converted content, and reports it as such. Does not present the HTML or an empty result as the post.",
