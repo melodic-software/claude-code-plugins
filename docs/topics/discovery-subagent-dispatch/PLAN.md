@@ -20,6 +20,21 @@ sibling agent — reads only the slice it needs.
 
 ### Constraints
 
+**Version floor: Claude Code 2.1.219** (the version these facts were verified on). Every claim below
+is version-gated in the source docs, and several are false on versions still in the field — record the
+floor with the claims or the contract silently misleads:
+
+- Background as the default subagent execution mode — **v2.1.198**. Below it, the "background filter
+  is the default filter" premise fails outright.
+- `background: false` on a `context: fork` skill — **v2.1.218**. Below it, forked skills always blocked
+  the turn, so the escape hatch named below does not exist.
+- The narrow tool set applying to a backgrounded `context: fork` skill — **v2.1.218**.
+- `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` — from **v2.1.172 through v2.1.216** subagents nested by
+  default up to five layers and the limit could not be changed. On that range the env change recorded
+  below is inert *and unnecessary*. It is correct on 2.1.219.
+- `/subtask` (the forked-subagent command) — **v2.1.212**; it was `/fork` before.
+- The `skills:` preload exclusion for bundled `/verify` and `/code-review` — **v2.1.215**.
+
 Harness facts verified against official docs this session
 (<https://code.claude.com/docs/en/sub-agents>, <https://code.claude.com/docs/en/skills>,
 <https://code.claude.com/docs/en/hooks>):
@@ -30,20 +45,33 @@ Harness facts verified against official docs this session
 - **`skills:` preloads full skill content** at subagent startup. Requires the target skill to keep
   `disable-model-invocation: false` — all discovery skills qualify today. Preloading is not a
   restriction: the subagent can still invoke unlisted skills through the Skill tool.
-- **Two tool filters narrow every subagent.** Filter 1 (everywhere): `Agent` (unless
+- **Two tool filters narrow every subagent — except a conversation fork.** The docs are explicit:
+  "Forks skip both filters and receive the main conversation's exact tool pool," with `Agent` the
+  only carve-out inside that exemption ("in a fork the tool stays listed but returns an error instead
+  of spawning"). A fork IS a subagent, so every unconditional "in every subagent" claim below is
+  scoped to **non-fork** subagents. This matters because `history-fork` is one of the four mechanisms
+  in the audit vocabulary. Whether `AskUserQuestion` *functions* from a background fork is
+  undocumented in either direction — do not assume it does.
+  Filter 1 (every non-fork subagent): `Agent` (unless
   `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` is set), `AskUserQuestion`, `Workflow`, `EnterPlanMode`,
   `ExitPlanMode`, `ScheduleWakeup`, `TaskOutput`, `WaitForMcpServers`, `EndConversation`. Filter 2
   (background only, and background is the default) reduces built-ins to `Read`, `Grep`, `Glob`,
   `Bash`, `PowerShell`, `Edit`, `Write`, `NotebookEdit`, `WebFetch`, `WebSearch`, `TodoWrite`,
   `Skill`, `ToolSearch`, `EnterWorktree`, `ExitWorktree`, `Monitor`, `TaskStop`, `SendMessage`,
   `Artifact`, plus every MCP tool.
-- **`Workflow` is unavailable in every subagent.** A workflow engine can only be dispatched from
-  main context. `research-deep`'s existing inline-dispatcher requirement is therefore correct and
-  load-bearing, not incidental.
-- **`AskUserQuestion` is unavailable in every subagent.** `/explore`'s "surface open questions to
-  the USER" contract degrades to text in the returned summary; the parent must re-surface them.
-- **`TaskCreate`/`TaskGet`/`TaskList`/`TaskUpdate` do not survive the background filter**;
-  `TodoWrite` does. Any coverage ledger a dispatched agent maintains must be a file on disk.
+- **`Workflow` is unavailable in every non-fork subagent.** `research-deep`'s inline-dispatcher
+  requirement is still correct, but rests on independent grounds — the skill states it itself
+  (`research-deep/SKILL.md:19`) and its multi-topic path needs `Agent`, which errors even in a fork.
+  The filter argument alone does not cover a fork.
+- **`AskUserQuestion` is unavailable in every non-fork subagent.** `/explore`'s "surface open
+  questions to the USER" contract degrades to text in the returned summary; the parent must
+  re-surface them.
+- **`TaskCreate`/`TaskGet`/`TaskList`/`TaskUpdate` do not survive the background filter** for a
+  subagent spawned through the Agent tool; `TodoWrite` does. **Carve-out:** teammates in agent teams
+  additionally keep the task tools and the cron tools, so this is a property of the dispatch
+  mechanism, not of dispatch as such — state the carve-out wherever the rule is applied, or it
+  over-blocks any row whose only blocker is a task tool. Decision 5's "ledger must be a file" holds
+  regardless, but on durability and parent-readability, not on this filter.
 - **A `context: fork` skill is a regular agent type**, not a conversation fork. It receives the
   narrow background tool set unless it sets `background: false`, which makes it block the invoking
   turn. Only the `fork` subagent type (`/subtask`, `CLAUDE_CODE_FORK_SUBAGENT`) inherits the
@@ -52,8 +80,14 @@ Harness facts verified against official docs this session
   fields.** This costs less than it appears: `settings.json` hooks still fire inside subagent tool
   calls (the hook payload carries `agent_id`/`agent_type` precisely to distinguish them), subagents
   inherit the main conversation's MCP tools, and permission mode is inherited from the parent —
-  a parent in `auto` mode yields a subagent in `auto` mode. The single real loss is the ability to
-  give one agent a private inline MCP server the parent does not carry.
+  a parent in `auto` mode yields a subagent in `auto` mode. **Two further losses, previously
+  understated:** (1) `permissionMode` inheritance is total only under specific parent modes — under a
+  parent in the shipped `default` mode a project or user agent *can* override to `plan`/`acceptEdits`/
+  `dontAsk`/`bypassPermissions` and a plugin agent cannot; the earlier claim generalized from `auto`,
+  the one parent mode where the loss is nil. (2) session-level hooks give *observability* inside a
+  subagent (`agent_id`/`agent_type` in the payload) but not *scoping* — `PreToolUse` matchers filter
+  on tool name, so per-agent behavior must be branched inside the hook script, and frontmatter hooks
+  have a cleanup lifecycle the settings form lacks.
 - **Topic-docs placement**: `.claude/topic-docs.yaml` is absent from this repo, so defaults apply —
   memory slice `.work/<slug>/`, contract slice `docs/topics/<slug>/`. Discovery writes memory tier
   only; that does not change.
@@ -103,6 +137,61 @@ vars are read at session start, so nested spawning is inert until the next sessi
 6. **State the interactive blocker as the absence of a USER**, not of `AskUserQuestion`. Several
    skills gate that tool behind a `use_ask_user_question` config defaulting OFF and fall back to
    inline prose rounds, equally unreachable from a subagent.
+7. **`!` precompute may optimize, never enable — fleet-wide, independent of dispatch.** The managed
+   setting `disableSkillShellExecution: true` disables `!` substitution for plugin-sourced skills and
+   cannot be overridden. Any plugin-shipped skill whose *correctness* depends on `!` output is
+   therefore broken in exactly the managed/enterprise posture this marketplace designs for. 64 of the
+   138 non-`setup` skills carry `!` precompute; each must be correct without it. A standing authoring
+   rule, not a dispatch concern.
+7b. **`CLAUDE_CODE_FORK_SUBAGENT` is a control, not a gate — the "rollout-gated" framing is stale.**
+   Forks have been enabled by default since **v2.1.161**; the variable now only forces on (`1`) or off
+   (`0`), and the command is `/subtask` as of v2.1.212. So `history-fork` is *less* caveated than
+   recorded, not more. The residual caveat that does stand: "Letting Claude itself spawn forks is
+   experimental and may change in future releases." The same stale requirement is reproduced in
+   shipped skill text at `plugins/discovery/skills/explore-deep/SKILL.md:3` — which is doubly wrong,
+   since it is also attached to the wrong mechanism (`context: fork` is not the `fork` subagent type).
+8. **Discipline delivery: preload a thin contract, `Read` the bulk.** Supersedes the earlier
+   preload-vs-runtime framing, which posed a false binary — and the binary was false in a second way:
+   `plugin-quality:auditor` uses **neither** path. Its `tools` list omits `Skill` entirely and it
+   declares no `skills:`, so its discipline arrives as method in the agent body plus files it `Read`s
+   from paths handed to it in the dispatch prompt. That third shape is immune to both the preload
+   uncertainty and the `disable-model-invocation` block, and it is essentially what this amendment
+   converges on. The six `review/` agents do grant `Skill`, so "runtime invocation is the
+   marketplace's proven default" survives; "all seven use it" does not. The documented supporting-files pattern is
+   strictly better: `skills:` preloads ONE small always-applies contract skill (phase gates, outcome
+   gate, non-negotiables; well under the 500-line guidance; authored to need zero `!`,
+   `${user_config.…}`, or `allowed-tools`), while the heavy multi-phase reference lives in sibling
+   files read with `Read` at the phase that needs them. This beats runtime-invoking a heavy skill on
+   two counts: the bulk no longer depends on the model electing to call `Skill`, and a phase-scoped
+   file read costs less than landing a whole skill in context. Discovery is already shaped this way —
+   `skills/research/context/discipline.md` is already a bundled reference — so this is a small delta,
+   not a rewrite. Keep `Skill` in the agent's `tools` regardless. The contract skill must NOT set
+   `disable-model-invocation: true`, which silently blocks preload; `user-invocable: false` is the
+   correct flag for hiding it from the slash menu while keeping it preloadable.
+9a. **Three preload behaviors now settled empirically** (probe plugin loaded via `--plugin-dir`,
+   headless `-p`, subagent defined with `tools: []` and `tool_uses: 0` so it could not have shelled
+   out to forge the values):
+   - **`!` shell substitution FIRES on the preload path**, and its output is byte-identical to the
+     normal `Skill`-tool invocation. Preload is not a degraded injection path. This retires the
+     largest part of the risk — 36 of the 49 dispatch candidates had `!` as their only concern.
+   - **`allowed-tools` grants DO NOT fire on the preload path**, verified against a positive control
+     (slash invocation permits the declared command, exit 127) and a no-skill baseline (identical
+     refusal). **Broader finding: the grant does not fire on the `Skill`-tool path either** — in this
+     build it appears honored only on slash invocation. So any skill relying on its own
+     `allowed-tools` when invoked by a model rather than typed by a user is already silently
+     degraded today, dispatch or not. 13 skills corpus-wide carry one.
+   - **`${user_config.…}` remains INCONCLUSIVE.** The placeholder survived literally on every path
+     tested including slash invocation, so no positive control was achieved; the probe rig's
+     `--plugin-dir` plugin likely has no resolvable `pluginConfigs` identity. A real verdict needs a
+     marketplace-installed plugin with a confirmed-live value. 25 skills carry the substitution.
+9b. **Three preload behaviors remain undocumented and untested.** Whether `!`
+   `${CLAUDE_SKILL_DIR}`/`${CLAUDE_PROJECT_DIR}` resolve in preloaded content; whether preload still
+   fires when `Skill` is absent from `tools` or listed in `disallowedTools` (strongly implied by two
+   doc sentences read together, never asserted); and whether preloaded content survives
+   auto-compaction — the re-attachment budget is defined over "the most recent *invocation*", and a
+   preloaded skill was never invoked. Amendment 8 is chosen so none of these is load-bearing.
+   Note that `!` firing does **not** argue for preloading precompute: it fires at every spawn before
+   the agent knows it needs the data, which multiplies under fan-out.
 
 ### Acceptance criteria
 
