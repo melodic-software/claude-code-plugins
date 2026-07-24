@@ -22,7 +22,12 @@ characters"; `$PSNativeCommandArgumentPassing` — `Windows`/`Standard` preserve
 Write the body to a file with the Write tool and pass it by reference — a `@path` argument carries no
 embedded quotes, so no marshalling mode can corrupt it:
 
-File `${CLAUDE_PLUGIN_DATA}/x-request.json`:
+Name the file for the gate-captured id — `${CLAUDE_PLUGIN_DATA}/x-request-<id>.json` — never a fixed
+name. A fixed path is shared state: two concurrent sessions would race between the Write and
+`curl.exe` reading it, and the permission prompt widens that window, so one invocation could fetch
+the other's URL. Keying on the id makes a collision mean identical content, which is harmless.
+
+File `${CLAUDE_PLUGIN_DATA}/x-request-<id>.json`:
 
 ```json
 {"url": "<REBUILT-URL>"}
@@ -31,11 +36,12 @@ File `${CLAUDE_PLUGIN_DATA}/x-request.json`:
 Then:
 
 ```powershell
-curl.exe -sS --proto '=https' --max-time 30 --max-filesize 5000000 -X POST https://xtomd.com/api/markdown -H "Content-Type: application/json" -H "Accept: text/markdown" -d "@${CLAUDE_PLUGIN_DATA}/x-request.json"
+curl.exe -sS --proto '=https' --max-time 30 --max-filesize 5000000 -X POST https://xtomd.com/api/markdown -H "Content-Type: application/json" -H "Accept: text/markdown" -d "@${CLAUDE_PLUGIN_DATA}/x-request-<id>.json"
 ```
 
-The URL written into that file is the gate's rebuilt one, so the file's contents are as constrained
-as the inline form would have been. Where Git Bash is available, the bash form in SKILL.md is the
+Only the `-d` argument ever carried embedded quotes; `@path` has none, so no marshalling mode can
+corrupt it. The URL written into the file is the gate's rebuilt one, so the body stays as
+constrained as the inline form was. Where Git Bash is available, the bash form in SKILL.md is the
 better-exercised path.
 
 ## Long-article file redirects
@@ -99,9 +105,10 @@ Observed during empirical verification (2026-07-24):
 - **A GET to `/api/markdown` returns HTTP `200`.** Not a success — the body is a self-describing
   stub reading `"method":"POST"`.
 - **A Thread Reader App miss also returns HTTP `200`**, redirecting to `.../thread/<id>/error`.
-- **Length is not evidence of a chain.** `isNoteTweet` is the discriminator: a genuine 12-post chain
-  returned `isNoteTweet: false` with a 346-character root, while a long single post returns
-  `isNoteTweet: true` and is already complete.
+- **Length is not evidence of a chain, in either direction.** A genuine 12-post chain returned
+  `isNoteTweet: false` with a 346-character root. The converse does not follow: `isNoteTweet: true`
+  reports a long-form representation, not the absence of replies, so a chain can begin with a note
+  tweet. Escalate on positive continuation evidence, not on the flag alone.
 - **`replies` in the `/api/fetch` payload is an integer** — an engagement count. Nothing in that
   schema carries sibling or child posts.
 - **xtomd's docs advertise an `@xtomd/mcp-server` npm package that does not exist** (registry `404`).

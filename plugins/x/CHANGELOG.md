@@ -28,10 +28,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   step 2 on absence — the xtomd endpoint is POST-only, so `WebFetch` cannot substitute.
 - Thread Reader App miss detection by final URL (`.../thread/<id>/error`) rather than status code,
   which stays `200` on a miss.
-- Metadata-driven escalation: `isNoteTweet` from `/api/fetch` decides whether step 2 runs, replacing
-  prose heuristics that produced both false negatives and false positives. Empirically grounded — a
-  genuine 12-post chain returns `isNoteTweet: false` with a 346-character root, while a long single
-  post returns `isNoteTweet: true` and is already complete.
+- Evidence-driven escalation: step 2 runs only on positive continuation evidence — an explicit thread
+  request, text ending mid-thought, or `1/`-style markers — with length treated as evidence in
+  neither direction. Empirically grounded: a genuine 12-post chain returns `isNoteTweet: false` with
+  a 346-character root. The flag reports a long-form representation rather than the absence of
+  replies, so it suppresses length-only escalation without overriding continuation evidence.
 - Status capture (`-w '\n%{http_code}'`) and explicit handling for `400`/`429`/`500`/`502`, timeouts,
   and `200` responses carrying no converted content, so a bot-challenge or stub page is never
   reported as an empty post.

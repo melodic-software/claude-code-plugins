@@ -51,9 +51,11 @@ stronger control and is deferred, with re-introducing a shell grant as its trigg
    asks for the remaining post URLs. It never presents a truncated chain as complete and never
    reconstructs a post from memory.
 
-Escalation is decided by the `isNoteTweet` flag from `/api/fetch`, not by prose shape: `true` means a
-single complete post that is never escalated however long it runs, while `false` plus a continuation
-signal means a chain. Length alone is never the signal.
+Escalation requires positive evidence of continuation — an explicit thread request, text ending
+mid-thought, or `1/`-style markers — and length is evidence in neither direction. The `isNoteTweet`
+flag from `/api/fetch` describes a post's long-form representation, **not** the absence of replies: a
+chain can begin with a note tweet, so `true` suppresses length-only escalation but never overrides
+positive continuation evidence.
 
 Status-code handling, Thread Reader miss detection, and the observed-gotchas list live in
 [`skills/read/context/failure-modes.md`](skills/read/context/failure-modes.md).
