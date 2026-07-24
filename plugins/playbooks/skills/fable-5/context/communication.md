@@ -64,6 +64,8 @@ Both failure modes are real: asking about evidence-settled facts offloads your j
 
 Before asking anything, check whether the session already answers it — a question the transcript resolves signals you did not read your own evidence. When several questions remain: ask dependent ones one at a time (the first answer reshapes the second), batch only independent ones, and attach your recommended answer to every question you pose.
 
+When what remains is several load-bearing questions at once, say so and offer the round before starting, rather than metering them out as each one blocks you. The ask-sparingly bias above exists to stop question-noise, not to make you build on guesses you could have retired in one exchange — and a user answering five questions across five interruptions pays more than a user answering five at once, having also watched work proceed on the answers they had not given yet.
+
 ## Surface every unbriefed decision
 
 **Trigger: you decided-and-flagged anything under the rule above — report it in a visible block before the message ends, never as an aside.**
@@ -115,4 +117,5 @@ Format, one line per decision: **what you chose → what it changes for them →
 
 - Expand session-internal shorthand: labels invented mid-session — "Option B," "the earlier approach," "phase 2" — mean nothing outside the transcript; reuse them only with an inline definition, or replace them with their content.
 - Use concrete identifiers instead of pointing words: name the function, file, and test — never "the file we discussed," "that fix," "the second issue."
+- Name the behavior that changed in code you did not edit: an existing handler, dispatcher, or call site now reached under new conditions; a default that now resolves differently. The diff shows the lines you wrote, never the paths they activate, so this is the one thing the test below cannot lean on the diff for. You already hold it — the caller walk from the verification chapter, section "Adversarial self-review", and the consumer census from the planning chapter, section "Blast radius census". Answer it with a named path or an explicit "none"; both are falsifiable, silence is not.
 - Apply the test: could someone holding only this message and the diff act correctly? The user returns hours later having forgotten the session's middle; writing that depends on the transcript expires the moment the transcript is gone.

@@ -4,6 +4,49 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.4.0]
+
+### Added
+
+- `fable-5`: a show-moves section in the problem-framing chapter, split out of the
+  unknown-knowns cell so the two signals that gate it — a criterion judgable only on
+  sight, and a description costlier than an example — trigger those moves without firing
+  the whole four-cell pass. It owns the evaluation-capacity precondition (candidates
+  settle nothing when neither party can name what a strong one looks like), the exemplar
+  hunt with its fidelity/cross-language/ask-ordering rules, the read-only reference-tree
+  radius, and the elicitation artifact's distinct completeness bar.
+- `fable-5`: a post-delivery attribution section in the problem-framing chapter — a
+  deliverable returned as *not what was meant* re-runs the quadrant pass before it
+  re-executes. Scoped away from observed defects, which keep routing to the debugging
+  chapter's reproduction-first rule.
+- `fable-5`: a durable-plan presentation rule in the planning chapter — decisions the
+  reader would plausibly veto lead, ranked by the rework a late veto costs, as a second
+  view that never re-sorts the risk-ordered steps.
+- `fable-5`: the context-economy chapter gains a phase-boundary reset (every other reset
+  trigger keys on loss or degradation, none on success), the note's decision content, and
+  the note's disposition at task end so the debris sweep has an answer.
+- `fable-5`: the communication chapter gains the offer-the-round rule for a large question
+  residue, and the closing message must now name behavior that changed in code the diff
+  does not show.
+
+### Changed
+
+- `fable-5`: `SKILL.md` stated three of the problem-framing chapter trigger's four arms,
+  in both the core-doctrine line and the routing table — the because-clause arm never
+  fired from the always-loaded surface. Both now carry all four.
+- `fable-5`: the problem-framing preamble owns the two priors the chapter's moves rest on
+  — discovery priced against the rework it prevents, rising with what is already built on
+  the unknown; and requests carrying unknowns they do not name. The clauses that
+  previously re-derived the economics now cite it.
+- `fable-5`: ambiguity residue is ordered by downstream work invalidated rather than by
+  how widely its readings diverge; feasibility-shaped unknowns route to the planning
+  chapter instead of a sort that has no branch for them; the blind-spot checklist reads as
+  the software instance of a general move; an undisclosed starting point is asked for when
+  it would change the pass width; and the scope bound is tested in both directions.
+- `fable-5`: the long-horizon-memory bullet in the model-adaptation chapter now points at
+  the context-economy chapter like its five siblings, instead of carrying general doctrine
+  that had no owner elsewhere.
+
 ## [0.3.2]
 
 ### Changed

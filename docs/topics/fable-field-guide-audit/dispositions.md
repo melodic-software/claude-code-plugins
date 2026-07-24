@@ -512,6 +512,7 @@ run, and nothing schedules a second pass over what they produce. **MN ✓ 2L ✓
 
 **R12 — Reference fidelity principle, cross-language port, and ask ordering.** *(S8 C4 + C5 + C6 +
 C7)* Home: `problem-framing.md:66`'s exemplar clause. Three clauses:
+
 - **Fidelity as a principle, never a ranked list** — take the highest-fidelity form available: the
   form that carries naming, structure and edge-case handling rather than implying them. S8's own
   rejection of a five-tier ordinal (implementation > schema > prose > diagram > image) is upheld — a
@@ -548,6 +549,7 @@ that would have to be widened to reach an artifact. **MN ✓ 2L ✓ MR ✓**
 
 **R15 + R16 + R17 — one edit to `context-economy.md` §"Externalize conclusions when they
 stabilize".** Three clauses from S10, landing in one section:
+
 - **R15 — phase-boundary reset** *(S10 a2)*: a phase completes and its output is a compiled artifact
   the next phase consumes; the artifact, not your context, is the handoff — recommend continuing in
   a clean context seeded with it, because the exploration that produced the artifact is now dead
