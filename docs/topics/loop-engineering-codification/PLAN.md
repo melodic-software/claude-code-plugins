@@ -97,11 +97,11 @@ This topic:
 - Retiring or amending the `boris-video-absorption` slice beyond repointing
   its two citations of the retired `consumer-config-layering` path.
 
-### Answers derived from the corpus (Phase 2, partial)
+### Answers derived from the corpus (Phase 2)
 
-Sourced from `plugins/autonomy/reference/trigger-dispatch.md` and
-`routines.md`, both read in full. The remaining owner docs are unread; the
-substrate/cost answer is therefore still open.
+Sourced from the `plugins/autonomy/reference/` corpus and
+`docs/conventions/loop-lane/README.md`, all read in full, with upstream
+pages fetched this session cited rather than restated.
 
 - **"Loops that generate prompts" is the wrong frame.** The load-bearing
   split is by lifetime, not by a four-rung progression: session-scoped
@@ -131,6 +131,73 @@ substrate/cost answer is therefore still open.
   (§Hosting stance). Cloud routines are vendor-hosted, so they can never
   auto-merge regardless of configuration. This is a structural ceiling on any
   design that puts merge authority behind a hosted routine.
+
+#### Substrate and cost posture under $0
+
+**$0 excludes one knob, not a substrate.** Cloud routines are entitlement-
+included on Pro, Max, Team, and Enterprise with Claude Code on the web
+enabled, and their runs draw down subscription usage the same way an
+interactive session does — no separate billing
+(<https://code.claude.com/docs/en/routines#usage-and-limits>, verified
+2026-07-24). The single paid path is **usage credits**: metered overage once
+a run hits the per-account daily routine cap or the subscription usage limit.
+Under $0 that toggle stays off, which is `wiring-vs-advisor.md`'s ADVISE
+branch by construction, and the declined opt-in falls back to a defined
+behavior rather than silence — further runs are rejected until the window
+resets.
+
+**The scarce resource is the shared subscription window, not money.** Cloud
+routine runs, Desktop scheduled tasks, `/loop` iterations, and interactive
+work all draw the same rolling five-hour and weekly budget
+(`loop-lane/README.md` §3). The $0 constraint therefore reappears as
+contention with the operator's own interactive sessions and with the lanes'
+rate-limit guard. This is the axis finding B5 points at: the invariant is
+*no agent session, zero agent tokens*, and the catalog's `not-a-routine` rows
+satisfy it on any substrate — which is why B5's "plain cron" names a
+mechanism where the contract owns only the property.
+
+**Named free default, already fixed by the corpus.** `runner/topology.md`
+§Launch backend set requires one free self-run `L2` backend — a
+container-class substrate with default-deny egress at no standing cost — and
+makes every paid or cloud backend advisory plus explicit opt-in. $0 changes
+nothing about it.
+
+**What each substrate buys and what it caps** — the Cloud / Desktop / `/loop`
+comparison is upstream at
+<https://code.claude.com/docs/en/scheduled-tasks#compare-scheduling-options>
+(verified 2026-07-24); the contract consequences are:
+
+- A cloud routine is a **vendor-hosted executor**, so every class caps at
+  human-gated merge (`routines.md` §Hosting stance,
+  `runner/topology.md`). Upstream behavior is consistent: routine pushes are
+  restricted to `claude/`-prefixed branches unless unrestricted branch pushes
+  are enabled.
+- A cloud run has **no local files** — each run clones the selected
+  repositories from their default branch — so the instruction artifact must be
+  committed to a selected repository. That is exactly the first illustrative
+  binding under `routines.md` §Instruction provenance, and it is a
+  requirement rather than a preference on this substrate.
+- A **Desktop scheduled task** is self-operated with local file access and a
+  one-minute floor, so merge policy stays ownable: the `C2` auto-merge
+  promotion is reachable only on a self-run backend.
+- **`/loop` can never host a standing class** — it is session-scoped and
+  expires seven days after creation (`loop-lane/README.md` §4 already binds
+  this).
+
+**Multi-account fan-out is blocked by an existing invariant.** Routines belong
+to an individual claude.ai account and count against that account's daily run
+allowance, so spreading standing work across the operator's several
+subscriptions is the obvious way to buy headroom at $0. `loop-lane/README.md`
+§6's single-account-per-machine invariant forbids it for anything sharing the
+rate-limit tee file — which is finding B4's subject, and the strongest
+practical argument that B4's fail-open posture should yield.
+
+**Unverified — flagged at the claim.** Whether the cloud environment satisfies
+the ladder's `L3` bar is NOT established. Its shape matches the "hosted
+ephemeral executor surface" the isolation ladder names as an `L3` substrate
+class, but the upstream documentation describes network allowlisting and
+per-run ephemerality, never kernel separation. Treat the level as a
+security-binding verdict, not a doc-derived fact.
 
 ### Deferred questions
 
