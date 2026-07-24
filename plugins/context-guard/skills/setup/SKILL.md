@@ -144,8 +144,11 @@ file if they ever disagree):
      are set to the shipped defaults. An operator's custom-but-valid thresholds are never
      overwritten by a bare `apply`.
    - `apply reset`: set BOTH recognized band keys to the shipped defaults explicitly.
-   - Both modes **preserve every unrecognized key byte-for-byte** (the file is a shared SSOT the
-     operator's own statusline may extend). Use `jq` to merge so the result stays valid JSON. If
+   - Both modes **preserve every unrecognized key semantically** — same keys, same JSON values —
+     (the file is a shared SSOT the operator's own statusline may extend). Preservation is
+     value-level, not lexical: a `jq` merge reserializes the document, so formatting and escape
+     spellings may normalize (`"blue"` → `"blue"`); consumers of this file must parse it as
+     JSON, never depend on its raw bytes. Use `jq` to merge so the result stays valid JSON. If
      `jq` is absent while the file exists, FAIL with the jq install remediation
      (<https://jqlang.org/download/>) instead of attempting a merge — never risk clobbering the
      operator's keys with a jq-less rewrite. (Step 1's template write needs no jq.)

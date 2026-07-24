@@ -42,7 +42,7 @@
       "id": 4,
       "name": "apply-preserves-unrecognized-keys-and-custom-bands",
       "prompt": "/context-guard:setup apply\n\nMy zones.json already exists with custom valid bands (40/70) and carries a custom display_color key my statusline reads.",
-      "expected_output": "Bare apply is repair-only: leaves the valid custom bands (40/70) untouched and reports them, preserves the unrecognized display_color key byte-for-byte, names 'apply reset' as the explicit route to the shipped defaults, and confirms a second identical apply would be a no-op.",
+      "expected_output": "Bare apply is repair-only: leaves the valid custom bands (40/70) untouched and reports them, preserves the unrecognized display_color key and its value (semantic preservation — lexical formatting may normalize), names 'apply reset' as the explicit route to the shipped defaults, and confirms a second identical apply would be a no-op.",
       "files": [],
       "expectations": [
         "Writes only ~/.claude/context-guard/zones.json and nothing else (a fully valid file may mean no write at all)",
