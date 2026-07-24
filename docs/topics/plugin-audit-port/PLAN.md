@@ -236,7 +236,7 @@ Create `plugins/context-guard/`:
 - [ ] File exists; `grep -c 'staleness' plugins/context-guard/reference/reader-contract.md` ≥ 1;
   the staleness value and snapshot path in the doc byte-match the values in both scripts (grep).
 
-#### Phase A4: Setup skill [TODO]
+#### Phase A4: Setup skill [DONE]
 
 - [ ] `skills/setup/SKILL.md` — CREATE: `disable-model-invocation: true`; `check` (jq, statusline
   wiring state — stale-path detection compares the wired path against the currently resolved
