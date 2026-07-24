@@ -255,7 +255,26 @@ being imposed on it.
 
 ## Open in this phase
 
-- **Naming.** Dispatched; the shortlist lands separately and `<sweep>` is a placeholder until it does.
+- **Naming.** A ranked shortlist exists and the choice is the operator's; `<sweep>` stands until it
+  lands. **What the naming pass settled regardless of which name wins is more important than the
+  name.** `audit-instructions`' description opens with this exact surface list — "user + project
+  `CLAUDE.md`, `.claude/rules`, skill bodies, agent definitions, prompt-type hooks, output styles" —
+  character for character. So **the surface cannot be the distinguisher, and no name can carry the
+  distinction alone.** The picker labels rows by short name and readers scan the description's first
+  clause, so this skill's description **must open with the run semantics** — a coordinated
+  cross-scope pass over a named target, fix-capable behind an explicit override — and must not open
+  with the surface. If it opens with the surface, the two skills are indistinguishable in the picker
+  no matter which name is chosen. The three real differences a name or description can carry: scope
+  (`audit-instructions` says "locally-owned"; this adds the read-only managed-policy tier and routes
+  user scope as recommendations), posture (report-only versus fix-capable behind an override), and
+  run semantics.
+
+  Also settled: **no leaf-name collision exists for any candidate** — checked by exact match against
+  all 125 unique leaf names in the tree — so **no `skill-leaf-name-registry.txt` entry is needed, and
+  adding one speculatively would fail `--check`**, because an entry that no longer collides is itself
+  a failure mode. And `docs/CATALOG-TAXONOMY.md` does not reach this decision: its form rule governs
+  category values, which are the deliberate inverse of the skill-name grammar, and `claude-config`
+  stays filed under `claude-code` either way.
 - **The suppression record's location and format.** Deliberately not decided here. This repository has
   config-cascade and consumer-config-layering conventions plus at least one live consumer-side config
   file, and inventing a new consumer surface against an existing convention is precisely the failure
