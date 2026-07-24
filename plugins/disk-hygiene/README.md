@@ -160,10 +160,10 @@ hand-cleaning the zone.
   `--settings` scope (Claude Code 2.1.207+), so a project or local repo `settings.json` cannot flip
   it; the user file is located from `${CLAUDE_PLUGIN_ROOT}`, not from repo-redirectable environment, and
   the managed (enterprise) file at its fixed system path wins as the highest-precedence scope so an org
-  can enforce audit-only. An absent or unreadable value fails closed to enabled. A value supplied only via
-  a session `--settings` file or the `managed-settings.d/` drop-in dir is the one residual a hook cannot
-  read. The skill's own kill-switch probe + skill-content value remain a defense-in-depth honoring layer
-  over the guard.
+  can enforce audit-only (the sibling `managed-settings.d/` drop-in directory is merged over it). An absent
+  or unreadable value fails closed to enabled. The one residual a hook cannot read is a value supplied only
+  via a session `--settings` file. The skill's own kill-switch probe + skill-content value remain a
+  defense-in-depth honoring layer over the guard.
 - **Trust-surface record (0.7.0; updated 0.9.0):** the plugin-level `hooks/hooks.json` PreToolUse
   registration is a NEW trust surface (a hook that launches in every consumer session), added
   deliberately for guard-enforced audit-only mode and data-root authority (#1106 decision, Option E —

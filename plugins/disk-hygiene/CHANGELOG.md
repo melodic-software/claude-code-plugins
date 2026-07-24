@@ -33,10 +33,11 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   platform managed-settings.json (`/Library/Application Support/ClaudeCode/` on macOS, `/etc/claude-code/`
   on Linux/WSL, `C:\Program Files\ClaudeCode\` on Windows — a fixed path, not `%ProgramFiles%`-derived, so a
   repo `env` block cannot redirect it); a value configured there overrides the user file, so an organization
-  can enforce audit-only mode. The reader also matches only this install's exact `<name>@<marketplace>` key
+  can enforce audit-only mode; the sibling `managed-settings.d/` drop-in directory is merged over it
+  (later files win). The reader also matches only this install's exact `<name>@<marketplace>` key
   (derived from `${CLAUDE_PLUGIN_ROOT}`), so another marketplace's `disk-hygiene` entry cannot mask it. The
-  one residual: a value supplied only through a session `--settings` file (a CLI flag no hook observes) or
-  the `managed-settings.d/` drop-in directory is not enforced by the guard.
+  one residual: a value supplied only through a session `--settings` file (a runtime CLI flag no hook can
+  observe) is not enforced by the guard.
 - **`kill_switch_probe.py` now delegates to the shared reader** (its behavior and single-line JSON output
   contract unchanged) so the report-only probe and the guard resolve the switch one way, not two.
 - Docs corrected across `clean`/`setup` `SKILL.md`, `reference/safety-model.md`, and `README.md`: the

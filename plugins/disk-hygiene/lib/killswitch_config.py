@@ -61,9 +61,10 @@ def managed_settings_path() -> Path | None:
     give this literal absolute path, so trusting it (not the environment) preserves
     the tamper-resistance.
 
-    Residuals not read here: the ``managed-settings.d/`` drop-in directory, and a
-    session's ``--settings`` file (a runtime CLI flag a hook cannot observe). A
-    value supplied only through those is not honored by the guard.
+    The sibling ``managed-settings.d/`` drop-in directory is also read (see
+    ``_managed_settings_files``). The one honored source a hook cannot read is a
+    session's ``--settings`` file — a runtime CLI flag no hook observes — so a
+    value supplied only there is not enforced by the guard.
     """
     if sys.platform == "darwin":
         return Path("/Library/Application Support/ClaudeCode/managed-settings.json")
@@ -238,6 +239,52 @@ def probe(settings_path: Path, plugin_id: str | None = None) -> dict[str, object
     )
 
 
+_MANAGED_DROPIN_DIRNAME = "managed-settings.d"
+
+
+def _managed_settings_files(managed_settings_path: Path) -> list[Path]:
+    """Managed settings files in Claude Code precedence order (later overrides).
+
+    The primary ``managed-settings.json`` first, then every ``*.json`` in the
+    sibling ``managed-settings.d/`` drop-in directory in sorted order — Claude
+    Code merges those drop-ins over the primary file (settings docs, "File-based
+    managed settings … drop-in directory"). All live at the fixed root-owned
+    system path, so a repo cannot forge them.
+    """
+    files: list[Path] = []
+    if managed_settings_path.is_file():
+        files.append(managed_settings_path)
+    dropin = managed_settings_path.parent / _MANAGED_DROPIN_DIRNAME
+    if dropin.is_dir():
+        files.extend(
+            sorted(
+                child
+                for child in dropin.iterdir()
+                if child.suffix == ".json" and child.is_file()
+            )
+        )
+    return files
+
+
+def _managed_effective(
+    managed_settings_path: Path, plugin_id: str | None
+) -> bool | None:
+    """The managed-scope verdict, or ``None`` when managed configures no value.
+
+    Reads the primary managed file and the ``managed-settings.d/`` drop-ins in
+    precedence order; the last file that *configures* ``disk_hygiene_enabled``
+    wins (drop-ins override the primary, later drop-ins override earlier), mirroring
+    Claude Code's merge. A file that is absent, carries no entry, or is
+    unreadable/ambiguous contributes no verdict.
+    """
+    verdict: bool | None = None
+    for path in _managed_settings_files(managed_settings_path):
+        report = probe(path, plugin_id)
+        if report["source"] == "configured":
+            verdict = bool(report["effective"])
+    return verdict
+
+
 def resolve_effective(
     settings_path: Path,
     managed_settings_path: Path | None = None,
@@ -246,15 +293,15 @@ def resolve_effective(
     """The boolean kill switch, honoring managed precedence, closed to enabled.
 
     Managed settings are the highest-precedence, non-overridable scope, so an
-    explicitly *configured* value there wins over the user settings — that is how
-    an organization enforces audit-only mode. A managed file that is absent, has
-    no ``disk_hygiene_enabled`` entry, or is unreadable/ambiguous (any source
-    other than ``configured``) yields no managed verdict and the user settings
+    explicitly *configured* value there — in ``managed-settings.json`` or a
+    ``managed-settings.d/`` drop-in — wins over the user settings, which is how an
+    organization enforces audit-only mode. When managed configures no value (all
+    managed sources absent, entry-less, or unreadable/ambiguous) the user settings
     decide. Every read is ``probe()``'s effective value, which fails **closed to
     enabled**.
     """
     if managed_settings_path is not None:
-        managed = probe(managed_settings_path, plugin_id)
-        if managed["source"] == "configured":
-            return bool(managed["effective"])
+        managed_verdict = _managed_effective(managed_settings_path, plugin_id)
+        if managed_verdict is not None:
+            return managed_verdict
     return bool(probe(settings_path, plugin_id)["effective"])

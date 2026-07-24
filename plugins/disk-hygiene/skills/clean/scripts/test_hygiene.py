@@ -3550,6 +3550,11 @@ class DirectReadKillSwitchTests(unittest.TestCase):
     def write_managed_toggle(self, value: object) -> None:
         self.managed.write_text(self._toggle_json(value), encoding="utf-8")
 
+    def write_managed_dropin(self, name: str, value: object) -> None:
+        dropin = self.config_dir / "managed-settings.d"
+        dropin.mkdir(exist_ok=True)
+        (dropin / name).write_text(self._toggle_json(value), encoding="utf-8")
+
     def resolve(self, argv_tail: list[str], env: dict[str, str]) -> bool:
         with (
             mock.patch.object(guard.sys, "argv", [self.SCRIPT, *argv_tail]),
@@ -3694,6 +3699,26 @@ class DirectReadKillSwitchTests(unittest.TestCase):
             ),
             encoding="utf-8",
         )
+        self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
+
+    def test_managed_dropin_false_overrides_user(self) -> None:
+        # A false configured only in the managed drop-in directory must win over a
+        # user-enabled toggle, just like the primary managed file.
+        self.write_managed_dropin("10-org-policy.json", False)
+        self.write_toggle(True)
+        self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
+
+    def test_managed_dropin_overrides_primary_managed_file(self) -> None:
+        # Drop-ins are merged over the primary managed file.
+        self.write_managed_toggle(True)
+        self.write_managed_dropin("50-override.json", False)
+        self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
+
+    def test_later_managed_dropin_wins_over_earlier(self) -> None:
+        # Sorted order: 20- overrides 10-.
+        self.write_managed_dropin("10-first.json", True)
+        self.write_managed_dropin("20-second.json", False)
+        self.write_toggle(True)
         self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
 
 
