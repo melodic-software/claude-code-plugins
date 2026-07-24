@@ -27,8 +27,14 @@ zone bands, zones.json shape) are owned by
 1. **`jq`** — `command -v jq`. FAIL if absent: without it the wrapper cannot tee (it stays
    transparent and shows a visible notice), the standalone statusline degrades, and the zone
    resolver prints `unknown`. Remediation: install jq (<https://jqlang.org/download/>).
-2. **Statusline wiring state** — read (never write) the user's `~/.claude/settings.json`, and note
-   any project-level `statusLine` that shadows it. Distinguish FOUR states:
+2. **Statusline wiring state** — read (never write) every settings scope that can carry a
+   `statusLine` (user `~/.claude/settings.json`, project `.claude/settings.json`, local
+   `.claude/settings.local.json`) and determine which one owns the EFFECTIVE command (the most
+   specific scope wins). All wiring states below are evaluated against that effective command,
+   and the printed edit in step 5 targets THAT scope's file — wiring the user file while a
+   project-level `statusLine` shadows it would apply cleanly and never run; when a shadow
+   exists, say so explicitly and print the edit for the shadowing file (or note that removing
+   the override is the alternative). Distinguish FOUR states:
    - **No `statusLine` configured** — the wrapper is not running because nothing is. Print the
      standalone wiring from the template below (the wrapper is then the whole statusline).
    - **`statusLine` present, command does not reference this plugin's `statusline-tee.sh`** —
@@ -58,9 +64,9 @@ zone bands, zones.json shape) are owned by
    zero-config state, not a defect), present and valid (report the bands in effect), or present
    but malformed (report that the resolver falls back to shipped defaults with a stderr notice;
    remediation: `apply`).
-5. **Print the operator edit** — always print the applicable `settings.json` statusline edit,
-   marked clearly as the operator's to apply, with `<plugin-root>` replaced by the resolved
-   absolute `${CLAUDE_PLUGIN_ROOT}` path:
+5. **Print the operator edit** — always print the applicable statusline edit for the settings
+   file that owns the effective command (step 2), marked clearly as the operator's to apply,
+   with `<plugin-root>` replaced by the resolved absolute `${CLAUDE_PLUGIN_ROOT}` path:
 
    Wrapping an existing statusline command (preserve the user's command verbatim as the trailing
    arguments):
