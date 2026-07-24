@@ -127,8 +127,9 @@ expands, so carry the resolved absolute path and substitute it wherever
 forward slashes. Never put a `${...}` token on a command line; PowerShell reads it as its own
 variable syntax.
 
-For a long article, redirect to `<plugin-data-dir>/x-article-<id>.md` — that exact template, using the
-gate-captured id — and `Read` the slice, never deriving the path from the response body.
+For a long article, redirect to `<plugin-data-dir>/x-article-<id>-<nonce>.md`, `Read` the slice, then
+delete it. The nonce and the delete are both required — see
+[`context/failure-modes.md`](context/failure-modes.md). Never derive the path from the response body.
 
 **Capture the status — `-sS` alone prints none.** Append `-w '\n%{http_code}'`. A `200` is not by
 itself success: confirm the response carries converted content, validating against the form you asked

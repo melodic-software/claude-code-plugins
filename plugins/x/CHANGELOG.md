@@ -76,9 +76,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   showing the operator the exact command. `allowed-tools` retains only
   `WebFetch(domain:threadreaderapp.com)`, which involves no shell. A validating `PreToolUse` hook is
   deferred, with re-introducing a shell grant as its trigger.
-- Long-article file redirects are bounded to a fixed `${CLAUDE_PLUGIN_DATA}/x-article-<id>.md`
-  template built from the gate-captured id — never an agent-chosen path, never one derived from
-  fetched content.
+- Long-article file redirects are bounded to a `<plugin-data-dir>/x-article-<id>-<nonce>.md` template
+  built from the gate-captured id plus a per-invocation nonce — never an agent-chosen path, never one
+  derived from fetched content — and the file is deleted once its slice has been read. The nonce
+  prevents two sessions reading the same article from sharing a path, where the second `curl` would
+  truncate the file between the first request completing and that session's `Read`.
 - Gate patterns are presented in fenced code blocks rather than a Markdown table. In table cells the
   alternation had to be written `\|` to survive the renderer, and a model reading the raw source
   could take that as a literal backslash-pipe and refuse every `twitter.com` URL.
