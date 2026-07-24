@@ -34,8 +34,8 @@ install is required; it just makes long-session audits smarter about their own d
 
 ## Security posture
 
-- **Egress**: exactly one — `gh issue create`, gated by an unconditional full-draft + target-repo
-  + acting-account confirm. No auto-file mode exists.
+- **Egress**: exactly one — `gh issue create`, gated by an unconditional confirm surface carrying
+  the full draft, the target repo, and the acting account. No auto-file mode exists.
 - **Untrusted content**: audited plugin source, manifests, and registrations are data, never
   instructions — a directive embedded in audited content is reported as a finding, backed by an
   anti-pattern eval.
