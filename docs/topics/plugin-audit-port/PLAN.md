@@ -179,7 +179,7 @@ Create `plugins/context-guard/`:
   `HOME` — no test writes the operator's live `~/.claude/context-guard/`).
 - [ ] Under `HOME=$(mktemp -d)`: `printf '{"session_id":"t1","context_window":{"used_percentage":50}}' | bash plugins/context-guard/scripts/statusline-tee.sh cat` echoes the exact input bytes and exits 0, and `$HOME/.claude/context-guard/context/t1.json` parses with `jq -e '.captured_at and .session_id and .context_window'`.
 
-#### Phase A2: Zone resolver + zones contract [TODO]
+#### Phase A2: Zone resolver + zones contract [DONE]
 
 - [ ] `scripts/context-zone.sh` — CREATE: `context-zone.sh <session_id>` reads the session snapshot
   + optional `~/.claude/context-guard/zones.json`, prints one word: `smart` / `acceptable` / `dumb`
