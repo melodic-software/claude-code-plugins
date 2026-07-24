@@ -14,9 +14,7 @@
               "--plugin-root",
               "${CLAUDE_PLUGIN_ROOT}",
               "--authorized-data-root",
-              "${CLAUDE_PLUGIN_DATA}",
-              "--disk-hygiene-enabled",
-              "${user_config.disk_hygiene_enabled}"
+              "${CLAUDE_PLUGIN_DATA}"
             ]
           }
         ]

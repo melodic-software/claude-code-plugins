@@ -9,6 +9,12 @@ import re
 import sys
 from pathlib import Path
 
+_LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+import killswitch_config  # noqa: E402  (path set above; plugin-bundled module)
+
 
 _SHELL_EXPANSION_OR_OPERATOR_CHARS = frozenset("{}$*?[]~`()<>;|&\r\n\t!#")
 
@@ -339,11 +345,6 @@ def resolve_mode() -> str:
     return value if value in {_MODE_BELT, _MODE_ENGINE_GATE} else _MODE_BELT
 
 
-_DISK_HYGIENE_ENABLED_FLAG = "--disk-hygiene-enabled"
-_DISK_HYGIENE_ENABLED_ENV = "CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED"
-_DISK_HYGIENE_ENABLED_PLACEHOLDER = "${user_config.disk_hygiene_enabled}"
-
-
 def _argv_flag_value(argv: list[str], flag: str) -> str | None:
     """Read the runtime-substituted value the frontmatter hook passed for ``flag``.
 
@@ -394,29 +395,74 @@ def resolve_authorized_data_root() -> str | None:
     return os.environ.get(_CLAUDE_PLUGIN_DATA_ENV)
 
 
+def _user_settings_path_from_root(plugin_root: str) -> str | None:
+    """Derive the user ``settings.json`` path from the plugin's install root.
+
+    Claude Code lays a marketplace plugin out at
+    ``<config>/plugins/cache/<marketplace>/<name>/<version>``, and the user
+    settings file is ``<config>/settings.json`` — the sibling of the ``plugins``
+    directory. This anchors on the same ``plugins/cache`` marker as
+    ``_plugin_data_root_from_root`` rather than a fixed depth: the ``plugins``
+    directory is the segment before ``cache``, and ``settings.json`` is its
+    parent's child. A root without that marker yields ``None`` so the caller
+    falls back to the environment.
+    """
+    parts = Path(plugin_root).parts
+    for index in range(1, len(parts)):
+        if (
+            parts[index].casefold() == _PLUGIN_CACHE_DIRNAME
+            and parts[index - 1].casefold() == _PLUGINS_DIRNAME
+        ):
+            plugins_dir = Path(*parts[:index])
+            return os.fspath(plugins_dir.parent / "settings.json")
+    return None
+
+
+def _resolve_user_settings_path() -> Path:
+    """Locate the user settings file that carries the kill switch.
+
+    Precedence, highest first:
+
+    1. Derived from ``--plugin-root ${CLAUDE_PLUGIN_ROOT}`` — the tamper-resistant
+       channel. Claude Code substitutes the plugin's true install path, which a
+       hostile repo cannot forge, so the settings file it points at is the real
+       user one regardless of any repo-supplied ``CLAUDE_CONFIG_DIR`` / ``HOME``.
+    2. ``CLAUDE_CONFIG_DIR`` / ``HOME`` (via
+       ``killswitch_config.default_settings_path``) — the fallback for non-hook
+       invocations (the report CLI, unit tests) where ``--plugin-root`` is absent.
+    """
+    plugin_root = _argv_flag_value(sys.argv[1:], _PLUGIN_ROOT_FLAG)
+    if plugin_root and plugin_root != _PLUGIN_ROOT_PLACEHOLDER:
+        derived = _user_settings_path_from_root(plugin_root)
+        if derived:
+            return Path(derived)
+    return killswitch_config.default_settings_path()
+
+
 def resolve_disk_hygiene_enabled() -> bool:
-    """Resolve the execution kill switch from the hook argv, then the environment.
+    """Resolve the execution kill switch by reading user-scope ``pluginConfigs``.
 
     The kill switch is a safety control: ``false`` is audit-only mode and must
-    prevent every deletion lane. A host supplies the value either as a
-    ``--disk-hygiene-enabled`` argv flag or as the
-    ``CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED`` environment variable; argv wins.
-    A literal, unsubstituted placeholder or an empty value is treated as absent.
+    prevent every deletion lane. The guard reads ``disk_hygiene_enabled`` straight
+    out of the user ``settings.json`` (``lib/killswitch_config.py``, the single
+    reader it shares with the report-only probe) — never the process environment.
+    Since Claude Code 2.1.207 that key is honored only from user, managed, and
+    ``--settings`` scope, never a project or local ``settings.json``
+    (plugins-reference, "User configuration"), so a hostile repo cannot flip the
+    switch. The environment is rejected on purpose: a repo ``settings.json``
+    ``env`` block reaches hook subprocesses and carries no provenance a hook could
+    check, so an env-borne toggle (or an env-borne settings path) would reopen the
+    hole this closes — hence the settings file is located from the tamper-resistant
+    ``--plugin-root`` first (see ``_resolve_user_settings_path``).
 
-    A skill-frontmatter hook can supply neither reliably: Claude Code substitutes
-    only ``${CLAUDE_PLUGIN_ROOT}`` into a skill hook's args (so
-    ``${user_config.disk_hygiene_enabled}`` cannot be passed on argv), and it does
-    not inject ``CLAUDE_PLUGIN_OPTION_*`` into a skill hook's environment. In that
-    deployment no channel supplies a value and the guard fails safe to enabled —
-    it stays active and still gates every mutation behind the final human prompt,
-    but cannot honor a configured ``false`` by denying outright. Delivering the
-    kill switch to a skill-scoped guard needs a channel skill hooks do not yet
-    have; see the plugin's safety model.
+    Every absent, unreadable, or ambiguous read fails **closed to enabled**: the
+    guard stays active and gates every mutation behind the final human prompt even
+    when it cannot confirm a configured value. Both registration surfaces reach
+    this one resolver — the plugin-level engine gate and the skill-frontmatter belt
+    both run ``main()``, and both receive ``--plugin-root ${CLAUDE_PLUGIN_ROOT}`` —
+    so the belt needs no environment channel it does not have.
     """
-    from_argv = _argv_flag_value(sys.argv[1:], _DISK_HYGIENE_ENABLED_FLAG)
-    if from_argv and from_argv != _DISK_HYGIENE_ENABLED_PLACEHOLDER:
-        return from_argv.strip().lower() != "false"
-    return os.environ.get(_DISK_HYGIENE_ENABLED_ENV, "true").strip().lower() != "false"
+    return killswitch_config.resolve_effective(_resolve_user_settings_path())
 
 
 def _is_authorized_data_root(value: str, authority: str | None) -> bool:

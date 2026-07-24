@@ -48,12 +48,13 @@ unless bounded with `--max-depth` or confirmed with `--confirmed-large-scan`.
   running the bundled probe (the guard allows exactly this argument-free shape):
   `"<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/kill_switch_probe.py"` and honor
   the `effective` value it reports; on `degraded: true` proceed as enabled but say the configured
-  value could not be read. Honoring that value is your responsibility: a skill-frontmatter hook
-  receives neither the `${user_config.*}` substitution nor the
-  `CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED` environment variable, so the guard cannot independently
-  enforce audit-only mode — it stays active and still forces a human prompt before every mutation,
-  but a configured `false` reaches only you, not the guard. Do not treat the guard as the kill
-  switch's backstop here. The hook runs in shell-free exec form and reports its absolute Python
+  value could not be read. The guard now enforces this independently: it resolves the same
+  `disk_hygiene_enabled` toggle by reading it straight from your user `settings.json` (the read is
+  shared with this probe, and the settings file is located from the tamper-resistant
+  `${CLAUDE_PLUGIN_ROOT}` — not the environment), so in audit-only mode it denies every mutation lane
+  outright — the Bash engine `apply` and the PowerShell deletion belt alike. Running the probe still
+  matters so you can state the configured value accurately and stop before proposing work the guard
+  would deny; the guard is the backstop, not the sole enforcer. The hook runs in shell-free exec form and reports its absolute Python
   interpreter and the authorized `--data-root` value in denial guidance. Use that exact interpreter
   path as `<hook-python>` for
   every engine call; bare `python`/`python3` is rejected because Bash aliases and functions can
@@ -263,13 +264,11 @@ handoff, not an engine plan:
 
 The PowerShell guard lane turns deletion spellings into a final human permission prompt (the same
 bar as the engine apply prompt); confirm that prompt only when the command matches the exact
-approved list. Engine invocations from PowerShell stay hard-denied. **Caveat — the plugin-level engine
-gate is inert until `disk_hygiene_enabled` is explicitly configured (verified on Claude Code 2.1.218):**
-that gate (`hooks/hooks.json`) passes a bare `${user_config.disk_hygiene_enabled}`, and an
-unset-but-defaulted userConfig value drops the whole hook entry, so for any consumer who never set the
-key the gate never runs — on the Bash tool and the PowerShell tool alike. The skill-scoped belt (this
-skill's frontmatter hook) carries no such token and is unaffected; `Bash|PowerShell` PreToolUse hooks do
-fire for the PowerShell tool. See `reference/safety-model.md`.
+approved list. Engine invocations from PowerShell stay hard-denied. The plugin-level engine gate
+(`hooks/hooks.json`) now registers unconditionally and resolves the kill switch itself by reading
+`disk_hygiene_enabled` from your user `settings.json`; it no longer carries a `${user_config.*}`
+argument, so the unset-default hook-drop that once made it inert on a default install is gone.
+`Bash|PowerShell` PreToolUse hooks fire for the PowerShell tool. See `reference/safety-model.md`.
 
 Summarize removed paths, logical bytes removed, observed free-space delta, and every skip grouped by
 `locked`, `changed-or-link`, `protected`, `needs-elevation`, `handle-state-unverified`, or
@@ -299,13 +298,13 @@ sparse files, hard links, compression, and delayed allocation affect it.
   apply shapes using the hook runtime's same absolute executable pass. Shell expansions, globs,
   splitting/escape forms, operators, redirections, aliases, and exported functions fail closed.
 - The guard registers twice: a plugin-level engine gate (`hooks/hooks.json`, `--mode engine-gate`)
-  that receives the kill switch and data root by plugin-hook substitution and defers instantly on any
-  command not referencing the engine; and this skill's frontmatter belt, which adds the deny-by-default
-  Bash and deletion-spelling PowerShell discipline while cleanup is the active work. Verdicts are
-  idempotent where both fire. **Caveat (verified on Claude Code 2.1.218):** the engine gate only
-  registers once `disk_hygiene_enabled` is explicitly configured — its bare `${user_config.*}` argument
-  drops the whole hook while the option is unset (upstream never implemented the declared `default`), so
-  on a default install only the frontmatter belt runs, and only during `clean`.
+  that receives the data root by plugin-hook substitution and defers instantly on any command not
+  referencing the engine; and this skill's frontmatter belt, which adds the deny-by-default Bash and
+  deletion-spelling PowerShell discipline while cleanup is the active work. Both resolve the kill switch
+  the same single way — reading `disk_hygiene_enabled` from user-scope `pluginConfigs` in
+  `settings.json`, located from the `${CLAUDE_PLUGIN_ROOT}` both receive — so both honor a configured
+  `false`, register unconditionally, and fail closed to enabled when the value is absent or unreadable.
+  Verdicts are idempotent where both fire.
 - The guard hook launches in exec form via `python3`, resolved on `PATH` with no shell (`python3`,
   not bare `python`, because stock macOS and many Linux distros ship only `python3` and a legacy
   `python` 2.x would crash the guard on modern syntax). Enforcement is therefore only as strong as
@@ -319,14 +318,16 @@ sparse files, hard links, compression, and delayed allocation affect it.
   manual-handoff lane already requires and the consumer's baseline permission policy — defense-in-depth
   lost, not preserved. `/disk-hygiene:setup check` reports whether the interpreter resolves on this
   machine.
-- **The plugin-level engine gate is dropped whenever `disk_hygiene_enabled` is unconfigured (Claude Code
-  2.1.218) — distinct from the `python3`-resolution loss above.** `hooks/hooks.json` passes a bare
-  `${user_config.disk_hygiene_enabled}`; a declared userConfig `default` is not implemented upstream, so an
-  unset-but-defaulted token is neither substituted nor exported to `CLAUDE_PLUGIN_OPTION_*` and its presence
-  **drops the whole hook entry**. Fresh-session controlled test: token-carrying hooks vanish while token-free
-  controls fire, and return once the key is configured. Consequence: for any consumer who never set the key,
-  this gate has never run — on Bash and PowerShell alike. The skill-scoped belt carries no such token and is
-  unaffected. Recheck when the upstream `default` gap closes (#46477 / #39455 / #39827).
+- **The kill switch is delivered by reading user settings, not by a hook argument (since 0.9.0).** Earlier
+  versions passed a bare `${user_config.disk_hygiene_enabled}` in `hooks/hooks.json`; a declared userConfig
+  `default` is not implemented upstream (#46477 / #39455 / #39827), so an unset-but-defaulted token was
+  neither substituted nor exported to `CLAUDE_PLUGIN_OPTION_*`, and its presence **dropped the whole hook
+  entry** — making the engine gate inert for any consumer who never set the key. The gate no longer carries
+  a `${user_config.*}` token; both the gate and the belt resolve `disk_hygiene_enabled` by reading it from
+  user-scope `pluginConfigs` in `settings.json`. Claude Code honors that key only from user, managed, and
+  `--settings` scope since 2.1.207 (a project/local `settings.json` is ignored), so a hostile repo cannot
+  forge it; the file is located from `${CLAUDE_PLUGIN_ROOT}` rather than the environment, which a repo `env`
+  block could redirect. Absent or unreadable settings fail closed to enabled.
 - **PreToolUse hooks DO fire for the PowerShell tool** (2.1.218; payload `tool_name` is literally
   `PowerShell`, confirmed by a live block through that tool). A `Bash|PowerShell` matcher is correct and
   there is no harness firing divergence — read `tool_name` from the stdin payload, not from an env var

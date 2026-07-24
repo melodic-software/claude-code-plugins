@@ -144,41 +144,42 @@ switch. When the guard sees execution enabled they are downgraded to a final hum
 when it sees a configured `false` (audit-only mode) they are denied outright, so the kill switch would
 block deletions on the PowerShell lane too and not only the Bash engine apply.
 
-**Caveat — the plugin-level engine gate is inert by default (verified on Claude Code 2.1.218).** The
-gate (`hooks/hooks.json`, exec form) passes a bare `${user_config.disk_hygiene_enabled}`. A declared
-userConfig `default` is **not implemented**: an unset-but-defaulted `${user_config.*}` is neither
-substituted nor exported as `CLAUDE_PLUGIN_OPTION_*`, and its presence in an exec-form arg **drops the
-entire hook entry**. (Fresh-session controlled test: the token-carrying hooks vanish while token-free
-control hooks fire, and reappear unchanged once the key is configured.) So for every consumer who never
-explicitly set `disk_hygiene_enabled`, this engine gate has never run — on the Bash tool and the
-PowerShell tool alike, which is the real shape of the "PowerShell bypass" originally reported.
+**Kill-switch enforcement (since 0.9.0): both surfaces resolve it by reading user settings.** The guard
+registers on two surfaces — the **plugin-level engine gate** (`hooks/hooks.json`, exec form,
+`--mode engine-gate`) and the **skill-scoped belt** (the clean skill's frontmatter hook) — and both
+resolve `disk_hygiene_enabled` the same single way: by reading it from user-scope `pluginConfigs` in
+`settings.json`, through the shared `lib/killswitch_config.py` reader (the same read the setup skill's
+`kill_switch_probe.py` reports). Neither surface takes the value from the process environment. Claude
+Code honors that key only from user, managed, and `--settings` scope since 2.1.207 — a project or local
+`.claude/settings.json` is ignored — so a hostile repo cannot flip it. The settings file is located from
+`${CLAUDE_PLUGIN_ROOT}` (the plugin's true install path, which a repo cannot forge), not from
+`CLAUDE_CONFIG_DIR`/`HOME`, which a repo `settings.json` `env` block could redirect. When the value
+resolves `false` (audit-only mode), `false` is guard-enforced — denied outright, not merely prompted — but
+the two surfaces reach different lanes. The **always-on engine gate** enforces it against every Bash
+engine invocation **whether or not the clean skill is active**; it defers (no output) on any command that
+does not reference the engine, so it does **not** see PowerShell deletion spellings. Those are enforced by
+the **skill-scoped belt** (`powershell_decision`) — denied outright in audit-only — only **while the clean
+skill is active**. An absent, unreadable, or ambiguous read fails **closed to enabled**: the guard stays
+active and forces a human prompt before every mutation, so an unreadable toggle never silently disables
+the guard.
 
-The **skill-scoped belt is unaffected** — it carries no `${user_config.*}` token — and PreToolUse hooks
-with a `Bash|PowerShell` matcher **do** fire for the PowerShell tool on 2.1.218 (payload `tool_name` is
-literally `PowerShell`, confirmed by a live block through that tool). There is no harness firing
-divergence. **Recheck** when the upstream `userConfig` `default` gap is fixed (#46477 / #39455 / #39827),
-which would let the gate resolve its declared default instead of dropping.
+This replaces the earlier delivery, where the gate carried a bare `${user_config.disk_hygiene_enabled}`
+argument. Because the declared userConfig `default` is not implemented upstream
+(#46477 / #39455 / #39827), an unset-but-defaulted token was neither substituted nor exported as `CLAUDE_PLUGIN_OPTION_*` and
+its presence **dropped the whole engine-gate hook** — so on a default install the gate never ran at all,
+the real shape of the "PowerShell bypass" originally reported. Reading settings directly needs no
+`default` substitution, so that inert-by-default failure is gone. **Recheck** the tamper and scoping
+premises if 2.1.207's user-scope-only `pluginConfigs` behavior changes upstream.
 
-Kill-switch enforcement is only as reachable as the value is, and the guard now registers on two
-surfaces with different reach. The **plugin-level engine gate** (`hooks/hooks.json`, exec form,
-`--mode engine-gate`) receives `${user_config.disk_hygiene_enabled}` and `${CLAUDE_PLUGIN_DATA}`
-by substitution — channels Claude Code documents for plugin hooks — so **when the value is explicitly
-configured** `false` is guard-enforced against every engine invocation, whether or not the clean skill
-is active. **Caveat (verified on Claude Code 2.1.218):** that reach exists only for a configured value.
-Upstream never implemented the declared userConfig `default`, so while `disk_hygiene_enabled` is unset
-its `${user_config.*}` argument is neither substituted nor exported and its presence **drops the whole
-engine-gate hook** — on a default install the gate does not register at all, and this surface enforces
-nothing (the skill's own kill-switch probe + skill-content value become the only honoring path). Recheck
-when the upstream gap closes (#46477 / #39455 / #39827). The gate defers instantly (no output) for any command that does not reference the engine,
-so it never taxes unrelated work; its coverage marker is the engine script name, a belt against
+PreToolUse hooks with a `Bash|PowerShell` matcher fire for the PowerShell tool on 2.1.218 (payload
+`tool_name` is literally `PowerShell`, confirmed by a live block through that tool); there is no harness
+firing divergence. The gate defers instantly (no output) for any command that does not reference the
+engine, so it never taxes unrelated work; its coverage marker is the engine script name, a belt against
 casual invocation, not an authority (renaming the script evades the gate but not the engine's own
-preview/approval-token containment). The **skill-scoped belt** (the clean skill's frontmatter
-hook) still receives neither the substitution nor the `CLAUDE_PLUGIN_OPTION_*` environment
-variable, so on its surface the guard defaults to enabled; that is now a defense-in-depth
-redundancy rather than the only enforcement, and the model additionally reads the substituted
-`disk_hygiene_enabled` value from the skill content and self-enforces audit-only. Even when the
-switch is reachable, the PowerShell lane is a raised bar, not fail-closed: an unknown mutation
-spelling passes it, so the engine's own containment, revalidation, and platform gates remain the
+preview/approval-token containment). The model additionally reads the `disk_hygiene_enabled` value from
+the skill content and self-enforces audit-only — now defense-in-depth over the guard, not the only path.
+Even when the switch resolves enabled, the PowerShell lane is a raised bar, not fail-closed: an unknown
+mutation spelling passes it, so the engine's own containment, revalidation, and platform gates remain the
 deletion authority.
 
 A depth-limited scan records every directory it declined to enter in `truncated_paths`. Truncated
