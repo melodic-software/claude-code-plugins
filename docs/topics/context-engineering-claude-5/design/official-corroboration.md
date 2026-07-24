@@ -179,6 +179,64 @@ check that reads a plugin's declared defaults must not assume they are live.
 created on first reference". A criteria catalog materialized under `${CLAUDE_PLUGIN_ROOT}/reference/`
 is versioned with the plugin, which is what the shape-4 seam assumes.
 
+## Path scoping — verified empirically, not just read
+
+The whole progressive-disclosure remediation rests on one premise: that moving content into a
+path-scoped rule actually defers its load. `claude-memory`'s own reference asserted the opposite,
+dated 2026-04-01 — "Official docs describe path scoping as working. In practice, issues `#16299`,
+`#16853`, `#38487`, `#32906` remain open — rules load unconditionally at session start regardless
+of `paths:` frontmatter." If that held, the remediation would send operators to a destination that
+saves nothing, and the compaction cost would be charged for something never incurred.
+
+**It does not hold. Verified first-party on Claude Code 2.1.219, 2026-07-24.** A rule scoped
+`paths: ["**/*.tsx"]` carrying a unique token was absent at session start, present after reading a
+matching `.tsx` file, and still absent after reading a non-matching `.md` file. Deferral works
+cleanly in both directions. The docs agree — memory: "Path-scoped rules trigger when Claude reads
+files matching the pattern, not on every tool use", and rules without `paths` "are loaded at launch
+with the same priority as `.claude/CLAUDE.md`".
+
+**The cited issue evidence was wrong in two independent ways**, which is worth recording because the
+same failure could recur in this work's own citations. Two of the four issues are closed
+(38487 and 32906, both `NOT_PLANNED`), so "remain open" is false for them — and neither ever
+supported the claim: 38487 asks that Write/Edit *also* trigger injection, which presupposes deferral
+works, and 32906 is a docs issue about subagents. The two that are open assert **opposite** failure
+modes — 16299 says rules load always, 16853 says they never load — so they cannot jointly support one
+conclusion. 16299 is stale-open with no maintainer response, and its own last substantive comment
+argues against it: adding `paths:` frontmatter to 75 rule files dropped a session baseline from
+139.5k to roughly 40k tokens. Stale-open is absence of a fix record, not evidence of current
+breakage.
+
+**`@path` imports load at launch — confirmed verbatim from the live page**, three times, including
+the direct statement that splitting a large `CLAUDE.md` into imports "helps organization but doesn't
+reduce context, since imported files load at launch".
+
+### Four costs the remediation must price, all verified
+
+1. **An `@import` inside a path-scoped rule defeats the rule.** Reproduced on 2.1.219: a rule scoped
+   to `**/*.py` whose body was only `@../../notes/pyconv.md` had its *imported* content inlined at
+   session start, while the rule's own body correctly stayed out. So an operator who moves content
+   into a path-scoped rule but pulls it in by import saves nothing. This is the sharpest thing D6
+   detects, and no incumbent has it.
+2. **Path-scoped content is invisible to subagents, teammates, and skill-forked contexts.** Issue
+   32906 was closed `NOT_PLANNED`, which makes it accepted behavior rather than a pending bug. The
+   memory page documents subagent context loss only for auto memory, so as far as the live page
+   shows this is undocumented — recorded as an observation, not as a fetched claim.
+3. **Writing a new file does not trigger the rule.** Freshly created files land without their
+   conventions in context. One issue asking for Write/Edit triggering is open; another was closed
+   `NOT_PLANNED`.
+4. **Multi-entry `paths:` lists may silently fail to match** while a single brace-expanded pattern
+   works. **Flagged, not re-verified** — reports span Jan–Feb 2026 on much older versions and the
+   empirical run above used a single pattern. A silent no-match is worse for an operator than no
+   saving at all, so this is an open authoring hazard until re-tested.
+
+**When the behavior changed is unknown.** No changelog entry or maintainer comment pins a version,
+so any claim here can only say "verified working as of 2.1.219, 2026-07-24" — which is what the
+rewritten `claude-memory` line must say too.
+
+The compaction table is unchanged and now doubly load-bearing, because the destination it prices is
+real. The context-window page states the tradeoff directly: "If a rule must persist across
+compaction, drop the `paths:` frontmatter or move it to the project-root `CLAUDE.md`."
+
 ## Pages the plan's list missed
 
 The eleven-slug list was built from the source article's claims. Walking `llms.txt` surfaced five
