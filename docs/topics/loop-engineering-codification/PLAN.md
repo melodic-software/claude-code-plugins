@@ -199,6 +199,47 @@ class, but the upstream documentation describes network allowlisting and
 per-run ephemerality, never kernel separation. Treat the level as a
 security-binding verdict, not a doc-derived fact.
 
+#### Do the existing verification skills feed the governed queue?
+
+**No, and the gap is a missing join rather than a missing output format.**
+
+- **What they emit today.** `/toolchain:check` reports build results as prose.
+  `/verification:confirm` emits an outcome report and a `CONFIRMED` /
+  `NEEDS WORK` verdict, plus — only when `/testing:run-e2e` ran — an
+  assertion-only manifest keyed by topic slug and `verified_at_sha`.
+  `/verification:measure` emits comparison tables over baselines that are
+  machine-bound and never committed.
+- **What the queue's promotion apparatus requires.**
+  `guardrails/work-classes.md` §Promotion and demotion fixes one shape: an
+  evidence predicate over queryable telemetry, whose evidence base is
+  verification outcomes recorded per `telemetry.md` — an emission carrying
+  `autonomy.work_item.url`, joined query-side.
+- **The blocking mismatch.** None of the three skills knows a work item
+  exists; `plugins/verification/` carries no tracker or work-item reference at
+  all. `telemetry.md` Pillar 2 fixes the join key as the WORK ITEM's URL,
+  never a change URL, so nothing these skills persist yields a join.
+- **Emitting a signal from skill-side would not conform either.** Skill output
+  is repo-local, agent-writable content, and
+  `trigger-dispatch.md` §Work-class classification refuses that surface as a
+  source of `signal.work_class` — such an emission stays unclassified and
+  fail-closes to human-gated.
+- **The conforming route is not skill-side.** `telemetry.md` §Native-surface
+  principle requires wrapping native emission rather than re-deriving it, and
+  the emission templates and conformance scripts already ship under
+  `plugins/autonomy/skills/setup/`. The association these skills lack comes
+  from the lease, which Pillar 2 names as the granularity guarantor and which
+  exists only on the autonomous path; `runner/seams.md`
+  §Outcome-verification gate is where a verification result acquires its work
+  item.
+- **This is by design, not an oversight.** `return-accounting.md` §Capture
+  scope exempts interactive work explicitly. These are interactive-lane
+  skills, and asking them to feed the queue asks them to cross that boundary.
+
+Conclusion: this topic warrants no change to the verification skills. The
+promotion evidence base is blocked on an executor behind the
+invocation-adapter seam, not on an output format — the same
+deferred-with-trigger shape `boris-video-absorption` already records.
+
 ### Deferred questions
 
 - Whether contract slices should persist on the default branch at all —
