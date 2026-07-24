@@ -520,7 +520,16 @@ BRANCH=$(git -C "$WT" branch --show-current)
 **Preconditions (assert, never redo).** The worker's contract is to commit, push, and be current with the default branch before returning; verify rather than repeat:
 
 - **Clean tree:** `git -C "$WT" status --porcelain` empty — else STOP (the worker returned with uncommitted work).
-- **Nothing unpushed:** `git -C "$WT" log @{u}..` empty and the branch resolves on the remote — else STOP (the worker returned without pushing).
+- **Pushed to the remote at HEAD:** confirm the branch's remote tip equals local HEAD **without relying on `@{u}`** — a worker that pushed with `git push origin <branch>` (no `-u`) has no upstream configured, so `git log @{u}..` would exit 128 on a branch that is in fact fully pushed. Resolve the fetch remote and compare the refs directly:
+
+  ```bash
+  REMOTE=$(git -C "$WT" config "branch.$BRANCH.remote" 2>/dev/null || echo origin)
+  git -C "$WT" fetch -q "$REMOTE" "$BRANCH"
+  [ "$(git -C "$WT" rev-parse HEAD)" = "$(git -C "$WT" rev-parse "$REMOTE/$BRANCH" 2>/dev/null)" ] \
+    || { echo 'worker branch is not fully pushed to the remote' >&2; exit 1; }
+  ```
+
+  else STOP (the worker returned without pushing HEAD).
 
 **Sub-steps relative to the normal `create` path:**
 
