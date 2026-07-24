@@ -388,7 +388,7 @@ Create `plugins/context-guard/`:
 
 - [ ] `grep -c 'plugin-quality' docs/conventions/config-cascade/README.md` ≥ 1.
 
-#### Phase B5: Setup skill [TODO]
+#### Phase B5: Setup skill [DONE]
 
 - [ ] `skills/setup/SKILL.md` — CREATE: `check` (gh present + authed, context-guard snapshot seam
   present → reports dispatch mode, config layers found + effective sink with layer provenance) /
