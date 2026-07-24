@@ -1,7 +1,7 @@
 ---
 name: implement-dispatch
 description: "Orchestrate worker subagents to execute an approved plan — the main window composes scope-fenced briefs, dispatches workers, verifies their returns against direct evidence, and builds main-side instead of editing inline. Use when the plan routes phases to worker surfaces or the session runs autonomously; for interactive all-inline execution use /implementation:implement instead."
-argument-hint: "[phase] (e.g., /implementation:implement-dispatch, /implementation:implement-dispatch phase-2)"
+argument-hint: "[phase] [--wave-cap <N>] (e.g., /implementation:implement-dispatch, /implementation:implement-dispatch phase-2 --wave-cap 3)"
 user-invocable: true
 disable-model-invocation: false
 ---
@@ -14,7 +14,7 @@ Structural variant of `/implementation:implement` for orchestrated execution: th
 
 **Orchestration mode detection** — infer autonomous vs interactive from the session shape: a goal/loop harness driving turns with no human in the cycle, a plan that declares itself autonomous-ready, or an explicit orchestration instruction means **autonomous**; a human reviewing each turn means **interactive**.
 
-**Autonomous:** the main window is orchestrator only — MUST dispatch workers per phase; orchestrated cadence is the **default** even when the plan's routing is all-main-window (synthesize per-phase worker rows from the plan). Cap concurrent dispatch waves at 3–5 workers.
+**Autonomous:** the main window is orchestrator only — MUST dispatch workers per phase; orchestrated cadence is the **default** even when the plan's routing is all-main-window (synthesize per-phase worker rows from the plan). Cap concurrent dispatch waves at 3–5 workers by default; when the caller passes `--wave-cap <N>` (see Arguments) — e.g. `/work-items:work` threading its `work_dispatch_concurrency_cap` — cap at that `N` instead of the internal 3–5. The parameter is the single enforcement point for a caller-configured concurrency ceiling; omitting it keeps the internal default, so existing callers are unaffected.
 
 **Interactive:** read the plan's execution-shape/routing table. Worker rows present (any surface other than main-window) → this skill's dispatch cadence for those phases. Routing table absent or all main-window → `/implementation:implement` classic inline cadence instead.
 
@@ -22,7 +22,11 @@ Structural variant of `/implementation:implement` for orchestrated execution: th
 
 ## Arguments
 
-`$ARGUMENTS` — optional phase selector (e.g. `phase-2`). When a phase is named, scope the dispatch cadence to that plan phase only. Otherwise walk the remaining plan phases strictly in order — never dispatch a later worker-routed phase past an incomplete earlier phase: dispatch each worker-routed phase as it becomes current; in interactive mode, at the first inline-routed phase hand back to `/implementation:implement` classic cadence and re-enter here when a later worker-routed phase becomes current. Under autonomous mode every remaining phase dispatches in order, synthesizing worker rows per the Autonomous rule above when the routing table lacks them.
+`$ARGUMENTS` — an optional phase selector plus an optional `--wave-cap <N>`, in any order.
+
+The **phase selector** (e.g. `phase-2`) scopes the dispatch cadence to that plan phase only. Otherwise walk the remaining plan phases strictly in order — never dispatch a later worker-routed phase past an incomplete earlier phase: dispatch each worker-routed phase as it becomes current; in interactive mode, at the first inline-routed phase hand back to `/implementation:implement` classic cadence and re-enter here when a later worker-routed phase becomes current. Under autonomous mode every remaining phase dispatches in order, synthesizing worker rows per the Autonomous rule above when the routing table lacks them.
+
+`--wave-cap <N>` — an optional positive-integer ceiling on **concurrent dispatch waves**. When passed, it replaces the internal 3–5 default (see the Autonomous rule); when omitted, the internal default stands. This is how a chaining caller threads a configured concurrency cap in — `/work-items:work` passes its resolved `${user_config.work_dispatch_concurrency_cap}` here, and passes nothing when that key is unset so the internal default applies.
 
 ## Prerequisites (before any dispatch)
 
@@ -87,3 +91,4 @@ Any criterion fails → clear + resume from the emitted prompt. **The phase-boun
 - **New shebang files need `chmod`, then `git add`, then `git update-index --chmod=+x` — in that order.** Brief every worker: `chmod +x <path>`, then `git add <path>` (a not-yet-tracked file fails `git update-index --chmod=+x` outright — it can't override the index mode of a path that isn't staged yet), then `git update-index --chmod=+x <path>` to force the index mode explicitly (skip symlinks — staged `120000`, they fail the same command) — a shebang file staged non-executable trips the `exec-bit` check
 - **Push early, before the CI-poll tail — but never the PR.** Brief every worker to commit and push as early as practical rather than deferring until its fix-and-verify loop is done, so a mid-session death never orphans unpushed work. This is a source-only checkpoint commit — the phase-boundary plan-mark commit (Step 4) still runs separately, orchestrator-side, once the phase's acceptance criteria are verified. PR creation stays out of every worker brief — it happens in the orchestrator's post-verification flow (`/implementation:implement` Step 5) after every return is verified and the build/test gate passes
 - **Scope-fence drift applies to agent returns.** Every worker return is a decision boundary — classify proposed follow-ups per `/implementation:implement` "Step 3.5: Scope-fence drift detector (run at every decision boundary)" before announcing them
+- **An omitted `--wave-cap` keeps the internal 3–5 — never coerce an absent value into a number.** Only cap at `N` when the caller passed a real positive integer; a missing, empty, or unresolved-placeholder argument means "use the internal default," not `0` and not a hard `1`

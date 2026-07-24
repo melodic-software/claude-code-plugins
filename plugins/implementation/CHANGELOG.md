@@ -3,6 +3,17 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.0]
+
+### Added
+
+- **`implement-dispatch` gains an optional `--wave-cap <N>` argument that overrides the internal 3–5
+  concurrent-wave default (`#573`).** The parameter is the single enforcement point for a
+  caller-configured concurrency ceiling: passed, it caps concurrent dispatch waves at `N`; omitted, the
+  internal 3–5 default stands, so existing callers are unaffected. `/work-items:work` threads its
+  `work_dispatch_concurrency_cap` here (and passes nothing when the key is unset), wiring the
+  previously-inert config to real enforcement.
+
 ## [0.8.0]
 
 ### Added

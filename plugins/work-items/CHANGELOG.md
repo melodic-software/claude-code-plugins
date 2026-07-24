@@ -3,6 +3,25 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.0]
+
+### Changed
+
+- **`work`'s autonomous concurrency cap is now wired to real enforcement (`#573`).** When
+  `${user_config.work_dispatch_concurrency_cap}` resolves to a value, the orchestrator threads it into
+  the delegated `/implementation:implement-dispatch` dispatch as that skill's new `--wave-cap <N>`
+  ceiling; a surviving placeholder (unset) passes no `--wave-cap`, so implement-dispatch applies its
+  own internal 3–5 wave default. The cap previously changed nothing.
+
+### Removed
+
+- **`work_cycle_batch_cap` is removed from `userConfig` (`#573`).** `work` selects and executes exactly
+  one item per invocation, so it has no cycle to bound — the scalar had no honest in-skill enforcement
+  point and bound nothing. The autonomous per-cycle item budget already lives, and is enforced, in the
+  driving loop as the `work-loop` lane's adaptive item cap (`work_loop_item_cap_*`); a future,
+  demonstrated need for a distinct loop-side batch budget would reopen as a `/loop`-side concern rather
+  than an inert knob.
+
 ## [0.23.0]
 
 ### Changed
