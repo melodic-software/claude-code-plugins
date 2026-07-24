@@ -1,7 +1,7 @@
 ---
 name: setup
 description: "Verify the context-guard plugin's wiring on this machine — jq, statusline tee wiring (including a stale plugin-cache path), live-session snapshot freshness — print the exact statusline edit for the operator, and optionally seed ~/.claude/context-guard/zones.json from the shipped defaults. Use when: 'set up context-guard', 'is the context tee working', 'wire the context statusline', a consumer reports zone unknown in a live session, or after a plugin update moved the cache path. Actions: check (read-only; never edits settings), apply (writes ONLY zones.json, on explicit request)."
-argument-hint: "check | apply"
+argument-hint: "check | apply [reset]"
 user-invocable: true
 disable-model-invocation: true
 ---
@@ -88,16 +88,22 @@ zone bands, zones.json shape) are owned by
    Shell-syntax guard: the wrapped form passes the user's command as ARGV — it only works for
    plain `executable arg…` commands. If the current command contains shell syntax (an inline env
    assignment like `THEME=dark my-statusline`, a pipe, `&&`, `;`, or quoting), print the
-   shell-wrapped variant instead, preserving the original command verbatim inside it:
+   shell-wrapped variant instead:
 
    ```json
    {
      "statusLine": {
        "type": "command",
-       "command": "bash \"<plugin-root>/scripts/statusline-tee.sh\" sh -c '<current statusline command>'"
+       "command": "bash \"<plugin-root>/scripts/statusline-tee.sh\" sh -c '<escaped original command>'"
      }
    }
    ```
+
+   `<escaped original command>` is the original command POSIX-escaped for single-quote embedding:
+   replace every `'` in it with `'\''` before substituting (then JSON-escape the whole `command`
+   string as usual). Show the final, fully escaped line — never hand the operator a template with
+   raw quotes left to fix. Verify your printed edit round-trips: mentally unquote it back and
+   confirm it reproduces the original command byte-for-byte.
 
    Windows note: the command must run under Git Bash — `bash` is invoked explicitly for exactly
    that reason (the script's stated shell requirement). Caveat to state with the printed edit: the
@@ -126,13 +132,17 @@ file if they ever disagree):
    }
    ```
 
-2. **File present** — converge, don't clobber: set the two recognized keys to the shipped defaults
-   ONLY if the operator asked for a reset (otherwise leave valid existing values alone and just
-   report them); **preserve every unrecognized key byte-for-byte** (the file is a shared SSOT the
-   operator's own statusline may extend). Use `jq` to merge so the result stays valid JSON. If
-   `jq` is absent while the file exists, FAIL with the jq install remediation
-   (<https://jqlang.org/download/>) instead of attempting a merge — never risk clobbering the
-   operator's keys with a jq-less rewrite. (Step 1's template write needs no jq.)
+2. **File present** — behavior is mode-explicit, never ambiguous:
+   - `apply` (no argument): REPAIR-ONLY. Valid recognized band values are left untouched and
+     reported; recognized keys that are missing or invalid (non-numeric, inverted, out of range)
+     are set to the shipped defaults. An operator's custom-but-valid thresholds are never
+     overwritten by a bare `apply`.
+   - `apply reset`: set BOTH recognized band keys to the shipped defaults explicitly.
+   - Both modes **preserve every unrecognized key byte-for-byte** (the file is a shared SSOT the
+     operator's own statusline may extend). Use `jq` to merge so the result stays valid JSON. If
+     `jq` is absent while the file exists, FAIL with the jq install remediation
+     (<https://jqlang.org/download/>) instead of attempting a merge — never risk clobbering the
+     operator's keys with a jq-less rewrite. (Step 1's template write needs no jq.)
 3. **Idempotent** — a second identical `apply` produces no content change; say so.
 4. **Report exactly what was written** (old bands → new bands, unrecognized keys preserved), and
    remind that consumers re-read the file on their next zone decision — no restart needed.

@@ -40,14 +40,14 @@
     },
     {
       "id": 4,
-      "name": "apply-preserves-unrecognized-keys",
-      "prompt": "/context-guard:setup apply\n\nMy zones.json already exists and carries a custom display_color key my statusline reads.",
-      "expected_output": "Converges the two recognized band keys, preserves the unrecognized display_color key byte-for-byte, reports exactly what changed, and confirms a second identical apply would be a no-op.",
+      "name": "apply-preserves-unrecognized-keys-and-custom-bands",
+      "prompt": "/context-guard:setup apply\n\nMy zones.json already exists with custom valid bands (40/70) and carries a custom display_color key my statusline reads.",
+      "expected_output": "Bare apply is repair-only: leaves the valid custom bands (40/70) untouched and reports them, preserves the unrecognized display_color key byte-for-byte, names 'apply reset' as the explicit route to the shipped defaults, and confirms a second identical apply would be a no-op.",
       "files": [],
       "expectations": [
-        "Writes only ~/.claude/context-guard/zones.json and nothing else",
+        "Writes only ~/.claude/context-guard/zones.json and nothing else (a fully valid file may mean no write at all)",
+        "Does NOT overwrite valid custom band values on a bare apply; names apply reset as the explicit reset mode",
         "Preserves unrecognized keys rather than rewriting the file from the template",
-        "Reports old bands, new bands, and preserved keys",
         "States idempotency (second run = no content change)"
       ]
     }
