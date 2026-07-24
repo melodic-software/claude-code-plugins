@@ -151,10 +151,11 @@ routine runs, Desktop scheduled tasks, `/loop` iterations, and interactive
 work all draw the same rolling five-hour and weekly budget
 (`loop-lane/README.md` §3). The $0 constraint therefore reappears as
 contention with the operator's own interactive sessions and with the lanes'
-rate-limit guard. This is the axis finding B5 points at: the invariant is
-*no agent session, zero agent tokens*, and the catalog's `not-a-routine` rows
-satisfy it on any substrate — which is why B5's "plain cron" names a
-mechanism where the contract owns only the property.
+rate-limit guard. This is the axis finding B5 turned on, and B5 has since
+landed on this branch: `routines.md` now fixes the property — *no agent
+session, zero agent tokens* — where it previously prescribed plain cron, so
+the catalog's `not-a-routine` rows and the detection portion of every hybrid
+row satisfy it on any substrate.
 
 **Named free default, already fixed by the corpus.** `runner/topology.md`
 §Launch backend set requires one free self-run `L2` backend — a
@@ -188,9 +189,12 @@ comparison is upstream at
 to an individual claude.ai account and count against that account's daily run
 allowance, so spreading standing work across the operator's several
 subscriptions is the obvious way to buy headroom at $0. `loop-lane/README.md`
-§6's single-account-per-machine invariant forbids it for anything sharing the
-rate-limit tee file — which is finding B4's subject, and the strongest
-practical argument that B4's fail-open posture should yield.
+§6 previously assumed one account per machine and simply trusted whichever
+account last wrote the rate-limit tee file — the fail-open posture finding B4
+challenged, and this the sharpest practical case against it. B4 has since
+landed: the tee record carries its account identifier, and a mismatch reads as
+stale rather than as headroom, so multi-account operation is now a detected
+condition instead of an undetectable one.
 
 **Unverified — flagged at the claim.** Whether the cloud environment satisfies
 the ladder's `L3` bar is NOT established. Its shape matches the "hosted

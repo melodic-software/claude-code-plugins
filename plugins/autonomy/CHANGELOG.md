@@ -6,11 +6,13 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 Versions 0.1.0–0.7.0 predate this file (introduced with 0.7.1); their history lives in the
 merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
 
-## Unreleased — bump classification USER-RESERVED
+## [0.10.0]
 
-The `version` in `.claude-plugin/plugin.json` is deliberately unbumped: one of the three changes
-below has a genuinely ambiguous SemVer tier under this contract's own rules, and the arbiter is the
-operator. Assigning a version is the last step before release, not a guess made here.
+**Bump tier is USER-RESERVED and provisionally set to the safer reading.** One of the three changes
+below has a genuinely ambiguous tier under this contract's own rules. Under the plugin's `0.x`
+scheme a contract-vocabulary change lands as a minor bump (`0.10.0`) and a clarification as a patch
+(`0.9.1`); `0.10.0` is the conservative choice, never the resolved one. Downgrading is a two-line
+change — this heading and `.claude-plugin/plugin.json` — and the arbiter is the operator.
 
 ### Changed
 

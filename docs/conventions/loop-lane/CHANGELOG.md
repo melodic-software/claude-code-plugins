@@ -5,11 +5,13 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3) and is recorded here.
 
-## Unreleased — bump classification USER-RESERVED
+## 2.0.0 — 2026-07-24
 
-Two corrections land together. Their SemVer tier is genuinely ambiguous under this contract's own
-rule, so the version is deliberately unassigned and the arbiter is the operator; each entry states
-the case both ways rather than picking one.
+**Bump tier is USER-RESERVED and provisionally set to the safer reading.** Two corrections land
+together, and their tier is genuinely ambiguous under this contract's own rule: `2.0.0` if either
+touches a shared invariant, `1.1.0` if both are additive guidance. `2.0.0` is the conservative
+choice, never the resolved one — downgrading is a one-line change to this heading, and the arbiter
+is the operator. Each entry below states the case both ways rather than picking one.
 
 - **Account-scoped tee record (§6).** The tee record now carries the account identifier its windows
   were observed under, and a lane treats an identifier mismatch exactly as it treats a stale record
