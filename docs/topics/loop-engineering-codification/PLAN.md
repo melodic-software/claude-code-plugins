@@ -249,10 +249,67 @@ deferred-with-trigger shape `boris-video-absorption` already records.
 - Whether contract slices should persist on the default branch at all —
   fourteen do today, against this convention's own prune-before-merge
   lifecycle and its required-check clause. Arbiter: **USER-RESERVED** (a
-  lifecycle change is a major contract change).
-- Bump classification for the two corpus findings whose owner sections make
-  major-vs-minor genuinely ambiguous. Arbiter: **USER-RESERVED**.
+  lifecycle change is a major contract change). **Still open.**
+- ~~Bump classification for the two corpus findings.~~ **Resolved before the
+  PR opened:** `autonomy` **minor** (`0.10.0` — under its `0.x` scheme the
+  breaking/vocabulary slot) and the `loop-lane` convention **major**
+  (`2.0.0`). Each CHANGELOG heading records the narrower reading that was
+  considered and not taken.
+
+### Follow-ups this topic surfaced but did not take
+
+Recorded here because the memory tier is gitignored and does not survive the
+checkout; each is unclaimed work with a named owner surface.
+
+- **`docs/topics/github-plugin-candidates/` still cites the retired
+  `consumer-config-layering` path** (~6 sites). This topic's scope named only
+  `boris-video-absorption`. Changelog mentions of the old name are historical
+  and stay.
+- **The `worktree_root` config key is unset on this machine**, so
+  `worktree-create.sh` exits 3 and the documented manual worktree path is the
+  only one that works. The key lands in chezmoi-managed `settings.json`, so it
+  needs the dotfiles repo's `add-dotfile` / backfill flow rather than a live
+  edit.
+- **The skill-listing budget overflow** — several near-fit skills surface as
+  bare names. Declared out of scope at the top of this Brief; it is a live
+  condition, not a hypothetical, and it constrains every future description
+  widening.
+- **Two pre-existing `skill-quality:check` warnings on the `playbooks` boris
+  hub** — unquoted `Use when:` triggers and no Gotchas surface. Left
+  deliberately: quoting `'skills'` / `'hooks'` / `'workflows'` would lock
+  generic phrases into check 3's drop-protection permanently.
+
+### Interview branches never closed
+
+The interview reached neither its stop condition nor its hand-off step, so
+these stay open rather than being silently dropped:
+
+- **The Jira / day-job path.** The adapter shape is answered above —
+  `tracker-vcs-event`, an adapter that normalizes and enqueues, and a
+  `producer_identity` that can never come from the caller-supplied `/fire`
+  payload. The operator-facing question, whether the day-job tracker is in
+  scope at all, was never asked.
+- **Turn 1's three-part question, re-answered without the handoff-ladder
+  framing.** The ladder was dropped as a framing (it collapses four
+  orthogonal questions into one progression); the original question was never
+  re-answered on the replacement axis.
 
 ## Plan
 
-Not yet written. `/planning:plan` fills this section.
+No forecast plan was written — the work was sequenced directly from the
+Brief's acceptance criteria, and this section is the record of what executed.
+
+1. **Phase 1 — corpus read.** Every `plugins/autonomy/reference/` hub, all
+   four `guardrails/` leaves, all four `runner/` leaves, all ten `routines/`
+   v1 leaves, and `docs/conventions/loop-lane/README.md`.
+2. **Phase 2 — answers.** Substrate/cost and the verification-skill
+   assessment, recorded above with upstream cited rather than restated.
+3. **Phase 3 — reachability.** `planning:draft-goal-condition` (0.26.0).
+4. **Phase 4 — vendored baseline.** `playbooks` boris pack 8.8.1 → 8.13.0
+   (0.4.0); upstream had moved past the 8.12.0 recorded at hand-off, so the
+   delta figures were re-derived.
+5. **Phase 5 — the five findings.** `autonomy` 0.10.0, `loop-lane` 2.0.0, and
+   `rate-limit-guard` 0.2.0 (added under review — it carried its own copy of
+   the assumption `loop-lane` §6 retired).
+6. **Phase 6 — PR.** Opened as one PR after the review-surface concern was
+   re-raised and both bump tiers were ratified.
