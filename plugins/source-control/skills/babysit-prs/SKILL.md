@@ -264,7 +264,8 @@ snapshot and assessment, never an unattended unpinned override.
 **Zero-blocker drafts are the exception:** always route them through a worker, never directly
 to the merge gate. In autopilot, that worker assesses whether the draft is complete: a
 completed draft is marked ready with `gh pr ready` and continues through the normal guarded
-path; a genuinely in-progress draft stays draft and is reported and escalated with the reason. GitHub's
+path; a genuinely in-progress draft stays draft and is reported and escalated with the reason.
+GitHub's
 [draft-stage contract](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/changing-the-stage-of-a-pull-request)
 confirms a draft cannot merge until it is marked ready. Completeness of the diff is not the
 only hold reason: an explicit unchecked human-only item named in the PR's own body holds the
@@ -322,9 +323,17 @@ declared prerequisite for `worker` and `autopilot` (and for engine-backed safe r
 is absent, `worker`/`autopilot` STOP at entry with a concise remediation message naming the
 prerequisite, and the safe tier degrades gracefully to the Python-free loop in
 [reference/loop.md](reference/loop.md) — discovery via `gh pr list`, readiness via the
-plugin-scope gate script, cadence via the static ladder. Never block a safe iteration on the engine's absence.
+plugin-scope gate script, cadence via the static ladder. Never block a safe iteration on the
+engine's absence.
 
-**Reachability of those scripts under the host's permission layer is a second declared prerequisite**, and unlike Python it has no degrade tier — the Python-free path proves readiness with a bundled script too, so a denied lane script leaves no weaker-but-valid substitute: readiness is simply not gate-proven, and that PR is reported as permission-blocked rather than inferred ready from live `gh` state. The grant is operator-side configuration a plugin cannot ship; the prerequisite, its remediation seams, and the never-substitute rule are the single home in [reference/safety.md](reference/safety.md) (Lane-Script Reachability), and `/source-control:setup`'s babysit `check` surfaces the gap before a cycle instead of mid-cycle.
+**Reachability of those scripts under the host's permission layer is a second declared
+prerequisite**, and unlike Python it has no degrade tier — the Python-free path proves readiness
+with a bundled script too, so a denied lane script leaves no weaker-but-valid substitute: readiness
+is simply not gate-proven, and that PR is reported as permission-blocked rather than inferred ready
+from live `gh` state. The grant is operator-side configuration a plugin cannot ship; the
+prerequisite, its remediation seams, and the never-substitute rule are the single home in
+[reference/safety.md](reference/safety.md) (Lane-Script Reachability), and
+`/source-control:setup`'s babysit `check` surfaces the gap before a cycle instead of mid-cycle.
 
 ## Per-PR checklist (safe core — each PR, every iteration)
 
