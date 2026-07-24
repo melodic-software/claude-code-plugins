@@ -386,17 +386,24 @@ Task #19 owns the rule; [checks-and-sweep.md](checks-and-sweep.md) states it in 
 
 ## Corrections this gate forces on upstream documents
 
-The blind-derivation pass found defects in the documents this gate reads. They are recorded here and
-tracked as work rather than silently fixed, because two of them weaken arguments PLAN.md makes.
+The blind-derivation pass found defects in the documents this gate reads. They were recorded here
+rather than silently fixed, because two of them weaken arguments PLAN.md makes.
 
-1. **PLAN.md's "two documents agree" argument is an axis conflation.** `coverage-matrix.md` measures
+**All six are now discharged** — task #41, applied in the same branch. Each is marked below with what
+was actually done, because a corrections list that does not say whether it was acted on is how the
+same defect gets rediscovered a third time. The `/checkup` mention that survives further down this
+document is this record of the defect, not a second live instance.
+
+1. **[DONE — struck in PLAN.md, with the reason recorded in place.]** PLAN.md's "two documents agree"
+   argument is an axis conflation. `coverage-matrix.md` measures
    *who enforces a rule*; `official-corroboration.md` measures *whether the rule is true*. A rule can
    be fully confirmed and still be the largest gap — S3 is exactly that, and S7 is the mirror image.
    The two are also not independent inputs: both descend from `article-sections.md`. The gate's
    conclusion survives on the per-row evidence in the disposition table above, but the agreement
    argument does not support it and must be struck from PLAN.md.
-2. **`features-overview` covers D3 and D6 substantively, not only D7 — and the S8 entry needs
-   splitting rather than flipping.** Resolved here, because D3's enablement turns on it. The page
+2. **[DONE — S8 split in the corroboration table; D3 confirmed `OPINION`-tier and default-off.]**
+   `features-overview` covers D3 and D6 substantively, not only D7 — and the S8 entry needed
+   splitting rather than flipping. Resolved here, because D3's enablement turns on it. The page
    states *surface routing* — a three-way `CLAUDE.md` versus `.claude/rules/` versus skills table,
    the 200-line rule, and the verbatim request-versus-enforcement boundary. It does **not** state
    *definition-site locality*: nothing on it says an instruction belongs next to the thing it
@@ -405,18 +412,24 @@ tracked as work rather than silently fixed, because two of them weaken arguments
    both halves instead of one verdict for both. The effect on D6 is different and simpler: the
    200-line rule and "move reference content to skills or split into `.claude/rules/` files" are
    direct backing, which is part of why D6 is default-on.
-3. **The `ANTHROPIC-DOCS` authority token is asserted but never recorded.** The corroboration table
+3. **[DONE — the authority axis is now written out per row, and S14 is tagged.]** The
+   `ANTHROPIC-DOCS` authority token was asserted but never recorded. The corroboration table
    uses prose verdicts ("Confirmed", "Partly confirmed", "Split") and never writes the token, yet
    PLAN.md asserts S3 is "`ANTHROPIC-DOCS`-backed". S14 is the case that breaks: identical
    evidentiary status to the S10 artifacts claim, but never tagged `OPINION`. The catalog's axis
    values must be written into the corroboration table per row.
-4. **S5's `COVERED` contradicts S13's remainder.** `coverage-matrix.md:28` marks S5 covered by I6+I8
+4. **[DONE — `PARTIAL` in both `coverage-matrix.md` and `article-sections.md`.]** The second document
+   was the one this list missed: fixing the matrix alone would have left the same contradiction
+   standing one file over. S5's `COVERED` contradicted S13's remainder. `coverage-matrix.md:28`
+   marked S5 covered by I6+I8
    while `:36` says the missing carve-out leaves "a trimming pass no principled stopping point". A
    trimming pass without a stopping condition is not covered.
-5. **`/doctor` is described as "(built-in, alias `/checkup`)"** in `coverage-matrix.md:12`, but
+5. **[DONE — the alias is removed and `/doctor` is described as a bundled skill as of v2.1.205.]**
+   It had been described as "(built-in, alias `/checkup`)" in `coverage-matrix.md:12`, but
    `official-corroboration.md:78` records it as a bundled skill as of v2.1.205. The `/checkup` alias
    appears in no quoted source and must be verified against a fetched page or removed.
-6. **Numeric and sanity-check drift.** PLAN.md carries both "178 skills" and 181; and Phase 1's
+6. **[DONE — the count is now cited by command rather than transcribed, and Phase 1's Outcome names
+   fourteen slugs.]** PLAN.md had carried both "178 skills" and 181; and Phase 1's
    Outcome says "All eleven slugs are recorded" under a check that was deliberately widened to
    fourteen. The outcome text does not satisfy its own check.
 
