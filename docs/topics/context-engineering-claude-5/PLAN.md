@@ -157,8 +157,12 @@ Four grounding findings reshape the plan and are carried as constraints througho
   override; `clean` / `tidy` / `fix` mutate. The fix-capable posture must be expressed through one of
   those two shapes, not asserted.
 - **The convention registry is a gate, not a courtesy.** "A new cross-plugin convention lands in an
-  owner doc before a second plugin adopts it. Fleet audits check conformance per row." The catalog is
-  such a convention and four plugins adopt it, so the owner doc and its registry row precede adoption.
+  owner doc before a second plugin adopts it. Fleet audits check conformance per row." This was
+  carried as a constraint because a shared catalog would have been such a convention. **It no longer
+  binds this work:** Phase 2 chose no shared artifact, so nothing here is a new cross-plugin
+  convention and no registry row is owed. The gate itself stands — and ground-truth verification
+  found it is currently unheld in practice, with 17 rows covering only 2 of the repository's 5
+  materialization mechanisms, which is a finding about the repository rather than about this work.
 - **Native-first is a gate on every customization surface.** `InstructionsLoaded`, `/context`, and
   `claudeMdExcludes` are already recorded in `design/official-corroboration.md` as relevant official
   mechanisms. Each is adopted, rejected with a reason, or deferred with a trigger — never bypassed by
@@ -782,10 +786,10 @@ No runtime code — the deliverables are skills, a catalog, and their evals. Ver
 | Dispatch budget blows past what a session can hold | Medium | Medium | `audit-instructions` already gates near 20 dispatches; dynamic workflows are the documented mechanism above that ceiling — decided in Phase 6 |
 | The pass becomes the thing it audits | Medium | Medium | It cites the catalog rather than restating it, and the source's own doctrine applies to it |
 | An apply mutates a registered byte-identical cluster copy or a vendored upstream file, breaking a sync path and reddening CI | Medium | High | Phase 6 derives the exclusion set from `cross-plugin-source-registry.txt` + a `vendor/` rule + `git worktree list`; Phase 10 asserts the drift checks still pass after an apply |
-| The catalog is adopted by four plugins without an owner doc, violating the convention registry | Medium | High | The owner doc and its registry row are Phase 3 work items, gating Phase 8 adoption |
+| ~~The catalog is adopted by four plugins without an owner doc, violating the convention registry~~ | — | — | **Retired.** Phase 2 chose no shared artifact, so there is no cross-plugin catalog to adopt and no registry row is owed |
 | Design documents are pruned at merge, dangling the catalog's traceability anchors | High | Medium | Phase 11 graduates them or relocates the anchors into the shipped catalog before the prune commit |
 | A detector or the sweep self-grades its own output | Medium | High | Phase 6 requires each to name a fresh-context non-fork checkpoint; a fork inherits the parent conversation and is not independent |
-| The machinery outweighs the payload: a versioned catalog, a convention-registry owner doc, a seam decision, a re-run contract, and a sweep built to carry one well-grounded detector | High | High | Phase 2.5's proportionality gate runs before the catalog and the homing map are built, demotes D2–D5 to calibration inputs unless a written reason survives the coverage matrix's own verdict, and escalates to the operator if only D1 survives |
+| The machinery outweighs the payload: a versioned catalog, a convention-registry owner doc, a seam decision, a re-run contract, and a sweep built to carry one well-grounded detector | High | High | **Fired, and the mitigation worked.** Exactly one detector survived, the operator approved re-deriving the shape, and the catalog, the owner doc, the registry row, and the materialization are gone. What survives is the sweep and the re-run contract, whose justification was never detector count |
 | `OPINION`-tier rules mutate a consumer's instruction corpus under the same banner as documented doctrine | Medium | High | The tier is populated for the first time by this work, so this work defines it: disabled on bare invocation, opt-in, with a severity ceiling — Phase 6 |
 | Idempotence is asserted over behavioral-tier detection, which is a model judgement and cannot be deterministic | High | High | Acceptance criteria scope the diff-clean gate to mechanical-tier findings; behavioral findings report separately under a stated stability tolerance set in Phase 4 |
 | `/doctor` is absent on a consumer machine — `DISABLE_DOCTOR_COMMAND` or `skillOverrides: {"doctor": "off"}` — leaving its half of the surface with no incumbent and nothing built to replace it | Medium | High | Phase 6 treats presence as a prerequisite alongside the version floor; the sweep names the missing capability and states what goes unchecked |
@@ -794,11 +798,17 @@ No runtime code — the deliverables are skills, a catalog, and their evals. Ver
 
 ## Blast radius
 
-**HIGH.** Every plugin and skill in the marketplace is in scope as a target (counts cited by command
-in "Standards grounding" rather than transcribed); four plugins are modified as instruments; a new
-contract surface is consumed across plugin boundaries; and a fix-capable pass can mutate the
-marketplace's own instruction corpus — including, if the exclusion set is wrong, 13 registered
-byte-identical cluster copies and six vendored upstream materializations.
+**Still HIGH, but for fewer reasons than before the gate.** Every plugin and skill in the marketplace
+remains in scope as a **target** (counts cited by command in "Standards grounding" rather than
+transcribed), and a fix-capable pass can mutate the marketplace's own instruction corpus — including,
+if the exclusion set is wrong, 13 registered byte-identical cluster copies and six vendored upstream
+materializations. That is what keeps the rating where it is.
+
+Two of the original four contributors are gone. **Two plugins are modified as instruments, not
+four** — `claude-config` and `claude-memory`; `docs-hygiene` and `skill-quality` are targets only.
+And **no new contract surface is consumed across plugin boundaries**: nothing crosses a boundary
+except a presence-gated invocation. Recorded rather than silently re-rated, because a blast radius
+that never moves is a blast radius nobody is reading.
 
 ## Open questions
 
