@@ -193,9 +193,8 @@ conventions). The reference is presence-gated with this inline fallback per the
 | `attend-queue` | `work-items` | attended triage / escalation queue |
 | `babysit-loop` | `source-control` | merge lane over [`babysit-prs`](../../../plugins/source-control/skills/babysit-prs/SKILL.md) |
 
-The skill paths `plugins/work-items/skills/work-loop/`, `plugins/work-items/skills/attend-queue/`,
-and `plugins/source-control/skills/babysit-loop/` are introduced by later phases; they are named
-here as the adopters this owner doc lands ahead of.
+All three adopters have shipped. This owner doc landed ahead of them, per the convention-registry
+rule; the table above is a live consumer list, not a forward reference.
 
 **Launch surfaces.** A lane launches interactively via `/loop` — the primary surface, built-in and
 dependency-free — or headless via the `claude-ops` `lanes` launcher, which stores the one-line lane
@@ -210,24 +209,40 @@ All three lanes consume the shared subscription rate-limit windows (§3). An ins
 read a sibling plugin's files or this repo's `docs/` at runtime, so each consuming lane body
 **inlines the operable floor** — the fixed tee-file path, the 90%-of-either-window pause threshold,
 the staleness rule, and drain-then-pause — and cites the guard's reader contract for provenance only.
-That reader contract is `plugins/rate-limit-guard/reference/reader-contract.md`, introduced with the
-`rate-limit-guard` plugin in a later phase. This convention records the inline-floor rule so the
+That reader contract is
+[`plugins/rate-limit-guard/reference/reader-contract.md`](../../../plugins/rate-limit-guard/reference/reader-contract.md),
+shipped with the `rate-limit-guard` plugin. This convention records the inline-floor rule so the
 values stay byte-identical across lanes; fleet audits check conformance per consumer.
 
-**Account-scoped tee record.** The tee file is last-writer-wins, so a machine running lanes under
-more than one account would otherwise feed one account's healthy windows to lanes running on the
-exhausted one. The record therefore carries the **account identifier** its windows were observed
-under — an opaque, non-secret handle; the record never carries a credential — and a lane treats a
-record whose identifier does not match its own active account exactly as it treats a stale one: the
-guard mode drops to `unknown` and the conservative floor applies, rather than trusting another
-account's headroom.
+**Account attribution of the tee record.** The tee file is last-writer-wins, so a machine running
+lanes under more than one account would otherwise feed one account's healthy windows to lanes
+running on the exhausted one. Attribution is therefore normative, in three cases:
 
-This replaces a prior single-account-per-machine assumption, which was descriptive of how the guard
-happened to be built rather than normative, and which fail-**opened** in a contract that fail-closes
-on every other unresolvable input. It also removed a solo-operator premise from a contract whose
-sibling states that it "assumes no machine, org size, or budget"
-([`routines.md`](../../../plugins/autonomy/reference/routines.md) §Hosting stance) — a multi-account
-machine is an ordinary team and multi-tenant shape, not an exotic one.
+- **Identifier present and matching** — the record is the reading lane's own; the guard's mode
+  resolves normally.
+- **Identifier present and NOT matching** — the record is treated exactly as a stale one: the guard
+  mode drops to `unknown` and the conservative floor applies, rather than trusting another
+  account's headroom. The identifier is an opaque, non-secret handle parsed as untrusted input (it
+  is user- and agent-influenced); the record never carries a credential.
+- **No identifier** — the record is **unattributed**, and a deployment may operate on it only by
+  DECLARING single-account operation in its binding. The declaration is the whole point: the prior
+  contract assumed one account per machine silently, so a multi-account machine was an undetectable
+  fail-**open** in a contract that fail-closes on every other unresolvable input. A declaration is
+  auditable; a silent assumption is not.
+
+**Known limitation, with its resolution trigger.** No account identifier is available today — the
+platform statusline schema that is the guard's only proactive data source exposes none — so a
+multi-account machine has no conforming configuration beyond the declaration above. That is
+recorded here rather than papered over. **Trigger:** the platform surfacing an account field. The
+guard's writer already forward-passes any top-level key matching `account`, so the identifier
+arrives with no plugin change and the two identifier cases above go live the release it appears
+([`rate-limit-guard` reader contract](../../../plugins/rate-limit-guard/reference/reader-contract.md)).
+
+The premise this replaces was descriptive of how the guard happened to be built rather than
+normative, and it baked a solo-operator posture into a contract whose sibling states that it
+"assumes no machine, org size, or budget"
+([`routines.md`](../../../plugins/autonomy/reference/routines.md) §Hosting stance) — a
+multi-account machine is an ordinary team and multi-tenant shape, not an exotic one.
 
 **Guard-mode telemetry.** Each lane records the guard's mode — proactive, reactive, or unknown — in
 its #502 telemetry block every cycle, so a silent degradation to reactive-only stays visible on the

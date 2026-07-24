@@ -8,10 +8,12 @@ merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
 
 ## [0.10.0]
 
-Tier ratified as **minor**: the determinism rule below is contract vocabulary an adopting org
-classifies novel routine classes against, and both its wording and its named rule token change. The
-narrower patch reading — that the classification's substance is unchanged and every derived
-guardrail row is identical — was considered and not taken.
+Tier ratified as **minor**, which under this plugin's `0.x` scheme is the breaking/vocabulary slot —
+not the lesser of the two readings. The determinism rule below is contract vocabulary an adopting
+org classifies novel routine classes against, and both its wording and its named rule token change,
+so it takes that slot. The narrower reading — a **patch** (`0.9.1`), on the grounds that the
+classification's substance is unchanged and every derived guardrail row is byte-identical — was
+considered and not taken.
 
 ### Changed
 

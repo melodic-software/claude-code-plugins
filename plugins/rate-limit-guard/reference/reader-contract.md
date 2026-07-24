@@ -94,10 +94,13 @@ is part of the seam only in the sense that tooling sweeping the directory should
 
 ## Invariants and boundaries
 
-- **Single-account-per-machine.** The tee file is last-writer-wins with no account id: a mid-drain
-  login to a second account feeds that account's healthy windows to lanes exhausted on the first.
-  The guard cannot detect this; operation assumes one account per machine (owned by the loop-lane
-  convention §6).
+- **Account attribution.** The tee file is last-writer-wins, so a mid-drain login to a second
+  account would feed that account's healthy windows to lanes exhausted on the first. The
+  attribution rule — identifier matching, identifier mismatching (treated as stale), and the
+  unattributed case a deployment may operate on only by DECLARING single-account operation — is
+  owned by the loop-lane convention §6 and is not restated here. No account identifier exists in
+  the platform schema today; the writer already forward-passes any top-level key matching
+  `account`, so the identifier cases go live the release one appears.
 - **No shipped Monitor config.** Consumers arm their own session Monitor on the tee file (the
   staleness rule makes this mandatory while paused). The plugin ships no `experimental.monitors`
   entry — the fleet stance on the experimental Monitors component is Wait

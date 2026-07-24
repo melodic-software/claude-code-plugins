@@ -362,8 +362,8 @@ resolution order.
    not a routine and keeps running with no agent session, filing work items through the trigger
    adapters; only its judgment-bearing successor, where one exists, is the routine, and a hybrid
    class (e.g. `dependency-update-wave`) reconciles as its split: detection half judgment-free,
-   judgment half the routine. A stale or duplicate bot is surfaced as the diff and reconciled, never silently
-   overwritten.
+   judgment half the routine. A stale or duplicate bot is surfaced as the diff and reconciled,
+   never silently overwritten.
 3. **Wire free defaults as reviewable changes** — for each enabled routine on a free surface the
    wiring is reviewable changes across role homes, never one agent-written file:
    - the CI-cron handler shape from
