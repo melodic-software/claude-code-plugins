@@ -64,7 +64,10 @@ INPUT=""
 # where the -d '' byte-at-a-time loop moves ~40KB/s and can truncate a large
 # payload at the timeout (measured on Git Bash); Bash below 4.1 (macOS ships
 # 3.2) lacks -N and falls back to the delimiter form, fast enough on native
-# POSIX pipes. 1MiB bound: statusline payloads are a few KB.
+# POSIX pipes. 1MiB bound: statusline payloads are a few KB. Documented
+# boundary: a payload above the bound reaches the wrapped command truncated
+# (it fails with its own exit code) and the tee silently skips that refresh
+# (jq rejects the truncated JSON).
 if ((BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 1))); then
   IFS= read -r -N 1048576 -t 5 INPUT || true
 else
@@ -102,15 +105,26 @@ tee_snapshot() {
   # Prune stale sibling snapshots (14 days ≫ the reader contract's 10-minute
   # staleness window — a live-but-idle session survives). Pattern *.json
   # never matches the dot-prefixed .*.tmp.* in-flight files; the explicit
-  # guard keeps it that way if the temp naming ever changes.
+  # guard keeps it that way if the temp naming ever changes. Each candidate's
+  # mtime is RE-CHECKED immediately before its unlink (a sibling session can
+  # atomically replace its file between find's scan and the delete); the
+  # residual microsecond race is accepted — a lost snapshot is rewritten by
+  # that session's next statusline refresh and readers fail open meanwhile.
   find "$dir" -maxdepth 1 -type f -name '*.json' ! -name '.*' ! -name '*.tmp.*' \
-    -mmin +20160 -exec rm -f {} + 2>/dev/null || true
+    -mmin +20160 -exec sh -c '
+      for f in "$@"; do
+        [ -n "$(find "$f" -maxdepth 0 -mmin +20160 2>/dev/null)" ] && rm -f "$f"
+      done' _ {} + 2>/dev/null || true
 
-  local tmp="$dir/.$sid.json.tmp.$$.$RANDOM"
+  # Process-unique temp name with widened entropy; noclobber makes the
+  # redirection refuse to follow a pre-planted symlink or overwrite any
+  # pre-existing path of the same name.
+  local tmp="$dir/.$sid.json.tmp.$$.$RANDOM$RANDOM"
   # Subshell umask so the snapshot lands owner-only without altering the
   # umask the wrapped statusline command inherits.
   (
     umask 077
+    set -o noclobber
     printf '%s\n' "$payload" >"$tmp"
   ) 2>/dev/null || {
     rm -f "$tmp" 2>/dev/null

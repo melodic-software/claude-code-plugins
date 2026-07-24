@@ -60,8 +60,17 @@ concurrent sessions each own the file named by their `session_id`.
   carried none. Null states are upstream-documented and normal: `used_percentage` /
   `remaining_percentage` may be `null` early in a session; `current_usage` is `null` before the
   first API call **and again immediately after `/compact`** until the next response repopulates it.
-- Treat all values as **untrusted data**: parse only with a JSON parser; never string-interpolate
-  snapshot values into a shell command, another interpreter, or a prompt.
+- Treat all values as **untrusted data**: parse with a JSON parser; validate any value against its
+  documented format BEFORE handing it to a lenient parser (the bundled resolver format-gates
+  `captured_at` to strict ISO-8601 before date parsing, and requires the embedded `session_id` to
+  equal the requested one); never pass snapshot values to anything that executes them (`eval`,
+  `sh -c`, a string-built jq program) and never string-interpolate them into a prompt.
+- **No writer authentication exists.** The directory is owner-only where POSIX modes work
+  (`chmod 700`, best-effort); on filesystems without them (e.g. Windows ACL volumes under Git
+  Bash) other local users could read or forge snapshots. A forged-but-well-formed snapshot is
+  indistinguishable from a real one; the zone is a ROUTING hint, so the worst case of forgery is
+  a wrong dispatch decision, never an egress or execution decision — consumers must not attach
+  security decisions to zone words.
 
 ## Capability detection (fail-open)
 

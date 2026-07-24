@@ -32,10 +32,15 @@ tool that needs it — so long-running workflows can route heavy work away from 
   and skips the snapshot for anything else — the wrapped statusline is unaffected.
 - **Fail-open zone resolution.** Absent, stale, or unparsable snapshots, null or out-of-range
   `used_percentage`, null `current_usage` (early-session and post-`/compact` statusline states),
+  a non-ISO `captured_at`, a snapshot whose embedded `session_id` differs from the requested one,
   or missing `jq` all resolve `unknown` — consumers take their conservative path on data they
   cannot trust, never a fabricated zone. The shipped bands are declared judgment defaults: no
   official auto-compaction threshold is documented (verified 2026-07-24); `zones.json` is the
   tuning path.
+- **Integrity boundary (stated honestly).** The snapshot directory is owner-only where POSIX
+  modes work; on Windows ACL volumes the `chmod` is a no-op and other local users could forge
+  snapshots. Zones are routing hints — consumers must never attach security or egress decisions
+  to a zone word. See the reader contract's untrusted-data section.
 
 ## Install
 

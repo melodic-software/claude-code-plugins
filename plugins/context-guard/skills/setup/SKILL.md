@@ -85,6 +85,20 @@ zone bands, zones.json shape) are owned by
    }
    ```
 
+   Shell-syntax guard: the wrapped form passes the user's command as ARGV — it only works for
+   plain `executable arg…` commands. If the current command contains shell syntax (an inline env
+   assignment like `THEME=dark my-statusline`, a pipe, `&&`, `;`, or quoting), print the
+   shell-wrapped variant instead, preserving the original command verbatim inside it:
+
+   ```json
+   {
+     "statusLine": {
+       "type": "command",
+       "command": "bash \"<plugin-root>/scripts/statusline-tee.sh\" sh -c '<current statusline command>'"
+     }
+   }
+   ```
+
    Windows note: the command must run under Git Bash — `bash` is invoked explicitly for exactly
    that reason (the script's stated shell requirement). Caveat to state with the printed edit: the
    plugin cache path changes on every plugin update, so re-run `check` after updating the plugin
@@ -115,7 +129,10 @@ file if they ever disagree):
 2. **File present** — converge, don't clobber: set the two recognized keys to the shipped defaults
    ONLY if the operator asked for a reset (otherwise leave valid existing values alone and just
    report them); **preserve every unrecognized key byte-for-byte** (the file is a shared SSOT the
-   operator's own statusline may extend). Use `jq` to merge so the result stays valid JSON.
+   operator's own statusline may extend). Use `jq` to merge so the result stays valid JSON. If
+   `jq` is absent while the file exists, FAIL with the jq install remediation
+   (<https://jqlang.org/download/>) instead of attempting a merge — never risk clobbering the
+   operator's keys with a jq-less rewrite. (Step 1's template write needs no jq.)
 3. **Idempotent** — a second identical `apply` produces no content change; say so.
 4. **Report exactly what was written** (old bands → new bands, unrecognized keys preserved), and
    remind that consumers re-read the file on their next zone decision — no restart needed.

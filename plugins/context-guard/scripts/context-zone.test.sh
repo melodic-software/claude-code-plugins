@@ -112,6 +112,18 @@ expect "captured_at missing (staleness unverifiable)" unknown "$H" snots
 expect "hostile session id (../zones)" unknown "$H" "../zones"
 expect "empty session id" unknown "$H" ""
 
+# --- Forged captured_at: GNU date natural-language values must not pass ------
+for TS in now yesterday "1 second ago"; do
+  write_snapshot "$H" sforged 40 "$TS"
+  expect "captured_at '$TS' (non-ISO) rejected" unknown "$H" sforged
+done
+
+# --- Snapshot session_id must match the requested id -------------------------
+write_snapshot "$H" simposter 40
+sed -i 's/"session_id":"simposter"/"session_id":"someone-else"/' "$H/$CTX_REL/simposter.json" 2>/dev/null ||
+  perl -pi -e 's/"session_id":"simposter"/"session_id":"someone-else"/' "$H/$CTX_REL/simposter.json"
+expect "snapshot session_id mismatch (copied/renamed file)" unknown "$H" simposter
+
 # --- zones.json override -----------------------------------------------------
 HO="$WORK/h-override"
 mkdir -p "$HO/.claude/context-guard"

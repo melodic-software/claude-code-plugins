@@ -823,7 +823,12 @@ Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this 
   `${CLAUDE_PLUGIN_DATA}` resolves per-plugin-identity and would hide the seam. Same accepted
   pattern as `rate-limit-guard`.
 - **Data egress (5).** None. No network, no telemetry. Snapshot data (context-window token
-  counts + session id) never leaves the machine.
+  counts + session id) never leaves the machine. Residual local-integrity limitation, stated
+  honestly: the contract dir's `chmod 700` is best-effort — a no-op on filesystems without POSIX
+  modes (Windows ACL volumes under Git Bash), where another local user could read or forge
+  snapshots. The reader contract therefore forbids consumers from attaching security decisions to
+  zone words (routing hints only), and the resolver format-gates `captured_at` and requires the
+  embedded session id to match, so forgery cannot ride a lenient parser.
 - **Provenance & third-party trust (6).** First-party (Melodic Software authored), MIT, no
   third-party delegation.
 - **Main-thread / PATH (7).** None; no `settings.json` `agent`, no `bin/`.

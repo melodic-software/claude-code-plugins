@@ -57,10 +57,13 @@ snap="$HOME/.claude/context-guard/context/$sid.json"
 [[ -r "$snap" ]] || unknown
 
 # One validation pass over the snapshot: emits "captured_at used_percentage"
-# only when every trust precondition holds; anything else is "invalid".
-parsed=$(jq -r '
+# only when every trust precondition holds; anything else is "invalid". The
+# embedded session_id must equal the REQUESTED id — the seam is per-session
+# and a copied/renamed snapshot must not answer for another session.
+parsed=$(jq -r --arg sid "$sid" '
   if (type != "object") then "invalid"
   elif ((.captured_at? // null) | type) != "string" then "invalid"
+  elif (.session_id? // null) != $sid then "invalid"
   elif ((.context_window? // null) | type) != "object" then "invalid"
   elif (.context_window.current_usage? // null) == null then "invalid"
   elif ((.context_window.used_percentage? // null) | type) != "number" then "invalid"
@@ -70,6 +73,12 @@ parsed=$(jq -r '
 [[ -n "$parsed" && "$parsed" != "invalid" ]] || unknown
 ts=${parsed%% *}
 used=${parsed#* }
+
+# Strict ISO-8601 UTC format gate BEFORE any date parsing: GNU date -d also
+# accepts natural-language values ("now", "1 second ago") that would let a
+# forged captured_at defeat the staleness check. Untrusted data is validated
+# to the documented format, then parsed — never handed to a lenient parser.
+[[ "$ts" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] || unknown
 
 # Staleness: GNU date (-d, Git Bash/Linux) with a BSD (-j -f, macOS) fallback.
 now_epoch=$(date -u +%s 2>/dev/null) || unknown
