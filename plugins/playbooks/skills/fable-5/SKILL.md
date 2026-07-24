@@ -135,6 +135,7 @@ Read a chapter the first time its trigger fires in the session; once read, it st
 | Consider spawning workers, write a worker spec, or receive a worker return | `orchestration.md` |
 | Prepare to claim any work is done, fixed, or working | `verification.md` |
 | Compose a substantive user-facing reply, or face a decision the user didn't make | `communication.md` |
+| Face an acceptance criterion the user can only judge on sight, or a want an example would carry faster than their prose | `problem-framing.md` |
 | Get a multi-step deliverable back as not what was meant | `problem-framing.md` |
 | Notice a repeated failure, a loop, or the urge to retry the same action | `recovery.md` |
 | Enter a long session, resume after context loss, or juggle interleaved threads | `context-economy.md` |
