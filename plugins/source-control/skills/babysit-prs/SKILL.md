@@ -326,15 +326,6 @@ prerequisite, and the safe tier degrades gracefully to the Python-free loop in
 plugin-scope gate script, cadence via the static ladder. Never block a safe iteration on the
 engine's absence.
 
-**Reachability of those scripts under the host's permission layer is a second declared
-prerequisite**, and unlike Python it has no degrade tier — the Python-free path proves readiness
-with a bundled script too, so a denied lane script leaves no weaker-but-valid substitute: readiness
-is simply not gate-proven, and that PR is reported as permission-blocked rather than inferred ready
-from live `gh` state. The grant is operator-side configuration a plugin cannot ship; the
-prerequisite, its remediation seams, and the never-substitute rule are the single home in
-[reference/safety.md](reference/safety.md) (Lane-Script Reachability), and
-`/source-control:setup`'s babysit `check` surfaces the gap before a cycle instead of mid-cycle.
-
 ## Per-PR checklist (safe core — each PR, every iteration)
 
 Execute for EACH PR discovered, oldest first. Detailed mechanics:
