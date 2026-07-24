@@ -114,13 +114,17 @@ followed, so the request cannot be steered to another host.
 On Windows without Git Bash the PowerShell tool is the active shell and needs a different form —
 see [`context/failure-modes.md`](context/failure-modes.md).
 
-Drop the `Accept` header to get JSON instead — `{markdown, url, author}`. For raw fields
-(`text`, `rawText`, `media`, `quoteTweet`, `isNoteTweet`, engagement counts) POST the same body to
+Drop the `Accept` header for JSON instead — `{markdown, url, author}`. For raw fields (`text`,
+`rawText`, `media`, `quoteTweet`, `isNoteTweet`, engagement counts) POST the same body to
 `/api/fetch`.
 
-For a long article, redirect to `${CLAUDE_PLUGIN_DATA}/x-article-<id>.md` — that exact template,
-using the gate-captured id — and `Read` the slice you need. Never derive any part of the path from
-the response body; see [`context/failure-modes.md`](context/failure-modes.md).
+**Plugin data directory:** `${CLAUDE_PLUGIN_DATA}` — this file is the only surface where that
+expands, so carry the resolved absolute path and substitute it wherever
+[`context/failure-modes.md`](context/failure-modes.md) says `<plugin-data-dir>`. Never put a `${...}`
+token on a command line; PowerShell reads it as its own variable syntax.
+
+For a long article, redirect to `<plugin-data-dir>/x-article-<id>.md` — that exact template, using
+the gate-captured id — and `Read` the slice you need, never deriving the path from the response body.
 
 **Capture the status — `-sS` alone prints none.** Append `-w '\n%{http_code}'`. A `200` is not by
 itself success: confirm the response carries converted content, validating against the form you asked
@@ -145,14 +149,9 @@ begin with a note tweet.
 Length is not evidence in either direction. When step 1 used the Markdown form, `isNoteTweet` is
 absent; re-request `/api/fetch` only if the flag would change the decision.
 
-The thread id is the numeric id the gate captured — `[0-9]{1,20}`, reused directly, never re-parsed
-from the original input or from fetched text:
-
-```
-https://threadreaderapp.com/thread/<id>.html
-```
-
-Fetch with `WebFetch`. No key, no login, no paywall.
+Fetch `https://threadreaderapp.com/thread/<id>.html` with `WebFetch` — no key, no login, no paywall.
+`<id>` is the numeric id the gate captured, reused directly, never re-parsed from the original input
+or from fetched text.
 
 **A `200` does not mean a hit.** A miss redirects to `.../thread/<id>/error` while still returning
 `200`, and landing, rate-limit, and challenge pages do too. Confirm positively that the page carries

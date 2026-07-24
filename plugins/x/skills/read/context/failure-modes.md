@@ -22,12 +22,17 @@ characters"; `$PSNativeCommandArgumentPassing` — `Windows`/`Standard` preserve
 Write the body to a file with the Write tool and pass it by reference — a `@path` argument carries no
 embedded quotes, so no marshalling mode can corrupt it:
 
-Name the file for the gate-captured id — `${CLAUDE_PLUGIN_DATA}/x-request-<id>.json` — never a fixed
+`<plugin-data-dir>` below is the concrete absolute path SKILL.md resolved — this file is Read raw, so
+no placeholder in it expands. Substitute the real path before running anything, and never write a
+`${...}` token into a PowerShell command line: PowerShell reads that as its own variable syntax and
+resolves it to an undefined variable, not to an environment value.
+
+Name the file for the gate-captured id — `<plugin-data-dir>/x-request-<id>.json` — never a fixed
 name. A fixed path is shared state: two concurrent sessions would race between the Write and
 `curl.exe` reading it, and the permission prompt widens that window, so one invocation could fetch
 the other's URL. Keying on the id makes a collision mean identical content, which is harmless.
 
-File `${CLAUDE_PLUGIN_DATA}/x-request-<id>.json`:
+File `<plugin-data-dir>/x-request-<id>.json`:
 
 ```json
 {"url": "<REBUILT-URL>"}
@@ -36,7 +41,7 @@ File `${CLAUDE_PLUGIN_DATA}/x-request-<id>.json`:
 Then:
 
 ```powershell
-curl.exe -sS --proto '=https' --max-time 30 --max-filesize 5000000 -X POST https://xtomd.com/api/markdown -H "Content-Type: application/json" -H "Accept: text/markdown" -d "@${CLAUDE_PLUGIN_DATA}/x-request-<id>.json"
+curl.exe -sS --proto '=https' --max-time 30 --max-filesize 5000000 -X POST https://xtomd.com/api/markdown -H "Content-Type: application/json" -H "Accept: text/markdown" -d "@<plugin-data-dir>/x-request-<id>.json"
 ```
 
 Only the `-d` argument ever carried embedded quotes; `@path` has none, so no marshalling mode can
@@ -46,10 +51,11 @@ better-exercised path.
 
 ## Long-article file redirects
 
-Redirect to exactly this path, built from the gate-captured id and nothing else:
+Redirect to exactly this path, built from the gate-captured id and nothing else — `<plugin-data-dir>`
+again being the concrete path SKILL.md resolved, not a literal token:
 
 ```text
-${CLAUDE_PLUGIN_DATA}/x-article-<id>.md
+<plugin-data-dir>/x-article-<id>.md
 ```
 
 The filename is fixed by that template. Never derive any part of it from the response body — a
