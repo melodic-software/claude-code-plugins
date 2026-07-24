@@ -243,6 +243,12 @@ ps::might_write_via_python3() {
   # A literal `-c` inline-code flag settles it (quote-bounded, so an arg-split
   # `-ArgumentList '-c',…` counts; a longer token like `-Command`/`-Confirm` does not).
   [[ "$lc" =~ (^|[[:space:]$q])-c([[:space:]$q]|$) ]] && return 0
+  # `-c` immediately concatenated with a variable / subexpression is a COMPUTED
+  # inline-code flag: PowerShell joins the adjacent expansion into the same
+  # `-c<source>` argument (`python3 -c$code`, `python3 -c(…)`). The literal check
+  # above requires a whitespace/quote boundary after `-c`, so this adjacency slips
+  # it — fail closed.
+  [[ "$lc" =~ (^|[[:space:]$q])-c[\$\(] ]] && return 0
   # No literal `-c`: PowerShell evaluates expression-valued arguments before launching,
   # so `python3 ('-'+'c') …` / `-ArgumentList ('-'+'c'),…` construct the flag with no
   # literal token. A computed `-c` cannot be ruled out when the args carry a

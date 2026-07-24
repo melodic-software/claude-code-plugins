@@ -567,6 +567,13 @@ run_pwsh "PS: Start-Process -FilePath ('py'+'thon3') computed target (blocked)" 
   "Start-Process -FilePath ('py'+'thon3') -ArgumentList '-c','open(\"x\",\"w\").write(\"a\")'" 2
 run_pwsh "PS: Start-Process notepad (literal non-python launcher, allowed)" \
   "Start-Process notepad -ArgumentList '-c','open(\"x\",\"w\")'" 0
+# `-c` concatenated with a variable/subexpression: PowerShell joins the adjacent
+# expansion into one `-c<source>` arg, so `python3 -c$code` has no whitespace/quote
+# after `-c`. Fail closed. A longer literal flag (`-config`) is NOT `-c` + code.
+run_pwsh "PS: python3 -c\$code concatenated computed flag (blocked)" \
+  "\$code = 'import pathlib; pathlib.Path(\"x\").write_text(\"a\")'; python3 -c\$code" 2
+run_pwsh "PS: python3 -config longer flag, pathlib in arg (allowed)" \
+  "python3 -config \"pathlib.Path\"" 0
 # A non-python quoted program with a write indicator stays ALLOWED — no python3
 # token, so the co-occurrence probe does not fire (write_bypass allows quoted progs).
 run_pwsh "PS: & 'C:\\...\\app.exe' with open mention (allowed)" \
