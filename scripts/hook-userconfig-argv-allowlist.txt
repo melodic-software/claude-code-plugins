@@ -1,0 +1,8 @@
+# Allowlist for scripts/check-hook-userconfig-argv.sh — repo-relative paths of
+# plugin hook configs permitted to carry a ${user_config.*} token.
+#
+# Reserved for a ratified channel D adoption (`required:true` + argv — no unset
+# case, so the upstream default-drop cannot fire). Channel D's premise is
+# unproven (docs/conventions/hook-config-delivery/README.md, Open gaps); do not
+# add an entry before that probe passes and the convention records the result.
+# A stale entry (file missing, or no longer carrying the token) fails the gate.
