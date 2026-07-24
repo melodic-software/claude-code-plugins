@@ -236,8 +236,12 @@ ps::might_write_via_python3() {
   # computed name, so this runs FIRST and fails closed (the caller still gates on a
   # write indicator). Mirrors ps::might_invoke_git's computed-launcher clause; a
   # LITERAL launcher target (`Start-Process notepad …`) is not matched here and
-  # falls through to the token test, so a non-python launch stays allowed.
-  [[ "$lc" =~ (^|[[:space:]\;\|\&\(])(start-process|saps|start|pwsh|powershell|cmd)(\.exe)?[[:space:]]+(-[a-z]+[[:space:]]+)?[\(\$] ]] && return 0
+  # falls through to the token test, so a non-python launch stays allowed. The
+  # optional parameter name accepts a COLON-bound value (`-FilePath:$p`) as well as
+  # a whitespace-separated one (`-FilePath ('py'+'thon3')`) — PowerShell treats both
+  # as the same argument binding. (ps::might_invoke_git carries the identical clause
+  # and the same whitespace-only gap; a matching fix there is tracked separately.)
+  [[ "$lc" =~ (^|[[:space:]\;\|\&\(])(start-process|saps|start|pwsh|powershell|cmd)(\.exe)?[[:space:]]+(-[a-z]+([[:space:]]+|:))?[\(\$] ]] && return 0
   # Must name a python3 interpreter token at all (quote-intact, backtick-recovered).
   [[ "$lc" =~ (^|[^[:alnum:]_.])python3([.]exe)?([^[:alnum:]_]|$) ]] || return 1
   # A literal `-c` inline-code flag settles it (quote-bounded, so an arg-split

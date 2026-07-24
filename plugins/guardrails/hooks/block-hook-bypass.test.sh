@@ -565,6 +565,10 @@ run_pwsh "PS: Start-Process -ArgumentList ('-'+'c') computed (blocked)" \
 # might_invoke_git). A LITERAL non-python launcher target stays allowed.
 run_pwsh "PS: Start-Process -FilePath ('py'+'thon3') computed target (blocked)" \
   "Start-Process -FilePath ('py'+'thon3') -ArgumentList '-c','open(\"x\",\"w\").write(\"a\")'" 2
+# Colon-bound parameter binding (`-FilePath:$p`) is the same computed target as the
+# whitespace-separated form — both must fail closed.
+run_pwsh "PS: Start-Process -FilePath:\$p colon-bound computed target (blocked)" \
+  "\$p = 'py'+'thon3'; Start-Process -FilePath:\$p -ArgumentList '-c','open(\"x\",\"w\").write(\"a\")'" 2
 run_pwsh "PS: Start-Process notepad (literal non-python launcher, allowed)" \
   "Start-Process notepad -ArgumentList '-c','open(\"x\",\"w\")'" 0
 # `-c` concatenated with a variable/subexpression: PowerShell joins the adjacent
