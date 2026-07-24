@@ -74,15 +74,22 @@ scan_manifest_path() {
   scan_file "$plugin/${rel#./}"
 }
 
-# scan_file <repo-relative hook config path>
+# scan_file <repo-relative hook config path> — two passes: a raw-text grep for
+# precise file:line reporting, then a decoded pass (jq re-serializes the JSON,
+# resolving \u-escapes such as ${user_config.KEY} that the loader decodes
+# before substitution) so an escaped spelling of the token cannot slip past the
+# raw scan. An unparsable file gets the raw pass only.
 scan_file() {
   local file="$1" hits line
   [[ -f "$file" ]] || return 0
   hits="$(grep -nF "$TOKEN" "$file" || true)"
-  [[ -n "$hits" ]] || return 0
-  while IFS= read -r line; do
-    flag "$file" "${line%%:*}"
-  done <<<"$hits"
+  if [[ -n "$hits" ]]; then
+    while IFS= read -r line; do
+      flag "$file" "${line%%:*}"
+    done <<<"$hits"
+  elif jq -c . "$file" 2>/dev/null | grep -qF "$TOKEN"; then
+    flag "$file" "escaped token in decoded JSON"
+  fi
 }
 
 for plugin in plugins/*/; do

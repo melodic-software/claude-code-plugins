@@ -211,6 +211,24 @@ else
 fi
 rm -rf "$f"
 
+# --- JSON-escaped token spelling is caught by the decoded pass --------------
+# The fixture spells the underscore as the JSON backslash-u005f escape (built
+# via printf so the literal backslash survives this file's own quoting): raw
+# grep cannot see the token, but the loader-equivalent decoded pass must.
+f="$(new_fixture)"
+ESCAPED_HOOK="$(printf '{"hooks":[{"matcher":"Bash","hooks":[{"type":"command","command":"x","args":["${user\\u005fconfig.some_toggle}"]}]}]}')"
+plugin_file "$f" alpha hooks/hooks.json "$ESCAPED_HOOK"
+if out="$(run_check "$f" 2>&1)"; then
+  fail "escaped token should fail, got success: $out"
+else
+  if echo "$out" | grep -q 'USERCONFIG ARGV: plugins/alpha/hooks/hooks.json:escaped token in decoded JSON'; then
+    ok "JSON-escaped token spelling fails via the decoded pass"
+  else
+    fail "expected decoded-pass flag, got: $out"
+  fi
+fi
+rm -rf "$f"
+
 # --- manifest with no hooks key passes --------------------------------------
 f="$(new_fixture)"
 plugin_file "$f" alpha .claude-plugin/plugin.json '{"name":"alpha"}'
