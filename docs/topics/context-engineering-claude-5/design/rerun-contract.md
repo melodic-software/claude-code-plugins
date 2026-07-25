@@ -17,40 +17,201 @@ one check applied to one surface class; the **scan set** is the set of files a r
 
 ## 1. Finding identity
 
-"The same finding set" is undiffable while findings are prose judgements. Identity is a four-part
+"The same finding set" is undiffable while findings are prose judgements. Identity is a three-part
 tuple, and the run emits it machine-readably.
 
 ```text
-identity = (surface, check, anchor, claim)
+identity = (check, claim, sites)
 ```
 
-- **`surface`** — the file's logical path, never a machine-absolute one. Repo-scope surfaces are
-  repo-relative POSIX paths with no leading `./`. User-scope surfaces are scope-prefixed logical
-  paths (`user:.claude/CLAUDE.md`), and managed-policy surfaces likewise (`managed:CLAUDE.md`), so a
-  report is comparable across machines whose absolute paths differ.
+**Revised 2026-07-24: the tuple was `(surface, check, anchor, claim)` and could not express D1.**
+It carried exactly one surface and one anchor, which fits I1–I11 — single-location findings. D1/I12
+is inherently **pairwise across two surfaces**; the headline example is a skill body against
+`CLAUDE.md`. The old tuple never said which side represented the finding, whether both sides got
+ids, or how a suppression keyed to one id suppresses a *relation*. Two repairs were rejected first:
+
+- **An ordered `(primary, related)` pair fails on symmetry.** X-contradicts-Y and Y-contradicts-X
+  hash differently, so one conflict yields two ids and no stable re-run.
+- **Two linked findings fails on SARIF's own rule.** §3.27.12 reserves separate results for
+  "distinct occurrences … which can be corrected independently". A contradiction is not that:
+  fixing *either* side retires it.
+
+The fields:
+
 - **`check`** — a fully-qualified check id, `<plugin>/<skill>/<check>`, e.g.
   `claude-config/audit-instructions/I12`. Bare `I12` is ambiguous across catalogs.
-- **`anchor`** — **content-derived, never line-derived.** A line number shifts when anything above it
-  changes, which would make an unrelated edit churn the whole report and destroy the property this
-  contract exists to protect. The anchor is `sha256(normalized_excerpt)` truncated to 12 hex
-  characters, carried alongside a human-readable heading path (`## Rules > ### Naming`) for report
-  legibility only — the hash is what identity compares. Normalization: strip trailing whitespace,
-  collapse internal whitespace runs to one space, strip surrounding markdown emphasis markers.
-  Case is preserved, because these surfaces contain code and identifiers.
 - **`claim`** — the check's canonical claim id plus its bound parameters, **not** free prose. Every
   check declares a closed set of claim templates in its criteria entry; a finding names one and
   supplies its parameters. Prose is a rendering of the claim, never the claim itself.
+- **`sites`** — a **canonically-sorted set** of `(surface, anchor)` pairs, sorted as byte strings.
+  The sort is what makes identity symmetric. A single-location finding is the one-element case, so
+  I1–I11 are unaffected in substance. `primary_site` and `related_site` survive as **presentation
+  and remediation fields carried outside the hash** — a report still has to say which side to edit,
+  and that is advice, not identity.
 
-**`finding_id` = `sha256` of the four fields joined by `\x1f`, truncated to 16 hex characters.**
+### `surface` — the physical file, never the loading entry point
+
+- **Logical, never machine-absolute.** Repo-scope surfaces are repo-relative POSIX paths with no
+  leading `./`. User-scope surfaces are scope-prefixed (`user:.claude/CLAUDE.md`), managed-policy
+  likewise (`managed:CLAUDE.md`), so a report is comparable across machines whose absolute paths
+  differ.
+- **The canonicalized physical file, not the entry point that loaded it.** An `@path` import is
+  expanded into context at launch, so a finding's excerpt can originate in an imported file while
+  the loading surface is `CLAUDE.md`. Keying on the entry point would collide two distinct findings
+  on one id. **`load_path` is carried as a non-identity ordered field, bounded at 5 entries** —
+  import depth is four hops, verified, and stated in none of PLAN.md,
+  [checks-and-sweep.md](checks-and-sweep.md), or this document before now.
+- **A symlink target that escapes the target root takes the scope-prefixed logical form.**
+  Otherwise one shared rules file yields a different surface per consuming repository. This falls
+  out of the scope-prefix rule above and was simply never applied to symlink targets.
+
+### `anchor` — content-derived, versioned, and granularity-tagged
+
+A line number shifts when anything above it changes, which would churn the whole report and destroy
+the property this contract exists to protect. So the anchor is content-derived, carried alongside a
+human-readable heading path (`## Rules > ### Naming`) for legibility only — the hash is what
+identity compares.
+
+- **Versioned name, `anchor/v1`.** SARIF §3.27.17 requires versioned hierarchical property names,
+  and says a result management system "SHOULD use the latest version of the partial fingerprint
+  available in both results". Matching is on the greatest common version. **This is the highest-value
+  adoption here**: every queued improvement to the anchor algorithm changes its output, and without
+  versioning the *first* such change silently discards the operator's entire suppression record.
+- **Granularity discriminator.** `e:` for an excerpt, `s:` for a whole surface. A whole-surface
+  finding's identity reduces to `(surface, check, claim)` and is **content-free** — SARIF §3.29.4
+  backs it: "If the region property is absent, the physicalLocation object refers to the entire
+  artifact." A dead-surface or unreachable-file finding is about the file's existence, not its text,
+  so hashing its content would churn the id on every unrelated edit.
+- **Excerpt anchor** = `sha256(normalized_excerpt)` truncated to 12 hex characters.
+
+**Normalization**: strip trailing whitespace; collapse internal whitespace runs to one space; strip
+surrounding markdown emphasis markers. Case is preserved, because these surfaces contain code and
+identifiers. Two rules added 2026-07-24, each with a verified reason:
+
+- **Backticks are preserved, explicitly.** If emphasis-stripping ever extended to them,
+  `` `@README` `` would normalize to `@README` — turning literal text into an apparent import, and
+  making a literal mention hash identically to a real one.
+- **Block-level HTML comments outside code blocks are stripped.** They are removed before content is
+  injected into Claude's context, so hashing them churns anchors over text the model never saw.
+
+### Excerpt extraction, per surface class
+
+The normalization above is markdown-shaped and was undefined for the other surfaces in scope. Same
+logical-path discipline the contract already applies to scope prefixes, one level further down:
+
+| Surface class | Excerpt is |
+|---|---|
+| Markdown body | heading path + normalized block text |
+| Prompt-type hooks embedded in JSON | JSON Pointer ([RFC 6901](https://www.rfc-editor.org/rfc/rfc6901)) + the **decoded** string value |
+| Frontmatter | YAML key path + normalized scalar |
+
+**The JSON row's decode step is load-bearing:** unescape before whitespace normalization, or `\n`
+and a literal newline diverge for what is the same live prompt.
+
+### Registered cluster copies canonicalize before identity
+
+A conflict touching a registered byte-identical cluster copy would otherwise emit up to 13 findings
+for one defect, because the derived exclusion set guards the **write** side only and was never
+applied to detection. A registered cluster member canonicalizes to its canonical source *before*
+identity is computed; the copies are recorded in a non-identity `also_present_in` field. This is not
+a new rule — §4 already states "at the **canonical source**, never the copy" for suppression. It was
+simply never carried across to detection.
+
+### `finding_id`, and why the truncations are what they are
+
+**`finding_id` = `sha256` over `check`, `claim`, and the sorted `sites`, joined by `\x1f`, truncated
+to 16 hex characters.**
+
+The widths were asserted without argument, which is what made them look arbitrary. The load-bearing
+move is that **the anchor's collision domain is not corpus-wide**: `surface` and `check` are already
+in the tuple, so two anchors collide destructively only within one `(surface, check)`.
+
+- **Threat model, stated explicitly: non-adversarial.** Truncated SHA-256 is chosen for report
+  legibility, not for collision resistance against an attacker who controls file content.
+- **And that disclaimer must be read against
+  [checks-and-sweep.md](checks-and-sweep.md), "Threat model — prompt injection against the sweep",
+  which posits exactly such an attacker.** The two do not contradict, and the reconciliation is the
+  point: identity truncation is not a security control and is not asked to be one. An attacker who
+  can craft a colliding excerpt must already be able to write the file, and a T2 suppression is
+  bounded to one `(check, claim, sites)` tuple regardless. The controls that carry the adversarial
+  case are the ones named there — suppression unreachable from apply, VCS-diffable records, least
+  privilege — never the hash width.
+- **Collision arithmetic is deferred rather than asserted.** Birthday-bound figures computed on
+  *assumed* corpus sizes indicated both widths are comfortable, but assumed numbers must not ship as
+  measured ones. **Phase 10's dogfood run supplies the real counts**, and they replace this
+  paragraph before the widths are stated as fact.
+
+### Assertions
 
 - **Assertion 1.1** — for a fixed tree, `finding_id` is stable across runs, working directories,
   operating systems, and path separators. Test: run twice from two different absolute paths on two
   path-separator conventions; the id sets are equal.
+
+  **Scoped 2026-07-24 to excerpt-granularity findings, because it is false as originally written
+  for liveness-dependent ones.** See §6, "Liveness is not a function of the tree". A
+  whole-surface liveness finding cannot satisfy this assertion, and a second machine falsifies it
+  through correct behavior rather than through a defect.
 - **Assertion 1.2** — inserting an unrelated paragraph above a finding does not change its
   `finding_id`. Test: fixture with a known finding, insert 20 lines above it, re-run, id unchanged.
 - **Assertion 1.3** — every emitted finding validates against the report schema, and its `claim` id
   exists in the cited check's declared template set. A finding whose claim id is not declared is a
   hard error, not a warning — that is what stops prose leaking back in.
+- **Assertion 1.4** — a pairwise finding's `finding_id` is invariant under which side the detecting
+  lane encountered first. Test: a fixture with two conflicting surfaces, run with the inventory order
+  reversed; the id is unchanged.
+
+### Borrowed vocabulary, and two deliberate divergences
+
+**SARIF mapping, with its caveat.** Our `anchor` is a `partialFingerprints` entry; our `finding_id`
+is a `fingerprints` value. §3.27.16 says "A direct SARIF producer SHOULD NOT populate this
+property", because a producer emits partials and a separate result management system combines them —
+and our sweep is both in one process. That is legitimate, and it is stated in one sentence so the
+borrowed vocabulary is never read as a claim of SARIF conformance.
+
+**Two divergences from GitHub's implementation, stated together because the pattern is one pattern.**
+Both adopt SARIF's decomposition and diverge only on the hash input:
+
+- **Pairwise identity hashes both sides**, where GitHub keys on `locations[0]` only. Primary-only is
+  correct for an ordered taint flow, where one end is the defect; it is wrong for a symmetric
+  contradiction, where neither side is.
+- **Whole-surface identity is content-free**, where CodeQL hashes the first line of the file. A
+  finding about a file's *existence* must not churn when its text changes.
+
+Stated apart, these read as two ad-hoc exceptions. Stated together, they are one principle: the hash
+input is whatever the finding is actually *about*.
+
+**One correction carried so the contract does not repeat it.** SARIF's relation kinds were initially
+reported as "containment only, no contradiction kind". That is right for the pairwise case and wrong
+as a general statement: for the **import** case containment is exactly right, and the spec's own
+example is a `#include` chain with `isIncludedBy` — structurally identical to `@path`.
+
+### Matching across runs — the tiered table
+
+The contract had no equivalent, and chasing a churn-proof hash is the wrong goal. SARIF Appendix B
+concedes the problem rather than solving it: a fingerprint "does not need to be absolutely stable;
+it only needs to be stable enough to reduce the number of results that are erroneously reported as
+'new' to a low enough level." So the tiers are specified, and with them what suppression does in
+each.
+
+| R1 → R2 | Verdict | Suppression |
+|---|---|---|
+| Both anchors match, `(check, claim)` match | SAME, unchanged | applies silently |
+| Exactly one anchor changed, all else matches | SAME, changed | carries forward, marked `needs-reconfirmation`, surfaced with the changed side named |
+| Both anchors changed, or `claim` changed, or a `surface` changed | old CLOSED, new OPENED | old entry goes stale per Assertion 4.2 |
+| Absent from R2 entirely | CLOSED | accounted for — see below |
+
+**The "changed" row is never silent, and that is the whole point of it:** the edit may itself have
+*been* the fix attempt, so an operator has to see it rather than have a stale suppression quietly
+absorb it.
+
+**The last row is the missing enforcement for P2.** P2 says "a finding that vanishes without a fix
+is a defect in the check" — a definition with no detector. Now every closure is accounted for as
+exactly one of: matched to an applied fix; matched to a successor by partial match; or reported as
+an **unexplained disappearance that fails the run's self-check**, the way a P4a tolerance breach
+does.
+
+- **Assertion 1.5** — every finding present in `R1` and absent from `R2` carries one of the three
+  accounted dispositions. An unaccounted closure fails the run's self-check.
 
 ## 2. Where the report lives
 
@@ -190,6 +351,67 @@ things", which is the question an operator actually asks first — and it is whe
 regression would show up. A surface that vanished from the inventory between runs is a defect the
 old two-tier split could not have caught, because the inventory was never a reported artifact.
 
+### Two inputs to the derived tier that are not the tree
+
+Both surfaced 2026-07-24. They are separate problems with fixes an order of magnitude apart, and
+both arise the same way: a **dead-surface finding** — "this instruction file is reachable from no
+loaded entry point" — is derived-tier by construction (filesystem enumeration plus graph
+reachability, no model in the path), so it inherits every promise P1 makes.
+
+#### The harness version is an undeclared input
+
+Such a finding's truth depends on what Claude Code *reads*, which is a property of the **harness
+version**, not of the tree. Task #56's verification was version-pinned to v2.1.219 for exactly this
+reason. If Claude Code ships `AGENTS.md` support, every dead-surface finding about an `AGENTS.md`
+vanishes with no tree change and no catalog bump — and **P2 reads that as "a finding that vanished
+without a fix", which it calls a defect, when it is correct behavior.** P3 breaks in the other
+direction if a new dead-surface class appears. P1 breaks outright.
+
+**Fix, and it is cheap:** the run manifest records the **harness version** beside the catalog
+versions, and P3's clause becomes *tree unchanged, detection version unchanged, **and harness
+version unchanged***.
+
+**One consequence for this section's own claim.** The derived tier was described as "file
+enumeration, registry parsing, `git worktree list`, and name comparison across a fixed precedence
+order". That is now incomplete: it **also depends on a registry of harness behavior** — what this
+version of Claude Code loads — which needs its own version pin and its own recheck trigger, exactly
+as the criteria catalogs do.
+
+#### Liveness is not a function of the tree
+
+This one **falsifies Assertion 1.1 as originally written**. Verified inputs to liveness that live
+outside the tree:
+
+- **Launch directory.** Running in `foo/bar/` loads `foo/bar/CLAUDE.md` *and* `foo/CLAUDE.md`.
+  [checks-and-sweep.md](checks-and-sweep.md) already flags this for `/context`; it applies to
+  liveness generally.
+- **`claudeMdExcludes`.** Patterns match absolute paths, configurable at user, project, local, or
+  managed-policy layer, and **arrays merge across layers**. A file excluded on one machine is live on
+  another — and the excluded file is then dead, so the finding is caused by a machine-local setting.
+- **Declined external imports.** The approval dialog appears once; "If you decline, the imports stay
+  disabled and the dialog doesn't appear again." Machine-local, persistent, and invisible in the
+  tree.
+- **`--setting-sources`** excluding `project` skips project rules;
+  `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD` plus `--add-dir` adds more.
+
+Assertion 1.1 requires ids stable "across runs, working directories, operating systems, and path
+separators". A liveness-dependent finding cannot satisfy that, because liveness is not a function of
+the tree — **run the sweep on a second machine and P1 is falsifiable by correct behavior, not by a
+defect.**
+
+**Fix, three parts:**
+
+1. **Assertion 1.1 is scoped** to excerpt-granularity findings, and explicitly excludes
+   liveness-dependent ones. Applied in §1.
+2. **A liveness-dependent finding records its liveness basis as evidence** — the launch directory,
+   the effective merged `claudeMdExcludes`, the setting-sources in play, and whether external
+   imports were approved.
+3. **P1's exact equality is scoped** to *same tree **and** same liveness basis*.
+
+**Why this matters past the property.** Without it the sweep reports a machine-local configuration
+as a repository defect, and tells a teammate to add an import that already exists and that *they*
+declined. That is worse than missing the finding.
+
 **Consequence for the deliverable, stated plainly.** D1 is a judged finding, so the deliverable's
 primary check does not contribute to the diff-clean gate. That was already conceded; what is new is
 that *no* catalog check contributes, so the concession is not specific to D1 and is not evidence
@@ -200,16 +422,19 @@ against it.
 Stated as assertions over two runs, `R1` then `R2`. `D(R)` is the derived-tier identity set; `J(R)`
 is the judged-tier set.
 
-- **P1 — determinism, over the derived tier.** Tree unchanged between `R1` and `R2` ⇒
-  `D(R1) = D(R2)`, exactly. Not a subset, not a tolerance: equal. This is assertable because nothing
-  in `D` passes through a model — it is file enumeration, registry parsing, `git worktree list`, and
-  name comparison across a fixed precedence order.
+- **P1 — determinism, over the derived tier.** Tree unchanged **and liveness basis unchanged**
+  between `R1` and `R2` ⇒ `D(R1) = D(R2)`, exactly. Not a subset, not a tolerance: equal. This is
+  assertable because nothing in `D` passes through a model — it is file enumeration, registry
+  parsing, `git worktree list`, name comparison across a fixed precedence order, and a versioned
+  registry of harness behavior. The liveness-basis clause is not a weakening: see "Liveness is not a
+  function of the tree" above, where the unqualified form is falsifiable by correct behavior.
 - **P2 — convergence.** Accepted fixes applied between `R1` and `R2` ⇒ `D(R2) ⊊ D(R1)`, and every
   member of `D(R1) \ D(R2)` corresponds to a fix that was actually applied. A finding that vanishes
   without a fix is a defect in the check, not a success.
-- **P3 — no spontaneous growth.** Tree unchanged and **detection version** unchanged ⇒
-  `D(R2) ⊆ D(R1)`. The set may grow only on a detection-version bump or a change to the tree — and a
-  skill authored between runs is a change to the tree.
+- **P3 — no spontaneous growth.** Tree unchanged, **detection version** unchanged, **and harness
+  version unchanged** ⇒ `D(R2) ⊆ D(R1)`. The set may grow only on a detection-version bump, a
+  harness-version bump, or a change to the tree — and a skill authored between runs is a change to
+  the tree.
 - **P3b — "catalog version" was the wrong version, and it left a hole.** Raised by the cross-vendor
   review. P3 originally keyed on `criteria.md`'s version, which covers only the criteria file. **The
   detection behavior for checks I6 and I10 does not live there.** It lives in
@@ -285,9 +510,14 @@ the right figure, and the figure is expected to move once there is evidence.
 The Phase 4 sanity check asks that this document state the identity tuple, the report location rule,
 the state key, the concurrency posture, the per-class suppression surface, the checkpoint property,
 and each idempotence property **as a condition a test could assert — not as prose intent**. Each is
-above under a numbered assertion. The count is 5 identity/report/state assertions, 4 suppression
+above under a numbered assertion. The count is 7 identity/report/state assertions, 4 suppression
 assertions, 2 resumability assertions, and 8 idempotence properties — P1, P2, P3, P3a, P3b, P4, P4a,
 P5.
+
+**Two properties are now explicitly scoped rather than universal**, and the scoping is the honest
+form: Assertion 1.1 holds for excerpt-granularity findings, and P1's exact equality holds for a
+fixed tree *and* a fixed liveness basis. Both were falsifiable as originally written — not by a
+defect in the sweep, but by correct behavior on a second machine.
 
 **What this document deliberately does not decide.** The report's concrete schema, the suppression
 file's path and format, and the lane decomposition are Phase 6 design, because they depend on the
