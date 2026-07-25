@@ -84,11 +84,11 @@
       "id": 7,
       "name": "flags-chain-mismatch-not-silent-resume",
       "prompt": "Recover the handoff and resume from it.",
-      "expected_output": "In file mode, the skill validates each frontmatter pointer against what it names: session_id (the emitting session) against the source transcript — located by session_id when the candidate came from the glob rather than the scan — and previous_handoff / previous_session_id against the named predecessor handoff and its session, never the source transcript. On a mismatch it flags the discrepancy for the operator rather than silently splicing an unrelated session into the chain and resuming.",
+      "expected_output": "In file mode, the skill validates each frontmatter pointer against what it names: session_id (the emitting session) against the source transcript — located by session_id when the candidate came from the glob rather than the scan — and previous_handoff against the named predecessor handoff, never the source transcript. On a mismatch it flags the discrepancy for the operator rather than silently splicing an unrelated session into the chain and resuming.",
       "files": [],
       "expectations": [
         "The skill compares session_id with the emitting transcript (locating it by session_id on a glob-only recovery, and presenting the candidate as unvalidated if that transcript cannot be found)",
-        "It validates previous_handoff / previous_session_id against the named predecessor, not against the emitting transcript",
+        "It validates previous_handoff against the named predecessor, not against the emitting transcript",
         "On a mismatch it surfaces the discrepancy and lets the operator decide, rather than silently resuming",
         "It does not fabricate or assume chain continuity that the evidence does not support"
       ]
