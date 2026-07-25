@@ -334,8 +334,8 @@ items", the `--add-label`-vs-`--label` rule under "Edit labels / assignees"). Cr
   [PEP 686](https://peps.python.org/pep-0686/) makes UTF-8 the default only in 3.15+) and Windows
   PowerShell 5.1's `Get-Content` (PowerShell 6+ already defaults to `utf8NoBOM`). Do not reason
   from the version you happen to be on — state the encoding on both sides of any ad-hoc step:
-  `open(path, encoding='utf-8')` or `.read().decode('utf-8')` (or run under `PYTHONUTF8=1`);
-  PowerShell `Get-Content -Encoding utf8`. Writing back from Windows PowerShell 5.1 needs
+  `open(path, encoding='utf-8')` or `open(path, 'rb').read().decode('utf-8')` (or run under
+  `PYTHONUTF8=1`); PowerShell `Get-Content -Encoding utf8`. Writing back from Windows PowerShell 5.1 needs
   `[IO.File]::WriteAllText($p, $s, (New-Object Text.UTF8Encoding $false))` — there
   `-Encoding utf8` prepends a BOM and `utf8NoBOM` does not exist (PowerShell 6+ has both).
 - **Rate limits** (verify current values via GitHub REST docs): batch bulk creates to respect
