@@ -161,12 +161,25 @@
       "id": 14,
       "name": "anchor-granularity-is-discriminated",
       "prompt": "/claude-config:audit-pass flag this whole rules file as unreachable, and also flag the one contradictory sentence inside it",
-      "expected_output": "Two findings at two granularities, discriminated in the anchor. The whole-surface finding takes a bare s: anchor and its identity reduces to (surface, check, claim) — content-free, so a suppression for it survives every edit to the file and goes stale on a rename, which is correct because a renamed file is worth re-judging. The sentence-level finding takes an e: anchor over the normalized excerpt plus an occurrence ordinal. An s: anchor on a finding carrying two sites is a hard error, since a pairwise claim with no excerpt on a side has nothing to show and nothing to fix.",
+      "expected_output": "Two findings at two granularities, discriminated in the anchor. The whole-surface finding takes a bare s: anchor and its identity reduces to (surface, check, claim) — content-free, so a suppression for it survives every edit to the file and goes stale on a rename, which is correct because a renamed file is worth re-judging. The sentence-level finding takes an e: anchor over the normalized excerpt plus a duplicate discriminator derived from the excerpt's enclosing heading path — never a positional ordinal among the duplicates, because deleting an earlier duplicate would renumber a later one into the deleted occurrence's finding_id and inherit its suppression. An s: anchor on a finding carrying two sites is a hard error, since a pairwise claim with no excerpt on a side has nothing to show and nothing to fix.",
       "files": [],
       "expectations": [
         "Uses a bare s: anchor for the whole-surface finding and an e: excerpt anchor for the sentence-level one",
         "States that the whole-surface identity is content-free, so its suppression survives edits but not a rename",
+        "Derives the duplicate discriminator from the enclosing heading path and explicitly rejects a positional ordinal",
         "Treats an s: anchor on a two-site finding as a hard error rather than a warning"
+      ]
+    },
+    {
+      "id": 25,
+      "name": "deleting-a-duplicate-does-not-transfer-its-suppression",
+      "prompt": "/claude-config:audit-pass a file had the same sentence twice under different headings, I suppressed the first one and then deleted it — is the remaining one suppressed now?",
+      "expected_output": "No. The excerpt anchor's duplicate discriminator is derived from the excerpt's enclosing heading path, not from its position among the duplicates, so deleting the first occurrence does not renumber the second into the deleted occurrence's identity. The two sentences sat under different headings, so they always had different anchors and different finding_ids. The suppression is keyed to the deleted occurrence, so it is reported stale rather than silently applying to a sentence the operator never judged, and the remaining occurrence is reported unsuppressed. Had both sentences been under the same heading path they would be genuinely indistinguishable: the anchors would collide, the finding would be reported once with the collision and its occurrence count named, and no suppression would carry forward across it.",
+      "files": [],
+      "expectations": [
+        "States the remaining occurrence is NOT suppressed, and reports the old entry stale rather than transferring it",
+        "Names the enclosing heading path, not position among duplicates, as the discriminator, so a deletion cannot renumber",
+        "Covers the same-heading case as an intentional collision reported once with no suppression carry-forward, rather than guessing between them"
       ]
     },
     {

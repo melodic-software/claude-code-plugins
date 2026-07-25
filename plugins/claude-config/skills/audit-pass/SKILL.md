@@ -221,9 +221,18 @@ leaving the operator worse off than if `/doctor` had been absent. It also contra
 
 So Phase 4 opens the `delegated` lane, records the instruction in the report, and continues. Phases 5
 and 6 run normally, and the assembled report carries the handoff as an outstanding item with its lane
-terminated `open` — routed and not yet returned. The operator runs `/doctor` when they choose; a
-later `--resume` closes that lane by re-prompt rather than re-scan, because nothing about it needs
-the sweep to run again.
+marked `open` — routed and not yet returned. The operator runs `/doctor` when they choose; a later
+`--resume` closes that lane by re-prompt rather than re-scan, because nothing about it needs the
+sweep to run again.
+
+**`open` is an assembly terminator, not a completion.** The two are distinct and conflating them
+would have made the promised resume impossible: §7 needs a terminating record to assemble a report at
+all, while §5 skips any lane whose state is complete and whose digest is unchanged — so a lane that
+was both terminated *and* complete would be carried forward untouched on every resume, and the
+outstanding handoff would never close. So the record terminates the attempt for assembly and the
+manifest records the lane's state as **incomplete**. `--resume` therefore re-runs it, which for a
+delegated lane means re-prompting rather than re-scanning. `handed-back` and `declined` are
+completions; only `open` is not.
 
 ## Phase 5 — Apply, only under `--fix`
 

@@ -101,13 +101,35 @@ occurrence renumbers the second from `:2` to `:1`, where it **inherits the delet
 removed silently transfers to text they never judged, and the stale entry is never reported stale
 because something still matches its key. Insertion has the same shape in the other direction.
 
-So `<n>` is a **stable occurrence discriminator**: derived from surrounding content — a digest over
-the normalized excerpt's neighbours within the surface — so it identifies *which* duplicate without
-depending on how many precede it. Two properties are what matter, and the exact derivation is Phase
-9's: removing one duplicate must not renumber another, and two duplicates in one surface must never
-collide. When the surrounding content is itself identical, the occurrences are genuinely
-indistinguishable, and the contract fails closed rather than guessing: the anchors collide, the
-finding is reported once with the ambiguity named, and no suppression carries forward across it.
+So `<n>` is a **stable occurrence discriminator**, derived in full here rather than deferred — an
+underspecified derivation is not a weaker contract, it is a different anchor per implementation and
+therefore a different `finding_id` for the same text:
+
+```text
+<n> = sha256(heading_path) truncated to 8 hex
+```
+
+where `heading_path` is the surface's ordered enclosing headings joined by `\x1f`, normalized by the
+same v1 rules as the excerpt — the same path already carried alongside each site for legibility, now
+load-bearing. A surface with no heading structure above the excerpt, or no heading concept at all (a
+prompt-type hook in JSON), uses the fixed sentinel `\x00`.
+
+**Why the enclosing heading path and not the neighbouring text.** A digest over adjacent blocks would
+satisfy this thread and violate assertion 1.2 in the same stroke: inserting an unrelated paragraph
+directly above a finding would change its neighbours, hence its anchor, hence its `finding_id` —
+churning suppressions on edits that touch nothing relevant, which is the failure content-derived
+anchoring exists to avoid. The heading path is invariant under insertion, deletion, and reordering of
+*content*, and changes only when the document's structure around the excerpt changes, which is a
+re-judging event on its own terms. It is also invariant under deleting a duplicate elsewhere in the
+surface, which is the defect this replaces.
+
+**Two duplicates under one heading path are genuinely indistinguishable, and the contract fails
+closed rather than guessing.** No positional scheme can separate them without reintroducing the
+transfer bug, so their anchors collide: the finding is reported **once**, the collision is named with
+its occurrence count, and **no suppression carries forward across it** — an operator suppressing one
+of two identical sentences in one section is making a decision the record cannot faithfully attach to
+one of them. Splitting the heading, or making the sentences differ, resolves it in the document where
+the ambiguity actually lives.
 
 **A whole-surface finding is content-FREE by construction**, and that is the point: a finding about a
 file *as a whole* — it should not exist, it is unreachable, it duplicates another — must not be
@@ -122,7 +144,8 @@ stale and is re-reported — correctly, because a renamed file is a decision wor
 relation between two pieces of text; with no excerpt on a side there is nothing to show the operator
 and nothing to fix, and every contradiction between the same two files would collide on one id.
 
-A human-readable heading path (`## Rules > ### Naming`) travels alongside each site for legibility
+The heading path is **also** an identity input, via the duplicate discriminator above; its rendered
+form (`## Rules > ### Naming`) travels alongside each site for legibility
 only — the anchor is what identity compares.
 
 ### Normalization, v1
@@ -260,7 +283,7 @@ incomplete run, which the no-lock read-only policy otherwise makes undecidable.
 - **`heartbeat_at` must not move backwards.** A clock adjustment that rewinds it would make a live
   run read stale, so a refresh writes `max(now, previous)`.
 
-Interval and threshold are stated here rather than left to Phase 9 because "live or abandoned" is a
+Interval and threshold are stated here rather than left to the implementation because "live or abandoned" is a
 classification two implementations must reach identically or `--resume` is nondeterministic.
 
 | # | Assertion |
@@ -609,7 +632,7 @@ apart cannot tell which fields a change would rename the finding through:
 | Block | Fields | Rule |
 |---|---|---|
 | `identity` | `check`, `claim`, `sites` (each `surface` + versioned `anchor`, canonically sorted) | Hashed into `finding_id`. Nothing else is. |
-| Presentation | `primary_site`, `related_site`, `load_path`, per-site heading path, rendered prose | Carried for reading and remediation. Changing any of them leaves `finding_id` untouched. |
+| Presentation | `primary_site`, `related_site`, `load_path`, the *rendered* heading path, rendered prose | Carried for reading and remediation. Changing any of them leaves `finding_id` untouched. **The rendered path only** — the normalized heading path is hashed into the excerpt anchor's duplicate discriminator per §1, so restructuring the headings around an excerpt does rename the finding. |
 | Run metadata | `lane`, `attempt`, `tier` | Where the record came from, and which attempt of that lane produced it. |
 
 **At the end — `findings.json`.** One document assembled from the partial, carrying `schemaVersion`,
