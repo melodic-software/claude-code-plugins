@@ -62,10 +62,15 @@ pre-clear content sits in a sibling — never in the current session's own file.
    indistinguishable `type: handoff` file with the same engine — but its rails prompt was
    *delivered*, to the agent it launched. Locate the candidate's producer transcript by the file's
    `session_id` and look for the launch signature (`claude --bg --name "continue-…"`, or the
-   continue-in-background invocation). Launch succeeded → this save-point is not the lost handoff:
-   its work is already running (`claude agents` lists it) — exclude it from the default winner,
-   say so, and keep looking for the older manual handoff. Launch failed or ambiguous → keep the
-   candidate but surface the provenance at the confirm gate. **v1 scope: current repo only.** The cross-repo *filesystem* sweep (deriving
+   continue-in-background invocation) — then **correlate the launch with this exact file**: a
+   launch delivers one specific rails prompt, and its `Read @…` directive (or the
+   `--name "continue-<topic>"` slug) names the file it delivered. One session can produce a manual
+   handoff *and* later a background launch, and both files carry the same `session_id`, so a
+   session-wide signature match must never exclude by itself. Matched launch references this
+   candidate and succeeded → the save-point is not the lost handoff: its work is already running
+   (`claude agents` lists it) — exclude it from the default winner, say so, and keep looking for
+   the older manual handoff. Launch references a different file, failed, or is ambiguous → keep
+   the candidate (surfacing the provenance at the confirm gate when ambiguous). **v1 scope: current repo only.** The cross-repo *filesystem* sweep (deriving
    other repo roots from transcript `cwd` fields) is deferred — step 2's transcript scan already
    recovers handoffs written in other repos, since transcripts are indexed by session, not repo.
 2. **Transcript scan — bounded, recency-ranked, cross-repo.** Enumerate `~/.claude/projects/*/`
@@ -213,5 +218,7 @@ pre-clear content sits in a sibling — never in the current session's own file.
 - **A background-launch save-point is not a lost handoff.** `continue-in-background` uses the same
   save-point engine, so its file looks identical — but its rails prompt was delivered, to the
   launched agent, and resuming it manually duplicates work already running in the background.
-  Screen candidates via the producer transcript's launch signature; exclude successful launches
-  from the default winner and point the operator at `claude agents` instead.
+  Screen candidates via the producer transcript's launch signature, correlated to the exact file
+  the launch's resume directive references — never session-wide, since one session can produce
+  both a manual handoff and a later background launch under the same `session_id`. Exclude only
+  the correlated, successful launch's file and point the operator at `claude agents` instead.
