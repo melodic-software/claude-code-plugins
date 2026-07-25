@@ -9,7 +9,7 @@ understanding rather than the agent's.
 | Skill | Axis | What it does |
 |---|---|---|
 | `/discovery:explore` | Local, inline | Six-dimension codebase exploration — code reading, git history, project structure, test discovery, build config, environment — persisting an `EXPLORE.md` handoff artifact. |
-| `/discovery:explore-deep` | Local, isolated | The same explore workflow in a forked subagent: verbose reads and search output stay in the fork; only a short summary returns, with findings persisted to `EXPLORE.md`. Requires `CLAUDE_CODE_FORK_SUBAGENT=1`. |
+| `/discovery:explore-deep` | Local, isolated | The same explore workflow in a forked subagent: verbose reads and search output stay in the fork; only a short summary returns, with findings persisted to `EXPLORE.md`. |
 | `/discovery:research` | External, inline | Three chained research phases (broad → targeted + falsification → preferred sources) with per-claim source tiers, independent-corroborator ratios, a recency gate, and a binary outcome gate before presenting. |
 | `/discovery:research-deep` | External, isolated | Dispatcher that routes deep research to the heaviest isolated tier available — a deep-research workflow engine, a forked subagent, or inline as last resort — with a multi-topic check that fans out one agent per separable topic. |
 | `/discovery:blindspot` | Local, user-facing | Surfaces the USER's unknown-unknowns before they work in unfamiliar territory (a codebase area or a domain vocabulary), emitting blindspot cards and coaching one improved prompt. Deliverable is the user's understanding, not `EXPLORE.md`. |
