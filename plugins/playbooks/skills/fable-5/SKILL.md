@@ -138,7 +138,7 @@ Read a chapter the first time its trigger fires in the session; once read, it st
 | Face an acceptance criterion the user can only judge on sight, or a want an example would carry faster than their prose | `problem-framing.md` |
 | Get a multi-step deliverable back as not what was meant | `problem-framing.md` |
 | Notice a repeated failure, a loop, or the urge to retry the same action | `recovery.md` |
-| Enter a long session, resume after context loss, or juggle interleaved threads | `context-economy.md` |
+| Enter a long session, resume after context loss, juggle interleaved threads, or finish a phase whose output the next phase consumes | `context-economy.md` |
 | Read external or untrusted content, encounter a secret, or prepare an outward-visible action | `trust-and-authority.md` |
 | Arm this playbook on any model other than Claude Fable 5 | `opus-adaptation.md` — mandatory, at arm time |
 
