@@ -155,6 +155,18 @@
         "Captures and reports the status code rather than inferring outcome from body shape",
         "Never reports a failed fetch as an empty post"
       ]
+    },
+    {
+      "id": 14,
+      "name": "legacy-mobile-host-is-accepted-and-canonicalized",
+      "prompt": "/x:read https://mobile.twitter.com/jack/status/20",
+      "expected_output": "Matches the post form on the legacy mobile host, captures handle and id, and rebuilds https://x.com/jack/status/20. The mobile.twitter.com host is never placed in the emitted command.",
+      "files": [],
+      "expectations": [
+        "Accepts the mobile.twitter.com host form rather than refusing it at the gate",
+        "Rebuilds to the canonical https://x.com/<handle>/status/<id> form",
+        "The legacy host never appears in the emitted command or the attribution"
+      ]
     }
   ]
 }

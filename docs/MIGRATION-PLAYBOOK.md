@@ -963,12 +963,13 @@ operated by others — so surfaces 5 and 6 carry the weight here.
   absolute — before curl 8.4.0 `--max-filesize` does not stop an unknown-length response, so a
   chunked reply can exceed it and `--max-time` is the bound that always holds.
 
-  Those bounds are only enforceable because `-q` leads every invocation. Review surfaced that curl
+  Those bounds are only enforceable because `-q` leads the invocation. Review surfaced that curl
   reads a default `.curlrc` "even when `--config` is used", skipping it only when `--disable` "is
   used as the first parameter on the command line" (curl's own manual, verified against the local
   binary). A consumer's ambient `.curlrc` setting `location` would otherwise re-enable redirect
-  following and silently defeat the no-redirect egress claim on both the bash and the Windows
-  config-file paths — an environment-supplied bypass of a control this record asserts.
+  following and silently defeat the no-redirect egress claim — an environment-supplied bypass of a
+  control this record asserts. The finding predates the removal of the Windows config-file path and
+  applied there too.
 - **Provenance & third-party trust (6). Present and accepted.** Two vendors, neither first-party:
   - `xtomd.com` — publishes a `POST /api/markdown` endpoint under a documented public contract
     (`/llms.txt`, `/llms-full.txt`, and an OpenAPI 3.1.0 document at `/.well-known/openapi.json`),

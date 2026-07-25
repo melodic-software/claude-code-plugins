@@ -29,8 +29,9 @@ real `argv` dump, yielding a second unconstrained URL and an arbitrary-write fla
 that cannot express a quote make the emitted command safe by construction; hand-escaping is the
 failure mode, not the fix.
 
-Rebuilding also drops the query string, so `?s=`/`?t=` share-tracking tokens never reach a third
-party.
+Rebuilding also drops the host and the query string, so the `x.com`, `twitter.com`, `www.`, and
+legacy `mobile.` forms are all accepted and all collapse to a canonical `x.com` URL, and `?s=`/`?t=`
+share-tracking tokens never reach a third party.
 
 The gate is model-honored instruction, not a runtime-enforced control — stated plainly because it is
 the primary defense. The plugin therefore ships **no** shell pre-approval: the network call surfaces

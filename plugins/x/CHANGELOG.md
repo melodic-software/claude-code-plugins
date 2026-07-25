@@ -17,7 +17,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   string. Closes an argument-injection surface found in pre-release review, where a URL containing an
   apostrophe broke out of the request body's quoting and contributed a second unconstrained URL plus
   an `-o` arbitrary-write flag to the receiving process — reproduced at `argv` level in both bash and
-  PowerShell. Rebuilding also strips query strings, so share-tracking tokens are never transmitted.
+  PowerShell. Rebuilding also discards the host and any query string, so the `x.com`, `twitter.com`,
+  `www.`, and legacy `mobile.` forms are all accepted and all collapse to a canonical `x.com` URL,
+  and share-tracking tokens are never transmitted.
 - Trust boundary in the skill body: converter output is attacker-authored text, treated as data to
   report and never as instructions, with fetched text barred from introducing any URL, host, or file
   path. Every URL re-enters the gate, including ones supplied at step 3 or surfaced inside fetched
@@ -26,15 +28,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `-L`, so no redirect-driven egress. The byte cap is documented as best-effort — before curl 8.4.0
   `--max-filesize` does not stop an unknown-length response, so `--max-time` is the bound that always
   holds.
-- The Windows scratch files (request body and curl config) are named for the gate-captured id plus a
-  per-invocation nonce, and deleted once the request returns. The nonce matters because of the
-  cleanup: without it two sessions reading the same post share a path, and the first to finish
-  deletes both files while the second still waits at its permission prompt. Cleanup keeps reading
-  many posts from accumulating files or building a local history of submitted X URLs.
-- `-q` leads every curl invocation on both paths. curl reads a default `.curlrc` "even when
-  `--config` is used" and skips it only when `--disable` "is used as the first parameter on the
-  command line", so without it a consumer's ambient config could set `location` and silently
-  re-enable redirect following, defeating the egress bounds above.
+- `-q` leads the curl invocation. curl reads a default `.curlrc` "even when `--config` is used" and
+  skips it only when `--disable` "is used as the first parameter on the command line", so without it
+  a consumer's ambient config could set `location` and silently re-enable redirect following,
+  defeating the egress bounds above.
 - `curl` declared as a required-for-correctness prerequisite at step 1, with a visible degrade to
   step 2 on absence — the xtomd endpoint is POST-only, so `WebFetch` cannot substitute.
 - Thread Reader App miss detection by final URL (`.../thread/<id>/error`) rather than status code,
@@ -49,11 +46,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   reported as an empty post.
 - `skills/read/context/failure-modes.md` — progressive-disclosure spoke holding status-code handling,
   Thread Reader miss detection, and the observed-gotchas list.
-- `skills/read/evals/evals.json` — twelve cases covering step-1 resolution, chain escalation,
+- `skills/read/evals/evals.json` — fourteen cases covering step-1 resolution, chain escalation,
   note-tweet non-escalation, `502` handling without a retry loop, prompt-injection containment, the
   missing-`curl` path, refusal of a hostile URL string, tracking-parameter stripping, a URL harvested
-  from fetched content re-entering the gate, `isNoteTweet` governing escalation, step-1-success plus
-  step-2-miss reaching step 3, and a `200` without conversion treated as failure.
+  from fetched content re-entering the gate, `isNoteTweet` governing escalation in both directions,
+  step-1-success plus step-2-miss reaching step 3, a `200` without conversion treated as failure, and
+  the legacy `mobile.twitter.com` host being accepted and canonicalized.
 
 ### Fixed
 

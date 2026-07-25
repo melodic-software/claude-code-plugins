@@ -49,19 +49,19 @@ Do not escape and do not sanitize. **Match, capture, and rebuild:**
    Post:
 
    ```text
-   ^https?://(?:www\.)?(?:x|twitter)\.com/([A-Za-z0-9_]{1,15})/status/([0-9]{1,20})(?:[/?#].*)?$
+   ^https?://(?:www\.|mobile\.)?(?:x|twitter)\.com/([A-Za-z0-9_]{1,15})/status/([0-9]{1,20})(?:[/?#].*)?$
    ```
 
    Article:
 
    ```text
-   ^https?://(?:www\.)?(?:x|twitter)\.com/([A-Za-z0-9_]{1,15})/article/([0-9]{1,20})(?:[/?#].*)?$
+   ^https?://(?:www\.|mobile\.)?(?:x|twitter)\.com/([A-Za-z0-9_]{1,15})/article/([0-9]{1,20})(?:[/?#].*)?$
    ```
 
    Anonymous article:
 
    ```text
-   ^https?://(?:www\.)?(?:x|twitter)\.com/i/article/([0-9]{1,20})(?:[/?#].*)?$
+   ^https?://(?:www\.|mobile\.)?(?:x|twitter)\.com/i/article/([0-9]{1,20})(?:[/?#].*)?$
    ```
 
 2. **No match — refuse.** Say the URL is not a recognized X post or article URL and stop. Never
@@ -80,7 +80,8 @@ Only the rebuilt URL is ever placed in a command. The capture classes are `[A-Za
 quote-safe by construction rather than by escaping.
 
 Rebuilding also drops any query string, which is where share links carry `?s=`/`?t=` tracking
-tokens — so those are never transmitted to a third party.
+tokens — so those are never transmitted to a third party. The host is discarded the same way, so the
+legacy `twitter.com`, `www.`, and `mobile.` forms are all accepted and all collapse to `x.com`.
 
 **Honest limit:** this gate is instruction-level, model-honored, and not runtime-enforced. It is the
 primary defense, not a guarantee. The plugin therefore also ships **no** Bash or PowerShell
