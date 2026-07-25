@@ -1,5 +1,18 @@
 # Changelog — discovery plugin
 
+## [0.8.4]
+
+### Changed
+
+- **Setup no longer hardcodes a publisher and repository name in the schema reference.** The skill
+  pointed at a `raw.githubusercontent.com/<publisher>/<repo>` URL for `topic-docs.schema.json`,
+  binding a runtime-consulted reference to one forge account inside a plugin that is otherwise
+  publisher-agnostic — a fork, a mirror, or a rename leaves the skill citing someone else's schema.
+  It now names the schema by the convention's own filename and defers to
+  `reference/topic-docs.md`, this plugin's binding, which already carries the single pointer to the
+  published convention. One coupling site per plugin instead of two, and the one that remains is the
+  file whose job is to cite upstream.
+
 ## [0.8.3] — 2026-07-24
 
 ### Fixed
