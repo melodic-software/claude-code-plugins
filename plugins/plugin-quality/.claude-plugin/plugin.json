@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "plugin-quality",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "Post-use behavioral audit of Claude Code plugin components: a six-step audit workflow (evidence capture, grounded mapping in a fresh subagent, blindspot pass, interactive contract lock, presence-gated review seams, work-item emit with draft+confirm) over any skill, agent, hook, command, or config you have actually used — zone-informed by context-guard snapshots when present, conservative when not.",
   "author": {
     "name": "Melodic Software",

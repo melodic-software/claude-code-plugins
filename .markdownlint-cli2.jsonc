@@ -1,10 +1,10 @@
 {
   // GitHub Flavored Markdown (GFM) ruleset for markdownlint-cli2.
-  // Schema pinned to markdownlint-cli2 v0.23.0 — bump together on upgrade.
+  // Schema pinned to markdownlint-cli2 v0.23.1 — bump together on upgrade.
   // Rules reference: https://github.com/DavidAnson/markdownlint/blob/main/doc/Rules.md
   // All rules are enabled by default; only deviations are listed below.
   // Globs are passed by the caller (CLI / CI), not declared here.
-  "$schema": "https://raw.githubusercontent.com/DavidAnson/markdownlint-cli2/v0.23.0/schema/markdownlint-cli2-config-schema.json",
+  "$schema": "https://raw.githubusercontent.com/DavidAnson/markdownlint-cli2/v0.23.1/schema/markdownlint-cli2-config-schema.json",
   "ignores": [
     // Build, dependency, and cache trees — not authored markdown.
     "**/node_modules/**",

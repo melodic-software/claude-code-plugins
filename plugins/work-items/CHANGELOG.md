@@ -25,6 +25,15 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   `recurring-maintenance` label is reported as informational rather than gating, since no
   `[Maintenance]` item can be created from an empty schedule.
 
+## [0.24.1]
+
+### Documentation
+
+- `tools/work-item-tracker/tests/lib.sh` now points at
+  `docs/conventions/shell-test-helpers/README.md`, the repo's owner doc recording that per-plugin
+  shell assert-helper duplication and per-script exit-code taxonomies are deliberate, not drift. No
+  behavior change.
+
 ## [0.24.0]
 
 ### Changed
