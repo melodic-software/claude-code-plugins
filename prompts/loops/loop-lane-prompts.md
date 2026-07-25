@@ -56,21 +56,34 @@ into one profile.
   string, since a label's real value may legitimately carry spaces.
 
   ```bash
-  ROLE=$(jq -er '
-    if has("config") and (.config | has("role_labels"))
-         and (.config.role_labels | has("autonomous-eligible"))
-    then .config.role_labels."autonomous-eligible"
-         | if type == "string" and (gsub("^\\s+|\\s+$"; "") | length) > 0 then .
-           else "MALFORMED" | halt_error(1) end
-    else "" end' .work-item-tracker.json) || {
-      echo "role_labels.autonomous-eligible is malformed — fix the binding" >&2
-      exit 1
-    }
-  if [ -z "$ROLE" ]; then
-    echo "WARNING: no autonomous-eligible mapping; defaulting to agent-ready" >&2
+  BINDING=.work-item-tracker.json
+  if [ ! -f "$BINDING" ]; then
+    # Absent file is the documented warn-and-default case, NOT a malformed
+    # one — jq cannot express it, since it fails before the program runs.
+    echo "WARNING: no $BINDING; defaulting role to agent-ready" >&2
     ROLE=agent-ready
+  else
+    ROLE=$(jq -er '
+      if has("config") and (.config | has("role_labels"))
+           and (.config.role_labels | has("autonomous-eligible"))
+      then .config.role_labels."autonomous-eligible"
+           | if type == "string" and (gsub("^\\s+|\\s+$"; "") | length) > 0 then .
+             else "MALFORMED" | halt_error(1) end
+      else "" end' "$BINDING") || {
+        echo "role_labels.autonomous-eligible is malformed — fix the binding" >&2
+        exit 1
+      }
+    if [ -z "$ROLE" ]; then
+      echo "WARNING: no autonomous-eligible mapping; defaulting to agent-ready" >&2
+      ROLE=agent-ready
+    fi
   fi
   ```
+
+  The file-existence test is separate on purpose: `jq` fails to open a missing
+  file *before* the program runs, so its absent-entry sentinel can never be
+  reached and the `||` branch would report a **malformed** binding for a repo
+  that simply has none yet — the exact repo the adoption sequence is walking.
 
 - **Is a classification source present, and how many items carry one?** The
   merge partition reads "the triage stamp in the item body **or** labels" —
@@ -487,6 +500,15 @@ wakeup ceiling for days rather than finishing.
 > re-invoking it inside a brief multiplies the fan-out with every nesting
 > level. Dispatched subagents inherit the posture the root sweep set. If that
 > plugin is absent here, inline the equivalent standing instructions instead.
+>
+> **Never apply an in-tree correction — you may not even be in the target
+> repo.** This lane takes `owner/repo` as an argument and works over the API,
+> so it can be launched from anywhere; the sweep, by contrast, corrects
+> forward by editing whatever working tree it runs in. That tree is the
+> ambient checkout, not `{{REPO}}` — so an applied remedy here can silently
+> dirty or alter an unrelated repository. Report the finding and its proposed
+> remedy in the cycle report and stop there. Posture and process corrections
+> that touch no file apply normally.
 >
 > **Dispatch model, every dispatch.** Your root runs on the fast tier and
 > subagents inherit it by default, so the frontier-tier conflict worker this
@@ -937,6 +959,15 @@ exists — not before.
 > re-invoking it inside a brief multiplies the fan-out with every nesting
 > level. Dispatched subagents inherit the posture the root sweep set. If that
 > plugin is absent here, inline the equivalent standing instructions instead.
+>
+> **Never apply an in-tree correction — you may not even be in the target
+> repo.** This lane takes `owner/repo` as an argument and works over the API,
+> so it can be launched from anywhere; the sweep, by contrast, corrects
+> forward by editing whatever working tree it runs in. That tree is the
+> ambient checkout, not `{{REPO}}` — so an applied remedy here can silently
+> dirty or alter an unrelated repository. Report the finding and its proposed
+> remedy in the cycle report and stop there. Posture and process corrections
+> that touch no file apply normally.
 >
 > **Dispatch model, every dispatch.** Your root runs on the fast tier and
 > subagents inherit it by default, so the frontier-tier conflict worker this
