@@ -234,9 +234,14 @@ keeps every sentence-initial capitalized word out. Neither form is a hardcoded t
 scan has never heard of is still covered — at the cost of precision, since CamelCase proper nouns match
 the first form.
 
-Polarity is read from a window around the mention. A prohibition counts when it precedes the entity, or
-follows it **within the same sentence** — "`WebFetch` must not be used" is a prohibition, while "…via
-`X` once. Do not gate per repo" is a trailing clause about a different object.
+Polarity is read from a window around the mention, and **both halves of that window stop at a sentence
+boundary**, so only a polarity token in the entity's own sentence classifies it. A prohibition counts
+when it precedes the entity within that sentence, or follows it within it — "`WebFetch` must not be
+used" is a prohibition, while "…via `X` once. Do not gate per repo" is a trailing clause about a
+different object, and "Never delete branches. Always use `X` first" is a mandate rather than a
+prohibition inherited from the sentence before it. A boundary is a sentence-ending mark **followed by
+a space**: a bare mark also occurs inside a dotted config path or a version number, and cutting there
+would truncate the window mid-clause and lose the polarity token that does govern the entity.
 
 It is advisory. A row is a candidate, never a finding: gates 2 and 5 are not greppable, and the lane
 refines every row against the must-not-flag set above.

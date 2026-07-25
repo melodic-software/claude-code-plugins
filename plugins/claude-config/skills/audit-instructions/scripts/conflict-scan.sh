@@ -167,12 +167,26 @@ mapfile -t rows < <(
           gsub(/`/, "", ent)
           ws = s - w
           if (ws < 1) ws = 1
-          # Trailing text is cut at the first sentence-ending mark, so only a
-          # prohibition inside the same sentence can flip the polarity.
+          # Both windows stop at a sentence boundary so only a polarity token in
+          # the SAME sentence as the entity classifies it: trailing text at its
+          # FIRST boundary, leading text after its LAST. A boundary is a
+          # sentence-ending mark followed by a space — a bare mark also occurs
+          # inside tokens this corpus is full of (a dotted config path, a version
+          # number), and cutting there would truncate the window mid-clause.
           post = substr(pad, e + 2, w)
-          if (match(post, /[.;!?]/)) post = substr(post, 1, RSTART - 1)
+          if (match(post, /[.;!?] /)) post = substr(post, 1, RSTART - 1)
+          pre = substr(pad, ws + 1, s - ws)
+          precut = 0
+          preoff = 0
+          pretail = pre
+          while (match(pretail, /[.;!?] /)) {
+            preoff += RSTART
+            precut = preoff
+            pretail = substr(pretail, RSTART + 1)
+          }
+          if (precut > 0) pre = substr(pre, precut + 1)
           classify(file, lineno, ent, \
-            " " substr(pad, ws + 1, s - ws) " ", \
+            " " pre " ", \
             " " post " ", \
             " " substr(pad, ws + 1, (e + w) - ws + 1) " ")
           base = e

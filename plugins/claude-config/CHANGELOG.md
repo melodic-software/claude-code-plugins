@@ -34,9 +34,12 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   capitalized word inside backticks** — the second form is what reaches single-word tools (`Bash`,
   `Read`, `Edit`), and requiring the backticks is what keeps sentence-initial capitalized words out.
   Neither form is a hardcoded tool list, so a tool the scan has never heard of is still covered.
-  Polarity is read from a window around each mention, and a prohibition counts when it **precedes**
-  the entity or **follows it within the same sentence**, so `X must not be used` classifies as a
-  prohibition while a trailing clause past a sentence break still does not. An opt-in gate suppresses
+  Polarity is read from a window around each mention and **both halves of that window stop at a
+  sentence boundary**, so only a polarity token in the entity's own sentence classifies it:
+  `X must not be used` is a prohibition, a trailing clause past a full stop is not, and a prohibition
+  in the *preceding* sentence no longer overrides the mandate that governs the entity. A boundary is
+  a sentence-ending mark followed by a space, since a bare mark also occurs inside a dotted config
+  path or a version number. An opt-in gate suppresses
   a pair only when it reads as a **condition** rather than as the subject being described, so
   "never use `X` for opt-in prompts" is still classified. Classification and pairing run in a single
   `awk` pass bucketed by entity; a subprocess per mention did not finish on an instruction tree this

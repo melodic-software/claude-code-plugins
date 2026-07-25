@@ -240,6 +240,36 @@ EOF
 assert_eq "opt-in as subject is not suppressed" "1" \
   "$(bash "$SCRIPT" --count "$OPTMANDATE" "$OPTSUBJECT")"
 
+# --- Case 23: a prohibition in the PRECEDING sentence must not win ----------
+# The leading window is 60 chars, so an earlier unrelated prohibition on the
+# same line used to cross the sentence break and classify the mandate as a
+# prohibition — pairing it with a real prohibition then yielded nothing.
+PRESENTENCE="$TEST_TMPDIR/pre-sentence.md"
+cat >"$PRESENTENCE" <<'EOF'
+Never delete branches. Always use `AskUserQuestion` before deleting a branch.
+EOF
+assert_eq "prohibition in the preceding sentence does not flip the mandate" "1" \
+  "$(bash "$SCRIPT" --count "$PRESENTENCE" "$OPTSUBJECT")"
+
+# --- Case 24 (MUST NOT FLAG): a same-sentence prohibition still wins ---------
+# Case 23 must not cost the ordinary "never use X" reading.
+SAMESENTENCE="$TEST_TMPDIR/same-sentence.md"
+cat >"$SAMESENTENCE" <<'EOF'
+Run the checks first. Never use `AskUserQuestion` in an autonomous loop.
+EOF
+assert_eq "same-sentence prohibition still classifies as a prohibition" "1" \
+  "$(bash "$SCRIPT" --count "$OPTMANDATE" "$SAMESENTENCE")"
+
+# --- Case 25: a dot inside a token is not a sentence boundary ---------------
+# `.claude/rules` and `v2.1.219` are everywhere in this corpus. Cutting the
+# window at a bare mark would drop the prohibition governing the entity.
+DOTTED="$TEST_TMPDIR/dotted.md"
+cat >"$DOTTED" <<'EOF'
+Never read `.claude/rules` with `WebFetch` during an audit.
+EOF
+assert_contains "a dot inside a token does not truncate the window" \
+  "$(bash "$SCRIPT" "$WEBMANDATE" "$DOTTED")" "|WebFetch|"
+
 # --- Case 16: missing grep exits 2 ------------------------------------------
 real_bash=$(command -v bash)
 empty_path_dir="$TEST_TMPDIR/empty-path"
