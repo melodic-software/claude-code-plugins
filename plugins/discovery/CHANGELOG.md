@@ -18,7 +18,11 @@
   unprobed "nothing deeper
   exists" would let the shallow run this criterion targets nominate its own landing page as the top,
   while the not-existing outcome keeps the common legitimate case — most claim classes ship no rung-1
-  artifact — representable without fabricating a fetch. A probe locates a rung; it does not grade
+  artifact — representable without fabricating a fetch. That outcome carries its own evidence bar so
+  it cannot become the escape hatch the criterion exists to close: it is earned against an exhaustive
+  first-party surface (a sitemap, the in-repo docs tree, a releases listing), never against a search
+  miss or a curated `llms.txt`, which the doc-index table itself calls deliberately partial. A rung
+  those fail to surface is unresolved — a Gap naming the discovery surfaces checked and unchecked. A probe locates a rung; it does not grade
   one, so it can establish a rung's absence but never that a rung which exists lacks the claim: a
   title, index entry, or search snippet is exactly what omits the section being chased, and a
   probe-only lacks-the-claim outcome is how a system card gets walked past with the gate still
