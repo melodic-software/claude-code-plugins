@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.26.3]
+## [0.26.4]
 
 ### Fixed
 
@@ -19,6 +19,19 @@ All notable changes to the `source-control` plugin are documented here. Format f
   once: a failing gate is not an engagement signal and is never a trigger candidate; it is bucketed
   by `classify_checks` like any other check, so it already reaches the operator through the ordinary
   failing-check blocker. Documentation and test only; no behavior change.
+
+## [0.26.3]
+
+### Changed
+
+- **The plugin is now the canonical, sole source for the worktree conventions (#401).** The
+  `babysit-prs` skill's `reference/worktrees.md` states it owns the ephemeral babysit-worktree
+  exemption (lease-scoped cleanup, never a global open-PR prune — machine-enforced by
+  `prune_babysit_worktrees.py`) and that rooting those worktrees outside a repository's discoverable
+  tree keeps them out of enumeration such as `ghq list`; the `worktree` skill states it owns the
+  parallel-session external-root convention going forward. Both close the SSOT gap left by the
+  retired external `ghq-layout-sibling-pr-worktrees` prose doc (physical deletion of that doc is a
+  separate follow-up in the dotfiles repo).
 
 ## [0.26.2]
 
