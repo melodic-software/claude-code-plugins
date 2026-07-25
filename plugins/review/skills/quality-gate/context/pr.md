@@ -18,14 +18,19 @@ Two Claude Code surfaces overlap this mode's job on an open PR. Neither is an in
   inline PR comments tagged by severity. It triggers automatically on PR open/push per the
   repo's configured behavior, or on demand by commenting `@claude review` on the PR.
 
-**PR-mutation gate:** `/code-review --comment` and triggering the managed service both post to
-the PR, which violates the review modes' report-only contract; when the branch has an open PR,
-dispatch either only on explicit user opt-in ("post the review comment"), otherwise skip and
-name the skip in the review report — fall to the read-only manual path below.
+**Mutation gate — flags and the managed service, not the bare command:** `/code-review --comment`
+posts inline comments to the PR and triggering the managed service posts a full review; both
+violate the review modes' report-only contract. `--fix` mutates the working tree. Dispatch any of
+those three only on explicit user opt-in ("post the review comment", "apply the fixes"), otherwise
+skip and name the skip in the review report.
+
+Bare `/code-review <target>` is **not** gated: it reports into the session and writes nothing to
+the PR or the working tree, so it stays available as a read-only option alongside the manual path
+below.
 
 ## Manual PR review (default read-only path)
 
-Used by default, or when the opt-in above is withheld:
+Used by default, or alongside a bare `/code-review <target>` pass:
 
 1. `gh pr diff` for the change set (page it — large PRs flood context)
 2. Apply the project's review criteria (or `${CLAUDE_PLUGIN_ROOT}/context/severity.md` baseline) manually, or dispatch this plugin's `code-reviewer` agent against the PR's merge-base diff

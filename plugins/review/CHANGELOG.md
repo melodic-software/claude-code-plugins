@@ -13,7 +13,10 @@ All notable changes to the `review` plugin are documented here. Format follows
   command (invoked bare) and the "parallel agents / posts PR comments" behavior actually
   describes the separate managed Code Review GitHub App service — neither is an installable
   marketplace plugin. `pr.md` now documents both surfaces distinctly under a Boundary section,
-  mirroring the pattern `code.md` already uses for its own built-in boundary (#266/#735).
+  mirroring the pattern `code.md` already uses for its own built-in boundary (#266/#735). The
+  section's mutation gate covers only the surfaces that actually write — `--comment` (posts to the
+  PR), `--fix` (mutates the working tree), and the managed service — leaving bare
+  `/code-review <target>` ungated as a read-only option.
 
 ## [0.15.0]
 
