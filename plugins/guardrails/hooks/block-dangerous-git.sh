@@ -3,17 +3,20 @@
 #
 # Default block-list is irreversible-only (form tokens):
 #   push-force     — git push --force / -f / +refspec / --mirror
-#   push-lease-unsafe — git push --force-with-lease WITHOUT an explicit
-#                    `=<refname>:<expect>`, and without --force-if-includes
+#   push-lease-unsafe — git push --force-with-lease leasing against anything
+#                    git resolves at push time (bare, `=<refname>`, or an
+#                    `=<refname>:<expect>` whose <expect> is a movable name),
+#                    without --force-if-includes
 #   reset-hard     — git reset --hard
 #   clean-force    — git clean with a force flag (-f, -fd, -fdx, --force)
 #   checkout-dot   — git checkout .  (worktree-wide discard; path-scoped is fine)
 #   restore-dot    — git restore .   (worktree discard; --staged-only is fine)
 #   checkout-force — git checkout -f / switch -f/--discard-changes
 #
-# NOT blocked: a push whose ONLY lease spellings are --force-with-lease=<refname>:<expect>
-# (each states its expectation, so no background fetch can satisfy the lease on
-# the pusher's behalf), any lease form paired with --force-if-includes, a lease
+# NOT blocked: a push whose ONLY lease spellings pin an immutable <expect> —
+# an object id, or the empty string asserting the ref must not exist — so no
+# background fetch can satisfy the lease on the pusher's behalf; any lease form
+# paired with --force-if-includes; a lease
 # cancelled by a trailing --no-force-with-lease, plain push, soft/mixed reset,
 # clean -n (dry run), path-scoped checkout/restore, and `branch -D` (reflog
 # recovers deleted refs, and sanctioned skill flows issue it inline).
@@ -164,6 +167,24 @@ is_push_value_opt() {
 # it, which is why the exact `--force` arm needs no abbreviation handling.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 is_lease_opt() { abbrev_match "force-with-lease" "${1%%=*}" 7; }
+
+# Does a lease spelling state an expectation git cannot resolve to something
+# newer at push time? Only `=<refname>:<expect>` with <expect> an immutable
+# object id qualifies, plus the empty <expect> (git: "the named ref must not
+# already exist"). A symbolic name in the <expect> slot — `origin/main`,
+# `refs/remotes/origin/main`, `HEAD`, `@{u}` — is resolved when the push runs,
+# so a background fetch moves it first and the lease passes while clobbering
+# work the pusher never saw: the exact hole the bare form has.
+# Abbreviated hex is accepted because git resolves any unambiguous object-id
+# prefix, and a hex string cannot name a moving target.
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+lease_pins_an_immutable_expect() {
+  local v="$1" expect
+  [[ "$v" == *=*:* ]] || return 1
+  expect="${v#*:}"
+  [[ -z "$expect" ]] && return 0
+  [[ "$expect" =~ ^[0-9a-fA-F]{4,64}$ ]]
+}
 
 # Is an operand a worktree-wide pathspec? `.` from the repo root, the
 # root-magic short form `:/` (bare or with a wildcard-only pattern — `:/*`
@@ -366,14 +387,15 @@ check_segment() {
         # The two spellings are INDEPENDENT, not one state. git scopes
         # `=<refname>:<expect>` to that ref alone and leaves every other
         # updated ref on the bare fallback, so an explicit entry never makes a
-        # bare one safe — `git push --force-with-lease --force-with-lease=main:<sha> origin main other`
-        # pins main and leaves `other` leasing against its remote-tracking ref.
-        # Track them separately; only `--no-force-with-lease` clears either.
-        # Only the BARE spelling is tracked. An `=<refname>:<expect>` entry is
-        # scoped by git to that ref alone and says nothing about the others, so
-        # it can never make a bare fallback safe — it is simply not this
-        # check's business.
-        if is_lease_opt "$x" && [[ "$x" != *=*:* ]]; then lease_bare=1; fi
+        # Only a spelling that leases against something MUTABLE is tracked. An
+        # `=<refname>:<expect>` entry is scoped by git to the ref it names and
+        # says nothing about the others, so it can never make a bare fallback
+        # safe — but it only counts as pinned when <expect> is an immutable
+        # object id (or the empty string, which asserts the ref must not
+        # exist). A name like `refs/remotes/origin/main` in the <expect> slot
+        # is resolved at push time and a background fetch can move it first,
+        # which is the same hole the bare form has.
+        if is_lease_opt "$x" && ! lease_pins_an_immutable_expect "$x"; then lease_bare=1; fi
         ;;
       esac
       ((k++))

@@ -41,7 +41,7 @@ run "git push --force-with-lease --force-if-includes (mitigated, allowed)" "git 
 run "git push --force-with-lease=main --force-if-includes (mitigated, allowed)" "git push --force-with-lease=main --force-if-includes origin main" 0
 run "git push --force-if-includes alone (no lease, git no-ops it, allowed)" "git push --force-if-includes origin main" 0
 run "git push --force-w (unique abbrev of the lease flag, blocked)" "git push --force-w" 2
-run "git push --force-w=main:abc (abbrev with expectation, allowed)" "git push --force-w=main:abc origin main" 0
+run "git push --force-w=main:abc1234 (abbrev with expectation, allowed)" "git push --force-w=main:abc1234 origin main" 0
 run "git push --force-w --force-i (both abbreviated, mitigated, allowed)" "git push --force-w --force-i" 0
 run "git push --force-with-lease --dry-run (preview updates nothing, allowed)" "git push --force-with-lease --dry-run" 0
 run "git push --force-with-lease -- --force-if-includes (after --, operand not flag, blocked)" "git push --force-with-lease -- --force-if-includes" 2
@@ -52,12 +52,18 @@ run "git push --force-with-lease --force-if-includes --no-force-w (lease negatio
 run "git push --force-with-lease --no-force-with-lease (lease negated, not a lease push, allowed)" "git push --force-with-lease --no-force-with-lease origin main" 0
 run "git push --force-with-lease --no-force-with-lease --force-with-lease (lease re-armed, blocked)" "git push --force-with-lease --no-force-with-lease --force-with-lease origin main" 2
 run "git push --no-force-with-lease alone (nothing to negate, allowed)" "git push --no-force-with-lease origin main" 0
-run "git push --force-with-lease=main:abc --no-force-with-lease (stated expectation negated, allowed)" "git push --force-with-lease=main:abc --no-force-with-lease origin main" 0
-run "git push bare + pinned lease over two refs (bare fallback still governs `other`, blocked)" "git push --force-with-lease --force-with-lease=refs/heads/main:abc origin main other" 2
-run "git push pinned then bare (order does not rescue the bare fallback, blocked)" "git push --force-with-lease=refs/heads/main:abc --force-with-lease origin main other" 2
-run "git push bare + pinned + --force-if-includes (mitigation covers the fallback, allowed)" "git push --force-with-lease --force-with-lease=refs/heads/main:abc --force-if-includes origin main other" 0
+run "git push --force-with-lease=main:abc1234 --no-force-with-lease (stated expectation negated, allowed)" "git push --force-with-lease=main:abc1234 --no-force-with-lease origin main" 0
+run "git push bare + pinned lease over two refs (bare fallback still governs `other`, blocked)" "git push --force-with-lease --force-with-lease=refs/heads/main:abc1234 origin main other" 2
+run "git push pinned then bare (order does not rescue the bare fallback, blocked)" "git push --force-with-lease=refs/heads/main:abc1234 --force-with-lease origin main other" 2
+run "git push bare + pinned + --force-if-includes (mitigation covers the fallback, allowed)" "git push --force-with-lease --force-with-lease=refs/heads/main:abc1234 --force-if-includes origin main other" 0
+run "git push lease pinned to a remote-tracking name (movable at push time, blocked)" "git push --force-with-lease=refs/heads/main:refs/remotes/origin/main origin main" 2
+run "git push lease pinned to origin/main shorthand (movable, blocked)" "git push --force-with-lease=main:origin/main origin main" 2
+run "git push lease pinned to HEAD (movable, blocked)" "git push --force-with-lease=main:HEAD origin main" 2
+run "git push lease pinned to an abbreviated object id (immutable, allowed)" "git push --force-with-lease=main:abc123 origin main" 0
+run "git push lease pinned to a movable name + --force-if-includes (mitigated, allowed)" "git push --force-with-lease=main:origin/main --force-if-includes origin main" 0
+run "git push lease pinned to a 3-char expect (too short to be an object id, blocked)" "git push --force-with-lease=main:abc origin main" 2
 run "git push --force-with-lease --force-if-includes --no-dry-run (dry-run negation does not clear the mitigation, allowed)" "git push --force-with-lease --force-if-includes --no-dry-run origin main" 0
-run "git push --force-with-lease=main:abc --no-force-if-includes (stated expectation stands without the mitigation, allowed)" "git push --force-with-lease=main:abc --no-force-if-includes origin main" 0
+run "git push --force-with-lease=main:abc1234 --no-force-if-includes (stated expectation stands without the mitigation, allowed)" "git push --force-with-lease=main:abc1234 --no-force-if-includes origin main" 0
 run "git push (plain, allowed)" "git push" 0
 run "git push -u origin main (allowed)" "git push -u origin main" 0
 run "git push -o f (option value f, allowed)" "git push -o f origin main" 0
@@ -354,7 +360,7 @@ run_pwsh() {
 run_pwsh "PS: git push --force (blocked)" "git push --force" 2
 run_pwsh "PS: git reset --hard (blocked)" "git reset --hard" 2
 run_pwsh "PS: git push --force-with-lease (no expected value, blocked)" "git push --force-with-lease" 2
-run_pwsh "PS: git push --force-with-lease=main:abc (expectation stated, allowed)" "git push --force-with-lease=main:abc" 0
+run_pwsh "PS: git push --force-with-lease=main:abc1234 (immutable expectation, allowed)" "git push --force-with-lease=main:abc1234" 0
 run_pwsh "PS: git push (plain, allowed)" "git push origin main" 0
 run_pwsh "PS: git status (allowed)" "git status" 0
 run_pwsh "PS: backtick-continued force push (fail-closed block)" \
