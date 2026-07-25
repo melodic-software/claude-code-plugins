@@ -26,8 +26,10 @@
 #   classified = TABLE ROWS (`|`-prefixed lines) carrying a classification
 #                token (VALID|INCORRECT|UNCERTAIN) across all SELF replies —
 #                one per line, so prose repetition never inflates the count.
-#                Word-boundary matched so "INVALID" does not count as "VALID".
-#                Capped at findings so a surplus of rows cannot mask an
+#                Word-boundary matched so "INVALID" does not count as "VALID",
+#                and CASE-INSENSITIVE so a natural-language disposition like
+#                "Valid (defer)" still counts, not only the mandated all-caps
+#                token (#619). Capped at findings so a surplus of rows cannot mask an
 #                unclassified finding (the Python path refines this to a
 #                per-surface credit — see the classifier-preference note below).
 #   BLOCK when findings > 0 AND classified < findings (under-decomposed /
@@ -201,6 +203,12 @@ SEVERITY_BADGE_RE='/badge/P[0-3]-'
 # range, matching SEVERITY_BADGE_RE) so incidental [P4]+ text cannot inflate
 # the finding count into a false READINESS_BLOCKED.
 SEVERITY_PLAIN_RE='\[P[0-3]\]'
+# Case-insensitive (grep -i, applied at every use site below): a worker's
+# classification-table reply that writes a natural-language disposition like
+# "Valid (defer)" instead of the mandated all-caps VALID must still count, or
+# the gate reports a false READINESS_BLOCKED even though the finding genuinely
+# was classified (#619). Still whole-word (-w), so "invalid"/"INVALID" does not
+# false-match "valid"/"VALID" regardless of case.
 CLASSIFY_RE='VALID|INCORRECT|UNCERTAIN'
 
 # Findings are counted across ALL comment bodies, not just non-self ones: in an
@@ -223,8 +231,11 @@ self_bodies="$(printf '%s' "$COMMENTS" |
 # (findings=2 classified=1 → permanently blocked) — codex r3564159124.
 # Non-table self content (a maintainer authoring a genuine source finding)
 # still counts. The [^A-Za-z] guards keep e.g. "INVALID" rows countable.
+# Case-insensitive (-i) to match the classified count below: a lowercase/
+# natural-language classification row must be excluded here too, or it leaks
+# into the finding corpus and re-counts its own embedded severity word (#619).
 self_source_bodies="$(printf '%s\n' "$self_bodies" |
-  grep -vE '^[[:space:]]*\|.*[^A-Za-z](VALID|INCORRECT|UNCERTAIN)([^A-Za-z]|$)' || true)"
+  grep -viE '^[[:space:]]*\|.*[^A-Za-z](VALID|INCORRECT|UNCERTAIN)([^A-Za-z]|$)' || true)"
 all_bodies="$non_self_bodies
 $self_source_bodies"
 
@@ -244,7 +255,7 @@ $self_source_bodies"
 sev_words=$(printf '%s\n' "$all_bodies" | grep -owE "$SEVERITY_WORDS_RE" | grep -c . || true)
 sev_badges=$(printf '%s\n' "$all_bodies" | grep -oE "$SEVERITY_BADGE_RE" | grep -c . || true)
 sev_plain=$(printf '%s\n' "$all_bodies" | grep -oE "$SEVERITY_PLAIN_RE" | grep -c . || true)
-classified=$(printf '%s\n' "$self_bodies" | grep -E '^[[:space:]]*\|' | grep -cwE "$CLASSIFY_RE" || true)
+classified=$(printf '%s\n' "$self_bodies" | grep -E '^[[:space:]]*\|' | grep -cwiE "$CLASSIFY_RE" || true)
 sev_words=${sev_words//[^0-9]/}
 sev_badges=${sev_badges//[^0-9]/}
 sev_plain=${sev_plain//[^0-9]/}

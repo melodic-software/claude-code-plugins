@@ -372,11 +372,22 @@ SEVERITY_BADGE_RE = re.compile(r"/badge/P[0-3]-")
 # a shields badge. Bounded to the documented P0-P3 range so incidental [P4]+
 # text cannot inflate the count into a false READINESS_BLOCKED.
 SEVERITY_PLAIN_RE = re.compile(r"\[P[0-3]\]")
-CLASSIFY_TOKEN_RE = re.compile(r"\b(?:VALID|INCORRECT|UNCERTAIN)\b")
+# Case-insensitive (unlike SEVERITY_WORDS_RE above): a worker's classification
+# reply that writes a natural-language disposition like "Valid (defer)" instead
+# of the mandated all-caps VALID must still count as a classification, or the
+# readiness gate reports a false BLOCKED even though the finding genuinely was
+# classified (#619). Still whole-word (`\b`), so "invalid"/"INVALID" does not
+# false-match "valid"/"VALID" regardless of case.
+CLASSIFY_TOKEN_RE = re.compile(r"\b(?:VALID|INCORRECT|UNCERTAIN)\b", re.IGNORECASE)
 # A classification table row: a markdown `|`-prefixed line carrying a
 # classification token bounded by non-letters (so "INVALID" rows still count as
-# source content, not classifications).
-CLASSIFY_ROW_RE = re.compile(r"^[ \t]*\|.*[^A-Za-z](?:VALID|INCORRECT|UNCERTAIN)(?:[^A-Za-z]|$)")
+# source content, not classifications). Case-insensitive for the same reason as
+# CLASSIFY_TOKEN_RE above -- this must match the SAME rows that count as
+# classified, or a lowercase/natural-language classification row leaks into the
+# finding corpus (`count_findings`) and re-counts its own embedded severity word.
+CLASSIFY_ROW_RE = re.compile(
+    r"^[ \t]*\|.*[^A-Za-z](?:VALID|INCORRECT|UNCERTAIN)(?:[^A-Za-z]|$)", re.IGNORECASE
+)
 PIPE_ROW_RE = re.compile(r"^[ \t]*\|")
 
 

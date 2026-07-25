@@ -3,6 +3,22 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.3]
+
+### Fixed
+
+- **`babysit-readiness-gate.sh` classification-token matching is now case-insensitive (#619).**
+  Both the bash safe-tier degrade (`grep -wE 'VALID|INCORRECT|UNCERTAIN'`) and the preferred Python
+  classifier (`babysit_classify.py`'s `CLASSIFY_TOKEN_RE`/`CLASSIFY_ROW_RE`) matched the
+  classification tokens exact-case only. A worker reply that wrote a natural-language disposition
+  like "Valid (defer)" instead of the mandated all-caps `VALID` scored as unclassified, so the gate
+  reported `READINESS_BLOCKED reason=under-decomposed` even though the finding genuinely was
+  classified. Matching is now `-i` / `re.IGNORECASE` in both the token count and the self-row
+  exclusion that keeps a classification row's own severity word from re-counting as a phantom
+  finding, kept whole-word so "invalid"/"INVALID" still does not false-match "valid"/"VALID". A new
+  convergence fixture pins the bash degrade and the Python classifier to the same count on a
+  lowercase disposition.
+
 ## [0.26.2]
 
 ### Fixed

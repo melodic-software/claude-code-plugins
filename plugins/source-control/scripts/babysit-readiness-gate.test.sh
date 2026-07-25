@@ -242,6 +242,42 @@ r=$(run_gate "$F")
 assert_contains "self classification row repeating severity -> findings=1" "$r" "findings=1"
 assert_contains "self classification row repeating severity -> OK" "$r" "READINESS_OK"
 
+# --- Case: lowercase / natural-language classification token counts (#619) ---
+# A worker's classification-table reply that writes a natural-language
+# disposition like "Valid (defer)" instead of the mandated all-caps VALID must
+# still count as a classification, or the gate reports a false BLOCKED even
+# though the finding genuinely was classified.
+F=$(mkjson lowercase-classify '[
+  {author:"claude[bot]", body:"### 1. [CRITICAL] a"},
+  {author:"me[bot]", body:"| 1 | a | Valid (defer) | noted |"}
+]')
+r=$(run_gate "$F")
+assert_contains "lowercase classification token -> classified=1" "$r" "classified=1"
+assert_contains "lowercase classification token -> READINESS_OK" "$r" "READINESS_OK"
+
+# --- Case: lowercase "invalid" in a self row still does NOT count as valid ---
+# Case-insensitive matching must stay whole-word: "invalid" must not false-match
+# "valid" merely because casing is no longer significant.
+F=$(mkjson lowercase-invalid '[
+  {author:"claude[bot]", body:"### 1. [CRITICAL] a"},
+  {author:"me[bot]", body:"| 1 | a | invalid claim, no fix needed | noted |"}
+]')
+r=$(run_gate "$F")
+assert_contains "lowercase invalid does not count -> classified=0" "$r" "classified=0"
+assert_contains "lowercase invalid -> BLOCKED" "$r" "READINESS_BLOCKED reason=under-decomposed"
+
+# --- Case: lowercase self classification row repeating severity is NOT a finding
+# Mirrors the self-row-severity case above but with a natural-language lowercase
+# token -- the exclusion regex must also match case-insensitively, or the row
+# leaks into the finding corpus and re-counts its own embedded CRITICAL.
+F=$(mkjson self-row-severity-lowercase '[
+  {author:"claude[bot]", body:"CRITICAL null deref in handler"},
+  {author:"me[bot]", body:"| 1 | CRITICAL: null deref | Valid | fixed abc123 |"}
+]')
+r=$(run_gate "$F")
+assert_contains "lowercase self classification row repeating severity -> findings=1" "$r" "findings=1"
+assert_contains "lowercase self classification row repeating severity -> OK" "$r" "READINESS_OK"
+
 # --- Case: plain bracketed [P1]/[P2] severity markers count as findings ------
 # Reviewers that emit neither a severity word nor a shields badge use bare
 # `[P1]` markers — the gate must not report findings=0 for them
@@ -397,6 +433,15 @@ F=$(mkjson conv-overclassified '[
   {author:"me[bot]", body:"| 1 | a | VALID | x |\n| 2 | spurious | INCORRECT | y |"}
 ]')
 converge "over-classified-cap" "$F"
+# Lowercase/natural-language classification token (#619): the bash grep -i and
+# the Python CLASSIFY_TOKEN_RE/CLASSIFY_ROW_RE re.IGNORECASE must count it
+# identically, or the safe-tier degrade and the engine-backed tier disagree on
+# readiness for a reply that never uses the mandated all-caps token.
+F=$(mkjson conv-lowercase '[
+  {author:"claude[bot]", body:"CRITICAL a"},
+  {author:"me[bot]", body:"| 1 | a | Valid (defer) | x |"}
+]')
+converge "lowercase-classify" "$F"
 
 # --- Case: live fetch failure emits an actionable owner/repo diagnostic ------
 # Run WITHOUT --comments-json from a cwd `gh repo view` cannot resolve: the gate's
@@ -413,7 +458,10 @@ case "$*" in
 esac
 STUB
 chmod +x "$NOREPO_BIN/gh"
-fetch_rc=$(PATH="$NOREPO_BIN:$PATH" bash "$GATE" 123 >/dev/null 2>&1; echo $?)
+fetch_rc=$(
+  PATH="$NOREPO_BIN:$PATH" bash "$GATE" 123 >/dev/null 2>&1
+  echo $?
+)
 assert_exit "live-fetch-failure exit 4" 4 "$fetch_rc"
 fetch_err=$(PATH="$NOREPO_BIN:$PATH" bash "$GATE" 123 2>&1 1>/dev/null)
 assert_contains "live-fetch-failure names the env-var override" "$fetch_err" "FETCH_COMMENTS_OWNER"

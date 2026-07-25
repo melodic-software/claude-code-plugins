@@ -112,6 +112,18 @@ class FindingLifetimeTests(unittest.TestCase):
         comments = [{"author": "me[bot]", "body": "Found a CRITICAL leak here"}]
         self.assertEqual(bc.count_findings(comments, self.SELF), 1)
 
+    def test_lowercase_self_classification_row_does_not_mint_phantom_finding(
+        self,
+    ) -> None:
+        """#619: CLASSIFY_ROW_RE must exclude a natural-language/lowercase
+        classification row from the finding corpus the same as an all-caps one
+        -- else the row leaks through and its embedded CRITICAL re-counts as a
+        phantom finding."""
+        comments = [
+            {"author": "me[bot]", "body": "| 1 | CRITICAL null deref | Valid | fixed |"},
+        ]
+        self.assertEqual(bc.count_findings(comments, self.SELF), 0)
+
 
 class ClassificationCountTests(unittest.TestCase):
     SELF = bc.normalize_self_logins(["me[bot]"])
@@ -127,6 +139,24 @@ class ClassificationCountTests(unittest.TestCase):
 
     def test_only_self_rows_count(self) -> None:
         comments = [{"author": "codex[bot]", "body": "| 1 | a | VALID | x |"}]
+        self.assertEqual(bc.count_classified(comments, self.SELF), 0)
+
+    def test_lowercase_natural_language_disposition_counts(self) -> None:
+        """#619: a worker reply that writes "Valid (defer)" instead of the
+        mandated all-caps VALID must still count as a classification, or the
+        readiness gate reports a false BLOCKED for a finding that genuinely
+        was classified."""
+        comments = [
+            {"author": "me[bot]", "body": "| 1 | a | Valid (defer) | noted |"},
+        ]
+        self.assertEqual(bc.count_classified(comments, self.SELF), 1)
+
+    def test_lowercase_invalid_does_not_false_match_valid(self) -> None:
+        """Case-insensitive matching must stay whole-word: "invalid" must not
+        match "valid" merely because casing is no longer significant."""
+        comments = [
+            {"author": "me[bot]", "body": "| 1 | a | invalid claim, no fix | noted |"},
+        ]
         self.assertEqual(bc.count_classified(comments, self.SELF), 0)
 
     def test_resolved_thread_classification_is_discounted(self) -> None:
