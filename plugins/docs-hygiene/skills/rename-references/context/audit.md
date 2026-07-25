@@ -34,7 +34,11 @@ Run all patterns from [patterns.md](patterns.md) in parallel via Grep tool. For 
 - Use `multiline: true` for Form 7 (frontmatter chain string)
 - Apply auto-exclusions per `../SKILL.md` "Auto-exclusions" via `glob` filter or post-filter
 
-Aggregate matches into a flat list of `{file, line, pattern_form, snippet}` tuples.
+Aggregate matches into a flat list of `{file, line, pattern_form, snippet}` tuples, then apply
+the container-position precedence rule in `patterns.md` "Phase 0" — deduplicate by
+`(file, line)` so a line matched by Forms 13–15 is attributed to that form and its weaker
+Form 2 / chain-form duplicates are dropped. Carry the dropped count into the report's
+"superseded" row. Deduplicate BEFORE Phase 3, or triage will bucket the same reference twice.
 
 ### Phase 3: Triage
 
@@ -80,6 +84,7 @@ Pattern-form breakdown:
 - Form 13 (command-argument):  <count>
 - Form 14 (document title):    <count>
 - Form 15 (possessive/appositive): <count>
+- Form-2 hits superseded by container-position matches: <count>
 
 Next: invoke `/rename-references <old> to <new>` to apply, or `/rename-references preview <old> to <new>` to dry-run.
 ```

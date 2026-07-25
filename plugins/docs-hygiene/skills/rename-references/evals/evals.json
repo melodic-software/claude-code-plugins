@@ -76,7 +76,7 @@
     {
       "id": 7,
       "name": "container-rename-catches-command-argument-and-title",
-      "prompt": "I renamed the plugin `re-anchor` to `discipline`. The directory moved and every /re-anchor: invocation is updated. Audit for anything still stale.",
+      "prompt": "I renamed the plugin `re-anchor` to `discipline`. The directory moved and every qualified `/re-anchor:<skill>` invocation is already updated. Audit for anything still stale.",
       "expected_output": "The sweep runs the container-position forms (13-15) in addition to Forms 1-12, so it reports the plugin name in command-argument position (`/plugin install re-anchor@melodic-software`, `/plugin configure re-anchor`), a document title that is the bare token (`# re-anchor`), and possessive container prose (\"re-anchor's effective configuration\") as Certain. It does NOT report the English-verb uses (\"each skill re-anchors ONE discipline\") as Certain, and it flags command-argument hits as functional breaks rather than cosmetic ones.",
       "files": [],
       "expectations": [
@@ -96,6 +96,19 @@
         "Identifies that BOTH blocklist branches fail for a codebase-specific verb, not just the omit branch",
         "Recommends position-anchored forms rather than extending the blocklist",
         "Does not propose per-match confirmation over the full bare-token hit set as the answer"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "container-position-match-supersedes-bare-token-on-same-line",
+      "prompt": "Audit the rename of `re-anchor` to `discipline`. The token is also used as an English verb throughout the plugin, so I expect a lot of noise.",
+      "expected_output": "The sweep runs Form 2 and the container-position forms, then deduplicates by (file, line) before triage: each line matched by Forms 13-15 is attributed to that form and enters Certain, and its Form 2 duplicate is dropped rather than raised as a second finding. Lines Form 2 matched alone are the ordinary verb uses and are not presented as rename candidates. The report states how many Form-2 hits were superseded, so the suppression is visible rather than inferred.",
+      "files": [],
+      "expectations": [
+        "Deduplication by (file, line) happens after the sweep and BEFORE triage",
+        "A container-position match takes the Certain path and its bare-token duplicate for the same line is dropped",
+        "The report includes the count of Form-2 hits superseded by container-position matches",
+        "Ordinary verb uses are not surfaced as rename candidates or as mandatory confirmation prompts"
       ]
     }
   ]

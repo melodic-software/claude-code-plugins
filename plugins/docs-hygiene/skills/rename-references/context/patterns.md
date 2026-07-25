@@ -201,7 +201,7 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
 
 ```regex
 ^#{1,6}\s+`?<old>`?\s*$
-^(name|title):\s*"?<old>"?\s*$
+^(name|title):\s*("<old>"|'<old>'|<old>)\s*$
 ```
 
 - **Triage default:** Certain
@@ -211,6 +211,9 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
   ambiguous. A heading that merely *contains* the token (`## How re-anchor works`) may well
   be verb usage and belongs in Form 2's ambiguous bucket; a heading that IS the token can
   only be naming it.
+- **Quote handling:** the alternation accepts a bare, double-quoted, or single-quoted value
+  and requires the quotes to PAIR — `"<old>"` and `'<old>'`, never `"<old>'`. A naive
+  `["']?<old>["']?` would match the mismatched form, which is not valid YAML.
 - **False-positives:** effectively none. A heading consisting solely of a bare English verb
   is not a shape real documents use.
 - **Note:** a plugin/skill README H1 is the landing surface every consumer sees first, and
@@ -220,13 +223,18 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
 ## Form 15: Possessive and appositive container reference
 
 ```regex
-\b<old>'s\b
-\bthe <old> (plugin|skill|marketplace entry|package|module)\b
+`?\b<old>\b`?'s\b
+\bthe `?<old>`? (plugin|skill|marketplace entry|package|module)\b
 ```
 
 - **Triage default:** Certain
 - **Catches:** prose where `<old>` stands in for the CONTAINER — "Report `<old>`'s effective
   configuration", "the `<old>` plugin ships…".
+- **Inline-code wrapping is the common case, not the exception:** in markdown the token is
+  usually a code span, so the literal `<old>'s` sequence never appears — it is
+  `` `<old>` `` followed by `'s`. The optional backticks are what make this form fire on
+  real documentation; without them it silently misses its own motivating example. Form 13
+  carries the same allowance for the same reason.
 - **Why it is Certain even when `<old>` is a blocklisted verb:** English verbs do not take
   the possessive clitic, and a noun-class appositive (`the X plugin`) forces the naming
   reading. Both shapes are grammatically incompatible with the verb sense, so this is safe
@@ -240,6 +248,28 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
 ## Phase 0 — pre-sweep blocklist load
 
 Before running any pattern, load the English-verb blocklist from `triage.md`. Any bare-token (Form 2) or chain-context match (Forms 4, 5, 6, 9) where the token is in the blocklist is forced into ambiguous bucket regardless of regex precision.
+
+**Precedence: a container-position match wins its line outright.** Forms 13–15 are strictly
+more specific than Form 2 — every line they match, Form 2 also matches. Without precedence the
+new forms would only ADD hits, leaving the Form 2 flood they exist to avoid fully intact.
+
+Deduplicate by `(file, line)` AFTER the sweep and BEFORE triage:
+
+1. A `(file, line)` matched by any of Forms 13–15 is attributed to that form and enters the
+   **Certain** bucket. Drop the Form 2 (and any chain-form) match for that same line — it is
+   the same reference seen through a weaker lens, not a second finding.
+2. Only lines Forms 13–15 did NOT match fall through to Form 2's blocklist rule above.
+
+The Phase 0 rule is therefore scoped to what actually reaches Form 2: it forces a
+blocklisted token's bare-token matches ambiguous, and container-position matches never
+become bare-token matches. Report the deduplication in the audit output — "N Form-2 hits
+superseded by container-position matches" — so a reader can see the suppression happened
+rather than inferring it from a smaller number.
+
+**This precedence is what makes the remedy real.** On the measured fixture the sweep still
+RUNS Form 2 and still collects its 134 lines; precedence is what turns those into 8
+Certain container-position findings plus 126 ordinary verb uses that were never candidates,
+instead of 134 confirmation prompts.
 
 ## Phase 6 — pattern library evolution
 
