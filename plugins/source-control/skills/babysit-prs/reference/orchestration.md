@@ -516,8 +516,9 @@ re-verify anyway.
   verifying correctness is not acceptable. Report the exact commands and their results, named
   precisely enough for the orchestrator to repeat them — it re-runs them itself before pushing.
   Untracked build output a verification run leaves behind (coverage, caches, generated artifacts) is
-  not a dirty tree for this contract's purposes and must not be committed; report it if the repo
-  does not already ignore it. If verification genuinely is not possible (no coverage for the area,
+  not a dirty tree for this contract's purposes and must not be committed; list every such untracked
+  path in the report — the orchestrator's post-push byproduct cleanup deletes exactly the reported
+  and re-run-added paths, so an unreported leaving strands the worktree as keep_dirty. If verification genuinely is not possible (no coverage for the area,
   tooling unavailable), return the `verification-impossible` outcome and say exactly what could not
   be checked; unverified work is never pushed.
 - **Escalate genuine ambiguity — with the worktree left usable.** When the conflict is one where
@@ -606,10 +607,13 @@ On the conflict worker's return, and before pushing anything:
   the operation either: the prune helper reads full `git status --short --branch` and classifies
   any untracked entry as `keep_dirty`, and the next assignment requires a fully clean checkout, so
   verification byproducts left behind would make an integrated PR's worktree neither prunable nor
-  reusable. Snapshot `git -C <worktree> status --porcelain` before and after the verification
-  re-run; after a successful push, delete exactly the paths the re-run added (a targeted removal of
-  named byproducts, never `git clean`). An untracked entry that predates the re-run is not the
-  orchestrator's to delete: it stays, and is reported. A worktree with
+  reusable. The byproduct set spans both verification runs: the worker's own run precedes this
+  snapshot, so its leavings are already on disk and would masquerade as pre-existing. Snapshot
+  `git -C <worktree> status --porcelain` before and after the verification re-run; after a
+  successful push, delete exactly the union of the paths the re-run added and the untracked paths
+  the worker's report names as its verification output (a targeted removal of named byproducts,
+  never `git clean`). An untracked entry in neither set genuinely predates the conflict operation
+  and is not the orchestrator's to delete: it stays, and is reported. A worktree with
   uncommitted tracked changes is preserved and reported, never pushed from and never pruned
   (Cleanup).
 - **Re-run the verification in the worktree.** Re-run the affected-file tests/lint/build the
@@ -645,13 +649,28 @@ On the conflict worker's return, and before pushing anything:
 A no-push outcome is not "integrated", and it must not strand the worktree either: left sitting on
 an unpushed merge commit, the checkout fails the next cycle's assigned-worktree head assertion, so
 a transient verification or reporting failure would permanently block automated work on that PR.
-Before releasing the lease, preserve the unpushed merge commit on the same SHA-qualified WIP scheme
-the escalation path uses — `git -C <worktree> branch conflict-wip/<pr-number>-<short-sha>` at that
-commit — then return the PR branch and worktree to the asserted head with
-`git -C <worktree> reset --keep HEAD^1` (the tree is clean, so `--keep` loses nothing; `--hard`
-stays barred). The superseded-tip case above already directs its own recovery to the new live head
-and is unchanged. Still leave the worktree in place rather than running the `--prune-open-clean`
-cleanup on it, and report the WIP branch name. Release the lease either way.
+The unwind is keyed to the worktree's actual Git state — never to the outcome label, which for an
+interrupted worker may describe nothing:
+
+- `HEAD` is a two-parent merge commit whose first parent is the asserted head, clean tree (a
+  `resolved` or `verification-impossible` return that was not pushed): preserve it on the same
+  SHA-qualified WIP scheme the escalation path uses —
+  `git -C <worktree> branch conflict-wip/<pr-number>-<short-sha>` at that commit — then return the
+  PR branch and worktree to the asserted head with `git -C <worktree> reset --keep HEAD^1` (the
+  tree is clean, so `--keep` loses nothing; `--hard` stays barred).
+- `MERGE_HEAD` exists (the worker died mid-merge): run the escalation path's own preservation
+  mechanics — stage the conflicted paths as-is, create the hook-free plumbing preservation commit,
+  point the SHA-qualified WIP branch at it, `git merge --abort`. Preserving is not resolving, so
+  this does not breach the orchestrator-never-resolves rule below.
+- Already at the asserted head with a clean tree (`escalate`, whose worker-side sequence already
+  ran, and `no-conflict`): nothing to unwind — running the reset here would rewind the real PR
+  head by one commit and manufacture the exact stranding this paragraph exists to prevent.
+- Any other state: report the worktree as unworkable with what was found, and leave it for the
+  operator — never guess at a reset.
+
+The superseded-tip case above already directs its own recovery to the new live head and is
+unchanged. Still leave the worktree in place rather than running the `--prune-open-clean` cleanup
+on it, and report any WIP branch name created. Release the lease either way.
 
 After the push, the PR carries a new head: any merge decision re-snapshots and runs the pinned
 merge gate against it (`SKILL.md`), exactly as after any other worker push.
