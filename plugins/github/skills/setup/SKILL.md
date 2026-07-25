@@ -44,7 +44,16 @@ config). No action given: run `check`, then offer `apply` if anything is missing
 ## `apply` — idempotent, interview-driven config write
 
 1. **Read first.** Load every existing layer of `routing.yaml` and `conventions.md`. `apply`
-   converges the config on the interview's answers — it never blindly rewrites.
+   converges the config on the interview's answers — it never blindly rewrites. Converging is
+   state-assessing, so a `routing.yaml` rewrite is bounded two ways:
+   - **Preserve every key the existing file carries that this schema does not recognize.** A
+     consumer extension or a newer plugin version may own it; a re-run never drops one. Write the
+     merged document rather than a fresh one built from the answers alone.
+   - **Report a recognized key whose value this version cannot reconcile — never silently rewrite
+     it.** An obsolete `default`, a scope block naming an area this version does not know, a
+     `handoff` channel whose `target` no longer parses: name the key, the value, and why it did not
+     reconcile, and let the user decide. Silently converging an unreconcilable value is config loss
+     the consumer only discovers when routing misbehaves.
 2. **Interview** the routing posture, with a recommendation per question: which scopes to
    declare (repo / org / enterprise), the `default` per scope, per-area overrides worth
    declaring, and — when any answer is `handoff` — the channel's `target`/`instructions`.
