@@ -318,7 +318,34 @@ overlaps does nothing for them.
 
 ## Phase 0b — container-rename mode
 
-Declare the sweep's MODE at Phase 0, from what is being renamed:
+Declare the sweep's MODE at Phase 0, from what is being renamed.
+
+**Selecting the mode — a concrete ladder, not a judgment call.** Getting this wrong is costly in
+both directions: identifier mode on a container restores the Form 2 flood, container mode on an
+identifier suppresses bare references that were genuinely actionable. Resolve in this order and
+stop at the first rule that fires:
+
+1. **Explicit override.** The invocation says which (`--container` / `--identifier`). Honor it.
+2. **Filesystem evidence — a directory named `<old>` whose parent is a container root.** A
+   `plugins/<old>/`, `packages/<old>/`, or the repo's own equivalent, containing a manifest
+   (`plugin.json`, `package.json`, `pyproject.toml`, …) → **container**. Check the state BEFORE
+   the rename when the move already happened: look for `<new>` in the same position, or read the
+   pair out of `git log --diff-filter=R` / `git status`.
+3. **Manifest evidence.** `<old>` appears as the `name`/`id` field of such a manifest, or as a
+   key in a marketplace/registry catalog → **container**.
+4. **Invocation-shape evidence.** The tree contains `/<old>:<something>` (a namespaced
+   invocation) → `<old>` is the namespace, so **container**. `/<old>` with no colon suffix →
+   **identifier**.
+5. **Nothing fired → ASK.** One `AskUserQuestion`: "Is `<old>` a container (plugin, package,
+   marketplace entry) or an identifier (skill, mode, action)?" with the evidence checked so far
+   shown, so the answer is informed rather than guessed.
+
+Do NOT infer mode from the token's shape — hyphenation, length, or whether it looks like a word
+are all uncorrelated with what the thing IS. Never silently default; an unstated default is how
+one of these two failure modes ships without anyone choosing it. Record the resolved mode and
+the rule that fired in the audit report, so a reader can see which one applied and override it.
+
+The two modes:
 
 - **Identifier rename** (a skill, a mode, a dotted ID) — every form applies as before. Nothing
   below changes.

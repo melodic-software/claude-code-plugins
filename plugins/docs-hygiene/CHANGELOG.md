@@ -17,6 +17,17 @@
   to inspect suppressed residue, but it appeared in neither `SKILL.md`'s `argument-hint` nor
   `audit-modes.md`'s override table, whose contract errors on unknown flags — so the only
   documented path to the residue failed. Registered in both, audit-mode only, always Ambiguous.
+- **Container-rename mode has a concrete selection ladder.** The mode was defined by what is
+  being renamed, but nothing said how to determine that — Phase 1 resolves only the two strings,
+  so an invocation like `/rename-references re-anchor to discipline` left the mode undetermined.
+  Both defaults are costly: identifier mode on a container restores the Form 2 flood, container
+  mode on an identifier suppresses genuinely actionable bare references. Resolution now runs an
+  evidence ladder — explicit override, then a container-shaped directory with a manifest, then
+  the manifest/catalog `name` field, then namespaced-invocation shape — and **asks** when none
+  fires. Inferring from the token's shape is explicitly banned (hyphenation and word-likeness are
+  uncorrelated with what the thing is), and the resolved mode plus the rule that fired are
+  reported so a reader can see which applied. Resolved in Phase 1 by both audit and apply, before
+  anything depends on it.
 - **Every site stating a changed rule now agrees.** This skill states the same contract across
   `SKILL.md`, five `context/` files, and `evals/evals.json`, so a rule changed in one place left
   the others asserting its opposite. `SKILL.md` still gated the re-sweep on `count == 0` in two

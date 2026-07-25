@@ -25,6 +25,12 @@ Resolve the rename pair `(old, new)`:
 2. If single-token arg, pair is `(arg, undetermined)` — ask via `AskUserQuestion` what new name would be (so triage can show "would change X to Y" diffs)
 3. If no args, run Smart default detection. If multiple candidates, present via `AskUserQuestion`. If zero, abort with helpful message
 
+Then resolve the **rename MODE** — container vs identifier — per [patterns.md](patterns.md)
+"Phase 0b" and its selection ladder (explicit override → filesystem → manifest → invocation
+shape → ask). The pair alone does not determine it, and the mode changes how the bare-token
+residue is bucketed, so resolve it here rather than letting a default apply silently. Carry the
+resolved mode and the rule that fired into the Phase 4 report.
+
 ### Phase 2: Survey
 
 Run all patterns from [patterns.md](patterns.md) in parallel via Grep tool. For each pattern:
@@ -65,6 +71,7 @@ Present findings in this exact format:
 
 ```text
 Rename audit: <old> → <new>
+Mode: <container|identifier> (resolved by: <rule that fired>)
 Sweep across <N> tracked files (excluded: <K> plan-doc/historical/memory paths).
 
 | Bucket          | Count | Sample location |
@@ -112,7 +119,7 @@ If `<new>` is undetermined (single-token reverse mode), omit the `→ <new>` and
 ## Special cases
 
 - **Zero matches across all patterns** — report explicitly. Rename target either does not appear in codebase OR pattern library has a gap. If user expected matches, treat as Phase 6 pattern-library-evolution trigger
-- **All matches in excluded paths** — report with breakdown showing why each was excluded. User may want to widen scope via the override flags (`--include-historical`, `--include-memory`, `--include-plan-docs`)
+- **All matches in excluded paths** — report with breakdown showing why each was excluded. User may want to widen scope via the override flags (`--include-historical`, `--include-memory`, `--include-plan-docs`, `--include-bare-token`)
 - **Ambiguous bucket is empty AND `<old>` is in English-verb blocklist** — unusual for an
   identifier rename. Re-run Form 2 without blocklist filter to verify; the blocklist demotes, not
   excludes. **Expected, not unusual, under container-rename mode** — there the bare-token residue

@@ -23,6 +23,11 @@ Parse the rename pair `(old, new)` from arguments. If parse fails, abort with pa
 - `old != new`
 - Path forms have matching extensions (warn if `a/old.md` to `a/new.txt`)
 
+Then resolve the **rename MODE** per [patterns.md](patterns.md) "Phase 0b" and its selection
+ladder. Apply mode must resolve it BEFORE Phase 2 — it decides both how residue is bucketed and
+what Phase 6's actionable count means, so an unresolved mode makes the completion check
+undefined.
+
 ### Phase 2: Survey
 
 Identical to audit-mode Phase 2 — run all patterns from [patterns.md](patterns.md) in parallel, aggregate into match list, apply auto-exclusions.

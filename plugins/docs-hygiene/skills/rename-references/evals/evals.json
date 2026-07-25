@@ -195,6 +195,19 @@
         "The demotion is consistent whether read from triage.md or audit.md",
         "Precedence attributes the occurrence without promoting it"
       ]
+    },
+    {
+      "id": 17,
+      "name": "mode-is-resolved-by-evidence-not-defaulted",
+      "prompt": "/rename-references re-anchor to discipline",
+      "expected_output": "Phase 1 resolves the rename MODE before surveying, using the Phase 0b ladder rather than defaulting: it finds plugins/re-anchor/ (or plugins/discipline/ post-move, read from git) carrying a plugin manifest, and/or /re-anchor:<skill> namespaced invocations in the tree, and concludes container. The resolved mode and the rule that fired appear in the report. If no rule fires it asks the user rather than guessing, and it never infers mode from the token's shape (hyphenation or word-likeness).",
+      "files": [],
+      "expectations": [
+        "Mode is resolved in Phase 1, before the survey and bucketing",
+        "Resolution cites concrete evidence -- directory/manifest/invocation shape -- not token appearance",
+        "An unresolvable case asks rather than silently defaulting either way",
+        "The report states the resolved mode and the rule that produced it"
+      ]
     }
   ]
 }
