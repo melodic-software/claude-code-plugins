@@ -38,16 +38,18 @@ Deterministic guards encoded here:
   machine-enforced displacement fix is tracked in #571. `--allow-unpinned-thread`
   is likewise refused in `--autonomous` mode -- there is no unpinned autonomous
   resolve.
-- `--autonomous` additionally refuses any thread whose fetched comments carry a
-  severity/security marker: the shared structured-severity vocabulary
-  (CRITICAL/IMPORTANT surviving negation redaction, a shields P0-P3 badge, a
-  bracketed [P0]-[P3] marker) plus the word "security" in any case. The
-  permission grants that cover this helper state "never a security or P1
+- `--autonomous` additionally refuses any thread whose fetched comments carry
+  a forbidden-class severity marker: a shields P0/P1 badge, a bracketed
+  [P0]/[P1] marker, the word CRITICAL, or the word "security" in any case.
+  The permission grants that cover this helper state "never a security or P1
   thread" as an absolute condition; this guard is the code behind that
-  sentence for the unattended path. It fails closed: a thread whose comment
-  page is truncated cannot prove the absence of a marker and is refused the
-  same way. Interactive modes are unaffected -- severity judgment there stays
-  with the evaluating agent.
+  sentence for the unattended path, and it is deliberately narrower than the
+  shared P0-P3 vocabulary -- advisory P2/P3 threads are exactly what the
+  worker is documented to resolve once outdated, so a wider guard would
+  self-block the merge gate on its own advisory threads. It fails closed: a
+  thread whose comment page is truncated cannot prove the absence of a marker
+  and is refused the same way. Interactive modes are unaffected -- severity
+  judgment there stays with the evaluating agent.
 - `--only-outdated` independently restricts to `isOutdated` threads in any mode.
 - `--thread-id` operates on one agent-vetted thread. Combined with `--resolve`,
   it requires `--expected-comment-count` AND `--expected-last-updated` to pin
@@ -85,33 +87,34 @@ import json
 import re
 from typing import Any, cast
 
-from babysit_classify import (
-    SEVERITY_BADGE_RE,
-    SEVERITY_PLAIN_RE,
-    has_blocking_severity,
-    is_bot,
-)
+from babysit_classify import is_bot
 from babysit_gh import fetch_review_threads, gh_capture, parse_repo_number
 from babysit_util import configure_stdio, dig, is_json_object
 
 
-# The word "security" is not in the shared structured-severity vocabulary
-# (which deliberately ignores prose severity words to avoid false READINESS
-# counts), but the permission grants covering this helper say "never a
-# security thread", so the unattended guard matches it as prose. A false
-# positive only routes the thread to interactive judgment.
+# Deterministic proxies for "a security or P1 thread" — deliberately NARROWER
+# than the shared P0-P3 vocabulary in babysit_classify: the permission grants
+# forbid the unattended path only for security/P1-class findings, while
+# advisory P2/P3 threads are exactly what the worker is documented to resolve
+# once outdated (reference/orchestration.md), so a P0-P3-wide guard would
+# permanently self-block the merge gate on its own advisory threads. The word
+# "security" is matched as prose (the shared vocabulary ignores prose words to
+# avoid false READINESS counts, but the grant names it); uppercase CRITICAL is
+# the word-form of the same forbidden class. A false positive only routes the
+# thread to interactive judgment.
+SEVERITY_BLOCK_BADGE_RE = re.compile(r"/badge/P[01]-")
+SEVERITY_BLOCK_PLAIN_RE = re.compile(r"\[P[01]\]")
+SEVERITY_BLOCK_WORD_RE = re.compile(r"\bCRITICAL\b")
 SECURITY_TEXT_RE = re.compile(r"security", re.IGNORECASE)
 
 
 def _has_severity_marker(body: str) -> bool:
-    """Deterministic proxy for "a security or P1 thread": the shared
-    structured-severity vocabulary (CRITICAL/IMPORTANT surviving negation
-    redaction, a shields P0-P3 badge, a bracketed [P0]-[P3] marker) plus the
-    word "security"."""
+    """True for the forbidden class only: a shields P0/P1 badge, a bracketed
+    [P0]/[P1] marker, the word CRITICAL, or the word "security"."""
     return (
-        has_blocking_severity(body)
-        or bool(SEVERITY_BADGE_RE.search(body))
-        or bool(SEVERITY_PLAIN_RE.search(body))
+        bool(SEVERITY_BLOCK_BADGE_RE.search(body))
+        or bool(SEVERITY_BLOCK_PLAIN_RE.search(body))
+        or bool(SEVERITY_BLOCK_WORD_RE.search(body))
         or bool(SECURITY_TEXT_RE.search(body))
     )
 

@@ -164,6 +164,15 @@ class SeverityProjection(unittest.TestCase):
         record = self._record(["[P1] Unvalidated redirect target"])
         self.assertTrue(rt.project_thread(record)["severityFlagged"])
 
+    def test_advisory_p2_marker_does_not_flag(self) -> None:
+        # The forbidden class is security/P0/P1 only: advisory P2/P3 threads
+        # are exactly what the worker resolves once outdated, so flagging
+        # them would self-block the merge gate on its own advisory threads.
+        record = self._record(
+            ["![P2 Badge](https://img.shields.io/badge/P2-yellow)", "[P3] nit"]
+        )
+        self.assertFalse(rt.project_thread(record)["severityFlagged"])
+
     def test_critical_marker_flags(self) -> None:
         record = self._record(["CRITICAL: guard defeated by prefix match"])
         self.assertTrue(rt.project_thread(record)["severityFlagged"])
