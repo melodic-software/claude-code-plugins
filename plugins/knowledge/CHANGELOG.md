@@ -17,9 +17,10 @@ only after that version increases.
   disk** (not just a name) because `templates/synthesis-item.md`'s grep-backed
   **Target touchpoints** need a tree to grep; an explicit `--target` with no local
   checkout now halts and asks for its path instead of falling through to
-  `CLAUDE_PROJECT_DIR`/CWD or inventing paths, and both the target name and its
-  resolved local tree path are recorded in `README.md`'s `**Target:**` line so
-  `resume` re-greps the same tree.
+  `CLAUDE_PROJECT_DIR`/CWD or inventing paths. `README.md`'s `**Target:**` line
+  records the target's portable name only — never the machine-local checkout path,
+  since that README is a staged artifact — so a later `resume` reads the name and
+  re-runs resolution through the same rungs.
 
 ## [0.9.2]
 
