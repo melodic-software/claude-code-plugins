@@ -124,21 +124,28 @@ configuration — the detector would silently omit root `CLAUDE.md` versus proje
 which is the most common contradiction there is. **Route out only when `claude-memory` is installed;
 when it is not, cover that pair here and say so in the report.**
 
-**Routing out is never dropping.** A route is a pointer, not an execution: invoking
-`audit-instructions` alone does not run `claude-memory:audit`, so a pair handed to C6 and then
-forgotten is absent from the one report this placement was chosen to preserve. The routed pair is
-therefore **still surfaced — as an ungraded observation naming both anchors and the skill that owns
-the verdict** — rather than silently omitted. The pass declines to *grade* it; it does not decline to
-*mention* it. That keeps the report's coverage claim true under every combination of installed
-plugins and invocations, which a bare route does not.
+**Routing out is never dropping, and a mention is not a verdict.** A route is a pointer, not an
+execution: invoking `audit-instructions` alone does not run `claude-memory:audit`, so a pair handed
+to C6 and then forgotten produces no verdict from anyone. Naming the pair without grading it is
+better than silence and still leaves the question open, which is not what a conflict report claims to
+deliver.
+
+**So the rule is on the verdict, not on the plugin: whoever holds a result owns the pair, and absent
+a result the pass grades it.** When C6's verdict for that pair is in hand — because
+`claude-memory:audit` ran and its output is available — the pass reports that verdict and attributes
+it. When it is not, the pass **grades the pair itself** and labels the finding as C6's to own on any
+subsequent remediation. Reuse-or-replace forbids re-implementing a shipped check; it does not require
+withholding a verdict nobody else produced. That keeps the coverage claim true under every
+combination of installed plugins and invocations, which neither a bare route nor a bare mention
+does.
 
 `audit-instructions` already presence-gates a route to the same plugin — the I1–I5 hygiene checks at
 `SKILL.md:42-52` — so the *gate* is an existing shape rather than a new one. The *fallback* is
 deliberately different: there the skill emits a one-line pointer and still declines to run the check,
 because I1–I5 is a hygiene layer it disclaims owning. Here the pair sits inside the conflict
 observable this pass does own, so declining would leave the finding with no owner at all.
-Reuse-or-replace forbids duplicating a check that is *present*; it does not license a hole when it is
-absent.
+**Reuse-or-replace forbids duplicating a check whose result is in hand; it does not license a hole
+when nobody produced one.**
 
 ### 3. L2 lands as a new phase in `claude-config:audit-instructions` (Option A)
 
@@ -176,14 +183,21 @@ same surface kinds, rooted at `plugins/` instead. Concretely, as enumerated in t
 | Plugin-source surface | Count | Glob |
 |---|---|---|
 | Skill bodies | 181 | `plugins/*/skills/*/SKILL.md` |
-| Skill supporting files | 271 | `plugins/*/skills/*/{context,reference}/*.md` |
+| Skill supporting files | 409 | every `*.md` under a skill directory except `SKILL.md`, **recursively**, minus `vendor/` |
 | Plugin READMEs | 60 | `plugins/*/README.md` |
 | Agent definitions | 7 | `plugins/*/agents/*.md` |
 
 The supporting-file row is not padding: the existing `skills` scope is defined as "skill bodies **and
 their context/reference files**" (`SKILL.md:65`), those files carry instructions their parent skill
-loads, and there are more of them than there are skill bodies. Enumerating entrypoints alone would
-put the majority of plugin-owned instruction text outside the pass.
+loads, and there are more than twice as many of them as there are skill bodies. Enumerating
+entrypoints alone would put the majority of plugin-owned instruction text outside the pass.
+
+**That row is stated as a rule rather than a two-directory glob, because a bounded glob misses real
+files.** `plugins/knowledge/skills/course-digest/reference/adapters/` holds three adapter documents
+linked directly from that skill's `SKILL.md`, one level below `reference/`; a `reference/*.md`
+pattern does not see them. Discovery is recursive under each skill directory, and it excludes
+`vendor/` for the same reason the skill count does — those are upstream copies this repository never
+hand-edits.
 
 The rule is stated by surface kind rather than by that list, because the list goes stale: Phase A's
 existing entries reach `rules/`, `skills/`, `agents/` and `output-styles/` under the user and project
