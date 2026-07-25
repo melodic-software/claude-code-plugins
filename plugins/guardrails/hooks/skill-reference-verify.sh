@@ -147,10 +147,55 @@ emit_refs() {
     sed -nE 's|^(/[a-z][a-z0-9-]*:[a-z][a-z0-9-]*)([[:space:]].*)?$|\1|p'
 }
 
+# Partial-replacement context reconstruction (Edit only), mirroring
+# cli-flag-verify's reconstruct_partial_edit.
+#
+# An Edit may replace an arbitrary substring: swapping `setup` for `ghost` inside
+# an existing `/alpha:setup` leaves `/alpha:ghost` on disk, but the hunk is the
+# bare word `ghost` and carries no command for emit_refs to find, so a
+# newly-broken reference would be silently missed.
+#
+# Recover bounded context: the edit is already applied by PostToolUse time, so pull
+# from disk only the lines carrying one of the hunk's word tokens, scan those, and
+# keep only references whose plugin or skill segment appears in the hunk. That
+# token filter is what preserves the diff-scope contract — a pre-existing unrelated
+# reference sharing one of those lines never fires. The anchor is the token, not
+# the line, since a bare-word hunk carries no positional information.
+reconstruct_partial_edit() {
+  [[ "$TOOL" == "Edit" && -f "$FILE" ]] || return 0
+  local -a toks=()
+  mapfile -t toks < <(printf '%s' "$SCAN_CONTENT" | grep -oE '[a-z][a-z0-9-]*' 2>/dev/null | sort -u)
+  ((${#toks[@]})) || return 0
+  local tok lines ctx=""
+  for tok in "${toks[@]}"; do
+    lines=$(grep -F -- "$tok" "$FILE" 2>/dev/null)
+    [[ -n "$lines" ]] && ctx+="$lines"$'\n'
+  done
+  [[ -n "$ctx" ]] || return 0
+  local saved="$SCAN_CONTENT"
+  SCAN_CONTENT=$(printf '%s' "$ctx" | grep -vE '^[[:space:]]*$' | head -40)
+  local ref seg
+  while IFS= read -r ref; do
+    [[ -n "$ref" ]] || continue
+    for seg in "${toks[@]}"; do
+      if [[ "${ref#/}" == "$seg:"* || "${ref##*:}" == "$seg" ]]; then
+        printf '%s\n' "$ref"
+        break
+      fi
+    done
+  done < <(emit_refs)
+  SCAN_CONTENT="$saved"
+}
+
 declare -A CHECKED=()
 UNRESOLVED=()
+REFS=()
+mapfile -t REFS < <(emit_refs)
+# Only reconstruct when the hunk itself yielded nothing; a full-command hunk
+# already scans correctly and must not be re-scanned from disk.
+((${#REFS[@]})) || mapfile -t REFS < <(reconstruct_partial_edit)
 
-while IFS= read -r ref; do
+for ref in "${REFS[@]}"; do
   [[ -n "$ref" ]] || continue
   [[ -n "${CHECKED[$ref]:-}" ]] && continue
   CHECKED["$ref"]=1
@@ -162,7 +207,7 @@ while IFS= read -r ref; do
   [[ -n "$pdir" ]] || continue
   skill_resolves "$pdir" "$skill" && continue
   UNRESOLVED+=("$ref")
-done < <(emit_refs)
+done
 
 emit_tel() {
   [[ -n "$start" ]] || return 0

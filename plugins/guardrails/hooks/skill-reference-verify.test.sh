@@ -242,6 +242,36 @@ OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(write_json "$NOTCL" 'Run `/a
 assert_contains "CHANGELOG-in-name but not a CHANGELOG → still adjudicated" "$OUT" \
   "UNRESOLVED_SKILL: /alpha:nonexistent"
 
+# PARTIAL-EDIT RECONSTRUCTION. An Edit may replace an arbitrary substring, so a
+# hunk can be a bare word with no command in it. The edit is already applied by
+# PostToolUse time, so the containing reference is recovered from disk, anchored to
+# the hunk's tokens.
+PARTIAL="$REPO/partial.md"
+printf 'Run `/alpha:ghost-partial` to begin.\n' >"$PARTIAL"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$PARTIAL" 'ghost-partial')" 2>&1)
+RC=$?
+assert_exit "bare-word Edit hunk → exit 0" 0 "$RC"
+assert_contains "bare-word Edit hunk → containing reference recovered" "$OUT" \
+  "UNRESOLVED_SKILL: /alpha:ghost-partial"
+
+# Diff-scope is preserved: a PRE-EXISTING unrelated broken reference on a
+# neighbouring line must NOT fire just because reconstruction read from disk.
+PARTIAL2="$REPO/partial2.md"
+printf 'Stale `/alpha:untouched-ghost` here.\nRun `/alpha:ghost-two` to begin.\n' >"$PARTIAL2"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$PARTIAL2" 'ghost-two')" 2>&1)
+assert_contains "reconstruction reports the edited reference" "$OUT" \
+  "UNRESOLVED_SKILL: /alpha:ghost-two"
+assert_absent "reconstruction does NOT report an untouched neighbour" "$OUT" \
+  "untouched-ghost"
+
+# A hunk that already carries a full command must not trigger reconstruction —
+# the normal diff-scope path handles it.
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$PARTIAL2" 'Run `/alpha:ghost-three` now.')" 2>&1)
+assert_contains "full-command hunk → scanned directly" "$OUT" \
+  "UNRESOLVED_SKILL: /alpha:ghost-three"
+assert_absent "full-command hunk → no disk reconstruction leakage" "$OUT" \
+  "untouched-ghost"
+
 # ============================ KILL SWITCH ===================================
 
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" CLAUDE_PLUGIN_OPTION_SKILL_REFERENCE_VERIFY_ENABLED=false \
