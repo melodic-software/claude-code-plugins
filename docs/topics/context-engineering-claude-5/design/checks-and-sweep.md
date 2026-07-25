@@ -285,6 +285,28 @@ the sync path. The run refuses and names the canonical source instead.
   absent the sweep **names it as the missing capability and states what goes unchecked** — the whole
   `CLAUDE.md` trim-and-migrate half, for which this work deliberately builds no replacement. That is
   the design boundary's floor, and it is met by reporting rather than by silently degrading.
+- **And the floor is not enough here, so the signal is raised to match the `OPINION` disclosure.**
+  The cross-vendor review found a double standard, and it holds. `OPINION`-tier content — off by
+  default but *built, reachable, and one argument away* — is granted a mandated loud disclosure line
+  every run, on the reasoning that a quiet default is shipped-but-unreachable
+  ([proportionality-gate.md](proportionality-gate.md), "`OPINION`-tier policy"). `/doctor`-absence is
+  the strictly worse condition by that same reasoning: there is **no incumbent and no replacement**,
+  the operator cannot turn it on with an argument, and the gap is half the deliverable's subject.
+  Giving the worse condition the quieter treatment — one row in a machine-readable `skipped` section
+  — inverts the standard. So it is escalated, and the two disclosures sit side by side:
+  - **A run without `/doctor` prints the same one-line human-readable disclosure the `OPINION` tier
+    gets**, naming the capability, what is unchecked, and the remedy (the version floor, or the
+    setting that disabled it — a run can tell which of the three absence causes applies and says so).
+  - **A `warning`-severity finding against the run itself**, not against the target: the target has
+    no defect, the run has reduced coverage. It is `warning` rather than `error` because a
+    coverage-reduced run is still useful, and `error` would make the sweep unusable below the
+    version floor for no gain.
+  - **The `skipped` row stays**, because a machine-readable record of every exclusion is what the
+    report section exists for. The escalation adds a human-visible channel; it does not move the
+    machine-readable one.
+  - **Both disclosures share one rule, stated once so a third case does not re-litigate it:** a
+    capability the run did not exercise is named in prose on every run, whether it was *available
+    and not enabled* or *unavailable entirely*. Silence is reserved for capabilities that ran.
 - **It is interactive** — it "reports findings first and asks for confirmation before changing
   anything" — so it cannot be driven by an unattended run. The handoff is an operator instruction,
   never a dispatch.
@@ -305,11 +327,19 @@ the sync path. The run refuses and names the canonical source instead.
   corpus, not guessed here. What is fixed now is that the run persists incrementally and resumes, so
   exceeding the ceiling degrades into a resumed run rather than a lost one.
 
-### `OPINION` discovery
+### Coverage disclosure — `OPINION` and `/doctor`
 
-Every run reports, in one line, how many `OPINION`-tier checks were available, were not run, and the
-exact argument that enables them. Without it the tier is shipped-but-unreachable — built at real cost
-in Phase 8's gates and evals, and never seen by anyone who does not already know it exists.
+Every run reports, in one line each, every capability it did not exercise:
+
+- **`OPINION`-tier checks** — how many were available, were not run, and the exact argument that
+  enables them. Without it the tier is shipped-but-unreachable — built at real cost in Phase 8's
+  gates and evals, and never seen by anyone who does not already know it exists.
+- **`/doctor`, when absent** — the capability, what goes unchecked, and which of the three absence
+  causes applies. Escalated to parity with the line above, and to a `warning` finding against the
+  run; the reasoning is under "`/doctor` — prerequisite contract, not a hand-wave".
+
+One rule covers both: a capability the run did not exercise is named in prose on every run, whether
+it was available-and-not-enabled or unavailable entirely.
 
 ### Verification is designed in, not left to the invoker
 

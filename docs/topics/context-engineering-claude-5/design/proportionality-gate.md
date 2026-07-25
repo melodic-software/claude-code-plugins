@@ -370,6 +370,15 @@ and broken in practice unless the content is discoverable. So:
 Raised by the cross-vendor review, which was right that the policy as first written made the tier
 dead weight.
 
+**The requirement generalizes, and refusing to generalize it was itself a defect.** A later review
+pass found the same reasoning applied unevenly: `/doctor`-absence leaves an entire half of the
+subject with no incumbent *and* no replacement — strictly worse than an off-by-default check that is
+one argument away — yet it was disclosed only as a row in a machine-readable `skipped` section. The
+rule is therefore stated at the level it actually operates on: **a capability the run did not
+exercise is named in prose on every run, whether it was available-and-not-enabled or unavailable
+entirely.** Discharged in [checks-and-sweep.md](checks-and-sweep.md), "Coverage disclosure —
+`OPINION` and `/doctor`".
+
 Rationale, and it inverts the case above. PLAN.md's risk table mitigates the High/High risk
 "Detectors flag correct constraint as over-constraint" *with* D4's carve-out as a live suppression
 input every trimming detector consults. Defaulting a suppressor off does not make the pass more
