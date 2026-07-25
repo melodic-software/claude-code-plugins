@@ -455,7 +455,7 @@ Create `plugins/context-guard/`:
 |---|---|
 | Extend `rate-limit-guard` with the context tee | Owner decision R2: separate concerns; reuse the pattern, not the plugin |
 | Join `review` / `skill-quality` | Fails the distinct-discovery-intent test (playbook Organization) |
-| `context: fork` for the deep audit | Brief requires a NAMED subagent; a forked skill is anonymous. Not rejected for inheriting history: the skills reference states a forked skill has no access to the conversation. Conversation inheritance is documented for the Agent tool's separate `fork` subagent type — a different mechanism sharing the word, and one #1258 reports as not inheriting in practice either |
+| `context: fork` for the deep audit | Anonymous, and the Brief requires a NAMED subagent — basis in the `[EXEC-SHAPE]` plugin-agent decision below. **Not** rejected for inheriting history: per the skills reference a forked skill has no conversation access at all. Conversation inheritance is documented for the Agent tool's separate `fork` subagent type, a different mechanism sharing the word (#1258 reports that one not inheriting in practice either) |
 | Fixed zone bands as tee-contract constants | Zones are per-consumer judgment knobs; unlike the 90% rate-limit floor there is no writer/reader split-brain risk forcing a constant |
 | `userConfig` for sink/inbox | Per-repo-ish policy → tracked config cascade; `pluginConfigs` is user-settings-only |
 | Verbatim 7-step port | Steps 4–5 overlapped; collapsed to one interactive contract-lock step (owner wants improvement, not a copy) |
