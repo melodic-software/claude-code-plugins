@@ -100,7 +100,9 @@
       "files": [],
       "expectations": [
         "The skill screens glob candidates for the background-launch signature in the producer transcript before short-circuiting",
-        "It correlates the matched launch with the exact candidate file (via the launch prompt's Read directive or --name slug), never excluding session-wide — a same-session manual handoff remains a valid candidate",
+        "It correlates the matched launch with the exact candidate file via the launch prompt's exact Read directive path, never excluding session-wide — a same-session manual handoff remains a valid candidate",
+        "It treats --name continue-<topic> slug-only evidence as ambiguous unless it uniquely resolves to one candidate, since same-topic files all match the slug",
+        "It applies the same screening to prompt-only candidates: a rails block followed in its transcript by a successful claude --bg launch was delivered to the background agent, not lost",
         "A save-point whose correlated background launch succeeded is not presented as the lost handoff; the operator is pointed at claude agents and the search continues",
         "When launch evidence is ambiguous or shows failure, the candidate is kept with its provenance surfaced at the confirm gate"
       ]

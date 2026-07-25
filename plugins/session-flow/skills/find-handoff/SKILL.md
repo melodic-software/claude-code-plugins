@@ -63,8 +63,10 @@ pre-clear content sits in a sibling — never in the current session's own file.
    *delivered*, to the agent it launched. Locate the candidate's producer transcript by the file's
    `session_id` and look for the launch signature (`claude --bg --name "continue-…"`, or the
    continue-in-background invocation) — then **correlate the launch with this exact file**: a
-   launch delivers one specific rails prompt, and its `Read @…` directive (or the
-   `--name "continue-<topic>"` slug) names the file it delivered. One session can produce a manual
+   launch delivers one specific rails prompt, and its `Read @…` directive names the exact
+   timestamped file it delivered. The `--name "continue-<topic>"` slug identifies only the topic —
+   same-topic files from the same session all match it — so slug-only evidence is **ambiguous**
+   unless it uniquely resolves to one candidate. One session can produce a manual
    handoff *and* later a background launch, and both files carry the same `session_id`, so a
    session-wide signature match must never exclude by itself. Matched launch references this
    candidate and succeeded → the save-point is not the lost handoff: its work is already running
@@ -110,7 +112,12 @@ pre-clear content sits in a sibling — never in the current session's own file.
      never a blanket no-angle-brackets rule: a valid prompt legitimately contains other
      angle-bracket text, notably the redaction shape markers the producer deliberately emits
      (`<REDACTED: API key>`) and generic code syntax (`<T>`). When a `Prior session:` line is
-     present, its value must be a concrete session UUID.
+     present, its value must be a concrete session UUID. **Screen delivered continuations here
+     too:** `continue-in-background prompt` emits this same rails block as assistant text and then
+     delivers the inline prompt to the agent it launches — check the same transcript after the
+     block for a successful `claude --bg --name "continue-…"` launch of that prompt. A delivered
+     block is not a lost handoff (its work is already running — `claude agents` lists it); exclude
+     it and keep scanning.
    - **Un-escape before surfacing.** Each transcript message is ONE physical JSONL line with its
      text JSON-string-escaped (`\n` for newlines, `\"` for quotes, `\\` for backslashes). A raw grep
      hit is that escaped blob — decode it back to plain text (JSON-unescape the matched string)
@@ -220,5 +227,8 @@ pre-clear content sits in a sibling — never in the current session's own file.
   launched agent, and resuming it manually duplicates work already running in the background.
   Screen candidates via the producer transcript's launch signature, correlated to the exact file
   the launch's resume directive references — never session-wide, since one session can produce
-  both a manual handoff and a later background launch under the same `session_id`. Exclude only
-  the correlated, successful launch's file and point the operator at `claude agents` instead.
+  both a manual handoff and a later background launch under the same `session_id`, and never on
+  the `continue-<topic>` slug alone (topic-only: same-topic files all match; ambiguous unless it
+  uniquely resolves). Exclude only the correlated, successful launch's file and point the operator
+  at `claude agents` instead. Prompt-only continuations screen the same way: a rails block
+  followed in its transcript by a successful `claude --bg` launch was delivered, not lost.
