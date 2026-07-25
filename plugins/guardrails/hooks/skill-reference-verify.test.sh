@@ -5,6 +5,11 @@
 # the plugins-root and plugin-scope gates have both a hit and a miss to
 # distinguish, then feeds a PostToolUse Write|Edit payload on stdin.
 
+# shellcheck disable=SC2016
+# Every fixture below is markdown fed to the hook as literal data, and backticks
+# are the code-span delimiters the hook scans for — single quotes are required so
+# nothing expands. Disabled file-wide rather than on ~20 individual lines.
+
 set -uo pipefail
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

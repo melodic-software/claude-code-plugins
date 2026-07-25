@@ -4,6 +4,12 @@
 # Black-box subprocess invocation. Each case builds a real git working tree so
 # hook::repo_root resolves, then feeds a PostToolUse Write|Edit payload on stdin.
 
+# shellcheck disable=SC2016
+# Every fixture below is markdown fed to the hook as literal data. Backticks are
+# the code-span delimiters the hook scans for and `$`/`{}` appear inside
+# placeholder fixtures on purpose — single quotes are required so none of it
+# expands. Disabled file-wide rather than on ~25 individual lines.
+
 set -uo pipefail
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
