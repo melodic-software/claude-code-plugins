@@ -3,6 +3,27 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.3]
+
+### Fixed
+
+- **`prune_babysit_worktrees.py` hardened against orphaned worktree state (#816).** Two related gaps
+  observed at queue-start prune: (1) a worktree directory left behind by a lock-blocked
+  `git worktree remove` (its administrative record dropped, the directory itself surviving — most
+  commonly on Windows) made every subsequent prune run error `fatal: not a git repository` on that
+  entry instead of self-healing; (2) the lock-blocked removal itself silently left the residual
+  directory with no signal. `git_status` failures now distinguish "this path is no longer a valid git
+  repository" (`is_missing_repo_error`) from every other failure: an orphaned entry drops its stale
+  worker-lease record (the lease-only case with no matching directory stays `manage_babysit_lease.py
+  reap`'s job, unchanged) and removes the residual directory only when it is empty
+  (`drop_orphaned_worktree` / `remove_empty_orphan_directory`, root-contained, never touching an
+  orphan's contents since git never confirmed it safe to discard), reported via a new
+  `orphan_dropped` row action rather than flipping the run's exit code. `remove_worktree` now
+  verifies the directory actually left disk after a *successful* `git worktree remove`
+  (`attempt_directory_removal`, safe to fully delete since git already confirmed removability) and
+  reports a still-locked directory via `residual_directory` plus a stderr warning instead of leaving
+  a silent orphan for a future run to stumble over.
+
 ## [0.26.2]
 
 ### Fixed
