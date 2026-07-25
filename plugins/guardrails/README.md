@@ -1,6 +1,6 @@
 # guardrails
 
-A Claude Code plugin bundling twelve **safety guards** that catch risky agent
+A Claude Code plugin bundling eleven **safety guards** that catch risky agent
 actions the moment they happen — before a write lands or a bash command runs.
 Each guard is independently toggleable, so you run exactly the subset you want.
 
@@ -18,22 +18,20 @@ Each guard is independently toggleable, so you run exactly the subset you want.
 | **block-noncanonical-commit** | PreToolUse · Bash | **Blocks** (exit 2) | `git commit` that does not pipe its message via `-F -` / `--file -` — `-m` flattens newlines unpredictably across shells. Exempt: `--amend`, `-C`/`-c`/`--reuse-message`/`--reedit-message`, `--fixup`/`--squash`, `-F <path>`, and any commit taken while a merge/rebase/cherry-pick/revert is in progress. Resolves `bash -lc` wrappers and git aliases (inline `-c` and persisted config alike). |
 | **block-convention-violation** | PreToolUse · Bash | **Blocks** (exit 2) | A commit subject or `gh pr create --title` that violates the team-tracked convention pattern declared in `.claude/source-control.md`. No tracked pattern means no enforcement. Same exemptions as `block-noncanonical-commit`. |
 | **flag-commit-pr-skill-bypass** | PreToolUse · Bash | **Advisory** (exit 0) | Any `gh pr create`, bypassing this marketplace's own `/pull-request create` skill. Only fires when the consuming project's own `.claude/settings.json` enables the `source-control` plugin — silent otherwise. Surfaces via `additionalContext`, never blocks. |
-| **asserted-path-verify** | PostToolUse · Write \| Edit | **Advisory** (exit 0) | A repo-relative path asserted in markdown — in a code span or a link target — that does not exist in the working tree. Only adjudicates a candidate whose leading directory IS in the repo, so another project's paths, globs, and placeholders stay quiet. Surfaces via `additionalContext`, never blocks. |
 | **skill-reference-verify** | PostToolUse · Write \| Edit | **Advisory** (exit 0) | A `` `/plugin:skill` `` reference in markdown that does not resolve. Only fires inside a marketplace repo, and only for a plugin that repo's own manifests own — a reference to another marketplace is left alone. Resolves through manifest and frontmatter `name`, so a renamed directory still matches. Surfaces via `additionalContext`, never blocks. |
 
 The seven blocking guards feed their stderr message back to Claude as
-actionable fix guidance. The five advisory guards surface their findings the same
+actionable fix guidance. The four advisory guards surface their findings the same
 way but always allow the operation.
 
 ### Enforceability tiers
 
-Eleven guards are **deterministic** — their oracle is a mechanical test with no
+Ten guards are **deterministic** — their oracle is a mechanical test with no
 judgment step. `skill-reference-verify` is **detect-then-judge**: globbing a
 plugins tree is exact only inside a marketplace repo that owns the referenced
 plugin, so its finding is a prompt for a human verdict, never a determination and
-never an auto-fix. The two hallucination guards that scan written content
-(`cli-flag-verify`, `asserted-path-verify`) are deterministic in their oracle but
-advisory in their action, because a claim can be deliberately forward-looking.
+never an auto-fix. `cli-flag-verify` is deterministic in its oracle but advisory in
+its action, because a written claim can be deliberately forward-looking.
 
 ### Scope notes
 
