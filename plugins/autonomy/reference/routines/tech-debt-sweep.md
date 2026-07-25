@@ -28,7 +28,7 @@ axis, repo scope sets the `L2` unattended floor as the class prerequisite
 Work items filed into the governed queue: each hotspot as a characterized, sized item
 with its evidence. No repository mutation, and no self-disposition — the PRIORITIZATION
 of the filed items (what gets fixed, in what order) is human-gated always. Deterministic
-recipe-driven remediation is separate cron-scoped work, never this routine's output.
+recipe-driven remediation is separate no-agent-session work, never this routine's output.
 
 ## Derived guardrail row
 

@@ -61,7 +61,7 @@ contract's signal-surface classes — none is a second scheduling path.
 
 | Trigger | Meaning | Queue entry |
 |---|---|---|
-| `schedule` | cron-fired cadence; the routine's defining shape | `temporal` surface class |
+| `schedule` | a fired cadence; the routine's defining shape | `temporal` surface class |
 | `event` | a source emission the routine rides in addition to its cadence | the routine's run is always `temporal` (rule below); the event itself may separately enqueue as an ordinary signal through its own surface class |
 | `continuous` | standing monitor | the routine's run is always `temporal` (rule below); a push feed wakes the routine, and where the surface offers no push the `temporal` poll-fallback detector is the conforming form; the feed emission may separately enqueue as an ordinary `channel-feed` signal |
 
@@ -166,7 +166,7 @@ prepares, human decides · hybrid rows show the split. Output: `R` report · `WI
 | alert-noise-review | AGT | R + WI | prod | C1 | join: telemetry connector exists |
 | log-review-sweep | AGT | R | prod | C1 | join: telemetry connector exists |
 | incident-retro-drafting | AGT | R (draft) | prod | C1 | join: telemetry connector exists |
-| postmortem-followup-sweep | hybrid: DET detect → cron; AGT nudge judgment is the routine | R + WI | repo | C1 | join: proven recurring manual pattern |
+| postmortem-followup-sweep | hybrid: DET detect (no agent session); AGT nudge judgment is the routine | R + WI | repo | C1 | join: proven recurring manual pattern |
 | on-call-handoff-summary | AGT | R | prod | C1 | join: telemetry connector exists |
 | on-call-conflict-resolution | AGT | DC (schedule) | org | C3 (truth not mechanically checkable) | join: org systems connected |
 | **Issue lifecycle** | | | | | |
@@ -175,23 +175,23 @@ prepares, human decides · hybrid rows show the split. Output: `R` report · `WI
 | stale-issue-pr-grooming | DET | DC per policy | repo | n/a — no agent session | not-a-routine |
 | backlog-readiness-check | AGT | WI + R | repo | C1 | v1 |
 | pr-queue-tending | AGT | R + WI | repo | C1 | v1 |
-| flaky-test-quarantine | hybrid: DET detect → cron; AGT root-cause is the routine | WI + DC (quarantine) | repo | C1 (WI); quarantine DC C2 (mechanically checkable) | join: proven recurring manual pattern |
+| flaky-test-quarantine | hybrid: DET detect (no agent session); AGT root-cause is the routine | WI + DC (quarantine) | repo | C1 (WI); quarantine DC C2 (mechanically checkable) | join: proven recurring manual pattern |
 | support-ticket-conversion | AGT/HUM | WI (gated) | product | C1; disposition human-gated | join: analytics/feedback connected |
 | **Security / compliance** | | | | | |
-| dependency-update-wave | hybrid: DET detect → cron; AGT breakage judgment is the routine | DC (PR) | repo | C2 (CI-mechanical); composes to C5 when judging attacker-writable upstream content | v1 |
+| dependency-update-wave | hybrid: DET detect (no agent session); AGT breakage judgment is the routine | DC (PR) | repo | C2 (CI-mechanical); composes to C5 when judging attacker-writable upstream content | v1 |
 | advisory-cve-triage | AGT | R + WI | repo | C1 | v1 |
 | secret-scan-review | AGT/HUM | R + WI | repo | C1; disposition human-gated | join: proven recurring manual pattern |
-| license-compliance-audit | hybrid: DET scan → cron; AGT edge-case judgment is the routine | R | repo | C1 | join: proven recurring manual pattern |
+| license-compliance-audit | hybrid: DET scan (no agent session); AGT edge-case judgment is the routine | R | repo | C1 | join: proven recurring manual pattern |
 | sbom-refresh | DET | DC (artifact) | repo | n/a — no agent session | not-a-routine |
 | access-review | AGT/HUM | R (evidence pack) | org | C1; disposition human-gated | join: org systems connected |
 | base-image-refresh | DET | DC (PR) | repo | n/a — no agent session | not-a-routine |
 | malicious-code-scan | AGT | R | repo | C5 (reads attacker-writable third-party code) | join: proven recurring manual pattern |
 | **Code quality / knowledge** | | | | | |
-| tech-debt-sweep | hybrid: DET recipes → cron; AGT sweep is the routine | WI | repo | C1 (WI); prioritization disposition human-gated | v1 |
+| tech-debt-sweep | hybrid: DET recipes (no agent session); AGT sweep is the routine | WI | repo | C1 (WI); prioritization disposition human-gated | v1 |
 | dead-code-sweep | DET detect | DC (review-gated PR) | repo | n/a — no agent session | not-a-routine |
 | doc-freshness-sweep | AGT | R + DC (optional docs PR) | repo | C1 (report); optional gated docs-PR portion C3 | v1 |
 | coverage-mutation-watch | DET | R (digest/gate) | repo | n/a — no agent session | not-a-routine |
-| release-notes-generation | hybrid: DET cut mechanics → cron; AGT narrative is the routine | DC (draft) | repo | C3 (narrative truth not mechanically checkable) | join: proven recurring manual pattern |
+| release-notes-generation | hybrid: DET cut mechanics (no agent session); AGT narrative is the routine | DC (draft) | repo | C3 (narrative truth not mechanically checkable) | join: proven recurring manual pattern |
 | eng-metrics-digest | AGT | R | repo | C1 | v1 |
 | knowledge-base-gardening | AGT/HUM | R + WI | repo | C1; disposition human-gated | join: proven recurring manual pattern |
 | ci-health-review | AGT | R + WI + DC (optional) | repo | C1 (report/WI); optional direct CI-config change C4 (structural/config surface) | v1 |
