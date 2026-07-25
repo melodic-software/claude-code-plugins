@@ -269,6 +269,7 @@ REFUSALS: tuple[Refusal, ...] = (
         error_contains=("--lane-logins", "--approver-bot-logins", "--block-labels"),
         refused_by=PYTHON_CLI,
         enforced_at="babysit_merge.py::main",
+        gh_free=True,
     ),
     Refusal(
         id="merge.autopilot-tier-partial-config",
@@ -291,6 +292,7 @@ REFUSALS: tuple[Refusal, ...] = (
         error_contains=("--block-labels",),
         refused_by=PYTHON_CLI,
         enforced_at="babysit_merge.py::main",
+        gh_free=True,
     ),
     Refusal(
         id="merge.tier-params-without-umbrella",

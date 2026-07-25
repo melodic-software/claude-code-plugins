@@ -3,6 +3,31 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.2]
+
+### Fixed
+
+- Carried the `code-review` framing reconciliation of `0.15.1` into the `fanout` skill, which
+  described the same nonexistent plugin independently: `SKILL.md`'s "Orchestrator plugins" section
+  and `context/findings-normalization.md` both listed `code-review` as one of three optional
+  `claude-plugins-official` orchestrator plugins invoked as `/code-review:code-review`. `SKILL.md`
+  now carries its own "Boundary" section for the two real surfaces, and
+  `findings-normalization.md`'s per-surface parse-contracts table no longer lists `code-review` as
+  a normalized fan-out leaf. Two `fanout` evals (`pr-comment-gate-opt-in`, renamed
+  `unscored-surface-severity-derived-not-invented`) carried the same stale framing and were updated
+  for internal consistency. The two surface descriptions are not restated — `SKILL.md` points at
+  `pr.md`'s Boundary for those and carries only the fan-out-specific reasoning.
+- `fanout`'s exclusion of the bundled command no longer rests on classing a **bare**
+  `/code-review` invocation as PR-mutating. Per <https://code.claude.com/docs/en/code-review>
+  ("Review a diff locally"), bare `/code-review` is report-only — findings arrive in the
+  conversation, and only `--fix` and `--comment` mutate — matching the gate scoping `pr.md` already
+  applies. The Boundary section now states the real reason it is not a normalized leaf (it is
+  itself a multi-agent review of the same diff, with no documented output schema to write a parse
+  contract against) and points the reader at running it directly (review-caught).
+- The README's optional-orchestrator roster also names `codex` (OpenAI Codex marketplace), the
+  other orchestrator `fanout` dispatches, and points at both skills' Boundary sections
+  (review-caught).
+
 ## [0.15.1]
 
 ### Fixed

@@ -127,9 +127,13 @@ def write_gh_shim(directory: pathlib.Path, sentinel: pathlib.Path) -> None:
     a guard that resolved `@me` before checking scope reaches the same refusal
     exit code -- and is caught by the sentinel rather than by the exit code.
     """
+    # An absolute interpreter path, not `/usr/bin/env bash`: the shim's whole
+    # point is to be the ONLY thing on PATH, and `env` resolves `bash` through
+    # that same emptied PATH. The shim would then die before writing the
+    # sentinel and the assertion would pass whether or not `gh` was called.
     posix = directory / "gh"
     posix.write_text(
-        f'#!/usr/bin/env bash\nprintf called > "{sentinel.as_posix()}"\nexit 127\n',
+        f'#!{pathlib.Path(BASH).as_posix()}\nprintf called > "{sentinel.as_posix()}"\nexit 127\n',
         encoding="utf-8",
         newline="\n",
     )
@@ -223,6 +227,26 @@ class RefusalsFireOnArgumentShape(unittest.TestCase):
                     sentinel = shim_dir / "gh-was-called"
                     write_gh_shim(shim_dir, sentinel)
                     env = dict(os.environ, PATH=str(shim_dir))
+                    # Prove the instrument before trusting its silence. A shim
+                    # that cannot run records nothing, and every row would then
+                    # pass whether or not `gh` was reached -- which is exactly
+                    # the vacuous-assertion failure these rows exist to close.
+                    # Resolved the way the engine resolves it (`babysit_util.
+                    # run_command` calls `shutil.which`), so this probe fails
+                    # only where the real lookup would also fail.
+                    resolved = shutil.which("gh", path=str(shim_dir))
+                    self.assertIsNotNone(
+                        resolved, "the recording gh shim is not reachable through PATH"
+                    )
+                    subprocess.run(
+                        [str(resolved)], capture_output=True, env=env, cwd=tempfile.gettempdir()
+                    )
+                    self.assertTrue(
+                        sentinel.exists(),
+                        "the recording gh shim did not run; the assertion below"
+                        " would be vacuous",
+                    )
+                    sentinel.unlink()
                     proc = subprocess.run(
                         [
                             sys.executable,
