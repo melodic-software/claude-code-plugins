@@ -120,7 +120,7 @@ curl -q -sS --proto '=https' --max-time 30 --max-filesize 5000000 \
   -H "Content-Type: application/json" \
   -H "Accept: text/markdown" \
   -d '{"url":"<REBUILT-URL>"}' \
-  -o "<plugin-data-dir>/x-<id>-<nonce>.md" \
+  -o '<plugin-data-dir>/x-<id>-<nonce>.md' \
   -w '%{http_code}'
 ```
 
@@ -142,6 +142,14 @@ Drop the `Accept` header for JSON — `{markdown, url, author}`. For raw fields 
 **Plugin data directory:** `${CLAUDE_PLUGIN_DATA}` — this file is the only surface where that
 expands, so carry the resolved path (forward slashes) and substitute it wherever
 [`context/failure-modes.md`](context/failure-modes.md) says `<plugin-data-dir>`.
+
+**Single-quote the substituted path — double quotes are not enough.** The path is pasted into the
+command as literal text, and inside double quotes bash still expands `$name`, still runs a backtick
+or `$(…)` command substitution, and still consumes a backslash. A home directory containing any of
+those characters would silently retarget the write — or execute the embedded text. Single quotes
+suppress all of it. If the resolved path itself contains an apostrophe, end the quoted run, escape
+that one character, and reopen: `'…'\''…'`. Same escaped form at every later site — the `Read` and
+the delete.
 
 **Every response spools to that file — `-o` is not conditional.** An X Article is routinely shared as
 an ordinary `/status/` link, so the URL never says whether the reply is one sentence or five

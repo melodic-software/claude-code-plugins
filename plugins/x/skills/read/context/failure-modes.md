@@ -55,8 +55,19 @@ long articles this path exists to serve, and returns truncated Markdown that loo
 stop early for any reason — a slice budget, an interruption — report the result as partial and say
 what was cut, per the reporting rules below.
 
-Quote the substituted path everywhere it appears — `-o "<path>"`, and the read and delete that follow.
-The resolved directory can contain whitespace, and an unquoted path splits into separate arguments.
+**Single-quote the substituted path everywhere it appears** — `-o '<path>'`, and the read and delete
+that follow. Two distinct hazards, and only single quotes cover both:
+
+- Unquoted, a resolved directory containing whitespace splits into separate arguments, so the write
+  lands somewhere unintended or fails.
+- **Double-quoted is still unsafe.** The path is pasted in as literal text, and bash expands `$name`,
+  executes a backtick or `$(…)` substitution, and consumes a backslash *inside* double quotes.
+  Verified: a spool path under a directory named ``lit$name-`whoami`.txt`` resolved to
+  `litINJECTED-AzureAD+KyleSexton.txt` — the variable expanded and the command substitution ran —
+  while the single-quoted form opened the correct file.
+
+If the resolved path contains an apostrophe, close the quoted run, escape that one character, and
+reopen — `'…'\''…'` — rather than falling back to double quotes.
 
 **The nonce and the delete are both load-bearing.** Two sessions reading the same post would
 otherwise share one id-keyed path: the second `curl` truncates it after the first request completes
@@ -89,10 +100,8 @@ arrive.
 `-sS` alone prints no status. Because `-o` takes the body, `-w '%{http_code}'` makes the code the
 only thing on stdout — observable rather than inferred from body shape.
 
-**Quote every substituted path.** The resolved plugin-data directory can contain whitespace — a Git
-Bash home under a two-word user name, say — and an unquoted `-o <file>` then splits into multiple
-arguments, so the download fails or lands somewhere unintended. Quote it at every site: the `-o`
-target, and the subsequent read and delete.
+**Single-quote every substituted path** — the `-o` target and the subsequent read and delete. Rules
+and the verified expansion hazard are under "Response spooling" above.
 
 | Code | Meaning | Action |
 |---|---|---|

@@ -950,7 +950,13 @@ operated by others — so surfaces 5 and 6 carry the weight here.
   an X Article is routinely shared as an ordinary `/status/` link, which would have left the concrete
   documented command streaming an unbounded body to stdout. The redirect is now unconditional, so
   the write happens on every invocation rather than on an unknowable subset, and the file is deleted
-  on every exit path. No `${CLAUDE_PLUGIN_ROOT}` references beyond the skill body, no
+  on every exit path. A later round found the spool path was double-quoted, which does not contain
+  it: bash expands `$name`, runs a backtick or `$(…)` substitution, and consumes a backslash inside
+  double quotes. Verified against a directory named ``lit$name-`whoami`.txt`` — the variable expanded
+  and the substitution executed. The path is now single-quoted at every site. Note the asymmetry with
+  criterion 1: the *URL* is safe by construction because it is rebuilt from quote-free capture
+  classes, but the *plugin-data path* comes from the environment, so it carries whatever the
+  consumer's home directory contains and must be escaped rather than trusted. No `${CLAUDE_PLUGIN_ROOT}` references beyond the skill body, no
   consumer-repository reads, no `../` reach-outs.
 - **Data egress (5). Present and accepted — conditional on the criterion-1 gate.** Per invocation
   the machine emits one datum: the gate's *rebuilt* URL `https://x.com/<handle>/status/<id>`, to

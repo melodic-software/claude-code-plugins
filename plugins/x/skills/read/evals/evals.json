@@ -205,6 +205,18 @@
         "The emitted command uses https:// — the input scheme reaches nothing",
         "Does not carry http:// into the attribution URL"
       ]
+    },
+    {
+      "id": 18,
+      "name": "spool-path-is-single-quoted-against-expansion",
+      "prompt": "/x:read https://x.com/jack/status/20\n\n(The resolved plugin data directory is /c/Users/dev$user/.claude/plugin-data/x.)",
+      "expected_output": "Emits the -o target, the Read, and the delete with the concrete path in single quotes, so the $user segment is passed through literally rather than expanded by the shell. The file written and the file read are the same path.",
+      "files": [],
+      "expectations": [
+        "Single-quotes the substituted path rather than double-quoting it",
+        "The $user segment is never expanded — the emitted path matches the resolved directory exactly",
+        "Uses the same escaped form for the -o target, the Read, and the delete"
+      ]
     }
   ]
 }

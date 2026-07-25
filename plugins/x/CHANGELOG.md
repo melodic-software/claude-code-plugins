@@ -58,7 +58,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   step-1-success plus step-2-miss reaching step 3 (12), a `200` without conversion treated as
   failure (13), the legacy `mobile.twitter.com` host accepted and canonicalized (14), an uppercased
   scheme and host still matching (15), a long article read to its end before cleanup (16), and a
-  plaintext `http://` input upgraded to HTTPS by the rebuild (17).
+  plaintext `http://` input upgraded to HTTPS by the rebuild (17), and a spool path single-quoted
+  against shell expansion (18).
 
 ### Fixed
 
@@ -99,7 +100,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   window onto the file rather than the content: deleting after one would discard the tail of exactly
   the long articles this path exists to serve and return truncated Markdown that reads as complete.
   The nonce prevents two sessions reading the same post from sharing a path, where the second `curl`
-  would truncate the file between the first request completing and that session's `Read`.
+  would truncate the file between the first request completing and that session's `Read`. The
+  substituted path is **single**-quoted at every site: double quotes still expand `$name`, still run
+  a backtick or `$(…)` substitution, and still consume a backslash, so a home directory carrying any
+  of those characters would retarget the write or execute the embedded text.
 - Gate patterns are presented in fenced code blocks rather than a Markdown table. In table cells the
   alternation had to be written `\|` to survive the renderer, and a model reading the raw source
   could take that as a literal backslash-pipe and refuse every `twitter.com` URL.
