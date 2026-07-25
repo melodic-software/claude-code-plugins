@@ -3,6 +3,22 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.1]
+
+### Fixed
+
+- **`interview`'s session-config guidance no longer reads as a runtime imperative to
+  a nonexistent downstream session.** The mid-task "raise the model/effort" rule was
+  phrased as an instruction to an executing actor, but `/interview` terminates at
+  handoff and never wires that context into whatever session executes next — it is
+  now framed as a watch-for the interview hands the **user** at handoff. Separately,
+  the recommendation's header framed itself as configuring "the downstream execution
+  session," which the "Both domains" section then extended to general sessions even
+  though a general session is terminal with no downstream consumer (SKILL.md Step 5).
+  General/terminal sessions now frame the recommendation as config for the
+  current/next session, applied now; the "Both domains" scope is unchanged. The
+  handoff checklist's Step 5 is aligned to the same split.
+
 ## [0.25.0]
 
 ### Added
