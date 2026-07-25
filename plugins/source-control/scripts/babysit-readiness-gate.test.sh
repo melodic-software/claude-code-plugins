@@ -206,6 +206,20 @@ else
   fail "portability: uses POSIX grep -ow" "present" "missing"
 fi
 
+# --- Case: PYTHONUTF8=1 exported before invoking babysit_python (#597) --------
+# Matches the convention the bin/ babysit wrappers already apply
+# (source-control-babysit-merge, source-control-babysit-resolve-thread): this
+# gate is the third babysit_python caller and the one that parses
+# fetch-all-pr-comments.sh-shaped JSON, which commonly carries non-ASCII bytes
+# (bot badges, reaction emoji) that choke a Python code path relying on the
+# interpreter's default I/O encoding on Windows (cp1252) instead of pinning
+# encoding="utf-8" itself.
+if [[ "$GATE_BODY" == *'export PYTHONUTF8=1'* ]]; then
+  pass "#597: exports PYTHONUTF8=1"
+else
+  fail "#597: exports PYTHONUTF8=1" "present" "missing"
+fi
+
 # --- Case: adjacent severity words BOTH count (whole-word, no shared-boundary loss) -
 # `grep -ow` matches each word even when adjacent; an alternation-boundary regex
 # (^|[^w])WORD([^w]|$) would consume the shared space and undercount.
@@ -277,6 +291,37 @@ probe_py() {
   "$@" -c 'import sys; raise SystemExit(0 if sys.version_info[:2] >= (3, 11) else 1)' \
     >/dev/null 2>&1
 }
+
+# --- Case: PYTHONUTF8=1 actually reaches the Python child process (#597) ------
+# A stubbed `py -3` records the PYTHONUTF8 value it inherited when
+# babysit_python execs it, proving the export reaches the child process (not
+# just present as dead source text in the static check above).
+if probe_py py -3 || probe_py python3 || probe_py python; then
+  PYSTUB_BIN="$TEST_TMPDIR/bin-pystub"
+  mkdir -p "$PYSTUB_BIN"
+  PYUTF8_PROBE_FILE="$TEST_TMPDIR/pyutf8-probe.txt"
+  export PYUTF8_PROBE_FILE
+  cat >"$PYSTUB_BIN/py" <<'STUB'
+#!/usr/bin/env bash
+args=("$@")
+for a in "${args[@]}"; do
+  if [[ "$a" == "-c" ]]; then
+    exit 0 # version probe
+  fi
+done
+printf '%s' "${PYTHONUTF8:-unset}" >"$PYUTF8_PROBE_FILE"
+printf 'findings=0 classified=0\n'
+STUB
+  chmod +x "$PYSTUB_BIN/py"
+  F=$(mkjson pyutf8-probe-fixture '[{author:"claude[bot]", body:"no findings here"}]')
+  PATH="$PYSTUB_BIN:$PATH" bash "$GATE" 123 --comments-json "$F" --self 'me[bot]' >/dev/null 2>&1
+  probe_seen="$(cat "$PYUTF8_PROBE_FILE" 2>/dev/null || echo "missing")"
+  assert_eq "#597: child process inherits PYTHONUTF8=1" "1" "$probe_seen"
+  unset PYUTF8_PROBE_FILE
+else
+  pass "#597: PYTHONUTF8 child-inheritance probe skipped (no Python 3.11+)"
+fi
+
 if probe_py py -3 || probe_py python3 || probe_py python; then
   F=$(mkjson lifetime-open '[
     {author:"codex[bot]", body:"[CRITICAL] resolved earlier", isResolved:true},
