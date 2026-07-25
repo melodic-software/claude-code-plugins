@@ -59,9 +59,18 @@ the boundary clean.
 | Plugins | 60 | `plugins/*` (matches the 60 entries in `.claude-plugin/marketplace.json`) |
 | Agent definitions | 7 | `plugins/plugin-quality/agents/auditor.md`; `plugins/review/agents/` (6 files) |
 | Plugins shipping any `agents/` directory | 2 | `plugin-quality`, `review` |
-| `SKILL.md` files | 187 | `plugins/*/skills/*/SKILL.md` |
+| `SKILL.md` files | 181 | `plugins/*/skills/*/SKILL.md` |
 
-L2 and L3 operate on instruction surfaces — 187 skill bodies plus `CLAUDE.md`, `.claude/rules/`,
+The skill count is decomposed here because it has been miscounted twice. The stated pattern
+`plugins/*/skills/*/SKILL.md` — one file per skill directory — yields **181**. A recursive
+`find plugins -name SKILL.md` yields **187**, and the difference is exactly **6** upstream `vendor/`
+materializations nested inside skill directories (`context7/lookup/vendor/cli`,
+`context7/lookup/vendor/find-docs`, `dometrain/sync/vendor`, `playbooks/boris/vendor`,
+`playbooks/skill-authoring/vendor`, `playwright/playwright/vendor`), which are vendored upstream
+copies rather than skills this repository ships. **181 is the skill population**; 187 counts the
+vendored copies too.
+
+L2 and L3 operate on instruction surfaces — 181 skill bodies plus `CLAUDE.md`, `.claude/rules/`,
 prompt-type hook text, and output styles. #1225's conforming population is **7 files in 2 of 60
 plugins**, widening only to the "would this plugin benefit from one" question over the other 58.
 
@@ -97,26 +106,66 @@ of files versus each other; no conventions doc can supply it, because the contra
 two things the repo itself asserts. Nothing in #1225's Part 1 deliverable list, its Part 2 scope, or
 its locked decisions produces or consumes such a finding.
 
-**Incumbent search (D-1): no incumbent.** D-4's premise holds. Searched and read first-hand:
+**Incumbent search (D-1): a partial incumbent exists.** An earlier revision of this document recorded
+"no incumbent"; that was wrong, and the correction narrows L2 rather than dissolving it. D-4's premise
+holds only for the **cross-layer** slice. Searched and read first-hand:
 
-| Candidate | Why it does not cover L2 | Evidence |
+| Candidate | Coverage of L2's observable | Evidence |
 |---|---|---|
-| `claude-config:audit-instructions` | Owns the cross-surface *inventory*, but judges per surface | Phase A inventories every surface (`SKILL.md:71-88`); Phase B then runs **one fresh read-only subagent per surface** (`SKILL.md:92`) — a per-surface lane is structurally blind to a contradiction spanning two surfaces |
-| `claude-config:audit-automation-gaps` | Reasons across mechanisms, but its observable is *coverage*, not *contradiction* | The enforcement-hierarchy walk (`SKILL.md:24-27`, Phase 2.1 at `:94`) and the "Already exists" gate (`SKILL.md:135`) look for a concern **already covered** elsewhere; redundancy, not disagreement |
-| `claude-memory:audit` | Single-layer; explicitly routes content questions out | Scope table limits it to memory files (`SKILL.md:26-34`); content-fit questions route to `audit-instructions` (`SKILL.md:36-46`) |
-| `claude-config:audit` | Config **files** correctness, not instruction prose | Self-described boundary at `SKILL.md:29-32` |
-| `skill-quality:check` | Per-skill-directory by construction | Usage is `bash check-skill.sh <skill-name>` (`plugins/skill-quality/scripts/check-skill.sh:12`); its twenty checks (`:28-54`) never read a second skill except check 3's diff of the *same* skill against a base ref |
-| `docs-hygiene` (six skills) | Intra-document or intra-repo duplication, not authority conflict | `extract-ssot` deduplicates repetition; `audit-encapsulation` detects citations into skill-private surfaces; neither models two surfaces disagreeing |
+| `claude-config:audit-instructions` | **None** — owns the cross-surface *inventory*, but judges per surface | Phase A inventories every surface (`SKILL.md:71-88`); Phase B then runs **one fresh read-only subagent per surface** (`SKILL.md:92`) — a per-surface lane is structurally blind to a contradiction spanning two surfaces |
+| `claude-config:audit-automation-gaps` | **None** — reasons across mechanisms, but its observable is *coverage*, not *contradiction* | The enforcement-hierarchy walk (`SKILL.md:24-27`, Phase 2.1 at `:94`) and the "Already exists" gate (`SKILL.md:135`) look for a concern **already covered** elsewhere; redundancy, not disagreement |
+| **`claude-memory:audit`** | **PARTIAL — it already detects contradiction inside the memory layer** | Check **C6 Consistency [FAIL]** asks *"Do any instructions contradict each other across CLAUDE.md, CLAUDE.local.md, and rules files?"* and grades contradiction FAIL, redundancy WARN (`plugins/claude-memory/skills/audit/reference/criteria.md:107-119`), grounded in the official-docs quote *"If two rules contradict each other, Claude may pick one arbitrarily"* (`reference/official-guidance.md:127-130`). It is wired live, not a stray reference: the audit workflow carries a dedicated **"Step 3: Cross-file consistency check (C6)"** whose first instruction is *"Compare CLAUDE.md sections against `.claude/rules/` for contradictions"* (`context/audit.md:61-67`), and the determinism contract places C6 in the judgment tier (`SKILL.md:59-63`) |
+| `claude-config:audit` | **None** — config **files** correctness, not instruction prose | Self-described boundary at `SKILL.md:29-32` |
+| `skill-quality:check` | **None** — per-skill-directory by construction | Usage is `bash check-skill.sh <skill-name>` (`plugins/skill-quality/scripts/check-skill.sh:12`); its twenty checks (`:28-54`) never read a second skill except check 3, which also inspects a *sibling* skill's listing text but still never compares two skill bodies |
+| `docs-hygiene` (six skills) | **None** — intra-document or intra-repo duplication, not authority conflict | `extract-ssot` deduplicates repetition; `audit-encapsulation` detects citations into skill-private surfaces; neither models two surfaces disagreeing |
 
-A repository-wide search for contradiction/precedence detection over `plugins/**/*.md` returned only
-settings-precedence resolution (`disk-hygiene`, `claude-ops`, `guardrails`), research-conflict
-handling (`discovery:research`), and domain modelling (`event-storming`). No hit is an
-instruction-surface conflict detector.
+**What C6 covers, and what it leaves to L2.** C6's population is the memory layer only. The audit's
+own discovery step globs `find . -maxdepth 1 -name "CLAUDE.md" -o -name "CLAUDE.local.md"` and
+`find .claude/rules -name "*.md"` (`context/audit.md:12-21`) — both CWD-relative, so project-scoped —
+plus this repository's own auto-memory directory, resolved by a bundled script and explicitly scoped
+to the current repo. `~/.claude/rules/` appears nowhere in that discovery step; it is named only in
+the reference material as background harness documentation
+(`reference/official-guidance.md:140`). **That settles the question this document's own example
+raised**: a *user-global* rule contradicted by a *project* rule falls **outside** C6, and is
+therefore inside L2's novel scope. So is every cross-layer pair:
 
-**Where it lands — and the one thing this document will not invent.** Per D-3 there is no new
-router, and the plugin that already owns the cross-surface instruction inventory is **`claude-config`**
-(`plugins/claude-config/skills/audit-instructions/SKILL.md:3`, `:71-88`). L2 lands in `claude-config`.
-What it lands *as* is not settled by the evidence, because both options are structural:
+- repo `CLAUDE.md` contradicted by a **skill body** — uncovered.
+- a skill's stated default contradicted by the plugin **README** or its own `description` — uncovered.
+- agent definitions, prompt-type hook text, output styles — uncovered.
+
+What C6 *does* cover is a pair this document's original definition plainly admits: project
+`CLAUDE.md` versus `CLAUDE.local.md` versus a project `.claude/rules/` file. Built to its stated
+definition, L2 would land directly on top of C6 for that slice.
+
+**Corrected ruling: partial incumbent; L2's novel scope is cross-layer contradiction.** Under this
+repository's reuse-or-replace posture, L2 must reuse or explicitly extend C6 rather than
+re-implement memory-layer contradiction detection — which is an open decision, recorded below.
+
+**The search, re-run honestly.** An earlier revision claimed a repository-wide search for
+contradiction/precedence detection over `plugins/**/*.md` returned no instruction-surface conflict
+detector. That claim is withdrawn: it asserts a result the tree contradicts.
+`grep -rn "contradict" --include="*.md" plugins/` returns **92 hits across 65 files**, and among them
+are `plugins/claude-memory/skills/audit/reference/criteria.md:109,114,116,119` and
+`reference/official-guidance.md:129` — the C6 check itself. Most of the remaining hits are unrelated
+senses (merge conflicts, workshop facilitation, prosody, research-conflict handling in
+`discovery:research`, settings-precedence resolution), but the negative result as originally stated
+was false.
+
+**The lesson, recorded because three independent searches reproduced the same false negative.** A
+search scoped to `SKILL.md` bodies or to frontmatter `description` lines cannot find C6. Of the
+**199** `description:` lines under `plugins/`, **zero** name contradiction or conflict detection —
+including `claude-memory:audit`'s own, which sells "memory health … against a codified checklist" and
+never mentions contradiction. C6 is a real shipped check that is invisible from the discovery
+surface, reachable only by reading the skill's `reference/criteria.md` catalog. **An incumbent search
+that stops at what skills advertise will miss what their catalogs actually check** — future D-1
+searches on this effort must read reference catalogs, not just skill bodies and descriptions.
+
+**Where it lands — and the one thing this document will not invent.** Per D-3 there is no new router.
+The plugin that owns the cross-surface instruction *inventory* is **`claude-config`**
+(`plugins/claude-config/skills/audit-instructions/SKILL.md:3`, `:71-88`); the plugin that owns the
+only **shipped contradiction check** is `claude-memory`. Those are different plugins, so the option
+set is three-way, not two-way, and this document does not narrow it. What L2 lands *as* is not
+settled by the evidence, because all three options are structural:
 
 - **Option A — a new phase in `audit-instructions`.** Reuses the Phase A surface enumeration
   (`SKILL.md:71-88`) and keeps one report. Cost: it changes a shipped skill's phase model. Phase B's
@@ -128,16 +177,29 @@ What it lands *as* is not settled by the evidence, because both options are stru
   advertised scope intact, and keeps its report-only contract (`SKILL.md:25-29`) untouched. Cost: it
   re-derives the surface list unless that enumeration is first extracted to a surface both skills
   read, and it adds a fifth skill to the plugin's listing budget.
+- **Option C — extend C6 in `claude-memory:audit`.** The contradiction check already exists there, so
+  this reuses rather than parallels it, and D-3's own logic — findings land as checks in the plugin
+  that already owns each surface — points at it for the memory-layer slice, since `claude-memory`
+  owns both the surface and the check. Cost: C6's population is project memory files
+  (`context/audit.md:12-21`), so covering skill bodies, READMEs, agent definitions, hook text and
+  output styles means widening `claude-memory`'s declared scope into surfaces its own scope table
+  routes to `claude-config` (`SKILL.md:34`) — pushing against that plugin's stated boundary in the
+  same way Option A pushes against `audit-instructions`'.
 
 Note what Option A does **not** buy: Phase A enumerates surface *paths*, not their contents — the
 content reads happen inside the Phase B lanes (`SKILL.md:90-108`). So sharing Phase A saves the
-enumeration, not the reading. Neither option has a decisive cost advantage on that axis.
+enumeration, not the reading. No option has a decisive cost advantage on that axis.
 
 **This is an OPEN DECISION for the operator, recorded rather than resolved, and deliberately without
-a recommendation.** Both options satisfy D-3 — a skill inside the plugin that already owns the
-surface is not a router. The choice turns on whether `audit-instructions`' advertised scope should
-widen to include conflict detection, which is a judgment about a shipped skill's identity rather than
-something the evidence settles. L2 must not pick it unilaterally.
+a recommendation.** All three options satisfy D-3 — a check inside a plugin that already owns the
+surface is not a router. The choice turns on which shipped skill's advertised scope should widen, and
+whether the memory-layer slice should be reused from C6 or re-implemented alongside it. Both are
+judgments about shipped skills' identities rather than something the evidence settles. L2 must not
+pick this unilaterally.
+
+**What L2 must not do regardless of the choice:** re-implement memory-layer contradiction detection
+from scratch. C6 already covers project `CLAUDE.md` versus `CLAUDE.local.md` versus project
+`.claude/rules/`. Whichever option is picked, that slice is reused or extended, never duplicated.
 
 **A ceiling both lanes inherit.** `claude-config` and `claude-memory` are model-invoked, report-only
 skills — `audit-instructions` states "There is no `--fix`" (`SKILL.md:25-29`) and `claude-memory:audit`
@@ -146,11 +208,15 @@ either plugin is therefore a **report**, never an enforced gate. Nothing in this
 merge on it. Anything that must actually *fail CI* has a different home — #445's documented
 `scripts/check-*.sh` + `.test.sh` + `ci.yml` lane shape — and that split is deterministic-versus-
 judgment, not L2-versus-L3: each lane may produce findings on both sides of it. L2 and L3 should
-decide per criterion which side a finding falls on, and route the deterministic ones to #445 rather
-than assuming a report-only skill will enforce them.
+decide per criterion which side a finding falls on, and route the deterministic ones into that lane
+shape rather than assuming a report-only skill will enforce them.
 
-**Verdict: L2 is cleared to build**, scoped to `claude-config`, blocked only on the
-Option A/B call above. Nothing in #1225, #253, or any other open issue claims this surface.
+**Verdict: L2 is cleared to build its novel scope — cross-layer contradiction — and blocked on the
+Option A/B/C placement call above.** Its home is not settled: `claude-config` owns the surface
+inventory, `claude-memory` owns the only shipped contradiction check, and this document does not
+choose between them. No *issue* claims this surface — not #1225, not #253, nor any other open item —
+but a shipped skill partly does, which is why the placement decision must be made before L2 writes
+detection logic.
 
 ## Boundary ruling for L3 — the evidence-tiered criteria catalog
 
@@ -191,7 +257,7 @@ closed list that will go stale, a citation targeting an internal name. L3's crit
 **instruction content against current model capability**, which is the axis
 `audit-instructions` already declares it owns (`SKILL.md:31-50`), and which `docs-hygiene` explicitly
 routes away from — `audit-instructions` names `docs-hygiene:compress` as the token-brevity owner and
-disclaims that role for itself (`SKILL.md:38`, `:161-162`). Different observable, different plugin,
+disclaims that role for itself (`SKILL.md:37`, `:161-162`). Different observable, different plugin,
 no overlap.
 
 **One unresolved mapping.** D-2 requires `UNBACKED` claims to ship marked and disabled by default
@@ -245,7 +311,7 @@ means the ticket claims part of the lane's deliverable, not merely that it is ad
 | Ticket | Overlaps L2 | Overlaps L3 | Reason |
 |---|---|---|---|
 | **#1225** sub-agent conventions + all-plugin audit | No | No | Population is 7 agent definitions in 2 of 60 plugins; question is existence-qualification + frontmatter conformance. L2's observable is inter-surface contradiction; L3's is instruction content versus model capability. Sole intersection is `agents/*.md` read for orthogonal questions |
-| **#253** docs-hygiene proactive repo-scan | No | No | Its three shapes are intra-document drift against an external or internal source of truth. L2 needs a *pair* of surfaces; L3 judges content against model capability, an axis `docs-hygiene` routes away from (`audit-instructions/SKILL.md:38`) |
+| **#253** docs-hygiene proactive repo-scan | No | No | Its three shapes are intra-document drift against an external or internal source of truth. L2 needs a *pair* of surfaces; L3 judges content against model capability, an axis `docs-hygiene` routes away from (`audit-instructions/SKILL.md:37`) |
 | **#1227** cheat sheet + README split | No | No | Docs IA, auto-derived from skill frontmatter. Reads `description` as data to render; neither judges its content nor compares surfaces |
 | **#304** fresh-eyes checkpoint audit program | No | No | Tags skill *actions* for same-context bias. Its conformance mechanism is check 21, already claimed by PR #1096. Adjacent to L2 only in that both read many skills; the observable (self-judging step) is a single-file property |
 | **#1245** `code-tidying:self-document` | No | **Partial — coordinate** | Moves comment criteria out of the user-global `CLAUDE.md` into `melodic-software/standards`. It removes instruction text that this effort's user-scope half also targets. Not a claim on L3's catalog, but a **writer on the same file**; L3 must not assume that content is present |
@@ -254,18 +320,25 @@ means the ticket claims part of the lane's deliverable, not merely that it is ad
 | **#551** `/loop` does not reset context | No | No | Runtime plane — no mechanism triggers a `/clear` between cycles |
 | **#406** TDD-by-default when consumer CLAUDE.md is silent | No | No | An instance of the over-constraint class with its own seam decision (a `userConfig` boolean). A single-surface default, not a contradiction between two surfaces. Its findings cite `plugins/implementation/skills/implement/SKILL.md:3`, `:67` |
 | **#1219** standing hygiene-sweep routine | No | No — **and it is the consumer** | Found by search, not handed. A *scheduler/composer* of existing hygiene skills with a coverage-state abstraction; it explicitly names #253 as owning its copied-content scanner and states "the routine itself never mutates the repo." It owns no detection surface, so it competes with nothing — it is the natural downstream consumer of whatever L2/L3 ship as checks. **A new router would break it**; checks inside existing plugins are exactly what it composes |
-| **#445** CI-gate backlog | No | No — **fold target if deterministic** | Found by search. The documented shape for an automatable conformance check in this repo: `scripts/check-*.sh` + `.test.sh` + a `ci.yml` lane wired into the `ci-status` needs graph. Any deterministic slice of L2 or L3 folds here rather than becoming a new gate |
+| **#445** CI-gate backlog | No | No — **its lane shape is the fold target if deterministic** | Found by search. It documents the shape for an automatable conformance check in this repo: `scripts/check-*.sh` + `.test.sh` + a `ci.yml` lane wired into the `ci-status` needs graph. Any deterministic slice of L2 or L3 follows that **shape** rather than becoming a new gate. The ticket itself is a close-out backlog of eight enumerated checks from the #313 fleet audit, and does not say whether unrelated new checks belong on it |
 | **#1258** fork subagents do not inherit conversation | No | No | Dependency, not a scope claim. Recorded because the incumbent already dodged it: `audit-instructions` Phase C specifies **fresh-context, non-fork** subagents and states why (`SKILL.md:112-114`). Evidence the incumbent is current, not stale |
-| **#1268** false `context: fork` rationale in the plugin-audit-port record | No | No | Found by search. A single wrong rationale corrected inside `docs/topics/plugin-audit-port/`; same fork-semantics family as #1258 but confined to another topic's design record. Touches no plugin instruction surface and claims no detection mechanism |
+| **#1268** false `context: fork` rationale in the plugin-audit-port record | No | No — **title-filter false positive** | Surfaced by the title sweep only because the literal `audit` appears in the path `docs/topics/plugin-audit-port/`. It is not sweep-shaped at all: it corrects one false rationale at three sites inside another topic's design record and explicitly says "Do not change the decision." Touches no plugin instruction surface, claims no detection mechanism, and has since closed. Recorded so a reader can see it was assessed rather than silently dropped |
 | **#307** backlog-conformance sweep | No | No | Found by search. Sweeps *tracker items* for missing labels/axes — a tracker-API population, not an instruction surface |
 | **#988** fleet conformance: setup skills | No | No | Found by search. Setup-skill presence against the philosophy's setup contract; a per-plugin structural property |
 | **#1224** auto-mode-migration audit | No | No | Found by search. Permission blocks — the permission plane, owned by `claude-config:audit-permission-grants` |
 | **#912** guardrails + source-control hardening audit | No | No | Found by search. Hook bypass gaps and convention-enforcement SSOT; a guardrails/source-control concern |
 | **#1271** skill metadata / listing budget | No | No | Already folded per D-7 — corroborating evidence goes onto the existing ticket, no second ticket |
 
-**Beyond the handed list**, the title sweep over all 256 open issues surfaced eight further
-audit/sweep/scan/conformance-shaped items: #1219, #445, #307, #988, #1224, #912, #1268, #1258. Of
-these only **#1219** and **#445** change anything for L2/L3, and both change it in the same
+**Beyond the handed list**, a title sweep over the open-issue list as it stood when this document was
+written surfaced eight further
+audit/sweep/scan/conformance-shaped items: #1219, #445, #307, #988, #1224, #912, #1268, #1258. The
+open-issue total is a moving target — it changed materially between the drafting, review and
+correction of this document — so that sweep is a point-in-time snapshot, not a reproducible
+enumeration; re-run it rather than trusting the list to still be complete.
+
+Of the eight, **#1268 is a false positive of the title filter** — it matched on the literal `audit`
+inside the path `docs/topics/plugin-audit-port/`, not on sweep shape, and it has since closed. Of the
+remainder only **#1219** and **#445** change anything for L2/L3, and both change it in the same
 direction: they *depend on* findings landing as checks inside existing plugins, which is what D-3
 already mandates.
 
@@ -276,9 +349,12 @@ D-7 set the precedent with #1271. Two more items fold rather than becoming new w
 1. **L3's catalog folds into**
    `plugins/claude-config/skills/audit-instructions/reference/criteria.md` as rows I12+. Not a new
    catalog, not a new skill, not a new plugin.
-2. **Any deterministic slice of L2 or L3 folds into #445**, the CI-gate backlog, in that issue's
-   documented `scripts/check-*.sh` + `.test.sh` + `ci.yml` lane shape — rather than becoming a
-   standalone gate.
+2. **Any deterministic slice of L2 or L3 follows #445's documented lane shape** —
+   `scripts/check-*.sh` + `.test.sh` + a `ci.yml` lane wired into the `ci-status` needs graph —
+   rather than becoming a standalone gate. Note the limit of this ruling: #445 is a close-out backlog
+   carrying eight specifically enumerated checks out of the #313 fleet audit, so what it documents is
+   the **shape** to copy. Whether a new check belongs *on that ticket* or on a new ticket following
+   the same shape is not something #445 settles, and this document does not settle it either.
 
 A third item is a **recommendation to the owner of #1225, not a ruling by this effort**: #1225's
 Part 1 existence qualifier has a partial incumbent. `claude-config:audit-automation-gaps` already
@@ -310,9 +386,14 @@ constraint to respect, not a blocker either lane waits on.
 
 Recorded, not invented. Neither lane should resolve these on its own.
 
-1. **L2's structural home inside `claude-config`** — a new phase in `audit-instructions` (Option A)
-   versus a new sibling skill (Option B). Both satisfy D-3. Option A changes a shipped skill's
-   published contract.
+1. **L2's structural home** — a new phase in `audit-instructions` (Option A) versus a new sibling
+   skill in `claude-config` (Option B) versus extending `claude-memory:audit`'s existing **C6
+   Consistency** check (Option C). All three satisfy D-3. The datum that makes this three-way rather
+   than two-way: the only **shipped** contradiction check in this repository lives in `claude-memory`,
+   not `claude-config` — `claude-config` owns the surface *inventory*, `claude-memory` owns the
+   *check*. Each option widens some shipped skill's advertised scope: A and B widen `claude-config`'s,
+   C widens `claude-memory`'s beyond the memory files its own scope table declares.
+   **No recommendation** — see the ruling above.
 2. **L3's `UNBACKED` mapping** — a fourth authority value versus mapping onto the existing `OPINION`
    tag with a severity ceiling (recommended). The existing tag's intended semantics are documented
    only as a one-line gloss.
@@ -322,10 +403,14 @@ Recorded, not invented. Neither lane should resolve these on its own.
 ## Method
 
 Issue #1225 and every ticket in the matrix were read first-hand via `gh issue view`; PR #1096 via
-`gh pr diff`. The sweep-shape search enumerated all 256 open issues and filtered titles for
-audit/sweep/scan/all-plugin/conformance/catalog/criteria/conflict shapes. Population counts were
+`gh pr diff`. The sweep-shape search enumerated the open-issue list as it stood at the time and
+filtered titles for audit/sweep/scan/all-plugin/conformance/catalog/criteria/conflict shapes; that
+total moves week to week, so it is deliberately not stated as a figure. Population counts were
 produced by enumerating `plugins/*`, `plugins/*/skills/*/SKILL.md`, `plugins/*/agents/*.md`, and
-`.claude-plugin/marketplace.json`. Repository doctrine was read from `docs/PLUGIN-PHILOSOPHY.md`,
+`.claude-plugin/marketplace.json`. The incumbent search covered skill bodies, frontmatter
+`description` lines **and** the `reference/` catalogs inside skill directories — the last of those
+being where the C6 incumbent was eventually found, after three searches restricted to the first two
+returned a false negative. Repository doctrine was read from `docs/PLUGIN-PHILOSOPHY.md`,
 `docs/conventions/topic-docs/README.md`, and the four plugin manifests named above.
 
 No claim about Claude Code harness behavior is asserted in this document; per D-16 the fresh-docs
