@@ -214,11 +214,22 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
 - **Quote handling:** the alternation accepts a bare, double-quoted, or single-quoted value
   and requires the quotes to PAIR — `"<old>"` and `'<old>'`, never `"<old>'`. A naive
   `["']?<old>["']?` would match the mismatched form, which is not valid YAML.
-- **False-positives:** effectively none. A heading consisting solely of a bare English verb
-  is not a shape real documents use.
+- **False-positives — real, and the reason for the scope rule below.** "A heading that IS the
+  token can only be naming it" holds when the token is coined or hyphenated. It FAILS when the
+  container has an ordinary-word name: renaming a `testing` plugin matches this repository's own
+  `README.md:86` (`### Testing`, a marketplace category heading), and renaming an `architecture`
+  plugin matches `plugins/miro/README.md:39` (`## Architecture`, an unrelated design section).
+  Both were verified against the tree. Under precedence, a false Certain here is worse than a
+  Form 2 hit, because it DISCARDS the safer classification.
+- **Scope rule (required):** rate a title match Certain only when the file is plausibly
+  container-owned — the container's own README/SKILL/manifest, or a path under its directory.
+  A heading match in a file the container does not own is **Ambiguous**, whatever the token
+  looks like. When the token is a common English word, demote every title match to Ambiguous
+  regardless of path.
 - **Note:** a plugin/skill README H1 is the landing surface every consumer sees first, and
   it is the single most-missed reference in practice — the rename moves the directory, so
-  the path-form patterns all pass, and nothing looks at line 1.
+  the path-form patterns all pass, and nothing looks at line 1. That is why the form exists;
+  the scope rule is what keeps it from over-reaching to every document in the tree.
 
 ## Form 15: Possessive and appositive container reference
 
@@ -266,10 +277,38 @@ become bare-token matches. Report the deduplication in the audit output — "N F
 superseded by container-position matches" — so a reader can see the suppression happened
 rather than inferring it from a smaller number.
 
-**This precedence is what makes the remedy real.** On the measured fixture the sweep still
-RUNS Form 2 and still collects its 134 lines; precedence is what turns those into 8
-Certain container-position findings plus 126 ordinary verb uses that were never candidates,
-instead of 134 confirmation prompts.
+**Precedence alone is NOT sufficient — it only resolves lines the container forms also
+matched.** On the measured fixture that is 8 lines out of Form 2's 134. The other 126 are
+ordinary verb uses that no container form touches, so they fall through to Form 2 and, when
+the token is absent from the static blocklist, take its **Certain** default. Deduplicating
+overlaps does nothing for them.
+
+## Phase 0b — container-rename mode
+
+Declare the sweep's MODE at Phase 0, from what is being renamed:
+
+- **Identifier rename** (a skill, a mode, a dotted ID) — every form applies as before. Nothing
+  below changes.
+- **Container rename** (a plugin, a marketplace entry, a package) — the thing being renamed is
+  a proper name, so a bare-token occurrence is EVIDENCE OF NOTHING: it is as likely to be the
+  word used ordinarily as the container referenced. In this mode:
+  1. Forms 13–15 (plus Forms 1 and 3, which are already position-anchored) produce the
+     **Certain** bucket.
+  2. Form 2's residue — every bare-token line NOT matched by a position-anchored form — is
+     **excluded from Certain entirely**, regardless of blocklist membership. Report it as a
+     single aggregate count ("126 bare-token occurrences not in container position, not
+     proposed"), never as per-match prompts.
+  3. Surface the residue only if the user explicitly asks to widen (`--include-bare-token`),
+     and then as Ambiguous, never Certain.
+
+Container renames are exactly the case where bare-token position carries no signal, so
+spending the user's attention on it is a cost with no corresponding catch. The static
+blocklist is irrelevant here — mode is a property of what is being renamed, not of whether
+someone remembered to list the token.
+
+**With mode + precedence together**, the measured fixture resolves as: 8 Certain
+container-position findings, 126 bare-token occurrences reported as an aggregate and not
+proposed, and 0 confirmation prompts — against Form 2's unaided 134.
 
 ## Phase 6 — pattern library evolution
 
