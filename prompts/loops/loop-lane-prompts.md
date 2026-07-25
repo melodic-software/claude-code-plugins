@@ -92,7 +92,7 @@ into one profile.
   gh issue list --label "$ROLE" --limit 500 --json number,body,labels \
     | jq --argjson valid "$VALID" '
         [.[] | select(
-          (.body | test("(^|\\n)Work-class: C[1-5]( |$)"))
+          (.body | test("(^|\\n)Work-class: C[1-5]( |\\n|$)"))
           or (any(.labels[].name; . as $n | $valid | index($n)))
         )] | length'
   ```
@@ -101,12 +101,16 @@ into one profile.
   `--argjson`** — pipe to `jq` instead of using `--jq`. And jq's regex engine
   does **not** honor `(?m)`, so the trailer is anchored with `(^|\n)`.
 
-  The trailing `( |$)` is a **token boundary, not merely a non-digit**: it
+  The trailing `( |\n|$)` is a **token boundary, not merely a non-digit**: it
   rejects `C12` after matching `C1`, and equally rejects `C2foo` and `C3?`,
   which a `[^0-9]` guard would have counted as canonical. Every widening of
   this pattern inflates the readiness count the rung decision trusts, so keep
   it strict — the canonical trailer always continues with a space or ends the
-  line.
+  line. The `\n` alternative is what makes "ends the line" true: because the
+  engine is not multiline, `$` means end of the whole body, so a bare
+  `Work-class: C2` followed by any further body section matches only via the
+  newline — omit it and a body-stamp repo under-reports to the point of
+  reporting zero.
 
   **Always pass `--limit`** — `gh issue list` silently truncates at 30, so an
   unbounded count under-reports any backlog past that.
@@ -120,22 +124,29 @@ into one profile.
   hole, not a cosmetic omission — it lets a behavioral change be stamped C2
   and merged unattended.
 
-  **Define it fail-closed: every plugin-tree `.md` is runtime until proven
-  inert.** A forward derivation — grep the skill bodies for what they load,
-  then treat the results as the boundary — is tempting and is wrong twice
-  over. It misses every load directive that is not a markdown link (bare
+  **Define it fail-closed: every tracked `.md` in the repository is runtime
+  until proven inert.** A forward derivation — grep the skill bodies for what
+  they load, then treat the results as the boundary — is tempting and is wrong
+  twice over. It misses every load directive that is not a markdown link (bare
   `Read references/shared/*.md` lines, glob directives, paths built at run
   time), and any pattern that strips the originating file yields ambiguous
   bare names: `context/audit.md` alone names three different runtime files
   in this repo. A boundary that silently under-reports is worse than no
   boundary, because it reads as coverage.
 
-  So invert it. **The whole plugin tree is the boundary**; subtraction is
-  per path and needs proof:
+  So invert it. **The whole tracked `.md` set is the boundary**; subtraction
+  is per path and needs proof:
 
   ```bash
-  find plugins -name '*.md'
+  git ls-files '*.md'
   ```
+
+  **A plugin tree is not the outer edge.** Some of the most behavioral
+  Markdown sits outside it: `.claude/source-control.md` supplies the merge
+  rung this very profile reads, and a root `CLAUDE.md` (or `AGENTS.md`)
+  supplies operating rules every agent loads. Start the boundary at
+  `plugins/` and an issue changing either one is ordinary documentation —
+  stamped C2 and merged unattended while it changes lane or agent behavior.
 
   **No filename is inert by convention — `README.md` least of all.** In this
   repo `tools/work-item-tracker/adapters/github/README.md` is the GitHub
