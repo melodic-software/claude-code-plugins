@@ -47,7 +47,7 @@ class has two output shapes:
 
 1. **Judgment axis.** Whether a doc still truthfully describes its subject is semantic
    judgment no rule engine resolves — agent-judgment (`AGT`), which is what makes the class
-   a routine at all (deterministic work stays plain cron; a bare last-touched-date reminder
+   a routine at all (deterministic work needs no agent session; a bare last-touched-date reminder
    is the deterministic neighbor, not this class).
 2. **Advisory portion.** The report plus work items are governed-queue and tracker writes
    with no repository mutation: the `AGT` + report rule and the `AGT` + work-item rule both

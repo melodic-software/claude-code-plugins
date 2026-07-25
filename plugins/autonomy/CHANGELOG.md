@@ -6,7 +6,7 @@ All notable changes to the `autonomy` plugin are documented here. Format follows
 Versions 0.1.0–0.7.0 predate this file (introduced with 0.7.1); their history lives in the
 merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
 
-## [0.10.0]
+## [0.11.0]
 
 ### Added
 
@@ -21,7 +21,12 @@ merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
   deterministically (a shell hook cannot re-run the `/goal` evaluator model): either the exact
   sentinel token (default `LANE-STOP-OK`, matched only when alone on its own line) in the agent's final message, or
   the existence of a configured marker file — the settings-scoped, cross-session sibling of `/goal`'s
-  session-only condition (#481). **Default OFF**: a Stop-blocking hook must never engage for an
+  session-only condition (#481). The marker is consumed (deleted) when it authorizes a stop — one
+  marker, one stop — so a file left in the checkout by a prior completed run never authorizes the
+  stops of a later lane run. The shipped standing-lane launch flow wires the opt-in per lane: the
+  `claude-ops` lane launcher's new per-lane `settings` passthrough (its changelog) carries the
+  documented `--settings` override, so lanes get the gate from tracked lane config rather than
+  persistent global configuration. **Default OFF**: a Stop-blocking hook must never engage for an
   interactive session, so it is inert unless a lane opts in via `lane_stop_gate_enabled=true`. It is
   **fail-open** on unreadable stdin, missing `jq`, or a non-`Stop` event (a `SubagentStop` never trips
   it), and bounded against runaway: the `stop_hook_active` guard makes the gate block a stop at most
@@ -52,6 +57,50 @@ merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
   silent. The `data` payload is a closed fixed vocabulary (published at
   `docs/conventions/hook-telemetry/data/lane-stop-gate.schema.json`) and never carries the sentinel
   token value, marker path, cwd, or branch.
+
+## [0.10.0]
+
+Tier ratified as **minor**, which under this plugin's `0.x` scheme is the breaking/vocabulary slot —
+not the lesser of the two readings. The determinism rule below is contract vocabulary an adopting
+org classifies novel routine classes against, and both its wording and its named rule token change,
+so it takes that slot. The narrower reading — a **patch** (`0.9.1`), on the grounds that the
+classification's substance is unchanged and every derived guardrail row is byte-identical — was
+considered and not taken.
+
+### Changed
+
+- **`routines.md`: the determinism rule now fixes a property, not a mechanism.** "Deterministic
+  checks are never routines … run as plain cron" prescribed a substrate in a contract whose own
+  §Hosting stance holds that hosting is a deployment-owned binding. The invariant is **no agent
+  session, zero agent tokens**; the substrate carrying it binds per deployment like every other
+  hosting choice. The categorical "never" also concealed the hybrid `DET`-detect / `AGT`-judgment
+  split defined two paragraphs below — a split the catalog uses on nearly as many rows as it flags
+  `not-a-routine` — so the rule now states that determinism is a per-PORTION verdict and rarely a
+  reason to stop classifying. The mapping rules, the catalog status legend, every `routines/` leaf
+  that echoed the mechanism, and the setup skill's reconciliation rule and its evals move with it.
+  **Bump ambiguity:** the substance of the classification is unchanged and every derived guardrail
+  row is identical, which reads as a clarification and a **minor**; but the rule is contract
+  vocabulary an adopting org classifies novel routine classes against, and both its wording and its
+  named rule token change, which reads as a vocabulary change and a **major**.
+- **The one-entrypoint invariant has one canonical statement.** It was restated six ways across
+  five documents, and the restatements had already drifted apart — each named a different subset of
+  the paths it forbids a second of. `trigger-dispatch.md` §Dispatch now states it canonically, and
+  the adapter obligation, the constraints list, `routines.md` §Hosting stance, `guardrails.md`
+  §Escalation, `runner.md`, and `runner/seams.md` cite it. The **escalation** channel stays a
+  separate, narrower invariant owned by `guardrails.md`, and the runner's single hand-back path
+  stays a separate runner-new one — collapsing either into the dispatch invariant would have been a
+  regression wearing deduplication's clothes.
+
+### Added
+
+- **The one-entrypoint invariant's scope boundary is written.** The invariant had no stated scope,
+  so whether a surface that touches a repository without claiming a queued item fell under it was
+  unanswerable from the contract. It now governs the governed-queue path — claiming a queued item,
+  or dispatching autonomous execution against one — and the boundary keys on what a surface DOES,
+  never on what it is called. The `source-control` babysit lane is outside it today because it
+  claims no work items, which its own skill body states; the boundary becomes load-bearing the
+  moment a second claiming surface exists, which is why it lands before the runner is built rather
+  than after two surfaces disagree.
 
 ## [0.9.0]
 

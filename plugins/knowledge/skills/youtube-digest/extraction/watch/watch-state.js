@@ -41,6 +41,9 @@ import { YOUTUBE_WATCH_EPIC_DIR } from "../transcript/derive-video-slug.js";
  * @property {string} title
  * @property {'pending'|'acquiring'|'watching'|'vision'|'researching'|'synthesizing'|'complete'} status
  * @property {WatchPhases} phases
+ * @property {string} [target] - the `--target <repo>` value resolved at watch start (SKILL.md
+ *   "Synthesis target resolution"), a portable repo name/slug never an absolute local-checkout
+ *   path. Persisted so an interrupted watch's `resume` recovers it instead of re-asking.
  * @property {boolean} [skipResearch] - user passed --skip-research; research phase is recorded as skipped
  * @property {object} [frameSelection]
  * @property {number} [frameSelection.selectedCount]
@@ -68,14 +71,18 @@ export const CONTINUATION_PROMPT_FILENAME = "continuation-prompt.md";
  * @param {string} meta.videoSlug
  * @param {string} meta.sourceUrl
  * @param {string} meta.title
+ * @param {string} [meta.target] - explicit `--target <repo>` value, when the caller resolved
+ *   one at watch start; omitted leaves `state.target` unset for the CLAUDE_PROJECT_DIR/ask rungs
+ *   to resolve later (out of scope here — see "Synthesis target resolution" in SKILL.md).
  * @returns {WatchState}
  */
-export function createWatchState({ videoId, videoSlug, sourceUrl, title }) {
+export function createWatchState({ videoId, videoSlug, sourceUrl, title, target }) {
   return {
     videoId,
     videoSlug,
     sourceUrl,
     title,
+    ...(target ? { target } : {}),
     status: "pending",
     phases: {
       acquire: null,
@@ -160,6 +167,10 @@ ${completed.length > 0 ? completed.map((p) => `- ${p}`).join("\n") : "- (none ye
 ## Next phase
 
 **${next ?? "complete"}** — resume from \`.work/${YOUTUBE_WATCH_EPIC_DIR}/${state.videoSlug}/\` artifacts.
+
+## Synthesis target
+
+${state.target ? `Resolved: \`${state.target}\` — re-run SKILL.md "Synthesis target resolution" against this recorded name; do not re-ask.` : 'Not yet resolved — follow SKILL.md "Synthesis target resolution" when reaching synthesis.'}
 
 ## Frame selection
 
