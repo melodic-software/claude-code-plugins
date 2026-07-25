@@ -29,7 +29,7 @@
   as a dead end: a content-length rejection or a silent truncation is a fetcher limit, not a source
   limit. Recipe — download out of context, confirm the file is the artifact and not a 200
   login/consent/bot-challenge page, extract with whatever extractor the machine has, grep. An
-  unconfirmed download routes back to the browser/scraper escalation rungs and does not count as the
+  unconfirmed download routes back through the full escalate-on-block order and does not count as the
   recipe having run, so it can never manufacture a premature "unreachable". "Unreachable" is reserved
   for extraction that failed after escalation also failed: an artifact that WAS confirmed, extracted,
   and searched is a REACHED source that belongs in the checked set even when the claim is not in it.
