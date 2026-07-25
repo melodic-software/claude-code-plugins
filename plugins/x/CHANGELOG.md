@@ -81,11 +81,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   modes or moves the request into a curl config file, where `curl.exe -q -K <file>` hides the
   destination, the `data` reference, any `output` directive, and redirect behavior inside a file no
   operator approves. A declared platform boundary is the honest cost; an unreadable approval is not.
-- Long-article file redirects are bounded to a `<plugin-data-dir>/x-article-<id>-<nonce>.md` template
-  built from the gate-captured id plus a per-invocation nonce — never an agent-chosen path, never one
-  derived from fetched content — and the file is deleted once its slice has been read. The nonce
-  prevents two sessions reading the same article from sharing a path, where the second `curl` would
-  truncate the file between the first request completing and that session's `Read`.
+- Every step-1 response spools to a `<plugin-data-dir>/x-<id>-<nonce>.md` template built from the
+  gate-captured id plus a per-invocation nonce — never an agent-chosen path, never one derived from
+  fetched content — and the file is deleted on every exit path, not only after a successful read. The
+  redirect is unconditional because it cannot be otherwise: an X Article is routinely shared as an
+  ordinary `/status/` link, so the URL gives no advance signal of response size and "redirect when it
+  is long" is unevaluable when the command is composed. Streaming to stdout instead would put the
+  whole body in the tool result before any bound applied. A metadata probe first was rejected — it
+  doubles the disclosed egress and its own response has the same unknown size. The nonce prevents two
+  sessions reading the same post from sharing a path, where the second `curl` would truncate the file
+  between the first request completing and that session's `Read`.
 - Gate patterns are presented in fenced code blocks rather than a Markdown table. In table cells the
   alternation had to be written `\|` to survive the renderer, and a model reading the raw source
   could take that as a literal backslash-pipe and refuse every `twitter.com` URL.

@@ -11,7 +11,9 @@
         "Uses POST with a JSON body; never attempts a GET against /api/markdown",
         "Stops at step 1 — no threadreaderapp.com fetch on a result that is not a chain fragment",
         "Attributes with the gate's rebuilt URL, never the URL the converter echoed back",
-        "Treats the raw Markdown body as success rather than looking for a markdown field that the text/markdown form does not carry"
+        "Treats the raw Markdown body as success rather than looking for a markdown field that the text/markdown form does not carry",
+        "Spools the response to the plugin-data file with -o rather than streaming an article-sized body to stdout, then deletes it",
+        "Does not condition the redirect on recognizing the /status/ URL as an article in advance"
       ]
     },
     {

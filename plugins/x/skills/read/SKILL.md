@@ -105,7 +105,9 @@ curl -q -sS --proto '=https' --max-time 30 --max-filesize 5000000 \
   -X POST https://xtomd.com/api/markdown \
   -H "Content-Type: application/json" \
   -H "Accept: text/markdown" \
-  -d '{"url":"<REBUILT-URL>"}'
+  -d '{"url":"<REBUILT-URL>"}' \
+  -o "<plugin-data-dir>/x-<id>-<nonce>.md" \
+  -w '%{http_code}'
 ```
 
 **`-q` must stay first.** curl reads a default `.curlrc` "even when `--config` is used", skipping it
@@ -127,13 +129,18 @@ Drop the `Accept` header for JSON — `{markdown, url, author}`. For raw fields 
 expands, so carry the resolved path (forward slashes) and substitute it wherever
 [`context/failure-modes.md`](context/failure-modes.md) says `<plugin-data-dir>`.
 
-For a long article, redirect to a quoted `"<plugin-data-dir>/x-article-<id>-<nonce>.md"`, `Read` the
-slice, then delete it — **on every exit path**, including the status branches that stop before
-reading. Nonce, quoting, and unconditional delete are all required; see
-[`context/failure-modes.md`](context/failure-modes.md). Never derive the path from the response body.
+**Every response spools to that file — `-o` is not conditional.** An X Article is routinely shared as
+an ordinary `/status/` link, so the URL never says whether the reply is one sentence or five
+megabytes, and the output mode cannot be chosen from the input. Without `-o` the whole body lands in
+the tool result before anything can bound it. So: always redirect, `Read` the file — a bounded slice
+when it is large — then delete it, **on every exit path**, including the status branches that stop
+before reading. Nonce, quoting, and unconditional delete are all required, and the filename is fixed
+by that template: never derive any part of it from the response body. See
+[`context/failure-modes.md`](context/failure-modes.md).
 
-**Capture the status — `-sS` alone prints none.** Append `-w '\n%{http_code}'`. A `200` is not itself
-success: confirm the response carries converted content, validating against the form you asked for —
+**`-w '%{http_code}'` is what reaches stdout.** `-sS` alone prints no status, and with `-o` holding
+the body the code is the only thing printed — observed rather than inferred. A `200` is not itself
+success: confirm the file carries converted content, validating against the form you asked for —
 under `Accept: text/markdown` success is raw Markdown with no JSON envelope, so a missing `markdown`
 field proves nothing. Both shapes: [`context/failure-modes.md`](context/failure-modes.md).
 

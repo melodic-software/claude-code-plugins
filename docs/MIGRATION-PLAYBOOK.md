@@ -938,13 +938,17 @@ operated by others — so surfaces 5 and 6 carry the weight here.
   be a new trust surface and re-triggers this review at that version.
 - **Consumer config (3).** No `userConfig`. No credential exists to store — both providers are
   unauthenticated.
-- **Cache isolation (4). One bounded write.** A first draft claimed "no file reads or writes at
-  all"; that was **wrong** — the skill instructs redirecting a long article to a file and reading
-  the slice needed, which is a write plus a read carrying third-party content. Retracted and
-  corrected: the redirect target is now constrained to `${CLAUDE_PLUGIN_DATA}`, explicitly never an
-  agent-chosen absolute path and never a path derived from fetched content. No
-  `${CLAUDE_PLUGIN_ROOT}` references beyond the skill body, no consumer-repository reads, no `../`
-  reach-outs.
+- **Cache isolation (4). One bounded write per invocation.** A first draft claimed "no file reads or
+  writes at all"; that was **wrong** — the skill instructs redirecting the response to a file and
+  reading the slice needed, which is a write plus a read carrying third-party content. Retracted and
+  corrected: the redirect target is constrained to `${CLAUDE_PLUGIN_DATA}`, explicitly never an
+  agent-chosen absolute path and never a path derived from fetched content. Review then found the
+  redirect had been written as conditional on the response being a long article — unevaluable, since
+  an X Article is routinely shared as an ordinary `/status/` link, which would have left the concrete
+  documented command streaming an unbounded body to stdout. The redirect is now unconditional, so
+  the write happens on every invocation rather than on an unknowable subset, and the file is deleted
+  on every exit path. No `${CLAUDE_PLUGIN_ROOT}` references beyond the skill body, no
+  consumer-repository reads, no `../` reach-outs.
 - **Data egress (5). Present and accepted — conditional on the criterion-1 gate.** Per invocation
   the machine emits one datum: the gate's *rebuilt* URL `https://x.com/<handle>/status/<id>`, to
   `xtomd.com` (step 1) and, only on a chain fragment, `threadreaderapp.com` (step 2). No
