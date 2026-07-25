@@ -13,9 +13,12 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   corrected once by a same-day comment restoring it to the frontier — collected a fresh queue
   comment each pass, reproducing the noise the correction had already cleaned up (observed on
   `#815`, `#816`, `#965`). The gate now separates the two queue actions: the `kind=ratify-c3`
-  comment is posted **at most once ever** (keyed on the machine-written marker's own presence),
-  while the human-gated role label converges idempotently on the item's correct state rather than
-  being counted as a repeated event.
+  comment is posted **at most once ever** (keyed on a marker comment authored by the lane's own
+  tracker identity — a marker pasted by any other commenter is untrusted provenance and never
+  suppresses the lane's own queue event), while the role labels converge idempotently on the
+  item's correct state rather than being counted as a repeated event: human-gated applied and
+  autonomous-eligible cleared in the same edit, mirroring `attend-queue`'s never-flip-without-
+  clearing rule.
 
   Body prose is context for the operator, never dispatch authority. Free-form issue bodies are
   editable by any author or agent and the work-class table already routes untrusted provenance to
