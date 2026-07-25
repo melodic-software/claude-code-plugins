@@ -69,9 +69,11 @@ ratifications unblock the waiting worker loop).
 context from the previous row never carries over. Before any operator-facing decision question in
 this loop — an `[intake]` recommendation, an `[escalated]` question, or a `[ratify]` prompt —
 restate (1) which item (number + one-line title), (2) the decision being asked, and (3) the
-consequence of each option, then ask. A terse output style must never compress this restatement
-away; the row's context is precisely what the operator needs to answer without stopping the pass to
-ask which item is in front of them.
+consequence of each option **you present**, then ask. An open-ended question presents no option set
+to enumerate consequences for — state instead what the answer will determine, and never narrow a
+genuinely open question into a closed list just to satisfy the restatement. A terse output style
+must never compress this restatement away; the row's context is precisely what the operator needs to
+answer without stopping the pass to ask which item is in front of them.
 
 - **`[intake]` rows** — run `/work-items:triage <number>`. The operator is present, so triage's
   **interactive** direction gate applies: brief before asking, recommend, wait for direction, then

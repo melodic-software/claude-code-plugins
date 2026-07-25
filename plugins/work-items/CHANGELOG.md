@@ -11,9 +11,11 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   direction gate (both the initial recommendation and each step-4 interview question) and
   `attend-queue`'s row-working loop (`[intake]`, `[escalated]`, `[ratify]` rows) now require
   restating, before any operator-facing decision question, (1) which item, (2) the decision being
-  asked, and (3) the consequence of each option. Previously an operator could be asked to decide
-  with only option labels and no restated item context, forcing them to halt the pass and ask
-  "what issue are you looking at."
+  asked, and (3) the consequence of each option **presented** — an open-ended question, which has no
+  option set to enumerate, states what the answer will determine instead of being narrowed into a
+  closed list to satisfy the restatement. Previously an operator could be asked to decide with only
+  option labels and no restated item context, forcing them to halt the pass and ask "what issue are
+  you looking at."
 
 ## [0.24.6]
 

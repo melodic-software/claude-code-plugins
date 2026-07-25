@@ -116,7 +116,7 @@ Report the result: confirmed (with the observed behavior / code path — the ite
 
 ### 4. Interview (if needed)
 
-Only after verification (or for enhancements, where the open question is scope, not fact): when the description is vague or missing acceptance criteria, ask focused questions one at a time — resolve the most load-bearing ambiguity first. Each question is a decision question and carries the same brief-before-ask restatement as the direction gate above: which item it concerns, the decision being asked, and the consequence of each answer. Post questions as item comments. Mark `status:needs-info` until the reporter responds.
+Only after verification (or for enhancements, where the open question is scope, not fact): when the description is vague or missing acceptance criteria, ask focused questions one at a time — resolve the most load-bearing ambiguity first. Each question is a decision question and carries the same brief-before-ask restatement as the direction gate above: which item it concerns, the decision being asked, and the consequence of each option **you present**. An open-ended question presents no option set to enumerate consequences for — state instead what the answer will determine, and never narrow a genuinely open question into a closed list just to satisfy the restatement. Post questions as item comments. Mark `status:needs-info` until the reporter responds.
 
 ### 5. Apply outcome
 
