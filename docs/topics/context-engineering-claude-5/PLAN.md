@@ -792,6 +792,16 @@ review; repo-agnostic, `userConfig`-configurable, plugin-form-safe, no PII, expl
 assignment per `docs/CATALOG-TAXONOMY.md` — `claude-code`, since the subject *is* Claude Code and the
 taxonomy's assignment principle gives subject priority over activity.
 
+**The acceptance gate is not the whole security review, and assuming it was is a gap this plan
+carried.** That gate checks distribution hygiene — properties of the artifact as a shipped plugin.
+The sweep's exposure is *runtime behavior against hostile input*: it reads arbitrary instruction
+text, which is text designed to steer a model, and then mutates files. No item on the acceptance
+list surfaces that. [design/checks-and-sweep.md](design/checks-and-sweep.md), "Threat model — prompt
+injection against the sweep", is an input to this phase: three threats grounded in the Claude Code
+security page and OWASP LLM01:2025, with mitigations mapped to mechanisms in the design. Its two
+deferred items — an adversarial injection fixture corpus (Phase 8) and verification of the
+exclusion-set derivation (Phase 10) — are owed before this gate closes.
+
 **Graduate the traceability anchors before the prune.** `docs/conventions/topic-docs/` places
 `docs/topics/<slug>/` in the contract tier: committed on the task branch only, pruned before merge. But
 acceptance criterion 2 requires traceability back to `design/article-sections.md`, and the catalog's
@@ -852,6 +862,7 @@ No runtime code — the deliverables are skills, a catalog, and their evals. Ver
 | An apply mutates a registered byte-identical cluster copy or a vendored upstream file, breaking a sync path and reddening CI | Medium | High | Phase 6 derives the exclusion set from `cross-plugin-source-registry.txt` + a `vendor/` rule + `git worktree list`; Phase 10 asserts the drift checks still pass after an apply |
 | ~~The catalog is adopted by four plugins without an owner doc, violating the convention registry~~ | — | — | **Retired.** Phase 2 chose no shared artifact, so there is no cross-plugin catalog to adopt and no registry row is owed |
 | Design documents are pruned at merge, dangling the catalog's traceability anchors | High | Medium | Phase 11 graduates them or relocates the anchors into the shipped catalog before the prune commit |
+| Injected instruction text in an audited surface steers a lane — suppressing a finding, or laundering an attacker's edit through an accepted fix | Medium | High | `design/checks-and-sweep.md` "Threat model — prompt injection against the sweep": examined text is denoted as data not instruction; suppression is never reachable by the apply step; least privilege on managed and user scope; no unattended applying run |
 | A detector or the sweep self-grades its own output | Medium | High | Phase 6 requires each to name a fresh-context checkpoint conforming to `PLUGIN-PHILOSOPHY.md` "Delegation mechanics" (PR #1096), whose conformance gate is `skill-quality:check` check 21 |
 | The machinery outweighs the payload: a versioned catalog, a convention-registry owner doc, a seam decision, a re-run contract, and a sweep built to carry one well-grounded detector | High | High | **Fired, and the mitigation worked.** Exactly one detector survived, the operator approved re-deriving the shape, and the catalog, the owner doc, the registry row, and the materialization are gone. What survives is the sweep and the re-run contract, whose justification was never detector count |
 | `OPINION`-tier rules mutate a consumer's instruction corpus under the same banner as documented doctrine | Medium | High | The tier is populated for the first time by this work, so this work defines it: disabled on bare invocation, opt-in, with a severity ceiling — Phase 6 |
