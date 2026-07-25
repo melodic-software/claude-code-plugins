@@ -126,6 +126,24 @@ class MutationPolicyTests(unittest.TestCase):
         policy = delta.head_repository_scope(make_pr(), frozenset({"other"}))
         self.assertFalse(policy["base_repo_allowed"])
 
+    def test_owner_repo_login_comparisons_are_case_insensitive(self) -> None:
+        """GitHub owner/repo/login identity is case-insensitive end to end:
+        a differently-cased base repo, headRepository nameWithOwner, and
+        allowlist entry must all still resolve as matching."""
+        pr = make_pr(repo="Owner/Repo",
+                     headRepository={"nameWithOwner": "OWNER/REPO"},
+                     headRepositoryOwner={"login": "OwNeR"})
+        policy = delta.head_repository_scope(pr, frozenset({"Owner"}))
+        self.assertTrue(policy["base_repo_allowed"])
+        self.assertTrue(policy["branch_write_allowed"])
+
+    def test_cross_repo_head_owner_case_insensitive_allowlist_match(self) -> None:
+        pr = make_pr(isCrossRepository=True,
+                     headRepository={"nameWithOwner": "Fork/repo"},
+                     headRepositoryOwner={"login": "FORK"})
+        policy = delta.head_repository_scope(pr, frozenset({"owner", "fork"}))
+        self.assertTrue(policy["branch_write_allowed"])
+
     def test_incomplete_head_metadata_fails_closed(self) -> None:
         pr = make_pr(headRepository=None, isCrossRepository=None)
         policy = delta.head_repository_scope(pr, frozenset({"owner"}))
