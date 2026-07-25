@@ -405,7 +405,7 @@ outstanding — it appears mergeable now.
 > - **#1096 has still not merged.** `docs/PLUGIN-PHILOSOPHY.md` on `main` carries no
 >   `Delegation mechanics`, `named-agent bar`, or `fresh-eyes` text; `check-skill.sh` has no check 21;
 >   `plugins/skill-quality/skills/check/` still holds only `SKILL.md` and `evals/`. The grounding
->   table's *aspirational, not grounded* marking stands, and Phase 2 item 5's "do not write the skill
+>   table's *aspirational, not grounded* marking stands, and Phase 2 item 7's "do not write the skill
 >   text as though the exemption is claimable" stays binding.
 > - **Both preload targets remain preloadable** — `research/SKILL.md:6` and `explore/SKILL.md:6` are
 >   each `disable-model-invocation: false`. Amendment 2 makes this load-bearing: `true` would block
@@ -520,7 +520,7 @@ the seventh. The chosen field set does not change; the citation does.
 - **`! grep -q '^memory:' plugins/discovery/agents/*.md` exits 0.** Declaring `memory` auto-enables `Edit` regardless of `tools` (docs, verbatim: "Read, Write, and Edit tools are automatically enabled so the subagent can manage its memory files"), which would falsify the agent body's own tool-honesty note. Its absence is load-bearing, so it is asserted, not assumed.
 - **Runtime assertion, not prose: the probe confirms `Edit` is genuinely unavailable to the dispatched agent** — ask it to attempt one edit and assert it cannot.
 - The probe's returned payload carries a matching `preload_token`; a missing or mismatched token fails this phase.
-- Frontmatter parses as YAML: `node -e "const m=require('fs').readFileSync(p,'utf8').split('---')[1]; require('yaml')" ` or equivalent — assert both files open and close a `---` block with no tab characters inside.
+- Frontmatter is a well-formed block: a `node -e` pass over both files asserts each opens with `---`, closes on a later `---`, and carries no tab character between them (YAML rejects tabs as indentation, and a tab here would fail at load time rather than at any check above).
 - Neither declares an ignored field — `grep -E '^(hooks|mcpServers|permissionMode):' plugins/discovery/agents/*.md` returns no match (exit 1).
 - **Runtime probe (end-to-end):** dispatch `discovery:researcher` on a small bounded topic; assert (a) the returned text contains the C2 YAML block, (b) `verification: pending` is present, (c) the named artifact exists on disk, (d) the transcript shows the discipline's phase structure, proving `skills:` preload landed.
 
@@ -580,11 +580,11 @@ Work items in order:
    topic: $ARGUMENTS`) and `:26` ("infer the research topic from the current conversation context").
    A non-fork subagent has no conversation context, so `:26` contradicts the agent body's
    refuse-to-guess rule. Resolve per work item 0's `$ARGUMENTS` finding.
-3. **Routing section** — dispatch-by-default, the documented inline escape hatch and the condition
+5. **Routing section** — dispatch-by-default, the documented inline escape hatch and the condition
    under which it is correct (tight turn-by-turn iteration), and the hoisting rule.
-4. **Phase 0 (corpus enumeration)** — enumerate the corpus and write `research-checklist.md` before
+6. **Phase 0 (corpus enumeration)** — enumerate the corpus and write `research-checklist.md` before
    any query, with a per-item depth criterion fixed at enumeration time. Recipe in `discipline.md`.
-5. **Outcome-gate row** — coverage ledger fully marked, verdict cited from the script's exit status.
+7. **Outcome-gate row** — coverage ledger fully marked, verdict cited from the script's exit status.
    Script-verified today; it earns check 21's `deterministic-gate` exemption class only **once #1096
    lands** — that check does not exist yet, and neither does
    `plugins/skill-quality/skills/check/reference/` (verified: the `check` skill directory holds only
@@ -595,30 +595,30 @@ Work items in order:
    directory and would FAIL. Note also that check 7 runs `<skill>/scripts/*.test.sh` only, so the
    research skill's own gate does not run this test; CI's `run-plugin-tests.sh` is the seam that
    does.
-6. **T8 scoped exception** at the Tier-3 subagent-return sentence: the tier attaches to the artifact
+8. **T8 scoped exception** at the Tier-3 subagent-return sentence: the tier attaches to the artifact
    and its captured primaries, never to the transport. Named case: a dispatched agent that ran the
    full discipline and wrote every primary URL into the artifact. Without this, Decision 1
    contradicts the skill it modifies.
-7. **Gate ownership split** per C2 — rows 4 and 7 to the sibling verifier, row 8 to the parent, the
+9. **Gate ownership split** per C2 — rows 4 and 7 to the sibling verifier, row 8 to the parent, the
    rest to the producer. Marked in the table itself so a dispatched run knows what it may not
    self-grade.
-8. **Index-plus-sidecars** — `RESEARCH.md` is always an index (not past ~2000 words); sidecars carry
+10. **Index-plus-sidecars** — `RESEARCH.md` is always an index (not past ~2000 words); sidecars carry
    the C3 YAML header. Constraint from T1: sidecars stay inside `<memory_dir>/<topic-slug>/` and
    `RESEARCH.md` stays the entry point, or T1 reopens.
-9. **`check-coverage-complete.sh`** — non-zero when any `Done` cell is unmarked. `#!/usr/bin/env bash`.
+11. **`check-coverage-complete.sh`** — non-zero when any `Done` cell is unmarked. `#!/usr/bin/env bash`.
    Must also define behavior on a **malformed or hand-edited ledger** (missing table, no rows,
    mangled columns): fail closed with a distinct exit code, never silently pass.
-10. **Set the exec bit explicitly.** This worktree has `core.filemode=false` (verified), so a new
+12. **Set the exec bit explicitly.** This worktree has `core.filemode=false` (verified), so a new
     `.sh` lands `100644` in the index while every existing plugin script is `100755` (verified
     against `plugins/planning/scripts/`). CI's shebang-executable step feeds
     `scripts/aggregate-hygiene-results.sh`, which fails the hygiene job on any non-`success`
     outcome. Run `git update-index --chmod=+x` on both new files.
-11. **Clear the two existing skill-quality warnings** — `research` PASSes today with `no Gotchas
+13. **Clear the two existing skill-quality warnings** — `research` PASSes today with `no Gotchas
     surface` and `description has no 'Use when:' trigger phrasing`. Add a `## Gotchas` section, and
     rewrite the description into `Use when:` phrasing **preserving every existing quoted trigger
     phrase verbatim** — check 3 compares the description against HEAD and FAILs on a dropped tracked
     phrase.
-12. **evals** — add a dispatch case and a coverage-ledger case.
+14. **evals** — add a dispatch case and a coverage-ledger case.
 
 **Sanity Check:**
 
@@ -644,7 +644,7 @@ Work items in order:
 | `plugins/discovery/skills/explore/evals/evals.json` | MODIFY | dispatch case |
 | `plugins/discovery/skills/explore/reference/ecosystem-discovery.md` | KEEP | dimension reference, unaffected |
 
-0. **Identify consumers (pre-flight, first).** `EXPLORE.md`'s shape migration is as cross-boundary as
+1. **Identify consumers (pre-flight, first).** `EXPLORE.md`'s shape migration is as cross-boundary as
    `RESEARCH.md`'s — mirror Phase 2's item 1 for `EXPLORE.md`: `Grep` + `Glob` for anything parsing
    the filename or the artifact's section structure across `plugins/**`, `scripts/**`,
    `.github/workflows/**`, run against post-#1260 `main`, and record the parse paths found.
@@ -667,7 +667,7 @@ Work items in order:
    assumption — "downstream consumers tolerate an index-plus-sidecar shape without code changes" —
    holds for `EXPLORE.md`, and now on evidence.**
 
-0b. **Mechanical sweep — RUN 2026-07-25, hit list below.** Phase 2 work item 2's method, inherited
+2. **Mechanical sweep — RUN 2026-07-25, hit list below.** Phase 2 work item 2's method, inherited
    here and run first because `explore/SKILL.md` is **not** among #1260's five files, so its line
    numbers are stable across the Phase 0 rebase and the sweep does not have to wait. Script:
    `<session-scratchpad>/sweep-subagent-incompatible.sh`, six pattern classes — filtered tools,
@@ -681,10 +681,10 @@ Work items in order:
    | 23 | main-context | inline `/explore` bullet, "Runs the full 6 dimensions in main context" | EDIT — becomes the escape hatch, with F10's cost reason named alongside tight iteration |
    | 24 | main-context | `/explore-deep` bullet, incl. the stale `CLAUDE_CODE_FORK_SUBAGENT=1` requirement | EDIT — written so Phase 5 removes a bullet rather than rewriting the section twice |
    | 26 | main-context | "the main session synthesizes and writes `EXPLORE.md` (built-in Explore agents cannot write it)" | EDIT — the parenthetical stays true of *built-in* Explore agents; the leading clause is false under dispatch and must be scoped to the fan-out case it describes |
-   | 36 | plan-mode | "switch into plan mode for harness-level read-only protection" | EDIT — work item 3b; Filter-1 tools |
+   | 36 | plan-mode | "switch into plan mode for harness-level read-only protection" | EDIT — work item 6; Filter-1 tools |
    | 40 | `$ARGUMENTS` | "Explore the following: `$ARGUMENTS`" | EDIT — empty under preload (work item 0); scope arrives in the dispatch prompt |
    | 42 | main-context | "infer the exploration scope from the current conversation context" | EDIT — a non-fork subagent has none; contradicts the agent body's refuse-to-guess rule |
-   | 66 | user-turn | "**ask the user before investigating**" deleted files | EDIT — work item 3b |
+   | 66 | user-turn | "**ask the user before investigating**" deleted files | EDIT — work item 6 |
    | **108** | `$ARGUMENTS` | "The `$ARGUMENTS` value shapes the exploration focus:" | **EDIT — NEW SITE, absent from every hand list including this plan's own Phase 3 items.** Same defect as `:40` and reached only by the sweep. Third confirmation that hand enumeration under-reads this file |
    | 122 | user-turn | "Surfacing the USER's unknown-unknowns … is the sibling `/discovery:blindspot` skill" | CORRECT UNDER DISPATCH — describes a *sibling skill's* deliverable, issues no instruction to this run |
    | 134 | user-turn | Output-format item 7, "**Surface these to the USER**" | EDIT — item 3 |
@@ -692,17 +692,17 @@ Work items in order:
 
    Eleven edits, one correct-under-dispatch, one site (`:108`) that no hand pass had found.
 
-1. **Rewrite the routing section (currently lines 18–26).** It names three ways to explore and
+3. **Rewrite the routing section (currently lines 18–26).** It names three ways to explore and
    makes inline the structured default. Post-change: `discovery:explorer` is the default,
    with the built-in Explore subagent and inline retained as named alternatives and the escape-hatch
    condition documented. The `explore-deep` bullet's fate is Phase 5's gate — write this section so
    Phase 5 removes a bullet rather than rewriting the section twice.
-2. **Index-plus-sidecars** for `EXPLORE.md`, C3 header on sidecars, same T1 constraints.
-3. **Open questions** (Output-format item 7 and the outcome-gate bullet at `:146`) — currently
+4. **Index-plus-sidecars** for `EXPLORE.md`, C3 header on sidecars, same T1 constraints.
+5. **Open questions** (Output-format item 7 and the outcome-gate bullet at `:146`) — currently
    "Surface these to the USER". A dispatched agent cannot. Reword to: the agent returns them in the
    C2 payload; the parent surfaces them to the user. The anti-pattern being guarded (silent
    downstream resolution) survives intact.
-3b. **Two further user-interaction sites the first pass missed** — found by the same mechanical sweep
+6. **Two further user-interaction sites the first pass missed** — found by the same mechanical sweep
    Phase 2 work item 2 mandates, which applies here too:
    - `:66` — "**ask the user before investigating**" deleted files. A non-fork subagent cannot ask,
      so under dispatch this becomes either a stall or a silent violation of a rule that exists to
@@ -711,8 +711,8 @@ Work items in order:
    - `:36` — recommends switching into plan mode. `EnterPlanMode` / `ExitPlanMode` are in Filter 1 of
      this Brief's own Constraints block, so the recommendation is unreachable from a dispatched run.
      Scope it to the inline path.
-4. **Hoisting rule**, same wording as Phase 2.
-5. **evals** — dispatch case.
+7. **Hoisting rule**, same wording as Phase 2.
+8. **evals** — dispatch case.
 
 **Sanity Check:**
 
@@ -850,7 +850,7 @@ and sidecar-on-collision behavior**. This phase evaluates that condition and bra
 
 Serialized last on purpose — issue #464 records that same-plugin version bumps plus top-inserted
 CHANGELOG entries serialize concurrent PRs by construction. Touching these first would re-create the
-#1260 collision this plan spent Phase 0 clearing.
+PR #1260 collision this plan spent Phase 0 clearing.
 
 | File | Action | Rationale |
 |---|---|---|
@@ -1036,7 +1036,7 @@ confirmed verbatim against <https://code.claude.com/docs/en/sub-agents>.
 | F1 | **FIXED at source.** `memory:` dropped from both agents (C1 amendment). Doc claim confirmed verbatim. Phase 1 now asserts `! grep -q '^memory:'` **and** adds a runtime assertion that `Edit` is genuinely unavailable — prose replaced by a check. C1's tool-cage rationale rewritten to claim only what the cage buys; the bar's second conjunct is now stated as "argued, not met" wherever it appears |
 | F2 | **FIXED at source.** Doc claim confirmed verbatim: a missing or disabled listed skill "logs a warning to the debug log" and nothing else. C2 gains a mandatory `preload_token` sentinel echoed from the preloaded skill; the parent treats a missing or mismatched token as a hard failure and discards the run. Phase 1 work item 0 additionally closes the `skills:` value form empirically — the only documented form is a **YAML list of bare names**, and C1's quoted scoped string was undocumented and would have failed in exactly this silent way |
 | F3 | **FIXED at source.** C2 gains `status: complete \| truncated`; the agent writes `truncated` before its budget is exhausted, a returnless dispatch is treated as truncated-without-warning, and the parent discards the partial slice rather than resuming it |
-| F4 | **FOLDED into Phase 3** as work item 3b. Both sites confirmed present: `:66` (ask-the-user block, unreachable) and `:36` (plan mode, Filter-1 tools). Two new Sanity Checks |
+| F4 | **FOLDED into Phase 3** as work item 6. Both sites confirmed present: `:66` (ask-the-user block, unreachable) and `:36` (plan mode, Filter-1 tools). Two new Sanity Checks |
 | F5 | **FOLDED into Phase 2** work item 3. All three inline-preference statements confirmed present at `:126`, `:65`, `:18`; the Sanity Check now greps for all three |
 | F6 | **FOLDED into Phase 2** as work item 2 and inherited by Phase 3 — a mechanical sweep replaces hand enumeration, with the hit list recorded in this PLAN before edits begin |
 | F7 | **FIXED at source.** C3's header extended with per-claim `sources[]` carrying `url`, `tier`, and `pool`, which is what makes row 4's independence judgment gradeable from the artifact by a verifier that never saw the run |
@@ -1127,4 +1127,3 @@ main-session-only in every shape.
   phase completes, riding that phase's commit.
 - **Divergence** — if implementation diverges from this plan, route back to `/planning:plan review`
   and append a dated scope-change note rather than pushing through.
-
