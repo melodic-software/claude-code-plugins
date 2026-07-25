@@ -63,14 +63,21 @@ Optional renames after creation:
 
 Two steps — the helper creates and places the worktree; `EnterWorktree(path:)` enters it.
 
-1. **Run the shared helper** (it computes the external path, runs `git worktree add`, and copies `.worktreeinclude` files). Add `--base-ref head` only when the effective Claude `worktree.baseRef` setting is `head` (see [Base branch](#base-branch)); otherwise omit it:
+1. **Run the shared helper** (it computes the external path, runs `git worktree add`, and copies `.worktreeinclude` files). Add `--base-ref head` only when the effective Claude `worktree.baseRef` setting is `head` (see [Base branch](#base-branch)); otherwise omit it.
+
+   `${user_config.worktree_root}` substitution into skill content is **raw text substitution, not shell-escaped** (Claude Code docs, [plugins-reference § User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration)) — a configured value containing a single quote (e.g. `/Users/O'Connor/worktrees`), `$`, or a backtick would break out of any shell literal we write around it. Hand the value to the helper **out-of-band** instead: write it to a temp file via a quoted heredoc (`<<'WT_ROOT_EOF'` — the shell performs no expansion or quote-processing on the body, so every byte is literal) and pass that file with `--root-file`, never inline the substitution in a quoted `--root` argument:
 
    ```bash
+   root_file="$(mktemp)"
+   cat > "$root_file" <<'WT_ROOT_EOF'
+   ${user_config.worktree_root}
+   WT_ROOT_EOF
    bash "${CLAUDE_PLUGIN_ROOT}/scripts/worktree-create.sh" \
-     --name "<validated-name>" --root '${user_config.worktree_root}'
+     --name "<validated-name>" --root-file "$root_file"
+   rm -f "$root_file"
    ```
 
-   The helper prints the created worktree path as its **sole stdout line**; capture it.
+   The helper prints the created worktree path as its **sole stdout line**; capture it. When `worktree_root` is unset, Claude leaves the literal `${user_config.worktree_root}` token — the heredoc writes that token verbatim to the file, and the helper's existing unset guard still fires (exit 3), same as before.
 
 2. **On a non-zero exit, STOP — do not create anything else, and never fall back to `EnterWorktree(name:)`** (that would re-create the in-repo `.claude/worktrees/` path and re-trigger #400). The important refusal is **exit 3 (root unconfigured)**: the `worktree_root` key is unset, so the helper declined and printed guidance on stderr. Surface that guidance to the user verbatim — they need to set `worktree_root` (run the worktree setup skill, or `/plugin` configure) — then stop. Other non-zero exits (2 usage, 4 environment — e.g. the branch already exists) surface the helper's stderr and stop likewise.
 

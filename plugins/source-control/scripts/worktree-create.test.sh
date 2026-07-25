@@ -18,6 +18,22 @@ command -v git >/dev/null 2>&1 || skip_suite "git not available"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
+# TEST_TMPDIR_NATIVE — a drive-letter-anchored form of TEST_TMPDIR on a Windows
+# shell (MSYS/Cygwin), used only where a fixture path also carries a
+# special shell-metacharacter byte (', $, `). MSYS auto-converts a bare
+# POSIX-style argument like /tmp/tmp.XXX into the real Windows path when it
+# invokes a native binary (git.exe) — but that conversion heuristic can miss
+# on an argument containing those bytes, and git.exe then treats a leading
+# `/` as drive-relative (`C:/tmp/...`), silently landing the worktree
+# somewhere other than the printed path. A path that already carries a drive
+# letter needs no such conversion, so it never hits the miss. Off Windows
+# (no cygpath), TEST_TMPDIR is already a real native path.
+if command -v cygpath >/dev/null 2>&1; then
+  TEST_TMPDIR_NATIVE="$(cygpath -m "$TEST_TMPDIR")"
+else
+  TEST_TMPDIR_NATIVE="$TEST_TMPDIR"
+fi
+
 # mkrepo [--origin <url>] [--no-head] — create a fresh git repo fixture with one
 # commit; unless --no-head, origin/HEAD is pointed at the default branch. Echoes
 # the repo path (the sole stdout line; all git noise is discarded so command
@@ -291,5 +307,51 @@ root="$TEST_TMPDIR/wtroot12"
 out=$(bash "$HELPER" --name feat/trail --root "$root/" --repo-dir "$repo" 2>/dev/null)
 assert_eq "trailing-slash root yields a single separator" \
   "$root/acme-widget-feat-trail" "$out"
+
+# --- Case: --root and --root-file together are a usage error (exit 2) ---
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+root_file="$TEST_TMPDIR/rootfile-both"
+printf '%s\n' "$TEST_TMPDIR/wtroot-both" > "$root_file"
+bash "$HELPER" --name feat/both --root "$TEST_TMPDIR/wtroot-both" --root-file "$root_file" --repo-dir "$repo" >/dev/null 2>&1
+assert_exit "--root and --root-file together exit 2" 2 "$?"
+
+# --- Case: --root-file pointing at a missing file is a usage error (exit 2) ---
+bash "$HELPER" --name feat/missingfile --root-file "$TEST_TMPDIR/does-not-exist" --repo-dir "$repo" >/dev/null 2>&1
+assert_exit "--root-file missing file exit 2" 2 "$?"
+
+# --- Case: --root-file carries a special-character root safely (exit 0) ---
+# This is the out-of-band handoff the skill uses: ${user_config.worktree_root}
+# substitution into skill markdown is raw text, not shell-escaped, so a root
+# containing a single quote, `$`, or a backtick would break an inline --root
+# shell literal. --root-file sidesteps that entirely — the value never passes
+# through a shell literal we write; it is read verbatim from the file.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+root="$TEST_TMPDIR_NATIVE/wtroot13-O'Connor \$weird \`root\`"
+root_file="$TEST_TMPDIR/rootfile-special"
+printf '%s\n' "$root" > "$root_file"
+out=$(bash "$HELPER" --name feat/special --root-file "$root_file" --repo-dir "$repo" 2>/dev/null)
+assert_exit "--root-file special-char root creates (exit 0)" 0 "$?"
+assert_eq "--root-file special-char root computes the exact path" \
+  "$root/acme-widget-feat-special" "$out"
+assert_file_exists "--root-file special-char worktree materialized" "$out/README.md"
+
+# --- Case: --root-file with empty content refuses exit 3 (reuses the unset guard) ---
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+root_file="$TEST_TMPDIR/rootfile-empty"
+: > "$root_file"
+err=$(bash "$HELPER" --name feat/empty --root-file "$root_file" --repo-dir "$repo" 2>&1 >/dev/null)
+assert_exit "--root-file empty content refuses exit 3" 3 "$?"
+assert_contains "--root-file empty content names worktree_root key" "$err" "worktree_root"
+
+# --- Case: --root-file holding the literal unexpanded token refuses exit 3 ---
+# The heredoc writes ${user_config.worktree_root} verbatim (no shell expansion
+# on a <<'EOF' body) when the key is unset — same literal-token detection the
+# existing --root path already covers, now reached through the file.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+root_file="$TEST_TMPDIR/rootfile-token"
+# shellcheck disable=SC2016
+printf '%s\n' '${user_config.worktree_root}' > "$root_file"
+bash "$HELPER" --name feat/token --root-file "$root_file" --repo-dir "$repo" >/dev/null 2>&1
+assert_exit "--root-file unexpanded token refuses exit 3" 3 "$?"
 
 [[ $FAILED -eq 0 ]] || exit 1

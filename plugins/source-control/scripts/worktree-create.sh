@@ -39,15 +39,27 @@ usage() {
 $PROG — shared worktree-creation helper.
 
 Usage:
-  $PROG --name <name> --root <dir> [--base-ref fresh|head] [--repo-dir <dir>]
+  $PROG --name <name> (--root <dir> | --root-file <path>) [--base-ref fresh|head] [--repo-dir <dir>]
 
 Options:
   --name <name>       Branch/worktree name (e.g. feat/my-feature). Required.
-  --root <dir>        External worktree root. Required and must be configured;
-                      an empty value or an unexpanded \${user_config.*} token
-                      makes the helper refuse (exit 3) rather than fall back to
-                      the in-repo .claude/worktrees/ default (a known Claude
-                      Code double-load bug).
+  --root <dir>        External worktree root, passed directly as a process
+                      argument (e.g. from a hook or CLI caller — no shell
+                      re-quoting of the value happens on that path). An empty
+                      value or an unexpanded \${user_config.*} token makes the
+                      helper refuse (exit 3) rather than fall back to the
+                      in-repo .claude/worktrees/ default (a known Claude Code
+                      double-load bug). Mutually exclusive with --root-file.
+  --root-file <path>  Read the external worktree root from the first line of
+                      <path> instead of a --root argument. For a caller that
+                      cannot place the value in a shell literal safely — e.g. a
+                      skill rendering \${user_config.worktree_root} into
+                      markdown, which is RAW text substitution, not
+                      shell-escaped — write the value to a temp file via a
+                      quoted heredoc (<<'EOF', fully literal: no expansion, no
+                      quote-processing) and pass that file here. The same
+                      unset/empty/unexpanded-token refuse (exit 3) applies to
+                      the file's content. Mutually exclusive with --root.
   --base-ref <ref>    fresh (default) branches from the remote default branch;
                       head branches from the repo's current HEAD. Omitted
                       defaults to fresh; the caller passes the effective Claude
@@ -64,6 +76,7 @@ EOF
 
 name=""
 root=""
+root_file=""
 base_ref=""
 repo_dir="."
 
@@ -81,6 +94,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --name) need_value "$@"; name="$2"; shift 2 ;;
     --root) need_value "$@"; root="$2"; shift 2 ;;
+    --root-file) need_value "$@"; root_file="$2"; shift 2 ;;
     --base-ref) need_value "$@"; base_ref="$2"; shift 2 ;;
     --repo-dir) need_value "$@"; repo_dir="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
@@ -91,6 +105,28 @@ done
 if [[ -z "$name" ]]; then
   printf '%s: --name is required\n' "$PROG" >&2
   exit 2
+fi
+
+if [[ -n "$root" && -n "$root_file" ]]; then
+  printf '%s: --root and --root-file are mutually exclusive\n' "$PROG" >&2
+  exit 2
+fi
+
+# --root-file: read the root from the file's first line rather than a process
+# argument. This is the out-of-band handoff a skill uses when it cannot place
+# the raw-substituted ${user_config.worktree_root} value in a shell literal
+# safely (see the --root-file usage text above) — the file is expected to hold
+# exactly the substituted value (or, when unset, the literal unexpanded
+# ${user_config...} token), written via a quoted heredoc so no shell expansion
+# or quote-processing touches it before it lands here. `read -r` strips only
+# the trailing newline; every other byte — including a single quote, `$`, or
+# backtick — passes through unchanged.
+if [[ -n "$root_file" ]]; then
+  if [[ ! -f "$root_file" ]]; then
+    printf '%s: --root-file not found: %s\n' "$PROG" "$root_file" >&2
+    exit 2
+  fi
+  IFS= read -r root < "$root_file"
 fi
 
 # Validate the name up front against the EnterWorktree schema: max 64 chars, and

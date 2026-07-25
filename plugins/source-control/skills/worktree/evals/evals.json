@@ -99,6 +99,18 @@
         "Classifies each worktree (active / stale / in-review / merged / prunable / locked) in the presented table",
         "Degrades gracefully when `gh` fails — skips PR info with a note instead of aborting the whole status report"
       ]
+    },
+    {
+      "id": 9,
+      "name": "create-root-handoff-is-shell-safe",
+      "prompt": "/worktree create feat/o-connor-fixture — how does the skill pass the configured worktree_root into the helper?",
+      "expected_output": "The skill never inlines ${user_config.worktree_root} into a quoted --root shell literal (that substitution is raw text, not shell-escaped, so a root containing a single quote, $, or a backtick would break the literal). Instead it writes the substituted value to a temp file via a quoted heredoc (<<'WT_ROOT_EOF', fully literal — no expansion or quote-processing) and passes that file to the helper with --root-file, matching context/create.md and SKILL.md verbatim. When worktree_root is unset, Claude leaves the literal ${user_config.worktree_root} token, the heredoc writes that token to the file unchanged, and the helper's existing unset guard still fires: exit 3, guidance surfaced verbatim, nothing created, no fallback to EnterWorktree(name: ...).",
+      "files": [],
+      "expectations": [
+        "Does NOT render a single-quoted (or otherwise inlined) ${user_config.worktree_root} literal as a --root argument anywhere in the rendered invocation",
+        "Renders the out-of-band handoff: a quoted heredoc (<<'WT_ROOT_EOF' or equivalent fully-literal delimiter) writing the substituted value to a temp file, then --root-file <that file> passed to worktree-create.sh",
+        "Preserves the exit-3 stop-and-surface contract for an unset worktree_root: helper guidance surfaced verbatim, nothing created, no EnterWorktree(name: ...) fallback"
+      ]
     }
   ]
 }
