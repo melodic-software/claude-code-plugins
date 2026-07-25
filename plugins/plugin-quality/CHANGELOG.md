@@ -5,6 +5,17 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2026-07-25
+
+### Changed
+
+- `skills/audit` step 2 no longer justifies its dispatch by what a fork inherits. Three successive
+  rationales for rejecting `context: fork` were each defeated in review, so the requirement is now
+  stated as an invariant the step must satisfy — a context that provably excludes the session's
+  evidence, and a named dispatch target that makes the dispatch site auditable — and the `auditor`
+  agent supplies both. The framing holds either way on #1258, which reports the Agent tool's `fork`
+  subagent type not inheriting the conversation in practice, against its documentation.
+
 ## [0.1.1] - 2026-07-24
 
 ### Fixed

@@ -124,10 +124,12 @@ packet path, the target `<plugin>[:<component>]`, and the applicable component-t
 from the index below. The agent reads the component's installed source, manifest, and config
 resolution, and **verifies every load-bearing harness-behavior claim against CURRENT official
 docs per topic** (the fresh-docs discipline applies inside the audit — hooks behavior against the
-hooks page, skill loading against the skills page, etc.; never training-data recall). Never run
-this step inline in the main thread, and never dispatch it as the Agent tool's `fork` subagent
-type — that fork inherits this session's conversation and carries its degraded evidence forward.
-Fresh eyes are the point.
+hooks page, skill loading against the skills page, etc.; never training-data recall). Dispatch this
+step to the `auditor` agent **by name**. Two properties are required and the named agent is what
+supplies both: its context provably excludes this session's evidence, and the dispatch site names
+the worker so it is auditable. Never run the step inline in the main thread, which satisfies
+neither. Any other mechanism must be justified against those two properties — not against what a
+fork does or does not inherit, which is contested (see the plan's caveat on #1258).
 
 ### Step 3 — Blindspot + candidate findings (subagent output → user)
 

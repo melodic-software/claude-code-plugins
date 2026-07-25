@@ -457,7 +457,7 @@ Create `plugins/context-guard/`:
 |---|---|
 | Extend `rate-limit-guard` with the context tee | Owner decision R2: separate concerns; reuse the pattern, not the plugin |
 | Join `review` / `skill-quality` | Fails the distinct-discovery-intent test (playbook Organization) |
-| `context: fork` for the deep audit | Cannot express the audit's step topology — basis in the `[EXEC-SHAPE]` agent decision below |
+| `context: fork` for the deep audit | Not impossible — rejected on cost. Would require a second skill existing only to be forked, spending shared skill-listing budget for zero user-facing capability. The requirement it must beat is stated as an invariant (fresh context + named dispatch target) in the `[EXEC-SHAPE]` agent decision below, deliberately independent of what any fork inherits |
 | Fixed zone bands as tee-contract constants | Zones are per-consumer judgment knobs; unlike the 90% rate-limit floor there is no writer/reader split-brain risk forcing a constant |
 | `userConfig` for sink/inbox | Per-repo-ish policy → tracked config cascade; `pluginConfigs` is user-settings-only |
 | Verbatim 7-step port | Steps 4–5 overlapped; collapsed to one interactive contract-lock step (owner wants improvement, not a copy) |
@@ -588,14 +588,29 @@ The basis is topological — what the forked unit *is*:
    ([skills](https://code.claude.com/docs/en/skills),
    [sub-agents](https://code.claude.com/docs/en/sub-agents), verified 2026-07-24).
 
-Splitting steps 2–3 into their own `context: fork` sibling skill does not rescue the mechanism
-either: the `auditor` needs a dispatch prompt composed per run (packet path, resolved target, the
-selected component-type lens files), whereas a forked skill's prompt is its static body plus
-`$ARGUMENTS`.
+**Restated as an invariant, after two earlier rationales were defeated in review.** The first
+claimed `context: fork` inherits degraded history — false; a forked skill has no conversation
+access. The second claimed a forked skill is anonymous — false; the `agent` frontmatter field names
+the subagent type. The third claimed a forked sibling could not receive per-run inputs — also false,
+since `$ARGUMENTS` is exactly that channel and
+`plugins/discovery/skills/explore-deep/SKILL.md` ships the pattern.
 
-Recorded caveat, unverified: #1258 reports the Agent tool's `fork` subagent type not inheriting the
-conversation in practice. That report concerns the other mechanism and does not bear on this
-decision; it is carried here so the observation is not lost.
+Each rationale argued from what fork does. The requirement does not depend on that, so it is stated
+positively instead. The deep phase needs two properties:
+
+1. **A context that provably excludes this session's evidence** — the whole point of the gate.
+2. **A named dispatch target** — the Brief's requirement, and what makes the dispatch site
+   auditable: a reader sees which worker runs the deep phase without inferring it from file layout.
+
+`agents/auditor.md` supplies both, and the plugin already ships it. A forked sibling skill could
+satisfy (1) and, via `agent:`, arguably (2) — so it is not rejected as impossible. It is rejected on
+cost: it requires shipping a second skill whose only purpose is to be forked, spending shared
+skill-listing budget (#1271 measures that budget and the silent description drops it causes) for
+zero user-facing capability, and splitting one workflow across two files that must stay in sync.
+
+**Recorded caveat, unverified:** #1258 reports the Agent tool's `fork` subagent type not inheriting
+the conversation in practice, against its documentation. The invariant above is deliberately
+independent of how that resolves; the caveat is carried so the observation is not lost.
 
 ## Open questions
 
