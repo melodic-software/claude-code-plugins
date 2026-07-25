@@ -84,7 +84,7 @@
     {
       "id": 7,
       "name": "triage-briefs-before-presenting-the-recommendation",
-      "prompt": "/work-items:triage 64 — running interactively with a human operator present. #64 is titled \"Export job silently skips rows with a null tenant id\" and is filed as an enhancement request whose description is vague on scope. You have finished verifying and categorizing it; your assessment is that the target state is needs-info (the scope is undecided), with briefed-as-delegable the alternative if the operator would rather you pick a scope yourself.",
+      "prompt": "/work-items:triage 64 — running interactively with a human operator present. #64 is titled \"Export job silently skips rows with a null tenant id\" and is filed as an enhancement request whose description is vague on scope. You have completed step 2's category and target-state assessment and are at the direction gate, before verification; your assessment is that the target state is needs-info (the scope is undecided), with briefed-as-delegable the alternative if the operator would rather you pick a scope yourself.",
       "expected_output": "Restates which item is under discussion (#64 plus its one-line title), the decision being asked (which target state to apply), and the consequence of each presented option — needs-info parks the item pending the reporter, briefed-as-delegable admits it to the delegable lane on an agent-chosen scope — and only then presents the recommendation and waits for the operator's explicit direction. Nothing is mutated before that direction arrives.",
       "files": [],
       "expectations": [
@@ -97,7 +97,7 @@
     {
       "id": 8,
       "name": "triage-briefs-before-each-interview-question",
-      "prompt": "/work-items:triage 64 — running interactively with a human operator present. #64 is titled \"Export job silently skips rows with a null tenant id\". You already briefed and presented your recommendation and the operator has replied: \"go ahead, park it as needs-info and ask the reporter what you need.\" The scope is still undecided, so a follow-up scoping question for the reporter is the next step.",
+      "prompt": "/work-items:triage 64 — running interactively with a human operator present. #64 is an enhancement request titled \"Export job silently skips rows with a null tenant id\", so the open question is scope, not fact. You already briefed and presented your step-2 recommendation and the operator has replied: \"go ahead, park it as needs-info and ask the reporter what you need.\" You are now at step 4 with the scope still undecided, so a follow-up scoping question for the reporter is the next step.",
       "expected_output": "Even though the operator has already been briefed once this pass and has just given direction, the follow-up scoping question carries its own restatement: which item it concerns (#64 plus its title), the decision the question resolves, and — because \"what scope do you actually need?\" is open-ended rather than a closed option set — what the answer will determine, rather than a manufactured list of options to enumerate consequences for. The question is posted as an item comment and the item is marked status:needs-info.",
       "files": [],
       "expectations": [
