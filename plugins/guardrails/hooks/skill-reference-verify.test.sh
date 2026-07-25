@@ -223,6 +223,25 @@ RC=$?
 assert_exit "file outside project dir → exit 0" 0 "$RC"
 assert_silent "file outside project dir → silent" "$OUT"
 
+# A CHANGELOG is an append-only historical record — a rename entry must keep
+# naming the old command, so the guard must not adjudicate one. Measured cause of
+# 89% of this guard's findings on the marketplace corpus.
+CL="$REPO/plugins/alpha/CHANGELOG.md"
+: >"$CL"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(write_json "$CL" 'Renamed the `/alpha:nonexistent` skill to `/alpha:audit`.')" 2>&1)
+RC=$?
+assert_exit "CHANGELOG.md → exit 0" 0 "$RC"
+assert_silent "CHANGELOG.md is historical by contract → silent" "$OUT"
+
+# The exclusion is basename-scoped, not a substring: a file merely mentioning the
+# word must still be adjudicated.
+NOTCL="$REPO/docs-CHANGELOG-notes.md"
+mkdir -p "$(dirname "$NOTCL")"
+: >"$NOTCL"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(write_json "$NOTCL" 'Run `/alpha:nonexistent`.')" 2>&1)
+assert_contains "CHANGELOG-in-name but not a CHANGELOG → still adjudicated" "$OUT" \
+  "UNRESOLVED_SKILL: /alpha:nonexistent"
+
 # ============================ KILL SWITCH ===================================
 
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" CLAUDE_PLUGIN_OPTION_SKILL_REFERENCE_VERIFY_ENABLED=false \

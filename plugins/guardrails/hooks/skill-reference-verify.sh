@@ -49,6 +49,16 @@ hook::require_jq "PostToolUse" "guardrails-skill-reference-verify" "$INPUT"
 
 FILE=$(printf '%s' "$INPUT" | hook::read_file_path) || exit 0
 case "$FILE" in
+# A CHANGELOG is an append-only historical record: an entry saying a skill was
+# renamed MUST keep naming the old command, so every rename permanently adds an
+# unresolvable reference to one. Measured on this repo: 56 of 63 findings (89%)
+# were CHANGELOG rename entries, all correct as written, and excluding them moves
+# the guard from 3.4% of files firing at 6% precision to 0.5% firing at 57%.
+#
+# Deliberately narrow. `docs/topics/*/PLAN.md` completion records are arguably the
+# same shape, but two of the four real findings on this corpus live there — a
+# broader "historical by contract" rule would cost half the signal.
+*/CHANGELOG.md | CHANGELOG.md) exit 0 ;;
 *.md) ;;
 *) exit 0 ;;
 esac
