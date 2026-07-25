@@ -30,6 +30,23 @@ Run `/miro:setup` to check enablement and MCP availability or, with explicit con
 perform a minimal read-only API credential check. The setup skill never reads or exposes the
 token and never invokes a mutating Miro tool.
 
+### Rotating or clearing the token
+
+Once set, a sensitive `userConfig` value has no dedicated reconfigure entry in the `/plugin`
+detail view, and the `/mcp` server menu's "Clear authentication" applies to OAuth-based servers
+only — it is not the rotation path for a token supplied through `userConfig` (the bundled stdio
+server receives `miro_api_token` as its `MIRO_API_TOKEN` environment variable, never through an
+OAuth flow). To change or clear the token at any time, run:
+
+```text
+/plugin configure miro
+```
+
+That reopens the same configuration screen shown at first enable, letting you overwrite or blank
+the stored token. `claude plugin install --config miro_api_token=<token>` is not a rotation
+path — the flag seeds a value only on a fresh install and is ignored once the plugin is already
+installed, so a headless rotation means uninstall then reinstall.
+
 ## Tools
 
 The server registers Miro operations grouped by concern: boards, sticky notes, frames,

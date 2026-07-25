@@ -3,6 +3,20 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.1]
+
+### Added
+
+- **README section "Rotating or clearing the token"** naming
+  `/plugin configure miro` as the rotation/clear path for the stored
+  `miro_api_token`, per the repo's sensitive-`userConfig` README convention.
+
+### Changed
+
+- MCP server version kept aligned with the plugin: `package.json`, the
+  server's MCP `Implementation` version, the lockfile, and the committed
+  bundle all report `0.2.1`.
+
 ## [0.2.0]
 
 ### Changed
