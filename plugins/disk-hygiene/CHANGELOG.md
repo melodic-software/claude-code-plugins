@@ -25,9 +25,12 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   verdict except `ok`: the stub and an
   unreadable-identity (`indeterminate`) verdict both FAIL with remediation (disable the App execution
   alias, or put real Python ahead of WindowsApps on `PATH`), and an absent `python3` folds into the
-  floor's missing-interpreter FAIL. Guard-launch failures are exempt from the disabled-toggle
-  FAIL→INFO downgrade: audit-only mode is enforced by the guard, and a guard whose launch name is
-  shadowed by the stub can neither read nor enforce the configured `false`. The suite's test wrapper
+  floor's missing-interpreter FAIL. Every non-`ok` verdict — `store-alias-stub`, `indeterminate`, and
+  `not-found` alike — is a guard-launch failure and is exempt from the disabled-toggle FAIL→INFO
+  downgrade: audit-only mode is enforced by the guard, and a guard whose launch name is shadowed by
+  the stub, unreadable, or absent entirely can neither read nor enforce the configured `false`. The
+  exemption stops at the launch name; a real-but-too-old interpreter still starts the guard, so the
+  version floor keeps the ordinary downgrade. The suite's test wrapper
   applies the same inspection to its own interpreter candidates before executing them. The README
   requirements section documents the vector.
 

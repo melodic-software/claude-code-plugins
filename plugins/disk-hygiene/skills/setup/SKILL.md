@@ -25,11 +25,15 @@ report a PASS/FAIL/INFO table with one remediation line per FAIL.
 
 When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
 INFO — a deliberately disabled plugin is not broken. Report the probes informationally and
-note that re-enabling restores the FAIL semantics. Exception: step 1's guard-launch
-failures (`store-alias-stub` and `indeterminate`) stay FAIL even with the toggle disabled.
-Audit-only mode is *enforced by* the guard, and both guard surfaces launch through the very
-name the stub shadows — a guard that never starts can neither read nor enforce the
-configured `false`, so the fail-open is most dangerous in exactly this configuration.
+note that re-enabling restores the FAIL semantics. Exception: step 1's guard-launch failures
+stay FAIL even with the toggle disabled — that is every `python3` probe verdict other than
+`ok` (`store-alias-stub`, `indeterminate`, and `not-found`), because each one leaves the
+guard unable to start. Audit-only mode is *enforced by* the guard, and both guard surfaces
+launch through the literal name `python3` — a guard that never starts can neither read nor
+enforce the configured `false`, so the fail-open is most dangerous in exactly this
+configuration. The exemption is scoped to that launch-name verdict: a real interpreter that
+merely sits below `MIN_PYTHON` still starts the guard, so the version floor keeps the
+ordinary FAIL→INFO downgrade.
 
 1. **Python floor on `PATH`** — the interpreter used by scanning, validation, the
    guard, and cleanup. (The guard registers on two surfaces: a plugin-level engine gate
@@ -65,9 +69,11 @@ configured `false`, so the fail-open is most dangerous in exactly this configura
    or install real Python ahead of WindowsApps on `PATH`) and equally on `indeterminate` — an
    interpreter whose identity the probe could not read is uncertainty about the guard's own
    launch, which fails closed like every other guard-relevant unknown in this plugin, never
-   silently passes. `not-found` means the name the guard launches does not resolve at all;
-   report it as the floor's absent-interpreter FAIL. A bare `command -v python3` success is
-   not evidence on its own — it matches the stub too.
+   silently passes. `not-found` means the name the guard launches does not resolve at all:
+   report it as the floor's absent-interpreter FAIL, and — since the guard cannot start
+   without that name either — it is a guard-launch failure too, so it keeps the FAIL under a
+   disabled toggle alongside the other two. A bare `command -v python3` success is not
+   evidence on its own — it matches the stub too.
 2. **Git** — `command -v git`. Conditional per the README: optional for ordinary trees,
    required when a target contains or sits inside a Git worktree. Report presence as INFO
    with that conditionality stated; absence is only a FAIL for worktree-containing targets.
