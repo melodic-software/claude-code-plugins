@@ -4,7 +4,7 @@ Create a new work item with labels from the taxonomy.
 
 **Defaults applied by this action:**
 
-- **Priority** — when the `--priority` flag is absent, apply `priority:p3-low`.
+- **Priority** — when the `--priority` flag is absent, apply the live `priority:` set's lowest-urgency member, resolved from the bound adapter at action entry (e.g. `priority: low`, if present; [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md) "Universal axes") — an untriaged-signal floor, not a priority assessment. Omit the label when the repo's live set has no such member.
 - **Body template** — when `--body` is not provided, fall back to the default skeleton: a `## Context` paragraph (what observation surfaced this item, what's the cost of leaving it), a `## Proposed work` bullet list (concrete next actions), `## Acceptance criteria` (one verifiable assertion per bullet), and `## References` (cross-references to rules, files, prior PRs, or external docs). The concrete body the workflow builds is detailed in step "Build body" below.
 - **Label taxonomy** — labels are validated against the 8-group structure documented in [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md).
 - **Title shape** — the item title follows the convention in [`${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md`](${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md).
@@ -21,7 +21,7 @@ Create a new work item with labels from the taxonomy.
 - `--type <type>` -- The issue's type (default: `task`). Accepts the commit-style inputs `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `build`, `perf` and maps them to the coarse issue type: `fix` → **Bug**, `feat` → **Feature**, everything else → **Task**. On **org repos** the type is a **native GitHub Issue Type** set through the seam (not a `type:` label); on **personal / non-org repos** (no native Issue Types) it becomes a coarse `type: bug`/`type: feature`/`type: task` label instead
 - `--area <area>` -- Area label — the consuming repo's `area:` labels (see [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md))
 - `--ecosystem <eco>` -- Ecosystem label — the consuming repo's `ecosystem:` labels (see [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md))
-- `--priority <p>` -- Priority label (e.g., `p0-critical`, `p1-high`, `p2-medium`, `p3-low`)
+- `--priority <p>` -- Priority label; value must be one of the repo's live `priority:` members (see [`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md`](${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md) "Universal axes" — resolved live, never snapshotted here), e.g. `critical`, `high`, `medium`, `low` where the repo follows that convention
 - `--recurring` -- Mark as recurring. Requires `--cadence`
 - `--cadence <c>` -- One of: `weekly`, `biweekly`, `monthly`, `quarterly`, `semi-annual`, `annual`
 - `--context "summary"` -- Add research context to the item body
@@ -40,7 +40,7 @@ Create a new work item with labels from the taxonomy.
 
 1. **Resolve the issue type** `{type}` from `--type` (default `task`), mapping the input to the coarse type: `fix` → `Bug`, `feat` → `Feature`, everything else → `Task`. **Org repos** (native Issue Types available): the type is applied through the seam as a native Issue Type, **not** a label — it is not part of `{labels}`. **Personal / non-org repos** (native-type mechanism unavailable): the type rides as a coarse long-form label instead — append `type: bug` / `type: feature` / `type: task` (colon-space, matching the reconciled naming) to `{labels}`. Determine which path applies from the bound adapter's capabilities (for the GitHub adapter, native Issue Types are an org-only feature).
 
-1. **Build labels list** `{labels}` (comma-separated for the seam) from the remaining flags. Start from the group defaults `priority:p3-low,category:general` and replace each group's default with any supplied `--priority`/`--category` value (one label per group); append `--area`/`--ecosystem` labels when provided. When `--agent-ready` is set, also append the autonomous-eligible role label (default `agent-ready`) so the item is eligible for autonomous pickup. A default that the consuming repo doesn't define is omitted rather than passed.
+1. **Build labels list** `{labels}` (comma-separated for the seam) from the remaining flags. Start from the group defaults — the live `priority:` set's lowest-urgency member (resolved per the "Priority" default above) and `category:general` — and replace each group's default with any supplied `--priority`/`--category` value (one label per group); append `--area`/`--ecosystem` labels when provided. When `--agent-ready` is set, also append the autonomous-eligible role label (default `agent-ready`) so the item is eligible for autonomous pickup. A default that the consuming repo doesn't define is omitted rather than passed.
 
 1. **Build body.** If `--agent-ready`, use the agent-brief template from [`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md) (Category, Summary, Current behavior, Desired behavior, Key interfaces, Acceptance criteria, Out of scope). Otherwise use the default template:
 

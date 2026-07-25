@@ -36,9 +36,15 @@ clearly hold:
 
 - Remaining follow-ups fit as a short bullet list in the prompt
 - The work is straightforward, not exploratory
-- No "tried and ruled out" dead-ends worth preserving
+- No abandoned approaches or hard-won findings worth preserving
 - No load-bearing decision + rationale a future session must not rediscover
 - No non-trivial task list to reconstitute
+- No invariant a resuming session could violate without noticing
+- No side effect already applied that a fresh session would otherwise repeat
+
+The last two are the sharpest: a short, straightforward remainder is exactly the shape that passes
+every other test, and "the migration is already applied — do not re-run" is precisely the fact a
+prompt-only bullet list drops. A single one of them is enough to force the full path.
 
 ANY doubt → full save-point. A wrongly-skipped file loses state the fresh session must rediscover;
 a wrongly-written one costs nothing. An explicit method argument overrides auto-detect — but note
@@ -56,12 +62,10 @@ persist. This pass gates the write — no artifact or prompt is emitted before i
 
 ## Writing the handoff file (full path)
 
-The document structure (eight body sections — Task / Progress / Decisions made / Files modified /
-Tried and ruled out / Open questions / Suggested skills / Files to review), the TaskList snapshot +
-reconstitute format, and the frontmatter shape (including the `session_id` / `previous_handoff` /
-`previous_session_id` chain fields that `/retro` walks) live in
+The body sections, the TaskList reconstitute format, and the frontmatter shape (including the
+`session_id` and `previous_handoff` chain fields that `/retro` walks) live in
 [`${CLAUDE_PLUGIN_ROOT}/reference/structure.md`](${CLAUDE_PLUGIN_ROOT}/reference/structure.md)
-— walk it while writing the file.
+— walk it while writing the file; never write the section list from memory.
 
 When the target file already exists on disk (extending an earlier turn's write), re-read it from
 disk immediately before writing and append to it — never rewrite the whole file from the in-context
@@ -90,7 +94,7 @@ display):
 `/clear`, then copy everything between the dashed lines:
 
 ──────────────────────────────────────────────────────────
-Read @<handoffs-dir>/<TS>-handoff-<topic>.md and continue per its "Open questions / next steps".
+Read @<handoffs-dir>/<TS>-handoff-<topic>.md and continue its remaining next steps.
 Prior session: <UUID>.
 ──────────────────────────────────────────────────────────
 ```
