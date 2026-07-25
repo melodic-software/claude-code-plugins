@@ -483,7 +483,9 @@ re-verify anyway.
   whatever was fetched last time, not the current base SHA GitHub just reported as conflicting.
   Merging that stale local ref can find no conflict — because the stale view predates the base
   update that actually caused it — and report success without resolving anything. Fetch first,
-  unconditionally, then merge.
+  unconditionally, then merge, and report the fetched base SHA (`git rev-parse origin/<base-branch>`
+  immediately after the fetch): it becomes the merge commit's second parent, and the orchestrator
+  verifies exactly that before pushing.
 - **Assert the head, merge, never rebase.** Before merging, assert the worktree's `HEAD` equals the
   true PR head (`gh pr view --json headRefOid`) — refuse to resolve onto a stale or head-mismatched
   tip (a detached HEAD that equals the head is fine — the sibling-locked case; `reference/safety.md`,
@@ -521,13 +523,19 @@ re-verify anyway.
 - **Escalate genuine ambiguity — with the worktree left usable.** When the conflict is one where
   both sides made incompatible design/behavioral decisions about the same logic — not just textually
   overlapping edits — stop and describe the precise tension for the user instead of guessing. Never
-  discard the resolution work already done: commit the partial resolution to a local
-  `conflict-wip/<pr-number>` branch (conflicted paths staged as-is), name that branch and the
-  reasoning in the report, and only then `git merge --abort` so the worktree returns to a usable
-  state. An in-progress merge left live blocks every later checkout of that worktree
-  (`loop.md` §5.1.2) and makes the PR unworkable until a human intervenes, so concluding the
-  operation is mandatory even on the escalation path; the abort is safe here precisely because the
-  work is already preserved on that branch.
+  discard the resolution work already done, and preserve it with a sequence Git will actually
+  accept: mid-merge, Git refuses both a branch switch (`cannot switch branch while merging`) and a
+  commit while unmerged paths remain, and once a commit concludes the merge `MERGE_HEAD` is gone so
+  a later `git merge --abort` fails. So: stage every conflicted path as-is (markers included),
+  `git commit` — which concludes the merge as a partial-state merge commit — then
+  `git branch conflict-wip/<pr-number>` at that commit, and finally `git reset --keep HEAD^` to
+  return the PR branch and worktree to the asserted head (`--keep` refuses to lose local changes;
+  there are none, the tree was just committed — never `--hard`, which this skill's deny floor bars).
+  No `git merge --abort` appears anywhere in this sequence: after the concluding commit there is
+  nothing in progress to abort. Name the WIP branch and the reasoning in the report. An in-progress
+  merge left live blocks every later checkout of that worktree (`loop.md` §5.1.2) and makes the PR
+  unworkable until a human intervenes, so leaving the worktree clean is mandatory even on the
+  escalation path.
 - **The fix-round-cap-is-a-backstop framing applies here too.** No artificial low limit on
   resolution attempts, but the same conflict reappearing after several attempts is itself a signal
   to stop and escalate rather than keep retrying blindly (see Fix-Round Cap above).
@@ -535,11 +543,13 @@ re-verify anyway.
   orchestrator below.
 - **Return exactly one unambiguous outcome**, so the orchestrator's push decision is mechanical.
   The outcomes are distinguished by what exists in the worktree, not by judgment:
-  - `resolved` — a merge commit was created. Report its SHA and its first-parent SHA (the asserted
-    PR head), every conflicted path with the resolution taken and why, the verification commands run
-    with their results, and confirmation that `git status --porcelain` shows no tracked-file changes.
-  - `escalate` — no merge commit; the partial work is on its `conflict-wip/<pr-number>` branch and
-    the merge is aborted. Report the precise tension per path and that branch name.
+  - `resolved` — a merge commit was created. Report its SHA, its first-parent SHA (the asserted
+    PR head), the fetched base SHA it merged (the second parent), every conflicted path with the
+    resolution taken and why, the verification commands run with their results, and confirmation
+    that `git status --porcelain` shows no tracked-file changes.
+  - `escalate` — the PR branch sits back at the asserted head with a clean tree; the partial work
+    is preserved on its `conflict-wip/<pr-number>` branch (see the escalation sequence above).
+    Report the precise tension per path and that branch name.
   - `verification-impossible` — a merge commit exists but its verification could not be run. Report
     the resolution reached and exactly what could not be verified.
   - `no-conflict` — no merge commit was created because the merge found nothing to integrate.
@@ -565,15 +575,21 @@ On the conflict worker's return, and before pushing anything:
 - **Re-assert the head against the reported merge commit.** Require `git -C <worktree> rev-parse
   HEAD` to equal the merge-commit SHA the conflict worker reported, and require that commit to have
   two parents (`git -C <worktree> rev-list --parents -n 1 HEAD` returns three SHAs) — a
-  single-parent commit means the merge was never concluded, whatever the report claimed. Then
-  re-read the live PR head (`gh pr view <N> --json headRefOid`) and require it to equal that commit's
+  single-parent commit means the merge was never concluded, whatever the report claimed. Require
+  the **second parent** (`git -C <worktree> rev-parse HEAD^2`) to equal the fetched base SHA the
+  worker reported — two parents alone proves a merge happened, not that it merged the intended
+  base; a wrong-ref merge passes every other check here. Then re-read the live PR head
+  (`gh pr view <N> --json headRefOid`) and require it to equal that commit's
   **first parent** (`git -C <worktree> rev-parse HEAD^1`): the assigned-worktree head assertion
   (`safety.md`, Checkout And Push Invariants) is checked one commit back, because `HEAD` is the
   merge commit now. If the live head moved while the conflict worker worked, do not push — the
   resolution was computed against a superseded tip. Recovering means returning the worktree to a
-  clean checkout of the new head (`git -C <worktree> fetch origin <headRefName>`, then re-checkout
-  that head, discarding the superseded merge commit), then re-snapshotting and dispatching a fresh
-  conflict worker. Never hand a new conflict worker a worktree still sitting on the superseded merge
+  clean checkout of the new head, re-acquired through the same fork-aware path the checkout
+  contract uses: `origin` only for a same-repo head, and for a cross-repo head `gh pr checkout` or
+  a fetch from the validated fork remote (`safety.md`, Checkout And Push Invariants) — a
+  `git fetch origin <headRefName>` on a fork PR either finds nothing or fetches an unrelated
+  same-named base-repo branch. Then re-checkout that head (discarding the superseded merge
+  commit), re-snapshot, and dispatch a fresh conflict worker. Never hand a new conflict worker a worktree still sitting on the superseded merge
   commit: its own head assertion would refuse it.
 - **Confirm the worktree carries no uncommitted tracked changes** — `git -C <worktree> status
   --porcelain --untracked-files=no` empty, and no unmerged paths. Untracked build output from the
@@ -587,8 +603,20 @@ On the conflict worker's return, and before pushing anything:
   is a second agent's claim, not that evidence. A re-run that fails, or that cannot be run, is a
   no-push escalation. Run it in the background and heartbeat the lease between polls — a repo's test
   suite can exceed the five-minute heartbeat bound the Concurrency Guard calls load-bearing, and a
-  synchronous wait here would let another run stale-take the lease mid-operation.
-- **Push by refspec, never force.** `git -C <worktree> push "$PUSH_REMOTE" HEAD:<headRefName>`,
+  synchronous wait here would let another run stale-take the lease mid-operation. After the re-run,
+  re-validate what the green applies to: `git -C <worktree> rev-parse HEAD` still equals the
+  reported merge commit and `git -C <worktree> status --porcelain --untracked-files=no` is still
+  empty. A verification command that itself modified tracked files (a formatter, a snapshot
+  updater) or moved `HEAD` has invalidated the result — the green describes the modified tree, not
+  the commit about to be pushed. That state is a no-push escalation, never a quiet re-commit.
+- **Re-check the live head immediately before the push, then push by refspec, never force.**
+  The head comparison above happened before the verification re-run, which can take as long as the
+  repo's test suite; `safety.md` requires the head check immediately before every push, and the gap
+  matters — a writer that reset the PR branch to an ancestor during the re-run would make this push
+  a valid fast-forward that silently restores the commits that writer removed. So repeat
+  `gh pr view <N> --json headRefOid` == `git -C <worktree> rev-parse HEAD^1` just before the push
+  command; a mismatch is the same superseded-tip no-push as above. Then
+  `git -C <worktree> push "$PUSH_REMOTE" HEAD:<headRefName>`,
   where `PUSH_REMOTE` resolves **fail-closed** per `reference/safety.md` (Checkout And Push
   Invariants): `origin` for a same-repo head, the validated fork remote for a write-allowed
   in-owner cross-repo head, and **stop (read-only)** rather than defaulting to `origin` when a fork
