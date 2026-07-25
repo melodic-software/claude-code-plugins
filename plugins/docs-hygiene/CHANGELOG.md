@@ -23,6 +23,15 @@
   Command-argument hits are called out as FUNCTIONAL breaks, not cosmetic ones: a reader
   following `/plugin install <old>@marketplace` gets `plugin-not-found`.
 
+- **Container-position precedence, without which the new forms only ADD hits.** Forms 13–15 are
+  strictly more specific than Form 2 — every line they match, Form 2 matches too. The sweep now
+  deduplicates by `(file, line)` after collecting and before triage: a container-position match
+  takes the Certain path and its bare-token duplicate for that line is dropped as the same
+  reference seen through a weaker lens, not a second finding. Only lines the container forms did
+  NOT match fall through to Form 2's blocklist rule. The audit report carries the superseded
+  count so the suppression is visible rather than inferred. This is what makes position an actual
+  remedy for the verb collision instead of an additional lens over an unchanged prompt flood.
+
 ### Changed
 
 - **`triage.md` records the collision class the English-verb blocklist cannot serve.** The
@@ -37,8 +46,13 @@
   unusable when the token is a verb. A candidate is measured against the commit that FIXED the
   missed references (its removed lines are the defect set) for recall, and against the whole
   pre-fix tree for precision, reporting its hit count beside Form 2's on that same tree.
-- **`audit.md`'s pattern-form breakdown** lists Forms 13–15 so an audit report accounts for
-  every form the sweep runs.
+- **`audit.md`'s pattern-form breakdown** lists Forms 13–15 and the superseded-hit count, and its
+  Survey phase applies the precedence dedup before triage runs.
+- **Form 14 accepts single-quoted YAML** (`name: '<old>'`) alongside bare and double-quoted
+  values, with the quotes required to PAIR — a naive `["']?` would match the invalid `"<old>'`.
+- **Form 15 allows the token to be inline code** before the possessive clitic, which in markdown
+  is the common case rather than the exception: the literal `<old>'s` sequence never appears when
+  the token is a code span, so without this the form missed its own motivating example.
 
 ## [0.8.7]
 
