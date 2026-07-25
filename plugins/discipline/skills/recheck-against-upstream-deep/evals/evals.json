@@ -1,0 +1,53 @@
+{
+  "skill_name": "recheck-against-upstream-deep",
+  "evals": [
+    {
+      "id": 1,
+      "name": "fans-out-doc-by-doc-over-the-subsystem",
+      "prompt": "/discipline:recheck-against-upstream-deep — our whole payments integration leans on a dozen of the vendor's API surfaces and config blocks, and none of it has been checked against the docs in months.",
+      "expected_output": "Enumerates every upstream-dependent surface in the subsystem rather than spot-checking one, dispatches fresh-context (blind) subagents to fetch the CURRENT official upstream docs for each surface and classify its divergence per the sibling's gap/deliberate/undocumented taxonomy, then merges the returns into an inline divergence ledger keyed by surface with the resolving source.",
+      "files": [],
+      "expectations": [
+        "Enumerates all upstream-dependent surfaces rather than checking one",
+        "Fans out fresh-context subagents that fetch current upstream docs per surface, not recall",
+        "Reports an inline divergence ledger keyed by surface, category, and resolving source"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "throttles-and-checkpoints-for-crash-safety",
+      "prompt": "/discipline:recheck-against-upstream-deep — this is a big framework with dozens of config surfaces to compare against upstream.",
+      "expected_output": "Throttles the dispatch into bounded waves with a concurrency cap rather than firing one agent per surface at once, notes the burst-overload (529) risk, retries only a failed surface once (marking a second failure unverifiable), and checkpoints the partial ledger to a durable topic-memory slice mid-run when one exists — proceeding without it when the session has no durable store rather than asserting a persistence surface.",
+      "files": [],
+      "expectations": [
+        "Throttles into bounded waves with a concurrency cap and notes the 529 burst-overload risk",
+        "Retries only the failed subset once and marks a second failure unverifiable rather than blind-re-running",
+        "Checkpoints the partial ledger mid-run only when a durable slice exists, degrading gracefully when absent"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "offers-work-items-routing-and-degrades",
+      "prompt": "/discipline:recheck-against-upstream-deep — audit the framework against upstream and help me turn what you find into trackable work.",
+      "expected_output": "After the fan-out, OFFERS to route category-1 (gap) and category-3 (undocumented) findings into tracked work items when a work-item capability is installed, degrading to a prose offer (a listed set of would-be items) when none is present. Category-2 (deliberate, still-valid) findings are report-only and are not routed unless the current docs have obsoleted them.",
+      "files": [],
+      "expectations": [
+        "Offers to route gap and undocumented findings to a work-item capability when installed",
+        "Degrades to a prose offer when no work-item capability is present rather than assuming a tracker",
+        "Keeps still-valid deliberate divergences report-only rather than routing them"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "declines-overkill-and-routes-to-inline-sibling",
+      "prompt": "/discipline:recheck-against-upstream-deep — I just changed one setting in one config file; check it against the docs.",
+      "expected_output": "Recognizes that a single surface does not justify the subagent cost of a fan-out and routes to the inline sibling /discipline:recheck-against-upstream instead of spinning up a broad verification pass over one surface.",
+      "files": [],
+      "expectations": [
+        "Recognizes a single surface does not justify the fan-out's subagent cost",
+        "Routes to the inline sibling /discipline:recheck-against-upstream",
+        "Does not manufacture a broad fan-out where an inline recheck suffices"
+      ]
+    }
+  ]
+}
