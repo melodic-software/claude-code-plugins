@@ -218,22 +218,27 @@ def remove_worktree(worktree: Worktree, root: Path) -> dict[str, object]:
 
 
 def drop_orphaned_worktree(
-    worktree: Worktree, lease_path: Path, root: Path
+    worktree: Worktree, lease_path: Path, root: Path, *, preserve_lease: bool
 ) -> dict[str, object]:
     """Self-heal a worktree entry whose directory survives on disk but is no
     longer a valid git worktree (typically the residual empty directory
     `remove_worktree` reports, from a prior lock-blocked removal, #816).
 
-    Drops any leftover worker-lease record for this key -- by the time this
-    runs, `main`'s active-lease check has already established it is not a
-    live/unexpired hold, the same condition `manage_babysit_lease.py reap`
-    reaps independently for lease records with no matching directory at all
-    -- and removes the residual directory only when it is empty (see
-    `remove_empty_orphan_directory`), so the next prune run does not keep
-    re-erroring on the same orphan instead of self-healing.
+    Drops a leftover worker-lease record for this key -- the same condition
+    `manage_babysit_lease.py reap` reaps independently for lease records with
+    no matching directory at all -- and removes the residual directory only
+    when it is empty (see `remove_empty_orphan_directory`), so the next prune
+    run does not keep re-erroring on the same orphan instead of self-healing.
+
+    `preserve_lease` keeps the record when the caller's own unexpired lease
+    authorized this cleanup (`--lease-token` matched a live hold). The
+    documented cleanup order prunes while the worker lease is still held and
+    releases it afterwards (`reference/orchestration.md` "Cleanup"), so
+    unlinking it here would make that release fail on a lease that no longer
+    exists and drop ownership early.
     """
     info: dict[str, object] = {"lease_dropped": False}
-    if lease_path.exists():
+    if not preserve_lease and lease_path.exists():
         lease_path.unlink(missing_ok=True)
         info["lease_dropped"] = True
     info["directory_removed"] = remove_empty_orphan_directory(worktree.path, root)
@@ -336,7 +341,14 @@ def main() -> int:
                     # a report.
                     row["action"] = "drop_orphan"
                     if args.apply:
-                        row.update(drop_orphaned_worktree(worktree, lease_path, root))
+                        row.update(
+                            drop_orphaned_worktree(
+                                worktree,
+                                lease_path,
+                                root,
+                                preserve_lease=active_lease is not None,
+                            )
+                        )
                         row["dropped"] = True
                     else:
                         row["dropped"] = False

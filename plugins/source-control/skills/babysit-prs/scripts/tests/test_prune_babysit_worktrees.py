@@ -23,6 +23,7 @@ import sys
 import tempfile
 import unittest
 from contextlib import redirect_stdout
+from datetime import datetime, timedelta, timezone
 from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
@@ -266,7 +267,9 @@ class DropOrphanedWorktreeTests(unittest.TestCase):
             lease_path.parent.mkdir(parents=True)
             lease_path.write_text("{}", encoding="utf-8")
 
-            info = prune.drop_orphaned_worktree(worktree, lease_path, root)
+            info = prune.drop_orphaned_worktree(
+                worktree, lease_path, root, preserve_lease=False
+            )
 
         self.assertEqual(
             info, {"lease_dropped": True, "directory_removed": True}
@@ -286,11 +289,43 @@ class DropOrphanedWorktreeTests(unittest.TestCase):
             )
             lease_path = leases.lease_path(tmp / "state", "worker", worktree.key)
 
-            info = prune.drop_orphaned_worktree(worktree, lease_path, root)
+            info = prune.drop_orphaned_worktree(
+                worktree, lease_path, root, preserve_lease=False
+            )
 
         self.assertEqual(
             info, {"lease_dropped": False, "directory_removed": True}
         )
+
+    def test_keeps_the_caller_s_own_live_lease_while_dropping_the_orphan(
+        self,
+    ) -> None:
+        # The documented cleanup order prunes while the worker lease is still
+        # held and releases it afterwards
+        # (`reference/orchestration.md` "Cleanup"), so unlinking the record
+        # here would make that release fail and drop ownership early.
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
+            tmp = pathlib.Path(td)
+            root = tmp / "root"
+            root.mkdir()
+            orphan_dir = root / "owner__repo__pr-13"
+            orphan_dir.mkdir()
+            worktree = prune.Worktree(
+                path=orphan_dir, owner="owner", repo="repo", number=13
+            )
+            lease_path = leases.lease_path(tmp / "state", "worker", worktree.key)
+            lease_path.parent.mkdir(parents=True)
+            lease_path.write_text("{}", encoding="utf-8")
+
+            info = prune.drop_orphaned_worktree(
+                worktree, lease_path, root, preserve_lease=True
+            )
+
+            self.assertEqual(
+                info, {"lease_dropped": False, "directory_removed": True}
+            )
+            self.assertTrue(lease_path.exists())
+            self.assertFalse(orphan_dir.exists())
 
     def test_never_deletes_content_from_a_non_empty_orphan_directory(self) -> None:
         # An orphan's `.git` pointer could be corrupted or gone while real,
@@ -310,7 +345,9 @@ class DropOrphanedWorktreeTests(unittest.TestCase):
             )
             lease_path = leases.lease_path(tmp / "state", "worker", worktree.key)
 
-            info = prune.drop_orphaned_worktree(worktree, lease_path, root)
+            info = prune.drop_orphaned_worktree(
+                worktree, lease_path, root, preserve_lease=False
+            )
 
             self.assertFalse(info["directory_removed"])
             self.assertTrue(orphan_dir.exists())
@@ -334,7 +371,9 @@ class DropOrphanedWorktreeTests(unittest.TestCase):
             )
             lease_path = leases.lease_path(tmp / "state", "worker", worktree.key)
 
-            info = prune.drop_orphaned_worktree(worktree, lease_path, root)
+            info = prune.drop_orphaned_worktree(
+                worktree, lease_path, root, preserve_lease=False
+            )
 
             self.assertFalse(info["directory_removed"])
             self.assertTrue(outside_dir.exists())
@@ -383,6 +422,63 @@ class MainSelfHealsAnOrphanedWorktreeEntry(unittest.TestCase):
         self.assertEqual(row["action"], "drop_orphan")
         self.assertTrue(row["dropped"])
         self.assertTrue(row["lease_dropped"])
+        self.assertTrue(row["directory_removed"])
+
+    def test_scoped_cleanup_leaves_the_authorizing_lease_for_its_caller(
+        self,
+    ) -> None:
+        """The documented scoped form (`--pr … --lease-token … --apply`) runs
+        while the caller still holds the lease and releases it in the next
+        step (`reference/orchestration.md` "Cleanup"). Dropping the record
+        here would make that release fail on a lease that no longer exists."""
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
+            tmp = pathlib.Path(td)
+            root = tmp / "root"
+            root.mkdir()
+            orphan_dir = root / "owner__repo__pr-9"
+            orphan_dir.mkdir()
+            state_dir = tmp / "state"
+            lease_path = leases.lease_path(state_dir, "worker", "owner/repo#9")
+            lease_path.parent.mkdir(parents=True)
+            expires_at = (
+                datetime.now(timezone.utc) + timedelta(hours=1)
+            ).isoformat()
+            lease_path.write_text(
+                json.dumps(
+                    {
+                        "token": "caller-token",
+                        "run_id": "run-1",
+                        "expires_at": expires_at,
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            argv = [
+                "prune_babysit_worktrees.py",
+                "--root",
+                str(root),
+                "--state-dir",
+                str(state_dir),
+                "--pr",
+                "owner/repo#9",
+                "--lease-token",
+                "caller-token",
+                "--apply",
+            ]
+            buffer = io.StringIO()
+            with mock.patch.object(sys, "argv", argv), redirect_stdout(buffer):
+                exit_code = prune.main()
+            report = json.loads(buffer.getvalue())
+
+            self.assertFalse(orphan_dir.exists())
+            self.assertTrue(lease_path.exists())
+
+        self.assertEqual(exit_code, 0)
+        [row] = report["worktrees"]
+        self.assertEqual(row["action"], "drop_orphan")
+        self.assertTrue(row["dropped"])
+        self.assertFalse(row["lease_dropped"])
         self.assertTrue(row["directory_removed"])
 
     def test_dry_run_reports_the_orphan_without_mutating_it(self) -> None:

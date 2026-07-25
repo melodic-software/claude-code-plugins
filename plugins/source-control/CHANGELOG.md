@@ -25,7 +25,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
   verifies the directory actually left disk after a *successful* `git worktree remove`
   (`attempt_directory_removal`, safe to fully delete since git already confirmed removability) and
   reports a still-locked directory via `residual_directory` plus a stderr warning instead of leaving
-  a silent orphan for a future run to stumble over.
+  a silent orphan for a future run to stumble over. The stale-lease drop is scoped to leases that are
+  actually stale: when `--lease-token` matched the caller's own unexpired hold, the record survives
+  the orphan cleanup (`preserve_lease`), because the documented scoped form prunes while that lease
+  is still held and releases it in the next step (`reference/orchestration.md` "Cleanup") — unlinking
+  it here turned a successful cleanup into a `lease does not exist` release failure and dropped
+  ownership early.
 
 ## [0.26.7]
 
