@@ -74,6 +74,78 @@
         "Culls narration steps (git status/diff/add/commit/push) that a current model sequences correctly from intent",
         "Surfaces the cull as a behavioral proposal that passed the fresh-context verify pass, not an unverified confident removal"
       ]
+    },
+    {
+      "id": 7,
+      "name": "memory-layer-conflict-routes-to-c6",
+      "prompt": "/claude-config:audit-instructions my CLAUDE.md says \"always run the full test suite before committing\" and .claude/rules/testing.md says \"never run the full suite locally, let CI do it\". Which one is wrong?",
+      "expected_output": "Recognizes that both sides of the contradiction sit inside the memory layer (CLAUDE.md and a rules file), which is check C6 Consistency in the claude-memory plugin's audit skill, not check I12 here. Routes the finding there when claude-memory is installed so one finding is emitted rather than two, and when it is not installed states that memory-layer contradictions go unchecked and names claude-memory:audit as the skill that performs them, without performing the review itself.",
+      "files": [],
+      "expectations": [
+        "Identifies both sides as memory-layer surfaces and does NOT emit an I12 conflict finding for them",
+        "Routes the contradiction to the claude-memory plugin's audit skill check C6 when that plugin is installed",
+        "When claude-memory is not installed, states that memory-layer contradictions go unchecked and names claude-memory:audit, rather than silently skipping or performing the review here"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "cross-layer-conflict-reported-with-both-locations",
+      "prompt": "/claude-config:audit-instructions my CLAUDE.md says \"leave documentation as appropriate\" and .claude/skills/refactor/SKILL.md says \"DO NOT add comments\". Sort this out.",
+      "expected_output": "Reports an I12 cross-surface conflict, because one side is a skill body and therefore outside the memory layer, which no incumbent covers. The finding names both participating locations rather than a single line. Remediation reconciles and says which side to change; it does not default to proposing deletion of either side, because a conflict is evidence that two intentions exist and which is correct is not derivable from the text.",
+      "files": [],
+      "expectations": [
+        "Emits an I12 conflict finding because at least one side (the skill body) is outside the memory layer",
+        "The finding names BOTH participating locations, not one line",
+        "Proposes reconciliation and says which side to change, and does NOT default to proposing deletion of either side"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "managed-policy-conflict-is-report-only",
+      "prompt": "/claude-config:audit-instructions our org policy CLAUDE.md forbids committing generated files, but our project skill tells Claude to commit the generated client. Fix whichever one is wrong.",
+      "expected_output": "Reports the conflict as conflicting with org policy at the managed-policy path and proposes no edit at all: not to the policy side, and not to the lower-scope side on the strength of the conflict alone. Explains that claudeMdExcludes cannot reach the managed tier, so seeking an exception may be the correct resolution, which is an organizational decision rather than a linting one.",
+      "files": [],
+      "expectations": [
+        "Reports the finding as a conflict with org policy and names the managed-policy path",
+        "Proposes NO edit to the managed-policy side",
+        "Proposes NO edit to the lower-scope side justified by the conflict alone, and says the resolution is an organizational decision"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "shadowed-skill-is-not-a-conflict",
+      "prompt": "/claude-config:audit-instructions I have a skill named deploy in ~/.claude/skills and another named deploy in .claude/skills, and they say opposite things about tagging releases.",
+      "expected_output": "Does not report this as an I12 conflict: skills override by name, so exactly one definition is live and the other is inert, which is a resolved override rather than an unresolved conflict. Reports it instead in the separate info-severity shadowed-definition section, naming which definition is live and which is inert.",
+      "files": [],
+      "expectations": [
+        "Does NOT emit an I12 conflict finding for the same-named shadowed skill",
+        "Explains that override-by-name makes exactly one definition live and the other inert",
+        "Reports it in the separate shadowed-definition section at info severity, naming the live definition and the inert one"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "opinion-tier-off-by-default-but-discoverable",
+      "prompt": "/claude-config:audit-instructions skills",
+      "expected_output": "Runs the default catalog over the skills surface and emits no I13 definition-site-locality finding, because I13 is OPINION-tier and off on bare invocation. The run still reports the one-line OPINION discovery note: how many OPINION-tier checks were available, how many did not run, and the --opinion argument that enables them.",
+      "files": [],
+      "expectations": [
+        "Emits no I13 definition-site-locality finding on bare invocation",
+        "Reports the OPINION discovery line naming how many OPINION-tier checks were available and did not run",
+        "Names --opinion as the exact argument that enables them, rather than leaving the mechanism to be inferred"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "stopping-condition-withholds-and-reports",
+      "prompt": "/claude-config:audit-instructions .claude/skills/release/SKILL.md says \"NEVER push to main without a green CI run\" and spells out the release gate step by step. Trim the prior-model scaffolding out of it.",
+      "expected_output": "Applies the stopping condition, which is enabled by default because it withholds findings rather than emitting them. The CI gate guards a high-consequence area (a safety gate on an irreversible action), so the I6 bare-prohibition rewrite and the I8 de-prescription proposal against it are withheld rather than reported. Every withholding is reported with the check it moderated and the ground, so a suppressed finding does not read as coverage. Trimming still proceeds on the parts that guard nothing high-consequence.",
+      "files": [],
+      "expectations": [
+        "Withholds the I6 and I8 proposals that target the CI safety gate rather than proposing its rewrite or removal",
+        "Reports each withholding, naming the check it moderated and the ground for withholding",
+        "Applies the stopping condition without being asked, because it is enabled by default and opting out requires --no-stopping-condition"
+      ]
     }
   ]
 }

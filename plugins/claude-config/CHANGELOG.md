@@ -3,6 +3,51 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0]
+
+### Added
+
+- **`audit-instructions` check I12 — cross-surface instruction conflict.** Two live instructions
+  that cannot both be satisfied, where no official layering rule already picks a winner. Scoped by
+  routing around the incumbent: a contradiction wholly inside the memory layer is
+  `claude-memory:audit` check C6's and is not reported here, while one with a side outside the memory
+  layer — a skill body, an agent definition, a prompt-type hook, an output style — or any side in the
+  managed-policy tier, is I12's. When `claude-memory` is absent, the run says memory-layer
+  contradictions go unchecked and names the skill that performs them. Remediation splits by scope and
+  never defaults to deletion: reconcile where both sides are operator-owned, report-only against
+  managed policy, route user-scope findings as recommendations. Ships five must-not-flag cases plus a
+  separate `info` report for shadowed same-named skills, subagents, and MCP servers, which are
+  resolved overrides rather than conflicts.
+- **`audit-instructions` check I13 — definition-site locality.** An instruction governing one named
+  thing while living somewhere other than that thing's own definition. A different axis from I3:
+  I3 is load *timing*, I13 is *locality*, and an instruction can be correctly deferred and still
+  misplaced. `OPINION`-tier, off by default, enabled by `--opinion`, capped at `info`, never applied.
+- **`audit-instructions` stopping condition on I6 and I8.** Neither carried an a-priori bound, so
+  both trimmed without a floor. It withholds a proposal where the instruction guards a
+  high-consequence area (safety gate, irreversible action, security boundary, external contract,
+  genuine ordering) and reports every withholding. `OPINION`-tier but **enabled by default** with an
+  explicit `--no-stopping-condition` opt-out, because it withholds rather than emits — defaulting a
+  suppressor off would delete the only bound on two trimming checks.
+- **`OPINION`-tier enablement policy in the catalog.** Emitting rules default off, `info`-capped,
+  never fix-applied; withholding rules default on; `OPINION`-derived advice inside a backed check
+  follows its host's enablement and is labelled inline. Every run reports how many `OPINION` checks
+  were available, how many did not run, and the argument that enables them.
+- **YAML frontmatter on `reference/criteria.md`** carrying `version` (1.1.0) and `last-updated`,
+  replacing the body-prose version line — a contract surface with three parse paths now stamps its
+  version machine-readably.
+
+### Changed
+
+- **`audit-instructions` I3 remediation now qualifies its destination and prices the move.** A
+  destination qualifies only if it defers loading, so `@path` imports do not — a split into imports
+  satisfied the check's letter while changing the load profile not at all. A finding must also state
+  that a `paths:`-scoped rule or a nested `CLAUDE.md` is lost after compaction until a matching file
+  is read again.
+- **`audit-instructions` I9 remediation names the interface destination.** Where an example block
+  exists to enumerate what a caller may pass, the finding names an argument enumeration, a
+  frontmatter field, or a typed `argument-hint` instead. `OPINION`-derived, labelled as such in the
+  finding, never fix-applied; the detection is unchanged and stays officially backed.
+
 ## [0.9.2]
 
 ### Changed
