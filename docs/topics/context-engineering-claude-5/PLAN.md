@@ -56,9 +56,14 @@ mismatch is closed here rather than left standing in two places.
   pattern or states why it does not.
 - **`/doctor` is the incumbent for the CLAUDE.md half** and improves on Anthropic's cadence. The
   runbook invokes or defers to it rather than reimplementing trim and migrate.
-- **Conflict review is officially prescribed but unautomated.** The memory doc tells operators to
-  periodically review CLAUDE.md, nested CLAUDE.md, and `.claude/rules/` for conflicting instructions.
-  Nothing does it. This is the strongest gap.
+- **Conflict review is officially prescribed and only half automated.** The memory doc tells operators
+  to periodically review CLAUDE.md, nested CLAUDE.md, and `.claude/rules/` for conflicting
+  instructions. **Corrected 2026-07-25 — this previously read "Nothing does it. This is the strongest
+  gap", and that was false.** `claude-memory:audit` ships check C6 Consistency, which performs exactly
+  that review over the memory layer, citing the same official line. What no incumbent does is compare
+  *across* layers — a skill body against `CLAUDE.md`, which is the article's own headline example —
+  or reach agent definitions, prompt-type hooks, output styles, and the managed-policy tier. That
+  remainder is the gap, and it is narrower than this line claimed.
 - **`@path` imports are a progressive-disclosure anti-fix.** Imported files load at launch. Only
   skills and path-scoped rules defer load. Any "split this up" remediation must name the right
   destination.
@@ -108,7 +113,7 @@ source with explicit staleness triggers — not restated across the skills that 
 
 ### Open
 
-1. Naming, once the sweep's surface is drafted (`/naming:name-it-better`).
+1. ~~Naming.~~ **Closed** — the sweep is `audit-pass`; see [design/checks-and-sweep.md](design/checks-and-sweep.md), "Naming — resolved".
 2. ~~Which detectors extend an existing skill versus become new ones.~~ **Closed** — the homing map
    is discharged in [design/proportionality-gate.md](design/proportionality-gate.md). Two host
    plugins: `claude-config` and `claude-memory`.
@@ -317,7 +322,7 @@ The original phase text follows, retained because the dispositions were assigned
 The seven detectors are not equal-weight, and the plan's own evidence says so.
 `design/coverage-matrix.md` ranks the four gaps and finds only one justifies new surface: S3,
 cross-surface instruction conflict, which is `ANTHROPIC-DOCS`-backed (the memory doc prescribes the
-review under "Consistency" and repeats it in troubleshooting) and which no incumbent performs. The
+review under "Consistency" and repeats it in troubleshooting). **Corrected 2026-07-25: this said "which no incumbent performs".** `claude-memory:audit` C6 performs it over the memory layer; the unowned remainder is the cross-layer and non-memory case. The
 matrix files the other three as *"authoring guidance, not an auditable defect"*, *"plausibly a check
 added to `skill-quality:check`"*, and *"calibration refinements to incumbents, not standalone
 surface"*. `design/official-corroboration.md` separately finds the interface half of S6, the S8
