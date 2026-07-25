@@ -3,6 +3,37 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.1]
+
+### Fixed
+
+- **PreToolUse blocking guards were declared with `timeout: 10`/`15` — 40-60x below the platform's
+  own documented `command`-hook default of 600s for `PreToolUse` (only `UserPromptSubmit` (30) and
+  `MessageDisplay` (10) lower it; `PreToolUse` does not — <https://code.claude.com/docs/en/hooks>,
+  fetched 2026-07-25) — causing the harness to kill them before completion under real machine load
+  and let the guarded tool call proceed with no `permissionDecision` from that guard.** Measured at
+  86.1% of PreToolUse runs killed at the declared timeout across 3,923 runs on one machine
+  (melodic-software/claude-code-plugins#1345). Confirmed against this session's own local
+  `~/.claude/projects/*/*.jsonl` transcript: a `hook_cancelled` attachment for
+  `block-convention-violation.sh` (`timedOut: true`, `durationMs: 10184` against `timeoutMs: 10000`)
+  was immediately followed by the guarded Bash tool call executing and returning a real result — the
+  guard's verdict was silently lost, not merely slow. Standalone timing of all seven affected guards
+  in this repo (no concurrent hook load) completed in well under 1.5s each, and the source contains no
+  network calls or unbounded loops — confirming the guards are not inherently slow; the declared
+  timeout was simply provisioned far below what the platform allows and below what real (contended)
+  runs need. `timeout` raised from 10/15 to **60** (10-40x more headroom over the every real duration
+  sample this investigation captured, while staying well short of the 600s platform default so a
+  genuinely hung process is still bounded) for the seven **blocking** PreToolUse guards:
+  `secret-pattern-detection`, `hardcoded-path-check`, `block-no-verify`, `block-dangerous-git`,
+  `block-hook-bypass`, `block-noncanonical-commit`, `block-convention-violation`. The two **advisory**
+  PreToolUse hooks (`flag-commit-pr-skill-bypass`, `workflow-resilience-check`, which never block
+  regardless of outcome) and the PostToolUse hooks are unchanged — a missed advisory notice is not the
+  fail-open security defect this fix addresses. This mitigation narrows the timeout-driven fail-open
+  window; it does not remove it — a harness-killed hook process cannot itself report a decision, and
+  what should happen to the guarded tool call when a *blocking* guard is killed (deny by default vs.
+  today's silent fallback) is a harness-level policy question outside a plugin's control, tracked
+  separately.
+
 ## [0.15.0]
 
 ### Added

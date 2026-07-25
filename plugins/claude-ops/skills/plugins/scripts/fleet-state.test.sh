@@ -701,6 +701,103 @@ case "$out" in
 *) pass "exported source shadow ignored: real hook-utils sourced via builtin" ;;
 esac
 
+# ============================================================================
+# Case: large-catalog marketplace does not crash with "Argument list too
+# long" (#1336). fleet-state.sh used to embed full catalog/installed/enabled
+# JSON blobs as literal `jq --argjson` command-line arguments; once a
+# marketplace catalog got large enough (confirmed against a real 273-plugin
+# catalog), the serialized JSON exceeded the platform/shell's argv-length
+# ceiling and jq crashed before emitting anything. Uses a synthetic 500-plugin
+# catalog — well past the 273-plugin real-world repro — fully installed and
+# enabled, so every array in the composed report (catalog, installed, enabled,
+# and all three missing_from_* arrays) carries the full payload through the
+# same code path that used to crash. Asserts the run completes AND produces
+# the same-shaped, semantically-correct output a small catalog would (no
+# silent truncation or partial report — the acceptance criteria's second
+# bullet), not merely that it exits 0.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+big_n=500
+write "$case_dir/known_marketplaces.json" '{"bigmarket": {"source": {"source": "github", "repo": "example/bigmarket"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+# Realistic-length ids (not bare "plugin-0") so the serialized payload's
+# per-entry size is closer to the real-world repro, not an artificially
+# compact worst case.
+jq -cn --argjson n "$big_n" \
+  '{plugins: [range(0;$n) | {name: ("large-catalog-synthetic-plugin-\(.)"), description: "synthetic fixture entry for issue #1336 large-catalog argv-length regression test"}]}' \
+  >"$case_dir/catalog/bigmarket.json"
+jq -cn --argjson n "$big_n" \
+  '{version: 1, plugins: (reduce range(0;$n) as $i ({};
+    . + {("large-catalog-synthetic-plugin-\($i)@bigmarket"): [{scope: "user", installPath: "y", version: "0.1.0"}]}))}' \
+  >"$case_dir/installed_plugins.json"
+jq -cn --argjson n "$big_n" \
+  '{enabledPlugins: (reduce range(0;$n) as $i ({}; . + {("large-catalog-synthetic-plugin-\($i)@bigmarket"): true}))}' \
+  >"$case_dir/user_settings.json"
+ARGS=(--marketplace bigmarket)
+out=$(run_state "$case_dir")
+rc=$?
+assert_exit "large catalog (500 plugins): exit 0, no argv-length crash" 0 "$rc"
+case "$out" in
+*"Argument list too long"*) fail "large catalog: no 'Argument list too long'" "found in output: $out" ;;
+*) pass "large catalog: no 'Argument list too long'" ;;
+esac
+catalog_len=$(jq '.catalog | length' <<<"$out" 2>/dev/null)
+assert_eq "large catalog: full 500-entry catalog reported, not truncated" "$big_n" "$catalog_len"
+installed_len=$(jq '.installed | length' <<<"$out" 2>/dev/null)
+assert_eq "large catalog: full 500-entry installed list reported" "$big_n" "$installed_len"
+missing_install_len=$(jq '.missing_from_install | length' <<<"$out" 2>/dev/null)
+assert_eq "large catalog: every plugin installed, so missing_from_install empty" "0" "$missing_install_len"
+missing_user_install_len=$(jq '.missing_from_user_install | length' <<<"$out" 2>/dev/null)
+assert_eq "large catalog: every plugin user-installed, so missing_from_user_install empty" "0" "$missing_user_install_len"
+missing_enabled_len=$(jq '.missing_from_enabled | length' <<<"$out" 2>/dev/null)
+assert_eq "large catalog: every plugin enabled, so missing_from_enabled empty" "0" "$missing_enabled_len"
+sample_enabled=$(jq -r '.enabled["large-catalog-synthetic-plugin-499@bigmarket"]' <<<"$out" 2>/dev/null)
+assert_eq "large catalog: a spot-checked entry has correct effective-enabled value, not a placeholder" "true" "$sample_enabled"
+
+# ============================================================================
+# Case: malformed user_settings.json still fails loud after the --argjson ->
+# --slurpfile conversion (#1336 fail-loud parity). --slurpfile tolerates a
+# genuinely EMPTY file as "zero JSON values" (yielding null) rather than
+# erroring the way `--argjson name ""` used to when a prior `jq -c
+# '.enabledPlugins // {}'` read failed on malformed source JSON and captured
+# no stdout — so a naive conversion would turn a loud crash into a silent
+# `null`-degraded report. jq_slurp_tmpfile guards this by writing a
+# deliberately-invalid token for an empty value, forcing jq's own parser to
+# still error at the --slurpfile call site. Confirmed against the actual
+# pre-fix script (git history) that this exact fixture already failed loud
+# (nonzero exit) before this issue's change, so this case is locking in
+# existing behavior, not inventing a new contract.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha"}]}'
+write "$case_dir/installed_plugins.json" '{"version":1,"plugins":{}}'
+write "$case_dir/user_settings.json" '{bad json'
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir")
+rc=$?
+if [[ "$rc" -eq 0 ]]; then
+  fail "malformed user_settings.json: fails loud, not silently degraded" "expected nonzero exit, got 0 with output: $out"
+else
+  pass "malformed user_settings.json: fails loud, not silently degraded"
+fi
+
+# ============================================================================
+# Case: static guard — no large-payload `--argjson` call site regresses back
+# into fleet-state.sh (#1336). The runtime case above proves the CURRENT
+# script doesn't crash; this guards against a future edit silently
+# reintroducing `--argjson catalog|installed|missing*` (the exact pattern
+# that crashed) alongside the harmless small-boolean `--argjson au|ci` uses
+# this script legitimately keeps (a fixed literal `true`/`false`, never
+# proportional to catalog size). Counts every `--argjson` occurrence in the
+# script body (source lines only, comments excluded) and asserts it matches
+# the fixed count of boolean-only remaining uses.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+argjson_code_count=$(grep -v '^\s*#' "$SCRIPT" | grep -c -- '--argjson' || true)
+assert_eq "static guard: --argjson remains only on fixed-size booleans (au/ci/autoUpdate), not catalog-sized payloads" "7" "$argjson_code_count"
+
 # --- Summary -------------------------------------------------------------
 printf '\n%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
 [[ "$FAILED" -eq 0 ]] && exit 0
