@@ -187,6 +187,8 @@ That gate merges **only when every criterion holds** — the criteria and the sa
 The two mutation gates are invoked ONLY through their wrapper scripts, by the bundled `bin/`-path form —
 never the bare command name nor the raw Python behind them. Each `source-control-babysit-<x> …` spelled in the bullets below is that wrapper launched by its `bin/`-path form; the exact form is the single
 home in [reference/safety.md](reference/safety.md). Both fail closed without `--allowed-owners`.
+What each gate refuses, which invocations mutate, and where each refusal is enforced is the
+executable contract in [reference/guard-contract.md](reference/guard-contract.md).
 
 - **Merge readiness** — `source-control-babysit-merge owner/repo#N --allowed-owners
   <watched-owners> --self-logins @me,<self-logins>` (read-only; add `--merge --expected-head

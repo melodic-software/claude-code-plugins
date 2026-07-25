@@ -3,6 +3,28 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.0]
+
+### Added
+
+- **`babysit-prs` guard semantics are now an executable contract (`#1265`).** The facts a host
+  permission classifier has to know about this lane — which entry points mutate, which flags gate
+  which guard, where a refusal is enforced, and how a mutation is actually performed — were
+  restated in prose by every consumer and had nothing detecting drift. They are now a table in
+  `skills/babysit-prs/scripts/tests/guard_contract.py`, executed row by row against the real entry
+  points by `test_guards.py`, and rendered to a citable
+  `skills/babysit-prs/reference/guard-contract.md`. Every row carries the prose claim it backs, so
+  a changed guard fails CI with a message naming the downstream claim that just became false. Five
+  binding kinds: refusals (invoked, exit code and message asserted), predicates (the classifier
+  called directly, because `--autonomous`'s `isOutdated` requirement is a condition over fetched
+  API data that no argument shape expresses), effects (run offline against a throwaway state dir —
+  this is what proves `manage_babysit_lease.py acquire` writes with no `--apply`, contrary to what
+  its flag names suggest), mechanisms (`refresh_pr_branch.py` uses GitHub's server-side
+  `update-branch` and never pushes), and documented command lines (every `bin/`-path wrapper
+  command spelled in `reference/safety.md` and `reference/orchestration.md` is checked against the
+  backing CLI's own parser). Catalogue gates fail when a new entry point, wrapper, or
+  command-spelling document arrives without a row.
+
 ## [0.26.0]
 
 ### Added
