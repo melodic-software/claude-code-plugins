@@ -29,51 +29,68 @@ about that repo, not a preference.
   `.claude/source-control.md` on its default branch. Absent or no
   loop-lane keys at all means **every merge is human**, whatever tier you
   pass.
-- **Is a classification source present?** The merge partition reads "the
-  triage stamp in the item body **or** labels" — either satisfies it. So
-  check both, and only conclude "nothing can merge" when both are empty:
-
-  ```bash
-  gh label list --limit 200 | grep -i work-class
-  gh issue list --label agent-ready --limit 500 --json number,body \
-    --jq '[.[] | select(.body | test("Work-class: C[0-9]"))] | length'
-  ```
-
-  A repository that records classifications only as body trailers is fully
-  merge-capable and needs no label provisioning.
-- **Items stamped?** A PR merges only when its close-linked item carries a
-  recorded work class from either source. Count with the body-stamp command
-  above. **Always pass `--limit`** — `gh issue list` silently truncates at 30,
-  so an unbounded count under-reports any backlog past that and would feed a
-  rung decision from a partial population.
 - **Tracker binding present?** `.work-item-tracker.json` must resolve from
   the worker lane's working directory or its preflight stops the lane.
 - **Role labels** — the human-gated and autonomous-eligible names come
-  from that file's `config.role_labels`, not from a literal.
+  from that file's `config.role_labels`, not from a literal. Resolve the
+  `autonomous-eligible` role **before** any query below; a repo that remapped
+  it makes the default `agent-ready` the wrong population, and the counts
+  come back empty for a fully-stamped backlog:
+
+  ```bash
+  ROLE=$(jq -r '.config.role_labels."autonomous-eligible" // "agent-ready"' \
+    .work-item-tracker.json)
+  ```
+
+- **Is a classification source present, and how many items carry one?** The
+  merge partition reads "the triage stamp in the item body **or** labels" —
+  either satisfies it, so count the **union**, never one source alone. A
+  label-only repo returns zero on a body-only count and vice versa; either
+  in isolation under-reports the merge-eligible population and feeds the rung
+  decision a wrong number.
+
+  ```bash
+  gh label list --limit 200 | grep -i work-class
+  gh issue list --label "$ROLE" --limit 500 --json number,body,labels \
+    --jq '[.[] | select((.body | test("Work-class: C[0-9]"))
+           or (.labels | any(.name | test("work-class"; "i"))))] | length'
+  ```
+
+  **Always pass `--limit`** — `gh issue list` silently truncates at 30, so an
+  unbounded count under-reports any backlog past that.
+
+  A repository that records classifications only as body trailers is fully
+  merge-capable and needs no label provisioning. Conclude "nothing can merge"
+  only when the union is empty.
 - **`{{RUNTIME_SURFACES}}`** — paths that look like documentation but are
   loaded by an agent at run time. This drives classification: a change to a
   runtime surface is never mechanical, so an under-listed value is a safety
   hole, not a cosmetic omission — it lets a behavioral change be stamped C2
   and merged unattended.
 
-  **Derive the list; never hand-enumerate it.** In a Claude Code plugin repo
-  the doc-shaped runtime set is wider than it first looks — `SKILL.md`,
-  `AGENTS.md`, agent definitions (`agents/*.md`), command bodies
-  (`commands/*.md`), and every file a skill body reads at run time
-  (`reference/**`, `context/**`, `templates/**`), at **any** depth. A
-  one-level `reference/*.md` glob misses nested trees, and `context/**` is
-  loaded by skill bodies exactly as `reference/**` is.
+  **Define it fail-closed: every plugin-tree `.md` is runtime until proven
+  inert.** A forward derivation — grep the skill bodies for what they load,
+  then treat the results as the boundary — is tempting and is wrong twice
+  over. It misses every load directive that is not a markdown link (bare
+  `Read references/shared/*.md` lines, glob directives, paths built at run
+  time), and any pattern that strips the originating file yields ambiguous
+  bare names: `context/audit.md` alone names three different runtime files
+  in this repo. A boundary that silently under-reports is worse than no
+  boundary, because it reads as coverage.
 
-  The reliable derivation is the reverse lookup — find what the bodies
-  actually read, rather than trusting a directory name:
+  So invert it. Start from the whole tree and subtract only what is provably
+  not loaded:
 
   ```bash
-  grep -rhoE '\(([a-zA-Z0-9._/-]+\.md)\)' plugins --include=SKILL.md | sort -u
+  find plugins -name '*.md' | grep -vE '/(CHANGELOG|README)\.md$'
   ```
 
-  Treat everything it returns as runtime, plus every `agents/*.md` and
-  `commands/*.md`. In an application repo the set may be empty — but prove
-  that, do not assume it.
+  Everything that survives is runtime for classification purposes —
+  `SKILL.md`, `agents/*.md`, `commands/*.md`, and every `reference/**`,
+  `references/**`, `context/**`, `templates/**` file at any depth. Removing
+  a further path from the set requires showing that nothing loads it, per
+  path, not per directory name. In an application repo the set may be
+  genuinely empty — but prove that, do not assume it.
 
 ## Adopting a new repository
 
@@ -342,11 +359,17 @@ enforcement. Give each terminal a different value.
 > Resolve the exact label strings live rather than assuming them — the
 > prefix, casing, and spacing are per-repository, and a guessed string
 > either errors or creates a stray label. Run
-> `gh label list | grep -i work-class` at the start of the session and use
-> what it returns, mapping C1 through C5 onto the five members in
-> ascending risk order. If that returns nothing, this repository has no
-> work-class axis: say so and stop, because nothing here can auto-merge
-> until the labels are provisioned.
+> `gh label list --limit 200 | grep -i work-class` at the start of the
+> session and use what it returns, mapping C1 through C5 onto the five
+> members in ascending risk order.
+>
+> **If that returns nothing, do not stop.** The merge partition accepts a
+> recorded class from the item **body or** labels, so a repository with no
+> label axis is still merge-capable through body trailers. Report the
+> absence once, then keep working the queue: grep the trailers, propose
+> classes for untrailered items, and record ratified classes as body
+> trailers instead of labels. Only the label-writing half is unavailable —
+> triage, classification, and escalation all still apply.
 >
 > For an item with no trailer, propose a class with your reasoning and
 > wait. Two traps: `mechanical` is narrow — deterministic, trivially
@@ -354,11 +377,11 @@ enforcement. Give each terminal a different value.
 > and a change to any path listed on the `Runtime surfaces` line is not
 > mechanical no matter how doc-shaped it looks.
 >
-> **Treat that line as a floor, not a closed list.** Before stamping any
-> doc-shaped change `mechanical`, confirm the changed path is not loaded
-> by an agent at run time — check whether any skill body, agent
-> definition, or command references it. If you cannot establish that it is
-> inert, it is not mechanical. Fail toward the higher class.
+> **The boundary is fail-closed.** Treat a doc-shaped path as runtime
+> unless you can show nothing loads it — and a link grep is not that proof:
+> skill bodies also load files through bare `Read <path>` directives and
+> globs no link pattern returns. Anything you cannot prove inert is not
+> mechanical. Fail toward the higher class.
 >
 > Never route a `work-class:` label through `/work-items:track` — that
 > path validates against a taxonomy that does not yet carry the axis.
@@ -400,21 +423,23 @@ Filled instance for the repository in use as of 2026-07-25.
 | `{{STOP}}` | `--drain` |
 | `{{RUNTIME_SURFACES}}` | see below — derived, not a two-glob list |
 
-- Runtime surfaces: **not** just `SKILL.md` and `reference/*.md`. The
-  reverse-lookup derivation above returns 275 distinct doc paths that
-  `SKILL.md` bodies load at run time — `context/**` (57 directories),
-  nested `reference/**`, and `templates/**` among them — and the six
-  installed reviewer agents under `plugins/review/agents/*.md` are runtime
-  besides. Re-run the derivation rather than reusing this count; it moves
-  with every plugin added.
+- Runtime surfaces: **not** just `SKILL.md` and `reference/*.md`. Under the
+  fail-closed definition above, `plugins/**` holds 875 markdown files, of
+  which 128 are `CHANGELOG.md`/`README.md`; the remaining **747 are runtime**
+  — `SKILL.md`, `agents/*.md` (the six installed reviewer agents among them),
+  `context/**` (57 directories), `references/**`, nested `reference/**`, and
+  `templates/**`. Re-run the command rather than reusing these numbers; they
+  move with every plugin added.
 - Merge rung: `c2-mechanical`, live in tracked config on `main`. Raising to
   `c3-autonomous` is a one-line edit to `.claude/source-control.md`.
 - Work-class labels: deployed. Exact strings, ascending risk:
   `work-class: read-only`, `work-class: mechanical`, `work-class: scoped`,
   `work-class: structural`, `work-class: untrusted-provenance`.
-- Stamped agent-ready items: 11 `mechanical`, 34 `scoped`, 5 `structural`.
-  At `c2-mechanical` only the 11 are merge-eligible; at `c3-autonomous`,
-  45.
+- Stamped `agent-ready` items, re-counted live on 2026-07-25: **44 open, all
+  44 label-stamped** — 7 `mechanical`, 32 `scoped`, 5 `structural` (33 of
+  them also carry a body trailer). At `c2-mechanical` only the 7 are
+  merge-eligible; at `c3-autonomous`, 39. These move as the backlog drains —
+  re-run the union count rather than quoting this line.
 - No autonomy binding file exists, so the C2 promotion evidence above is
   not recorded here.
 - `#820` carries `do-not-merge`; its body embeds a veto-before-merge
@@ -434,8 +459,8 @@ overnight without me":
 
 - **Tier `autopilot`** — in the prompt below. Already maximal.
 - **Merge rung** — one line in `.claude/source-control.md` on `main`.
-  Currently `c2-mechanical`. Change to `c3-autonomous` and 45 of the 50
-  agent-ready items become eligible instead of 11.
+  Currently `c2-mechanical`. Change to `c3-autonomous` and 39 of the 44
+  open `agent-ready` items become eligible instead of 7.
 
 `full-autonomy` as a rung adds only C4 `structural` and C5
 `untrusted-provenance` on top of `c3-autonomous` — refactors, migrations,
@@ -568,10 +593,11 @@ floater working whatever backs up.
 >
 > Repository: `melodic-software/claude-code-plugins`
 > Shard: `[ratify]`
-> Runtime surfaces in this repo: every `SKILL.md`, every `agents/*.md` and
-> `commands/*.md`, and every `.md` a skill body loads at run time —
-> `reference/**` and `context/**` at any depth, plus `templates/**`. This
-> is a derived set (~275 paths), not a two-glob list.
+> Runtime surfaces in this repo: **every markdown file under `plugins/`
+> except `CHANGELOG.md` and `README.md`** — 747 of 875 at last count. That
+> is the boundary: `SKILL.md`, `agents/*.md`, `commands/*.md`, and every
+> `reference/**`, `references/**`, `context/**`, `templates/**` file at any
+> depth. Treat a path as runtime unless you can show nothing loads it.
 >
 > I am present. Recommend, then wait for my direction before mutating.
 >
@@ -608,10 +634,11 @@ floater working whatever backs up.
 > and a change to any path on the `Runtime surfaces` line is not mechanical
 > no matter how doc-shaped it looks, because those are runtime here.
 >
-> **Treat that line as a floor, not a closed list.** Before stamping any
-> doc-shaped change `mechanical`, confirm the changed path is not loaded by
-> an agent at run time — grep whether any `SKILL.md`, agent definition, or
-> command references it. If you cannot establish that it is inert, it is not
+> **The boundary is fail-closed.** A markdown path under `plugins/` is
+> runtime unless you can show nothing loads it — and a link grep is not that
+> proof: skill bodies also load files through bare `Read <path>` directives
+> and globs no link pattern returns. `CHANGELOG.md` and `README.md` are the
+> only reliably inert names. Anything else you cannot prove inert is not
 > mechanical. Fail toward the higher class.
 >
 > Never route a `work-class:` label through `/work-items:track` — that
