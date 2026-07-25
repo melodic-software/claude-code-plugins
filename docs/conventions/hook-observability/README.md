@@ -27,11 +27,13 @@ A static field on a `hooks.json` **handler object**, sibling of `type`/`command`
 ```
 
 Displayed as the UI spinner label while the hook process runs. **A hook script never emits this —
-there is no runtime JSON output field by this name.** **Rollout status: pending.** As of this
-doc's introduction, no `hooks.json` in the fleet declares `statusMessage` yet — all 27 wired
-`type: "command"` handlers across 12 plugins need it added. Tracked as required fleet adoption
-against melodic-software/claude-code-plugins#836 (this doc lands first per the convention-registry
-rule; adoption is the follow-up PR). Wording convention for that rollout: a present-tense gerund
+there is no runtime JSON output field by this name.** **Rollout status: near-complete.** As of
+2026-07-23, 30 of the 31 wired `type: "command"` handlers across the fleet's 15 hook-bearing
+plugins declare `statusMessage`; the sole remaining holdout is
+`plugins/disk-hygiene/hooks/hooks.json`. Tracked against
+melodic-software/claude-code-plugins#836 (this doc landed first per the convention-registry rule;
+adoption was the follow-up wave, now all but one site complete — close #836 once `disk-hygiene`
+declares it or is recorded as a deliberate exception). Wording convention: a present-tense gerund
 phrase naming what the hook is doing, specific to the tool or check
 (`"Formatting Go imports..."`, `"Checking for secrets..."`, `"Recording tool-failure
 telemetry..."`) — not a generic `"Running hook..."`.
@@ -48,6 +50,12 @@ pending notice must compose them there, never `printf` twice.
 file, `jq`) causes the hook to silently no-op instead of performing its check. Doctrine
 (`lib/hook-utils.sh:26-30`): *"a missing runtime prerequisite must surface to BOTH the agent
 (additionalContext) and the user (systemMessage) — a silently skipped feature is a defect."*
+
+This is the doctrine that fleet hook scripts cite in comments as the **"dim-9 doctrine"** — the
+label names *this* visible-skip rule and nothing more, and this section is its authoritative
+definition. (The `dim-N` numbers are an informal fleet-conformance shorthand — e.g. dim-8 = the
+uniform setup-skill wave, dim-11 = seam phrasing — with no central registry defining the numbering;
+giving the whole scheme a documented home is a separate follow-up, tracked outside this doc.)
 
 **Not required** for two situations that are already visible or already correctly agent-scoped:
 

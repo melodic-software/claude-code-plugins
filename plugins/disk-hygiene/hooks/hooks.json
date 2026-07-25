@@ -1,0 +1,24 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py",
+              "--mode",
+              "engine-gate",
+              "--plugin-root",
+              "${CLAUDE_PLUGIN_ROOT}",
+              "--authorized-data-root",
+              "${CLAUDE_PLUGIN_DATA}"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

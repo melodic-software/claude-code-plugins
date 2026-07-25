@@ -204,7 +204,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/push-branch.sh" || exit 
 
 Derive PR title from the commit subject, shaped to satisfy the resolved subject/title convention (the ladder in [SKILL.md](../SKILL.md): layered `source-control.md` config → project convention → Conventional Commits default). Build body with `${CLOSES_LINE}` at top, followed by the resolved section scaffold and a config-gated attribution line.
 
-**Resolve the required section scaffold first.** Read `pr_body_required_sections` across the three `source-control.md` layers per [../../../reference/config-resolution.md](../../../reference/config-resolution.md) (per-key override — a winning layer's list is taken whole, never merged with an earlier layer's). Absent everywhere → the bundled portable default, `Summary` and `Test plan` only (no `Related` — see [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md) for why the portable default excludes it). Track which file/layer supplied the effective list — the §2.4.2 gate cites it verbatim on failure.
+**Resolve the required section scaffold first.** Read `pr_body_required_sections` across the three `source-control.md` layers per [../../../reference/config-resolution.md](../../../reference/config-resolution.md) (per-key override — a winning layer's list is taken whole, never merged with an earlier layer's). Absent everywhere → the bundled portable default, `Summary` and `Test plan` only (no `Related` — see [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md) for why the portable default excludes it). The literal keyword `none` resolves to **zero required sections** — the winning layer's `none` overrides a lower layer's list the same way a list would (a resolved value, never an absence; parallel to `trailer_policy`/`pr_body_attribution`), the template below emits no scaffold blocks, and the §2.4.2.2 gate has nothing to require. Track which file/layer supplied the effective list — the §2.4.2 gate cites it verbatim on failure.
 
 ```bash
 # REQUIRED_SECTIONS: resolved at the model level from the three source-control.md layers'
@@ -216,6 +216,9 @@ REQUIRED_SECTIONS_SOURCE="plugin default (no source-control.md layer sets pr_bod
 # When a layer resolves the key, e.g.:
 #   REQUIRED_SECTIONS=("Summary" "Test plan" "Related")
 #   REQUIRED_SECTIONS_SOURCE="<repo-root>/.claude/source-control.md, ## pr_body_required_sections (team layer)"
+# When the winning layer declares the literal keyword `none` (no required sections):
+#   REQUIRED_SECTIONS=()
+#   REQUIRED_SECTIONS_SOURCE="<repo-root>/.claude/source-control.md, ## pr_body_required_sections (team layer, none)"
 ```
 
 Build one `## <heading>` block per entry in `${REQUIRED_SECTIONS[@]}`, real content in each — never
@@ -229,7 +232,10 @@ the same way `Summary` already does. If `${REFS_LINES}` is non-empty and `Relate
 `${REQUIRED_SECTIONS[@]}`, still append a `## Related` section carrying those lines — real
 user-supplied content is never dropped — but do **not** add it to `${REQUIRED_SECTIONS[@]}`: an ad hoc
 `Related` section is present only because it has real content, and the §2.4.2 gate must never come to
-require a section the resolved config does not list.
+require a section the resolved config does not list. Under a resolved `none` the loop below builds an
+empty `TEMPLATE`, and the assembled body carries only the closing-keyword line, any ad hoc `## Related`
+(the real-refs rule above applies unchanged — `none` suppresses the *required* scaffold, never
+user-supplied content), and the §2.4.3 attribution line.
 
 ```bash
 # One content resolver, reused whether Related is required or ad hoc — the single place
@@ -340,7 +346,7 @@ When user explicitly selected `No related issue: <reason>` in §2.4.0, the gate 
 
 #### 2.4.2.2 Verify required sections (config-driven)
 
-For every heading in `${REQUIRED_SECTIONS[@]}` (resolved in §2.4.1 from `pr_body_required_sections`, or the portable default), confirm a `## <heading>` section exists in `$BODY` **and** its body is non-empty. This is a generic mechanism — it verifies whatever the resolved config lists, never a section name baked into this skill. Deferred beyond presence + non-empty (per [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md)): placeholder-text detection (`TBD`/`TODO`/a restated heading) and per-section min-content rules — `standards#173`.
+For every heading in `${REQUIRED_SECTIONS[@]}` (resolved in §2.4.1 from `pr_body_required_sections`, or the portable default), confirm a `## <heading>` section exists in `$BODY` **and** its body is non-empty. This is a generic mechanism — it verifies whatever the resolved config lists, never a section name baked into this skill. A resolved `none` (§2.4.1) leaves `${REQUIRED_SECTIONS[@]}` empty, so this check passes with nothing to verify — the §2.4.2.1 closing-keyword check is independent and still runs. Deferred beyond presence + non-empty (per [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md)): placeholder-text detection (`TBD`/`TODO`/a restated heading) and per-section min-content rules — `standards#173`.
 
 ```bash
 MISSING_SECTIONS=()
@@ -499,3 +505,48 @@ Record the expected set for comparison in Phase 3.
 ## 2.6 Report and stop
 
 Report the PR URL, captured `<pr_number>`, and recorded list of expected CI workflows. End Phase 2 there. Monitor (Phase 3), if needed, is invoked explicitly via `/pull-request monitor` or `/pull-request full`.
+
+## 2.7 `create --pushed` — PR-only entry for an orchestrated flow
+
+`create --pushed --worktree <path>` opens the PR when the branch is **already committed and pushed** — the orchestrated case where a dispatched worker did the edits, commit, and push inside its own out-of-tree worktree and returned that worktree's path (`/work-items:work`, `#572`). The invoking orchestrator is typically **out-of-tree** (its session sits on the default branch or elsewhere), so this mode runs neither the commit/push half of the normal `create` path nor trusts the session cwd.
+
+**Ignore the pre-computed context.** [SKILL.md](../SKILL.md)'s `!`-substituted frontmatter (`git branch --show-current`, `git diff --name-only HEAD`, working-tree status) reflects the **session cwd**, which for an out-of-tree orchestrator is the wrong branch and diff — and a `!`-substituted line cannot be `git -C`-redirected. Under `--pushed`, re-resolve everything from the target worktree instead:
+
+```bash
+WT="<path>"                                   # from --worktree
+BRANCH=$(git -C "$WT" branch --show-current)
+```
+
+**Preconditions (assert, never redo).** The worker's contract is to commit, push, and be current with the default branch before returning; verify rather than repeat:
+
+- **Clean tree:** `git -C "$WT" status --porcelain` empty — else STOP (the worker returned with uncommitted work).
+- **Pushed to the remote at HEAD:** confirm the branch's remote tip equals local HEAD **without relying on `@{u}`** — a worker that pushed with `git push origin <branch>` (no `-u`) has no upstream configured, so `git log @{u}..` would exit 128 on a branch that is in fact fully pushed. Resolve the fetch remote and compare the refs directly:
+
+  ```bash
+  # Resolve the PUSH remote (the destination the worker pushed to) via the shared
+  # resolver in --push mode, run FROM the worktree so it reads $BRANCH's config —
+  # never a hardcoded `origin`, so a `git clone -o vendor` or a triangular fork
+  # flow (fetch upstream, push fork) verifies the ref at the right destination.
+  REMOTE=$( cd "$WT" && bash "${CLAUDE_PLUGIN_ROOT}/skills/pull-request/scripts/resolve-remote.sh" --push ) || exit 1
+  git -C "$WT" fetch -q "$REMOTE" "$BRANCH"
+  [ "$(git -C "$WT" rev-parse HEAD)" = "$(git -C "$WT" rev-parse FETCH_HEAD)" ] \
+    || { echo 'worker branch is not fully pushed to the remote' >&2; exit 1; }
+  ```
+
+  else STOP (the worker returned without pushing HEAD).
+
+**Sub-steps relative to the normal `create` path:**
+
+- **§2.1 / §2.3 (branch-name prompts, stage + commit):** skipped — the worker already committed; the preconditions above replace them.
+- **§2.2 (rebase onto the default branch):** skipped — bringing the branch current is the worker's pre-return responsibility, and residual staleness is caught by `gh pr view --json mergeable` and CI in Phase 3. The out-of-tree orchestrator cannot rebase a branch it is not on with a clean tree, so it never owns this step.
+- **§2.4.1 (push):** skipped — replaced by the unpushed-commits assertion above.
+- **§2.4.0 (`Closes #N`), §2.4.1 (body assembly), §2.4.2 (pre-create gates):** run unchanged, except every `git`/diff read is anchored with `git -C "$WT"` and the branch is `$BRANCH`, never the session branch. In §2.4.0 this means passing `$BRANCH` as `parse-branch-issue.sh`'s explicit first positional (`parse-branch-issue.sh "$BRANCH" ['<branch-issue-pattern>']`) — the script defaults to `git branch --show-current` **in its own process**, which an out-of-tree orchestrator cannot redirect with `git -C`, so leaving it implicit would parse `Closes #N` from the orchestrator's own branch and silently drop the linkage.
+- **§2.4.3 (create):** `gh pr create` MUST pass `--head "$BRANCH"` explicitly, since the invoker is not on the branch:
+
+  ```bash
+  PR_URL=$(gh pr create --head "$BRANCH" --title "<type>: <description>" --body "$BODY")
+  ```
+
+- **§2.5 / §2.6:** unchanged — record expected workflows, report the PR URL + number, and stop.
+
+This mode is create-only: it never merges, and (like standalone `create`) it hands monitoring off to `/pull-request monitor` / `/pull-request full` or, in the orchestrated lane, back to the calling orchestrator.

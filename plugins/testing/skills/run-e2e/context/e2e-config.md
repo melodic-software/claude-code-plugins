@@ -2,7 +2,7 @@
 
 The consumer-tracked config surface for `/testing:run-e2e`. It carries two per-operator / per-repo preferences: how a run captures evidence, and whether the browser is visible. The surface identity is its whole path relative to `.claude/` — `testing/e2e.md` — so its layers live at `~/.claude/testing/e2e.md` (user-global), `${CLAUDE_PROJECT_DIR}/.claude/testing/e2e.md` (team), and `${CLAUDE_PROJECT_DIR}/.claude/testing/e2e.local.md` (local overlay).
 
-This file owns the keys — their meaning, allowed values, defaults, and precedence. How the layers merge is owned by the layering contract; see the [consumer-config layering contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/consumer-config-layering/README.md). The two compose: this doc declares the keys and points there for layer mechanics.
+This file owns the keys — their meaning, allowed values, defaults, and precedence. How the layers merge is owned by the layering contract; see the [config-cascade contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/config-cascade/README.md). The two compose: this doc declares the keys and points there for layer mechanics.
 
 ## Keys
 

@@ -1,8 +1,10 @@
 # Convention config resolution
 
-How `/source-control:commit`, `/source-control:pull-request`, and `/source-control:setup` resolve the
-tracked commit-subject / PR-title convention. All three skills read this one document; none bakes its
-own layering rules.
+How the skills in this plugin resolve the layered `.claude/source-control.md` config surface. The
+surface carries two key families: the tracked commit-subject / PR-title convention keys, read by
+`/source-control:commit`, `/source-control:pull-request`, and `/source-control:setup`, and the
+loop-lane keys, read by `/source-control:babysit-loop`. Every consumer reads this one document; none
+bakes its own layering rules, and the three layers and per-key merge below govern both families.
 
 Implements the tracked-rich-config seam in
 [`docs/MIGRATION-PLAYBOOK.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/MIGRATION-PLAYBOOK.md).
@@ -32,16 +34,103 @@ Markdown, one `## <key>` H2 per key, the value as the section body:
   consumer setting `trailer_policy: none` keeps the PR-body line unless they also set this to `none`.
 - `pr_body_required_sections` — the PR-body section scaffold: a flat Markdown bullet list (`- <H2
   heading>` per line, one heading per bullet) naming every `## <heading>` section
-  `/source-control:pull-request create` must both draft and pre-check for before `gh pr create`.
-  Absent everywhere → the bundled portable default, `Summary` and `Test plan` only — see
+  `/source-control:pull-request create` must both draft and pre-check for before `gh pr create`, or
+  the literal keyword `none` — no required sections: the draft emits no section scaffold and the
+  pre-create gate requires nothing. Absent everywhere → the bundled portable default, `Summary` and
+  `Test plan` only — see
   [`docs/conventions/pr-body-convention/README.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/pr-body-convention/README.md)
   for the default's rationale and the seam's full contract. Like `type_list`, and unlike the single
   scalar `subject_pattern`, this key is a **closed list**: a winning layer's list is taken whole,
   never unioned or ordered against an earlier layer's list (per-key override applies to the entire
   value, per "Merge semantics" below) — the same reasoning `type_list` already documents, applied to
-  headings instead of type names.
+  headings instead of type names. `none` participates in that same per-key override as a **resolved
+  value, not an absence** — exactly like its sibling keys `trailer_policy` and `pr_body_attribution`:
+  a layer declaring `none` replaces a lower layer's list (a team file requiring `Summary`/`Test plan`
+  is overridden to zero sections by a local overlay's `none`), while a key absent from every layer
+  still falls through to the portable default.
 
 Absent sections are absent, never empty.
+
+- `convention_source` — optional, **honored in the team-tracked layer only**: a repo-relative
+  forward-slash path to a neutral flat-scalar YAML file, the tool-agnostic convention SSOT other
+  consumers (commit-msg hooks, CI, other agents) read too. When declared, the neutral file is
+  authoritative for the machine keys it carries (`subject_pattern`, `pr_title_pattern`, optionally
+  a flat `pr_body_required_sections:` list and `dialect:`); a key it omits falls back to the team
+  file's own H2 sections, and plugin-only keys (`trailer_policy`, `pr_body_attribution`) stay in
+  the markdown surface. The `Conventional Commits` keyword and the pr-title deferral marker work
+  identically in the neutral file. User-global and local-overlay layers are unchanged and still
+  merge per key on top. **The neutral file is resolved by a three-rung precedence, identical on the
+  drafting and enforcement surfaces:** (1) an explicit `convention_source` pointer (the relocation
+  override — path stays repo-owned); absent one, (2) the **well-known default path**
+  `docs/conventions/source-control/commit-convention.yml` **when that file is git-tracked** (the
+  common case — read ONE tool-agnostic file, no pointer needed); absent both, (3) the team markdown
+  H2 sections (legacy / back-compat). The rung-2 **git-tracked requirement is a policy floor shared by
+  both surfaces**: an untracked or gitignored file at the default path must NOT drive resolution — it
+  is a generated/local artifact, not team convention, and honoring it would let drafting diverge from
+  the enforcement gate (which enforces the same floor). Verify with
+  `git ls-files --error-unmatch docs/conventions/source-control/commit-convention.yml`; if it is
+  untracked (or git is unavailable), skip rung 2 and fall through to the markdown H2. Once a neutral
+  file is resolved via rung 1 or 2 it is authoritative and the fail-closed broken-file contract
+  applies; a key it omits still falls back per key to the markdown H2. Value grammar, pointer safety rules, and the fail-closed
+  broken-pointer contract are owned by the
+  [commit-convention seam](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/commit-convention/README.md)
+  — drafting honors the same contract (a declared-but-broken pointer is surfaced as a config error,
+  never silently re-read from markdown values a migration may have retired).
+
+## Loop-lane keys (`babysit_loop_*`)
+
+The same surface carries the repo-scoped configuration for the `/source-control:babysit-loop` lane —
+which stop shape, autonomy tier, and per-dimension overrides a repository's merge lane runs under.
+These are repository policy, not personal scalars: whether a repo drains or stands, and how much
+merge authority its lane holds, are properties of the target repository, which the plugin's
+user-settings-scoped `babysit_*` `userConfig` keys structurally cannot express. The split is
+deliberate and both surfaces coexist: `userConfig` keeps the personal and machine scalars the
+babysit-prs mechanic documents (watched owners, self logins, engine thresholds); this surface holds
+the lane policy a team reviews and tracks. Loop keys carry the `babysit_loop_` prefix so the two key
+families sharing one file stay distinguishable.
+
+One `## <key>` H2 per key, exactly like the convention keys above; every value is a scalar, so the
+per-key override semantics below apply unchanged.
+
+| Key | Value | Default when absent |
+|---|---|---|
+| `babysit_loop_stop_mode` | `standing` or `drain` | `standing` |
+| `babysit_loop_tier` | a `/source-control:babysit-prs` tier name (`safe`, `worker`, `autopilot`) — the named preset over the autonomy dimensions | `safe` |
+| `babysit_loop_discovery_scope` | tier name — overrides dimension 1 (which PRs enter the queue) out of the preset | preset value |
+| `babysit_loop_fixing` | tier name — dimension 2 (branch-owned CI/review fix authority) | preset value |
+| `babysit_loop_thread_resolution` | tier name — dimension 3 (review-thread resolution) | preset value |
+| `babysit_loop_draft_elevation` | tier name — dimension 4 (draft handling / ready-marking) | preset value |
+| `babysit_loop_barrier_overrides` | tier name — dimension 5 (blocker handling: escalate vs attempt-with-research) | preset value |
+| `babysit_loop_merge` | an autonomy-ladder rung, ordered `human-only` < `c2-mechanical` < `c3-autonomous` < `full-autonomy` — dimension 6 (merge authority) | `human-only` with no tracked adoption; `c2-mechanical` (the loop-lane convention's baseline) once the team-tracked layer carries loop-lane keys — see baseline activation below |
+| `babysit_loop_escalation` | tier name — dimension 7 (escalation posture); the escalation *surface* is fixed by the loop-lane convention, never by config | preset value |
+| `babysit_loop_grace_window_minutes` | positive integer — the concurrency-safety activity grace window | `30` |
+| `babysit_loop_cycle_budget` | positive integer — cycles per session before the budget-hit stop | none — no per-session budget |
+
+Dimension semantics — what each tier value grants per dimension — are owned by the babysit-prs
+autonomy table (`skills/babysit-prs/SKILL.md`, "Autonomy tiers (per action class)") and are not
+restated here. The merge dimension's rung semantics are owned by the loop-lane convention's autonomy
+ladder (`docs/conventions/loop-lane/README.md` §1 in the marketplace repository).
+
+**Precedence: invocation arguments win — except the merge dimension.** For every loop key above but
+`babysit_loop_merge`, an invocation argument overrides all three layers, exactly as an explicit skill
+argument outranks stored config everywhere else in this plugin. `babysit_loop_merge` is the one
+policy-floor key on this surface (the consumer-config layering convention's sanctioned policy-floor
+class, declared here next to its key): **raises bind from the team-tracked layer only** — every
+increase in merge authority is a reviewable, versioned config change, per the loop-lane convention's
+"Merge-rung raises are seam-only" rule. The user-global layer, the local overlay, and an invocation
+argument may each select a *lower* (safer) rung than the effective team-tracked value, never a higher
+one; a raise supplied by any of them is ignored and reported.
+
+**Baseline activation is tracked adoption.** The convention's baseline rung — human merge for
+everything except gate-proven C2-mechanical PRs — is the value a repository gets by *adopting* the
+lane, and adoption itself must be a recorded change: no lane ever auto-merges without a reviewed
+change having enabled it (loop-lane convention, "Autonomy ladder (merge authority)"). Concretely:
+while the target repository's team-tracked `.claude/source-control.md` carries no `babysit_loop_*`
+keys, the merge dimension resolves to `human-only`. Landing loop-lane keys in that tracked file — a
+reviewable PR in the target repository — is the recorded, human-ratified lane-enabling act, after
+which an absent merge key defaults to the `c2-mechanical` baseline. A merge-capable tier supplied by
+an invocation keyword or any other layer never substitutes for the tracked adoption: with the tier
+merge-capable but no tracked adoption, merges stay `human-only` and the lane reports why.
 
 ## The three layers
 

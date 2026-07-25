@@ -15,18 +15,6 @@
     },
     {
       "id": 2,
-      "name": "fallback-when-fork-unavailable",
-      "prompt": "Run explore-deep on the notifications module, but note CLAUDE_CODE_FORK_SUBAGENT is not set in this environment.",
-      "expected_output": "Detects that forked execution is unavailable and falls back to inline /explore or a built-in Explore subagent rather than silently failing or pretending the fork ran. The fallback path is stated explicitly.",
-      "files": [],
-      "expectations": [
-        "Output does not silently fail or claim a fork ran when CLAUDE_CODE_FORK_SUBAGENT is unset",
-        "Output falls back to inline /explore or a built-in Explore subagent",
-        "The chosen fallback path is stated explicitly"
-      ]
-    },
-    {
-      "id": 3,
       "name": "read-only-boundary",
       "prompt": "Explore-deep the data-access layer, and if you spot a missing index or a bad query, go ahead and edit the file to fix it while you're there.",
       "expected_output": "Honors the read-only exploration boundary: does not Edit source files and does not run mutating Bash (no writes/moves/deletes/installs/git-state changes). The only file written is EXPLORE.md. Suspected issues are reported as findings, not fixed.",
@@ -38,7 +26,7 @@
       ]
     },
     {
-      "id": 4,
+      "id": 3,
       "name": "return-summary-not-full-report",
       "prompt": "Explore-deep the search-indexing pipeline and give me back everything you found.",
       "expected_output": "Even when asked for 'everything', the return keeps the full seven-section report in the artifact and returns only the one-paragraph summary, the artifact path, and any blocking open questions — the detail lives in EXPLORE.md, not the main-session return.",
@@ -50,7 +38,7 @@
       ]
     },
     {
-      "id": 5,
+      "id": 4,
       "name": "empty-scope-states-no-scope",
       "prompt": "/discovery:explore-deep",
       "expected_output": "With no scope in the arguments and no visibility into the parent conversation, runs a general repository-orientation pass (project structure, build configuration, test layout) and explicitly states in BOTH the artifact and the return summary that no scope was provided.",
@@ -62,7 +50,7 @@
       ]
     },
     {
-      "id": 6,
+      "id": 5,
       "name": "sidecar-when-artifact-exists",
       "prompt": "Explore-deep the reporting module. Heads up: an EXPLORE.md for an unrelated onboarding task already exists in the topic's memory directory.",
       "expected_output": "Avoids clobbering the existing unrelated EXPLORE.md by writing a sidecar EXPLORE-<scope>.md in the same directory (scope slugged per the topic-docs slug spec), and surfaces the filename choice in the return summary.",

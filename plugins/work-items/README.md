@@ -110,13 +110,15 @@ enough that one skill no longer predicts its contents.
 
 ## Configuration
 
-Two optional `userConfig` scalars declare the intended shape of autonomous
-`/work-items:work` execution: `work_dispatch_concurrency_cap` (max concurrent
-dispatch waves per cycle, default mirrors the `/implementation:implement-dispatch`
-3–5 wave cap) and `work_cycle_batch_cap` (per-cycle item budget — bounds a cycle,
-never the loop). Both are unset by default and apply their manifest default when
-omitted. Enforcement of both caps is not yet wired to the delegated dispatch and
-driving loop — tracked in `#573`.
+`work_dispatch_concurrency_cap` caps the concurrent dispatch waves autonomous
+`/work-items:work` allows per item. When set, `/work-items:work` threads it into
+`/implementation:implement-dispatch` as that skill's `--wave-cap` ceiling; left
+unset (its default state — the key declares no manifest default), it lets
+`/implementation:implement-dispatch` apply its own internal 3–5 wave default.
+The autonomous per-cycle item budget is a separate, driving-loop concern — the
+`work-loop` lane's adaptive item cap (`work_loop_item_cap_start` / `_ceiling` /
+`_floor`, plus `work_loop_frontier_item_cap_ceiling`), enforced by the loop
+body's own arithmetic.
 
 Everything else is project-specific behavior that routes through the consuming
 repo's own surfaces: the bound provider in `.work-item-tracker.json` (including

@@ -45,12 +45,12 @@
     {
       "id": 4,
       "name": "triage-outcome-clears-the-raw-intake-marker",
-      "prompt": "/work-items:triage 42 — #42 is an external bug report currently tagged status:needs-triage; you have verified it and are ready to brief it for autonomous pickup",
+      "prompt": "/work-items:triage 42 — #42 is an external bug report currently tagged status:needs-triage (this repo files the raw marker on the status axis); you have verified it and are ready to brief it for autonomous pickup",
       "expected_output": "Applying the briefed-and-delegable outcome removes status:needs-triage as part of the same edit that applies the brief labels plus the autonomous-eligible role label — normalization replaces the raw marker rather than stacking status:ready and the role label on top of it. Notes that leaving status:needs-triage alongside a briefed/ready or role label is a contradiction the open-only attention view reads as still-raw and would re-triage every cycle.",
       "files": [],
       "expectations": [
-        "Clears the raw-intake marker (`status:needs-triage`) in the same edit that applies the outcome's labels — treats the outcome as a transition off raw, not an addition on top of it",
-        "Applies the resulting state (brief + `status:ready` + autonomous-eligible role label) without leaving `status:needs-triage` attached",
+        "Clears the raw-intake marker (here `status:needs-triage`) in the same edit that applies the outcome's labels — treats the outcome as a transition off raw, not an addition on top of it",
+        "Applies the resulting state (brief + `status:ready` + autonomous-eligible role label) without leaving the raw marker (`status:needs-triage`) attached",
         "States the closing invariant: an open item carries no raw marker alongside a briefed/ready or role label — that contradiction re-selects the item in the attention view every cycle",
         "Recognizes that a close outcome instead drops the item from the open-only attention frontier, making the raw marker moot"
       ]
@@ -58,12 +58,12 @@
     {
       "id": 5,
       "name": "triage-needs-info-outcome-clears-the-raw-intake-marker",
-      "prompt": "/work-items:triage 42 — #42 is an external bug report currently tagged status:needs-triage; the description is too thin to reproduce and you are marking it needs-info",
+      "prompt": "/work-items:triage 42 — #42 is an external bug report currently tagged status:needs-triage (this repo files the raw marker on the status axis); the description is too thin to reproduce and you are marking it needs-info",
       "expected_output": "Applying the needs-info outcome removes status:needs-triage in the same edit that applies status:needs-info plus the structured needs-info comment — the open item is left carrying status:needs-info alone, never stacked on the raw marker. Notes that this does not orphan the item: the attention view re-selects it through the needs-info-with-reporter-activity bucket on the reporter's reply, which is the desired re-entry point, rather than through the raw-marker bucket every cycle.",
       "files": [],
       "expectations": [
-        "Clears the raw-intake marker (`status:needs-triage`) in the same edit that applies `status:needs-info` — the needs-info outcome is a transition off raw, not an addition on top of it",
-        "Leaves the open item carrying `status:needs-info` alone, without `status:needs-triage` still attached",
+        "Clears the raw-intake marker (here `status:needs-triage`) in the same edit that applies `status:needs-info` — the needs-info outcome is a transition off raw, not an addition on top of it",
+        "Leaves the open item carrying `status:needs-info` alone, without the raw marker (`status:needs-triage`) still attached",
         "Recognizes that clearing the raw marker does not orphan the item — it re-enters the attention view through the needs-info-with-reporter-activity bucket on reporter reply, not the raw-marker bucket",
         "Distinguishes this desired re-entry (needs-info bucket on re-engagement) from the silent-loop re-selection that a leftover raw marker would cause every cycle"
       ]

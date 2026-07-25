@@ -1,6 +1,6 @@
 # Changelog — session-flow plugin
 
-## [0.15.1]
+## [0.16.0]
 
 ### Added
 
@@ -33,6 +33,22 @@
   reference/topic-docs.md lists `find-handoff` among the skills that read the
   topic-docs binding to locate the handoffs directory. keep-going step 4 routes
   to `find-handoff` when the handoff path was lost.
+
+## [0.15.1]
+
+### Changed
+
+- All five skills whose pre-computed context block injects the session id
+  (`orient`, `retro`, `running-retro`, `handoff`, `continue-in-background`) now
+  carry a `|| echo "unknown"` fallback on that injection, matching the sibling
+  git injections in the same block. Injection failure, timeout, and stderr
+  semantics are undocumented upstream, so the standing convention is a
+  `|| <fallback>` on every injected command — `skill-quality:check` flags a
+  missing one as an advisory WARN. On this particular line the guard is
+  unreachable in practice (`${VAR:-unknown}` resolves at expansion time, so
+  `echo` receives a formed string and exits 0); it buys block-wide uniformity
+  and a quiet gate, not protection against a failure mode the sibling git lines
+  genuinely have.
 
 ## [0.15.0]
 

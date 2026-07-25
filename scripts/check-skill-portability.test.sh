@@ -5,6 +5,10 @@
 # and runs the script's --all mode from a fixture root, exactly as the
 # silent-skip suite does. Two cases run against the REAL corpus to prove the
 # bare-vs-guarded discrimination on live files, not only synthetic ones.
+#
+# Bespoke PASS/FAIL counters by design, not drift: this is repo tooling, not a
+# plugin, so no plugin assertion library applies here — see
+# docs/conventions/shell-test-helpers/README.md.
 # shellcheck disable=SC2016  # fixture bodies are literal skill content in single quotes; expansion is never wanted
 set -uo pipefail
 

@@ -3,6 +3,14 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.2]
+
+### Changed
+
+- **Doc reference updated for the `config-cascade` seam rename (#1188).** The layering-contract link in
+  `tidy/SKILL.md` and `tidy/lanes/docs-prose.md` now points at `docs/conventions/config-cascade/`
+  (formerly `consumer-config-layering`). No behavior change.
+
 ## [0.7.1]
 
 ### Changed
