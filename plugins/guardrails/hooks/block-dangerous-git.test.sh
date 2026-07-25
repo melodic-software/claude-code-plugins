@@ -35,13 +35,18 @@ run "git push origin +feature (bare + refspec, blocked)" "git push origin +featu
 run "git push --mirror (force-updates all refs, blocked)" "git push --mirror backup" 2
 run "git push --force-with-lease (no expected value, blocked)" "git push --force-with-lease" 2
 run "git push --force-with-lease=main (refname only, no expectation, blocked)" "git push --force-with-lease=main origin main" 2
-run "git push --force-with-lease=main:abc123 (expectation stated, allowed)" "git push --force-with-lease=main:abc123 origin main" 0
+# Full-width object ids — the only expectation shape the guard accepts as
+# immutable. Anything shorter is an abbreviation git resolves as a ref first.
+SHA1_OID=0123456789abcdef0123456789abcdef01234567
+SHA256_OID=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+run "git push --force-with-lease=main:<40-hex> (full object id, allowed)" "git push --force-with-lease=main:$SHA1_OID origin main" 0
+run "git push --force-with-lease=main:<64-hex> (sha256 object id, allowed)" "git push --force-with-lease=main:$SHA256_OID origin main" 0
 run "git push --force-with-lease=main: (empty expect means ref must not exist, allowed)" "git push --force-with-lease=main: origin main" 0
 run "git push --force-with-lease --force-if-includes (mitigated, allowed)" "git push --force-with-lease --force-if-includes" 0
 run "git push --force-with-lease=main --force-if-includes (mitigated, allowed)" "git push --force-with-lease=main --force-if-includes origin main" 0
 run "git push --force-if-includes alone (no lease, git no-ops it, allowed)" "git push --force-if-includes origin main" 0
 run "git push --force-w (unique abbrev of the lease flag, blocked)" "git push --force-w" 2
-run "git push --force-w=main:abc1234 (abbrev with expectation, allowed)" "git push --force-w=main:abc1234 origin main" 0
+run "git push --force-w=main:<40-hex> (abbrev flag with full object id, allowed)" "git push --force-w=main:$SHA1_OID origin main" 0
 run "git push --force-w --force-i (both abbreviated, mitigated, allowed)" "git push --force-w --force-i" 0
 run "git push --force-with-lease --dry-run (preview updates nothing, allowed)" "git push --force-with-lease --dry-run" 0
 run "git push --force-with-lease -- --force-if-includes (after --, operand not flag, blocked)" "git push --force-with-lease -- --force-if-includes" 2
@@ -52,18 +57,29 @@ run "git push --force-with-lease --force-if-includes --no-force-w (lease negatio
 run "git push --force-with-lease --no-force-with-lease (lease negated, not a lease push, allowed)" "git push --force-with-lease --no-force-with-lease origin main" 0
 run "git push --force-with-lease --no-force-with-lease --force-with-lease (lease re-armed, blocked)" "git push --force-with-lease --no-force-with-lease --force-with-lease origin main" 2
 run "git push --no-force-with-lease alone (nothing to negate, allowed)" "git push --no-force-with-lease origin main" 0
-run "git push --force-with-lease=main:abc1234 --no-force-with-lease (stated expectation negated, allowed)" "git push --force-with-lease=main:abc1234 --no-force-with-lease origin main" 0
-run "git push bare + pinned lease over two refs (bare fallback still governs 'other', blocked)" "git push --force-with-lease --force-with-lease=refs/heads/main:abc1234 origin main other" 2
-run "git push pinned then bare (order does not rescue the bare fallback, blocked)" "git push --force-with-lease=refs/heads/main:abc1234 --force-with-lease origin main other" 2
-run "git push bare + pinned + --force-if-includes (mitigation covers the fallback, allowed)" "git push --force-with-lease --force-with-lease=refs/heads/main:abc1234 --force-if-includes origin main other" 0
+run "git push pinned lease then --no-force-with-lease (stated expectation negated, allowed)" "git push --force-with-lease=main:$SHA1_OID --no-force-with-lease origin main" 0
+run "git push movable lease then --no-force-with-lease (git cancels every previous lease, allowed)" "git push --force-with-lease=main:origin/main --no-force-with-lease origin main" 0
+run "git push movable lease, negated, then re-stated (claims re-staked, blocked)" "git push --force-with-lease=main:origin/main --no-force-with-lease --force-with-lease=main:origin/main origin main" 2
+run "git push bare + pinned lease over two refs (bare fallback still governs 'other', blocked)" "git push --force-with-lease --force-with-lease=refs/heads/main:$SHA1_OID origin main other" 2
+run "git push pinned then bare (order does not rescue the bare fallback, blocked)" "git push --force-with-lease=refs/heads/main:$SHA1_OID --force-with-lease origin main other" 2
+run "git push bare + pinned + --force-if-includes (mitigation covers the fallback, allowed)" "git push --force-with-lease --force-with-lease=refs/heads/main:$SHA1_OID --force-if-includes origin main other" 0
 run "git push lease pinned to a remote-tracking name (movable at push time, blocked)" "git push --force-with-lease=refs/heads/main:refs/remotes/origin/main origin main" 2
 run "git push lease pinned to origin/main shorthand (movable, blocked)" "git push --force-with-lease=main:origin/main origin main" 2
 run "git push lease pinned to HEAD (movable, blocked)" "git push --force-with-lease=main:HEAD origin main" 2
-run "git push lease pinned to an abbreviated object id (immutable, allowed)" "git push --force-with-lease=main:abc123 origin main" 0
-run "git push lease pinned to a movable name + --force-if-includes (mitigated, allowed)" "git push --force-with-lease=main:origin/main --force-if-includes origin main" 0
+run "git push lease pinned to an abbreviated object id (a ref of that name wins, blocked)" "git push --force-with-lease=main:abc123 origin main" 2
+run "git push lease pinned to a 4-hex expect that is also a valid ref name (blocked)" "git push --force-with-lease=main:dead origin main" 2
+run "git push lease pinned to a 39-hex expect (one short of full width, blocked)" "git push --force-with-lease=main:012345678901234567890123456789012345678 origin main" 2
+run "git push lease pinned to a movable name + --force-if-includes (git no-ops the mitigation here, blocked)" "git push --force-with-lease=main:origin/main --force-if-includes origin main" 2
 run "git push lease pinned to a 3-char expect (too short to be an object id, blocked)" "git push --force-with-lease=main:abc origin main" 2
 run "git push --force-with-lease --force-if-includes --no-dry-run (dry-run negation does not clear the mitigation, allowed)" "git push --force-with-lease --force-if-includes --no-dry-run origin main" 0
-run "git push --force-with-lease=main:abc1234 --no-force-if-includes (stated expectation stands without the mitigation, allowed)" "git push --force-with-lease=main:abc1234 --no-force-if-includes origin main" 0
+run "git push pinned lease + --no-force-if-includes (stated expectation stands without the mitigation, allowed)" "git push --force-with-lease=main:$SHA1_OID --no-force-if-includes origin main" 0
+# git's apply_cas() returns on the FIRST lease entry matching the ref being
+# updated, so a repeated ref is decided by the earlier spelling alone.
+run "git push same ref pinned first, movable second (git uses the first, allowed)" "git push --force-with-lease=main:$SHA1_OID --force-with-lease=main:origin/main origin main" 0
+run "git push same ref movable first, pinned second (git uses the first, blocked)" "git push --force-with-lease=main:origin/main --force-with-lease=main:$SHA1_OID origin main" 2
+run "git push same ref no-expect first, pinned second (first is tracking-based, blocked)" "git push --force-with-lease=main --force-with-lease=main:$SHA1_OID origin main" 2
+run "git push same ref no-expect first, pinned second, mitigated (allowed)" "git push --force-with-lease=main --force-with-lease=main:$SHA1_OID --force-if-includes origin main" 0
+run "git push different refs, one pinned one movable (both entries live, blocked)" "git push --force-with-lease=main:$SHA1_OID --force-with-lease=other:origin/other origin main other" 2
 run "git push (plain, allowed)" "git push" 0
 run "git push -u origin main (allowed)" "git push -u origin main" 0
 run "git push -o f (option value f, allowed)" "git push -o f origin main" 0
@@ -360,7 +376,7 @@ run_pwsh() {
 run_pwsh "PS: git push --force (blocked)" "git push --force" 2
 run_pwsh "PS: git reset --hard (blocked)" "git reset --hard" 2
 run_pwsh "PS: git push --force-with-lease (no expected value, blocked)" "git push --force-with-lease" 2
-run_pwsh "PS: git push --force-with-lease=main:abc1234 (immutable expectation, allowed)" "git push --force-with-lease=main:abc1234" 0
+run_pwsh "PS: git push --force-with-lease=main:<40-hex> (immutable expectation, allowed)" "git push --force-with-lease=main:0123456789abcdef0123456789abcdef01234567" 0
 run_pwsh "PS: git push (plain, allowed)" "git push origin main" 0
 run_pwsh "PS: git status (allowed)" "git status" 0
 run_pwsh "PS: backtick-continued force push (fail-closed block)" \

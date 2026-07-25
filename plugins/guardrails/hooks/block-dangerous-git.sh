@@ -3,20 +3,27 @@
 #
 # Default block-list is irreversible-only (form tokens):
 #   push-force     — git push --force / -f / +refspec / --mirror
-#   push-lease-unsafe — git push --force-with-lease leasing against anything
-#                    git resolves at push time (bare, `=<refname>`, or an
-#                    `=<refname>:<expect>` whose <expect> is a movable name),
-#                    without --force-if-includes
+#   push-lease-unsafe — git push --force-with-lease leasing against something
+#                    git resolves at push time, in either of the two forms
+#                    git treats differently:
+#                      * NO expected value (bare `--force-with-lease` or
+#                        `=<refname>`) — leases against the remote-tracking
+#                        ref; blocked unless --force-if-includes is present,
+#                        which git documents as the mitigation for this form.
+#                      * a MOVABLE `=<refname>:<expect>` — <expect> is a name
+#                        git resolves at push time; blocked unconditionally,
+#                        because git declares --force-if-includes a no-op
+#                        alongside an explicit `:<expect>`.
 #   reset-hard     — git reset --hard
 #   clean-force    — git clean with a force flag (-f, -fd, -fdx, --force)
 #   checkout-dot   — git checkout .  (worktree-wide discard; path-scoped is fine)
 #   restore-dot    — git restore .   (worktree discard; --staged-only is fine)
 #   checkout-force — git checkout -f / switch -f/--discard-changes
 #
-# NOT blocked: a push whose ONLY lease spellings pin an immutable <expect> —
-# an object id, or the empty string asserting the ref must not exist — so no
-# background fetch can satisfy the lease on the pusher's behalf; any lease form
-# paired with --force-if-includes; a lease
+# NOT blocked: a push whose lease spellings all pin an immutable <expect> — a
+# full-length object id, or the empty string asserting the ref must not exist —
+# so no background fetch can satisfy the lease on the pusher's behalf; a
+# no-expected-value lease paired with --force-if-includes; a lease
 # cancelled by a trailing --no-force-with-lease, plain push, soft/mixed reset,
 # clean -n (dry run), path-scoped checkout/restore, and `branch -D` (reflog
 # recovers deleted refs, and sanctioned skill flows issue it inline).
@@ -169,21 +176,39 @@ is_push_value_opt() {
 is_lease_opt() { abbrev_match "force-with-lease" "${1%%=*}" 7; }
 
 # Does a lease spelling state an expectation git cannot resolve to something
-# newer at push time? Only `=<refname>:<expect>` with <expect> an immutable
+# newer at push time? Only `=<refname>:<expect>` with <expect> a FULL-LENGTH
 # object id qualifies, plus the empty <expect> (git: "the named ref must not
 # already exist"). A symbolic name in the <expect> slot — `origin/main`,
 # `refs/remotes/origin/main`, `HEAD`, `@{u}` — is resolved when the push runs,
 # so a background fetch moves it first and the lease passes while clobbering
 # work the pusher never saw: the exact hole the bare form has.
-# Abbreviated hex is accepted because git resolves any unambiguous object-id
-# prefix, and a hex string cannot name a moving target.
+#
+# An ABBREVIATED object id is deliberately NOT accepted. gitrevisions permits
+# both ref names and unique object-id prefixes as revision syntax, and git
+# resolves a word as a ref BEFORE trying it as a short object id — so a tag
+# literally named `dead` beats the object whose id starts `dead`, and a short
+# hex expectation is a moving target after all. Only a word of exactly the
+# repository hash format's full width (40 hex for SHA-1, 64 for SHA-256) is
+# unambiguously an object id. Everything shorter fails closed.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
-lease_pins_an_immutable_expect() {
-  local v="$1" expect
-  [[ "$v" == *=*:* ]] || return 1
-  expect="${v#*:}"
+lease_expect_is_immutable() {
+  local expect="$1"
   [[ -z "$expect" ]] && return 0
-  [[ "$expect" =~ ^[0-9a-fA-F]{4,64}$ ]]
+  [[ "$expect" =~ ^([0-9a-fA-F]{40}|[0-9a-fA-F]{64})$ ]]
+}
+
+# Has an earlier lease spelling in this same command already claimed <refname>?
+# git's apply_cas() walks the --force-with-lease entries in command-line order
+# and RETURNS on the first whose refname matches the ref being updated, so a
+# later entry for a ref an earlier one already pinned is dead text. Matching
+# entries by their literal spelling is the conservative reading of git's
+# refname_match(): two different spellings of one ref (`main` vs
+# `refs/heads/main`) are treated as distinct here, so an unsafe later entry is
+# still counted rather than silently dropped.
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+lease_ref_claimed() {
+  local seen="$1" ref="$2"
+  [[ $'\n'"$seen" == *$'\n'"$ref"$'\n'* ]]
 }
 
 # Is an operand a worktree-wide pathspec? `.` from the repo root, the
@@ -251,7 +276,8 @@ is_exclude_pathspec() {
 # shellcheck disable=SC2329  # invoked indirectly as the hook::bash_parse_segments callback
 check_segment() {
   local -a w=()
-  local nseg gi k x rest ch sub sub_idx staged worktree dry excl pos opseen if_includes lease_bare
+  local nseg gi k x rest ch sub sub_idx staged worktree dry excl pos opseen
+  local if_includes lease_tracking lease_movable lease_seen lease_ref lease_expect
 
   # A shell -c wrapper (`bash -lc 'git reset --hard'`) executes its operand as
   # a full shell command — re-parse it with the same tokenizer so the wrapped
@@ -350,7 +376,9 @@ check_segment() {
     # lease check disarms while git pushes unmitigated.
     dry=0
     if_includes=0
-    lease_bare=0
+    lease_tracking=0
+    lease_movable=0
+    lease_seen=""
     k=$((sub_idx + 1))
     while ((k < nseg)); do
       x="${w[k]}"
@@ -364,8 +392,14 @@ check_segment() {
       --no-*)
         abbrev_match "dry-run" "--${x#--no-}" 2 && dry=0
         abbrev_match "force-if-includes" "--${x#--no-}" 7 && if_includes=0
-        # git's --no- form cancels the whole option, both spellings.
-        abbrev_match "force-with-lease" "--${x#--no-}" 7 && lease_bare=0
+        # git: "--no-force-with-lease will cancel all the previous
+        # --force-with-lease on the command line" — every spelling, and the
+        # per-ref claims they staked, not just the bare one.
+        if abbrev_match "force-with-lease" "--${x#--no-}" 7; then
+          lease_tracking=0
+          lease_movable=0
+          lease_seen=""
+        fi
         # Consume the word here. Falling through would let
         # `--no-force-with-lease` re-match below as the positive option and
         # undo the clear that just happened.
@@ -384,18 +418,33 @@ check_segment() {
           dry=1
         fi
         abbrev_match "force-if-includes" "${x%%=*}" 7 && if_includes=1
-        # The two spellings are INDEPENDENT, not one state. git scopes
-        # `=<refname>:<expect>` to that ref alone and leaves every other
-        # updated ref on the bare fallback, so an explicit entry never makes a
-        # Only a spelling that leases against something MUTABLE is tracked. An
-        # `=<refname>:<expect>` entry is scoped by git to the ref it names and
-        # says nothing about the others, so it can never make a bare fallback
-        # safe — but it only counts as pinned when <expect> is an immutable
-        # object id (or the empty string, which asserts the ref must not
-        # exist). A name like `refs/remotes/origin/main` in the <expect> slot
-        # is resolved at push time and a background fetch can move it first,
-        # which is the same hole the bare form has.
-        if is_lease_opt "$x" && ! lease_pins_an_immutable_expect "$x"; then lease_bare=1; fi
+        # Lease spellings are INDEPENDENT of one another, and the two unsafe
+        # kinds are tracked separately because git mitigates only one of them.
+        # A pinned `=<refname>:<expect>` is scoped by git to the ref it names
+        # and says nothing about the others, so it can never make a bare
+        # fallback safe.
+        if is_lease_opt "$x"; then
+          if [[ "$x" != *=* ]]; then
+            # Bare form: the tracking-based fallback for every ref no explicit
+            # entry claims. No refname to key on, so it is its own slot.
+            lease_tracking=1
+          else
+            lease_ref="${x#*=}"
+            lease_ref="${lease_ref%%:*}"
+            # First entry for a ref wins in git; a later one for the same ref
+            # is never consulted, so it must not drive the verdict either.
+            if ! lease_ref_claimed "$lease_seen" "$lease_ref"; then
+              lease_seen="$lease_seen$lease_ref"$'\n'
+              if [[ "$x" != *=*:* ]]; then
+                lease_tracking=1
+              else
+                lease_expect="${x#*=}"
+                lease_expect="${lease_expect#*:}"
+                lease_expect_is_immutable "$lease_expect" || lease_movable=1
+              fi
+            fi
+          fi
+        fi
         ;;
       esac
       ((k++))
@@ -403,10 +452,15 @@ check_segment() {
     ((dry)) && return 0
     # Decided after the scan, never mid-scan: every one of these options is
     # last-wins, so an early match cannot be acted on before the segment ends.
-    if ((lease_bare)) && ((!if_includes)); then
+    if ((lease_movable)); then
+      block "push-lease-unsafe" \
+        "BLOCKED: git push --force-with-lease=<refname>:<expect> whose <expect> is a name git resolves at push time (origin/main, HEAD, a tag, an abbreviated object id) leases against a moving target, and git-push(1) declares --force-if-includes a no-op alongside an explicit :<expect>, so nothing mitigates it." \
+        "Pin the expectation to a full-length object id (--force-with-lease=<refname>:\$(git rev-parse <ref>)), or allow via the block_dangerous_git_allow option (add push-lease-unsafe)."
+    fi
+    if ((lease_tracking)) && ((!if_includes)); then
       block "push-lease-unsafe" \
         "BLOCKED: git push --force-with-lease without an expected value leases against the remote-tracking ref, which a background fetch can satisfy while still clobbering unseen work." \
-        "State the expectation (--force-with-lease=<refname>:<sha>), or add --force-if-includes, or allow via the block_dangerous_git_allow option (add push-lease-unsafe)."
+        "State the expectation (--force-with-lease=<refname>:<full-sha>), or add --force-if-includes, or allow via the block_dangerous_git_allow option (add push-lease-unsafe)."
     fi
     k=$((sub_idx + 1))
     while ((k < nseg)); do
