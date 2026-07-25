@@ -205,7 +205,7 @@ home in [reference/safety.md](reference/safety.md). Both fail closed without `--
   those extra bots are silently not held), refuses merge on an unprotected
   repo (zero required reviews and zero required contexts) for a non-self author absent
   `--allow-unprotected`, never uses `--admin`, and cannot resolve threads, reply, or
-  force-push. React to `blockers`; do not bypass the gate. A `ready:false` immediately following a `ready:true` on the same expected head is often GitHub's own mergeability recompute lag — re-run the read-only check once before treating it as a real block.
+  force-push. React to `blockers`; do not bypass the gate. A `ready:false` immediately following a `ready:true` on the same expected head is often GitHub's own mergeability recompute lag — re-run the read-only check once before treating it as a real block. **This gate's `ready` field is the sole authority for calling a PR merge-ready**, never the finding-classification gate's `READINESS_OK` ([reference/safety.md](reference/safety.md) "Two Gates, One Merge-Ready Authority").
 
 - **Once ready, stop.** When the gate proves a PR ready (safe mode) or its merge is deferred to
   a human (Pinned-Command Degradation, [reference/safety.md](reference/safety.md)), report that
@@ -323,9 +323,9 @@ The snapshot engine and gates are Python (stdlib-only) under
 declared prerequisite for `worker` and `autopilot` (and for engine-backed safe runs): when it
 is absent, `worker`/`autopilot` STOP at entry with a concise remediation message naming the
 prerequisite, and the safe tier degrades gracefully to the Python-free loop in
-[reference/loop.md](reference/loop.md) — discovery via `gh pr list`, readiness via the
-plugin-scope gate script, cadence via the static ladder. Never block a safe iteration on the
-engine's absence.
+[reference/loop.md](reference/loop.md) — discovery via `gh pr list`, finding classification via the
+plugin-scope gate script, cadence via the static ladder. The merge gate is itself Python, so that path cannot assess
+merge-readiness at all: report it unchecked, never inferred from the classification gate. Never block a safe iteration on the engine's absence.
 
 ## Per-PR checklist (safe core — each PR, every iteration)
 
@@ -346,11 +346,10 @@ Execute for EACH PR discovered, oldest first. Detailed mechanics:
   per PR (§5.1.1)
 - [ ] **Steps A–F — Per-PR iteration checklist** (§5.1.3): terminal check, CI classification,
   fetch + extract findings, per-finding D1–D7.5 with verification gates
-  ([review-discipline](../../reference/review-discipline.md) §3), mechanical readiness gate
-  (`${CLAUDE_PLUGIN_ROOT}/scripts/babysit-readiness-gate.sh <N>` must exit `READINESS_OK`;
-  the configured extra self identities are `${user_config.babysit_self_logins}` — when that value
-  is non-empty and not a literal unexpanded token, append `--extra-self "<value>"`),
-  report
+  ([review-discipline](../../reference/review-discipline.md) §3), mechanical finding-classification gate
+  (`${CLAUDE_PLUGIN_ROOT}/scripts/babysit-readiness-gate.sh <N>` must exit `READINESS_OK` — proof the
+  findings were decomposed, never proof the PR is merge-ready; the configured extra self identities are
+  `${user_config.babysit_self_logins}` — when that value is non-empty and not a literal unexpanded token, append `--extra-self "<value>"`), report
 - [ ] **Step 5 — Commit + push** fixes to the PR branch (refspec; works from a detached HEAD); clean working tree; follow-up replies
   cite commit SHAs
 - [ ] **Step 6 — PR transition:** next-oldest PR needing attention (§5.1.6)
@@ -457,8 +456,9 @@ Recommend the exact next interval per [reference/loop.md](reference/loop.md) §5
 Failure patterns observed in real babysit sessions:
 
 - **Survey-without-classifying is the #1 failure.** An audited run classified 16 of ~32 findings
-  while reporting completion — prose "MANDATORY" alone under-decomposes. That is why readiness is
-  gated by `babysit-readiness-gate.sh` exit code, not by the model's claim
+  while reporting completion — prose "MANDATORY" alone under-decomposes. That is why finding
+  classification is gated by `babysit-readiness-gate.sh` exit code, not by the model's claim
+- **`READINESS_OK` is not merge-ready.** That gate is blind to branch rules, thread resolution, and required checks; only the merge gate's `ready` field can call a PR MERGE-READY. Reporting off the classification gate alone produced a false MERGE-READY report ([reference/safety.md](reference/safety.md) "Two Gates, One Merge-Ready Authority")
 - **Multi-finding comments glossed as one work item.** A single comment carrying N severity
   markers is N work items; ≥3 findings REQUIRE the extractor-subagent dispatch
   ([review-discipline](../../reference/review-discipline.md) §2)
@@ -490,8 +490,8 @@ Failure patterns observed in real babysit sessions:
 - [reference/review-trigger.md](reference/review-trigger.md) — generalized AI-review trigger +
   gate semantics; dormant when unconfigured.
 - [reference/worktrees.md](reference/worktrees.md) — ephemeral worktree policy and prune commands.
-- [reference/safety.md](reference/safety.md) — role boundaries, verify-before-escalate, the
-  harness permission layer (pinned-command degradation), stop-ask and never-do lists.
+- [reference/safety.md](reference/safety.md) — the two gates and which one owns merge-readiness, role
+  boundaries, verify-before-escalate, the harness permission layer (pinned-command degradation), stop-ask and never-do lists.
 - [reference/feedback.md](reference/feedback.md) — feedback classification, dispositions,
   advisory cap, bot-PR taxonomy, human-feedback policy.
 - [`${CLAUDE_PLUGIN_ROOT}/reference/review-discipline.md`](../../reference/review-discipline.md)
