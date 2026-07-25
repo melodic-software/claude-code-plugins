@@ -17,6 +17,20 @@
   to inspect suppressed residue, but it appeared in neither `SKILL.md`'s `argument-hint` nor
   `audit-modes.md`'s override table, whose contract errors on unknown flags — so the only
   documented path to the residue failed. Registered in both, audit-mode only, always Ambiguous.
+- **Coverage keys on the CAPTURED token span, not the whole match span.** A match usually spans
+  more than the token: Form 13's two alternatives span `/plugin install <old>@` and
+  `<old>@acme-tools`, which overlap without either containing the other — so the whole-span
+  coverage test kept both and scheduled two Edits on one token, the second failing because the
+  first already rewrote it. Everything outside the captured `<old>` is context, not the thing
+  being replaced.
+- **Form 14 recognizes Setext titles.** A README may underline its title instead of using `#`.
+  Both render as the primary heading, so missing the Setext shape left a container's own title
+  with only a Form 2 hit — excluded by container mode — and the rename could report completion
+  with the landing-page title stale.
+- **Form 15's appositive accepts sentence-initial `The`.** Container prose routinely opens a
+  sentence with "The `<old>` plugin ships…"; a lowercase-only `the` missed it, leaving the token
+  with only a suppressed Form 2 hit. Only the article is case-flexible — the token stays
+  case-sensitive, per `#1394`.
 - **The survey emits one record per OCCURRENCE, not per line.** The span-dedup rule had no spans
   to compare: Grep's content mode returns matching lines and `--column` reports only the first
   match on a line, so a line-shaped record silently degraded the rule back to line-keyed dedup

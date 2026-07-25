@@ -243,6 +243,7 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
 
 ```regex
 ^#{1,6}\s+`?<old>`?\s*$
+^`?<old>`?\s*$\n^(=+|-+)\s*$
 ^(name|title):\s*("<old>"|'<old>'|<old>)\s*$
 ```
 
@@ -253,6 +254,11 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
   ambiguous. A heading that merely *contains* the token (`## How re-anchor works`) may well
   be verb usage and belongs in Form 2's ambiguous bucket; a heading that IS the token can
   only be naming it.
+- **Setext titles count.** A README may underline its title (`<old>` then a line of `=` or `-`)
+  instead of using an ATX `#`. Both render as the document's primary heading, so missing the
+  Setext shape meant a container's own title had only a Form 2 hit — which container mode
+  excludes — and the rename could report completion with the landing-page title still stale.
+  Requires `multiline: true`, like Form 7.
 - **Quote handling:** the alternation accepts a bare, double-quoted, or single-quoted value
   and requires the quotes to PAIR — `"<old>"` and `'<old>'`, never `"<old>'`. A naive
   `["']?<old>["']?` would match the mismatched form, which is not valid YAML.
@@ -277,12 +283,17 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
 
 ```regex
 (^|[^\w-])`?<old>`?'s\b
-\bthe `?<old>`? (plugin|skill|marketplace entry|package|module)\b
+\b[Tt]he `?<old>`? (plugin|skill|marketplace entry|package|module)\b
 ```
 
 - **Triage default:** Certain
 - **Catches:** prose where `<old>` stands in for the CONTAINER — "Report `<old>`'s effective
   configuration", "the `<old>` plugin ships…".
+- **`[Tt]he` — sentence-initial is the common shape.** Container prose routinely opens a sentence
+  with "The `<old>` plugin ships…", which a lowercase-only `the` misses; the token's only hit is
+  then Form 2, which container mode suppresses as residue, so apply mode finishes with the stale
+  reference in place. Only the article is case-flexible — the token itself stays case-sensitive
+  (see `#1394`).
 - **Hyphen boundary, same reason as Form 13.** A word boundary counts a hyphen as a boundary, so
   the possessive would fire inside a kebab-case superstring — renaming `guard` would match
   `` `context-guard` ``'s. The leading `(^|[^\w-])` excludes an adjacent hyphen. The appositive
@@ -319,13 +330,18 @@ reclassified as residue, excluded by container mode, and the re-sweep would decl
 with a live stale reference still in the file. Key each match by `(file, line, start, end)` and
 suppress a weaker match only when its span is **covered by** a more-specific match's span.
 
-**Coverage collapses COEQUAL matches too, not only weaker ones.** Two alternatives of the SAME
-form can match one occurrence — `/plugin install <old>@acme-tools` matches Form 13's
-management-verb alternative and its qualified-id alternative on the same `<old>`. Left as two
-findings they double the count and schedule two targeted Edits, the second of which fails because
-the first already rewrote the token. When two matches cover the same `<old>` span, keep ONE:
-prefer the widest span (it carries the most context), and on a tie the earlier-numbered form.
-Same span-coverage test, applied within a form as well as across forms.
+**Key every match by its CAPTURED `<old>` span, not by the whole match span.** A regex match
+usually spans more than the token: Form 13's management-verb alternative spans
+`/plugin install <old>@` while its qualified-id alternative spans `<old>@acme-tools`. Those two
+overlap without either containing the other, so a whole-span coverage test keeps both and
+schedules two Edits on one token — the second failing because the first already rewrote it.
+Compare the `(start, end)` of the captured `<old>` itself; everything else in a match is context,
+not the thing being replaced.
+
+**With that keying, coverage collapses COEQUAL matches too, not only weaker ones.** When two
+matches share the same `<old>` span, keep ONE: prefer the widest MATCH span (it carries the most
+context for reporting), and on a tie the earlier-numbered form. Same test, applied within a form
+as well as across forms.
 
 With that keying, dedup runs AFTER the sweep and BEFORE triage:
 

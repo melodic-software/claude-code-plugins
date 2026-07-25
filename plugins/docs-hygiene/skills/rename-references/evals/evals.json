@@ -281,6 +281,42 @@
         "They are honored in audit, preview, and apply",
         "Passing both is an explicit error"
       ]
+    },
+    {
+      "id": 24,
+      "name": "coequal-collapse-keys-on-the-captured-token-span",
+      "prompt": "Apply the rename of `re-anchor` to `discipline`. A line reads: /plugin install re-anchor@acme-tools",
+      "expected_output": "One finding, one Edit. Deduplication keys on the CAPTURED <old> span, not the whole match span: Form 13's management-verb alternative spans `/plugin install <old>@` while its qualified-id alternative spans `<old>@acme-tools`, which overlap without either containing the other -- so a whole-span coverage test would keep both and schedule two Edits on one token, the second failing because the first already rewrote it.",
+      "files": [],
+      "expectations": [
+        "Coverage is tested on the captured token span, not the full match span",
+        "Two overlapping non-containing matches on one token collapse to one",
+        "The named failure is a failed second Edit, not a duplicate report line"
+      ]
+    },
+    {
+      "id": 25,
+      "name": "setext-title-is-a-container-title-match",
+      "prompt": "Rename the `re-anchor` plugin to `discipline`. Its README titles itself with `re-anchor` underlined by `=====` rather than an ATX heading.",
+      "expected_output": "Form 14 matches the Setext title shape (the token alone on a line followed by a line of = or -), so the container's own landing-page title is reported. Without it the title's only hit is Form 2, which container mode excludes as residue, and the rename could report completion with the primary title stale. Requires multiline matching, like Form 7.",
+      "files": [],
+      "expectations": [
+        "The Setext title shape is recognized as a title match",
+        "Multiline matching is used",
+        "The failure prevented is a completion report with a stale landing-page title"
+      ]
+    },
+    {
+      "id": 26,
+      "name": "sentence-initial-appositive-is-matched",
+      "prompt": "Rename the `guard` plugin to `guardrails`. The docs say: The guard plugin ships two hooks.",
+      "expected_output": "Form 15's appositive alternative matches the sentence-initial `The`, not only a lowercase `the`. Otherwise the token's only hit is Form 2, which container mode suppresses as residue, and apply mode finishes with the stale container reference. Only the article is case-flexible; the token itself stays case-sensitive, and `The context-guard plugin` is still rejected as a hyphenated superstring.",
+      "files": [],
+      "expectations": [
+        "Sentence-initial `The` is matched as well as lowercase `the`",
+        "The token remains case-sensitive",
+        "A hyphenated superstring is still not matched"
+      ]
     }
   ]
 }
