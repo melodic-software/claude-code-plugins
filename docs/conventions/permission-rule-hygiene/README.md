@@ -122,6 +122,67 @@ name narrowly:
    the operator to add the bare-name rule once to `~/.claude/settings.json`, and never relies on
    interpreter-wildcard `allowed-tools` for auto-mode-gated actions.
 
+## Known gap — step 1's plugin `bin/` is not delivered on Windows / Git Bash
+
+The plugin `bin/` half of step 1 is documented but does not hold on this platform, so a helper whose
+only permission story is bin/-on-PATH has **no** operative allow rule there. Behavior on macOS and
+Linux is unverified — probe there rather than reading a Windows-scoped heading as a clearance.
+Measured on Windows 11 / Git Bash, Claude Code **v2.1.219**, with the owning plugin installed at user
+scope and reported `enabled` by `claude plugin list`:
+
+```console
+$ which source-control-babysit-merge ; echo $?
+which: no source-control-babysit-merge in (...)
+1
+$ echo "$PATH" | tr ':' '\n' | grep -i plugins
+                          # no plugin directory of any kind is on PATH
+```
+
+The absence is **harness-wide, not a packaging defect in one plugin**: a second, unrelated installed
+plugin that also ships a `bin/` is equally absent from `PATH`. The files themselves are fine —
+committed `100755`, present in the install cache, correct shebangs. The feature also is not
+version-gated away: it predates the measured harness.
+
+Two consequences for anyone writing a guarded helper today:
+
+- **Invoke it by its bundled path**, the same form the sibling `scripts/` use. That is deterministic
+  and works now. Resolve `${CLAUDE_PLUGIN_ROOT}` in skill or agent content — it is substituted there,
+  but it is *not* exported to the Bash tool's own environment, so a raw shell expansion yields an
+  empty string ([plugins-reference](https://code.claude.com/docs/en/plugins-reference), Environment
+  variables).
+- **Expect the call to reach the classifier on every invocation.** `bash` is not one of the wrappers
+  Claude Code strips before matching, so a rule for a `bash <path> …` command has to name `bash` —
+  making it interpreter-led, i.e. anti-pattern 1. The documented drop categories clearly reach the
+  wildcarded-target form (`Bash(bash <path>*)`); whether they reach a fixed-path form
+  (`Bash(bash <fixed-path>:*)`) is not stated, so that shape is an anti-pattern on convention grounds
+  rather than a confirmed drop. Either way, treat the call as reaching the classifier — do not assume
+  the operator can pre-approve the helper.
+
+Until the gap closes upstream, treat step 1's plugin-`bin/` bullet as the intended end state rather
+than a capability to build on, on this platform. Two substitutes look attractive and are not:
+
+- A **`~/.local/bin` shim**: a static shim pins a version-numbered install path that changes on every
+  plugin update.
+- **`env.PATH` in user settings**, which does reach the Bash tool's shell (`env` is applied "to
+  subprocesses Claude Code spawns", [settings](https://code.claude.com/docs/en/settings)): it carries
+  the same version-pinned-path rot, and overriding `PATH` wholesale in settings is its own hazard.
+
+One candidate is untested rather than rejected. Bash rules accept a wildcard in any position,
+including leading, so a rule anchored on the wrapper's own name rather than on the interpreter could
+reach the bundled-path invocation without naming one. Two things have to be established before
+building on it.
+
+- **It has to match the invocation as actually written.** The documented bundled-path form quotes the
+  path, so the character following the wrapper name is a closing quote, not a space — a candidate
+  shaped `Bash(*<wrapper-name> *)` does not match it, and fails before the auto-mode question is even
+  reached. Derive the candidate from the exact command string operators are told to run.
+- **Whether a leading-wildcard rule survives auto mode is unverified.** The documented drop list
+  enumerates blanket rules, wildcarded interpreters, package-manager runners, and `Agent` rules, and
+  says nothing about a leading wildcard in the command position.
+
+Weigh too that a rule anchored on a bare wrapper name matches that name at *any* path, including an
+unvetted copy.
+
 ## Sources
 
 - Auto-mode drop behavior and decision order — [permission-modes](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode)

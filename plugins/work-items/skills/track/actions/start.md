@@ -25,6 +25,8 @@ Claim a work item through the seam (assignee + lease record).
 
    Exit `6` (capability-unsupported, CONTRACT.md "Exit codes") means the bound provider declares `reclaim: false` (e.g. `local-markdown`, whose `claim` already race-checks the lease pre-write — CONTRACT.md "Adapter contract") — not an error; skip the stale-lease check and proceed straight to Claim.
 
+   A **harness denial of the `reclaim` call itself** takes the same posture. Under auto mode the permission classifier can refuse the Bash tool call before the script runs, so no exit code is produced (CONTRACT.md "Exit codes"; observed on `#1381`). Report it once, skip the stale-lease check, and proceed straight to Claim — never retry the denied call, and never self-widen permissions to work around it (`${CLAUDE_PLUGIN_ROOT}/reference/permission-preflight.md` "Why a preflight, not a fixer"). A live foreign lease is still caught: `claim` backs off with exit `7`.
+
 1. **Claim via the seam.** The `claim` verb runs the full race-safe, same-identity-aware protocol (assign `@me` → re-read → post lease comment → re-read leases → back off on a foreign earlier lease) and emits the claim object, or exits `7` on a lost race:
 
    ```bash

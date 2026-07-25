@@ -2,14 +2,30 @@
 # PreToolUse hook: block irreversible git operations on Bash tool calls.
 #
 # Default block-list is irreversible-only (form tokens):
-#   push-force     — git push --force / -f / +refspec / --mirror (NOT --force-with-lease)
+#   push-force     — git push --force / -f / +refspec / --mirror
+#   push-lease-unsafe — git push --force-with-lease leasing against something
+#                    git resolves at push time, in either of the two forms
+#                    git treats differently:
+#                      * NO expected value (bare `--force-with-lease` or
+#                        `=<refname>`) — leases against the remote-tracking
+#                        ref; blocked unless --force-if-includes is present,
+#                        which git documents as the mitigation for this form.
+#                      * a MOVABLE `=<refname>:<expect>` — <expect> is a name
+#                        git resolves at push time; blocked unconditionally,
+#                        because git declares --force-if-includes a no-op
+#                        alongside an explicit `:<expect>`.
 #   reset-hard     — git reset --hard
 #   clean-force    — git clean with a force flag (-f, -fd, -fdx, --force)
 #   checkout-dot   — git checkout .  (worktree-wide discard; path-scoped is fine)
 #   restore-dot    — git restore .   (worktree discard; --staged-only is fine)
 #   checkout-force — git checkout -f / switch -f/--discard-changes
 #
-# NOT blocked: --force-with-lease (safe force), plain push, soft/mixed reset,
+# NOT blocked: a push whose lease spellings all pin an immutable <expect> — a
+# object id of the repository's own hash width, or the empty string asserting
+# the ref must not exist —
+# so no background fetch can satisfy the lease on the pusher's behalf; a
+# no-expected-value lease paired with --force-if-includes; a lease
+# cancelled by a trailing --no-force-with-lease, plain push, soft/mixed reset,
 # clean -n (dry run), path-scoped checkout/restore, and `branch -D` (reflog
 # recovers deleted refs, and sanctioned skill flows issue it inline).
 #
@@ -142,6 +158,143 @@ is_push_value_opt() {
     abbrev_match "receive-pack" "$x" 4 || abbrev_match "exec" "$x" 1
 }
 
+# `--force-with-lease` and `--force-with-lease=<refname>` state no expected
+# value, so git leases against the remote-tracking ref. git-push(1), "A general
+# note on safety", warns that this "interacts very badly with anything that
+# implicitly runs `git fetch`" and is "trivially defeated if some background
+# process is updating refs in the background" — the lease passes while still
+# clobbering work the pusher never saw. Only `=<refname>:<expect>` states the
+# expectation explicitly (an empty <expect> means the ref must not exist, which
+# is still explicit). `--force-if-includes` (git 2.30+) is git's documented
+# mitigation for exactly the no-expected-value forms, and git declares it a
+# no-op alongside an explicit `:<expect>`.
+#
+# Abbreviation floor 7: `--force`, `--force-with-lease` and `--force-if-includes`
+# share the `--force` prefix, so `--force-w` / `--force-i` are the shortest
+# unique spellings git accepts. A shorter `--forc` is ambiguous and git rejects
+# it, which is why the exact `--force` arm needs no abbreviation handling.
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+is_lease_opt() { abbrev_match "force-with-lease" "${1%%=*}" 7; }
+
+# Does a lease spelling state an expectation git cannot resolve to something
+# newer at push time? Only `=<refname>:<expect>` with <expect> a FULL-LENGTH
+# object id qualifies, plus the empty <expect> (git: "the named ref must not
+# already exist"). A symbolic name in the <expect> slot — `origin/main`,
+# `refs/remotes/origin/main`, `HEAD`, `@{u}` — is resolved when the push runs,
+# so a background fetch moves it first and the lease passes while clobbering
+# work the pusher never saw: the exact hole the bare form has.
+#
+# An ABBREVIATED object id is deliberately NOT accepted. gitrevisions permits
+# both ref names and unique object-id prefixes as revision syntax, and git
+# resolves a word as a ref BEFORE trying it as a short object id — so a tag
+# literally named `dead` beats the object whose id starts `dead`, and a short
+# hex expectation is a moving target after all. Only a word of exactly the
+# repository hash format's full width is unambiguously an object id.
+#
+# The width is the LOCAL repository's, not either width. git ignores a ref whose
+# name is full-width hex for its own format, but a hex name of the OTHER width
+# is an ordinary ref name it resolves normally: a 64-hex tag in a SHA-1
+# repository, or a 40-hex tag in a SHA-256 one, is movable and satisfies the
+# lease against whatever it points at. Accepting the union would let either
+# shape through in the repository where it is a name.
+#
+# Width of the repository THIS PUSH will run in, which is not always the hook's
+# own directory: git's repository-locating global options (`-C`, `--git-dir`,
+# `--work-tree`, `--namespace`) redirect it, and a `git -C <sha256-repo> push`
+# issued from a SHA-1 directory must be judged by the target's format. Those
+# options are replayed verbatim onto the probe rather than modelled, so git
+# resolves the repository by its own rules — including several `-C` values,
+# which git applies cumulatively.
+#
+# `-C` takes the value as a SEPARATE word: git rejects an attached `-C<path>`
+# with its usage message (verified, git 2.54.0). The walk therefore mirrors
+# hook::git_resolve_subcommand's two-word consumption so the option values stay
+# aligned with the words the parser skipped.
+#
+# 0 means "undeterminable" — no git, no repository, or a path this static guard
+# cannot resolve (an unexpanded `$VAR` reaches the probe literally and simply
+# fails). That fails closed.
+#
+# Known gap: a compound `cd <elsewhere> && git push …` pushes from a directory
+# no option names, so the probe cannot see it. Resolving the cd target would
+# mean evaluating arbitrary shell word expansion, which this guard deliberately
+# does not do (static matching over the literal command string only). The
+# residual case needs a SHA-256 repository, a lease pinned to a full-width hex
+# word that is also a ref name there, and a compound cd into it.
+#
+# Resolved at most once per option set and only on the rare path that sees a hex
+# expectation — the guard shells out nowhere else. The result is assigned by a
+# plain call, never through `$(…)`: a command substitution runs the function in
+# a SUBSHELL, so the cache would be discarded and a command carrying many lease
+# expectations would spawn one git per expectation.
+_repo_oid_width=""
+_repo_oid_width_key=""
+# repo_oid_width <locating-option...> — sets $_repo_oid_width.
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+repo_oid_width() {
+  local key="$*"
+  [[ -n "$_repo_oid_width" && "$key" == "$_repo_oid_width_key" ]] && return 0
+  _repo_oid_width_key="$key"
+  case "$(git "$@" rev-parse --show-object-format 2>/dev/null)" in
+  sha1) _repo_oid_width=40 ;;
+  sha256) _repo_oid_width=64 ;;
+  *) _repo_oid_width=0 ;;
+  esac
+}
+
+# Reads $git_locating_opts from the calling check_segment frame.
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+lease_expect_is_immutable() {
+  local expect="$1"
+  [[ -z "$expect" ]] && return 0
+  [[ "$expect" =~ ^[0-9a-fA-F]+$ ]] || return 1
+  repo_oid_width ${git_locating_opts[@]+"${git_locating_opts[@]}"}
+  ((_repo_oid_width)) && ((${#expect} == _repo_oid_width))
+}
+
+# The repository-locating subset of git's global options, collected between the
+# git word and the subcommand. Two-word options whose value is consumed the same
+# way hook::git_resolve_subcommand consumes it, so the walk cannot desynchronize
+# from the parser's own.
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+collect_git_locating_opts() {
+  local gi="$1" sub_idx="$2"
+  shift 2
+  local -a w=("$@")
+  local j=$((gi + 1))
+  git_locating_opts=()
+  while ((j < sub_idx)); do
+    case "${w[j]}" in
+    -C | --git-dir | --work-tree | --namespace)
+      ((j + 1 < sub_idx)) && git_locating_opts+=("${w[j]}" "${w[j + 1]}")
+      ((j += 2))
+      ;;
+    --git-dir=* | --work-tree=* | --namespace=*)
+      git_locating_opts+=("${w[j]}")
+      ((j++))
+      ;;
+    -c | --config | --config-env | --super-prefix | --attr-source | --exec-path)
+      ((j += 2))
+      ;;
+    *) ((j++)) ;;
+    esac
+  done
+}
+
+# Has an earlier lease spelling in this same command already claimed <refname>?
+# git's apply_cas() walks the --force-with-lease entries in command-line order
+# and RETURNS on the first whose refname matches the ref being updated, so a
+# later entry for a ref an earlier one already pinned is dead text. Matching
+# entries by their literal spelling is the conservative reading of git's
+# refname_match(): two different spellings of one ref (`main` vs
+# `refs/heads/main`) are treated as distinct here, so an unsafe later entry is
+# still counted rather than silently dropped.
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+lease_ref_claimed() {
+  local seen="$1" ref="$2"
+  [[ $'\n'"$seen" == *$'\n'"$ref"$'\n'* ]]
+}
+
 # Is an operand a worktree-wide pathspec? `.` from the repo root, the
 # root-magic short form `:/` (bare or with a wildcard-only pattern — `:/*`
 # and `:/?*` match the whole tree from the repository root regardless of
@@ -208,6 +361,10 @@ is_exclude_pathspec() {
 check_segment() {
   local -a w=()
   local nseg gi k x rest ch sub sub_idx staged worktree dry excl pos opseen
+  local if_includes lease_tracking lease_movable lease_seen lease_ref lease_expect
+  # Read by lease_expect_is_immutable further down the call chain; per-frame, so
+  # a recursive re-check of an alias expansion collects its own.
+  local -a git_locating_opts=()
 
   # A shell -c wrapper (`bash -lc 'git reset --hard'`) executes its operand as
   # a full shell command — re-parse it with the same tokenizer so the wrapped
@@ -226,6 +383,7 @@ check_segment() {
   hook::git_resolve_subcommand "$gi" "${w[@]}" || return 0
   sub=$HOOK_GIT_SUB
   sub_idx=$HOOK_GIT_SUB_IDX
+  collect_git_locating_opts "$gi" "$sub_idx" "${w[@]}"
 
   # An inline alias runs its expansion (`git -c alias.rh='reset --hard' rh`
   # discards — verified), so re-check the expanded command: a shell alias
@@ -301,7 +459,14 @@ check_segment() {
     # the marker.
     # Dry-run is last-wins: `--no-dry-run` after a dry token re-arms the push
     # (git's --[no-]dry-run pair), so track state instead of early-returning.
+    # The mitigation flag is last-wins for the same reason: git spells it
+    # `--[no-]force-if-includes`, so a trailing negation must clear it or the
+    # lease check disarms while git pushes unmitigated.
     dry=0
+    if_includes=0
+    lease_tracking=0
+    lease_movable=0
+    lease_seen=""
     k=$((sub_idx + 1))
     while ((k < nseg)); do
       x="${w[k]}"
@@ -314,6 +479,20 @@ check_segment() {
       -o?* | --push-option=* | --repo=* | --receive-pack=* | --exec=*) ;;
       --no-*)
         abbrev_match "dry-run" "--${x#--no-}" 2 && dry=0
+        abbrev_match "force-if-includes" "--${x#--no-}" 7 && if_includes=0
+        # git: "--no-force-with-lease will cancel all the previous
+        # --force-with-lease on the command line" — every spelling, and the
+        # per-ref claims they staked, not just the bare one.
+        if abbrev_match "force-with-lease" "--${x#--no-}" 7; then
+          lease_tracking=0
+          lease_movable=0
+          lease_seen=""
+        fi
+        # Consume the word here. Falling through would let
+        # `--no-force-with-lease` re-match below as the positive option and
+        # undo the clear that just happened.
+        ((k++))
+        continue
         ;;
       --*)
         if is_push_value_opt "$x"; then
@@ -326,11 +505,51 @@ check_segment() {
           [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *n* ]]; then
           dry=1
         fi
+        abbrev_match "force-if-includes" "${x%%=*}" 7 && if_includes=1
+        # Lease spellings are INDEPENDENT of one another, and the two unsafe
+        # kinds are tracked separately because git mitigates only one of them.
+        # A pinned `=<refname>:<expect>` is scoped by git to the ref it names
+        # and says nothing about the others, so it can never make a bare
+        # fallback safe.
+        if is_lease_opt "$x"; then
+          if [[ "$x" != *=* ]]; then
+            # Bare form: the tracking-based fallback for every ref no explicit
+            # entry claims. No refname to key on, so it is its own slot.
+            lease_tracking=1
+          else
+            lease_ref="${x#*=}"
+            lease_ref="${lease_ref%%:*}"
+            # First entry for a ref wins in git; a later one for the same ref
+            # is never consulted, so it must not drive the verdict either.
+            if ! lease_ref_claimed "$lease_seen" "$lease_ref"; then
+              lease_seen="$lease_seen$lease_ref"$'\n'
+              if [[ "$x" != *=*:* ]]; then
+                lease_tracking=1
+              else
+                lease_expect="${x#*=}"
+                lease_expect="${lease_expect#*:}"
+                lease_expect_is_immutable "$lease_expect" || lease_movable=1
+              fi
+            fi
+          fi
+        fi
         ;;
       esac
       ((k++))
     done
     ((dry)) && return 0
+    # Decided after the scan, never mid-scan: every one of these options is
+    # last-wins, so an early match cannot be acted on before the segment ends.
+    if ((lease_movable)); then
+      block "push-lease-unsafe" \
+        "BLOCKED: git push --force-with-lease=<refname>:<expect> whose <expect> is a name git resolves at push time (origin/main, HEAD, a tag, an abbreviated object id, or hex of the wrong width for this repository's hash format) leases against a moving target, and git-push(1) declares --force-if-includes a no-op alongside an explicit :<expect>, so nothing mitigates it." \
+        "Pin the expectation to an object id of this repository's full hash width (--force-with-lease=<refname>:\$(git rev-parse <ref>)), or allow via the block_dangerous_git_allow option (add push-lease-unsafe)."
+    fi
+    if ((lease_tracking)) && ((!if_includes)); then
+      block "push-lease-unsafe" \
+        "BLOCKED: git push --force-with-lease without an expected value leases against the remote-tracking ref, which a background fetch can satisfy while still clobbering unseen work." \
+        "State the expectation (--force-with-lease=<refname>:<full-sha>), or add --force-if-includes, or allow via the block_dangerous_git_allow option (add push-lease-unsafe)."
+    fi
     k=$((sub_idx + 1))
     while ((k < nseg)); do
       x="${w[k]}"
@@ -365,7 +584,10 @@ check_segment() {
           "BLOCKED: git push --force is irreversible for anyone sharing the branch." \
           "Use --force-with-lease (refuses to clobber unseen remote work), or allow via the block_dangerous_git_allow option (add push-force)."
         ;;
-      --force-with-lease | --force-with-lease=* | --force-if-includes) ;;
+      # The lease family is decided in the pre-scan above, not here: every one
+      # of its options is last-wins, so no single occurrence can be acted on
+      # until the segment ends.
+      --force-*) ;;
       +*)
         block "push-force" \
           "BLOCKED: a leading + on a push refspec is a force-push (same as --force)." \

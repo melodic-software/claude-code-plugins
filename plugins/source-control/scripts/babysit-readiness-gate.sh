@@ -73,6 +73,16 @@
 #      for the cause (owner/repo may be unresolved; see Repo resolution above)
 
 set -uo pipefail
+# Matches the `export PYTHONUTF8=1` convention the bin/ babysit wrappers already
+# apply before invoking babysit_python (source-control-babysit-merge,
+# source-control-babysit-resolve-thread). This gate is the third babysit_python
+# caller and the one that parses fetch-all-pr-comments.sh-shaped JSON (via
+# babysit_findings.py --comments-json), which commonly carries non-ASCII bytes
+# (bot badges, reaction emoji) from bot review comments — PEP 540 UTF-8 mode
+# keeps the interpreter's default I/O encoding independent of the Windows ANSI
+# code page (cp1252) for any code path that does not pin encoding="utf-8"
+# itself (#597).
+export PYTHONUTF8=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 

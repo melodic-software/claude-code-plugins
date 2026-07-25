@@ -8,7 +8,19 @@
 #   3. Inline review comments (line-anchored on the diff)
 #
 # Output: unified JSON array sorted by creation date. Each object:
-#   {"id":N,"type":"general|review|inline","author":"login","body":"...","path":"...","line":N,"created_at":"ISO"}
+#   {"id":N,"type":"general|review|inline","author":"login","body":"...","path":"...","line":N,"created_at":"ISO","in_reply_to_id":N|null}
+#
+# in_reply_to_id is populated ONLY for type "inline" (the only GitHub REST
+# surface that threads via this field — general/review comments have no
+# reply-parent concept and always carry null). GitHub sets it to the id of
+# the THREAD-OPENING comment, not the immediately-preceding reply: every
+# reply in a thread carries the same in_reply_to_id (empirically verified
+# against live review-thread data — every referenced parent in that set was
+# itself a root comment), so grouping by `in_reply_to_id // id` recovers
+# thread membership directly. This does not change the documented REST
+# cross-check in reference/review-discipline.md / skills/pull-request/SKILL.md
+# — this script's schema was the only thing missing the field; the raw API
+# was always correct.
 #
 # Usage:
 #   fetch-all-pr-comments.sh <pr-number>
@@ -16,6 +28,15 @@
 # Env overrides:
 #   FETCH_COMMENTS_OWNER   default `gh repo view --json owner -q .owner.login`
 #   FETCH_COMMENTS_REPO    default `gh repo view --json name -q .name`
+#
+# Windows Python consumers (#597):
+#   Output commonly carries non-ASCII bytes (bot badge images, reaction
+#   emoji) from bot review comments. A downstream Python consumer on Windows
+#   that opens the JSON output, or reads this script's stdout, WITHOUT an
+#   explicit UTF-8 encoding inherits the interpreter's default ANSI code page
+#   (cp1252) and raises UnicodeDecodeError on those bytes. Either open with
+#   `encoding="utf-8"` (or reconfigure the stream to UTF-8 at runtime), or run
+#   the consumer with `PYTHONUTF8=1` (PEP 540) set in the environment.
 #
 # Exit codes:
 #   0  success (zero or more comments emitted)
@@ -30,7 +51,7 @@ set -uo pipefail # -e omitted: gh api failures explicitly guarded with || { exit
 PR_NUMBER=""
 
 usage() {
-  sed -n '2,18p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,39p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit 0
 }
 
@@ -118,7 +139,8 @@ if ! GENERAL=$(printf '%s' "$GENERAL_RAW" | jq -c '
       body: .body,
       path: null,
       line: null,
-      created_at: .created_at
+      created_at: .created_at,
+      in_reply_to_id: null
     }
 ' 2>/dev/null); then
   printf 'fetch-all-pr-comments: jq failed parsing issues/%s/comments response\n' "$PR_NUMBER" >&2
@@ -142,7 +164,8 @@ if ! REVIEWS=$(printf '%s' "$REVIEWS_RAW" | jq -c '
       body: .body,
       path: null,
       line: null,
-      created_at: (.submitted_at // .created_at)
+      created_at: (.submitted_at // .created_at),
+      in_reply_to_id: null
     }
 ' 2>/dev/null); then
   printf 'fetch-all-pr-comments: jq failed parsing pulls/%s/reviews response\n' "$PR_NUMBER" >&2
@@ -165,7 +188,8 @@ if ! INLINE=$(printf '%s' "$INLINE_RAW" | jq -c '
       body: .body,
       path: .path,
       line: (.line // .original_line),
-      created_at: .created_at
+      created_at: .created_at,
+      in_reply_to_id: .in_reply_to_id
     }
 ' 2>/dev/null); then
   printf 'fetch-all-pr-comments: jq failed parsing pulls/%s/comments response\n' "$PR_NUMBER" >&2

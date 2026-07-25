@@ -3,23 +3,95 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.24.4]
+## [0.24.8]
 
 ### Documented
 
-- **Step 0 `reclaim` classifier denial is now a documented, non-blocking condition (`#1381`).** A
+- **`reclaim` classifier denial is now a documented, non-blocking condition (`#1381`).** A
   work-loop self-observation found the seam `reclaim` verb refused by the Claude Code auto-mode
   classifier while the sibling `claim` verb on the same script was not, with neither verb carrying
   an explicit `permissions.allow`/`deny` rule — a harness-level tool-call denial that produces no
-  script exit code, distinct from the existing exit-`6` capability-unsupported case. `skills/work/SKILL.md`
-  "Step 0" now instructs treating it the same as exit `6` (report once per cycle, skip, proceed to
-  Selection Priority; never retry, never self-widen permissions). `tools/work-item-tracker/CONTRACT.md`
-  "Exit codes" now notes this out-of-band failure mode explicitly. `reference/permission-preflight.md`
-  records the finding and flags whether an explicit allow rule would bypass the classifier for this
-  command shape as an open, unverified question (official docs describe allow rules bypassing the
-  classifier by default, but also describe an unspecified "arbitrary-code-execution patterns"
-  carve-out that still routes through it) — any operator-side permission-floor fix needs that
-  confirmed first.
+  script exit code, distinct from the existing exit-`6` capability-unsupported case.
+  `skills/work/SKILL.md` "Step 0" and `skills/track/actions/start.md` — the two callers that branch
+  on that exit code — now instruct treating it the same as exit `6` (report once, skip the
+  stale-lease check, proceed; never retry, never self-widen permissions), with `claim`'s exit-`7`
+  back-off still catching a live foreign lease.
+  `tools/work-item-tracker/CONTRACT.md` "Exit codes" now notes this out-of-band failure mode
+  explicitly. `reference/permission-preflight.md` records the finding and flags whether an explicit
+  allow rule would bypass the classifier for this command shape as an open, unverified question
+  (official docs describe allow rules bypassing the classifier by default, but also describe an
+  unspecified "arbitrary-code-execution patterns" carve-out that still routes through it) — any
+  operator-side permission-floor fix needs that confirmed first.
+
+## [0.24.7]
+
+### Fixed
+
+- **`work-loop`'s first-drain C3 ratification gate no longer posts a duplicate `kind=ratify-c3`
+  queue comment on every cycle (`#1348`).** An item whose ratification was recorded directly in
+  the issue body (an `attended triage <date>, operator-ratified` line) — even one already
+  corrected once by a same-day comment restoring it to the frontier — collected a fresh queue
+  comment each pass, reproducing the noise the correction had already cleaned up (observed on
+  `#815`, `#816`, `#965`). The gate now separates the two queue actions: the `kind=ratify-c3`
+  comment is posted **at most once ever** (keyed on a marker comment authored by the tracker
+  seam's configured write identity — a marker pasted by any other commenter is untrusted
+  provenance and never suppresses the queue event), while the role labels converge idempotently on
+  the item's correct state rather than being counted as a repeated event: human-gated applied and
+  autonomous-eligible cleared in the same edit, mirroring `attend-queue`'s
+  never-flip-without-clearing rule. The comment is written before the labels are touched, and a
+  failed comment write leaves the labels alone — an item parked human-gated with no marker sits
+  outside both `list-frontier --autonomous` and `attend-queue`'s `[ratify]` view, which nothing
+  could repair.
+
+  Body prose is context for the operator, never dispatch authority. Free-form issue bodies are
+  editable by any author or agent and the work-class table already routes untrusted provenance to
+  human-gated, so a body marker is now surfaced in the queue comment — letting the operator
+  confirm and record it machine-marked in one step — instead of admitting the item. Dispatch
+  still requires the `/work-items:attend-queue` ratification reply or `first_drain_complete`. The
+  human-gated label is deliberately kept while machine ratification is absent: `attend-queue`
+  lists a `[ratify]` row only for an item carrying that label plus the marker, so stripping it
+  would make the item invisible to the operator and unratifiable. The autonomous-eligible role
+  label is likewise **not** ratification evidence — unattended `/work-items:triage` applies it to
+  every briefed delegable item.
+
+## [0.24.6]
+
+### Documentation
+
+- **`wayfind: *` is now documented as a read-only, skill-private routing axis (`#1255`).** Neither
+  the label taxonomy reference nor the shared tracker-seam gotchas said anything about the
+  `wayfind: *` labels a triage lane can encounter — a silence a lane meeting them had no basis to
+  read as "hands off." `reference/label-taxonomy.md` gains a "Skill-private routing markers"
+  section and `reference/tracker-seam.md`'s Gotchas gain a matching entry: both point at
+  `/planning:wayfind` (sole writer, on its own map sub-issues) and the resolving decision
+  (`melodic-software/github-iac#179`) rather than restating the member list. No work-items skill
+  applies, strips, or requires a `wayfind:` value on the items it manages — behavior is unchanged,
+  this closes a documentation gap.
+
+## [0.24.5]
+
+### Fixed
+
+- **`triage` no longer routes to `priority: pN-*` labels that exist in no governed repository
+  (`#1253`).** The live governed priority axis across the fleet is `priority: critical` / `high` /
+  `medium` / `low` / `needs-triage` — the `p0-critical`…`p3-low` scheme `triage`'s priority-label
+  step, `track add`'s filing default, and `dogfood-filing.md` named inline appeared in zero
+  repositories, so an autonomous triage pass that followed the skill literally failed applying a
+  nonexistent label. `triage`, `track add`, and `dogfood-filing.md` now resolve the live `priority:`
+  label set from the bound adapter at action entry (consistent with every other "members from the
+  live set" axis in `label-taxonomy.md`) instead of naming members inline; where prose still shows a
+  concrete value it is marked as an illustrative example, not a routing instruction. The
+  triage-assessed default (mid-urgency tier) vs. `track add` filing default (lowest-urgency tier, an
+  untriaged-signal floor) distinction is preserved.
+
+## [0.24.4]
+
+### Documentation
+
+- **GitHub adapter: force UTF-8 wherever a body edit leaves the UTF-8-safe pipeline (`#1037`).**
+  A new cross-cutting gotcha in `tools/work-item-tracker/adapters/github/README.md` records that the
+  `gh` transports do not transcode, and requires an explicit UTF-8 encoding on both sides of any
+  ad-hoc read or write of a fetched body. No behavior change.
 
 ## [0.24.3]
 

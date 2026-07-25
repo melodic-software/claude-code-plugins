@@ -88,8 +88,9 @@ blocked — the asymmetry could not be explained by `permissions.allow`/`deny` c
 verb carries an explicit rule in the fleet's permission floor at the time of writing). Do not retry
 the denied call, do not treat it as a hard failure, and do not attempt to self-widen permissions to
 work around it (the classifier blocks an agent broadening its own grants — see
-`reference/permission-preflight.md` "Why a preflight, not a fixer"). Report it once for the cycle
-(not once per id), skip this step entirely, and proceed to Selection Priority — the same posture as
+`${CLAUDE_PLUGIN_ROOT}/reference/permission-preflight.md` "Why a preflight, not a fixer"). Report
+it once for the cycle (not once per id), skip this step entirely, and proceed to Selection
+Priority — the same posture as
 exit `6`. Stale leases from crashed/abandoned sessions will accumulate under this condition until an
 operator resolves the classifier gap; that degradation is expected and non-blocking, not a reason to
 stop the lane.
