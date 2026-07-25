@@ -25,7 +25,19 @@ report a PASS/FAIL/INFO table with one remediation line per FAIL.
 
 When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
 INFO — a deliberately disabled plugin is not broken. Report the probes informationally and
-note that re-enabling restores the FAIL semantics.
+note that re-enabling restores the FAIL semantics. One exception: every step-1 failure stays
+FAIL with the toggle disabled. Audit-only mode is *enforced by* the guard, both guard surfaces
+launch through the literal name `python3`, and a guard that never runs can neither read nor
+enforce the configured `false` — so the fail-open is most dangerous in exactly this
+configuration. That covers every non-`ok` alias-probe verdict (`store-alias-stub`,
+`indeterminate`, `not-found`), a nominally `ok` resolution whose version probe then fails to
+launch at all — a corrupt or zero-length binary outside `WindowsApps`, a broken shim, a
+permission error — *and* an interpreter that starts but reports a version below the parsed
+floor. Launching the version probe proves only that something executes, not that it can run
+the guard's own source: Python 3.6, for example, rejects the guard's
+`from __future__ import annotations` and exits without a deny, which PreToolUse treats as
+non-blocking — the same silent fail-open through a different door. Unproven guard execution
+fails closed like every other guard-relevant unknown in this plugin.
 
 1. **Python floor on `PATH`** — the interpreter used by scanning, validation, the
    guard, and cleanup. (The guard registers on two surfaces: a plugin-level engine gate
@@ -39,6 +51,38 @@ note that re-enabling restores the FAIL semantics.
    the parsed floor in the remediation; the plugin never downloads a runtime. Report the
    absolute interpreter path (guarded engine calls must use the same absolute interpreter
    the guard reports — Bash aliases and functions cannot substitute).
+
+   On Windows, confirm the name the guard launches is real BEFORE anything executes it —
+   including this floor check's own version probe. The `clean` guard hook runs the literal
+   command `python3` (`skills/clean/SKILL.md`); on stock Windows `python3` resolves to a
+   zero-length `WindowsApps\python3.exe` App Execution Alias that opens the Microsoft Store
+   (or hangs) instead of running an interpreter — so the guard never runs and cannot block,
+   a silent fail-open, and executing that name from setup pops the Store instead of probing.
+   Order of operations: (a) locate the resolution without executing it (`Get-Command python3`
+   / `command -v python3` — locating is inspection; running is not); (b) classify it with the
+   bundled inspect-only probe, launched via an interpreter that is NOT the bare name
+   `python3` (`py -3`, `python`, or an absolute interpreter path — any interpreter already
+   proven real):
+   `"<python>" "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/python3_alias_probe.py"`; if no
+   such interpreter exists, apply the probe's own portable signal directly in PowerShell — a
+   zero-length file under a `WindowsApps` path component is the stub
+   (`(Get-Item -Force (Get-Command python3).Source)` → `Length` 0 plus a `ReparsePoint`
+   attribute); (c) only after the verdict is `ok` may the version probe execute `python3` —
+   and distinguish its two failure modes for the remediation wording: an interpreter that
+   starts and reports a version below the floor is a floor miss (name the parsed floor),
+   while one that fails to launch at all is a guard-launch failure (the guard runs the same
+   name). Both stay FAIL under a disabled toggle — a below-floor interpreter is not proven
+   able to execute the guard's source, so it fails closed exactly like a non-`ok` verdict.
+   Only verdict `ok` passes; fail closed on everything else, using the probe's `detail` as
+   the remediation. FAIL on `store-alias-stub` (disable the `python3` App execution alias,
+   or install real Python ahead of WindowsApps on `PATH`) and equally on `indeterminate` — an
+   interpreter whose identity the probe could not read is uncertainty about the guard's own
+   launch, which fails closed like every other guard-relevant unknown in this plugin, never
+   silently passes. `not-found` means the name the guard launches does not resolve at all:
+   report it as the floor's absent-interpreter FAIL, and — since the guard cannot start
+   without that name either — it is a guard-launch failure too, so it keeps the FAIL under a
+   disabled toggle alongside the other two. A bare `command -v python3` success is not
+   evidence on its own — it matches the stub too.
 2. **Git** — `command -v git`. Conditional per the README: optional for ordinary trees,
    required when a target contains or sits inside a Git worktree. Report presence as INFO
    with that conditionality stated; absence is only a FAIL for worktree-containing targets.
