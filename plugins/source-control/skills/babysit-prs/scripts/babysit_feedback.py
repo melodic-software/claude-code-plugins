@@ -39,8 +39,8 @@ from babysit_classify import (
 )
 from babysit_gh import (
     fetch_issue_comments,
-    fetch_pull_request_reviews,
     fetch_unresolved_review_comments,
+    rest_hydrate_reviews,
 )
 from babysit_util import is_json_object, json_array, json_object
 
@@ -279,6 +279,6 @@ def fetch_current_human_stop(
 ) -> dict[str, Any]:
     hydrated = dict(pr)
     hydrated["comments"] = fetch_issue_comments(repo, number)
-    hydrated["reviews"] = fetch_pull_request_reviews(repo, number)
+    rest_hydrate_reviews(hydrated, repo, number)
     inline_comments = fetch_unresolved_review_comments(repo, number)
     return human_stop_state(hydrated, inline_comments, config)

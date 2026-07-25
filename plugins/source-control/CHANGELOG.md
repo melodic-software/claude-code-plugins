@@ -3,6 +3,26 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.3]
+
+### Fixed
+
+- **`babysit-prs` no longer misclassifies a bot's PR-level review comment as "new human feedback"
+  (#683).** `gh pr view --json reviews,latestReviews` (`view_pr`'s `VIEW_FIELDS`) returns each
+  review's `author` as `{login}` only — no `__typename`, no `is_bot`, and a GitHub App bot's login
+  without its `[bot]` suffix; verified live that this is a `gh` CLI JSON-field limitation, not a
+  GraphQL one — a raw `author{login __typename}` query against the same PR correctly reports
+  `__typename: "Bot"`. Both classification call sites (`pr_queue_snapshot.py`,
+  `babysit_feedback.fetch_current_human_stop`) already replace `pr["reviews"]` with the fully-typed
+  REST list (`fetch_pull_request_reviews`), but left `pr["latestReviews"]` untouched. Because
+  `collect_feedback`'s `latest_reviews_by_author` merges both collections keyed by raw login, the
+  same bot actor produced two entries under different keys — one correctly typed (from `reviews`),
+  one not (from `latestReviews`, e.g. `chatgpt-codex-connector` without `[bot]`) — and the untyped
+  duplicate fell through to `actor_kind`'s login-suffix heuristic and landed in `feedback["human"]`.
+  New `babysit_gh.rest_hydrate_reviews` replaces `reviews` with the REST list and drops the stale
+  `latestReviews` in one place, used by both call sites, so `latest_reviews_by_author` derives every
+  actor's latest review from the properly-typed REST list alone.
+
 ## [0.26.2]
 
 ### Fixed
