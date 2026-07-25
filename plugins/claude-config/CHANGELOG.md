@@ -7,14 +7,35 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 ### Added
 
-- **`audit-instructions` check I12 — cross-surface instruction conflict.** Two live instructions
+- **`audit-instructions` checks I12–I14**, extending the existing `reference/criteria.md` catalog
+  rather than standing up a second one. Each row carries its must-not-flag cases, and the three new
+  official sources (CLI reference, subagents, skills) join the catalog's source list.
+- **I12 — stale or misattributed harness-capability claim.** The subject is the product, not the
+  model, which separates it from I8. Detection needs an official page stating something incompatible
+  with the claim, or a failed reproduction — and each arm is bounded so the check cannot manufacture
+  findings. **Documentation silence is not drift**: pages are rewritten and condensed, and this
+  repository keeps empirical tests for behaviors the docs never specified. **A reproduction must
+  match every stated precondition** — version, OS, setting, account tier, feature flag, launch mode —
+  and a failure without them is inconclusive rather than a finding.
+- **I13 — prose written on the assumption that an `@path` imported**, on a surface where `@` carries
+  no import meaning. The finding is the false premise, not the citation form: an inert `@path` is
+  still a legible path, so "follow `@reference/rules.md`" works and flagging it would report a
+  working instruction. Remediation rewrites the assertion into an explicit read, because swapping the
+  syntax alone leaves the claim false — no citation form imports anything on these surfaces.
+- **I14 — an instruction to read a surface the main conversation already loads at startup.** Bounded
+  to the root `CLAUDE.md`, the user `CLAUDE.md` at the **resolved** `${CLAUDE_CONFIG_DIR:-~/.claude}`,
+  the root `CLAUDE.local.md`, unconditional project rules and managed policy files. Nested
+  `CLAUDE.md` and `CLAUDE.local.md` files and path-scoped rules load lazily and are exempt, as is any
+  read where **the file is the operation's subject** — the startup copy is a launch-time snapshot, so
+  cutting a pre-edit read produces a patch against stale content.
+- **`audit-instructions` check I15 — cross-surface instruction conflict.** Two live instructions
   that cannot both be satisfied, where no official layering rule already picks a winner. Scoped by
   routing around the incumbent, and only as far as the incumbent can actually see: a contradiction
   wholly inside the memory surfaces `claude-memory:audit` check C6 discovers — the project-root
   `CLAUDE.md`/`CLAUDE.local.md` and the project `.claude/rules/` tree — is C6's and is not reported
   here, while one reaching a surface C6 never reads (user-scope memory, a nested `CLAUDE.md`), one
   with a side outside the memory layer — a skill body, an agent definition, a prompt-type hook, an
-  output style — or any side in the managed-policy tier, is I12's. When `claude-memory` is absent, the
+  output style — or any side in the managed-policy tier, is I15's. When `claude-memory` is absent, the
   run says memory-layer contradictions go unchecked and names the skill that performs them.
   Remediation splits by scope and never defaults to deletion: reconcile where both sides are
   operator-owned, report-only against managed policy, route user-scope findings as recommendations.
@@ -35,26 +56,26 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 - **A dedicated cross-surface conflict lane in `audit-instructions` Phase B.** A conflict is a
   relation between two surfaces, so a per-surface lane cannot see the other side and a lane that
   rescans everything re-derives the same pair in every lane. Per-surface lanes now run their checks
-  minus I12, and one cross-surface lane runs I12 alone over the whole resolved inventory, emitting
+  minus I15, and one cross-surface lane runs I15 alone over the whole resolved inventory, emitting
   each conflict once. Phase A backs it with a read-only inventory tier: org-managed policy (the
   managed `CLAUDE.md`, a `claudeMd` settings value, and managed prompt-type hook text), upstream-owned
   but live instruction text (skill bodies and agent definitions from an enabled plugin's cache,
   managed materializations, and `type: "prompt"` handler text in an enabled plugin's
   `hooks/hooks.json` — effective `enabledPlugins` gates all three alike, since a disabled plugin's
   cache stays on disk while none of its components load), and
-  every out-of-scope I12 counterpart — a scope argument narrows which side may produce a finding,
+  every out-of-scope I15 counterpart — a scope argument narrows which side may produce a finding,
   never which surfaces are read, and the `Arguments` section now says so rather than describing the
   filter as narrowing the inventory. Read-only inventory changes no ownership: those surfaces still
   propose nothing and still route upstream. Prompt-hook text is extracted from
   `.claude/settings.local.json` and managed settings as well as project and user `settings.json`,
   prompt text only, never a command line or secret-bearing value.
 - **A no-change representation in the `audit-instructions` report contract.** A finding whose check
-  forbids proposing an edit — the I12 managed-policy case, anything routed to an owning repository —
+  forbids proposing an edit — the I15 managed-policy case, anything routed to an owning repository —
   records `no change proposed` and who owns the resolution instead of a fenced diff, so the per-finding
   diff requirement no longer contradicts the checks that forbid an edit.
-- **`audit-instructions` check I13 — definition-site locality.** An instruction governing one named
+- **`audit-instructions` check I16 — definition-site locality.** An instruction governing one named
   thing while living somewhere other than that thing's own definition. A different axis from I3:
-  I3 is load *timing*, I13 is *locality*, and an instruction can be correctly deferred and still
+  I3 is load *timing*, I16 is *locality*, and an instruction can be correctly deferred and still
   misplaced. `OPINION`-tier, off by default, enabled by `--opinion`, capped at `info`, never applied.
   The destination is constrained to a surface Claude loads: where the subject's definition site is an
   ordinary README or reference file, the proposal colocates the text *and* retains a one-line pointer
@@ -69,7 +90,7 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   never fix-applied; withholding rules default on; `OPINION`-derived advice inside a backed check
   follows its host's enablement and is labelled inline. Every run reports how many `OPINION` checks
   were available, how many did not run, and the argument that enables them.
-- **YAML frontmatter on `reference/criteria.md`** carrying `version` (1.1.0) and `last-updated`,
+- **YAML frontmatter on `reference/criteria.md`** carrying `version` (1.2.0) and `last-updated`,
   replacing the body-prose version line — a contract surface with three parse paths now stamps its
   version machine-readably.
 
@@ -96,6 +117,19 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   exists to enumerate what a caller may pass, the finding names an argument enumeration, a
   frontmatter field, or a typed `argument-hint` instead. `OPINION`-derived, labelled as such in the
   finding, never fix-applied; the detection is unchanged and stays officially backed.
+- **Recheck triggers now watch every page in the catalog's source list**, not the three originally
+  named. Each check cites one of those pages, so a subset left the new harness-behavior rows
+  depending on pages nothing watched.
+- **The surface partition no longer widens a row.** It said the full catalog applies on non-memory
+  surfaces while I13 and I14 declare narrower surface sets, so a lane could emit I14 findings on
+  prompt-type hooks and output styles the criterion excludes. Each row's own declaration bounds it.
+- **The `description` carries the new checks' trigger vocabulary.** It framed the skill purely as
+  finding instructions the model no longer needs, and only the description is available during skill
+  selection — so a request about a stale harness claim, a non-loading `@path`, or a redundant
+  startup-surface read would not have selected the catalog that answers it.
+- **`Authority` gloss restated descriptively.** The axis is a closed three-value set, not a rule
+  that every row is `ANTHROPIC-DOCS` — `TALK` and `OPINION` stay reachable, and the two
+  `OPINION`-tier rules this release adds are the first to use one.
 
 ### Fixed
 

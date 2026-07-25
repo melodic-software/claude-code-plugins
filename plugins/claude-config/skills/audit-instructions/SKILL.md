@@ -1,6 +1,6 @@
 ---
 name: audit-instructions
-description: "Audit locally-owned Claude Code instruction surfaces — user + project CLAUDE.md, .claude/rules, skill bodies, agent definitions, prompt-type hooks, output styles — for instructions current models no longer need: prior-model workarounds, over-prescriptive scaffolding, bare prohibitions, reasoning-echo directives, stale examples. Report-only: emits a findings report with proposed diffs, gated to the human, never auto-applied. Use when: 'after a model upgrade', 'are my instructions holding the model back', 'instructions the model no longer needs', 'too prescriptive', 'audit instructions', 'instruction audit'. Not a brevity pass and not memory-layer hygiene."
+description: "Audit locally-owned Claude Code instruction surfaces — user + project CLAUDE.md, .claude/rules, skill bodies, agent definitions, prompt-type hooks, output styles — for instructions current models no longer need: prior-model workarounds, over-prescriptive scaffolding, bare prohibitions, reasoning-echo directives, stale examples — plus instructions that misstate Claude Code's own behavior, cite a file in a form that never loads, re-read a surface already in context, or contradict another live instruction. Report-only: emits a findings report with proposed diffs, gated to the human, never auto-applied. Use when: 'after a model upgrade', 'are my instructions holding the model back', 'instructions the model no longer needs', 'too prescriptive', 'audit instructions', 'instruction audit', 'stale Claude Code behavior', 'outdated harness claim', 'my @path import is not loading', 'instruction re-reads CLAUDE.md', 'conflicting instructions'. Not a brevity pass and not memory-layer hygiene."
 argument-hint: "[scope] [--opinion] [--no-stopping-condition] — scope: claude-md|rules|skills|agents|hooks|output-styles|all (default: all)"
 user-invocable: true
 disable-model-invocation: false
@@ -17,7 +17,7 @@ doctrine, tiers it by how confident the evidence can be, and packages proposed r
 rewrites as a human-gated diff — so instruction surfaces shrink as models get better instead of
 only ever growing.
 
-The check catalog — the checks I1–I13, their evidence tier, authority tag, severity, per-surface
+The check catalog — the checks I1–I16, their evidence tier, authority tag, severity, per-surface
 applicability, and the `OPINION`-tier enablement policy — lives in
 [reference/criteria.md](reference/criteria.md). The
 deterministic pre-scan is
@@ -40,7 +40,7 @@ concerns its siblings already cover — route rather than re-answer:
   portability is `claude-config:audit-permission-grants`.
 
 On **memory-layer surfaces** (CLAUDE.md, CLAUDE.local.md, `.claude/rules/`, `~/.claude/rules/`),
-this skill runs only the model-era checks I6–I13. It never runs or reports the hygiene checks
+this skill runs only the model-era checks I6–I16. It never runs or reports the hygiene checks
 I1–I5 (line-necessity, length, placement, inferable content, rule-to-hook) on these surfaces —
 that instruction-memory hygiene layer belongs to the `claude-memory` plugin. When that plugin is
 installed, route memory-layer hygiene to its `audit` skill; when it is not installed, emit a single
@@ -48,9 +48,11 @@ one-line pointer to the official CLAUDE.md include/exclude guidance (recorded wi
 [reference/criteria.md](reference/criteria.md)) so the operator knows where that audit lives — this
 skill still does not perform it. Either way, no I1–I5 hygiene finding is ever produced here. On
 **non-memory surfaces** (skill bodies, agent definitions, prompt-type hooks, output styles) the
-full catalog I1–I13 applies — no incumbent auditor covers instruction content there.
+catalog applies — no incumbent auditor covers instruction content there — **bounded by each row's
+own surface declaration**, which is narrower than the partition for some checks. I13 and I14 name
+their own surface sets and are not run outside them; this partition never widens a row.
 
-I12 (cross-surface conflict) carries its own narrower routing on the same convention: a contradiction
+I15 (cross-surface conflict) carries its own narrower routing on the same convention: a contradiction
 wholly inside the memory surfaces `claude-memory:audit` check C6 actually inventories — the
 project-root `CLAUDE.md`/`CLAUDE.local.md` and the project `.claude/rules/` tree — is C6's and is not
 reported here, while one reaching any surface C6 does not discover (user-scope memory, nested
@@ -67,7 +69,7 @@ declaration in the consuming repo, no managed-file exclusion applies.
 ## Arguments
 
 Parse `$ARGUMENTS` for an optional scope filter. It narrows which surfaces may **produce** findings —
-never which surfaces are read. Phase A always inventories the full comparison set, because I12 is a
+never which surfaces are read. Phase A always inventories the full comparison set, because I15 is a
 relation between two surfaces and a scoped run still needs the counterpart:
 
 - `claude-md` — findings on user + project CLAUDE.md and CLAUDE.local.md
@@ -83,7 +85,7 @@ which side the run is auditing.
 
 Two flags govern the `OPINION` tier, whose enablement policy the catalog defines:
 
-- `--opinion` — also run the `OPINION`-tier checks that emit findings (I13 today). Off by default;
+- `--opinion` — also run the `OPINION`-tier checks that emit findings (I16 today). Off by default;
   their findings are capped at `info` and are never applied.
 - `--no-stopping-condition` — disable the `OPINION`-tier stopping condition that bounds I6 and I8.
   It is on by default because it withholds findings rather than emitting them, so turning it off
@@ -118,7 +120,7 @@ involving one still carries the no-change representation and its routing recomme
 
 - **Org-managed policy** — the managed-policy `CLAUDE.md`, any `claudeMd` value in managed settings,
   and prompt-type hook text configured in managed settings. All three are live instruction text, and
-  a managed hook contradicting a project skill is exactly the conflict I12 explicitly owns; that
+  a managed hook contradicting a project skill is exactly the conflict I15 explicitly owns; that
   comparison is impossible if the text is never read. Extract managed hook text under the same
   prompt-text-only, no-secrets handling as the other settings scopes.
 - **Upstream-owned instruction text that is nonetheless live** — skill bodies and agent definitions
@@ -133,7 +135,7 @@ involving one still carries the no-change representation and its routing recomme
   They are read for comparison only, prompt text only and no secret-bearing values: the existing
   exclusion from the editable set and the upstream-routing behavior are unchanged, so a finding here
   routes to the owning repository's tracker and proposes no in-place edit.
-- **Every I12 counterpart outside the requested scope.** A scope argument narrows which surfaces may
+- **Every I15 counterpart outside the requested scope.** A scope argument narrows which surfaces may
   *produce* findings, not which are read: a conflict is a relation between two surfaces, so a run
   scoped to `skills` still inventories `CLAUDE.md`, rules, agents, hooks, and output styles as
   comparison counterparts. Findings still name both sides; the filter decides which side the run is
@@ -155,10 +157,10 @@ and I10 (reasoning-echo directives); `--count` prints the row count. It is advis
 cannot judge whether a rationale is genuinely present, so the lane refines every candidate rather
 than reporting it verbatim.
 
-**I12 is not a per-surface lane.** A conflict is a relation between two surfaces, so a lane holding
+**I15 is not a per-surface lane.** A conflict is a relation between two surfaces, so a lane holding
 one surface's files cannot see the other side, and a lane that rescans everything re-derives the same
-pair in every lane. Every per-surface lane therefore runs its assigned checks **minus I12**, and one
-additional **cross-surface conflict lane** runs I12 alone. That lane receives the whole inventory —
+pair in every lane. Every per-surface lane therefore runs its assigned checks **minus I15**, and one
+additional **cross-surface conflict lane** runs I15 alone. That lane receives the whole inventory —
 including the read-only managed-policy text and the out-of-scope counterparts Phase A collected —
 already symlink-resolved and `@path`-expanded on the memory surfaces that implement imports, and
 emits each conflict once, naming both locations.
@@ -193,18 +195,18 @@ chat. Present findings as a table:
 
 For each finding, give the proposed removal or rewrite as a fenced diff block. Tier is `mechanical`
 (pattern-detectable) or `behavioral` (its ground truth is observed behavior); authority is the
-check's tag from the catalog. An I12 conflict finding names **both** participating locations — it is
+check's tag from the catalog. An I15 conflict finding names **both** participating locations — it is
 a relation between two instructions, not a property of one line.
 
 **No-change findings are exempt from the diff contract.** Where a check forbids proposing an edit —
-the I12 managed-policy case, and any finding routed to an owning repository rather than applied —
+the I15 managed-policy case, and any finding routed to an owning repository rather than applied —
 write `no change proposed` in the Proposed change column and, in place of the fenced diff, a one-line
 statement of who owns the resolution. Never manufacture a diff to satisfy the table; a check that
 forbids an edit and a report that demands one would otherwise contradict each other.
 
 Three sections the catalog's `OPINION` policy requires: the shadowed-definition `info` section (the
 live definition and the inert one, for shadowed skills and subagents — MCP servers are outside this
-report's contract, per I12); a **Withheld** subsection naming every I6/I8 proposal the stopping
+report's contract, per I15); a **Withheld** subsection naming every I6/I8 proposal the stopping
 condition suppressed and on what ground; and a one-line `OPINION` discovery note — how many
 `OPINION`-tier checks were available, how many did not run, and the argument that enables them.
 
