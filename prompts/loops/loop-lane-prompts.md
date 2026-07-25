@@ -29,19 +29,51 @@ about that repo, not a preference.
   `.claude/source-control.md` on its default branch. Absent or no
   loop-lane keys at all means **every merge is human**, whatever tier you
   pass.
-- **Work-class labels deployed?** `gh label list | grep work-class`. If
-  absent, no PR is ever merge-eligible; the axis has to exist first.
+- **Is a classification source present?** The merge partition reads "the
+  triage stamp in the item body **or** labels" — either satisfies it. So
+  check both, and only conclude "nothing can merge" when both are empty:
+
+  ```bash
+  gh label list --limit 200 | grep -i work-class
+  gh issue list --label agent-ready --limit 500 --json number,body \
+    --jq '[.[] | select(.body | test("Work-class: C[0-9]"))] | length'
+  ```
+
+  A repository that records classifications only as body trailers is fully
+  merge-capable and needs no label provisioning.
 - **Items stamped?** A PR merges only when its close-linked item carries a
-  recorded work class. Count with
-  `gh issue list --label agent-ready --json labels`.
+  recorded work class from either source. Count with the body-stamp command
+  above. **Always pass `--limit`** — `gh issue list` silently truncates at 30,
+  so an unbounded count under-reports any backlog past that and would feed a
+  rung decision from a partial population.
 - **Tracker binding present?** `.work-item-tracker.json` must resolve from
   the worker lane's working directory or its preflight stops the lane.
 - **Role labels** — the human-gated and autonomous-eligible names come
   from that file's `config.role_labels`, not from a literal.
 - **`{{RUNTIME_SURFACES}}`** — paths that look like documentation but are
-  executed. In a Claude Code plugin repo that is `SKILL.md` and
-  `reference/*.md`; in an application repo it may be nothing at all. This
-  drives classification: a change to a runtime surface is not mechanical.
+  loaded by an agent at run time. This drives classification: a change to a
+  runtime surface is never mechanical, so an under-listed value is a safety
+  hole, not a cosmetic omission — it lets a behavioral change be stamped C2
+  and merged unattended.
+
+  **Derive the list; never hand-enumerate it.** In a Claude Code plugin repo
+  the doc-shaped runtime set is wider than it first looks — `SKILL.md`,
+  `AGENTS.md`, agent definitions (`agents/*.md`), command bodies
+  (`commands/*.md`), and every file a skill body reads at run time
+  (`reference/**`, `context/**`, `templates/**`), at **any** depth. A
+  one-level `reference/*.md` glob misses nested trees, and `context/**` is
+  loaded by skill bodies exactly as `reference/**` is.
+
+  The reliable derivation is the reverse lookup — find what the bodies
+  actually read, rather than trusting a directory name:
+
+  ```bash
+  grep -rhoE '\(([a-zA-Z0-9._/-]+\.md)\)' plugins --include=SKILL.md | sort -u
+  ```
+
+  Treat everything it returns as runtime, plus every `agents/*.md` and
+  `commands/*.md`. In an application repo the set may be empty — but prove
+  that, do not assume it.
 
 ## Adopting a new repository
 
@@ -322,6 +354,12 @@ enforcement. Give each terminal a different value.
 > and a change to any path listed on the `Runtime surfaces` line is not
 > mechanical no matter how doc-shaped it looks.
 >
+> **Treat that line as a floor, not a closed list.** Before stamping any
+> doc-shaped change `mechanical`, confirm the changed path is not loaded
+> by an agent at run time — check whether any skill body, agent
+> definition, or command references it. If you cannot establish that it is
+> inert, it is not mechanical. Fail toward the higher class.
+>
 > Never route a `work-class:` label through `/work-items:track` — that
 > path validates against a taxonomy that does not yet carry the axis.
 >
@@ -360,8 +398,15 @@ Filled instance for the repository in use as of 2026-07-25.
 | `{{REPO}}` | `melodic-software/claude-code-plugins` |
 | `{{TIER}}` | `autopilot` |
 | `{{STOP}}` | `--drain` |
-| `{{RUNTIME_SURFACES}}` | `SKILL.md`, `reference/*.md` |
+| `{{RUNTIME_SURFACES}}` | see below — derived, not a two-glob list |
 
+- Runtime surfaces: **not** just `SKILL.md` and `reference/*.md`. The
+  reverse-lookup derivation above returns 275 distinct doc paths that
+  `SKILL.md` bodies load at run time — `context/**` (57 directories),
+  nested `reference/**`, and `templates/**` among them — and the six
+  installed reviewer agents under `plugins/review/agents/*.md` are runtime
+  besides. Re-run the derivation rather than reusing this count; it moves
+  with every plugin added.
 - Merge rung: `c2-mechanical`, live in tracked config on `main`. Raising to
   `c3-autonomous` is a one-line edit to `.claude/source-control.md`.
 - Work-class labels: deployed. Exact strings, ascending risk:
@@ -523,7 +568,10 @@ floater working whatever backs up.
 >
 > Repository: `melodic-software/claude-code-plugins`
 > Shard: `[ratify]`
-> Runtime surfaces in this repo: `SKILL.md`, `reference/*.md`
+> Runtime surfaces in this repo: every `SKILL.md`, every `agents/*.md` and
+> `commands/*.md`, and every `.md` a skill body loads at run time —
+> `reference/**` and `context/**` at any depth, plus `templates/**`. This
+> is a derived set (~275 paths), not a two-glob list.
 >
 > I am present. Recommend, then wait for my direction before mutating.
 >
@@ -557,8 +605,14 @@ floater working whatever backs up.
 > For an item with no trailer, propose a class with your reasoning and
 > wait. Two traps: `mechanical` is narrow — deterministic, trivially
 > reversible maintenance such as dependency bumps, lint, format, sync —
-> and a change to `SKILL.md` or `reference/*.md` is not mechanical no
-> matter how doc-shaped it looks, because those are runtime here.
+> and a change to any path on the `Runtime surfaces` line is not mechanical
+> no matter how doc-shaped it looks, because those are runtime here.
+>
+> **Treat that line as a floor, not a closed list.** Before stamping any
+> doc-shaped change `mechanical`, confirm the changed path is not loaded by
+> an agent at run time — grep whether any `SKILL.md`, agent definition, or
+> command references it. If you cannot establish that it is inert, it is not
+> mechanical. Fail toward the higher class.
 >
 > Never route a `work-class:` label through `/work-items:track` — that
 > path validates against a taxonomy that does not yet carry the axis.
