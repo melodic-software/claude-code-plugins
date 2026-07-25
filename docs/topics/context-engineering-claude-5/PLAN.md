@@ -802,13 +802,42 @@ security page and OWASP LLM01:2025, with mitigations mapped to mechanisms in the
 deferred items — an adversarial injection fixture corpus (Phase 8) and verification of the
 exclusion-set derivation (Phase 10) — are owed before this gate closes.
 
-**Graduate the traceability anchors before the prune.** `docs/conventions/topic-docs/` places
+**The traceability anchors before the prune.** `docs/conventions/topic-docs/` places
 `docs/topics/<slug>/` in the contract tier: committed on the task branch only, pruned before merge. But
 acceptance criterion 2 requires traceability back to `design/article-sections.md`, and the catalog's
 recheck triggers are anchored in `design/official-corroboration.md`. After the prune every such
-reference dangles, and `link-check.yml` validates markdown links. Either graduate both documents to the
-durable tier through the knowledge-vault seam, or move the traceability anchor and the recheck triggers
-inside the shipped catalog. Decide which, and do it before the prune commit.
+reference dangles, and `link-check.yml` validates markdown links.
+
+**RESOLVED 2026-07-24 — task #37. Distil into the shipped catalog; do not graduate.** And it resolves
+by *derivation* from the repo's own convention rather than by preference.
+
+`docs/conventions/topic-docs/README.md`, "Pointer discipline on durable surfaces", supplies a
+surface-agnostic **rationale**: "The contract slice is deleted before merge and the memory slice
+never leaves its checkout, so such pointers dangle by design. Cite the PR, the promoted location, or
+distilled values instead."
+
+**The argument rests on that rationale and deliberately not on the enumeration.** The convention's
+enumerated durable surfaces are "tickets, PR bodies, promoted docs" — a shipped plugin catalog is
+**not** among them, and claiming it is would be exactly the transcribe-don't-derive failure this
+effort keeps hitting. The rationale reaches it **a fortiori**: a shipped catalog outlives the prune
+permanently, so the pointer dangles by precisely the mechanism the rule names, and more durably than
+for any surface the rule does list.
+
+**The shape costs nothing new, because a sibling catalog already ships it.**
+`plugins/claude-memory/skills/audit/reference/criteria.md` carries `Version: 1.2.0`,
+`Last updated: 2026-07-11`, and a `Source:` line naming the official pages, plus per-check `**Why**`
+lines quoting the official page. Verified this session: it greps clean for both `design/` and
+`docs/topics` — **zero matches**.
+
+So:
+
+- **Every shipped catalog entry carries its source URL, its section id, and the recheck triggers
+  verbatim, distilled into the catalog.** No entry points at a `docs/topics/` path.
+- **Traceability to `design/article-sections.md` is satisfied two ways** — at review time on the
+  branch, where the document still exists, and durably by **citing the PR that carried the design**,
+  never a `docs/topics/` path.
+- **This is what unblocks the docs PR.** Nothing further is owed before the prune commit beyond
+  applying the shape, which task #34 does when it writes the catalog entries.
 
 - **Sanity Check — the repo's contract gate passes**, not a hand-picked subset. Sixteen `check-*.sh`
   gates exist under `scripts/`; the load-bearing ones here are `check-changelog-parity.sh` (all 60
@@ -861,7 +890,7 @@ No runtime code — the deliverables are skills, a catalog, and their evals. Ver
 | The pass becomes the thing it audits | Medium | Medium | It cites the catalog rather than restating it, and the source's own doctrine applies to it |
 | An apply mutates a registered byte-identical cluster copy or a vendored upstream file, breaking a sync path and reddening CI | Medium | High | Phase 6 derives the exclusion set from `cross-plugin-source-registry.txt` + a `vendor/` rule + `git worktree list`; Phase 10 asserts the drift checks still pass after an apply |
 | ~~The catalog is adopted by four plugins without an owner doc, violating the convention registry~~ | — | — | **Retired.** Phase 2 chose no shared artifact, so there is no cross-plugin catalog to adopt and no registry row is owed |
-| Design documents are pruned at merge, dangling the catalog's traceability anchors | High | Medium | Phase 11 graduates them or relocates the anchors into the shipped catalog before the prune commit |
+| Design documents are pruned at merge, dangling the catalog's traceability anchors | High | Medium | **Resolved (task #37).** Anchors are distilled into the shipped catalog — source URL, section id, recheck triggers verbatim — per `topic-docs`' pointer-discipline rationale; the PR, never a `docs/topics/` path, carries design traceability. Applied by task #34 |
 | Injected instruction text in an audited surface steers a lane — suppressing a finding, or laundering an attacker's edit through an accepted fix | Medium | High | `design/checks-and-sweep.md` "Threat model — prompt injection against the sweep": examined text is denoted as data not instruction; suppression is never reachable by the apply step; least privilege on managed and user scope; no unattended applying run |
 | A detector or the sweep self-grades its own output | Medium | High | Phase 6 requires each to name a fresh-context checkpoint conforming to `PLUGIN-PHILOSOPHY.md` "Delegation mechanics" (PR #1096), whose conformance gate is `skill-quality:check` check 21 |
 | The machinery outweighs the payload: a versioned catalog, a convention-registry owner doc, a seam decision, a re-run contract, and a sweep built to carry one well-grounded detector | High | High | **Fired, and the mitigation worked.** Exactly one detector survived, the operator approved re-deriving the shape, and the catalog, the owner doc, the registry row, and the materialization are gone. What survives is the sweep and the re-run contract, whose justification was never detector count |
