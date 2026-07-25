@@ -9,6 +9,7 @@
       "files": [],
       "expectations": [
         "The skill locates the handoff via the file directive and/or the known-location glob, not by guessing",
+        "It searches the `${CLAUDE_PLUGIN_DATA}` fallback handoff location only when project-root resolution fails, since the producer writes there only on its no-project-root branch",
         "It resolves a relative directive path against the source transcript's cwd field (not the current session's cwd) before the existence check",
         "It surfaces the file path plus topic/date/session_id metadata and stops for a yes/no confirmation",
         "It does not execute the resume prompt or read the full file body before the operator confirms"
@@ -99,7 +100,7 @@
       "expected_output": "The skill recognizes that continue-in-background writes an indistinguishable type: handoff save-point with the same engine and then launches the continuation itself. It screens glob candidates by locating each file's producer transcript via session_id and checking for the background-launch signature (claude --bg --name \"continue-…\"). A save-point whose launch succeeded is excluded from the default winner — its work is already running (claude agents lists it) — and the skill keeps looking for the older manual handoff, surfacing provenance at the confirm gate when launch evidence is ambiguous.",
       "files": [],
       "expectations": [
-        "The skill screens glob candidates for the background-launch signature in the producer transcript before short-circuiting",
+        "The skill screens candidates for the background-launch signature in the producer transcript before surfacing them — glob candidates before short-circuiting, and transcript-discovered file candidates via the same transcript the directive was found in",
         "It correlates the matched launch with the exact candidate file via the launch prompt's exact Read directive path, never excluding session-wide — a same-session manual handoff remains a valid candidate",
         "It treats --name continue-<topic> slug-only evidence as ambiguous unless it uniquely resolves to one candidate, since same-topic files all match the slug",
         "It applies the same screening to prompt-only candidates: a rails block followed in its transcript by a successful claude --bg launch was delivered to the background agent, not lost",

@@ -50,8 +50,11 @@ pre-clear content sits in a sibling — never in the current session's own file.
 1. **Known-location glob first (no transcript needed).** Resolve `<memory_dir>/handoffs/` for the
    **current repo** through the plugin binding
    ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md))
-   — never assume the literal `.work`; the memory root is consumer-configurable — plus the
-   no-project-root fallback `${CLAUDE_PLUGIN_DATA}/topic-docs/handoffs/`. Glob `*-handoff-*.md`,
+   — never assume the literal `.work`; the memory root is consumer-configurable. Add the fallback
+   `${CLAUDE_PLUGIN_DATA}/topic-docs/handoffs/` **only when project-root resolution fails**: the
+   producer writes there only on its no-project-root branch (topic-docs binding), so inside a repo
+   that shared location holds unrelated sessions' save-points, and a newer one could hijack the
+   short-circuit ahead of the transcript holding this repo's lost handoff. Glob `*-handoff-*.md`,
    keep only files whose frontmatter is `type: handoff`, rank by mtime. A strong, recent candidate
    → jump to step 4 (step 5's chain validation then locates the producer transcript by the file's
    `session_id`, since this path found no transcript). **Exception — operator says the handoff was
@@ -100,7 +103,10 @@ pre-clear content sits in a sibling — never in the current session's own file.
      exists on disk — and **resolve a relative directive path against the source transcript's
      `cwd` field, not the current session's cwd**: the producer emits repo-relative paths (e.g.
      `Read @.work/handoffs/…`), so a handoff recovered from another repo's transcript is falsely
-     reported missing if checked from here.
+     reported missing if checked from here. **Apply step 1's background-delivery screening to
+     these candidates too** — the launch signature, if any, sits in this same transcript: a file
+     whose exact directive a successful `claude --bg` launch delivered is not a lost handoff,
+     wherever it was discovered.
    - **Prompt-only mode** — no file, no directive. Detect off the `─` rails and the instruction
      line; the resume content is the block inline between the rails. `Prior session:` is
      **optional corroboration, never a required key** — the producer's prompt-only checklist
