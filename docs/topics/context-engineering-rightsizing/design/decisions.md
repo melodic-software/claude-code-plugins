@@ -55,3 +55,154 @@ These are the questions the section agents explicitly declined to answer, plus t
 - **The parallel branch** `docs/context-engineering-claude-5-topic` is still being worked by another
   session. This pass runs independently by operator ruling; the collision is resolved deliberately at
   merge, not by folding.
+
+## Execution status and errata
+
+Recorded 2026-07-25 at the end of the first execution pass. **The nineteen decisions above are
+preserved verbatim as ratified.** Nothing in this section re-decides any of them. Where a decision's
+supporting evidence did not survive first-hand verification, the correction is recorded here and the
+decision's own text is left untouched.
+
+Three decisions did not survive contact with measurement. In each case the lane reported and stopped
+rather than re-deciding, which is what this contract requires of it.
+
+### D-12 — errata: the supporting evidence is invalid; the directive stands
+
+D-12 cites *"a sibling guard in the same event class runs at 2ms"* as its control. **That control
+never ran.** Both disk-hygiene comparators failed at launch:
+
+- `destructive_guard.py --mode engine-gate` — all 16 recorded runs are `hook_non_blocking_error`,
+  `exitCode: 1`, stderr `Failed to run: Plugin option "disk_hygiene_enabled" isn't set.` The 2 ms is
+  config validation refusing to launch, before any process is spawned. `python3 -c 'pass'` costs
+  396 ms on this host, so 2 ms was never physically achievable.
+- `destructive-guard.sh` — all 57 recorded runs are `hook_non_blocking_error`, stderr
+  `execvpe(/bin/bash) failed: No such file or directory` (routed to WSL, which has no `/bin/bash`).
+
+**The real root cause is worse than the decision assumed.** The guardrails hooks are not slow — they
+never finish. They are killed at their declared `timeout`, and a killed PreToolUse hook yields
+`outcome:"cancelled"` with no `permissionDecision`, so **the tool call proceeds unguarded**. Across
+15,845 cancelled runs the fraction finishing under their declared timeout is `0.0000`. Guardrails
+PreToolUse timeout rate is 94–100%; machine-wide it is 79.7%. `block-dangerous-git` enforced on ~0%
+of calls.
+
+**D-12's directive — fix the root cause, not a matcher narrowing, not a disable — is unaffected and
+still binding.** Only its citation is corrected.
+
+Two caveats: the fail-open behavior was read from the decompiled v2.1.219 binary and is **not yet
+confirmed against official documentation**; and a second defect follows — **disk-hygiene's
+destructive-operation guard has been silently unenforced for the entire measured window**, which
+needs its own ticket and is not this effort's to fix.
+
+Full evidence: `guardrails-latency-diagnosis.md`.
+
+### D-13 — DEFERRED, not executed: the removal set is empty
+
+Measured against 5,888 transcripts over 30 days — a corpus ~15× larger in file count than the one
+behind the original `/doctor` pass, which makes a zero-usage finding stronger evidence, not weaker.
+
+**No seeded plugin qualifies for removal.** All ten zero-invocation seeded plugins are
+`PostToolUse` / `PreToolUse` / `Notification` hook plugins. A hook that succeeds silently writes
+nothing to the transcript, so "zero usage" is the expected reading for a *correctly functioning,
+heavily used* formatter. Their only skill is `setup`, invoked once at install time. Direct proof:
+`guardrails` blocked three of the measuring agent's own tool calls during the run.
+
+**Method objection.** The `/doctor` pass measured *invocation* and concluded *usage*. For hook
+plugins those are unrelated quantities, and that single error accounts for ten of the sixteen.
+
+**The stated saving does not hold either.** ~7.4k resident tokens versus a measured upper bound of
+~0.9–1.1k, and likely ~0 — none of these plugins' `setup` skills appears in the session's skill
+listing at all. Executing D-13 would have disabled formatting, linting, EOL normalization, desktop
+notifications and the safety guard layer across every machine in exchange for approximately nothing.
+
+**The prescribed mechanism also does not deliver the stated consequence.** `seed` writes only when a
+key is absent, and every seeded plugin key already exists live, so editing the seed changes fresh
+machines only — it would not have reclaimed a token on this machine. Confirmed against the installer
+at `.chezmoiscripts/run_onchange_install-claude-plugins.ps1.tmpl:22-26`, which skips `false` entries
+and never uninstalls.
+
+**Status: deferred pending operator re-decision.** Nothing was committed. Any revival must classify
+each plugin by **surface type** — hook versus skill/command — before treating a zero as meaningful.
+
+### D-17 — DEFERRED, not executed: correct diagnosis, unexecutable prescription
+
+The diagnosis is **confirmed**: `force` deep-merges with the repo value always winning
+(`dot_claude/modify_settings.json:28`), and `seed` writes only when the key is absent
+(`:175-182`). The silent-revert trap D-17 names is real.
+
+**The prescribed move cannot be made.** `seed` is structurally two-level — the template ranges over
+each section's entries, so every member must be a map — while `autoMemoryEnabled` is a **top-level
+scalar** sibling of `model` and `env`. Reproducing the loop verbatim on chezmoi v2.70.5 yields:
+
+```text
+chezmoi: template: stdin:5:26: executing "stdin" at <$entries>: range can't iterate over false
+```
+
+That is a hard template error, not a silent no-op, and `modify_settings.json` is evaluated on every
+`chezmoi apply` — so the move would **abort apply fleet-wide**, on the file carrying the permission
+deny list and the destructive-removal guard.
+
+**Status: deferred pending operator re-decision.** Delivering D-17's intent requires a root-cause fix
+to the seed loop so it handles a top-level scalar; that changes merge behavior for every owned key
+and is its own lane. **Urgency is low**: the live value is already `false`, so the move is a no-op on
+this machine either way — D-17 was always a capability unlock, not a behavior change.
+
+### D-6 — exclusion kept after its premise cleared
+
+PR #1261, the reason `plugins/playbooks/skills/fable-5/**` was excluded, **merged 2026-07-25
+00:38:24Z**. The operator ratified keeping the exclusion for this pass rather than lifting it
+mid-fan-out. **The follow-up issue to cover that subtree afterward was not filed** — the lane
+carrying it died first. Outstanding.
+
+### D-9, D-10 — satisfied, with one permanent loss
+
+D-9's blockers both merged (#318 at 00:08:55Z, #312 at 01:01:46Z), and `main` became #312's merge
+commit, so the user-scope work was measured only after every competing writer landed. The
+stacked-branch mechanism became unexecutable and was replaced by basing on `main`; the substance was
+satisfied in full.
+
+D-10's branch `docs/claude-md-github-conventions` was **already gone** from local refs and the remote
+when the lane checked. The decision is satisfied — but the requirement to read its 13 lines before
+dropping it could not be honored, so **that content is unrecoverable and its salvage value is
+permanently unknown.** Recorded as a real loss, not a clean success.
+
+### Corrections owed to `collision-register.md`
+
+The register **under-counts writers** on `dot_claude/CLAUDE.md`. It lists three; **PR #319 was a
+fourth**, open and editing that file mid-pass and absent from the register. It merged before
+colliding. The generalizable point is the one that matters: **the register is a point-in-time
+snapshot that was demonstrably incomplete while presented as complete. Re-derive from `gh pr list`
+rather than trusting it.**
+
+### Lane execution status
+
+No lane merged. Five terminated on a session usage limit at 02:52–02:54 without reaching their own
+stopping points.
+
+| Lane | Decisions | Outcome |
+|---|---|---|
+| L0 | design docs | 6 commits, **not pushed**; errata and register correction unapplied |
+| L1 | D-7 | **PR #1286 open**; two comments on #1271. Rewrite half unblocked by #1276 merging 02:13:33Z |
+| L2 | D-4 | uncommitted work only; incumbent search must be redone (see below) |
+| L3 | D-4, D-2 | uncommitted work only |
+| L4 | D-12 | uncommitted work only |
+| L5 | D-13, D-17 | **stopped by design**; nothing committed |
+| L7 | D-9, D-10 | **dotfiles PR #321 open**, 34/34 CI green |
+| L8 | D-18, D-16 | **PR #1282 open**, 26/26 CI green |
+| L10 | D-11 | **PR #1280 open**, fresh-eyes verified, 8 corrections pending |
+
+### D-1's incumbent gate — the pass's dominant finding, and its blind spot
+
+The gate fired hard, as this effort's own digests predicted. Its sharpest result: **D-4's criteria
+catalog must fold**, because a complete incumbent already exists at
+`plugins/claude-config/skills/audit-instructions/reference/criteria.md` v1.0.0, carrying exactly
+D-2's three axes plus eleven seeded checks.
+
+**But the gate itself has a demonstrated blind spot.** Three independent searches — the boundary
+lane, two automated PR reviewers, and the building lane — all concluded "no incumbent" for the
+conflict detector. All three were wrong: `claude-memory:audit` ships check **C6 Consistency [FAIL]**
+at `plugins/claude-memory/skills/audit/reference/criteria.md:107-119`. Each search was scoped to
+`SKILL.md` files or to frontmatter descriptions, and **C6 lives in a `reference/` catalog**, invisible
+from the discovery surface — that skill's own `description` never mentions contradiction.
+
+**Any future incumbent search under D-1 must cover `plugins/**` at all depths and all file types.**
+Scoping to `SKILL.md` produces a false negative that looks conclusive.
