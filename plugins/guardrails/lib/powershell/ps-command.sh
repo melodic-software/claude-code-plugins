@@ -207,6 +207,75 @@ ps::might_invoke_git() {
   return 1
 }
 
+# True (0) when the command both names a python3 interpreter TOKEN and carries a
+# `-c` inline-code flag. Paired with a raw write indicator by the caller, this is
+# the mangle-resistant sink for the interpreter-write lane under the PowerShell
+# tool — the python3 analogue of ps::might_invoke_git, following the same SINK
+# DOCTRINE: PowerShell is not faithfully bash-tokenizable, so rather than trust a
+# precise `python3 -c` scan that successive review rounds defeated (path-qualified
+# target, `&{python3}` script block, quoted-`#` comment truncation, block comments,
+# arg-splitting), ask the weaker question "could an inline-code python3 write be
+# here at all?" and let the caller block on the co-occurrence.
+#
+# `q` carries the two quote characters so neither appears literally in the regex.
+# Both probes run on the quote-INTACT, backtick-recovered text so a quoted
+# (`& 'python3'`), path-qualified (`…\python3.exe`), brace-glued (`&{python3`), or
+# comment-adjacent python3 — and a `-c` split from it or hidden in an arg list
+# (`-ArgumentList '-c',…`) — are all seen; a python3 token inside a here-string is
+# not (the caller blanks here-strings first). The `-c` boundary admits whitespace
+# or a quote on each side, so `'-c'` matches while a longer token (`-Command`,
+# `-Confirm`) does not. python3-ONLY by design: `py -3` / bare `python` and a
+# stdin heredoc (`python3 - <<PY … PY`, no `-c`) stay uncovered, as they are today.
+ps::might_write_via_python3() {
+  local recovered="${1//\`/}" lc q="\"'" blanked
+  lc="${recovered,,}"
+  # The quote-BLANKED command: an `open(` or a quoted mention inside the write
+  # payload is removed, so an UNQUOTED `(` (subexpression) or `$` (variable) that
+  # survives here is a genuine computed construct, not payload text.
+  blanked=$(ps::blank_quoted_spans "$1")
+  # A launcher (Start-Process/saps/start/pwsh/powershell/cmd) whose PROGRAM name is
+  # COMPUTED cannot be proven non-python. Rather than model parameter ordering /
+  # binding with a regex (which successive rounds defeated — one preceding option,
+  # then colon binding, then multiple options), fail closed CONSERVATIVELY: any
+  # launcher present together with an unquoted computed construct (`$` or `(`) →
+  # block (the caller still gates on a write indicator). This runs FIRST because a
+  # computed program has no literal python3 token for the test below to see. A
+  # launcher with only LITERAL args (`Start-Process notepad …`) carries no such
+  # construct and falls through to the token test, so a non-python launch stays
+  # allowed. (ps::might_invoke_git models this with a narrower per-parameter regex;
+  # a matching hardening there is tracked separately, out of this PR's scope.)
+  if ps::has_launcher "$recovered" && [[ "$blanked" == *'$'* || "$blanked" == *'('* ]]; then
+    return 0
+  fi
+  # A call `&` / dot-source `.` of a DOUBLE-QUOTED target that INTERPOLATES a
+  # variable or subexpression (`& "$env:PYTHON_BIN" …`, `& "$(…)" …`) runs a
+  # COMPUTED program that could resolve to python3. blank_quoted_spans erases the
+  # target (so the launcher/token tests miss it) and it is not a launcher, so match
+  # it here on the quote-INTACT text and fail closed. A SINGLE-quoted target does
+  # NOT interpolate in PowerShell (`& '$x'` is the literal name `$x`), so it is not
+  # matched. ps::write_bypass catches only an UNQUOTED `& $`/`& (`; this closes the
+  # quoted-interpolated form for the python-write lane.
+  [[ "$lc" =~ (^|[[:space:]\;\{\}\(\|\&])[.\&][[:space:]]*\"[^\"]*\$ ]] && return 0
+  # Must name a python3 interpreter token at all (quote-intact, backtick-recovered).
+  [[ "$lc" =~ (^|[^[:alnum:]_.])python3([.]exe)?([^[:alnum:]_]|$) ]] || return 1
+  # A literal `-c` inline-code flag settles it (quote-bounded, so an arg-split
+  # `-ArgumentList '-c',…` counts; a longer token like `-Command`/`-Confirm` does not).
+  [[ "$lc" =~ (^|[[:space:]$q])-c([[:space:]$q]|$) ]] && return 0
+  # `-c` immediately concatenated with a variable / subexpression is a COMPUTED
+  # inline-code flag: PowerShell joins the adjacent expansion into the same
+  # `-c<source>` argument (`python3 -c$code`, `python3 -c(…)`). The literal check
+  # above requires a whitespace/quote boundary after `-c`, so this adjacency slips
+  # it — fail closed.
+  [[ "$lc" =~ (^|[[:space:]$q])-c[\$\(] ]] && return 0
+  # No literal `-c`: PowerShell evaluates expression-valued arguments before launching,
+  # so `python3 ('-'+'c') …` / `-ArgumentList ('-'+'c'),…` construct the flag with no
+  # literal token. A computed `-c` cannot be ruled out when the args carry a
+  # non-tokenizable construct — reuse the git lane's un-parsable test on the
+  # quote-BLANKED text. Fail closed, exactly as the git lane refuses a computed target.
+  ps::has_special_constructs "$blanked" && return 0
+  return 1
+}
+
 # True (0) when the command uses a dynamic-invocation form that runs an arbitrary
 # string as a command: `iex`/`invoke-expression` (of anything), or a call `&` /
 # dot-source `.` of a STRING LITERAL (`& 'git commit …'`, `. "…"`). These defeat

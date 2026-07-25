@@ -241,7 +241,7 @@ one increment past the precedent). Behavioral gaps the docs leave open are resol
      (profile axis) — the two compose (`.claude/<concern>/<profile-name>/`). Reference adopter:
      [`ai-briefing`](ai-briefing-design.md).
    - **Resolution + override semantics, overlay naming, and the recommended consumer `.gitignore`
-     line** are owned by [`docs/conventions/consumer-config-layering/`](conventions/consumer-config-layering/README.md)
+     line** are owned by [`docs/conventions/config-cascade/`](conventions/config-cascade/README.md)
      — the layering axis is cross-cutting, so it is contracted once there rather than restated per
      seam. A surface declares its own keys and schema here or in its own owner doc, and points there
      for how its layers merge.
@@ -800,6 +800,86 @@ Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this 
 conform; 5 bounded to two justified, non-telemetry channels; 6 dual third-party surfaces both
 gated (credential scope + human-reviewed sync).
 
+### Review record — `context-guard` (ACCEPT, 2026-07-24)
+
+Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this review.
+
+- **Code execution (1).** No hooks. Two bash scripts, neither wired to any event:
+  `statusline-tee.sh` runs only when the OPERATOR wires it into their own `settings.json`
+  statusline (the setup skill prints the edit, never applies it), and `context-zone.sh` runs only
+  on explicit invocation. Both reviewed: no `eval`, no `curl | sh`, no outbound network; the one
+  untrusted input that reaches the filesystem (`session_id` from statusline stdin) is sanitized to
+  `[A-Za-z0-9_-]` before filename use; `captured_at` is format-gated to strict ISO-8601 UTC before
+  being passed to `date -d`; no snapshot value is passed to `eval`, `sh -c`, or any code
+  executor. Every failure path is transparent (wrapped statusline output
+  and exit code unchanged). No kill-switch `userConfig` needed — nothing runs unless the operator
+  wires it, and unwiring is the same one-line edit.
+- **MCP servers (2).** None.
+- **Consumer config (3).** No `userConfig`. The one machine file the plugin owns
+  (`~/.claude/context-guard/zones.json`) is written only by the setup skill's explicit `apply`.
+- **Cache isolation (4).** Skills reference bundled files via `${CLAUDE_PLUGIN_ROOT}`; no `../`
+  reach-outs. Writes go only to `~/.claude/context-guard/` — the operator-home carve-out —
+  deliberately outside `${CLAUDE_PLUGIN_DATA}` because the directory is a documented cross-plugin
+  artifact seam (per-session snapshots + zones SSOT) that sibling-plugin sessions read by path;
+  `${CLAUDE_PLUGIN_DATA}` resolves per-plugin-identity and would hide the seam. Same accepted
+  pattern as `rate-limit-guard`.
+- **Data egress (5).** None. No network, no telemetry. Snapshot data (context-window token
+  counts + session id) never leaves the machine. Residual local-integrity limitation, stated
+  honestly: the contract dir's `chmod 700` is best-effort — a no-op on filesystems without POSIX
+  modes (Windows ACL volumes under Git Bash), where another local user could read or forge
+  snapshots. The reader contract therefore forbids consumers from attaching security decisions to
+  zone words (routing hints only), and the resolver format-gates `captured_at` and requires the
+  embedded session id to match, so forgery cannot ride a lenient parser.
+- **Provenance & third-party trust (6).** First-party (Melodic Software authored), MIT, no
+  third-party delegation.
+- **Main-thread / PATH (7).** None; no `settings.json` `agent`, no `bin/`.
+
+**Verdict: ACCEPT** — surfaces 2/5/6/7 absent; 1 bounded to operator-wired transparent scripts
+with sanitized untrusted input; 3 empty; 4 conforms under the documented operator-home seam
+carve-out.
+
+### Review record — `plugin-quality` (ACCEPT, 2026-07-24)
+
+Reviewed at `0.1.0`; a version bump adding a new trust surface re-triggers this review. Data
+surfaces named exhaustively — this plugin READS more than most, and that is its job.
+
+- **Code execution (1).** No hooks, no scripts. Prompt artifacts only (skills, agent, references).
+  The `auditor` agent carries Bash and Write, **named honestly**: neither is read-only — Bash is
+  justified for `claude plugin validate` and config-resolution probes plus safe fixture
+  reproductions; Write is scoped by standing instruction to the evidence-packet directory only
+  (the dumb-zone contract needs the agent to persist its own `findings.md` so the main thread can
+  stay summary-only — surfaced by the dumb-zone smoke). Its standing instructions forbid mutation
+  of the audited plugin, installs, writes outside the packet, and network beyond WebFetch.
+  Untrusted-content posture (audited source is data, never instructions) is a standing
+  instruction in BOTH the hub skill and the agent, backed by a prompt-injection anti-pattern eval
+  — an advisory, model-honored defense, stated honestly as such.
+- **MCP servers (2).** None.
+- **Consumer config (3).** No `userConfig`. Tracked cascade surface `.claude/plugin-quality.md`
+  (+ user-global `~/.claude/plugin-quality.md` and `.local` overlay — sanctioned operator-home
+  read per criterion 4's carve-out), keys documented in the plugin's `reference/config.md`.
+- **Cache isolation (4).** Reads that leave the plugin's own directory, each justified: (a) the
+  audited plugin's installed source under the plugin cache and its marketplace registration —
+  that IS the audit subject; (b) `~/.claude/context-guard/context/<session_id>.json` +
+  `~/.claude/context-guard/zones.json` — the context-guard reader contract's documented
+  cross-plugin seam, consumed read-only per its inline-floor rule; (c) the documented config
+  layers above. Writes: the evidence packet (session-derived data — hook failures, transcript
+  path, tool errors, contract-lock notes) under `${CLAUDE_PLUGIN_DATA}/evidence/…` with a stated
+  30-day retention, and — only on the markdown sinks — the emitted item file at the
+  operator-chosen directory. No `../` reach-outs.
+- **Data egress (5).** Exactly one network egress: `gh issue create`, gated by an unconditional
+  full-draft + target-repo + ACTING-account confirm (no auto-file mode exists; the acting-account
+  line exists because one machine can hold multiple GitHub identity domains). WebFetch in the
+  auditor agent reaches official docs pages for claim grounding — read-only GETs. No telemetry.
+- **Provenance & third-party trust (6).** First-party (Melodic Software authored), MIT, no
+  third-party delegation. The producer/consumer split (audit session never implements fixes in
+  the audited repo) bounds the blast radius of a hostile audited plugin to the findings text
+  itself, which the draft+confirm gate puts in front of the user before it leaves the machine.
+- **Main-thread / PATH (7).** None; no `settings.json` `agent`, no `bin/`.
+
+**Verdict: ACCEPT** — surfaces 2/7 absent; 1 bounded to an honestly-named agent Bash grant under
+standing instructions; 3/4 conform with every cross-boundary read justified at its seam; 5 is a
+single confirm-gated egress plus docs-only WebFetch; 6 first-party with the split as containment.
+
 ## Local development loop
 
 For a plugin that already ships here, iterate against your local clone without re-publishing and
@@ -1138,3 +1218,49 @@ with a revisit trigger. (Contrast the "Deferred surfaces" record above, where th
 - **Checker hardening** (block-scalar description unfolding, an unquoted-`Use when:` warning, a
   `CHECK_SKILL_BASE_REF` post-commit audit ref for the git-backed checks, and a line-1 frontmatter-fence
   requirement): the one worker-executable slice — **landed** with this record.
+
+## Convention-seam ratification & the shared-identity limitation — decision record (2026-07-23)
+
+Recorded from the #1187 audit (triggered when the operator did not recall ratifying the
+`consumer-config-layering` → `config-cascade` seam). All 12 `docs/conventions/*` seams are
+**PR-introduced** across the repo's whole history (established from git history), so none was silently
+accreted. In-doc issue/PR citation is the intended ratification signal but is **inconsistent** across
+the surfaces today — some seams cite their ratifying issue in the README/CHANGELOG (`config-cascade`'s
+exception class → #649), others (`hook-precision`, `seam-phrasing`) carry no in-doc reference, so an
+operator auditing from the durable convention surface alone cannot always find it. Converging every
+seam on an in-doc citation is a follow-up, not asserted here as already-true.
+
+**The limitation, stated precisely — two provenance layers, only one collapses.** Distinguish:
+
+- **Git commit metadata** (author, committer, `Co-Authored-By` trailers) **does** carry a distinct
+  identity — this very record's commit is authored by `Codex <codex@openai.com>`; other agents commit
+  under their own identity (e.g. a `Co-Authored-By: Claude …` trailer). So at the commit layer, agent
+  work is often *visible*. But it is **soft, not proof**: an agent can set its git author to anything,
+  so absence of an agent identity does not prove a human authored it.
+- **GitHub gh-account actions** — PR author, PR review, merge, and the account a commit is *attributed
+  to* — **all collapse to `kyle-sexton`** (the account `gh` is scoped to), whether the human or an
+  agent-as-Kyle acted. At *this* layer no in-repo signal distinguishes human ratification from agent
+  accretion.
+
+So the gap is specifically at the **GitHub-account / review-and-merge layer**, which is exactly where
+"ratification" is recorded — and it is a **repo-wide property**, not a defect of any one seam.
+
+**Decision — decline forgery-prone gates; they are theater.** A `CODEOWNERS` rule or a `human-ratified`
+label requiring a `kyle-sexton` review does **not** distinguish anything at the account layer: an agent
+satisfies the same gate under the same identity. Commit signing already runs (`required_signatures`)
+but under the shared key, so it does not separate either, and commit-author metadata is spoofable as
+above. Standing up such a gate would manufacture *false* assurance — worse than naming the limitation.
+So none is added.
+
+**The only real distinguisher (flagged, not imposed).** Cryptographic separation requires an identity
+agents do **not** hold — a distinct human-only GitHub account and/or a signing key kept off the agent
+runners, with branch protection requiring that identity's review on `docs/conventions/**`. That is an
+infrastructure change with real operator cost. **Revisit trigger:** the operator wants provable human
+ratification, or a second human contributor joins (at which point identity separation exists naturally).
+
+**Interim posture.** Ratification stays **trust-based and visible**: a convention-seam change **should
+cite** a ratifying issue/PR in-doc (the norm going forward — converging existing seams on it is the
+follow-up above), and the operator's explicit engagement on that thread (as in the #163434 session) is
+the ratification signal. The audit trail — issue, review comments, commit-author metadata where it
+carries an agent identity, and this record — is the durable account, in place of an account-layer
+assurance the shared GitHub identity cannot provide.

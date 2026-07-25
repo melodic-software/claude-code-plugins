@@ -50,10 +50,12 @@ Then verify prerequisites with `/actionlint:setup check`.
 ## Configuration
 
 actionlint auto-discovers its own `.github/actionlint.yaml` config from your
-repository when present. One `userConfig` option tunes the hook itself:
+repository when present. Two `userConfig` options tune the hook itself:
 
 - **`actionlint_enabled`** (boolean, default `true`) — kill switch for the
   actionlint-check hook.
+- **`stdin_read_timeout`** (number, default `2`, minimum `1`) — bound in
+  seconds on reading the hook payload from stdin before failing open.
 
 Configure interactively with `/plugin configure actionlint` or headless at
 install time:

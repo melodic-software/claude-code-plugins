@@ -108,7 +108,7 @@ After the ledger, OFFER to route actionable verdicts (delete / convert-to-pointe
 - **Read-only.** No `Edit`, no `Write`, no mutating `Bash`. The author applies every deletion and rewrite. Deletion is the highest-stakes doc edit; the classifier only recommends.
 - **Never derivability alone.** A `delete` verdict requires all of: derivable, low re-derivation cost, no owned facts. Any owned non-derivable fact forces `keep-owns-facts`.
 - **Cache verdicts carry a drift-control condition or they demote.** No regeneration path and no recheck trigger → not a cache, demote to pointer/delete.
-- **Load-bearing or contested deletions are spot-tested by a fresh, non-fork subagent** — never confirmed from this (contaminated) context, never by a fork.
+- **Load-bearing or contested deletions are spot-tested by a fresh, non-fork subagent** — never confirmed from this (contaminated) context, never by the Agent tool's `fork` subagent type (a skill's own `context: fork` frontmatter is unrelated — it starts blank).
 - **Audience named in every verdict.** Agent-facing and human-facing docs clear different deletion bars.
 - **Owned facts are salvaged before anything is deleted.** When a doc is mostly derivable but owns a fact, the verdict is keep + route-the-remainder, never delete-and-lose.
 - **Output deterministic.** Filenames sort lexically; no timestamps in output.

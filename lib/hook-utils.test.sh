@@ -813,6 +813,53 @@ else
   fail "git alias (env .command masked): rc=$rc"
 fi
 
+# --- Test 18: hook::buffer_stdin — timeout path (return 2 / BLOCKED) ----------
+# Incomplete JSON on a pipe that stays open past the read timeout must trip the
+# bounded-read timeout branch: return 2 and a `BLOCKED:` diagnostic on stderr
+# (the Win32-pipe late-EOF stall the bounded read exists to survive). Drives the
+# real function: a producer emits a partial payload then sleeps to hold the pipe
+# open, and STDIN_READ_TIMEOUT is shortened so the case is fast. jq present (this
+# host) is what lets the function distinguish a truncated read from a small-but-
+# complete one; without it the branch fails open to return 1, so this asserts the
+# jq-present timeout shape specifically.
+bs_rc_file="$(mktemp)"
+bs_err_file="$(mktemp)"
+{ printf '{"incomplete":'; sleep 1; } | {
+  CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=0.4 hook::buffer_stdin >/dev/null 2>"$bs_err_file"
+  echo "$?" >"$bs_rc_file"
+}
+bs_rc=$(cat "$bs_rc_file")
+if [[ "$bs_rc" == "2" ]] && grep -q 'BLOCKED:' "$bs_err_file"; then
+  ok "buffer_stdin: incomplete JSON past timeout → return 2 + BLOCKED on stderr"
+else
+  fail "buffer_stdin timeout: rc=$bs_rc err=$(cat "$bs_err_file")"
+fi
+rm -f "$bs_rc_file" "$bs_err_file"
+
+# --- Test 19: hook::emit_telemetry — EPOCHREALTIME-absent (Bash < 5.0) skip ---
+# On Bash < 5.0 EPOCHREALTIME is unset, so the caller's `start=${EPOCHREALTIME:-}`
+# snapshot is empty. emit_telemetry must then skip fail-open (return 0, emit no
+# envelope) rather than abort under `set -u` — the same silent-skip the caller's
+# guard intends. Simulated by unsetting EPOCHREALTIME in the command-substitution
+# subshell (its special attribute drops, so references yield empty), which does
+# not leak into the rest of the suite. A wired sink proves nothing is dispatched.
+tel19="$(mktemp)"
+: >"$tel19"
+sink19="$(make_sink "$tel19")"
+rc19=$(
+  unset EPOCHREALTIME
+  start=${EPOCHREALTIME:-}
+  HOOK_TELEMETRY_SINK="$sink19" hook::emit_telemetry "t" "PostToolUse" "ok" "$start" '{"tool":"x","file":"y","findings":[]}'
+  echo $?
+)
+sleep 0.1 # allow any (erroneous) background dispatch to land before asserting empty
+if [[ "$rc19" == "0" && ! -s "$tel19" ]]; then
+  ok "emit_telemetry: EPOCHREALTIME-absent (empty start) → skip fail-open (rc 0, no envelope)"
+else
+  fail "emit_telemetry EPOCHREALTIME-absent: rc=$rc19 sink=[$(cat "$tel19")]"
+fi
+rm -f "$tel19" "$sink19"
+
 # --- hook::extract_bash_subject: privacy-safe subject reduction --------------
 # The subject is emitted verbatim into hook-events.jsonl and any wired
 # HOOK_TELEMETRY_SINK, so it must never carry an assignment VALUE (a credential).

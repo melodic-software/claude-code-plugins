@@ -158,6 +158,207 @@ assert_eq "pr explicit value" '^PR: .+' "$(run "$r" pr_title_pattern)"
 r="$(newrepo $'## subject_pattern\n\n^spaced: .+')"
 assert_eq "blank line before value skipped" '^spaced: .+' "$(run "$r")"
 
+# =====================================================================
+# Neutral convention SSOT (convention_source pointer + flat-scalar YAML)
+# =====================================================================
+
+# Write a neutral YAML file at a repo-relative path inside repo $1.
+addneutral() {
+  local d="$1" path="$2" body="$3"
+  mkdir -p "$d/$(dirname "$path")"
+  printf '%s\n' "$body" >"$d/$path"
+}
+
+# --- pointer + single-quoted YAML value resolves ---
+r="$(newrepo $'## convention_source\ndocs/conventions/commits.yml')"
+addneutral "$r" "docs/conventions/commits.yml" $'# team commit convention\nsubject_pattern: \047^SW2-[0-9]+: .+\047'
+assert_eq "neutral: quoted YAML subject" '^SW2-[0-9]+: .+' "$(run "$r")"
+
+# --- double-quoted YAML value strips its quotes too ---
+r="$(newrepo $'## convention_source\nconventions.yml')"
+addneutral "$r" "conventions.yml" $'subject_pattern: "^DQ-[0-9]+: .+"'
+assert_eq "neutral: double-quoted value" '^DQ-[0-9]+: .+' "$(run "$r")"
+
+# --- unquoted YAML value passes through ---
+r="$(newrepo $'## convention_source\nconventions.yml')"
+addneutral "$r" "conventions.yml" $'subject_pattern: ^plain: .+'
+assert_eq "neutral: unquoted value" '^plain: .+' "$(run "$r")"
+
+# --- CC keyword works in the neutral file exactly as in markdown ---
+r="$(newrepo $'## convention_source\nconventions.yml')"
+addneutral "$r" "conventions.yml" $'subject_pattern: Conventional Commits'
+assert_eq "neutral: CC keyword -> CC_ERE" "$CC_ERE" "$(run "$r")"
+
+# --- pr_title deferral marker works in the neutral file ---
+r="$(newrepo $'## convention_source\nconventions.yml')"
+addneutral "$r" "conventions.yml" $'subject_pattern: \047^N-[0-9]+: .+\047\npr_title_pattern: Same as `subject_pattern`.'
+assert_eq "neutral: pr deferral -> subject" '^N-[0-9]+: .+' "$(run "$r" pr_title_pattern)"
+
+# --- dialect: posix-ere (explicit) still resolves ---
+r="$(newrepo $'## convention_source\nconventions.yml')"
+addneutral "$r" "conventions.yml" $'dialect: posix-ere\nsubject_pattern: \047^D-[0-9]+: .+\047'
+assert_eq "neutral: dialect posix-ere ok" '^D-[0-9]+: .+' "$(run "$r")"
+
+# --- dialect other than posix-ere -> no enforcement ---
+r="$(newrepo $'## convention_source\nconventions.yml')"
+addneutral "$r" "conventions.yml" $'dialect: pcre\nsubject_pattern: \047^\\d+: .+\047'
+out="$(run "$r")"
+rc=$?
+assert_exit "neutral: dialect pcre -> exit 1" 1 "$rc"
+assert_eq "neutral: dialect pcre -> empty stdout" "" "$out"
+
+# --- declared pointer, missing file -> FAIL CLOSED (never markdown fallback) ---
+r="$(newrepo $'## convention_source\nmissing.yml\n\n## subject_pattern\n^stale: .+')"
+out="$(run "$r")"
+rc=$?
+assert_exit "neutral: missing file -> exit 1" 1 "$rc"
+assert_eq "neutral: missing file -> empty (no stale markdown fallback)" "" "$out"
+
+# --- absolute and traversal pointers are rejected ---
+r="$(newrepo $'## convention_source\n/etc/conventions.yml')"
+run "$r" >/dev/null 2>&1
+assert_exit "neutral: absolute pointer -> exit 1" 1 $?
+r="$(newrepo $'## convention_source\n../outside.yml')"
+run "$r" >/dev/null 2>&1
+assert_exit "neutral: traversal pointer -> exit 1" 1 $?
+
+# --- a key the neutral file omits falls back to the team markdown H2 ---
+r="$(newrepo $'## convention_source\nconventions.yml\n\n## pr_title_pattern\n^MD: .+')"
+addneutral "$r" "conventions.yml" $'subject_pattern: \047^Y-[0-9]+: .+\047'
+assert_eq "neutral: omitted key -> markdown fallback" '^MD: .+' "$(run "$r" pr_title_pattern)"
+
+# --- neutral value WINS over a not-yet-retired markdown duplicate ---
+r="$(newrepo $'## convention_source\nconventions.yml\n\n## subject_pattern\n^old-md: .+')"
+addneutral "$r" "conventions.yml" $'subject_pattern: \047^new-yaml: .+\047'
+assert_eq "neutral: YAML wins over markdown duplicate" '^new-yaml: .+' "$(run "$r")"
+
+# --- comment and blank lines in the neutral file are inert ---
+r="$(newrepo $'## convention_source\nconventions.yml')"
+addneutral "$r" "conventions.yml" $'# convention SSOT\n\n# see CONTRIBUTING.md\nsubject_pattern: \047^C-[0-9]+: .+\047'
+assert_eq "neutral: comments/blanks inert" '^C-[0-9]+: .+' "$(run "$r")"
+
+# --- pointer in the LOCAL overlay only is ignored (team-only policy floor) ---
+r="$(newrepo "" $'## convention_source\nconventions.yml')"
+addneutral "$r" "conventions.yml" $'subject_pattern: \047^evil: .+\047'
+run "$r" >/dev/null 2>&1
+assert_exit "neutral: overlay pointer ignored (team-only)" 1 $?
+
+# --- a present-but-EMPTY neutral key fails closed (never stale markdown) ---
+r="$(newrepo $'## convention_source\nconventions.yml\n\n## subject_pattern\n^stale-md: .+')"
+addneutral "$r" "conventions.yml" $'subject_pattern: \047\047'
+out="$(run "$r")"
+rc=$?
+assert_exit "neutral: empty quoted key -> exit 1" 1 "$rc"
+assert_eq "neutral: empty quoted key -> empty stdout (no stale fallback)" "" "$out"
+r="$(newrepo $'## convention_source\nconventions.yml\n\n## subject_pattern\n^stale-md: .+')"
+addneutral "$r" "conventions.yml" $'subject_pattern:'
+run "$r" >/dev/null 2>&1
+assert_exit "neutral: bare empty key -> exit 1" 1 $?
+
+# --- symlink escapes are rejected (skipped where ln -s can't make symlinks) ---
+outside="$TEST_TMPDIR/outside.yml"
+printf '%s\n' "subject_pattern: '^outside: .+'" >"$outside"
+r="$(newrepo $'## convention_source\nlink.yml')"
+ln -s "$outside" "$r/link.yml" 2>/dev/null
+if [[ -L "$r/link.yml" ]]; then
+  run "$r" >/dev/null 2>&1
+  assert_exit "neutral: symlinked file rejected" 1 $?
+  # A symlinked DIRECTORY segment escaping the repo is rejected too.
+  mkdir -p "$TEST_TMPDIR/outdir"
+  printf '%s\n' "subject_pattern: '^outdir: .+'" >"$TEST_TMPDIR/outdir/c.yml"
+  r="$(newrepo $'## convention_source\nsub/c.yml')"
+  ln -s "$TEST_TMPDIR/outdir" "$r/sub" 2>/dev/null
+  if [[ -L "$r/sub" ]]; then
+    run "$r" >/dev/null 2>&1
+    assert_exit "neutral: symlinked dir segment rejected" 1 $?
+  fi
+else
+  echo "SKIP: symlink cases (ln -s unavailable on this filesystem)"
+fi
+
+# =====================================================================
+# Well-known default neutral path (docs/conventions/source-control/…)
+# The resolver probes a repo-dogfooded default path when no explicit
+# convention_source pointer is declared, so the common case reads ONE
+# tool-agnostic file with no markdown pointer-parse. Precedence:
+#   1. explicit convention_source pointer   (relocation override)
+#   2. well-known docs/conventions/source-control/commit-convention.yml
+#   3. markdown-H2 in .claude/source-control.md   (legacy)
+# =====================================================================
+
+WELL_KNOWN="docs/conventions/source-control/commit-convention.yml"
+
+# The well-known rung activates ONLY for a git-TRACKED file (policy floor: an
+# untracked/gitignored artifact at that path must not override team policy), so
+# tests exercising the rung must git-init the repo and stage the neutral file.
+track() {
+  local d="$1" path="$2"
+  git -C "$d" init -q 2>/dev/null || true
+  git -C "$d" add -- "$path" 2>/dev/null || true
+}
+
+# --- well-known file present + TRACKED, NO pointer, NO markdown -> resolves ---
+r="$(newrepo "")"
+addneutral "$r" "$WELL_KNOWN" $'subject_pattern: \047^WK-[0-9]+: .+\047'
+track "$r" "$WELL_KNOWN"
+assert_eq "well-known: resolves with no pointer" '^WK-[0-9]+: .+' "$(run "$r")"
+
+# --- well-known present + TRACKED AND markdown subject_pattern -> well-known WINS (rung 2 > 3) ---
+r="$(newrepo $'## subject_pattern\n^old-md: .+')"
+addneutral "$r" "$WELL_KNOWN" $'subject_pattern: \047^wk-wins: .+\047'
+track "$r" "$WELL_KNOWN"
+assert_eq "well-known: wins over markdown H2" '^wk-wins: .+' "$(run "$r")"
+
+# --- POLICY FLOOR: well-known present but UNTRACKED -> rung skipped, falls to markdown ---
+# The core #163434 hardening: a generated/gitignored file at the default path
+# must NOT silently override a tracked markdown policy.
+r="$(newrepo $'## subject_pattern\n^tracked-md-wins: .+')"
+addneutral "$r" "$WELL_KNOWN" $'subject_pattern: \047^untracked-ignored: .+\047'
+git -C "$r" init -q 2>/dev/null || true # repo exists but the well-known file is NOT added
+assert_eq "well-known: untracked file ignored -> markdown wins" '^tracked-md-wins: .+' "$(run "$r")"
+
+# --- POLICY FLOOR: untracked well-known with NO markdown -> no enforcement (not activated) ---
+r="$(newrepo "")"
+addneutral "$r" "$WELL_KNOWN" $'subject_pattern: \047^untracked: .+\047'
+git -C "$r" init -q 2>/dev/null || true
+run "$r" >/dev/null 2>&1
+assert_exit "well-known: untracked file + no markdown -> exit 1" 1 $?
+
+# --- explicit pointer present AND well-known also present -> explicit WINS (rung 1 > 2) ---
+r="$(newrepo $'## convention_source\nconventions.yml')"
+addneutral "$r" "conventions.yml" $'subject_pattern: \047^explicit-wins: .+\047'
+addneutral "$r" "$WELL_KNOWN" $'subject_pattern: \047^wk-loses: .+\047'
+track "$r" "$WELL_KNOWN"
+assert_eq "well-known: explicit pointer overrides well-known" '^explicit-wins: .+' "$(run "$r")"
+
+# --- well-known present + TRACKED but broken (non-posix-ere dialect) -> fail closed ---
+r="$(newrepo "")"
+addneutral "$r" "$WELL_KNOWN" $'dialect: pcre\nsubject_pattern: \047^\\d+: .+\047'
+track "$r" "$WELL_KNOWN"
+out="$(run "$r")"
+rc=$?
+assert_exit "well-known: broken dialect -> exit 1" 1 "$rc"
+assert_eq "well-known: broken dialect -> empty stdout" "" "$out"
+
+# --- well-known present + TRACKED but empty key -> fail closed (never markdown) ---
+r="$(newrepo $'## subject_pattern\n^stale-md: .+')"
+addneutral "$r" "$WELL_KNOWN" $'subject_pattern: \047\047'
+track "$r" "$WELL_KNOWN"
+out="$(run "$r")"
+rc=$?
+assert_exit "well-known: empty key -> exit 1 (no stale markdown)" 1 "$rc"
+assert_eq "well-known: empty key -> empty stdout" "" "$out"
+
+# --- NO well-known, NO pointer, markdown present -> markdown (back-compat rung 3) ---
+r="$(newrepo $'## subject_pattern\n^md-only: .+')"
+assert_eq "well-known: absent -> markdown back-compat" '^md-only: .+' "$(run "$r")"
+
+# --- well-known TRACKED: a key it omits falls back to markdown H2 (per-key) ---
+r="$(newrepo $'## pr_title_pattern\n^MDPR: .+')"
+addneutral "$r" "$WELL_KNOWN" $'subject_pattern: \047^WKS-[0-9]+: .+\047'
+track "$r" "$WELL_KNOWN"
+assert_eq "well-known: omitted key -> markdown fallback" '^MDPR: .+' "$(run "$r" pr_title_pattern)"
+
 # --- usage / invalid key ---
 bash "$SCRIPT" >/dev/null 2>&1
 assert_exit "no args -> exit 2" 2 $?
