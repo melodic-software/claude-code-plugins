@@ -40,8 +40,15 @@ Run all patterns from [patterns.md](patterns.md) in parallel via Grep tool. For 
 - Use `multiline: true` for Form 7 (frontmatter chain string)
 - Apply auto-exclusions per `../SKILL.md` "Auto-exclusions" via `glob` filter or post-filter
 
-Aggregate matches into a flat list of `{file, line, pattern_form, snippet}` tuples, then apply
-BOTH rules from `patterns.md`, in this order:
+**Collect per-OCCURRENCE records, not per-line ones.** `output_mode: "content"` returns matching
+LINES, and `--column` reports only the first match on a line — so a line-shaped record gives the
+span rule below nothing to compare and silently degrades it back to line-keyed dedup, restoring
+the false completion eval 14 exists to prevent. For every returned line, re-scan it locally for
+ALL occurrences of the form's pattern and emit one record per occurrence:
+`{file, line, start, end, pattern_form, snippet}`. A line with two `<old>` occurrences produces
+two records.
+
+With those records, apply BOTH rules from `patterns.md`, in this order:
 
 1. **Precedence** ("Phase 0") — deduplicate by OCCURRENCE SPAN `(file, line, start, end)`, never
    by whole line: a weaker match is suppressed only when its span is COVERED BY a more-specific

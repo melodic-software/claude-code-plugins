@@ -174,11 +174,20 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
 ## Form 13: Command-argument position
 
 ```regex
-(^|[^\w/-])/plugins?\s+(install|uninstall|configure|enable|disable|update|add|remove)\s+`?<old>([^\w-]|$)
+(^|[^\w/-])/plugins?\s+(marketplace\s+)?(install|uninstall|configure|enable|disable|update|add|remove)\s+`?<old>([^\w-]|$)
 (^|[^\w-])<old>@[\w]([\w-]*[\w])?([^\w.@-]|$)
 ```
 
-- **Triage default:** Certain
+- **Triage default:** **Certain for the management-verb alternative; Chain-context for the bare
+  qualified-id alternative.** The two differ in what anchors them. The first has a management
+  verb in front, which no email or prose can accidentally supply. The second is unanchored, and
+  the dot-exclusion below is necessary but NOT sufficient: a dotless address is still a valid
+  address, and this very tree contains `auth_email: "a@b"` and `git config user.email t@t`, both
+  of which a container named `a` or `t` would match. Since Certain auto-applies, that would
+  rewrite an address. Chain-context keeps the form's recall while routing it through
+  confirmation — the honest rating when the shape cannot fully discriminate. Promote a specific
+  occurrence to Certain only when a neighbor confirms it (a management verb on the line, or an
+  `enabledPlugins` / `pluginConfigs` key context).
 - **Catches:** `<old>` as the ARGUMENT to a management command rather than as the command
   itself — `/plugin install <old>@marketplace`, `/plugin configure <old>`,
   `/plugin enable <old>` — plus the `<old>@<marketplace>` qualified-id form wherever it
@@ -199,6 +208,13 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
 - **Optional backtick before `<old>`:** these appear inside inline code spans constantly
   (`` `/plugin configure <old>` ``); without `` `? `` the pattern misses the most common
   rendering.
+- **`marketplace` subcommand shape included.** A marketplace's own name sits after
+  `/plugin marketplace add|update`, not directly after `/plugin` — so without the optional
+  `marketplace\s+` group, renaming a marketplace matched no position-anchored form, container
+  mode then suppressed its Form 2 hits as residue, and the sweep could report zero actionable
+  stragglers while executable install instructions stayed stale. Verified:
+  `/plugin marketplace add acme-tools` and `/plugin marketplace update acme-tools` match,
+  `/plugin marketplace add acme-tools-extra` does not.
 - **Email collision, and why the `@`-form excludes dots.** The qualified-id alternative has no
   management verb in front of it, so on its own `<old>@[\w.-]+` matches an email address
   whenever the container name is a plausible local part — `info`, `admin`, `support`,

@@ -1,7 +1,7 @@
 ---
 name: rename-references
 description: "Sweep stale references after renames — the syntactic forms token-only grep misses (slash-tokens, paths, chain prose, numbered table rows, frontmatter chains and globs). Use when: 'rename X to Y', 'I renamed X', 'audit rename', 'find stale refs', 'check for stragglers', 'after git mv', 'sweep references', 'rename impact preview', 'find half-renamed state', 'broken refs after rename', 'pre-PR rename check' — actions: audit, audit blast, audit half-rename, audit orphans, apply, preview, blocklist; not for framework migrations or repo-wide dead-reference audits."
-argument-hint: "[action] [<old> [to <new>]] [--include-historical|--include-memory|--include-plan-docs|--include-bare-token] (e.g., /rename-references audit, /rename-references audit blast /verify to /verify-changes, /rename-references audit half-rename /a to /b, /rename-references audit orphans /a to /b, /rename-references blocklist)"
+argument-hint: "[action] [<old> [to <new>]] [--include-historical|--include-memory|--include-plan-docs|--include-bare-token|--container|--identifier] (e.g., /rename-references audit, /rename-references audit blast /verify to /verify-changes, /rename-references audit half-rename /a to /b, /rename-references audit orphans /a to /b, /rename-references blocklist)"
 user-invocable: true
 disable-model-invocation: false
 shell: bash
@@ -44,7 +44,7 @@ Parse `$ARGUMENTS` first token to determine action. Subsequent tokens are the re
 
 ## Override flags (audit modes)
 
-Four flags widen the sweep. Defaults preserve safety (rename-documenting plan docs / frozen historical notes / memory entries excluded). Long-form only, position-agnostic.
+Six flags. Four widen the sweep; two override the rename-mode resolution. Defaults preserve safety (rename-documenting plan docs / frozen historical notes / memory entries excluded). Long-form only, position-agnostic.
 
 | Flag | Effect | Apply mode? |
 |---|---|---|
@@ -52,6 +52,8 @@ Four flags widen the sweep. Defaults preserve safety (rename-documenting plan do
 | `--include-memory` | Sweep Claude Code auto-memory files (`~/.claude/projects/*/memory/*.md`) and `MEMORY.md` indices | OK |
 | `--include-plan-docs` | Sweep the active plan/work-notes documents that document THIS rename | **AUDIT-MODE ONLY** — apply mode rejects with explicit error (footgun prevention; the plan doc documents the rename — both names appear by design) |
 | `--include-bare-token` | Surface the bare-token residue that container-rename mode suppresses ([patterns.md](context/patterns.md) "Phase 0b"). Always **Ambiguous**, never Certain. Not applicable to `audit orphans`, which sweeps no bare-token form | **AUDIT-MODE ONLY** |
+| `--container` | Force container-rename mode, skipping the evidence ladder ([patterns.md](context/patterns.md) "Phase 0b") | OK |
+| `--identifier` | Force identifier-rename mode | OK |
 
 Multiple flags compose. Unknown flags raise an error. Detail in [audit-modes.md](context/audit-modes.md) "Override flags" section.
 

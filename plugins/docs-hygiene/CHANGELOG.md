@@ -17,6 +17,24 @@
   to inspect suppressed residue, but it appeared in neither `SKILL.md`'s `argument-hint` nor
   `audit-modes.md`'s override table, whose contract errors on unknown flags — so the only
   documented path to the residue failed. Registered in both, audit-mode only, always Ambiguous.
+- **The survey emits one record per OCCURRENCE, not per line.** The span-dedup rule had no spans
+  to compare: Grep's content mode returns matching lines and `--column` reports only the first
+  match on a line, so a line-shaped record silently degraded the rule back to line-keyed dedup
+  and restored the false completion it was written to prevent. Phase 2 now re-scans each returned
+  line for every occurrence and emits `{file, line, start, end, pattern_form, snippet}`.
+- **Form 13 matches the `marketplace` subcommand shape.** A marketplace's name sits after
+  `/plugin marketplace add|update`, not directly after `/plugin` — so renaming a marketplace
+  matched no position-anchored form, container mode suppressed its Form 2 hits as residue, and
+  the sweep could report zero actionable stragglers while executable install instructions stayed
+  stale.
+- **The bare qualified-id alternative is Chain-context, not Certain.** Excluding dots is
+  necessary but not sufficient — a dotless address is still an address, and this tree contains
+  `auth_email: "a@b"` and `user.email t@t`, which containers named `a` or `t` would match and
+  auto-rewrite. The management-verb alternative keeps Certain because its verb anchors it; the
+  unanchored one is promoted only when a neighbor confirms it.
+- **`--container` / `--identifier` are registered.** The Phase 0b ladder advertised them as the
+  correction mechanism when evidence picks the wrong mode, but they appeared in no flag contract,
+  and unknown flags are rejected — so the documented override could not be honored.
 - **Forms 13 and 15 no longer match inside a hyphenated superstring.** Container IDs are
   kebab-case, but a word boundary counts a hyphen as a boundary — so renaming `guard` matched
   `context-guard@marketplace`, and renaming `context` matched `/plugin configure context-guard`.
