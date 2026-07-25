@@ -16,7 +16,9 @@ fi
 # A zero-length candidate under a WindowsApps path component is the Store's App
 # Execution Alias stub — the very artifact this suite tests for. Executing it
 # opens the Microsoft Store (or hangs) instead of running an interpreter, so
-# each candidate is inspected before anything executes it.
+# each candidate is inspected before anything executes it. A candidate that is
+# real but below the floor does not end the search: the next candidate may
+# satisfy it (e.g. an old `python` alongside a current `python3`).
 PYTHON=""
 for candidate in python python3; do
   resolved="$(command -v "$candidate" 2>/dev/null)" || continue
@@ -24,18 +26,15 @@ for candidate in python python3; do
   if [[ "$lower" == *windowsapps* && ! -s "$resolved" ]]; then
     continue
   fi
-  PYTHON="$candidate"
-  break
+  if "$candidate" -c "import sys; floor = tuple(int(part) for part in '$FLOOR'.split('.')); raise SystemExit(0 if sys.version_info >= floor else 1)"; then
+    PYTHON="$candidate"
+    break
+  fi
 done
 if [[ -z "$PYTHON" ]]; then
   echo "SKIP: Python ${FLOOR}+ not found" >&2
   exit 0
 fi
-
-"$PYTHON" -c "import sys; floor = tuple(int(part) for part in '$FLOOR'.split('.')); raise SystemExit(0 if sys.version_info >= floor else 1)" || {
-  echo "SKIP: Python ${FLOOR}+ required" >&2
-  exit 0
-}
 # Execute the test file directly (its unittest.main() guard) rather than via
 # `-m unittest <abs path>`, which resolves the path as a module name relative
 # to the caller's cwd and breaks when invoked from outside the checkout.
