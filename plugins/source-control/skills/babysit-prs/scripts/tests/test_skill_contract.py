@@ -216,6 +216,53 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("operator enabling precondition", safety)
         self.assertIn("do not enable the tier", safety)
 
+    def test_unproven_readiness_contract_is_stated_on_both_sides(self) -> None:
+        # The gate can print an UNPROVEN verdict, but it cannot report its own
+        # non-invocation -- so half the #787 contract necessarily lives in prose:
+        # the report quotes the verdict verbatim, and neither an UNPROVEN verdict
+        # nor a denied call may be backfilled from live gh state. Pinned here
+        # because a silent deletion would restore the exact ambiguity #787 hit.
+        reference = SKILL.parent / "reference"
+        safety = (reference / "safety.md").read_text(encoding="utf-8")
+        loop = (reference / "loop.md").read_text(encoding="utf-8")
+
+        self.assertIn(
+            "READINESS_UNPROVEN reason=<bad-args|prereq-missing|fetch-failed>", safety
+        )
+        for marker in (
+            "quoting the verdict line verbatim",
+            "cannot report its own non-invocation",
+            "NOT a substitute verdict",
+        ):
+            with self.subTest(file="safety.md", marker=marker):
+                self.assertIn(marker, safety)
+
+        for marker in (
+            "Never report a readiness verdict the gate did not emit",
+            "not emitted — harness denied: <exact command>",
+            "readiness unproven",
+        ):
+            with self.subTest(file="loop.md", marker=marker):
+                self.assertIn(marker, loop)
+
+    def test_lane_script_prerequisite_names_its_actual_evidence(self) -> None:
+        # #787's own repro used a wildcarded-interpreter form auto mode drops by
+        # design, so it does not show the sanctioned bin/-path form being denied.
+        # The section must keep saying so, and keep citing dotfiles#315 -- the
+        # evidence that does hold -- or it reverts to overclaiming a repro.
+        safety = (SKILL.parent / "reference" / "safety.md").read_text(encoding="utf-8")
+
+        self.assertIn("does **not** demonstrate that the sanctioned", safety)
+        self.assertIn("generalization from other evidence", safety)
+        self.assertIn("melodic-software/dotfiles/issues/315", safety)
+        self.assertIn("classifyAllShell", safety)
+
+        # #455 disputes the never-retry rule this section sits beneath and
+        # restates; the open-question note keeps the restatement from reading as
+        # settled confirmation.
+        self.assertIn("claude-code-plugins/issues/455", safety)
+        self.assertIn("treat the retry semantics of a classifier denial", safety)
+
     def test_full_queue_and_draft_contract_remains_explicit(self) -> None:
         autopilot = _paragraph_containing(self.skill_text, '"Every PR" means every PR')
         drafts = _paragraph_containing(self.skill_text, "**Draft PRs** are in scope")

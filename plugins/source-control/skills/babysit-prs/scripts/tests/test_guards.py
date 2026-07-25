@@ -158,5 +158,32 @@ class ResolveGuardFailsClosed(unittest.TestCase):
         self.assertIn("allow-unpinned-thread", payload.get("error", ""))
 
 
+class SetupReachabilityCanaryContract(unittest.TestCase):
+    """The setup skill's #787 probe invokes a real wrapper as a permission canary.
+
+    Its whole value is that a denial there is a FAILED prerequisite rather than an
+    INFO note -- which only holds if the target is provably harmless and stays
+    pinned to the form the lane actually mandates. The wrapper's own exit-0,
+    no-network behaviour is exercised in bash by
+    plugins/source-control/scripts/babysit-wrapper-help.test.sh; what is pinned
+    here is that the skill still names that exact invocation.
+    """
+
+    SETUP = SCRIPTS.parents[2] / "skills" / "setup" / "SKILL.md"
+
+    def test_setup_skill_pins_the_canary_and_fails_on_denial(self):
+        setup = " ".join(self.SETUP.read_text(encoding="utf-8").split())
+
+        self.assertIn(
+            'bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-merge" --help',
+            setup,
+        )
+        self.assertIn("tool-call denial here is a FAILED prerequisite", setup)
+        # The dropped scope-enumeration clause must not creep back: managed
+        # settings are not locally readable, so it had no executable path.
+        self.assertNotIn("not a project's `.claude/` settings", setup)
+        self.assertIn("claude auto-mode config", setup)
+
+
 if __name__ == "__main__":
     unittest.main()
