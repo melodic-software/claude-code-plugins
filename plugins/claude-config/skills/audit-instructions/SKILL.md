@@ -8,20 +8,19 @@ disable-model-invocation: false
 
 ## Purpose
 
-Audit whether the instructions you have written for Claude Code are still earning their context
-cost against **current** model capability. As models improve, prior-model-era scar tissue
-accretes: workarounds for mistakes the model no longer makes, prescriptive step lists that now
-constrain more than they help, bare prohibitions, and show-your-thinking directives. This skill
-sweeps the locally-owned instruction surfaces, cites each finding to current official prompting
-doctrine, tiers it by how confident the evidence can be, and packages proposed removals or
-rewrites as a human-gated diff — so instruction surfaces shrink as models get better instead of
-only ever growing.
+Audit whether the instructions you have written for Claude Code are still earning their context cost
+against **current** model capability. As models improve, prior-model-era scar tissue accretes:
+workarounds for mistakes the model no longer makes, prescriptive step lists that now constrain more
+than they help, bare prohibitions, and show-your-thinking directives. This skill sweeps the
+locally-owned instruction surfaces, cites each finding to current official prompting doctrine, tiers
+it by how confident the evidence can be, and packages proposed removals or rewrites as a human-gated
+diff — so instruction surfaces shrink as models get better instead of only ever growing.
 
-The check catalog — the fifteen checks I1–I15, their evidence tier, authority tag, severity, and
-per-surface applicability — lives in [reference/criteria.md](reference/criteria.md); the deterministic
-pre-scan is `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.sh`. A second
-question has a different unit of judgment — do two surfaces contradict each other? — and is answered
-by Phase B2 against [reference/conflict-criteria.md](reference/conflict-criteria.md).
+The check catalog — the fifteen checks I1–I15, their evidence tier, authority tag, severity and
+per-surface applicability — lives in [reference/criteria.md](reference/criteria.md); the
+deterministic pre-scan is `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.sh`.
+One check has a different unit of judgment — do two surfaces contradict each other? — and Phase B2
+answers it against [reference/conflict-criteria.md](reference/conflict-criteria.md).
 
 ## Read-only contract
 
@@ -40,23 +39,19 @@ concerns its siblings already cover — route rather than re-answer:
   portability is `claude-config:audit-permission-grants`.
 
 On **memory-layer surfaces** (CLAUDE.md, CLAUDE.local.md, `.claude/rules/`, `~/.claude/rules/`),
-this skill runs the model-era checks I6–I12 and the pair check I15. It never runs or reports the
-hygiene checks I1–I5 (line-necessity, length, placement, inferable content, rule-to-hook) here —
-that instruction-memory hygiene layer belongs to the `claude-memory` plugin. When that plugin is
-installed, route memory-layer hygiene to its `audit` skill; when it is not, emit a one-line pointer
-to the official CLAUDE.md include/exclude guidance (recorded with I1–I5 in
-[reference/criteria.md](reference/criteria.md)) — either way, no I1–I5 hygiene finding is produced
-here. On **non-memory surfaces** the catalog applies — no incumbent auditor covers instruction
-content there — **bounded by each row's own surface declaration**, which is narrower than this
-partition for some checks. I13 and I14 name their own surface sets; this partition never widens a
-row.
+this skill runs the model-era checks I6–I12 and the pair check I15, never the hygiene checks I1–I5 —
+that layer belongs to `claude-memory`. When that plugin is installed, route memory-layer hygiene to
+its `audit` skill; when it is not, emit a one-line pointer to the official include/exclude guidance
+(recorded with I1–I5 in [reference/criteria.md](reference/criteria.md)). Either way no I1–I5 finding
+is produced here. On **non-memory surfaces** the catalog applies — no incumbent auditor covers
+instruction content there — **bounded by each row's own surface declaration**, which is narrower for
+some checks. I13 and I14 name their own surface sets; this partition never widens a row.
 
 **Upstream-owned surfaces are excluded from the editable set.** Installed plugin-cache content is
-owned by the publishing repository, and a managed materialization is owned by whatever upstream
-the consuming repo's own distribution seam names (a `managed` versus `locally-owned` split in the
-sync manifest that repo documents, when it documents one). Findings on these become routing
-recommendations to the owning repository's tracker, never in-place edits. Absent such a
-declaration in the consuming repo, no managed-file exclusion applies.
+owned by the publishing repository, and a managed materialization by whatever upstream the consuming
+repo's distribution seam names (a `managed` versus `locally-owned` split in the sync manifest that
+repo documents, when it does). Findings on these become routing recommendations to the owning
+repository's tracker, never in-place edits; absent such a declaration, no exclusion applies.
 
 ## Arguments
 
@@ -102,20 +97,20 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.s
 ```
 
 It emits `file:line:check-id` candidate rows for I6 (bare prohibitions lacking a rationale marker)
-and I10 (reasoning-echo directives); `--count` prints the row count. It is advisory and a grep
-cannot judge whether a rationale is genuinely present, so the lane refines every candidate rather
-than reporting it verbatim.
+and I10 (reasoning-echo directives); `--count` prints the row count. Advisory — a grep cannot judge
+whether a rationale is genuinely present, so the lane refines every candidate.
 
-Bound concurrency to 3–5 lanes at a time. The skills surface fans out one lane per skill. Before
-the total dispatch count (lanes plus the Phase C verifiers) would exceed ~20, confirm with the
-user first.
+Bound concurrency to 3–5 lanes at a time; the skills surface fans out one lane per skill. Before the
+total dispatch count (lanes plus Phase C verifiers) would exceed ~20, confirm with the user.
 
 ## Phase B2 — Cross-surface conflict pass
 
 Phase B judges each surface alone, so a contradiction spanning two surfaces is invisible to it. This
 pass supplies the missing unit: a **pair** of surfaces that both claim authority over one behavior and
-disagree. It consumes Phase A's inventory and re-enumerates nothing. Every criterion, table and worked
-example lives in [reference/conflict-criteria.md](reference/conflict-criteria.md).
+disagree. Every criterion, table and worked example lives in
+[reference/conflict-criteria.md](reference/conflict-criteria.md). **A scope filters findings, never
+reads** — B2 enumerates every surface `all` would collect and reports a pair when at least one anchor
+is in scope; the criteria file states why.
 
 Seed it with the deterministic pre-scan over the inventoried files:
 
@@ -123,18 +118,17 @@ Seed it with the deterministic pre-scan over the inventoried files:
 bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/conflict-scan.sh" <file>...
 ```
 
-It emits `fileA:lineA|fileB:lineB|entity|flags` candidate pairs; `--count` prints the row count. Like
-the Phase B pre-scan it is advisory and always exits 0, so every row is refined against the criteria
-file's must-not-flag set rather than reported verbatim. **The scan is a priority ordering, not the
-work list.** It only reaches directives naming a
-tool-shaped entity, so an ordinary pair like "Always run tests before committing" against "Never run
-tests" emits nothing. Work the rows first, then read the in-scope surfaces for pairs the scan cannot
-shape-match. **A pass that reports only what the scanner emitted has not run this check.**
+It emits `fileA:lineA|fileB:lineB|entity|flags` candidate pairs; `--count` prints the row count.
+Advisory and always exit 0, so every row is refined against the criteria file's must-not-flag set.
 
-**Route on the population C6 actually enumerates, not on the name of a layer** — the criteria file's
-routing table is authoritative, and the Scope boundary above states the rule. **Detect the
-disagreement; do not adjudicate it:** name a winner only where that file's precedence table cites a
-documented order, otherwise report the pair `unresolved`.
+**The scan is a priority ordering, not the work list.** It only reaches directives naming a
+tool-shaped entity, so an ordinary pair — "Always run tests before committing" against "Never run
+tests" — emits nothing. Work the rows first, then read the surfaces for pairs it cannot shape-match.
+**A pass that reports only what the scanner emitted has not run this check.**
+
+**Detect the disagreement; do not adjudicate it:** name a winner only where the criteria file's
+precedence table cites a documented order, otherwise report `unresolved`. Its routing table governs
+what belongs to `claude-memory:audit`'s C6 instead.
 
 ## Phase C — Verify pass
 
@@ -149,6 +143,12 @@ the fresh-context same-vendor subagent as the fallback, never a route to a comma
 resolve. Batch one verifier per surface
 (not one per finding), counted under the same ~20-dispatch gate. A proposal the verifier defends is
 demoted to `info` or dropped, never surfaced as a confident removal.
+
+**A conflict pair takes a different refutation**, because the removal prompt cannot falsify it: both
+sides are usually load-bearing, so "argue it is still needed" defends both and demotes the finding
+untested. Refute a pair on its own gates — *same observable, or two sharing a keyword? does any
+resident text already arbitrate? is there a prompt that fires both?* A defended pair is one where a
+gate fails, dropped for that named reason.
 
 ## Phase D — Report
 

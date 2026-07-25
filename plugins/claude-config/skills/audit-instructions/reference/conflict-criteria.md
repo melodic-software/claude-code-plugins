@@ -122,6 +122,17 @@ as inventing a precedence winner. Fetch the hooks page to close it.
 they only bite once that surface loads. Report the distinction; do not drop conditional pairs, because
 the worked example below is one.
 
+## Scope filters findings, never reads
+
+`audit-instructions` takes a scope argument that narrows Phase A's inventory. A pairwise observable
+is undefined on one side, so under `skills` the `CLAUDE.md` half of every cross-layer pair would
+simply be absent — and the pass would report clean while appearing to have run, which is worse than
+declining to run.
+
+**So this pass enumerates every surface `all` would collect, read-only, and applies the scope to the
+finding instead: report a pair when at least one of its anchors is in scope.** That keeps a scoped
+invocation honest without making the conflict check an `all`-only feature.
+
 ## The five gates
 
 A pair is a conflict only when **all five** hold. Any gate failing removes it from the finding set.
