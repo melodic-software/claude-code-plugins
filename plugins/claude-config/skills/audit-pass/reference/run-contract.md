@@ -293,8 +293,18 @@ incomplete run, which the no-lock read-only policy otherwise makes undecidable.
 - **A stale lease is therefore never fatal, and never a silent double-write**: the worst case is that
   a merely-slow run is fenced out and must be re-run, which is visible and recoverable, rather than
   two runs quietly interleaving records into one artifact.
-- **`heartbeat_at` must not move backwards.** A clock adjustment that rewinds it would make a live
-  run read stale, so a refresh writes `max(now, previous)`.
+- **`heartbeat_at` must not move backwards, and must not run away forwards.** A clock adjustment that
+  rewinds it would make a live run read stale, so a refresh writes `max(now, previous)`. But
+  `max(now, previous)` alone preserves a timestamp written during a *forward* jump that is later
+  corrected — and since liveness only tests `now - heartbeat_at < 5 minutes`, a future timestamp
+  keeps the lease live for the whole skew interval **even if the process has since crashed**, so
+  every `--resume` refuses an abandoned run indefinitely. That is the worse failure of the two,
+  because the backwards case costs a re-run and this one costs the artifact.
+- So liveness is **two-sided**: the lease is live when
+  `-60s ≤ now - heartbeat_at < 5 minutes`. A heartbeat more than one refresh interval in the future
+  is not evidence of life — it is a clock artifact — and the lease is classified **stale**, with the
+  skew reported so the operator sees why. Both bounds are needed: the lower one keeps a corrected
+  clock from pinning a dead run live, the upper one is the ordinary staleness test.
 
 Interval and threshold are stated here rather than left to the implementation because "live or abandoned" is a
 classification two implementations must reach identically or `--resume` is nondeterministic.
@@ -305,6 +315,9 @@ classification two implementations must reach identically or `--resume` is nonde
 | 3.6 | `--resume` against a run whose lease was refreshed within the threshold exits non-zero naming the run id, and the live run's partial artifact is byte-identical afterwards. |
 | 3.7 | `--resume` against a run whose lease has not been refreshed past the threshold adopts the artifact, increments `owner_epoch`, and refreshes the lease itself. |
 | 3.8 | A holder whose lease was adopted while it was suspended aborts on its next heartbeat refresh or artifact append, writing nothing: the partial artifact contains records from exactly one writer per attempt ordinal. |
+| 3.9 | A lease whose `heartbeat_at` is further in the future than one refresh interval is classified stale and is adoptable, with the skew reported — a forward clock jump cannot make an abandoned run permanently unresumable. |
+| 5.4 | A lane whose delegate reported no catalog version or prompt digest re-runs on every `--resume` rather than being carried forward, and the delegate is named in the report's coverage notes as owing a detection declaration. |
+| 6.1d | The scan baseline is computable on a worktree containing an untracked directory: paths come from `git status --porcelain --untracked-files=all`, so no `git hash-object` is attempted on a directory. |
 | 3.2 | Two read-only runs launched concurrently both complete, and their derived identity sets are equal. |
 | 3.3 | A run launched from a subdirectory produces the same state key as one launched from the root. Working directory is never an input. |
 
@@ -451,8 +464,29 @@ crash. Restarting from zero wastes the run and tempts an operator to narrow the 
   resolved version over findings produced under two. That is worse than restarting, because the
   report looks coherent. Including the configuration means such a resume re-runs the affected lanes
   instead of blending them.
-- **Resume** re-runs only lanes that are incomplete or whose input digest has changed. A lane whose
-  digest is unchanged and whose state is complete is skipped and its findings carried forward.
+- **What the pass may hash is bounded by what the delegate reports, and the gap is closed by
+  re-running rather than by reaching in.** This pass dispatches skills and never reads inside one, so
+  a delegate's catalog version and prompt digest are available only if that delegate *emits* them —
+  and today none does: `claude-memory:audit` takes an action verb and returns findings and counts.
+  Requiring metadata no interface supplies would make the rule unimplementable, and hashing it by
+  reading another plugin's files would break the boundary the whole design rests on. So each lane is
+  classified by what its own delegate returned:
+  - **Detection-qualified** — the invocation reported its catalog version and prompt digest. Both go
+    into the input digest, and the lane resumes normally when they are unchanged.
+  - **Detection-unqualified** — the invocation reported neither, the state of every delegated catalog
+    today. The lane is **not resumable**: it re-runs on every `--resume`, and the report's coverage
+    notes name that delegate as owing a detection declaration.
+
+  Fail-closed, and deliberately the expensive direction: re-running a lane costs tokens, while
+  carrying one forward across an unobservable catalog change produces a report mixing two rule sets
+  and presenting them as one. The observable half — the plugin's own semver from the marketplace
+  manifest, and the harness version, which are the pass's own to read — is still recorded, so the
+  report can say *what changed* even where it could not have prevented the mix. The upgrade path is a
+  change to the delegated interfaces, not to this pass, and it is the same declaration `claim`
+  templates already ask of them.
+- **Resume** re-runs only lanes that are incomplete, detection-unqualified, or whose input digest has
+  changed. A lane whose digest is unchanged, whose state is complete, and which is
+  detection-qualified is skipped and its findings carried forward.
 - A re-attempted lane appends a **supersession record** and opens a new attempt, per §7. Attempt
   boundaries are what let an interrupted re-attempt be discarded deterministically.
 
@@ -494,12 +528,21 @@ sessions on one repository is the normal case for the operator who runs this fir
 
 So the run **measures** its own precondition:
 
-- At Phase 0 and again at the **audit endpoint** — the moment the last lane completes, *before* any
-  Phase 5 mutation — capture the target's **HEAD commit** and the run's **state digest**.
+- At the **scan baseline** — Phase 1's inventory frozen, before any lane reads — and again at the
+  **audit endpoint** — the moment the last lane completes, *before* any Phase 5 mutation — capture the
+  target's **HEAD commit** and the run's **state digest**.
 - **State digest** = `sha256` over the inventoried surfaces in sorted order, each paired with the
   content hash of its current bytes, plus every dirty path in the target worktree on the same terms —
-  path set from `git status --porcelain`, content hash from `git hash-object`, a deleted path paired
-  with a fixed deletion sentinel.
+  path set from **`git status --porcelain --untracked-files=all`**, content hash from
+  `git hash-object`, a deleted path paired with a fixed deletion sentinel.
+- **`--untracked-files=all` is required, not a preference.** Bare `git status --porcelain` collapses
+  an untracked directory to a single `?? dir/` entry rather than listing its files, and
+  `git hash-object` on a directory fails — so on the ordinary worktree state of having one untracked
+  directory, the baseline digest cannot be computed at all and the determinism gate does not merely
+  degrade, it fails to run. `all` yields file paths, which is what the digest hashes. Parse the
+  porcelain **paths**, not the status letters: a rename entry carries `orig -> new` and a path with
+  unusual bytes is emitted quoted, so both need decoding before hashing. Prefer `-z` where available,
+  which sidesteps the quoting entirely.
 - **Its scope is every inventoried scope, not the target repository alone.** Restricting it to the
   target worktree leaves the user-global and managed-policy surfaces outside the measurement, and
   those are read by the lanes exactly like project files: editing `~/.claude/CLAUDE.md` between runs

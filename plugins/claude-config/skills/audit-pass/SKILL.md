@@ -275,8 +275,12 @@ repository tracks; a personal layer drafts one for promotion.
 Two report obligations. Every entry names its reason, its date, and **which cascade layer supplied
 it**. And **only an exact match is silent** — a one-sided anchor change carries forward as
 `needs-reconfirmation`, a deeper change closes the old entry and opens the new finding, and a
-vanished finding must be accounted for as a fix, a successor, or an **unexplained disappearance that
-fails the self-check**, the only detector the convergence property has.
+vanished finding must be accounted for as a fix, a successor, a **retirement with its check** when
+the check that raised it is absent or renamed in this run's detection configuration, or an
+**unexplained disappearance that fails the self-check** — the only detector the convergence property
+has. Retirement is a reported disposition, not an exemption: it names the retiring check and the
+version transition, because letting findings vanish silently on a catalog edit is the exact shape
+this accounting exists to detect.
 
 ## Self-check
 
