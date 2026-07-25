@@ -130,6 +130,8 @@ An opt-in-unmet skip (single-condition case) counts toward the table's total eco
 
 Gates resolve through the ladder like every other key: a bundled default may ship one (e.g. `go.yaml`'s `go-mod-tidy-drift`), and a consumer declares its own in its tracked `.claude/ecosystems/<ecosystem>.yaml` `gates` array (e.g. the `nuget-lockfile-drift` shape in `docs/conventions/ecosystem-commands/examples/dotnet.yaml`).
 
+**Convention-documented gates still run.** The `gates` array is the declaration form this skill can resolve, report by name, and layer per the ladder — but it is not the only place a consuming project states its CI-parity checks. When the project documents extra local checks in its own conventions (its `CLAUDE.md`, `.claude/rules/`, or a commands reference) rather than in a `gates` array, run those too, by the same rules above: fire on their stated trigger files, run after build → test → lint and independent of that short-circuit, report by name with the project's own remediation, and count a failure toward the verdict. A project that documented its gates in prose keeps them; declaring them in `.claude/ecosystems/<ecosystem>.yaml` is the preferred form because it makes them structured, layerable, and machine-checkable, not a precondition for running them.
+
 For ecosystem-specific gotchas (xUnit `--nologo` trap, `dotnet test --project`, etc.), read the corresponding `context/<ecosystem>.md` file.
 
 ### 3. Report results
@@ -147,7 +149,7 @@ Gates: go-mod-tidy-drift — FAIL (run go mod tidy and commit the updated go.mod
 Overall: FAIL (1 of 2 ecosystems failed, 1 gate failed)
 ```
 
-Use `pass`, `FAIL`, `skip` (tool missing), `skip (opt-in unmet: ...)` (config condition not met), `skip (unsupported: ...)` (gates only — the installed tool rejects the gate's invocation form), or `—` (not applicable — for ecosystems where the corresponding command is null in the ecosystem config). Show failing command output below the table.
+Use `pass`, `FAIL`, `skip` (tool missing), `skip (opt-in unmet: ...)` (config condition not met), `skip (unsupported: ...)` (gates only — the installed tool's version is below the gate's documented floor), or `—` (not applicable — for ecosystems where the corresponding command is null in the ecosystem config). Show failing command output below the table.
 
 If any CI-parity gates fired, summarize each by name + outcome below the per-ecosystem block, with the remediation pointer on failure. A fired gate that failed flips Overall to `FAIL` and is counted in it — including when every ecosystem's build/test/lint cell passed (e.g. `Overall: FAIL (0 of 2 ecosystems failed, 1 gate failed)`). The Overall line names both counts whenever a gate fires, pass or fail — a fired-and-passed gate still reports its count (e.g. `Overall: PASS (2 of 2 ecosystems passed, 1 gate passed)`), so the report is unambiguous about whether a gate ran.
 

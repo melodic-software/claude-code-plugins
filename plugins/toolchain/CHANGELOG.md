@@ -23,8 +23,11 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
   `go.yaml` `go-mod-tidy-drift` gate runs from each `go.mod` root in a monorepo rather than only
   `$REPO_ROOT` (a repo-root-only `go mod tidy -diff` falsely fails when the sole module is nested
   and misses drift in nested modules). `go.yaml`'s `go-mod-tidy-drift` bundled default and a
-  consumer's `nuget-lockfile-drift`-shaped gate now actually run. `lint` is unchanged — gates are
-  CI-parity checks beyond lint's fast build-free path. Closes #926.
+  consumer's `nuget-lockfile-drift`-shaped gate now actually run. The prior path — CI-parity gates
+  documented in the consuming project's own `CLAUDE.md`, rules, or commands reference — is
+  additive, not replaced: those still run under the same fire/report/verdict rules, so no consumer
+  has to migrate to keep them. `lint` is unchanged — gates are CI-parity checks beyond lint's fast
+  build-free path. Closes #926.
 
 ## [0.9.0]
 
