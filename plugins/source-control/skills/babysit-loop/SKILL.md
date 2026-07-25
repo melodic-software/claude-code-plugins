@@ -68,11 +68,16 @@ Everything else resolves in order:
 **The merge dimension is the exception**: raises to the *standing* rung bind from the team-tracked
 layer only — every other source may only select a *lower* (safer) rung, per the convention
 ("Merge-rung raises are seam-only"). The convention carries one named exception to that: a caller
-who types the literal `autopilot` tier keyword as this invocation's own argument (never inherited
-from `babysit_loop_tier`, never defaulted) widens *this single invocation's* merge dimension up to
-C3, still bounded by the unconditional C4/C5 floor — see "Autonomy dimensions, tiers, and knobs"
-below. It persists nothing and is not a substitute for a recorded standing raise. **And that
-team-tracked layer is the TARGET repository's, never the caller's.** The
+who types the literal `autopilot` tier keyword as this invocation's own argument widens *this single
+invocation's* merge dimension up to C3, still bounded by the unconditional C4/C5 floor — see
+"Autonomy dimensions, tiers, and knobs" below. It persists nothing and is not a substitute for a
+recorded standing raise. The keyword has to be on this invocation's argument line and nowhere else:
+never inherited from `babysit_loop_tier` in any layer, never a tier default, and never from
+`babysit_default_tier` (a babysit-prs `userConfig` scalar that is not a loop-lane key and never
+supplies this lane's tier) — a tier resolved from any of those runs dimensions 1-5 and 7 at that
+tier with the merge dimension left at the seam rung, per the config-resolution reference cited
+above ("No config layer or key ever supplies the exception's keyword").
+**And that team-tracked layer is the TARGET repository's, never the caller's.** The
 lane's required `<owner/repo>` argument may name a repository other than the current checkout
 (or the lane may launch from a neutral directory), and the config resolver's ambient team layer
 reads the current git root — so for every policy key that can raise behavior (the merge rung and

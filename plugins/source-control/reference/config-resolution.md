@@ -123,11 +123,19 @@ never a higher one; a raise supplied by any of them is ignored and reported.
 
 **The one named exception: the literal `autopilot` tier argument.** Per the loop-lane convention's
 "one named, explicit-argument exception" (§1), a caller who types `autopilot` as the tier argument
-itself — not inherited from `babysit_loop_tier`, not defaulted — widens *that single invocation's*
-merge dimension up to and including C3, still bounded by the unconditional C4/C5 floor (below). This
-is not a config value and is never persisted: the next invocation that doesn't type `autopilot`
-explicitly reverts to whatever `babysit_loop_merge` resolves to through the normal precedence above.
-It requires baseline adoption (next paragraph) exactly like every other rung.
+itself — widens *that single invocation's* merge dimension up to and including C3, still bounded by
+the unconditional C4/C5 floor (below). This is not a config value and is never persisted: the next
+invocation that doesn't type `autopilot` explicitly reverts to whatever `babysit_loop_merge` resolves
+to through the normal precedence above. It requires baseline adoption (next paragraph) exactly like
+every other rung.
+
+**No config layer or key ever supplies the exception's keyword.** The exception reads the literal
+token on the invocation line and nothing else: `babysit_loop_tier: autopilot` in any of the three
+layers resolves the *tier* (dimensions 1-5 and 7) without widening the merge dimension, the tier
+default never supplies it, and `babysit_default_tier` — the `userConfig` scalar governing a bare
+`/source-control:babysit-prs` invocation's tier — is not a loop-lane key and never supplies this
+lane's tier at all. If the keyword did not appear on this invocation's own argument line, the merge
+dimension resolves through the normal precedence above with no widening.
 
 **Baseline activation is tracked adoption.** The convention's baseline rung — human merge for
 everything except gate-proven C2-mechanical PRs — is the value a repository gets by *adopting* the

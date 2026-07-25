@@ -282,6 +282,29 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   Treat a thread as cleared only when its own entry shows `"action": "resolved"`, and a merge as
   performed only when the merge output's `action` field says so.
 
+### Security/P1 escalation: the one named exception
+
+Escalating a security/P1 thread instead of resolving it holds in every tier, autopilot included.
+The loop-lane convention carries exactly one named exception (§1, "one named, explicit-argument
+exception"), and it is this narrow:
+
+- **Only one dispatch path.** The `source-control:babysit-loop` explicit-`autopilot` pre-escalation
+  resolver — the subagent that lane dispatches when a caller typed the literal `autopilot` tier
+  argument on that invocation's own line. No other invocation of this skill, at any tier, ever
+  reaches this exception.
+- **Only a fresh, independent context.** The dispatch must share no conversation history with
+  whatever produced the PR or previously replied on the blocking thread (the convention's §3
+  independence requirement). A continuation of the authoring session, or a re-invocation of the
+  subagent that already commented on the blocker, never qualifies — regardless of what it claims
+  about itself. This is a contract on how the lane dispatches, not a credential the dispatch
+  presents: a run that cannot establish it is fresh escalates.
+- **Only through these wrappers.** The resolution runs through the guarded-mutation path above,
+  with every pin, refusal, and JSON-parse rule intact. The exception changes who may attempt the
+  resolution, never what the wrappers permit.
+- **Never anything else.** It does not widen what counts as genuinely "addressed", never applies
+  to a PR whose work item classifies C4 (structural) or C5 (untrusted-provenance), and never
+  substitutes for escalation when the resolution is unresolved or the resolver is uncertain.
+
 ## Autopilot Merge Tier: Enabled-Path Mechanics
 
 Reachable only while `babysit_autopilot_merge_tier` is enabled; absent that flag none of this

@@ -3,6 +3,31 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.0]
+
+### Added
+
+- **`babysit-loop` gains the loop-lane convention's one named, explicit-argument merge-rung
+  exception (#1309).** Standing merge-rung raises still bind from the team-tracked seam layer only.
+  The exception: a caller who types the literal `autopilot` tier keyword as this invocation's own
+  argument — never inherited from `babysit_loop_tier`, never defaulted, never supplied by a config
+  layer — widens *that single invocation's* merge dimension up to and including C3, in a repository
+  that has already adopted the baseline rung. It persists nothing, ratifies nothing, and is not a
+  substitute for the recorded `c3-autonomous` seam flip. A merge-eligible PR blocked on a
+  `needs-human` label, an open finding, or a contradictory thread gets one fresh frontier-tier
+  subagent — sharing no conversation context with whatever produced or previously reviewed the PR —
+  dispatched to resolve that blocker through `babysit-prs`'s guarded-mutation path before the
+  deterministic gate runs; the gate itself is never bypassed or weakened, and an unresolved or
+  uncertain blocker still escalates. `babysit-prs`'s "escalate security/P1 even in autopilot" rule
+  carries a matching named exception for that one dispatch path only. Tracks loop-lane convention
+  3.0.0.
+- **C4/C5 floor stated as unconditional across the merge surface.** No rung, no seam config, and no
+  invocation argument — including this exception and including `full-autonomy` — ever grants merge
+  authority over a `work-class: structural` (C4) or `work-class: untrusted-provenance` (C5) item.
+  This was already the autonomy matrix's promotion contract ("never promotes"); `babysit-loop`,
+  `reference/config-resolution.md`, and the convention now say so explicitly rather than leaving it
+  to be inferred from a rung name.
+
 ## [0.26.9]
 
 ### Fixed
