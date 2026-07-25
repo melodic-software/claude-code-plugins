@@ -178,7 +178,14 @@ class SetupReachabilityCanaryContract(unittest.TestCase):
             'bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-merge" --help',
             setup,
         )
-        self.assertIn("tool-call denial here is a FAILED prerequisite", setup)
+        # Both path prefixes are canaries: an allow rule or classifier decision
+        # covering bin/ says nothing about scripts/, and the readiness gate is
+        # the path the lane's own verdict travels.
+        self.assertIn(
+            'bash "${CLAUDE_PLUGIN_ROOT}/scripts/babysit-readiness-gate.sh" --help',
+            setup,
+        )
+        self.assertIn("denial on either is a FAILED prerequisite", setup)
         # The dropped scope-enumeration clause must not creep back: managed
         # settings are not locally readable, so it had no executable path.
         self.assertNotIn("not a project's `.claude/` settings", setup)

@@ -334,8 +334,16 @@ the guarded wrappers under `bin/`, and the plugin-scope helpers under `scripts/`
 Python-free degrade path itself depends on — including the **read-only** merge-readiness check,
 which mutates nothing and is still a shell invocation the host may deny. So those scripts being
 invocable without a per-call denial is a declared prerequisite of the lane, on the same footing as
-Python, and unlike Python it has no degrade tier: there is no permission-free path to a proven
-readiness verdict.
+Python.
+
+**The no-degrade half is narrower than the prerequisite, and that distinction is the point.** It
+binds the paths that *prove readiness* — the readiness gate and the read-only merge-readiness
+check. Unlike Python those have no degrade tier, because there is no permission-free path to a
+proven readiness verdict, and a verdict that was never produced cannot be handed to anyone. A
+denied *mutation* is not in that set: there the gate has already proven the PR ready, so
+Pinned-Command Degradation below degrades it to a ready-to-execute operator handoff. So the
+prerequisite covers reachability of every bundled script; the no-degrade rule covers the check
+paths only.
 
 **What this prerequisite rests on — and what it does not.** The denial recorded in
 [claude-code-plugins#787](https://github.com/melodic-software/claude-code-plugins/issues/787) was

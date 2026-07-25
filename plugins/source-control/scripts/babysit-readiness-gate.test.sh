@@ -485,4 +485,19 @@ assert_not_contains "READINESS_BLOCKED never claims UNPROVEN" "$blocked_out" "RE
 # --help must document the third verdict, or a worker cannot know to look for it.
 assert_contains "--help documents READINESS_UNPROVEN" "$help_out" "READINESS_UNPROVEN"
 
+# ...but documenting a verdict must not COUNT as emitting one. --help is not a
+# check run, so a caller's `^READINESS_` grep must find nothing there. A header
+# line describing the token un-indented into a bare match once the comment
+# markers were stripped, so help text parsed as a malformed verdict on a run
+# that checked nothing.
+help_verdicts=$(verdict_lines "$help_out")
+assert_eq "--help emits no verdict line" 0 "$help_verdicts"
+
+# The header prints by derivation from the comment block, not a hardcoded line
+# range, so growing it can neither truncate the usage text nor spill code in.
+assert_contains "--help still reaches the end of the header" "$help_out" \
+  "reason=prereq-missing|fetch-failed"
+assert_not_contains "--help never spills code past the header" "$help_out" \
+  "set -uo pipefail"
+
 [[ $FAILED -eq 0 ]] || exit 1

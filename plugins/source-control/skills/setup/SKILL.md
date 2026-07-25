@@ -133,29 +133,42 @@ diagnostics:
    report it — never attempt it). Skip this probe silently on non-Windows.
 4. **Lane-script reachability under the host permission layer.** The babysit lane declares its own
    bundled scripts — engine, gates, and guarded wrappers — invocable without a per-call permission
-   denial as a prerequisite with no degrade tier (`babysit-prs` "Engine and degrade"; the contract
-   is `skills/babysit-prs/reference/safety.md` "Lane-Script Reachability"). Probe it here so the
-   operator learns of a gap before a cycle stalls on it, in two parts:
-   - **Canary (the load-bearing half).** Run the lane's mandated invocation form against a
-     non-mutating target:
+   denial as a prerequisite, and for the paths that prove readiness it declares no degrade tier
+   (`babysit-prs` "Engine and degrade"; the contract, including why a denied mutation degrades
+   while a denied check cannot, is `skills/babysit-prs/reference/safety.md` "Lane-Script
+   Reachability"). Probe it here so the operator learns of a gap before a cycle stalls on it, in
+   two parts:
+   - **Canary (the load-bearing half).** Run the lane's mandated invocation forms against
+     non-mutating targets — **both** of them, because they live under different path prefixes:
 
      ```bash
      bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-merge" --help
+     bash "${CLAUDE_PLUGIN_ROOT}/scripts/babysit-readiness-gate.sh" --help
      ```
 
-     This is the exact `bin/`-path spelling the lane uses for every merge, with `--help` so it
-     prints usage and exits 0 without touching the network or GitHub. A **tool-call denial here is
-     a FAILED prerequisite**, not an INFO note: the lane's mandated form is unreachable in this
-     environment, so no tier can gate-prove readiness. Report the denial verbatim with the
-     remediation below. Never retry it, and never re-spell it as a raw interpreter invocation to
-     get past the denial — that form is exactly what the wrapper exists to replace.
+     These are the exact spellings the lane uses for every merge and for every readiness
+     declaration, with `--help` so each prints usage and exits 0 without touching the network or
+     GitHub. Probe both: an allow rule or classifier decision covering the `bin/` wrapper says
+     nothing about the `scripts/` helper, so a canary that ran only the first would certify a
+     path the lane's readiness verdict never travels — and the readiness gate has no degrade tier
+     at all. A **tool-call denial on either is a FAILED prerequisite**, not an INFO note: a
+     mandated form is unreachable in this environment, so no tier can gate-prove readiness. Name
+     which form was denied, report the denial verbatim with the remediation below, and never
+     retry it or re-spell it as a raw interpreter invocation to get past the denial — that form
+     is exactly what the wrapper exists to replace.
    - **Effective configuration (context for the canary).** Run `claude auto-mode config` and report
-     whether its effective rules cover this plugin's bundled scripts. It already prints the merged
-     result across every scope the classifier reads `autoMode` from — user settings, a
-     `--settings`/SDK-supplied file, and managed settings — so read that output rather than hunting
-     for the underlying files; the managed scopes are not locally readable as ordinary settings
-     files. A missing or narrow-looking block is INFO, never FAIL on its own: settings cannot prove
-     reachability, because a host safety classifier decides per call, at call time. Pair it with the
+     whether its effective rules cover this plugin's bundled scripts. It prints the merged result
+     across the scopes the classifier reads `autoMode` from — user settings and managed settings —
+     so read that output rather than hunting for the underlying files; the managed scopes are not
+     locally readable as ordinary settings files. **Forward the launch-time scope when there is
+     one.** `--settings` is a global flag consumed at launch, not an input the subcommand accepts,
+     so a bare `claude auto-mode config` spawned from a session that was itself launched with
+     `--settings <file>` reports without that scope and under-states the effective rules. Probe
+     with `claude --settings <file> auto-mode config` in that case, and say which form was used;
+     when the scope came from an Agent SDK settings object with no file to re-supply, report the
+     probe as scope-incomplete rather than as the effective configuration. A missing or
+     narrow-looking block is INFO, never FAIL on its own: settings cannot prove reachability,
+     because a host safety classifier decides per call, at call time. Pair it with the
      [auto-mode configuration reference](https://code.claude.com/docs/en/auto-mode-config).
 
    The remediation is always the operator's to apply — never write settings from this skill.

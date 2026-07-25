@@ -12,9 +12,14 @@ All notable changes to the `source-control` plugin are documented here. Format f
   invalid-argument (exit 3) and prerequisite-missing / fetch-failed (exit 4) paths wrote to stderr
   only. A caller grepping stdout for a verdict therefore saw *nothing* on those paths — identical to
   what it sees when the gate was never invoked at all, which is how a blocked gate could be reported
-  as readiness. Every run now prints exactly one `READINESS_*` line;
+  as readiness. Every *check* run now prints exactly one `READINESS_*` line;
   `READINESS_UNPROVEN reason=<bad-args|prereq-missing|fetch-failed> pr=<n>` joins `READINESS_OK` and
   `READINESS_BLOCKED`. Exit codes are unchanged, so existing callers keyed on them are unaffected.
+  `--help` is explicitly outside the contract — it prints usage and exits 0 with no verdict — and
+  the header no longer un-indents a `READINESS_*` token into its own help output, where a caller's
+  `^READINESS_` grep read documentation as a malformed verdict. The header is now printed by
+  derivation from the comment block rather than a hardcoded line range that silently truncated as
+  the header grew.
 - **Readiness is declared by quoting the gate's verdict verbatim (`#787`).** `babysit-prs`'s
   iteration report (`reference/loop.md` §5.5) gains a per-PR **Gate verdict** line carrying the
   gate's stdout as printed, or `not emitted — harness denied: <exact command>` when the harness
@@ -32,8 +37,11 @@ All notable changes to the `source-control` plugin are documented here. Format f
   A host permission classifier can deny the lane's bundled scripts — including the *read-only*
   merge-readiness check, which mutates nothing — leaving the lane unable to gate-prove readiness.
   That reachability is now a declared prerequisite alongside Python, stated with the difference that
-  matters: it has **no degrade tier**, because the Python-free path also proves readiness with a
-  bundled script. The contract lives in `skills/babysit-prs/reference/safety.md` "Lane-Script
+  matters: the paths that *prove readiness* have **no degrade tier**, because the Python-free path
+  also proves readiness with a bundled script and a verdict never produced cannot be handed to
+  anyone. A denied *mutation* is deliberately outside that narrowing — there the gate has already
+  proven the PR ready, so Pinned-Command Degradation still degrades it to an operator handoff. The
+  contract lives in `skills/babysit-prs/reference/safety.md` "Lane-Script
   Reachability", which points at the host's auto-mode configuration reference for the permission
   semantics rather than restating them, and names the operator's verification step
   (`claude auto-mode config`). The section states its evidence plainly: `#787`'s own denial was of a
@@ -51,15 +59,21 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 - **`setup`'s babysit `check` gained an executable lane-script reachability canary (`#787`).** So
   the prerequisite surfaces before a cycle rather than mid-cycle. The probe runs the lane's mandated
-  invocation form against a non-mutating target
-  (`bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-merge" --help`, which exits 0 without
-  network or GitHub access) and treats a tool-call denial there as a **FAILED** prerequisite. The
-  earlier draft only reported settings surfaces as INFO, and instructed enumerating the scopes the
-  classifier reads — for which no executable path exists, since the managed scopes are not ordinary
-  readable settings files. That clause is dropped in favour of `claude auto-mode config`, which
-  already prints the effective merged configuration across all three `autoMode` sources (user
-  settings, a `--settings`/SDK-supplied file, and managed settings); it stays INFO, because settings
-  cannot prove what a per-call classifier decides. The probe still never writes settings.
+  invocation forms against non-mutating targets — **both** path prefixes
+  (`bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-merge" --help` and
+  `bash "${CLAUDE_PLUGIN_ROOT}/scripts/babysit-readiness-gate.sh" --help`, each exiting 0 without
+  network or GitHub access) — and treats a tool-call denial on either as a **FAILED** prerequisite.
+  Probing only the `bin/` wrapper would have certified a path the lane's own readiness verdict never
+  travels: an allow rule or classifier decision covering one prefix says nothing about the other.
+  The earlier draft only reported settings surfaces as INFO, and instructed enumerating the scopes
+  the classifier reads — for which no executable path exists, since the managed scopes are not
+  ordinary readable settings files. That clause is dropped in favour of `claude auto-mode config`,
+  which prints the effective merged configuration across the scopes it can see; it stays INFO,
+  because settings cannot prove what a per-call classifier decides. Because `--settings` is a
+  launch-time global flag rather than a subcommand input, a bare probe spawned from a session
+  launched with one under-states the effective rules, so the skill now says to forward it (and to
+  report the probe as scope-incomplete when the scope came from an SDK object with no file to
+  re-supply). The probe still never writes settings.
 
 ## [0.26.0]
 

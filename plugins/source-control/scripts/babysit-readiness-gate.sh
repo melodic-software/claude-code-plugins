@@ -53,20 +53,27 @@
 #   the target repo), export FETCH_COMMENTS_OWNER and FETCH_COMMENTS_REPO to
 #   override — the gate passes them through to fetch-all-pr-comments.sh.
 #
-# Stdout (machine-readable — EXACTLY ONE verdict line on EVERY run, including
-# every failure path, so an absent verdict line can only mean the gate never ran):
+# Stdout (machine-readable — EXACTLY ONE verdict line on EVERY check run,
+# including every failure path, so an absent verdict line can only mean the gate
+# never ran). `--help` is NOT a check run: it prints this header and exits 0
+# carrying no verdict, so never parse a help run for one:
 #   READINESS_OK findings=<n> classified=<n> checklist=<clean|n/a>
 #   READINESS_BLOCKED reason=<under-decomposed|checklist-incomplete> findings=<n> classified=<n> unticked=<n>
 #   READINESS_UNPROVEN reason=<bad-args|prereq-missing|fetch-failed> pr=<n|unknown>
 #
-# READINESS_UNPROVEN is the fail-closed third verdict, and the reason this gate
-# emits on the paths where it used to write stderr only: a caller that greps
-# stdout for a verdict saw NOTHING on those paths, which is indistinguishable
-# from a run that was never attempted — the exact confusion that let a blocked
-# gate be reported as readiness (#787). UNPROVEN means readiness was NOT proven;
-# it never licenses substituting live `gh` state (mergeStateStatus, the check
-# rollup) for the gate's verdict. See skills/babysit-prs/reference/safety.md
-# "Lane-Script Reachability". Exit codes are unchanged — the token is additive.
+# The READINESS_UNPROVEN token is the fail-closed third verdict, and the reason
+# this gate emits on the paths where it used to write stderr only: a caller that
+# greps stdout for a verdict saw NOTHING on those paths, which is
+# indistinguishable from a run that was never attempted — the exact confusion
+# that let a blocked gate be reported as readiness (#787). UNPROVEN means
+# readiness was NOT proven; it never licenses substituting live `gh` state
+# (mergeStateStatus, the check rollup) for the gate's verdict. See
+# skills/babysit-prs/reference/safety.md "Lane-Script Reachability". Exit codes
+# are unchanged — the token is additive.
+#
+# Every header line describing a verdict stays indented or mid-sentence: an
+# unindented `READINESS_*` here would leave `--help` output matching a caller's
+# `^READINESS_` verdict grep.
 #
 # Exit codes:
 #   0  ready (decomposition satisfied + checklist clean/absent)
@@ -86,8 +93,12 @@ CHECKLIST=""
 SELF_CSV=""
 EXTRA_SELF_CSV=""
 
+# Print the header block (everything after the shebang up to the first
+# non-comment line) with its comment markers stripped. Derived rather than a
+# hardcoded line range, which silently truncated or over-ran as the header grew.
 usage() {
-  sed -n '2,77p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' \
+    "${BASH_SOURCE[0]}"
   exit 0
 }
 
