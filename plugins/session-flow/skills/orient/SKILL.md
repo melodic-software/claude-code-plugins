@@ -41,7 +41,7 @@ now" matters, not just "what did we just say."
    ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)),
    then read what exists, most-recent-first:
    - handoff save-points (`<memory_dir>/handoffs/`) — the last session's
-     Task / Progress / Decisions / Open-questions snapshot;
+     in-flight snapshot; its own brief names where the work stood;
    - the workflow checklist (`<memory_dir>/<slug>/`) — the stage ledger;
    - running-retro ledgers (`<memory_dir>/running-retros/`) — accumulated
      in-flight findings.

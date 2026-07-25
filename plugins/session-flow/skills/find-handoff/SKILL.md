@@ -162,16 +162,15 @@ pre-clear content sits in a sibling — never in the current session's own file.
      transcript files are named `<session_id>.jsonl` under `~/.claude/projects/*/` — and compare
      against that; when it cannot be found, say so and present the candidate as unvalidated rather
      than blocking or guessing.
-   - `previous_handoff` / `previous_session_id` deliberately name the **predecessor** in the chain
-     (structure doc "Chain continuity"), not the emitting transcript. Validate them against the
-     named prior handoff file and its session — never against the source transcript, or a valid
-     chained handoff looks inconsistent.
+   - `previous_handoff` deliberately names the **predecessor** in the chain (structure doc "Chain
+     continuity"), not the emitting transcript. Validate it against the named prior handoff file —
+     never against the source transcript, or a valid chained handoff looks inconsistent.
    On a mismatch, flag it and let the operator decide — never silently splice an unrelated session
    into the chain.
 6. **Hand off to the resume path.** On confirmation:
-   - **Clean save-point** → read the handoff file and continue per its "Open questions / next
-     steps" (the normal `/session-flow:handoff` resume path). For a prompt-only recovery, continue
-     from the inline prompt.
+   - **Clean save-point** → read the handoff file and continue its remaining next steps (the normal
+     `/session-flow:handoff` resume path). For a prompt-only recovery, continue from the inline
+     prompt.
    - **Ended mid-work** (the recovered state shows interrupted, in-flight work rather than a
      deliberate save-point) → hand to `/session-flow:keep-going`, which recovers and continues
      interrupted work.
