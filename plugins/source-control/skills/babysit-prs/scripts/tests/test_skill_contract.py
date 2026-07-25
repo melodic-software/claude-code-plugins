@@ -20,6 +20,24 @@ def _table_row(skill_text: str, label: str) -> str:
     )
 
 
+def _sections(text: str) -> dict[str, str]:
+    """Split a reference file into its `### ` sections, keyed by heading."""
+    sections: dict[str, str] = {}
+    heading: str | None = None
+    body: list[str] = []
+    for line in text.replace("\r\n", "\n").split("\n"):
+        if line.startswith("### ") or line.startswith("## "):
+            if heading is not None:
+                sections[heading] = "\n".join(body)
+            heading = line.removeprefix("### ") if line.startswith("### ") else None
+            body = []
+        elif heading is not None:
+            body.append(line)
+    if heading is not None:
+        sections[heading] = "\n".join(body)
+    return sections
+
+
 def _paragraph_containing(skill_text: str, marker: str) -> str:
     paragraphs = skill_text.replace("\r\n", "\n").split("\n\n")
     paragraph = next(paragraph for paragraph in paragraphs if marker in paragraph)
@@ -208,6 +226,88 @@ class SkillContractTests(unittest.TestCase):
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, para)
+
+    def test_conflict_resolution_splits_resolve_from_push(self) -> None:
+        # A dispatched conflict worker's isolated context cannot carry the
+        # operator's own grant for an outward mutation, so the local resolution
+        # stays with it and the push belongs to the dispatching context. Asserted
+        # per section, with the negative, so the boundary cannot drift back to a
+        # conflict worker that pushes while the markers still all appear somewhere.
+        sections = _sections(
+            (SKILL.parent / "reference" / "orchestration.md").read_text(
+                encoding="utf-8"
+            )
+        )
+
+        for header in (
+            "Why The Push Stays With The Orchestrator",
+            "Conflict-Worker Contract (local only — never writes to GitHub)",
+            "Orchestrator Contract (the push)",
+            "Conflict-Worker Prompt Delta",
+        ):
+            with self.subTest(header=header):
+                self.assertIn(header, sections)
+
+        worker = sections["Conflict-Worker Contract (local only — never writes to GitHub)"]
+        for marker in (
+            "git merge origin/<base-branch>",
+            "never rebase",
+            "never `git push`",
+            "`resolved`",
+            "`escalate`",
+            "`verification-impossible`",
+            "`no-conflict`",
+        ):
+            with self.subTest(side="conflict worker", marker=marker):
+                self.assertIn(marker, worker)
+
+        # The negative half: the push lives in exactly one of the two contracts.
+        self.assertNotIn('push "$PUSH_REMOTE"', worker)
+
+        orchestrator = sections["Orchestrator Contract (the push)"]
+        for marker in (
+            "Push only on `resolved`",
+            "rev-parse HEAD^1",
+            "rev-list --parents -n 1 HEAD",
+            "Re-run the verification in the worktree",
+            'push "$PUSH_REMOTE" HEAD:<headRefName>',
+            "Never force, in any tier.",
+        ):
+            with self.subTest(side="orchestrator", marker=marker):
+                self.assertIn(marker, orchestrator)
+
+        rationale = sections["Why The Push Stays With The Orchestrator"]
+        self.assertIn("https://code.claude.com/docs/en/sub-agents", rationale)
+
+    def test_conflict_worker_is_bound_by_the_worker_rules(self) -> None:
+        # The two contracts are the only differences from an ordinary worker;
+        # every other worker rule (leases, concurrency cap, check-in) must keep
+        # binding, so the vocabulary cannot quietly create an unowned actor.
+        orchestration = (SKILL.parent / "reference" / "orchestration.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("**A conflict worker is a worker.**", orchestration)
+        self.assertIn("and it does not push", orchestration)
+
+    def test_skill_table_states_the_conflict_push_boundary(self) -> None:
+        row = _table_row(self.skill_text, "Dispatch a dedicated conflict worker")
+
+        self.assertIn("never pushes", row)
+        self.assertIn("the orchestrator re-verifies and pushes", row)
+
+    def test_reference_files_agree_on_who_pushes_a_resolution(self) -> None:
+        def unwrapped(path: pathlib.Path) -> str:
+            return " ".join(path.read_text(encoding="utf-8").split())
+
+        safety = unwrapped(SKILL.parent / "reference" / "safety.md")
+        loop = unwrapped(SKILL.parent.parent / "babysit-loop" / "SKILL.md")
+
+        # safety.md's Role Boundaries enumerates orchestrator authority; the one
+        # push it owns has to appear there, not only in the stop-and-ask list.
+        self.assertIn("push a dispatched conflict worker's verified resolution", safety)
+        self.assertIn("which the conflict worker never does", safety)
+        self.assertIn("the dispatched conflict worker never pushes", loop)
 
     def test_safety_md_codifies_the_tier_criteria(self) -> None:
         safety = (SKILL.parent / "reference" / "safety.md").read_text(encoding="utf-8")

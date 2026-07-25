@@ -16,7 +16,8 @@ value and its unset fallback.
   release it only after the result is integrated.
 - The orchestrator may discover PRs, classify state, request guarded branch refreshes
   (`freshness.md`), post one guarded review-trigger comment per head SHA (`review-trigger.md`,
-  when that module is configured), spawn workers, and report.
+  when that module is configured), spawn workers, push a dispatched conflict worker's verified
+  resolution (`orchestration.md`, Merge Conflict Resolution — the one push it owns), and report.
 - A worker may only inspect and fix the single PR assigned to it.
 - A worker must not refresh branches, post review triggers, merge, enable auto-merge, force-push,
   change GitHub settings, spawn more workers, or resolve any thread outside the constrained
@@ -45,7 +46,13 @@ value and its unset fallback.
   other branch locally carrying this PR's work. Require the checkout to be on the PR branch or in
   detached HEAD (a coincidental same-tip match on another branch heals via `gh pr checkout`). This
   extends the head-SHA re-check below — which covered only the head moving *mid-work* — to the moment
-  the worktree is first assigned.
+  the worktree is first assigned. **One codified exception:** the conflict-resolution push in
+  `orchestration.md`'s Orchestrator Contract. There `HEAD` is by construction the local merge commit
+  the conflict worker produced, which the live PR does not carry yet, so the assertion is checked
+  one commit back: the merge commit must have exactly two parents, its **first parent** must equal
+  the live `headRefOid` (re-checked immediately before the push), and its second parent the
+  reported base. Every other condition of that contract still binds, and everywhere outside that
+  push the assertion remains on `HEAD` itself.
 - Re-check the PR head SHA immediately before editing and again immediately before pushing. Stop
   if it changed unexpectedly — someone else moved the branch.
 - **Refspec push to the branch's upstream, never branch checkout.** Do not depend on `git checkout
@@ -120,13 +127,19 @@ value and its unset fallback.
 - A merge conflict appears. In default (safe) mode this is always a stop: report it as a blocker
   and take no resolution action. In worker or autopilot mode only, a textual/mechanical conflict
   (formatting, adjacent unrelated changes, both sides adding different items to the same list) is
-  not an automatic stop: hand it off to a dedicated, fresh conflict-resolution worker per
+  not an automatic stop: hand it off to a dedicated, fresh conflict worker per
   `orchestration.md`'s Merge Conflict Resolution section — never resolved by the worker that
-  discovered it mid-fix-round, and never resolved inline by the orchestrator. In worker or
-  autopilot, stop and ask only when that fresh worker finds the conflict genuinely semantically
-  ambiguous (both sides made incompatible design/behavioral decisions about the same logic, not
-  just textually overlapping edits) or when the same conflict recurs across repeated resolution
-  attempts.
+  discovered it mid-fix-round. The orchestrator never resolves a conflict dispatched to a conflict
+  worker: it does not touch conflict markers or edit a resolution. (The safe tier's own inline
+  handling of a simple conflict met while freshening a branch is separate and unaffected —
+  `loop.md` §5.1.2.) It does own the conflict worker's one outward step — after re-asserting the
+  live head against the merge commit's first parent and re-running the affected-file verification
+  itself, it performs the push, which the conflict worker never does (same section, Orchestrator
+  Contract). In worker or
+  autopilot, stop and ask only when that fresh conflict worker finds the conflict genuinely
+  semantically ambiguous (both sides made incompatible design/behavioral decisions about the same
+  logic, not just textually overlapping edits) or when the same conflict recurs across repeated
+  resolution attempts.
 - A change would alter secrets, branch protection, repo settings, GitHub Apps, runners, billing,
   or organization policy.
 - A branch refresh returns `403` or `422`, conflicts, lacks permissions, remains unchanged, or

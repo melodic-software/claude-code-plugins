@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.29.0]
+## [0.30.0]
 
 ### Added
 
@@ -134,6 +134,34 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `reason=bad-args`. Since §5.5 quotes that verdict verbatim, it pointed operators and automation at
   flags that were already correct. The path now emits `reason=identity-unresolved`, keeping exit 3
   so callers keyed on the code are unaffected.
+
+## [0.29.0]
+
+### Changed
+
+- **Merge-conflict resolution splits the resolve from the push.** `babysit-prs` dispatched conflict
+  resolution to a dedicated subagent that also pushed the result. A dispatched subagent starts with
+  a fresh, isolated context window and never sees the parent conversation
+  (<https://code.claude.com/docs/en/sub-agents>), so a host runtime that grants mutation authority
+  only from the operator's own turn cannot observe that grant from inside one — such a push could
+  only ever be refused by that gate or route around it. The conflict worker now does the base fetch,
+  the head assertion, the `git merge` (never rebase), the marker resolution, the local merge commit,
+  and the affected-file verification, and returns one of `resolved` / `escalate` /
+  `verification-impossible` / `no-conflict` without touching GitHub. The orchestrator — which does
+  hold the operator's turn — pushes, fail-closed: only on `resolved`, only after matching the
+  worktree `HEAD` to the reported merge commit, requiring it to have two parents, re-asserting the
+  live PR head against its first parent, and re-running the affected-file verification in the
+  worktree itself; by refspec, never force. A conflict worker remains a worker for every other rule
+  — leases, concurrency cap, check-in — with resolving and not-pushing its only two differences.
+  Every prior invariant is preserved, now with an explicit owner. `reference/orchestration.md`
+  gains the Conflict-Worker and Orchestrator contracts plus a Conflict-Worker Prompt Delta (the
+  regular worker template forbids only *force*-pushing, so a conflict worker needs an affirmative
+  never-push instruction); an escalating conflict worker now preserves its partial resolution on a
+  SHA-qualified `conflict-wip/<pr-number>-<short-sha>` branch — created with hook-free plumbing,
+  never a hook bypass — and exits the merge only after that preservation, so it never strands an
+  unmergeable worktree and repeated escalations never collide; `reference/freshness.md` drops its drifting restatement for a pointer; `SKILL.md`,
+  `reference/safety.md`, and `babysit-loop`'s Subagents section state the new boundary. Pinned by
+  `test_skill_contract.py`.
 
 ## [0.28.0]
 
