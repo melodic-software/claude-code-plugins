@@ -71,7 +71,7 @@ shipped catalog, no remediations approved), so an absent overlay or absent appro
    deprecated, demoted) and any custom checks it registers.
 3. **Remediation approvals** (`<StateBase>/state/approvals.json`) — INFO when absent (no remediation
    is approved — the safe default; a bare audit mutates nothing). When present: validate against
-   `references/shared/approvals.md` and confirm each approval names a real remediation
+   `${CLAUDE_PLUGIN_ROOT}/skills/audit/references/shared/approvals.md` and confirm each approval names a real remediation
    (`restart-stopped-service`, `clear-temp-files`). FAIL a malformed file or an approval for an
    unknown remediation; otherwise report which remediations are approved.
 4. **Pending proposals** (`<StateBase>/TODO.md`) — INFO: count proposals (deprecation, cadence
@@ -95,7 +95,7 @@ remediation, so no interview is needed):
   `reason=<text>` argument when supplied, else a short default) to the overlay.
 - `demote=<check-id>` — write `"cadence": "monthly"` for that check to the overlay.
 - `approve=<remediation-id>` — write the approval to `<StateBase>/state/approvals.json` per
-  `references/shared/approvals.md`. A supplied `approve=` argument IS the explicit user decision;
+  `${CLAUDE_PLUGIN_ROOT}/skills/audit/references/shared/approvals.md`. A supplied `approve=` argument IS the explicit user decision;
   never approve a remediation not named in the arguments or the interview.
 
 Reject an argument targeting an unknown check id or remediation with the same message `check` would
@@ -112,13 +112,13 @@ give, rather than writing a dangling entry.
    (`"deprecated": true` + `deprecation_reason`), or demote to monthly (`"cadence": "monthly"`).
 4. **Register custom checks** when the user wants one (always interactive — it authors a script):
    write the script to `<StateBase>/scripts/windows/checks/Test-<Thing>.ps1` (single JSON object per
-   `references/shared/output-schema.md`, `-Human` mode included), then add a full schema-valid
+   `${CLAUDE_PLUGIN_ROOT}/skills/audit/references/shared/output-schema.md`, `-Human` mode included), then add a full schema-valid
    overlay entry with `script` set to `scripts/windows/checks/Test-<Thing>.ps1`. Merge and resolution
    semantics: `${CLAUDE_PLUGIN_ROOT}/skills/audit/references/shared/catalog-overlay.md`.
 5. **Offer remediation approvals.** The two shipped remediations (`restart-stopped-service`,
    `clear-temp-files`) default to not approved. Present each with its risk posture from
-   `references/windows/remediation-policy.md`; on an explicit yes, write the approval per
-   `references/shared/approvals.md`. Never enable a remediation the user did not explicitly approve.
+   `${CLAUDE_PLUGIN_ROOT}/skills/audit/references/windows/remediation-policy.md`; on an explicit yes, write the approval per
+   `${CLAUDE_PLUGIN_ROOT}/skills/audit/references/shared/approvals.md`. Never enable a remediation the user did not explicitly approve.
 6. **Confirm the report directory.** Show where reports land (the `report_dir` plugin option when
    set, else `$env:USERPROFILE\Documents\MachineHealth`); to change it, direct the user to
    `/plugin configure machine-health` (interactive, any time) — the option is stored in plugin
