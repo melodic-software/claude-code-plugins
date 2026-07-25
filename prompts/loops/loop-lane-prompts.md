@@ -48,17 +48,19 @@ into one profile.
 
   The taxonomy is strict about how that resolution fails: an **absent** file
   or entry defaults *with a loud warning*, while a **present but malformed**
-  entry — null, empty, or not a string — is a configuration error and never
-  permission to fall back silently. A bare `//` default collapses both cases
-  into a silent substitution, which is the failure mode that queries the
-  wrong population and reports an empty backlog as fact.
+  entry — null, empty, whitespace-only, or not a string — is a configuration
+  error and never permission to fall back silently. A bare `//` default
+  collapses both cases into a silent substitution, which is the failure mode
+  that queries the wrong population and reports an empty backlog as fact.
+  The check trims **only to test emptiness** and returns the raw configured
+  string, since a label's real value may legitimately carry spaces.
 
   ```bash
   ROLE=$(jq -er '
     if has("config") and (.config | has("role_labels"))
          and (.config.role_labels | has("autonomous-eligible"))
     then .config.role_labels."autonomous-eligible"
-         | if type == "string" and length > 0 then .
+         | if type == "string" and (gsub("^\\s+|\\s+$"; "") | length) > 0 then .
            else "MALFORMED" | halt_error(1) end
     else "" end' .work-item-tracker.json) || {
       echo "role_labels.autonomous-eligible is malformed — fix the binding" >&2
@@ -207,7 +209,12 @@ into one profile.
 4. Stamp the autonomous-eligible items in whichever source this repo uses, or
    accept that nothing auto-merges. An item with no recorded class in
    **either** source is ineligible at every rung.
-5. Point one worker lane and one merge lane at it, on different machines.
+5. **Bind the tracker provider** if the repo has no `.work-item-tracker.json`
+   yet — run `/work-items:setup apply`, or declare the binding by hand. The
+   seam hard-errors (exit 3) with no binding, so a lane launched before this
+   stops on its first cycle rather than starting. The plugin bundles the
+   adapters; the repo only declares which one it uses.
+6. Point one worker lane and one merge lane at it, on different machines.
 
 ## How to inject these
 
@@ -360,6 +367,16 @@ no shared state, no contention, and the sharding problem disappears.
 > against authoritative sources before acting, prefer installed skills
 > over ad-hoc approaches, and re-check work against the active
 > conventions.
+>
+> **The sweep corrects forward in the working tree — yours is the lane
+> checkout.** Its correction step edits files where it runs, and you run on
+> the default branch, which you never edit: unrelated dirt there breaks the
+> next dispatch preflight and can leak into an item's PR. So when the sweep
+> surfaces an **in-tree** correction, do not apply it here. Report the
+> finding and its proposed remedy in the cycle report, and either file it as
+> a work item or let the dispatched worker apply it inside that item's own
+> worktree, where an edit belongs. Posture and process corrections that touch
+> no file apply normally.
 >
 > **Dispatch model, every dispatch.** Your root runs on the fast tier and
 > subagents inherit it by default, so an unqualified dispatch silently runs
@@ -800,6 +817,16 @@ machines; neither on the attended box.
 > over ad-hoc approaches, and re-check work against the active
 > conventions.
 >
+> **The sweep corrects forward in the working tree — yours is the lane
+> checkout.** Its correction step edits files where it runs, and you run on
+> the default branch, which you never edit: unrelated dirt there breaks the
+> next dispatch preflight and can leak into an item's PR. So when the sweep
+> surfaces an **in-tree** correction, do not apply it here. Report the
+> finding and its proposed remedy in the cycle report, and either file it as
+> a work item or let the dispatched worker apply it inside that item's own
+> worktree, where an edit belongs. Posture and process corrections that touch
+> no file apply normally.
+>
 > **Dispatch model, every dispatch.** Your root runs on the fast tier and
 > subagents inherit it by default, so an unqualified dispatch silently runs
 > an implementer at orchestrator strength. Pass an explicit per-invocation
@@ -870,9 +897,19 @@ machines; neither on the attended box.
 
 ### Merge lane — any machine except the attended one
 
+**`--merge human-only` is deliberate here.** This repository's tracked config
+resolves `c2-mechanical`, so without the override the lane would auto-merge C2
+PRs — but the guardrail matrix ships C2 *human-gated* and makes auto-merge
+eligible only after its promotion trigger (≥20 autonomous C2 completions over
+≥14 days, 100% deterministic-gate pass, 0 human-reverted merges), and this
+repository has recorded **zero autonomous merges ever**, so the predicate is
+not met. An argument may always select a *lower* rung than the seam, never a
+higher one, which is exactly what this does. Drop the flag once the evidence
+exists — not before.
+
 > **=== COPY FROM HERE ===**
 >
-> /loop /source-control:babysit-loop melodic-software/claude-code-plugins autopilot --drain
+> /loop /source-control:babysit-loop melodic-software/claude-code-plugins autopilot --drain --merge human-only
 >
 > Repository: `melodic-software/claude-code-plugins`
 >
