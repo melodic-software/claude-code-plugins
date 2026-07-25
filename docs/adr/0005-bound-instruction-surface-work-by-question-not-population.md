@@ -110,6 +110,21 @@ pair C6 covers, and never re-implements it**. A routing rule that hands *all* me
 contradictions to C6 is wrong for the same reason the "cross-layer" framing is: C6 does not detect
 most of them. The routing predicate is *operationally covered by C6*, not *inside the memory layer*.
 
+**The reuse rule is presence-gated, because the incumbent is separately installable.** `claude-config`
+and `claude-memory` are independent plugins, so a consumer can install the first without the second.
+Deferring the one covered pair unconditionally would then drop it on the floor in a supported
+configuration — the detector would silently omit root `CLAUDE.md` versus project `.claude/rules/`,
+which is the most common contradiction there is. **Route out only when `claude-memory` is installed;
+when it is not, cover that pair here and say so in the report.**
+
+`audit-instructions` already presence-gates a route to the same plugin — the I1–I5 hygiene checks at
+`SKILL.md:42-52` — so the *gate* is an existing shape rather than a new one. The *fallback* is
+deliberately different: there the skill emits a one-line pointer and still declines to run the check,
+because I1–I5 is a hygiene layer it disclaims owning. Here the pair sits inside the conflict
+observable this pass does own, so declining would leave the finding with no owner at all.
+Reuse-or-replace forbids duplicating a check that is *present*; it does not license a hole when it is
+absent.
+
 ### 3. L2 lands as a new phase in `claude-config:audit-instructions` (Option A)
 
 Three structural placements were live, and this ADR rules on them rather than leaving the call open:
@@ -139,14 +154,25 @@ enumerates two roots only — user `${CLAUDE_CONFIG_DIR:-~/.claude}` and project
 (`SKILL.md:76-82`) — so it never reaches the marketplace tree. The **181** shipped
 `plugins/*/skills/*/SKILL.md` files and the plugin READMEs L2's comparison needs are tracked source
 here, distinct from the installed plugin-cache content `:85-88` excludes, yet no enumerated surface
-names them. **Option A must first extend Phase A with a plugin-source surface enumerating both halves
-of the comparison: the 181 shipped `plugins/*/skills/*/SKILL.md` bodies and the 60
-`plugins/*/README.md` files beside them** — one per plugin, enumerated. Enumerating only the skills
-would leave one of the
-pairs the decision above explicitly puts in scope — a skill's stated default against its plugin
-README — with no second side to compare against. The skill half is the **181** direct matches, not
-the 187 recursive ones, which would pull upstream `vendor/` materializations into a remediation set
-this repository does not own.
+names them. **Option A must first extend Phase A with a plugin-source surface covering every
+plugin-owned instruction type Phase A already recognizes under the user and project roots** — the
+same surface kinds, rooted at `plugins/` instead. Concretely, as enumerated in this tree:
+
+| Plugin-source surface | Count | Glob |
+|---|---|---|
+| Skill bodies | 181 | `plugins/*/skills/*/SKILL.md` |
+| Plugin READMEs | 60 | `plugins/*/README.md` |
+| Agent definitions | 7 | `plugins/*/agents/*.md` |
+
+The rule is stated by surface kind rather than by that list, because the list goes stale: Phase A's
+existing entries reach `rules/`, `skills/`, `agents/` and `output-styles/` under the user and project
+roots, and any plugin-owned instruction type this repository later ships joins the plugin-source
+surface on the same basis. **Enumerating only skills would break two pairs the decision above
+explicitly puts in scope** — a skill's stated default against its plugin README, and agent
+definitions against the memory layer, whose seven files live under `plugins/plugin-quality/agents/`
+and `plugins/review/agents/` and are reachable from neither existing Phase A root. The skill half is
+the **181** direct matches, not the 187 recursive ones, which would pull upstream `vendor/`
+materializations into a remediation set this repository does not own.
 
 Note what Option A does *not* buy: Phase A enumerates surface *paths*, not their contents — the reads
 happen inside the Phase B lanes (`SKILL.md:90-108`). Sharing Phase A saves the enumeration, not the
