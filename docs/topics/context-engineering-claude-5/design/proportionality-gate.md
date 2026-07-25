@@ -55,7 +55,7 @@ Each row carries two independent answers, because conflating them is what the fi
 | D | § | Lands as | Enablement | Reason and evidence |
 |---|---|---|---|---|
 | D1 | S3 | **new check I12** in `audit-instructions` | on — `ANTHROPIC-DOCS` | **Scope corrected 2026-07-25.** This read "No incumbent compares two instruction surfaces against each other", which is false: `claude-memory:audit` C6 does, over the memory layer. What no incumbent does is compare *across* layers, or reach skill bodies, agent definitions, prompt-type hooks, output styles, or the managed tier. D1 is scoped by routing to that remainder — still the article's headline case. `coverage-matrix.md`, the S3 row; `claude-memory` `criteria.md`, check C6 |
-| D2 | S6 | extends **I9's Remediate line** in `audit-instructions` | off — `OPINION` | Fails the *evidence* test, not the coverage test — the first draft reported it the other way round. I9 already detects the same artifact (an example block pinning the model's approach); R-A adds only where the information should go instead. `skill-quality:check` cannot host it: its contract is "NO model invocation… reproducible in CI", and representational-equivalence judgement is not reproducible. `official-corroboration.md`, the S6 row; `check-skill.sh:4`, the header contract comment, plus `skill-quality:check`'s `SKILL.md`, "Purpose" |
+| D2 | S6 | extends **I9's Remediate line** in `audit-instructions` | off — `OPINION` | Fails the *evidence* test, not the coverage test — the first draft reported it the other way round. I9 already detects the same artifact (an example block pinning the model's approach); R-A adds only where the information should go instead. `skill-quality:check` cannot host it: its contract is "NO model invocation… reproducible in CI", and representational-equivalence judgement is not reproducible — re-verified 2026-07-24 against open PR #1096's check 21, see "The determinism contract, re-verified against check 21" below. `official-corroboration.md`, the S6 row; `check-skill.sh:4`, the header contract comment, plus `skill-quality:check`'s `SKILL.md`, "Purpose" |
 | D3 | S8 | **new check** in `audit-instructions`, beside I3 | off — `OPINION` (pending S8 re-verification) | Not `extract-ssot`: that refuses below three instances and picks a home by content type, never by proximity to what is governed. Not I3 either — **different axis**: I3 is load *timing*, D3 is definition-site *locality*, and an instruction can be correctly deferred and still misplaced. `extract-ssot/SKILL.md`, "Decision framework" — the Rule of Three gate; `criteria.md`, check I3 |
 | D4 | S13 | extends **I6 and I8** with a stopping condition, `claude-config`-local | **on** — suppressor inversion | Neither I6 nor I8 carries any a-priori bound: I6's escape is a rewrite concession, I8's remediation is unconditional. And no trimming rule outside `claude-config` needs to consult it — every `docs-hygiene` trimmer already owns a local stopping condition. One consumer, so a local check, not a shared artifact. `criteria.md`, checks I6 and I8 |
 | D5 | S10+S14 | **nothing built** | deferred | The one remainder with no incumbent to calibrate. **Trigger:** an official page names artifacts or a reference ranking as normative, or a reproducible defect shape makes it auditable. `coverage-matrix.md`, "What the matrix says", the S10+S14 entry; `official-corroboration.md`, the S10 artifacts row, the S14 row, and the `artifacts` entry under "Out of scope, with reason" |
@@ -261,6 +261,51 @@ independently-authored restatements in four hosts with three different staleness
 absence. There are two hosts, both already ship a versioned `reference/criteria.md` with recheck
 triggers, and they already carry a reciprocal presence-gated invocation seam between them. The host
 with no staleness surface receives nothing.
+
+### The determinism contract, re-verified against check 21
+
+**Re-verified 2026-07-24. The homing decision stands, and the contract it rests on is intact.**
+
+Two rows above — D2's disposition and the "`skill-quality` receives nothing" paragraph — rest on
+`skill-quality:check` declaring "NO model invocation… reproducible in CI or a pre-commit hook". Open
+PR **#1096** (`feat(skill-quality): fresh-eyes delegation doctrine + conformance gate (check 21)`)
+adds a twenty-first check to that gate, which puts the quoted contract in question. It was read
+rather than assumed.
+
+**Check 21 preserves the contract.** Its implementation is bash plus a single `awk` program inside
+`check-skill.sh` — fence matching, inline-code-span pairing, two POSIX ERE matches, and a
+line-proximity join. No model is in the path. The PR's own consumer-facing spec says so in as many
+words: *"Check 21 is a deterministic scanner: it cannot understand prose, so conformance is declared
+in one of two exact, greppable forms."* Same input, same verdict, in a session or in CI. **So no
+homing decision is reopened**, and the two sibling lanes building against this map are unaffected.
+
+**The count is attributed rather than transcribed, deliberately.** #1096 is open as of 2026-07-24
+and still moving — its own `design-resolution.md` carries two in-flight amendments narrowing the
+detector's worker-token regex. Writing a bare "twenty-one" here would re-stale on the next
+amendment. The count and the checks list are the plugin's own to state; this document cites the
+contract, not the inventory. (The stale "twenty"/"eighteen" strings live in the plugin's `README`,
+`plugin.json`, and skill description — all of which #1096 fixes. No document in this topic ever
+carried a check count, so none needed correcting here.)
+
+**One clause of the reasoning did need sharpening, because check 21 sets a new precedent.** It is
+the gate's first check for a *judgement-shaped* rule: "does this step self-review its own output"
+is not mechanically decidable, yet it ships as a gate check. The homing argument above says a
+representational-equivalence rule "would be the first non-reproducible check", and check 21 could
+be read as having already crossed that line. It has not, and the discriminator is **whether a
+lexical proxy exists**:
+
+- Check 21 proxies judgement language with a **curated phrase list**, is **WARN-only by design** for
+  that half, and hard-FAILs only on directive *syntax* — a purely mechanical property. The PR
+  documents the list as a heuristic with a named owner, stated update triggers, and a disposition
+  ladder for every WARN. The gate never decides whether a step is genuinely biased; it decides
+  whether a declaration is present near a phrase.
+- D2's rule has no such proxy. "Would this example block be better expressed as an interface" is not
+  a phrase-presence question at any level of curation, and no WARN-only downgrade rescues it,
+  because there is nothing lexical to warn *on*.
+
+So the correct statement is not "no judgement-shaped rule can land here" but **"a rule lands here
+only if it has a mechanical proxy, and D2 has none."** That is a narrower claim than the one this
+document originally made, and it is the one the evidence supports.
 
 ## `OPINION`-tier policy
 

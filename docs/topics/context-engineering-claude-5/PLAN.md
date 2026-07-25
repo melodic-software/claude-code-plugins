@@ -502,7 +502,10 @@ listing descriptions:
 - **`skill-quality:check` hosts nothing.** Its contract is "NO model invocation… reproducible in CI
   or a pre-commit hook", and `argument-hint` is read by nothing in the plugin. A
   representational-equivalence judgement would be the first non-reproducible check in a gate whose
-  value is that every check is reproducible.
+  value is that every check is reproducible. **Re-verified 2026-07-24 against open PR #1096, which
+  adds a twenty-first check** — the contract survives it, and the discriminator that keeps this
+  conclusion true is stated in [design/proportionality-gate.md](design/proportionality-gate.md),
+  "The determinism contract, re-verified against check 21".
 
 - **Sanity Check — passes.** One row per D1–D7 with its disposition; both named owning plugins exist
   under `plugins/`; every row names a skill directory that already exists; the
