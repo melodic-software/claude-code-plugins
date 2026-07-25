@@ -151,6 +151,7 @@ overwriting writers (`Set-Content`, `Out-File`, `>`, `New-Item -Force`), and vol
 (`Format-Volume`, `Clear-Disk`) — reach the tool with no guard verdict at all, in audit-only mode
 included. Data loss through those spellings is held only by the per-path human approval the manual
 handoff already requires and the consumer's own permission policy, never by this guard.
+
 TODO(#387): extend the flagged set to those spellings.
 
 **Kill-switch enforcement (since 0.9.0): both surfaces resolve it by reading user settings.** The guard
@@ -177,8 +178,9 @@ engine invocation **whether or not the clean skill is active**; it defers (no ou
 does not reference the engine, so it does **not** see PowerShell deletion spellings. Those are enforced by
 the **skill-scoped belt** (`powershell_decision`) — denied outright in audit-only — only **while the clean
 skill is active**. An absent, unreadable, or ambiguous read fails **closed to enabled**: the guard stays
-active and forces a human prompt before every mutation, so an unreadable toggle never silently disables
-the guard.
+active and forces a human prompt before every mutation **it sees** — every Bash engine `apply`, and on
+PowerShell only the flagged spellings above — so an unreadable toggle never silently disables the
+guard.
 
 This replaces the earlier delivery, where the gate carried a bare `${user_config.disk_hygiene_enabled}`
 argument. Because the declared userConfig `default` is not implemented upstream
