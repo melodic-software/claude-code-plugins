@@ -17,6 +17,17 @@
   to inspect suppressed residue, but it appeared in neither `SKILL.md`'s `argument-hint` nor
   `audit-modes.md`'s override table, whose contract errors on unknown flags — so the only
   documented path to the residue failed. Registered in both, audit-mode only, always Ambiguous.
+- **Every site stating a changed rule now agrees.** This skill states the same contract across
+  `SKILL.md`, five `context/` files, and `evals/evals.json`, so a rule changed in one place left
+  the others asserting its opposite. `SKILL.md` still gated the re-sweep on `count == 0` in two
+  places (the always-loaded surface — that alone would have shipped the non-terminating loop the
+  `apply.md` fix was meant to close), an eval still asserted the raw count and would have failed
+  against the corrected skill, `triage.md`'s bucket criteria never learned that Forms 13–15 can
+  be demoted, and `audit.md` defined Certain without the scope qualifier. All reconciled.
+- **`patterns.md` "Phase 6" now requires that reconciliation.** After changing a rule, grep the
+  whole skill directory for the claim just changed and fix every hit, evals included — an eval
+  asserting superseded behavior is worse than a stale sentence, because it fails against the
+  corrected skill and reads as a regression.
 - **Deduplication keys on the occurrence SPAN, not the line.** A line can carry two independent
   references — `Use <old> via /plugin install <old>@marketplace`. Collapsing by `(file, line)`
   dropped the bare one, and because Phase 5 replaces a single span at a time, the survivor was

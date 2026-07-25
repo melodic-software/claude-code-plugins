@@ -41,7 +41,7 @@
       "id": 4,
       "name": "re-sweep-until-zero-new-form-learned",
       "prompt": "You applied the /verify to /verify-changes rename. The re-sweep still finds one match in a frontmatter glob form the pattern library didn't have. What now?",
-      "expected_output": "Does not declare done: re-sweep must reach count == 0. The new syntactic form is a pattern-library gap — it adds the form to the pattern registry, re-iterates the sweep, and does NOT silently apply or ignore the straggler.",
+      "expected_output": "Does not declare done: re-sweep must reach an actionable count of 0. The new syntactic form is a pattern-library gap — it adds the form to the pattern registry, re-iterates the sweep, and does NOT silently apply or ignore the straggler.",
       "files": [],
       "expectations": [
         "Output does NOT declare the rename complete while the re-sweep count is non-zero",
@@ -182,6 +182,18 @@
         "No look-around is used, so the form works on the default engine the skill instructs",
         "The trailing terminator is consumed rather than asserted",
         "A consumed delimiter is not rewritten as part of the reference"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "container-position-demotion-survives-in-the-bucket-criteria",
+      "prompt": "Rename the `testing` plugin to `test-suite`. The repo root README has a `### Testing` category heading. Show me the triage buckets.",
+      "expected_output": "The `### Testing` heading is reported as Ambiguous, not Certain. triage.md's bucket criteria list container-position Forms 13-15 as Ambiguous whenever the matching form's own scope rules demote it, and audit.md's Certain definition carries the same qualifier -- so the demotion holds no matter which file the reader consults. Span-precedence attributes the occurrence to Form 14 and drops the bare-token duplicate, but does not override the demotion.",
+      "files": [],
+      "expectations": [
+        "The out-of-scope title match lands Ambiguous in the reported buckets",
+        "The demotion is consistent whether read from triage.md or audit.md",
+        "Precedence attributes the occurrence without promoting it"
       ]
     }
   ]

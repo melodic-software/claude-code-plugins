@@ -351,6 +351,21 @@ When the skill's re-sweep finds a NEW syntactic form not covered above:
 2. Document the pattern in this file with all 5 fields (form name, regex, triage default, example, false-positives)
 3. Re-run sweep with extended pattern library
 
+**A new rule is not landed until every site that states the old one is updated.** This skill's
+contract is spread across `SKILL.md`, `context/patterns.md`, `context/triage.md`,
+`context/audit.md`, `context/audit-modes.md`, `context/apply.md`, and `evals/evals.json` — the
+same fact is stated in several of them by design, so a rule changed in one place leaves the
+others asserting its opposite. Three review rounds on the change that added Forms 13–15 were
+consumed almost entirely by that class: precedence said Certain while Form 14's scope rule said
+Ambiguous; `apply.md` learned the actionable-count rule while `SKILL.md` still said `count == 0`
+twice and an eval still asserted the raw count; a flag was documented in `patterns.md` and
+registered nowhere.
+
+After changing any rule here, grep the whole skill directory for the claim you just changed —
+the old bucket name, the old count semantics, the old flag list, the enumerated form list — and
+reconcile every hit, evals included. An eval asserting superseded behavior is worse than a stale
+sentence: it will fail against the corrected skill and read as a regression.
+
 **Validate a new form on BOTH axes before adding it.** Recall alone is not evidence — Form 2
 already has perfect recall on every form here and is still unusable when the token is a verb.
 Measure the candidate against a real fixture: the reference commit that FIXED the missed

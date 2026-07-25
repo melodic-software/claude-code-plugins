@@ -43,7 +43,13 @@ Match patterns where the token is a common English word AND surrounding context 
 
 **Bucket criteria:**
 
-- Form 2: bare token (`\b<old>\b`) when `<old>` is in the English-verb blocklist
+- Forms 13–15 (container-position) when the matching form's own scope rules demote it — a Form 14
+  title match outside a container-owned file or with a common-word token, a Form 15 possessive
+  where `<old>` is a common noun. Span-precedence attributes the occurrence to that form; it does
+  NOT override the form's demotion (`patterns.md` "Phase 0")
+- Form 2: bare token (`\b<old>\b`) when `<old>` is in the English-verb blocklist — and, under
+  container-rename mode, the bare-token residue is excluded from Certain entirely rather than
+  bucketed here per match (`patterns.md` "Phase 0b")
 - Form 4/5/6/9 (chain forms) when no neighbor is a known skill name (failed promotion check above)
 - Form 7: frontmatter chain string when token appears alone in description without other workflow tokens
 

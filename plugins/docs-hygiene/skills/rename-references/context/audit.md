@@ -54,7 +54,8 @@ residue the mode rule excluded.
 
 Classify each match into one of three buckets per [triage.md](triage.md):
 
-- **Certain** — high-precision form (slash-token, path, frontmatter glob)
+- **Certain** — high-precision form (slash-token, path, frontmatter glob, and the
+  container-position Forms 13–15 **when their own scope rules do not demote them**)
 - **Chain-context** — high-precision form when neighbors confirm context (chain prose with known skill names, numbered rows)
 - **Ambiguous** — bare-token form when `<old>` is in English-verb blocklist, OR chain-form without confirming neighbors
 
@@ -112,7 +113,11 @@ If `<new>` is undetermined (single-token reverse mode), omit the `→ <new>` and
 
 - **Zero matches across all patterns** — report explicitly. Rename target either does not appear in codebase OR pattern library has a gap. If user expected matches, treat as Phase 6 pattern-library-evolution trigger
 - **All matches in excluded paths** — report with breakdown showing why each was excluded. User may want to widen scope via the override flags (`--include-historical`, `--include-memory`, `--include-plan-docs`)
-- **Ambiguous bucket is empty AND `<old>` is in English-verb blocklist** — unusual. Re-run Form 2 without blocklist filter to verify; the blocklist demotes, not excludes
+- **Ambiguous bucket is empty AND `<old>` is in English-verb blocklist** — unusual for an
+  identifier rename. Re-run Form 2 without blocklist filter to verify; the blocklist demotes, not
+  excludes. **Expected, not unusual, under container-rename mode** — there the bare-token residue
+  is excluded from the buckets entirely and reported as an aggregate, so an empty Ambiguous
+  bucket is the designed outcome rather than a signal to re-run
 - **Audit invoked while another `/rename-references` apply is in progress** — abort. In-flight edits and rename-documenting plan docs would be misclassified mid-apply
 
 ## Hand-off

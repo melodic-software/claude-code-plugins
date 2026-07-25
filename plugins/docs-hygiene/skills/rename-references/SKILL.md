@@ -99,7 +99,7 @@ Multi-word old/new is fine — separator is the only delimiter. Quote characters
    - Chain-context → "review N matches one-by-one?" — yes/skip-bucket/auto-apply-all
    - Ambiguous → per-match yes/no with surrounding context
 5. **Apply** — Edit each accepted match. Idempotent — running twice is safe.
-6. **Re-sweep** — re-run Phase 2; exit when count == 0. If non-zero, NEW form not in pattern library — report to user, add to `context/patterns.md`, re-iterate.
+6. **Re-sweep** — re-run Phase 2; exit when the ACTIONABLE count is 0 (the survey after `context/patterns.md` "Phase 0" span-precedence and "Phase 0b" container-rename mode — residue the mode rule deliberately leaves unrenamed never counts, or the loop cannot terminate). If non-zero, NEW form not in pattern library — report to user, add to `context/patterns.md`, re-iterate.
 7. **Hand off** — suggest running the consuming repository's verification workflow (build + test + lint) to confirm no semantic regression in the rename target.
 
 Audit mode runs phases 1-3 only and reports — no Edit calls. Preview mode runs 1-4 and reports planned edits — no Edit.
@@ -146,7 +146,7 @@ Paths skipped from sweeps automatically:
 
 - **NEVER trust a single-pattern grep as "clean."** That was the bug this skill exists to prevent. In the skill-rename incident that motivated the pattern library, token-only grep returned 0 matches across 4 sweep passes; chain prose, comma-lists, numbered rows, and frontmatter forms surfaced one round at a time. Run all patterns or invoke `/rename-references audit`.
 - **Ambiguous bucket is mandatory triage, not optional.** English-verb collisions are the highest false-positive vector. If a token is in the blocklist, force into ambiguous regardless of position. Cost of one extra confirmation prompt is far lower than silently mangling prose.
-- **Re-sweep until count == 0.** Don't trust Phase 5 ended cleanly without verification. Phase 6 is the gate.
+- **Re-sweep until the ACTIONABLE count is 0.** Don't trust Phase 5 ended cleanly without verification. Phase 6 is the gate. "Actionable" is load-bearing: under container-rename mode the bare-token residue is left unrenamed by design and still matches forever, so gating on the RAW count means the loop never terminates.
 - **Plan-doc exclusion is mandatory.** The active plan/work-notes document *documents the rename* and contains both old and new names by design. Editing it would break the documentation narrative.
 - **Pattern library evolves.** When Phase 6 finds a NEW form, treat as a learning event: extend `context/patterns.md`, add an eval case. Future renames benefit immediately.
 - **A file MOVE breaks the moved files' own relative paths — sweep INSIDE the moved set, not just refs TO it.** When `git mv` changes directory depth, relative refs *inside* the moved files (`source ../../lib.sh`, `# shellcheck source=../../../../tests/...`, relative markdown links) silently break — they carry no renamed token, so every token-keyed pattern returns clean while the moved file itself is broken. After any depth-changing move: `grep -nE '\.\./' <moved-files>` + re-run the moved code from its new location (tests, `--help`). Real example: a directory promotion left a `# shellcheck source=` directive pointing four levels up when the new home was two.
