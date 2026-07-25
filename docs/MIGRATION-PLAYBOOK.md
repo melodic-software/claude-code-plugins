@@ -900,7 +900,10 @@ operated by others — so surfaces 5 and 6 carry the weight here.
   Remediation: a mandatory gate ahead of step 1 anchors the input against post/article patterns,
   **refuses** on no match, and on match discards the input entirely and rebuilds the URL from
   captures restricted to `[A-Za-z0-9_]` and `[0-9]` — classes that cannot express a quote, space, or
-  metacharacter. Rebuild-from-captures, not escaping, so the emitted command is quote-safe by
+  metacharacter. Only handle and id are captured: scheme, host, and query string are all discarded
+  and re-emitted canonically, so the accepted input set (`http`/`https`, either case, `x.com` or
+  `twitter.com`, optionally `www.` or `mobile.`) is wider than the emitted set, which is always one
+  `https://x.com/…` URL. Widening what is *accepted* therefore does not widen what is *sent*. Rebuild-from-captures, not escaping, so the emitted command is quote-safe by
   construction. Every URL re-enters the gate, including ones offered at step 3 or surfaced by
   fetched content. Stated honestly: **the gate is model-honored, not runtime-enforced.** It is the
   primary defense, not a guarantee.

@@ -33,7 +33,9 @@ Rebuilding also drops the host and the query string, so the `x.com`, `twitter.co
 legacy `mobile.` forms are all accepted and all collapse to a canonical `x.com` URL, and `?s=`/`?t=`
 share-tracking tokens never reach a third party. Scheme and host are matched case-insensitively —
 RFC 3986 makes both case-insensitive while the path is not — so an uppercased link is admitted by the
-pattern rather than repaired into matching it.
+pattern rather than repaired into matching it. The scheme is discarded on rebuild alongside the host,
+so an `http://` link off an old bookmark still matches and the emitted request is `https://`
+regardless; `--proto '=https'` enforces that at runtime.
 
 The gate is model-honored instruction, not a runtime-enforced control — stated plainly because it is
 the primary defense. The plugin therefore ships **no** shell pre-approval: the network call surfaces

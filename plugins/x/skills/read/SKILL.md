@@ -90,6 +90,13 @@ Rebuilding also drops any query string, which is where share links carry `?s=`/`
 tokens — so those are never transmitted to a third party. The host is discarded the same way, so the
 legacy `twitter.com`, `www.`, and `mobile.` forms are all accepted and all collapse to `x.com`.
 
+**The scheme is discarded too, which is why `https?` is safe.** An `http://` link off an old bookmark
+or a plaintext email matches, and the rebuild emits `https://` regardless — the input scheme reaches
+nothing. `--proto '=https'` on the request is the runtime backstop under the same reasoning as the
+rest of the gate. Refusing `http://` would reject working links and buy nothing, since no plaintext
+request can be issued in the first place. A scheme that is neither `http` nor `https` does not match
+at all.
+
 **Honest limit:** this gate is instruction-level, model-honored, and not runtime-enforced. It is the
 primary defense, not a guarantee. The plugin therefore also ships **no** Bash or PowerShell
 pre-approval, so the network call surfaces a permission prompt showing the exact command — the one

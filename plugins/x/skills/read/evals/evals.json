@@ -193,6 +193,18 @@
         "Never presents the first slice as the complete article",
         "Reports partial results explicitly when the file is not read to its end"
       ]
+    },
+    {
+      "id": 17,
+      "name": "plaintext-scheme-is-accepted-and-upgraded-by-rebuild",
+      "prompt": "/x:read http://twitter.com/jack/status/20",
+      "expected_output": "Matches the post form, captures handle and id, and rebuilds https://x.com/jack/status/20. The plaintext scheme is discarded by the rebuild rather than carried forward, so the emitted command is HTTPS and no plaintext request is ever issued.",
+      "files": [],
+      "expectations": [
+        "Accepts the http:// input rather than refusing it at the gate",
+        "The emitted command uses https:// — the input scheme reaches nothing",
+        "Does not carry http:// into the attribution URL"
+      ]
     }
   ]
 }

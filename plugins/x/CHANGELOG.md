@@ -21,7 +21,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `www.`, and legacy `mobile.` forms are all accepted and all collapse to a canonical `x.com` URL,
   and share-tracking tokens are never transmitted. Scheme and host match case-insensitively via a
   `(?i: … )` group that stops at `.com` — RFC 3986 makes both case-insensitive (§3.1, §3.2.2) while
-  the path is not — so `HTTPS://X.COM/…` is admitted by the pattern rather than repaired into it.
+  the path is not — so `HTTPS://X.COM/…` is admitted by the pattern rather than repaired into it. The
+  scheme is discarded on rebuild like the host, so an `http://` link matches and still emits
+  `https://`; `--proto '=https'` is the runtime backstop, and no plaintext request can be issued.
 - Trust boundary in the skill body: converter output is attacker-authored text, treated as data to
   report and never as instructions, with fetched text barred from introducing any URL, host, or file
   path. Every URL re-enters the gate, including ones supplied at step 3 or surfaced inside fetched
@@ -55,7 +57,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   chain still escalating (10), a long post without continuation evidence not escalating (11),
   step-1-success plus step-2-miss reaching step 3 (12), a `200` without conversion treated as
   failure (13), the legacy `mobile.twitter.com` host accepted and canonicalized (14), an uppercased
-  scheme and host still matching (15), and a long article read to its end before cleanup (16).
+  scheme and host still matching (15), a long article read to its end before cleanup (16), and a
+  plaintext `http://` input upgraded to HTTPS by the rebuild (17).
 
 ### Fixed
 
