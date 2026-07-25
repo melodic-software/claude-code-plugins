@@ -3,6 +3,24 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.0]
+
+### Added
+
+- `block-dangerous-git` distinguishes the `--force-with-lease` forms instead of
+  treating them all as safe. Bare `--force-with-lease` and
+  `--force-with-lease=<refname>` state no expected value, so git leases against
+  the remote-tracking ref — which [git-push(1)](https://git-scm.com/docs/git-push)
+  warns "interacts very badly with anything that implicitly runs `git fetch`" and
+  is "trivially defeated if some background process is updating refs in the
+  background". Those two forms are now blocked under a new `push-lease-unsafe`
+  form token unless `--force-if-includes` (git 2.30+, git's documented mitigation
+  for exactly these forms) is present.
+  `--force-with-lease=<refname>:<expect>` states the expectation explicitly and
+  passes, as does any lease form paired with `--force-if-includes`. Unique-prefix
+  abbreviations (`--force-w`, `--force-i`) are handled; a push dry-run still
+  disarms the check, and after `--` the words are operands rather than flags.
+
 ## [0.14.2]
 
 ### Fixed

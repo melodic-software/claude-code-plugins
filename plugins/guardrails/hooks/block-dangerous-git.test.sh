@@ -33,9 +33,18 @@ run "git push -uf (bundled f, blocked)" "git push -uf origin main" 2
 run "git push origin +HEAD:main (refspec force, blocked)" "git push origin +HEAD:main" 2
 run "git push origin +feature (bare + refspec, blocked)" "git push origin +feature" 2
 run "git push --mirror (force-updates all refs, blocked)" "git push --mirror backup" 2
-run "git push --force-with-lease (safe force, allowed)" "git push --force-with-lease" 0
-run "git push --force-with-lease=main (valued lease, allowed)" "git push --force-with-lease=main origin main" 0
-run "git push --force-if-includes (allowed)" "git push --force-with-lease --force-if-includes" 0
+run "git push --force-with-lease (no expected value, blocked)" "git push --force-with-lease" 2
+run "git push --force-with-lease=main (refname only, no expectation, blocked)" "git push --force-with-lease=main origin main" 2
+run "git push --force-with-lease=main:abc123 (expectation stated, allowed)" "git push --force-with-lease=main:abc123 origin main" 0
+run "git push --force-with-lease=main: (empty expect means ref must not exist, allowed)" "git push --force-with-lease=main: origin main" 0
+run "git push --force-with-lease --force-if-includes (mitigated, allowed)" "git push --force-with-lease --force-if-includes" 0
+run "git push --force-with-lease=main --force-if-includes (mitigated, allowed)" "git push --force-with-lease=main --force-if-includes origin main" 0
+run "git push --force-if-includes alone (no lease, git no-ops it, allowed)" "git push --force-if-includes origin main" 0
+run "git push --force-w (unique abbrev of the lease flag, blocked)" "git push --force-w" 2
+run "git push --force-w=main:abc (abbrev with expectation, allowed)" "git push --force-w=main:abc origin main" 0
+run "git push --force-w --force-i (both abbreviated, mitigated, allowed)" "git push --force-w --force-i" 0
+run "git push --force-with-lease --dry-run (preview updates nothing, allowed)" "git push --force-with-lease --dry-run" 0
+run "git push --force-with-lease -- --force-if-includes (after --, operand not flag, blocked)" "git push --force-with-lease -- --force-if-includes" 2
 run "git push (plain, allowed)" "git push" 0
 run "git push -u origin main (allowed)" "git push -u origin main" 0
 run "git push -o f (option value f, allowed)" "git push -o f origin main" 0
@@ -327,7 +336,8 @@ run_pwsh() {
 }
 run_pwsh "PS: git push --force (blocked)" "git push --force" 2
 run_pwsh "PS: git reset --hard (blocked)" "git reset --hard" 2
-run_pwsh "PS: git push --force-with-lease (allowed — safe force)" "git push --force-with-lease" 0
+run_pwsh "PS: git push --force-with-lease (no expected value, blocked)" "git push --force-with-lease" 2
+run_pwsh "PS: git push --force-with-lease=main:abc (expectation stated, allowed)" "git push --force-with-lease=main:abc" 0
 run_pwsh "PS: git push (plain, allowed)" "git push origin main" 0
 run_pwsh "PS: git status (allowed)" "git status" 0
 run_pwsh "PS: backtick-continued force push (fail-closed block)" \

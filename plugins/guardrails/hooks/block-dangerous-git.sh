@@ -2,14 +2,18 @@
 # PreToolUse hook: block irreversible git operations on Bash tool calls.
 #
 # Default block-list is irreversible-only (form tokens):
-#   push-force     — git push --force / -f / +refspec / --mirror (NOT --force-with-lease)
+#   push-force     — git push --force / -f / +refspec / --mirror
+#   push-lease-unsafe — git push --force-with-lease WITHOUT an explicit
+#                    `=<refname>:<expect>`, and without --force-if-includes
 #   reset-hard     — git reset --hard
 #   clean-force    — git clean with a force flag (-f, -fd, -fdx, --force)
 #   checkout-dot   — git checkout .  (worktree-wide discard; path-scoped is fine)
 #   restore-dot    — git restore .   (worktree discard; --staged-only is fine)
 #   checkout-force — git checkout -f / switch -f/--discard-changes
 #
-# NOT blocked: --force-with-lease (safe force), plain push, soft/mixed reset,
+# NOT blocked: --force-with-lease=<refname>:<expect> (the expectation is
+# stated, so no background fetch can satisfy the lease on the pusher's behalf),
+# any lease form paired with --force-if-includes, plain push, soft/mixed reset,
 # clean -n (dry run), path-scoped checkout/restore, and `branch -D` (reflog
 # recovers deleted refs, and sanctioned skill flows issue it inline).
 #
@@ -141,6 +145,24 @@ is_push_value_opt() {
   abbrev_match "push-option" "$x" 2 || abbrev_match "repo" "$x" 3 ||
     abbrev_match "receive-pack" "$x" 4 || abbrev_match "exec" "$x" 1
 }
+
+# `--force-with-lease` and `--force-with-lease=<refname>` state no expected
+# value, so git leases against the remote-tracking ref. git-push(1), "A general
+# note on safety", warns that this "interacts very badly with anything that
+# implicitly runs `git fetch`" and is "trivially defeated if some background
+# process is updating refs in the background" — the lease passes while still
+# clobbering work the pusher never saw. Only `=<refname>:<expect>` states the
+# expectation explicitly (an empty <expect> means the ref must not exist, which
+# is still explicit). `--force-if-includes` (git 2.30+) is git's documented
+# mitigation for exactly the no-expected-value forms, and git declares it a
+# no-op alongside an explicit `:<expect>`.
+#
+# Abbreviation floor 7: `--force`, `--force-with-lease` and `--force-if-includes`
+# share the `--force` prefix, so `--force-w` / `--force-i` are the shortest
+# unique spellings git accepts. A shorter `--forc` is ambiguous and git rejects
+# it, which is why the exact `--force` arm needs no abbreviation handling.
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+is_lease_opt() { abbrev_match "force-with-lease" "${1%%=*}" 7; }
 
 # Is an operand a worktree-wide pathspec? `.` from the repo root, the
 # root-magic short form `:/` (bare or with a wildcard-only pattern — `:/*`
@@ -302,6 +324,7 @@ check_segment() {
     # Dry-run is last-wins: `--no-dry-run` after a dry token re-arms the push
     # (git's --[no-]dry-run pair), so track state instead of early-returning.
     dry=0
+    if_includes=0
     k=$((sub_idx + 1))
     while ((k < nseg)); do
       x="${w[k]}"
@@ -326,6 +349,7 @@ check_segment() {
           [[ "$x" =~ ^-[A-Za-z]+$ && "$x" == *n* ]]; then
           dry=1
         fi
+        abbrev_match "force-if-includes" "${x%%=*}" 7 && if_includes=1
         ;;
       esac
       ((k++))
@@ -365,7 +389,17 @@ check_segment() {
           "BLOCKED: git push --force is irreversible for anyone sharing the branch." \
           "Use --force-with-lease (refuses to clobber unseen remote work), or allow via the block_dangerous_git_allow option (add push-force)."
         ;;
-      --force-with-lease | --force-with-lease=* | --force-if-includes) ;;
+      --force-*)
+        # --force exact is handled above; only the two lease-family options and
+        # their unique abbreviations reach here.
+        if abbrev_match "force-if-includes" "${x%%=*}" 7; then
+          : # git no-ops it without a lease, and it is the mitigation with one
+        elif is_lease_opt "$x" && [[ "$x" != *=*:* ]] && ((!if_includes)); then
+          block "push-lease-unsafe" \
+            "BLOCKED: git push --force-with-lease without an expected value leases against the remote-tracking ref, which a background fetch can satisfy while still clobbering unseen work." \
+            "State the expectation (--force-with-lease=<refname>:<sha>), or add --force-if-includes, or allow via the block_dangerous_git_allow option (add push-lease-unsafe)."
+        fi
+        ;;
       +*)
         block "push-force" \
           "BLOCKED: a leading + on a push refspec is a force-push (same as --force)." \
