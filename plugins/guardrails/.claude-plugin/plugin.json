@@ -41,7 +41,7 @@
     "block_dangerous_git_enabled": {
       "type": "boolean",
       "title": "block-dangerous-git guard",
-      "description": "Block irreversible git operations (push --force, reset --hard, clean -f, worktree-wide checkout/restore discards)",
+      "description": "Block irreversible git operations (push --force, push --force-with-lease stating no expected value, reset --hard, clean -f, worktree-wide checkout/restore discards)",
       "default": true
     },
     "block_hook_bypass_enabled": {

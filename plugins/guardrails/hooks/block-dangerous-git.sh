@@ -229,7 +229,7 @@ is_exclude_pathspec() {
 # shellcheck disable=SC2329  # invoked indirectly as the hook::bash_parse_segments callback
 check_segment() {
   local -a w=()
-  local nseg gi k x rest ch sub sub_idx staged worktree dry excl pos opseen
+  local nseg gi k x rest ch sub sub_idx staged worktree dry excl pos opseen if_includes
 
   # A shell -c wrapper (`bash -lc 'git reset --hard'`) executes its operand as
   # a full shell command — re-parse it with the same tokenizer so the wrapped
@@ -323,6 +323,9 @@ check_segment() {
     # the marker.
     # Dry-run is last-wins: `--no-dry-run` after a dry token re-arms the push
     # (git's --[no-]dry-run pair), so track state instead of early-returning.
+    # The mitigation flag is last-wins for the same reason: git spells it
+    # `--[no-]force-if-includes`, so a trailing negation must clear it or the
+    # lease check disarms while git pushes unmitigated.
     dry=0
     if_includes=0
     k=$((sub_idx + 1))
@@ -337,6 +340,7 @@ check_segment() {
       -o?* | --push-option=* | --repo=* | --receive-pack=* | --exec=*) ;;
       --no-*)
         abbrev_match "dry-run" "--${x#--no-}" 2 && dry=0
+        abbrev_match "force-if-includes" "--${x#--no-}" 7 && if_includes=0
         ;;
       --*)
         if is_push_value_opt "$x"; then
