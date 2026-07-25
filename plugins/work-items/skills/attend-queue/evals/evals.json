@@ -30,6 +30,19 @@
         "Prefixes agent-authored comments with the AI disclaimer",
         "Never merges a PR and never executes a work item from this lane"
       ]
+    },
+    {
+      "id": 3,
+      "name": "attend-queue-briefs-before-asking-each-row",
+      "prompt": "/work-items:attend-queue\n\nThe operator works two rows back to back in the same pass: an [escalated] item asking which of two retry strategies to keep, then a [ratify] row for a C3 admission on a completely different item.",
+      "expected_output": "Before posing the escalated question, restates which item it concerns (number + one-line title), the decision being asked (which retry strategy to keep), and the consequence of each option. Moving to the very next row, the same restatement happens again for the ratify prompt — the operator's context from the escalated row is never assumed to carry over, even though it was the immediately preceding row in the same pass. Neither restatement is dropped or abbreviated for brevity.",
+      "files": [],
+      "expectations": [
+        "Restates item identity, the decision being asked, and the consequence of each option before posing the escalated question",
+        "Repeats the same full restatement for the very next row (the ratify prompt) rather than assuming context carries over from the prior row in the same pass",
+        "Does not compress or drop the restatement for either row even under a terse output style",
+        "Still performs the row's underlying mechanics (interview/write-back for escalated, ratify-or-decline recording for ratify) after the restatement — the brief precedes the ask, it does not replace it"
+      ]
     }
   ]
 }

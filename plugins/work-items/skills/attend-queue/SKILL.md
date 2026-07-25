@@ -65,18 +65,27 @@ ratifications unblock the waiting worker loop).
 
 ## Working the queue
 
+**Brief before asking.** This lane works rows across many items in one pass, so the operator's
+context from the previous row never carries over. Before any operator-facing decision question in
+this loop — an `[intake]` recommendation, an `[escalated]` question, or a `[ratify]` prompt —
+restate (1) which item (number + one-line title), (2) the decision being asked, and (3) the
+consequence of each option, then ask. A terse output style must never compress this restatement
+away; the row's context is precisely what the operator needs to answer without stopping the pass to
+ask which item is in front of them.
+
 - **`[intake]` rows** — run `/work-items:triage <number>`. The operator is present, so triage's
-  **interactive** direction gate applies: recommend, wait for direction, then mutate. All triage
-  machinery (states, outcomes, briefs, closing invariant) is owned there.
-- **`[escalated]` rows** — read the machine-marked comment for the escalated question, then drive
-  it to a decision with `/planning:interview` (when the `planning` plugin is installed; otherwise
-  ask the focused questions inline, one at a time, most load-bearing first — the same fallback
-  shape triage's interview step uses). **Write the answer back as an issue comment** on the item —
-  the decision lives on the tracker, never only in the session — replying in the thread of the
-  escalation comment where the provider supports it.
-- **`[ratify]` rows** — present the classification and the intended dispatch from the marker
-  comment. On operator ratification, record it as a reply comment and flip the item per the rule
-  below; on decline, leave it human-gated and record the rationale as a comment.
+  **interactive** direction gate applies: brief before asking, recommend, wait for direction, then
+  mutate. All triage machinery (states, outcomes, briefs, closing invariant) is owned there.
+- **`[escalated]` rows** — read the machine-marked comment for the escalated question, restate the
+  brief above, then drive it to a decision with `/planning:interview` (when the `planning` plugin is
+  installed; otherwise ask the focused questions inline, one at a time, most load-bearing first — the
+  same fallback shape triage's interview step uses). **Write the answer back as an issue comment** on
+  the item — the decision lives on the tracker, never only in the session — replying in the thread of
+  the escalation comment where the provider supports it.
+- **`[ratify]` rows** — restate the brief above, then present the classification and the intended
+  dispatch from the marker comment and the consequence of ratifying versus declining. On operator
+  ratification, record it as a reply comment and flip the item per the rule below; on decline, leave
+  it human-gated and record the rationale as a comment.
 - **Flip to agent-ready.** When an answer or ratification removes the human blocker, apply the
   autonomous-eligible role label and remove the human-gated role label **in the same edit** (both
   resolved from `config.role_labels`, never literals) — an item wearing both roles is a
