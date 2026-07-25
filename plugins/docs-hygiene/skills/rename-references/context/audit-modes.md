@@ -8,7 +8,7 @@
 | `audit half-rename` | Find files containing BOTH old AND new (incomplete-rename hygiene) | Required | Inline table grouped by file |
 | `audit orphans` | Refs at old name OR vanished path AFTER rename | Required (single-token rejected) | Two sub-tables: orphan + stale-but-functional |
 
-Override flags `--include-historical`, `--include-memory`, `--include-plan-docs`, `--include-bare-token` apply to all three sub-modes. `--include-plan-docs` and `--include-bare-token` are **audit-mode only** — apply mode rejects both with an explicit error.
+Override flags `--include-historical`, `--include-memory`, `--include-plan-docs` apply to all three sub-modes; `--include-bare-token` applies to Blast, Half-rename, and the base audit path, but **not to Orphans** (see the table's note — Orphans sweeps only Forms 1 and 3, so it has no bare-token residue). `--include-plan-docs` and `--include-bare-token` are **audit-mode only** — apply mode rejects both with an explicit error.
 
 ---
 
@@ -158,7 +158,7 @@ Four flags, applicable to ALL audit sub-modes (Blast / Half-rename / Orphans) an
 | `--include-historical` | Sweep archived/completed work notes and frozen records of past work | Available |
 | `--include-memory` | Sweep `~/.claude/projects/*/memory/*.md` and `MEMORY.md` indices | Available |
 | `--include-plan-docs` | Sweep the active plan/work-notes documents that document THIS rename | **AUDIT-MODE ONLY** |
-| `--include-bare-token` | Surface the bare-token residue that container-rename mode ([patterns.md](patterns.md) "Phase 0b") otherwise reports only as an aggregate count. Always lands **Ambiguous**, never Certain — the mode excluded it because bare-token position carries no signal for a container rename, and widening the report does not change that | **AUDIT-MODE ONLY** |
+| `--include-bare-token` | Surface the bare-token residue that container-rename mode ([patterns.md](patterns.md) "Phase 0b") otherwise reports only as an aggregate count. Always lands **Ambiguous**, never Certain — the mode excluded it because bare-token position carries no signal for a container rename, and widening the report does not change that. **Not applicable to Orphans**, which sweeps only Forms 1 and 3 and so produces no bare-token residue to surface; passing it there is accepted and reported as not-applicable rather than silently returning the default result | **AUDIT-MODE ONLY** |
 
 **Hardcoded apply-mode block on `--include-plan-docs`:** if action is `<old> to <new>` (apply) AND `--include-plan-docs` is in args, halt with error:
 

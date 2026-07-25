@@ -126,7 +126,12 @@ When Phase 6 reports an actionable count of 0:
 
    Total: <N> matches across <M> files.
    Excluded: <K> plan-doc/historical/memory paths (preserved).
+   Bare-token occurrences left as ordinary use (container-rename mode): <R>.
    ```
+
+   Emit the `<R>` line only under container-rename mode, and only when `<R>` is non-zero —
+   it is what keeps completion from reading as a raw-zero sweep when residue was deliberately
+   preserved. Omit it entirely for an identifier rename, which has no residue concept.
 
 2. Suggest follow-up per `../SKILL.md` "Skill chaining":
 
@@ -174,8 +179,10 @@ Default handoff after success:
 ```text
 Rename `<old>` → `<new>` complete.
 - Phase 5 applied <N> edits across <M> files
-- Phase 6 re-sweep: 0 stragglers
+- Phase 6 re-sweep: 0 actionable stragglers
 - Excluded <K> plan-doc/historical/memory paths (preserved by design)
+- Left <R> bare-token occurrences as ordinary use of the word (container-rename mode; omit this
+  line for an identifier rename or when <R> is 0)
 
 Next: run your verification workflow (build + test + lint) to confirm no semantic regression.
 ```

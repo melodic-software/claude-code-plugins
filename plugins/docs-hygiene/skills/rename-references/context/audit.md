@@ -37,7 +37,9 @@ Run all patterns from [patterns.md](patterns.md) in parallel via Grep tool. For 
 Aggregate matches into a flat list of `{file, line, pattern_form, snippet}` tuples, then apply
 BOTH rules from `patterns.md`, in this order:
 
-1. **Precedence** ("Phase 0") — deduplicate by `(file, line)` so a line matched by Forms 13–15
+1. **Precedence** ("Phase 0") — deduplicate by OCCURRENCE SPAN `(file, line, start, end)`, never
+   by whole line: a weaker match is suppressed only when its span is COVERED BY a more-specific
+   match's span, so a second reference elsewhere on the same line survives. A match by Forms 13–15
    is attributed to that form and its weaker Form 2 / chain-form duplicates are dropped. Carry
    the dropped count into the report's "superseded" row.
 2. **Container-rename mode** ("Phase 0b") — when the renamed thing is a container, exclude the

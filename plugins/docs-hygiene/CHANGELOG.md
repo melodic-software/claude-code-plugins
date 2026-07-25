@@ -17,6 +17,25 @@
   to inspect suppressed residue, but it appeared in neither `SKILL.md`'s `argument-hint` nor
   `audit-modes.md`'s override table, whose contract errors on unknown flags — so the only
   documented path to the residue failed. Registered in both, audit-mode only, always Ambiguous.
+- **Deduplication keys on the occurrence SPAN, not the line.** A line can carry two independent
+  references — `Use <old> via /plugin install <old>@marketplace`. Collapsing by `(file, line)`
+  dropped the bare one, and because Phase 5 replaces a single span at a time, the survivor was
+  then reclassified as residue, excluded by container mode, and the re-sweep declared completion
+  with a live stale reference still in the file. A weaker match is now suppressed only when its
+  span is COVERED BY a more-specific match's span.
+- **Form 13's boundary uses no look-around.** The natural way to exclude a trailing dot is a
+  negative lookahead, but ripgrep's default engine — the one this skill instructs — rejects
+  look-around without `-P/--pcre2`, and `patterns.md`'s own cross-platform note already bans
+  lookbehinds for the same class of reason. The form now CONSUMES a terminator,
+  `([^\w.@-]|$)`, the same shape Forms 4 and 5 use.
+- **`--include-bare-token` no longer over-promises on Orphans.** The override table said it
+  applied to all sub-modes, but Orphans sweeps only Forms 1 and 3 and so has no bare-token
+  residue to surface — the flag silently returned the default result there. Scoped explicitly,
+  and reported as not-applicable rather than silently ignored.
+- **Both Phase 7 hand-off templates carry the residue count.** The actionable-count rule
+  promised users an aggregate, but neither success template had a field for it and the default
+  hand-off still said `0 stragglers` — so the fix prevented the loop while hiding the number it
+  committed to. Emitted only under container-rename mode and only when non-zero.
 - **Form 13's qualified-id form no longer matches email addresses.** `<old>@[\w.-]+` has no
   management verb anchoring it, so for a container named `info`/`admin`/`support` it matched
   contact addresses on a Certain-rated form — a silent auto-rewrite. A marketplace slug is

@@ -175,7 +175,7 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
 
 ```regex
 (^|[^\w/])/plugins?\s+(install|uninstall|configure|enable|disable|update|add|remove)\s+`?<old>\b
-\b<old>@[\w](?:[\w-]*[\w])?(?![\w.-])
+\b<old>@[\w]([\w-]*[\w])?([^\w.@-]|$)
 ```
 
 - **Triage default:** Certain
@@ -195,9 +195,17 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
   whenever the container name is a plausible local part — `info`, `admin`, `support`,
   `contact`, `dev`. On a Certain-rated form that is a silent auto-rewrite of contact addresses.
   The discriminator is structural: a marketplace slug is kebab-case with **no dots**, while an
-  email domain always carries a TLD dot. The regex therefore accepts `[\w-]` only and uses a
-  negative lookahead `(?![\w.-])` so a following dot disqualifies the match — `info@acme-tools`
-  matches, `info@acmetools.com` and `info@example.co.uk` do not.
+  email domain always carries a TLD dot. The regex therefore accepts `[\w-]` only, then requires
+  the slug to END — a following `.` disqualifies the match. Verified: `info@acme-tools`,
+  `` `info@acme-tools` ``, and `"info@acme-tools": true` all match; `info@acmetools.com` and
+  `info@example.co.uk` do not.
+- **No lookaround — deliberately.** The natural way to write that boundary is a negative
+  lookahead `(?![\w.-])`, but ripgrep's default engine rejects look-around entirely (it needs
+  `-P/--pcre2`), and this file's own "Cross-platform note" already bans lookbehinds for the same
+  class of reason. The trailing `([^\w.@-]|$)` **consumes** a terminator instead — same
+  discrimination, no engine requirement. Forms 4 and 5 use the same consume-the-delimiter shape.
+  A consumed trailing character is not part of the reference: replace only the matched
+  `<old>@<slug>` span and leave it in place.
 - **False-positives:** otherwise rare. For the first alternative, the enclosing management verb
   supplies the disambiguation bare-token position lacks — prose does not accidentally say
   "/plugin configure" before an English verb. If a consuming marketplace ever allows dots in a
@@ -273,13 +281,22 @@ Before running any pattern, load the English-verb blocklist from `triage.md`. An
 more specific than Form 2 — every line they match, Form 2 also matches. Without precedence the
 new forms would only ADD hits, leaving the Form 2 flood they exist to avoid fully intact.
 
-Deduplicate by `(file, line)` AFTER the sweep and BEFORE triage:
+**Deduplicate by OCCURRENCE SPAN, not by line.** A single line can carry two independent
+references — `Use <old> via /plugin install <old>@marketplace` has a bare one and a
+command-argument one. Collapsing the line would drop the bare occurrence, and since Phase 5
+replaces one span at a time (`replace_all: false`), the surviving reference would then be
+reclassified as residue, excluded by container mode, and the re-sweep would declare completion
+with a live stale reference still in the file. Key each match by `(file, line, start, end)` and
+suppress a weaker match only when its span is **covered by** a more-specific match's span.
 
-1. A `(file, line)` matched by any of Forms 13–15 is attributed to that form and enters **that
+With that keying, dedup runs AFTER the sweep and BEFORE triage:
+
+1. An OCCURRENCE matched by any of Forms 13–15 is attributed to that form and enters **that
    form's own triage bucket after its scope rules are applied** — which is Certain by default,
    but **Ambiguous** whenever the matching form demotes it (Form 14 outside container-owned
    files, or with a common-word token). Drop the Form 2 (and any chain-form) match for that
-   same line — it is the same reference seen through a weaker lens, not a second finding.
+   same SPAN — it is the same reference seen through a weaker lens, not a second finding. A
+   bare-token match elsewhere on the line is a DIFFERENT reference and survives.
 
    **Precedence changes WHICH form owns the line, never the safety of its rating.** Attributing
    a line to Form 14 and then forcing it Certain would use precedence to launder a

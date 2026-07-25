@@ -159,6 +159,30 @@
         "The email address is not matched and is never auto-rewritten",
         "The distinction is made structurally by the pattern, not by asking the user to catch it"
       ]
+    },
+    {
+      "id": 14,
+      "name": "span-dedup-preserves-a-second-reference-on-the-same-line",
+      "prompt": "Audit the rename of the `re-anchor` plugin to `discipline`. One line reads: Use re-anchor via /plugin install re-anchor@acme-tools",
+      "expected_output": "Both occurrences on that line are reported. Deduplication keys on the occurrence SPAN (file, line, start, end), not the whole line, so the command-argument match suppresses only the bare-token match COVERED BY its own span -- the other bare occurrence earlier in the line is a separate reference and survives. Collapsing by line would drop it, and since Phase 5 replaces one span at a time, the surviving reference would then be reclassified as residue and the re-sweep would declare completion with a live stale reference in the file.",
+      "files": [],
+      "expectations": [
+        "Both references on the line are reported, not one",
+        "Suppression is by span coverage, never by line identity",
+        "The failure mode named is a false completion, not merely a missed report"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "qualified-id-form-avoids-lookaround",
+      "prompt": "Run the rename sweep for a plugin named `info` using the Grep tool's default engine.",
+      "expected_output": "Form 13's qualified-id alternative runs on the default engine without requiring PCRE2. Its trailing boundary CONSUMES a terminator -- ([^\\w.@-]|$) -- rather than using a negative lookahead, because ripgrep's default engine rejects look-around (it needs -P/--pcre2) and patterns.md's own cross-platform note already bans lookbehinds for the same reason. The consumed trailing character is not part of the reference and is left in place when replacing.",
+      "files": [],
+      "expectations": [
+        "No look-around is used, so the form works on the default engine the skill instructs",
+        "The trailing terminator is consumed rather than asserted",
+        "A consumed delimiter is not rewritten as part of the reference"
+      ]
     }
   ]
 }
