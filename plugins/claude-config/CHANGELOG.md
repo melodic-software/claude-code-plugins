@@ -3,6 +3,39 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0]
+
+### Added
+
+- **`audit-pass` skill** (`/claude-config:audit-pass`). One coordinated, ordered, resumable pass over
+  a named target repository's instruction surface. It defines no criteria: every check is delegated
+  to the plugin that owns it through a presence-gated namespaced invocation with a documented
+  fallback, and nothing crosses a plugin boundary but that invocation. What it adds is the run
+  semantics — a three-scope inventory (managed policy read-only, user scope routed as
+  recommendations, project scope) taken before any check runs; an exclusion set derived at run time
+  from the target's own shared-source registry, the `vendor/` layout rule, `git worktree list`, and
+  the pass's own artifacts, never transcribed; content-derived finding identity; a per-`finding_id`
+  suppression record with staleness reporting; per-lane incremental persistence with resume; and one
+  human gate per run. Read-only on bare invocation, mutation only behind `--fix`, and never an edit
+  to managed policy or a user-scope file. `/doctor` is an operator handoff rather than a dispatch,
+  because it is interactive; when its three-part prerequisite or v2.1.206 version floor is unmet the
+  run names it as the missing capability and states what goes unchecked. Findings report in three
+  tiers — derived (exact equality across runs), judged (a stability tolerance whose violation fails
+  the run's self-check), delegated (no property) — and every run reports in one line how many
+  `OPINION`-tier checks were available, were not run, and the argument that enables them.
+- **Finding-suppression convention** (`docs/conventions/finding-suppression/`). Owner doc for the
+  `finding_id`-keyed suppression record `audit-pass` reads at `.claude/audit-pass.md`: the keys, the
+  required reason and date, per-key merge (never a closed list, which one personal entry would
+  discard whole), the policy-floor precedence inversion where the team layer wins a conflict, and the
+  five obligations on any consuming skill. Layering defers to the config-cascade contract.
+
+### Changed
+
+- **`setup` now covers a consumer-project configuration surface.** `audit-pass`'s tracked suppression
+  record makes the plugin's previous "owns no consumer-project configuration" claim false, so `check`
+  gains per-layer verification of the record (user-global INFO, team must be tracked, overlay must be
+  gitignored) plus malformed-entry reporting, and `apply` gains its one write path.
+
 ## [0.9.2]
 
 ### Changed

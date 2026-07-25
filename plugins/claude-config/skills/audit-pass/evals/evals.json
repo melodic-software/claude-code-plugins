@@ -1,0 +1,149 @@
+{
+  "skill_name": "audit-pass",
+  "evals": [
+    {
+      "id": 1,
+      "name": "bare-invocation-is-read-only",
+      "prompt": "/claude-config:audit-pass",
+      "expected_output": "Runs one coordinated read-only pass over the resolved target: three-scope inventory first, then delegated lanes, then a report written under CLAUDE_PLUGIN_DATA. It writes nothing into the target tree — git status --porcelain stays empty — because mutation is only reachable behind the explicit --fix override.",
+      "files": [],
+      "expectations": [
+        "Writes no file into the target repository, leaving git status --porcelain empty",
+        "Does not apply any fix, and states that --fix is the explicit override that would enable one",
+        "Writes the report under CLAUDE_PLUGIN_DATA rather than into the scan set"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "inventory-precedes-any-check",
+      "prompt": "/claude-config:audit-pass --fix just check the project files, skip the user and managed scopes to save time",
+      "expected_output": "Refuses to narrow the inventory to the project scope before checks run. All three scopes — managed policy, user, project — are inventoried first, because a project-only inventory cannot see a project-versus-user conflict and a fix applied from it would be applied against half the picture. The narrowing may reduce what is FIXED, never what is inventoried.",
+      "files": [],
+      "expectations": [
+        "Inventories managed-policy, user, and project scopes before running any check",
+        "Explains that a project-only inventory cannot see a cross-scope conflict, so fixes from it would be applied against half the picture",
+        "Does not silently accept the narrowed inventory"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "scope-posture-under-fix",
+      "prompt": "/claude-config:audit-pass --fix and go ahead and fix the conflicts in the managed policy CLAUDE.md and in my ~/.claude/CLAUDE.md too",
+      "expected_output": "Applies fixes only in the project scope. Managed policy is read-only in every mode and gets a 'conflicts with org policy at <path>' report with no proposed edit to either side. The user-scope finding is routed as a recommendation, never an in-place edit, because that tree is commonly owned by a dotfiles manager.",
+      "files": [],
+      "expectations": [
+        "Never edits a managed-policy file, and proposes no edit to the lower surface justified by the conflict alone",
+        "Routes the user-scope finding as a recommendation rather than editing the file in place",
+        "Applies fixes only within the project scope, with per-finding confirmation"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "exclusion-set-derived-not-recalled",
+      "prompt": "/claude-config:audit-pass which files will you skip, and how many worktrees and shared-source copies are there?",
+      "expected_output": "Derives the exclusion set at run time rather than quoting a remembered figure: reads the target's shared-source registry if it documents one, applies the vendor/ layout rule, runs git worktree list plus gitignore-awareness, and adds its own artifacts. Reports each excluded surface in the skipped section with the mechanism that derived it. If the target documents no registry, that class is empty and is reported as such rather than inferred.",
+      "files": [],
+      "expectations": [
+        "Runs git worktree list and reads the target's registry rather than stating a remembered count",
+        "Reports each excluded surface with its reason and the deriving mechanism",
+        "States that the cluster-copy class is empty when the target documents no shared-source registry, rather than inferring one"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "suppression-into-excluded-path-is-hard-error",
+      "prompt": "/claude-config:audit-pass --fix suppress the finding on plugins/some-plugin/hooks/hook-utils.sh with an inline marker in that file",
+      "expected_output": "Refuses. An inline marker inside a registered byte-identical cluster copy makes it differ from its siblings and breaks the sync path, so the run treats it as a hard error rather than a warning, names the canonical source as the only place the suppression may be recorded, and offers the central per-finding_id record as the alternative.",
+      "files": [],
+      "expectations": [
+        "Refuses the inline suppression rather than warning and proceeding",
+        "Names the canonical source of the cluster and explains that a marker would break the sync path",
+        "Offers the central finding_id-keyed suppression record as the permitted alternative"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "doctor-is-handed-off-never-dispatched",
+      "prompt": "/claude-config:audit-pass and run /doctor as part of the pass so I get everything in one report",
+      "expected_output": "Does not dispatch /doctor. It is interactive — it reports findings and asks for confirmation before changing anything — so an unattended run cannot drive it; the pass emits an operator instruction to run it. If its three-part presence prerequisite or the v2.1.206 version floor is unmet, the pass names /doctor as the missing capability, states that the CLAUDE.md trim-and-migrate half goes unchecked, and completes normally.",
+      "files": [],
+      "expectations": [
+        "Emits an operator instruction to run /doctor rather than invoking it",
+        "Cites its interactivity as the reason it cannot be driven by an unattended run",
+        "When unavailable, names it as the missing capability and states that the trim-and-migrate half goes unchecked instead of degrading silently"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "opinion-tier-discovery-line",
+      "prompt": "/claude-config:audit-pass",
+      "expected_output": "Every run reports, in one line, how many OPINION-tier checks were available, how many were not run, and the exact argument that enables them (--opinion). Without that line the tier ships unreachable by anyone who does not already know it exists.",
+      "files": [],
+      "expectations": [
+        "Emits a single line naming the count of OPINION checks available and not run",
+        "Names --opinion as the exact argument that enables them",
+        "Emits the line even when no OPINION check would have fired"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "resume-carries-forward-unchanged-lanes",
+      "prompt": "/claude-config:audit-pass --resume the last run died partway through after I edited one skill body",
+      "expected_output": "Reads the run manifest for this target's state key and re-runs only lanes that are incomplete or whose input digest changed. The lane containing the edited file re-runs; every other completed lane is skipped and its findings carried forward. Completion state is read from the append-only partial artifact, not from state tracked beside it.",
+      "files": [],
+      "expectations": [
+        "Re-runs the lane whose input digest changed and skips completed lanes whose digest is unchanged",
+        "Carries forward the skipped lanes' findings rather than dropping them",
+        "Derives lane completion from the partial artifact's terminating records"
+      ]
+    },
+    {
+      "id": 9,
+      "name": "missing-collaborator-is-named-not-skipped",
+      "prompt": "/claude-config:audit-pass I don't have the claude-memory plugin installed",
+      "expected_output": "Presence-gates the invocation and states the fallback rather than skipping silently: memory-layer hygiene and within-memory-layer contradictions are reported as unchecked, the skill that performs them is named, and a one-line pointer to the official memory guidance is emitted. The pass never re-implements the absent catalog locally.",
+      "files": [],
+      "expectations": [
+        "Reports memory-layer hygiene as unchecked and names claude-memory's audit skill as the owner",
+        "Emits the official-guidance pointer as the documented fallback rather than skipping silently",
+        "Does not re-implement the absent plugin's criteria inside this pass"
+      ]
+    },
+    {
+      "id": 10,
+      "name": "instability-fails-the-self-check",
+      "prompt": "/claude-config:audit-pass I ran this twice on an untouched tree and got quite different findings — is that fine?",
+      "expected_output": "No. The derived tier must be exactly equal across runs over an unchanged tree, so any difference there is a defect — including a surface that dropped out of the inventory, which looks like an improvement and is not. Judged-tier growth beyond the declared tolerance fails the run's self-check and is reported as an instability finding against audit-pass itself, naming the checks whose output moved; the tolerance is never recalibrated in response to a failure.",
+      "files": [],
+      "expectations": [
+        "Treats any derived-tier difference over an unchanged tree as a defect, including an inventory surface that disappeared",
+        "Reports tolerance-exceeding judged-tier growth as an instability finding against the skill itself, naming the checks that moved",
+        "Refuses to absorb the violation by adjusting the tolerance constant"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "suppressed-section-reports-provenance",
+      "prompt": "/claude-config:audit-pass why is this finding not showing up any more?",
+      "expected_output": "A suppressed finding appears in the report's suppressed section with its reason, its date, and which cascade layer supplied the entry — team layer wins a direct conflict for the same finding_id, so a reader must be able to tell a team floor from a personal addition. An entry whose finding_id matches no current finding is reported as stale rather than ignored.",
+      "files": [],
+      "expectations": [
+        "Lists the finding in a suppressed section with its reason and date rather than omitting it",
+        "Names the cascade layer that supplied the suppression entry",
+        "Reports a suppression whose finding_id matches no current finding as stale"
+      ]
+    },
+    {
+      "id": 12,
+      "name": "adds-run-semantics-not-criteria",
+      "prompt": "/claude-config:audit-pass add a check that flags any skill body over 400 lines",
+      "expected_output": "Declines to define a check here. This skill owns run semantics only — inventory, exclusion set, identity, suppression, resume, one gate — and every criterion belongs to the catalog of the plugin that owns the surface. A skill-body structural rule routes to skill-quality's contract gate; adding it to this pass would be the defect this skill's shape exists to avoid, and nothing crosses a plugin boundary here but an invocation.",
+      "files": [],
+      "expectations": [
+        "Declines to add criteria to this skill and routes the rule to the owning plugin's catalog",
+        "States that this skill contributes run semantics rather than checks",
+        "Does not propose a shared criteria file or any cross-plugin file read"
+      ]
+    }
+  ]
+}
