@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.27.0]
+## [0.29.0]
 
 ### Changed
 
@@ -30,6 +30,71 @@ All notable changes to the `source-control` plugin are documented here. Format f
   unmergeable worktree and repeated escalations never collide; `reference/freshness.md` drops its drifting restatement for a pointer; `SKILL.md`,
   `reference/safety.md`, and `babysit-loop`'s Subagents section state the new boundary. Pinned by
   `test_skill_contract.py`.
+
+## [0.28.0]
+
+### Added
+
+- **`babysit-prs` guard semantics are now an executable contract (`#1265`).** The facts a host
+  permission classifier has to know about this lane — which entry points mutate, which flags gate
+  which guard, where a refusal is enforced, and how a mutation is actually performed — were
+  restated in prose by every consumer and had nothing detecting drift. They are now a table in
+  `skills/babysit-prs/scripts/tests/guard_contract.py`, executed row by row against the real entry
+  points by `test_guards.py`, and rendered to a citable
+  `skills/babysit-prs/reference/guard-contract.md`. Every row carries the prose claim it backs, so
+  a changed guard fails CI with a message naming the downstream claim that just became false. Five
+  binding kinds: refusals (invoked, exit code and message asserted), predicates (the classifier
+  called directly, because `--autonomous`'s `isOutdated` requirement is a condition over fetched
+  API data that no argument shape expresses), effects (run offline against a throwaway state dir —
+  this is what proves `manage_babysit_lease.py acquire` writes with no `--apply`, contrary to what
+  its flag names suggest), mechanisms (`refresh_pr_branch.py` uses GitHub's server-side
+  `update-branch` and never pushes), and documented command lines (every `bin/`-path wrapper
+  command spelled in `reference/safety.md` and `reference/orchestration.md` is checked against the
+  backing CLI's own parser). Catalogue gates fail when a new entry point, wrapper, or
+  command-spelling document arrives without a row — including the plugin-level
+  `scripts/babysit-readiness-gate.sh`, the one lane entry point outside the skill's scripts
+  directory. Each binding asserts the specific claim rather than a proxy for it: a row claiming
+  the refusal precedes every network call is replayed against a recording `gh` shim and fails if
+  the shim ran at all, an effect row records which way the state directory's file set moved so a
+  rewrite cannot pass as a deletion, and documented flags are checked against the parser's usage
+  block rather than scraped `--help` prose that names flags the CLI rejects. What CI does not
+  bind is stated in the generated doc's "Not covered here" section rather than left to inference:
+  the entry-point **Class** column cannot be proven for the four entry points whose mutation is a
+  GitHub write, because every row runs without network access.
+
+## [0.26.12]
+
+### Fixed
+
+- **`worktree create`'s `worktree_root` handoff is now shell-safe for unset AND special-character
+  values (#965).** `${user_config.worktree_root}` substitution into skill content is RAW text
+  substitution, not shell-escaped (confirmed against the official
+  [plugins-reference § User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration)
+  docs), so neither quote style around an inline `--root '${user_config.worktree_root}'` literal was
+  fully safe: double-quoted broke on an unset key (`bad substitution`, #898's original finding), and
+  the interim single-quoted fix (#898) broke on a configured value containing a single quote (e.g.
+  `~/worktrees/O'Connor`), `$`, or a backtick. `worktree-create.sh` gains an additive
+  `--root-file <path>` flag that reads the root from a file instead of a process argument; both
+  render sites (`context/create.md`, `SKILL.md`) now write the substituted value to a temp file with
+  the `Write` tool — a JSON string parameter no shell ever parses — and pass `--root-file` instead of
+  inlining the value in a `--root` shell literal. A quoted heredoc is deliberately NOT used: quoting
+  the delimiter suppresses expansion inside the body but cannot prevent delimiter collision, so a
+  value carrying a line equal to the delimiter would end the heredoc early and the shell would parse
+  the remainder as commands. The existing unset guard is reused unchanged: an unset key still leaves
+  the literal `${user_config.worktree_root}` token, which lands in the file verbatim, and the helper
+  still refuses with exit 3 and its guidance — no behavior change on that path. The rendered
+  invocation captures the helper's status before removing the temp directory and re-exits with it, so
+  the cleanup cannot mask a refusal behind a zero status. `--root-file` treats the file's bytes as the
+  root verbatim: a newline anywhere in it, trailing included, is a usage error (exit 2) rather than a
+  trimmed terminator or a silently-taken first line — trimming would be indistinguishable from a root
+  whose own last byte is a newline. A NUL byte is rejected the same way, checked on the file before
+  the value reaches a shell variable, because command substitution drops NULs and would otherwise
+  collapse `<root>-<NUL>suffix` into a path nobody supplied. The `--root`/`--root-file` mutual
+  exclusion now keys off whether each flag appeared rather than whether its value is non-empty, so
+  `--root '' --root-file <f>` is the usage error it always should have been rather than silently
+  selecting one source. `--root` is otherwise unaffected and stays available for a caller that
+  already holds the value as a real process argument (a hook, or direct CLI use). No remaining
+  `${user_config.worktree_root}` shell literal in either render site.
 
 ## [0.26.11]
 
