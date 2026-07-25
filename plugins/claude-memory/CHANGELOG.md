@@ -3,6 +3,24 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.0]
+
+### Changed
+
+- **`audit` check C3 (Content Placement): three gaps closed in one revision.** The routing table
+  answers one question, so these land as one edit rather than three checks that would emit three
+  findings on one misplaced section. (1) **Auto memory becomes a destination** — the plugin audits it
+  as a first-class entity in M1–M4 but never routed content to it, so the destination set predated
+  auto memory; the row states that Claude writes it and that asking Claude to remember something
+  lands there rather than in CLAUDE.md. (2) **`@path` imports are named as a non-destination** —
+  imported files load at launch, so a split into imports reorganizes and saves nothing, and the same
+  holds for an import inside a path-scoped rule, where the rule's own body defers and the imported
+  file does not. `reference/official-guidance.md` already recorded the import behavior and no check
+  cited it. (3) **Every move recommendation now prices the destination** against the "Compaction by
+  steering method" table that same reference file ships and no check cited — path-scoped rules and
+  nested CLAUDE.md return only when a matching file is read again, so a rule that must persist across
+  compaction stays unscoped or in root CLAUDE.md. Catalog version 1.3.0.
+
 ## [0.4.0]
 
 ### Added

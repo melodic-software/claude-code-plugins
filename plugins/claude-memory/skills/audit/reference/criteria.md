@@ -1,7 +1,7 @@
 # Memory Health Criteria
 
-Version: 1.2.0
-Last updated: 2026-07-11
+Version: 1.3.0
+Last updated: 2026-07-24
 Source: Official Claude Code docs (code.claude.com/docs/en/memory, code.claude.com/docs/en/best-practices, code.claude.com/docs/en/sub-agents)
 
 This file defines every check the audit runs. Each check has a severity, description, and instructions
@@ -65,15 +65,29 @@ not, cut it. Bloated CLAUDE.md files cause Claude to ignore your actual instruct
 | Machine-specific config/preferences | CLAUDE.local.md |
 | Language/framework-specific rules | `.claude/rules/` (path-scoped when that fits) |
 | Reference material needed sometimes | Skills (on-demand, not always-loaded) |
+| Learnings Claude discovered while working, not instructions you authored | Auto memory — Claude writes it; you do not hand-author entries, and asking Claude to remember something lands here rather than in CLAUDE.md |
 | Deterministic enforcement | Hooks (guaranteed execution) |
 | Compile-time/build-time rules | Analyzers, linters, architecture tests |
 | Information that changes frequently | Neither — keep it out |
+| Content split out of a long CLAUDE.md purely to shorten it | **Not `@path` imports** — imported files load at launch, so the split reorganizes and saves nothing. The same holds for an import *inside* a path-scoped rule: the rule's own body defers, the imported file does not |
 
 Flag content in the wrong layer. WARN severity because moving content is a judgment call.
 
+**Price the move with the recommendation.** Moving content out of an always-loaded surface trades
+per-session cost for post-compaction absence, and the trade differs by destination: path-scoped rules
+and nested CLAUDE.md are re-injected only when a matching file is read again, while root CLAUDE.md,
+unscoped rules, and auto memory are re-injected from disk. Read the destination's row in
+[official-guidance.md](official-guidance.md), "Compaction by steering method", before recommending a
+move, and state the cost alongside it. A rule that must persist across compaction stays unscoped or
+in the project-root CLAUDE.md — a recommendation that omits this proposes a silent behavior change in
+long sessions.
+
 **Why**: Official docs: "For domain knowledge or workflows that are only relevant sometimes, use
 skills instead. Claude loads them on demand without bloating every conversation." And: "Unlike
-CLAUDE.md instructions which are advisory, hooks are deterministic."
+CLAUDE.md instructions which are advisory, hooks are deterministic." On imports: "splitting into
+`@path` imports helps organization but doesn't reduce context, since imported files load at launch"
+(code.claude.com/docs/en/memory). The per-destination compaction behavior is quoted with its sources
+in [official-guidance.md](official-guidance.md) rather than restated here.
 
 ### C4: Specificity [WARN]
 

@@ -72,6 +72,18 @@
         "When no prior audit exists, output states that none has been run and suggests running the audit",
         "Output does not fabricate or invent audit results"
       ]
+    },
+    {
+      "id": 7,
+      "name": "placement-routes-to-auto-memory-and-refuses-import-split",
+      "prompt": "Audit my memory health. My CLAUDE.md is 300 lines: about half is a running log of things you figured out about our build over the last few months, and I was going to split the rest into @path imports to get under the line budget.",
+      "expected_output": "C3 Content Placement routes the accumulated learnings to auto memory, which Claude writes rather than the operator hand-authoring, instead of leaving them in CLAUDE.md. It rejects the @path import split as a context saving, because imported files load at launch, so the split reorganizes and saves nothing, and names a load-deferring destination instead (a skill or a path-scoped rule). Any move it does recommend is priced: path-scoped rules and nested CLAUDE.md come back only when a matching file is read again, so content that must survive compaction stays unscoped or in the project-root CLAUDE.md.",
+      "files": [],
+      "expectations": [
+        "Routes the accumulated learnings to auto memory as their correct destination rather than leaving them in CLAUDE.md",
+        "States that @path imports do NOT reduce context because imported files load at launch, and does not propose an import split as a saving",
+        "Names a load-deferring destination (skill or path-scoped rule) instead, and states the post-compaction cost of that destination alongside the recommendation"
+      ]
     }
   ]
 }
