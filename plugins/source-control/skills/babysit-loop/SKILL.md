@@ -313,7 +313,8 @@ pause end.
 ## Subagents
 
 A conflict or blocker needing dedicated resolution is dispatched through babysit-prs's own fan-out
-and conflict-worker contract; this loop adds two lane rules, per the convention. The subagent runs
+and its Merge Conflict Resolution contract — under which the dispatched resolver never pushes; the
+dispatching context does. This loop adds two lane rules, per the convention. The subagent runs
 at the **frontier capability tier** — capability tiers are order-defined and resolve at runtime by
 model alias only, never a hard-coded model ID. And every dispatch prompt carries the subagent
 discipline preamble: when the `re-anchor` plugin is installed, invoke its sweep

@@ -120,10 +120,14 @@ value and its unset fallback.
 - A merge conflict appears. In default (safe) mode this is always a stop: report it as a blocker
   and take no resolution action. In worker or autopilot mode only, a textual/mechanical conflict
   (formatting, adjacent unrelated changes, both sides adding different items to the same list) is
-  not an automatic stop: hand it off to a dedicated, fresh conflict-resolution worker per
+  not an automatic stop: hand it off to a dedicated, fresh conflict resolver per
   `orchestration.md`'s Merge Conflict Resolution section — never resolved by the worker that
-  discovered it mid-fix-round, and never resolved inline by the orchestrator. In worker or
-  autopilot, stop and ask only when that fresh worker finds the conflict genuinely semantically
+  discovered it mid-fix-round. The orchestrator still never resolves a conflict itself: it does not
+  touch conflict markers or edit a resolution. It does own the resolver's one outward step — after
+  re-asserting the live head against the merge commit's first parent and re-running the
+  affected-file verification itself, it performs the push, which the resolver never does (same
+  section, Orchestrator Contract). In worker or
+  autopilot, stop and ask only when that fresh resolver finds the conflict genuinely semantically
   ambiguous (both sides made incompatible design/behavioral decisions about the same logic, not
   just textually overlapping edits) or when the same conflict recurs across repeated resolution
   attempts.

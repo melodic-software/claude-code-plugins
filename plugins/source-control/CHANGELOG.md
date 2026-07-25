@@ -3,6 +3,30 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.27.0]
+
+### Changed
+
+- **Merge-conflict resolution splits the resolve from the push
+  (`melodic-software/dotfiles#309`, `#315`).** `babysit-prs` dispatched conflict resolution to a
+  dedicated subagent that also pushed the result. A dispatched subagent starts with a fresh,
+  isolated context window and never sees the parent conversation
+  (<https://code.claude.com/docs/en/sub-agents>), so a host runtime that grants mutation authority
+  only from the operator's own turn cannot observe that grant from inside one — a resolver's push
+  could only ever be refused by such a gate or route around it. The resolver now does the base
+  fetch, the head assertion, the `git merge` (never rebase), the marker resolution, the local merge
+  commit, and the affected-file verification, and returns one of `resolved` / `escalate` /
+  `verification-impossible` / `no-conflict` without touching GitHub. The orchestrator — which does
+  hold the operator's turn — pushes, fail-closed: only on `resolved`, only after re-asserting the
+  live PR head against the merge commit's first parent, re-running the affected-file verification
+  in the worktree itself, and confirming the worktree clean; by refspec, never force. Every prior
+  invariant is preserved, now with an explicit owner. `reference/orchestration.md` gains the
+  Resolver and Orchestrator contracts plus a Conflict-Resolver Prompt Delta (the regular worker
+  template forbids only *force*-pushing, so a resolver needs an affirmative never-push
+  instruction); `reference/freshness.md` drops its drifting restatement for a pointer;
+  `SKILL.md`, `reference/safety.md`, and `babysit-loop`'s Subagents section state the new
+  boundary. Pinned by `test_skill_contract.py`.
+
 ## [0.26.0]
 
 ### Added

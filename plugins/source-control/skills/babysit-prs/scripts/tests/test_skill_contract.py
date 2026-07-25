@@ -162,6 +162,55 @@ class SkillContractTests(unittest.TestCase):
             with self.subTest(marker=marker):
                 self.assertIn(marker, para)
 
+    def test_conflict_resolution_splits_resolve_from_push(self) -> None:
+        # A dispatched resolver's isolated context cannot carry the operator's own
+        # grant for an outward mutation, so the local resolution stays with the
+        # resolver and the push belongs to the dispatching context. Pinned against
+        # a drift back to a resolver that pushes.
+        orchestration = (SKILL.parent / "reference" / "orchestration.md").read_text(
+            encoding="utf-8"
+        )
+
+        for header in (
+            "### Why The Push Stays With The Orchestrator",
+            "### Resolver Contract (local only — never writes to GitHub)",
+            "### Orchestrator Contract (the push)",
+            "### Conflict-Resolver Prompt Delta",
+        ):
+            with self.subTest(header=header):
+                self.assertIn(header, orchestration)
+
+        for marker in (
+            # Resolver side: local only, and the merge discipline it still owns.
+            "https://code.claude.com/docs/en/sub-agents",
+            "never `git push`",
+            "git merge origin/<base-branch>",
+            "never rebase",
+            "never `git merge --abort`",
+            # Orchestrator side: fail-closed push with its own head and test evidence.
+            "Push only on `resolved`",
+            "rev-parse HEAD^1",
+            "Re-run the verification in the worktree",
+            "Never force, in any tier.",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, orchestration)
+
+        for outcome in (
+            "`resolved`",
+            "`escalate`",
+            "`verification-impossible`",
+            "`no-conflict`",
+        ):
+            with self.subTest(outcome=outcome):
+                self.assertIn(outcome, orchestration)
+
+    def test_skill_table_states_the_conflict_push_boundary(self) -> None:
+        row = _table_row(self.skill_text, "Dispatch a dedicated conflict resolver")
+
+        self.assertIn("never pushes", row)
+        self.assertIn("the orchestrator re-verifies and pushes", row)
+
     def test_safety_md_codifies_the_tier_criteria(self) -> None:
         safety = (SKILL.parent / "reference" / "safety.md").read_text(encoding="utf-8")
         self.assertIn("ships **DISABLED**", safety)

@@ -99,7 +99,7 @@ Autonomy is decomposed per action, not per run. Irreversibility governs the gate
 | --- | --- | --- | --- |
 | Discover, snapshot, report | yes | yes | yes, **all authors** |
 | Fix clear branch-owned CI or bot-review issues, commit, push | yes | yes | yes, and harder (research a fix before giving up) |
-| Dispatch a dedicated conflict-resolution worker (`git merge`, never rebase) | no — report (simple mechanical conflicts met while freshening a branch are still handled inline per [reference/loop.md](reference/loop.md)) | mechanical/textual conflicts only, escalate genuine ambiguity | mechanical/textual conflicts only, escalate genuine ambiguity |
+| Dispatch a dedicated conflict resolver (`git merge`, never rebase; the resolver resolves locally and never pushes — the orchestrator re-verifies and pushes, [reference/orchestration.md](reference/orchestration.md)) | no — report (simple mechanical conflicts met while freshening a branch are still handled inline per [reference/loop.md](reference/loop.md)) | mechanical/textual conflicts only, escalate genuine ambiguity | mechanical/textual conflicts only, escalate genuine ambiguity |
 | Resolve review threads | no — report | **pre-push-outdated bot threads only** | any thread **it has addressed** — bot, AI-review, or human |
 | Merge a PR | no — report readiness | only when the gate proves 100% ready | only when the gate proves 100% ready |
 | Mark a completed draft ready (`gh pr ready`) | no — report | no — report | yes, via its worker's completeness assessment |
@@ -111,7 +111,7 @@ design — it has no tier input — so it emits the same blocker string, `"merge
 dedicated conflict-resolution agent required"`, for every conflicting PR regardless of tier.
 That string names a capability that exists in this skill, not an instruction to invoke it. In
 the safe tier the table's `no — report` still governs: report the blocker exactly as stated
-and do not spawn the conflict worker. Only `worker` and `autopilot` read that same string as
+and dispatch no resolver. Only `worker` and `autopilot` read that same string as
 license to act.
 
 **Cross-tier invariants** — hold in every tier including autopilot: never a force-push (freshness is
@@ -482,7 +482,7 @@ Failure patterns observed in real babysit sessions:
 
 - [reference/loop.md](reference/loop.md) — the safe-tier iteration loop (also the Python-free
   degrade path): discovery, checkout, freshness, checklist, static cadence ladder.
-- [reference/orchestration.md](reference/orchestration.md) — fan-out gate (`needs_worker` arms), concurrency cap, leases, worker contract + prompt template, conflict resolution, cleanup.
+- [reference/orchestration.md](reference/orchestration.md) — fan-out gate (`needs_worker` arms), concurrency cap, leases, worker contract + prompt template, conflict resolution (resolver/orchestrator split and the conflict-resolver prompt delta), cleanup.
 - [reference/cadence.md](reference/cadence.md) — active/normal/quiet/idle cadence states,
   real-elapsed-time detection, bounded full-sweep interval, persisted counters.
 - [reference/freshness.md](reference/freshness.md) — guarded refresh for behind-base branches,
