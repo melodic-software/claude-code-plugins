@@ -11,8 +11,11 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
   `gates` array (`name`/`cmd`/`trigger-globs`/`remediation`) was resolved as part of each
   ecosystem's command surface but never invoked by any workflow step — a bundled or
   consumer-declared gate was inert. `check/SKILL.md` §2 now iterates each affected ecosystem's
-  resolved `gates` after build → test → lint: a gate fires when a changed file matches its
-  `trigger-globs` (full changed-files set) or unconditionally when `trigger-globs` is omitted,
+  resolved `gates` after build → test → lint: under auto-detection a gate fires when a changed file
+  matches its `trigger-globs` (full changed-files set) or unconditionally when `trigger-globs` is
+  omitted, and under an explicit `/toolchain:check all` or `/toolchain:check <ecosystem>` every
+  gate of a selected ecosystem fires regardless of `trigger-globs` (so full-repo verification on a
+  clean tree cannot pass a committed-but-untidy `go.mod`),
   runs independent of the build/test/lint short-circuit, reports `skip` when the tool is missing or
   its version is verified below the gate's documented floor (an environment capability gap is not
   project drift — a Go 1.22 toolchain skips `go mod tidy -diff` instead of failing every `*.go`
