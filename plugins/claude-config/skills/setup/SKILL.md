@@ -48,10 +48,12 @@ table with one remediation line per FAIL. Do not modify anything. The runtime sc
 ### The `audit-pass` suppression record
 
 `audit-pass` reads a tracked suppression record layered per the marketplace's config-cascade
-convention. Its keys, required fields, merge form, and precedence inversion are owned by
-[docs/conventions/finding-suppression](../../../../docs/conventions/finding-suppression/README.md) —
-read it rather than inferring the shape. All layers absent is a valid state (no suppressions), so
-report INFO, never FAIL, when none exists.
+convention. Read the operative shape from
+`${CLAUDE_PLUGIN_ROOT}/skills/audit-pass/reference/run-contract.md` rather than inferring it — that
+reference ships inside this plugin, so it resolves in an installed cache where a path out to the
+marketplace's own docs does not. The cross-consumer key contract is the marketplace's published
+**finding-suppression** convention, which is not a runtime dependency of this plugin. All layers
+absent is a valid state (no suppressions), so report INFO, never FAIL, when none exists.
 
 Anchor at the repo root (`${CLAUDE_PROJECT_DIR}`, else `git rev-parse --show-toplevel`) — never a
 CWD-relative read — then report one row per layer. The same tracked/ignored question has opposite
@@ -63,8 +65,17 @@ correct answers per layer, so verify each on its own terms:
 - **local overlay** `.claude/audit-pass.local.md` — must be gitignored and never staged. Staged or
   tracked is a FAIL: a personal deviation can reach team history.
 
-Parse each present layer and report any entry missing its required `reason` or `date` as malformed —
-those do not suppress, and a silent partial parse would turn a formatting slip into a lost check.
+Parse each present layer and report any entry missing **any** of its five required keys — `check`,
+`claim`, `sites`, `reason`, `date` — as malformed. Checking only `reason` and `date` would pass an
+entry that `audit-pass` itself rejects, so readiness would report green on configuration that cannot
+suppress anything. Report as malformed too an entry whose stored constituents do not hash to its own
+key: the constituents are authoritative and the key is derived from them. A malformed entry does not
+suppress, and a silent partial parse would turn a formatting slip into a lost check.
+
+Report a **user-global or overlay entry for an id the team layer does not carry** as INFO
+`personal-only, not applied`, naming promotion to the team layer as what makes it take effect — the
+team layer is the only one that enacts a suppression, so a personal-only entry that looks live is a
+finding the operator believes is accepted and is not.
 
 ## `apply` (idempotent)
 

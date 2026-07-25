@@ -3,8 +3,10 @@
 Finding identity, where the report lives, run state, resumability, the report schema, and the three
 finding tiers with their properties. Every rule here is stated as a condition a test can assert.
 
-Terms: a **run** is one invocation against one **target**; a **lane** is one check applied to one
-surface class; the **scan set** is the set of files a run reads. A surface is **live** when the
+Terms: a **run** is one invocation against one **target**; a **lane** is **one delegated invocation
+at the finest filter that skill's own interface accepts**, never finer — the pass dispatches skills
+and never reaches inside one, so a lane it cannot invoke is a lane it cannot have; the **scan set**
+is the set of files a run reads. A surface is **live** when the
 harness actually loads it for that target — read from `InstructionsLoaded` for the memory layer and
 `/context` for skills, subagents, and MCP tools, never inferred from a filesystem walk alone. The
 **live surface set** is every live surface at the moment a run starts; it can change without the tree
@@ -24,9 +26,18 @@ sites    = sorted([(surface, anchor), …])   # one entry, or two for a pairwise
 
 - **`check`** — fully qualified, `<plugin>/<skill>/<check>`. A bare check id is ambiguous across
   catalogs.
-- **`claim`** — the check's canonical claim id plus its bound parameters, never free prose. A finding
-  names one template from the check's declared set and supplies its parameters; prose is a rendering
-  of the claim, never the claim itself.
+- **`claim`** — the check's canonical claim id plus its bound parameters, never free prose. Prose is
+  a rendering of the claim, never the claim itself. **The template set comes from the delegated
+  invocation's own output, never from the owning plugin's files** — this pass dispatches skills and
+  never reads inside one, so a template set it could learn only by opening another plugin's catalog
+  is one it can never learn, and requiring one would make every finding unemittable. An invocation
+  that declares its templates is validated against what it declared. An invocation that declares
+  none — the state of every delegated catalog today — is **claim-unqualified**: the pass binds
+  `claim` to the check's own id with no parameters, and names that catalog in the report's coverage
+  notes as owing a declaration. The fallback is coarse deliberately. It merges the distinct claims
+  one check can make at one site onto a single identity, which is a precision loss the coverage note
+  states rather than hides — and it is stable across runs, which is the one thing identity cannot do
+  without.
 - **`sites`** — the set of `(surface, anchor)` pairs the finding is *about*, canonically sorted by
   the byte ordering of `surface \x1f anchor`. **Sorted, because an ordered pair hashes X-versus-Y
   differently from Y-versus-X** — the same conflict would then be reported twice and would not
@@ -143,7 +154,7 @@ anchor versions that entry itself stores**, which is what gives assertion 4.5 a 
 |---|---|
 | 1.1 | For a fixed tree **and a fixed live surface set**, `finding_id` is stable across runs, working directories, operating systems, and path separators. Liveness is named because it can change with no tree change at all, and an identity claim that ignored it would be false the first time a run started from a different directory. |
 | 1.2 | Inserting an unrelated paragraph above a finding does not change its `finding_id`. |
-| 1.3 | Every emitted finding validates against the report schema, and its `claim` id exists in the cited check's declared template set. An undeclared claim id is a **hard error**, not a warning — that is what stops prose leaking back in. |
+| 1.3 | Every emitted finding validates against the report schema. When the invocation that produced it declared a claim-template set, the finding's `claim` id exists in that set and one that does not is a **hard error**. When the invocation declared none, `claim` is the check's own id with no parameters and that catalog is named in the coverage notes. Free prose in `claim` is a hard error either way — that is what stops prose leaking back in. |
 | 1.4 | A pairwise finding discovered as (A, B) and the same finding discovered as (B, A) produce one identical `finding_id`. Swapping `primary_site` and `related_site` does not change it either. |
 | 1.5 | Reaching a surface through a different import chain changes `load_path` and does not change `finding_id`. A `load_path` longer than 5 entries is truncated with an explicit marker rather than dropped silently. |
 | 1.6 | A finding emitted with an `s:` anchor and two sites is rejected as a **hard error**. |
@@ -159,13 +170,18 @@ not unchanged and the idempotence property is unfalsifiable by construction.
 
 - The report goes under `${CLAUDE_PLUGIN_DATA}`, which resolves outside any target repository and
   survives plugin updates, at `runs/<state-key>/<run-id>/findings.json`.
-- `--report-to <path>` redirects it into the target tree. The run then **must** add that path to the
-  exclusion set for subsequent runs and say so in its output.
+- `--report-to <path>` redirects it into the target tree. **The redirecting run records that path in
+  its own exclusion set, before it writes** — not only for subsequent runs — and says so in its
+  output. Deferring the record to run 2 would put the path in one run's derived-tier exclusion
+  artifact and not the other's, and 2.2 requires those two derived sets to be equal. The path is
+  recorded whether or not a file exists there yet: the exclusion is about the path this run is about
+  to write, not about what it found there.
 
 | # | Assertion |
 |---|---|
 | 2.1 | After a run against a clean git worktree with no redirect, `git status --porcelain` is empty. |
 | 2.2 | With a redirect, a second run's scan set excludes the redirected path, and the two runs' derived identity sets are still equal. |
+| 2.3 | The first run under `--report-to` records the redirected path in its own exclusion artifact before writing the report, whether or not that path already exists. |
 
 ## 3. Run state, keying, and concurrency
 
@@ -204,8 +220,15 @@ target.
 
 ## 4. Suppression, per target class
 
-**The governing rule: an inline marker is permitted only where the pass may write; everywhere else
-suppression is central.**
+**The governing rule: suppression is always central. There is no inline marker, at any target.**
+
+An inline form was specified and withdrawn, recorded here so it is not re-proposed. A marker would
+have to carry the same constituents a central entry does — `check`, `claim`, every site, reason,
+date — because the key is derived from them, so it duplicates the central record instead of
+simplifying it. It cannot express a pairwise finding at all: a marker sits at one site, and a
+two-site finding has no one site to sit at. And writing one into a clean worktree is the thing 2.1
+forbids. A second format with strictly less capability, a second parser, and an unspecified
+inline-versus-central merge rule is cost with no capability behind it.
 
 **A central entry stores the finding's constituents, not a bare id.** `check`, `claim`, and **every**
 `(surface, anchor)` site, alongside the required reason and date — with `finding_id` as the mapping
@@ -217,21 +240,37 @@ a hex string. They are required from the first published contract rather than re
 this record is operator-authored and commonly committed: adding required keys later is a migration on
 somebody else's tracked data, and the constituents cannot be recovered from the id they hash into.
 
-| Target class | Suppression site | Why |
-|---|---|---|
-| A project-scope file the pass may edit | inline marker at the finding's site | Local, reviewable in the same diff as the content it governs, and it travels with the content |
-| A file the pass does not own | the central record | Editing a file you do not own to silence a report is a boundary violation dressed as configuration |
-| A user-scope file | the central record only; **never** an edit to the file | User-scope surfaces are routed, never edited. An inline marker is an in-place edit by another name |
-| A registered byte-identical cluster copy | at the **canonical source**, never the copy | A marker in a copy makes it differ from its siblings and breaks the sync path |
+| Target class | Disposition |
+|---|---|
+| A project-scope file the pass may edit | Central entry. Being *allowed* to edit a file is not a reason to edit it to silence a report about itself |
+| A file the pass does not own | Central entry. Editing a file you do not own to silence a report is a boundary violation dressed as configuration |
+| A user-scope file | Central entry, and **never** an edit to the file. User-scope surfaces are routed, never edited |
+| A registered byte-identical cluster copy | **Refused**, naming the canonical source. The copy is excluded from the scan set, so an entry against it is stale by construction |
 
 **The record and its layers.** `.claude/audit-pass.md` in the target repository, resolved across the
 three config-cascade layers — user-global, team (tracked), and a gitignored local overlay. Layers
 merge **per key**: a later layer's entry for one `finding_id` wins for that id alone, and every id it
 does not mention keeps the earlier layer's entry. A list would be taken whole, so one personal entry
-would silently discard the team's entire accepted set. On a direct conflict for the same id the
-**team layer wins**, inverting the usual precedence — a personal overlay must not weaken a team
-floor, so a personal layer may add or narrow but never override. Every reported entry names its
-contributing layer, which is what makes that inversion auditable rather than merely declared.
+would silently discard the team's entire accepted set.
+
+**A personal layer never enacts a suppression.** Two rules, and the first carries the weight:
+
+1. **A personal entry for an id the team layer does not carry does not suppress.** It is reported as
+   **`personal-only, not applied`**, naming promotion to the team layer as how to make it take
+   effect. Absence from the team layer *is* the team's unsuppressed state, so applying such an entry
+   would hide a finding the team never accepted. §3 already settles where the decision belongs: a
+   suppression is a decision about the **repository**, not about a checkout — and a decision about
+   the repository belongs in the layer the repository tracks.
+2. **On a direct conflict for the same id the team layer wins**, inverting the usual precedence. This
+   rule is narrower than it sounds, and saying so is the point: 4.5 forces an entry's constituents to
+   hash to its own key, so two entries sharing a `finding_id` have identical `check`, `claim`, and
+   `sites` by construction. The only fields that can differ are `reason` and `date` — so what the
+   inversion protects is the team's recorded justification, not which findings are visible. Rule 1
+   owns that.
+
+A personal layer is therefore a **draft** surface: an entry there is read, reported, and attributed,
+and takes effect only once promoted. Every reported entry names its contributing layer, which is what
+makes both rules auditable rather than merely declared.
 
 The cross-consumer key contract is published separately, as the **finding-suppression** convention in
 this marketplace. This section states what the pass itself needs in order to run, so the skill
@@ -270,6 +309,7 @@ accounted for is what turns that definition into a check capable of failing.
 | # | Assertion |
 |---|---|
 | 4.1 | A suppressed finding does not appear in the next run's findings, and appears in the `suppressed` section with its reason, its date, and its contributing cascade layer. |
+| 4.1a | A personal-layer entry for a `finding_id` the team layer does not carry **does not suppress**: its finding still appears in the run's findings, and the entry appears in `suppressed` as **`personal-only, not applied`** naming its contributing layer. |
 | 4.2 | Every entry resolves to exactly one of the four dispositions above. `SAME, CHANGED` carries the suppression forward and reports it as `needs-reconfirmation` naming the changed side; `OLD CLOSED, NEW OPENED` reports the old entry as **stale** and leaves the new finding unsuppressed. Neither is silent. |
 | 4.3 | Adding a suppression does not change any other finding's `finding_id`. |
 | 4.4 | No suppression mechanism writes to a path in the derived exclusion set. Attempting to suppress a finding in a registered cluster copy makes the run refuse and name the canonical source. |
@@ -286,11 +326,14 @@ crash. Restarting from zero wastes the run and tempts an operator to narrow the 
 - **Input digest** = `sha256` over the lane's ordered file list paired with each file's content hash.
 - **Resume** re-runs only lanes that are incomplete or whose input digest has changed. A lane whose
   digest is unchanged and whose state is complete is skipped and its findings carried forward.
+- A re-attempted lane appends a **supersession record** and opens a new attempt, per §7. Attempt
+  boundaries are what let an interrupted re-attempt be discarded deterministically.
 
 | # | Assertion |
 |---|---|
 | 5.1 | Kill a run after lane *k* completes, resume, and the final report equals an uninterrupted run's over the same tree. |
 | 5.2 | Modify one file belonging to a completed lane, then resume: that lane re-runs and no other completed lane does. |
+| 5.3 | Invalidate a completed lane on resume, kill its re-attempt after it has appended findings but before its terminating record, then resume again: the abandoned attempt's rows appear in neither the assembled report nor any later attempt's carry-forward, and no finding is duplicated. |
 
 ## 6. The three tiers and their properties
 
@@ -324,9 +367,21 @@ sessions on one repository is the normal case for the operator who runs this fir
 
 So the run **measures** its own precondition:
 
-- At Phase 0 and again at Phase 6, capture the target's **HEAD commit** and its **dirty-file count**.
-- If either differs between the two captures, the determinism gate is reported **`indeterminate`**,
-  never `passed` and never `failed`, naming both captures and what moved.
+- At Phase 0 and again at Phase 6, capture the target's **HEAD commit** and its **worktree digest**.
+- **Worktree digest** = `sha256` over every dirty path in sorted order, each paired with the content
+  hash of its current bytes — the path set from `git status --porcelain`, the content hash per path
+  from `git hash-object`, a deleted path paired with a fixed deletion sentinel. **A count is not
+  enough and was the earlier mistake:** editing a dirty file's contents, or swapping one dirty path
+  for another, leaves both HEAD and the count identical, so a count-based gate would evaluate P1–P3
+  as though the tree held still while different lanes in fact read different states. Pairing each
+  path with its content is what makes both of those movements visible.
+- If either capture differs, the determinism gate is reported **`indeterminate`**, never `passed` and
+  never `failed`, naming both captures and what moved.
+- **Two endpoint captures detect a net change, not a transient one.** A file mutated and reverted
+  inside the run is invisible to them. §5's per-lane input digests are the detector for that case and
+  need no new machinery: two lanes whose inputs overlap record content hashes for the shared paths,
+  and a disagreement between them means the tree moved mid-run. It reports `indeterminate` on the
+  same grounds — the lanes demonstrably did not read one state.
 - `indeterminate` is a distinct outcome, not a soft pass. It says the run could not establish the
   basis for the comparison — which is a true statement — where `passed` would assert a stability that
   was never tested.
@@ -341,11 +396,17 @@ held.
   byte-identical tree can legitimately see different surfaces. **A liveness change is reported as the
   cause and never silently absorbed** — a run that quietly attributed a liveness difference to the
   tree, or to nothing, would be the same silent scope regression P3a exists to catch.
-- **P2 — convergence.** Accepted fixes applied between runs ⇒ `D(R2) ⊊ D(R1)`, and every member of
-  `D(R1) \ D(R2)` corresponds to a fix actually applied. A finding that vanishes without a fix is a
-  defect in the check, not a success. **Its detector is §4's fourth disposition**: every disappearance
-  is accounted for as a fix, a successor, or an UNEXPLAINED DISAPPEARANCE that fails the self-check.
-  Without that accounting P2 is a definition nothing can observe.
+- **P2 — convergence, measured against the findings the fixes targeted.** Accepted fixes applied
+  between runs ⇒ every finding a fix targeted is absent from R2, and `D(R2) ⊆ D(R1)` still holds.
+  **Strictness is conditional, not universal:** `D(R2) ⊊ D(R1)` is required only when at least one
+  accepted fix targeted a derived-tier finding. A judged-tier fix need remove nothing from `D` —
+  rewriting an over-prescriptive instruction leaves the surface inventory, the exclusion set, the
+  shadowed definitions, and the raw script-candidate rows exactly as they were — so a blanket strict
+  subset would declare a perfectly good fix non-convergent, which is the wrong verdict on the
+  commonest fix there is. Conversely, a finding that vanishes without a fix is a defect in the check,
+  not a success. **Its detector is §4's fourth disposition**: every disappearance is accounted for as
+  a fix, a successor, or an UNEXPLAINED DISAPPEARANCE that fails the self-check. Without that
+  accounting P2 is a definition nothing can observe.
 - **P3 — no spontaneous growth.** Tree and catalog versions unchanged ⇒ `D(R2) ⊆ D(R1)`. The set may
   grow only on a catalog version bump or a change to the tree — and a skill authored between runs is
   a change to the tree.
@@ -363,14 +424,17 @@ held.
 - **P5 — the delegated tier is excluded from both properties.** A prompt-based delegate cannot
   contribute to a determinism gate.
 - **P6 — an unestablished precondition yields `indeterminate`.** A run whose start and end captures
-  of HEAD and dirty-file count disagree reports the determinism gate as `indeterminate` and does not
+  of HEAD and worktree digest disagree — or whose per-lane input digests disagree on a shared path —
+  reports the determinism gate as `indeterminate` and does not
   evaluate P1, P2, or P3 for that pair. Their precondition demonstrably did not hold, so a verdict on
   them would be an assertion about a comparison the run never actually made.
 
 | # | Assertion |
 |---|---|
-| 6.1 | A run captures HEAD and dirty-file count at Phase 0 and again at Phase 6, and records both captures in the report. |
+| 6.1 | A run captures HEAD and the worktree digest at Phase 0 and again at Phase 6, and records both captures in the report. |
 | 6.2 | When the two captures differ, the determinism gate reads `indeterminate` — never `passed`, never `failed` — and names both captures and what moved. |
+| 6.2a | Changing a dirty file's contents during a run, or replacing one dirty path with another, changes the worktree digest and yields `indeterminate`, even though HEAD and the number of dirty files are unchanged. |
+| 6.2b | Two lanes whose inputs overlap record the same content hash for every shared path; a disagreement yields `indeterminate`. |
 | 6.3 | An `indeterminate` gate is visibly distinct from a passing one in the report, and P1–P3 are reported as not evaluated rather than as satisfied. |
 
 The floor of 2 exists because with a small judged set a pure percentage rounds to zero, making P4
@@ -386,6 +450,26 @@ completes. Append-only is what makes §5 real: a single JSON document would be r
 every append, which is exactly the operation an interrupted run leaves half-done. A lane's final
 record is its terminating record, which is what marks the lane complete.
 
+**Every record carries an attempt id, and an attempt is delimited at both ends.** A lane can be
+attempted more than once — a completed lane is invalidated on resume when its input digest moved,
+and an attempt can itself die before terminating — so an append-only file accumulates rows from
+several attempts of one lane, interleaved with rows appended after them. Without a boundary, final
+assembly cannot tell an abandoned partial attempt from the successful one, and would duplicate
+findings or retain stale ones. So:
+
+- `attempt` = `(lane id, ordinal)`, the ordinal starting at 1 and incremented on every re-attempt of
+  that lane. Every record of that attempt carries it, findings included.
+- An attempt opens with a **start record** and closes with its **terminating record**. Neither is a
+  finding.
+- **Assembly takes, per lane, the highest-ordinal attempt that has a terminating record, and
+  discards every other attempt's rows outright** — including any complete-looking prefix. An attempt
+  with a start record and no terminating record is abandoned by definition, whatever it managed to
+  append.
+- A resume that invalidates a completed lane appends a **supersession record** naming the lane and
+  the ordinal it retires, so the retirement is in the artifact rather than inferred from ordering.
+  Ordering alone cannot carry it: rows from a later attempt are appended after rows from an unrelated
+  lane, and position is not provenance.
+
 Each record separates the two field classes §1 distinguishes, because a reader who cannot tell them
 apart cannot tell which fields a change would rename the finding through:
 
@@ -393,7 +477,7 @@ apart cannot tell which fields a change would rename the finding through:
 |---|---|---|
 | `identity` | `check`, `claim`, `sites` (each `surface` + versioned `anchor`, canonically sorted) | Hashed into `finding_id`. Nothing else is. |
 | Presentation | `primary_site`, `related_site`, `load_path`, per-site heading path, rendered prose | Carried for reading and remediation. Changing any of them leaves `finding_id` untouched. |
-| Run metadata | `lane`, `tier` | Where the record came from. |
+| Run metadata | `lane`, `attempt`, `tier` | Where the record came from, and which attempt of that lane produced it. |
 
 **At the end — `findings.json`.** One document assembled from the partial, carrying `schemaVersion`,
 the run and target identity, the resolved version of every catalog consulted, and then the sections:
@@ -403,7 +487,7 @@ the run and target identity, the resolved version of every catalog consulted, an
 | `inventory` | the three-scope surface list, derived tier |
 | `mechanical` | derived-tier findings, including shadowed definitions |
 | `behavioral` | judged-tier findings |
-| `suppressed` | every entry with its reason, date, contributing cascade layer, and its disposition — including each `needs-reconfirmation` entry with the changed side named, each stale entry, each malformed entry, and every UNEXPLAINED DISAPPEARANCE |
+| `suppressed` | every entry with its reason, date, contributing cascade layer, and its disposition — including each `needs-reconfirmation` entry with the changed side named, each stale entry, each malformed entry, each **`personal-only, not applied`** entry, and every UNEXPLAINED DISAPPEARANCE |
 | `delegated` | `/doctor`'s output, diffed by nobody |
 | `skipped` | every surface excluded, **with its reason** — a silent exclusion reads as coverage, and this section is what stops it |
 

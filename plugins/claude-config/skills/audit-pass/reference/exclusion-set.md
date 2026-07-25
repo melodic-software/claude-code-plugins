@@ -51,21 +51,26 @@ without being told about it.
 - **The suppression record** (`.claude/audit-pass.md` and its cascade layers). Excluded from the scan
   set: otherwise suppressing a finding changes the tree and perturbs the next run, which would make
   the idempotence property unfalsifiable.
-- **A redirected report.** When a previous run used `--report-to <path>`, that path is in the scan
-  set's exclusion list for every subsequent run, and the run states this in its output. Scanning your
-  own previous report is the failure the rule exists to prevent.
+- **A redirected report.** A run given `--report-to <path>` records that path in **its own**
+  exclusion list before it writes, and every subsequent run keeps it there; the run states this in
+  its output. Recording it only from run 2 onward would leave the path in one run's derived-tier
+  exclusion artifact and absent from the other's, and the derived tier is held to exact equality
+  across runs. The path is recorded whether or not a file exists there yet — the exclusion is about
+  the path the run is about to write. Scanning your own previous report is the failure the rule
+  exists to prevent.
 
 ## Suppression against an excluded path is a hard error
 
 Not a warning, not a silent no-op.
 
-An inline suppression marker inside a registered cluster copy would make that copy differ from its
-siblings — the exact corruption class 1 exists to prevent, arriving through the suppression channel
-instead of the fix channel. So:
+Every class here is excluded from the scan set, so no finding is ever raised against a path in it —
+which makes an entry naming one **stale by construction**. The content it is about lives at the
+canonical source, and a suppression that names the copy would go on silently not-matching while
+reading as a live accepted decision.
 
 **The run refuses the suppression, exits the apply step non-zero for that finding, and names the
-canonical source** as the only place the suppression may be recorded. The same refusal applies to a
-suppression targeting a `vendor/` path or a worktree path.
+canonical source** as the only place the finding may be judged. The same refusal applies to an entry
+naming a `vendor/` path or a worktree path.
 
 The permitted alternative is always available: record the suppression centrally in
 `.claude/audit-pass.md`, carrying the finding's constituents under its derived `finding_id`, per

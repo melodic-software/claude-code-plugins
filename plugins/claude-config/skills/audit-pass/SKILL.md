@@ -43,8 +43,9 @@ Parse `$ARGUMENTS`:
 - **`--fix`** — the explicit mutation override. Absent, the pass writes nothing into the target.
 - **`--opinion`** — run the `OPINION`-tier checks the delegated catalogs declare default-off.
 - **`--resume`** — resume the most recent incomplete run for this target's state key.
-- **`--report-to <path>`** — redirect the report into the target tree. Doing so **adds that path to
-  the exclusion set** for subsequent runs, and the run says so in its output.
+- **`--report-to <path>`** — redirect the report into the target tree. **The redirecting run adds
+  that path to its own exclusion set before writing** — not only for later runs, or the two runs'
+  derived sets could not be equal — and says so in its output.
 
 ## Phase 0 — Resolve, key, lock
 
@@ -53,8 +54,10 @@ runs take no lock and run concurrently; an applying run takes an exclusive advis
 rather than queues. All specified in [reference/run-contract.md](reference/run-contract.md). With
 `--resume`, read the run manifest and carry forward every lane whose input digest is unchanged.
 
-**Capture the target's HEAD commit and dirty-file count here, and again at Phase 6.** They are the
-determinism gate's precondition, and a run that never measures it cannot claim it held.
+**Capture the target's HEAD commit and worktree digest here, and again at Phase 6.** They are the
+determinism gate's precondition, and a run that never measures it cannot claim it held. The digest
+pairs every dirty path with a hash of its current content, because a *count* holds still while a
+dirty file's contents change underneath the run.
 
 ## Phase 1 — Three-scope inventory, before any check
 
@@ -99,29 +102,45 @@ failed read, and the hard error when a suppression targets an excluded path are 
 
 ## Phase 3 — Lanes and dispatch
 
-**A lane is (check × surface class)** — not per-check (which serializes a check across the tree and
-makes an interruption expensive) and not per-file (which multiplies manifest overhead by the corpus).
+**A lane is one delegated invocation at the finest filter that skill's own interface accepts** — the
+granularity the pass can actually dispatch, since it invokes skills and never reaches inside one. A
+finer lane is unbuildable, not merely inconvenient: per-lane persistence, input digests, and
+selective resume all key on something the pass can re-invoke on its own.
+
+So the split falls out of the delegated interfaces rather than being asserted over them: a skill
+taking a **surface-class filter** yields one lane per filter value it is given, and a skill taking
+only an action verb yields **one lane** covering everything it audits. Where a skill runs its whole
+catalog per invocation, the lane carries that whole catalog — the pass never splits a catalog it
+cannot address. Extending a delegated interface to accept a finer filter is a change to that skill,
+and until it lands the lane stays at the coarser grain.
 
 Dispatch, in inventory order, each invocation presence-gated with its fallback stated:
 
 - **`/claude-config:audit-instructions`** — sibling in this plugin, always available. Carries the
-  model-capability catalog over every non-memory surface, and the cross-layer conflict check. Its
-  conflicts come back as **one finding carrying two sites**, never two linked findings — a
-  contradiction is retired by fixing either side, so the sides are not independently correctable.
+  model-capability catalog over every non-memory surface, and the cross-layer conflict check. It
+  takes a **surface-class scope**, so it yields **one lane per scope value dispatched**, each running
+  that skill's whole catalog over that class. Its conflicts come back as **one finding carrying two
+  sites**, never two linked findings — a contradiction is retired by fixing either side, so the sides
+  are not independently correctable.
 - **`/claude-memory:audit`** — invoke when the `claude-memory` plugin is installed; it owns
-  memory-layer hygiene and the within-memory-layer consistency check. Not installed: the pass reports
-  both as **unchecked**, names that skill as their owner, and emits the one-line pointer to the
-  official memory guidance — never a silent skip, never a re-implementation here.
+  memory-layer hygiene and the within-memory-layer consistency check. It takes an **action verb and
+  no surface filter**, so it is **exactly one lane** covering the whole memory layer. Not installed:
+  the pass reports both as **unchecked**, names that skill as their owner, and emits the one-line
+  pointer to the official memory guidance — never a silent skip, never a re-implementation here.
 
 Structural skill lint is deliberately **not** dispatched: it answers shape rather than content, and
 its fan-out over a large corpus would consume the dispatch budget reserved for instruction-content
 lanes. Route it out (`skill-quality:check` when installed).
 
 Persist each lane's findings to the partial artifact **as that lane completes**, never buffered to
-the end — a lane is complete when its terminating record is in the partial. Bound concurrency to 3–5
-lanes and confirm before the total dispatch count would exceed ~20; the delegated catalogs fan out
-their own subagents, and incremental persistence is what degrades a blown session ceiling into a
-resumed run.
+the end — a lane is complete when its terminating record is in the partial, and every record carries
+its attempt id so an abandoned re-attempt is discardable rather than merely older.
+
+**The lane count is bounded by the delegated interfaces, not chosen here** — one per scope value the
+instruction catalog accepts, plus one for the memory layer — so it is a handful, and a per-run
+dispatch ceiling would never bind. What is *not* bounded here is the fan-out inside a lane: the
+delegated catalogs spawn their own subagents. So cap concurrency at 3–5 lanes and let incremental
+persistence carry the rest — it is what degrades a blown session ceiling into a resumed run.
 
 ## Phase 4 — The `/doctor` handoff
 
@@ -155,12 +174,20 @@ tier ships unreachable.
 ## The suppression record
 
 A deliberately-kept finding is recorded at `.claude/audit-pass.md` in the target repository, layered
-per the config-cascade convention. An entry stores the finding's **constituents** — `check`, `claim`,
-every `(surface, anchor)` site — under the `finding_id` derived from them, never a bare id: an id is
-a one-way hash, so a record built on one cannot compute a tiered match. Keys, layer merge, precedence
-inversion, and the four entry dispositions are in
-[reference/run-contract.md](reference/run-contract.md); the cross-consumer key contract is this
-marketplace's separately published **finding-suppression** convention.
+per the config-cascade convention. **It is the only suppression mechanism — there is no inline
+marker**, at any target: a marker would have to carry the same constituents, could not express a
+two-site finding at all, and would write into a tree the pass must leave clean. An entry stores the
+finding's **constituents** — `check`, `claim`, every `(surface, anchor)` site — under the
+`finding_id` derived from them, never a bare id: an id is a one-way hash, so a record built on one
+cannot compute a tiered match. Keys, layer merge, precedence inversion, and the four entry
+dispositions are in [reference/run-contract.md](reference/run-contract.md); the cross-consumer key
+contract is this marketplace's separately published **finding-suppression** convention.
+
+**Only the team layer enacts a suppression.** A personal entry for an id the team layer does not
+carry is reported as `personal-only, not applied` rather than applied — absence from the team layer
+is the team's *unsuppressed* state, so honoring a personal-only entry would hide a finding the team
+never accepted. A suppression is a decision about the repository, so it belongs in the layer the
+repository tracks; a personal layer drafts one for promotion.
 
 Two report obligations. Every entry names its reason, its date, and **which cascade layer supplied
 it**. And **only an exact match is silent** — a one-sided anchor change carries forward as
@@ -171,10 +198,10 @@ fails the self-check**, the only detector the convergence property has.
 ## Self-check
 
 <!-- fresh-eyes-exempt: deterministic-gate -- the tolerance comparison is set arithmetic over two runs' identity sets; its pass/fail IS the verdict and no judgment enters it -->
-**Establish the precondition first.** If HEAD or the dirty-file count moved between the Phase 0 and
-Phase 6 captures, the tree did not hold still and the gate reports **`indeterminate`** — never
-`passed`. A shared checkout is the normal case, and an unfalsifiable pass manufactures confidence out
-of a basis nobody measured.
+**Establish the precondition first.** If HEAD or the worktree digest moved between the Phase 0 and
+Phase 6 captures — or if two lanes recorded different content for a path they share — the tree did
+not hold still and the gate reports **`indeterminate`**, never `passed`. A shared checkout is the
+normal case, and an unfalsifiable pass manufactures confidence out of a basis nobody measured.
 
 When it held, any derived-tier inequality is a defect, and judged-tier growth beyond the tolerance in
 [reference/run-contract.md](reference/run-contract.md) **fails the self-check as an instability
@@ -182,8 +209,9 @@ finding against this skill**, naming the checks that moved — never absorbed by
 
 ## Gotchas
 
-- **A suppression inside a registered cluster copy is a hard error, not a warning.** An inline marker
-  there makes the copy differ from its siblings and breaks the sync path. Refuse; name the source.
+- **A suppression naming a registered cluster copy is a hard error, not a warning.** The copy is
+  excluded from the scan set, so an entry against it is stale by construction and the finding it
+  claims to hold belongs to the canonical source. Refuse; name that source.
 - **A whole-surface (`s:`) suppression survives every edit to the file and dies on a rename.** Not a
   bug: a finding about a file *as a whole* must not be retired by editing a line inside it.
 - **A judged finding does not contribute to the determinism gate — the norm, not a weakness.** Every

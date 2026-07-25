@@ -118,17 +118,31 @@ conflict for the same `finding_id`, **the team layer wins**, the reverse of the 
 
 It qualifies on all three of the class's conditions:
 
-1. The team layer is a genuine policy floor — a personal overlay suppressing a finding the team never
+1. The team layer is a genuine policy floor — a personal layer hiding a finding the team never
    accepted is exactly the "personal layer weakens a team standard" failure the class exists to
    prevent structurally.
-2. Personal layers stay add/tighten-only: a personal layer may add a suppression for an id the team
-   layer does not mention, and may *narrow* one, but a personal entry never overrides a team entry
-   for the same id.
+2. Personal layers stay add/tighten-only, and on **this** surface adding a suppression is a
+   *loosening*, not an addition — fewer findings reach the operator. So the rule that makes the
+   condition hold is stated directly: **a personal-layer entry for a `finding_id` the team layer does
+   not carry does not suppress.** It is reported as `personal-only, not applied`, naming promotion to
+   the team layer as what makes it take effect. Absence from the team layer *is* the team's
+   unsuppressed state, so honoring a personal-only entry would supply exactly the looser value the
+   condition forbids.
 3. **Provenance is reported.** When the audit emits its `suppressed` section, each entry names the
-   contributing layer, so a reader can tell a team floor from a personal addition.
+   contributing layer, so a reader can tell a team floor from a personal draft.
 
 Condition 3 is behavioral, not declarative: a surface that declares the inversion but does not report
 which layer supplied each entry has not met the class.
+
+**What the inversion itself decides is narrower than it looks, and saying so is the point.** The
+constituents-hash-to-the-key rule means two entries sharing a `finding_id` have identical `check`,
+`claim`, and `sites` by construction — the only fields that can differ are `reason` and `date`. So
+the inversion protects the team's recorded *justification* for an accepted finding. Which findings
+are visible is condition 2's rule, not the inversion's; attributing it to the inversion is what let
+the gap sit unnoticed.
+
+A personal layer is therefore a **draft** surface on this contract: an entry there is read, reported,
+and attributed, and takes effect only once promoted to the team layer.
 
 ## Obligations on a consuming skill
 
@@ -137,7 +151,9 @@ A skill reading this surface:
 1. Resolves layers per the cascade's algorithm — anchor at the repo root, read every layer that
    exists, merge per-key, report the contributing layer, degrade soft on a malformed layer.
 2. Emits a `suppressed` report section listing every suppressed finding with its reason, date, and
-   contributing layer. Suppression is visible, never silent.
+   contributing layer, **and every entry that did not suppress** — including each
+   `personal-only, not applied` entry and each malformed one. Suppression is visible, never silent,
+   and so is a suppression the operator wrote that the contract declined to enact.
 3. Resolves every entry to exactly one of four dispositions, and reports every one but the first:
    - **SAME, UNCHANGED** — both anchors match, `(check, claim)` match. Applies silently.
    - **SAME, CHANGED** — exactly one anchor changed, and the other anchor plus `(check, claim, both
