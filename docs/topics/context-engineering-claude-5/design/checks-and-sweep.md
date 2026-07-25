@@ -415,6 +415,27 @@ the sync path. The run refuses and names the canonical source instead.
   anything" — so it cannot be driven by an unattended run. The handoff is an operator instruction,
   never a dispatch.
 
+  **A handoff still owes the report a record, and the cross-vendor review found that it had none.**
+  `delegated` is defined as `/doctor`'s output and final assembly reads `findings.partial.jsonl`, but
+  an operator instruction writes no lane record and no terminator — so the entire trim-and-migrate
+  result was absent from a run that claims to have coordinated it, and absent *silently*, which is
+  the failure mode this whole contract exists to prevent. An unrun capability is already required to
+  be named in prose on every run; a capability the run explicitly *routed work to* owes more than
+  that.
+
+  So the delegation is a lane like any other, and only its executor differs. The run opens a
+  `delegated` lane when it routes to `/doctor`, and that lane terminates in exactly one of three
+  states, each of which is a reportable outcome rather than an omission: **`handed-back`**, when the
+  operator returns the result and it is recorded as that lane's findings; **`declined`**, when the
+  operator says they will not run it; and **`open`**, when the run ends with neither — the lane is
+  terminated as `open` at assembly, and the report names what was routed and never returned. An
+  `open` lane is also what makes the delegation resumable: it is the one lane whose re-run is a
+  re-prompt rather than a re-scan, so a later run can close it without redoing the sweep. What the
+  operator hands back is the same finding-record shape every other lane emits, so nothing in
+  assembly, matching, or suppression needs a delegated-only path. The capture mechanism — paste,
+  file, or a `handback` action — belongs to the Phase 9 artifact; what is settled here is that the
+  lane exists, that it always terminates, and that `open` is visible.
+
   **The stronger form of this claim is falsified as written, not merely unverified.**
   `plugins/claude-config/skills/audit/context/validation-categories.md:110` asserts "`/doctor` needs
   an interactive TTY", which **overstates what any fetched page says** — and this contract was
@@ -577,6 +598,33 @@ check across the whole tree and make a mid-run interruption expensive; per-file 
 manifest overhead by the corpus size. Surface class is also the granularity the exclusion set and the
 three-scope inventory already work at, so the lane key falls out of structure that exists rather than
 being imposed on it.
+
+**A comparison check is the exception, and D1/I12 is one — the cross-vendor review found that this
+decomposition made its primary case unemittable.** D1's headline shape is a skill body contradicting
+`CLAUDE.md`: two instructions in two different surface classes, and therefore two different lanes.
+A finding's identity is `(check, claim, sites)` over a **sorted set** of sites, so emitting one
+requires *both* anchors in hand — yet each lane sees only its own class, the resume digest covers
+only that lane's own file list, and no later step compares outputs across lanes. Neither lane can
+emit the pair, and nothing downstream reconstructs it. The check whose whole subject is a relation
+between classes had been partitioned by class.
+
+So a check **declares** whether it is within-class or cross-class, and the lane key follows the
+declaration rather than being assumed:
+
+- A **within-class** check keys as `(check × surface class)`, unchanged. This is every I1–I11 check,
+  and it stays the default.
+- A **cross-class** check is **one lane per check**, scoped to the check's declared comparison set.
+  For I12 that set is the all-surface read-only comparison inventory the catalog already defines —
+  the second of the two inventories, never narrowed by the scope filter — so the lane reads every
+  class it compares and the sorted site set is available at the point the finding is emitted.
+
+Two consequences follow rather than being separate rules. The lane's **resume digest covers its
+whole comparison set**, not one class's file list: a cross-class lane whose counterpart class moved
+has stale inputs and must re-run, and a digest over half its inputs would call that resume clean.
+And the scope filter still narrows only which side may *produce* a finding, never which side is
+available to compare against — a scoped run reads the same comparison set and reports only conflicts
+whose editable side is in scope. Lane count is barely affected: cross-class checks are a small
+minority, and one wider lane is cheaper than the cross-lane join the alternative would require.
 
 ## Threat model — prompt injection against the sweep
 
