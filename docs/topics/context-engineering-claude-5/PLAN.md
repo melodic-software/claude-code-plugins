@@ -731,9 +731,16 @@ Tasks #31, #30, #20. Order matters and is not the task order.
    source its premises rest on.
 2. **Inventory all three scopes before applying any side's fixes.** D1 detects cross-surface conflict;
    it cannot see a repo↔user conflict from a repo-only inventory. `design/skill-inventory.md` names
-   `~/.claude/CLAUDE.md` against the 15-skill `re-anchor` plugin as the most likely conflict site, plus
-   a `SessionStart` hook injecting a persistent ruleset that no incumbent inventories as an
-   always-loaded surface. Inventorying only the repo would apply fixes against half the picture.
+   `~/.claude/CLAUDE.md` against the 15-skill `re-anchor` plugin as the most likely conflict site.
+   Inventorying only the repo would apply fixes against half the picture.
+
+   **A second example previously stood here and is struck as false.** It named "a `SessionStart` hook
+   injecting a persistent ruleset that no incumbent inventories as an always-loaded surface". No such
+   hook exists: the repo's only `SessionStart` arms a detached observer and emits no context, and
+   there is no `UserPromptSubmit` hook anywhere. Refuted and recorded in
+   [design/skill-inventory.md](design/skill-inventory.md), "Known conflict surface, already visible".
+   The three-scope requirement does not depend on it — the `~/.claude/CLAUDE.md` case carries it
+   alone.
 
    **The managed-policy scope is the third, and no design document names it.** The memory doc places
    an organization-deployed `CLAUDE.md` at `/Library/Application Support/ClaudeCode/CLAUDE.md`,

@@ -406,6 +406,21 @@ the sync path. The run refuses and names the canonical source instead.
 - **It is interactive** — it "reports findings first and asks for confirmation before changing
   anything" — so it cannot be driven by an unattended run. The handoff is an operator instruction,
   never a dispatch.
+
+  **The stronger form of this claim is unverified and is not relied on.**
+  `plugins/claude-config/skills/audit/context/validation-categories.md:110` asserts "`/doctor` needs
+  an interactive TTY", which **overstates what any fetched page says** — and this contract was
+  resting on the same assertion. Marked unverified rather than repeated. It is settleable cheaply
+  (`claude -p "/doctor"` in a throwaway clone) and that is owed at Phase 10; the drift candidate in
+  `validation-categories.md` is a finding against `claude-config`, recorded here and not edited from
+  this branch. Nothing above depends on the TTY claim — the confirmation-prompt quote carries the
+  handoff on its own.
+- **`/doctor` is narrower than "Nothing ships that `/doctor` already does" has been read to mean**,
+  which *widens* what this work may build. No fetched page says `/doctor` inspects, trims, splits, or
+  edits the body of an existing `SKILL.md`; it may propose **dropping** a skill, and nothing
+  documents it proposing to **shrink** one; and no fetched page places `~/.claude/CLAUDE.md` inside
+  the trim's scope. Neither point moves a disposition, but both change what the constraint excludes,
+  so they are recorded rather than left as an unexamined ceiling.
 - **Its output is excluded from both finding tiers.** A prompt-based delegate cannot contribute to a
   determinism gate.
 

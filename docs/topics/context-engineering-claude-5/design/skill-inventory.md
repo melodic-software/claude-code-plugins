@@ -91,15 +91,40 @@ contributes nothing to running it. Two properties make them the pass's real work
 
 ## Known conflict surface, already visible
 
-The user-scope `~/.claude/CLAUDE.md` is 50 lines / 9,825 characters of near-uniformly absolute
-directives ("Never…", "Always…", "never rely solely on…") across nine sections. Independently:
+The user-scope `~/.claude/CLAUDE.md` is **69 lines / 10,550 bytes** (51 of those lines non-blank) of
+near-uniformly absolute directives ("Never…", "Always…", "never rely solely on…") across nine
+sections. Independently:
 
 - The memory doc targets **under 200 lines** per `CLAUDE.md` — the file passes on length while
   being extremely dense per line, so a line-count gate alone would clear it.
 - The same file already practices progressive disclosure correctly: a "Reference docs (read on
   demand)" block pointing at five files under `~/.claude/docs/` that are not auto-loaded.
-- A `SessionStart` hook injects a persistent output-style ruleset on every prompt, which is a
-  further always-loaded instruction surface that no incumbent inventories as such.
+
+**Two corrections, 2026-07-24, and they are the fourth instance of a pattern this work has now
+recorded four times.**
+
+- **Stale measurement.** This read "50 lines / 9,825 characters". Measured by command this session:
+  **69 lines / 10,550 bytes**. Both figures were wrong, and the line count was wrong in a way that
+  invites a second error — a non-blank-line count returns 51, which is close enough to the old
+  figure to look like confirmation. The number to compare against a 200-line budget is 69.
+- **Refuted claim, struck.** A third bullet asserted: "A `SessionStart` hook injects a persistent
+  output-style ruleset on every prompt, which is a further always-loaded instruction surface that no
+  incumbent inventories as such." **False.** Every hook event across all 15 `hooks.json` files was
+  enumerated: there is exactly **one** `SessionStart` — `plugins/session-flow/hooks/hooks.json` →
+  `observer-arm.sh` — which reads stdin, arms a detached observer, redirects output to `/dev/null`
+  and `exit 0`s. It emits no `additionalContext` and no `systemMessage`, and no-ops entirely unless
+  `CLAUDE_PLUGIN_OPTION_OBSERVER_ENABLED=true`. There is **no `UserPromptSubmit` hook anywhere**, and
+  `~/.claude/settings.json` carries neither key (its only hook event is `PreToolUse`).
+
+  **Bounded honestly:** `settings.local.json`, managed settings, and the installed marketplace copy
+  were not read.
+
+**The pattern, named because its own record is the deliverable.**
+[proportionality-gate.md](proportionality-gate.md) records that "most `GAP` and `PARTIAL` verdicts
+are negative claims about bodies nobody read"; PLAN.md records it caught twice more in the worktree
+count. This is the fourth. The standing rule that came out of it is **counts-by-command** — and this
+document predates the rule and was never swept against it, which is exactly how a stale figure and a
+refuted mechanism survived side by side in one paragraph.
 
 Whether that file should change is the operator's call, not the pass's. It is named here because it
 is the highest-signal dogfood target on this machine.
