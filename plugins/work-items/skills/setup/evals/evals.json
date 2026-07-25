@@ -4,10 +4,11 @@
     {
       "id": 1,
       "name": "infers-candidates-and-interviews-per-item",
-      "prompt": "/work-items:setup apply",
-      "expected_output": "Reads any existing .github/recurring-schedule.json and summarizes it, then infers candidate recurring items from what the repo actually contains (dependency manifests, lint/formatter config, CI workflows, security-sensitive surfaces) each with a recommended cadence, and interviews one item at a time with recommended field values marked before moving on. It does not invent items the repo gives no signal for, and writes only what the user accepts.",
+      "prompt": "/work-items:setup apply --seed-schedule",
+      "expected_output": "The explicit --seed-schedule argument opts in to the seeding pass, so it runs in full without asking again: it reads any existing .github/recurring-schedule.json and summarizes it, then infers candidate recurring items from what the repo actually contains (dependency manifests, lint/formatter config, CI workflows, security-sensitive surfaces) each with a recommended cadence, and interviews one item at a time with recommended field values marked before moving on. It does not invent items the repo gives no signal for, and writes only what the user accepts.",
       "files": [],
       "expectations": [
+        "Treats the explicit --seed-schedule argument as the opt-in and runs the seeding pass without re-offering it",
         "Reads and summarizes an existing .github/recurring-schedule.json before proposing changes",
         "Infers candidate items from concrete repo signals (manifests, lint config, CI workflows, security surfaces) with recommended cadences",
         "Interviews one item at a time with recommended values, rather than writing blind",
@@ -51,6 +52,20 @@
         "Filters provider search to an exact [Maintenance] {old title} match, never a prefix or substring match",
         "Retitles the item for a renamed row and closes it (with a note) for a dropped row",
         "Performs no reconciliation when no exact-match open item exists"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "first-bind-writes-skeleton-only-without-opt-in",
+      "prompt": "/work-items:setup apply",
+      "expected_output": "On a first-time bind (no .work-item-tracker.json, and the schedule absent or carrying an empty items array) a bare apply writes only the minimum viable config: the provider binding, the canonical role-label pass, and the empty {\"items\": []} skeleton that stops due/recheck/work degrading to \"no recurring schedule configured\". It offers seeding exactly once as a single yes/no with skip marked RECOMMENDED; on skip it runs no candidate inference and no per-item interview, and says the schedule can be bulk-seeded later by re-running apply or apply --seed-schedule. With no interactive user (a loop lane or other unattended context) it does not present the offer or block — the skip default applies silently. The role-label pass still runs because it is anchored to the bind, not to the interview, and with zero schedule rows a missing recurring-maintenance label is reported as informational rather than gating the bind.",
+      "files": [],
+      "expectations": [
+        "Writes only the provider binding, the role-label pass, and the empty {\"items\": []} schedule skeleton",
+        "Runs no candidate inference and no per-item interview when the seeding offer is skipped",
+        "Offers seeding once as a single yes/no with skip marked RECOMMENDED, and points at apply --seed-schedule for bulk-seeding later",
+        "Applies the skip default silently with no interactive user, never blocking on the offer",
+        "Still runs the role-label pass (anchored to the bind), treating a missing recurring-maintenance label as informational when the schedule carries zero rows"
       ]
     }
   ]

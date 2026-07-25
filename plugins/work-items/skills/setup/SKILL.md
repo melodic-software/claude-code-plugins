@@ -1,7 +1,7 @@
 ---
 name: setup
-description: "Verify and configure the work-items plugin for this repository. check inspects read-only the tracker provider binding (.work-item-tracker.json), the tracked .github/recurring-schedule.json (presence, JSON validity, unique reconciliation keys), the jq and tracker-seam entry gates, and the recurring-maintenance role label; apply binds the tracker provider (seeds .work-item-tracker.json with the provider + non-secret config), interviews the consumer for their recurring work items, infers candidates from the repo, writes the schedule, and optionally remaps the canonical role labels in the tracker binding. Use when: 'set up work-items', 'bind the tracker provider', 'is work-items configured', 'configure the recurring schedule', 'work-items setup', 'seed recurring items', 'remap the work-item role labels', or the due/recheck/work actions report no recurring schedule configured, or the seam reports no binding. Re-runnable — safe to invoke again to reconfigure."
-argument-hint: "check | apply"
+description: "Verify and configure the work-items plugin for this repository. check inspects read-only the tracker provider binding (.work-item-tracker.json), the tracked .github/recurring-schedule.json (presence, JSON validity, unique reconciliation keys), the jq and tracker-seam entry gates, and the recurring-maintenance role label; apply binds the tracker provider (seeds .work-item-tracker.json with the provider + non-secret config), writes the schedule, and optionally remaps the canonical role labels in the tracker binding. On a first-time bind apply writes that minimum viable config only — binding, role-label pass, empty schedule skeleton — and the pass that infers candidates from the repo and interviews the consumer for their recurring work items is opt-in, via the --seed-schedule argument or a single offer whose recommended default is skip (applied silently with no interactive user); a schedule that already carries items is summarized and offered updates exactly as before. Use when: 'set up work-items', 'bind the tracker provider', 'is work-items configured', 'configure the recurring schedule', 'work-items setup', 'seed recurring items', 'bulk-seed the recurring schedule', 'remap the work-item role labels', or the due/recheck/work actions report no recurring schedule configured, or the seam reports no binding. Re-runnable — safe to invoke again to reconfigure or to seed the schedule later."
+argument-hint: "check | apply [--seed-schedule]"
 user-invocable: true
 disable-model-invocation: true
 ---
@@ -15,11 +15,15 @@ recurring-schedule config at `.github/recurring-schedule.json` so the `due`, `re
 actions resolve a real schedule instead of degrading to "no recurring schedule configured", and the
 optional canonical-role → label remap in the binding (see "Canonical role labels" below). The
 recurring-schedule pass is the bulk / initial-config path; the per-item `add --recurring` path (which
-appends a single row as a side effect of filing its work item) stays as-is.
+appends a single row as a side effect of filing its work item) stays as-is. Seeding actual schedule
+**rows** is opt-in: a first-time bind writes the empty skeleton and stops there, because that bind is
+usually reached as a detour from another verb reporting "no binding" — the operator came to do
+something else, and should not be walked through a per-item interview to get there.
 
-`check` inspects read-only and reports a PASS/FAIL/INFO table; `apply` binds the provider, seeds or
+`check` inspects read-only and reports a PASS/FAIL/INFO table; `apply` binds the provider, writes or
 reshapes the schedule, and offers the role remap, then re-runs `check`. No argument or `check` runs the
-check; `apply` runs the check first, then the bind-and-write flow. Idempotent: re-running reads the
+check; `apply` runs the check first, then the bind-and-write flow; `apply --seed-schedule` additionally
+opts in to the candidate-inference-and-interview pass. Idempotent: re-running reads the
 on-disk files and offers updates rather than overwriting blind. The schedule file is a plain tracked
 JSON file the skill reads and writes directly (Read / Write / `jq`) — it is not a tracker record, so it
 does not route through the work-item-tracker seam; only operations on the work items themselves (labels,
@@ -150,11 +154,34 @@ check.
 
 ## `apply` (idempotent)
 
-Run `check`, then bind the provider (step 1) before the schedule and role-label passes. For the
-schedule, apply the convention-resolution ladder — config present → use it and offer updates; absent →
-infer candidates from the repo and persist what the user accepts; cannot infer → ask; otherwise write
-the empty `{"items": []}` skeleton so the recurring actions stop degrading. The row shape, the root
-`{"items": []}` structure, and the cadence-duration table are defined once in
+Run `check`, then bind the provider (step 1) before the schedule and role-label passes. The schedule
+branches on **how many rows the schedule already carries** — never on whether the file exists. A
+skipped first-time `apply` leaves `{"items": []}` on disk, so a file-absence gate would make the
+seeding path unreachable by re-running:
+
+- **Schedule carries ≥1 item** — unchanged from before: summarize it, infer candidates, and interview
+  against that baseline (steps 2–4), offering updates. `--seed-schedule` is a no-op here; this branch
+  already interviews.
+- **Schedule absent, or present with an empty `items` array** — write only the minimum viable config:
+  the provider binding, the role-label pass, and the empty `{"items": []}` skeleton so `due` /
+  `recheck` / `work` stop degrading to "no recurring schedule configured". Steps 3–4 do not run: no
+  candidate inference, no per-item interview. **This is the default.**
+
+Seeding rows on that second branch is **opt-in**, satisfied by any one of: the explicit
+`--seed-schedule` argument; an accepted yes/no offer; or an invocation that in its own words asks for
+the schedule to be seeded (e.g. "seed a sensible recurring schedule for this repo") — an explicit
+request IS the opt-in, so honor it without re-asking. Otherwise offer exactly once, before step 3, as a
+single yes/no with **skip marked RECOMMENDED**: name that seeding walks them through one interview per
+candidate item, that the skeleton alone already stops the degradation, and that re-running `apply` (or
+`apply --seed-schedule`) bulk-seeds later at any time. On skip, say so plainly and go to step 5.
+
+**Autonomous invocation (no interactive user).** When `apply` is invoked by a loop lane (e.g.
+`/work-items:work-loop`) or in another unattended context, there is nobody to answer that offer — do
+not present it and do not block. The recommended default applies silently, so an autonomous first-time
+bind produces the binding, the role-label pass, and the empty skeleton, and nothing else.
+`--seed-schedule` is the non-interactive way to opt IN; absent it, never infer and never interview.
+
+The row shape, the root `{"items": []}` structure, and the cadence-duration table are defined once in
 [`${CLAUDE_PLUGIN_ROOT}/skills/track/actions/add.md`](${CLAUDE_PLUGIN_ROOT}/skills/track/actions/add.md)
 (step "If `--recurring`" and the Cadence Duration Table) — read that file for the authoritative field
 list before writing. Proceed non-interactively where the invocation and the repo make the values
@@ -166,9 +193,12 @@ unambiguous; ask only where an item genuinely needs the user.
 2. **Read the current schedule file first.** If `.github/recurring-schedule.json` exists, load it and
    present a short summary (item count, each item's `id` / `cadence` / `next_due`, and which are already
    overdue against today). The interview proposes changes against that baseline; nothing is dropped
-   without the user confirming. If the file is absent, say so and continue to inference.
-3. **Infer candidate items before asking.** Recurring items can't be fully derived, but don't skip the
-   rung — propose candidates from what the repo actually contains, each with a recommended cadence:
+   without the user confirming. If the file is absent or carries an empty `items` array, say so and
+   settle the opt-in decision above before going further.
+3. **Infer candidate items before asking — steps 3 and 4 run on the seeding path only** (the schedule
+   already carries ≥1 item, or seeding was opted into). On the default skipped path, run neither and go
+   straight to step 5. Recurring items can't be fully derived, but don't skip the rung — propose
+   candidates from what the repo actually contains, each with a recommended cadence:
    - Dependency manifests (`package.json`, `*.csproj` / `Directory.Packages.props`, `pyproject.toml`,
      `Cargo.toml`, `go.mod`) → a "Review dependency manifest / check for updates" item (recommend
      `quarterly`).
@@ -196,7 +226,12 @@ unambiguous; ask only where an item genuinely needs the user.
      `last_checked` to today (setup did no maintenance). Blindly resetting the dates would drop an
      already-overdue item out of the `due` / `work` recurring tiers, which both select on
      `next_due <= today`.
-5. **Confirm the recurring-maintenance role label is present — it is load-bearing, not optional.**
+5. **Confirm the recurring-maintenance role label is present — load-bearing whenever the schedule will
+   carry rows.** Gate on the schedule's **final row count**, not on what this run wrote: with ≥1 row
+   (written now or already on disk) a missing label blocks, exactly as spelled out below. With zero
+   rows — the skipped first-time bind's empty skeleton — no `[Maintenance]` item can ever be created
+   from that schedule, so a missing label is **informational, not a gate**: report it, note it must
+   exist before the schedule is ever seeded, and continue without blocking the bind.
    Resolve the role from `.work-item-tracker.json` `config.role_labels["recurring-maintenance"]`,
    defaulting to `recurring` only when the file or entry is absent (a malformed, empty, or non-string
    configured value is an error, not a fallback). `due` / `work` enumerate open maintenance items with
@@ -206,14 +241,16 @@ unambiguous; ask only where an item genuinely needs the user.
    `due` / `work` pass, and gets duplicated or reported as orphaned. Verify presence via the adapter's
    label listing (for the GitHub adapter, `gh label list`). **When the repository declares a
    label-as-code source of truth, that system is the sole writer — never `gh label create` labels ad
-   hoc.** When the resolved label is missing, tell the user plainly that the schedule cannot be
-   reconciled until the label is added through the repository's declared provisioning process; do not
-   silently treat it as optional. This step files no items; for a row now in the schedule, its
+   hoc.** When the resolved label is missing and the schedule carries rows, tell the user plainly that
+   the schedule cannot be reconciled until the label is added through the repository's declared
+   provisioning process; do not silently treat it as optional. This step files no items; for a row now in the schedule, its
    `[Maintenance]` item is created — item only, no extra schedule row — by the consuming repo's
    recurring automation or the `work` due-recurring tier when `next_due` arrives. Do **not** point users
    at `add --recurring` to create it: that per-item path appends another schedule row, duplicating an
    already-seeded item.
-6. **Write the schedule.** Read the current file (if any) and merge the accepted items into the `items`
+6. **Write the schedule.** On the skipped path there is nothing to merge: write the `{"items": []}`
+   skeleton when the file is absent, leave an already-empty file untouched, and go to step 8 — step 7
+   has no renamed or dropped row to reconcile. Otherwise read the current file (if any) and merge the accepted items into the `items`
    array, keying each edited item on the **original `id` it had when read in step 2**, not its final
    `id` — so an id rename replaces the original row instead of leaving it behind. Concretely: replace
    the row whose id matches the item's origin id; append only genuinely new items (no origin row); and
@@ -248,7 +285,9 @@ unambiguous; ask only where an item genuinely needs the user.
 
 ## Canonical role labels (optional remap)
 
-After the schedule interview, offer the role→label remap. The work-items actions speak three
+Offer the role→label remap on every `apply` that binds the provider — this pass is anchored to the
+**bind**, not to the schedule interview, so it runs on the skipped first-time path (where no interview
+happens) just as it does after one. The work-items actions speak three
 canonical roles — `autonomous-eligible`, `human-gated`, `recurring-maintenance` — and resolve each
 repo-actual label string from the tracker binding: `.work-item-tracker.json`, key
 `config.role_labels`. Absent entries fall back to the defaults `agent-ready` / `needs-human` /
@@ -280,10 +319,11 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 
 A tracked `.work-item-tracker.json` binding (provider + non-secret config) and a tracked
 `.github/recurring-schedule.json`, both in the consuming repo, plus a one-paragraph summary: the bound
-provider and config, the recurring items written (id, cadence, next_due), whether any labels were
-created, any role→label remap written to `.work-item-tracker.json`, and how to re-run this setup to
-reconfigure. On a `check`-only run, the PASS/FAIL/INFO table and its remediation lines, mutating
-nothing.
+provider and config, the recurring items written (id, cadence, next_due) — or, on the skipped path,
+that only the empty skeleton was written and that `apply --seed-schedule` bulk-seeds rows whenever the
+operator wants them — whether any labels were created, any role→label remap written to
+`.work-item-tracker.json`, and how to re-run this setup to reconfigure. On a `check`-only run, the
+PASS/FAIL/INFO table and its remediation lines, mutating nothing.
 
 ## What this skill does NOT do
 

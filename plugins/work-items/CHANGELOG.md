@@ -3,6 +3,27 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.0]
+
+### Changed
+
+- **`setup apply` no longer seeds recurring schedule rows by default on a first-time bind (`#1211`).**
+  A bare `apply` against an absent or empty schedule now writes only the minimum viable config — the
+  provider binding, the canonical role-label pass, and the empty `{"items": []}` skeleton that stops
+  `due` / `recheck` / `work` degrading to "no recurring schedule configured". The candidate-inference
+  and per-item interview pass, previously unconditional, is opt-in: the new `apply --seed-schedule`
+  argument, an explicit in-invocation request to seed, or a single yes/no offer whose RECOMMENDED
+  default is skip. With no interactive user (a loop lane or other unattended context) the skip default
+  applies silently, and `--seed-schedule` is the non-interactive way to opt in. A first-time bind is
+  usually a detour from another verb reporting "no binding", so the operator who came to do something
+  else is no longer walked through an interview per candidate item to get there. The gate keys on the
+  schedule carrying **no items**, not on the file being absent, so a skipped bind's `{"items": []}` is
+  still reachable by re-running `apply` — a schedule that already carries ≥1 item is summarized and
+  offered updates exactly as before, unchanged. The role-label pass is re-anchored to the bind rather
+  than to the interview so it still runs on the skipped path; with zero schedule rows a missing
+  `recurring-maintenance` label is reported as informational rather than gating, since no
+  `[Maintenance]` item can be created from an empty schedule.
+
 ## [0.24.0]
 
 ### Changed
