@@ -59,10 +59,26 @@ sufficient one. Specifically:
    the scoping. The path guard had 61 green cases and a 23.7% real-world firing rate.
 2. **Report the number in the PR.** "It looks quieter now" is not a measurement. The
    before/after firing rate and precision are the artifact that justifies default-on.
-3. **Zero true positives on a real corpus disqualifies the guard**, however sound its
-   oracle. A guard that fires on a quarter of writes and is never right trains readers to
-   ignore every advisory, including the ones that are right — it has negative value, not
-   low value.
+3. **A guard that fires and is never right disqualifies itself**, however sound its oracle.
+   The disqualifying condition is **observed false positives with no true positive**, not the
+   absence of true positives on its own. A guard that fires on a quarter of writes and is
+   never right trains readers to ignore every advisory, including the ones that are right —
+   negative value, not low value.
+
+   **A silent guard is not thereby disqualified.** A corpus may simply contain no violation
+   of the class, which leaves precision *undefined* rather than zero, and a guard for a rare
+   defect is exactly the kind worth having. Distinguish the two outcomes:
+
+   | Sweep result | Reading |
+   |---|---|
+   | fires often, no true positives | disqualified — the path guard, 389 findings, 0 real |
+   | silent, or near-silent | inconclusive on precision; establish detection by seeding known defects, then ship if the firing rate stays low |
+   | fires rarely, true positives present | shippable — the reference guard, 0.51% firing, 57% precision |
+
+   For a silent sweep the burden shifts to **seeded defects**: plant instances the guard
+   should catch, confirm it catches them, and report the firing rate on the unseeded corpus
+   as the noise figure. Absence of evidence is not the evidence of absence that rule 1 asks
+   for.
 4. **Distinguish "wrong oracle" from "wrong scope."** The path guard's oracle was exact; its
    scope was a repo whose docs describe other repos' trees. That distinction decides whether
    a guard is deleted or re-filed for rescoping. It was re-filed (#1314).
