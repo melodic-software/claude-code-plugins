@@ -13,10 +13,11 @@ The 5-stage main-thread pipeline that turns heterogeneous free-text findings fro
 | `architecture-guardian` | Violations / Risks / Opportunities | — | file-only (Violations); none (Risks/Opportunities) |
 | `doc-drift-detector` | Stale / Missing / Aspirational | — | doc-file line (table) |
 | slice-subagents | project's tiers (or baseline) | — | `file:line` (inferred) |
-| `code-review` plugin | none (flat issue list) | 0–100, filters <80 | GitHub permalink `#L[s]-L[e]` |
 | `pr-review-toolkit` orchestrator | Critical / Important / Suggestion | — | `[file:line]` (inferred) |
 
 Line numbers from LLM reviewers drift — treat inferred lines as approximate and keep dedup noise-tolerant.
+
+**Not in this table:** the bundled `/code-review` command and the managed Code Review GitHub App service (SKILL.md "Boundary — built-in/managed surfaces, not marketplace plugins"). Both mutate the PR directly rather than returning findings to normalize, so neither is dispatched as a fan-out leaf here.
 
 ## Stage 0 — Extraction (Sonnet)
 
@@ -34,7 +35,7 @@ Map native severity → the tier vocabulary in effect (the project's own, else `
 - code-reviewer, slice-subagents, pr-review-toolkit: identity mapping (Critical/Important-or-Warning/Suggestion).
 - architecture-guardian: Violation → CRITICAL (broken rule today) or IMPORTANT (drift) by content; **Risk → SUGGESTION + `forward-flag: future` (NEVER a blocking tier)**; Opportunity → SUGGESTION.
 - doc-drift: Stale → IMPORTANT; Missing/Aspirational → SUGGESTION.
-- **Surfaces emitting no severity (e.g. the `code-review` plugin)** → DERIVE from content: bug/correctness → CRITICAL or IMPORTANT by impact; convention-adherence → IMPORTANT; ambiguous → IMPORTANT + `pending: human-tier`. A confidence filter having passed is confidence-of-realness, NOT severity — a high-confidence nitpick is still a nitpick.
+- **Surfaces emitting no severity** → DERIVE from content: bug/correctness → CRITICAL or IMPORTANT by impact; convention-adherence → IMPORTANT; ambiguous → IMPORTANT + `pending: human-tier`. A confidence filter having passed is confidence-of-realness, NOT severity — a high-confidence nitpick is still a nitpick.
 
 ## Stage 2 — Confidence enum (deterministic / Haiku)
 

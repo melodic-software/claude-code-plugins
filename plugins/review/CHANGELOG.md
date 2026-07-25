@@ -3,6 +3,24 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.1]
+
+### Fixed
+
+- Reconciled stale `code-review` framing in the `fanout` skill's `SKILL.md` "Orchestrator
+  plugins" section and `context/findings-normalization.md`: both described `code-review` as one
+  of three optional `claude-plugins-official` marketplace orchestrator plugins, invoked as
+  `/code-review:code-review`. Per current official docs
+  (<https://code.claude.com/docs/en/code-review>), `/code-review` is a bundled built-in command
+  (invoked bare, no plugin namespace) and the "parallel agents / posts PR comments" behavior
+  actually describes the separate managed Code Review GitHub App service — neither is an
+  installable marketplace plugin. `SKILL.md` now documents both surfaces distinctly under a new
+  "Boundary" section (mirroring the pattern `quality-gate`'s `pr.md` already uses, #732), and
+  `findings-normalization.md`'s per-surface parse-contracts table no longer lists `code-review` as
+  a normalized fan-out leaf. Also updated two `fanout` evals (`pr-comment-gate-opt-in`,
+  renamed `unscored-surface-severity-derived-not-invented`) that referenced the same stale
+  "code-review orchestrator plugin" framing, for internal consistency.
+
 ## [0.15.0]
 
 ### Added
