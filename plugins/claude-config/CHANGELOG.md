@@ -10,14 +10,22 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 - **`audit-instructions` checks I12–I14**, extending the existing `reference/criteria.md` catalog
   rather than standing up a second one. I12 flags an instruction asserting a Claude Code *harness*
   behavior that the current official page contradicts — the product, not the model, which is what
-  separates it from I8. I13 flags an `@path` written where `@` carries no import meaning, so the
-  cited content silently never arrives. I14 flags an instruction telling a subagent to read a
+  separates it from I8. I13 flags prose written on the assumption that an `@path` imported on a
+  surface where `@` carries no import meaning. I14 flags an instruction telling a subagent to read a
   surface the main conversation loads at startup and therefore already carries. Each row carries its
   must-not-flag cases, and the three new official sources (CLI reference, subagents, skills) join the
   catalog's source list.
 
 ### Changed
 
+- **Discovery vocabulary for the three new checks.** The `description` framed the skill purely as
+  finding instructions the model no longer needs, so a request about a stale harness claim, a
+  non-loading `@path`, or a redundant startup-surface read would not select it — and only the
+  description is available during selection. It now names those three shapes and carries their
+  trigger phrases.
+- **I13 fires on the false assumption, not the citation form.** An inert `@path` on a skill surface
+  is still a legible path, so "follow `@reference/rules.md`" works and warning on it would flag a
+  working instruction. Detection now requires prose asserting the file has already arrived.
 - **Recheck triggers now watch every page in the catalog's source list**, not the three originally
   named. Each check cites one of those pages, so a subset left the new harness-behavior rows
   depending on pages nothing watched.
@@ -30,7 +38,6 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   covers the hierarchy *the main conversation loads*; nested `CLAUDE.md` files and path-scoped rules
   load lazily when work reaches their scope, so an instruction to read a package-local file before
   operating there can be doing real work. Flagging it would have removed scoped instructions.
-
 - **`Authority` gloss restated descriptively.** It now reads "All fourteen checks are currently
   `ANTHROPIC-DOCS`" — a statement about the catalog's present contents, not a rule. `TALK` and
   `OPINION` stay reachable for a future row, and the axis stays a closed three-value set rather than

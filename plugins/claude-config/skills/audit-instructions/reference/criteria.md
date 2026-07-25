@@ -204,13 +204,19 @@ Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
 Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: non-memory only
 (skill bodies and their reference files, agent definitions, prompt-type hooks, output styles).
 
-- **Detect:** an `@path` written outside backticks and outside a fenced block on a surface where
-  `@` carries no import meaning, in a sentence that treats it as though the file arrives. Import
-  syntax is a property of the CLAUDE.md family; a skill's supporting files are reached by being
-  named so Claude knows when to read them, so an `@` there is inert text and its content silently
-  never arrives.
+- **Detect:** an `@path` written outside backticks and outside a fenced block on a surface where `@`
+  carries no import meaning, **in prose that asserts the file has already arrived** — "as specified
+  in @reference/rules.md above", "the criteria in @reference/criteria.md are loaded", a claim that
+  the content is present rather than an instruction to go get it. Import syntax is a property of the
+  CLAUDE.md family; on a skill or agent surface the `@` is inert, so an instruction written on the
+  assumption that it imported is describing a load that did not happen.
 - **Remediate:** cite the file the way that surface actually resolves — a backticked path or a
   markdown link the reader and the model can both follow.
+- **Must NOT flag: an `@path` the surrounding prose treats as a file to read.** The path is still
+  legible in the loaded prompt, so "follow `@reference/rules.md`" works — the reader opens it, the
+  inert prefix costs one character. **The finding is the false assumption of automatic loading, not
+  the citation form**, and a warning on every inert `@` would flag working instructions. When the
+  prose does not say the content already arrived, leave it.
 - **Must NOT flag:** anything on a memory-layer surface, where `@path` genuinely imports. A
   package scope (`@anthropic-ai/…`), a decorator, an email address, or a `@username` handle. A
   backticked `` `@path` ``, which the import parser skips by design and which is the documented
