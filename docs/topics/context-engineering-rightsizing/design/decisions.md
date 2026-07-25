@@ -190,6 +190,47 @@ stopping points.
 | L8 | D-18, D-16 | **PR #1282 open**, 26/26 CI green |
 | L10 | D-11 | **PR #1280 open**, fresh-eyes verified, 8 corrections pending |
 
+### Explicit deferrals — lanes that shipped nothing
+
+Recorded so that no lane's status rests on an unwritten assumption. Each entry states what is
+deferred, why, and the concrete trigger that unblocks it.
+
+**L0 — design docs and contract.** Deferred with work committed but unpublished: 7 commits on
+`feat/context-engineering-rightsizing`, working tree clean, branch **not pushed**, no PR. Consequence
+already felt: the 13 digests are on no remote, so L2 could not point at `S2-unhobbling.md` and had to
+duplicate its gate definition. **Trigger:** push the branch and open the PR, disclosing the deliberate
+collision with `docs/context-engineering-claude-5-topic`. Still owed beyond that — file the D-6
+fable-5 follow-up issue, and append the `#319` correction to `collision-register.md` itself, since it
+currently exists only in this file.
+
+**L2 — cross-surface conflict detector (D-4).** Deferred mid-build. Uncommitted work only:
+`plugin.json`, `CHANGELOG.md` and `audit-instructions/SKILL.md` modified, plus three new untracked
+files — `reference/conflict-criteria.md`, `scripts/conflict-scan.sh`, `scripts/conflict-scan.test.sh`.
+**It carries a known error**: its report claims the no-incumbent result holds, but its search covered
+`plugins/**/SKILL.md` only and so missed C6 for the same reason every prior search did.
+**Trigger:** redo the incumbent search across `plugins/**` at all depths and file types, then rule on
+reuse-versus-extension of C6 before continuing the build.
+
+**L3 — criteria catalog (D-4, D-2).** Deferred mid-fold. Uncommitted work only, across
+`plugin.json`, `CHANGELOG.md`, `README.md`, `audit-instructions/SKILL.md`, `evals/evals.json` and
+`reference/criteria.md`. The fold verdict itself was independently verified sound, so the direction is
+not in question. **Trigger:** none external — resume and finish.
+
+**L4 — guardrails root-cause fix (D-12).** Deferred mid-implementation. Uncommitted work only:
+`lib/hook-utils.sh` plus seven guardrails hooks. These are worktree copies, **not** the installed
+plugins under `~/.claude/plugins/cache/`, so machine behavior is unchanged and the guards remain in
+their current fail-open state. **Trigger:** the behavior-preservation testing the lane never reached —
+each guard's verdicts captured before and after on representative payloads — plus confirmation of the
+fail-open reading against official documentation. **Do not apply these edits without both.**
+
+**Common cause.** All four terminated on a session usage limit at 02:52–02:54, not at a stopping point
+of their own choosing. **Their worktrees must not be pruned**: L2, L3 and L4's work exists nowhere
+else, and was deliberately left uncommitted rather than sealed behind a fabricated checkpoint.
+
+**Verification debt.** Only L10 received the fresh-context review this effort's own D-5 requires.
+PRs #1282, #321 and #1286 are unverified, and the four lanes above produced nothing to verify. That
+debt is outstanding and is recorded here rather than assumed discharged.
+
 ### D-1's incumbent gate — the pass's dominant finding, and its blind spot
 
 The gate fired hard, as this effort's own digests predicted. Its sharpest result: **D-4's criteria
