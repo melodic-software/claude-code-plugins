@@ -196,6 +196,18 @@ if [[ "$DRY_RUN" -eq 0 ]]; then
   # makes that structurally impossible. A malformed/unrecognized token is NOT judged
   # here; the apply loop fails those closed per-record (exit 1) as structural
   # corruption, a different error class from a well-formed plan for the wrong tier.
+  #
+  # Authorization alone is only half the match: `all` authorizes BOTH record kinds,
+  # so a narrower plan (a `build` plan with no GITDIR records, or a `git` plan with
+  # no REPO records) would pass every per-record test and then apply only part of
+  # the requested tier while the banner named `all`. The same misrepresentation,
+  # from the other direction. So the plan's record-kind SET must also be the set the
+  # tier plans: `all` requires both kinds present. Presence is required only when
+  # the plan carries records at all — a fleet where every repo was skipped or
+  # blocked plans nothing for either kind, and an empty plan removes nothing under
+  # any tier.
+  PLAN_HAS_REPO=0
+  PLAN_HAS_GITDIR=0
   while IFS=$'\t' read -r kind a b c; do
     [[ -n "$kind" ]] || continue
     case "$kind" in
@@ -204,13 +216,22 @@ if [[ "$DRY_RUN" -eq 0 ]]; then
       if [[ "$b" != "$(tier_repo_token)" ]]; then
         fail_usage "plan record does not match --tier $TIER: a '$b' REPO record is not authorized (plan built for a different tier?). Re-run --dry-run --tier $TIER."
       fi
+      PLAN_HAS_REPO=1
       ;;
     GITDIR)
       tier_has_git || fail_usage "plan record does not match --tier $TIER: a GITDIR record requires --tier git or all (plan built for a different tier?). Re-run --dry-run --tier $TIER."
+      PLAN_HAS_GITDIR=1
       ;;
     *) ;;
     esac
   done <"$BATCH_PLAN_ARG"
+
+  if [[ "$TIER" == all && "$PLAN_HAS_REPO" -ne "$PLAN_HAS_GITDIR" ]]; then
+    if [[ "$PLAN_HAS_GITDIR" -eq 0 ]]; then
+      fail_usage "plan record does not match --tier all: the plan carries no GITDIR record, so applying it would skip the git tier entirely (plan built for a different tier?). Re-run --dry-run --tier all."
+    fi
+    fail_usage "plan record does not match --tier all: the plan carries no REPO record, so applying it would skip the build tier entirely (plan built for a different tier?). Re-run --dry-run --tier all."
+  fi
 
   printf 'Fleet Clean (apply)\n'
   printf 'Tier: %s\n' "$TIER"

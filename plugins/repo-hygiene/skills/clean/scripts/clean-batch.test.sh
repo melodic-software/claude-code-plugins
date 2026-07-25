@@ -188,6 +188,40 @@ assert_contains "all apply prunes the shared object store" "$out" "Outcome: prun
 assert_file_absent "all apply removed build dir" "$AR2/bin/b"
 assert_file_absent "all apply removed cache" "$AR2/.pytest_cache/x"
 
+# --- 4g. tier-authorization runs in BOTH directions: `all` authorizes both record
+#         kinds, so a NARROWER plan passes every per-record test while applying only
+#         part of the requested tier. A `build` plan (no GITDIR) under --tier all
+#         would clean build artifacts and silently skip every prune; a `git` plan
+#         (no REPO) would prune and silently skip every build removal. Both are the
+#         same scope misrepresentation as 4d, from the other side. ---
+AR3="$(mkrepo allrepo3)"
+out="$(bash "$BATCH" --tier build --repo "$AR3")"
+BPLAN3="$(sed -n 's/^BatchPlan: //p' <<<"$out")"
+rc=0
+out="$(bash "$BATCH" --tier all --apply --batch-plan "$BPLAN3" 2>&1)" || rc=$?
+assert_exit "build plan under --tier all is refused (exit 2)" 2 "$rc"
+assert_contains "missing-GITDIR refusal reported" "$out" "carries no GITDIR record"
+assert_not_contains "no apply banner on missing-GITDIR refusal" "$out" "Fleet Clean (apply)"
+assert_file_exists "build dir NOT removed by under-scoped all apply" "$AR3/bin/b"
+
+AR4="$(mkrepo allrepo4)"
+out="$(bash "$BATCH" --tier git --repo "$AR4")"
+GPLAN4="$(sed -n 's/^BatchPlan: //p' <<<"$out")"
+rc=0
+out="$(bash "$BATCH" --tier all --apply --batch-plan "$GPLAN4" 2>&1)" || rc=$?
+assert_exit "git plan under --tier all is refused (exit 2)" 2 "$rc"
+assert_contains "missing-REPO refusal reported" "$out" "carries no REPO record"
+assert_not_contains "no apply banner on missing-REPO refusal" "$out" "Fleet Clean (apply)"
+
+# An EMPTY plan plans nothing for either kind and removes nothing, so the presence
+# requirement must not turn it into an error under --tier all.
+EMPTYPLAN="$TEST_TMPDIR/empty-all.plan"
+: >"$EMPTYPLAN"
+rc=0
+out="$(bash "$BATCH" --tier all --apply --batch-plan "$EMPTYPLAN" 2>&1)" || rc=$?
+assert_exit "empty plan under --tier all applies as a no-op (exit 0)" 0 "$rc"
+assert_contains "empty all apply reports gitdirs=0" "$out" "gitdirs=0"
+
 # --- 5. skip list + unmatched skip ---
 out="$(bash "$BATCH" --tier caches --repo "$R1" "$R2" --skip r2 --skip nosuchrepo)"
 assert_contains "skip-listed repo skipped" "$out" "skip-list (r2)"

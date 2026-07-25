@@ -109,6 +109,13 @@ not authorize — a `build` REPO record (which folds caches) under `--tier cache
 refused atomically (usage error, nothing removed, no apply banner) so the `--tier`
 flag can never under-report the scope of what a swapped or stale plan removes.
 
+The check runs in both directions. `all` authorizes both record kinds, so a
+narrower plan would clear every per-record test and then run only part of the tier
+— a `build` plan (no `GITDIR` records) applied with `--tier all` would skip every
+prune, a `git` plan (no `REPO` records) would skip every build removal. A non-empty
+plan applied with `--tier all` must therefore carry both kinds, or it is refused
+the same way. An empty plan plans nothing for either kind and stays a no-op.
+
 ### Per-repo outcome
 
 Each repo emits `Repo:` / `Outcome:` / `Reason:`. Outcomes: `would-clean`

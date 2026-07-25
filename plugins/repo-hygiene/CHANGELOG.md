@@ -34,7 +34,11 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   record under `--tier caches`, a `caches` record under `build`, or a `GITDIR` record
   under a non-git tier. The removal set is unchanged (every path was still gated at
   plan creation); the fix closes the scope-misrepresentation between the `--tier` flag
-  and what apply actually removes. (#1081)
+  and what apply actually removes. The check is bidirectional: because `--tier all`
+  authorizes both record kinds, a narrower plan would pass every per-record test and
+  then run only half the tier (a `build` plan skipping every prune, a `git` plan
+  skipping every build removal), so a non-empty plan applied with `--tier all` must
+  carry both a `REPO` and a `GITDIR` record. An empty plan stays a no-op. (#1081)
 
 ## [0.7.1]
 
