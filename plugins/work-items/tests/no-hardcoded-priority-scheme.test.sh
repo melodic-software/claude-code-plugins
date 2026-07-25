@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Regression guard for #1253: skill/reference prose must never route to a
-# `priority:pN-*` label in either spacing (`priority:p2-medium` or
-# `priority: p2-medium`). That scheme exists in no
-# governed repository — the live fleet-wide `priority:` set is
-# critical/high/medium/low/needs-triage — so an autonomous pass that follows a
-# `pN-*` routing instruction literally fails applying a nonexistent label
+# Regression guard for #1253: skill/reference prose must never name a `pN-*`
+# priority value in ANY form the removed prose used — qualified with no space
+# (`priority:p2-medium`), qualified with a space (`priority: p2-medium`), or
+# bare, as the `--priority` flag documentation listed it (`p2-medium`). That
+# scheme exists in no governed repository — the live fleet-wide `priority:` set
+# is critical/high/medium/low/needs-triage — so an autonomous pass that follows
+# a `pN-*` routing instruction literally fails applying a nonexistent label
 # (label-taxonomy.md "Universal axes": priority members are discovered live,
 # never snapshotted in skill text).
 #
@@ -32,53 +33,64 @@ fail() {
   FAIL=$((FAIL + 1))
 }
 
-# ERE for the banned scheme: priority:p<0-3>-<word>, e.g. priority:p2-medium.
-# The optional whitespace after the colon matters — the live governed labels are
-# written colon-space (`priority: low`), so a reintroduction is at least as
-# likely to read `priority: p2-medium` as the colon-no-space form.
-PATTERN='priority:[[:space:]]*p[0-3]-[a-z]+'
+# ERE for the banned value itself: p<0-3>-<word>, e.g. p2-medium. Anchoring on
+# the value rather than on a `priority:` qualifier is deliberate — the removed
+# `--priority <p>` flag documentation listed the members bare, so a guard keyed
+# to the qualifier would let that exact line back in. The leading alternation is
+# a POSIX-ERE word boundary (no GNU `\b`), so `up2-medium` does not match while
+# `priority:p2-medium`, `priority: p2-medium`, and a bare `p2-medium` all do.
+PATTERN='(^|[^a-z0-9])p[0-3]-[a-z]+'
 
 # --- (1) self-test: the detector catches a synthetic hit -------------------
 fixture_dir="$(mktemp -d)"
 trap 'rm -rf "$fixture_dir"' EXIT
-fixture_file="$fixture_dir/synthetic.md"
-printf 'Default to `priority:p2-medium` when no directive sets one.\n' >"$fixture_file"
 
-if grep -qE "$PATTERN" "$fixture_file"; then
-  ok "detector matches a synthetic priority:pN-* hit"
-else
-  fail "detector matches a synthetic priority:pN-* hit" "regex did not match the fixture"
-fi
+assert_detects() {
+  local label="$1" body="$2" file
+  file="$fixture_dir/$(printf '%s' "$label" | tr -c 'a-z0-9' '-').md"
+  printf '%s\n' "$body" >"$file"
+  if grep -qE "$PATTERN" "$file"; then
+    ok "detector matches $label"
+  else
+    fail "detector matches $label" "regex did not match: $body"
+  fi
+}
 
-spaced_fixture="$fixture_dir/synthetic-spaced.md"
-printf 'Default to `priority: p2-medium` when no directive sets one.\n' >"$spaced_fixture"
+assert_detects 'the qualified colon-no-space form' \
+  'Default to `priority:p2-medium` when no directive sets one.'
+assert_detects 'the qualified colon-space form' \
+  'Default to `priority: p2-medium` when no directive sets one.'
+assert_detects 'a bare flag-value listing' \
+  '`--priority <p>` -- Priority label (e.g., `p0-critical`, `p2-medium`, `p3-low`)'
 
-if grep -qE "$PATTERN" "$spaced_fixture"; then
-  ok "detector matches the colon-space priority: pN-* form"
-else
-  fail "detector matches the colon-space priority: pN-* form" "regex did not match the spaced fixture"
-fi
+assert_clean() {
+  local label="$1" body="$2" file
+  file="$fixture_dir/clean-$(printf '%s' "$label" | tr -c 'a-z0-9' '-').md"
+  printf '%s\n' "$body" >"$file"
+  if grep -qE "$PATTERN" "$file"; then
+    fail "detector does not false-positive on $label" "regex matched: $body"
+  else
+    ok "detector does not false-positive on $label"
+  fi
+}
 
-clean_fixture="$fixture_dir/clean.md"
-printf 'Resolve the live `priority:` label set from the bound adapter at action entry.\n' >"$clean_fixture"
-if grep -qE "$PATTERN" "$clean_fixture"; then
-  fail "detector does not false-positive on live-resolution prose" "regex matched clean fixture"
-else
-  ok "detector does not false-positive on live-resolution prose"
-fi
+assert_clean 'live-resolution prose' \
+  'Resolve the live `priority:` label set from the bound adapter at action entry.'
+assert_clean 'a longer word ending in the pN- shape' \
+  'The up2-medium and step2-milestone tokens are unrelated identifiers.'
 
 # --- (2) real scan: the shipped plugin corpus is clean ----------------------
 mapfile -t hits < <(
-  grep -rlE "$PATTERN" --include='*.md' "$PLUGIN_ROOT" 2>/dev/null \
-    | grep -v '/CHANGELOG\.md$' \
-    | grep -v '/evals/' \
-    | sort
+  grep -rlE "$PATTERN" --include='*.md' "$PLUGIN_ROOT" 2>/dev/null |
+    grep -v '/CHANGELOG\.md$' |
+    grep -v '/evals/' |
+    sort
 )
 
 if [[ ${#hits[@]} -eq 0 ]]; then
-  ok "no priority:pN-* routing literal in plugin prose (CHANGELOG.md exempt)"
+  ok "no pN-* priority literal in plugin prose (CHANGELOG.md exempt)"
 else
-  fail "no priority:pN-* routing literal in plugin prose (CHANGELOG.md exempt)" "found in: ${hits[*]}"
+  fail "no pN-* priority literal in plugin prose (CHANGELOG.md exempt)" "found in: ${hits[*]}"
 fi
 
 echo "---"
