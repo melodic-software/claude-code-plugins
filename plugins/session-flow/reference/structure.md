@@ -19,7 +19,7 @@ still take the correct next action; everything below it is there for the reader 
 | 3 | Constraints that must hold | invariants whose violation breaks the work |
 | 4 | Environment to re-establish | machine and session state `/clear` destroyed |
 | 5 | Side effects already applied | persistent effects that must NOT be repeated |
-| 6 | File roles in this work | which file plays which role |
+| 6 | File roles in this work | which file plays which role, and how far its change got |
 | 7 | Decisions already settled | closed choices, with the reasoning that closed them |
 | 8 | Approaches tried and abandoned | directions walked and rejected |
 | 9 | Findings that cost effort to discover | non-obvious system facts, expensive to re-derive |
@@ -129,15 +129,25 @@ to.
 
 ### File roles in this work
 
-The role each file plays. Nothing about what changed inside it — point at the branch or commit range
-for diffs rather than transcribing them.
+The role each file plays, and how far its change got. One line per file: path, exactly one role, why
+it matters, and a concise summary of the change — one clause, not a transcribed diff.
 
-One line per file: path, exactly one role, and why it matters. Roles: modified / still to modify /
-specification to obey / reference for understanding / test that must pass / generated, do not
-hand-edit.
+Roles: modified / still to modify / specification to obey / reference for understanding / test that
+must pass / generated, do not hand-edit.
+
+**Summarize; never transcribe.** For work already committed, the commit range is the diff — name what
+the change accomplishes in a clause and point at the branch or commit for the lines.
+
+**Uncommitted or half-finished edits are the exception, and they are why this section carries state
+at all.** There is no commit to point at, so say which part is already implemented and working and
+which part is not — that state exists nowhere else, and a resuming session that has to re-derive it
+from a working tree is doing the rediscovery this document exists to prevent. `Remaining actions, in
+order` owns what to do next; this owns where the file currently stands.
 
 ```markdown
-- `src/Ordering/OrderReader.cs` — modified; added the retry wrapper.
+- `src/Ordering/OrderReader.cs` — modified; retry wrapper added and green (commit `a1b2c3d`).
+- `src/Ordering/OrderWriter.cs` — modified (uncommitted, half-done); the retry wrapper is in place
+  and passing, the cancellation-token pass-through is stubbed and does not compile yet.
 - `tests/Ordering/OrderReaderTests.cs` — still to modify; edge cases uncovered.
 - `docs/adr/0012-retry-policy.md` — specification to obey.
 ```
@@ -317,7 +327,10 @@ previous_handoff: <prior-filename>.md     # CONDITIONAL — omit when no prior h
 `session_id` captures the current session for downstream chain-walkers (the sibling `retro` skill's
 transcript parser). `previous_handoff` (the prior file's name, relative to the handoff directory) is
 the backward chain pointer — the walker resolves the prior session's id by reading that file's own
-`session_id`, so the pointer is stored once rather than in two fields that can disagree.
+`session_id`, so the pointer is stored once rather than in two fields that can disagree. The
+`type: handoff` frontmatter is also part of the stable detection contract
+`/session-flow:find-handoff` keys off to recover a lost handoff (see
+[`save-point.md`](save-point.md) "Detection contract").
 
 **Chain continuity — same task only.** Emit `previous_handoff` ONLY when this session actually
 continued the prior handoff's work: it resumed from that handoff (the resume prompt loaded it), or

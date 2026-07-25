@@ -28,15 +28,15 @@ axis, repo scope sets the `L2` unattended floor as the class prerequisite
 Work items filed into the governed queue: each hotspot as a characterized, sized item
 with its evidence. No repository mutation, and no self-disposition — the PRIORITIZATION
 of the filed items (what gets fixed, in what order) is human-gated always. Deterministic
-recipe-driven remediation is separate cron-scoped work, never this routine's output.
+recipe-driven remediation is separate no-agent-session work, never this routine's output.
 
 ## Derived guardrail row
 
 The row is derived through the catalog's mapping rules, never hand-assigned:
 
 1. **Hybrid split.** The class is a hybrid: deterministic recipe execution —
-   codemod-style transformations that need no judgment — routes to plain cron with zero
-   agent tokens and is NOT the routine. The judgment portion — hotspot analysis and debt
+   codemod-style transformations that need no judgment — runs with no agent session and
+   zero agent tokens and is NOT the routine. The judgment portion — hotspot analysis and debt
    characterization — IS the routine.
 2. **Judgment + output axes.** Agent judgment filing work items into the governed queue,
    no repository mutation → `C1`, with the `L2` unattended floor.
