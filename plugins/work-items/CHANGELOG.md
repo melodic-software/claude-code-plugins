@@ -3,6 +3,27 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.4]
+
+### Documentation
+
+- **GitHub adapter: force UTF-8 wherever a body edit leaves the UTF-8-safe pipeline (`#1037`).**
+  A new cross-cutting gotcha in `tools/work-item-tracker/adapters/github/README.md` records that the
+  `gh` transports do not transcode, and requires an explicit UTF-8 encoding on both sides of any
+  ad-hoc read or write of a fetched body. No behavior change.
+
+## [0.24.3]
+
+### Fixed
+
+- **Two `discipline`-rename token-sweep misses corrected: `reference/pipeline-shape.md` and
+  `skills/work-loop/SKILL.md` (`#1328`).** The `re-anchor` -> `discipline` plugin rename (`#1276`)
+  rewrote the tokens on these lines but left stale `re-anchor` prose beside them — "re-anchor slot"
+  / "re-anchor set" in `pipeline-shape.md:52`, "presence-gated re-anchor sweep" in
+  `work-loop/SKILL.md:176`. Both now read `discipline`, matching the sibling sites the same rename
+  commit already updated (`docs/conventions/loop-lane/README.md`,
+  `plugins/source-control/skills/babysit-loop/SKILL.md`).
+
 ## [0.24.2]
 
 ### Fixed
