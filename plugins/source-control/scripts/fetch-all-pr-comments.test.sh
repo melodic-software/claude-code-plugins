@@ -226,6 +226,15 @@ out=$(FETCH_COMMENTS_OWNER=o FETCH_COMMENTS_REPO=r \
 rc=$?
 assert_eq "env-var override resolves owner/repo (exit 0)" "0" "$rc"
 
+# Case 11 (#597): --help documents the Windows PYTHONUTF8=1 gotcha for a
+# downstream Python consumer parsing this script's UTF-8 JSON output (bot
+# badges / reaction emoji commonly present in review comment bodies raise
+# UnicodeDecodeError under the Windows default cp1252 encoding if the
+# consumer does not pin encoding="utf-8" or PYTHONUTF8=1 itself).
+help_out=$(bash "$SCRIPT" --help 2>&1)
+assert_contains "--help documents PYTHONUTF8=1 for Windows consumers" "$help_out" "PYTHONUTF8=1"
+assert_contains "--help names the UnicodeDecodeError failure mode" "$help_out" "UnicodeDecodeError"
+
 # ---- Summary ----------------------------------------------------------------
 
 if [[ "$FAILED" -eq 0 ]]; then

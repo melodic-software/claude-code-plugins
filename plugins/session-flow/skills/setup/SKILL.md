@@ -64,14 +64,23 @@ installed plugin:
 - **Interactive, any time:** `/plugin configure session-flow`.
 - **Headless:** `claude plugin install ... --config observer_enabled=true` seeds a value on a *fresh
   install only* — re-running it against an already-installed plugin does not update the stored value.
-  So a headless reconfigure is `claude plugin uninstall session-flow` then `claude plugin install
-  session-flow@<marketplace> --config <key>=<value> ...`, supplying **every key whose value should
-  be non-default — not only the keys being changed**. Uninstalling drops the stored `pluginConfigs`
-  entry, so any key omitted from the reinstall silently falls back to the manifest default:
-  reinstalling purely to enable the observer resets a customized `observer_analysis_model`,
-  `observer_idle_seconds`, `observer_analysis_bare`, and `observer_max_seconds`. Run `check` first
-  and record the current values, because after the uninstall there is nothing left to read them
-  from.
+  So a headless reconfigure is `claude plugin uninstall session-flow -s <scope> -y` then `claude
+  plugin install session-flow@<marketplace> -s <scope> --config <key>=<value> ...`, supplying
+  **every key whose value should be non-default — not only the keys being changed**.
+
+  Both commands default to `-s user`. Pass the scope the plugin is *actually* installed at —
+  `claude plugin list` reports it per plugin — and run from that project's directory when the scope
+  is `project` or `local`. Defaulting instead removes a separate user record while the effective
+  project or local install stays in place, so the reinstall lands at a scope that does not load.
+  The `-y` is what the CLI requires of an uninstall whose stdin or stdout is not a TTY; it is
+  warranted here only because the caller explicitly asked to reconfigure, never to skip a confirm
+  the operator has not already given.
+
+  Uninstalling drops the stored `pluginConfigs` entry, so any key omitted from the reinstall
+  silently falls back to the manifest default: reinstalling purely to enable the observer resets a
+  customized `observer_analysis_model`, `observer_idle_seconds`, `observer_analysis_bare`, and
+  `observer_max_seconds`. Run `check` first and record the current values, because after the
+  uninstall there is nothing left to read them from.
 
 ## Gotchas
 

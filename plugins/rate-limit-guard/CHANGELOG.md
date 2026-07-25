@@ -19,7 +19,10 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
   switch's only route was `/plugin configure rate-limit-guard`, leaving a headless consumer with
   nothing; the obvious guess, re-running `claude plugin install --config`, silently no-ops on an
   installed plugin. The fresh-install-only behavior and the uninstall-then-reinstall route it forces
-  are now stated where the reconfiguration guidance lives.
+  are now stated where the reconfiguration guidance lives. The recipe passes `-s <scope>` on both
+  halves and `-y` on the uninstall: both commands default to `-s user`, so an unscoped pair removes a
+  separate user record while a project- or local-scoped install keeps loading, and a non-TTY
+  uninstall requires the confirmation flag to run at all.
 - **The reader contract no longer cites a repository-level document.** Its no-`experimental.monitors`
   note pointed at `docs/PLUGIN-PHILOSOPHY.md`, a path that does not exist in an installed plugin's
   cache — where this contract is read by sibling-plugin consumers, the citation resolves to nothing.

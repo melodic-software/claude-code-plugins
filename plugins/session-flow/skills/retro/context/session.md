@@ -19,7 +19,8 @@ the first entry lacking `session_id`).
 
 **Continuity gate first.** Use `--chain-from` ONLY when the newest handoff belongs to the current
 work: this session resumed from it (the resume prompt loaded it), this session wrote it, or its
-`topic`/Task section clearly matches the current task. A shared directory can hold save-points
+`topic` frontmatter and stated goal clearly match the current task. A shared directory can hold
+save-points
 from completed or abandoned tasks — chaining from an unrelated newest file would splice stale
 sessions into this retro's aggregate. When continuity is absent or unclear, fall back to the
 single-session form.

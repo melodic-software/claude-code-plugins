@@ -21,8 +21,17 @@ All notable changes to the `machine-health` plugin are documented here. Format f
   and writes the overlay directly and has no further rung, so it FAILs at `check` step 1 and writes
   nothing when the token does not expand — with the root unresolved, "absent overlay" and
   "unreadable overlay" are the same observation and "shipped defaults in effect" would assert more
-  than the evidence supports; `audit` omits `-StateBase` instead, letting the orchestrator apply its
-  documented fallback, and reports which root was used.
+  than the evidence supports; `audit` passes `-StateBase <report-root>` explicitly instead and
+  reports that the plugin-specific root could not be resolved. Falling through to the orchestrator's
+  environment ladder is what `audit` must not do: a skill-invoked tool subprocess inherits whichever
+  plugin's `CLAUDE_PLUGIN_DATA` its parent already carried, so the ladder can silently land this
+  plugin's `state/`, `logs/`, and catalog overlay inside an unrelated plugin's directory. Colocating
+  state with the reports is wrong-but-visible; the inherited variable is wrong-and-silent.
+- **The `audit` skill no longer cites a repository-level document.** Its warning about the inherited
+  `CLAUDE_PLUGIN_DATA` pointed at `docs/extensibility-contract-smoke-tests.md`, a path absent from
+  the isolated plugin cache this skill runs from — where the link resolves against the *consuming*
+  repository and is normally missing, or worse names an unrelated consumer file. The mechanism is
+  now stated where the reader needs it, with no pointer that cannot be followed.
 - **The README no longer states that `${CLAUDE_PLUGIN_DATA}` resolves to
   `~/.claude/plugins/data/machine-health`.** It does not, for any installed or inline plugin. The
   migration step that told operators to move `state/` there was directing them into the wrong

@@ -5,7 +5,7 @@
       "id": 1,
       "name": "durable-handoff-then-stop",
       "prompt": "We're mid-way through a three-phase refactor and the context is getting heavy — I've finished phase 1 and I'm partway into phase 2. Handoff so I can /clear and resume fresh.",
-      "expected_output": "A durable handoff file written to the repo's handoff location (default .work/handoffs/<TS>-handoff-<topic>.md, self-ignore guard verified) capturing task, progress, decisions, and what was tried, followed by a copy-paste resume prompt between two dashed rails that @-references the file. The skill then STOPS — it does not keep executing phase 2.",
+      "expected_output": "A durable handoff file written to the repo's handoff location (default .work/handoffs/<TS>-handoff-<topic>.md, self-ignore guard verified) carrying the body sections the engine's structure doc defines, followed by a copy-paste resume prompt between two dashed rails that @-references the file. The skill then STOPS — it does not keep executing phase 2.",
       "files": [],
       "expectations": [
         "A durable handoff file is written (default location .work/handoffs/, or <memory_dir>/handoffs/ per the consuming repo's declared working-docs convention)",
