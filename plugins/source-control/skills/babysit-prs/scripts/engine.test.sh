@@ -66,6 +66,10 @@ check_wrapper_refusal() {
   local label="$1"
   shift
   local err
+  # Redirect order is load-bearing: inside $(...), `2>&1` first points stderr at
+  # the capture pipe, then `>/dev/null` discards stdout. The familiar
+  # `>/dev/null 2>&1` spelling would discard BOTH and make every row here pass
+  # vacuously -- do not "fix" it to that idiom.
   err="$(bash "$MERGE_WRAPPER" "$@" 2>&1 >/dev/null)"
   local got=$?
   if [[ "$got" == 2 && "$err" == *"is not permitted through the wrapper"* ]]; then
@@ -85,6 +89,9 @@ check_wrapper_refusal "merge wrapper rejects --allow-unpinned-head" \
 # `--allow-unpinned-hea` was an unrecognized string to the wrapper and a valid
 # spelling of the flag to the CLI, so the refusal the wrapper exists for did not
 # hold. The wrapper must refuse independently of what the CLI happens to accept.
+# The last row runs the relation the other way: a longer flag that STARTS with
+# the guarded one is refused too. allow_abbrev=False would not catch that one --
+# it would be a recognized, distinct option -- so only this half can.
 for spelling in \
   --allow-unpinned-hea \
   --allow-unpinned-h \
@@ -94,7 +101,8 @@ for spelling in \
   --allow-u \
   --allow \
   --allow-unpinned-head=1 \
-  --allow-unpi=1; do
+  --allow-unpi=1 \
+  --allow-unpinned-head-also; do
   check_wrapper_refusal "merge wrapper rejects $spelling" \
     "owner/repo#1" --merge "$spelling"
 done

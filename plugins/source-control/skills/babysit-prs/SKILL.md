@@ -198,7 +198,8 @@ home in [reference/safety.md](reference/safety.md). Both fail closed without `--
   exact `blockers`. If the expected-head pin is missing or no longer matches the live head, the
   gate refuses the merge; re-snapshot and reassess the new head instead of using
   `--allow-unpinned-head` — the wrapper rejects that flag outright, in every spelling including
-  every prefix of it, so no unattended unpinned merge exists. The pin is carried to GitHub's server-side match-head-commit guard. It refuses
+  every prefix of it, so no unattended unpinned merge exists. The pin is carried to GitHub's
+  server-side match-head-commit guard. It refuses
   a dependency-manager-authored PR absent `--allow-dependency` (held set: built-in dependabot/renovate
   plus any `babysit_extra_dependency_manager_logins`, which you MUST append via
   `--extra-dependency-manager-logins "<value>"` when set — see safety.md's merge command forms — or

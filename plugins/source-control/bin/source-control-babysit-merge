@@ -24,18 +24,22 @@ scripts="$here/../skills/babysit-prs/scripts"
 # guard.
 #
 # The test is: strip any `=value` tail, then refuse any `--`-prefixed argument
-# that is a prefix of the flag. It deliberately over-refuses -- a prefix passed
-# after a `--` end-of-options separator, or as another option's value, is
-# refused too. No legitimate invocation of this wrapper carries such an
-# argument, and a merge guard fails closed. Sibling flags are unaffected:
-# --allowed-owners, --allow-dependency, and --allow-unprotected are not prefixes
-# of the flag and pass through untouched.
+# where either string is a prefix of the other -- so every abbreviation of the
+# flag is refused, and so is any future longer flag that starts with it (which
+# allow_abbrev=False would NOT catch, since it would be a recognized, distinct
+# option). It deliberately over-refuses -- a prefix passed after a `--`
+# end-of-options separator, or as another option's value, is refused too. No
+# legitimate invocation of this wrapper carries such an argument, and a merge
+# guard fails closed. Sibling flags are unaffected: --allowed-owners,
+# --allow-dependency, and --allow-unprotected share no such prefix relation with
+# the flag and pass through untouched.
 unpinned_flag='--allow-unpinned-head'
 for arg in "$@"; do
   candidate="${arg%%=*}"
   [[ "$candidate" == --?* ]] || continue
-  # RHS quoted: a literal string compare, never a glob match.
-  if [[ "${unpinned_flag:0:${#candidate}}" == "$candidate" ]]; then
+  # RHS quoted in both tests: a literal string compare, never a glob match.
+  if [[ "${unpinned_flag:0:${#candidate}}" == "$candidate" \
+     || "${candidate:0:${#unpinned_flag}}" == "$unpinned_flag" ]]; then
     printf '%s\n%s\n' \
       "source-control-babysit-merge: $unpinned_flag is not permitted through the wrapper (refused '$arg')." \
       'Invoke babysit_merge.py directly for interactive unpinned use.' >&2

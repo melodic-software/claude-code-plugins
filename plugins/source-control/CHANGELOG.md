@@ -15,10 +15,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
   flag to the CLI and an unrecognized string to the wrapper, so an invocation that reads as the
   guarded wrapper form could merge a PR with no pinned head: the precise outcome the wrapper's
   existence is justified by. Both halves are fixed, because either alone leaves a gap. The wrapper
-  now refuses any `--`-prefixed argument that is a *prefix* of the flag (after stripping a
-  `--flag=value` tail), so it holds independently of how the CLI's parser happens to be configured;
-  sibling flags (`--allowed-owners`, `--allow-dependency`, `--allow-unprotected`) are not prefixes
-  and pass through untouched. Independently, every one of the nine `babysit-prs` lane CLIs now
+  now refuses any `--`-prefixed argument where either string is a *prefix* of the other (after
+  stripping a `--flag=value` tail) — every abbreviation of the flag, and also any future longer flag
+  that starts with it, which `allow_abbrev=False` would not catch because it would be a recognized,
+  distinct option — so it holds independently of how the CLI's parser happens to be configured;
+  sibling flags (`--allowed-owners`, `--allow-dependency`, `--allow-unprotected`) share no such
+  prefix relation and pass through untouched. Independently, every one of the nine `babysit-prs` lane CLIs now
   builds its parser with `allow_abbrev=False`, which closes the class rather than the one flag —
   `--mer` was an accepted spelling of `--merge`, so a consumer permission rule granting the wrapper
   *but not with `--merge`* was bypassable by the same mechanism, and every other option on every

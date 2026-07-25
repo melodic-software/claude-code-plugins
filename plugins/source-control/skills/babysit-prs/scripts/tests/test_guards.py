@@ -171,7 +171,10 @@ class ParsersRefuseAbbreviatedFlags(unittest.TestCase):
         # its default would reopen the class for its own options, so the whole
         # scripts/ directory is held to the setting rather than this one parser.
         offenders = []
-        for path in sorted(SCRIPTS.glob("*.py")):
+        # rglob, not glob: a parser added in a subdirectory of scripts/ would
+        # otherwise escape the check silently. tests/ is excluded -- these files
+        # build no CLI.
+        for path in sorted(p for p in SCRIPTS.rglob("*.py") if "tests" not in p.parts):
             tree = ast.parse(path.read_text(encoding="utf-8"))
             for node in ast.walk(tree):
                 if not isinstance(node, ast.Call):
