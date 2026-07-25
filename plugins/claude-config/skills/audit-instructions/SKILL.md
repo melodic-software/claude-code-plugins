@@ -47,7 +47,9 @@ one-line pointer to the official CLAUDE.md include/exclude guidance (recorded wi
 [reference/criteria.md](reference/criteria.md)) so the operator knows where that audit lives — this
 skill still does not perform it. Either way, no I1–I5 hygiene finding is ever produced here. On
 **non-memory surfaces** (skill bodies, agent definitions, prompt-type hooks, output styles) the
-full catalog I1–I14 applies — no incumbent auditor covers instruction content there.
+catalog applies — no incumbent auditor covers instruction content there — **bounded by each row's
+own surface declaration**, which is narrower than the partition for some checks. I13 and I14 name
+their own surface sets and are not run outside them; this partition never widens a row.
 
 **Upstream-owned surfaces are excluded from the editable set.** Installed plugin-cache content is
 owned by the publishing repository, and a managed materialization is owned by whatever upstream

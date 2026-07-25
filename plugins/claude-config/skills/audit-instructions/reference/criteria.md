@@ -173,7 +173,7 @@ Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
 - **Detect:** an instruction that asserts a Claude Code *harness* behavior — what a command does,
   what a keystroke saves, what loads into which context window, what a mode persists — where
   **either** the official documentation **for the version the claim is about** states something
-  incompatible with it, **or** a version-matched reproduction of the asserted behavior fails. The
+  incompatible with it, **or** a reproduction matching **every** stated precondition fails. The
   subject is the product, not the model, which is what separates this from I8.
 - **Remediate:** correct the claim against the cited page, or cut it and point at the page instead
   of restating it. Where the behavior is version-gated, carry the minimum version with the claim.
@@ -182,14 +182,16 @@ Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   repository deliberately keeps empirical smoke tests for behaviors the official pages never
   specified at all. Absence of documentation raises the claim for reproduction; it does not
   establish drift, and it never on its own justifies a removal.
-- **Must NOT flag: a version-gated claim that still reproduces on its own version.** Match the
-  version before matching the text. A claim scoped to a pinned or supported older release is
-  measured against that release, not against the latest page, and **a successful version-matched
-  reproduction settles it** — the latest documentation describing newer behavior is then evidence of
-  a version difference, not of an inaccurate instruction. A claim carrying no version is about
-  current behavior and is measured against the current page. This is the mirror of the remediation
-  above: a catalog that asks authors to carry a minimum version must not then flag the claims that
-  do.
+- **Must NOT flag: a gated claim that still reproduces under its own conditions.** Match the
+  conditions before matching the text. Version is the common one — a claim scoped to a pinned or
+  supported older release is measured against that release, not against the latest page — but it is
+  not the only one: **OS, a setting, an account tier, a feature flag, and launch mode are equally
+  preconditions**, and a replay under different conditions proves nothing about the instruction.
+  **A successful matched reproduction settles it**; a failed one settles it only when every stated
+  precondition was met, and is otherwise **inconclusive rather than a finding**. A claim carrying no
+  conditions is about current default behavior and is measured against the current page. This is the
+  mirror of the remediation above: a catalog that asks authors to carry a claim's conditions must not
+  then flag the claims that do.
 - **Must NOT flag:** prose that names two adjacent forms and distinguishes them correctly — the
   terminal `claude doctor` being read-only while the in-session `/doctor` applies fixes is the
   canonical pair, and a file that states both is right, not drifting. A bare routing pointer that
@@ -210,8 +212,12 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   the content is present rather than an instruction to go get it. Import syntax is a property of the
   CLAUDE.md family; on a skill or agent surface the `@` is inert, so an instruction written on the
   assumption that it imported is describing a load that did not happen.
-- **Remediate:** cite the file the way that surface actually resolves — a backticked path or a
-  markdown link the reader and the model can both follow.
+- **Remediate:** rewrite the assertion into an explicit read, and cite the file the way that surface
+  actually resolves — a backticked path or a markdown link. **Changing the citation syntax alone is
+  not the fix**: neither form imports anything either, so a diff that swaps `@reference/rules.md` for
+  a backticked path while leaving "as specified above" in place keeps the false claim and still lets
+  the agent proceed without the content. The false premise is the defect; the syntax is where it
+  shows.
 - **Must NOT flag: an `@path` the surrounding prose treats as a file to read.** The path is still
   legible in the loaded prompt, so "follow `@reference/rules.md`" works — the reader opens it, the
   inert prefix costs one character. **The finding is the false assumption of automatic loading, not
@@ -231,11 +237,14 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: 
 skill bodies.
 
 - **Detect:** an instruction directing the agent to go read a surface the main conversation loads at
-  startup and therefore already carries — the **root** `CLAUDE.md`, `~/.claude/CLAUDE.md`, the
-  **root** `CLAUDE.local.md`, unconditional project rules (no `paths` frontmatter), and managed
-  policy files. Root-level is load-bearing in that list: the startup guarantee is scoped to the
-  hierarchy discovered from the launch directory, not to every file of that name in the tree. The
-  read spends a turn to retrieve text that is already present.
+  startup and therefore already carries — the **root** `CLAUDE.md`, the user `CLAUDE.md` at the
+  **resolved** `${CLAUDE_CONFIG_DIR:-~/.claude}`, the **root** `CLAUDE.local.md`, unconditional
+  project rules (no `paths` frontmatter), and managed policy files. Two qualifiers are load-bearing.
+  Root-level: the startup guarantee is scoped to the hierarchy discovered from the launch directory,
+  not to every file of that name in the tree. Resolved: `CLAUDE_CONFIG_DIR` moves the whole config
+  tree, so a hardcoded `~/.claude/CLAUDE.md` both flags a read that is now necessary and misses the
+  redundant read of the configured path. Phase A resolves this variable already (`SKILL.md:76-78`);
+  match it. The read spends a turn to retrieve text that is already present.
 - **Remediate:** cut the retrieval step and state the requirement the read was meant to satisfy.
 - **Must NOT flag: anything that loads on demand rather than at startup.** The guarantee this check
   rests on covers the hierarchy *the main conversation loads*, which is not the whole memory family.
@@ -247,8 +256,11 @@ skill bodies.
   established, leave it.
 - **Must NOT flag:** an instruction to read a surface that is *not* auto-loaded — `AGENTS.md`,
   contributing guides, ADRs, CI workflow files, per-ecosystem convention docs. Those are ordinary
-  progressive disclosure. An agent whose job is to audit an instruction surface, which must open
-  the file because inspecting it is the work rather than obeying it. A rule restated in a
+  progressive disclosure. **Any read where the file is the operation's subject rather than its
+  instructions** — auditing it, editing it, patching it, reporting on it, or anything else needing
+  current disk contents. The startup copy is a snapshot taken at launch; another process can have
+  changed the file since, and a pre-edit read cut on the grounds that "it is already in context"
+  produces a patch against stale text. A rule restated in a
   delegation prompt for the built-in Explore and Plan agents, which are documented as the only
   subagents that skip `CLAUDE.md` and have no per-agent setting to change that.
 - **Source:** subagents, "What loads at startup" — a non-fork subagent's initial context contains
