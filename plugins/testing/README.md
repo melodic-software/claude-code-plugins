@@ -46,7 +46,7 @@ This plugin declares no userConfig options.
 `browser_mode` (`headed | headless`, default `headless`). Both defaults preserve current
 behavior, so the file is optional. Its keys, defaults, and precedence are documented in
 the skill's bundled `run-e2e/context/e2e-config.md`; it layers per the marketplace
-consumer-config-layering convention.
+config-cascade convention.
 
 ## License
 

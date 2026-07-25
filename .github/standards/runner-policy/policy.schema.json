@@ -12,6 +12,7 @@
     "approvedReusableWorkflowContracts",
     "canonicalSelectorInputs",
     "optionalCanonicalSelectorInputs",
+    "optionalBooleanSelectorInputs",
     "canonicalSelectorSecrets",
     "approvedHostedRunnerLabels",
     "hostedMatrixExpressions",
@@ -52,6 +53,7 @@
     },
     "canonicalSelectorInputs": { "$ref": "#/$defs/canonicalSelectorInputMap" },
     "optionalCanonicalSelectorInputs": { "$ref": "#/$defs/stringMap" },
+    "optionalBooleanSelectorInputs": { "$ref": "#/$defs/booleanTrueMap" },
     "canonicalSelectorSecrets": { "$ref": "#/$defs/nonEmptyStringMap" },
     "approvedHostedRunnerLabels": { "$ref": "#/$defs/nonEmptyUniqueStringArray" },
     "hostedMatrixExpressions": {
@@ -112,6 +114,11 @@
       "type": "object",
       "propertyNames": { "$ref": "#/$defs/nonWhitespaceString" },
       "additionalProperties": { "$ref": "#/$defs/nonWhitespaceString" }
+    },
+    "booleanTrueMap": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/nonWhitespaceString" },
+      "additionalProperties": { "const": true }
     },
     "nonEmptyStringMap": {
       "type": "object",

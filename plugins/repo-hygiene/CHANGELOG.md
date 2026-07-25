@@ -3,7 +3,7 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.7.1]
+## [0.7.2]
 
 ### Fixed
 
@@ -19,6 +19,15 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   under a non-git tier. The removal set is unchanged (every path was still gated at
   plan creation); the fix closes the scope-misrepresentation between the `--tier` flag
   and what apply actually removes. (#1081)
+
+## [0.7.1]
+
+### Documentation
+
+- `skills/clean/scripts/lib/test-helpers.sh` now points at
+  `docs/conventions/shell-test-helpers/README.md`, the repo's owner doc recording that per-plugin
+  shell assert-helper duplication and per-script exit-code taxonomies are deliberate, not drift. No
+  behavior change.
 
 ## [0.7.0]
 

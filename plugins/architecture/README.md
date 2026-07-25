@@ -45,10 +45,13 @@ scan", "make this more testable", "module seams", "locality".
 
 ## Persistence
 
-The durable candidate list is written to `${CLAUDE_PLUGIN_DATA}` by default. If
-your project maintains its own per-task work-artifact convention (a tracked
-working directory documented in your `CLAUDE.md` or rules), the skill honors that
-location instead and reports the path either way.
+The durable candidate list lands in the memory tier of the marketplace
+topic-docs convention — `<memory_dir>/<topic-slug>/deepening-candidates-<timestamp>.md`,
+default `.work/<topic-slug>/` — which is never committed (the memory root
+self-ignores), so scan output cannot leak into your git history. Resolution
+honors your repo's `.claude/topic-docs.yaml` or declared working-docs
+convention first (see `reference/topic-docs.md`); the skill reports the path
+either way.
 
 ## Configuration
 
