@@ -3,7 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.9.1]
+## [0.9.2]
 
 ### Fixed
 
@@ -26,6 +26,20 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   unreadable-identity (`indeterminate`) verdict both FAIL with remediation (disable the App execution
   alias, or put real Python ahead of WindowsApps on `PATH`), and an absent `python3` folds into the
   floor's missing-interpreter FAIL. The README requirements section documents the vector.
+
+## [0.9.1]
+
+### Changed
+
+- **The PowerShell lane's documented coverage now names what it does not flag (#386).**
+  `reference/safety-model.md` and the clean skill's PowerShell gotcha described the lane as gating
+  "known deletion spellings" without stating that destructive non-deletion spellings — `Move-Item`,
+  `Rename-Item`, overwriting writers (`Set-Content`/`Out-File`/`>`/`New-Item -Force`), and
+  `Format-Volume`/`Clear-Disk` — reach the tool with no guard verdict, audit-only mode included. The
+  gap is now disclosed where the security model is stated, naming the consumer's permission policy as
+  its only backstop — the manual handoff's per-path approval covers the paths selected for removal, so
+  it does not reach what these spellings collaterally destroy. Docs only; the guard's behavior is
+  unchanged and closing the gap is tracked in #387.
 
 ## [0.9.0]
 
