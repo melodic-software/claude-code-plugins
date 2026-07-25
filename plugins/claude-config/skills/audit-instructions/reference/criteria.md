@@ -227,21 +227,40 @@ Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   - `.claude/rules/`, both unscoped and `paths:`-scoped
   - skill bodies
   - agent definitions
-  - prompt-type hooks
+  - prompt-type hooks, including hook text configured in `.claude/settings.local.json`
   - output styles
+
+  The comparison set is not narrowed by a scope argument. A conflict is a relation between two
+  surfaces, so a run scoped to one surface still needs the others inventoried to find the
+  counterpart; the scope filter governs which side may *produce* a finding, never which surfaces are
+  read. Phase A's inventory contract states this obligation.
+- **Compare only definitions that can be live together.** Two surfaces that can never be active in
+  the same context are alternatives, not an unsatisfiable pair: only the selected output style
+  applies to a session, and two agent definitions execute in separate subagent contexts. Filter the
+  comparison set by co-activation before comparing, and compare an agent or output-style definition
+  against the surfaces that *do* load alongside it rather than against its own siblings.
 - **Resolve before comparing.** Expand `@path` imports and resolve symlinks first. An imported file's
   content is live instruction text — imported files load at launch — so a detector that reads only
   the importing file compares a different surface than the model sees, and every `@docs/foo.md`
   import is invisible to it.
-- **`AGENTS.md` is deliberately not in the comparison set.** Claude Code reads `CLAUDE.md`, not
-  `AGENTS.md`, so a stock install never loads it and flagging it would false-positive on every repo
-  that keeps one for other tools. Its content enters the comparison set only when a loaded surface
-  imports it — through the import expansion above, not as a surface of its own.
+- **`AGENTS.md` is deliberately not in the comparison set.** The memory doc's own `AGENTS.md`
+  section states it outright — "Claude Code reads `CLAUDE.md`, not `AGENTS.md`" — and prescribes an
+  `@AGENTS.md` import or a symlink as the way to make one load
+  (<https://code.claude.com/docs/en/memory>). A stock install never loads it, so flagging it would
+  false-positive on every repo that keeps one for other tools. Its content enters the comparison set
+  exactly when a loaded surface imports or symlinks it — through the resolution step above, not as a
+  surface of its own.
 - **Routing — `claude-memory:audit` C6 is the incumbent inside the memory layer**, on the same
   convention I1–I5 already run:
-  - A contradiction **wholly inside** the memory layer (CLAUDE.md, CLAUDE.local.md, rules files) is
-    C6's. I12 does not report it, so one finding is emitted rather than two from two plugins with no
-    reconciliation rule between them.
+  - A contradiction **wholly inside the memory surfaces C6 actually inventories** — the project-root
+    `CLAUDE.md` / `CLAUDE.local.md` and the project `.claude/rules/` tree — is C6's. I12 does not
+    report it, so one finding is emitted rather than two from two plugins with no reconciliation rule
+    between them.
+  - **Cede only what the incumbent can see.** C6's discovery is bounded to those project-root and
+    project-rules files, so a memory-layer contradiction that reaches a surface outside them — a
+    user-scope `CLAUDE.md` or `~/.claude/rules/` file, or a nested `CLAUDE.md` below the project root
+    — stays I12's. Ceding it would leave it unchecked by both plugins. Confirm the incumbent's
+    discovery scope before ceding, and cede a pair only when *both* sides fall inside it.
   - A contradiction with **at least one side outside** the memory layer — a skill body, an agent
     definition, a prompt-type hook, an output style — is I12's, and nothing else covers it.
   - Anything involving the **managed-policy tier** is I12's, read-only.
@@ -254,16 +273,22 @@ Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
     so a nested file tightening a root rule is the mechanism working
   - format-steering against behavior-steering — they govern different things, the same distinction
     I9 draws when it refuses to flag format-steering examples
-  - a conditional and an unconditional instruction whose conditions are disjoint, so neither can fire
-    on the same file
+  - two **conditional** instructions whose conditions are disjoint, so neither can fire on the same
+    file — two `paths:`-scoped rules over `src/**` and `docs/**`, say. An unconditional instruction
+    always applies, so it can never be the disjoint side of this pair: an unconditional rule that
+    contradicts a path-scoped one *is* a conflict on the paths the scoped rule covers.
   - two instructions that agree in substance and differ only in wording — redundancy is I1's concern
-  - a shadowed same-named skill, subagent, or MCP server: exactly one is live, so this is a resolved
-    override, not a conflict (see the adjacent report below)
-- **Adjacent report, not a conflict finding:** where a skill, subagent, or MCP server is shadowed by
-  a same-named definition at a higher-precedence scope, report it in its own `info` section naming
-  the live definition and the inert one. It is worth telling an operator about — an inert definition
-  that looks live is its own trap — but it is name comparison across a known precedence order and
-  belongs in the mechanical tier, not in this check's judged findings.
+  - a shadowed same-named skill or subagent: exactly one is live, so this is a resolved override, not
+    a conflict (see the adjacent report below)
+- **Adjacent report, not a conflict finding:** where a skill or subagent is shadowed by a same-named
+  definition at a higher-precedence scope, report it in its own `info` section naming the live
+  definition and the inert one. It is worth telling an operator about — an inert definition that
+  looks live is its own trap — but it is name comparison across a known precedence order and belongs
+  in the mechanical tier, not in this check's judged findings. Skills and subagents are the whole
+  contract: they are the shadowable definitions Phase A already inventories. Same-named MCP servers
+  across scopes are deliberately **not** covered — this skill inventories no MCP configuration and
+  routes `.mcp.json` mechanics to `claude-config:audit`, so promising an MCP shadow report here
+  would promise a finding with no data behind it.
 - **Remediate, by scope, and never a default deletion:**
   - **Both sides operator-owned:** reconcile, and say which one to change. A conflict is evidence
     that two intentions exist, and which is correct is not derivable from the text — so do not
@@ -271,7 +296,9 @@ Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   - **One side managed policy:** report as "conflicts with org policy at `<path>`", and propose no
     edit — neither to the policy side, nor to the lower side justified by the conflict alone.
     `claudeMdExcludes` cannot reach the managed tier, so seeking an exception may be the correct
-    resolution, and that is an organizational decision rather than a linting one.
+    resolution, and that is an organizational decision rather than a linting one. Such a finding
+    carries the report's **no-change representation** in place of a diff — Phase D exempts it from
+    the per-finding fenced-diff contract rather than forcing an edit this rule forbids.
   - **One side a user-scope file under a dotfile manager:** route as a recommendation through that
     repository, never an in-place edit.
 - **Source:** memory, "Consistency" — "if two rules contradict each other, Claude may pick one
@@ -295,7 +322,12 @@ by `--opinion`.
   broad-applicability case and not a locality defect; or one whose subject has no definition site to
   sit beside.
 - **Remediate:** move it beside its subject — the skill body, the agent definition, the tool's own
-  documentation. Reported only, never fix-applied, per the `OPINION` policy above.
+  documentation. **The destination must be a surface Claude loads.** This check diagnoses locality,
+  not load timing, so a move that lands an always-loaded instruction in an ordinary README or
+  reference file silently drops the behavior it enforced unless Claude independently reads that file.
+  Where the subject's definition site is not itself loaded, propose the colocated text *plus* a
+  retained one-line pointer on a loaded surface that triggers reading it — never a bare move.
+  Reported only, never fix-applied, per the `OPINION` policy above.
 - **Source:** none. No official page states definition-site locality, which is why this check is
   `OPINION`-tier. The *routing* half — which surface a class of content belongs in — is documented
   at features-overview, "Compare similar features", and is I3's concern, not this check's.

@@ -17,11 +17,11 @@
       "id": 2,
       "name": "scope-boundary-routes-out",
       "prompt": "/claude-config:audit-instructions is my CLAUDE.md too long, and can you prune the always-loaded hygiene lines out of it?",
-      "expected_output": "Recognizes memory-layer hygiene — line budget, whether CLAUDE.md is too long, pruning always-loaded content — as the claude-memory plugin's audit skill's concern. On memory-layer surfaces (CLAUDE.md, CLAUDE.local.md, .claude/rules) this skill runs only the model-era checks I6-I11 and routes the I1-I5 hygiene findings to claude-memory:audit when that plugin is installed, falling back to the official CLAUDE.md include/exclude guidance pointer when it is not, rather than answering the hygiene question itself.",
+      "expected_output": "Recognizes memory-layer hygiene — line budget, whether CLAUDE.md is too long, pruning always-loaded content — as the claude-memory plugin's audit skill's concern. On memory-layer surfaces (CLAUDE.md, CLAUDE.local.md, .claude/rules) this skill runs only the model-era checks I6-I13 and routes the I1-I5 hygiene findings to claude-memory:audit when that plugin is installed, falling back to the official CLAUDE.md include/exclude guidance pointer when it is not, rather than answering the hygiene question itself.",
       "files": [],
       "expectations": [
         "Routes memory-layer hygiene (line budget, 'CLAUDE.md too long', pruning) to the claude-memory plugin's audit skill when installed",
-        "On memory-layer surfaces runs only the model-era checks I6-I11, not the I1-I5 hygiene checks",
+        "On memory-layer surfaces runs only the model-era checks I6-I13 (I13 only under --opinion), not the I1-I5 hygiene checks",
         "Falls back to the official CLAUDE.md include/exclude guidance pointer when claude-memory is not installed instead of silently skipping"
       ]
     },
@@ -90,11 +90,11 @@
     {
       "id": 8,
       "name": "cross-layer-conflict-reported-with-both-locations",
-      "prompt": "/claude-config:audit-instructions my CLAUDE.md says \"leave documentation as appropriate\" and .claude/skills/refactor/SKILL.md says \"DO NOT add comments\". Sort this out.",
-      "expected_output": "Reports an I12 cross-surface conflict, because one side is a skill body and therefore outside the memory layer, which no incumbent covers. The finding names both participating locations rather than a single line. Remediation reconciles and says which side to change; it does not default to proposing deletion of either side, because a conflict is evidence that two intentions exist and which is correct is not derivable from the text.",
+      "prompt": "/claude-config:audit-instructions my CLAUDE.md says \"every public function must carry a doc comment explaining why it exists\" and .claude/skills/refactor/SKILL.md says \"DO NOT add comments to any code you touch\". Sort this out.",
+      "expected_output": "Reports an I12 cross-surface conflict, because the two instructions cannot both be satisfied on a public function the refactor skill touches — one requires a comment the other forbids — and one side is a skill body, therefore outside the memory layer, which no incumbent covers. The finding names both participating locations rather than a single line. Remediation reconciles and says which side to change; it does not default to proposing deletion of either side, because a conflict is evidence that two intentions exist and which is correct is not derivable from the text.",
       "files": [],
       "expectations": [
-        "Emits an I12 conflict finding because at least one side (the skill body) is outside the memory layer",
+        "Emits an I12 conflict finding because the two instructions are impossible to satisfy together and at least one side (the skill body) is outside the memory layer",
         "The finding names BOTH participating locations, not one line",
         "Proposes reconciliation and says which side to change, and does NOT default to proposing deletion of either side"
       ]

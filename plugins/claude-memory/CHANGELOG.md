@@ -5,6 +5,17 @@ All notable changes to the `claude-memory` plugin are documented here. Format fo
 
 ## [0.5.0]
 
+### Fixed
+
+- **`reference/official-guidance.md` no longer claims Claude Code loads `AGENTS.md`.** The
+  "Compaction by steering method" table carried a `CLAUDE.md / AGENTS.md` row, but the memory doc's
+  own `AGENTS.md` section states "Claude Code reads `CLAUDE.md`, not `AGENTS.md`" and prescribes an
+  `@AGENTS.md` import or a symlink as the way to make one load
+  (<https://code.claude.com/docs/en/memory>). The row is now `CLAUDE.md` alone, with its nested-file
+  on-demand reload spelled out, and a following note records how an `AGENTS.md` actually reaches
+  context. Left as written, the snapshot contradicted the sibling `claude-config` catalog, which
+  excludes `AGENTS.md` from its comparison set on the doc's authority.
+
 ### Changed
 
 - **`audit` check C3 (Content Placement): three gaps closed in one revision.** The routing table

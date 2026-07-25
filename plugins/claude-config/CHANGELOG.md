@@ -9,23 +9,44 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 - **`audit-instructions` check I12 — cross-surface instruction conflict.** Two live instructions
   that cannot both be satisfied, where no official layering rule already picks a winner. Scoped by
-  routing around the incumbent: a contradiction wholly inside the memory layer is
-  `claude-memory:audit` check C6's and is not reported here, while one with a side outside the memory
-  layer — a skill body, an agent definition, a prompt-type hook, an output style — or any side in the
-  managed-policy tier, is I12's. When `claude-memory` is absent, the run says memory-layer
-  contradictions go unchecked and names the skill that performs them. Remediation splits by scope and
-  never defaults to deletion: reconcile where both sides are operator-owned, report-only against
-  managed policy, route user-scope findings as recommendations. Ships five must-not-flag cases plus a
-  separate `info` report for shadowed same-named skills, subagents, and MCP servers, which are
-  resolved overrides rather than conflicts. The comparison set is resolved before it is compared —
-  `@path` imports expanded and symlinks followed, since imported files load at launch and a detector
-  reading only the importing file would compare a different surface than the model sees. `AGENTS.md`
-  is affirmatively excluded and the reason recorded: Claude Code reads `CLAUDE.md`, not `AGENTS.md`,
-  so a stock install never loads it, and its content enters only through an import.
+  routing around the incumbent, and only as far as the incumbent can actually see: a contradiction
+  wholly inside the memory surfaces `claude-memory:audit` check C6 discovers — the project-root
+  `CLAUDE.md`/`CLAUDE.local.md` and the project `.claude/rules/` tree — is C6's and is not reported
+  here, while one reaching a surface C6 never reads (user-scope memory, a nested `CLAUDE.md`), one
+  with a side outside the memory layer — a skill body, an agent definition, a prompt-type hook, an
+  output style — or any side in the managed-policy tier, is I12's. When `claude-memory` is absent, the
+  run says memory-layer contradictions go unchecked and names the skill that performs them.
+  Remediation splits by scope and never defaults to deletion: reconcile where both sides are
+  operator-owned, report-only against managed policy, route user-scope findings as recommendations.
+  Ships six must-not-flag cases — including a co-activation filter, since only the selected output
+  style applies to a session and agent definitions execute in separate subagent contexts — plus a
+  separate `info` report for shadowed same-named skills and subagents, which are resolved overrides
+  rather than conflicts. MCP servers are deliberately outside that report: the skill inventories no
+  MCP configuration and routes `.mcp.json` mechanics to `claude-config:audit`. The comparison set is
+  resolved before it is compared — `@path` imports expanded and symlinks followed, since imported
+  files load at launch and a detector reading only the importing file would compare a different
+  surface than the model sees. `AGENTS.md` is affirmatively excluded and the reason recorded: the
+  memory doc states Claude Code reads `CLAUDE.md`, not `AGENTS.md`, so a stock install never loads
+  it, and its content enters only through an import or symlink.
+- **A dedicated cross-surface conflict lane in `audit-instructions` Phase B.** A conflict is a
+  relation between two surfaces, so a per-surface lane cannot see the other side and a lane that
+  rescans everything re-derives the same pair in every lane. Per-surface lanes now run their checks
+  minus I12, and one cross-surface lane runs I12 alone over the whole resolved inventory, emitting
+  each conflict once. Phase A backs it: managed policy and every out-of-scope I12 counterpart are
+  inventoried read-only (a scope argument narrows which side may produce a finding, never which
+  surfaces are read), and prompt-hook text is extracted from `.claude/settings.local.json` as well as
+  project and user `settings.json`, prompt text only.
+- **A no-change representation in the `audit-instructions` report contract.** A finding whose check
+  forbids proposing an edit — the I12 managed-policy case, anything routed to an owning repository —
+  records `no change proposed` and who owns the resolution instead of a fenced diff, so the per-finding
+  diff requirement no longer contradicts the checks that forbid an edit.
 - **`audit-instructions` check I13 — definition-site locality.** An instruction governing one named
   thing while living somewhere other than that thing's own definition. A different axis from I3:
   I3 is load *timing*, I13 is *locality*, and an instruction can be correctly deferred and still
   misplaced. `OPINION`-tier, off by default, enabled by `--opinion`, capped at `info`, never applied.
+  The destination is constrained to a surface Claude loads: where the subject's definition site is an
+  ordinary README or reference file, the proposal colocates the text *and* retains a one-line pointer
+  on a loaded surface, so a locality fix never silently drops the behavior the instruction enforced.
 - **`audit-instructions` stopping condition on I6 and I8.** Neither carried an a-priori bound, so
   both trimmed without a floor. It withholds a proposal where the instruction guards a
   high-consequence area (safety gate, irreversible action, security boundary, external contract,

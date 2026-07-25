@@ -51,9 +51,11 @@ skill still does not perform it. Either way, no I1–I5 hygiene finding is ever 
 full catalog I1–I13 applies — no incumbent auditor covers instruction content there.
 
 I12 (cross-surface conflict) carries its own narrower routing on the same convention: a contradiction
-wholly inside the memory layer is `claude-memory:audit` check C6's and is not reported here, while one
-with at least one side outside the memory layer, or any side in the managed-policy tier, is this
-skill's. The catalog states the full rule.
+wholly inside the memory surfaces `claude-memory:audit` check C6 actually inventories — the
+project-root `CLAUDE.md`/`CLAUDE.local.md` and the project `.claude/rules/` tree — is C6's and is not
+reported here, while one reaching any surface C6 does not discover (user-scope memory, nested
+`CLAUDE.md`), one with at least one side outside the memory layer, or any side in the managed-policy
+tier, is this skill's. The catalog states the full rule.
 
 **Upstream-owned surfaces are excluded from the editable set.** Installed plugin-cache content is
 owned by the publishing repository, and a managed materialization is owned by whatever upstream
@@ -94,12 +96,27 @@ official memory and `.claude`-directory docs (cited in the report's Sources line
   `CLAUDE.md` / `CLAUDE.local.md` in subdirectories of the project tree (Claude loads these on
   demand when it reads files in those directories, so walk the tree — do not stop at the root);
   `.claude/rules/`, `.claude/skills/`, `.claude/agents/`, `.claude/output-styles/`.
-- Prompt-type hook text configured in the project or user `settings.json`.
+- Prompt-type hook text configured in the project or user `settings.json`, **and in
+  `.claude/settings.local.json`** — local settings are a supported hook-configuration scope, so hook
+  text there is as live as any other. Extract the prompt text only; never carry a command line,
+  token, or other secret-bearing value out of a settings file into the report.
 
-Exclude, and hold for the routing subsection instead of the editable set: auto-memory
-(`~/.claude/projects/<project>/memory/`, owned by `claude-memory`), org-managed policy CLAUDE.md,
-installed plugin-cache content, and any managed materialization per the Scope boundary. Record
-each surface found and each surface skipped, so the report's tier-transparency line can name both.
+Exclude from the **editable** set, and hold for the routing subsection: auto-memory
+(`~/.claude/projects/<project>/memory/`, owned by `claude-memory`), installed plugin-cache content,
+and any managed materialization per the Scope boundary. Record each surface found and each surface
+skipped, so the report's tier-transparency line can name both.
+
+Two surfaces are inventoried **read-only** rather than excluded outright, because a later phase has
+to compare against them even though no proposed edit may ever touch them:
+
+- **Org-managed policy** — the managed-policy `CLAUDE.md` and any `claudeMd` value in managed
+  settings. It is never editable and never produces a proposal, but I12 explicitly owns conflicts
+  where one side is managed policy, and that comparison is impossible if the text is never read.
+- **Every I12 counterpart outside the requested scope.** A scope argument narrows which surfaces may
+  *produce* findings, not which are read: a conflict is a relation between two surfaces, so a run
+  scoped to `skills` still inventories `CLAUDE.md`, rules, agents, hooks, and output styles as
+  comparison counterparts. Findings still name both sides; the filter decides which side the run is
+  auditing, never that the counterpart goes unread.
 
 ## Phase B — Per-surface lanes
 
@@ -117,9 +134,18 @@ and I10 (reasoning-echo directives); `--count` prints the row count. It is advis
 cannot judge whether a rationale is genuinely present, so the lane refines every candidate rather
 than reporting it verbatim.
 
+**I12 is not a per-surface lane.** A conflict is a relation between two surfaces, so a lane holding
+one surface's files cannot see the other side, and a lane that rescans everything re-derives the same
+pair in every lane. Every per-surface lane therefore runs its assigned checks **minus I12**, and one
+additional **cross-surface conflict lane** runs I12 alone. That lane receives the whole inventory —
+including the read-only managed-policy text and the out-of-scope counterparts Phase A collected —
+already `@path`-expanded and symlink-resolved, and emits each conflict once, naming both locations.
+It is one lane regardless of how many surfaces are in scope, and it counts against the dispatch
+budget below like any other.
+
 Bound concurrency to 3–5 lanes at a time. The skills surface fans out one lane per skill. Before
-the total dispatch count (lanes plus the Phase C verifiers) would exceed ~20, confirm with the
-user first.
+the total dispatch count (per-surface lanes plus the cross-surface conflict lane plus the Phase C
+verifiers) would exceed ~20, confirm with the user first.
 
 ## Phase C — Verify pass
 
@@ -148,9 +174,16 @@ For each finding, give the proposed removal or rewrite as a fenced diff block. T
 check's tag from the catalog. An I12 conflict finding names **both** participating locations — it is
 a relation between two instructions, not a property of one line.
 
-Three sections the catalog's `OPINION` policy requires: the shadowed-definition `info` section (live
-definition and inert one, per I12); a **Withheld** subsection naming every I6/I8 proposal the
-stopping condition suppressed and on what ground; and a one-line `OPINION` discovery note — how many
+**No-change findings are exempt from the diff contract.** Where a check forbids proposing an edit —
+the I12 managed-policy case, and any finding routed to an owning repository rather than applied —
+write `no change proposed` in the Proposed change column and, in place of the fenced diff, a one-line
+statement of who owns the resolution. Never manufacture a diff to satisfy the table; a check that
+forbids an edit and a report that demands one would otherwise contradict each other.
+
+Three sections the catalog's `OPINION` policy requires: the shadowed-definition `info` section (the
+live definition and the inert one, for shadowed skills and subagents — MCP servers are outside this
+report's contract, per I12); a **Withheld** subsection naming every I6/I8 proposal the stopping
+condition suppressed and on what ground; and a one-line `OPINION` discovery note — how many
 `OPINION`-tier checks were available, how many did not run, and the argument that enables them.
 
 End with a **Routing** subsection listing every excluded upstream-owned
