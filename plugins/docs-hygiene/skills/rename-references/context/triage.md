@@ -60,6 +60,25 @@ load, save, copy, move, write, read, parse, render, print, format,
 
 (Extend as new collisions surface.)
 
+**Verb-sense collision the blocklist cannot serve.** The blocklist is a static list of tokens
+that are English verbs *in general*. It cannot cover a token that is a verb **in the consuming
+codebase** — a coined or hyphenated term the project uses verbally hundreds of times. Both
+branches fail for such a token:
+
+- **Absent from the blocklist** → every bare-token hit is rated Certain, so the sweep proposes
+  rewriting the verb uses.
+- **Added to the blocklist** → every hit lands ambiguous, and the per-match rule below turns a
+  handful of real defects into hundreds of confirmation prompts.
+
+Extending the blocklist is therefore the WRONG remedy here; it swaps one unusable bucket for
+another. The remedy is position: `patterns.md` Forms 13–15 anchor on syntax that only the
+container sense can occupy (argument-to-a-management-command, a heading that IS the token, the
+possessive clitic), so they stay Certain regardless of blocklist membership.
+
+Measured on the `re-anchor` → `discipline` rename, over that plugin's own tree: Form 2 matched
+134 lines for 8 real defects; Forms 13–15 matched 9. Reach for a position-anchored form before
+reaching for the blocklist.
+
 **User flow:** present each match individually via `AskUserQuestion` with 3 lines of surrounding context. Three options per match: "rename this", "skip this", "skip remaining ambiguous". Always one-by-one — batched confirmation defeats the safety purpose.
 
 **Why per-match:** "the user just renamed the `confirm` skill" does NOT mean every English use of "confirm" should be replaced. The incident that motivated this skill contained dozens of legitimate "confirm" verb uses (research vocabulary, user-confirmation prompts, domain logic) that MUST be preserved. Per-match confirmation lets the user catch each.

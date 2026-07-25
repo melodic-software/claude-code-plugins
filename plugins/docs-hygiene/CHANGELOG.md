@@ -1,5 +1,45 @@
 # Changelog — docs-hygiene plugin
 
+## [0.9.0]
+
+### Added
+
+- **`rename-references` gains three container-position pattern forms (13–15), closing the gap
+  that let six stale references survive three sweep passes (`#1283`).** Forms 1–12 assume the
+  renamed token is a skill/mode identifier. When a CONTAINER renames — a plugin, a marketplace
+  entry — the token also appears in positions none of them reach: as the argument to a
+  management command (`/plugin install <old>@marketplace`, `/plugin configure <old>`), as a
+  document title that IS the token (`# <old>`), and in possessive or appositive prose
+  (`<old>'s effective configuration`, `the <old> plugin`). Form 1 cannot fire on the first
+  shape because the slash anchors `plugin`, not `<old>`.
+
+  Each new form is high-precision because the SURROUNDING SYNTAX admits only the naming sense:
+  a management verb before the token, a `$`-anchored heading, the possessive clitic. That is
+  what lets them stay Certain where bare-token Form 2 cannot be. Measured on the real fixture
+  (the `re-anchor` → `discipline` rename, over that plugin's own tree): Form 2 matched **134**
+  lines for **8** real defects; Forms 13–15 matched **9** — the 8 defects plus one frozen
+  CHANGELOG-history line the existing "Frozen historical records" rule already excludes.
+
+  Command-argument hits are called out as FUNCTIONAL breaks, not cosmetic ones: a reader
+  following `/plugin install <old>@marketplace` gets `plugin-not-found`.
+
+### Changed
+
+- **`triage.md` records the collision class the English-verb blocklist cannot serve.** The
+  blocklist holds tokens that are English verbs in general; it cannot cover a token that is a
+  verb *in the consuming codebase*. Both branches fail there — omitted, every bare-token hit is
+  rated Certain and the sweep proposes rewriting the verb uses; added, every hit lands ambiguous
+  and the per-match confirmation rule turns a handful of defects into hundreds of prompts.
+  Extending the blocklist swaps one unusable bucket for another; the remedy is position. The
+  section routes to Forms 13–15 and carries the measured figures.
+- **`patterns.md` Phase 6 now requires validating a new form on BOTH axes.** Recall alone is not
+  evidence — Form 2 already has perfect recall on every form in the library and is still
+  unusable when the token is a verb. A candidate is measured against the commit that FIXED the
+  missed references (its removed lines are the defect set) for recall, and against the whole
+  pre-fix tree for precision, reporting its hit count beside Form 2's on that same tree.
+- **`audit.md`'s pattern-form breakdown** lists Forms 13–15 so an audit report accounts for
+  every form the sweep runs.
+
 ## [0.8.7]
 
 ### Fixed
