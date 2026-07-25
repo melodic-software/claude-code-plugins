@@ -247,6 +247,22 @@ class ReviewSupersessionTests(unittest.TestCase):
         self.assertEqual(len(latest), 1)
         self.assertEqual(latest[0]["state"], "APPROVED")
 
+    def test_differently_cased_login_still_collapses_to_one_latest_review(self) -> None:
+        """GitHub logins are case-insensitive: 'Rev' and 'rev' are the same
+        actor, so their reviews must collapse under one latest-review key."""
+        pr = {
+            "latestReviews": [],
+            "reviews": [
+                {"id": 1, "author": {"login": "Rev", "__typename": "User"},
+                 "state": "CHANGES_REQUESTED", "submittedAt": "2026-01-01T00:00:00Z"},
+                {"id": 2, "author": {"login": "rev", "__typename": "User"},
+                 "state": "APPROVED", "submittedAt": "2026-01-02T00:00:00Z"},
+            ],
+        }
+        latest = fb.latest_reviews_by_author(pr)
+        self.assertEqual(len(latest), 1)
+        self.assertEqual(latest[0]["state"], "APPROVED")
+
     def test_commented_review_does_not_clear_decisive_changes_request(self) -> None:
         pr = {
             "latestReviews": [],

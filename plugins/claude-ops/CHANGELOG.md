@@ -3,6 +3,35 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.19.3]
+
+### Fixed
+
+- **`plugins` skill: `fleet-state.sh` no longer crashes with `Argument list too long` against a
+  large-catalog marketplace (`#1336`).** Every `jq --argjson <name> "$value"` call site carrying a
+  catalog/installed/enabled-scale JSON payload embedded that value as a literal command-line
+  argument; for a marketplace catalog large enough (confirmed against a real 273-plugin catalog,
+  reproduced here with a synthetic 500-plugin fixture), the serialized JSON exceeded the
+  platform/shell's argv-length ceiling and `jq` failed before emitting anything — silently dropping
+  that marketplace from `sync`/`audit`/`converge`. Confirmed on Windows Git Bash/MSYS `jq`, but the
+  underlying argv-length ceiling is a real limit on every platform, just reached sooner there.
+  Every affected call site now routes its payload through a temp file via `jq --slurpfile` instead
+  of `--argjson`, so catalog size never determines whether a marketplace can be synced. Only the
+  fixed-size boolean `--argjson` uses (`au`/`ci`/`autoUpdate`) remain untouched. Covered by a new
+  large-catalog case in `fleet-state.test.sh` (asserts no argv-length crash and full,
+  non-truncated output) plus a static guard locking the remaining `--argjson` count to booleans
+  only.
+  - Temp files created for `--slurpfile` routing live in one per-run directory removed by an EXIT
+    trap; each call site invokes the writer inside a `$(...)` subshell, so files are not tracked in
+    an array (a subshell-local append would vanish on return) — the whole directory is the cleanup
+    unit instead.
+  - A malformed source file (e.g. `settings.json`) used to make the affected `--argjson` fail loud
+    immediately; `--slurpfile` instead tolerates a genuinely empty payload as "zero JSON values"
+    and would have silently degraded the report to `null` fields. The writer now emits a
+    deliberately-invalid token for an empty payload so jq's own parser still errors at the call
+    site, preserving the prior fail-loud behavior. Covered by a new malformed-`user_settings.json`
+    case in `fleet-state.test.sh`.
+
 ## [0.19.2]
 
 ### Documentation

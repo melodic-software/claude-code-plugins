@@ -122,7 +122,7 @@ def latest_reviews_by_author(
                     continue
             elif state == "PENDING":
                 continue
-            login = author_login(review).lower()
+            login = author_login(review).casefold()
             if not login:
                 anonymous.append(review)
                 continue

@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.26.3]
+## [0.26.7]
 
 ### Fixed
 
@@ -22,6 +22,90 @@ All notable changes to the `source-control` plugin are documented here. Format f
   New `babysit_gh.rest_hydrate_reviews` replaces `reviews` with the REST list and drops the stale
   `latestReviews` in one place, used by both call sites, so `latest_reviews_by_author` derives every
   actor's latest review from the properly-typed REST list alone.
+
+## [0.26.6]
+
+### Fixed
+
+- **`scripts/worktree-create.sh` now refuses a git-illegal `--name` with the documented usage exit 2
+  instead of environment exit 4 (`#1016`).** The up-front character class (letters, digits, dots,
+  underscores, dashes per `/`-separated segment) is not a subset of git's ref grammar, so names like
+  `feat/foo..bar`, `foo.lock`, `.foo`, `HEAD`, and `-lead` passed validation, reached
+  `git worktree add`, and failed there as exit 4 — the code the helper reserves for environment
+  faults. A caller's correction flow keys on exit 2, so an invalid name was indistinguishable from a
+  broken environment. The schema check is now followed by `git check-ref-format --branch`, whose
+  output is discarded on both streams: on success `--branch` echoes the name to stdout, which would
+  break the helper's "created path is the sole stdout line" output contract. Verified across every
+  name the character class admits, `check-ref-format` and `git worktree add -b` agree exactly, so no
+  previously-creatable name is newly refused. `skills/worktree/context/create.md` gains the matching
+  constraint bullet, and the header comment that claimed the character class was "a strict subset of
+  what git refs allow" is corrected.
+
+  The grammar check runs **after** the repository is resolved and is scoped with `-C "$toplevel"`:
+  `--branch` takes a branchname-shorthand and so performs repository discovery, which dies outright
+  when the process's CWD is a stale checkout (a `.git` file naming a gitdir that no longer exists —
+  what this plugin's own worktree cleanup handles). Run unscoped, that turned a valid name into a
+  false exit 2 from such a directory, and the documented invocation omits `--repo-dir`, so the CWD is
+  the default. Consequence: exits 3 (root unconfigured) and 4 (not a repository) can now precede the
+  grammar refusal, matching how the pre-existing `--base-ref` and empty-slug exit-2 checks already
+  sit after them. The character-class and length checks still run first, before any git call.
+
+## [0.26.5]
+
+### Fixed
+
+- **`babysit_delta.py` and `babysit_feedback.py` now casefold owner/repo/login identity
+  comparisons, matching the already-ratified `.casefold()` convention `pr_queue_snapshot.py`
+  uses for the identical concept (#815).** `head_repository_scope`'s base/head owner and
+  same-repository checks, and `latest_reviews_by_author`'s per-reviewer login key, used
+  `.lower()` instead. Functionally equivalent for GitHub's ASCII-only owner/repo/login
+  alphabet, but a straggler against the sibling scripts' shared convention. Converted to
+  `.casefold()` in both files; added case-insensitivity regression tests covering a
+  differently-cased base repo, head repository, and allowlisted owner, and a differently-cased
+  reviewer login collapsing to one latest review.
+
+## [0.26.4]
+
+### Fixed
+
+- **`babysit-prs` now separates the finding-classification gate from the merge gate (`#601`).** Two
+  differently-named scripts both produced a verdict the docs called "readiness":
+  `babysit-readiness-gate.sh` (classification-row counting — blind to branch rules, thread
+  resolution, and required checks) and `babysit_merge.py` via `source-control-babysit-merge` (the
+  actual merge-policy check). Nothing said which one owns a `MERGE-READY` claim, and the
+  `loop.md` §5.5 checklist paired a single "Readiness: ready for merge" field directly under the
+  classification gate — which produced a false human-facing `MERGE-READY` report on a PR that a
+  `required_review_thread_resolution` ruleset was mechanically blocking. `safety.md` gains "Two
+  Gates, One Merge-Ready Authority" as the single home for the distinction; the checklist now
+  reports the two gates as separate fields, and every "readiness" site that meant *classification*
+  is renamed. No gate code and no emitted `READINESS_*` token changed; note that the §5.5 template
+  is machine-consumed via `--checklist <file>` (R6 blocks on any unticked `- [ ]`), so splitting one
+  status box into three does change what a checklist-gated iteration must tick. The new section also
+  states what "both gates satisfied" means on the orchestrator's direct zero-blocker path (a
+  non-draft PR the snapshot reports with zero blockers and no untriaged material feedback goes
+  straight to a merge-gate check with no worker): it takes that check without the worker's per-PR
+  classification-gate run, what keeps the path from a false `MERGE-READY` is the engine's
+  `untriaged_material_feedback` exclusion from `pr_clean_ready_for_direct_gate`, and
+  merge-readiness there still comes only from the merge gate's `ready` field. That `ready` field is
+  the plugin's **full merge-policy** verdict, not a readout of GitHub's mergeability alone —
+  `babysit_merge.py` adds its own policy blockers (dependency-manager author without
+  `--allow-dependency`, non-self author on an unprotected base without `--allow-unprotected`, and
+  an enabled autopilot merge tier's criteria), so `ready: false` may name a plugin hold on a PR
+  GitHub would merge; the docs no longer describe the gate as answering only whether GitHub will
+  merge.
+
+## [0.26.3]
+
+### Changed
+
+- **The plugin is now the canonical, sole source for the worktree conventions (#401).** The
+  `babysit-prs` skill's `reference/worktrees.md` states it owns the ephemeral babysit-worktree
+  exemption (lease-scoped cleanup, never a global open-PR prune — machine-enforced by
+  `prune_babysit_worktrees.py`) and that rooting those worktrees outside a repository's discoverable
+  tree keeps them out of enumeration such as `ghq list`; the `worktree` skill states it owns the
+  parallel-session external-root convention going forward. Both close the SSOT gap left by the
+  retired external `ghq-layout-sibling-pr-worktrees` prose doc (physical deletion of that doc is a
+  separate follow-up in the dotfiles repo).
 
 ## [0.26.2]
 
