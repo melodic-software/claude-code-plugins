@@ -183,8 +183,10 @@ candidate item, that the skeleton alone already stops the degradation, and that 
 **Autonomous invocation (no interactive user).** When `apply` runs in an unattended or loop-driven
 context, there is nobody to answer that offer — do not present it and do not block. The recommended
 default applies silently, so an autonomous first-time bind produces the binding, the role-label pass,
-and the empty skeleton, and nothing else. `--seed-schedule` is the non-interactive way to opt IN;
-absent it, never infer and never interview.
+and the empty skeleton, and nothing else. Absent an opt-in, never infer and never interview.
+`--seed-schedule` carries the opt-in decision without the offer prompt, but the pass it selects is
+step 5's per-item interview — so it is not a non-interactive seeding path, and an unattended caller
+should not be directed at it.
 
 The row shape, the root `{"items": []}` structure, and the cadence-duration table are defined once in
 [`${CLAUDE_PLUGIN_ROOT}/skills/track/actions/add.md`](${CLAUDE_PLUGIN_ROOT}/skills/track/actions/add.md)

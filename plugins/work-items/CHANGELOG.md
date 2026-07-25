@@ -14,9 +14,10 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   and per-item interview pass, previously unconditional, is opt-in: the new `apply --seed-schedule`
   argument, an explicit in-invocation request to seed, or a single yes/no offer whose RECOMMENDED
   default is skip. With no interactive user (a loop lane or other unattended context) the skip default
-  applies silently, and `--seed-schedule` is the non-interactive way to opt in. A first-time bind is
-  usually a detour from another verb reporting "no binding", so the operator who came to do something
-  else is no longer walked through an interview per candidate item to get there. The gate keys on the
+  applies silently; `--seed-schedule` carries the opt-in decision without the offer prompt, but the
+  pass it selects is still the per-item interview, so seeding stays an attended operation. A
+  first-time bind is usually a detour from another verb reporting "no binding", so the operator who
+  came to do something else is no longer walked through an interview per candidate item to get there. The gate keys on the
   schedule carrying **no items**, not on the file being absent, so a skipped bind's `{"items": []}` is
   still reachable by re-running `apply` — a schedule that already carries ≥1 item is summarized and
   offered updates exactly as before, unchanged. The role-label pass is re-anchored to the bind rather

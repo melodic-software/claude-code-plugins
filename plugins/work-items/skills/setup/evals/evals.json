@@ -71,13 +71,13 @@
       "id": 6,
       "name": "unattended-first-bind-applies-skip-default-silently",
       "prompt": "/work-items:setup apply\n\n(First-time bind: no .work-item-tracker.json exists and .github/recurring-schedule.json is absent. This runs unattended — there is no interactive user to answer any question.)",
-      "expected_output": "With no interactive user the seeding offer is never presented and apply never blocks waiting on it: the recommended skip default applies silently, producing the provider binding, the role-label pass, and the empty {\"items\": []} skeleton and nothing else. It runs no candidate inference and no per-item interview, and it does not substitute invented answers for the interview it skipped. It reports that --seed-schedule is the non-interactive way to opt in later.",
+      "expected_output": "With no interactive user the seeding offer is never presented and apply never blocks waiting on it: the recommended skip default applies silently, producing the provider binding, the role-label pass, and the empty {\"items\": []} skeleton and nothing else. It runs no candidate inference and no per-item interview, and it does not substitute invented answers for the interview it skipped. It reports that the schedule can be seeded later by re-running apply --seed-schedule, or a bare apply and accepting the offer, with a user present.",
       "files": [],
       "expectations": [
         "Never presents the seeding offer and never blocks on it when no interactive user is available",
         "Applies the skip default silently, producing only the binding, the role-label pass, and the empty {\"items\": []} skeleton",
         "Runs no candidate inference and no per-item interview, and invents no answers in place of the skipped interview",
-        "Names apply --seed-schedule as the non-interactive way to opt in to seeding"
+        "Points at apply --seed-schedule (or a bare apply and accepting the offer) for opting in to seeding later, with a user present"
       ]
     }
   ]
