@@ -83,17 +83,28 @@
     },
     {
       "id": 7,
-      "name": "triage-briefs-before-asking-in-interactive-session",
-      "prompt": "/work-items:triage 64 — running interactively with a human operator present. #64 is an enhancement request whose description is vague on scope. You have finished categorizing it and are about to present your target-state recommendation; a follow-up scoping question will be needed after the operator directs you.",
-      "expected_output": "Before presenting the recommendation, and again before posting the follow-up scoping question, restates which item is under discussion (number + one-line title), the decision being asked, and the consequence of each option it presents (or, for an open-ended scoping question, what the answer will determine) — never assumes the operator already holds this context, even mid-pass. Only after that restatement does it present the recommendation and wait for explicit direction, or post the scoping question and mark status:needs-info.",
+      "name": "triage-briefs-before-presenting-the-recommendation",
+      "prompt": "/work-items:triage 64 — running interactively with a human operator present. #64 is titled \"Export job silently skips rows with a null tenant id\" and is filed as an enhancement request whose description is vague on scope. You have finished verifying and categorizing it; your assessment is that the target state is needs-info (the scope is undecided), with briefed-as-delegable the alternative if the operator would rather you pick a scope yourself.",
+      "expected_output": "Restates which item is under discussion (#64 plus its one-line title), the decision being asked (which target state to apply), and the consequence of each presented option — needs-info parks the item pending the reporter, briefed-as-delegable admits it to the delegable lane on an agent-chosen scope — and only then presents the recommendation and waits for the operator's explicit direction. Nothing is mutated before that direction arrives.",
       "files": [],
       "expectations": [
         "Restates the item identity (number + one-line title) before presenting the recommendation, not after",
         "States the decision being asked and the consequence of each presented option before asking for direction",
-        "Applies the same brief-before-ask restatement to the follow-up interview question in step 4, not only to the initial recommendation",
-        "For an open-ended scoping question, states what the answer will determine instead of inventing a closed option set to enumerate consequences for",
         "Does not compress away the restatement even though the session is running under a terse output style",
         "Still waits for the operator's explicit direction before mutating anything — the restatement precedes the question, it does not replace the wait"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "triage-briefs-before-each-interview-question",
+      "prompt": "/work-items:triage 64 — running interactively with a human operator present. #64 is titled \"Export job silently skips rows with a null tenant id\". You already briefed and presented your recommendation and the operator has replied: \"go ahead, park it as needs-info and ask the reporter what you need.\" The scope is still undecided, so a follow-up scoping question for the reporter is the next step.",
+      "expected_output": "Even though the operator has already been briefed once this pass and has just given direction, the follow-up scoping question carries its own restatement: which item it concerns (#64 plus its title), the decision the question resolves, and — because \"what scope do you actually need?\" is open-ended rather than a closed option set — what the answer will determine, rather than a manufactured list of options to enumerate consequences for. The question is posted as an item comment and the item is marked status:needs-info.",
+      "files": [],
+      "expectations": [
+        "Restates the item identity and the decision the question resolves before posting the follow-up scoping question, not only before the earlier recommendation",
+        "For the open-ended scoping question, states what the answer will determine instead of inventing a closed option set to enumerate consequences for",
+        "Does not treat the earlier brief in the same pass as license to skip this one",
+        "Posts the question as an item comment and marks status:needs-info rather than answering the scope question itself"
       ]
     }
   ]
