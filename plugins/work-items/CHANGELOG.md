@@ -3,6 +3,24 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.4]
+
+### Documented
+
+- **Step 0 `reclaim` classifier denial is now a documented, non-blocking condition (`#1381`).** A
+  work-loop self-observation found the seam `reclaim` verb refused by the Claude Code auto-mode
+  classifier while the sibling `claim` verb on the same script was not, with neither verb carrying
+  an explicit `permissions.allow`/`deny` rule — a harness-level tool-call denial that produces no
+  script exit code, distinct from the existing exit-`6` capability-unsupported case. `skills/work/SKILL.md`
+  "Step 0" now instructs treating it the same as exit `6` (report once per cycle, skip, proceed to
+  Selection Priority; never retry, never self-widen permissions). `tools/work-item-tracker/CONTRACT.md`
+  "Exit codes" now notes this out-of-band failure mode explicitly. `reference/permission-preflight.md`
+  records the finding and flags whether an explicit allow rule would bypass the classifier for this
+  command shape as an open, unverified question (official docs describe allow rules bypassing the
+  classifier by default, but also describe an unspecified "arbitrary-code-execution patterns"
+  carve-out that still routes through it) — any operator-side permission-floor fix needs that
+  confirmed first.
+
 ## [0.24.3]
 
 ### Fixed
