@@ -23,9 +23,10 @@ still take the correct next action; everything below it is there for the reader 
 | 7 | Decisions already settled | closed choices, with the reasoning that closed them |
 | 8 | Approaches tried and abandoned | directions walked and rejected |
 | 9 | Findings that cost effort to discover | non-obvious system facts, expensive to re-derive |
-| 10 | Open questions to investigate | unknowns the resuming session can resolve itself |
-| 11 | Blockers needing an outside decision | work that cannot proceed without someone else |
-| 12 | Suggested skills | which skills to invoke for the remaining work |
+| 10 | Remaining actions, in order | every action still to take, sequenced |
+| 11 | Open questions to investigate | unknowns the resuming session can resolve itself |
+| 12 | Blockers needing an outside decision | work that cannot proceed without someone else |
+| 13 | Suggested skills | which skills to invoke for the remaining work |
 
 **Every section is always present.** A section with nothing to report reads `None.` plus a half-line
 of reason. A cold reader cannot otherwise tell "nothing to report" from "the author forgot", and the
@@ -46,6 +47,9 @@ Six lines maximum. The one section a reader may stop at.
 Carries: when it was written and against which branch or commit, the goal in one line, where the
 work stands in one line, and the single next concrete action. Name the section that governs that
 action so a reader wanting more is routed rather than left searching.
+
+The brief names the FIRST action only. It always points at `Remaining actions, in order`, which owns
+the full sequence — otherwise a session that completes the one named action has nothing to go on.
 
 This deliberately restates facts owned below — it is an onboarding surface on a document read cold.
 The six-line cap bounds the drift, and naming each owning section keeps the pointer honest.
@@ -178,6 +182,25 @@ This is the section that beats compaction. Write it long.
 ```markdown
 - The hook fires twice per Write on Windows, once with a normalized path and once raw — observed in
   `.claude/observability/hooks.jsonl` across 40 events.
+```
+
+### Remaining actions, in order
+
+Every action still to take, sequenced. Not just the next one — the whole remainder, so finishing
+the first action does not leave the resuming session guessing at the second.
+
+An action is something to *do*. An unknown to resolve is section 11; something you cannot proceed
+on is section 12. Cross-reference those rather than duplicating them: an action that waits on a
+blocker is listed here in its sequence position, marked as waiting, and named once in section 12.
+
+The `Resumption brief` names only the first of these. This section owns the rest — it is the one
+place the full sequence exists, so it survives when the brief's single action is done.
+
+```markdown
+1. Wire the retry policy into `OrderReader` (spec: `docs/adr/0012-retry-policy.md`).
+2. Add the cancellation edge-case tests — the happy path is already covered.
+3. Waiting on the staging credential grant: re-run the integration suite against staging (§12).
+4. Update the module README once 1-3 land.
 ```
 
 ### Open questions to investigate

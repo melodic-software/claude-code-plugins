@@ -11,8 +11,9 @@
   frame, world, memory, frontier. Three kinds of state that previously had no home are now owned:
   invariants that must hold, persistent side effects that must not be repeated, and hard-won
   findings that are neither a decision nor a failed approach. `Open questions / next steps` is split
-  three ways — a slash in a heading meant it owned more than one taxon — and the `Progress` /
-  `Files modified` overlap is resolved into a single file-role map. Every section is now always
+  four ways — a slash in a heading meant it owned more than one taxon, and its numbered list mixed
+  the ordered remainder of the work with self-resolvable unknowns and outside blockers — and the
+  `Progress` / `Files modified` overlap is resolved into a single file-role map. Every section is now always
   present, with an explicit "nothing to report" rather than an omission, so a cold reader can tell
   silence from oversight.
 - **handoff: the emitted resume directive no longer names a section.** It read
