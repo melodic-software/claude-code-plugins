@@ -7,8 +7,9 @@ P1/P2/P3), whose detector and criteria version independently of this document.
 ## 1.1 — 2026-07-24
 
 - Added "Known gap — step 1's plugin `bin/` is not delivered on Windows / Git Bash": the measured
-  behavior, its harness-wide scope, the two consequences for helper authors, and why a `~/.local/bin`
-  shim is not a substitute.
+  behavior, its harness-wide scope, the two consequences for helper authors, why a `~/.local/bin`
+  shim and an `env.PATH` settings entry are not substitutes, and the one untested candidate
+  (leading-wildcard rule) with the specific unknown that gates it.
 
 ## 1.0 — 2026-07-14
 

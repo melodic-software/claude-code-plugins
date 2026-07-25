@@ -149,15 +149,28 @@ Two consequences for anyone writing a guarded helper today:
   but it is *not* exported to the Bash tool's own environment, so a raw shell expansion yields an
   empty string ([plugins-reference](https://code.claude.com/docs/en/plugins-reference), Environment
   variables).
-- **Expect no allow rule to cover it.** `bash` is not one of the wrappers Claude Code strips before
-  matching, so a `bash <path> …` command can only be matched by an interpreter-led rule — which is
-  anti-pattern 1, dropped on entering auto mode. The call therefore reaches the classifier on every
-  invocation. Do not design a helper on the assumption that the operator can pre-approve it.
+- **Expect the call to reach the classifier on every invocation.** `bash` is not one of the wrappers
+  Claude Code strips before matching, so a rule for a `bash <path> …` command has to name `bash` —
+  making it interpreter-led, i.e. anti-pattern 1, dropped on entering auto mode. Do not assume the
+  operator can pre-approve the helper.
 
 Until the gap closes upstream, treat step 1's plugin-`bin/` bullet as the intended end state rather
-than a capability to build on, on this platform. A `~/.local/bin` shim is **not** a substitute: a
-static shim pins a version-numbered install path that changes on every plugin update, and a shim that
-resolves the newest directory under the install cache can select an unvetted staging clone.
+than a capability to build on, on this platform. Two substitutes look attractive and are not:
+
+- A **`~/.local/bin` shim**: a static shim pins a version-numbered install path that changes on every
+  plugin update, and a shim that resolves the newest directory under the install cache can select an
+  unvetted staging clone.
+- **`env.PATH` in user settings**, which does reach the Bash tool's shell (`env` is applied "to
+  subprocesses Claude Code spawns", [settings](https://code.claude.com/docs/en/settings)): it carries
+  the same version-pinned-path rot, and overriding `PATH` wholesale in settings is its own hazard.
+
+One candidate is untested rather than rejected. Bash rules accept a wildcard in any position,
+including leading, so a rule anchored on the wrapper's own name — `Bash(*<wrapper-name> *)` — would
+syntactically match the bundled-path invocation without naming an interpreter. **Whether that shape
+survives auto mode is unverified**: the documented drop list enumerates blanket rules, wildcarded
+interpreters, package-manager runners, and `Agent` rules, and says nothing about a leading wildcard
+in the command position. Establish that before building on it, and weigh that such a rule matches the
+name at *any* path, including an unvetted copy.
 
 ## Sources
 
