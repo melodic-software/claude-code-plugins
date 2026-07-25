@@ -12,8 +12,22 @@ checks are delegated but the run semantics are not*. If this document lands as p
 argument has nothing behind it. So every property below is written as a condition a test could
 assert, with the assertion named.
 
-Terms used throughout: a **run** is one invocation of the sweep against one **target**; a **lane** is
-one check applied to one surface class; the **scan set** is the set of files a run reads.
+Terms used throughout: a **run** is one invocation of the sweep against one **target**; the **scan
+set** is the set of files a run reads; a **lane** is a unit of dispatch and resume, keyed one of two
+ways according to what the check declares:
+
+- a **within-class lane** is one check applied to one surface class — the default, and every I1–I11
+  check;
+- a **cross-class lane** is one check applied to its whole declared comparison set, for a check whose
+  subject is a relation *between* classes.
+
+The second form is not an exception bolted on: without it a comparison check is partitioned by
+exactly the boundary it compares across, so I12 — a skill body contradicting `CLAUDE.md` — has its
+two anchors in two lanes and can never emit the pairwise finding that is its primary case. This
+definition and [checks-and-sweep.md](checks-and-sweep.md)'s lane decomposition are one contract; an
+implementer reading only the within-class half here would recreate the split. Everything downstream
+in this document that keys on a lane — the input digest, resume, attempt delimiting — reads
+"the lane's scan set", which for a cross-class lane is its whole comparison set.
 
 ## 1. Finding identity
 
@@ -683,9 +697,22 @@ per-property.** The cross-vendor review found P1 and P4a missing a clause P3 alr
 stating it three times is what allowed two of the three to drift — so the **comparable-runs**
 precondition is defined in one place and the properties cite it:
 
-> `R1` and `R2` are **comparable** when their **target tree**, **liveness basis** (launch directory,
-> effective merged `claudeMdExcludes`, import approvals, setting sources), **detection version
-> triple** of every check consulted, and **harness version** are all equal.
+> `R1` and `R2` are **comparable** when their **target tree**, **liveness basis**, **detection
+> version triple** of every check consulted, and **harness version** are all equal.
+
+The **liveness basis** is every input outside the tree that changes which surfaces the harness loads:
+the launch directory, the **additional-directory set** (`--add-dir` and the
+`CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD` value that enables it), the effective merged
+`claudeMdExcludes`, import approvals, and setting sources. The additional-directory pair was missing
+from this list until the cross-vendor review, while the liveness section above already stated that it
+adds memory files — so the document contradicted itself in the direction that raises false alarms:
+an inventory or dead-surface change caused by adding a directory read as a P1/P3 sweep defect. It is
+recorded in the **resume digest** as well, since a lane completed under one additional-directory set
+has stale findings under another.
+
+Like the `prompt_digest`, this list is governed by its criterion rather than its enumeration: an
+input outside the tree that changes what the harness loads belongs to the liveness basis, and one
+found missing is a defect in the list.
 
 A property asserts nothing about a non-comparable pair. This is not a weakening — it is what makes
 the assertions falsifiable at all. Each of those inputs changes what a correct run finds: a harness
@@ -758,11 +785,22 @@ claim is not a weaker claim, it is not a claim.
     is the seam that already exists and already moves: the repo requires a manifest bump plus a
     matching changelog heading for a content change, so editing `SKILL.md` prompt text is *already*
     a version event. P3 simply has to read that version instead of ignoring it.
-  - **`prompt_digest`** — `sha256` over the check's own detection-behavior inputs, truncated to 12:
-    the host `SKILL.md` and any script it names for that check. It exists because the manifest bump
-    is a **convention** enforced by review, not a mechanism enforced by the file's own bytes; a
-    prompt edit that skips the bump is exactly the silent case P3 must catch. The digest fails
-    closed where the convention fails open.
+  - **`prompt_digest`** — `sha256` over **every input that can change what the check detects**,
+    truncated to 12. It exists because the manifest bump is a **convention** enforced by review, not
+    a mechanism enforced by the file's own bytes; a prompt edit that skips the bump is exactly the
+    silent case P3 must catch. The digest fails closed where the convention fails open.
+
+    **So its coverage is defined by that purpose, not by a list of filenames — the cross-vendor
+    review found it enumerated as "the host `SKILL.md` and any script it names", which omits the
+    criteria catalog the check's detection rules actually live in.** A `criteria.md` edit that skips
+    the manual catalog bump then left the digest unchanged, which is worse than the version-bump gap
+    it was added to close: the runs read as comparable, and *resume* skips the completed lane and
+    carries forward findings produced under the superseded criteria — a report mixing two rule sets,
+    presented as one. Enumerating the inputs is what let this happen, so the rule is the criterion:
+    the digest covers the host `SKILL.md`, the criteria catalog and every file it imports, and every
+    script named for that check. A detection-behavior input not covered is a defect in the digest,
+    and adding one is not a breaking change — it is a version event on first observation, which is
+    the direction that fails closed.
 
   A growth in `D` is licensed when any component of the triple changed, and is a **P3 violation
   reported against the sweep** when none did. The composite is recorded per check in the report's
