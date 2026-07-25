@@ -485,6 +485,27 @@ Work items in order:
    `scripts/**`, `.github/workflows/**`. T1's sweep found only path-forwarders and naming references
    plus one sibling producer (`knowledge/youtube-digest`), which discharges the Brief's captured
    assumption; this item re-runs it against post-#1260 `main` and records the parse paths found.
+
+   **RUN 2026-07-25 against pre-merge `HEAD`; treat the post-merge run as confirmation, not
+   discovery.** #1260's five files are `plugins/discovery/{.claude-plugin/plugin.json,CHANGELOG.md,
+   skills/research/{SKILL.md,context/discipline.md,evals/evals.json}}` — all producer-side. It adds
+   no consumer, so the consumer set cannot have grown. Findings:
+
+   - **No parser of the outcome-gate table exists anywhere.** `grep -rn 'Outcome gate\|outcome-gate'
+     scripts/ .github/` returns nothing. The table is read by models, never by code, so Phase 2's
+     row additions and the C2 ownership column break no gate.
+   - **Every cross-plugin `RESEARCH.md` reference outside `plugins/discovery/` is a naming
+     reference**, in `plugins/{implementation,planning,verification}/reference/artifact-protocol.md`
+     — the byte-identical protocol copies T1 already covers, which name the file in a memory-tier
+     inventory line and parse nothing.
+   - **One executable touches a file of this name:** `plugins/knowledge/skills/youtube-digest/
+     extraction/evals/check-research-complete.js`. It resolves `path.join(sliceDir, "RESEARCH.md")`
+     inside **youtube-digest's own slice** — the sibling producer T1 named — and asserts a **minimum
+     length** (`FAIL: RESEARCH.md too short`), not a section structure. Unaffected by Decision 4,
+     because discovery does not write that slice. **Recorded anyway as the one shape that would
+     break:** a min-length gate is exactly what an always-an-index artifact fails, so if the index
+     shape is ever generalized beyond discovery, this check is the first casualty. Out of scope
+     here; it belongs to the sweep topic.
 2. **Mechanical sweep before any edit** — do not hand-enumerate the subagent-incompatible text. A
    hand list already missed four sites across two files. Grep both SKILL.md bodies for every
    instruction that names the user, a filtered tool, plan mode, main-context execution, or an inline
@@ -568,6 +589,25 @@ Work items in order:
    `RESEARCH.md`'s — mirror Phase 2's item 1 for `EXPLORE.md`: `Grep` + `Glob` for anything parsing
    the filename or the artifact's section structure across `plugins/**`, `scripts/**`,
    `.github/workflows/**`, run against post-#1260 `main`, and record the parse paths found.
+
+   **RUN 2026-07-25.** `EXPLORE.md` is named in 40 places; **none parses its section structure.**
+   They partition into naming references (the four `artifact-protocol.md` copies plus
+   `docs/PLUGIN-ARTIFACT-PROTOCOL.md`, the plugin README and root catalog, `reference/topic-docs.md`),
+   CHANGELOG history, sibling hand-off references (`blindspot/SKILL.md` and its evals, which assert
+   the run does **not** write the artifact), and two test fixtures using the filename as an arbitrary
+   nested-path token (`source-control/scripts/worktree-create.test.sh`,
+   `docs-hygiene/skills/audit-noise/scripts/detect.test.sh`).
+
+   **The one glob-shaped coupling is already sidecar-aware, verified rather than assumed.**
+   `docs/conventions/topic-docs/README.md` documents the `.worktreeinclude` recipe as six patterns —
+   `.work/.gitignore`, `.work/*/EXPLORE.md`, `.work/*/EXPLORE-*.md`, `.work/*/RESEARCH.md`,
+   `.work/*/RESEARCH-*.md`, `.work/*/*-checklist.md`. A bare `.work/*/EXPLORE.md` would have carried
+   the index into a new worktree and dropped every sidecar, which under Decision 4 is strictly worse
+   than today's self-contained artifact. The sidecar globs are already there, and so is
+   `*-checklist.md`, which Decision 5's `research-checklist.md` needs. **The Brief's captured
+   assumption — "downstream consumers tolerate an index-plus-sidecar shape without code changes" —
+   holds for `EXPLORE.md`, and now on evidence.**
+
 0b. **Mechanical sweep — RUN 2026-07-25, hit list below.** Phase 2 work item 2's method, inherited
    here and run first because `explore/SKILL.md` is **not** among #1260's five files, so its line
    numbers are stable across the Phase 0 rebase and the sweep does not have to wait. Script:
