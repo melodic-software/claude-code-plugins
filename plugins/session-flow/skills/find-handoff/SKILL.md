@@ -71,11 +71,16 @@ pre-clear content sits in a sibling — never in the current session's own file.
    same-topic files from the same session all match it — so slug-only evidence is **ambiguous**
    unless it uniquely resolves to one candidate. One session can produce a manual
    handoff *and* later a background launch, and both files carry the same `session_id`, so a
-   session-wide signature match must never exclude by itself. Matched launch references this
-   candidate and succeeded → the save-point is not the lost handoff: its work is already running
+   session-wide signature match must never exclude by itself. **"Succeeded" means
+   verified-visible, not exit-0** — the producer itself warns a zero-exit `claude --bg` can still
+   be invisible and verifies the agent actually appeared, so exclusion requires transcript
+   evidence of that verification (the agent listed/confirmed); this definition governs every
+   screening site in this skill. Matched launch references this candidate and verifiably
+   succeeded → the save-point is not the lost handoff: its work is already running
    (`claude agents` lists it) — exclude it from the default winner, say so, and keep looking for
-   the older manual handoff. Launch references a different file, failed, or is ambiguous → keep
-   the candidate (surfacing the provenance at the confirm gate when ambiguous). **v1 scope: current repo only.** The cross-repo *filesystem* sweep (deriving
+   the older manual handoff. Launch references a different file, failed, or is
+   unverified/ambiguous → keep the candidate (surfacing the provenance at the confirm gate when
+   ambiguous). **v1 scope: current repo only.** The cross-repo *filesystem* sweep (deriving
    other repo roots from transcript `cwd` fields) is deferred — step 2's transcript scan already
    recovers handoffs written in other repos, since transcripts are indexed by session, not repo.
 2. **Transcript scan — bounded, recency-ranked, cross-repo.** Enumerate `~/.claude/projects/*/`
@@ -105,8 +110,8 @@ pre-clear content sits in a sibling — never in the current session's own file.
      `Read @.work/handoffs/…`), so a handoff recovered from another repo's transcript is falsely
      reported missing if checked from here. **Apply step 1's background-delivery screening to
      these candidates too** — the launch signature, if any, sits in this same transcript: a file
-     whose exact directive a successful `claude --bg` launch delivered is not a lost handoff,
-     wherever it was discovered.
+     whose exact directive a verifiably successful `claude --bg` launch (step 1's definition)
+     delivered is not a lost handoff, wherever it was discovered.
    - **Prompt-only mode** — no file, no directive. Detect off the `─` rails and the instruction
      line; the resume content is the block inline between the rails. `Prior session:` is
      **optional corroboration, never a required key** — the producer's prompt-only checklist
@@ -121,7 +126,8 @@ pre-clear content sits in a sibling — never in the current session's own file.
      present, its value must be a concrete session UUID. **Screen delivered continuations here
      too:** `continue-in-background prompt` emits this same rails block as assistant text and then
      delivers the inline prompt to the agent it launches — check the same transcript after the
-     block for a successful `claude --bg --name "continue-…"` launch. **Bind the launch to the
+     block for a verifiably successful `claude --bg --name "continue-…"` launch (step 1's
+     definition: transcript evidence the agent appeared, not exit-0 alone). **Bind the launch to the
      block by content, never by ordering alone:** the producer writes the exact launched prompt to
      a temp file (visible in the same transcript as the Write preceding the launch) — a launch
      excludes only the block whose content it delivered; a later launch of a *different* prompt
@@ -239,8 +245,11 @@ pre-clear content sits in a sibling — never in the current session's own file.
   the launch's resume directive references — never session-wide, since one session can produce
   both a manual handoff and a later background launch under the same `session_id`, and never on
   the `continue-<topic>` slug alone (topic-only: same-topic files all match; ambiguous unless it
-  uniquely resolves). Exclude only the correlated, successful launch's file and point the operator
-  at `claude agents` instead. Prompt-only continuations screen the same way, bound by content: a
-  rails block whose exact prompt a successful `claude --bg` launch delivered (the producer writes
-  it to a temp file in the same transcript first) was delivered, not lost — a later launch of a
-  different prompt never disqualifies an earlier manual block.
+  uniquely resolves). "Successful" always means verified-visible — transcript evidence the agent
+  appeared, never exit-0 alone, since the producer itself warns a zero-exit launch can be
+  invisible; unverified → ambiguous, keep the candidate. Exclude only the correlated,
+  verifiably successful launch's file and point the operator at `claude agents` instead.
+  Prompt-only continuations screen the same way, bound by content: a rails block whose exact
+  prompt a verifiably successful `claude --bg` launch delivered (the producer writes it to a temp
+  file in the same transcript first) was delivered, not lost — a later launch of a different
+  prompt never disqualifies an earlier manual block.

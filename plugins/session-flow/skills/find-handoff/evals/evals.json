@@ -105,7 +105,8 @@
         "It treats --name continue-<topic> slug-only evidence as ambiguous unless it uniquely resolves to one candidate, since same-topic files all match the slug",
         "It applies the same screening to prompt-only candidates, bound by content: only the rails block whose exact prompt the successful claude --bg launch delivered is excluded — a later launch of a different prompt never disqualifies an earlier manual block in the same transcript",
         "A save-point whose correlated background launch succeeded is not presented as the lost handoff; the operator is pointed at claude agents and the search continues",
-        "When launch evidence is ambiguous or shows failure, the candidate is kept with its provenance surfaced at the confirm gate"
+        "It treats a launch as successful only with transcript evidence the agent actually appeared — a zero-exit claude --bg alone is unverified and keeps the candidate as ambiguous",
+        "When launch evidence is ambiguous, unverified, or shows failure, the candidate is kept with its provenance surfaced at the confirm gate"
       ]
     }
   ]
