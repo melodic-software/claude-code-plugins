@@ -614,8 +614,11 @@ trigger phrases in `when_to_use` with no `Use when:` marker anywhere, so **all 1
 WARN**. Evaluated directly against check 12's own predicate; the result is 0 of 15 passing. Two
 honest fixes, and the choice is #1271's to make:
 
-- Keep a literal `Use when:` prefix inside `when_to_use`. Costs ~10 characters per skill on top of
-  the joiner's +3, and needs no code change.
+- Keep a literal `Use when:` prefix inside `when_to_use`. No code change, but it costs ~10
+  characters per skill **on top of** the joiner's +3. Across 130 model-invocable skills that is
+  roughly **+1,700 characters** — which would consume most of the 1,906 the named reduction sources
+  can offer (§5) and push a fleet-wide migration net-negative on characters. The "close to
+  character-neutral" framing therefore depends on which fix is chosen; this option is not neutral.
 - Amend check 12 to treat a populated, single-quoted `when_to_use` as satisfying the trigger-spec
   requirement. This is the better fix — check 12's warning text ("a description is a trigger spec,
   not a summary") encodes the pre-`when_to_use` authoring model that #1271 is deliberately changing.
