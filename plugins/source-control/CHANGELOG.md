@@ -30,6 +30,20 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `reference/safety.md`, and `babysit-loop`'s Subagents section state the new boundary. Pinned by
   `test_skill_contract.py`.
 
+## [0.26.5]
+
+### Fixed
+
+- **`babysit_delta.py` and `babysit_feedback.py` now casefold owner/repo/login identity
+  comparisons, matching the already-ratified `.casefold()` convention `pr_queue_snapshot.py`
+  uses for the identical concept (#815).** `head_repository_scope`'s base/head owner and
+  same-repository checks, and `latest_reviews_by_author`'s per-reviewer login key, used
+  `.lower()` instead. Functionally equivalent for GitHub's ASCII-only owner/repo/login
+  alphabet, but a straggler against the sibling scripts' shared convention. Converted to
+  `.casefold()` in both files; added case-insensitivity regression tests covering a
+  differently-cased base repo, head repository, and allowlisted owner, and a differently-cased
+  reviewer login collapsing to one latest review.
+
 ## [0.26.4]
 
 ### Fixed
