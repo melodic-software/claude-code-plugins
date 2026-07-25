@@ -107,8 +107,8 @@ This is claim 3 applied to the repo's real interface: a router skill's model-vis
   ≥2 backticked actions, and a *user-requestable entry-point* action from that table is named
   nowhere in the `description`.
 - **Pass/fail observable:** scripted set-difference between the router table's first-column tokens
-  and the description text. The script used for the Targets section below is at
-  `C:\Users\KYLESE~1\AppData\Local\Temp\claude\C--Users-KyleSexton\bd852ada-71dd-41c9-abaf-972d4f4f8363\scratchpad\s4router.py`.
+  and the description text. The Targets section below was produced by `s4router.py`, written this
+  session into the session scratchpad, which does not persist.
 - **Must NOT flag:** (a) `disable-model-invocation: true` skills, whose description never enters the
   model's listing at all — verified: `plugins/education/skills/teach/SKILL.md:6` sets it, so its 8
   undeclared actions cost nothing model-side; (b) diagnostic/terminal sub-actions reachable only
@@ -144,7 +144,7 @@ should be rejected as unfalsifiable.
 
 ## Targets in this repo
 
-All counts from commands run in `D:/repos/.worktrees/context-engineering-rightsizing`.
+All counts from commands run in `<repo-root>`.
 
 **Population.**
 

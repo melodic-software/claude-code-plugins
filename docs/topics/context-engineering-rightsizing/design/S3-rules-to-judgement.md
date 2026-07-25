@@ -31,7 +31,7 @@ Fetched this session: `code.claude.com/docs/en/memory`, `code.claude.com/docs/en
 | C3 | **UNBACKED** | Same. The *mechanism* it describes is corroborated indirectly: memory page, "if two rules contradict each other, Claude may pick one arbitrarily." That confirms the cost of conflicting instructions, not this historical account of why they were introduced. |
 | C4 | **UNBACKED** | Anthropic does not publish Claude Code system-prompt history. The quoted text cannot be verified as ever having been in the system prompt, nor as having been removed. Treat as author testimony. |
 | C5 | **UNBACKED** | No official source; internally coherent. |
-| C6 | **UNBACKED** as a claim about the retired rule. Adjacent official text *contradicts* the direction: the prompting best-practices anti-overengineering prompt still ships "Only add comments where the logic isn't self-evident" as recommended current guidance. |
+| C6 | **UNBACKED** as a claim about the retired rule | Adjacent official text *contradicts* the direction: the prompting best-practices anti-overengineering prompt still ships "Only add comments where the logic isn't self-evident" as recommended current guidance. |
 | C7 | **UNBACKED** | Historical testimony. |
 | C8 | **PARTIAL** | Officially confirmed for *named classes*, not generally. Opus 5 page: "Claude Opus 5 verifies its own work without being told to"; "Claude Opus 5 catches and fixes its own mistakes well without prompting." Same claim-shape (capability now covers what a rule used to force), officially stated, for verification and self-correction — never for comment density. |
 | C9 | **CONFIRMED — primary source, not a doc page** | The sentence is present verbatim in the Claude Code system prompt of this very session: "Write code that reads like the surrounding code: match its comment density, naming, and idiom." Direct observation of the running harness. Note the evidence class: this confirms the line is deployed, not that the article's account of what it replaced is accurate. |
@@ -140,7 +140,7 @@ declared context, degrade explicitly when absent.
 ## Targets in this repo
 
 All figures below are from commands run this session against
-`D:/repos/.worktrees/context-engineering-rightsizing`. Skill bodies were measured **with YAML
+`<repo-root>`. Skill bodies were measured **with YAML
 frontmatter stripped**, so `description` text is excluded.
 
 **Population.**
@@ -357,8 +357,8 @@ directional support for C1 and labelling both PARTIAL rather than promoting eith
 
 None. I did not read, list, grep, or reference `docs/topics/context-engineering-claude-5/**`,
 `docs/topics/fable-field-guide-audit/**`, `.work/fable-field-guide-audit/**`, any other worktree under
-`D:/repos/.worktrees/`, or any other agent's file under `sections/`. All repository reads were confined
-to `D:/repos/.worktrees/context-engineering-rightsizing`. `~/.claude/CLAUDE.md` was read (permitted and
+`<worktrees-root>/`, or any other agent's file under `sections/`. All repository reads were confined
+to `<repo-root>`. `~/.claude/CLAUDE.md` was read (permitted and
 in scope as a routed-recommendation surface) and not modified. I created only
 `sections/S3-rules-to-judgement.md` plus scratch files outside the repo.
 

@@ -79,7 +79,7 @@ table. That is the documented form of "spend a lot of time".
 ## Local analogues — what functions as a system prompt in this repo
 
 Verified surface-by-surface. Counts are from commands run in
-`D:/repos/.worktrees/context-engineering-rightsizing`.
+`<repo-root>`.
 
 | Surface | Present here | Loading semantics (doc-verified) |
 | :--- | :--- | :--- |
@@ -258,13 +258,13 @@ reviewable event rather than a silent one.
 Population, by command:
 
 ```
-$ find plugins -path '*/agents/*' -name '*.md' | wc -l        →   7
-$ find plugins -path '*/commands/*' -name '*.md' | wc -l      →   0
-$ find . -type d -name 'output-styles' -not -path './node_modules/*'  →  (none)
-$ ls plugins/*/skills/*/SKILL.md | wc -l                      → 181
-$ ls plugins | wc -l                                          →  60
-$ grep -rn '^context:' plugins/*/skills/*/SKILL.md            →   1
-$ grep -rn 'initialPrompt' plugins/                           →   0
+find plugins -path '*/agents/*' -name '*.md' | wc -l        →   7
+find plugins -path '*/commands/*' -name '*.md' | wc -l      →   0
+find . -type d -name 'output-styles' -not -path './node_modules/*'  →  (none)
+ls plugins/*/skills/*/SKILL.md | wc -l                      → 181
+ls plugins | wc -l                                          →  60
+grep -rn '^context:' plugins/*/skills/*/SKILL.md            →   1
+grep -rn 'initialPrompt' plugins/                           →   0
 ```
 
 **S9-R1 — 5 of 7 bodies name an auto-loaded surface; 4 are true hits, 1 is the designed exception:**

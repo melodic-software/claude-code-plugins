@@ -155,7 +155,7 @@ Claude Code UI writes (documented: `/memory` writes `autoMemoryEnabled` to
 
 ## Targets in this repo
 
-Counts are from commands run in `D:/repos/.worktrees/context-engineering-rightsizing`.
+Counts are from commands run in `<repo-root>`.
 
 - **S7-K1 population: zero.** `grep -rn -iE "# hotkey|hash hotkey|'#' to (add|save)|# to add to memory"`
   over all `*.md` returns exactly one hit, `.work/context-engineering-rightsizing/source-article.md:79`,
@@ -381,7 +381,7 @@ Substantially, yes — better than the article. What it misses is specific.
 ## Fence events
 
 None. No fenced path was read, listed, grepped, or referenced. All work stayed within
-`D:/repos/.worktrees/context-engineering-rightsizing`, read-only inspection of `~/.claude` and
+`<repo-root>`, read-only inspection of `~/.claude` and
 `~/.local/share/chezmoi`, and freshly fetched `code.claude.com/docs` pages.
 
 `.work/context-engineering-rightsizing/interview-checklist.md` was read (own working directory, not

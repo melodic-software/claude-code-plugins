@@ -13,8 +13,8 @@ operator wants an independent read. Do **not** read, list, grep, or reference an
 
 - `docs/topics/context-engineering-claude-5/**` (any path, any worktree, any branch)
 - `docs/topics/fable-field-guide-audit/**` and `.work/fable-field-guide-audit/**`
-- `D:/repos/.worktrees/context-engineering-claude-5/**`
-- `D:/repos/.worktrees/fable-field-guide-audit/**`
+- `<worktrees-root>/context-engineering-claude-5/**`
+- `<worktrees-root>/fable-field-guide-audit/**`
 - Any checkout of this repository other than your own working directory
 - Any other agent's output file under `sections/`
 

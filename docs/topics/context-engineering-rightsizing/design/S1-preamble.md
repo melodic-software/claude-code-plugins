@@ -98,8 +98,7 @@ the brief asked me to verify hard; findings in full below.
 
 **(a) CLAUDE.md rightsizing — CONFIRMED, and richer than the article says.**
 `https://code.claude.com/docs/en/commands.md`, `/doctor` row, verbatim: *"Run a setup checkup that
-diagnoses issues and can fix them. Checks installation health, including duplicate or leftover
-installs, `PATH` problems, and unparseable settings files. Finds unused skills, MCP servers, and
+diagnoses issues and can fix them. Checks installation health… Finds unused skills, MCP servers, and
 plugins versus their context cost, flags slow hooks, and checks for a newer version on your release
 channel. **Deduplicates local `CLAUDE.md` files against checked-in ones, trims checked-in `CLAUDE.md`
 files by cutting content Claude could derive from the codebase, and migrates the always-loaded
@@ -112,6 +111,7 @@ verbatim in its "My CLAUDE.md is too large" section.
 
 **(b) "rightsize your skills" — PARTIAL as written; UNBACKED under the narrow reading.** The
 distinction matters because S1-C3 hangs on it, so both readings are stated:
+
 - *"`/doctor` acts on skills at all"* — **PARTIAL/supported.** `commands.md` documents two
   skill-touching behaviors: it *"Finds unused skills, MCP servers, and plugins versus their context
   cost"* (a keep/drop signal on whole skills), and it *"migrates the always-loaded guidance that
@@ -235,7 +235,7 @@ documentation / measured fact.
 
 ## Targets in this repo
 
-Populations measured by command in `D:/repos/.worktrees/context-engineering-rightsizing`, not
+Populations measured by command in `<repo-root>`, not
 estimated:
 
 | Command | Result |
@@ -288,11 +288,11 @@ Concrete file hits:
 
 **User-global scope (read-only to this effort; routed as recommendations, never edited):**
 
-- `C:/Users/KyleSexton/.claude/CLAUDE.md` — **69 lines** (`wc -l`), well under `memory.md`'s
+- `~/.claude/CLAUDE.md` — **69 lines** (`wc -l`), well under `memory.md`'s
   *"target under 200 lines per CLAUDE.md file."* It is **not** oversized and is **not** reachable by
   `/doctor`'s trim, which is documented against *checked-in* CLAUDE.md (claim 10g). Both facts point
   the same way: no `/doctor`-driven action is available or needed here.
-- `C:/Users/KyleSexton/.claude/docs/` — **5 files** (`ls`), referenced from that CLAUDE.md's
+- `~/.claude/docs/` — **5 files** (`ls`), referenced from that CLAUDE.md's
   "Reference docs (read on demand)" section rather than inlined. This is a **positive finding** for
   claims 3 and 10: the user-global surface already implements the pointer-style progressive
   disclosure the official docs endorse (`skills.md`: *"a skill's body loads only when it's used, so

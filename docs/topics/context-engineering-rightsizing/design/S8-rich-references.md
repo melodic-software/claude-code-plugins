@@ -184,7 +184,7 @@ wrong.
 
 ## Targets in this repo
 
-All counts from commands run in `D:/repos/.worktrees/context-engineering-rightsizing`.
+All counts from commands run in `<repo-root>`.
 
 **Prose plans (claim 1/2).** 12 files, 4,353 lines.
 
@@ -321,7 +321,7 @@ because the orchestration is held in a context window rather than in a script. A
 dynamic workflows" without a per-case argument from the table's axes — repeatability, where intermediate
 results live, resumability, scale — is not actionable.
 
-**5. Claim 1 mis-attributes an operator practice to a harness feature.** Plan mode blocks edits until the
+**5. Claim 1 misattributes an operator practice to a harness feature.** Plan mode blocks edits until the
 plan is approved; it cannot write a plan file. Every `PLAN.md` in this repo was written by a skill
 (`planning:plan`) or by hand, after plan mode ended. This matters for remediation routing: nothing about
 plan-file practice can be fixed by changing how plan mode is used, only by changing the skills that

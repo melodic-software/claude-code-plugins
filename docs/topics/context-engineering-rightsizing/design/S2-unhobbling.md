@@ -222,7 +222,7 @@ coding agents, create a `CLAUDE.md` that imports it" (<https://code.claude.com/d
 
 ## Targets in this repo
 
-Populations, measured by command (run in `D:/repos/.worktrees/context-engineering-rightsizing`):
+Populations, measured by command (run in `<repo-root>`):
 
 | Population | Command | Count |
 |---|---|---|
@@ -266,7 +266,7 @@ on `setup/SKILL.md:122`). **Adjudicated: 47 ungated mandate sites across 9 plugi
 
 The finding splits by audience, because remediation routes differ.
 
-#### 1a — repo-internal, Type C (unarbitrated co-authority). Fixable entirely inside `plugins/`.
+#### 1a — repo-internal, Type C (unarbitrated co-authority), fixable entirely inside `plugins/`
 
 `plugins/planning/.claude-plugin/plugin.json:6-11` declares a `use_ask_user_question` boolean with
 `"default": false` and the rationale "Default: inline prose (dictation-friendly)," and the planning
@@ -281,9 +281,9 @@ bypasses its own gate. The inconsistency is not merely cross-plugin, it is intra
 
 This is the "at least one real instance in this repo" the section owes. **Route: repo change.**
 
-#### 1b — cross-audience, Type A. Requires a user-global change I cannot make.
+#### 1b — cross-audience, Type A, requiring a user-global change I cannot make
 
-`C:/Users/KyleSexton/.claude/CLAUDE.md:7` — "Ask questions inline; never use the AskUserQuestion tool
+`~/.claude/CLAUDE.md:7` — "Ask questions inline; never use the AskUserQuestion tool
 unless explicitly asked to use it." That is resident in every session. All 47 ungated sites contradict
 it the moment their skill is invoked.
 

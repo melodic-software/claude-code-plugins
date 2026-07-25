@@ -3,7 +3,7 @@
 Source span: `source-article.md:99-102`.
 
 All measurements below were produced by commands run this session against
-`D:/repos/.worktrees/context-engineering-rightsizing` (repo scope) and `C:/Users/KyleSexton/.claude/`
+`<repo-root>` (repo scope) and `~/.claude/`
 (user-global scope, read-only). Byte counts are exact (`wc -c`, `awk length($0)`). Token figures are
 labelled estimates at a stated 4-bytes-per-token divisor — no tokenizer was run.
 
@@ -156,12 +156,12 @@ cut class, or cheap pre-act derivation) · `duplicate` (stated verbatim elsewher
 ### Population
 
 ```
-$ find . -iname "CLAUDE.md" -not -path "./node_modules/*"   →  ./CLAUDE.md          (1 file)
-$ find . -iname "AGENTS.md" -not -path "./node_modules/*"   →  ./AGENTS.md          (1 file)
-$ ls .claude/                                               →  settings.json  source-control.md
-$ ls .claude/rules                                          →  No such file or directory
-$ ls plugins | wc -l                                        →  60
-$ find plugins -name SKILL.md | wc -l                       →  187
+find . -iname "CLAUDE.md" -not -path "./node_modules/*"   →  ./CLAUDE.md          (1 file)
+find . -iname "AGENTS.md" -not -path "./node_modules/*"   →  ./AGENTS.md          (1 file)
+ls .claude/                                               →  settings.json  source-control.md
+ls .claude/rules                                          →  No such file or directory
+ls plugins | wc -l                                        →  60
+find plugins -name SKILL.md | wc -l                       →  187
 ```
 
 **Absence findings, with where I looked**: there is no `.claude/CLAUDE.md`, no `CLAUDE.local.md`
@@ -382,7 +382,7 @@ file that loads only sometimes. The confirmation gate makes this safe, but it is
 
 None. I did not read, list, grep, or reference `docs/topics/context-engineering-claude-5/**`,
 `docs/topics/fable-field-guide-audit/**`, `.work/fable-field-guide-audit/**`, any other worktree
-under `D:/repos/.worktrees/`, or any other agent's file under `sections/`. Every repo command was run
-against `D:/repos/.worktrees/context-engineering-rightsizing` only. The `grep -rn "source-control.md"`
+under `<worktrees-root>/`, or any other agent's file under `sections/`. Every repo command was run
+against `<repo-root>` only. The `grep -rn "source-control.md"`
 sweep did surface paths under `docs/topics/` — `babysit-prs-migration` and
 `commit-convention-well-known-path`, neither fenced — and I read no file under `docs/topics/`.

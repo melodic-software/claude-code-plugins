@@ -55,7 +55,7 @@ content is injected into the user message or produced by a forced read.
 > expanded and loaded into context at launch alongside the CLAUDE.md that references them."
 > "Imported files can recursively import other files, with a maximum depth of four hops."
 > "Import parsing skips Markdown code spans and fenced code blocks."
-> "Splitting into [`@path` imports](#import-additional-files) helps organization but doesn't reduce
+> "Splitting into [`@path` imports](https://code.claude.com/docs/en/memory.md#import-additional-files) helps organization but doesn't reduce
 > context, since imported files load at launch."
 > "You can also split content into imports for organization, though imported files still load and
 > enter the context window at launch."
@@ -153,7 +153,7 @@ penalizes screenshots would contradict current official guidance. See Conflicts.
   instruction to read it.
 - **Must NOT flag**: package scopes, decorators, emails, handles, backticked `@`, or a path written
   without `@`.
-- Forward-looking guard: this is the single most likely way an author mis-applies S12's one sentence
+- Forward-looking guard: this is the single most likely way an author misapplies S12's one sentence
   to the wrong surface.
 
 ### C12.3 — Do not restate in markdown a structure a machine-readable sibling already defines
@@ -188,7 +188,7 @@ penalizes screenshots would contradict current official guidance. See Conflicts.
 
 ## Targets in this repo
 
-Population commands were run in `D:/repos/.worktrees/context-engineering-rightsizing`.
+Population commands were run in `<repo-root>`.
 
 ```
 find plugins -name SKILL.md -path '*/skills/*' | wc -l      → 187
@@ -258,6 +258,7 @@ the spirit of claim 4; the gap is only that `SKILL.md` and `references/shared/di
 prescribe catalog fields (`added_on`, `crash_count`, `identical_streak`) without the pointer.
 
 Contrast — already correct, **must not flag**:
+
 - `plugins/autonomy/skills/setup/SKILL.md:164,264,315` cites
   `schemas/guardrails-security-binding.schema.json` three times as a linked path.
 - `plugins/skill-quality/skills/check/SKILL.md:92` cites
@@ -343,7 +344,7 @@ the axis that separates them is not eager-vs-lazy, because **both `@` forms are 
 So there is no tension at all for the prompt-level `@` the article is describing — a large reference
 pulled in deliberately for one plan is exactly what S5 wants. The tension is real and sharp only for
 a reader who applies S12's sentence inside a CLAUDE.md, where the same character means something
-else. That mis-application is the single most valuable thing this section produces.
+else. That misapplication is the single most valuable thing this section produces.
 
 **2. No size boundary exists in the docs.** I looked for one on memory.md, best-practices.md,
 common-workflows.md, context-window.md (via the index), and skills.md, and found none for `@`. The

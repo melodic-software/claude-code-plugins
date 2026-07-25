@@ -185,7 +185,7 @@ The pointer resolves outside Claude Code's docs in both candidate cases.
 ## Targets in this repo
 
 All counts produced by commands run this session in
-`D:/repos/.worktrees/context-engineering-rightsizing`.
+`<repo-root>`.
 
 **Population — correcting the brief's figure.** The brief says "~181 skills"; that figure is
 **correct**, and a naive glob inflates it. `find plugins -path 'plugins/*/skills/*/SKILL.md' | wc -l`
@@ -355,5 +355,5 @@ added under S13-4 has to carry the floor or it will mislead consumers on older i
 None. No file under `docs/topics/context-engineering-claude-5/**`,
 `docs/topics/fable-field-guide-audit/**`, `.work/fable-field-guide-audit/**`, or any sibling worktree
 was read, listed, or grepped. Repo-wide `rg` invocations were scoped to
-`D:/repos/.worktrees/context-engineering-rightsizing` and returned no hits inside fenced paths. No
+`<repo-root>` and returned no hits inside fenced paths. No
 other agent's file under `sections/` was read; `sections/` did not exist before this file was written.

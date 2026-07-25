@@ -108,7 +108,7 @@ to save budget is the failure mode, not the fix.
 
 ## Targets in this repo
 
-Every number below is from a command run in `D:/repos/.worktrees/context-engineering-rightsizing`.
+Every number below is from a command run in `<repo-root>`.
 
 **Population.** `find plugins -type f -name SKILL.md | wc -l` → **187**. Of these,
 `find plugins -type f -path '*/vendor/*' -name SKILL.md` → **6**, leaving **181** authored skills.

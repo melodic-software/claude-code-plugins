@@ -1,14 +1,13 @@
 # S5 — Then: Put it all upfront / Now: Use progressive disclosure
 
 All doc quotes were fetched this session via WebFetch. All repo numbers come from commands run
-against `D:/repos/.worktrees/context-engineering-rightsizing`.
+against `<repo-root>`.
 
 **Reproducing the measurements.** Shell one-liners are inline where they suffice. Every derived
 figure (listing chars, per-plugin subtotals, body sizes, reachability) comes from one script,
-written this session to
-`C:/Users/KYLESE~1/AppData/Local/Temp/claude/C--Users-KyleSexton/bd852ada-71dd-41c9-abaf-972d4f4f8363/scratchpad/s5-measure.mjs`,
-run as `node s5-measure.mjs D:/repos/.worktrees/context-engineering-rightsizing`. That path is a
-session scratchpad and **will not persist**. Its method, sufficient to rebuild: parse each
+`s5-measure.mjs`, written this session into the session scratchpad and run as
+`node s5-measure.mjs <repo-root>`. The scratchpad **does not persist**, so the script is described
+rather than cited. Its method, sufficient to rebuild: parse each
 `plugins/*/skills/*/SKILL.md`; treat everything after the closing frontmatter `---` as the *body*
 (all body figures below are post-frontmatter); read `description` and `when_to_use` as
 whitespace-collapsed scalars; partition on `disable-model-invocation: true`; and compute support-file

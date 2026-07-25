@@ -163,7 +163,7 @@ context, so once the skill is invoked its description and its body are both resi
 
 ## Targets in this repo
 
-Population by command, run in `D:/repos/.worktrees/context-engineering-rightsizing`.
+Population by command, run in `<repo-root>`.
 
 **Skills** — `find plugins -name SKILL.md | wc -l` → **187**; of those, `plugins/*/skills/*/SKILL.md`
 → **181** first-class skills. The other 6 are vendored upstream copies under `.../vendor/`
@@ -371,5 +371,5 @@ anything, I ran `ls sections/` at the repository root. It returned "no sections 
 not exist. No other agent's output was listed or seen. I then created
 `.work/context-engineering-rightsizing/sections/` with `mkdir -p` to write this file, and never
 listed or read that directory afterward. All repository reads were confined to
-`D:/repos/.worktrees/context-engineering-rightsizing`. Every official-doc citation was fetched this
+`<repo-root>`. Every official-doc citation was fetched this
 session via WebFetch from `code.claude.com`.
