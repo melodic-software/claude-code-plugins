@@ -48,7 +48,7 @@ Its own locked decisions bind the shape:
 >   do not stand up a parallel surface (reuse-or-replace). Verify the actual current location at
 >   execution time.
 
-## The discriminator: #1225's audit has a different population and a different question
+## The discriminator: #1225's audit asks a different question over a partly shared population
 
 The collision register classified #1225 as *"structurally a second repo-wide sweep."* Read
 first-hand, that classification is too coarse in one specific way, and the correction is what makes
@@ -73,8 +73,17 @@ copies rather than skills this repository ships. **181 is the skill population**
 vendored copies too.
 
 L2 and L3 operate on instruction surfaces — 181 skill bodies plus `CLAUDE.md`, `.claude/rules/`,
-prompt-type hook text, and output styles. #1225's conforming population is **7 files in 2 of 60
-plugins**, widening only to the "would this plugin benefit from one" question over the other 58.
+prompt-type hook text, and output styles. #1225's *conforming* population is **7 files in 2 of 60
+plugins**, but Part 2's second half — "every plugin that *lacks* sub-agents but would benefit under
+the new conventions" — reaches **all 60**, and answering it means reading each plugin's skills and
+instructions. **So the population is substantially shared, and the population is therefore not the
+discriminator.** The question is. #1225 asks whether a plugin should have a sub-agent; L2 asks
+whether two of a plugin's surfaces contradict each other; L3 asks whether a criterion is officially
+backed and at what tier. D-11's stated concern is infrastructural — *two repo-wide sweeps become two
+routers* (`:3-4`). Two passes reading the same files to answer orthogonal questions need no shared
+traversal to stay correct, and D-3 forbids either of them from standing one up regardless. What the
+shared population does create is ordinary scheduling overlap between #1225 Part 2 and L2/L3, which
+belongs in the collision matrix as a coordination note rather than in a mechanism.
 
 **Question.** #1225 asks *does this sub-agent earn its existence, and is its frontmatter
 conformant*. L2 asks *do two instruction surfaces contradict each other*. L3 asks *is this criterion
@@ -186,9 +195,9 @@ settled by the evidence, because all three options are structural:
   current model capability**") describe a per-surface content audit, not a conflict detector.
   **A second cost, load-bearing in this repository:** Phase A enumerates two roots only — user
   `${CLAUDE_CONFIG_DIR:-~/.claude}` and project `.claude/**` (`SKILL.md:76-82`) — so it never reaches
-  the marketplace tree. The 187 `plugins/*/skills/*/SKILL.md` files and the plugin READMEs that L2's
-  comparison needs are tracked source here rather than the installed plugin-cache content `:85-88`
-  excludes, yet no enumerated surface names them. Reusing Phase A unchanged would silently omit L2's
+  the marketplace tree. The 181 `plugins/*/skills/*/SKILL.md` files counted above and the plugin
+  READMEs that L2's comparison needs are tracked source here rather than the installed plugin-cache
+  content `:85-88` excludes, yet no enumerated surface names them. Reusing Phase A unchanged would silently omit L2's
   primary input, so A must first extend Phase A with a plugin-source surface — part of A's cost, not
   a free inheritance.
 - **Option B — a new sibling skill in `claude-config`.** Leaves `audit-instructions`' phase model and
@@ -343,7 +352,7 @@ means the ticket claims part of the lane's deliverable, not merely that it is ad
 
 | Ticket | Overlaps L2 | Overlaps L3 | Reason |
 |---|---|---|---|
-| **#1225** sub-agent conventions + all-plugin audit | No | No | Population is 7 agent definitions in 2 of 60 plugins; question is existence-qualification + frontmatter conformance. L2's observable is inter-surface contradiction; L3's is instruction content versus model capability. Sole intersection is `agents/*.md` read for orthogonal questions |
+| **#1225** sub-agent conventions + all-plugin audit | No | No — **but coordinate** | Conforming population is 7 agent definitions in 2 of 60 plugins; Part 2's "would this plugin benefit from one" half reaches all 60 and reads their skills and instructions, so the file population is largely shared with L2/L3. The question is not: existence-qualification + frontmatter conformance, versus L2's inter-surface contradiction and L3's content-versus-model-capability. Orthogonal observables over shared files need no shared traversal (D-11's concern is routers, `:3-4`), so this is a scheduling overlap to sequence, not a claim on either deliverable |
 | **#253** docs-hygiene proactive repo-scan | No | No | Its three shapes are intra-document drift against an external or internal source of truth. L2 needs a *pair* of surfaces; L3 judges content against model capability, an axis `docs-hygiene` routes away from (`audit-instructions/SKILL.md:37`) |
 | **#1227** cheat sheet + README split | No | No | Docs IA, auto-derived from skill frontmatter. Reads `description` as data to render; neither judges its content nor compares surfaces |
 | **#304** fresh-eyes checkpoint audit program | No | No | Tags skill *actions* for same-context bias. Its conformance mechanism is check 21, already claimed by PR #1096. Adjacent to L2 only in that both read many skills; the observable (self-judging step) is a single-file property |
