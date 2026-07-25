@@ -76,6 +76,34 @@ OUT=$(run 'Per `docs/nope.md:120-125` the rule applies.')
 assert_contains "line-range suffix on a missing path → still fires" "$OUT" \
   "MISSING_PATH: docs/nope.md"
 
+# Repro-first regressions for review findings on #1284.
+
+# A titled link destination was rejected wholesale by the old expression, so a
+# missing target was never checked. Both title-quote styles and the
+# angle-bracketed form must reach the existence test.
+OUT=$(run 'See [the guide](docs/titled-missing.md "Guide") for details.')
+assert_contains "titled link (double quotes) → destination checked" "$OUT" \
+  "MISSING_PATH: docs/titled-missing.md"
+OUT=$(run "Single-quoted title [g](docs/titled2-missing.md 'Guide').")
+assert_contains "titled link (single quotes) → destination checked" "$OUT" \
+  "MISSING_PATH: docs/titled2-missing.md"
+OUT=$(run 'Angle-bracketed [g](<docs/angle-missing.md>).')
+assert_contains "angle-bracketed destination → checked" "$OUT" \
+  "MISSING_PATH: docs/angle-missing.md"
+
+# A percent-encoded destination names a decoded path; the finding must report the
+# decoded form, not the encoded literal.
+OUT=$(run 'Encoded [g](docs/enc%20missing.md).')
+assert_contains "percent-encoded destination → decoded before the check" "$OUT" \
+  "MISSING_PATH: docs/enc missing.md"
+assert_absent "percent-encoded destination → encoded form not reported" "$OUT" \
+  "docs/enc%20missing.md"
+
+# An encoded traversal must not escape the tree: %2e%2e%2f decodes to ../ and the
+# guard is re-applied after decoding.
+OUT=$(run 'Encoded escape [g](%2e%2e%2fdocs/nope.md).')
+assert_silent "encoded traversal → rejected post-decode" "$OUT"
+
 # ============================ MUST STAY QUIET ===============================
 
 OUT=$(run 'Read `docs/real.md` before starting.')
@@ -176,6 +204,36 @@ mkdir -p "$NOGIT/docs"
 OUT=$(CLAUDE_PROJECT_DIR="$NOGIT" bash "$HOOK" <<<"$(write_json "$NOGIT_TARGET" 'Read `docs/nope.md`.')" 2>&1)
 assert_contains "non-git fallback root with a matching first segment → adjudicates" "$OUT" \
   "MISSING_PATH: docs/nope.md"
+
+# A markdown link resolves relative to the DOCUMENT, not the repo root. A nested
+# file linking `assets/x.png` means `<doc-dir>/assets/x.png`. The ambiguous case
+# is the one that matters: an `assets/` directory at BOTH the repo root and the
+# document directory, where root-only resolution reports a valid link missing.
+mkdir -p "$REPO/assets" "$REPO/docs/assets"
+: >"$REPO/docs/assets/diagram.png"
+NESTED="$REPO/docs/guide.md"
+: >"$NESTED"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(write_json "$NESTED" 'See [diagram](assets/diagram.png).')" 2>&1)
+RC=$?
+assert_exit "document-relative link → exit 0" 0 "$RC"
+assert_silent "document-relative link resolves against the doc dir → silent" "$OUT"
+
+# The same nested document citing a repo-root path in link syntax still resolves —
+# this repo writes both forms, so either base satisfying the check is correct.
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(write_json "$NESTED" 'See [real](docs/real.md).')" 2>&1)
+assert_silent "repo-root path in link syntax from a nested doc → silent" "$OUT"
+
+# A link that resolves against NEITHER base still fires.
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(write_json "$NESTED" 'See [gone](assets/absent.png).')" 2>&1)
+assert_contains "link resolving against neither base → fires" "$OUT" \
+  "MISSING_PATH: assets/absent.png"
+
+# A code span is repo-root-relative by convention, NOT document-relative — the
+# doc-dir base must not leak into code-span resolution. `assets/diagram.png`
+# exists only under docs/, so from a nested doc it must still fire in a code span.
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(write_json "$NESTED" 'Path `assets/diagram.png` cited in prose.')" 2>&1)
+assert_contains "code span stays repo-root-relative → fires" "$OUT" \
+  "MISSING_PATH: assets/diagram.png"
 
 # ============================ KILL SWITCH ===================================
 

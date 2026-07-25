@@ -66,16 +66,42 @@ esac
 REPO_ROOT="$(hook::repo_root "$(dirname "$FILE")")"
 [[ -d "$REPO_ROOT" ]] || exit 0
 
-# Emit raw path-shaped tokens (one per line) from inline-code spans and markdown
-# link/image targets. Prose is deliberately NOT scanned: an unquoted `a/b` in a
+# Emit `<kind>|<raw-token>` lines from inline-code spans and markdown link/image
+# destinations. Prose is deliberately NOT scanned: an unquoted `a/b` in a
 # sentence is as likely to be a ratio, a date, or an either/or as a path, and a
 # path asserted as a citation is written in code or as a link by convention.
+#
+# The kind is carried because the two resolve against different bases (see
+# bases_for below). `|` is a safe separator: normalize_candidate rejects any
+# candidate containing one.
 emit_tokens() {
   # Inline-code spans, backticks stripped.
   # shellcheck disable=SC2016  # backticks are literal ERE data, not expansions
-  printf '%s' "$SCAN_CONTENT" | grep -oE '`[^`]+`' 2>/dev/null | sed -E 's/^`+//; s/`+$//'
-  # Markdown link and image targets: the parenthesized destination only.
-  printf '%s' "$SCAN_CONTENT" | grep -oE '\]\([^)[:space:]]+\)' 2>/dev/null | sed -E 's/^\]\(//; s/\)$//'
+  printf '%s' "$SCAN_CONTENT" | grep -oE '`[^`]+`' 2>/dev/null |
+    sed -E 's/^`+//; s/`+$//; s/^/code|/'
+  # Markdown link and image destinations. A destination may carry an optional
+  # title (`[x](dest "Title")`) and may be angle-bracketed (`[x](<dest>)`), so
+  # take the whole parenthesized run and keep only the leading destination token.
+  printf '%s' "$SCAN_CONTENT" | grep -oE '\]\([^)]*\)' 2>/dev/null |
+    sed -E 's/^\]\(//; s/\)$//; s/^[[:space:]]+//; s/[[:space:]].*$//; s/^<//; s/>$//; s/^/link|/'
+}
+
+# Percent-decode a markdown destination — `docs/my%20file.md` names the file
+# `docs/my file.md`. Decodes only when every `%` in the string begins a valid
+# two-hex-digit escape; anything else is returned untouched, so a literal `%` in
+# a filename is not mangled. Callers MUST re-apply the traversal guard after
+# decoding: `%2e%2e%2f` decodes to `../`.
+maybe_percent_decode() {
+  local s="$1"
+  [[ "$s" == *%* ]] || {
+    printf '%s' "$s"
+    return 0
+  }
+  [[ "$s" =~ ^([^%]|%[0-9A-Fa-f]{2})*$ ]] || {
+    printf '%s' "$s"
+    return 0
+  }
+  printf '%b' "${s//%/\\x}"
 }
 
 # Reduce a raw token to a repo-relative path candidate, or nothing.
@@ -136,30 +162,59 @@ normalize_candidate() {
   printf '%s' "$t"
 }
 
-# FIRST-SEGMENT GATE. Only adjudicate a candidate whose leading segment is a
-# real directory here — that is what distinguishes "this repo's path, written
-# wrong" from "a path belonging to something else".
-# `first_seg`, not `seg`: hook-utils.sh declares a `local -a seg` in its bash
-# parser, and ShellCheck resolves sourced files, so a string `seg` here reads as
-# an array-to-string type change (SC2178/SC2128).
-first_segment_is_local() {
-  local first_seg="${1%%/*}"
-  [[ -n "$first_seg" ]] || return 1
-  [[ -d "$REPO_ROOT/$first_seg" ]]
-}
+# A code-span citation is repo-root-relative — that is this repo's convention for
+# citing a file in prose. A markdown link destination is document-relative per
+# CommonMark, but this repo also writes repo-root paths inside link syntax, so a
+# link is accepted when EITHER base resolves. An advisory guard errs quiet.
+DOC_DIR="$(dirname "$FILE")"
 
 declare -A CHECKED=()
 MISSING=()
 
-while IFS= read -r raw; do
-  [[ -n "$raw" ]] || continue
+while IFS= read -r line; do
+  [[ -n "$line" ]] || continue
+  kind="${line%%|*}"
+  raw="${line#*|}"
   cand=$(normalize_candidate "$raw")
   [[ -n "$cand" ]] || continue
-  [[ -n "${CHECKED[$cand]:-}" ]] && continue
-  CHECKED["$cand"]=1
-  first_segment_is_local "$cand" || continue
+
+  if [[ "$kind" == "link" ]]; then
+    cand=$(maybe_percent_decode "$cand")
+    # Traversal guard, re-applied post-decode: an encoded `../` only becomes
+    # visible here.
+    case "$cand" in
+    ../* | */../* | /* | [A-Za-z]:[/\\]*) continue ;;
+    *) ;;
+    esac
+  fi
+
+  [[ -n "${CHECKED[$kind|$cand]:-}" ]] && continue
+  CHECKED["$kind|$cand"]=1
+
+  if [[ "$kind" == "link" ]]; then
+    bases=("$DOC_DIR" "$REPO_ROOT")
+  else
+    bases=("$REPO_ROOT")
+  fi
+
+  # FIRST-SEGMENT GATE. Only adjudicate a candidate whose leading segment is a
+  # real directory under some base — that is what distinguishes "this repo's
+  # path, written wrong" from "a path belonging to something else". A candidate
+  # gated out on every base is never reported.
   target="${cand%/}"
-  [[ -e "$REPO_ROOT/$target" ]] && continue
+  first_seg="${cand%%/*}"
+  gated=0
+  resolved=0
+  for base in "${bases[@]}"; do
+    [[ -n "$first_seg" && -d "$base/$first_seg" ]] || continue
+    gated=1
+    if [[ -e "$base/$target" ]]; then
+      resolved=1
+      break
+    fi
+  done
+  ((gated)) || continue
+  ((resolved)) && continue
   MISSING+=("$cand")
 done < <(emit_tokens)
 

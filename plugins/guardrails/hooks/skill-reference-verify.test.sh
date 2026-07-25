@@ -101,6 +101,22 @@ assert_contains "Edit hunk scanned via new_string" "$OUT" "UNRESOLVED_SKILL: /al
 OUT=$(run 'Run `/alpha:nonexistent`.')
 assert_contains "advisory states detect-then-judge tier" "$OUT" "Detect-then-judge"
 
+# Repro-first regressions for review findings on #1284.
+
+# A bare directory under skills/ is NOT a skill. Without a SKILL.md there is no
+# command, so the advisory must still fire — the old directory-only test
+# suppressed it.
+mkdir -p "$REPO/plugins/alpha/skills/ghost"
+OUT=$(run 'Run `/alpha:ghost`.')
+assert_contains "skills/ dir without SKILL.md → still unresolved" "$OUT" \
+  "UNRESOLVED_SKILL: /alpha:ghost"
+
+# A frontmatter name carrying a trailing YAML comment is a valid rename and must
+# resolve; the old end-of-line-anchored parser extracted nothing.
+mk_skill alpha commented-dir 'commented-name # public command'
+OUT=$(run 'Run `/alpha:commented-name`.')
+assert_silent "frontmatter name with trailing YAML comment → resolves" "$OUT"
+
 # ============================ MUST STAY QUIET ===============================
 
 OUT=$(run 'Run `/alpha:setup` and `/alpha:audit` first.')
