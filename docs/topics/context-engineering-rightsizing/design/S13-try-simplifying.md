@@ -1,6 +1,6 @@
 # S13 — Try simplifying
 
-Source: `.work/context-engineering-rightsizing/source-article.md:116-118` (the closing section). One
+Source: `../source-article.md:116-118` (the closing section). One
 concept assigned to this section also originates in the article preamble at line 19; it is carried
 here as C4 and quoted with its own line number.
 

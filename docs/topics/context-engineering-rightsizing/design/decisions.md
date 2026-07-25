@@ -93,7 +93,11 @@ confirmed against official documentation**; and a second defect follows — **di
 destructive-operation guard has been silently unenforced for the entire measured window**, which
 needs its own ticket and is not this effort's to fix.
 
-Full evidence: `guardrails-latency-diagnosis.md`.
+Full evidence lives in the checkout-local memory slice, not in this repository:
+`guardrails-latency-diagnosis.md` under `.work/context-engineering-rightsizing/`. It is raw capture —
+transcript scans and hook-event tallies — which the topic-docs redaction bar keeps out of committed
+material. **It is therefore unreachable from a clone**, and the measurements restated above are the
+committed record. Anyone re-deriving them starts from the transcripts, not from that file.
 
 ### D-13 — DEFERRED, not executed: the removal set is empty
 
@@ -175,6 +179,26 @@ rather than trusting it.**
 
 Now appended to the register itself, under its user-scope table, with the original rows left
 untouched as the record of what was known.
+
+### The digests' `plugins/re-anchor/**` citations were renamed out from under them
+
+PR #1276 merged 2026-07-25T02:13:33Z, after every digest was captured. It renamed the plugin
+`re-anchor` → **`discipline`** and the skill `sweep-all-disciplines` → **`sweep-all`** across 45
+files. Verified against the tree: `plugins/re-anchor` does not exist; `plugins/discipline/skills/`
+carries `sweep-all`.
+
+**Every `plugins/re-anchor/**` path in the digests therefore resolves nowhere.** Read them as
+`plugins/discipline/**`, and `re-anchor:sweep-all-disciplines` as `discipline:sweep-all`. Affected
+digests: S1, S3, S5, S6, S8, S10, S11, S13.
+
+**The citations are deliberately not rewritten.** They are dated measurements taken by agents that
+never saw the renamed tree; retargeting paths and line numbers that were not re-measured would
+fabricate precision and destroy the digests' value as an independent record. The rename is recorded
+here instead, once.
+
+**This matters most to the deferred lanes.** L2, L3 and L4 resume against targets recorded under the
+old paths. An incumbent search run against them silently finds nothing and looks conclusive — the
+same failure mode as the `SKILL.md`-scoped search below, arriving by a different route.
 
 ### Lane execution status
 
