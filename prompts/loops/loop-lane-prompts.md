@@ -78,18 +78,25 @@ about that repo, not a preference.
   in this repo. A boundary that silently under-reports is worse than no
   boundary, because it reads as coverage.
 
-  So invert it. Start from the whole tree and subtract only what is provably
-  not loaded:
+  So invert it. **The whole plugin tree is the boundary**; subtraction is
+  per path and needs proof:
 
   ```bash
-  find plugins -name '*.md' | grep -vE '/(CHANGELOG|README)\.md$'
+  find plugins -name '*.md'
   ```
 
-  Everything that survives is runtime for classification purposes —
-  `SKILL.md`, `agents/*.md`, `commands/*.md`, and every `reference/**`,
-  `references/**`, `context/**`, `templates/**` file at any depth. Removing
-  a further path from the set requires showing that nothing loads it, per
-  path, not per directory name. In an application repo the set may be
+  **No filename is inert by convention — `README.md` least of all.** In this
+  repo `tools/work-item-tracker/adapters/github/README.md` is the GitHub
+  adapter's operations reference: `reference/tracker-seam.md` routes every
+  provider-specific operation to it, and `skills/work/SKILL.md` consults it
+  for the open-linked-PR query. Editing it changes lane behavior. A blanket
+  `README.md` exclusion would have let exactly that edit be stamped C2 and
+  merged unattended — the same hole in a new coat.
+
+  Subtract a path only after showing nothing loads it: no skill body, agent,
+  or command references it by link, by bare `Read` directive, by glob, or by
+  `${CLAUDE_PLUGIN_ROOT}`-relative path. That is a per-path proof, never a
+  filename or directory-name rule. In an application repo the set may be
   genuinely empty — but prove that, do not assume it.
 
 ## Adopting a new repository
@@ -97,16 +104,20 @@ about that repo, not a preference.
 1. Land `babysit_loop_*` keys in that repo's tracked
    `.claude/source-control.md` on the default branch. Without this the
    merge lane runs and merges nothing.
-2. Confirm the work-class label axis exists:
-   `gh label list | grep -i work-class`. Record the exact strings in the
-   profile — prefix, casing, and spacing vary by repository.
-3. If it does not exist, provision it before going further. No lane may
-   create labels; the label set is IaC-owned, and the five members are
-   ratified as aliases of the autonomy program's C1–C5 risk classes with
-   the alias map single-sourced in the label declarations. Add them
-   through the `github-iac` repository that owns that org's labels, not
-   by hand with `gh label create`.
-4. Stamp the agent-ready items, or accept that nothing auto-merges.
+2. Decide where this repository records work classes. The merge partition
+   accepts **either** an issue-body trailer **or** a label, so a repo may
+   adopt on body trailers alone and never provision a label axis. Check what
+   is already there: `gh label list --limit 200 | grep -i work-class`, and
+   grep the item bodies for `Work-class: C<n>` trailers.
+3. **Only if you want the label axis** — it is optional, not a prerequisite —
+   provision it before stamping. No lane may create labels; the label set is
+   IaC-owned, and the five members are ratified as aliases of the autonomy
+   program's C1–C5 risk classes with the alias map single-sourced in the
+   label declarations. Add them through the `github-iac` repository that owns
+   that org's labels, not by hand with `gh label create`.
+4. Stamp the autonomous-eligible items in whichever source this repo uses, or
+   accept that nothing auto-merges. An item with no recorded class in
+   **either** source is ineligible at every rung.
 5. Point one worker lane and one merge lane at it, on different machines.
 
 ## How to inject these
@@ -323,6 +334,20 @@ Human-in-the-loop, no `/loop` wrapper. attend-queue has no shard parameter
 and no row-level claim, so `{{SHARD}}` is operator convention rather than
 enforcement. Give each terminal a different value.
 
+**`{{SHARD}}` must be a predicate the queue's own rows can satisfy.** The
+attention view tags every row with exactly one of three kinds — `[escalated]`,
+`[ratify]`, `[intake]`. Nothing emits a compound tag, so a value like
+`[intake] evens` matches no row and that terminal silently works nothing.
+Split beyond three terminals with an explicit predicate over a property the
+row actually carries — item number parity is the reliable one:
+
+- `[intake] where item number is even`
+- `[intake] where item number is odd`
+
+**Never define a floater or any overlapping bucket.** With no row-level
+claim, two terminals whose predicates intersect will mutate the same rows
+concurrently. Shards must partition, not overlap.
+
 > **=== COPY FROM HERE ===**
 >
 > /work-items:attend-queue
@@ -379,9 +404,12 @@ enforcement. Give each terminal a different value.
 >
 > **The boundary is fail-closed.** Treat a doc-shaped path as runtime
 > unless you can show nothing loads it — and a link grep is not that proof:
-> skill bodies also load files through bare `Read <path>` directives and
-> globs no link pattern returns. Anything you cannot prove inert is not
-> mechanical. Fail toward the higher class.
+> skill bodies also load files through bare `Read <path>` directives, globs,
+> and plugin-root-relative paths no link pattern returns. **No filename is
+> inert by convention**, `README.md` included — an adapter or tool README is
+> frequently an operations reference a skill consults at run time. Anything
+> you cannot prove inert per path is not mechanical. Fail toward the higher
+> class.
 >
 > Never route a `work-class:` label through `/work-items:track` — that
 > path validates against a taxonomy that does not yet carry the axis.
@@ -424,12 +452,15 @@ Filled instance for the repository in use as of 2026-07-25.
 | `{{RUNTIME_SURFACES}}` | see below — derived, not a two-glob list |
 
 - Runtime surfaces: **not** just `SKILL.md` and `reference/*.md`. Under the
-  fail-closed definition above, `plugins/**` holds 875 markdown files, of
-  which 128 are `CHANGELOG.md`/`README.md`; the remaining **747 are runtime**
-  — `SKILL.md`, `agents/*.md` (the six installed reviewer agents among them),
+  fail-closed definition above, **all 875 markdown files under `plugins/`**
+  are runtime for classification until individually proven inert —
+  `SKILL.md`, `agents/*.md` (the six installed reviewer agents among them),
   `context/**` (57 directories), `references/**`, nested `reference/**`, and
-  `templates/**`. Re-run the command rather than reusing these numbers; they
-  move with every plugin added.
+  `templates/**`. Not even `README.md` is safe to exclude by name here:
+  `tools/work-item-tracker/adapters/github/README.md` is the GitHub adapter's
+  operations reference, loaded by `reference/tracker-seam.md` and
+  `skills/work/SKILL.md`. Re-run the count rather than reusing this number;
+  it moves with every plugin added.
 - Merge rung: `c2-mechanical`, live in tracked config on `main`. Raising to
   `c3-autonomous` is a one-line edit to `.claude/source-control.md`.
 - Work-class labels: deployed. Exact strings, ascending risk:
@@ -583,9 +614,16 @@ machines; neither on the attended box.
 
 ### Attended queue — melo-desk-001
 
-Change the `Shard` line per terminal. Suggested split across five:
-`[ratify]`, `[escalated]`, `[intake]` evens, `[intake]` odds, and one
-floater working whatever backs up.
+Change the `Shard` line per terminal. A non-overlapping four-way split, each
+value a predicate the attention view's own rows satisfy:
+
+- `[ratify]`
+- `[escalated]`
+- `[intake] where item number is even`
+- `[intake] where item number is odd`
+
+No fifth floater — with no row-level claim, an overlapping bucket means two
+terminals mutating the same row.
 
 > **=== COPY FROM HERE ===**
 >
@@ -593,11 +631,13 @@ floater working whatever backs up.
 >
 > Repository: `melodic-software/claude-code-plugins`
 > Shard: `[ratify]`
-> Runtime surfaces in this repo: **every markdown file under `plugins/`
-> except `CHANGELOG.md` and `README.md`** — 747 of 875 at last count. That
-> is the boundary: `SKILL.md`, `agents/*.md`, `commands/*.md`, and every
+> Runtime surfaces in this repo: **every markdown file under `plugins/`** —
+> 875 at last count. `SKILL.md`, `agents/*.md`, `commands/*.md`, and every
 > `reference/**`, `references/**`, `context/**`, `templates/**` file at any
-> depth. Treat a path as runtime unless you can show nothing loads it.
+> depth. No filename is exempt by convention: this repo's
+> `tools/work-item-tracker/adapters/github/README.md` is the GitHub adapter's
+> operations reference, so even a README edit here can change lane behavior.
+> Treat a path as runtime unless you can show nothing loads it.
 >
 > I am present. Recommend, then wait for my direction before mutating.
 >
@@ -636,10 +676,12 @@ floater working whatever backs up.
 >
 > **The boundary is fail-closed.** A markdown path under `plugins/` is
 > runtime unless you can show nothing loads it — and a link grep is not that
-> proof: skill bodies also load files through bare `Read <path>` directives
-> and globs no link pattern returns. `CHANGELOG.md` and `README.md` are the
-> only reliably inert names. Anything else you cannot prove inert is not
-> mechanical. Fail toward the higher class.
+> proof: skill bodies also load files through bare `Read <path>` directives,
+> globs, and `${CLAUDE_PLUGIN_ROOT}`-relative paths no link pattern returns.
+> **No filename is inert by convention**, `README.md` included — this repo's
+> GitHub adapter README is loaded by `reference/tracker-seam.md`. Anything
+> you cannot prove inert per path is not mechanical. Fail toward the higher
+> class.
 >
 > Never route a `work-class:` label through `/work-items:track` — that
 > path validates against a taxonomy that does not yet carry the axis.
