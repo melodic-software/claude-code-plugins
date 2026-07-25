@@ -15,8 +15,9 @@ All notable changes to the `claude-memory` plugin are documented here. Format fo
   lands there rather than in CLAUDE.md. (2) **`@path` imports are named as a non-destination** —
   imported files load at launch, so a split into imports reorganizes and saves nothing, and the same
   holds for an import inside a path-scoped rule, where the rule's own body defers and the imported
-  file does not. `reference/official-guidance.md` already recorded the import behavior and no check
-  cited it. (3) **Every move recommendation now prices the destination** against the "Compaction by
+  file does not — carried as an explicitly provenance-marked empirical extension (first-party repro
+  on Claude Code 2.1.219) so the `update` action cannot overwrite it with doc-sourced text.
+  `reference/official-guidance.md` already recorded the launch-load behavior and no check cited it. (3) **Every move recommendation now prices the destination** against the "Compaction by
   steering method" table that same reference file ships and no check cited — path-scoped rules and
   nested CLAUDE.md return only when a matching file is read again, so a rule that must persist across
   compaction stays unscoped or in root CLAUDE.md. Catalog version 1.3.0.

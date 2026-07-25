@@ -17,7 +17,11 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   never defaults to deletion: reconcile where both sides are operator-owned, report-only against
   managed policy, route user-scope findings as recommendations. Ships five must-not-flag cases plus a
   separate `info` report for shadowed same-named skills, subagents, and MCP servers, which are
-  resolved overrides rather than conflicts.
+  resolved overrides rather than conflicts. The comparison set is resolved before it is compared —
+  `@path` imports expanded and symlinks followed, since imported files load at launch and a detector
+  reading only the importing file would compare a different surface than the model sees. `AGENTS.md`
+  is affirmatively excluded and the reason recorded: Claude Code reads `CLAUDE.md`, not `AGENTS.md`,
+  so a stock install never loads it, and its content enters only through an import.
 - **`audit-instructions` check I13 — definition-site locality.** An instruction governing one named
   thing while living somewhere other than that thing's own definition. A different axis from I3:
   I3 is load *timing*, I13 is *locality*, and an instruction can be correctly deferred and still

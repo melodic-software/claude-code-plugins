@@ -69,9 +69,16 @@ not, cut it. Bloated CLAUDE.md files cause Claude to ignore your actual instruct
 | Deterministic enforcement | Hooks (guaranteed execution) |
 | Compile-time/build-time rules | Analyzers, linters, architecture tests |
 | Information that changes frequently | Neither — keep it out |
-| Content split out of a long CLAUDE.md purely to shorten it | **Not `@path` imports** — imported files load at launch, so the split reorganizes and saves nothing. The same holds for an import *inside* a path-scoped rule: the rule's own body defers, the imported file does not |
+| Content split out of a long CLAUDE.md purely to shorten it | **Not `@path` imports** — imported files load at launch, so the split reorganizes and saves nothing |
 
 Flag content in the wrong layer. WARN severity because moving content is a judgment call.
+
+**Import inside a path-scoped rule — verified, not doc-stated.** A rule whose body is only
+`@some/file.md` has its *imported* content inlined at session start while the rule's own body
+correctly defers, so moving content into a path-scoped rule and pulling it in by import saves
+nothing. Reproduced first-party on Claude Code 2.1.219 (2026-07-24); no official page states it.
+**Provenance**: empirical extension, not doc-derived — the `update` action must not overwrite it
+with doc-sourced text, and it needs re-verification on a current version rather than a doc re-fetch.
 
 **Price the move with the recommendation.** Moving content out of an always-loaded surface trades
 per-session cost for post-compaction absence, and the trade differs by destination: path-scoped rules

@@ -216,6 +216,14 @@ Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   - agent definitions
   - prompt-type hooks
   - output styles
+- **Resolve before comparing.** Expand `@path` imports and resolve symlinks first. An imported file's
+  content is live instruction text — imported files load at launch — so a detector that reads only
+  the importing file compares a different surface than the model sees, and every `@docs/foo.md`
+  import is invisible to it.
+- **`AGENTS.md` is deliberately not in the comparison set.** Claude Code reads `CLAUDE.md`, not
+  `AGENTS.md`, so a stock install never loads it and flagging it would false-positive on every repo
+  that keeps one for other tools. Its content enters the comparison set only when a loaded surface
+  imports it — through the import expansion above, not as a surface of its own.
 - **Routing — `claude-memory:audit` C6 is the incumbent inside the memory layer**, on the same
   convention I1–I5 already run:
   - A contradiction **wholly inside** the memory layer (CLAUDE.md, CLAUDE.local.md, rules files) is

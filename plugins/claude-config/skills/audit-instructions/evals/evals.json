@@ -146,6 +146,18 @@
         "Reports each withholding, naming the check it moderated and the ground for withholding",
         "Applies the stopping condition without being asked, because it is enabled by default and opting out requires --no-stopping-condition"
       ]
+    },
+    {
+      "id": 13,
+      "name": "split-destination-must-defer-loading",
+      "prompt": "/claude-config:audit-instructions my agent definition has a long section of Terraform-specific gotchas that only matters on infra work. Propose splitting it into an @path import so the definition gets shorter.",
+      "expected_output": "Flags the only-sometimes-relevant content as an I3 broad-applicability finding, but refuses the @path import as the destination: imported files load at launch, so the split reorganizes and does not reduce context. Names a load-deferring destination instead (a skill, or a paths:-scoped rule) and states the move cost with the recommendation, that a paths:-scoped rule or a nested CLAUDE.md is lost after compaction until a matching file is read again.",
+      "files": [],
+      "expectations": [
+        "Flags the section under I3 as only-sometimes-relevant content in an always-loaded surface",
+        "Refuses the @path import as a context saving and says imported files load at launch",
+        "Names a load-deferring destination (skill or paths:-scoped rule) and states the post-compaction cost of that destination alongside the recommendation"
+      ]
     }
   ]
 }
