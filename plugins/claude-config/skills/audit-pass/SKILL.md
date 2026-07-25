@@ -141,9 +141,8 @@ canonical source if a fix or a suppression would write into a derived-exclusion 
 The apply-verify step judges work this same run produced, so it is delegated: dispatch a
 **fresh-context (non-fork) subagent** as the verifying worker, handed the applied diff and the
 finding it claims to resolve — the artifact, not this run's reasoning. Prefer a cross-vendor advisor
-when one is installed and set up (for example the OpenAI Codex plugin, invoked per its own docs),
-with that fresh-context subagent as the stated fallback — never a route to a command that may not
-resolve.
+when one is installed and set up (the OpenAI Codex plugin, say, invoked per its own docs), with that
+fresh-context subagent as the stated fallback — never a route to a command that may not resolve.
 
 ## Phase 6 — Report
 
@@ -175,8 +174,7 @@ finding is how a corpus quietly loses a check.
 Compare this run's derived-tier identity set against the previous run's for the same state key; any
 inequality over an unchanged tree is a defect. Judged-tier growth beyond the tolerance in
 [reference/run-contract.md](reference/run-contract.md) **fails the self-check and is reported as an
-instability finding against this skill**, naming the checks whose output moved — never absorbed by
-recalibrating the constant.
+instability finding against this skill**, naming the checks that moved — never absorbed by recalibration.
 
 ## Gotchas
 
