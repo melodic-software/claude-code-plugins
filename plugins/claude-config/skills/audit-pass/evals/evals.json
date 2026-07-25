@@ -221,12 +221,24 @@
       "id": 19,
       "name": "moving-checkout-makes-the-gate-indeterminate",
       "prompt": "/claude-config:audit-pass I have three other sessions open on this repo and one of them switched branches while your pass was running — did the determinism gate pass?",
-      "expected_output": "No, and it did not fail either: it reports indeterminate. HEAD and the dirty-file count are captured at Phase 0 and again at Phase 6, and here they differ, so the tree did not hold still for the duration of the run. Every determinism property is conditioned on an unchanged tree, and that precondition demonstrably did not hold, so P1, P2, and P3 are reported as not evaluated rather than as satisfied, and the report names both captures and what moved. An unfalsifiable passed is worse than an honest indeterminate: it manufactures confidence out of a basis nobody checked and reads identically to a gate that genuinely held.",
+      "expected_output": "No, and it did not fail either: it reports indeterminate. HEAD and the worktree digest are captured at Phase 0 and again at Phase 6, and here they differ, so the tree did not hold still for the duration of the run. Every determinism property is conditioned on an unchanged tree, and that precondition demonstrably did not hold, so P1, P2, and P3 are reported as not evaluated rather than as satisfied, and the report names both captures and what moved. An unfalsifiable passed is worse than an honest indeterminate: it manufactures confidence out of a basis nobody checked and reads identically to a gate that genuinely held.",
       "files": [],
       "expectations": [
         "Reports the determinism gate as indeterminate rather than passed or failed",
-        "Cites the differing Phase 0 and Phase 6 captures of HEAD and dirty-file count as the reason, naming what moved",
+        "Cites the differing Phase 0 and Phase 6 captures of HEAD and the worktree digest as the reason, naming what moved",
         "Reports P1 through P3 as not evaluated rather than satisfied, instead of treating indeterminate as a soft pass"
+      ]
+    },
+    {
+      "id": 20,
+      "name": "dirty-file-edited-without-changing-the-count",
+      "prompt": "/claude-config:audit-pass another session edited a file that was already showing in git status while you ran — same branch, same number of modified files, nothing added or removed. Gate still good?",
+      "expected_output": "No. It reports indeterminate. HEAD is unchanged and the count of dirty paths is unchanged, and neither is what the gate measures: the worktree digest hashes every dirty path paired with the content hash of its current bytes, so editing an already-dirty file changes the digest even though the count holds still. Swapping one dirty path for another is the same class and is caught the same way. A count-based gate would have reported this run as deterministic while different lanes read different states, which is the failure the digest exists to close. The pass's own artifacts — a --report-to path inside the target — are excluded from the digest on the same list that excludes them from the scan, so a redirected run does not invalidate its own gate by writing its report; any other file appearing or changing is still a moved tree.",
+      "files": [],
+      "expectations": [
+        "Reports indeterminate even though HEAD and the dirty-path count are both unchanged",
+        "Names the per-path content hash, not the count, as what detects the change, and covers the swapped-path case as the same class",
+        "States that the pass's own artifacts are excluded from the digest as well as the scan, so a --report-to write does not make the run indeterminate"
       ]
     }
   ]

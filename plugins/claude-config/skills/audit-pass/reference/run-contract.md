@@ -182,6 +182,7 @@ not unchanged and the idempotence property is unfalsifiable by construction.
 | 2.1 | After a run against a clean git worktree with no redirect, `git status --porcelain` is empty. |
 | 2.2 | With a redirect, a second run's scan set excludes the redirected path, and the two runs' derived identity sets are still equal. |
 | 2.3 | The first run under `--report-to` records the redirected path in its own exclusion artifact before writing the report, whether or not that path already exists. |
+| 2.4 | A run under `--report-to <path-inside-target>` against an otherwise-unchanging tree reports the determinism gate as satisfied, not `indeterminate` — writing its own report does not move its own worktree digest. |
 
 ## 3. Run state, keying, and concurrency
 
@@ -375,6 +376,14 @@ So the run **measures** its own precondition:
   for another, leaves both HEAD and the count identical, so a count-based gate would evaluate P1–P3
   as though the tree held still while different lanes in fact read different states. Pairing each
   path with its content is what makes both of those movements visible.
+- **The run's own artifacts are excluded from the digest, on the same list that excludes them from
+  the scan.** A `--report-to` path inside the target appears in `git status --porcelain` the moment
+  the report is written, which is between the Phase 0 and Phase 6 captures — so a digest over *every*
+  dirty path makes the redirected run fail its own determinism gate as `indeterminate`, every time,
+  purely because it did what it was asked to do. Recording the path in the scan exclusion set does
+  not reach the digest; the exclusion has to apply to both, and it is one list precisely so the two
+  cannot diverge. What is excluded is the pass's own class-4 artifact set and nothing else: a
+  *different* file appearing or changing is still a moved tree and still `indeterminate`.
 - If either capture differs, the determinism gate is reported **`indeterminate`**, never `passed` and
   never `failed`, naming both captures and what moved.
 - **Two endpoint captures detect a net change, not a transient one.** A file mutated and reverted

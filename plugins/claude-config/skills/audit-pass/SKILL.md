@@ -37,9 +37,24 @@ Bare invocation reads and reports. `--fix` is the only mutation path, and it is 
 
 Parse `$ARGUMENTS`:
 
-- **`target`** — path to the git repository to audit. Default: `${CLAUDE_PROJECT_DIR}` when set, else
+- **`target`** — the git repository to audit. Default: `${CLAUDE_PROJECT_DIR}` when set, else
   `git rev-parse --show-toplevel`. Never the working directory — a run launched from a subdirectory
   must key and scan identically to one launched from the root.
+
+  **`target` must resolve to the active project root, and a path that does not is refused.** The
+  delegated interfaces accept no target: `audit-instructions` takes a surface scope and inventories
+  the active project, and `claude-memory:audit` takes an action verb. This pass dispatches skills and
+  never reads inside one, so there is no channel through which it could tell a delegate to look
+  elsewhere — a run given `../other-repo` would key, lock, and report against that path while every
+  delegated finding came from the active project. Findings attributed to the wrong repository are
+  worse than a refusal, because nothing downstream can detect the mismatch.
+
+  So the argument is validated rather than silently reinterpreted: a `target` that does not resolve
+  to the active project root exits non-zero, naming both paths and the reason. Auditing another
+  repository means opening it as the project. Lifting the restriction is a change to the
+  **delegated** interfaces — each would have to accept and honor a target root — and belongs to
+  those skills rather than this one. The argument itself survives because the state key, the lock,
+  and the report are already keyed on the resolved root.
 - **`--fix`** — the explicit mutation override. Absent, the pass writes nothing into the target.
 - **`--opinion`** — run the `OPINION`-tier checks the delegated catalogs declare default-off.
 - **`--resume`** — resume the most recent incomplete run for this target's state key.
@@ -53,6 +68,20 @@ Resolve the target root, compute the state key, and take the lock posture for th
 runs take no lock and run concurrently; an applying run takes an exclusive advisory lock and refuses
 rather than queues. All specified in [reference/run-contract.md](reference/run-contract.md). With
 `--resume`, read the run manifest and carry forward every lane whose input digest is unchanged.
+
+**`--resume` never attaches to a run that is still going.** Concurrent read-only runs are safe
+because each owns its own partial artifact; resume is the one operation that reaches into *another*
+run's artifact, so the no-lock policy that makes concurrency safe is exactly what leaves resume
+unable to tell a live run from an interrupted one. Both would then append lane attempts and
+terminating records to one file, and highest-terminated-attempt assembly becomes race-dependent —
+the interruption-tolerance mechanism producing a report neither run performed.
+
+So every active run, read-only included, maintains a **lease** in its own run state on the same
+heartbeat the applying lock uses, and `--resume` reads the lease before it reads the manifest. A
+live lease means the run is still going: resume exits non-zero naming the run id rather than
+attaching. A stale lease means the run was interrupted and its artifact is resumable. The lease is
+not a lock — it excludes nothing, blocks no concurrent read-only run, and grants no exclusivity;
+it only answers the one question resume has to ask and previously could not.
 
 **Capture the target's HEAD commit and worktree digest here, and again at Phase 6.** They are the
 determinism gate's precondition, and a run that never measures it cannot claim it held. The digest
