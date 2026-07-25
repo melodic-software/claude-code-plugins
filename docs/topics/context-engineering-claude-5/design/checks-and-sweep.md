@@ -29,6 +29,58 @@ through a lane subagent and re-judges every proposal in Phase C, so even `mechan
 are model-gated. The determinism gate belongs to the derived tier — inventory, exclusion set,
 shadowing, raw candidate rows — and D1's exclusion from it is the norm rather than a weakness.
 
+### D1 wears the tier label without the delete-and-watch loop, and that is deliberate
+
+Raised by the cross-vendor review, and it is a real hole as the tier was written. The host catalog
+defines `behavioral` as a tier whose "ground truth is observed model behavior, so findings ship as
+proposals verified by the delete-and-watch loop, never confident removals"
+(`audit-instructions/reference/criteria.md`, "Axes"). D1's own Remediate forbids proposing deletion
+of either side — "which one is correct is not derivable from the text" — so D1 claims the tier while
+declining the methodology the tier's other members use to earn their footing.
+
+**The catalog's definition bundles two separable things**, and separating them dissolves the
+apparent contradiction:
+
+- an **evidence claim** — ground truth is observed model behavior, not a pattern in the text;
+- a **remediation protocol** — delete, watch, re-add on the next mistake.
+
+D1 satisfies the evidence claim exactly. Whether two instructions can both be satisfied is a
+judgement about meaning, which is what the tier is for. What it does not satisfy is the protocol —
+and the protocol is **inapplicable rather than skipped**, because the protocol is a *removal*
+verifier. It answers "was this instruction load-bearing after all", which is the right question for
+I1–I8, whose findings all propose taking something away. D1 proposes taking nothing away. Running
+delete-and-watch on a conflict would mean deleting one arbitrarily chosen side to see what happens,
+which is exactly the choice D1's Remediate says the text does not license.
+
+**So D1 defines its own verification loop, built from machinery already specified rather than
+invented for it.** Three steps, each falsifiable:
+
+1. **Refutation at the point of detection.** A D1 finding is two quoted texts plus the assertion
+   that no layering rule resolves them. Both halves are checkable by a reader who never saw the
+   detecting lane: the quotes against the files, and the layering claim against the official
+   per-surface layering rules this document already cites in "Must NOT flag". Phase C's verifier is
+   prompted to refute — for D1 the refutation target is *"these are reconcilable, or the layering
+   rule already picks a winner"*, not *"this instruction is still load-bearing"*. A finding the
+   verifier refutes is demoted or dropped, as Phase C already does for every proposal.
+2. **Resolution by the operator, not by the check.** The finding names both sides and says which
+   surface owns the decision. The operator reconciles; D1 never picks.
+3. **Convergence as the observed outcome.** [rerun-contract.md](rerun-contract.md) P2 already
+   requires that an accepted fix makes its finding disappear on the next run, and that a finding
+   which vanishes *without* a fix is a defect in the check rather than a success. That is D1's
+   watch step: the conflict either stops being reported because it was reconciled, or the check is
+   wrong. Delete-and-watch observes a behavior change; this observes a corpus change — a weaker
+   signal, and it is named as weaker rather than dressed up.
+
+**What this loop cannot do, stated plainly.** It never confirms that the conflict was actually
+degrading model behavior — only that two instructions were irreconcilable in text and that a human
+resolved them. A conflict nobody would have hit in practice is still reported. That is the tier's
+severity ceiling doing its job: `warning`, never `error`, and never fix-applied.
+
+**Cross-lane consequence.** The catalog's own tier definition is what conflates the evidence claim
+with the removal protocol, and D1 is the first member to expose it. The wording lives in
+`audit-instructions/reference/criteria.md`, which task #34 owns — recorded here as a finding against
+that file, not edited from this branch.
+
 ### Detect
 
 Two live instructions that cannot both be satisfied, where no official layering rule already
