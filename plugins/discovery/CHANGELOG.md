@@ -1,6 +1,6 @@
 # Changelog — discovery plugin
 
-## [0.8.3]
+## [0.8.3] — 2026-07-24
 
 ### Fixed
 
@@ -10,9 +10,12 @@
   documents with no environment gate. Setting it also runs the opposite
   direction from what the docs claimed — it forces every subagent to the
   background and nullifies the `background` frontmatter field.
-- `explore-deep` no longer claims it inherits the parent's full toolset. A
-  backgrounded fork runs with the narrower background built-in tool set, now
-  enumerated in the skill; `background: false` restores the full pool.
+- `explore-deep` no longer claims it inherits the parent's full toolset. On
+  Claude Code ≥2.1.218 a backgrounded fork runs with the narrower
+  background-subagent tool set; the skill now points at the sub-agents reference
+  for that list rather than enumerating it, names `background: false` as the
+  escape hatch, and states the pre-2.1.218 behavior the old claim was correct
+  for.
 
 ### Removed
 
