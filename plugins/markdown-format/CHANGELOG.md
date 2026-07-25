@@ -15,7 +15,10 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
   (MD041, MD013) that do not apply to it. The hook now falls back to
   git-working-tree membership when `CLAUDE_PROJECT_DIR` is unset: a file under no
   git working tree is skipped, while a repository file edited in such a session
-  is still linted. Behavior when `CLAUDE_PROJECT_DIR` is set is unchanged.
+  is still linted. Membership is decided on the physical path (symlinks
+  resolved), matching the set-`CLAUDE_PROJECT_DIR` guard, so an in-repository
+  symlink to an out-of-tree file cannot pull the external target into `--fix`.
+  Behavior when `CLAUDE_PROJECT_DIR` is set is unchanged.
 
 ## [0.6.2]
 

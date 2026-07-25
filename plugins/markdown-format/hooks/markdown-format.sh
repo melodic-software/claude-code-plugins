@@ -65,8 +65,12 @@ esac
 # hook::read_file_path already enforced membership. This scoping is local to
 # markdown-format on purpose — the shared guard stays location-agnostic for
 # hooks whose value does not depend on repository membership.
+#
+# Membership is tested on the PHYSICAL path, matching hook::read_file_path: an
+# in-repository symlink to an out-of-tree file would otherwise pass on its
+# lexical parent while --fix rewrites the external target under repo rules.
 if [[ -z "${CLAUDE_PROJECT_DIR:-}" ]] &&
-  ! git -C "$(dirname "$FILE")" rev-parse --show-toplevel >/dev/null 2>&1; then
+  ! git -C "$(dirname "$(hook::physical_path "$FILE")")" rev-parse --show-toplevel >/dev/null 2>&1; then
   exit 0
 fi
 

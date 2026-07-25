@@ -268,6 +268,32 @@ else
   else
     fail "out-of-tree scratchpad .md was modified: $(cat "$SCRATCH")"
   fi
+
+  # Symlink escape: an IN-repository path whose target is the out-of-tree file.
+  # The lexical parent ($REPO) is a git tree, so a lexical membership test would
+  # admit it and --fix would rewrite the external target under repo rules. The
+  # guard must decide on the physical path, as hook::read_file_path does.
+  # Skipped where the host cannot create real symlinks (Git Bash without
+  # winsymlinks copies the file instead).
+  LINK="$REPO/escaping-link.md"
+  if ln -s "$SCRATCH" "$LINK" 2>/dev/null && [[ -L "$LINK" ]]; then
+    LINK_BEFORE="$(cat "$SCRATCH")"
+    OUT_LINK="$(run_hook "$LINK")"
+    RC_LINK=$?
+    if [[ $RC_LINK -eq 0 && -z "$OUT_LINK" ]]; then
+      ok "in-repo symlink to out-of-tree .md skipped (exit 0, no findings)"
+    else
+      fail "in-repo symlink to out-of-tree .md not skipped (rc=$RC_LINK out=$OUT_LINK)"
+    fi
+    if [[ "$(cat "$SCRATCH")" == "$LINK_BEFORE" ]]; then
+      ok "symlink target left unmodified (no --fix on the external file)"
+    else
+      fail "symlink target was modified: $(cat "$SCRATCH")"
+    fi
+  else
+    ok "symlink-escape case SKIPPED (host cannot create real symlinks)"
+  fi
+  rm -f "$LINK"
 fi
 rm -rf "$OUTOFTREE"
 
