@@ -120,6 +120,14 @@ write; everywhere else suppression is central and keyed by `finding_id`.**
 entry per suppressed `finding_id` with a required free-text reason and the date, and is **excluded
 from the scan set** — otherwise suppressing a finding changes the tree and perturbs the next run.
 
+**Writing a suppression is never an apply.** The inline-marker row above says *where* a suppression
+lives when the pass may edit that file; it does not license the apply step to author one. No fix,
+from any surface, may add or amend a suppression by either mechanism — inline marker or central
+entry. Suppression is a deliberate operator action in its own step, and it is the one decision in
+this contract that stays per-decision rather than per-run, because its effect is durable and silent.
+Rationale, including the injection path this closes:
+[checks-and-sweep.md](checks-and-sweep.md), "T2 — the suppression record as an attack surface".
+
 - **Assertion 4.1** — a suppressed finding does not appear in the next run's report, and appears in a
   `suppressed` section with its reason, so suppression is visible rather than silent.
 - **Assertion 4.2** — a suppression entry whose `finding_id` no longer matches any finding is

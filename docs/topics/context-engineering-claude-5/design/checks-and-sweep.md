@@ -300,7 +300,10 @@ the sync path. The run refuses and names the canonical source instead.
   - **A `warning`-severity finding against the run itself**, not against the target: the target has
     no defect, the run has reduced coverage. It is `warning` rather than `error` because a
     coverage-reduced run is still useful, and `error` would make the sweep unusable below the
-    version floor for no gain.
+    version floor for no gain. **The finding-against-the-run shape is not invented here** —
+    [rerun-contract.md](rerun-contract.md) P4a already establishes it for a tolerance breach, which
+    is "reported as an instability finding against the sweep itself". This is the second member of
+    that class, so the report schema needs no new concept.
   - **The `skipped` row stays**, because a machine-readable record of every exclusion is what the
     report section exists for. The escalation adds a human-visible channel; it does not move the
     machine-readable one.
@@ -584,6 +587,25 @@ before approval — neither claims that duty is reliably discharged at scale.
   invocation runs read-only and reports. This closes the combination that makes T1 and T2
   dangerous — a fix-capable pass with no human in the loop, which is exactly what OWASP's
   human-in-the-loop mitigation exists to prevent.
+
+### What this section newly constrains, and who owns it
+
+Four of the mitigations above are **new constraints on artifacts other tasks build**, not
+restatements of existing ones. They are listed here so the tasks that own them adopt them
+deliberately rather than inherit them by reference.
+
+| Constraint | Owner | Status |
+|---|---|---|
+| Lane dispatch templates denote examined text as data, never as instruction to the lane | task #28 | new — no prior document states it |
+| The apply step writes only to the surface and anchor its own finding names | task #28 | new — narrows an apply posture that was otherwise unbounded |
+| No unattended applying run; an applying run requires interactive confirmation | task #28 | new — the Brief settles fix-capable and moves the gate per-run, but never said the gate cannot be automated away. This says it cannot |
+| Suppression is unreachable from the apply step | task #28, and [rerun-contract.md](rerun-contract.md) §4, amended | new — §4 said where a suppression lives, not who may write one |
+
+**One is a finding against a file outside this work**, recorded rather than acted on:
+`audit-instructions`' `SKILL.md` Phase C prompts its verifier to refute with *"would removing this
+instruction cause Claude to make mistakes? Argue that it is still load-bearing."* An instruction
+crafted to answer that question in its own text is a direct T1 hit on the incumbent, which is
+dispatched by this sweep but owned by task #34. Not edited from this branch.
 
 ### What this section does not settle
 
