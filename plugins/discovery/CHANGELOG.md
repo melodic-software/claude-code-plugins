@@ -14,9 +14,12 @@
 - **Outcome-gate criteria 9 and 10** — 9: for every ACCEPTED claim taken from a publisher's own
   artifacts (vendor, OSS maintainer, or standards body — matching the ladder's own reach), the fetch
   log must account for every rung above the one the claim came from, each recorded as
-  probed-and-lacking-the-claim or as unreachable-and-enumerated as a Gap. An unprobed "nothing deeper
-  exists" would let the shallow run this criterion targets nominate its own landing page as the top,
-  and a bare probe record would let a run log the deeper artifact it found and source from a
+  fetched-and-lacking-the-claim or as unreachable-and-enumerated as a Gap. An unprobed "nothing deeper
+  exists" would let the shallow run this criterion targets nominate its own landing page as the top;
+  a probe-only outcome would let a title, index entry, or search snippet stand in for the artifact,
+  so a system card whose relevant section never surfaced in the probe could be walked past with the
+  gate still passing — a probe locates a rung, it does not grade one; and a bare fetch record would
+  let a run log the deeper artifact it found and source from a
   shallower rung anyway; the unreachable route keeps the graceful-degradation contract intact. 10:
   every reported absence must name both the checked
   and the unchecked set. The broad-topic eval gains concrete thresholds and a does-NOT-meet clause so
@@ -61,7 +64,10 @@
   large or single-use signed download. The recorded `Content-Type` is corroborating evidence in both
   directions and decisive in neither: a challenge page and the real spec are both `text/html`, and a
   valid PDF served as `application/octet-stream` is confirmed by its signature rather than rejected
-  for its type — otherwise a complete local download gets reported as unreachable. Extraction is checked for usable text
+  for its type — otherwise a complete local download gets reported as unreachable. The same
+  asymmetry applies to the challenge-shape rejections: a consent surface disqualifies the download
+  when it stands in place of the artifact, not when a cookie banner merely sits alongside a document
+  whose title, headings, and body are all present. Extraction is checked for usable text
   before it counts as a search: an extractor exits 0 on a scanned or image-only PDF and returns
   nothing, so empty or garbled output routes to another extractor, OCR, then escalation rather than
   becoming a false "not found" about a source nobody read. An
