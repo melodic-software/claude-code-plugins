@@ -89,7 +89,7 @@
         "Each Phase 2 query traces to a named entry in the written gap/conflict block — no padding queries beyond the gap surface either",
         "Phase 2 includes exactly one falsification query against the Phase 1 leading hypothesis (e.g., searching for 'deprecated', 'known limitations', or a maintainer disclaimer contradicting the hypothesis)",
         "Each claim's primary is fetched directly (the library's official docs / GitHub repo / changelog) this turn — not accepted from a synthesis or SERP summary",
-        "Recency gate is satisfied — the latest upstream changelog/release is fetched this turn and cross-checked against the claims",
+        "Recency gate is satisfied — the latest upstream changelog/release is fetched this turn and cross-checked against the claims, and the fetch log carries that changelog entry per claim even for a claim sourced from a rung above the changelog, so criterion 6 is graded from the log rather than from recollection",
         "Runs the outcome gate before presenting — any claim below the 1-primary + 2-corroborator bar is reported as a Gap, not a finding",
         "Includes a project-fit check against the consuming project's own conventions"
       ]
@@ -97,8 +97,8 @@
     {
       "id": 8,
       "name": "broad-topic-triple-tool-comparison",
-      "prompt": "We're choosing among three competing message-queue libraries for a new service — RabbitMQ, Apache Kafka, and NATS. Research which is the better fit for our throughput and durability requirements.",
-      "expected_output": "Broad-topic auto-detect fires — 3 tools named in an explicit X vs Y vs Z comparison — so doubled minimums apply: 6+ queries per phase, 12+ total, 5+ distinct tool types across the topic, 4+ Tier 0/1 sources per claim. A written Phase 1 gap/conflict/hypothesis block drives Phase 2, which includes the mandatory falsification query. Phase 3 uses the tool-ecosystem fallback (Path B) since no preferred-source author covers these three tools (no consumer preferred-source roster exists in a bare checkout). Outcome gate runs before presenting.",
+      "prompt": "We're choosing among three competing message-queue libraries for a new service — RabbitMQ, Apache Kafka, and NATS. Our requirements are sustained 50k messages/sec and at-least-once delivery persisted to disk across a broker restart. Research which is the better fit, and state for each one which of those two requirements it does NOT meet and which of them its own official docs do NOT document.",
+      "expected_output": "Broad-topic auto-detect fires — 3 tools named in an explicit X vs Y vs Z comparison — so doubled minimums apply: 6+ queries per phase, 12+ total, 5+ distinct tool types across the topic, 4+ Tier 0/1 sources per claim. A written Phase 1 gap/conflict/hypothesis block drives Phase 2, which includes the mandatory falsification query. Phase 3 uses the tool-ecosystem fallback (Path B) since no preferred-source author covers these three tools (no consumer preferred-source roster exists in a bare checkout). The prompt states concrete thresholds and asks what each tool does NOT meet and what its docs do NOT document, so criterion 10's enumeration is exercised against a real negative rather than passing vacuously — while a tool that meets both requirements is still answerable truthfully, since the clause is answered per tool rather than requiring an absence per tool. Outcome gate runs before presenting.",
       "files": [],
       "expectations": [
         "Detects the broad-topic trigger (3 distinct tools named, explicit comparison) and applies DOUBLED minimums — 6+ Phase 1 queries, 12+ total queries across all phases, 5+ distinct tool types, 4+ Tier 0/1 sources per accepted claim",
@@ -111,7 +111,9 @@
         "Evidence table tracks Tier + tool-diversity + confidence per claim; rejects any claim whose sources are all Tier 2 or all from one tool category",
         "Source-tier ratio enforced — every accepted claim has >=1 Tier 0/1 source plus >=2 independent corroborators; three citations of the same secondary pool count as one source, not three",
         "Confidence calibration applied — every comparison claim marked HIGH/MEDIUM/LOW; LOW-confidence claims are not used as the basis for a recommendation",
-        "Runs the outcome gate before presenting — all 8 binary criteria checked against the evidence table and written gap lists; reports pass or the failing criterion and what was re-run",
+        "Runs the outcome gate before presenting — all 10 binary criteria checked against the evidence table, written gap lists, and fetch log; reports pass or the failing criterion and what was re-run",
+        "Walks the artifact ladder per tool rather than stopping at an announcement or landing page — the fetch log accounts for every rung ABOVE the one each accepted claim came from, each recorded as probed-and-not-existing, as fetched-and-lacking-the-claim, or as unreachable-and-enumerated as a Gap. Nominating a landing page as topmost without probing deeper fails criterion 9; so does recording a rung that exists as lacking the claim on a title, index entry, or snippet rather than fetching and searching the artifact; and so does logging a deeper artifact as discovered while still sourcing the claim from a shallower rung",
+        "Answers the does-NOT-meet / does-NOT-document clause explicitly for each of the three tools rather than silently omitting a tool that meets both requirements, and every absence it reports — an unmet requirement, or a requirement the official docs do not cover — names both the sources checked and the sources left unchecked. A bare 'not found' fails criterion 10; so does an unanswered clause. A tool the evidence shows meets both is reported as such against the sources checked — the expectation never demands an invented negative",
         "Output names an explicit per-tool comparison conclusion, or explicitly reports insufficient evidence as a Gap, rather than picking a favorite without evidence backing"
       ]
     }
