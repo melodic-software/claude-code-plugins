@@ -17,7 +17,7 @@ doctrine, tiers it by how confident the evidence can be, and packages proposed r
 rewrites as a human-gated diff — so instruction surfaces shrink as models get better instead of
 only ever growing.
 
-The check catalog — the fourteen checks I1–I14, their evidence tier, authority tag, severity, and
+The check catalog — the fifteen checks I1–I15, their evidence tier, authority tag, severity, and
 per-surface applicability — lives in [reference/criteria.md](reference/criteria.md); the deterministic
 pre-scan is `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.sh`. A second
 question has a different unit of judgment — do two surfaces contradict each other? — and is answered
@@ -40,8 +40,8 @@ concerns its siblings already cover — route rather than re-answer:
   portability is `claude-config:audit-permission-grants`.
 
 On **memory-layer surfaces** (CLAUDE.md, CLAUDE.local.md, `.claude/rules/`, `~/.claude/rules/`),
-this skill runs only the model-era checks I6–I12. It never runs or reports the hygiene checks
-I1–I5 (line-necessity, length, placement, inferable content, rule-to-hook) on these surfaces —
+this skill runs the model-era checks I6–I12 and the pair check I15. It never runs or reports the
+hygiene checks I1–I5 (line-necessity, length, placement, inferable content, rule-to-hook) here —
 that instruction-memory hygiene layer belongs to the `claude-memory` plugin. When that plugin is
 installed, route memory-layer hygiene to its `audit` skill; when it is not, emit a one-line pointer
 to the official CLAUDE.md include/exclude guidance (recorded with I1–I5 in

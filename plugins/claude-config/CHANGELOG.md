@@ -7,11 +7,13 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 ### Added
 
-- **`audit-instructions` Phase B2: cross-surface conflict pass.** Detects two instruction surfaces
-  that both claim authority over one behavior and contradict each other — a unit of judgment the
-  per-surface Phase B lanes are structurally blind to, since each lane sees only one half of a pair.
-  The pass consumes Phase A's inventory rather than re-enumerating surfaces, and reads surfaces Phase
-  A recorded as *skipped* (plugin-cache, managed materializations, org policy) as read-only conflict
+- **`audit-instructions` check I15 and Phase B2: cross-surface conflict pass.** Detects two
+  instruction surfaces that both claim authority over one behavior and contradict each other — a unit
+  of judgment the per-surface Phase B lanes are structurally blind to, since each lane sees only one
+  half of a pair. The catalog row owns the definition, comparison set, `@path`/symlink resolution,
+  `AGENTS.md` exclusion, remediation-by-scope and must-not-flag cases; Phase B2 answers it. The pass
+  consumes Phase A's inventory rather than re-enumerating surfaces, and reads surfaces Phase A
+  recorded as *skipped* (plugin-cache, managed materializations, org policy) as read-only conflict
   participants, since a contradiction is real whether or not this repo may edit either side.
 - **`reference/conflict-criteria.md`.** The five gates a pair must clear (co-residency, same
   observable, opposed polarity, no arbitration, non-vacuous trigger overlap), three conflict types

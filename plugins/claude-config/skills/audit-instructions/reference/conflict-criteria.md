@@ -3,7 +3,7 @@
 Version: 1.0.0
 Last updated: 2026-07-25
 
-**The adjudication procedure for check I12.** [criteria.md](criteria.md)'s I12 entry owns the
+**The adjudication procedure for check I15.** [criteria.md](criteria.md)'s I15 entry owns the
 definition — what a cross-surface conflict *is*, its comparison set, its import and symlink
 resolution, its `AGENTS.md` exclusion, its remediation-by-scope rules, and its five must-not-flag
 cases. None of that is restated here. This file owns the part a check entry has no room for: **how a
@@ -29,7 +29,7 @@ pages do not make is recorded as unresolved and given no winner.
 
 ## Boundary: what C6's population actually is
 
-I12 routes a contradiction "wholly inside the memory layer" to `claude-memory:audit`'s **C6
+I15 routes a contradiction "wholly inside the memory layer" to `claude-memory:audit`'s **C6
 Consistency** check, and counts `~/.claude/rules/` among the memory-layer surfaces. Those two
 statements do not compose, and the gap is silent.
 
@@ -42,18 +42,18 @@ check C6), and its population is **project-relative**: the audit workflow discov
 exists as background and never audits it.
 
 So a user-global instruction contradicting a project one — `~/.claude/CLAUDE.md` against project
-`CLAUDE.md`, or `~/.claude/rules/` against `.claude/rules/` — is deferred by I12 as "memory-layer" and
+`CLAUDE.md`, or `~/.claude/rules/` against `.claude/rules/` — is deferred by I15 as "memory-layer" and
 never picked up by C6. **Neither check reports it.** Route on C6's actual population instead:
 
 | Pair | Owner |
 |---|---|
 | Both halves inside **project-scope** `CLAUDE.md` / `CLAUDE.local.md` / `.claude/rules/**` | `claude-memory`'s C6 |
-| Anything else — including any pair with a `~/.claude/` side, and any pair involving auto-memory | I12 |
+| Anything else — including any pair with a `~/.claude/` side, and any pair involving auto-memory | I15 |
 
 **Auto-memory is deliberately not routed out** for the same reason. `claude-memory` audits `MEMORY.md`
 for size and index integrity, but C6's question names only "CLAUDE.md, CLAUDE.local.md, and rules
 files" — auto-memory is absent from the check text. Routing a `MEMORY.md`-versus-`CLAUDE.md`
-contradiction to C6 would leave it audited by neither skill, so it stays with I12 until C6 widens.
+contradiction to C6 would leave it audited by neither skill, so it stays with I15 until C6 widens.
 
 When a pair is wholly project-scope memory-layer, report it as an observation and point the operator
 at `/claude-memory:audit` rather than grading it here; when that plugin is not installed, keep it as a
