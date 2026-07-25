@@ -21,6 +21,15 @@ All notable changes to the `source-control` plugin are documented here. Format f
   constraint bullet, and the header comment that claimed the character class was "a strict subset of
   what git refs allow" is corrected.
 
+  The grammar check runs **after** the repository is resolved and is scoped with `-C "$toplevel"`:
+  `--branch` takes a branchname-shorthand and so performs repository discovery, which dies outright
+  when the process's CWD is a stale checkout (a `.git` file naming a gitdir that no longer exists —
+  what this plugin's own worktree cleanup handles). Run unscoped, that turned a valid name into a
+  false exit 2 from such a directory, and the documented invocation omits `--repo-dir`, so the CWD is
+  the default. Consequence: exits 3 (root unconfigured) and 4 (not a repository) can now precede the
+  grammar refusal, matching how the pre-existing `--base-ref` and empty-slug exit-2 checks already
+  sit after them. The character-class and length checks still run first, before any git call.
+
 ## [0.26.3]
 
 ### Changed

@@ -288,6 +288,21 @@ root="$TEST_TMPDIR/wtroot10d"
 out=$(bash "$HELPER" --name "feat/refok" --root "$root" --repo-dir "$repo" 2>/dev/null)
 assert_exit "ref-valid name still creates (exit 0)" 0 "$?"
 assert_eq "ref check leaves stdout as the sole path line" "$root/acme-widget-feat-refok" "$out"
+# `check-ref-format --branch` takes a branchname-shorthand, so it does repository
+# discovery and dies when the process CWD is a stale checkout (a .git file naming
+# a gitdir that no longer exists). Scoping it to $toplevel keeps a VALID name from
+# being rejected because of where the caller happened to stand — the documented
+# invocation omits --repo-dir, so the CWD is the default.
+stale="$(mktemp -d "$TEST_TMPDIR/staleXXXXXX")"
+printf 'gitdir: %s/definitely-not-here\n' "$TEST_TMPDIR" > "$stale/.git"
+root="$TEST_TMPDIR/wtroot10e"
+out=$(cd "$stale" && bash "$HELPER" --name "feat/cwdok" --root "$root" --repo-dir "$repo" 2>/dev/null)
+assert_exit "valid name unaffected by a stale .git in the CWD (exit 0)" 0 "$?"
+assert_eq "stale-CWD run still prints the worktree path" "$root/acme-widget-feat-cwdok" "$out"
+# ...and an invalid name is still caught from that same stale CWD.
+code=0
+(cd "$stale" && bash "$HELPER" --name 'feat/foo..bar' --root "$TEST_TMPDIR/wtroot10f" --repo-dir "$repo") >/dev/null 2>&1 || code=$?
+assert_exit "stale CWD still rejects a git-invalid name (exit 2)" 2 "$code"
 # A valid multi-segment name keeps the branch verbatim but transforms the slug.
 root="$TEST_TMPDIR/wtroot10b"
 out=$(bash "$HELPER" --name "feat/scope.v2_final-1" --root "$root" --repo-dir "$repo" 2>/dev/null)
