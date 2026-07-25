@@ -19,8 +19,8 @@ only after that version increases.
   checkout now halts and asks for its path instead of falling through to
   `CLAUDE_PROJECT_DIR`/CWD or inventing paths. `README.md`'s `**Target:**` line
   records the target's portable name only — never the machine-local checkout path,
-  since that README is a staged artifact — so a later `resume` reads the name and
-  re-runs resolution through the same rungs.
+  since that README is a staged artifact — as a record for readers and downstream
+  consumers of a finished slice, not as resume state.
 
 ## [0.9.2]
 
