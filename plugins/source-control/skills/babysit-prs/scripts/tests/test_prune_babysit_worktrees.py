@@ -186,6 +186,22 @@ class NonConformingDirectoriesAreReported(unittest.TestCase):
             ],
         )
 
+    def test_apply_mode_reports_but_never_removes_an_unrecognized_worktree(self) -> None:
+        # The report-don't-remove invariant is what makes an unrecognized row safe
+        # to emit at all, and --apply is the only mode that can delete anything.
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
+            tmp = pathlib.Path(td)
+            main = make_repo(tmp)
+            root = tmp / "root"
+            wt = add_worktree(main, root, "medley-1567")
+
+            code, report = run_main(root, tmp / "state", "--apply")
+
+            self.assertTrue(wt.exists())
+        self.assertEqual(code, 0)
+        self.assertEqual([row["action"] for row in report["worktrees"]], ["unrecognized"])
+        self.assertFalse(report["worktrees"][0]["removed"])
+
     def test_scoped_pr_mode_still_reports_unrecognized_directories(self) -> None:
         # Scoping to one PR narrows which PRs are acted on, never which
         # directories are accounted for.
