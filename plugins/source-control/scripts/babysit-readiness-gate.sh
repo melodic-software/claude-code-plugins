@@ -39,7 +39,9 @@
 # NOT a merge-readiness check. This gate is blind to branch rules, review
 # decision, unresolved threads, required checks, and head match. Only the merge
 # gate (babysit_merge.py, via the source-control-babysit-merge wrapper) reports
-# whether GitHub will merge the PR; READINESS_OK is never evidence of that.
+# whether the PR may be merged -- GitHub's own mergeability AND the plugin's own
+# policy holds (dependency-manager author, unprotected base, autopilot tier).
+# READINESS_OK is never evidence of that.
 # See skills/babysit-prs/reference/safety.md "Two Gates, One Merge-Ready Authority".
 #
 # Usage:
@@ -81,7 +83,7 @@ SELF_CSV=""
 EXTRA_SELF_CSV=""
 
 usage() {
-  sed -n '2,65p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,67p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit 0
 }
 

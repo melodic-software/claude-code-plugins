@@ -164,7 +164,16 @@ They answer different questions and are not interchangeable:
 | Script | Question it answers | What it never checks |
 | --- | --- | --- |
 | `${CLAUDE_PLUGIN_ROOT}/scripts/babysit-readiness-gate.sh` — the **finding-classification gate** | Did this iteration individually classify every source finding, and is the iteration checklist complete? | Branch rules, review decision, unresolved threads, required checks, head match — nothing about GitHub's merge state |
-| `source-control-babysit-merge` — the **merge gate** | Is GitHub itself willing to merge this PR right now? | Nothing about finding decomposition |
+| `source-control-babysit-merge` — the **merge gate** | May this PR be merged right now under the plugin's full merge policy — GitHub's own mergeability *and* the plugin's policy holds? | Nothing about finding decomposition |
+
+`ready` is the plugin's **merge-policy** verdict, not a readout of GitHub's mergeability alone.
+`babysit_merge.py` appends its own policy blockers after the GitHub-derived ones: a
+dependency-manager author is held in every tier without `--allow-dependency`, a non-self author's
+PR on an unprotected base is held without `--allow-unprotected`, and an enabled autopilot merge
+tier adds that tier's own criteria. So `ready: false` can mean "GitHub would merge this; the plugin
+will not." Read the `blockers` list to tell the two apart, and never restate a plugin policy hold
+as a GitHub restriction — that mislabel is the same terminology ambiguity this section exists to
+remove.
 
 **Only the merge gate's `ready` field determines merge-readiness.** Any `MERGE-READY` claim —
 a human-facing report, a worker's return, or an autonomous merge decision — must cite a
