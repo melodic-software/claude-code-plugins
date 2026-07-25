@@ -15,11 +15,14 @@ All notable changes to the `machine-health` plugin are documented here. Format f
   catalog overlay and a registered custom check sat under `machine-health/` while the audit's
   `state/` and `logs/` sat under `machine-health-melodic-software/` — a split in which the
   operator's disabled checks silently stopped taking effect and each half looked complete to
-  whatever wrote it. Both skills now resolve `${CLAUDE_PLUGIN_DATA}` and, when it does not expand,
-  stop and report an unresolved state root instead of substituting a guess. `check` FAILs at that
-  point rather than continuing, because "absent overlay" and "unreadable overlay" are
-  indistinguishable once the root is unknown, and "shipped defaults in effect" would assert more
-  than the evidence supports.
+  whatever wrote it. The defect was confined to the two skills' prose — the orchestrator script's
+  own ladder (`-StateBase`, else `CLAUDE_PLUGIN_DATA`, else `-OutputBase`) never named the bad path
+  and is unchanged. The two skills now diverge according to what each actually does: `setup` reads
+  and writes the overlay directly and has no further rung, so it FAILs at `check` step 1 and writes
+  nothing when the token does not expand — with the root unresolved, "absent overlay" and
+  "unreadable overlay" are the same observation and "shipped defaults in effect" would assert more
+  than the evidence supports; `audit` omits `-StateBase` instead, letting the orchestrator apply its
+  documented fallback, and reports which root was used.
 - **The README no longer states that `${CLAUDE_PLUGIN_DATA}` resolves to
   `~/.claude/plugins/data/machine-health`.** It does not, for any installed or inline plugin. The
   migration step that told operators to move `state/` there was directing them into the wrong
