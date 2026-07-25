@@ -116,9 +116,11 @@ Seven facts follow, and three of them change how this issue should be scoped:
 6. **Priority is local, decayed usage** — a skill's priority is
    `usageCount × max(0.5^(daysSinceLastUse / 7), 0.1)`, and `0` for a skill never used. A skill with
    no usage history is dropped **first**. This is per-machine state, so *which* descriptions survive
-   differs between machines and between users of the same plugin. A newly published skill is
-   invisible-by-description on every machine until someone invokes it — which is hard to do if they
-   cannot see what it does.
+   differs between machines and between users of the same plugin. Wherever the enabled listing
+   overflows the budget, a newly published skill is therefore invisible-by-description until someone
+   invokes it — which is hard to do if they cannot see what it does. It is not universal: a listing
+   that fits the budget drops nothing, and fact 7's skip-and-continue lets a cheap zero-priority
+   entry survive on residual space.
 
 7. **The drop loop does not break on first failure.** It walks the droppable set in descending
    priority and skips any entry whose description does not fit, continuing to consider cheaper
@@ -221,7 +223,9 @@ arithmetic below is an independent consistency check, not a proof of the transcr
 - **59,824 characters of description were being withheld from the model in that session.**
 
 Consistency check on the model of the algorithm: melodic's name-only floor is 3,140, the granted
-descriptions add 20,306, for 23,446 of the 40,000 budget — leaving 16,554 for caveman, codex,
+descriptions add 20,116 (79,653 − 59,824 = 19,829 retained description characters, plus the 211
+`when_to_use` characters and their two 3-character joiners, plus 2 characters per granted entry over
+its name-only floor cost), for 23,256 of the 40,000 budget — leaving 16,744 for caveman, codex,
 claude-security, the bundled skills (several of which, like `dataviz` and `claude-api`, carry
 1,000-character descriptions and are *protected from dropping*), the builtin commands, and
 separators. That is the right order of magnitude, so the reimplementation is behaving as the binary
@@ -614,11 +618,15 @@ trigger phrases in `when_to_use` with no `Use when:` marker anywhere, so **all 1
 WARN**. Evaluated directly against check 12's own predicate; the result is 0 of 15 passing. Two
 honest fixes, and the choice is #1271's to make:
 
-- Keep a literal `Use when:` prefix inside `when_to_use`. No code change, but it costs ~10
-  characters per skill **on top of** the joiner's +3. Across 130 model-invocable skills that is
-  roughly **+1,700 characters** — which would consume most of the 1,906 the named reduction sources
-  can offer (§5) and push a fleet-wide migration net-negative on characters. The "close to
-  character-neutral" framing therefore depends on which fix is chosen; this option is not neutral.
+- Keep a literal `Use when:` prefix inside `when_to_use`. No code change. **Relative to the §6
+  rewrite**, which drops the marker, this costs ~10 characters per skill on top of the joiner's +3 —
+  roughly +1,700 across 130 skills, so §6's measured −920 for `re-anchor` shrinks accordingly.
+  **Relative to today's baseline it costs only ~2 characters per skill**, because the marker already
+  sits in the description: 123 of 130 model-invocable skills carry a trigger marker (100 the literal
+  `Use when:`), and moving `… Use when: 'a'` into `when_to_use` turns one space into `" - "`. That is
+  roughly **+250 characters fleet-wide, about 13% of the 1,906** the named reduction sources can
+  offer (§5) — not enough to make a fleet-wide migration net-negative. The "close to
+  character-neutral" framing survives on the baseline basis; this option is still not free.
 - Amend check 12 to treat a populated, single-quoted `when_to_use` as satisfying the trigger-spec
   requirement. This is the better fix — check 12's warning text ("a description is a trigger spec,
   not a summary") encodes the pre-`when_to_use` authoring model that #1271 is deliberately changing.
