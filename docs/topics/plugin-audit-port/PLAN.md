@@ -77,8 +77,9 @@ Two new marketplace plugins, two swim-lane PRs, seams-first:
 - `context-guard` is a SEPARATE plugin from `rate-limit-guard` — do not mix concerns (owner
   decision, R2). Reuse the pattern, not the plugin.
 - Deep-audit phase (steps 2–3) runs in a fresh-context NAMED subagent that the skill dispatches
-  from the main thread; steps 1, 4, and 6 stay on the main thread. `context: fork` cannot express
-  this topology — basis in the [EXEC-SHAPE] agent decision below.
+  from the main thread; steps 1, 4, and 6 stay on the main thread. `context: fork` is not chosen —
+  rejected on listing-budget and synchronization cost, not as inexpressible; basis in the
+  [EXEC-SHAPE] agent decision below.
 - No hardcoded repos, paths, owners; melodic-marketplace targets resolve via inference, never
   baked in.
 - The producer/consumer split holds: audit session never implements fixes in the plugin repo.
