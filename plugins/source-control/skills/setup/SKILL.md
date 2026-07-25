@@ -165,10 +165,9 @@ diagnostics:
      deliberately: the merge wrapper's read-only production shape is a live GitHub call, so a
      representative probe would make a `check` run start touching the fleet it was asked to
      inspect — which the plugin's `babysit-wrapper-help` shell test exists to keep from
-     regressing. The
-     residual gap is covered rather than hidden: a denial that lands mid-cycle instead is
-     fail-honest by the mechanism this section rests on — the gate prints `READINESS_UNPROVEN`,
-     or nothing at all when the call never happened, and
+     regressing. The residual gap is covered rather than hidden: a denial that lands mid-cycle
+     instead is fail-honest by the mechanism this section rests on — the gate prints
+     `READINESS_UNPROVEN`, or nothing at all when the call never happened, and
      `skills/babysit-prs/reference/loop.md` §5.5 requires the per-PR **Gate verdict** line to
      quote that stdout verbatim, so an unproven readiness surfaces in the report instead of
      being absorbed. The canary is the proactive convenience; the quoted verdict is the
