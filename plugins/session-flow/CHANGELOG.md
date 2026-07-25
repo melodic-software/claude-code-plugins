@@ -1,5 +1,51 @@
 # Changelog — session-flow plugin
 
+## [0.16.0]
+
+### Added
+
+- find-handoff: new skill (#976). Recovers a lost handoff after `/clear` — the
+  failure mode where `/session-flow:handoff` wrote a save-point but the operator
+  cleared the session before copying the dashed-rail resume prompt, leaving the
+  fresh session with zero context and no path to the handoff on disk. Runs a
+  read-only detection ladder: known-location glob of the current repo's
+  `<memory_dir>/handoffs/`, then a bounded, recency-ranked scan of transcripts
+  (excluding the current session's own file — `/clear` opens a new transcript in
+  the same project dir, so the pre-clear content is a sibling) for the handoff
+  directive and dashed-rail markers, then a confirm-before-resume gate. Detection
+  is substring matching over transcript JSONL (empirically verified: the
+  `Read @…-handoff-*.md` directive and `─` rails survive verbatim), not JSON
+  parsing — so the skill ships no parser and does not couple to `retro`'s
+  transcript parser. Handles both handoff output modes (file-based and
+  prompt-only, which writes no file). Read-only and redaction-aware throughout:
+  surfaces only the resume prompt + handoff metadata, never raw transcript
+  content. Routes to `/session-flow:keep-going` when the recovered session ended
+  mid-work. Chains in from `keep-going` step 4 when a post-`/clear` session has no
+  known handoff path.
+
+### Changed
+
+- reference/save-point.md: documented the resume-prompt output shape (the
+  `Read @…-handoff-*.md` directive, the `─` rails + instruction line, and
+  `Prior session: <UUID>`) as a stable detection contract `find-handoff` keys
+  off, so a future format change is a knowing break. reference/structure.md notes
+  the `type: handoff` frontmatter is part of the same contract, and
+  reference/topic-docs.md lists `find-handoff` among the skills that read the
+  topic-docs binding to locate the handoffs directory. keep-going step 4 routes
+  to `find-handoff` when the handoff path was lost.
+
+## [0.15.2]
+
+### Fixed
+
+- **`reanchor`'s eval case 7 renamed off the pre-rename plugin name (`#1328`).**
+  `skills/reanchor/evals/evals.json` still named the negative-routing case
+  `negative-routing-rule-discipline-is-re-anchor-plugin` after the `re-anchor` -> `discipline`
+  plugin rename (`#1276`); the case's `expected_output` and `expectations` were rewritten in that
+  commit but its `id` field was missed. Renamed to
+  `negative-routing-rule-discipline-is-discipline-plugin`, matching the sibling
+  `negative-routing-*` case names. No other file references the old name.
+
 ## [0.15.1]
 
 ### Changed
