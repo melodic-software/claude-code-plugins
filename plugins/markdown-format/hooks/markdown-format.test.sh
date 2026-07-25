@@ -290,6 +290,59 @@ else
     else
       fail "symlink target was modified: $(cat "$SCRATCH")"
     fi
+    # Same escape with BOTH canonicalizers neutered, so hook::physical_path
+    # degrades to the unchanged lexical path — whose parent ($REPO) IS a git
+    # tree. A physical-path test alone would admit the link there and hand the
+    # external target to --fix, so the guard must fail closed on an unresolved
+    # symlink instead.
+    #
+    # The fixture carries a duplicate sibling heading (MD024, unfixable under
+    # this repo's config) so a hook that DID run emits additionalContext: the
+    # skip is proven by silence, not by an unchanged file. File content alone
+    # would be a vacuous witness — the stub's `sed -i` replaces the link with a
+    # regular file instead of writing through it, leaving the target intact
+    # even when --fix ran.
+    NO_CANON_ENV="$WORK/no-canonicalizer.bashenv"
+    cat >"$NO_CANON_ENV" <<'EOF'
+realpath() { return 1; }
+readlink() { return 1; }
+EOF
+    run_hook_no_canon() {
+      (cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$1" |
+        env -u CLAUDE_PROJECT_DIR BASH_ENV="$NO_CANON_ENV" \
+          CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")
+    }
+    SCRATCH_NC="$OUTOFTREE/comment-body-nocanon.md"
+    printf '# Comment\n\n## Section\n\ntext\n\n## Section\n\n* bullet\n' >"$SCRATCH_NC"
+    LINK_NC="$REPO/escaping-link-nocanon.md"
+    ln -s "$SCRATCH_NC" "$LINK_NC"
+    OUT_NOCANON="$(run_hook_no_canon "$LINK_NC")"
+    RC_NOCANON=$?
+    if [[ $RC_NOCANON -eq 0 && -z "$OUT_NOCANON" ]]; then
+      ok "symlink escape fails closed when canonicalization is unavailable"
+    else
+      fail "symlink escape not skipped without canonicalizer (rc=$RC_NOCANON out=$OUT_NOCANON)"
+    fi
+    if [[ -L "$LINK_NC" ]]; then
+      ok "escaping symlink untouched without canonicalizer (still a symlink)"
+    else
+      fail "escaping symlink was rewritten by --fix without canonicalizer"
+    fi
+
+    # Control: the neutered canonicalizers must not disable the hook wholesale,
+    # or the silence above would prove nothing. The SAME fixture body in a
+    # REGULAR in-repository file still lints and still reports MD024.
+    NOCANON_REGULAR="$REPO/fixtureNoCanon.md"
+    printf '# Comment\n\n## Section\n\ntext\n\n## Section\n\n* bullet\n' >"$NOCANON_REGULAR"
+    OUT_NOCANON_REG="$(run_hook_no_canon "$NOCANON_REGULAR")"
+    RC_NOCANON_REG=$?
+    if [[ $RC_NOCANON_REG -eq 0 ]] &&
+      printf '%s' "$OUT_NOCANON_REG" | jq -e '.hookSpecificOutput.additionalContext | test("MD024")' >/dev/null 2>&1; then
+      ok "regular in-repo .md still linted without canonicalizer (control)"
+    else
+      fail "control failed: regular in-repo .md not linted without canonicalizer (rc=$RC_NOCANON_REG out=$OUT_NOCANON_REG)"
+    fi
+    rm -f "$LINK_NC"
   else
     ok "symlink-escape case SKIPPED (host cannot create real symlinks)"
   fi

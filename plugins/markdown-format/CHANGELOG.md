@@ -18,7 +18,10 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
   is still linted. Membership is decided on the physical path (symlinks
   resolved), matching the set-`CLAUDE_PROJECT_DIR` guard, so an in-repository
   symlink to an out-of-tree file cannot pull the external target into `--fix`.
-  Behavior when `CLAUDE_PROJECT_DIR` is set is unchanged.
+  Where no canonicalizer is available the membership test fails closed: a
+  symlink whose physical path could not be resolved is skipped rather than
+  admitted on its lexical parent. Behavior when `CLAUDE_PROJECT_DIR` is set is
+  unchanged.
 
 ## [0.6.2]
 

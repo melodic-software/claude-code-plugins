@@ -69,9 +69,23 @@ esac
 # Membership is tested on the PHYSICAL path, matching hook::read_file_path: an
 # in-repository symlink to an out-of-tree file would otherwise pass on its
 # lexical parent while --fix rewrites the external target under repo rules.
-if [[ -z "${CLAUDE_PROJECT_DIR:-}" ]] &&
-  ! git -C "$(dirname "$(hook::physical_path "$FILE")")" rev-parse --show-toplevel >/dev/null 2>&1; then
-  exit 0
+#
+# hook::physical_path degrades to the unchanged lexical path when no
+# canonicalizer resolves it (neither realpath nor readlink -f present, or both
+# failing). That degradation is safe for the shared prefix guard but not here:
+# the lexical parent of an escaping symlink IS a working tree, so admitting it
+# hands the external target to --fix. A symlink whose physical path came back
+# unchanged is therefore the observable signature of failed canonicalization —
+# checking the outcome rather than probing for a resolver also covers a
+# resolver that exists but fails — and this scope fails closed on it.
+if [[ -z "${CLAUDE_PROJECT_DIR:-}" ]]; then
+  FILE_PHYSICAL="$(hook::physical_path "$FILE")"
+  if [[ -L "$FILE" && "$FILE_PHYSICAL" == "$FILE" ]]; then
+    exit 0
+  fi
+  if ! git -C "$(dirname "$FILE_PHYSICAL")" rev-parse --show-toplevel >/dev/null 2>&1; then
+    exit 0
+  fi
 fi
 
 # Resolve repo root early — needed for CWD-anchored config discovery and for
