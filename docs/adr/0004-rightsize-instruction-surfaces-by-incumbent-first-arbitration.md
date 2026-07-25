@@ -213,8 +213,8 @@ this machine either way — D-17 was always a capability unlock, not a behavior 
 
 PR #1261, the reason `plugins/playbooks/skills/fable-5/**` was excluded, **merged 2026-07-25
 00:38:24Z**. The operator ratified keeping the exclusion for this pass rather than lifting it
-mid-fan-out. **The follow-up issue to cover that subtree afterward was not filed** — the lane
-carrying it died first. Outstanding.
+mid-fan-out. The follow-up covering that subtree is filed as
+[#1324](https://github.com/melodic-software/claude-code-plugins/issues/1324).
 
 ### D-9, D-10 — satisfied, with one permanent loss
 
