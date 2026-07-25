@@ -71,6 +71,42 @@ run_in "$REPO_SHA256" "git push --force-with-lease=main:<64-hex> in a SHA-256 re
 run_in "$REPO_SHA256" "git push --force-with-lease=main:<40-hex> in a SHA-256 repo (a 40-hex ref name resolves here, blocked)" "git push --force-with-lease=main:$SHA1_OID origin main" 2
 run_in "$NOT_A_REPO" "git push --force-with-lease=main:<40-hex> outside a repository (width undeterminable, fail-closed block)" "git push --force-with-lease=main:$SHA1_OID origin main" 2
 run_in "$NOT_A_REPO" "git push --force-with-lease=main: outside a repository (empty expect needs no width, allowed)" "git push --force-with-lease=main: origin main" 0
+# git's repository-locating globals move the push off the invoking directory, so
+# the width follows them. `-C` takes its value as a separate word — git rejects
+# an attached `-C<path>` with its usage.
+run "git -C <sha256-repo> push --force-with-lease=main:<40-hex> (40-hex is a name in the target, blocked)" "git -C $REPO_SHA256 push --force-with-lease=main:$SHA1_OID origin main" 2
+run "git -C <sha256-repo> push --force-with-lease=main:<64-hex> (object id in the target, allowed)" "git -C $REPO_SHA256 push --force-with-lease=main:$SHA256_OID origin main" 0
+run_in "$REPO_SHA256" "git -C <sha1-repo> push --force-with-lease=main:<64-hex> (64-hex is a name in the target, blocked)" "git -C $REPO_SHA1 push --force-with-lease=main:$SHA256_OID origin main" 2
+run_in "$REPO_SHA256" "git -C <sha1-repo> push --force-with-lease=main:<40-hex> (object id in the target, allowed)" "git -C $REPO_SHA1 push --force-with-lease=main:$SHA1_OID origin main" 0
+run "git --git-dir=<sha256-repo>/.git push --force-with-lease=main:<40-hex> (blocked)" "git --git-dir=$REPO_SHA256/.git push --force-with-lease=main:$SHA1_OID origin main" 2
+run "git -C <not-a-repo> push --force-with-lease=main:<40-hex> (width undeterminable, fail-closed block)" "git -C $NOT_A_REPO push --force-with-lease=main:$SHA1_OID origin main" 2
+run "git -c x=y -C <sha256-repo> push --force-with-lease=main:<64-hex> (config value skipped, not mistaken for a path, allowed)" "git -c x=y -C $REPO_SHA256 push --force-with-lease=main:$SHA256_OID origin main" 0
+
+# The width probe is the guard's only subprocess, and a command may carry many
+# lease expectations. Counting real git invocations catches the cache being lost
+# to a subshell — a per-expectation probe would spawn one git each and push a
+# blocking PreToolUse hook toward its timeout, where it fails open.
+GIT_SHIM_DIR="$TEST_TMPDIR/git-shim"
+GIT_CALL_LOG="$TEST_TMPDIR/git-calls"
+mkdir -p "$GIT_SHIM_DIR"
+cat >"$GIT_SHIM_DIR/git" <<EOF
+#!/usr/bin/env bash
+printf 'x' >>"$GIT_CALL_LOG"
+exec "$(command -v git)" "\$@"
+EOF
+chmod +x "$GIT_SHIM_DIR/git"
+: >"$GIT_CALL_LOG"
+many_leases="git push"
+for i in 1 2 3 4 5 6 7 8; do
+  many_leases="$many_leases --force-with-lease=ref$i:$SHA1_OID"
+done
+run "eight pinned leases (all allowed)" "$many_leases origin main" 0 "PATH=$GIT_SHIM_DIR:$PATH"
+git_calls=$(wc -c <"$GIT_CALL_LOG" | tr -d ' ')
+if [[ "$git_calls" == 1 ]]; then
+  ok "width probe runs once for eight lease expectations (git invocations: 1)"
+else
+  bad "width probe should run once for eight lease expectations, ran $git_calls times"
+fi
 run "git push --force-with-lease=main: (empty expect means ref must not exist, allowed)" "git push --force-with-lease=main: origin main" 0
 run "git push --force-with-lease --force-if-includes (mitigated, allowed)" "git push --force-with-lease --force-if-includes" 0
 run "git push --force-with-lease=main --force-if-includes (mitigated, allowed)" "git push --force-with-lease=main --force-if-includes origin main" 0

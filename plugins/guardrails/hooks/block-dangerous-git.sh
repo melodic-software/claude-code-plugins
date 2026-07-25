@@ -198,39 +198,87 @@ is_lease_opt() { abbrev_match "force-with-lease" "${1%%=*}" 7; }
 # lease against whatever it points at. Accepting the union would let either
 # shape through in the repository where it is a name.
 #
-# Width of the repository at the HOOK'S OWN working directory, resolved at most
-# once per hook run and only on the rare path that sees a hex expectation — the
-# guard shells out nowhere else. 0 means "undeterminable" (no git, no
-# repository), which fails closed: a push cannot succeed there either.
+# Width of the repository THIS PUSH will run in, which is not always the hook's
+# own directory: git's repository-locating global options (`-C`, `--git-dir`,
+# `--work-tree`, `--namespace`) redirect it, and a `git -C <sha256-repo> push`
+# issued from a SHA-1 directory must be judged by the target's format. Those
+# options are replayed verbatim onto the probe rather than modelled, so git
+# resolves the repository by its own rules — including several `-C` values,
+# which git applies cumulatively.
+#
+# `-C` takes the value as a SEPARATE word: git rejects an attached `-C<path>`
+# with its usage message (verified, git 2.54.0). The walk therefore mirrors
+# hook::git_resolve_subcommand's two-word consumption so the option values stay
+# aligned with the words the parser skipped.
+#
+# 0 means "undeterminable" — no git, no repository, or a path this static guard
+# cannot resolve (an unexpanded `$VAR` reaches the probe literally and simply
+# fails). That fails closed.
 #
 # Known gap: a compound `cd <elsewhere> && git push …` pushes from a directory
-# this probe never sees, so a hex expectation is judged against the wrong
-# repository when the two hash formats differ. Resolving the cd target would
+# no option names, so the probe cannot see it. Resolving the cd target would
 # mean evaluating arbitrary shell word expansion, which this guard deliberately
 # does not do (static matching over the literal command string only). The
 # residual case needs a SHA-256 repository, a lease pinned to a full-width hex
 # word that is also a ref name there, and a compound cd into it.
+#
+# Resolved at most once per option set and only on the rare path that sees a hex
+# expectation — the guard shells out nowhere else. The result is assigned by a
+# plain call, never through `$(…)`: a command substitution runs the function in
+# a SUBSHELL, so the cache would be discarded and a command carrying many lease
+# expectations would spawn one git per expectation.
 _repo_oid_width=""
+_repo_oid_width_key=""
+# repo_oid_width <locating-option...> — sets $_repo_oid_width.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 repo_oid_width() {
-  if [[ -z "$_repo_oid_width" ]]; then
-    case "$(git rev-parse --show-object-format 2>/dev/null)" in
-    sha1) _repo_oid_width=40 ;;
-    sha256) _repo_oid_width=64 ;;
-    *) _repo_oid_width=0 ;;
-    esac
-  fi
-  printf '%s' "$_repo_oid_width"
+  local key="$*"
+  [[ -n "$_repo_oid_width" && "$key" == "$_repo_oid_width_key" ]] && return 0
+  _repo_oid_width_key="$key"
+  case "$(git "$@" rev-parse --show-object-format 2>/dev/null)" in
+  sha1) _repo_oid_width=40 ;;
+  sha256) _repo_oid_width=64 ;;
+  *) _repo_oid_width=0 ;;
+  esac
 }
 
+# Reads $git_locating_opts from the calling check_segment frame.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 lease_expect_is_immutable() {
   local expect="$1"
   [[ -z "$expect" ]] && return 0
   [[ "$expect" =~ ^[0-9a-fA-F]+$ ]] || return 1
-  local width
-  width=$(repo_oid_width)
-  ((width)) && ((${#expect} == width))
+  repo_oid_width ${git_locating_opts[@]+"${git_locating_opts[@]}"}
+  ((_repo_oid_width)) && ((${#expect} == _repo_oid_width))
+}
+
+# The repository-locating subset of git's global options, collected between the
+# git word and the subcommand. Two-word options whose value is consumed the same
+# way hook::git_resolve_subcommand consumes it, so the walk cannot desynchronize
+# from the parser's own.
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+collect_git_locating_opts() {
+  local gi="$1" sub_idx="$2"
+  shift 2
+  local -a w=("$@")
+  local j=$((gi + 1))
+  git_locating_opts=()
+  while ((j < sub_idx)); do
+    case "${w[j]}" in
+    -C | --git-dir | --work-tree | --namespace)
+      ((j + 1 < sub_idx)) && git_locating_opts+=("${w[j]}" "${w[j + 1]}")
+      ((j += 2))
+      ;;
+    --git-dir=* | --work-tree=* | --namespace=*)
+      git_locating_opts+=("${w[j]}")
+      ((j++))
+      ;;
+    -c | --config | --config-env | --super-prefix | --attr-source | --exec-path)
+      ((j += 2))
+      ;;
+    *) ((j++)) ;;
+    esac
+  done
 }
 
 # Has an earlier lease spelling in this same command already claimed <refname>?
@@ -314,6 +362,9 @@ check_segment() {
   local -a w=()
   local nseg gi k x rest ch sub sub_idx staged worktree dry excl pos opseen
   local if_includes lease_tracking lease_movable lease_seen lease_ref lease_expect
+  # Read by lease_expect_is_immutable further down the call chain; per-frame, so
+  # a recursive re-check of an alias expansion collects its own.
+  local -a git_locating_opts=()
 
   # A shell -c wrapper (`bash -lc 'git reset --hard'`) executes its operand as
   # a full shell command — re-parse it with the same tokenizer so the wrapped
@@ -332,6 +383,7 @@ check_segment() {
   hook::git_resolve_subcommand "$gi" "${w[@]}" || return 0
   sub=$HOOK_GIT_SUB
   sub_idx=$HOOK_GIT_SUB_IDX
+  collect_git_locating_opts "$gi" "$sub_idx" "${w[@]}"
 
   # An inline alias runs its expansion (`git -c alias.rh='reset --hard' rh`
   # discards — verified), so re-check the expanded command: a shell alias

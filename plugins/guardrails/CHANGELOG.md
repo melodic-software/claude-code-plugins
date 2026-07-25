@@ -28,14 +28,16 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
     `--force-if-includes` a "no-op" alongside an explicit `:<expect>`, so
     nothing mitigates this form.
 
-  What passes: `<expect>` an object id of **the local repository's own hash
+  What passes: `<expect>` an object id of **the pushed repository's own hash
   width** (40 hex under SHA-1, 64 under SHA-256, read once from
   `git rev-parse --show-object-format`; undeterminable fails closed), or the
   empty string, which asserts the ref must not exist. The other width is not
   accepted: git ignores a ref whose name is full-width hex for its own format,
   but a 64-hex name in a SHA-1 repository — or a 40-hex one under SHA-256 — is
   an ordinary ref git resolves at push time, so it moves like any other name.
-  git scopes
+  git's repository-locating globals (`-C`, `--git-dir`, `--work-tree`,
+  `--namespace`) are replayed onto that probe, so `git -C <sha256-repo> push`
+  from a SHA-1 directory is judged by the target. git scopes
   a pin to its own ref, so a bare fallback alongside a pinned entry still governs
   every other ref being updated. Where one ref carries several lease entries git
   consults the first and ignores the rest, and the guard follows that same
