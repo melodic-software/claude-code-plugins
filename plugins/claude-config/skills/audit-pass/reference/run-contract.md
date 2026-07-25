@@ -93,8 +93,21 @@ Two granularities, discriminated by prefix:
 | Excerpt | `e:<sha256(normalized_excerpt) truncated to 12 hex>:<n>` | `(surface, anchor, check, claim)` |
 | Whole surface | `s:` — bare, no digest | `(surface, check, claim)` |
 
-`<n>` is the 1-based ordinal of this excerpt among identical normalized excerpts in the same surface,
-so a rule repeated verbatim three times yields three distinct anchors rather than one collision.
+`<n>` **discriminates identical excerpts within a surface, and it is not a positional ordinal.** A
+rule repeated verbatim three times must yield three distinct anchors rather than one collision — but
+a 1-based position among the duplicates is the wrong discriminator, because deleting the first
+occurrence renumbers the second from `:2` to `:1`, where it **inherits the deleted occurrence's
+`finding_id` and any suppression attached to it**. The operator's decision about the text they
+removed silently transfers to text they never judged, and the stale entry is never reported stale
+because something still matches its key. Insertion has the same shape in the other direction.
+
+So `<n>` is a **stable occurrence discriminator**: derived from surrounding content — a digest over
+the normalized excerpt's neighbours within the surface — so it identifies *which* duplicate without
+depending on how many precede it. Two properties are what matter, and the exact derivation is Phase
+9's: removing one duplicate must not renumber another, and two duplicates in one surface must never
+collide. When the surrounding content is itself identical, the occurrences are genuinely
+indistinguishable, and the contract fails closed rather than guessing: the anchors collide, the
+finding is reported once with the ambiguity named, and no suppression carries forward across it.
 
 **A whole-surface finding is content-FREE by construction**, and that is the point: a finding about a
 file *as a whole* — it should not exist, it is unreachable, it duplicates another — must not be
@@ -176,10 +189,19 @@ not unchanged and the idempotence property is unfalsifiable by construction.
   artifact and not the other's, and 2.2 requires those two derived sets to be equal. The path is
   recorded whether or not a file exists there yet: the exclusion is about the path this run is about
   to write, not about what it found there.
+- **A redirect destination is accepted only if it is new, or is already an `audit-pass`-owned
+  report.** Recording the path unconditionally was right for the *exclusion* and wrong as a licence
+  to *write*: `--report-to CLAUDE.md` would overwrite an audited instruction surface with a JSON
+  report, with no `--fix` and no confirmation — a read-only invocation destroying target content —
+  and then exclude the corrupted path from every later run, so the damage hides itself. Anything else
+  at that path is refused, non-zero, naming the file; the run does not offer to overwrite, because
+  the only surfaces this pass may write are its own. Ownership is decided by the artifact's own
+  identifying header, never by filename or location, so a hand-placed file cannot claim it.
 
 | # | Assertion |
 |---|---|
 | 2.1 | After a run against a clean git worktree with no redirect, `git status --porcelain` is empty. |
+| 2.5 | `--report-to <existing-non-report-path>` exits non-zero naming the file, writes nothing, and leaves the file byte-identical — including when the path is an audited instruction surface. |
 | 2.2 | With a redirect, a second run's scan set excludes the redirected path, and the two runs' derived identity sets are still equal. |
 | 2.3 | The first run under `--report-to` records the redirected path in its own exclusion artifact before writing the report, whether or not that path already exists. |
 | 2.4 | A run under `--report-to <path-inside-target>` against an otherwise-unchanging tree reports the determinism gate as satisfied, not `indeterminate` — writing its own report does not move its own state digest. |
@@ -340,7 +362,17 @@ crash. Restarting from zero wastes the run and tempts an operator to narrow the 
 
 - Findings persist **incrementally, per lane**, as each lane completes — never buffered to the end.
 - A run manifest records, per lane: the lane id, its **input digest**, and its completion state.
-- **Input digest** = `sha256` over the lane's ordered file list paired with each file's content hash.
+- **Input digest** = `sha256` over the lane's ordered file list paired with each file's content hash,
+  **plus its detection configuration** — the lane's detection version (catalog version and the
+  check's prompt digest), the harness version, and every behavior-affecting argument the resumed
+  invocation carries, `--opinion` among them.
+- **A file-only digest is what makes a resume mix configurations.** Update a delegated plugin or
+  catalog between the interruption and the `--resume`, or resume with a different `--opinion`, and the
+  audited files stay byte-identical — so completed lanes are carried forward from the old detection
+  configuration while unfinished lanes run under the new one, and the assembled report presents one
+  resolved version over findings produced under two. That is worse than restarting, because the
+  report looks coherent. Including the configuration means such a resume re-runs the affected lanes
+  instead of blending them.
 - **Resume** re-runs only lanes that are incomplete or whose input digest has changed. A lane whose
   digest is unchanged and whose state is complete is skipped and its findings carried forward.
 - A re-attempted lane appends a **supersession record** and opens a new attempt, per §7. Attempt

@@ -45,7 +45,7 @@ Markdown with a fenced YAML block — human-readable in review, greppable from a
 
 ```yaml
 suppressions:
-  3f1a9c02d4b78e55:
+  83e1a3132f6ec32f:
     check: claude-config/audit-instructions/nested-override
     claim: nested-tightens-root
     sites:
@@ -53,7 +53,7 @@ suppressions:
         anchor/v1: "e:9c02d4b78e55:1"
     reason: "Nested rule deliberately tightens the root rule for generated code."
     date: 2026-07-24
-  b7e0d1145aa93c68:
+  c427ddd3d711d8fe:
     check: claude-config/audit-instructions/cross-layer-conflict
     claim: contradicts
     sites:
@@ -80,6 +80,24 @@ suppressions:
 Unknown keys are inert, per the cascade's soft-degradation rule. An entry missing any required key
 is **reported as malformed and does not suppress** — a silent partial parse would turn a formatting
 slip into a lost check.
+
+**The keys in the example above are derived from the constituents shown beneath them, not
+illustrative.** They were hand-written once and did not derive, which meant copying or scaffolding
+from this document produced entries the consumer rejects as malformed — the authoritative example
+could not suppress anything. Anyone editing the example must re-derive both keys:
+
+```python
+import hashlib
+US = '\x1f'
+def finding_id(check, claim, sites):          # sites: [(surface, anchor), …]
+    parts = [check, claim]
+    for surface, anchor in sorted(sites, key=lambda p: (p[0].encode(), p[1].encode())):
+        parts += [surface, anchor]
+    return hashlib.sha256(US.join(parts).encode('utf-8')).hexdigest()[:16]
+```
+
+This is the same rule the consumer enforces on every entry, so an example that does not satisfy it is
+a defect in the document rather than a special case.
 
 ### Constituents, not a bare id
 

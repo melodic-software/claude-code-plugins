@@ -199,10 +199,22 @@ persistence carry the rest — it is what degrades a blown session ceiling into 
 
 `/doctor` owns the `CLAUDE.md` trim-and-migrate half, for which this pass deliberately builds no
 replacement. **It is interactive, so it is never dispatched** — it proposes fixes only after the
-operator confirms, so the pass emits an operator instruction and stops. Its version floor, what its
-presence check verifies versus what it must probe rather than assume, and its optional-capability
-absence classification are in [reference/doctor-handoff.md](reference/doctor-handoff.md). When
-absent, name it as the missing capability and state what goes unchecked.
+operator confirms. Its version floor, what its presence check verifies versus what it must probe
+rather than assume, and its optional-capability absence classification are in
+[reference/doctor-handoff.md](reference/doctor-handoff.md). When absent, name it as the missing
+capability and state what goes unchecked.
+
+**Phase 4 records the handoff; it does not stop the pass.** Emitting the instruction and halting here
+meant a `--fix` run never reached Phase 5 and *no* run reached the Phase 6 report — so the presence
+of an optional collaborator cancelled the coordinated pass that is this skill's entire purpose,
+leaving the operator worse off than if `/doctor` had been absent. It also contradicted
+`reference/doctor-handoff.md`, which says to finish the pass's own phases first.
+
+So Phase 4 opens the `delegated` lane, records the instruction in the report, and continues. Phases 5
+and 6 run normally, and the assembled report carries the handoff as an outstanding item with its lane
+terminated `open` — routed and not yet returned. The operator runs `/doctor` when they choose; a
+later `--resume` closes that lane by re-prompt rather than re-scan, because nothing about it needs
+the sweep to run again.
 
 ## Phase 5 — Apply, only under `--fix`
 
