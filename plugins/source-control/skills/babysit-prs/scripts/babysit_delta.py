@@ -169,7 +169,7 @@ def head_repository_scope(
     time -- there is no ambient owner configuration to inherit.
     """
     repo = str(pr.get("repo") or "")
-    base_owner = repo.split("/", 1)[0].lower() if "/" in repo else ""
+    base_owner = repo.split("/", 1)[0].casefold() if "/" in repo else ""
     head_repo = pr.get("headRepository")
     head_repo_name = (
         str(head_repo.get("nameWithOwner") or "") if is_json_object(head_repo) else ""
@@ -179,12 +179,14 @@ def head_repository_scope(
         str(head_owner_value.get("login") or "")
         if is_json_object(head_owner_value)
         else str(head_owner_value or "")
-    ).lower()
+    ).casefold()
     cross_repository = pr.get("isCrossRepository")
-    same_repository = bool(head_repo_name) and head_repo_name.lower() == repo.lower()
+    same_repository = (
+        bool(head_repo_name) and head_repo_name.casefold() == repo.casefold()
+    )
     if same_repository and not head_owner:
         head_owner = base_owner
-    configured_owners = {owner.lower() for owner in allowed_owners}
+    configured_owners = {owner.casefold() for owner in allowed_owners}
     base_repo_allowed = base_owner in configured_owners
     base_repo_archived = bool(pr.get("baseRepositoryArchived"))
     review_trigger_allowed = base_repo_allowed and not base_repo_archived

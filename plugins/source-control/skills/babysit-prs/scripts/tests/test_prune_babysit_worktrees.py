@@ -345,37 +345,61 @@ class MainSelfHealsAnOrphanedWorktreeEntry(unittest.TestCase):
     dropped without flipping the run's exit code, so the same orphan does not
     keep erroring every subsequent prune (#816)."""
 
+    def run_orphan_prune(
+        self, tmp: pathlib.Path, *extra_argv: str
+    ) -> tuple[int, dict[str, object], pathlib.Path, pathlib.Path]:
+        root = tmp / "root"
+        root.mkdir()
+        orphan_dir = root / "owner__repo__pr-9"
+        orphan_dir.mkdir()
+        state_dir = tmp / "state"
+        lease_path = leases.lease_path(state_dir, "worker", "owner/repo#9")
+        lease_path.parent.mkdir(parents=True)
+        lease_path.write_text("{}", encoding="utf-8")
+
+        argv = [
+            "prune_babysit_worktrees.py",
+            "--root",
+            str(root),
+            "--state-dir",
+            str(state_dir),
+            *extra_argv,
+        ]
+        buffer = io.StringIO()
+        with mock.patch.object(sys, "argv", argv), redirect_stdout(buffer):
+            exit_code = prune.main()
+        return exit_code, json.loads(buffer.getvalue()), orphan_dir, lease_path
+
     def test_orphan_dropped_action_with_exit_code_zero(self) -> None:
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
-            tmp = pathlib.Path(td)
-            root = tmp / "root"
-            root.mkdir()
-            orphan_dir = root / "owner__repo__pr-9"
-            orphan_dir.mkdir()
-            state_dir = tmp / "state"
-            lease_path = leases.lease_path(state_dir, "worker", "owner/repo#9")
-            lease_path.parent.mkdir(parents=True)
-            lease_path.write_text("{}", encoding="utf-8")
-
-            argv = [
-                "prune_babysit_worktrees.py",
-                "--root",
-                str(root),
-                "--state-dir",
-                str(state_dir),
-            ]
-            buffer = io.StringIO()
-            with mock.patch.object(sys, "argv", argv), redirect_stdout(buffer):
-                exit_code = prune.main()
+            exit_code, report, orphan_dir, lease_path = self.run_orphan_prune(
+                pathlib.Path(td), "--apply"
+            )
+            self.assertFalse(orphan_dir.exists())
+            self.assertFalse(lease_path.exists())
 
         self.assertEqual(exit_code, 0)
-        self.assertFalse(orphan_dir.exists())
-        self.assertFalse(lease_path.exists())
-        report = json.loads(buffer.getvalue())
         [row] = report["worktrees"]
-        self.assertEqual(row["action"], "orphan_dropped")
+        self.assertEqual(row["action"], "drop_orphan")
+        self.assertTrue(row["dropped"])
         self.assertTrue(row["lease_dropped"])
         self.assertTrue(row["directory_removed"])
+
+    def test_dry_run_reports_the_orphan_without_mutating_it(self) -> None:
+        """Without --apply the run is a report: the documented dry-run contract
+        promises it never mutates, so the orphan directory and its stale lease
+        record must both survive."""
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
+            exit_code, report, orphan_dir, lease_path = self.run_orphan_prune(
+                pathlib.Path(td)
+            )
+            self.assertTrue(orphan_dir.exists())
+            self.assertTrue(lease_path.exists())
+
+        self.assertEqual(exit_code, 0)
+        [row] = report["worktrees"]
+        self.assertEqual(row["action"], "drop_orphan")
+        self.assertFalse(row["dropped"])
 
 
 if __name__ == "__main__":

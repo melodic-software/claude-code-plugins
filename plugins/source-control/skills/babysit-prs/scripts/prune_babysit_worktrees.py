@@ -330,9 +330,16 @@ def main() -> int:
                     # Orphaned entry: the directory survives (matches the
                     # naming convention, so iter_worktrees still lists it)
                     # but is no longer a valid git worktree. Self-heal
-                    # instead of erroring the whole prune on every run.
-                    row.update(drop_orphaned_worktree(worktree, lease_path, root))
-                    row["action"] = "orphan_dropped"
+                    # instead of erroring the whole prune on every run --
+                    # under --apply only, since self-healing unlinks a lease
+                    # record and deletes a directory, and the flagless run is
+                    # a report.
+                    row["action"] = "drop_orphan"
+                    if args.apply:
+                        row.update(drop_orphaned_worktree(worktree, lease_path, root))
+                        row["dropped"] = True
+                    else:
+                        row["dropped"] = False
                     rows.append(row)
                     continue
                 row["status"] = status

@@ -36,9 +36,15 @@ clearly hold:
 
 - Remaining follow-ups fit as a short bullet list in the prompt
 - The work is straightforward, not exploratory
-- No "tried and ruled out" dead-ends worth preserving
+- No abandoned approaches or hard-won findings worth preserving
 - No load-bearing decision + rationale a future session must not rediscover
 - No non-trivial task list to reconstitute
+- No invariant a resuming session could violate without noticing
+- No side effect already applied that a fresh session would otherwise repeat
+
+The last two are the sharpest: a short, straightforward remainder is exactly the shape that passes
+every other test, and "the migration is already applied — do not re-run" is precisely the fact a
+prompt-only bullet list drops. A single one of them is enough to force the full path.
 
 ANY doubt → full save-point. A wrongly-skipped file loses state the fresh session must rediscover;
 a wrongly-written one costs nothing. An explicit method argument overrides auto-detect — but note
@@ -56,12 +62,10 @@ persist. This pass gates the write — no artifact or prompt is emitted before i
 
 ## Writing the handoff file (full path)
 
-The document structure (eight body sections — Task / Progress / Decisions made / Files modified /
-Tried and ruled out / Open questions / Suggested skills / Files to review), the TaskList snapshot +
-reconstitute format, and the frontmatter shape (including the `session_id` / `previous_handoff` /
-`previous_session_id` chain fields that `/retro` walks) live in
+The body sections, the TaskList reconstitute format, and the frontmatter shape (including the
+`session_id` and `previous_handoff` chain fields that `/retro` walks) live in
 [`${CLAUDE_PLUGIN_ROOT}/reference/structure.md`](${CLAUDE_PLUGIN_ROOT}/reference/structure.md)
-— walk it while writing the file.
+— walk it while writing the file; never write the section list from memory.
 
 When the target file already exists on disk (extending an earlier turn's write), re-read it from
 disk immediately before writing and append to it — never rewrite the whole file from the in-context
@@ -90,7 +94,7 @@ display):
 `/clear`, then copy everything between the dashed lines:
 
 ──────────────────────────────────────────────────────────
-Read @<handoffs-dir>/<TS>-handoff-<topic>.md and continue per its "Open questions / next steps".
+Read @<handoffs-dir>/<TS>-handoff-<topic>.md and continue its remaining next steps.
 Prior session: <UUID>.
 ──────────────────────────────────────────────────────────
 ```
@@ -108,3 +112,18 @@ bullets inline between the rails instead.
 fresh session or `/retro` chain-walker locate the transcript later.
 
 After the rails prompt is emitted, control returns to the citing skill's delivery step.
+
+## Detection contract — consumed by `/session-flow:find-handoff`
+
+The output shape above is a **stable detection contract**, not merely a display convention:
+`/session-flow:find-handoff` keys off it to recover a handoff whose resume prompt was written but
+never copied (operator ran `/clear` before copying it). The load-bearing signals, in precision
+order, are (1) the `Read @…-handoff-*.md` directive — the exact path to recover, for a file-based
+handoff; (2) the two `─` (U+2500) rails plus the `` `/clear`, then copy everything between the
+dashed lines `` instruction line — the primary key for a prompt-only handoff, which writes no file;
+and (3) the `Prior session: <UUID>` line, which — together with the `type: handoff` frontmatter
+([`structure.md`](structure.md)) — pins the session chain; it is emitted by the file-mode shape
+but is not required of prompt-only output, so consumers treat it as corroboration, never a
+required key. Changing this prompt/marker format is a
+**knowing** break of that contract, not a cosmetic edit; update `find-handoff`'s detection in the
+same change.
