@@ -4,18 +4,40 @@
 # rule -- Bash(source-control-babysit-merge:*) -- survive Claude Code auto mode,
 # which drops wildcarded-interpreter rules like Bash(python*). Adds no capability
 # of its own: the deterministic gate in babysit_merge.py stays the only merge
-# path. It additionally refuses --allow-unpinned-head so that no unattended,
-# allow-rule-covered invocation can merge an unvetted head; the interactive
-# unpinned override remains available by invoking babysit_merge.py directly.
+# path. It additionally refuses --allow-unpinned-head -- in every spelling,
+# including every prefix of it -- so that no unattended, allow-rule-covered
+# invocation can merge an unvetted head; the interactive unpinned override
+# remains available by invoking babysit_merge.py directly.
 set -euo pipefail
 export PYTHONUTF8=1
 here="$(cd "$(dirname "$(readlink -f "$0" 2>/dev/null || echo "$0")")" && pwd)"
 scripts="$here/../skills/babysit-prs/scripts"
 
+# Refuse the unpinned override in every spelling that could reach the flag, not
+# just its exact text. argparse prefix abbreviation made `--allow-unpinned-hea`
+# (and shorter unambiguous prefixes) a valid spelling of the flag to the CLI and
+# an unrecognized string to an equality test here, so the refusal this wrapper
+# exists for was bypassable by dropping one character (#1371). babysit_merge.py
+# now also builds its parser with allow_abbrev=False -- that is the root-cause
+# half -- but this half must hold on its own regardless: a guard that is correct
+# only because the thing it guards is configured a particular way is not a
+# guard.
+#
+# The test is: strip any `=value` tail, then refuse any `--`-prefixed argument
+# that is a prefix of the flag. It deliberately over-refuses -- a prefix passed
+# after a `--` end-of-options separator, or as another option's value, is
+# refused too. No legitimate invocation of this wrapper carries such an
+# argument, and a merge guard fails closed. Sibling flags are unaffected:
+# --allowed-owners, --allow-dependency, and --allow-unprotected are not prefixes
+# of the flag and pass through untouched.
+unpinned_flag='--allow-unpinned-head'
 for arg in "$@"; do
-  if [[ "$arg" == "--allow-unpinned-head" ]]; then
-    printf '%s\n' \
-      'source-control-babysit-merge: --allow-unpinned-head is not permitted through the wrapper.' \
+  candidate="${arg%%=*}"
+  [[ "$candidate" == --?* ]] || continue
+  # RHS quoted: a literal string compare, never a glob match.
+  if [[ "${unpinned_flag:0:${#candidate}}" == "$candidate" ]]; then
+    printf '%s\n%s\n' \
+      "source-control-babysit-merge: $unpinned_flag is not permitted through the wrapper (refused '$arg')." \
       'Invoke babysit_merge.py directly for interactive unpinned use.' >&2
     exit 2
   fi

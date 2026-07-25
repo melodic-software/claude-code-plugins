@@ -157,7 +157,9 @@ def active_worker_lease(
 
 def main() -> int:
     configure_stdio()
-    parser = argparse.ArgumentParser(description="Prune babysit-prs Git worktrees.")
+    parser = argparse.ArgumentParser(
+        description="Prune babysit-prs Git worktrees.", allow_abbrev=False
+    )
     parser.add_argument(
         "--root",
         required=True,

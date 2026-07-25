@@ -205,7 +205,7 @@ def parse_allowed_owners(raw: str | None) -> set[str]:
 
 def main() -> int:
     configure_stdio()
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument("pr", help="owner/repo#number or PR URL")
     parser.add_argument(
         "--allowed-owners",

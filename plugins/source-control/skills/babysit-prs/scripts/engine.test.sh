@@ -56,10 +56,57 @@ check_exit() {
   fi
 }
 
+# check_wrapper_refusal asserts the WRAPPER's own guard fired, not merely that
+# something exited 2. Exit 2 is overloaded three ways on this path -- the
+# wrapper's refusal, argparse's usage/ambiguity errors, and babysit_merge.py's
+# own usage errors -- so a code-only assertion cannot tell a held guard from an
+# accidental parse failure. Matching the refusal text is what proves the claim
+# the guard contract publishes.
+check_wrapper_refusal() {
+  local label="$1"
+  shift
+  local err
+  err="$(bash "$MERGE_WRAPPER" "$@" 2>&1 >/dev/null)"
+  local got=$?
+  if [[ "$got" == 2 && "$err" == *"is not permitted through the wrapper"* ]]; then
+    echo "PASS: $label"
+  else
+    echo "FAIL: $label (want exit 2 + wrapper refusal text, got exit $got: $err)" >&2
+    FAILED=1
+  fi
+}
+
 # The wrapper refuses the interactive unpinned override so no allow-rule-covered
 # invocation can merge an unvetted head.
-check_exit "merge wrapper rejects --allow-unpinned-head" 2 \
-  bash "$MERGE_WRAPPER" "owner/repo#1" --merge --allow-unpinned-head
+check_wrapper_refusal "merge wrapper rejects --allow-unpinned-head" \
+  "owner/repo#1" --merge --allow-unpinned-head
+# ...and refuses it in every spelling argparse prefix abbreviation would accept
+# (#1371). Equality matching here was bypassable by dropping one character:
+# `--allow-unpinned-hea` was an unrecognized string to the wrapper and a valid
+# spelling of the flag to the CLI, so the refusal the wrapper exists for did not
+# hold. The wrapper must refuse independently of what the CLI happens to accept.
+for spelling in \
+  --allow-unpinned-hea \
+  --allow-unpinned-h \
+  --allow-unpinned \
+  --allow-unpi \
+  --allow-unp \
+  --allow-u \
+  --allow \
+  --allow-unpinned-head=1 \
+  --allow-unpi=1; do
+  check_wrapper_refusal "merge wrapper rejects $spelling" \
+    "owner/repo#1" --merge "$spelling"
+done
+# No over-refusal of the sibling flags every real invocation carries: these are
+# not prefixes of --allow-unpinned-head and must reach the CLI (exit 3, the
+# fail-closed allowlist check) rather than tripping the guard.
+for sibling in --allow-dependency --allow-unprotected; do
+  check_exit "merge wrapper passes $sibling through to the CLI" 3 \
+    bash "$MERGE_WRAPPER" "owner/repo#1" "$sibling"
+done
+check_exit "merge wrapper passes --allowed-owners through to the CLI" 3 \
+  bash "$MERGE_WRAPPER" "owner/repo#1" --allowed-owners someone-else
 # The wrapper reaches the fail-closed CLI when no allowlist is supplied.
 check_exit "merge wrapper reaches fail-closed CLI (no allowlist)" 3 \
   bash "$MERGE_WRAPPER" "owner/repo#1"

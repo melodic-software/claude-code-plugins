@@ -173,7 +173,7 @@ def run_locked(
 
 def main() -> int:
     configure_stdio()
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument(
         "action",
         choices=("dispose", "record-advisory-round", "record-worker-checkin"),

@@ -3,6 +3,31 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.5]
+
+### Fixed
+
+- **The merge wrapper's `--allow-unpinned-head` refusal is no longer bypassable by argparse prefix
+  abbreviation (`#1371`).** `source-control-babysit-merge` exists to add exactly one refusal on top
+  of `babysit_merge.py`, and it filtered by exact string equality while the CLI behind it built its
+  parser with argparse's `allow_abbrev` at the default `True`. Any unambiguous prefix —
+  `--allow-unpinned-hea`, `--allow-unpinned`, `--allow-unpi` — was therefore a valid spelling of the
+  flag to the CLI and an unrecognized string to the wrapper, so an invocation that reads as the
+  guarded wrapper form could merge a PR with no pinned head: the precise outcome the wrapper's
+  existence is justified by. Both halves are fixed, because either alone leaves a gap. The wrapper
+  now refuses any `--`-prefixed argument that is a *prefix* of the flag (after stripping a
+  `--flag=value` tail), so it holds independently of how the CLI's parser happens to be configured;
+  sibling flags (`--allowed-owners`, `--allow-dependency`, `--allow-unprotected`) are not prefixes
+  and pass through untouched. Independently, every one of the nine `babysit-prs` lane CLIs now
+  builds its parser with `allow_abbrev=False`, which closes the class rather than the one flag —
+  `--mer` was an accepted spelling of `--merge`, so a consumer permission rule granting the wrapper
+  *but not with `--merge`* was bypassable by the same mechanism, and every other option on every
+  lane parser was equally abbreviatable. No exact spelling changed behavior, and no caller in this
+  repo used an abbreviated flag. Regression coverage asserts the wrapper's own refusal *text* (exit
+  2 alone is overloaded three ways on this path) across nine spellings, asserts argparse reports
+  `unrecognized arguments` for abbreviations at the CLI, and holds the whole `scripts/` directory to
+  `allow_abbrev=False` so a new lane script cannot silently reopen the class.
+
 ## [0.26.4]
 
 ### Fixed

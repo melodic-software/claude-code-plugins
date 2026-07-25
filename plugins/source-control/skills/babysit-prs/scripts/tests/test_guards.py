@@ -7,6 +7,7 @@ closed, an ambiguous head pin is refused, a thread resolve without its TOCTOU
 pins is refused -- that nothing else in the suite covers.
 """
 
+import ast
 import json
 import pathlib
 import subprocess
@@ -18,19 +19,25 @@ MERGE = SCRIPTS / "babysit_merge.py"
 RESOLVE = SCRIPTS / "babysit_resolve_thread.py"
 
 
-def run(script, *args):
+def run_raw(script, *args):
+    """(returncode, stdout, stderr) — argparse reports rejections on stderr only."""
     proc = subprocess.run(
         [sys.executable, str(script), *args],
         capture_output=True,
         text=True,
     )
+    return proc.returncode, proc.stdout, proc.stderr
+
+
+def run(script, *args):
+    code, stdout, _ = run_raw(script, *args)
     payload = {}
-    if proc.stdout.strip():
+    if stdout.strip():
         try:
-            payload = json.loads(proc.stdout)
+            payload = json.loads(stdout)
         except json.JSONDecodeError:
             payload = {}
-    return proc.returncode, payload
+    return code, payload
 
 
 class MergeGuardFailsClosed(unittest.TestCase):
@@ -99,6 +106,92 @@ class MergeGuardFailsClosed(unittest.TestCase):
         )
         self.assertEqual(code, 2)
         self.assertIn("--autopilot-merge-tier", payload.get("error", ""))
+
+
+class ParsersRefuseAbbreviatedFlags(unittest.TestCase):
+    """argparse prefix abbreviation is a guard-bypass surface (#1371).
+
+    With ``allow_abbrev`` at its default ``True``, every long option on these
+    parsers has an open-ended set of alternate spellings: ``--allow-unpinned-hea``
+    is the same flag as ``--allow-unpinned-head``, and ``--mer`` is the same flag
+    as ``--merge``. Any control anchored on a flag's exact text -- the wrapper's
+    own refusal, or a consumer permission rule written against the command line
+    -- is then bypassable by dropping a character. These assertions pin the
+    parsers to exact spellings so that class of bypass stays closed.
+    """
+
+    def assert_unrecognized(self, script, *args):
+        code, _, stderr = run_raw(script, *args)
+        self.assertEqual(code, 2, f"{args!r} was accepted, not rejected")
+        self.assertIn("unrecognized arguments", stderr)
+
+    def test_unpinned_head_abbreviations_are_unrecognized(self):
+        # The reported bypass: each of these reached the CLI as a valid spelling
+        # of --allow-unpinned-head, so the wrapper's equality guard never saw it.
+        for spelling in (
+            "--allow-unpinned-hea",
+            "--allow-unpinned-h",
+            "--allow-unpinned",
+            "--allow-unpi",
+        ):
+            with self.subTest(spelling=spelling):
+                self.assert_unrecognized(
+                    MERGE, "owner/repo#1", "--allowed-owners", "someone-else",
+                    spelling,
+                )
+
+    def test_merge_abbreviations_are_unrecognized(self):
+        # Not just the reported flag: --mer was an accepted spelling of --merge,
+        # so a consumer allow rule that grants the wrapper "but not with --merge"
+        # was bypassable by the same mechanism.
+        for spelling in ("--mer", "--merg"):
+            with self.subTest(spelling=spelling):
+                self.assert_unrecognized(
+                    MERGE, "owner/repo#1", "--allowed-owners", "someone-else",
+                    spelling,
+                )
+
+    def test_allow_dependency_abbreviation_is_unrecognized(self):
+        self.assert_unrecognized(
+            MERGE, "owner/repo#1", "--allowed-owners", "someone-else", "--allow-d",
+        )
+
+    def test_exact_spellings_still_parse(self):
+        # The fix must not cost the real flags: exact spellings still reach the
+        # owner-scope refusal (exit 3), never argparse's exit 2.
+        code, payload = run(
+            MERGE, "owner/repo#1", "--allowed-owners", "someone-else",
+            "--merge", "--allow-unpinned-head", "--allow-dependency",
+        )
+        self.assertEqual(code, 3)
+        self.assertFalse(payload.get("inScope"))
+
+    def test_every_lane_parser_disables_abbreviation(self):
+        # Systemic, not per-flag: a new lane script that leaves allow_abbrev at
+        # its default would reopen the class for its own options, so the whole
+        # scripts/ directory is held to the setting rather than this one parser.
+        offenders = []
+        for path in sorted(SCRIPTS.glob("*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Call):
+                    continue
+                func = node.func
+                name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
+                if name != "ArgumentParser":
+                    continue
+                disabled = any(
+                    kw.arg == "allow_abbrev"
+                    and isinstance(kw.value, ast.Constant)
+                    and kw.value.value is False
+                    for kw in node.keywords
+                )
+                if not disabled:
+                    offenders.append(f"{path.name}:{node.lineno}")
+        self.assertEqual(
+            offenders, [],
+            "ArgumentParser(...) without allow_abbrev=False: " + ", ".join(offenders),
+        )
 
 
 class ResolveGuardFailsClosed(unittest.TestCase):

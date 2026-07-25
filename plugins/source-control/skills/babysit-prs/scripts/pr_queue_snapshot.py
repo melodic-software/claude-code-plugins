@@ -410,7 +410,7 @@ def exit_code_for(snapshot: dict[str, Any]) -> int:
 def main() -> int:
     configure_stdio()
     parser = argparse.ArgumentParser(
-        description="Read-only GitHub PR babysitting snapshot."
+        description="Read-only GitHub PR babysitting snapshot.", allow_abbrev=False
     )
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument(

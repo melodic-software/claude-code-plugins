@@ -247,7 +247,10 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
   owner/repo#42 --allowed-owners <watched-owners>` (thread list).
 - The merge wrapper mutates only with `--merge --expected-head <post-push-head-sha> --method
   <merge-method>`, and rejects `--allow-unpinned-head` outright — there is no unpinned merge. The
-  expected-head pin semantics live in `SKILL.md`; do not re-derive them here.
+  rejection covers **every spelling of that flag, including every prefix of it** (`--allow-unpinned-hea`,
+  `--allow-unpi`, …) and its `--flag=value` form; the CLI behind it also builds its parser with
+  `allow_abbrev=False`, so an abbreviated spelling is refused by the wrapper and unrecognized by the
+  CLI independently. The expected-head pin semantics live in `SKILL.md`; do not re-derive them here.
 - The merge CLI refuses a dependency-manager-authored PR absent `--allow-dependency`, and refuses
   to merge on an unprotected repository — zero required reviews AND zero required status contexts
   — when the PR author is not one of `<self-logins>`, absent `--allow-unprotected`. Both
