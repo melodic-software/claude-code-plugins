@@ -8,12 +8,29 @@ disable-model-invocation: true
 
 ## Purpose
 
-Check-only setup (the check-only carve-out): every prerequisite this plugin has is either a system
-tool (`jq`), a native `userConfig` toggle whose reconfiguration route is `/plugin configure
-rate-limit-guard`, or an edit to the **user's own** `settings.json` — and plugin setup must never
-mutate Claude Code user settings (`docs/PLUGIN-PHILOSOPHY.md`, "Setup is explicit and repeatable").
+Check-only setup, because this plugin owns **no writable artifact** for an `apply` to converge. Its
+entire configuration surface is three kinds of thing setup cannot conformingly write:
+
+- **A system tool** (`jq`) — `check` probes it; installing it is the operator's.
+- **One native `userConfig` toggle** (`rate_limit_guard_enabled`), whose only stored home is the
+  `pluginConfigs` setup must never write. Reconfiguration routes through Claude Code's native flow:
+  `/plugin configure rate-limit-guard` interactively, any time. Headless, `claude plugin install
+  ... --config rate_limit_guard_enabled=false` seeds the value on a *fresh install only* and is
+  ignored once installed, so a headless reconfigure is `claude plugin uninstall rate-limit-guard`
+  then `claude plugin install rate-limit-guard@<marketplace> --config
+  rate_limit_guard_enabled=<value>`.
+- **The statusline wiring**, which lives in the **user's own** `settings.json` — neither
+  `userConfig` nor tracked project config, and a Claude Code settings surface setup must never
+  mutate.
+
+The machine files under `~/.claude/rate-limit-guard/` are not a fourth, writable surface: the tee
+and the hook own them at runtime, so they are this plugin's data, not operator-editable
+configuration.
+
 So there is no `apply`: `check` inspects, reports PASS/FAIL/INFO with one remediation line per
-FAIL, and **prints the exact statusline edit for the operator to apply by hand**.
+FAIL, and **prints the exact statusline edit for the operator to apply by hand** — fully resolved,
+marked as the operator's, and naming what re-invalidates it. Silence would not be the conforming
+response on an unwritable surface; a printed edit is.
 
 The scripts are the source of truth for their own behavior — read
 `${CLAUDE_PLUGIN_ROOT}/scripts/statusline-tee.sh` and
