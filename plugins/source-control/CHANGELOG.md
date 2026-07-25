@@ -17,8 +17,14 @@ All notable changes to the `source-control` plugin are documented here. Format f
   migrated these call sites to the shared classifier without introducing the omission. The script
   now accepts `--extra-bot-logins` (same comma-separated shape as the snapshot wrapper) and passes
   it to both sites; `babysit_extra_bot_logins`'s flag-delivery mapping in SKILL.md now lists
-  `resolve-thread` alongside `snapshot`. Low severity — dormant unless an operator has configured
-  the userConfig key for a non-structurally-detected bot account.
+  `resolve-thread` alongside `snapshot`. Because configuration reaches these scripts only through
+  CLI flags, the mapping alone would have left the flag unused: every exact resolver command form
+  the agent copies — the two pinned degradation commands in `reference/safety.md`, the Worker
+  Contract clause and the Worker Prompt Template in `reference/orchestration.md`, and the
+  thread-resolution bullet in SKILL.md — now carries `--extra-bot-logins <extra-bot-logins>`, and
+  `safety.md` states the rule so a future command form does not drop it again. Low severity —
+  dormant unless an operator has configured the userConfig key for a non-structurally-detected bot
+  account.
 
 ## [0.26.2]
 

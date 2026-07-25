@@ -214,9 +214,12 @@ home in [reference/safety.md](reference/safety.md). Both fail closed without `--
   exactly as it governs a worker's turn — proving readiness is never a license to arm a watch.
 
 - **Thread resolution** — `source-control-babysit-resolve-thread owner/repo#N
-  --allowed-owners <watched-owners>` (lists by default; add `--resolve`). By default it touches
+  --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins>` (lists by default; add
+  `--resolve`). By default it touches
   only bot-authored threads (structural `__typename == "Bot"` or the `[bot]` login suffix — no
-  hardcoded identity list) and never a human thread. In worker tier pass `--autonomous`, which
+  hardcoded identity list) and never a human thread; `--extra-bot-logins` extends that set with the
+  configured non-structural bot accounts, and dropping it from any resolve-thread form silently
+  reclassifies their threads as human. In worker tier pass `--autonomous`, which
   resolves only threads GitHub marks `isOutdated`, each pinned via `--expected-comment-count` and
   `--expected-last-updated`. Those pins enforce comment-state only — they block a thread whose
   comment count or latest comment-edit timestamp drifted after vetting. The worker must
