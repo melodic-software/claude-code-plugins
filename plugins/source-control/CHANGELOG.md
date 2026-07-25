@@ -3,6 +3,22 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.1]
+
+### Changed
+
+- `babysit-prs`'s Worker Contract and Worker Prompt Template
+  (`skills/babysit-prs/reference/orchestration.md`) now hand the worker the worktree's **absolute**
+  path and forbid relying on the shell's working directory persisting across separate tool calls:
+  every git operation is anchored with `git -C <absolute-worktree-path>` (`status`, `add`, `commit`,
+  `diff`, `log`, `push`), and any command that derives its target from the working directory without
+  a `-C` equivalent — bare `gh`, `fetch-all-pr-comments.sh`, the target repository's own
+  build/test/lint commands — takes a per-call re-`cd` or its own explicit target argument. A
+  one-time `cd` at dispatch is not enough:
+  cwd can drift between a read and the next write, silently committing a branch-owned fix into the
+  session's default checkout instead of the assigned worktree. Closes the same correctness gap
+  `implementation` 0.7.4 closed in the sibling `implement-dispatch` lane.
+
 ## [0.26.0]
 
 ### Added
