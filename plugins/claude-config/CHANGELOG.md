@@ -3,6 +3,42 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0]
+
+### Added
+
+- **`audit-instructions` Phase B2: cross-surface conflict pass.** Detects two instruction surfaces
+  that both claim authority over one behavior and contradict each other — a unit of judgment the
+  per-surface Phase B lanes are structurally blind to, since each lane sees only one half of a pair.
+  The pass consumes Phase A's inventory rather than re-enumerating surfaces, and reads surfaces Phase
+  A recorded as *skipped* (plugin-cache, managed materializations, org policy) as read-only conflict
+  participants, since a contradiction is real whether or not this repo may edit either side.
+- **`reference/conflict-criteria.md`.** The five gates a pair must clear (co-residency, same
+  observable, opposed polarity, no arbitration, non-vacuous trigger overlap), the four conflict types
+  and their remediation routes, a precedence table separating what the official docs settle from what
+  they leave unresolved, a 13-case must-not-flag set, and two worked examples.
+- **An explicit boundary against `claude-memory:audit`'s C6 consistency check**, which already grades
+  contradictions inside the memory layer. A pair with both halves in that layer routes to C6; this
+  pass owns cross-layer pairs. `~/.claude/rules/` is ruled outside C6's population, since C6
+  enumerates rules project-relative and resolves a user-level directory only for auto-memory.
+- **`scripts/conflict-scan.sh` + tests.** Advisory deterministic pre-scan emitting
+  `fileA:lineA|fileB:lineB|entity|flags` candidate pairs, always exit 0, matching the existing
+  `instruction-scan.sh` contract. Entities are derived by CamelCase shape rather than a hardcoded
+  tool list, so a tool the scan has never heard of is still covered — the tradeoff being recall over
+  precision, since CamelCase proper nouns match the same shape. Polarity is read from a window
+  around each mention and a prohibition counts only when it precedes the entity, so a prohibition
+  governing a different object elsewhere on the line no longer reads as a conflict. Classification
+  and pairing run in a single `awk` pass bucketed by entity; a subprocess per mention did not finish
+  on an instruction tree this size.
+- **`conflicts` scope argument.** Runs Phase A plus Phase B2 only, so a scheduled hygiene routine can
+  compose the conflict check on its own token budget without paying for the full audit.
+
+### Changed
+
+- `audit-instructions` reports conflicts as **pairs** in their own report subsection — both
+  `path:line` anchors, both claims quoted verbatim, and either a doc-cited precedence winner or an
+  explicit `unresolved`. The skill never picks a winner the official docs do not state.
+
 ## [0.9.2]
 
 ### Changed

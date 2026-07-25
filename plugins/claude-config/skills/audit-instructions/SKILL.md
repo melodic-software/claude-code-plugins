@@ -1,7 +1,7 @@
 ---
 name: audit-instructions
-description: "Audit locally-owned Claude Code instruction surfaces — user + project CLAUDE.md, .claude/rules, skill bodies, agent definitions, prompt-type hooks, output styles — for instructions current models no longer need: prior-model workarounds, over-prescriptive scaffolding, bare prohibitions, reasoning-echo directives, stale examples. Report-only: emits a findings report with proposed diffs, gated to the human, never auto-applied. Use when: 'after a model upgrade', 'are my instructions holding the model back', 'instructions the model no longer needs', 'too prescriptive', 'audit instructions', 'instruction audit'. Not a brevity pass and not memory-layer hygiene."
-argument-hint: "[scope] — scope: claude-md|rules|skills|agents|hooks|output-styles|all (default: all)"
+description: "Audit locally-owned Claude Code instruction surfaces — user + project CLAUDE.md, .claude/rules, skill bodies, agent definitions, prompt-type hooks, output styles — for instructions current models no longer need: prior-model workarounds, over-prescriptive scaffolding, bare prohibitions, reasoning-echo directives, stale examples. Also detects cross-surface conflicts: two surfaces that both claim authority over one behavior and contradict each other. Report-only: emits a findings report with proposed diffs, gated to the human, never auto-applied. Use when: 'after a model upgrade', 'are my instructions holding the model back', 'instructions the model no longer needs', 'too prescriptive', 'audit instructions', 'instruction audit', 'conflicting instructions', 'contradictory instructions', 'which instruction wins'. Not a brevity pass and not memory-layer hygiene."
+argument-hint: "[scope] — scope: claude-md|rules|skills|agents|hooks|output-styles|conflicts|all (default: all)"
 user-invocable: true
 disable-model-invocation: false
 ---
@@ -20,7 +20,9 @@ only ever growing.
 The check catalog — the eleven checks I1–I11, their evidence tier, authority tag, severity, and
 per-surface applicability — lives in [reference/criteria.md](reference/criteria.md). The
 deterministic pre-scan is
-`${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.sh`.
+`${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.sh`. A second question has a
+different unit of judgment — do two surfaces contradict each other? — and is answered by Phase B2
+against [reference/conflict-criteria.md](reference/conflict-criteria.md).
 
 ## Read-only contract
 
@@ -66,7 +68,8 @@ Parse `$ARGUMENTS` for an optional scope filter that narrows which surfaces the 
 - `agents` — agent definition markdown only
 - `hooks` — prompt-type hook text only
 - `output-styles` — output-style markdown only
-- `all` — every locally-owned surface (default)
+- `conflicts` — Phase A plus Phase B2 only, so a scheduled routine can compose it on its own budget
+- `all` — every locally-owned surface, and the conflict pass (default)
 
 ## Phase A — Inventory
 
@@ -107,6 +110,31 @@ Bound concurrency to 3–5 lanes at a time. The skills surface fans out one lane
 the total dispatch count (lanes plus the Phase C verifiers) would exceed ~20, confirm with the
 user first.
 
+## Phase B2 — Cross-surface conflict pass
+
+Phase B judges each surface alone, so a contradiction spanning two surfaces is invisible to it. This
+pass supplies the missing unit: a **pair** of surfaces that both claim authority over one behavior and
+disagree. It consumes Phase A's inventory and re-enumerates nothing. Every criterion for the pass lives
+in [reference/conflict-criteria.md](reference/conflict-criteria.md).
+
+Seed it with the deterministic pre-scan over the inventoried files:
+
+```shell
+bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/conflict-scan.sh" <file>...
+```
+
+It emits `fileA:lineA|fileB:lineB|entity|flags` candidate pairs; `--count` prints the row count. Like
+the Phase B pre-scan it is advisory and always exits 0, deciding only the gates a text scan can decide,
+so every row is refined against the must-not-flag set rather than reported verbatim. Triage the entity
+first — the scan matches CamelCase by shape, so proper nouns arrive alongside tool names.
+
+A pair with **both** halves in the memory layer belongs to `claude-memory:audit`'s C6 check; this pass
+extends C6 outward to cross-layer pairs rather than duplicating it.
+
+**Detect the disagreement; do not adjudicate it.** Where the precedence table cites a documented order,
+name the winner and its source. Where the docs are silent, report the pair as unresolved — the memory
+page's "Claude may pick one arbitrarily" is why the finding is worth reporting at all.
+
 ## Phase C — Verify pass
 
 Every removal or rewrite proposal is re-judged before it reaches the report. Dispatch **fresh-context,
@@ -128,6 +156,8 @@ chat. Present findings as a table:
 
 | # | Check | Surface:Line | Severity | Tier | Authority | Finding | Proposed change |
 |---|-------|--------------|----------|------|-----------|---------|-----------------|
+
+Phase B2's findings carry two anchors, so they get their own **Cross-surface conflicts** subsection.
 
 For each finding, give the proposed removal or rewrite as a fenced diff block. Tier is `mechanical`
 (pattern-detectable) or `behavioral` (its ground truth is observed behavior); authority is the
@@ -152,7 +182,9 @@ catalog).
 - **Behavioral findings ship as proposals, not confident cuts.** A narrow eval can miss a small
   regression from an over-aggressive trim — that is why the verify pass and the delete-and-watch
   loop exist. Never present a behavioral removal as certain.
-- **Windows shell.** The pre-scan is bash; on native Windows run it through Git Bash.
+- **Windows shell.** The pre-scans are bash; on native Windows run them through Git Bash.
+- **A conflict pair needs two files.** Feeding `conflict-scan.sh` one surface at a time reproduces
+  Phase B's blind spot and always reports clean.
 
 ## What this skill does NOT do
 
@@ -164,3 +196,5 @@ catalog).
   skill when installed.
 - Does not edit upstream-owned plugin-cache or managed materializations — those findings route to
   the owning repository.
+- Does not grade a contradiction whose two halves both sit in the memory layer — that is
+  `claude-memory:audit`'s C6.
