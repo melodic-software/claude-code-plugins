@@ -118,6 +118,8 @@ order, are (1) the `Read @…-handoff-*.md` directive — the exact path to reco
 handoff; (2) the two `─` (U+2500) rails plus the `` `/clear`, then copy everything between the
 dashed lines `` instruction line — the primary key for a prompt-only handoff, which writes no file;
 and (3) the `Prior session: <UUID>` line, which — together with the `type: handoff` frontmatter
-([`structure.md`](structure.md)) — pins the session chain. Changing this prompt/marker format is a
+([`structure.md`](structure.md)) — pins the session chain; it is emitted by the file-mode shape
+but is not required of prompt-only output, so consumers treat it as corroboration, never a
+required key. Changing this prompt/marker format is a
 **knowing** break of that contract, not a cosmetic edit; update `find-handoff`'s detection in the
 same change.

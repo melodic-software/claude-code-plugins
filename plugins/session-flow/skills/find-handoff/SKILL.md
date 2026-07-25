@@ -41,7 +41,9 @@ pre-clear content sits in a sibling — never in the current session's own file.
    there is no file and no directive; the resume content is inline between the rails, and the
    transcript is the only record — so this is the primary key for that branch.
 3. **`Prior session: <UUID>`** and the `type: handoff` frontmatter (structure doc) — corroborating
-   signal that pins the session chain.
+   signal that pins the session chain. Corroboration only: the file-mode shape emits the
+   `Prior session:` line, but the producer's prompt-only checklist does not require it, so its
+   absence never disqualifies a prompt-only candidate.
 
 ## The recovery ladder — read-only throughout
 
@@ -67,8 +69,16 @@ pre-clear content sits in a sibling — never in the current session's own file.
      the template placeholder:** a match containing angle-bracket tokens (`<handoffs-dir>`, `<TS>`,
      `<topic>`) is the `save-point.md` doc being read into some session's context — not a real
      handoff. Keep only concrete paths. Confirm the referenced file exists on disk.
-   - **Prompt-only mode** — no file, no directive. Detect off the `─` rails, the instruction line,
-     and `Prior session:`; the resume content is the block inline between the rails.
+   - **Prompt-only mode** — no file, no directive. Detect off the `─` rails and the instruction
+     line; the resume content is the block inline between the rails. `Prior session:` is
+     **optional corroboration, never a required key** — the producer's prompt-only checklist
+     requires only a self-contained prompt between the rails plus the copy instruction, so
+     requiring it would skip valid handoffs. **Apply the same placeholder filter as file mode:** a
+     block whose body still carries angle-bracket placeholder tokens (`<handoffs-dir>`, `<TS>`,
+     `<topic>`, `<UUID>` — including a literal `Prior session: <UUID>`) is the `save-point.md`
+     template read into some session's context, not a real handoff. Surface only blocks whose
+     content is concrete; when a `Prior session:` line is present, its value must be a concrete
+     session UUID.
    - **Un-escape before surfacing.** Each transcript message is ONE physical JSONL line with its
      text JSON-string-escaped (`\n` for newlines, `\"` for quotes, `\\` for backslashes). A raw grep
      hit is that escaped blob — decode it back to plain text (JSON-unescape the matched string)
@@ -134,7 +144,11 @@ pre-clear content sits in a sibling — never in the current session's own file.
   exclude the current `$CLAUDE_CODE_SESSION_ID` and scan siblings.
 - **The template placeholder is a false positive.** `Read @<handoffs-dir>/<TS>-handoff-<topic>.md`
   appears verbatim in any transcript that read `save-point.md` into context. Discard matches
-  containing `<`-angle-bracket tokens; keep only concrete resolved paths.
+  containing `<`-angle-bracket tokens; keep only concrete resolved paths. The prompt-only template
+  — the `─` rails plus a placeholder body and a literal `Prior session: <UUID>` — is the same
+  false positive; reject any inline block still carrying angle-bracket placeholder tokens, and
+  require a concrete session UUID (not the `<UUID>` placeholder) on any `Prior session:` line
+  before surfacing the block.
 - **Near-identical mtimes.** Multiple sessions can write within seconds; mtime cannot rank them.
   The directive / rails / `Prior session:` markers break the tie, not the timestamp.
 - **Handoff files live in gitignored dirs far from `$HOME`**, and `memory_dir` is
