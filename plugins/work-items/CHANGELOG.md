@@ -3,6 +3,20 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.3]
+
+### Documentation
+
+- **`wayfind: *` is now documented as a read-only, skill-private routing axis (`#1255`).** Neither
+  the label taxonomy reference nor the shared tracker-seam gotchas said anything about the
+  `wayfind: *` labels a triage lane can encounter — a silence a lane meeting them had no basis to
+  read as "hands off." `reference/label-taxonomy.md` gains a "Skill-private routing markers"
+  section and `reference/tracker-seam.md`'s Gotchas gain a matching entry: both point at
+  `/planning:wayfind` (sole writer, on its own map sub-issues) and the resolving decision
+  (`melodic-software/github-iac#179`) rather than restating the member list. No work-items skill
+  applies, strips, or requires a `wayfind:` value on the items it manages — behavior is unchanged,
+  this closes a documentation gap.
+
 ## [0.24.2]
 
 ### Fixed
