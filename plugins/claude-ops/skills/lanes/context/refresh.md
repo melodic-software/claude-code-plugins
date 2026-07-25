@@ -47,14 +47,36 @@ Read-only, pure git — resolve the default branch rather than assuming `main`:
 git fetch origin -q
 # default branch of this repo — never hardcode main/master
 default="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || echo origin/main)"
+# the commit lane-launcher.sh recorded when this lane last (re)started (#792)
+data_dir="${CLAUDE_PLUGIN_DATA:-$HOME/.claude/plugins/data/claude-ops}"
+# tr -d '\r': strip a Windows CRLF read hazard on any captured value (the
+# repo's standing convention — see the CHANGELOG's #1176/F2 note) before it
+# reaches the git log range below.
+lane_launch_commit="$(cat "$data_dir/lanes/<lane>-launch-commit" 2>/dev/null | tr -d '\r')"
 # merged changes to the claude-ops plugin the running lane has NOT consumed
-git log --oneline "<lane-launch-commit>..${default}" -- plugins/claude-ops/
+[[ -n "$lane_launch_commit" ]] && git log --oneline "${lane_launch_commit}..${default}" -- plugins/claude-ops/
 ```
 
-`<lane-launch-commit>` is the repo HEAD when `lanes start`/`restart` last ran (the
-launch pulls first, so a running lane's skills correspond to that commit). Any
-output = an unconsumed merge. Swap the pathspec for whichever installed plugin a
-lane runs.
+`<lane-launch-commit>` (substitute the lane's own name for `<lane>` above) is the
+repo HEAD `lane-launcher.sh` captured when `lanes start`/`restart` last (re)started
+that lane — written to `<data-dir>/lanes/<lane>-launch-commit` right after the
+launch's pre-launch pull, for every lane actually (re)started that run (`start`
+leaves the marker untouched for a lane it skipped as already-running). An empty
+`lane_launch_commit` means no marker exists yet for that lane (never
+started/restarted through `lane-launcher.sh` on this machine) — the probe has
+nothing to diff against and is skipped rather than run against a resolved-empty
+range. Any probe output = an unconsumed merge. Swap the pathspec for whichever
+installed plugin a lane runs.
+
+**Not an injection vector today, but treat it as untrusted if that ever changes.**
+`lane-launcher.sh` writes `lane_launch_commit` from `git rev-parse HEAD` only — a
+bare hex SHA, so reading it back and interpolating it unquoted into `git log
+"${lane_launch_commit}..${default}"` above carries no shell-injection risk. If a
+future change ever sources this value from something other than `git rev-parse`
+(external input, a hand-edited marker file, anything not mechanically
+hex-constrained), that value must never be interpolated unquoted into the probe
+command — validate it (e.g. `[[ "$lane_launch_commit" =~ ^[0-9a-f]{7,64}$ ]]`)
+before it reaches `git log`.
 
 **Not an `!` injection candidate.** This probe is deliberately a body instruction,
 not `!` dynamic-context injection — it fails every condition of the precompute

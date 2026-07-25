@@ -105,9 +105,17 @@ cat >"$STUB_BIN/git" <<STUB
 #!/usr/bin/env bash
 printf 'git %s\n' "\$*" >>"$CLAUDE_LOG"
 # A test can force a failed \`git pull\` via STUB_GIT_PULL_RC to exercise the
-# refresh-failure abort path. git is only ever invoked for pull here (repos are
-# passed via --repo), so matching on the pull subcommand is sufficient.
-case "\$*" in *pull*) exit "\${STUB_GIT_PULL_RC:-0}" ;; esac
+# refresh-failure abort path. git is only ever invoked for pull or rev-parse
+# here (repos are passed via --repo), so matching on those subcommands is
+# sufficient.
+case "\$*" in
+*pull*) exit "\${STUB_GIT_PULL_RC:-0}" ;;
+*rev-parse*)
+  [[ "\${STUB_GIT_REVPARSE_RC:-0}" != 0 ]] && exit "\${STUB_GIT_REVPARSE_RC}"
+  printf '%s\n' "\${STUB_GIT_REVPARSE_SHA:-deadbeefcafefeedfacefeeddeadbeefcafefeed}"
+  exit 0
+  ;;
+esac
 STUB
 chmod +x "$STUB_BIN/claude" "$STUB_BIN/git"
 
@@ -409,6 +417,62 @@ assert_eq "restart unknown lane exits 3" 3 "$rc"
 assert_contains "restart unknown lane message" "$out" "unknown lane 'does-not-exist'"
 assert_not_contains "restart unknown lane does not pull" "$log" "pull --ff-only"
 assert_not_contains "restart unknown lane does not update the marketplace" "$log" "plugin marketplace update"
+
+# ============================================================================
+# #792 — launch-commit marker: start (real dispatch) writes
+# <data-dir>/lanes/<name>-launch-commit for every lane it actually launches,
+# holding the captured `git rev-parse HEAD` SHA.
+# ============================================================================
+DATA_DIR="$TMP/data"
+: >"$CLAUDE_LOG"
+out="$(run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" --data-dir "$DATA_DIR" 2>&1)"
+rc=$?
+assert_eq "marker: start with all lanes launching exits 0" 0 "$rc"
+marker="$(cat "$DATA_DIR/lanes/work-launch-commit" 2>/dev/null)"
+assert_eq "marker: work marker holds the stubbed HEAD sha" "deadbeefcafefeedfacefeeddeadbeefcafefeed" "$marker"
+marker="$(cat "$DATA_DIR/lanes/babysit-launch-commit" 2>/dev/null)"
+assert_eq "marker: babysit marker holds the stubbed HEAD sha" "deadbeefcafefeedfacefeeddeadbeefcafefeed" "$marker"
+
+# A lane `start` SKIPS (already running) must not get a fresh/overwritten
+# marker — only lanes actually (re)launched this run are recorded.
+DATA_DIR2="$TMP/data2"
+mkdir -p "$DATA_DIR2/lanes"
+printf 'pre-existing-sha\n' >"$DATA_DIR2/lanes/work-launch-commit"
+out="$(run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_RUNNING" --data-dir "$DATA_DIR2" 2>&1)"
+marker="$(cat "$DATA_DIR2/lanes/work-launch-commit" 2>/dev/null)"
+assert_eq "marker: skipped (already-running) lane keeps its existing marker" "pre-existing-sha" "$marker"
+marker="$(cat "$DATA_DIR2/lanes/babysit-launch-commit" 2>/dev/null)"
+assert_eq "marker: a lane that DID launch this run still gets one" "deadbeefcafefeedfacefeeddeadbeefcafefeed" "$marker"
+
+# restart re-records the marker for the restarted lane.
+DATA_DIR3="$TMP/data3"
+out="$(run_launcher restart work --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_RUNNING" --data-dir "$DATA_DIR3" 2>&1)"
+marker="$(cat "$DATA_DIR3/lanes/work-launch-commit" 2>/dev/null)"
+assert_eq "marker: restart records the marker for the relaunched lane" "deadbeefcafefeedfacefeeddeadbeefcafefeed" "$marker"
+
+# --dry-run mutates nothing: no marker file is written, but the preview names
+# the would-be marker path and the resolved HEAD.
+DATA_DIR4="$TMP/data4"
+out="$(run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" --data-dir "$DATA_DIR4" --dry-run 2>&1)"
+assert_contains "marker: dry-run previews the marker write" "$out" "DRY-RUN: write launch-commit marker $DATA_DIR4/lanes/work-launch-commit <- deadbeefcafefeedfacefeeddeadbeefcafefeed"
+if [[ -e "$DATA_DIR4/lanes/work-launch-commit" ]]; then notwritten=1; else notwritten=0; fi
+assert_eq "marker: dry-run writes no file" 0 "$notwritten"
+
+# An unresolvable HEAD (git rev-parse fails) skips the write with a warning on
+# stderr but must NOT fail the lane launch itself (best-effort).
+DATA_DIR5="$TMP/data5"
+out="$(STUB_GIT_REVPARSE_RC=1 run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" --data-dir "$DATA_DIR5" 2>&1)"
+rc=$?
+assert_eq "marker: unresolvable HEAD still exits 0 (best-effort)" 0 "$rc"
+assert_contains "marker: unresolvable HEAD warns on skip" "$out" "launch-commit marker skipped"
+if [[ -e "$DATA_DIR5/lanes/work-launch-commit" ]]; then notwritten=1; else notwritten=0; fi
+assert_eq "marker: unresolvable HEAD writes no file" 0 "$notwritten"
+
+# CLAUDE_PLUGIN_DATA env var is honored when --data-dir is not passed.
+DATA_DIR6="$TMP/data6"
+out="$(CLAUDE_PLUGIN_DATA="$DATA_DIR6" run_launcher start --repo "$REPO" --config "$CONFIG" --agents-json "$AGENTS_EMPTY" 2>&1)"
+marker="$(cat "$DATA_DIR6/lanes/work-launch-commit" 2>/dev/null)"
+assert_eq "marker: falls back to \$CLAUDE_PLUGIN_DATA when --data-dir is unset" "deadbeefcafefeedfacefeeddeadbeefcafefeed" "$marker"
 
 # ============================================================================
 echo

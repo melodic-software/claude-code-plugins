@@ -3,6 +3,39 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.20.0]
+
+### Added
+
+- **`lanes` skill: `lane-launcher.sh` now captures and persists the launch commit
+  (`#792`).** `context/refresh.md`'s git staleness probe referenced a
+  `<lane-launch-commit>` placeholder with no producer — the repo HEAD when
+  `lanes start`/`restart` last ran was advisory-only, with no automated way to
+  retrieve it. `lane-launcher.sh` now captures `git rev-parse HEAD` right after
+  the pre-launch pull (a pure read, so it also previews correctly under
+  `--dry-run`) and writes it, for every lane actually (re)started that run, to
+  `<data-dir>/lanes/<lane>-launch-commit` — a lane `start` skips as
+  already-running keeps its existing marker untouched. New `--data-dir DIR`
+  option (default: the `$CLAUDE_PLUGIN_DATA` env var if set, else
+  `~/.claude/plugins/data/claude-ops`, matching `check-all.sh`'s convention).
+  `SKILL.md`'s invocation now passes `--data-dir "${CLAUDE_PLUGIN_DATA}"`
+  explicitly — per current
+  [plugins-reference](https://code.claude.com/docs/en/plugins-reference#environment-variables),
+  `CLAUDE_PLUGIN_DATA` is exported as a real env var only to hook/MCP/LSP
+  subprocesses, not to a script a skill shells out to via the Bash tool, so a
+  script-internal fallback alone would silently miss the marketplace-qualified
+  data directory in a real session. The write is best-effort: a failure (or an
+  unresolvable HEAD) warns on stderr but never fails an already-launched lane.
+  `context/refresh.md` and `SKILL.md` now point the probe at the real marker
+  file instead of the unfillable placeholder, with an explicit hex-only-input
+  note for anyone who later sources the value from something other than `git
+  rev-parse`, and a `tr -d '\r'` strip on the marker read (the repo's standing
+  CRLF-hazard convention for any captured Windows value). 12 new regression
+  cases in `lane-launcher.test.sh` cover the capture/write, the
+  skip-if-already-running case, `--dry-run` (preview only, no write),
+  unresolvable-HEAD (best-effort, no failure), and the `$CLAUDE_PLUGIN_DATA`
+  fallback.
+
 ## [0.19.2]
 
 ### Documentation

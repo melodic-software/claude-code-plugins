@@ -43,7 +43,27 @@
 #   --dry-run          print the commands that would run; mutate nothing
 #   --agents-json FILE read the session list from FILE instead of
 #                      `claude agents --json` (offline / scripted / test reuse)
+#   --data-dir DIR     base dir for the per-lane launch-commit marker (below);
+#                      default: $CLAUDE_PLUGIN_DATA env var if set, else
+#                      ~/.claude/plugins/data/claude-ops. NOTE: CLAUDE_PLUGIN_DATA
+#                      is exported to hook/MCP/LSP subprocesses but NOT to a
+#                      script a skill shells out to via the Bash tool (Claude
+#                      Code plugins-reference, "Environment variables") — the
+#                      lanes skill's SKILL.md passes --data-dir explicitly with
+#                      the inline-substituted value so a real Claude Code
+#                      session resolves the correct marketplace-qualified
+#                      directory; this env-var/fallback path only kicks in for
+#                      a direct/manual invocation (tests, a hand-run shell).
 #   --help
+#
+# Launch-commit marker (#792):
+#   After the pre-launch `git pull` (start/restart), the repo HEAD is captured
+#   once and, for every lane actually (re)started this run, written to
+#   `<data-dir>/lanes/<lane>-launch-commit` (bare 40/64-hex SHA + newline) —
+#   the `<lane-launch-commit>` context/refresh.md's staleness probe reads. A
+#   lane skipped by `start` (already running) keeps its existing marker
+#   untouched. Best-effort: a write failure (or an unresolvable HEAD) warns on
+#   stderr but never fails an already-launched session.
 #
 # Config resolution (first hit wins):
 #   --config FILE  →  $CLAUDE_OPS_LANES_CONFIG  →  <repo>/.work/lanes.json
@@ -74,6 +94,8 @@ NO_PULL=0
 NO_UPDATE=0
 DRY_RUN=0
 AGENTS_JSON_FILE=""
+DATA_DIR_OVERRIDE=""
+LAUNCH_COMMIT=""
 declare -a TARGET_LANES=()
 
 # --- Small emitters -----------------------------------------------------------
@@ -130,6 +152,12 @@ parse_args() {
       shift
       ;;
     --agents-json=*) AGENTS_JSON_FILE="${1#*=}" ;;
+    --data-dir)
+      check_optarg "$1" "${2:-}" || exit 3
+      DATA_DIR_OVERRIDE="$2"
+      shift
+      ;;
+    --data-dir=*) DATA_DIR_OVERRIDE="${1#*=}" ;;
     -h | --help)
       usage
       exit 0
@@ -235,6 +263,45 @@ resolve_prompt_dir() {
   /* | [A-Za-z]:[\\/]*) printf '%s' "$d" ;; # absolute (POSIX or Windows drive)
   *) printf '%s' "$REPO/$d" ;;
   esac
+}
+
+# --- Launch-commit marker (#792) ----------------------------------------------
+# Base data dir: --data-dir, else $CLAUDE_PLUGIN_DATA, else the same
+# ~/.claude/plugins/data/claude-ops fallback check-all.sh uses for a machine
+# where the harness does not export CLAUDE_PLUGIN_DATA (e.g. a direct script
+# invocation outside a Claude Code session, as in the test suite).
+resolve_data_dir() {
+  local base="${DATA_DIR_OVERRIDE:-${CLAUDE_PLUGIN_DATA:-$HOME/.claude/plugins/data/claude-ops}}"
+  printf '%s/lanes' "${base%/}"
+}
+
+launch_commit_marker_path() {
+  printf '%s/%s-launch-commit' "$(resolve_data_dir)" "$1"
+}
+
+# Captures the repo HEAD once per start/restart invocation (after the
+# pre-launch pull, if any ran). A hex-only `git rev-parse HEAD` value carries
+# no injection risk; empty on failure (detached-HEAD-less/unresolvable repo),
+# which downstream write_launch_commit_marker treats as "skip, don't write".
+capture_launch_commit() {
+  LAUNCH_COMMIT="$(git -C "$REPO" rev-parse HEAD 2>/dev/null)" || LAUNCH_COMMIT=""
+}
+
+# Writes the captured launch commit to <data-dir>/lanes/<name>-launch-commit.
+# Best-effort and always returns 0: a marker write failure must never fail a
+# lane that has already (or would already) launch — only warn on stderr. The
+# caller passes the already-resolved marker path (launch_lane resolves it
+# once per lane).
+write_launch_commit_marker() {
+  local path="$1"
+  if [[ -z "$LAUNCH_COMMIT" ]]; then
+    err "launch-commit marker skipped for $path: repo HEAD could not be resolved"
+    return 0
+  fi
+  if ! mkdir -p "$(dirname "$path")" 2>/dev/null || ! printf '%s\n' "$LAUNCH_COMMIT" >"$path" 2>/dev/null; then
+    err "launch-commit marker write failed: $path"
+  fi
+  return 0
 }
 
 # --- Session list (real CLI or fixture) --------------------------------------
@@ -344,6 +411,9 @@ launch_lane() {
   [[ -n "$model" ]] && cmd+=(--model "$model")
   [[ -n "$effort" ]] && cmd+=(--effort "$effort")
 
+  local marker_path
+  marker_path="$(launch_commit_marker_path "$name")"
+
   if ((DRY_RUN)); then
     # Keep the seeded prompt out of the echoed command — show a size placeholder.
     local bytes
@@ -351,13 +421,16 @@ launch_lane() {
     printf 'DRY-RUN:'
     printf ' %q' "${cmd[@]}"
     printf ' %q\n' "<prompt: $prompt_path (${bytes}B)>"
+    printf 'DRY-RUN: write launch-commit marker %s <- %s\n' "$marker_path" "${LAUNCH_COMMIT:-<unresolved>}"
     return 0
   fi
 
   local prompt
   prompt="$(cat "$prompt_path")"
   cmd+=("$prompt")
-  (cd "$REPO" && "${cmd[@]}")
+  (cd "$REPO" && "${cmd[@]}") || return 1
+  # Best-effort: a marker write failure must not fail an already-launched lane.
+  write_launch_commit_marker "$marker_path"
 }
 
 # Returns: 0 stopped OK · 2 was not running · other = `claude stop` failed
@@ -379,6 +452,12 @@ refresh_repo_and_plugins() {
     info "git pull --ff-only ($REPO)"
     run git -C "$REPO" pull --ff-only || rc=1
   fi
+  # Capture HEAD for the launch-commit marker (#792) regardless of --no-pull —
+  # a skipped pull still leaves a well-defined HEAD to record. A pure read
+  # (`git rev-parse HEAD`), so it runs under --dry-run too: dry-run's `run`
+  # wrapper never actually pulled, so this reports the pre-existing HEAD in
+  # the preview line below without writing anything to disk.
+  capture_launch_commit
   if ((NO_UPDATE)); then
     info "skip plugin marketplace update (--no-update)"
   else
