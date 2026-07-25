@@ -43,9 +43,11 @@ OAuth flow). To change or clear the token at any time, run:
 ```
 
 That reopens the same configuration screen shown at first enable, letting you overwrite or blank
-the stored token. `claude plugin install --config miro_api_token=<token>` is not a rotation
-path — the flag seeds a value only on a fresh install and is ignored once the plugin is already
-installed, so a headless rotation means uninstall then reinstall.
+the stored token. The headless `--config` flag on `claude plugin install` is not a rotation
+path: it seeds a value only on a fresh install and is ignored once the plugin is already
+installed, so rotating headlessly means uninstalling and reinstalling. Prefer the interactive
+prompt — it masks input, where a token passed on the command line lands in shell history and the
+process table.
 
 ## Tools
 
