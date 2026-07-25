@@ -609,10 +609,13 @@ On the conflict worker's return, and before pushing anything:
   verification byproducts left behind would make an integrated PR's worktree neither prunable nor
   reusable. The byproduct set spans both verification runs: the worker's own run precedes this
   snapshot, so its leavings are already on disk and would masquerade as pre-existing. Snapshot
-  `git -C <worktree> status --porcelain` before and after the verification re-run; after a
-  successful push, delete exactly the union of the paths the re-run added and the untracked paths
-  the worker's report names as its verification output (a targeted removal of named byproducts,
-  never `git clean`). An untracked entry in neither set genuinely predates the conflict operation
+  `git -C <worktree> status --porcelain` before and after the verification re-run; on EVERY exit of
+  the operation — after a successful push, and equally as part of any no-push unwind below — delete
+  exactly the union of the paths the re-run added and the untracked paths the worker's report names
+  as its verification output (a targeted removal of named byproducts, never `git clean`). A
+  push-only cleanup would leave a failed or superseded re-run's leavings to fail the next
+  assignment's clean-checkout requirement, turning a transient no-push into a blocked PR. An
+  untracked entry in neither set genuinely predates the conflict operation
   and is not the orchestrator's to delete: it stays, and is reported. A worktree with
   uncommitted tracked changes is preserved and reported, never pushed from and never pruned
   (Cleanup).
@@ -635,7 +638,15 @@ On the conflict worker's return, and before pushing anything:
   matters — a writer that reset the PR branch to an ancestor during the re-run would make this push
   a valid fast-forward that silently restores the commits that writer removed. So repeat
   `gh pr view <N> --json headRefOid` == `git -C <worktree> rev-parse HEAD^1` just before the push
-  command; a mismatch is the same superseded-tip no-push as above. Then
+  command; a mismatch is the same superseded-tip no-push as above. Revalidate the base side in the
+  same breath: the second-parent check above proved the merge integrated the base SHA the worker
+  fetched, not that this SHA is still the live base tip — the base can advance during resolution
+  and both verification runs, and a cached `baseRefOid` is not evidence
+  (`reference/freshness.md`). Re-fetch the base ref (`git -C <worktree> fetch origin
+  <baseRefName>`) and require its fresh tip to equal `git -C <worktree> rev-parse HEAD^2`; a moved
+  base is a no-push — pushing would land a merge of a superseded base, re-conflicting the PR at
+  the cost of a pointless merge commit and CI round — handled as a stale resolution: unwind per
+  the state-keyed rules below and dispatch a fresh conflict worker against the new base. Then
   `git -C <worktree> push "$PUSH_REMOTE" HEAD:<headRefName>`,
   where `PUSH_REMOTE` resolves **fail-closed** per `reference/safety.md` (Checkout And Push
   Invariants): `origin` for a same-repo head, the validated fork remote for a write-allowed
