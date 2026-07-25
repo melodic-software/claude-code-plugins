@@ -38,8 +38,10 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   minus I12, and one cross-surface lane runs I12 alone over the whole resolved inventory, emitting
   each conflict once. Phase A backs it with a read-only inventory tier: org-managed policy (the
   managed `CLAUDE.md`, a `claudeMd` settings value, and managed prompt-type hook text), upstream-owned
-  but live instruction text (installed plugin-cache skill bodies and agent definitions, managed
-  materializations, and `type: "prompt"` handler text in an enabled plugin's `hooks/hooks.json`), and
+  but live instruction text (skill bodies and agent definitions from an enabled plugin's cache,
+  managed materializations, and `type: "prompt"` handler text in an enabled plugin's
+  `hooks/hooks.json` — effective `enabledPlugins` gates all three alike, since a disabled plugin's
+  cache stays on disk while none of its components load), and
   every out-of-scope I12 counterpart — a scope argument narrows which side may produce a finding,
   never which surfaces are read, and the `Arguments` section now says so rather than describing the
   filter as narrowing the inventory. Read-only inventory changes no ownership: those surfaces still

@@ -121,10 +121,14 @@ involving one still carries the no-change representation and its routing recomme
   a managed hook contradicting a project skill is exactly the conflict I12 explicitly owns; that
   comparison is impossible if the text is never read. Extract managed hook text under the same
   prompt-text-only, no-secrets handling as the other settings scopes.
-- **Upstream-owned instruction text that is nonetheless live** — installed plugin-cache skill bodies
-  and agent definitions, `type: "prompt"` handler text in an enabled plugin's `hooks/hooks.json`
-  (a plugin is a supported hook location and `prompt` a supported handler type, so that text is as
-  live as a settings-configured hook), and any managed materialization. An invoked plugin skill's
+- **Upstream-owned instruction text that is nonetheless live** — skill bodies and agent definitions
+  from the cache of an **enabled** plugin, `type: "prompt"` handler text in an enabled plugin's
+  `hooks/hooks.json` (a plugin is a supported hook location and `prompt` a supported handler type, so
+  that text is as live as a settings-configured hook), and any managed materialization. Enablement is
+  the same gate for all three: a disabled plugin's cache stays on disk while none of its components
+  load, so resolve effective `enabledPlugins` across settings scopes first and inventory only the
+  plugins that resolve enabled — a cached body from a disabled plugin would put text Claude cannot
+  load into the comparison corpus. An invoked plugin skill's
   instructions are in context alongside the project's own, so they can hold one side of a conflict.
   They are read for comparison only, prompt text only and no secret-bearing values: the existing
   exclusion from the editable set and the upstream-routing behavior are unchanged, so a finding here
