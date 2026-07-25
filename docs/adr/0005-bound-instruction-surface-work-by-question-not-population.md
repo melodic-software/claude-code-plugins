@@ -101,9 +101,16 @@ pairs that are genuinely uncovered:
 - root `CLAUDE.md` versus a **nested** `CLAUDE.md` — same layer, uncovered;
 - `CLAUDE.md` versus `CLAUDE.local.md` **for contradiction** — same layer, uncovered;
 - a **user-global** rule versus a **project** rule — same layer, uncovered;
-- repo `CLAUDE.md` versus a **skill body**; a skill's stated default versus its plugin README or its
-  own `description`; agent definitions, prompt-type hook text, output styles — cross-layer,
-  uncovered.
+- repo `CLAUDE.md` versus a **skill body**; a skill's stated default versus its own `description`;
+  agent definitions, prompt-type hook text, output styles — cross-layer, uncovered.
+
+**One pair in that set is drift rather than conflict, and separating them matters.** A plugin README
+is never auto-loaded, so a skill body that disagrees with its README is never co-resident with it and
+fails the co-residency gate by construction — the same structure that makes split-brain a separate
+check rather than a fourth conflict type. It is still worth detecting and its remediation is
+different (reconcile the two texts, or delete the stale one), so it belongs to the drift check, not
+to the conflict set. A skill's `description` is the opposite case: it is resident in the skill
+listing whenever the budget admits it, so `description`-versus-body **is** a co-residency pair.
 
 Under this repository's reuse-or-replace posture, L2 **reuses or explicitly extends C6 for the one
 pair C6 covers, and never re-implements it**. A routing rule that hands *all* memory-layer
@@ -167,12 +174,20 @@ same surface kinds, rooted at `plugins/` instead. Concretely, as enumerated in t
 The rule is stated by surface kind rather than by that list, because the list goes stale: Phase A's
 existing entries reach `rules/`, `skills/`, `agents/` and `output-styles/` under the user and project
 roots, and any plugin-owned instruction type this repository later ships joins the plugin-source
-surface on the same basis. **Enumerating only skills would break two pairs the decision above
-explicitly puts in scope** — a skill's stated default against its plugin README, and agent
-definitions against the memory layer, whose seven files live under `plugins/plugin-quality/agents/`
-and `plugins/review/agents/` and are reachable from neither existing Phase A root. The skill half is
-the **181** direct matches, not the 187 recursive ones, which would pull upstream `vendor/`
-materializations into a remediation set this repository does not own.
+surface on the same basis. **Enumerating only skills would break two comparisons the decision above
+puts in scope** — a skill's stated default against its plugin README (the drift check), and agent
+definitions against the memory layer (the conflict check), whose seven files live under
+`plugins/plugin-quality/agents/` and `plugins/review/agents/` and are reachable from neither existing
+Phase A root. The skill half is the **181** direct matches, not the 187 recursive ones, which would
+pull upstream `vendor/` materializations into a remediation set this repository does not own.
+
+**A narrowed scope filters what is reported, never what is read.** `audit-instructions` takes an
+explicit scope argument that narrows Phase A's inventory (`SKILL.md:61-69`), and a pairwise
+observable is undefined on one side — under `skills`, the `CLAUDE.md` half of every cross-layer pair
+would simply be absent, and the pass would report nothing while appearing to have run. So the
+comparison phase **enumerates counterpart surfaces regardless of scope, read-only, and applies the
+scope to the finding instead**: a pair is reported when at least one of its anchors is in scope. That
+keeps a scoped invocation honest without turning the conflict pass into an `all`-only feature.
 
 Note what Option A does *not* buy: Phase A enumerates surface *paths*, not their contents — the reads
 happen inside the Phase B lanes (`SKILL.md:90-108`). Sharing Phase A saves the enumeration, not the
@@ -221,7 +236,11 @@ or on a new one following the same shape is not something #445 settles.
 This effort operates on the **instruction surface**: the durable text that shapes model behavior
 before any session starts — `CLAUDE.md` (root and nested), `CLAUDE.local.md`, `.claude/rules/` and
 `~/.claude/rules/`, skill bodies and their frontmatter, agent definitions, prompt-type hook text,
-output styles. **The boundary is durability and pre-session residency, not git status.** Several
+output styles. **Plugin READMEs sit just outside that line and inside the pass's population anyway**:
+they are never loaded, so they can shape no behavior directly, but a README that disagrees with the
+skill it documents is exactly the drift the separate check exists for. They are read as comparison
+surfaces, never graded as resident instructions — which is why decision 3 mandates inventorying all
+60 of them. **The boundary is durability and pre-session residency, not git status.** Several
 in-scope surfaces are deliberately machine- or user-local and are never committed — user-global
 rules and `CLAUDE.local.md` among them — and defining the plane by commit status would push exactly
 the local-versus-project contradictions L2 exists to find outside its own boundary.
