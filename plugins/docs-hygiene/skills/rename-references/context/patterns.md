@@ -276,15 +276,17 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
 ```regex
 ^#{1,6}\s+`?<old>`?\s*$
 ^`?<old>`?\s*$\n^(=+|-+)\s*$
-^(name|title|id):\s*("<old>"|'<old>'|<old>)\s*$
+^\s*(name|title|id):\s*("<old>"|'<old>'|<old>)\s*$
 ^\s*"(name|title|id)":\s*"<old>"\s*,?\s*$
 ^\s*"?(name|title|id)"?\s*=\s*("<old>"|'<old>')\s*$
+^\s*("<old>"|<old>)\s*:\s*[{\[]
 ```
 
 - **Triage default:** Certain
 - **Catches:** an ATX heading whose ENTIRE content is the renamed token — the README H1 that
-  names the thing — and a `name` / `title` / `id` declaration in YAML frontmatter, a JSON manifest
-  or catalog, or a TOML manifest.
+  names the thing — a `name` / `title` / `id` declaration in YAML frontmatter, a JSON manifest or
+  catalog, or a TOML manifest — and a catalog entry KEYED by the container rather than declaring
+  it in a field.
 - **Why the `$` anchor is load-bearing:** it is what makes this Certain rather than
   ambiguous. A heading that merely *contains* the token (`## How re-anchor works`) may well
   be verb usage and belongs in Form 2's ambiguous bucket; a heading that IS the token can
@@ -314,6 +316,25 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
   value (`"…"` or `'…'`). Verified against real TOML shapes: `name = "<old>"`, `name="<old>"`,
   `"name" = "<old>"`, `name = '<old>'`, and `title = "<old>"` all match; `name = "<old>-extra"`
   and `description = "<old>"` do not.
+- **YAML declarations are not always at column zero.** The frontmatter case is, but a manifest or
+  catalog that NESTS its entries indents them (an indented `name: <old>` under a parent key), and the mode
+  ladder recognizes that field as container evidence either way — so a column-zero anchor left the
+  nested shape as excluded residue while the mode it selected suppressed it. The leading `\s*`
+  makes the alternative indentation-agnostic, matching the JSON and TOML alternatives, which were
+  written that way from the start for exactly this reason.
+- **A catalog can be KEYED by the container instead of declaring a `name` field.** Ladder rule 3
+  names both shapes — "the `name`/`id` field of such a manifest, **or as a key in a
+  marketplace/registry catalog**" — but only the field shape had a pattern, so a registry written
+  as `plugins: { "<old>": { … } }` selected container mode while its own key stayed unmatched
+  Form 2 residue. The fourth alternative matches a key whose value OPENS an object or array,
+  which is what distinguishes a catalog entry from an ordinary scalar setting.
+- **The key-position alternative is the one that MUST have the manifest/catalog condition, not
+  merely benefit from it.** `"<key>": {` is the commonest line shape in JSON: this repository
+  carries 569 of them. For a container with an ordinary-word name, an unconditioned key pattern
+  would rate a large slice of that Certain and auto-rewrite unrelated configuration. Rate this
+  alternative Certain ONLY inside a file established as a manifest or registry catalog — the same
+  file class the declaration exemption names. **Anywhere else it is Ambiguous**, with no
+  common-word escape hatch needed, because the demotion is unconditional outside that file class.
 - **`id` is a declaration key too, and the mode ladder already says so.** Rule 3 of the ladder
   selects CONTAINER mode when `<old>` is "the `name`/`id` field of such a manifest", so a manifest
   that identifies the container by `id` routes into the mode that suppresses bare-token residue.
@@ -535,12 +556,26 @@ The two modes:
      Certain; it never promotes an alternative its own form demoted. Form 13's bare qualified-id
      alternative stays **Chain-context** here, and a scope-demoted Form 14 title stays
      **Ambiguous** — mode does not launder either.
-  2. Form 2's residue — every bare-token line NOT matched by a position-anchored form — is
-     **excluded from Certain entirely**, regardless of blocklist membership. Report it as a
-     single aggregate count ("126 bare-token occurrences not in container position, not
-     proposed"), never as per-match prompts.
-  3. Surface the residue only if the user explicitly asks to widen (`--include-bare-token`),
-     and then as Ambiguous, never Certain.
+  2. **Rule 1 is an ALLOWLIST, and it must be enforced against every form — not just Form 2.**
+     Forms 1, 3 and 13–15 are the whole of the Certain-eligible set here; **every other form's
+     matches are excluded from Certain**, whatever bucket that form carries in identifier mode.
+     Filtering only the bare-token residue leaves Forms 8 and 12 — both Certain by default — on
+     the auto-apply path, and they are exactly as position-blind about a CONTAINER as Form 2 is:
+     renaming a `context` plugin, Form 12 rates the unrelated dotted key `context.timeout`
+     Certain and apply mode rewrites it, and Form 8 does the same for a `{a,context,b}` glob
+     enumerating skills rather than containers. Those forms anchor on syntax that proves the
+     token is an IDENTIFIER, which is precisely what a container rename is not asking about.
+  3. The excluded matches are reported in two different ways, because they differ in volume:
+     - **Form 2's residue** — every bare-token occurrence not matched by a position-anchored
+       form — is a single aggregate count ("126 bare-token occurrences not in container
+       position, not proposed"), never per-match prompts. It is the flood the mode exists to
+       suppress.
+     - **Forms 4–12's matches** are demoted to **Ambiguous** and reported normally. They are few
+       and carry real syntax, so a prompt apiece is affordable and occasionally right — a
+       container name genuinely can appear in a glob set. Demoting rather than aggregating keeps
+       that recoverable.
+  4. Surface the bare-token residue only if the user explicitly asks to widen
+     (`--include-bare-token`), and then as Ambiguous, never Certain.
 
 Container renames are exactly the case where bare-token position carries no signal, so
 spending the user's attention on it is a cost with no corresponding catch. The static

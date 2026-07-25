@@ -122,7 +122,8 @@
         "Container-rename mode is declared and drives the bucketing",
         "Bare-token residue is excluded from Certain WITHOUT relying on the blocklist",
         "Residue is reported as an aggregate count, not as per-match prompts",
-        "Deduplication of overlapping lines is not presented as sufficient on its own"
+        "Deduplication of overlapping lines is not presented as sufficient on its own",
+        "The eligibility rule is applied as an allowlist over forms, so Forms 8 and 12 lose their Certain default too rather than only Form 2 being filtered"
       ]
     },
     {
@@ -239,7 +240,7 @@
       "id": 20,
       "name": "survey-emits-one-record-per-occurrence-not-per-line",
       "prompt": "Audit the rename of `re-anchor` to `discipline`. A line reads: Use re-anchor via /plugin install re-anchor@acme-tools",
-      "expected_output": "Phase 2 emits TWO records for that line, one per occurrence, each carrying {file, line, start, end, pattern_form, snippet}. Grep's content mode returns matching LINES and --column reports only the first match on a line, so the survey re-scans each returned line locally for every occurrence before deduplication. Without per-occurrence offsets the span rule has nothing to compare and silently degrades to line-keyed dedup, restoring the false completion eval 14 prevents.",
+      "expected_output": "Phase 2 emits TWO records for that line, one per occurrence, each carrying {file, line, start, end, pattern_form, snippet}. Grep's content mode returns matching LINES and --column reports only the first match on a line, so the survey re-scans each returned match locally for every occurrence before deduplication. Without per-occurrence offsets the span rule has nothing to compare and silently degrades to line-keyed dedup, restoring the false completion eval 14 prevents. The rescan unit is the returned MATCH, not always a line: for the two multiline forms (Form 7 and Form 14's Setext alternative) the block is kept intact and the pattern re-run against the whole block, because feeding those patterns one line at a time reproduces nothing and would drop the record entirely.",
       "files": [],
       "expectations": [
         "One record per occurrence, not per line",
@@ -404,6 +405,42 @@
         "An `id` declaration is matched, not only `name` and `title`",
         "The contradiction named is that the mode ladder already treats an `id` field as container evidence",
         "Shell `id=` assignments outside a manifest are not rated Certain"
+      ]
+    },
+    {
+      "id": 34,
+      "name": "catalog-keyed-by-container-id-is-matched",
+      "prompt": "Rename the `docs-hygiene` plugin to `doc-care`. The registry is keyed by container id rather than carrying a name field: plugins: { \"docs-hygiene\": { ... } }. Audit for stale references.",
+      "expected_output": "Form 14's key-position alternative matches the catalog key. The mode ladder already names both catalog shapes -- the name/id field of a manifest OR a key in a marketplace/registry catalog -- so recognizing only the field shape selected container mode while the registry's own key stayed unmatched Form-2 residue and apply mode could report zero actionable stragglers with the registry still using the old ID. The alternative requires the value to OPEN an object or array, which is what distinguishes a catalog entry from an ordinary scalar setting. Its manifest/catalog condition is mandatory rather than merely helpful: `\"<key>\": {` is the commonest line shape in JSON -- this repository carries 569 of them -- so outside a file established as a manifest or registry catalog the match is Ambiguous unconditionally.",
+      "files": [],
+      "expectations": [
+        "A catalog key naming the container is matched, not only a name/id field",
+        "The value must open an object or array, distinguishing a catalog entry from a scalar setting",
+        "The alternative is Ambiguous outside a manifest or catalog file, with no common-word exception needed"
+      ]
+    },
+    {
+      "id": 35,
+      "name": "container-mode-allowlist-demotes-glob-and-dot-forms",
+      "prompt": "Rename the `context` plugin to `context-tools`. The repo has a config key `context.timeout` and a frontmatter glob `{a,context,b}` enumerating skills. Audit in container mode.",
+      "expected_output": "Neither is rated Certain. Container mode's eligibility rule is an ALLOWLIST over forms -- Forms 1, 3 and 13-15 are the whole Certain-eligible set -- not a filter on Form 2 alone. Applied only to the bare-token residue it would leave Form 12 (dot-form) and Form 8 (glob set) on the auto-apply path, and both are Certain by default, so apply mode would rewrite the unrelated dotted key and the glob entry. Those forms anchor on syntax proving the token is an IDENTIFIER, which is exactly what a container rename is not asking about, so they demote to Ambiguous. They are demoted and reported per match rather than aggregated like the bare-token residue, because they are few and a container name genuinely can appear in a glob set.",
+      "files": [],
+      "expectations": [
+        "Forms 8 and 12 lose their Certain default under container mode",
+        "The rule is described as an allowlist over forms rather than a Form 2 filter",
+        "The demoted matches are reported per match, not folded into the bare-token aggregate"
+      ]
+    },
+    {
+      "id": 36,
+      "name": "multiline-matches-are-rescanned-as-blocks",
+      "prompt": "In Phase 2 I rescan every returned line with the form's own pattern to emit per-occurrence records. Does that work for Form 7 and Form 14's Setext alternative?",
+      "expected_output": "No, and the failure is silent. Those two patterns match only against a multi-line block, so re-running them against one line at a time reproduces nothing, no per-occurrence record is emitted, and the reference disappears between the survey and triage -- on exactly the two forms that exist because their references were being missed. The survey keeps the matched block intact, runs the pattern against the whole block, locates the captured <old> span within it, and converts that block offset to (line, start, end) using the block's first-line number. Line-by-line rescanning stays correct for every single-line form; the branch is whether the form requires multiline matching, which is the same two forms.",
+      "files": [],
+      "expectations": [
+        "The multiline forms are rescanned as blocks rather than line by line",
+        "The named failure is a dropped record, silently, rather than a partial match",
+        "The block offset is converted back to a line-relative span so dedup still works"
       ]
     }
   ]
