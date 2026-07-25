@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "guardrails",
-  "version": "0.15.2",
+  "version": "0.16.1",
   "description": "Eleven safety guards that block secret/credential writes, hardcoded machine-specific paths, git hook-bypass attempts, irreversible git operations (force-push, reset --hard, worktree-wide checkout/restore discards), Bash file-write workarounds that circumvent Write/Edit hooks, commit subjects and gh pr create titles that violate the repo's tracked team convention (when one is declared in .claude/source-control.md), (advisory) hallucinated CLI flags, (advisory) /plugin:skill references that do not resolve, (advisory) un-throttled Workflow fan-out that risks burst 529s, and (advisory) direct git commit/gh pr create calls bypassing this marketplace's own commit/pull-request skills — each independently toggleable.",
   "author": {
     "name": "Melodic Software",
@@ -41,7 +41,7 @@
     "block_dangerous_git_enabled": {
       "type": "boolean",
       "title": "block-dangerous-git guard",
-      "description": "Block irreversible git operations (push --force, reset --hard, clean -f, worktree-wide checkout/restore discards)",
+      "description": "Block irreversible git operations (push --force, push --force-with-lease leasing against a value git resolves at push time — either no expected value, or an expectation that is not an object id of the repository's own hash width — reset --hard, clean -f, worktree-wide checkout/restore discards)",
       "default": true
     },
     "block_hook_bypass_enabled": {
@@ -101,7 +101,7 @@
     "block_dangerous_git_allow": {
       "type": "string",
       "title": "block-dangerous-git allow-list",
-      "description": "Comma-separated forms block-dangerous-git permits: push-force, reset-hard, clean-force, checkout-dot, restore-dot, checkout-force; empty blocks all",
+      "description": "Comma-separated forms block-dangerous-git permits: push-force, push-lease-unsafe, reset-hard, clean-force, checkout-dot, restore-dot, checkout-force; empty blocks all",
       "default": ""
     },
     "block_noncanonical_commit_allow": {

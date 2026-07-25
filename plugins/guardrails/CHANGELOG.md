@@ -3,7 +3,7 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.15.2]
+## [0.16.1]
 
 ### Fixed
 
@@ -14,6 +14,49 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   loading, and the reinstall landed at a scope that does not load. Both commands now carry
   `-s <scope>`, sourced from what `claude plugin list` reports for this plugin — the same fix
   already applied to `session-flow` and `rate-limit-guard` in #1393.
+
+## [0.16.0]
+
+### Added
+
+- `block-dangerous-git` distinguishes the `--force-with-lease` forms instead of
+  treating them all as safe, under a new `push-lease-unsafe` form token. A lease
+  passes only when its expectation is one git cannot re-resolve to something
+  newer while the push runs; everything else is blocked, in the two kinds
+  [git-push(1)](https://git-scm.com/docs/git-push) itself treats differently.
+  - **No expected value** — bare `--force-with-lease` and
+    `--force-with-lease=<refname>` lease against the remote-tracking ref, which
+    git warns "interacts very badly with anything that implicitly runs
+    `git fetch`" and is "trivially defeated if some background process is
+    updating refs in the background". Blocked unless `--force-if-includes`
+    (git 2.30+) is present, which git documents as the mitigation for exactly
+    these forms.
+  - **A movable `--force-with-lease=<refname>:<expect>`** — `origin/main`,
+    `HEAD`, a tag, an *abbreviated* object id (per
+    [gitrevisions](https://git-scm.com/docs/gitrevisions), git resolves a short
+    hex word as a ref before trying it as an object-id prefix, so a tag named
+    `dead` beats the object whose id starts `dead`), or hex of the wrong width
+    for the repository's hash format. Blocked unconditionally: git declares
+    `--force-if-includes` a "no-op" alongside an explicit `:<expect>`, so
+    nothing mitigates this form.
+
+  What passes: `<expect>` an object id of **the pushed repository's own hash
+  width** (40 hex under SHA-1, 64 under SHA-256, read once from
+  `git rev-parse --show-object-format`; undeterminable fails closed), or the
+  empty string, which asserts the ref must not exist. The other width is not
+  accepted: git ignores a ref whose name is full-width hex for its own format,
+  but a 64-hex name in a SHA-1 repository — or a 40-hex one under SHA-256 — is
+  an ordinary ref git resolves at push time, so it moves like any other name.
+  git's repository-locating globals (`-C`, `--git-dir`, `--work-tree`,
+  `--namespace`) are replayed onto that probe, so `git -C <sha256-repo> push`
+  from a SHA-1 directory is judged by the target. git scopes
+  a pin to its own ref, so a bare fallback alongside a pinned entry still governs
+  every other ref being updated. Where one ref carries several lease entries git
+  consults the first and ignores the rest, and the guard follows that same
+  first-match rule rather than latching on any later spelling. A trailing
+  `--no-force-with-lease` cancels every previous lease. Unique-prefix
+  abbreviations (`--force-w`, `--force-i`) are handled; a push dry-run still
+  disarms the check, and after `--` the words are operands rather than flags.
 
 ## [0.15.1]
 
