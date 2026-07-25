@@ -88,7 +88,11 @@ the escalation is queryable from the event.
 
 **Mechanism.** The governed queue itself: an escalation lands as a human-gated work item on
 the one queue, with an optional channel notification delivered through the trigger contract's
-closed-loop acknowledgment symmetry ([trigger-dispatch](trigger-dispatch.md)). No second
-escalation channel, claim path, or dispatch mechanism exists.
+closed-loop acknowledgment symmetry ([trigger-dispatch](trigger-dispatch.md)).
+
+**The one-channel invariant.** No second escalation channel exists. It is this contract's
+own — distinct from, and narrower than, the claim and dispatch paths, which the
+[one-entrypoint invariant](trigger-dispatch.md#dispatch) states canonically and which binds
+here unchanged.
 
 Interactive escalation UX is deferred; its trigger is the runner design pack.
