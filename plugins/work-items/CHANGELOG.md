@@ -25,6 +25,18 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   `recurring-maintenance` label is reported as informational rather than gating, since no
   `[Maintenance]` item can be created from an empty schedule.
 
+## [0.24.2]
+
+### Fixed
+
+- **`e2e-probe.sh` now creates and filters the declared `wayfind: research` / `wayfind: task`
+  labels (colon-space), not the colon-no-space `wayfind:research` / `wayfind:task` the probe
+  previously used (`#1256`).** The colon-no-space form is a string that production never emits —
+  it never exercised a label value containing a space, the exact case that makes these labels
+  non-trivial (an unquoted `label:wayfind: research` search qualifier returns zero results
+  silently rather than erroring). A static regression test now guards both the correct literal and
+  the forbidden one directly against the probe's source.
+
 ## [0.24.1]
 
 ### Documentation
