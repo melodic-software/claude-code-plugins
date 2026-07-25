@@ -3,6 +3,53 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.7]
+
+### Fixed
+
+- **`babysit-prs` no longer misclassifies a bot's PR-level review comment as "new human feedback"
+  (#683).** `gh pr view --json reviews,latestReviews` (`view_pr`'s `VIEW_FIELDS`) returns each
+  review's `author` as `{login}` only — no `__typename`, no `is_bot`, and a GitHub App bot's login
+  without its `[bot]` suffix; verified live that this is a `gh` CLI JSON-field limitation, not a
+  GraphQL one — a raw `author{login __typename}` query against the same PR correctly reports
+  `__typename: "Bot"`. Both classification call sites (`pr_queue_snapshot.py`,
+  `babysit_feedback.fetch_current_human_stop`) already replace `pr["reviews"]` with the fully-typed
+  REST list (`fetch_pull_request_reviews`), but left `pr["latestReviews"]` untouched. Because
+  `collect_feedback`'s `latest_reviews_by_author` merges both collections keyed by raw login, the
+  same bot actor produced two entries under different keys — one correctly typed (from `reviews`),
+  one not (from `latestReviews`, e.g. `chatgpt-codex-connector` without `[bot]`) — and the untyped
+  duplicate fell through to `actor_kind`'s login-suffix heuristic and landed in `feedback["human"]`.
+  New `babysit_gh.rest_hydrate_reviews` replaces `reviews` with the REST list and drops the stale
+  `latestReviews` in one place, used by both call sites, so `latest_reviews_by_author` derives every
+  actor's latest review from the properly-typed REST list alone.
+
+## [0.26.6]
+
+### Fixed
+
+- **`scripts/worktree-create.sh` now refuses a git-illegal `--name` with the documented usage exit 2
+  instead of environment exit 4 (`#1016`).** The up-front character class (letters, digits, dots,
+  underscores, dashes per `/`-separated segment) is not a subset of git's ref grammar, so names like
+  `feat/foo..bar`, `foo.lock`, `.foo`, `HEAD`, and `-lead` passed validation, reached
+  `git worktree add`, and failed there as exit 4 — the code the helper reserves for environment
+  faults. A caller's correction flow keys on exit 2, so an invalid name was indistinguishable from a
+  broken environment. The schema check is now followed by `git check-ref-format --branch`, whose
+  output is discarded on both streams: on success `--branch` echoes the name to stdout, which would
+  break the helper's "created path is the sole stdout line" output contract. Verified across every
+  name the character class admits, `check-ref-format` and `git worktree add -b` agree exactly, so no
+  previously-creatable name is newly refused. `skills/worktree/context/create.md` gains the matching
+  constraint bullet, and the header comment that claimed the character class was "a strict subset of
+  what git refs allow" is corrected.
+
+  The grammar check runs **after** the repository is resolved and is scoped with `-C "$toplevel"`:
+  `--branch` takes a branchname-shorthand and so performs repository discovery, which dies outright
+  when the process's CWD is a stale checkout (a `.git` file naming a gitdir that no longer exists —
+  what this plugin's own worktree cleanup handles). Run unscoped, that turned a valid name into a
+  false exit 2 from such a directory, and the documented invocation omits `--repo-dir`, so the CWD is
+  the default. Consequence: exits 3 (root unconfigured) and 4 (not a repository) can now precede the
+  grammar refusal, matching how the pre-existing `--base-ref` and empty-slug exit-2 checks already
+  sit after them. The character-class and length checks still run first, before any git call.
+
 ## [0.26.5]
 
 ### Fixed
