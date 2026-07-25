@@ -181,9 +181,14 @@ A skill reading this surface:
    - **OLD CLOSED, NEW OPENED** — both anchors changed, or `claim` changed, or a surface changed. The
      old entry goes **stale**, never silently dropped; the new finding is unsuppressed.
    - **CLOSED** — the finding is absent from the new run entirely. Accounted for as exactly one of:
-     matched to an applied fix, matched to a successor by partial match, or reported as an
-     **UNEXPLAINED DISAPPEARANCE**, which fails the consuming skill's own self-check. An unaccounted
-     disappearance is how a corpus quietly loses a check.
+     matched to an applied fix; matched to a successor by partial match; **retired with its check**,
+     when the check that raised it is absent or renamed in the new run's detection configuration; or
+     reported as an **UNEXPLAINED DISAPPEARANCE**, which fails the consuming skill's own self-check.
+     An unaccounted disappearance is how a corpus quietly loses a check — which is why retirement is
+     a *reported* disposition naming the retiring check and the version transition, rather than an
+     exemption that would let findings vanish silently on any catalog edit. A suppression entry keyed
+     to a retired check goes **stale** rather than being deleted, so a check returning under its old
+     name cannot silently re-apply a decision the operator has not seen since.
 4. **Refuses** a suppression that would be written into a path the audit excludes — a byte-identical
    cluster copy, a vendored tree, a worktree — and names the canonical source instead. Writing a
    marker into a synced copy makes it differ from its siblings and breaks the sync path.

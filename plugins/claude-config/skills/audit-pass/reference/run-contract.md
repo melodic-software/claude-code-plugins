@@ -370,7 +370,7 @@ verified 2026-07-25).
 
 | Condition | Disposition | Effect on the suppression |
 |---|---|---|
-| Both anchors match, `(check, claim)` match | **SAME, UNCHANGED** | Applies silently, as an exact match always has. |
+| **Every** site's anchor matches, `(check, claim)` match | **SAME, UNCHANGED** | Applies silently, as an exact match always has. Phrased over the whole `sites` set rather than "both anchors", because the set holds one entry for an ordinary single-site finding and two for a pairwise one — the two-site phrasing left an unchanged single-site entry matching **no** row, so the commonest case in the table had no disposition at all. |
 | Exactly one anchor changed; the other anchor and `(check, claim, both surfaces)` all match | **SAME, CHANGED** | **Carries forward, marked `needs-reconfirmation`**, surfaced in `suppressed` with the changed side named. Never silent: the edit may have *been* the fix attempt, and silently re-suppressing hides precisely the case the operator most needs to see. |
 | Both anchors changed, **or** `claim` changed, **or** a surface changed | **OLD CLOSED, NEW OPENED** | The old entry goes **stale** per 4.2, never silently dropped. The new finding is unsuppressed. |
 | The finding is absent from the new run entirely | **CLOSED** | Must be **accounted for** as exactly one of: matched to an applied fix; matched to a successor by partial match; **retired with its check**, when the check that raised it is absent or renamed in the new run's detection configuration; or reported as an **UNEXPLAINED DISAPPEARANCE**, which fails the run's self-check exactly as a P4a tolerance breach does. |
@@ -417,7 +417,7 @@ accounted for is what turns that definition into a check capable of failing.
 | 4.3 | Adding a suppression does not change any other finding's `finding_id`. |
 | 4.4 | No suppression mechanism writes to a path in the derived exclusion set. Attempting to suppress a finding in a registered cluster copy makes the run refuse and name the canonical source. |
 | 4.5 | An entry whose stored constituents do not hash to its own key is reported as malformed and does not suppress. The constituents are authoritative; the key is derived from them. |
-| 4.6 | Every finding present in the previous run and absent from this one is accounted for as exactly one of: matched to an applied fix, matched to a successor by partial match, or reported as an **UNEXPLAINED DISAPPEARANCE**. The third fails the run's self-check. |
+| 4.6 | Every finding present in the previous run and absent from this one is accounted for as exactly one of: matched to an applied fix; matched to a successor by partial match; **retired with its check**, when the check that raised it is absent or renamed in the new run's detection configuration; or reported as an **UNEXPLAINED DISAPPEARANCE**. Only the last fails the run's self-check. |
 
 ## 5. Mid-run resumability
 
@@ -523,10 +523,20 @@ held.
 Every property below is conditioned on the runs being **comparable**, stated here once rather than
 per-property so the clause cannot drift between them:
 
-> `R1` and `R2` are **comparable** when their **target tree**, **live surface set**, **detection
-> version** of every check consulted (its catalog version and a digest over the check's own
-> detection-behavior inputs — the host `SKILL.md`, the criteria catalog and its imports, and any
+> `R1` and `R2` are **comparable** when their **scan-baseline state digest**, **live surface set**,
+> **detection version** of every check consulted (its catalog version and a digest over the check's
+> own detection-behavior inputs — the host `SKILL.md`, the criteria catalog and its imports, and any
 > script named for that check), and **harness version** are all equal.
+
+**The first input is the state digest, not the target tree, and the difference is the whole point of
+widening the digest.** "Target tree" covers only the repository, so a changed `~/.claude/CLAUDE.md`
+or managed-policy file left two runs classified as comparable while their derived sets legitimately
+differed — reported as a determinism **defect**, the accusation-instead-of-abstention failure the
+widened digest was introduced to close, surviving in the cross-run definition after being fixed in
+the within-run one. Since the state digest already spans every inventoried scope and the target's
+dirty set, and the baseline is taken with the inventory frozen, comparing baselines compares exactly
+what the lanes were about to read. This is what makes eval 22's `indeterminate` the contract's answer
+rather than an assertion against it.
 
 A property asserts nothing about a non-comparable pair, which is reported as **non-comparable naming
 the input that moved** — never as a pass and never as a failure. This is not a hedge: each input
@@ -542,13 +552,21 @@ detection-behavior input not covered by the digest is a defect in the digest.
   same silent scope regression P3a exists to catch.
 - **P2 — convergence, measured against the findings the fixes targeted.** P2 is the one property
   whose whole subject is a *changed* tree, so it takes the comparability relation **modulo the
-  accepted mutation set**: `R1` and `R2` are **fix-comparable** when every comparability input except
-  the target tree is equal, and the tree delta between them is exactly the set of edits accepted in
-  `R1` — no more. Stated separately because the unqualified relation excludes precisely the pair P2
-  exists to judge, which would leave the convergence property unevaluable in the normal case; and
-  *"no more"* is what keeps it a real constraint rather than a hole, since a tree delta wider than
-  the accepted set means something else moved and P2 abstains exactly as P1 would. The applied-set
+  accepted mutation set**: `R1` and `R2` are **fix-comparable** when every comparability input is
+  equal *except* for the differences **attributable to the edits accepted in `R1`** — no more.
+  Stated separately because the unqualified relation excludes precisely the pair P2 exists to judge,
+  which would leave the convergence property unevaluable in the normal case; and *"no more"* is what
+  keeps it a real constraint rather than a hole, since any difference not attributable to the
+  accepted set means something else moved and P2 abstains exactly as P1 would. The applied-set
   comparison the mutation-integrity capture already performs is what makes the delta checkable.
+
+  **The exemption covers the live surface set too, not the state digest alone.** Exempting only the
+  tree would have re-broken P2 on the fix the delegated catalogs most often recommend: moving
+  always-loaded material into a skill changes what is loaded at startup, so the accepted remediation
+  moves the live surface set as a *consequence*, and P2 would abstain on exactly the remediation it
+  is supposed to verify. Attribution is what bounds this — a surface entering or leaving the live set
+  because an accepted edit created, deleted, or moved it is attributable; one that moved because the
+  launch directory or `claudeMdExcludes` changed is not, and P2 abstains.
 
   Fix-comparable ⇒ every finding a fix targeted is absent from R2, and `D(R2) ⊆ D(R1)` still holds.
   **Strictness is conditional, not universal:** `D(R2) ⊊ D(R1)` is required only when at least one

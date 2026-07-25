@@ -222,12 +222,25 @@
       "id": 18,
       "name": "unexplained-disappearance-fails-the-self-check",
       "prompt": "/claude-config:audit-pass three findings from last run are gone and I only fixed one of them — the report looks cleaner, so we're good, right?",
-      "expected_output": "No. Every finding present in the previous run and absent from this one must be accounted for as exactly one of: matched to an applied fix, matched to a successor by partial match, or reported as an UNEXPLAINED DISAPPEARANCE. Two of the three are unaccounted for, so they are reported as unexplained disappearances and the run's self-check fails, exactly as a judged-tier tolerance breach would. This accounting is the only detector the convergence property has: without it, 'a finding that vanishes without a fix is a defect' is a definition nothing can observe, and a silently shrinking report reads as an improvement.",
+      "expected_output": "No. Every finding present in the previous run and absent from this one must be accounted for as exactly one of: matched to an applied fix; matched to a successor by partial match; retired with its check, when the check that raised it is absent or renamed in this run's detection configuration; or reported as an UNEXPLAINED DISAPPEARANCE. Only the last fails the self-check. Here the detection configuration is unchanged, so retirement does not apply: two of the three are unaccounted for, they are reported as unexplained disappearances, and the run's self-check fails, exactly as a judged-tier tolerance breach would. This accounting is the only detector the convergence property has: without it, 'a finding that vanishes without a fix is a defect' is a definition nothing can observe, and a silently shrinking report reads as an improvement.",
       "files": [],
       "expectations": [
-        "Accounts for every disappeared finding as a fix, a successor, or an unexplained disappearance",
+        "Accounts for every disappeared finding as a fix, a successor, a retirement with its check, or an unexplained disappearance",
+        "Rules out retirement here because the detection configuration is unchanged, rather than using it to excuse the two",
         "Fails the run's self-check on the unaccounted disappearances rather than treating the smaller report as progress",
         "Names this accounting as the detector for the convergence property"
+      ]
+    },
+    {
+      "id": 26,
+      "name": "retired-check-is-accounted-not-a-self-check-failure",
+      "prompt": "/claude-config:audit-pass I updated the delegated catalog and it dropped one of its checks — the findings it used to raise are gone and I fixed nothing. Does the self-check fail?",
+      "expected_output": "No, and they are not passed over silently either. Retired with its check is one of the four accounted dispositions, so each disappearance is reported as a retirement naming the retiring check and the detection-version transition, and only an UNEXPLAINED DISAPPEARANCE fails the self-check. Retirement is a disposition rather than an exemption on purpose: exempting the accounting whenever detection moved would let findings vanish silently on any catalog edit, which is the shape the accounting exists to detect, and catalog edits are the ordinary way these catalogs evolve. Any suppression entry keyed to a retired check goes stale rather than being deleted, so a check returning under its old name cannot silently re-apply a decision the operator has not seen since.",
+      "files": [],
+      "expectations": [
+        "Does not fail the self-check, and does not treat the disappearances as unexplained",
+        "Reports each as a retirement naming the retiring check and the detection-version transition rather than passing over it silently",
+        "Marks suppression entries keyed to the retired check as stale rather than deleting them"
       ]
     },
     {
