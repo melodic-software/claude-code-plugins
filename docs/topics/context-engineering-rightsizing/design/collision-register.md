@@ -37,8 +37,48 @@ this effort would edit), **adjacent** (same subject, different files), **clear**
 4. **The fable-5 exclusion held.** PR #1261 is actively rewriting that subtree right now. Had this
    pass included it, two independent edit plans would have collided in-flight.
 
+## User-scope collisions — `melodic-software/dotfiles`
+
+The user-scope half of this effort edits `dot_claude/CLAUDE.md`. Three items already touch it:
+
+| Item | State | Overlap | Recommendation |
+|---|---|---|---|
+| **dotfiles PR #318** `docs/claude-md-multi-agent-restate` | updated minutes ago | `dot_claude/CLAUDE.md` | **Sequence behind.** Landing imminently; a trim measured before it merges would revert a rule added after the measurement |
+| **dotfiles PR #312** `chore/opus-5-config` | ~2 h old | `dot_claude/CLAUDE.md`, `.chezmoidata/claude.json`, `dot_claude/statusline/**` | **Sequence behind.** Its Opus 5 re-derivation against build 2.1.219 is an *input* to this pass, not competition |
+| dotfiles branch `docs/claude-md-github-conventions` | last commit 2026-07-15, no PR | +13 lines to `CLAUDE.md` | **Needs a keep-or-drop call** before this pass edits the file. Nine days stale |
+| dotfiles PR #315 `chore/automode-security` | open | `.chezmoidata/claude.json` only | Low — permission plane, no instruction text |
+
+## Further claims on this subject matter
+
+| Issue | Claims | Disposition |
+|---|---|---|
+| **#1225** | Sub-agent conventions codified from official docs, then an all-plugin audit | Structurally a second repo-wide sweep. Reconcile before this effort builds another router |
+| **#1245** | `code-tidying:self-document` — moves comment criteria *out of* the user-global CLAUDE.md into a `melodic-software/standards` doc | Removes content the CLAUDE.md-trim half also targets |
+| **#253** | `docs-hygiene` proactive repo-scan: copied blocks, capability enumerations, internal-name coupling | Owns proactive docs-hygiene detection |
+| **#1258** | Defect: `sweep-all-disciplines` fork subagents silently do not inherit the conversation | Dependency, not a scope claim — a defective precedent's shape gets inherited by anything copying it |
+| **#496**, **#551** | Orchestrator context economy; `/loop` does not reset context | Context engineering at *runtime*, not the *instruction surface*. Same vocabulary, different plane — state the boundary rather than conflating them |
+| **#289** | Wave-2 standards grounding rollout | Adds instruction surface to more plugins — opposing pressure to the trim. Flag, do not block |
+
+No issue claims this effort as a whole. A tracking ticket would have to be filed.
+
+## The parallel branch is still moving
+
+`docs/context-engineering-claude-5-topic` (local only, no upstream, no PR) reached **14 commits /
+3,082 lines** with a commit today at 18:49 — it is being worked *now*, on the same article, by
+another session. One of its commits reads *"re-sequence Phase 3 so implementation stays off the docs
+branch"*, meaning it expects a sibling implementation branch.
+
+**The operator ruled this pass runs independently of that branch, and that ruling stands.** It is
+recorded here as a merge-time collision to resolve deliberately, not as a reason to fold. Both
+branches are local-only, so there is no remote coordination cost to whatever reconciliation is
+chosen.
+
 ## Method note
 
-The dispatched reconnaissance agent completed its scan but never delivered its report — it returned
-idle twice without content and did not write the file when asked. The register above was rebuilt
-directly from `gh` and is first-hand, not relayed.
+Two independent scans produced this register. The first was run first-hand from `gh` against
+`claude-code-plugins` after the dispatched agent went idle twice without delivering. The agent's
+report then landed late at
+`.work/context-engineering-rightsizing/collision-report.md` (gitignored, checkout-local) with wider
+coverage — local worktrees across every checkout, secondary repos, and no-PR remote branches. The
+dotfiles and further-claims sections above come from it. The two scans agree on every item both
+covered.
