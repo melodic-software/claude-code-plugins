@@ -83,15 +83,21 @@ about that repo, not a preference.
   gh issue list --label "$ROLE" --limit 500 --json number,body,labels \
     | jq --argjson valid "$VALID" '
         [.[] | select(
-          (.body | test("(^|\\n)Work-class: C[1-5]([^0-9]|$)"))
+          (.body | test("(^|\\n)Work-class: C[1-5]( |$)"))
           or (any(.labels[].name; . as $n | $valid | index($n)))
         )] | length'
   ```
 
   Two mechanics worth not rediscovering. `gh issue list` has **no
   `--argjson`** — pipe to `jq` instead of using `--jq`. And jq's regex engine
-  does **not** honor `(?m)`, so the trailer is anchored with `(^|\n)`; the
-  trailing `([^0-9]|$)` is what rejects `C12` after matching `C1`.
+  does **not** honor `(?m)`, so the trailer is anchored with `(^|\n)`.
+
+  The trailing `( |$)` is a **token boundary, not merely a non-digit**: it
+  rejects `C12` after matching `C1`, and equally rejects `C2foo` and `C3?`,
+  which a `[^0-9]` guard would have counted as canonical. Every widening of
+  this pattern inflates the readiness count the rung decision trusts, so keep
+  it strict — the canonical trailer always continues with a space or ends the
+  line.
 
   **Always pass `--limit`** — `gh issue list` silently truncates at 30, so an
   unbounded count under-reports any backlog past that.
@@ -182,8 +188,15 @@ because `.claude/loop.md` is git-tracked and conflicts across machines.
   files, so a second machine gets no mutual exclusion.
 - **Merge lane off the attended machine.** It competes for the same
   account's rate window your interactive session needs.
-- **Worker lane launches from a checkout** of `{{REPO}}`. The merge lane
-  may launch anywhere; it reads the target's config over the API.
+- **Worker lane and attended queue both launch from a checkout** of
+  `{{REPO}}`. Only the merge lane may launch anywhere — it takes `owner/repo`
+  as an argument and reads the target's config over the API. Neither
+  `/work-items:work-loop` nor `/work-items:attend-queue` accepts a repository
+  argument: both resolve `.work-item-tracker.json` and every provider
+  operation from the working directory. A `Repository:` line in the prompt is
+  documentation for the reader, **not** a binding — an attended session
+  started from `$HOME` or a sibling repo either stops on a missing binding or,
+  worse, reads and mutates whichever repository it happens to be sitting in.
 - **Never run two lanes from the same working directory.** Claude Code
   stores the scheduled-task list in the project's `.claude` directory, so
   two sessions in one folder contend on it. Use separate clones or
@@ -409,6 +422,12 @@ wakeup ceiling for days rather than finishing.
 
 ## 3 — Attended queue
 
+**Launch every terminal from a checkout or worktree of `{{REPO}}`.**
+attend-queue takes no repository argument and binds to its working directory;
+the `Repository:` line below documents intent, it does not target anything.
+Since the shards below want several terminals at once and two lanes must never
+share a working directory, give each terminal its own worktree.
+
 Human-in-the-loop, no `/loop` wrapper. attend-queue has no shard parameter
 and no row-level claim, so `{{SHARD}}` is operator convention rather than
 enforcement. Give each terminal a different value.
@@ -567,11 +586,11 @@ Filled instance for the repository in use as of 2026-07-25.
 - Work-class labels: deployed. Exact strings, ascending risk:
   `work-class: read-only`, `work-class: mechanical`, `work-class: scoped`,
   `work-class: structural`, `work-class: untrusted-provenance`.
-- Stamped `agent-ready` items, re-counted live on 2026-07-25: **40 open, all
-  40 label-stamped** — 3 `mechanical`, 34 `scoped`, 3 `structural` (25 also
-  carry a body trailer). At `c2-mechanical` only the 3 are merge-eligible;
-  at `c3-autonomous`, 37. **Re-run the union count; never quote this line.**
-  It read 50 when the document was authored and 44 four hours later — the
+- Stamped `agent-ready` items, re-counted live on 2026-07-25: **38 open, all
+  38 label-stamped** — 3 `mechanical`, 34 `scoped`, 1 `structural`. At
+  `c2-mechanical` only the 3 are merge-eligible; at `c3-autonomous`, 37.
+  **Re-run the union count; never quote this line.** It read 50 when this
+  document was authored, then 44, 40, and 38 over the following hours — the
   backlog drains underneath it, and a rung decision made from a stale number
   is a decision about a repository that no longer exists.
 - No autonomy binding file exists, so the C2 promotion evidence above is
@@ -593,9 +612,13 @@ overnight without me":
 
 - **Tier `autopilot`** — in the prompt below. Already maximal.
 - **Merge rung** — one line in `.claude/source-control.md` on `main`.
-  Currently `c2-mechanical`. Change to `c3-autonomous` and 37 of the 40
+  Currently `c2-mechanical`. Change to `c3-autonomous` and 37 of the 38
   open `agent-ready` items become eligible instead of 3 (live count,
-  2026-07-25 — re-run it, do not quote it).
+  2026-07-25 — re-run it, do not quote it). Whether that raise is
+  *authorized* is a separate question from whether the seam supports it: the
+  guardrail matrix sets C3 merge policy to `human merge` and lists no C3
+  auto-merge promotion cell, so the flip is filed as an operator decision
+  rather than a ready edit.
 
 `full-autonomy` as a rung adds only C4 `structural` and C5
 `untrusted-provenance` on top of `c3-autonomous` — refactors, migrations,
@@ -740,6 +763,9 @@ machines; neither on the attended box.
 > **=== COPY TO HERE ===**
 
 ### Attended queue — melo-desk-001
+
+Each terminal launches from its own worktree of the repo — attend-queue binds
+to its working directory, and two lanes never share one.
 
 Change the `Shard` line per terminal. A non-overlapping four-way split, each
 value a predicate the attention view's own rows satisfy:
