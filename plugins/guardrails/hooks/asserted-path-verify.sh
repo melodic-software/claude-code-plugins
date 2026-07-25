@@ -120,6 +120,9 @@ normalize_candidate() {
   *...*) return 0 ;;
   # Vendor and build trees are not tracked; their absence proves nothing.
   node_modules/* | */node_modules/* | .git/* | */.git/*) return 0 ;;
+  # Anything else is a candidate; the extension and first-segment gates below
+  # decide whether it is adjudicated.
+  *) ;;
   esac
 
   # A bare directory reference with no extension and no trailing slash is
@@ -136,10 +139,13 @@ normalize_candidate() {
 # FIRST-SEGMENT GATE. Only adjudicate a candidate whose leading segment is a
 # real directory here — that is what distinguishes "this repo's path, written
 # wrong" from "a path belonging to something else".
+# `first_seg`, not `seg`: hook-utils.sh declares a `local -a seg` in its bash
+# parser, and ShellCheck resolves sourced files, so a string `seg` here reads as
+# an array-to-string type change (SC2178/SC2128).
 first_segment_is_local() {
-  local seg="${1%%/*}"
-  [[ -n "$seg" ]] || return 1
-  [[ -d "$REPO_ROOT/$seg" ]]
+  local first_seg="${1%%/*}"
+  [[ -n "$first_seg" ]] || return 1
+  [[ -d "$REPO_ROOT/$first_seg" ]]
 }
 
 declare -A CHECKED=()
