@@ -29,10 +29,19 @@ Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
   judgment-based, the same objection that rules out `invariants`), `salience` (accurate but
   not a word a reader reaches for first), `grounding` (slug already taken).
 
-  Migration is automatic via the marketplace `renames` map; no user action required.
+  The marketplace `renames` map migrates the INSTALLED PLUGIN RECORD automatically — an
+  enabled `re-anchor@melodic-software` resolves to `discipline` instead of failing with
+  `plugin-not-found`. It rewrites nothing else. Qualified invocations stored outside this
+  marketplace — in a consuming repository's instruction files, an agent prompt, a saved
+  workflow, or automation — must be updated by hand: `/re-anchor:<skill>` becomes
+  `/discipline:<skill>`, and `/plugin configure re-anchor` becomes
+  `/plugin configure discipline`.
 
 - **Renamed `sweep-all-disciplines` -> `sweep-all`.** Removes the one genuinely awkward
-  pairing the plugin rename introduced (`/discipline:sweep-all-disciplines`).
+  pairing the plugin rename introduced (`/discipline:sweep-all-disciplines`). This leaf
+  rename has NO compatibility entry — the `renames` map keys plugins, not skills — so
+  `/re-anchor:sweep-all-disciplines` becomes `/discipline:sweep-all` and any stored
+  reference to the old skill name must be updated by hand.
 
 ## [0.8.0]
 

@@ -1,6 +1,6 @@
 ---
 name: setup
-description: "Validate the discipline plugin's configuration — the posture-batch overlay and do-your-research-deep's verification depth — and explain how to change it through Claude Code's plugin configuration prompt. Use when: 'set up re-anchor', 'configure re-anchor', 're-anchor setup', 'is re-anchor configured', 'what's in my posture batch', 'what's my deep-research depth', or you want to adjust which correctors the batch runs or how deeply the research fan-out verifies. Actions: check (read-only verification, default and only action — this plugin's entire configuration is native userConfig, so there is nothing an apply could write)."
+description: "Validate the discipline plugin's configuration — the posture-batch overlay and do-your-research-deep's verification depth — and explain how to change it through Claude Code's plugin configuration prompt. Use when: 'set up discipline', 'configure discipline', 'discipline setup', 'is discipline configured', 'set up re-anchor', 'configure re-anchor', 're-anchor setup', 'is re-anchor configured', 'what's in my posture batch', 'what's my deep-research depth', or you want to adjust which correctors the batch runs or how deeply the research fan-out verifies. Actions: check (read-only verification, default and only action — this plugin's entire configuration is native userConfig, so there is nothing an apply could write)."
 argument-hint: "check"
 user-invocable: true
 disable-model-invocation: true
@@ -15,7 +15,7 @@ Deep-research verification depth: `${user_config.research_deep_verification}`
 
 ## Purpose
 
-Report re-anchor's effective configuration without editing Claude Code settings.
+Report discipline's effective configuration without editing Claude Code settings.
 The plugin's whole configuration surface is native `userConfig`: three
 `sweep-all` batch-overlay options (`batch_exclude` / `batch_promote` /
 `batch_demote`) plus `do-your-research-deep`'s verification-depth default
@@ -70,7 +70,7 @@ Official contract: <https://code.claude.com/docs/en/plugins-reference#user-confi
    session-start posture digest runs; note this so an unavailable fan-out is expected,
    not a misconfiguration.
 7. To change or clear any value, direct the user to Claude Code's plugin configuration
-   prompt for `re-anchor` (interactive `/plugin configure re-anchor` any time;
+   prompt for `discipline` (interactive `/plugin configure discipline` any time;
    headless `--config` applies only on a fresh install — uninstall then reinstall to
    reconfigure). Claude Code owns persistence. Do not hand-edit any `pluginConfigs` key.
 
@@ -78,7 +78,7 @@ Official contract: <https://code.claude.com/docs/en/plugins-reference#user-confi
 
 - **No `apply`.** The only thing an apply could write is `pluginConfigs`, which the
   setup contract forbids a skill from touching. Reconfiguration is the native
-  `/plugin configure re-anchor` flow.
+  `/plugin configure discipline` flow.
 - **Unexpanded token is not a value.** A surviving literal `${user_config.…}` means
   unset (the key's default applies) — parsing it as a corrector name or a depth value
   is the failure this check exists to prevent.

@@ -1,4 +1,4 @@
-# re-anchor
+# discipline
 
 A Claude Code plugin bundling discipline correctors for one cohesive
 capability: pulling a working session back onto a standing discipline that
@@ -337,7 +337,7 @@ of truth:
 
 ```shell
 /plugin marketplace add melodic-software/claude-code-plugins
-/plugin install re-anchor@melodic-software
+/plugin install discipline@melodic-software
 ```
 
 ## Configuration
@@ -360,7 +360,7 @@ list of corrector names, empty by default (tiers run exactly as declared) — an
 | `research_deep_verification` | `do-your-research-deep` verification depth: `tiered` (default — subagents only over load-bearing items) or `full` (subagent-verify every item); an invocation argument overrides it |
 
 Set them through Claude Code's native plugin-config flow
-(`/plugin configure re-anchor`); they are personal scalars, not repository
+(`/plugin configure discipline`); they are personal scalars, not repository
 configuration. `/discipline:setup check` reports the effective configuration
 read-only (it never writes config — reconfiguration stays the native flow).
 Batch membership and order otherwise live in each corrector's own colocated

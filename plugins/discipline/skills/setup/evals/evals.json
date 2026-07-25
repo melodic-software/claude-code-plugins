@@ -5,11 +5,11 @@
       "id": 1,
       "name": "check-reports-overlay-and-routes-reconfig-natively",
       "prompt": "re-anchor setup",
-      "expected_output": "The check action reads the three rendered ${user_config.batch_*} values and reports the effective posture-batch overlay (excluded / promoted / demoted correctors and the net effect, or that the tiers run as declared when all unset). It routes any reconfiguration to /plugin configure re-anchor and never edits settings.json or pluginConfigs. No apply action is offered.",
+      "expected_output": "The check action reads the three rendered ${user_config.batch_*} values and reports the effective posture-batch overlay (excluded / promoted / demoted correctors and the net effect, or that the tiers run as declared when all unset). It routes any reconfiguration to /plugin configure discipline and never edits settings.json or pluginConfigs. No apply action is offered.",
       "files": [],
       "expectations": [
         "Reports the effective batch overlay from the userConfig values, read-only",
-        "Routes reconfiguration to the native /plugin configure re-anchor flow, never hand-editing pluginConfigs",
+        "Routes reconfiguration to the native /plugin configure discipline flow, never hand-editing pluginConfigs",
         "Offers no apply action (userConfig-only carve-out)"
       ]
     },
