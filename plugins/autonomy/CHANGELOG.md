@@ -43,6 +43,15 @@ merged work-package PRs (#333, #343, #356, #372, #377, #600, #676).
   `lane_stop_gate_sentinel`, `lane_stop_gate_marker`, `lane_notify_enabled`,
   `lane_notify_os_toast_enabled`, `lane_notify_terminal_enabled`. The plugin now carries the shared
   `hooks/hook-utils.sh` copy (Win32-safe stdin buffering, prerequisite-visibility helpers).
+- **Lane-stop telemetry** (hook-telemetry convention). The gate emits one fire-and-forget envelope
+  per **evaluated** outcome when the consumer sets `HOOK_TELEMETRY_SINK` — `blocked`/`nudged` for the
+  one structural nudge, `ok`/`completion-signaled` (with the signaling channel, `sentinel` or
+  `marker`) for a legitimate stop, and `ok`/`stopped-after-nudge` for the down-lane path that fires
+  the operator notification — so premature lane stops are measurable and the local alert is
+  correlatable in the fleet's hook observability pipeline. Default-off and fail-open exits stay
+  silent. The `data` payload is a closed fixed vocabulary (published at
+  `docs/conventions/hook-telemetry/data/lane-stop-gate.schema.json`) and never carries the sentinel
+  token value, marker path, cwd, or branch.
 
 ## [0.9.0]
 

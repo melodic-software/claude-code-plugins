@@ -111,6 +111,11 @@ against runaway by the `stop_hook_active` one-nudge guard plus Claude Code's con
 It catches a graceful self-stop only — a closed laptop, a killed process, or `/loop` expiry emit no
 `Stop` event.
 
+When the consuming repo sets `HOOK_TELEMETRY_SINK`, the gate emits one fire-and-forget envelope per
+evaluated outcome (`hook: "lane-stop-gate"`; payload contract in the marketplace's hook-telemetry
+convention, `data/lane-stop-gate.schema.json`), so premature lane stops are measurable fleet-wide.
+The payload is a fixed vocabulary — never the sentinel token, marker path, cwd, or branch.
+
 | userConfig option | Default | Effect |
 |---|---|---|
 | `lane_stop_gate_enabled` | `false` | Opt this session's lane into the gate. |

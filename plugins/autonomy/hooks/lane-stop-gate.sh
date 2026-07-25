@@ -41,6 +41,25 @@ source "$(dirname "${BASH_SOURCE[0]}")/lane-notify.sh"
 # Default-OFF opt-in (NOT hook::check_enabled, which defaults ON when unset).
 [[ "${CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED:-false}" == "true" ]] || exit 0
 
+# High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;
+# on an older host it is empty and hook::emit_telemetry skips fail-open.
+START=${EPOCHREALTIME:-}
+
+# emit_tel <status> <outcome> <signal> — fire-and-forget telemetry for an
+# EVALUATED gate outcome (hook-telemetry convention; no-op unless the consumer
+# sets HOOK_TELEMETRY_SINK). Only the three evaluated outcomes emit; the
+# fail-open/skip exits stay silent — they are pre-evaluation, and emitting on
+# every interactive default-off stop would be noise, not signal. The payload is
+# a closed fixed vocabulary by design: never the sentinel value, the marker
+# path, the cwd, or the branch, so the envelope cannot leak the completion
+# token or lane-identifying paths into the sink.
+emit_tel() {
+  local data
+  data=$(jq -nc --arg outcome "$2" --arg signal "$3" \
+    '{outcome:$outcome,signal:$signal}' 2>/dev/null) || return 0
+  hook::emit_telemetry "lane-stop-gate" "Stop" "$1" "$START" "$data" "${CLAUDE_PROJECT_DIR:-}"
+}
+
 # Buffer stdin. Empty (rc 1) or timed-out (rc 2) → allow the stop (fail-open: a
 # gate that cannot read the payload must not trap the lane).
 INPUT=$(hook::buffer_stdin) || exit 0
@@ -57,8 +76,10 @@ hook::require_jq "Stop" "autonomy-lane-stop-gate" "$INPUT"
 EVENT=$(printf '%s' "$INPUT" | jq -r '.hook_event_name // ""' 2>/dev/null | tr -d '\r')
 [[ "$EVENT" == "Stop" ]] || exit 0
 
-# Has completion been explicitly signaled?
+# Has completion been explicitly signaled? SIGNAL records which channel fired
+# (telemetry vocabulary: sentinel | marker | none — never the token itself).
 SIGNALED=0
+SIGNAL="none"
 
 # Signal 1 — the sentinel token in the agent's final message. Matched only when
 # the token stands alone on its own line (surrounding whitespace allowed), which
@@ -71,8 +92,14 @@ if [[ -n "$SENTINEL" ]]; then
   LAST=$(printf '%s' "$INPUT" | jq -r '.last_assistant_message // ""' 2>/dev/null)
   # Escape any regex metacharacters in the (configurable) sentinel before use.
   SENTINEL_RE=$(printf '%s' "$SENTINEL" | sed 's/[][\.^$*+?(){}|/]/\\&/g')
-  if printf '%s' "$LAST" | grep -qE "^[[:space:]]*${SENTINEL_RE}[[:space:]]*$"; then
+  # Here-string, NOT `printf | grep -q`: under pipefail, grep -q exits on the
+  # first match, and when a long message continues past the pipe buffer the
+  # producer takes SIGPIPE — the pipeline then reads as false and a genuinely
+  # signaled completion would be blocked. A here-string has no pipeline, so an
+  # early match can never be lost.
+  if grep -qE "^[[:space:]]*${SENTINEL_RE}[[:space:]]*$" <<<"$LAST"; then
     SIGNALED=1
+    SIGNAL="sentinel"
   fi
 fi
 
@@ -87,11 +114,15 @@ if [[ "$SIGNALED" -eq 0 && -n "$MARKER" ]]; then
     [[ -n "$CWD" ]] && MARKER="${CWD%/}/$MARKER"
     ;;
   esac
-  [[ -f "$MARKER" ]] && SIGNALED=1
+  if [[ -f "$MARKER" ]]; then
+    SIGNALED=1
+    SIGNAL="marker"
+  fi
 fi
 
 # Completion signaled → this is a legitimate stop. Allow it, silently.
 if [[ "$SIGNALED" -eq 1 ]]; then
+  emit_tel "ok" "completion-signaled" "$SIGNAL"
   exit 0
 fi
 
@@ -111,6 +142,7 @@ if [[ "$STOP_ACTIVE" == "true" ]]; then
   [[ -n "$LANE" ]] || LANE="unknown"
   lane::notify "Autonomy lane stopped" \
     "Lane $LANE stopped without signaling completion — it may be down or stuck. Check it."
+  emit_tel "ok" "stopped-after-nudge" "none"
   exit 0
 fi
 
@@ -120,5 +152,6 @@ fi
 # completion condition. Emitted as the documented Stop stdout decision.
 REASON="Autonomy lane-stop gate: you attempted to stop, but this lane's completion condition is not yet signaled. A lane that stops itself before its stated goal is met is a bug. Do NOT stop on a self-estimated context percentage, a turn count, or a vague sense that enough was done — none of those is completion. Either (1) continue working toward the lane's stated goal, or (2) if the goal is genuinely and verifiably met, declare completion by emitting the exact token ${SENTINEL} on its own line (or by creating the configured completion-marker file), then stop. This is your one automated nudge; if you stop again without signaling completion, the operator will be alerted that the lane went down."
 
+emit_tel "blocked" "nudged" "none"
 jq -nc --arg r "$REASON" '{decision:"block", reason:$r}'
 exit 0
