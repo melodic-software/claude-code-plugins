@@ -25,8 +25,9 @@ All notable changes to the `source-control` plugin are documented here. Format f
   gains the Conflict-Worker and Orchestrator contracts plus a Conflict-Worker Prompt Delta (the
   regular worker template forbids only *force*-pushing, so a conflict worker needs an affirmative
   never-push instruction); an escalating conflict worker now preserves its partial resolution on a
-  `conflict-wip/<pr-number>` branch and concludes the merge, so it never strands an unmergeable
-  worktree; `reference/freshness.md` drops its drifting restatement for a pointer; `SKILL.md`,
+  SHA-qualified `conflict-wip/<pr-number>-<short-sha>` branch — created with hook-free plumbing,
+  never a hook bypass — and exits the merge only after that preservation, so it never strands an
+  unmergeable worktree and repeated escalations never collide; `reference/freshness.md` drops its drifting restatement for a pointer; `SKILL.md`,
   `reference/safety.md`, and `babysit-loop`'s Subagents section state the new boundary. Pinned by
   `test_skill_contract.py`.
 
