@@ -191,10 +191,13 @@ allowance, so spreading standing work across the operator's several
 subscriptions is the obvious way to buy headroom at $0. `loop-lane/README.md`
 §6 previously assumed one account per machine and simply trusted whichever
 account last wrote the rate-limit tee file — the fail-open posture finding B4
-challenged, and this the sharpest practical case against it. B4 has since
-landed: the tee record carries its account identifier, and a mismatch reads as
-stale rather than as headroom, so multi-account operation is now a detected
-condition instead of an undetectable one.
+challenged, and this the sharpest practical case against it. §6 now records
+that as a known **gap** rather than a safe assumption, which removes the false
+assurance without changing any lane's obligations. Detection is not built: the
+tee still carries no account identifier, and the design that would add one —
+writer-side field, reader-side latch invalidation, lane-floor re-audit — is
+`TODO(#1218)`. Until it lands, multi-account fan-out remains undetectable, so
+this lever stays unavailable rather than merely unwise.
 
 **Unverified — flagged at the claim.** Whether the cloud environment satisfies
 the ladder's `L3` bar is NOT established. Its shape matches the "hosted
