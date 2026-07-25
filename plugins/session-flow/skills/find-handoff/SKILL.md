@@ -53,7 +53,8 @@ pre-clear content sits in a sibling — never in the current session's own file.
    — never assume the literal `.work`; the memory root is consumer-configurable — plus the
    no-project-root fallback `${CLAUDE_PLUGIN_DATA}/topic-docs/handoffs/`. Glob `*-handoff-*.md`,
    keep only files whose frontmatter is `type: handoff`, rank by mtime. A strong, recent candidate
-   → jump to step 4. **v1 scope: current repo only.** The cross-repo *filesystem* sweep (deriving
+   → jump to step 4 (step 5's chain validation then locates the producer transcript by the file's
+   `session_id`, since this path found no transcript). **v1 scope: current repo only.** The cross-repo *filesystem* sweep (deriving
    other repo roots from transcript `cwd` fields) is deferred — step 2's transcript scan already
    recovers handoffs written in other repos, since transcripts are indexed by session, not repo.
 2. **Transcript scan — bounded, recency-ranked, cross-repo.** Enumerate `~/.claude/projects/*/`
@@ -103,10 +104,20 @@ pre-clear content sits in a sibling — never in the current session's own file.
    for an explicit yes/no and **stop**. Do not read the file's body, `/clear`, or execute the
    resume prompt before the operator confirms. Resuming the **wrong** handoff is worse than
    recovering none.
-5. **Chain validation (file mode).** Check the file's `session_id` / `previous_handoff` /
-   `previous_session_id` frontmatter against the transcript the directive was found in. On a
-   mismatch, flag it and let the operator decide — never silently splice an unrelated session into
-   the chain.
+5. **Chain validation (file mode).** Validate each frontmatter pointer against what it actually
+   names:
+   - `session_id` identifies the **emitting** session. Compare it with the source transcript when
+     the candidate came from the transcript scan. On a glob-only recovery (step 1 jumped straight
+     to step 4 with no transcript in hand), locate the producer transcript by that `session_id` —
+     transcript files are named `<session_id>.jsonl` under `~/.claude/projects/*/` — and compare
+     against that; when it cannot be found, say so and present the candidate as unvalidated rather
+     than blocking or guessing.
+   - `previous_handoff` / `previous_session_id` deliberately name the **predecessor** in the chain
+     (structure doc "Chain continuity"), not the emitting transcript. Validate them against the
+     named prior handoff file and its session — never against the source transcript, or a valid
+     chained handoff looks inconsistent.
+   On a mismatch, flag it and let the operator decide — never silently splice an unrelated session
+   into the chain.
 6. **Hand off to the resume path.** On confirmation:
    - **Clean save-point** → read the handoff file and continue per its "Open questions / next
      steps" (the normal `/session-flow:handoff` resume path). For a prompt-only recovery, continue
