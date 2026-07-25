@@ -57,6 +57,7 @@ user opts in with `/plugin enable`; an existing install is never flipped by cata
 - [`firecrawl`](plugins/firecrawl) — Web scraping, search, crawling, and file parsing through the firecrawl-cli binary with a write-to-disk-then-Read pattern that keeps large results out of context — a user-facing wrapper skill, a lazy-install setup skill, and a separate gated maintainer update skill tracking the upstream CLI and skill source.
 - [`discovery`](plugins/discovery) — Structured discovery before changes: explore the local codebase (inline or in an isolated forked subagent) and run disciplined multi-source external research with source tiers, falsification, and recency gates — persisting EXPLORE.md / RESEARCH.md handoff artifacts.
 - [`dometrain`](plugins/dometrain) — Dometrain course-content grounding over a third-party remote MCP server (Dometrain-hosted, Bearer auth): search lessons, pull curated lesson documents with on-screen code, and cite timestamped deep links. Requires an active Dometrain Pro subscription. Credential entered once through Claude Code's native masked userConfig prompt and stored in secure credential storage. Ships with a grounding usage skill kept in sync with Dometrain's own official Claude Code plugin.
+- [`x`](plugins/x) — Read X (formerly Twitter) posts, note tweets, and X Articles as Markdown without an X API key, via a documented fallback ladder over third-party converters — xtomd.com for single posts and articles, Thread Reader App for unrolled reply chains — so a pasted X link becomes readable content instead of a login wall.
 
 ### Design
 
@@ -128,7 +129,7 @@ user opts in with `/plugin enable`; an existing install is never flipped by cata
 
 ### Security
 
-- [`guardrails`](plugins/guardrails) — Nine safety guards that block secret/credential writes, hardcoded machine-specific paths, git hook-bypass attempts, irreversible git operations (force-push, reset --hard, worktree-wide checkout/restore discards), Bash file-write workarounds that circumvent Write/Edit hooks, commit subjects and gh pr create titles that violate the repo's tracked team convention (when one is declared in .claude/source-control.md), (advisory) hallucinated CLI flags, (advisory) un-throttled Workflow fan-out that risks burst 529s, and (advisory) direct git commit/gh pr create calls bypassing this marketplace's own commit/pull-request skills — each independently toggleable.
+- [`guardrails`](plugins/guardrails) — Eleven safety guards that block secret/credential writes, hardcoded machine-specific paths, git hook-bypass attempts, irreversible git operations (force-push, reset --hard, worktree-wide checkout/restore discards), Bash file-write workarounds that circumvent Write/Edit hooks, commit subjects and gh pr create titles that violate the repo's tracked team convention (when one is declared in .claude/source-control.md), (advisory) hallucinated CLI flags, (advisory) /plugin:skill references that do not resolve, (advisory) un-throttled Workflow fan-out that risks burst 529s, and (advisory) direct git commit/gh pr create calls bypassing this marketplace's own commit/pull-request skills — each independently toggleable.
 
 ### Workflow
 
@@ -171,7 +172,8 @@ Install one: `/plugin install <plugin-name>@melodic-software`.
 - `docs/hook-migration-audit.md` — point-in-time audit of medley's general-purpose hooks for extraction into `guardrails`/`claude-ops`.
 - `docs/ai-briefing-design.md` — engine/profile/personal split design record for the `ai-briefing` migration (reference adopter of the profiled-folder convention).
 - `docs/CI-RUNNER-ROUTING.md` — local-runner selection, hosted boundaries, and failure recovery.
-- `CLAUDE.md` — operating rules for AI agents working in this repo (fresh-docs mandate + canonical links).
+- `CLAUDE.md` — operating rules for AI agents working in this repo (fresh-docs mandate + plugin design rules).
+- `docs/OFFICIAL-DOCS.md` — canonical index of the official Claude Code doc pages the mandate sends you to.
 
 ## Official documentation
 

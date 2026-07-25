@@ -3,7 +3,7 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.15.0]
+## [0.16.0]
 
 ### Added
 
@@ -20,6 +20,47 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   passes, as does any lease form paired with `--force-if-includes`. Unique-prefix
   abbreviations (`--force-w`, `--force-i`) are handled; a push dry-run still
   disarms the check, and after `--` the words are operands rather than flags.
+
+## [0.15.0]
+
+### Added
+
+- `skill-reference-verify` (advisory, PostToolUse Write|Edit): flags a
+  `/plugin:skill` reference in markdown that does not resolve. Gated twice — it
+  does nothing outside a marketplace repo, and within one it only adjudicates a
+  plugin that repo's own manifests own. Resolution goes through manifest `name`
+  and skill frontmatter `name`; a renamed skill's DIRECTORY name is deliberately
+  not an alias, since treating it as one would suppress exactly the stale
+  pre-rename references this guard exists to catch. The reference is the leading
+  command token of a code span, so argument-bearing invocations
+  (`/plugin:skill --apply`) are scanned. `CHANGELOG.md` is excluded as an
+  append-only historical record: a rename entry must keep naming the old command.
+  Declared **detect-then-judge**, not deterministic — globbing a plugins tree is
+  exact only where the reference is locally owned, so the finding is a prompt for
+  a human verdict and never an auto-fix.
+- A README enforceability-tier section stating each guard's oracle class, so the
+  detect-then-judge guard cannot be read as deterministic.
+
+### Fixed
+
+- README guard counts were stale before this change: the prose said "nine safety
+  guards" and the table omitted `block-convention-violation` while ten were
+  wired. Counts are now measured against the manifest's toggle set, and the
+  missing row is present.
+
+### Not shipped
+
+- An `asserted-path-verify` guard was built alongside this one and withdrawn on
+  measurement. Swept across all 975 tracked markdown files it fired on 23.7% of
+  them — roughly one in four writes — producing 389 findings with **zero** true
+  positives. 72% were consumer-project config paths (`.claude/**` and similar)
+  that a doc describes for a CONSUMING repo and that correctly do not exist in a
+  marketplace; its first-segment gate passed only because this repo happens to
+  carry same-named top-level directories. Fixing the three dominant causes still
+  left ~4% firing at zero true positives, so a repo-root filesystem test is the
+  wrong oracle for a repo whose docs are largely about other repos' trees. The
+  measurement is attached to its follow-up issue for rescoping rather than
+  discarded.
 
 ## [0.14.3]
 

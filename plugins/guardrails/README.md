@@ -1,6 +1,6 @@
 # guardrails
 
-A Claude Code plugin bundling nine **safety guards** that catch risky agent
+A Claude Code plugin bundling eleven **safety guards** that catch risky agent
 actions the moment they happen — before a write lands or a bash command runs.
 Each guard is independently toggleable, so you run exactly the subset you want.
 
@@ -11,16 +11,27 @@ Each guard is independently toggleable, so you run exactly the subset you want.
 | **secret-pattern-detection** | PreToolUse · Write \| Edit \| NotebookEdit | **Blocks** (exit 2) | High-confidence secret/credential patterns (AWS/GitHub/GitLab/Slack/Stripe/OpenAI keys, PEM private keys) in new file content. |
 | **hardcoded-path-check** | PreToolUse · Write \| Edit \| NotebookEdit | **Blocks** (exit 2) | Hardcoded machine-specific paths — Windows drive-letter homes, macOS/Linux user homes, machine-specific repo checkout roots. |
 | **block-no-verify** | PreToolUse · Bash | **Blocks** (exit 2) | Git hook-bypass attempts on `git commit` / `git push`: `--no-verify` / `-n`, `core.hooksPath=` assignment, and hook-manager disable env vars — a configurable prefix set defaulting to `lefthook`, `husky`, `pre_commit`, `simple_git_hooks` (e.g. `LEFTHOOK=0`, `HUSKY=0`, `PRE_COMMIT_*=false`), tunable via `block_no_verify_hook_manager_prefixes`, including inside compound `cd … && …` commands. |
-| **block-dangerous-git** | PreToolUse · Bash | **Blocks** (exit 2) | Irreversible git operations: `push --force`/`-f` plus the equivalent leading-`+` refspec and `--mirror` forms, and `--force-with-lease` when it states no expected value (bare or `=<refname>`) and carries no `--force-if-includes` — git documents that form as leasing against the remote-tracking ref, which a background fetch defeats. A pinned `--force-with-lease=<refname>:<expect>` passes, but only when it is the push's *only* lease spelling: git scopes it to that ref, so a bare fallback alongside it still governs every other ref being updated. A trailing `--no-force-with-lease` cancels the option outright, and a push dry-run disarms, `reset --hard`, `clean` with a force flag (any dry-run flag disarms), worktree-wide `checkout`/`restore` pathspecs (`.`, `:/`, `:(top…)` — path-scoped forms and `restore --staged .` pass), and forced `checkout -f` / `switch --discard-changes`. Accepted unique-prefix abbreviations of the blocked long options match too. `branch -D` is deliberately not blocked (reflog-recoverable; sanctioned skill flows issue it). Per-repo/per-user allow-list via the `block_dangerous_git_allow` userConfig option (comma list, any subset of `push-force,push-lease-unsafe,reset-hard,clean-force,checkout-dot,restore-dot,checkout-force`). |
+| **block-dangerous-git** | PreToolUse · Bash | **Blocks** (exit 2) | Irreversible git operations: `push --force`/`-f` plus the equivalent leading-`+` refspec and `--mirror` forms, and `--force-with-lease` when it states no expected value (bare or `=<refname>`) and carries no `--force-if-includes` — git documents that form as leasing against the remote-tracking ref, which a background fetch defeats. A pinned `--force-with-lease=<refname>:<expect>` passes, but only when `<expect>` is immutable — an object id, or the empty string asserting the ref must not exist — and only when it is the push's *only* lease spelling: a movable name like `origin/main` or `HEAD` is resolved at push time, and git scopes a pin to its own ref, so a bare fallback alongside it still governs every other ref being updated. A trailing `--no-force-with-lease` cancels the option outright, and a push dry-run disarms the check. Also blocked: `reset --hard`, `clean` with a force flag (any dry-run flag disarms), worktree-wide `checkout`/`restore` pathspecs (`.`, `:/`, `:(top…)` — path-scoped forms and `restore --staged .` pass), and forced `checkout -f` / `switch --discard-changes`. Accepted unique-prefix abbreviations of the blocked long options match too. `branch -D` is deliberately not blocked (reflog-recoverable; sanctioned skill flows issue it). Per-repo/per-user allow-list via the `block_dangerous_git_allow` userConfig option (comma list, any subset of `push-force,push-lease-unsafe,reset-hard,clean-force,checkout-dot,restore-dot,checkout-force`). |
 | **block-hook-bypass** | PreToolUse · Bash | **Blocks** (exit 2) | Bash file-write workarounds that circumvent the Write/Edit hook gates — `cat > file`, `echo … > file`, and `python3 -c` with file-write indicators. Executable-token detection ignores quoted prose/commit text that merely mentions the pattern. |
 | **cli-flag-verify** | PostToolUse · Write \| Edit | **Advisory** (exit 0) | Hallucinated CLI flags — a `--flag` written as a command that does not exist in the binary's actual `--help` output. Surfaces via `additionalContext`, never blocks. |
 | **workflow-resilience-check** | PreToolUse · Workflow | **Advisory** (exit 0) | Un-throttled Workflow fan-out — a script calling `parallel()` / `pipeline()` with no wave-cap throttle (`inWaves` / `inWavesPipeline`) and no retry wrapper (`agentRetry`), which risks a burst 529 under wide Opus fan-out. Surfaces a resilience checklist via `additionalContext`, never blocks. |
 | **block-noncanonical-commit** | PreToolUse · Bash | **Blocks** (exit 2) | `git commit` that does not pipe its message via `-F -` / `--file -` — `-m` flattens newlines unpredictably across shells. Exempt: `--amend`, `-C`/`-c`/`--reuse-message`/`--reedit-message`, `--fixup`/`--squash`, `-F <path>`, and any commit taken while a merge/rebase/cherry-pick/revert is in progress. Resolves `bash -lc` wrappers and git aliases (inline `-c` and persisted config alike). |
+| **block-convention-violation** | PreToolUse · Bash | **Blocks** (exit 2) | A commit subject or `gh pr create --title` that violates the team-tracked convention pattern declared in `.claude/source-control.md`. No tracked pattern means no enforcement. Same exemptions as `block-noncanonical-commit`. |
 | **flag-commit-pr-skill-bypass** | PreToolUse · Bash | **Advisory** (exit 0) | Any `gh pr create`, bypassing this marketplace's own `/pull-request create` skill. Only fires when the consuming project's own `.claude/settings.json` enables the `source-control` plugin — silent otherwise. Surfaces via `additionalContext`, never blocks. |
+| **skill-reference-verify** | PostToolUse · Write \| Edit | **Advisory** (exit 0) | A `` `/plugin:skill` `` reference in markdown that does not resolve. Only fires inside a marketplace repo, and only for a plugin that repo's own manifests own — a reference to another marketplace is left alone. Resolves through manifest and frontmatter `name`, so a renamed directory still matches. Surfaces via `additionalContext`, never blocks. |
 
-The six blocking guards feed their stderr message back to Claude as
-actionable fix guidance. The three advisory guards surface their findings the same
+The seven blocking guards feed their stderr message back to Claude as
+actionable fix guidance. The four advisory guards surface their findings the same
 way but always allow the operation.
+
+### Enforceability tiers
+
+Ten guards are **deterministic** — their oracle is a mechanical test with no
+judgment step. `skill-reference-verify` is **detect-then-judge**: globbing a
+plugins tree is exact only inside a marketplace repo that owns the referenced
+plugin, so its finding is a prompt for a human verdict, never a determination and
+never an auto-fix. `cli-flag-verify` is deterministic in its oracle but advisory in
+its action, because a written claim can be deliberately forward-looking.
 
 ### Scope notes
 

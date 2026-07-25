@@ -1,5 +1,33 @@
 # Changelog — session-flow plugin
 
+## [0.15.2]
+
+### Fixed
+
+- **`reanchor`'s eval case 7 renamed off the pre-rename plugin name (`#1328`).**
+  `skills/reanchor/evals/evals.json` still named the negative-routing case
+  `negative-routing-rule-discipline-is-re-anchor-plugin` after the `re-anchor` -> `discipline`
+  plugin rename (`#1276`); the case's `expected_output` and `expectations` were rewritten in that
+  commit but its `id` field was missed. Renamed to
+  `negative-routing-rule-discipline-is-discipline-plugin`, matching the sibling
+  `negative-routing-*` case names. No other file references the old name.
+
+## [0.15.1]
+
+### Changed
+
+- All five skills whose pre-computed context block injects the session id
+  (`orient`, `retro`, `running-retro`, `handoff`, `continue-in-background`) now
+  carry a `|| echo "unknown"` fallback on that injection, matching the sibling
+  git injections in the same block. Injection failure, timeout, and stderr
+  semantics are undocumented upstream, so the standing convention is a
+  `|| <fallback>` on every injected command — `skill-quality:check` flags a
+  missing one as an advisory WARN. On this particular line the guard is
+  unreachable in practice (`${VAR:-unknown}` resolves at expansion time, so
+  `echo` receives a formed string and exits 0); it buys block-wide uniformity
+  and a quiet gate, not protection against a failure mode the sibling git lines
+  genuinely have.
+
 ## [0.15.0]
 
 ### Added
