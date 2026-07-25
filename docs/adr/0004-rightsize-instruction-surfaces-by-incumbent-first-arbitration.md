@@ -5,9 +5,13 @@
 
 ## Context
 
-A practitioner article on context engineering argued that instruction surfaces accrete constraints a
-capable model no longer needs, and prescribed deleting them so the model can use surrounding context
-and judgement instead. Thirteen blind section digests measured that argument against this
+A practitioner article on context engineering — *"The new rules of context engineering for Claude 5
+models"*, Thariq, 2026-07-24, <https://x.com/trq212/status/2080710971228918066> — argued that
+instruction surfaces accrete constraints a capable model no longer needs, and prescribed deleting
+them so the model can use surrounding context and judgement instead. The source is named here rather
+than restated because the digests that measured it are working material and prune with the contract
+slice; a reader auditing this ADR's premises reads the article, not a copy of it. Thirteen blind
+section digests measured that argument against this
 repository's actual instruction surfaces — `CLAUDE.md`, `.claude/rules/`, 181 skill bodies, agent
 definitions, hook text, output styles — each digest produced without sight of the others so agreement
 between them would be evidence rather than echo.
@@ -258,25 +262,25 @@ search recorded below, arriving by a different route.
 
 ### Lane execution status
 
-No lane merged. Five terminated on a session usage limit at 02:52–02:54 without reaching their own
-stopping points.
+Every lane reached a published outcome. Five were interrupted mid-build by a session usage limit at
+02:52–02:54 and resumed afterwards; each row below names the PR or issue that carries its result.
 
 | Lane | Decisions | Outcome |
 |---|---|---|
-| L0 | design docs | **PR #1323 open**; this ADR is its durable outcome |
-| L1 | D-7 | **PR #1286 open**; two comments on #1271. Rewrite half unblocked by #1276 merging 02:13:33Z |
-| L2 | D-4 | uncommitted work only; incumbent search must be redone (see below) |
-| L3 | D-4, D-2 | uncommitted work only |
-| L4 | D-12 | uncommitted work only |
-| L5 | D-13, D-17 | **stopped by design**; nothing committed |
-| L7 | D-9, D-10 | **dotfiles PR #321 open**, 34/34 CI green |
-| L8 | D-18, D-16 | **PR #1282 open**, 26/26 CI green |
-| L10 | D-11 | **PR #1280 open**, fresh-eyes verified, 8 corrections pending |
+| L0 | design docs | **PR #1323** — this ADR is its durable outcome |
+| L1 | D-7 | **PR #1286**, closed unmerged; the measurement folds into #1271 per D-7, and the gate defects it found are #1404 |
+| L2 | D-4 | **PR #1343** — Phase B2 of `audit-instructions`, built against C6 rather than duplicating it |
+| L3 | D-4, D-2 | **PR #1349** — checks I12–I14 folded into the incumbent catalog |
+| L4 | D-12 | **PR #1385**, closed unmerged after fresh-context verification; timeout half landed as #1379, recovery tracked as #1403 |
+| L5 | D-13, D-17 | **stopped by design**; both decisions refuted, nothing committed |
+| L7 | D-9, D-10 | **dotfiles PR #321**, merged |
+| L8 | D-18, D-16 | **PR #1282**, merged |
+| L10 | D-11 | **PR #1280** — ADR 0005, the sweep boundary; fresh-eyes verified |
 
-### Explicit deferrals — lanes that shipped nothing
+### Per-lane outcomes, including the explicit deferrals
 
-Recorded so that no lane's status rests on an unwritten assumption. Each entry states what is
-deferred, why, and the concrete trigger that unblocks it.
+Recorded so that no lane's status rests on an unwritten assumption. Each entry states what shipped
+or what is deferred, why, and — where anything remains — the concrete trigger that unblocks it.
 
 **L0 — design docs and contract.** Resolved. The work is published as PR #1323, disclosing the
 deliberate collision with `docs/context-engineering-claude-5-topic`, and its durable outcome is this
@@ -285,40 +289,40 @@ no remote, L2 could not reach the conflict definition it needed and duplicated i
 definition is now carried in this ADR precisely so no later lane has to. The D-6 fable-5 follow-up is
 filed as [#1324](https://github.com/melodic-software/claude-code-plugins/issues/1324).
 
-**L2 — cross-surface conflict detector (D-4).** Deferred mid-build. Uncommitted work only:
-`plugin.json`, `CHANGELOG.md` and `audit-instructions/SKILL.md` modified, plus three new untracked
-files — `reference/conflict-criteria.md`, `scripts/conflict-scan.sh`, `scripts/conflict-scan.test.sh`.
-**It carries a known error**: its report claims the no-incumbent result holds, but its search covered
-`plugins/**/SKILL.md` only and so missed C6 for the same reason every prior search did.
-**Trigger:** redo the incumbent search across `plugins/**` at all depths and file types, then rule on
-reuse-versus-extension of C6 before continuing the build.
+**L2 — cross-surface conflict detector (D-4). Resumed and published as PR #1343.** Its incumbent
+search originally covered `plugins/**/SKILL.md` only and so missed C6, the same false negative every
+prior search hit; the search was redone across `plugins/**` at all depths, C6 was found, and the
+build was re-scoped around reuse rather than re-implementation. It ships as Phase B2 of
+`claude-config:audit-instructions` with `reference/conflict-criteria.md` and an advisory
+`scripts/conflict-scan.sh` pre-scan. **Nothing in it needs re-deriving from a lost checkout.**
 
-**L3 — criteria catalog (D-4, D-2).** Deferred mid-fold. Uncommitted work only, across
-`plugin.json`, `CHANGELOG.md`, `README.md`, `audit-instructions/SKILL.md`, `evals/evals.json` and
-`reference/criteria.md`. The fold verdict itself was independently verified sound, so the direction is
-not in question. **Trigger:** none external — resume and finish.
+**L3 — criteria catalog (D-4, D-2). Resumed and published as PR #1349.** The fold verdict was
+independently verified sound and the fold was executed: checks **I12–I14** extend the incumbent
+`reference/criteria.md` rather than standing up a second catalog, and D-2's `UNBACKED` requirement is
+satisfied by mapping onto the catalog's existing `OPINION` authority value with an `info` severity
+ceiling — no fourth authority value, and the axis stays a closed three-value set. **The claim set D-2
+refers to is therefore already folded**; it does not need to survive as a separate list, which is the
+outcome the fold was for.
 
-**L4 — guardrails root-cause fix (D-12).** Deferred mid-implementation. Uncommitted work only:
-`lib/hook-utils.sh` plus seven guardrails hooks. These are worktree copies, **not** the installed
-plugins under `~/.claude/plugins/cache/`, so machine behavior is unchanged and the guards remain in
-their current fail-open state. **Trigger:** the behavior-preservation testing the lane never reached —
-each guard's verdicts captured before and after on representative payloads — plus confirmation of the
-fail-open reading against official documentation. **Do not apply these edits without both.**
+**L4 — guardrails root-cause fix (D-12). Published as PR #1385, verified, and closed unmerged.** The
+timeout half of the fix landed separately as #1379, which also carries the primary-source empirical
+reproduction of the fail-open. The spawn-reduction half did not: a fresh-context verification found
+the change modified eight guards on the safety layer with zero added tests, on a Windows-only defect
+that CI — every lane `runs-on: ubuntu-24.04` — cannot exercise, so a green check was uninformative
+about it. Four contract-test regressions were measured, two of them fail-open on blocking guards.
+**Recovery is tracked as #1403**, which carries the five correction preconditions and the control
+design for attributing those regressions. Raising a timeout narrows the fail-open window rather than
+closing it, so the performance work still matters.
 
-**Common cause.** All four terminated on a session usage limit at 02:52–02:54, not at a stopping point
-of their own choosing. **Their worktrees must not be pruned**: L2, L3 and L4's work exists nowhere
-else, and was deliberately left uncommitted rather than sealed behind a fabricated checkpoint.
+**Why the deferrals read the way they do.** All four lanes terminated on a session usage limit at
+02:52–02:54, not at a stopping point of their own choosing, and their work was deliberately left
+uncommitted rather than sealed behind a fabricated checkpoint. Every lane above has since been
+resumed and published, so **nothing in this effort now depends on an unreachable checkout** — each
+entry cites a PR or an issue a reader can open.
 
-**How to read the three entries above.** Every file they name is uncommitted in the lane's own
-checkout, so **none of it is reachable from a clone** — the paths describe what a resuming session
-will find in that worktree, and are not citations a reader can follow. What is durable is the
-sentence beside each: L2's known incumbent-search error, L3's verified-sound direction, and L4's
-unmet behavior-preservation precondition. A resumption that cannot find the worktree re-derives from
-those, not from the paths.
-
-**Verification debt.** Only L10 received the fresh-context review this effort's own D-5 requires.
-PRs #1282, #321 and #1286 are unverified, and the four lanes above produced nothing to verify. That
-debt is outstanding and is recorded here rather than assumed discharged.
+**Verification debt.** D-5's fresh-context review reached L10 (#1280) and L4 (#1385), and #1385 was
+closed on the strength of it. PRs #1282 and #321 merged without it. That debt is recorded here rather
+than assumed discharged.
 
 ### D-1's incumbent gate — the pass's dominant finding, and its blind spot
 
