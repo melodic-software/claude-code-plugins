@@ -289,6 +289,14 @@ reclassified as residue, excluded by container mode, and the re-sweep would decl
 with a live stale reference still in the file. Key each match by `(file, line, start, end)` and
 suppress a weaker match only when its span is **covered by** a more-specific match's span.
 
+**Coverage collapses COEQUAL matches too, not only weaker ones.** Two alternatives of the SAME
+form can match one occurrence — `/plugin install <old>@acme-tools` matches Form 13's
+management-verb alternative and its qualified-id alternative on the same `<old>`. Left as two
+findings they double the count and schedule two targeted Edits, the second of which fails because
+the first already rewrote the token. When two matches cover the same `<old>` span, keep ONE:
+prefer the widest span (it carries the most context), and on a tie the earlier-numbered form.
+Same span-coverage test, applied within a form as well as across forms.
+
 With that keying, dedup runs AFTER the sweep and BEFORE triage:
 
 1. An OCCURRENCE matched by any of Forms 13–15 is attributed to that form and enters **that

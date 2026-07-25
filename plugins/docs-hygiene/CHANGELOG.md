@@ -17,6 +17,15 @@
   to inspect suppressed residue, but it appeared in neither `SKILL.md`'s `argument-hint` nor
   `audit-modes.md`'s override table, whose contract errors on unknown flags — so the only
   documented path to the residue failed. Registered in both, audit-mode only, always Ambiguous.
+- **Span coverage collapses COEQUAL matches, not only weaker ones.** Two alternatives of the same
+  form can hit one occurrence — `/plugin install <old>@marketplace` matches both of Form 13's.
+  Left uncollapsed the count doubles and Phase 5 schedules two targeted Edits, the second failing
+  because the first already rewrote the token. Keep one per `<old>` span, widest first, earlier
+  form on a tie.
+- **Eval 9 no longer contradicts the span rule it predates.** It still required deduplication by
+  `(file, line)` and dropping the bare-token duplicate for the whole line — so a correct
+  span-based implementation would FAIL it while the line-based behavior that can falsely declare
+  completion was rewarded. Rewritten around `(file, line, start, end)`.
 - **Container-rename mode has a concrete selection ladder.** The mode was defined by what is
   being renamed, but nothing said how to determine that — Phase 1 resolves only the two strings,
   so an invocation like `/rename-references re-anchor to discipline` left the mode undetermined.

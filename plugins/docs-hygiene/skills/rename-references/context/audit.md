@@ -45,9 +45,11 @@ BOTH rules from `patterns.md`, in this order:
 
 1. **Precedence** ("Phase 0") — deduplicate by OCCURRENCE SPAN `(file, line, start, end)`, never
    by whole line: a weaker match is suppressed only when its span is COVERED BY a more-specific
-   match's span, so a second reference elsewhere on the same line survives. A match by Forms 13–15
-   is attributed to that form and its weaker Form 2 / chain-form duplicates are dropped. Carry
-   the dropped count into the report's "superseded" row.
+   match's span, so a second reference elsewhere on the same line survives. Coverage also collapses
+   COEQUAL matches — two alternatives of one form hitting the same occurrence keep one, widest span
+   first — or the count doubles and the second targeted Edit fails on an already-rewritten token.
+   A match by Forms 13–15 is attributed to that form and its weaker Form 2 / chain-form duplicates
+   are dropped. Carry the dropped count into the report's "superseded" row.
 2. **Container-rename mode** ("Phase 0b") — when the renamed thing is a container, exclude the
    remaining bare-token residue from Certain entirely and report it as one aggregate count.
    Precedence alone leaves that residue at Form 2's Certain default; the mode rule is what

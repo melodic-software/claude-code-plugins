@@ -100,13 +100,14 @@
     },
     {
       "id": 9,
-      "name": "container-position-match-supersedes-bare-token-on-same-line",
+      "name": "container-position-match-supersedes-the-bare-token-it-covers",
       "prompt": "Audit the rename of `re-anchor` to `discipline`. The token is also used as an English verb throughout the plugin, so I expect a lot of noise.",
-      "expected_output": "The sweep runs Form 2 and the container-position forms, then deduplicates by (file, line) before triage: each line matched by Forms 13-15 is attributed to that form and enters Certain, and its Form 2 duplicate is dropped rather than raised as a second finding. Lines Form 2 matched alone are the ordinary verb uses and are not presented as rename candidates. The report states how many Form-2 hits were superseded, so the suppression is visible rather than inferred.",
+      "expected_output": "The sweep runs Form 2 and the container-position forms, then deduplicates by OCCURRENCE SPAN (file, line, start, end) before triage: a container-position match is attributed to its own form and enters that form's bucket after its scope rules apply, and the Form 2 match COVERED BY that span is dropped rather than raised as a second finding. A bare occurrence elsewhere on the same line is a different reference and survives. Occurrences Form 2 matched alone are ordinary verb uses and, under container-rename mode, are excluded from Certain and reported as an aggregate rather than as prompts. The report states how many Form-2 hits were superseded.",
       "files": [],
       "expectations": [
-        "Deduplication by (file, line) happens after the sweep and BEFORE triage",
-        "A container-position match takes the Certain path and its bare-token duplicate for the same line is dropped",
+        "Deduplication keys on the occurrence span, never on line identity, and runs after the sweep and BEFORE triage",
+        "The bare-token match covered by a container-position span is dropped; an independent occurrence on the same line survives",
+        "A container-position match enters its own form's bucket after scope rules, which may be Ambiguous rather than Certain",
         "The report includes the count of Form-2 hits superseded by container-position matches",
         "Ordinary verb uses are not surfaced as rename candidates or as mandatory confirmation prompts"
       ]
@@ -207,6 +208,18 @@
         "Resolution cites concrete evidence -- directory/manifest/invocation shape -- not token appearance",
         "An unresolvable case asks rather than silently defaulting either way",
         "The report states the resolved mode and the rule that produced it"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "coequal-form-alternatives-collapse-to-one-match",
+      "prompt": "Apply the rename of the `re-anchor` plugin to `discipline`. A line reads: /plugin install re-anchor@acme-tools",
+      "expected_output": "That occurrence is reported and edited ONCE. Both of Form 13's alternatives match it -- the management-verb alternative and the qualified-id alternative -- so span coverage collapses them to a single match (widest span preferred, earlier-numbered form on a tie) before triage. Left uncollapsed the count would double and Phase 5 would schedule two targeted Edits, the second failing because the first already rewrote the token.",
+      "files": [],
+      "expectations": [
+        "One finding and one Edit for the single occurrence, not two",
+        "Collapsing applies within a form, not only between a stronger and a weaker form",
+        "The named failure is a failed second Edit plus an inflated count, not merely a cosmetic duplicate"
       ]
     }
   ]
