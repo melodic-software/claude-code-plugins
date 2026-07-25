@@ -1,6 +1,6 @@
 # session-flow
 
-A Claude Code plugin bundling twelve skills for one cohesive capability: managing the lifecycle of a
+A Claude Code plugin bundling thirteen skills for one cohesive capability: managing the lifecycle of a
 working session — where you are in the work, how to pause and resume it, how to recover it after an
 interruption, how to leave it durable before the machine goes away, how to retire finished work and
 reconcile the task ledger, where things stand and why, whether its assumptions are still current,
@@ -12,6 +12,7 @@ what to learn from it while it runs and after, and how to arm it for delegation-
 | `/session-flow:handoff` | How do I save this session's state so a fresh `/clear` session resumes without rediscovery? |
 | `/session-flow:continue-in-background` | I'm stepping away — how does a background agent pick this up and keep it moving now? |
 | `/session-flow:keep-going` | We were interrupted — what was running, what survived, and where does the main task continue? |
+| `/session-flow:find-handoff` | I wrote a handoff, ran `/clear`, and lost the resume prompt — where is it and how do I resume? |
 | `/session-flow:clean-stop` | Before I lose this machine — is everything durable and linked, or is something stranded? |
 | `/session-flow:retro` | What happened this session, what did we learn, and how do we codify it? |
 | `/session-flow:running-retro` | Mid-flight: how is this session going, what is drifting, and what should change before it costs more? |
@@ -41,10 +42,10 @@ inline.
 
 ### handoff
 
-Writes a mid-session save-point for the `/clear`-and-resume pattern: a durable handoff file (task,
-progress, decisions, files modified, tried-and-ruled-out, next steps, TaskList snapshot) plus a
-copy-paste resume prompt — or prompt-only when follow-ups are small. Handoff files chain via
-`session_id` / `previous_handoff` frontmatter so `retro` can analyze the whole session chain. The
+Writes a mid-session save-point for the `/clear`-and-resume pattern: a durable handoff file — whose
+body sections `reference/structure.md` defines — plus a copy-paste resume prompt, or prompt-only
+when follow-ups are small. Handoff files chain via `session_id` / `previous_handoff` frontmatter so
+`retro` can analyze the whole session chain. The
 skill always STOPS after emitting the save-point — continuing would defeat the purpose. The
 save-point machinery itself (destination resolution, path choice, redaction, rails prompt) lives in
 the shared `reference/save-point.md` engine doc that `continue-in-background` also delivers from.
@@ -91,6 +92,23 @@ scheduler. Intent is inferred from the conversation; arguments are optional.
 
 ```shell
 /session-flow:keep-going              # inventory → inspect → recover → reconcile → report
+```
+
+### find-handoff
+
+The recovery counterpart to `handoff`: finds a save-point whose resume prompt was written but never
+copied — the operator ran `/clear` before copying it, leaving the fresh session with zero context
+and no path to the handoff on disk. Runs a read-only detection ladder — known-location glob of the
+current repo's `<memory_dir>/handoffs/`, then a bounded, recency-ranked scan of transcripts
+(excluding the current session's own file, since `/clear` opens a new transcript in the same project
+dir and the pre-clear content is a sibling) for the handoff directive and dashed-rail markers, which
+`reference/save-point.md` documents as a stable detection contract — then a confirm-before-resume
+gate. Handles both output modes (file-based and prompt-only, which writes no file). Read-only and
+redaction-aware: surfaces only the resume prompt and handoff metadata, never raw transcript content.
+Routes to `keep-going` when the recovered session ended mid-work rather than at a clean save-point.
+
+```shell
+/session-flow:find-handoff            # locate → confirm → resume, or hand to keep-going
 ```
 
 ### clean-stop
@@ -291,9 +309,9 @@ its open items — degrading to local git state alone when `gh` or the tracker i
 autonomous analysis leg reaches the network only when armed with `observer_analysis_enabled` on: it
 runs a headless `claude -p` (ordinary model API egress); collect-only mode and the in-session
 checkpoint are network-free. The remaining skills — workflow, handoff, continue-in-background,
-keep-going, retro, running-retro (in-session), orchestrate, reconcile, and setup — are network-free
-(retro and running-retro use the same stdlib-only Python 3.10+ parser reading local
-`~/.claude/projects/` transcripts; `reconcile` reads those same local transcripts read-only and
-mutates only the in-session task ledger); `continue-in-background` spawns a local `claude --bg`
-process, a new Claude Code session with ordinary session network access, but the skill itself performs
-no egress.
+keep-going, find-handoff, retro, running-retro (in-session), orchestrate, reconcile, and setup — are
+network-free (retro and running-retro use the same stdlib-only Python 3.10+ parser reading local
+`~/.claude/projects/` transcripts; find-handoff scans those same local transcripts read-only with no
+parser, and `reconcile` reads them read-only and mutates only the in-session task ledger);
+`continue-in-background` spawns a local `claude --bg` process, a new Claude Code session with ordinary
+session network access, but the skill itself performs no egress.
