@@ -1,5 +1,121 @@
 # Changelog — discovery plugin
 
+## [0.8.5]
+
+### Added
+
+- **`/discovery:research` — artifact ladder for the primary-source-first protocol.** A SEARCH order
+  over the artifact CLASSES the same claim is published at (deepest technical artifact — for a model
+  or benchmark claim the system/model card — → platform reference → product docs → changelog →
+  announcement → third-party), complementing the doc-index probe that enumerates pages. It does not
+  reorder authority: the tier table still ranks that, and the recency gate's changelog cross-check
+  stays unconditional. Stopping at an announcement page — the shallowest rung that still carries the
+  claim — and reporting a figure as unsourced is the failure this closes. Gate criterion 9 checks it.
+- **Outcome-gate criteria 9 and 10** — 9: for every ACCEPTED claim taken from a publisher's own
+  artifacts (vendor, OSS maintainer, or standards body — matching the ladder's own reach), the fetch
+  log must account for every rung above the one the claim came from, each recorded as
+  probed-and-not-existing, fetched-and-lacking-the-claim, or unreachable-and-enumerated as a Gap. An
+  unprobed "nothing deeper
+  exists" would let the shallow run this criterion targets nominate its own landing page as the top,
+  while the not-existing outcome keeps the common legitimate case — most claim classes ship no rung-1
+  artifact — representable without fabricating a fetch. That outcome carries its own evidence bar so
+  it cannot become the escape hatch the criterion exists to close: it is earned against an exhaustive
+  first-party surface (a sitemap, the in-repo docs tree, a releases listing), never against a search
+  miss or a curated `llms.txt`, which the doc-index table itself calls deliberately partial. A rung
+  those fail to surface is unresolved — a Gap naming the discovery surfaces checked and unchecked. A probe locates a rung; it does not grade
+  one, so it can establish a rung's absence but never that a rung which exists lacks the claim: a
+  title, index entry, or search snippet is exactly what omits the section being chased, and a
+  probe-only lacks-the-claim outcome is how a system card gets walked past with the gate still
+  passing. A bare fetch record, equally, would
+  let a run log the deeper artifact it found and source from a
+  shallower rung anyway; the unreachable route keeps the graceful-degradation contract intact. 10:
+  every reported absence must name both the checked
+  and the unchecked set. The broad-topic eval gains concrete thresholds and a does-NOT-meet clause so
+  criterion 10 is exercised against a real negative rather than passing vacuously, and its
+  outcome-gate expectation is updated to match.
+
+- **The fetch log is now a written output-contract section**, not a term the gate referred to without
+  anything producing it. Criteria 6 and 9 are graded against it, so it exists as
+  `Claim | URL or command | artifact-ladder rung | tool used | outcome` with, per accepted claim, an
+  entry for the rung the claim came from and one per rung above it — plus, for a claim whose subject
+  ships releases, its latest-release/changelog entry, because criterion 6's cross-check does not
+  depend on which rung supplied the claim, and a claim sourced above the changelog rung would
+  otherwise leave the recency gate graded from recollection. That entry's outcome is composite,
+  because one changelog fetch can serve the ladder walk and the cross-check at once: the ladder value
+  where the walk reaches that rung, plus the confirmed-latest version and date and a verdict of
+  `current`, `invalidated`, or `unresolved`. Criterion 9 reads the first half and criterion 6 the
+  second, so neither stands in for the other; recording the rung as fetched without its verdict was
+  the same recollection hole one level down — criterion 6 is graded off this log, so a run could file
+  the required row and still derive the currency judgement from memory. Entries are keyed by claim
+  because
+  criterion 9 is evaluated per claim and one artifact routinely carries claim A while lacking claim B. Without it criterion 9 could only be
+  answered from recollection — which the gate's own preamble says does not bite — and a fresh session
+  could not audit the ladder evidence at all.
+
+### Changed
+
+- **A fetch size failure now routes into the existing escalate-on-block ladder** rather than reading
+  as a dead end: a content-length rejection or a silent truncation is a fetcher limit, not a source
+  limit. Recipe — download out of context, confirm the file is the artifact and not a 200
+  login/consent/bot-challenge page, extract with whatever extractor the machine has, grep. Each
+  download lands under a claim-and-URL-derived filename inside its own `mktemp -d` directory —
+  parallel workers sharing a fixed `doc.pdf` could overwrite one another mid-validation and cite the
+  wrong document, a claim slug alone collides as soon as one claim is chased across two URLs, and
+  even the full stem collides when two parallel queries chase the same claim to the same URL. The
+  uniqueness rides the directory rather than the filename because BSD `mktemp` replaces only trailing
+  `X`s, so a `…-XXXXXX.<ext>` template fails outright on macOS. The discovered URL is bound as
+  single-quoted data rather than interpolated into the `curl` line: `$()` and backticks are legal in
+  a URL path and expand inside double quotes, so a hostile link would otherwise run as code before
+  the fetch. `curl -g` covers the same ground on curl's side: `{}` and `[]` are legal URL characters
+  that curl reads as sequence syntax no matter how the shell quoted them, expanding one URL into
+  several requests over a single output path. The artifact downloads extensionless with `-D` capturing the headers from the same
+  transfer — naming the file by type up front is circular, since the path must exist before the
+  response that reveals the type, and re-fetching to learn it costs a second full transfer of a
+  large or single-use signed download. The recorded `Content-Type` is corroborating evidence in both
+  directions and decisive in neither: a challenge page and the real spec are both `text/html`, and a
+  valid PDF served as `application/octet-stream` is confirmed by its signature rather than rejected
+  for its type — otherwise a complete local download gets reported as unreachable. The same
+  asymmetry applies to the challenge-shape rejections: a consent surface disqualifies the download
+  when it stands in place of the artifact, not when a cookie banner merely sits alongside a document
+  whose title, headings, and body are all present. Extraction is checked for usable text
+  before it counts as a search: an extractor exits 0 on a scanned or image-only PDF and returns
+  nothing, so empty or garbled output routes to another extractor, OCR, then escalation rather than
+  becoming a false "not found" about a source nobody read. An
+  unconfirmed download routes back through the full escalate-on-block order and does not count as the
+  recipe having run, so it can never manufacture a premature "unreachable". "Unreachable" is reserved
+  for exhaustion, of which there are two kinds: extraction that failed after escalation also failed,
+  and acquisition that failed through every rung — a source answering the direct fetch and every
+  fallback with a login, challenge, or block never yields an artifact to confirm, and the recorded
+  full walk is what earns the status. Neither covers the opposite mistake: an artifact that WAS
+  confirmed, extracted, and searched is a REACHED source that belongs in the checked set even when
+  the claim is not in it.
+- **Absence claims ship their enumeration.** A negative finding states the sources actually checked
+  AND the sources left unchecked, never a bare "unsourced" / "not found" — an absence claim is only
+  as strong as the set it was checked against. Stated at the `Gaps` output contract, gated by
+  criterion 10.
+
+## [0.8.4]
+
+### Changed
+
+- **Setup no longer hardcodes a publisher and repository name in the schema reference.** The skill
+  pointed at a `raw.githubusercontent.com/<publisher>/<repo>` URL for `topic-docs.schema.json`,
+  binding a runtime-consulted reference to one forge account inside a plugin that is otherwise
+  publisher-agnostic — a fork, a mirror, or a rename leaves the skill citing someone else's schema.
+  It now names the schema by the convention's own filename and defers to
+  `reference/topic-docs.md`, this plugin's binding, which already carries the single pointer to the
+  published convention. One coupling site per plugin instead of two, and the one that remains is the
+  file whose job is to cite upstream.
+- **The setup skill now says why its body matches `verification`'s byte-for-byte.** Most of it does,
+  and nothing on the page said whether that was a shared source to extract or a coincidence to
+  leave alone — so the next reader either re-litigates it or "deduplicates" two skills that are
+  supposed to be free to diverge. They are: both restate rules the topic-docs contract and the
+  marketplace setup contract already own, which is what a `SKILL.md` must do since it cannot defer
+  at runtime to a document the consuming repo lacks. `planning` renders the same rules in its own
+  prose and already disagrees with both on two of them. A maintainer note at the block points at
+  the contract's new "Implementers restate the rules" section, which carries the reasoning and the
+  trigger that would reopen extraction.
+
 ## [0.8.3] — 2026-07-24
 
 ### Fixed

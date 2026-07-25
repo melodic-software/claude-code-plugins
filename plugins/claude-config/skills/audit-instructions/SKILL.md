@@ -1,6 +1,6 @@
 ---
 name: audit-instructions
-description: "Audit locally-owned Claude Code instruction surfaces — user + project CLAUDE.md, .claude/rules, skill bodies, agent definitions, prompt-type hooks, output styles — for instructions current models no longer need: prior-model workarounds, over-prescriptive scaffolding, bare prohibitions, reasoning-echo directives, stale examples. Report-only: emits a findings report with proposed diffs, gated to the human, never auto-applied. Use when: 'after a model upgrade', 'are my instructions holding the model back', 'instructions the model no longer needs', 'too prescriptive', 'audit instructions', 'instruction audit'. Not a brevity pass and not memory-layer hygiene."
+description: "Audit locally-owned Claude Code instruction surfaces — user + project CLAUDE.md, .claude/rules, skill bodies, agent definitions, prompt-type hooks, output styles — for instructions current models no longer need: prior-model workarounds, over-prescriptive scaffolding, bare prohibitions, reasoning-echo directives, stale examples — plus instructions that misstate Claude Code's own behavior, cite a file in a form that never loads, or re-read a surface already in context. Report-only: emits a findings report with proposed diffs, gated to the human, never auto-applied. Use when: 'after a model upgrade', 'are my instructions holding the model back', 'instructions the model no longer needs', 'too prescriptive', 'audit instructions', 'instruction audit', 'stale Claude Code behavior', 'outdated harness claim', 'my @path import is not loading', 'instruction re-reads CLAUDE.md'. Not a brevity pass and not memory-layer hygiene."
 argument-hint: "[scope] — scope: claude-md|rules|skills|agents|hooks|output-styles|all (default: all)"
 user-invocable: true
 disable-model-invocation: false
@@ -17,7 +17,7 @@ doctrine, tiers it by how confident the evidence can be, and packages proposed r
 rewrites as a human-gated diff — so instruction surfaces shrink as models get better instead of
 only ever growing.
 
-The check catalog — the eleven checks I1–I11, their evidence tier, authority tag, severity, and
+The check catalog — the fourteen checks I1–I14, their evidence tier, authority tag, severity, and
 per-surface applicability — lives in [reference/criteria.md](reference/criteria.md). The
 deterministic pre-scan is
 `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.sh`.
@@ -39,7 +39,7 @@ concerns its siblings already cover — route rather than re-answer:
   portability is `claude-config:audit-permission-grants`.
 
 On **memory-layer surfaces** (CLAUDE.md, CLAUDE.local.md, `.claude/rules/`, `~/.claude/rules/`),
-this skill runs only the model-era checks I6–I11. It never runs or reports the hygiene checks
+this skill runs only the model-era checks I6–I12. It never runs or reports the hygiene checks
 I1–I5 (line-necessity, length, placement, inferable content, rule-to-hook) on these surfaces —
 that instruction-memory hygiene layer belongs to the `claude-memory` plugin. When that plugin is
 installed, route memory-layer hygiene to its `audit` skill; when it is not installed, emit a single
@@ -47,7 +47,9 @@ one-line pointer to the official CLAUDE.md include/exclude guidance (recorded wi
 [reference/criteria.md](reference/criteria.md)) so the operator knows where that audit lives — this
 skill still does not perform it. Either way, no I1–I5 hygiene finding is ever produced here. On
 **non-memory surfaces** (skill bodies, agent definitions, prompt-type hooks, output styles) the
-full catalog I1–I11 applies — no incumbent auditor covers instruction content there.
+catalog applies — no incumbent auditor covers instruction content there — **bounded by each row's
+own surface declaration**, which is narrower than the partition for some checks. I13 and I14 name
+their own surface sets and are not run outside them; this partition never widens a row.
 
 **Upstream-owned surfaces are excluded from the editable set.** Installed plugin-cache content is
 owned by the publishing repository, and a managed materialization is owned by whatever upstream

@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.26.9]
+## [0.26.12]
 
 ### Fixed
 
@@ -31,6 +31,80 @@ All notable changes to the `source-control` plugin are documented here. Format f
   is still held and releases it in the next step (`reference/orchestration.md` "Cleanup") — unlinking
   it here turned a successful cleanup into a `lease does not exist` release failure and dropped
   ownership early.
+
+## [0.26.11]
+
+### Fixed
+
+- **`fetch-all-pr-comments.sh` now emits `in_reply_to_id` for inline review comments (#587).** The
+  script's unified schema never projected the GitHub REST field that marks an inline review comment
+  as a threaded reply, so any caller reading the script's own output saw the key absent (surfacing as
+  `None`/`null` in downstream tooling) even for comments GraphQL confirmed were properly threaded
+  replies. Reproduced against live PR #563 data: the raw `pulls/<pr>/comments` response correctly
+  carries `in_reply_to_id` on reply comments — the script's `jq` projection for the inline surface
+  simply dropped it. Added `in_reply_to_id: .in_reply_to_id` to the inline mapping (sourced from the
+  same raw field GraphQL cross-checks against) and `in_reply_to_id: null` to the general/review
+  mappings, which have no reply-parent concept on their surfaces. Additive schema change — existing
+  consumers that don't read the new key are unaffected. Regression-tested with a threaded-reply
+  fixture.
+
+## [0.26.10]
+
+### Changed
+
+- `babysit-prs`'s Worker Contract and Worker Prompt Template
+  (`skills/babysit-prs/reference/orchestration.md`) now hand the worker the worktree's **absolute**
+  path and forbid relying on the shell's working directory persisting across separate tool calls:
+  every git operation is anchored with `git -C <absolute-worktree-path>` (`status`, `add`, `commit`,
+  `diff`, `log`, `push`), every file read/edit/write/glob/search takes an absolute path rather than
+  a relative one — worktree-prefixed for target-repository files, its own absolute path for a file
+  outside the worktree the worker is told to read, such as a `${CLAUDE_PLUGIN_ROOT}` reference — and
+  any command that derives its target from the working
+  directory without a `-C` equivalent — bare `gh`, `fetch-all-pr-comments.sh`, the target
+  repository's own build/test/lint commands — takes a per-call re-`cd` or its own explicit target
+  (`GH_REPO`, `FETCH_COMMENTS_OWNER`/`FETCH_COMMENTS_REPO`). A one-time `cd` at dispatch is not
+  enough:
+  cwd can drift between a read and the next write, silently committing a branch-owned fix into the
+  session's default checkout instead of the assigned worktree. Closes the same correctness gap
+  `implementation` 0.7.4 closed in the sibling `implement-dispatch` lane. `GH_REPO` is scoped to the
+  `gh` calls it can actually anchor: it selects the remote repository only (`gh help environment`),
+  so a locally-mutating call such as `gh pr checkout` ("Check out a pull request in git", `gh pr
+  checkout --help`) still takes a same-call `cd` — with `GH_REPO` alone it would fetch and switch
+  branches in whatever directory cwd had drifted to.
+
+## [0.26.9]
+
+### Fixed
+
+- **`babysit-prs` review-trigger contract now says `pending`, matching the code, and states what a
+  failing gate means (#324).** `reference/review-trigger.md` described the trigger signal as
+  `<review-gate-context>` "pending or failing", while every gate_state comparison in the engine
+  accepts only `pending` (`babysit_review_trigger.py` candidate predicate, `babysit_delta.py`
+  "awaiting requested review"), and `request_signal_pending` is derived solely from a `PENDING`
+  StatusContext with no target URL. The doc's own Engagement Gate Semantics section defines only
+  `PENDING` (no qualifying reviewer activity after the polling window) and `SUCCESS` (may reflect an
+  earlier head) — it gives `FAILING` no engagement meaning — so "or failing" was the erroneous
+  restatement, not the code. Narrowed the sentence to `pending` and recorded the failing semantic
+  once: a failing gate is not an engagement signal and is never a trigger candidate; it is bucketed
+  by `classify_checks` like any other check, so it already reaches the operator through the ordinary
+  failing-check blocker. Documentation and test only; no behavior change.
+
+## [0.26.8]
+
+### Fixed
+
+- **`fetch-all-pr-comments.sh` output can choke a downstream Python consumer on Windows
+  (emoji/cp1252 mismatch) (#597).** The script's UTF-8 JSON output commonly carries non-ASCII
+  bytes — bot badge images, reaction emoji — from bot review comments. Reproduced directly: a
+  Python consumer that opens the output (or reads this script's stdout) without an explicit UTF-8
+  encoding inherits the interpreter's default ANSI code page on Windows (cp1252) and raises
+  `UnicodeDecodeError` on those bytes; this repo's own consumers (`babysit_findings.py`) already
+  pin `encoding="utf-8"` explicitly and are unaffected, so the gap is external/downstream
+  consumers. `fetch-all-pr-comments.sh --help` now documents the `PYTHONUTF8=1` (PEP 540)
+  requirement for Windows consumers that don't pin the encoding themselves.
+  `babysit-readiness-gate.sh` — the one `babysit_python` caller that parses this script's
+  comment-JSON schema and lacked the `export PYTHONUTF8=1` convention the two `bin/` babysit
+  wrappers already apply — now sets it too, closing the inconsistency.
 
 ## [0.26.7]
 
