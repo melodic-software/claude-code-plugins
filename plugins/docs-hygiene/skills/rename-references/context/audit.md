@@ -77,6 +77,9 @@ Pattern-form breakdown:
 - Form 10 (cross-skill):    <count>
 - Form 11 (line-number-citation): <count>
 - Form 12 (dot-form sub-identifier): <count>
+- Form 13 (command-argument):  <count>
+- Form 14 (document title):    <count>
+- Form 15 (possessive/appositive): <count>
 
 Next: invoke `/rename-references <old> to <new>` to apply, or `/rename-references preview <old> to <new>` to dry-run.
 ```

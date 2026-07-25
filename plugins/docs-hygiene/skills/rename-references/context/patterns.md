@@ -156,6 +156,87 @@ invokes?\s+`?/<other-skill>\s+<old>\b
 - **False-positives:** rare — `<old>.` followed by a word char is specific. Sentence-end prose (`verify. Then…`) is excluded because `[\w-]+` requires a word char immediately after the dot (the space after the dot breaks it).
 - **Coupled-rename note:** dot-form is one face of coupled-sibling renames. When a skill renames, ALSO enumerate its internal mode names and content-file basenames that changed in lockstep (`quality` mode, `context/quality.md`) and sweep EACH as its own rename pair — they carry no primary token, so a sweep keyed only on `<old>` never reaches them. See SKILL.md "Gotchas" coupled-rename entry.
 
+## Container-position forms (13–15)
+
+Forms 1–12 assume `<old>` is a skill/mode identifier. When the renamed thing is a
+**container** — a plugin, a marketplace entry, anything a user names as an argument or
+titles a document after — three positions carry it that none of the earlier forms reach.
+Each is high-precision because the SURROUNDING SYNTAX proves the token is a proper name,
+not a verb.
+
+Why this matters more than coverage: when `<old>` is also an English verb *in the consuming
+codebase*, Form 2 cannot separate the two senses at any triage setting. Measured on the
+`re-anchor` → `discipline` rename, over the plugin's own tree: Form 2 matched **134** lines;
+Forms 13–15 matched **9** — the 8 real defects plus one frozen CHANGELOG-history line the
+existing "Frozen historical records" rule already excludes. See `triage.md`
+"Verb-sense collision the blocklist cannot serve".
+
+## Form 13: Command-argument position
+
+```regex
+(^|[^\w/])/plugins?\s+(install|uninstall|configure|enable|disable|update|add|remove)\s+`?<old>\b
+\b<old>@[\w.-]+
+```
+
+- **Triage default:** Certain
+- **Catches:** `<old>` as the ARGUMENT to a management command rather than as the command
+  itself — `/plugin install <old>@marketplace`, `/plugin configure <old>`,
+  `/plugin enable <old>` — plus the `<old>@<marketplace>` qualified-id form wherever it
+  appears (settings examples, install snippets, `enabledPlugins` / `pluginConfigs` keys).
+- **Why Form 1 misses it:** Form 1 anchors on `/<old>`. Here the slash belongs to `plugin`,
+  and `<old>` sits one-to-several words downstream with no slash of its own.
+- **Why the leading `[^\w/]` alternation:** keeps `.../plugin install x` (a path) from
+  matching while still allowing a line start, a space, or a backtick before the slash.
+- **Optional backtick before `<old>`:** these appear inside inline code spans constantly
+  (`` `/plugin configure <old>` ``); without `` `? `` the pattern misses the most common
+  rendering.
+- **False-positives:** rare. The enclosing management verb is what supplies the
+  disambiguation bare-token position lacks — prose does not accidentally say
+  "/plugin configure" before an English verb.
+- **Severity note:** these are FUNCTIONAL breaks, not cosmetic. A reader following
+  `/plugin install <old>@marketplace` gets `plugin-not-found`. Rank them above title hits
+  when reporting.
+
+## Form 14: Document title / declared name
+
+```regex
+^#{1,6}\s+`?<old>`?\s*$
+^(name|title):\s*"?<old>"?\s*$
+```
+
+- **Triage default:** Certain
+- **Catches:** an ATX heading whose ENTIRE content is the renamed token — the README H1 that
+  names the thing — and frontmatter `name:` / `title:` declaring it.
+- **Why the `$` anchor is load-bearing:** it is what makes this Certain rather than
+  ambiguous. A heading that merely *contains* the token (`## How re-anchor works`) may well
+  be verb usage and belongs in Form 2's ambiguous bucket; a heading that IS the token can
+  only be naming it.
+- **False-positives:** effectively none. A heading consisting solely of a bare English verb
+  is not a shape real documents use.
+- **Note:** a plugin/skill README H1 is the landing surface every consumer sees first, and
+  it is the single most-missed reference in practice — the rename moves the directory, so
+  the path-form patterns all pass, and nothing looks at line 1.
+
+## Form 15: Possessive and appositive container reference
+
+```regex
+\b<old>'s\b
+\bthe <old> (plugin|skill|marketplace entry|package|module)\b
+```
+
+- **Triage default:** Certain
+- **Catches:** prose where `<old>` stands in for the CONTAINER — "Report `<old>`'s effective
+  configuration", "the `<old>` plugin ships…".
+- **Why it is Certain even when `<old>` is a blocklisted verb:** English verbs do not take
+  the possessive clitic, and a noun-class appositive (`the X plugin`) forces the naming
+  reading. Both shapes are grammatically incompatible with the verb sense, so this is safe
+  where Form 2 is not.
+- **False-positives:** a token that is a noun in ordinary use ("the review plugin" vs a
+  review) can still collide; when `<old>` is a common NOUN rather than a verb, demote this
+  form to ambiguous.
+- **Extend the appositive noun class** to whatever the consuming repository calls its
+  containers.
+
 ## Phase 0 — pre-sweep blocklist load
 
 Before running any pattern, load the English-verb blocklist from `triage.md`. Any bare-token (Form 2) or chain-context match (Forms 4, 5, 6, 9) where the token is in the blocklist is forced into ambiguous bucket regardless of regex precision.
@@ -167,6 +248,13 @@ When the skill's re-sweep finds a NEW syntactic form not covered above:
 1. STOP — do not silently mangle. Report the new form to user.
 2. Document the pattern in this file with all 5 fields (form name, regex, triage default, example, false-positives)
 3. Re-run sweep with extended pattern library
+
+**Validate a new form on BOTH axes before adding it.** Recall alone is not evidence — Form 2
+already has perfect recall on every form here and is still unusable when the token is a verb.
+Measure the candidate against a real fixture: the reference commit that FIXED the missed
+references (its removed lines are the defect set) for recall, and the whole pre-fix tree for
+precision, reporting the new form's hit count beside bare-token Form 2's on that same tree.
+A form that does not beat Form 2 on precision is not carrying its weight.
 
 ## Cross-platform note
 

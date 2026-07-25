@@ -72,6 +72,31 @@
         "Output explains both names appear in the plan doc by design (self-reference)",
         "Output does not rewrite the plan doc's occurrences of the old name"
       ]
+    },
+    {
+      "id": 7,
+      "name": "container-rename-catches-command-argument-and-title",
+      "prompt": "I renamed the plugin `re-anchor` to `discipline`. The directory moved and every /re-anchor: invocation is updated. Audit for anything still stale.",
+      "expected_output": "The sweep runs the container-position forms (13-15) in addition to Forms 1-12, so it reports the plugin name in command-argument position (`/plugin install re-anchor@melodic-software`, `/plugin configure re-anchor`), a document title that is the bare token (`# re-anchor`), and possessive container prose (\"re-anchor's effective configuration\") as Certain. It does NOT report the English-verb uses (\"each skill re-anchors ONE discipline\") as Certain, and it flags command-argument hits as functional breaks rather than cosmetic ones.",
+      "files": [],
+      "expectations": [
+        "Forms 13-15 are run, not only the slash-token and path forms that a directory move already satisfies",
+        "`/plugin install <old>@marketplace` and `/plugin configure <old>` are reported as Certain and identified as functional breaks",
+        "A heading whose entire content is the bare token is reported as Certain",
+        "Verb-sense uses of the token are not swept into the Certain bucket"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "verb-collision-not-fixed-by-blocklist-extension",
+      "prompt": "The token I'm renaming is also used as a verb hundreds of times in this repo. Should I add it to the English-verb blocklist so the sweep stops proposing bad rewrites?",
+      "expected_output": "Explains that blocklist extension is the wrong remedy for a token that is a verb in the consuming codebase: leaving it off rates every bare-token hit Certain, and adding it forces every hit into the ambiguous bucket where the per-match confirmation rule turns a handful of real defects into hundreds of prompts. Routes to the position-anchored forms 13-15 instead, which stay Certain regardless of blocklist membership because their surrounding syntax admits only the container sense.",
+      "files": [],
+      "expectations": [
+        "Identifies that BOTH blocklist branches fail for a codebase-specific verb, not just the omit branch",
+        "Recommends position-anchored forms rather than extending the blocklist",
+        "Does not propose per-match confirmation over the full bare-token hit set as the answer"
+      ]
     }
   ]
 }
