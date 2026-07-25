@@ -1,5 +1,50 @@
 # Changelog — session-flow plugin
 
+## [0.16.0]
+
+### Changed
+
+- **handoff: the save-point body-section taxonomy is restructured.** The old eight sections led with
+  the costly layer — a resuming session learned what to do next in section six of eight — which
+  inverts the ladder the org's `progressive-disclosure` convention prescribes. The set now opens
+  with a six-line `Resumption brief` a reader can stop at, and the remaining sections are ordered
+  frame, world, memory, frontier. Three kinds of state that previously had no home are now owned:
+  invariants that must hold, persistent side effects that must not be repeated, and hard-won
+  findings that are neither a decision nor a failed approach. `Open questions / next steps` is split
+  three ways — a slash in a heading meant it owned more than one taxon — and the `Progress` /
+  `Files modified` overlap is resolved into a single file-role map. Every section is now always
+  present, with an explicit "nothing to report" rather than an omission, so a cold reader can tell
+  silence from oversight.
+- **handoff: the emitted resume directive no longer names a section.** It read
+  `continue per its "Open questions / next steps"`; it now reads `continue its remaining next steps`.
+  The heading was the only runtime coupling to the taxonomy, so the section set can move again
+  without touching `save-point.md`, and handoffs already on disk stay resumable. Nothing parses a
+  handoff body heading, so existing save-points are unaffected.
+- **handoff: consumers cite the section list instead of restating it.** `save-point.md` carried a
+  full inline recap that had already drifted from the owner doc on two of eight names, and four more
+  files carried partial or differently-spelled copies — one section had accumulated five spellings.
+  Per the org's `reference-dont-duplicate` convention a closed enumeration is a mapping table that
+  must be cited, never recapped, so `reference/structure.md` is now the single home and the copies
+  are pointers.
+- **handoff: the "all eight body sections present" checklist assertion is retired.** A count is
+  satisfiable by eight wrong sections, it has gone stale before, and it duplicated a value derivable
+  from the doc it described. The checklist now walks the structure doc.
+- **orchestrate: documents the shape of a multi-tier delegation tree** — what the top tier owns,
+  why coordination belongs low in the chain, what a tier-crossing return payload should carry,
+  ephemerality as a cost control rather than tidiness, and why a clean worker return is not
+  evidence of a correct one. No new machinery; the existing imperatives already permit the tree,
+  this names its shape.
+
+### Removed
+
+- **handoff: the write-only `previous_session_id` frontmatter field.** The chain walker
+  (`skills/retro/scripts/parse_transcript.py`) only ever read `session_id` and `previous_handoff`;
+  the third field was written by the spec, asserted by five documents, seeded by test fixtures, and
+  consumed by nothing. Storing the prior session's id in a second place invited the two pointers to
+  disagree — the walker resolves it by reading the prior file's own `session_id`. Chain-walking is
+  unchanged, verified by the existing chain tests with the field removed from their fixtures.
+  The `running-retro` ledger's own `previous_session_id` is a separate, live field and is untouched.
+
 ## [0.15.1]
 
 ### Changed
