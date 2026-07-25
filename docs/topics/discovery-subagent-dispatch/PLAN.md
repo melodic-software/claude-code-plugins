@@ -325,7 +325,7 @@ Repo `CLAUDE.md` and `AGENTS.md` are ambient and are not re-pulled here.
   text carries the version floor plus graceful degradation.** No per-invocation runtime probe (it
   costs a turn at every spawn and multiplies under fan-out). Phase 4.
 
-### Phase 0: Merge gate — #1260 lands, branch rebases [TODO]
+### Phase 0: Merge gate — #1260 lands, branch rebases [DONE]
 
 Hard precondition on every later phase: no `plugins/discovery/` edit happens before this closes.
 PR #1260 (`feat(discovery): artifact ladder, large-doc fetch, absence enumeration`) edits the exact
@@ -361,7 +361,66 @@ outstanding — it appears mergeable now.
 - The outcome-gate table has 10 rows, counted **scoped to that table** — `awk '/^## Outcome gate/,/^## /' plugins/discovery/skills/research/SKILL.md | grep -c '^| [0-9]* |'`. An unscoped file-wide count silently breaks the moment #1260 or a later edit adds another numbered table.
 - `grep -n 'Subagent returns are Tier 3' plugins/discovery/skills/research/SKILL.md` returns exactly one line; its number is recorded in this PLAN before Phase 2 starts.
 
-### Phase 1: Agent definitions + end-to-end dispatch probe [TODO]
+> **CLOSED 2026-07-25. #1260 merged at 22:58:13Z as squash `002bb380`; this branch rebased onto it,
+> ahead 10, `git merge-base --is-ancestor origin/main HEAD` exits 0 after a fetch.**
+>
+> **Second scope-change note — step 1 reverts from *wait for MERGED* to *drive it myself*, on the
+> user's instruction to complete the work rather than poll.** The babysit lane and this session both
+> pushed to `feat/research-primary-source-ladder`; the lane's last contribution was `fdb0599717`.
+> Every push after that is this session's. Racing was avoided by re-fetching immediately before each
+> push and re-reading the PR head before judging any finding — the discipline the prior session's
+> stale-head mistake earned.
+>
+> **#1260 took seven more Codex rounds to close, all fixed rather than waved through**, because each
+> described a defect that changes what an agent following the recipe does. In order: the download
+> path's uniqueness was non-portable (BSD `mktemp` replaces only *trailing* `X`s, so `…-XXXXXX.<ext>`
+> is an invalid template on macOS and `&&` chaining meant `curl` never ran); a discovered URL was
+> interpolated into a double-quoted `curl` line, where `$()` and backticks expand — a **P1 command
+> injection** in shipped guidance; the output path was named by content type before the response that
+> reveals the type existed; confirmation treated a content-type match as necessary, discarding a valid
+> PDF served as `application/octet-stream`; it also rejected any page carrying a cookie banner, which
+> ends in "unreachable" for a document already read; criterion 9 graded a rung off a *probe* while the
+> protocol demanded a *fetch*; the resulting three-outcome vocabulary could not express a rung that
+> legitimately does not exist, and the added `probed-and-not-existing` outcome then needed an evidence
+> bar of its own — it is now earned only against an exhaustive first-party surface, never a search
+> miss or a deliberately-partial `llms.txt`. `curl -g` was added alongside: `{}` and `[]` are legal URL
+> characters `curl` expands regardless of shell quoting.
+>
+> **Recorded facts, measured post-rebase — these govern, not the plan's projections:**
+>
+> | Fact | Projected | **Actual** |
+> |---|---|---|
+> | `jq -r .version plugins/discovery/.claude-plugin/plugin.json` | `0.8.3` | **`0.8.5`** |
+> | Outcome-gate table rows (scoped `awk`) | 10 | **10** |
+> | Five `artifact-protocol.md` md5s collapse to | 1 | **1** |
+> | Tier-3 subagent-return sentence | `:148` | **`:150`** |
+>
+> **The version moved twice, not once.** #1260 shipped `0.8.4` at plan time, but `main` released its
+> own `0.8.4` (the setup schema-reference and byte-identity notes) while #1260 was open, so resolving
+> that conflict moved #1260's entries to `0.8.5`. **Phase 6's target is therefore `0.9.0`**, derived
+> from `0.8.5` exactly as the plan requires — never hardcoded.
+>
+> **Two premises re-verified against the rebased tree, both unchanged:**
+>
+> - **#1096 has still not merged.** `docs/PLUGIN-PHILOSOPHY.md` on `main` carries no
+>   `Delegation mechanics`, `named-agent bar`, or `fresh-eyes` text; `check-skill.sh` has no check 21;
+>   `plugins/skill-quality/skills/check/` still holds only `SKILL.md` and `evals/`. The grounding
+>   table's *aspirational, not grounded* marking stands, and Phase 2 item 5's "do not write the skill
+>   text as though the exemption is claimable" stays binding.
+> - **Both preload targets remain preloadable** — `research/SKILL.md:6` and `explore/SKILL.md:6` are
+>   each `disable-model-invocation: false`. Amendment 2 makes this load-bearing: `true` would block
+>   preload *and* the `Skill` tool, and it fails silently, which is the whole reason C2 carries
+>   `preload_token`.
+>
+> **One sanity check in a later phase is stale and is corrected here rather than left to fail.**
+> Phase 2 asserts `bash scripts/check-skill-portability.sh --all` exits 0. It exits **1 on unmodified
+> `main`**, on three pre-existing `origin/(main|master)` couplings in `plugins/playbooks` and
+> `plugins/work-items` — none in `discovery`, none introduced here. CI does not run `--all`: it runs
+> `scripts/check-skill-portability.sh "origin/$BASE_REF"` (`.github/workflows/ci.yml:678`), the
+> changed-paths form. **The base-ref form is the binding gate for this branch**; the three standing
+> couplings are someone else's surface and go to Phase 7 as a tracker candidate, not fixed here.
+
+### Phase 1: Agent definitions + end-to-end dispatch probe [DOING]
 
 The integration slice. Two files, one live runtime probe — the tracer bullet that proves preload,
 artifact write, and return payload work together before any skill text is rewritten.
