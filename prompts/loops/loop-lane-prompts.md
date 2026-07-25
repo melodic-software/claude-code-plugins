@@ -92,7 +92,7 @@ into one profile.
   gh issue list --label "$ROLE" --limit 500 --json number,body,labels \
     | jq --argjson valid "$VALID" '
         [.[] | select(
-          (.body | test("(^|\\n)Work-class: C[1-5]( |$)"))
+          (.body | test("(^|\\n)Work-class: C[1-5]( |\\r|\\n|$)"))
           or (any(.labels[].name; . as $n | $valid | index($n)))
         )] | length'
   ```
@@ -101,12 +101,18 @@ into one profile.
   `--argjson`** — pipe to `jq` instead of using `--jq`. And jq's regex engine
   does **not** honor `(?m)`, so the trailer is anchored with `(^|\n)`.
 
-  The trailing `( |$)` is a **token boundary, not merely a non-digit**: it
-  rejects `C12` after matching `C1`, and equally rejects `C2foo` and `C3?`,
+  The trailing `( |\r|\n|$)` is a **token boundary, not merely a non-digit**:
+  it rejects `C12` after matching `C1`, and equally rejects `C2foo` and `C3?`,
   which a `[^0-9]` guard would have counted as canonical. Every widening of
   this pattern inflates the readiness count the rung decision trusts, so keep
-  it strict — the canonical trailer always continues with a space or ends the
-  line.
+  it strict.
+
+  All four alternatives are load-bearing, and two are easy to drop by
+  mistake. Without `(?m)`, `$` means **end of the entire body**, not end of
+  line — so a bare `Work-class: C2` followed by any further body text needs
+  the `\n` branch, and a CRLF body needs `\r`. Omitting them silently
+  under-counts exactly the repositories that record classes in bodies, which
+  is the population this check exists to find.
 
   **Always pass `--limit`** — `gh issue list` silently truncates at 30, so an
   unbounded count under-reports any backlog past that.
@@ -120,7 +126,7 @@ into one profile.
   hole, not a cosmetic omission — it lets a behavioral change be stamped C2
   and merged unattended.
 
-  **Define it fail-closed: every plugin-tree `.md` is runtime until proven
+  **Define it fail-closed: every tracked `.md` is runtime until proven
   inert.** A forward derivation — grep the skill bodies for what they load,
   then treat the results as the boundary — is tempting and is wrong twice
   over. It misses every load directive that is not a markdown link (bare
@@ -130,12 +136,21 @@ into one profile.
   in this repo. A boundary that silently under-reports is worse than no
   boundary, because it reads as coverage.
 
-  So invert it. **The whole plugin tree is the boundary**; subtraction is
-  per path and needs proof:
+  So invert it. **The whole repository is the boundary**; subtraction is per
+  path and needs proof:
 
   ```bash
-  find plugins -name '*.md'
+  git ls-files '*.md'
   ```
+
+  **Do not narrow this to a plugin or source directory.** Agent-loaded
+  markdown lives outside it: `CLAUDE.md` and `AGENTS.md` at the repository
+  root supply operating rules every session loads, `.claude/rules/**` the
+  same, and this document's own profile reads the merge rung out of
+  `.claude/source-control.md` — a tracked config file that happens to be
+  markdown, and whose one-line edit changes what a lane is permitted to
+  merge. A directory-scoped boundary lets a change to any of those be stamped
+  C2 as ordinary documentation.
 
   **No filename is inert by convention — `README.md` least of all.** In this
   repo `tools/work-item-tracker/adapters/github/README.md` is the GitHub
@@ -146,10 +161,11 @@ into one profile.
   merged unattended — the same hole in a new coat.
 
   Subtract a path only after showing nothing loads it: no skill body, agent,
-  or command references it by link, by bare `Read` directive, by glob, or by
-  `${CLAUDE_PLUGIN_ROOT}`-relative path. That is a per-path proof, never a
-  filename or directory-name rule. In an application repo the set may be
-  genuinely empty — but prove that, do not assume it.
+  command, or harness-loaded instruction file references it by link, by bare
+  `Read` directive, by glob, or by `${CLAUDE_PLUGIN_ROOT}`-relative path.
+  That is a per-path proof, never a filename or directory-name rule. In an
+  application repo the set may be genuinely empty — but prove that, do not
+  assume it.
 
 ## Adopting a new repository
 
@@ -564,10 +580,13 @@ letting one "primary" shard write it records a partial pass as the whole.
 > **The boundary is fail-closed.** Treat a doc-shaped path as runtime
 > unless you can show nothing loads it — and a link grep is not that proof:
 > skill bodies also load files through bare `Read <path>` directives, globs,
-> and plugin-root-relative paths no link pattern returns. **No filename is
-> inert by convention**, `README.md` included — an adapter or tool README is
-> frequently an operations reference a skill consults at run time. Anything
-> you cannot prove inert per path is not mechanical. Fail toward the higher
+> and plugin-root-relative paths no link pattern returns. **Do not assume
+> the source tree bounds it** — root instruction files and tracked
+> markdown config outside any code directory are agent-loaded too.
+> **No filename is inert by convention**, `README.md` included — an adapter
+> or tool README is frequently an operations reference a skill consults at
+> run time. Anything you cannot prove inert per path is not mechanical.
+> Fail toward the higher
 > class.
 >
 > Never route a `work-class:` label through `/work-items:track` — that
@@ -610,28 +629,32 @@ Filled instance for the repository in use as of 2026-07-25.
 | `{{STOP}}` | `--drain` |
 | `{{RUNTIME_SURFACES}}` | see below — derived, not a two-glob list |
 
-- Runtime surfaces: **not** just `SKILL.md` and `reference/*.md`. Under the
-  fail-closed definition above, **all 875 markdown files under `plugins/`**
-  are runtime for classification until individually proven inert —
-  `SKILL.md`, `agents/*.md` (the six installed reviewer agents among them),
-  `context/**` (57 directories), `references/**`, nested `reference/**`, and
-  `templates/**`. Not even `README.md` is safe to exclude by name here:
+- Runtime surfaces: **not** just `SKILL.md` and `reference/*.md`, and **not**
+  confined to `plugins/`. Under the fail-closed definition above, **all 986
+  tracked markdown files** are runtime for classification until individually
+  proven inert — 883 under `plugins/` (`SKILL.md`, `agents/*.md` including
+  the six installed reviewer agents, `context/**` across 57 directories,
+  `references/**`, nested `reference/**`, `templates/**`) and 103 outside it.
+  Two traps live in that outer 103: `CLAUDE.md`, `AGENTS.md`, and
+  `REVIEW.md` at the root are loaded as operating rules every session, and
+  `.claude/source-control.md` is the tracked config this very profile reads
+  the merge rung from — a one-line edit there changes what a lane may merge.
+  Not even `README.md` is safe to exclude by name:
   `tools/work-item-tracker/adapters/github/README.md` is the GitHub adapter's
   operations reference, loaded by `reference/tracker-seam.md` and
-  `skills/work/SKILL.md`. Re-run the count rather than reusing this number;
-  it moves with every plugin added.
+  `skills/work/SKILL.md`. Re-run the count rather than reusing these numbers.
 - Merge rung: `c2-mechanical`, live in tracked config on `main`. Raising to
   `c3-autonomous` is a one-line edit to `.claude/source-control.md`.
 - Work-class labels: deployed. Exact strings, ascending risk:
   `work-class: read-only`, `work-class: mechanical`, `work-class: scoped`,
   `work-class: structural`, `work-class: untrusted-provenance`.
-- Stamped `agent-ready` items, re-counted live on 2026-07-25: **38 open, all
-  38 label-stamped** — 3 `mechanical`, 34 `scoped`, 1 `structural`. At
-  `c2-mechanical` only the 3 are merge-eligible; at `c3-autonomous`, 37.
+- Stamped `agent-ready` items, re-counted live on 2026-07-25: **29 open, all
+  29 label-stamped** — 2 `mechanical`, 26 `scoped`, 1 `structural`. At
+  `c2-mechanical` only the 2 are merge-eligible; at `c3-autonomous`, 28.
   **Re-run the union count; never quote this line.** It read 50 when this
-  document was authored, then 44, 40, and 38 over the following hours — the
-  backlog drains underneath it, and a rung decision made from a stale number
-  is a decision about a repository that no longer exists.
+  document was authored, then 44, 40, 38, and 29 over the following hours —
+  the backlog drains underneath it, and a rung decision made from a stale
+  number is a decision about a repository that no longer exists.
 - No autonomy binding file exists, so the C2 promotion evidence above is
   not recorded here.
 - `#820` carries `do-not-merge`; its body embeds a veto-before-merge
@@ -651,8 +674,8 @@ overnight without me":
 
 - **Tier `autopilot`** — in the prompt below. Already maximal.
 - **Merge rung** — one line in `.claude/source-control.md` on `main`.
-  Currently `c2-mechanical`. Change to `c3-autonomous` and 37 of the 38
-  open `agent-ready` items become eligible instead of 3 (live count,
+  Currently `c2-mechanical`. Change to `c3-autonomous` and 28 of the 29
+  open `agent-ready` items become eligible instead of 2 (live count,
   2026-07-25 — re-run it, do not quote it). Whether that raise is
   *authorized* is a separate question from whether the seam supports it: the
   guardrail matrix sets C3 merge policy to `human merge` and lists no C3
@@ -835,10 +858,13 @@ terminals mutating the same row.
 >
 > Repository: `melodic-software/claude-code-plugins`
 > Shard: `[ratify]`
-> Runtime surfaces in this repo: **every markdown file under `plugins/`** —
-> 875 at last count. `SKILL.md`, `agents/*.md`, `commands/*.md`, and every
-> `reference/**`, `references/**`, `context/**`, `templates/**` file at any
-> depth. No filename is exempt by convention: this repo's
+> Runtime surfaces in this repo: **every tracked markdown file** — 986 at
+> last count, and deliberately not scoped to `plugins/`. Inside it:
+> `SKILL.md`, `agents/*.md`, `commands/*.md`, and every `reference/**`,
+> `references/**`, `context/**`, `templates/**` file at any depth. Outside
+> it: root `CLAUDE.md`, `AGENTS.md`, and `REVIEW.md` are operating rules
+> loaded every session, and `.claude/source-control.md` carries the merge
+> rung itself. No filename is exempt by convention either — this repo's
 > `tools/work-item-tracker/adapters/github/README.md` is the GitHub adapter's
 > operations reference, so even a README edit here can change lane behavior.
 > Treat a path as runtime unless you can show nothing loads it.
@@ -893,10 +919,12 @@ terminals mutating the same row.
 > and a change to any path on the `Runtime surfaces` line is not mechanical
 > no matter how doc-shaped it looks, because those are runtime here.
 >
-> **The boundary is fail-closed.** A markdown path under `plugins/` is
-> runtime unless you can show nothing loads it — and a link grep is not that
-> proof: skill bodies also load files through bare `Read <path>` directives,
-> globs, and `${CLAUDE_PLUGIN_ROOT}`-relative paths no link pattern returns.
+> **The boundary is fail-closed.** Any tracked markdown path is runtime
+> unless you can show nothing loads it — **and it is not confined to
+> `plugins/`**: root `CLAUDE.md` / `AGENTS.md` and `.claude/source-control.md`
+> are agent-loaded too. A link grep is not that proof: skill bodies also load
+> files through bare `Read <path>` directives, globs, and
+> `${CLAUDE_PLUGIN_ROOT}`-relative paths no link pattern returns.
 > **No filename is inert by convention**, `README.md` included — this repo's
 > GitHub adapter README is loaded by `reference/tracker-seam.md`. Anything
 > you cannot prove inert per path is not mechanical. Fail toward the higher
