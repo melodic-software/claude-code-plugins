@@ -333,10 +333,13 @@ items", the `--add-label`-vs-`--label` rule under "Edit labels / assignees"). Cr
   Python's `open()` with no `encoding=` (the locale encoding, i.e. the ANSI code page —
   [PEP 686](https://peps.python.org/pep-0686/) makes UTF-8 the default only in 3.15+) and Windows
   PowerShell 5.1's `Get-Content` (PowerShell 6+ already defaults to `utf8NoBOM`). Do not reason
-  from the version you happen to be on — state the encoding on both sides of any ad-hoc step:
-  `open(path, encoding='utf-8')` or `open(path, 'rb').read().decode('utf-8')` (or run under
-  `PYTHONUTF8=1`); PowerShell `Get-Content -Encoding utf8`. Writing back from Windows PowerShell 5.1 needs
-  `[IO.File]::WriteAllText($p, $s, (New-Object Text.UTF8Encoding $false))` — there
+  from the version you happen to be on — state the encoding on both sides of any ad-hoc step,
+  read *and* write. Python reads with `open(path, encoding='utf-8')` or
+  `open(path, 'rb').read().decode('utf-8')` and writes back with
+  `open(path, 'w', encoding='utf-8')` (or run under `PYTHONUTF8=1`, which covers both sides).
+  Windows PowerShell 5.1 reads with `Get-Content -Raw -Encoding utf8` — without `-Raw` you get a
+  line array, not the one string the write below takes — and writes back with
+  `[IO.File]::WriteAllText($p, $s, (New-Object Text.UTF8Encoding $false))`, because there
   `-Encoding utf8` prepends a BOM and `utf8NoBOM` does not exist (PowerShell 6+ has both).
 - **Rate limits** (verify current values via GitHub REST docs): batch bulk creates to respect
   the secondary content-generation limit — e.g. 30 items per batch with short pauses.
