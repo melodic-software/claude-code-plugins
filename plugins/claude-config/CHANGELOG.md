@@ -26,10 +26,11 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 - **A boundary against `claude-memory:audit`'s C6 consistency check drawn on C6's actual population,
   not on the name of the layer.** C6 discovers files project-relative (`find . -maxdepth 1` over
   `CLAUDE.md`/`CLAUDE.local.md`, plus `find .claude/rules`) and its check text names only those
-  files. So only a pair with **both halves in project-scope** `CLAUDE.md` / `CLAUDE.local.md` /
-  `.claude/rules/**` routes to C6. Any pair with a `~/.claude/` side, and any pair involving
-  auto-memory `MEMORY.md`, stays with this pass — routing those out on a layer label would have left
-  them audited by neither skill.
+  files. So only a pair with **both halves in root-level project** `CLAUDE.md` / `CLAUDE.local.md` /
+  `.claude/rules/**` routes to C6. Any pair with a `~/.claude/` side, any pair involving auto-memory
+  `MEMORY.md`, and any pair reaching a **nested** `CLAUDE.md` / `CLAUDE.local.md` stays with this
+  pass — C6 discovers with `find . -maxdepth 1` and never reads the nested files, so routing those
+  out on a layer label would have left them audited by neither skill.
 - **`scripts/conflict-scan.sh` + tests.** Advisory deterministic pre-scan emitting
   `fileA:lineA|fileB:lineB|entity|flags` candidate pairs, always exit 0, matching the existing
   `instruction-scan.sh` contract. An entity is a CamelCase identifier anywhere **or a single
