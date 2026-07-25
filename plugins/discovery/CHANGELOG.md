@@ -14,11 +14,15 @@
 - **Outcome-gate criteria 9 and 10** — 9: for every ACCEPTED claim taken from a publisher's own
   artifacts (vendor, OSS maintainer, or standards body — matching the ladder's own reach), the fetch
   log must account for every rung above the one the claim came from, each recorded as
-  fetched-and-lacking-the-claim or as unreachable-and-enumerated as a Gap. An unprobed "nothing deeper
-  exists" would let the shallow run this criterion targets nominate its own landing page as the top;
-  a probe-only outcome would let a title, index entry, or search snippet stand in for the artifact,
-  so a system card whose relevant section never surfaced in the probe could be walked past with the
-  gate still passing — a probe locates a rung, it does not grade one; and a bare fetch record would
+  probed-and-not-existing, fetched-and-lacking-the-claim, or unreachable-and-enumerated as a Gap. An
+  unprobed "nothing deeper
+  exists" would let the shallow run this criterion targets nominate its own landing page as the top,
+  while the not-existing outcome keeps the common legitimate case — most claim classes ship no rung-1
+  artifact — representable without fabricating a fetch. A probe locates a rung; it does not grade
+  one, so it can establish a rung's absence but never that a rung which exists lacks the claim: a
+  title, index entry, or search snippet is exactly what omits the section being chased, and a
+  probe-only lacks-the-claim outcome is how a system card gets walked past with the gate still
+  passing. A bare fetch record, equally, would
   let a run log the deeper artifact it found and source from a
   shallower rung anyway; the unreachable route keeps the graceful-degradation contract intact. 10:
   every reported absence must name both the checked
@@ -58,7 +62,9 @@
   `X`s, so a `…-XXXXXX.<ext>` template fails outright on macOS. The discovered URL is bound as
   single-quoted data rather than interpolated into the `curl` line: `$()` and backticks are legal in
   a URL path and expand inside double quotes, so a hostile link would otherwise run as code before
-  the fetch. The artifact downloads extensionless with `-D` capturing the headers from the same
+  the fetch. `curl -g` covers the same ground on curl's side: `{}` and `[]` are legal URL characters
+  that curl reads as sequence syntax no matter how the shell quoted them, expanding one URL into
+  several requests over a single output path. The artifact downloads extensionless with `-D` capturing the headers from the same
   transfer — naming the file by type up front is circular, since the path must exist before the
   response that reveals the type, and re-fetching to learn it costs a second full transfer of a
   large or single-use signed download. The recorded `Content-Type` is corroborating evidence in both
