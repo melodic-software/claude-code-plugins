@@ -7,7 +7,8 @@ date: 2026-07-24
 # Phase 6 — the checks and the sweep
 
 Tasks #19 and #22–#27 (two new checks and four edits to existing ones, per the proportionality gate)
-and #28 (the sweep). Naming is resolved separately and is carried here as `<sweep>` until it lands.
+and #28 (the sweep). **The sweep is named `audit-pass`**, invoked as `/claude-config:audit-pass` —
+see "Naming, resolved" below for what that choice paid.
 
 ## D1 — cross-surface instruction conflict
 
@@ -185,7 +186,7 @@ costs after compaction.
 
 ## The sweep
 
-`/claude-config:<sweep>`. A skill in `claude-config`, not a new plugin.
+`/claude-config:audit-pass`. A skill in `claude-config`, not a new plugin.
 
 ### Why it is a component and not a runbook
 
@@ -295,9 +296,34 @@ being imposed on it.
 
 ## Open in this phase
 
-- **Naming.** A ranked shortlist exists and the choice is the operator's; `<sweep>` stands until it
-  lands. **What the naming pass settled regardless of which name wins is more important than the
-  name.** `audit-instructions`' description opens with this exact surface list — "user + project
+- **Naming — resolved. `audit-pass`.** Operator's choice, 2026-07-24, from a 32-candidate five-lens
+  tournament. What it claims: one bounded, coordinated, ordered, resumable pass over a named target.
+  **What it pays, recorded so nobody re-litigates it:** the qualifier is thin; "pass" invites a
+  pass/fail reading the design explicitly disclaims; the sibling family's object-prior lets it
+  misparse as "audit the pass"; and in compiler usage a *pass* is a member of a sequence while the
+  coordinator is the *pass manager*, so the term names one level down. Those are underspecification,
+  not misdescription — which is why it beat `audit-battery`, `audit-campaign`, and `audit-cycle`,
+  each of whose verified field meaning actively contradicts the design.
+
+  **The runner-up was `audit-combined`**, and it is worth knowing why it lost: ISO 19011's *combined
+  audit* — one audit at a single auditee covering two or more otherwise-separate management systems
+  — is literally this artifact's coordination difference, the only candidate whose established field
+  meaning matched rather than approximated. It lost on readability, and because the accuracy it
+  bought is the same distinction the description is already committed to carrying.
+
+  **An earlier framing was rejected and should not come back.** The operator's own first instinct —
+  "auditing the instructions to make sure they are aligned with the latest guidance" — produced no
+  survivor across eight candidates. It mispoints: D1, this skill's entire officially-backed payload,
+  detects two of the *target's own* instructions that cannot both be satisfied, which is internal
+  self-consistency consulting **no external guidance at all**. "Alignment with current guidance" is a
+  property of the criteria catalogs' recheck triggers, which live in the plugins this sweep
+  delegates to — so the framing names what is delegated. It is also
+  `re-anchor:recheck-against-upstream`'s trigger space nearly verbatim. Also killed on merit:
+  `audit-sweep`, this document's own former placeholder, because a security sweep is *one* test
+  across *many* assets — the inverse of this — and `audit-universe`, which is the rejected `estate`
+  wearing an audit hat.
+
+  **What the naming pass settled regardless of the name is still the load-bearing part.** `audit-instructions`' description opens with this exact surface list — "user + project
   `CLAUDE.md`, `.claude/rules`, skill bodies, agent definitions, prompt-type hooks, output styles" —
   character for character. So **the surface cannot be the distinguisher, and no name can carry the
   distinction alone.** The picker labels rows by short name and readers scan the description's first
@@ -315,8 +341,30 @@ being imposed on it.
   a failure mode. And `docs/CATALOG-TAXONOMY.md` does not reach this decision: its form rule governs
   category values, which are the deliberate inverse of the skill-name grammar, and `claude-config`
   stays filed under `claude-code` either way.
-- **The suppression record's location and format.** Deliberately not decided here. This repository has
-  config-cascade and consumer-config-layering conventions plus at least one live consumer-side config
-  file, and inventing a new consumer surface against an existing convention is precisely the failure
-  this work audits others for. Under research; the answer must come from the conventions and the
-  existing population, not from what seems reasonable.
+- **The suppression record — resolved.** It is **two artifacts, not one**, and the split is already
+  codified: `config-cascade` states that it "governs layering and precedence only. Which keys a
+  config surface has, what they mean, and how they are validated belong to that concern's own owner
+  doc under `docs/conventions/<concern>/`". So an **owner doc** under `docs/conventions/` declares
+  the keys and the merge form, and the **instance** — this repository's actual suppressions — lives
+  at `.claude/audit-pass.md`, the team layer of the three-layer cascade.
+
+  Decided with it:
+
+  - **Per-entry keyed by finding id**, never a list. A closed list is "taken whole, never unioned",
+    so one personal suppression would silently discard every team suppression. The conforming shape
+    is `plugin-quality`'s repo-map merge — a later layer's entry for X wins for X only.
+  - **Policy-floor inversion: the team layer wins on conflict.** A personal overlay suppressing a
+    finding the team never accepted is exactly the "personal layer weakens a team standard" shape the
+    sanctioned inversion exists for. Declared next to the keys, as the convention requires.
+  - **Reason and date required on every entry.** This has **no precedent** on any suppress path here
+    — the closest analogue stores bare ids — and the precedent is not transferable: that mechanism
+    justifies its bare form by arguing its opt-out can only cause junk to be missed, never removed. A
+    findings suppression can hide a real defect and cannot make that argument.
+  - **Claude-specific today, and the caveat is recorded.** Every surface in the audit set is a Claude
+    Code artifact, so a finding about one belongs under `.claude/`. `AGENTS.md` is the case that
+    would break that — cross-vendor by construction, and not currently in the partition. If it enters
+    scope (task #56), the location argument must be re-derived rather than inherited.
+  - **One in-repo precedent went the other way and is not being followed:** `review` declined to add
+    a config surface for smell suppression, letting it ride existing project docs. Rejected here
+    because a suppression that cannot be keyed cannot be checked for staleness, and a stale
+    suppression is how a corpus quietly loses a check.

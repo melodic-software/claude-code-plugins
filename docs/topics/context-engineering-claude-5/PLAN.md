@@ -8,7 +8,7 @@ Phases 1, 2, 2.5, and 5 are done; design continues at Phase 3.
 ### TLDR
 
 Absorb "The new rules of context engineering for Claude 5 models" into this marketplace and turn it
-into something re-runnable against a repo or folder, starting with this repo. Most of the source is
+into something re-runnable against a git repository, starting with this repo. Most of the source is
 already enforced — by `/doctor` and by `claude-config:audit-instructions`. The value is a **runbook**
 that applies every relevant existing skill in a fixed order, plus detectors for the four gaps
 nothing covers.
@@ -32,9 +32,17 @@ nothing covers.
 
 ### Goal
 
-A repeatable pass the operator points at a repo or folder that applies the source's rules — the ones
-official documentation confirms — through the skills that already own each concern, plus new
+A repeatable pass the operator points at a **git repository** that applies the source's rules — the
+ones official documentation confirms — through the skills that already own each concern, plus new
 detectors where nothing does. First target: this repository.
+
+**Narrowed from "a repo or folder" on 2026-07-24, deliberately.** Every mechanism the re-run contract
+rests on is git-derived: target identity comes from the remote URL, two checkouts of one project are
+distinguished by a worktree discriminator, and the headline proof that a run never wrote into its own
+scan set is `git status --porcelain` being empty afterward. None of that is defined for a bare
+folder. Supporting one would mean inventing a path-hash identity and a before/after file-hash
+manifest — real work, unclear demand. A smaller true promise beats a larger false one, and the
+mismatch is closed here rather than left standing in two places.
 
 ### Settled
 
@@ -507,9 +515,11 @@ Tasks #19 and #22–#27 (now two new checks plus four edits to existing ones, pe
 detection rule, its five must-not-flag cases, its remediation split by scope, the native-first
 inventory ruling, the sweep's posture, its derived exclusion set, the `/doctor` prerequisite
 contract, the dispatch order, and the `OPINION` discovery line are all written. Naming is dispatched
-and the sweep is carried as `<sweep>` until it lands. Still open there: the report schema, the
-suppression file's path and format, the lane decomposition, and whether a shadowed same-named
-definition is reported at all.
+**The sweep is named `audit-pass`** — operator's choice from a 32-candidate tournament, with what
+that name pays recorded at the naming site so it is not re-litigated. The suppression record is
+resolved as two artifacts: an owner doc under `docs/conventions/` declaring the keys, and the
+instance at `.claude/audit-pass.md`, keyed per finding id with the team layer winning conflicts.
+Still open there: the report schema and the lane decomposition.
 
 **One correction that phase drafting forced back upstream.** The first statement of D1's scope
 excluded skills, subagents, and MCP servers wholesale because they "override by name". That misreads
