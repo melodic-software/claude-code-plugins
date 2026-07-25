@@ -100,8 +100,8 @@ is part of the seam only in the sense that tooling sweeping the directory should
   convention §6).
 - **No shipped Monitor config.** Consumers arm their own session Monitor on the tee file (the
   staleness rule makes this mandatory while paused). The plugin ships no `experimental.monitors`
-  entry — the fleet stance on the experimental Monitors component is Wait
-  (`docs/PLUGIN-PHILOSOPHY.md`, Component stances).
+  entry — Monitors is an experimental Claude Code component, and this plugin takes no dependency on
+  one until it stabilizes.
 - **Fixed constants.** The tee path and the 90% threshold are contract constants, deliberately not
   configurable: cross-plugin consumers read the documented values, so a per-user override could
   silently split writer and readers. The only `userConfig` is the hook kill switch.
