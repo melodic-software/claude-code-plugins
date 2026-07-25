@@ -420,7 +420,7 @@ outstanding — it appears mergeable now.
 > changed-paths form. **The base-ref form is the binding gate for this branch**; the three standing
 > couplings are someone else's surface and go to Phase 7 as a tracker candidate, not fixed here.
 
-### Phase 1: Agent definitions + end-to-end dispatch probe [DOING]
+### Phase 1: Agent definitions + end-to-end dispatch probe [DONE — probe deferred to after Phase 3]
 
 The integration slice. Two files, one live runtime probe — the tracer bullet that proves preload,
 artifact write, and return payload work together before any skill text is rewritten.
@@ -550,7 +550,7 @@ the seventh. The chosen field set does not change; the citation does.
 > return shape; (9) `!` precompute deliberately not reproduced, per Amendment 9c; (10) not a
 > behavior. **Phase 5 confirms this grading against the committed file rather than re-deriving it.**
 
-### Phase 2: `research/SKILL.md` — dispatch posture, Phase 0 corpus enumeration, coverage gate [TODO]
+### Phase 2: `research/SKILL.md` — dispatch posture, Phase 0 corpus enumeration, coverage gate [DONE]
 
 The largest phase. Contract migration, so it opens with a consumer pre-flight.
 
@@ -596,6 +596,29 @@ Work items in order:
    instruction that names the user, a filtered tool, plan mode, main-context execution, or an inline
    preference, and record the hit list in this PLAN before editing. The repo scripts this class
    elsewhere (`check-silent-skips.sh`, `check-skill-portability.sh`); this is the same discipline.
+
+   **RUN 2026-07-25 against post-rebase `HEAD`** (`research/SKILL.md` at 191 lines, after #1260
+   merged as `002bb380`). Seven hits over five distinct lines — the same five the pre-merge run
+   predicted, at shifted positions, so #1260 introduced no new subagent-incompatible text.
+
+   | Line | Class(es) | Text | Disposition |
+   |---|---|---|---|
+   | 18 | main-context, inline-pref | "For context-heavy passes, use `/research-deep` (dispatches to an isolated execution tier; keeps main context clean)" | EDIT — item 3; false framing once `/research` also dispatches |
+   | 24 | `$ARGUMENTS` | "Research the following topic: `$ARGUMENTS`" | EDIT — item 4; empty string under preload |
+   | 26 | main-context | "infer the research topic from the current conversation context" | EDIT — item 4; a non-fork subagent has none |
+   | 65 | main-context, inline-pref | "**Prefer direct-context web** (WebSearch / WebFetch in the main session) … results land without summarization loss" | EDIT — item 3 |
+   | 126 | inline-pref | "**Main-context vs. agent trade-off** — prefer direct research when results inform decisions" | EDIT — item 3 |
+
+   **Zero `USER_TURN`, `PLAN_MODE`, or `FILTERED_TOOL` hits** — unlike `explore/SKILL.md`, which
+   carries four. `research` never instructs a human turn, so item 3's inline preferences and item 4's
+   scope plumbing are the whole of its incompatible surface. Every hit is edited; none is recorded as
+   correct-under-dispatch.
+
+   **The sweep does not reach `:150`** (the Tier-3 subagent-return sentence, item 8's T8 exception).
+   That is a true negative, not a miss: the sentence is not unreachable or false in a subagent — it
+   is a rule about *source tiers* that dispatch-by-default turns against the skill's own gate. Six
+   pattern classes over syntax cannot find a semantic self-contradiction, which is why T8 was found
+   by contract authoring and is recorded here so the sweep is not mistaken for exhaustive.
 3. **Overturn all three inline-preference statements**, not just one. Verified present:
    - `:126` — "prefer direct research when results inform decisions" (Decision 1 overrides it).
    - `:65` — "**Prefer direct-context web** (WebSearch / WebFetch in the main session) … results land

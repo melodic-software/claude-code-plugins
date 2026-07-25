@@ -1,0 +1,171 @@
+#!/usr/bin/env bash
+# Deterministic gate for a /discovery:research coverage ledger.
+#
+# The ledger enumerates a bounded corpus one row per item, each with the depth
+# criterion that counts as covering THAT item, and a Done box. This gate decides
+# whether every box is marked — deterministically, with NO model involvement, so
+# the verdict survives a context that would rather be finished. The research
+# outcome gate cites this exit status rather than a reading of the table.
+#
+# Exit 0 = every row's Done box is marked (status=complete)
+# Exit 1 = at least one row is unmarked (status=incomplete)
+# Exit 2 = the ledger cannot be graded — missing, empty, no table, no rows, no
+#          Done column, a short row, or a Done cell that is neither marked nor
+#          unmarked — plus usage errors. FAIL CLOSED: a ledger this gate cannot
+#          read is never reported as complete.
+#
+# Usage:
+#   bash check-coverage-complete.sh <ledger-path>
+#   bash check-coverage-complete.sh --help
+#
+# Ledger shape (the Done column is located by header name, not by position, so
+# adding a column ahead of it does not silently change what is graded):
+#
+#   | # | Corpus item | Depth criterion | Done |
+#   |---|-------------|-----------------|------|
+#   | 1 | <item>      | <criterion>     | [x]  |
+#
+# Output (stdout, greppable): `rows=<n> unmarked=<m> status=<complete|incomplete>`
+# On status=incomplete each unmarked row is named on stderr.
+
+set -uo pipefail
+
+usage() {
+  # Sentinel range (not fixed line numbers) so the printed usage never silently
+  # truncates when the header grows or shrinks on a future edit.
+  sed -n '/^# Deterministic gate/,/^# Output/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+}
+
+ledger=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  --help | -h)
+    usage
+    exit 0
+    ;;
+  -*)
+    echo "error: unknown argument: $1" >&2
+    exit 2
+    ;;
+  *)
+    if [[ -n "$ledger" ]]; then
+      echo "error: expected exactly one ledger path, got a second: $1" >&2
+      exit 2
+    fi
+    ledger="$1"
+    shift
+    ;;
+  esac
+done
+
+if [[ -z "$ledger" ]]; then
+  echo "error: a ledger path is required" >&2
+  exit 2
+fi
+if [[ ! -f "$ledger" ]]; then
+  echo "error: ledger not found: $ledger" >&2
+  exit 2
+fi
+if [[ ! -s "$ledger" ]]; then
+  echo "error: ledger is empty: $ledger" >&2
+  exit 2
+fi
+
+# The whole grade happens in awk so the Done column is read positionally within
+# each row rather than pattern-matched across the line: a `[ ]` written inside a
+# corpus item or a depth criterion is prose, not an unmarked row.
+#
+# awk exit codes mirror this script's: 0 complete, 1 incomplete, 2 ungradeable.
+awk -v OFS=' ' '
+function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
+
+# Split a markdown table row into cells, dropping the empty fields the leading
+# and trailing pipes produce. Returns the cell count.
+function cells(line, out,   n, i, raw, c) {
+  n = split(line, raw, "|")
+  c = 0
+  for (i = 1; i <= n; i++) {
+    if (i == 1 && trim(raw[i]) == "") continue
+    if (i == n && trim(raw[i]) == "") continue
+    out[++c] = trim(raw[i])
+  }
+  return c
+}
+
+function is_separator(line,   probe) {
+  probe = line
+  gsub(/[ \t|:-]/, "", probe)
+  return probe == ""
+}
+
+/^[ \t]*\|/ {
+  line = $0
+  if (is_separator(line)) next
+
+  ncell = cells(line, cell)
+  if (ncell == 0) next
+
+  if (!header_seen) {
+    for (i = 1; i <= ncell; i++) {
+      if (tolower(cell[i]) == "done") { done_col = i; header_cols = ncell }
+    }
+    if (done_col == 0) next   # a table without a Done column is not the ledger
+    header_seen = 1
+    next
+  }
+
+  # A row whose width does not match the header cannot be graded — the Done
+  # position is a guess at that point, and guessing is how a half-edited ledger
+  # passes. Extra cells are as disqualifying as missing ones: a stray `|` inside
+  # a corpus item shifts every column after it, so the cell read as Done is some
+  # other cell entirely.
+  if (ncell != header_cols) {
+    printf "error: row %d has %d column(s), header has %d: %s\n", rows + 1, ncell, header_cols, line > "/dev/stderr"
+    fatal = 1
+    exit 2
+  }
+
+  rows++
+  box = cell[done_col]
+  if (box ~ /^\[[xX]\][ \t]*$/) {
+    next
+  } else if (box ~ /^\[[ \t]*\][ \t]*$/) {
+    unmarked++
+    item = (header_cols >= 2 && done_col != 2) ? cell[2] : cell[1]
+    printf "unmarked: row %d — %s\n", rows, item > "/dev/stderr"
+  } else {
+    printf "error: row %d has an ungradeable Done cell: %s\n", rows, (box == "" ? "<empty>" : box) > "/dev/stderr"
+    fatal = 1
+    exit 2
+  }
+}
+
+END {
+  # A rule that already decided the ledger is ungradeable jumps here, and an
+  # unguarded verdict below would overwrite its exit code with a pass — which is
+  # precisely the silent-success failure this gate is built to refuse.
+  if (fatal) exit 2
+  if (!header_seen) {
+    print "error: no coverage table with a Done column found" > "/dev/stderr"
+    exit 2
+  }
+  if (rows == 0) {
+    print "error: coverage table has a header but no rows" > "/dev/stderr"
+    exit 2
+  }
+  printf "rows=%d unmarked=%d status=%s\n", rows, unmarked, (unmarked ? "incomplete" : "complete")
+  exit (unmarked ? 1 : 0)
+}
+' "$ledger"
+status=$?
+
+# awk exiting for a reason of its own (a broken interpreter, a signal) must not
+# read as "complete". Anything outside the three documented codes is ungradeable.
+case "$status" in
+0 | 1 | 2) exit "$status" ;;
+*)
+  echo "error: grading failed unexpectedly (awk exit $status)" >&2
+  exit 2
+  ;;
+esac
