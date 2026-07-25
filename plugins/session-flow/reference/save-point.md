@@ -39,6 +39,12 @@ clearly hold:
 - No abandoned approaches or hard-won findings worth preserving
 - No load-bearing decision + rationale a future session must not rediscover
 - No non-trivial task list to reconstitute
+- No invariant a resuming session could violate without noticing
+- No side effect already applied that a fresh session would otherwise repeat
+
+The last two are the sharpest: a short, straightforward remainder is exactly the shape that passes
+every other test, and "the migration is already applied — do not re-run" is precisely the fact a
+prompt-only bullet list drops. A single one of them is enough to force the full path.
 
 ANY doubt → full save-point. A wrongly-skipped file loses state the fresh session must rediscover;
 a wrongly-written one costs nothing. An explicit method argument overrides auto-detect — but note
