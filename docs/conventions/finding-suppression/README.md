@@ -45,22 +45,22 @@ Markdown with a fenced YAML block — human-readable in review, greppable from a
 
 ```yaml
 suppressions:
-  83e1a3132f6ec32f:
+  283d05878bdf5936:
     check: claude-config/audit-instructions/nested-override
     claim: nested-tightens-root
     sites:
       - surface: .claude/rules/generated.md
-        anchor/v1: "e:9c02d4b78e55:1"
+        anchor/v1: "e:9c02d4b78e55:c30cc60d"
     reason: "Nested rule deliberately tightens the root rule for generated code."
     date: 2026-07-24
-  c427ddd3d711d8fe:
+  c5e64c89b4cf4377:
     check: claude-config/audit-instructions/cross-layer-conflict
     claim: contradicts
     sites:
       - surface: CLAUDE.md
-        anchor/v1: "e:1145aa93c681:1"
+        anchor/v1: "e:1145aa93c681:070ee98f"
       - surface: "managed:CLAUDE.md"
-        anchor/v1: "e:b7e0d1145aa9:1"
+        anchor/v1: "e:b7e0d1145aa9:ada6cfc2"
     reason: "Conflicts with org policy; exception requested, tracked in #482."
     date: 2026-07-24
 ```
@@ -81,14 +81,21 @@ Unknown keys are inert, per the cascade's soft-degradation rule. An entry missin
 is **reported as malformed and does not suppress** — a silent partial parse would turn a formatting
 slip into a lost check.
 
-**The keys in the example above are derived from the constituents shown beneath them, not
-illustrative.** They were hand-written once and did not derive, which meant copying or scaffolding
-from this document produced entries the consumer rejects as malformed — the authoritative example
-could not suppress anything. Anyone editing the example must re-derive both keys:
+**The keys and anchors in the example above are derived, not illustrative.** They were hand-written
+once and did not derive, which meant copying or scaffolding from this document produced entries the
+consumer rejects as malformed — the authoritative example could not suppress anything. The anchor
+suffix is the excerpt's duplicate discriminator, `sha256(heading_path)` truncated to 8 hex, and is
+**never a positional ordinal**; the three shown correspond to enclosing heading paths
+`## generated code`, `## repository rules`, and `## instruction precedence`. Anyone editing the
+example must re-derive the affected anchors and then both keys:
 
 ```python
 import hashlib
 US = '\x1f'
+
+def discriminator(heading_path):              # heading_path: ordered enclosing headings
+    return hashlib.sha256(US.join(heading_path).encode('utf-8')).hexdigest()[:8]
+
 def finding_id(check, claim, sites):          # sites: [(surface, anchor), …]
     parts = [check, claim]
     for surface, anchor in sorted(sites, key=lambda p: (p[0].encode(), p[1].encode())):
@@ -97,7 +104,9 @@ def finding_id(check, claim, sites):          # sites: [(surface, anchor), …]
 ```
 
 This is the same rule the consumer enforces on every entry, so an example that does not satisfy it is
-a defect in the document rather than a special case.
+a defect in the document rather than a special case. Both halves are shown because editing an anchor
+changes the key that hashes it — fixing one and not the other is how the example went stale the first
+time.
 
 ### Constituents, not a bare id
 

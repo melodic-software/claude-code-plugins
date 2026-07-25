@@ -197,7 +197,9 @@ anchor versions that entry itself stores**, which is what gives assertion 4.5 a 
 | 1.7 | Editing any line of a surface leaves an `s:` finding's `finding_id` unchanged; renaming that surface changes it. |
 | 1.8 | An excerpt reading `` `@README` `` and one reading `@README` produce different anchors. Adding, editing, or removing a block-level HTML comment outside a fenced code block changes no anchor; the same edit inside a fence does. |
 | 1.9 | A record carrying only `anchor/v1` still matches a run emitting `anchor/v1` and `anchor/v2`; the comparison uses `v1`, the greatest version both carry. |
-| 1.10 | Two identical normalized excerpts in one surface produce two distinct anchors, differing in `<n>`. |
+| 1.10 | Two identical normalized excerpts under **different** heading paths in one surface produce two distinct anchors, differing in `<n>`. |
+| 1.10a | Two identical normalized excerpts under the **same** heading path produce the **same** anchor: the finding is reported once, the collision is named with its occurrence count, and no suppression carries forward across it. Deleting one of them leaves the anchor unchanged. |
+| 1.10b | Deleting an identical excerpt under a *different* heading path does not change the surviving one's anchor or `finding_id`, and a suppression keyed to the deleted one is reported stale rather than applied to the survivor. |
 
 ## 2. Where the report lives
 
@@ -266,8 +268,8 @@ incomplete run, which the no-lock read-only policy otherwise makes undecidable.
 
 - **Path** — `runs/<state-key>/<run-id>/lease`, beside that run's own partial artifact, so one lease
   describes exactly one run and concurrent read-only runs never contend for it.
-- **Contents** — the run id, the process id, an ISO-8601 start timestamp, and a **`heartbeat_at`**
-  timestamp the run rewrites in place.
+- **Contents** — the run id, the process id, an ISO-8601 start timestamp, a **`heartbeat_at`**
+  timestamp the run rewrites in place, and an **`owner_epoch`** integer starting at 1.
 - **Refresh** — the holder rewrites `heartbeat_at` every **60 seconds**, and additionally at each
   lane boundary, so a long single lane cannot look abandoned.
 - **Liveness** — the lease is **live** when `now - heartbeat_at < 5 minutes` — five refresh intervals,
@@ -276,10 +278,21 @@ incomplete run, which the no-lock read-only policy otherwise makes undecidable.
 - **`--resume` against a live lease exits non-zero**, naming the run id and its `heartbeat_at`, and
   does not attach. Against a stale lease it takes over the artifact and begins refreshing that lease
   itself.
-- **A stale lease is never fatal**, which is the property the lock's own recovery rule shares: the
-  worst case is that a run whose process was suspended past the threshold has its artifact adopted,
-  and the attempt-delimiting rule in §7 makes the abandoned attempt's records discardable rather than
-  corrupting.
+- **Adoption fences the previous holder; a stale lease is not assumed abandoned.** A suspended
+  process can wake at any time, so "it stopped refreshing" is evidence, never proof. The lease
+  therefore carries an **`owner_epoch`**, a monotonically increasing integer. Adopting a stale lease
+  increments it in a single atomic write conditioned on the observed value — the compare-and-set is
+  what makes two simultaneous adopters resolve to one — and the adopter then owns that epoch.
+  **Every heartbeat refresh and every artifact append re-reads `owner_epoch` first and aborts the run
+  if it is no longer the writer's own.** A woken holder therefore fails on its next refresh or
+  append, before it can write, rather than resuming alongside the adopter.
+- Without fencing, both processes could reach a not-yet-started lane and assign it the **same attempt
+  ordinal** — and §7's delimiters distinguish attempts, not writers, so two interleaved streams under
+  one ordinal are indistinguishable at assembly. That is the one failure the attempt machinery cannot
+  absorb, which is why the check is on every append rather than only at adoption.
+- **A stale lease is therefore never fatal, and never a silent double-write**: the worst case is that
+  a merely-slow run is fenced out and must be re-run, which is visible and recoverable, rather than
+  two runs quietly interleaving records into one artifact.
 - **`heartbeat_at` must not move backwards.** A clock adjustment that rewinds it would make a live
   run read stale, so a refresh writes `max(now, previous)`.
 
@@ -290,7 +303,8 @@ classification two implementations must reach identically or `--resume` is nonde
 |---|---|
 | 3.1 | Two applying runs launched concurrently against one target: exactly one proceeds, the other exits non-zero naming the holder. |
 | 3.6 | `--resume` against a run whose lease was refreshed within the threshold exits non-zero naming the run id, and the live run's partial artifact is byte-identical afterwards. |
-| 3.7 | `--resume` against a run whose lease has not been refreshed past the threshold adopts the artifact and refreshes the lease itself. |
+| 3.7 | `--resume` against a run whose lease has not been refreshed past the threshold adopts the artifact, increments `owner_epoch`, and refreshes the lease itself. |
+| 3.8 | A holder whose lease was adopted while it was suspended aborts on its next heartbeat refresh or artifact append, writing nothing: the partial artifact contains records from exactly one writer per attempt ordinal. |
 | 3.2 | Two read-only runs launched concurrently both complete, and their derived identity sets are equal. |
 | 3.3 | A run launched from a subdirectory produces the same state key as one launched from the root. Working directory is never an input. |
 
