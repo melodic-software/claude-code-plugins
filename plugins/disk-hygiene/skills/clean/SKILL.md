@@ -51,8 +51,8 @@ unless bounded with `--max-depth` or confirmed with `--confirmed-large-scan`.
   value could not be read. The guard now enforces this independently: it resolves the same
   `disk_hygiene_enabled` toggle by reading it straight from your user `settings.json` (the read is
   shared with this probe, and the settings file is located from the tamper-resistant
-  `${CLAUDE_PLUGIN_ROOT}` — not the environment), so in audit-only mode it denies every mutation lane
-  outright — the Bash engine `apply` and the PowerShell deletion belt alike. Running the probe still
+  `${CLAUDE_PLUGIN_ROOT}` — not the environment), so in audit-only mode it denies both mutation lanes
+  it gates outright — the Bash engine `apply` and the PowerShell deletion belt alike. Running the probe still
   matters so you can state the configured value accurately and stop before proposing work the guard
   would deny; the guard is the backstop, not the sole enforcer. The hook runs in shell-free exec form and reports its absolute Python
   interpreter and the authorized `--data-root` value in denial guidance. Use that exact interpreter
