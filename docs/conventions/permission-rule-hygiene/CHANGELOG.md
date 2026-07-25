@@ -4,6 +4,13 @@ Notable changes to the permission-rule-hygiene convention. The convention states
 anti-patterns; it is enforced by the `claude-config` plugin's `permission-hygiene` skill (checks
 P1/P2/P3), whose detector and criteria version independently of this document.
 
+## 1.1 — 2026-07-24
+
+- Added "Known gap — step 1's plugin `bin/` is not delivered on Windows / Git Bash": the measured
+  behavior, its harness-wide scope, the two consequences for helper authors, why a `~/.local/bin`
+  shim and an `env.PATH` settings entry are not substitutes, and the one untested candidate
+  (leading-wildcard rule) with the two specific unknowns that gate it.
+
 ## 1.0 — 2026-07-14
 
 Initial published convention.
