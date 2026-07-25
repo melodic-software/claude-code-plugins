@@ -803,6 +803,12 @@ def allowed_method(repo: str, requested: str | None) -> str:
 
 def main() -> int:
     configure_stdio()
+    # allow_abbrev=False: the permission grants covering this gate state their
+    # conditions as the literal presence or absence of a flag in the command
+    # text -- above all "no --merge means check-only". Prefix abbreviation
+    # (argparse's default) lets `--mer` resolve to --merge while the text
+    # contains no such flag, so the written command and the resolved behavior
+    # diverge -- exactly what those conditions must be able to rule out.
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument("pr", help="owner/repo#number or PR URL")
     parser.add_argument(
