@@ -298,10 +298,14 @@ in telemetry = Sonnet; live checkout clean; any fire-without-row = Phase 1 defec
 > help) is unaffected — and it applies to the runs counted: a run whose PR needed a
 > delegated pre-merge correction (scratch#24's `Refs` → `Closes` linkage fix by the
 > verifying session) produced its valid PR WITH help and is not an autonomous completion.
-> Corrected runs are excluded from the predicate count — by hand (raw completions minus
-> corrected runs; currently exactly one, scratch#24) until the mechanical exclusion lands
-> in the predicate filter (scratch#60). Dispatch's `Closes` guard (scratch#47) prevents
-> the defect class recurring.
+> Corrected runs are excluded from the predicate's INPUT SET — every aggregate (completion
+> count, span, gate pass rate, revert count) computes over genuinely autonomous completions
+> only, so a repaired run can neither be counted nor anchor the ≥7-day span's earliest or
+> latest mature completion. Applied by hand (raw rows minus corrected runs; currently
+> exactly one, scratch#24, which is not a span edge — the ~2026-07-30/31 eligibility figure
+> is unaffected) until the mechanical exclusion lands in the predicate filter (scratch#60,
+> re-scoped to the input set). Dispatch's `Closes` guard (scratch#47) prevents the defect
+> class recurring.
 >
 > **Forward policy (external review, 2026-07-23):** this record is a disclosed caveat on
 > the rows already merged that way, not standing authorization. From this note forward,
