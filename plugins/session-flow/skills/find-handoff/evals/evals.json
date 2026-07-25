@@ -9,6 +9,7 @@
       "files": [],
       "expectations": [
         "The skill locates the handoff via the file directive and/or the known-location glob, not by guessing",
+        "It resolves a relative directive path against the source transcript's cwd field (not the current session's cwd) before the existence check",
         "It surfaces the file path plus topic/date/session_id metadata and stops for a yes/no confirmation",
         "It does not execute the resume prompt or read the full file body before the operator confirms"
       ]
@@ -66,12 +67,13 @@
       "id": 6,
       "name": "ignores-template-placeholder-false-positive",
       "prompt": "Find my lost handoff. Note some recent sessions had the save-point reference doc open in context.",
-      "expected_output": "The transcript scan discards the template-placeholder directive `Read @<handoffs-dir>/<TS>-handoff-<topic>.md` (which appears verbatim in any transcript that read save-point.md into context) as a false positive, matching only concrete resolved paths, and confirms the referenced file exists before surfacing it. The same filter applies in prompt-only mode: an inline rails block whose body still carries angle-bracket placeholders (including a literal `Prior session: <UUID>`) is the template, not a real handoff.",
+      "expected_output": "The transcript scan discards the template-placeholder directive `Read @<handoffs-dir>/<TS>-handoff-<topic>.md` (which appears verbatim in any transcript that read save-point.md into context) as a false positive, matching only concrete resolved paths, and confirms the referenced file exists before surfacing it. The same filter applies in prompt-only mode: an inline rails block still carrying the template's specific placeholder tokens (including a literal `Prior session: <UUID>`) is the template, not a real handoff — while blocks with other angle-bracket content such as `<REDACTED: …>` shape markers remain valid.",
       "files": [],
       "expectations": [
         "The skill discards directive matches containing angle-bracket placeholder tokens (<handoffs-dir>, <TS>, <topic>) as the save-point doc, not a real handoff",
         "It keeps only concrete resolved paths and confirms the file exists on disk",
-        "It rejects prompt-only rails blocks still carrying angle-bracket placeholders (such as a literal `Prior session: <UUID>`) rather than surfacing the template as a recovered handoff",
+        "It rejects prompt-only rails blocks on the template's specific placeholder tokens (such as a literal `Prior session: <UUID>`) rather than surfacing the template as a recovered handoff",
+        "It does not blanket-reject angle-bracket content: blocks carrying `<REDACTED: …>` shape markers or generic code syntax like `<T>` remain valid candidates",
         "It does not surface the placeholder path as if it were a recoverable handoff"
       ]
     },

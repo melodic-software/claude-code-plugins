@@ -66,19 +66,25 @@ pre-clear content sits in a sibling — never in the current session's own file.
 3. **Marker detection over candidate tails (grep, read-only).** Scan the tail of each candidate for
    the contract signals above:
    - **File mode** — match the `Read @…/handoffs/<TS>-handoff-<topic>.md` directive. **Filter out
-     the template placeholder:** a match containing angle-bracket tokens (`<handoffs-dir>`, `<TS>`,
-     `<topic>`) is the `save-point.md` doc being read into some session's context — not a real
-     handoff. Keep only concrete paths. Confirm the referenced file exists on disk.
+     the template placeholder:** a match containing the template's own placeholder tokens
+     (`<handoffs-dir>`, `<TS>`, `<topic>`) is the `save-point.md` doc being read into some
+     session's context — not a real handoff. Keep only concrete paths. Confirm the referenced file
+     exists on disk — and **resolve a relative directive path against the source transcript's
+     `cwd` field, not the current session's cwd**: the producer emits repo-relative paths (e.g.
+     `Read @.work/handoffs/…`), so a handoff recovered from another repo's transcript is falsely
+     reported missing if checked from here.
    - **Prompt-only mode** — no file, no directive. Detect off the `─` rails and the instruction
      line; the resume content is the block inline between the rails. `Prior session:` is
      **optional corroboration, never a required key** — the producer's prompt-only checklist
      requires only a self-contained prompt between the rails plus the copy instruction, so
      requiring it would skip valid handoffs. **Apply the same placeholder filter as file mode:** a
-     block whose body still carries angle-bracket placeholder tokens (`<handoffs-dir>`, `<TS>`,
-     `<topic>`, `<UUID>` — including a literal `Prior session: <UUID>`) is the `save-point.md`
-     template read into some session's context, not a real handoff. Surface only blocks whose
-     content is concrete; when a `Prior session:` line is present, its value must be a concrete
-     session UUID.
+     block still carrying the template's own placeholder tokens (`<handoffs-dir>`,
+     `<TS>-handoff-<topic>`, a literal `Prior session: <UUID>`) is the `save-point.md` template
+     read into some session's context, not a real handoff. Match those **specific tokens only** —
+     never a blanket no-angle-brackets rule: a valid prompt legitimately contains other
+     angle-bracket text, notably the redaction shape markers the producer deliberately emits
+     (`<REDACTED: API key>`) and generic code syntax (`<T>`). When a `Prior session:` line is
+     present, its value must be a concrete session UUID.
    - **Un-escape before surfacing.** Each transcript message is ONE physical JSONL line with its
      text JSON-string-escaped (`\n` for newlines, `\"` for quotes, `\\` for backslashes). A raw grep
      hit is that escaped blob — decode it back to plain text (JSON-unescape the matched string)
@@ -144,11 +150,16 @@ pre-clear content sits in a sibling — never in the current session's own file.
   exclude the current `$CLAUDE_CODE_SESSION_ID` and scan siblings.
 - **The template placeholder is a false positive.** `Read @<handoffs-dir>/<TS>-handoff-<topic>.md`
   appears verbatim in any transcript that read `save-point.md` into context. Discard matches
-  containing `<`-angle-bracket tokens; keep only concrete resolved paths. The prompt-only template
-  — the `─` rails plus a placeholder body and a literal `Prior session: <UUID>` — is the same
-  false positive; reject any inline block still carrying angle-bracket placeholder tokens, and
-  require a concrete session UUID (not the `<UUID>` placeholder) on any `Prior session:` line
-  before surfacing the block.
+  containing the template's placeholder tokens; keep only concrete resolved paths. The prompt-only
+  template — the `─` rails plus a placeholder body and a literal `Prior session: <UUID>` — is the
+  same false positive; reject a block on those specific tokens, and require a concrete session
+  UUID (not the `<UUID>` placeholder) on any `Prior session:` line before surfacing. **Never
+  blanket-reject angle brackets** — valid prompts carry `<REDACTED: …>` shape markers and code
+  syntax.
+- **Relative directive paths resolve against the SOURCE transcript's `cwd`.** The producer emits
+  repo-relative paths; a cross-repo recovery that checks existence from the current session's cwd
+  falsely reports the file missing. Read the `cwd` field of the transcript the directive was found
+  in and resolve against that.
 - **Near-identical mtimes.** Multiple sessions can write within seconds; mtime cannot rank them.
   The directive / rails / `Prior session:` markers break the tie, not the timestamp.
 - **Handoff files live in gitignored dirs far from `$HOME`**, and `memory_dir` is
