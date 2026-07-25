@@ -21,7 +21,8 @@
 #   checkout-force — git checkout -f / switch -f/--discard-changes
 #
 # NOT blocked: a push whose lease spellings all pin an immutable <expect> — a
-# full-length object id, or the empty string asserting the ref must not exist —
+# object id of the repository's own hash width, or the empty string asserting
+# the ref must not exist —
 # so no background fetch can satisfy the lease on the pusher's behalf; a
 # no-expected-value lease paired with --force-if-includes; a lease
 # cancelled by a trailing --no-force-with-lease, plain push, soft/mixed reset,
@@ -188,13 +189,40 @@ is_lease_opt() { abbrev_match "force-with-lease" "${1%%=*}" 7; }
 # resolves a word as a ref BEFORE trying it as a short object id — so a tag
 # literally named `dead` beats the object whose id starts `dead`, and a short
 # hex expectation is a moving target after all. Only a word of exactly the
-# repository hash format's full width (40 hex for SHA-1, 64 for SHA-256) is
-# unambiguously an object id. Everything shorter fails closed.
+# repository hash format's full width is unambiguously an object id.
+#
+# The width is the LOCAL repository's, not either width. git ignores a ref whose
+# name is full-width hex for its own format, but a hex name of the OTHER width
+# is an ordinary ref name it resolves normally: a 64-hex tag in a SHA-1
+# repository, or a 40-hex tag in a SHA-256 one, is movable and satisfies the
+# lease against whatever it points at. Accepting the union would let either
+# shape through in the repository where it is a name.
+#
+# Width of the repository the push will run in, resolved at most once per hook
+# run and only on the rare path that sees a hex expectation — the guard shells
+# out nowhere else. 0 means "undeterminable" (no git, no repository), which
+# fails closed: a push cannot succeed there either.
+_repo_oid_width=""
+# shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
+repo_oid_width() {
+  if [[ -z "$_repo_oid_width" ]]; then
+    case "$(git rev-parse --show-object-format 2>/dev/null)" in
+    sha1) _repo_oid_width=40 ;;
+    sha256) _repo_oid_width=64 ;;
+    *) _repo_oid_width=0 ;;
+    esac
+  fi
+  printf '%s' "$_repo_oid_width"
+}
+
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 lease_expect_is_immutable() {
   local expect="$1"
   [[ -z "$expect" ]] && return 0
-  [[ "$expect" =~ ^([0-9a-fA-F]{40}|[0-9a-fA-F]{64})$ ]]
+  [[ "$expect" =~ ^[0-9a-fA-F]+$ ]] || return 1
+  local width
+  width=$(repo_oid_width)
+  ((width)) && ((${#expect} == width))
 }
 
 # Has an earlier lease spelling in this same command already claimed <refname>?
@@ -454,8 +482,8 @@ check_segment() {
     # last-wins, so an early match cannot be acted on before the segment ends.
     if ((lease_movable)); then
       block "push-lease-unsafe" \
-        "BLOCKED: git push --force-with-lease=<refname>:<expect> whose <expect> is a name git resolves at push time (origin/main, HEAD, a tag, an abbreviated object id) leases against a moving target, and git-push(1) declares --force-if-includes a no-op alongside an explicit :<expect>, so nothing mitigates it." \
-        "Pin the expectation to a full-length object id (--force-with-lease=<refname>:\$(git rev-parse <ref>)), or allow via the block_dangerous_git_allow option (add push-lease-unsafe)."
+        "BLOCKED: git push --force-with-lease=<refname>:<expect> whose <expect> is a name git resolves at push time (origin/main, HEAD, a tag, an abbreviated object id, or hex of the wrong width for this repository's hash format) leases against a moving target, and git-push(1) declares --force-if-includes a no-op alongside an explicit :<expect>, so nothing mitigates it." \
+        "Pin the expectation to an object id of this repository's full hash width (--force-with-lease=<refname>:\$(git rev-parse <ref>)), or allow via the block_dangerous_git_allow option (add push-lease-unsafe)."
     fi
     if ((lease_tracking)) && ((!if_includes)); then
       block "push-lease-unsafe" \

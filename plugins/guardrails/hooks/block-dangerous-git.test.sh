@@ -15,14 +15,38 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # shellcheck source=guardrails-test-helpers.sh
 source "$HOOK_DIR/guardrails-test-helpers.sh"
 
+# A lease expectation is judged against the hash width of the repository the
+# push would run in, so every case that carries one needs a KNOWN working
+# directory — the ambient one is whatever invoked the suite. Fixtures: a SHA-1
+# repository (the default every `run` uses), a SHA-256 one, and a plain
+# directory that is no repository at all.
+REPO_SHA1="$TEST_TMPDIR/repo-sha1"
+REPO_SHA256="$TEST_TMPDIR/repo-sha256"
+NOT_A_REPO="$TEST_TMPDIR/not-a-repo"
+mkdir -p "$REPO_SHA1" "$REPO_SHA256" "$NOT_A_REPO"
+git init -q --object-format=sha1 "$REPO_SHA1" ||
+  bad "fixture: could not create the SHA-1 repository"
+# SHA-256 repositories are git 2.29+. A missing fixture is a hard failure rather
+# than a skip: without it the wrong-width case below is untested, and a test
+# that quietly does not run reads as coverage it is not.
+git init -q --object-format=sha256 "$REPO_SHA256" ||
+  bad "fixture: could not create the SHA-256 repository (git 2.29+ required)"
+
+# run_in <dir> <label> <command> <expected-exit> [extra-env NAME=VAL ...]
+run_in() {
+  local dir="$1" label="$2" command="$3" expected="$4"
+  shift 4
+  local rc
+  (cd "$dir" && env "$@" bash "$HOOK" <<<"$(command_json "$command")" >/dev/null 2>&1)
+  rc=$?
+  assert_exit "$label" "$expected" "$rc"
+}
+
 # run <label> <command> <expected-exit> [extra-env NAME=VAL ...]
 run() {
   local label="$1" command="$2" expected="$3"
   shift 3
-  local rc
-  env "$@" bash "$HOOK" <<<"$(command_json "$command")" >/dev/null 2>&1
-  rc=$?
-  assert_exit "$label" "$expected" "$rc"
+  run_in "$REPO_SHA1" "$label" "$command" "$expected" "$@"
 }
 
 # --- push-force ---------------------------------------------------------------
@@ -35,12 +59,18 @@ run "git push origin +feature (bare + refspec, blocked)" "git push origin +featu
 run "git push --mirror (force-updates all refs, blocked)" "git push --mirror backup" 2
 run "git push --force-with-lease (no expected value, blocked)" "git push --force-with-lease" 2
 run "git push --force-with-lease=main (refname only, no expectation, blocked)" "git push --force-with-lease=main origin main" 2
-# Full-width object ids — the only expectation shape the guard accepts as
-# immutable. Anything shorter is an abbreviation git resolves as a ref first.
+# An object id of THIS repository's hash width — the only expectation shape the
+# guard accepts as immutable. Anything shorter is an abbreviation git resolves
+# as a ref first; anything of the other width is an ordinary ref name here, so
+# git resolves it too and the expectation moves with whatever it names.
 SHA1_OID=0123456789abcdef0123456789abcdef01234567
 SHA256_OID=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 run "git push --force-with-lease=main:<40-hex> (full object id, allowed)" "git push --force-with-lease=main:$SHA1_OID origin main" 0
-run "git push --force-with-lease=main:<64-hex> (sha256 object id, allowed)" "git push --force-with-lease=main:$SHA256_OID origin main" 0
+run "git push --force-with-lease=main:<64-hex> in a SHA-1 repo (a 64-hex ref name resolves here, blocked)" "git push --force-with-lease=main:$SHA256_OID origin main" 2
+run_in "$REPO_SHA256" "git push --force-with-lease=main:<64-hex> in a SHA-256 repo (full object id, allowed)" "git push --force-with-lease=main:$SHA256_OID origin main" 0
+run_in "$REPO_SHA256" "git push --force-with-lease=main:<40-hex> in a SHA-256 repo (a 40-hex ref name resolves here, blocked)" "git push --force-with-lease=main:$SHA1_OID origin main" 2
+run_in "$NOT_A_REPO" "git push --force-with-lease=main:<40-hex> outside a repository (width undeterminable, fail-closed block)" "git push --force-with-lease=main:$SHA1_OID origin main" 2
+run_in "$NOT_A_REPO" "git push --force-with-lease=main: outside a repository (empty expect needs no width, allowed)" "git push --force-with-lease=main: origin main" 0
 run "git push --force-with-lease=main: (empty expect means ref must not exist, allowed)" "git push --force-with-lease=main: origin main" 0
 run "git push --force-with-lease --force-if-includes (mitigated, allowed)" "git push --force-with-lease --force-if-includes" 0
 run "git push --force-with-lease=main --force-if-includes (mitigated, allowed)" "git push --force-with-lease=main --force-if-includes origin main" 0
@@ -369,7 +399,7 @@ fi
 # caught; push-shaped PowerShell the guard cannot parse fails closed.
 run_pwsh() {
   local label="$1" command="$2" expected="$3" rc
-  bash "$HOOK" <<<"$(pwsh_command_json "$command")" >/dev/null 2>&1
+  (cd "$REPO_SHA1" && bash "$HOOK" <<<"$(pwsh_command_json "$command")" >/dev/null 2>&1)
   rc=$?
   assert_exit "$label" "$expected" "$rc"
 }

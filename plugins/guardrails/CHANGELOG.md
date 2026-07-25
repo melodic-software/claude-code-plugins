@@ -20,15 +20,22 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
     (git 2.30+) is present, which git documents as the mitigation for exactly
     these forms.
   - **A movable `--force-with-lease=<refname>:<expect>`** — `origin/main`,
-    `HEAD`, a tag, or an *abbreviated* object id (per
+    `HEAD`, a tag, an *abbreviated* object id (per
     [gitrevisions](https://git-scm.com/docs/gitrevisions), git resolves a short
     hex word as a ref before trying it as an object-id prefix, so a tag named
-    `dead` beats the object whose id starts `dead`). Blocked unconditionally:
-    git declares `--force-if-includes` a "no-op" alongside an explicit
-    `:<expect>`, so nothing mitigates this form.
+    `dead` beats the object whose id starts `dead`), or hex of the wrong width
+    for the repository's hash format. Blocked unconditionally: git declares
+    `--force-if-includes` a "no-op" alongside an explicit `:<expect>`, so
+    nothing mitigates this form.
 
-  What passes: `<expect>` a **full-width object id** (40 hex for SHA-1, 64 for
-  SHA-256) or the empty string, which asserts the ref must not exist. git scopes
+  What passes: `<expect>` an object id of **the local repository's own hash
+  width** (40 hex under SHA-1, 64 under SHA-256, read once from
+  `git rev-parse --show-object-format`; undeterminable fails closed), or the
+  empty string, which asserts the ref must not exist. The other width is not
+  accepted: git ignores a ref whose name is full-width hex for its own format,
+  but a 64-hex name in a SHA-1 repository — or a 40-hex one under SHA-256 — is
+  an ordinary ref git resolves at push time, so it moves like any other name.
+  git scopes
   a pin to its own ref, so a bare fallback alongside a pinned entry still governs
   every other ref being updated. Where one ref carries several lease entries git
   consults the first and ignores the rest, and the guard follows that same
