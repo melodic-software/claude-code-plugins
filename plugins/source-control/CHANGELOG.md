@@ -14,16 +14,20 @@ All notable changes to the `source-control` plugin are documented here. Format f
   docs), so neither quote style around an inline `--root '${user_config.worktree_root}'` literal was
   fully safe: double-quoted broke on an unset key (`bad substitution`, #898's original finding), and
   the interim single-quoted fix (#898) broke on a configured value containing a single quote (e.g.
-  `/Users/O'Connor/worktrees`), `$`, or a backtick. `worktree-create.sh` gains an additive
+  `~/worktrees/O'Connor`), `$`, or a backtick. `worktree-create.sh` gains an additive
   `--root-file <path>` flag that reads the root from a file instead of a process argument; both
-  render sites (`context/create.md`, `SKILL.md`) now write the substituted value to a temp file via a
-  quoted heredoc (`<<'WT_ROOT_EOF'` — fully literal, no expansion or quote-processing) and pass
-  `--root-file` instead of inlining the value in a `--root` shell literal. The existing unset guard is
-  reused unchanged: an unset key still leaves the literal `${user_config.worktree_root}` token, the
-  heredoc writes it to the file verbatim, and the helper still refuses with exit 3 and its guidance —
-  no behavior change on that path. `--root` is unaffected and stays available for a caller that
-  already holds the value as a real process argument (a hook, or direct CLI use). No remaining
-  single-quoted `${user_config.worktree_root}` shell literal in either render site.
+  render sites (`context/create.md`, `SKILL.md`) now write the substituted value to a temp file with
+  the `Write` tool — a JSON string parameter no shell ever parses — and pass `--root-file` instead of
+  inlining the value in a `--root` shell literal. A quoted heredoc is deliberately NOT used: quoting
+  the delimiter suppresses expansion inside the body but cannot prevent delimiter collision, so a
+  value carrying a line equal to the delimiter would end the heredoc early and the shell would parse
+  the remainder as commands. The existing unset guard is reused unchanged: an unset key still leaves
+  the literal `${user_config.worktree_root}` token, which lands in the file verbatim, and the helper
+  still refuses with exit 3 and its guidance — no behavior change on that path. `--root-file` now also
+  rejects a multi-line file with a usage error (exit 2) instead of silently using its first line.
+  `--root` is unaffected and stays available for a caller that already holds the value as a real
+  process argument (a hook, or direct CLI use). No remaining `${user_config.worktree_root}` shell
+  literal in either render site.
 
 ## [0.26.2]
 

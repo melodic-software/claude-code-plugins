@@ -21,7 +21,7 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 # TEST_TMPDIR_NATIVE — a drive-letter-anchored form of TEST_TMPDIR on a Windows
 # shell (MSYS/Cygwin), used only where a fixture path also carries a
 # special shell-metacharacter byte (', $, `). MSYS auto-converts a bare
-# POSIX-style argument like /tmp/tmp.XXX into the real Windows path when it
+# POSIX-style argument like /tmp/tmp.a1b2c3 into the real Windows path when it
 # invokes a native binary (git.exe) — but that conversion heuristic can miss
 # on an argument containing those bytes, and git.exe then treats a leading
 # `/` as drive-relative (`C:/tmp/...`), silently landing the worktree
@@ -344,14 +344,37 @@ assert_exit "--root-file empty content refuses exit 3" 3 "$?"
 assert_contains "--root-file empty content names worktree_root key" "$err" "worktree_root"
 
 # --- Case: --root-file holding the literal unexpanded token refuses exit 3 ---
-# The heredoc writes ${user_config.worktree_root} verbatim (no shell expansion
-# on a <<'EOF' body) when the key is unset — same literal-token detection the
-# existing --root path already covers, now reached through the file.
+# When the key is unset the caller writes ${user_config.worktree_root} verbatim
+# — same literal-token detection the existing --root path already covers, now
+# reached through the file.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 root_file="$TEST_TMPDIR/rootfile-token"
 # shellcheck disable=SC2016
 printf '%s\n' '${user_config.worktree_root}' > "$root_file"
 bash "$HELPER" --name feat/token --root-file "$root_file" --repo-dir "$repo" >/dev/null 2>&1
 assert_exit "--root-file unexpanded token refuses exit 3" 3 "$?"
+
+# --- Case: a single-line root with no trailing newline still creates (exit 0) ---
+# The Write-tool handoff carries exactly the substituted value, so the file may
+# end without a terminator. That is one line, not zero.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+root="$TEST_TMPDIR_NATIVE/wtroot14-noeol"
+root_file="$TEST_TMPDIR/rootfile-noeol"
+printf '%s' "$root" > "$root_file"
+out=$(bash "$HELPER" --name feat/noeol --root-file "$root_file" --repo-dir "$repo" 2>/dev/null)
+assert_exit "--root-file unterminated single line creates (exit 0)" 0 "$?"
+assert_file_exists "--root-file unterminated single line materialized" "$out/README.md"
+
+# --- Case: --root-file holding a multi-line value is a usage error (exit 2) ---
+# A newline inside worktree_root is never a valid root. Reading only the first
+# line would silently proceed with a root the caller never asked for; the second
+# line is also exactly the payload a heredoc-delimiter collision would have
+# smuggled into shell source, which is why the handoff is non-shell now.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+root_file="$TEST_TMPDIR/rootfile-multiline"
+printf '%s\n%s\n' "$TEST_TMPDIR/wtroot15-multi" "touch $TEST_TMPDIR/pwned" > "$root_file"
+err=$(bash "$HELPER" --name feat/multi --root-file "$root_file" --repo-dir "$repo" 2>&1 >/dev/null)
+assert_exit "--root-file multi-line content is a usage error (exit 2)" 2 "$?"
+assert_contains "--root-file multi-line error names the single-line rule" "$err" "single line"
 
 [[ $FAILED -eq 0 ]] || exit 1

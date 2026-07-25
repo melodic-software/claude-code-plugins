@@ -50,16 +50,20 @@ Options:
                       helper refuse (exit 3) rather than fall back to the
                       in-repo .claude/worktrees/ default (a known Claude Code
                       double-load bug). Mutually exclusive with --root-file.
-  --root-file <path>  Read the external worktree root from the first line of
-                      <path> instead of a --root argument. For a caller that
-                      cannot place the value in a shell literal safely — e.g. a
-                      skill rendering \${user_config.worktree_root} into
-                      markdown, which is RAW text substitution, not
-                      shell-escaped — write the value to a temp file via a
-                      quoted heredoc (<<'EOF', fully literal: no expansion, no
-                      quote-processing) and pass that file here. The same
-                      unset/empty/unexpanded-token refuse (exit 3) applies to
-                      the file's content. Mutually exclusive with --root.
+  --root-file <path>  Read the external worktree root from <path> instead of a
+                      --root argument. For a caller that cannot place the value
+                      in shell source safely — e.g. a skill rendering
+                      \${user_config.worktree_root} into markdown, which is RAW
+                      text substitution, not shell-escaped — write the value to
+                      a temp file through a non-shell channel (the Write tool's
+                      JSON content parameter), never a quoted literal or a
+                      heredoc body: a value containing the heredoc delimiter
+                      line ends the heredoc early and the remainder is parsed
+                      as commands. The file must hold exactly one line; a value
+                      with an embedded newline is rejected (exit 2) rather than
+                      silently truncated. The same unset/empty/unexpanded-token
+                      refuse (exit 3) applies to the file's content. Mutually
+                      exclusive with --root.
   --base-ref <ref>    fresh (default) branches from the remote default branch;
                       head branches from the repo's current HEAD. Omitted
                       defaults to fresh; the caller passes the effective Claude
@@ -112,21 +116,34 @@ if [[ -n "$root" && -n "$root_file" ]]; then
   exit 2
 fi
 
-# --root-file: read the root from the file's first line rather than a process
-# argument. This is the out-of-band handoff a skill uses when it cannot place
-# the raw-substituted ${user_config.worktree_root} value in a shell literal
-# safely (see the --root-file usage text above) — the file is expected to hold
-# exactly the substituted value (or, when unset, the literal unexpanded
-# ${user_config...} token), written via a quoted heredoc so no shell expansion
-# or quote-processing touches it before it lands here. `read -r` strips only
-# the trailing newline; every other byte — including a single quote, `$`, or
+# --root-file: read the root from the file rather than a process argument. This
+# is the out-of-band handoff a skill uses when it cannot place the
+# raw-substituted ${user_config.worktree_root} value in shell source safely (see
+# the --root-file usage text above) — the file holds exactly the substituted
+# value (or, when unset, the literal unexpanded ${user_config...} token), placed
+# there through a non-shell channel so no expansion, quote-processing, or
+# heredoc-delimiter matching touches it before it lands here. `read -r` strips
+# only the trailing newline; every other byte — including a single quote, `$`, or
 # backtick — passes through unchanged.
+#
+# A worktree root is a single line by construction. Reading only the first line
+# of a multi-line file would silently discard the rest and proceed with a root
+# the caller never asked for, so a second line is a loud usage error instead.
 if [[ -n "$root_file" ]]; then
   if [[ ! -f "$root_file" ]]; then
     printf '%s: --root-file not found: %s\n' "$PROG" "$root_file" >&2
     exit 2
   fi
-  IFS= read -r root < "$root_file"
+  root_file_lines=0
+  while IFS= read -r _line || [[ -n "$_line" ]]; do
+    (( root_file_lines == 0 )) && root="$_line"
+    root_file_lines=$(( root_file_lines + 1 ))
+  done < "$root_file"
+  if (( root_file_lines > 1 )); then
+    printf '%s: --root-file %s holds %d lines; the worktree root must be a single line (an embedded newline is never a valid root)\n' \
+      "$PROG" "$root_file" "$root_file_lines" >&2
+    exit 2
+  fi
 fi
 
 # Validate the name up front against the EnterWorktree schema: max 64 chars, and
