@@ -112,7 +112,32 @@ gh issue close <N> --comment "<closing note>" --reason completed
 ```
 
 The `done` action closes with `--reason completed` (or `not planned` for `--not-planned`) — the
-values GitHub's issue-close accepts.
+values GitHub's issue-close accepts. `--reason "not planned"` needs the quoted space.
+
+**Duplicate close — native `--duplicate-of`.** GitHub closes a duplicate natively: this sets close
+reason `duplicate` and a structured, API-queryable `duplicateOf` relationship — strictly better than
+grepping a body header. `<M>` may be an issue number or URL:
+
+```bash
+gh issue close <N> --duplicate-of <M> --comment "Duplicate of #<M>"
+```
+
+**Fallback — not-planned + body-append.** For a **cross-repo** duplicate target the native
+relationship is not confirmed to apply — if the native close is rejected, fall back to this; it is
+also the portable shape for providers/adapters without a native duplicate reason. A superseded item
+uses the same not-planned close. Append a queryable `## Duplicate of <M>` section to the body first
+(`<M>` is `#<M>` same-repo, or the qualified `<owner>/<repo>#<M>` / issue URL cross-repo);
+`--body-file` REPLACES the body, so this is a read-modify-write (same mechanic as "PR
+closing-keyword mechanics" below):
+
+```bash
+# <M>: a bare #<M> for a same-repo duplicate; the full <owner>/<repo>#<M> reference (or
+# the issue URL) for a cross-repo target, where a bare number would be ambiguous.
+gh issue view <N> --json body --jq '.body' | tr -d '\r' > /tmp/issue-body.md
+printf '%s\n\n%s\n' "$(cat /tmp/issue-body.md)" "## Duplicate of <M>" \
+  | gh issue edit <N> --body-file -
+gh issue close <N> --comment "Duplicate of <M>" --reason "not planned"
+```
 
 ## Edit labels / assignees
 
@@ -159,7 +184,8 @@ Match GitHub's issue-closing keyword set (`close`/`closes`/`closed`/`fix`/`fixes
 
 For `/work-items:work` selection — report whether item `<N>` already has an open PR targeting it
 for closure, so a candidate whose work is in flight is dropped from the pickable frontier rather
-than re-picked. The authoritative signal is **GitHub's own computed close-linkage**, not a text
+than re-picked — and, with the draft-aware reduction below, for `/work-items:work-loop`'s
+drain-exit evaluation. The authoritative signal is **GitHub's own computed close-linkage**, not a text
 match over the PR body: the GraphQL `Issue.closedByPullRequestsReferences` connection returns
 exactly the PRs GitHub links as closing this issue — the same linkage GitHub renders in the
 issue sidebar and acts on for merge-time auto-close. Keep only the `OPEN`-state nodes: a `MERGED`
@@ -173,7 +199,7 @@ open_pr_pages=$(gh api graphql --paginate \
     repository(owner:$owner, name:$repo) {
       issue(number:$n) {
         closedByPullRequestsReferences(first:100, after:$endCursor, includeClosedPrs:false) {
-          nodes { number state }
+          nodes { number state isDraft }
           pageInfo { hasNextPage endCursor }
         }
       }
@@ -185,7 +211,19 @@ open_pr_pages=$(gh api graphql --paginate \
 if printf '%s\n' "$open_pr_pages" | tr -d '\r' | grep -qx true; then echo true; else echo false; fi
 ```
 
-On success emits `true` when at least one **open** PR closes `#<N>`, `false` otherwise. **On query
+On success emits `true` when at least one **open** PR closes `#<N>`, `false` otherwise. The query
+requests `isDraft` so each consumer applies the draft policy its decision needs. The default
+reduction above deliberately **counts drafts**: for the in-flight exclusion, a draft closing PR is
+still work in flight, and re-picking its issue would be exactly the double-dispatch this operation
+prevents. The drain-exit evaluation in `/work-items:work-loop` instead requires an open
+**non-draft** closing PR — for that consumer, reduce with
+
+```bash
+--jq '[.data.repository.issue.closedByPullRequestsReferences.nodes[] | select(.state=="OPEN" and (.isDraft | not))] | any'
+```
+
+which emits `true` only when a ready (non-draft) open PR closes `#<N>`; every other note in this
+section (failure semantics, pagination, `\r` handling) applies to both reductions unchanged. **On query
 failure it emits no boolean and exits non-zero — a failed in-flight check is not `false`.** The
 GraphQL call is captured first and its exit status checked before any reduction: if
 `gh api graphql --paginate` fails (expired token, rate limit, or a network error on a later cursor

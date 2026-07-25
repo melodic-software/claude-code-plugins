@@ -1,15 +1,16 @@
 # session-flow
 
-A Claude Code plugin bundling nine skills for one cohesive capability: managing the lifecycle of a
+A Claude Code plugin bundling twelve skills for one cohesive capability: managing the lifecycle of a
 working session — where you are in the work, how to pause and resume it, how to recover it after an
-interruption, how to leave it durable before the machine goes away, where things stand and why,
-whether its assumptions are still current, what to learn from it while it runs and after, and how to
-arm it for delegation-heavy tasks.
+interruption, how to leave it durable before the machine goes away, how to retire finished work and
+reconcile the task ledger, where things stand and why, whether its assumptions are still current,
+what to learn from it while it runs and after, and how to arm it for delegation-heavy tasks.
 
 | Skill | Question it answers |
 |---|---|
 | `/session-flow:workflow` | Where am I in the staged dev workflow, and what comes next? |
 | `/session-flow:handoff` | How do I save this session's state so a fresh `/clear` session resumes without rediscovery? |
+| `/session-flow:continue-in-background` | I'm stepping away — how does a background agent pick this up and keep it moving now? |
 | `/session-flow:keep-going` | We were interrupted — what was running, what survived, and where does the main task continue? |
 | `/session-flow:clean-stop` | Before I lose this machine — is everything durable and linked, or is something stranded? |
 | `/session-flow:retro` | What happened this session, what did we learn, and how do we codify it? |
@@ -17,6 +18,8 @@ arm it for delegation-heavy tasks.
 | `/session-flow:orient` | Where do we stand, what are we doing, and why — from the durable + off-thread state, not just the conversation? |
 | `/session-flow:orchestrate` | How do I arm this session (or a spawned worker) with proactive-orchestration imperatives? |
 | `/session-flow:reanchor` | Are this session's assumptions still true, or has reality moved under them? |
+| `/session-flow:reconcile` | Is anything still running that should be retired, and does the task ledger match reality? |
+| `/session-flow:setup` | Are the observer's runtime prerequisites and configuration right on this machine? |
 
 ## What each skill does
 
@@ -42,16 +45,32 @@ Writes a mid-session save-point for the `/clear`-and-resume pattern: a durable h
 progress, decisions, files modified, tried-and-ruled-out, next steps, TaskList snapshot) plus a
 copy-paste resume prompt — or prompt-only when follow-ups are small. Handoff files chain via
 `session_id` / `previous_handoff` frontmatter so `retro` can analyze the whole session chain. The
-skill always STOPS after emitting the save-point — continuing would defeat the purpose. With
-`--bg` it additionally launches a fresh background agent seeded with the resume prompt (via
-`claude --bg`, managed with `claude agents`), so the work resumes without a manual
-`/clear`-and-paste.
+skill always STOPS after emitting the save-point — continuing would defeat the purpose. The
+save-point machinery itself (destination resolution, path choice, redaction, rails prompt) lives in
+the shared `reference/save-point.md` engine doc that `continue-in-background` also delivers from.
 
 ```shell
 /session-flow:handoff                 # auto-detect full vs prompt-only
 /session-flow:handoff prompt          # force prompt-only
 /session-flow:handoff file phase-3    # force full handoff, topic "phase-3"
-/session-flow:handoff --bg            # hand the resume prompt to a background agent
+```
+
+### continue-in-background
+
+The delegation counterpart to `handoff`: same save-point engine, different delivery. Instead of
+handing the user a `/clear`-then-paste prompt for later, it launches a fresh detached background
+agent seeded with the rails resume prompt (via `claude --bg`, managed with `claude agents`), so the
+task keeps moving while the user is away. It launches only on the user's explicit request — never
+self-elected — and gates the launch on a clean tree (save-point files exempt): other uncommitted
+changes would not carry into the isolated worktree the background session edits in, so it falls
+back to the manual `/clear`-then-paste exit and says why. The launched agent is a NEW session: it
+inherits neither the current session's CLI flags nor its model/effort choices — the skill mirrors
+and reports the flags the resumed work depends on. Like `handoff`, it STOPS after delivery: the
+background agent is the continuation, and nothing is monitored or babysat.
+
+```shell
+/session-flow:continue-in-background              # save-point, launch, report, stop
+/session-flow:continue-in-background file phase-3 # force full save-point, topic "phase-3"
 ```
 
 ### keep-going
@@ -126,7 +145,19 @@ tracker filing is offered not automatic, the session is never scored, and it is 
 ```shell
 /session-flow:running-retro            # checkpoint: note → delegate → classify → append → offer routes
 /session-flow:running-retro phase-3    # same, naming the ledger topic slug
+/session-flow:running-retro arm        # arm the detached observer for this session (see below)
 ```
+
+**Detached observer substrate.** running-retro also owns an out-of-band observer that turns the
+checkpoint from PULL (invoked in-session) into a path that can also fire *after* the session ends — a
+`/loop` structurally cannot. The `arm` action launches a stdlib-Python tailer, detached from every
+session's process tree so it outlives the session, which reads the transcript at zero context cost,
+detects end by mtime-idle, then runs the same checkpoint method headless (a cheap `claude -p`) and
+appends the redacted findings to this session's ledger. An **opt-in** SessionStart hook
+(`observer_enabled`, default off — installing the plugin changes nothing) automates the same launcher
+for every real session; the manual `arm` is primary. The substrate, lifecycle, config, untrusted-data
+boundary, and the deferred native Observer-Agents alternative are documented in
+`reference/observer.md`; prerequisites are verified by `/session-flow:setup`.
 
 ### orient
 
@@ -174,6 +205,39 @@ checks and reports the fuller inventory as unavailable.
 /session-flow:reanchor            # verify session premises → report drift → re-anchored picture
 ```
 
+### reconcile
+
+The prune-and-reconcile counterpart to `keep-going`'s resume: where keep-going asks "is it stuck,
+pick it back up", reconcile asks "is anything still running that should be retired, and does
+the task ledger match reality?" It inventories the off-thread work this session spawned (background
+tasks, shells, monitors, scheduled jobs, subagents — the open-ended kinds in
+`reference/off-thread-work.md`, the same inventory-and-inspect engine `keep-going` and `orient`
+share), inspects each item's real state, retires the ones genuinely finished by clearing them from
+tracking, and closes this session's task-ledger items whose work is proven complete. It also reports
+the read-only liveness of sibling sessions in the same project — from transcript mtime plus a coarse
+tail read, never a deep parse of the unstable JSONL. Auto-settles the provably-finished (closing a
+task is evidence-gated, the mirror of never killing work you cannot prove is dead); GATES any kill
+of still-running work. It fixes this session only: sibling sessions are visible but report-only, and
+a spawned subagent's internal task list is not readable. It touches no git state (that is
+`clean-stop`) and does not resume the work (that is `keep-going`).
+
+```shell
+/session-flow:reconcile   # inventory → inspect → retire finished + close done → report
+```
+
+### setup
+
+A check-centric setup for the **observer substrate only** — the other eleven skills are zero-config.
+`check` (default) verifies the observer's runtime prerequisites (Python 3.10+ for the tailer, `jq` for
+the SessionStart hook's stdin parsing, `claude` on PATH for the analysis leg) and reports the effective
+`userConfig` values, flagging the two hazards (`observer_analysis_bare` on an OAuth-login install;
+`observer_idle_seconds` below the machine's longest single turn). It has no write path — reconfiguration
+routes through Claude Code's native `/plugin configure session-flow`.
+
+```shell
+/session-flow:setup         # verify observer prerequisites + config (read-only)
+```
+
 ## Consumer conventions
 
 The skills adapt to the consuming repo rather than imposing structure:
@@ -198,19 +262,38 @@ The skills adapt to the consuming repo rather than imposing structure:
 
 ## Configuration
 
-No `userConfig`. State: retro score history persists under the plugin's `${CLAUDE_PLUGIN_DATA}`
-directory (per-project files) — never in the consumer's repo. Handoff save-points
-(`.work/handoffs/` by default) and running-retro ledgers (`.work/running-retros/` by default) are
-memory-tier working files in the consumer's project — machine-local, never committed. Network: three
-skills reach the network. `reanchor` queries live host state via `git`/`gh`
-to verify a session's referenced PRs/issues/branches and installed-vs-repo plugin versions, and
-degrades to reporting what it could not verify when that authenticated egress is unavailable.
-`clean-stop` pushes unpushed commits and creates or updates PRs and issues over the network via
-`git push` and `gh` — routing through whatever pull-request / work-item capabilities are installed
-and falling back to direct `git`/`gh` — to make session work durable on the remote. `orient`
-optionally runs `gh pr list` (read-only) to include open pull requests in its briefing and, when a
-work-item tracker capability is installed, reads its open items (which may reach a remote tracker) —
-degrading to local git state alone when `gh` or the tracker is absent or unauthenticated. The other six
-skills — workflow, handoff, keep-going, retro, running-retro, and orchestrate — are network-free
-(both retro and running-retro use the same stdlib-only Python 3.10+ parser reading local
-`~/.claude/projects/` transcripts).
+`userConfig` — the **detached observer** is the only configurable surface (six keys, all defaulting
+to zero-config behavior; see `reference/observer.md` for full semantics):
+
+| Key | Default | Effect |
+|---|---|---|
+| `observer_enabled` | `false` | Opt in the SessionStart auto-arm. Off = installing the plugin changes nothing; manual `arm` still works. |
+| `observer_analysis_enabled` | `true` | Run the autonomous post-end analysis once armed. Off = collect-only: observations are distilled and retained under the plugin work dir for manual inspection; nothing is written to the ledger. |
+| `observer_analysis_model` | `claude-haiku-4-5` | Analysis model — the dominant cost lever. |
+| `observer_analysis_bare` | `false` | Pass `--bare` to the analysis run (breaks OAuth-login auth; leave off unless auth is an env-var API key). |
+| `observer_idle_seconds` | `900` | mtime-idle end threshold; keep above the longest single turn. |
+| `observer_max_seconds` | `86400` | Hard observer lifetime; reaching it exits without analysis. |
+
+State: retro score history persists under the plugin's `${CLAUDE_PLUGIN_DATA}` directory (per-project
+files) — never in the consumer's repo. The observer's transient distilled observations live under
+`${CLAUDE_PLUGIN_DATA}/session-flow-observer/` and are deleted after each analysis run. Handoff
+save-points (`.work/handoffs/` by default) and running-retro ledgers (`.work/running-retros/` by
+default, shared by in-session checkpoints and the autonomous observer) are memory-tier working files
+in the consumer's project — machine-local, never committed.
+
+Network: `reanchor` queries live host state via `git`/`gh` to verify a session's referenced
+PRs/issues/branches and installed-vs-repo plugin versions, degrading to reporting what it could not
+verify when that authenticated egress is unavailable. `clean-stop` pushes unpushed commits and creates
+or updates PRs and issues over the network via `git push` and `gh` — routing through whatever
+pull-request / work-item capabilities are installed and falling back to direct `git`/`gh`. `orient`
+optionally runs `gh pr list` (read-only) and, when a work-item tracker capability is installed, reads
+its open items — degrading to local git state alone when `gh` or the tracker is absent. The observer's
+autonomous analysis leg reaches the network only when armed with `observer_analysis_enabled` on: it
+runs a headless `claude -p` (ordinary model API egress); collect-only mode and the in-session
+checkpoint are network-free. The remaining skills — workflow, handoff, continue-in-background,
+keep-going, retro, running-retro (in-session), orchestrate, reconcile, and setup — are network-free
+(retro and running-retro use the same stdlib-only Python 3.10+ parser reading local
+`~/.claude/projects/` transcripts; `reconcile` reads those same local transcripts read-only and
+mutates only the in-session task ledger); `continue-in-background` spawns a local `claude --bg`
+process, a new Claude Code session with ordinary session network access, but the skill itself performs
+no egress.

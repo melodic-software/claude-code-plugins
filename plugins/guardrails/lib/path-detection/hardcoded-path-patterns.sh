@@ -59,7 +59,9 @@ hpp::scan_text() {
   # of every detailed pattern's invariant literal:
   #   Users   ⊇ Windows-user + macOS-user  (both forms contain "Users")
   #   /home/  ⊇ Linux-user
-  #   repos   ⊇ Windows-repo + escaped-Windows-repo
+  #   checkout-root literals ⊇ Windows-repo + escaped-Windows-repo — the gate
+  #     lists every root token HPP_WIN_REPO_BODY / HPP_ESCAPED_WIN_REPO_BODY
+  #     accept (both spellings), so a widened body must widen this list too.
   # The project-root branch keys on the root's final path segment, which is
   # present identically in the slash, backslash, and escaped forms. When NONE of
   # these triggers fire, no detailed pattern below can match, so early-returning
@@ -71,7 +73,7 @@ hpp::scan_text() {
   # Uses a here-string, NOT `printf | grep -q`: a pipe + `grep -q` early-exit
   # would SIGPIPE printf, and under `pipefail` the pipeline would report printf's
   # failure and invert the result.
-  if ! grep -qE 'Users|/home/|repos' <<<"$content" 2>/dev/null; then
+  if ! grep -qE 'Users|/home/|repos|Repos|projects|Projects|dev|Dev' <<<"$content" 2>/dev/null; then
     local gate_root=""
     if [[ -n "$project_root" ]]; then
       gate_root="${project_root//\\//}"
@@ -95,18 +97,18 @@ hpp::scan_text() {
   # OS-context flags — non-empty when file is unambiguously OS-scoped
   local windows_context="" macos_context="" linux_context=""
   case "$norm_file" in
-    *.ps1 | *.psm1 | *.psd1 | *.cmd | *.bat | *.reg) windows_context=1 ;;
-    */scripts/windows/* | */tests/windows/*) windows_context=1 ;;
-    *-windows.* | *-win32.*) windows_context=1 ;;
-    *) ;;
+  *.ps1 | *.psm1 | *.psd1 | *.cmd | *.bat | *.reg) windows_context=1 ;;
+  */scripts/windows/* | */tests/windows/*) windows_context=1 ;;
+  *-windows.* | *-win32.*) windows_context=1 ;;
+  *) ;;
   esac
   case "$norm_file" in
-    */scripts/macos/* | *-macos.* | *-osx.* | *-darwin.*) macos_context=1 ;;
-    *) ;;
+  */scripts/macos/* | *-macos.* | *-osx.* | *-darwin.*) macos_context=1 ;;
+  *) ;;
   esac
   case "$norm_file" in
-    */scripts/linux/* | *-linux.*) linux_context=1 ;;
-    *) ;;
+  */scripts/linux/* | *-linux.*) linux_context=1 ;;
+  *) ;;
   esac
 
   # Windows user home paths: C:\Users\<name>\ or C:/Users/<name>/
@@ -117,18 +119,49 @@ hpp::scan_text() {
     [[ -n "$match" ]] && violations="${violations}Windows user path detected:${nl}${match}${nl}${nl}"
   fi
 
-  # macOS user home paths: /Users/<name>/
-  # Exclusions via pipe (replaces Perl lookbehind/lookahead):
-  #   grep -v '/Users/Shared/'  — legitimate shared directory
+  # Left boundary for the slash-rooted macOS/Linux bodies — the driver-owned
+  # prefix the pattern lib's contract calls for, so a URL or relative-path
+  # suffix (https://example.test + the home root) is not treated as a
+  # filesystem root. Line start, whitespace, quote, backtick, paren, "=", ":"
+  # (yaml/docker value position), or a file:// scheme. Mirrors the
+  # ci-workflows/medley verification drivers' boundary, plus ":".
+  local _posix_boundary
+  _posix_boundary="(^|[[:space:]\"'\`(=:]|file://)"
+
+  # macOS user home paths (the Users root with a child segment).
+  # Exclusions (replace Perl lookbehind/lookahead):
   #   grep -vE '[A-Za-z]:[/\\]' — Windows paths (caught above)
+  #   Shared exclusion — the Users/Shared directory is legitimately shareable.
+  #     NOT a line-level grep -v: one line can hold a Shared path AND a
+  #     user-specific one, and dropping the whole line would silently pass the
+  #     real violation. Each candidate line is re-tested with its Shared tokens
+  #     defanged; only lines whose SOLE matches are Shared drop out. The defang
+  #     boundary is any character that cannot CONTINUE a real directory name
+  #     (word chars, dot, hyphen) — not an enumerated delimiter list, so shell
+  #     and prose punctuation right after the value (";", a closing quote, a
+  #     paren) counts as a boundary while a longer segment like SharedStuff
+  #     stays untouched and flagged. Basic-regex sed expressions (no in-group
+  #     anchors) keep macOS stock sed compatibility; the ORIGINAL line is
+  #     reported, never the defanged copy.
+  #     The Shared literal is assembled from pieces so this driver's own source
+  #     never carries a contiguous Users-root token for the write-scan hook
+  #     that consumes these bodies to flag.
   if [[ -z "$macos_context" ]]; then
-    match=$(printf '%s' "$content" | grep -nE "$HPP_MACOS_USER_BODY" 2>/dev/null | grep -v '/Users/Shared/' | grep -vE '[A-Za-z]:[/\\]' | head -3)
+    local _shared _shared_defused
+    _shared='/Use''rs/Shared'
+    _shared_defused='/Use''rs-Shared'
+    match=$(printf '%s' "$content" | grep -nE "${_posix_boundary}${HPP_MACOS_USER_BODY}" 2>/dev/null | grep -vE '[A-Za-z]:[/\\]' |
+      while IFS= read -r _line; do
+        _defanged=$(printf '%s' "$_line" | sed -e "s|${_shared}\([^A-Za-z0-9._-]\)|${_shared_defused}\1|g" \
+          -e "s|${_shared}\$|${_shared_defused}|")
+        printf '%s' "$_defanged" | grep -qE "${_posix_boundary}${HPP_MACOS_USER_BODY}" && printf '%s\n' "$_line"
+      done | head -3)
     [[ -n "$match" ]] && violations="${violations}macOS user path detected:${nl}${match}${nl}${nl}"
   fi
 
-  # Linux user home paths
+  # Linux user home paths (same driver-owned left boundary).
   if [[ -z "$linux_context" ]]; then
-    match=$(printf '%s' "$content" | grep -nE "$HPP_LINUX_USER_BODY" 2>/dev/null | head -3)
+    match=$(printf '%s' "$content" | grep -nE "${_posix_boundary}${HPP_LINUX_USER_BODY}" 2>/dev/null | head -3)
     [[ -n "$match" ]] && violations="${violations}Linux user path detected:${nl}${match}${nl}${nl}"
   fi
 

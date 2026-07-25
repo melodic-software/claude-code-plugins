@@ -3,6 +3,78 @@
 All notable changes to the `claude-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0]
+
+### Added
+
+- **`stateless`: machine-wide mode (`status all` / `purge all`).** The skill's name and
+  description invite "am I stateless everywhere on this machine?", but every action was
+  single-project — a machine-wide audit had to hand-roll a loop over
+  `~/.claude/projects/*/memory/`. New `scripts/enumerate-all-projects.sh` lists every
+  per-project store under `${CLAUDE_CONFIG_DIR:-~/.claude}/projects/` with MEMORY.md line
+  counts and topic-file counts (enumeration-only, never exits non-zero on absence, reusable
+  by the sibling `audit` skill; ships with its own test script). `status all` appends the
+  machine-wide table to the posture report, with explicit caveats that per-repo settings
+  overrides and relocated `autoMemoryDirectory` stores are not visible from enumeration
+  alone. `purge all` runs the same manifest → gate → optional-backup → delete flow with
+  every per-project store as the candidate set, one combined manifest, and ONE combined
+  confirmation gate stating the machine-wide total and every directory with per-dir counts;
+  the backup offer covers the whole manifest with per-dir sibling snapshots. (#981)
+
+## [0.3.5]
+
+### Changed
+
+- **`stateless` disable: dotfile-manager backfill detection beyond chezmoi.** Step 3 claimed
+  to be repo-agnostic but only checked chezmoi, with a hand-wave to "check any other dotfile
+  manager". It now carries concrete detectors for chezmoi (managed-output check — the previous
+  bare `&&` chain reported TRACKED whenever the binary existed), yadm
+  (`ls-files --error-unmatch`), and GNU stow / symlink managers (settings file is a symlink,
+  or its parent dir is — the stow tree-folded layout), plus a fingerprint fallback
+  (`.chezmoiroot`, `~/.local/share/chezmoi`, `~/.local/share/yadm`, `.stow-global-ignore`,
+  `~/.dotbot`) that reports "manager fingerprint
+  present but unconfirmed" instead of silently concluding the file is unmanaged when a
+  manager's artifacts exist without its binary on PATH. Backfill routing now names each
+  manager's own flow and warns against any `apply`/`restow` from the live session. (#980)
+
+## [0.3.4]
+
+### Added
+
+- **`stateless` purge: opt-in backup-before-purge escape hatch.** The confirmation gate now
+  offers to snapshot the manifest's exact files to a sibling `<memory_dir>.bak-<UTC>/`
+  directory before deleting ("yes, with backup"). The copy follows the same
+  manifest-exact/no-re-glob discipline as the delete, verifies the copy count before any
+  deletion, and Step 5 reports the snapshot path. (#979)
+
+### Changed
+
+- **`stateless` purge: bundled-consent does not satisfy the confirmation gate.** Step 3 now
+  states explicitly that consent gathered earlier via a bundled or multi-option answer — an
+  upstream `/interview` round, a numbered menu selection whose option happened to include the
+  purge, or a "purge" given before the manifest was known — does not satisfy the gate; it must
+  restate the concrete now-known scope (file count, directories) and receive a fresh,
+  scope-referencing confirmation. A worked anti-pattern example is included. (#979)
+
+## [0.3.3]
+
+### Fixed
+
+- **Non-repo memory-dir resolution implemented (the documented fallback).** The shared
+  `resolve-memory-dir.sh` hard-required a git repo (`exit 1` when `git rev-parse --show-toplevel`
+  was empty) and the `stateless` skill's `scope-report.sh` pre-emptied it with a bail-out telling
+  the user to run from within a repo — but the official memory doc (re-verified 2026-07-22)
+  says "Outside a git repo, the project root is used instead", so a non-repo directory is a
+  fully valid case with a real memory store the skill could neither find nor report. The
+  resolver now derives the project slug from the current directory (same Windows-form
+  normalization as the repo-root path) when no repo is found, `scope-report.sh` calls it
+  unconditionally (with an informational note that the cwd is the project key), and the
+  regression test that had locked the bail-out in as a spec now asserts the resolved
+  cwd-derived path. The `audit` skill's deterministic M2 checker
+  (`memory-index-refs-check.sh`) carried its own now-redundant git-repo guard that would have
+  kept the audit from checking a non-repo store's index integrity — the guard is removed
+  (the shared resolver owns the non-repo case) with a non-repo regression test added. (#978)
+
 ## [0.3.2]
 
 ### Added

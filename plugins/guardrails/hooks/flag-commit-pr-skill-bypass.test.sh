@@ -43,10 +43,38 @@ ENABLED_PROJECT="$(make_project true)"
 DISABLED_PROJECT="$(make_project false)"
 NO_KEY_PROJECT="$(make_project)"
 
+# make_home <enabledPlugins-value> -> a HOME dir carrying ~/.claude/settings.json
+# so a user-global enablement can be exercised hermetically.
+make_home() {
+  local dir enabled="$1"
+  dir="$(mktemp -d -p "$TEST_TMPDIR")"
+  mkdir -p "$dir/.claude"
+  jq -n --argjson v "$enabled" '{enabledPlugins:{"source-control@melodic-software":$v}}' \
+    >"$dir/.claude/settings.json"
+  printf '%s' "$dir"
+}
+
+# A clean HOME with no ~/.claude, so a case that does not set its own HOME never
+# reads the CI runner's real user-global settings. Cases exercising user-global
+# scope pass HOME=<make_home ...> through run_hook's trailing env args.
+HERMETIC_HOME="$(mktemp -d -p "$TEST_TMPDIR")"
+
+# settings.json directly in the dir (the CLAUDE_CONFIG_DIR layout, no `.claude/`).
+make_config_dir() {
+  local dir enabled="$1"
+  dir="$(mktemp -d -p "$TEST_TMPDIR")"
+  jq -n --argjson v "$enabled" '{enabledPlugins:{"source-control@melodic-software":$v}}' \
+    >"$dir/settings.json"
+  printf '%s' "$dir"
+}
+
 run_hook() {
   local input="$1" project="$2"
   shift 2
-  env CLAUDE_PROJECT_DIR="$project" "$@" bash "$HOOK" <<<"$input" 2>&1
+  # -u CLAUDE_CONFIG_DIR so a leaked value never overrides the HOME fixture; a
+  # case exercising it passes CLAUDE_CONFIG_DIR=... in the trailing args (which
+  # come after the -u and win).
+  env -u CLAUDE_CONFIG_DIR CLAUDE_PROJECT_DIR="$project" HOME="$HERMETIC_HOME" "$@" bash "$HOOK" <<<"$input" 2>&1
 }
 
 # --- source-control enabled: bypass shapes fire ------------------------------
@@ -90,6 +118,58 @@ OVERRIDE_ON="$(make_project false true)"
 out=$(run_hook "$(command_json 'gh pr create --title x --body y')" "$OVERRIDE_ON")
 assert_contains "settings.local.json true overrides settings.json false" "$out" "gh pr create"
 
+# --- user-global scope: enablement resolves across ~/.claude too -------------
+HOME_ENABLED="$(make_home true)"
+HOME_DISABLED="$(make_home false)"
+
+# The exact false-negative this fixes: enabled ONLY at user-global, project has
+# no settings file at all — the advisory MUST fire.
+out=$(run_hook "$(command_json 'gh pr create --title x --body y')" "$NO_SETTINGS_PROJECT" HOME="$HOME_ENABLED")
+assert_contains "user-global enable fires with no project settings" "$out" "gh pr create"
+
+# user-global enabled, project settings present but key absent — fires.
+out=$(run_hook "$(command_json 'gh pr create --title x --body y')" "$NO_KEY_PROJECT" HOME="$HOME_ENABLED")
+assert_contains "user-global enable fires when project key absent" "$out" "gh pr create"
+
+# project explicitly disables what user-global enabled — silent (project wins).
+out=$(run_hook "$(command_json 'gh pr create --title x --body y')" "$DISABLED_PROJECT" HOME="$HOME_ENABLED")
+assert_silent "project false overrides user-global true" "$out"
+
+# user-global disabled, project enables — fires (project wins over base).
+out=$(run_hook "$(command_json 'gh pr create --title x --body y')" "$ENABLED_PROJECT" HOME="$HOME_DISABLED")
+assert_contains "project true overrides user-global false" "$out" "gh pr create"
+
+# Local scope stands alone (settings precedence Local > Project > User;
+# `claude plugin install --scope local` writes enabledPlugins to
+# settings.local.json as a first-class state) — a local value participates in
+# per-key resolution whether or not the project settings.json declares the key.
+LOCAL_ONLY_OFF="$(make_project '' false)" # project {} (no key), local=false
+out=$(run_hook "$(command_json 'gh pr create --title x --body y')" "$LOCAL_ONLY_OFF" HOME="$HOME_ENABLED")
+assert_silent "local-only false overrides user-global true (no project key)" "$out"
+
+LOCAL_ONLY_ON="$(make_project '' true)" # project {} (no key), local=true
+out=$(run_hook "$(command_json 'gh pr create --title x --body y')" "$LOCAL_ONLY_ON" HOME="$HOME_DISABLED")
+assert_contains "local-only true overrides user-global false (no project key)" "$out" "gh pr create"
+
+out=$(run_hook "$(command_json 'gh pr create --title x --body y')" "$LOCAL_ONLY_ON")
+assert_contains "local-only enablement fires with no other scope set" "$out" "gh pr create"
+
+# user-global via a relocated CLAUDE_CONFIG_DIR (not ~/.claude) is honored.
+CFG_ENABLED="$(make_config_dir true)"
+out=$(run_hook "$(command_json 'gh pr create --title x --body y')" "$NO_SETTINGS_PROJECT" CLAUDE_CONFIG_DIR="$CFG_ENABLED")
+assert_contains "user-global via CLAUDE_CONFIG_DIR fires" "$out" "gh pr create"
+
+# Multiple source-control@ keys (marketplace migration): ANY enabled key means
+# the skill is available, resolved per exact key — not collapsed to one value.
+MK_HOME="$(mktemp -d -p "$TEST_TMPDIR")"
+mkdir -p "$MK_HOME/.claude"
+jq -n '{enabledPlugins:{"source-control@old":true}}' >"$MK_HOME/.claude/settings.json"
+MK_PROJ="$(mktemp -d -p "$TEST_TMPDIR")"
+mkdir -p "$MK_PROJ/.claude"
+jq -n '{enabledPlugins:{"source-control@new":false}}' >"$MK_PROJ/.claude/settings.json"
+out=$(run_hook "$(command_json 'gh pr create --title x --body y')" "$MK_PROJ" HOME="$MK_HOME")
+assert_contains "an enabled source-control@old fires despite a disabled @new" "$out" "gh pr create"
+
 # --- kill switch — disabled path is a clean no-op even on a bypass shape -----
 out=$(run_hook "$(command_json 'gh pr create --title x --body y')" "$ENABLED_PROJECT" \
   CLAUDE_PLUGIN_OPTION_FLAG_COMMIT_PR_SKILL_BYPASS_ENABLED=false)
@@ -112,5 +192,15 @@ if wait_for_sink "$TEL"; then
 else
   bad "telemetry: no envelope written on advisory fire"
 fi
+
+# --- PowerShell tool coverage ------------------------------------------------
+# The advisory is matched on Bash|PowerShell. A direct `gh pr create` on the
+# PowerShell tool still fires; the same text quarantined inside a here-string
+# body is neutralized (blanked) and stays silent.
+out=$(run_hook "$(pwsh_command_json 'gh pr create --title x --body y')" "$ENABLED_PROJECT")
+assert_contains "PS: gh pr create fires" "$out" "gh pr create"
+
+out=$(run_hook "$(pwsh_command_json "$(printf '%s\n%s\n%s' "@'" "gh pr create in a message body" "'@ | git commit -F -")")" "$ENABLED_PROJECT")
+assert_silent "PS: gh pr create inside a here-string body stays silent" "$out"
 
 report

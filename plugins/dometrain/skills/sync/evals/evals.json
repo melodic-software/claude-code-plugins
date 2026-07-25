@@ -1,0 +1,18 @@
+{
+  "skill_name": "sync",
+  "evals": [
+    {
+      "id": 1,
+      "name": "check-never-writes-baseline",
+      "prompt": "/dometrain:sync",
+      "expected_output": "Runs the report-only drift check against Dometrain's upstream dometrain-grounding skill content, reports whether drift was found, and does not write to vendor/SKILL.md or grounding/SKILL.md.",
+      "files": [],
+      "expectations": [
+        "Invokes scripts/update.sh with no arguments (report mode only)",
+        "Never passes --refresh-baseline",
+        "Does not modify vendor/SKILL.md or grounding/SKILL.md",
+        "Reports drift-present or drift-absent based on the script's actual output, not a fabricated result"
+      ]
+    }
+  ]
+}

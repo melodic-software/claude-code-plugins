@@ -3,6 +3,16 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.4]
+
+### Changed
+
+- The cross-vendor reviewer example in `/verification:confirm`'s "Independence of
+  the verdict" no longer names advisor commands: it gates on the advisor's
+  documented surface being able to take the judged artifact and defers invocation
+  mechanics (waiting, diff-base selection) to that plugin's own docs — per-site
+  command flags drift against the surface the advisor owns.
+
 ## [0.3.3]
 
 ### Changed

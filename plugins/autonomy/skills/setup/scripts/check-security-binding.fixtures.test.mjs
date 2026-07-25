@@ -89,6 +89,7 @@ for (const [name, entry] of Object.entries(fixtures)) {
   const args = [checker, join(fixturesDir, bindingFile), "--probe-evidence-root", fixturesDir];
   if (entry.evidence) args.push("--evidence", join(fixturesDir, entry.evidence));
   if (entry.egress_hosts) args.push("--egress-hosts", entry.egress_hosts);
+  if (entry.credential_roots) args.push("--credential-roots", entry.credential_roots);
 
   const result = spawnSync(process.execPath, args, {
     encoding: "utf8",

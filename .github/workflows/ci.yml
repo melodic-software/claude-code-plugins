@@ -160,10 +160,14 @@ jobs:
           # regex bodies self-match this lane's own detector. The autonomy
           # security-binding fixtures carry ADVERSARIAL host paths on purpose
           # (invented /home users the checker must reject) — sanitizing them
-          # would gut the regressions they pin.
+          # would gut the regressions they pin. Its graded-fixture manifest is
+          # the same corpus: it pins each fixture's trusted --credential-roots
+          # (a real runner home) and expected not-under-root rejections, so it
+          # necessarily carries those same host paths.
           exclude: >-
             :(exclude)plugins/guardrails/lib/path-detection/**
             :(exclude)plugins/autonomy/skills/setup/evals/fixtures/security-binding/**
+            :(exclude)plugins/autonomy/skills/setup/scripts/check-security-binding.fixtures.test.manifest.json
 
       - name: Check index-level EOL drift
         id: eol
@@ -224,11 +228,12 @@ jobs:
   zizmor:
     permissions:
       contents: read
-    # Advisory Actions security lint; findings annotate without blocking.
-    uses: melodic-software/ci-workflows/.github/workflows/zizmor.yml@90f1c54935203fa31b5b3d1f41531228be2c2b7f # 90f1c54 2026-07-18
+    # Actions security lint; any regular-persona finding blocks the merge gate.
+    uses: melodic-software/ci-workflows/.github/workflows/zizmor.yml@31a5b76c4a0b663023dc1c944e2bcfc01d6f6c46 # 31a5b76 2026-07-21
     with:
       runner: ubuntu-24.04
       paths: .
+      fail-on-severity: low
 
   hook-utils-sync:
     runs-on: ubuntu-24.04
@@ -269,6 +274,26 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: scripts/sync-parse-concern-value.sh --check-bump "origin/$BASE_REF"
+
+  resolve-convention-pattern-sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          # Full history so the PR base ref is resolvable for the bump gate.
+          fetch-depth: 0
+      - name: Verify plugin copies match the shared resolver
+        run: scripts/sync-resolve-convention-pattern.sh --check
+      - name: Run shared resolver tests
+        run: bash lib/resolve-convention-pattern.test.sh
+      - name: Verify consuming plugins bumped when the lib changed
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/sync-resolve-convention-pattern.sh --check-bump "origin/$BASE_REF"
 
   standards-contract-sync:
     runs-on: ubuntu-24.04
@@ -316,6 +341,26 @@ jobs:
         run: bash scripts/check-skill-leaf-names.test.sh
       - name: Check for unregistered cross-plugin skill leaf-name collisions
         run: scripts/check-skill-leaf-names.sh --check
+
+  # A ${user_config.*} token in a plugin hook config silently drops the whole
+  # hook entry whenever the key is unset (the declared userConfig `default` is
+  # unimplemented upstream — anthropics/claude-code#46477), so the hook never
+  # fires on a default install. The channel decision matrix
+  # (docs/conventions/hook-config-delivery/) rules argv out for hooks; this
+  # gate pins the exact regression #1242 fixed. Self-test first so a broken
+  # detector cannot mask a regression.
+  userconfig-argv-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Test the userconfig-argv gate
+        run: bash scripts/check-hook-userconfig-argv.test.sh
+      - name: Check plugin hook configs for bare userConfig argv tokens
+        run: scripts/check-hook-userconfig-argv.sh
 
   silent-skip-gate:
     runs-on: ubuntu-24.04
@@ -408,7 +453,7 @@ jobs:
         run: scripts/check-docs-only.sh "origin/$BASE_REF"
       - name: Set up Node
         if: steps.scope.outputs.docs_only != 'true'
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
           cache: npm
@@ -481,7 +526,7 @@ jobs:
         run: scripts/check-docs-only.sh "origin/$BASE_REF"
       - name: Set up Node
         if: steps.scope.outputs.docs_only != 'true'
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
           cache: npm
@@ -519,6 +564,56 @@ jobs:
       - name: Report not applicable to a docs-only diff
         if: steps.scope.outputs.docs_only == 'true'
         run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the miro plugin build cannot be affected — reporting success."
+
+  # The knowledge plugin's youtube-digest extraction pipeline is a Node package
+  # with a typecheck and vitest suite no other lane installs or runs. Its
+  # committed lockfile pins the shared vendor/ packages as packed installs
+  # (install-links via the package's .npmrc), so manifest/lockfile drift breaks
+  # `npm ci` only on a clean install — without this lane that breakage stays
+  # latent until a consumer's machine hits it. Same never-skip, self-test-first,
+  # fail-closed docs-only gate as plugin-gate and miro-plugin. (Scoping this
+  # lane to its own paths — skipping it on unrelated diffs — is the same
+  # separately-tracked optimization noted on miro-plugin.)
+  youtube-extraction:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          # Full history so the PR base ref resolves for the docs-only diff.
+          fetch-depth: 0
+      - name: Test the docs-only detector
+        run: bash scripts/check-docs-only.test.sh
+      - name: Detect a docs-only diff
+        id: scope
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: scripts/check-docs-only.sh "origin/$BASE_REF"
+      - name: Set up Node
+        if: steps.scope.outputs.docs_only != 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: plugins/knowledge/skills/youtube-digest/extraction/package-lock.json
+      - name: Install dependencies
+        if: steps.scope.outputs.docs_only != 'true'
+        run: npm ci
+        working-directory: plugins/knowledge/skills/youtube-digest/extraction
+      - name: Typecheck
+        if: steps.scope.outputs.docs_only != 'true'
+        run: npm run build
+        working-directory: plugins/knowledge/skills/youtube-digest/extraction
+      - name: Test
+        if: steps.scope.outputs.docs_only != 'true'
+        run: npm test
+        working-directory: plugins/knowledge/skills/youtube-digest/extraction
+      - name: Report not applicable to a docs-only diff
+        if: steps.scope.outputs.docs_only == 'true'
+        run: echo "Diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the youtube extraction suite cannot be affected — reporting success."
 
   # Skill-regression net: the only lane that invokes the skill-quality checker.
   # On a PR it runs the static contract gate (trigger-keyword preservation vs
@@ -594,7 +689,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Set up Node
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
           cache: npm
@@ -611,14 +706,17 @@ jobs:
       - hygiene
       - hook-utils-sync
       - parse-concern-value-sync
+      - resolve-convention-pattern-sync
       - standards-contract-sync
       - cross-plugin-source-drift
       - skill-leaf-name-gate
+      - userconfig-argv-gate
       - silent-skip-gate
       - orphaned-fixture-gate
       - changelog-parity-gate
       - plugin-gate
       - miro-plugin
+      - youtube-extraction
       - runner-policy
       - skill-quality-gate
       - portability-lint

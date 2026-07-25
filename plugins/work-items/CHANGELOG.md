@@ -3,15 +3,220 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.20.1]
+## [0.24.1]
 
 ### Documentation
 
 - `tools/work-item-tracker/tests/lib.sh` now points at
   `docs/conventions/shell-test-helpers/README.md`, the repo's owner doc recording that per-plugin
   shell assert-helper duplication and per-script exit-code taxonomies are deliberate, not drift. No
-  behavior change. Version re-bumped past `#861`'s current `0.20.0` claim (re-derived after
-  `#857` merged) to avoid a collision.
+  behavior change.
+
+## [0.24.0]
+
+### Changed
+
+- **`work`'s autonomous concurrency cap is now wired to real enforcement (`#573`).** When
+  `${user_config.work_dispatch_concurrency_cap}` resolves to a value, the orchestrator threads it into
+  the delegated `/implementation:implement-dispatch` dispatch as that skill's new `--wave-cap <N>`
+  ceiling; a surviving placeholder (unset) passes no `--wave-cap`, so implement-dispatch applies its
+  own internal 3–5 wave default. The cap previously changed nothing.
+
+### Removed
+
+- **`work_cycle_batch_cap` is removed from `userConfig` (`#573`).** `work` selects and executes exactly
+  one item per invocation, so it has no cycle to bound — the scalar had no honest in-skill enforcement
+  point and bound nothing. The autonomous per-cycle item budget already lives, and is enforced, in the
+  driving loop as the `work-loop` lane's adaptive item cap (`work_loop_item_cap_*`); a future,
+  demonstrated need for a distinct loop-side batch budget would reopen as a `/loop`-side concern rather
+  than an inert knob.
+
+## [0.23.0]
+
+### Changed
+
+- **`work`'s autonomous execute step now specifies the full orchestrator-dispatch lifecycle (`#572`),**
+  resolving the previously-deferred seam across branch/worktree provisioning, PR-creation ownership,
+  and fix re-dispatch:
+  - **Provisioning is worker-side.** The dispatched worker materializes its own out-of-tree worktree
+    as its first step and works it via `git -C` without entering it — the orchestrator never invokes
+    `/source-control:worktree create`, whose `EnterWorktree` terminal would transition the
+    orchestrator's session. The worker commits, pushes, and brings the branch current with the default
+    branch before returning the worktree path + branch name; a worker that cannot provision parks and
+    escalates.
+  - **PR creation is orchestrator-owned.** After the worker returns and the pre-PR diff gate passes,
+    the orchestrator (never the worker) opens the PR via the new `/source-control:pull-request create
+    --pushed` PR-only entry; the worker scope-fence forbids PR creation. Detection of a consuming
+    project's own PR stage lives in the orchestrator (invoke-vs-defer).
+  - **Branch-owned fixes (failing CI, review findings) re-dispatch a fresh scope-fenced subagent into
+    the same persisted worktree** — the worktree is the state carrier across dispatches and persists
+    through the PR lifecycle, cleaned up only by whoever merges, never by this lane.
+  - `work-loop`'s former interim `#572` workaround is reframed as this now-canonical behavior it
+    inherits from `work`.
+
+## [0.22.1]
+
+### Fixed
+
+- **Permission preflight no longer reports a false `additionalDirectories` gap for a tilde-form
+  grant.** `normalize_path` folded backslashes and Windows drive letters but never expanded a
+  leading `~`, so a `permissions.additionalDirectories` entry written in `~/…` form never matched
+  the absolute worktree root the harness derives from that same home — the preflight wrongly emitted
+  its `(c)` gap even though the grant was live. `normalize_path` now expands a leading `~` (`~` alone,
+  or `~/…` / `~\…` — both separators, since a Windows entry may use a backslash) to the user home
+  (`HOME`, then `USERPROFILE`) before folding, so tilde-form entries compare equal to the absolute
+  probed root. A trailing separator on the home (including `HOME=/`) is stripped before the join so
+  it cannot produce a non-collapsing `//`. Regression cases cover the forward- and backslash-separator
+  matches, the trailing-separator home, the outside-home non-match, and unchanged non-tilde behavior.
+
+## [0.22.0]
+
+### Added
+
+- **Two loop-lane skills: `work-loop` and `attend-queue`.** The work-items adopters of the
+  loop-lane convention (`docs/conventions/loop-lane/` in the marketplace repository). `work-loop`
+  is the worker lane — a self-paced drain loop that sweeps raw intake through `triage`'s
+  autonomous lane each cycle, admits items through a fail-closed work-class gate (C2 autonomous;
+  C3 bug-fix-shaped autonomous behind a first-drain ratification queue; C3 feature-shaped, C4, C5,
+  and unclassified human-gated; plus a path/topic hard gate over SHA pins, checksum recomputation,
+  and consumer CLAUDE.md ground-rule surfaces, and a bot-authored-advisory default to human-gated),
+  executes admitted items via `work` under an adaptive item cap (start 2, +1 after 3 clean,
+  ceiling 3, -1 on dirty, floor 1; frontier-tier items at concurrency 1 with ceiling 2; no ramp
+  while a rate-limit warning is latched), provisions worktrees explicitly before dispatch as the
+  `#572` workaround, and exits on the seam-frontier-empty plus GraphQL close-linkage condition or
+  the convention's drain-terminal state. `attend-queue` is the attended lane — one merged
+  attention view of worker-escalated items (human-gated role + machine-marked escalation comment),
+  first-drain C3 ratifications, and untriaged intake (composing `triage`'s attention view),
+  driving decisions via `/planning:interview` (presence-gated), writing answers back as issue
+  comments, and flipping unblocked items to the autonomous-eligible role in a single edit. Both
+  lanes hold shared loop-layer concerns by citation to the loop-lane convention, inline the
+  rate-limit guard's operable floor byte-identically per its inline-floor rule, and inline the
+  `claude-ops`-compatible sentinel telemetry upsert (an installed plugin cannot invoke a sibling
+  plugin's scripts).
+- **`work` gains an autonomous invocation path.** When invoked by a loop lane or another
+  unattended context, the Step 3 confirmation prompt is not presented: the invoker names the
+  already-admitted item id and states its admission gate passed, the auto-confirmation is recorded
+  in the item's claim comment, and every later step — including the seam claim as the atomic
+  acquisition point — is unchanged. Attended invocations keep the interactive prompt.
+- **GitHub adapter "Open linked PRs" operation is draft-aware.** The GraphQL selection now
+  requests `isDraft` and the operation documents two reductions: the default (drafts count — a
+  draft closing PR is still in-flight work for `work`'s frontier exclusion) and a non-draft
+  reduction for `work-loop`'s drain-exit evaluation, which must not treat a draft as satisfying
+  the exit (review-caught).
+- **Four `userConfig` keys for the work-loop adaptive cap bounds:** `work_loop_item_cap_start`
+  (default 2), `work_loop_item_cap_ceiling` (default 3), `work_loop_item_cap_floor` (default 1),
+  and `work_loop_frontier_item_cap_ceiling` (default 2). Enforcement is the loop body's own
+  arithmetic; the composed budget with `/implementation:implement-dispatch`'s per-item wave cap
+  remains interim pending `#573`.
+
+## [0.21.4]
+
+### Changed
+
+- **Raw-intake marker canonicalized as dual-axis across `triage` docs and evals (`#818`).** The live
+  raw marker is applied on whichever axis a consuming repo files it under — `priority:needs-triage`
+  or `status:needs-triage` — but `SKILL.md`'s Triage-states table and Attention-view buckets,
+  `reference/dogfood-filing.md`'s filing step, `reference/label-taxonomy.md` and
+  `reference/tracker-seam.md`'s axis-grammar tables, and two triage evals described or asserted it
+  as status-axis-only. All now match the dual-axis wording the "Scope: raw intake only" section
+  already carries (`#802`): a consuming repo may file the raw marker under either axis, and both are
+  canonical. On the Priority axis the marker is passed as the `track add` `--priority` value (a
+  single-label group), replacing the `priority:p3-low` filing default rather than adding a second
+  `priority:` label.
+
+## [0.21.3]
+
+### Fixed
+
+- **`work`'s dispatch brief no longer lists `## Related` as a standing PR obligation (#975).**
+  `/source-control:pull-request`'s PR-body scaffold is now configurable via
+  `pr_body_required_sections` and no longer includes `## Related` by default — the prior wording
+  enumerated it alongside `Closes #N` as if every PR carried it. The dispatch brief and the
+  post-green deferred-finding step (`skills/work/SKILL.md`) now: point at pull-request's
+  configurable scaffold instead of restating it, drop `## Related` from the standing-obligations
+  list, and have the deferred-finding step ensure the section exists before citing a follow-up issue
+  in it, rather than assuming pull-request already created one. That step is documented as a
+  **read-modify-write** (`gh pr view --json body` then `gh pr edit --body-file -`), matching the
+  GitHub adapter's own PR-body-edit identity note — `gh pr edit --body`/`--body-file` REPLACES the
+  whole body, so a bare append-flavored write would silently drop `Closes #N` and the rest of the
+  scaffold (review-caught). Eval 3 updated to match.
+
+## [0.21.2]
+
+### Changed
+
+- Fresh-eyes delegation sites now prefer a cross-vendor advisor when one is installed
+  (e.g. the OpenAI Codex plugin, invoked per its own docs), with the fresh-context same-vendor
+  subagent as the stated fallback — presence-gated per the seam-phrasing convention.
+
+## [0.21.1]
+
+### Fixed
+
+- **Triage SKILL state machine + attention view reconciled with live labels (`#817`).** The
+  attention view's bucket list named only `status:needs-triage`, leaving a repo that files raw
+  intake on the priority axis (`priority:needs-triage`, per `#802`'s dual-axis Scope wording)
+  invisible to the no-arg attention view; the bucket now names both axes. Separately,
+  `status:needs-decision` was already referenced by the closing invariant as a routing outcome
+  that clears the raw marker, but was never introduced as a side exit in the state machine itself
+  (unlike `needs-info`, human-gated, and close) — it is now documented alongside them in the
+  side-exits sentence and the state diagram. Doc-only; no routing logic changed.
+
+## [0.21.0]
+
+### Added
+
+- **Issue-conventions reference — `reference/issue-conventions.md` (`#552` member 6).** The title
+  convention (~98% of live org issues conform) and the filing body shape were load-bearing and
+  written down nowhere. The new doc is the single source of truth for the TITLE convention
+  (`<prefix>: <lowercase summary>`, area/path and conventional-commit prefix dialects, `Epic:` for
+  umbrellas, sub-issue edges over title suffixes) and points — never copies — at the existing owners
+  for body (`track add` "Build body", `agent-brief.md`), type/labels (`track add` type resolution,
+  `label-taxonomy.md`), and close reason (`track done`). Cited from `track add`, `decompose`,
+  `triage`, and `dogfood-filing.md`.
+
+### Changed
+
+- **Triage priority default is `p2-medium`; `p1-high` is reserved (`#552` member 4).** 77% of open
+  issues carried `priority: high`, destroying it as a staffing signal. Triage now defaults to
+  `priority:p2-medium` when no directive, category rule, or severity signal sets one, and reserves
+  `priority:p1-high` for items that block other work or carry an imminent external deadline. The
+  `track add` filing default (`p3-low`) is deliberately distinct — an untriaged-signal floor, not a
+  priority assessment — and is now documented as such.
+- **Duplicate / supersede close discipline (`#552` member 5).** Sampled closures were 100%
+  `COMPLETED` — duplicates and superseded items were closing under the wrong reason. Duplicates now close via the
+  provider's native duplicate mechanic where one exists (GitHub: `gh issue close --duplicate-of`,
+  which sets close reason `duplicate` and a structured, API-queryable `duplicateOf` relationship),
+  with the portable fallback — append a queryable `## Duplicate of #N` body section and close
+  `not planned` — for cross-repo targets and providers without a native duplicate reason. Superseded
+  and duplicate items never close as `completed` (triage outcome table, `track done`, GitHub adapter
+  README mechanic).
+
+## [0.20.0]
+
+### Added
+
+- **Mini-SDLC pipeline-shape SSOT — `reference/pipeline-shape.md` (`#613`, stage 1 of `#513`).** The
+  work lane had no durable definition of the *shape* of the pipeline it runs per item — the lane
+  catalog, the implementer ≠ reviewer ≠ verifier invariant, and the depth tiers lived only as evolving
+  prose and per-issue plans, so the shape drifted and could not be scaled or reviewed in one place. A
+  new reference doc owns that stable policy: the fixed lane set (explore → research → plan →
+  devil's-advocate → implement → test → review → verify, with the re-anchor slot reserved), the
+  "variation in depth, never in shape" principle, the role-separation invariant, and placeholder depth
+  tiers carried as a plan field. It is a reversible reference-doc STOPGAP (form/location/name left to
+  the operator per `#513`) and points at the return-payload contract (`#496`) and convention-gap
+  protocol (`#554`) rather than restating them. **Scope note:** this stage lands the shape and the
+  wire-in only — the depth-scaling dispatcher and the separated-reviewer/verifier runtime are later
+  `#513` stages, so the doc defines the target shape and makes no claim that the runtime already
+  depth-scales or fully separates roles today.
+
+### Changed
+
+- **`work` Step 5 dispatches against the pipeline-shape SSOT (`#613`).** The execute sub-step now
+  points the dispatched chain at `reference/pipeline-shape.md` for the lane shape, additively — the
+  existing instruction to follow the consuming project's own development workflow and domain rules is
+  retained; the chain runs the shape *within* the consumer's workflow and rules, never in place of
+  them.
 
 ## [0.19.0]
 

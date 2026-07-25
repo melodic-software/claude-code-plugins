@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "claude-ops",
-  "version": "0.17.5",
+  "version": "0.19.2",
   "description": "Claude Code operations toolkit. Seven skills: observability (read locally captured telemetry — OTEL store, collector, hook-event JSONL, ccusage — with trend reports and store pruning), known-issues (search known Claude product GitHub bugs, check service health, maintain a persistent tracked-issue registry), changelog (ingest Claude Code changelog entries and integrate them into the current repo), plugins (bring a machine's plugin fleet current on demand — marketplace refresh, effective-scope updates including in-repo project/local installs, new-plugin install per policy, scope-divergence detection and explicit convergence), morning-brief (read-only gh-based operator morning view — queue-label counts, merge-ready PRs, parked decisions with their RECOMMENDED lines, and loop-lane telemetry freshness), lanes (start/restart/stop/status loop lanes as named background Claude Code sessions seeded from canonical prompt files, with per-lane model/effort and a repo-pull + marketplace-refresh launch step), and a re-runnable setup action that settles where the known-issues registry lives. Plus a family of seven advisory *-audit telemetry-emitter hooks (API errors, config changes, instruction loads, permission denials, pre-compaction, skill usage, tool failures) that emit the shared hook-telemetry envelope, and a reference sink that maps envelopes into the hook-events.jsonl the observability skill reads.",
   "author": {
     "name": "Melodic Software",
@@ -31,8 +31,20 @@
     },
     "skill_usage_dir": {
       "type": "string",
-      "title": "Skill-usage log directory (project-relative)",
-      "description": "Optional contained project-relative directory where the skill-usage-audit hook writes skill-usage.jsonl. Absolute, drive, UNC, traversal, and escaping-symlink paths are invalid. Leave unset to use .claude/observability."
+      "title": "Skill-usage log directory (relative subpath under the scope root)",
+      "description": "Optional contained relative directory where the skill-usage-audit hooks write skill-usage.jsonl, resolved under the skill_usage_scope root (repo scope: the project root; user scope: $HOME). Absolute, drive, UNC, traversal, and escaping-symlink paths are invalid in every scope. Ignored by the data-dir scope (plugin-owned layout). Leave unset to use .claude/observability."
+    },
+    "skill_usage_scope": {
+      "type": "string",
+      "title": "Skill-usage log scope",
+      "description": "Where the skill-usage store lives. Valid values: \"repo\" (default — project tree under the repo root, kept out of git status via a machine-local .git/info/exclude entry), \"user\" (the skill_usage_dir subpath under $HOME, one cross-repo store; rows carry a project field), \"data-dir\" (${CLAUDE_PLUGIN_DATA}/skill-usage/<repo-slug>, plugin-owned and update-safe). The manifest schema has no enum type, so this validates in prose; any other value is treated as \"repo\" with a one-time advisory.",
+      "default": "repo"
+    },
+    "skill_usage_git_exclude": {
+      "type": "boolean",
+      "title": "Machine-local git exclude for the repo-scope store",
+      "description": "When the repo-scope store sits inside a git work tree, idempotently add its directory to .git/info/exclude (machine-local; never touches .gitignore or tracked files) so git status stays clean. Set false if your team deliberately commits the telemetry.",
+      "default": true
     },
     "install_new": {
       "type": "string",

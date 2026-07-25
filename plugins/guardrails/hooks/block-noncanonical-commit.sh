@@ -62,39 +62,52 @@ source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
 
 hook::check_enabled "BLOCK_NONCANONICAL_COMMIT"
 
+# Bundled PowerShell-command classifier — the git guards are matched on both the
+# Bash and the (opt-in) PowerShell tool, whose command arrives in the same
+# tool_input.command field with PowerShell grammar. Resolved under the plugin
+# root (CC sets CLAUDE_PLUGIN_ROOT; the BASH_SOURCE fallback keeps the contract
+# tests working when it is unset).
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+# shellcheck source=../lib/powershell/ps-command.sh
+source "$PLUGIN_ROOT/lib/powershell/ps-command.sh"
+
 # High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;
 # on older bash it is unset, so default to empty and skip telemetry (the block
 # still fires). Referencing it bare under `set -u` would abort before exit.
 start=${EPOCHREALTIME:-}
 
-# jq is required to parse the tool payload. Fail OPEN when it is absent, but
-# make the degraded state visible rather than silently disabling the guard.
-if ! command -v jq >/dev/null 2>&1; then
-  echo "guardrails/block-noncanonical-commit: jq not found on PATH — guard disabled (install jq to enable)." >&2
-  exit 0
-fi
-
 # hook::buffer_stdin encapsulates the Win32-pipe-safe bounded fd0 read. rc 1
 # (empty stdin) skips; rc 2 (read timed out before a complete payload) FAILS
 # CLOSED — the guard cannot evaluate the tool call, and a silent skip would pass
-# exactly the traffic this guard exists to stop.
+# exactly the traffic this guard exists to stop. Buffering does not require jq
+# (hook::buffer_stdin's own JSON-completeness check is jq-optional), so it runs
+# before the jq gate below — hook::require_jq needs the buffered input for its
+# once-per-session notice scoping.
 INPUT=$(hook::buffer_stdin) || {
   rc=$?
   ((rc == 2)) && exit 2
   exit 0
 }
+
+# jq is required to parse the tool payload. hook::require_jq fails OPEN
+# (advisory hooks never block over a missing prerequisite) but makes the
+# degraded state visible to both the user (systemMessage) and the agent
+# (additionalContext), once per session — see docs/conventions/hook-observability/.
+hook::require_jq "PreToolUse" "guardrails-block-noncanonical-commit" "$INPUT"
+
 COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null | tr -d '\r')
 [[ -n "$COMMAND" ]] || exit 0
 HOOK_CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null | tr -d '\r')
+TOOL_NAME=$(printf '%s' "$INPUT" | jq -r '.tool_name // "Bash"' 2>/dev/null | tr -d '\r')
 
-SUBJECT=$(hook::extract_bash_subject "Bash" "$COMMAND")
+SUBJECT=$(hook::extract_bash_subject "$TOOL_NAME" "$COMMAND")
 
 emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
   local data
-  data=$(jq -n --arg subject "$SUBJECT" --arg form "$2" \
-    '{tool:"Bash",subject:$subject,form:$form}' 2>/dev/null) || data='{"tool":"Bash","subject":"","form":""}'
+  data=$(jq -n --arg tool "$TOOL_NAME" --arg subject "$SUBJECT" --arg form "$2" \
+    '{tool:$tool,subject:$subject,form:$form}' 2>/dev/null) || data='{"tool":"Bash","subject":"","form":""}'
   hook::emit_telemetry "block-noncanonical-commit" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
@@ -207,30 +220,48 @@ check_segment() {
   # only — git does not expand the first word of an expansion as another alias —
   # enforced through HOOK_NO_ALIAS, which dynamic scoping carries into the
   # recursive call.
+  # The --config-env SHAPE refusal is value-blind, terminal, and must fire at EVERY
+  # recursion depth: a wrapping inline alias can expand to `--config-env=alias.<sub>=…`
+  # that defines the invoked subcommand (`git -c alias.c='--config-env=alias.foo=AV foo'
+  # c`), which git runs. It is therefore NOT gated by HOOK_NO_ALIAS. The inline-alias
+  # re-expansion and the gitconfig-alias probe below ARE one-level (HOOK_NO_ALIAS bounds
+  # the recursion — git does not re-expand an expansion's first word as another alias).
+  local exp reparse a alias_rc
+  local -a expw=()
+  hook::git_alias_expansion "$sub"
+  alias_rc=$?
+  if ((alias_rc == 2)); then
+    # Structural fail-closed: the invoked subcommand's alias is defined via --config-env
+    # (here or in a wrapping alias's expansion), whose value is the recurring fail-open
+    # surface (fed by an ambient var, an inline/`env` prefix, an `export`, `set -a`, or a
+    # nested `bash -c` in any wrapper); a commit smuggled through it cannot be verified,
+    # and defining an alias this way on a guarded invocation is never canonical.
+    echo "BLOCKED: git alias '$sub' is defined via --config-env, so its expansion cannot be verified — failing closed." >&2
+    echo "Commit with \`git commit -F -\` (or the /commit skill), define aliases in git config, or set the guardrails block_noncanonical_commit_enabled option to false to bypass." >&2
+    emit_tel "blocked" "config-env-alias"
+    exit 2
+  fi
   if ((${HOOK_NO_ALIAS:-0} == 0)); then
-    local cv exp reparse a
-    local -a cfgv=() expw=()
-    cfgv=(${HOOK_GIT_CONFIG_VALUES[@]+"${HOOK_GIT_CONFIG_VALUES[@]}"})
-    # LAST value wins, matching git: `-c alias.c=status -c alias.c=commit`
-    # runs commit. Taking the first match would let a decoy earlier value
-    # (expanding to a harmless subcommand) mask the real one.
-    exp=""
-    for cv in ${cfgv[@]+"${cfgv[@]}"}; do
-      [[ "$cv" == "alias.${sub}="* ]] && exp="${cv#*=}"
-    done
-    if [[ -n "$exp" ]]; then
-      inline_alias_handled=1
-      if [[ "$exp" == '!'* ]]; then
-        reparse="${exp#!}"
-        for a in "${w[@]:sub_idx+1}"; do reparse+=" $(printf '%q' "$a")"; done
-        hook::bash_parse_segments "$reparse" check_segment
-      else
-        hook::env_s_split "$exp"
-        expw=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"})
-        HOOK_NO_ALIAS=1
-        check_segment "${w[@]:0:gi+1}" ${expw[@]+"${expw[@]}"} "${w[@]:sub_idx+1}"
-        HOOK_NO_ALIAS=0
-      fi
+    if ((alias_rc == 0)); then
+      # Inline alias (-c/--config): each spelling's expansion is literally present. Re-check
+      # EVERY spelling (plain and `.command`) independently so a benign expansion in one
+      # never suppresses a dangerous sibling in the other.
+      # shellcheck disable=SC2154  # HOOK_GIT_ALIAS_EXPS is set by hook::git_alias_expansion
+      for exp in ${HOOK_GIT_ALIAS_EXPS[@]+"${HOOK_GIT_ALIAS_EXPS[@]}"}; do
+        [[ -n "$exp" ]] || continue
+        inline_alias_handled=1
+        if [[ "$exp" == '!'* ]]; then
+          reparse="${exp#!}"
+          for a in "${w[@]:sub_idx+1}"; do reparse+=" $(printf '%q' "$a")"; done
+          hook::bash_parse_segments "$reparse" check_segment
+        else
+          hook::env_s_split "$exp"
+          expw=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"})
+          HOOK_NO_ALIAS=1
+          check_segment "${w[@]:0:gi+1}" ${expw[@]+"${expw[@]}"} "${w[@]:sub_idx+1}"
+          HOOK_NO_ALIAS=0
+        fi
+      done
     fi
 
     # An alias can also live in .git/config, ~/.gitconfig, or system config,
@@ -307,14 +338,36 @@ check_segment() {
 
   echo "BLOCKED: \`git commit\` without \`-F -\` — the message must be piped via stdin." >&2
   echo "Use the /commit skill (source-control plugin), or its canonical form directly:" >&2
-  echo "  git commit -F - --cleanup=verbatim <<'EOF'" >&2
-  echo "  <subject>" >&2
-  echo "  EOF" >&2
+  if [[ "$TOOL_NAME" == "PowerShell" ]]; then
+    echo "  @'" >&2
+    echo "  <subject>" >&2
+    echo "  '@ | git commit -F -" >&2
+  else
+    echo "  git commit -F - --cleanup=verbatim <<'EOF'" >&2
+    echo "  <subject>" >&2
+    echo "  EOF" >&2
+  fi
   echo "A \`-m\` message flattens newlines unpredictably across shells. --amend, -C/-c," >&2
   echo "--fixup/--squash, -F <path>, and an in-progress merge/rebase are exempt." >&2
   emit_tel "blocked" "message-flag"
   exit 2
 }
+
+# Reduce a PowerShell command to a Bash-tokenizer-faithful form, or fail closed.
+# For the Bash tool this is a no-op (COMMAND unchanged). The canonical PowerShell
+# commit form (a here-string piped to `git commit -F -`) reduces to
+# `<placeholder> | git commit -F -`, which the parser below recognizes as the
+# stdin form and allows.
+ps::classify_git_command "$TOOL_NAME" "$COMMAND"
+case $? in
+2)
+  ps::print_unparsable_block_message
+  emit_tel "blocked" "powershell-unparsable"
+  exit 2
+  ;;
+1) exit 0 ;; # non-commit PowerShell with an A2b-deferred construct
+*) COMMAND="$PS_SAFE_COMMAND" ;;
+esac
 
 hook::bash_parse_segments "$COMMAND" check_segment
 

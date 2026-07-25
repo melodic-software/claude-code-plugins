@@ -1,0 +1,45 @@
+# Bundled portable default — go. Rung-4 fallback ONLY (a consuming repo's
+# .claude/ecosystems/go.yaml overrides this key-by-key; this file is never
+# written into a consumer repo). Ecosystem-commands contract + schema:
+# https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/ecosystem-commands/README.md
+#
+# project-discovery: a root go.mod bounds `./...` package-pattern expansion —
+# verified empirically (Go 1.26.5) that go build/test/list ./... from a repo
+# root silently skip a nested module's packages (a nested go.mod, or even a
+# root go.work listing both modules, does not cross that boundary for `...`
+# expansion). Without walking to each go.mod, a monorepo with a nested Go
+# module gets silent incomplete build/test/lint.
+#
+# go-mod-tidy-drift trigger-globs includes *.go, not just go.mod/go.sum:
+# `go mod tidy` can flag drift from a source-only edit (e.g. removing the
+# last usage of a dependency leaves go.mod over-declared) that `go build`/
+# `go test` do not fail on, so scoping the gate to go.mod/go.sum changes
+# alone would miss exactly the CI/local-parity gap this ecosystem entry
+# exists to close.
+#
+# opt-in rationale: golangci-lint v2 with NO config file present still runs
+# its own fixed "standard" linter preset (linters.default: standard) rather
+# than erroring or running nothing — i.e. it imposes an opinionated
+# diagnostic set nobody explicitly chose, the same risk class the dotnet
+# ecosystem's opt-in gate addresses for unconfigured Roslyn formatting
+# defaults, and consistent with python's ruff gate below. Note: unlike
+# dotnet's EditorConfig discovery, golangci-lint's own config search has no
+# root-boundary marker — it walks from the target up to the filesystem root
+# and then falls back to the user's home directory, so a stray
+# ~/.golangci.yml can make a local run diverge from a clean CI container
+# (documented in context/go.md, not addressed by this opt-in gate, which only
+# ceilings the *this-plugin's* opt-in check at the repo root).
+globs: ["*.go", "go.mod", "go.sum"]
+project-discovery: ["go.mod"]
+build-cmd: "go build ./..."
+test-cmd: "go test ./..."
+check-cmd: "golangci-lint run ./..."
+fix-cmd: "golangci-lint run --fix ./..."
+opt-in: ".golangci.yml, .golangci.yaml, .golangci.toml, or .golangci.json present (walked from the changed file up to the repo root) — otherwise golangci-lint applies its own unconfigured \"standard\" linter preset unconditionally"
+install-hint: "Install golangci-lint: https://golangci-lint.run/docs/welcome/install/ | Go toolchain: https://go.dev/dl/"
+gates:
+  - name: go-mod-tidy-drift
+    cmd: "go mod tidy -diff"
+    trigger-globs: ["go.mod", "go.sum", "*.go"]
+    remediation: "Run go mod tidy and commit the updated go.mod/go.sum. (go mod tidy -diff requires Go 1.23+; on an older toolchain the gate errors on the unrecognized flag rather than reporting drift.)"
+notes: "govulncheck is intentionally not a rung-4 default (per the epic brief's \"optional\" framing) — add it as a consumer-local gate via .claude/ecosystems/go.local.yaml if desired."

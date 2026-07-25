@@ -1,5 +1,32 @@
 # Changelog — docs-hygiene plugin
 
+## [0.8.6]
+
+### Fixed
+
+- `audit-derivability` Hard Rules "never by a fork" now names the Agent tool's `fork` subagent
+  type inline and distinguishes it from a skill's own `context: fork` frontmatter (which starts
+  blank), matching the disambiguation already in the spot-test bullet — the Hard Rules section is
+  now self-contained for a reader landing there first.
+
+## [0.8.5]
+
+### Fixed
+
+- `audit-derivability` spot-test wording no longer inverts the fork mechanism: the contamination
+  risk is attributed to the Agent tool's `fork` subagent type (which inherits the invoking
+  conversation), not to a skill's own `context: fork` frontmatter (which starts blank with no
+  conversation access). Corrected across SKILL.md, `context/rubric.md`, and `evals/evals.json`;
+  the fresh-context non-fork recommendation is unchanged.
+
+## [0.8.4]
+
+### Changed
+
+- Fresh-eyes delegation sites now prefer a cross-vendor advisor when one is installed
+  (e.g. the OpenAI Codex plugin, invoked per its own docs), with the fresh-context same-vendor
+  subagent as the stated fallback — presence-gated per the seam-phrasing convention.
+
 ## [0.8.3]
 
 ### Changed

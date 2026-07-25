@@ -74,6 +74,19 @@
         "Runs git-prune.sh in --dry-run before any --apply",
         "Gates branch deletion behind an explicit per-branch opt-in (AskUserQuestion), never auto-deleting branches"
       ]
+    },
+    {
+      "id": 7,
+      "name": "fleet-caches-routes-to-batch-single-gate",
+      "prompt": "Clear the tool and linter caches across all my ghq repos. /repo-hygiene:clean caches-batch",
+      "expected_output": "Resolves to the caches fleet tier, runs clean-batch.sh --tier caches in dry-run to produce one batch plan, gates the whole fleet behind a single confirmation, then applies exactly that plan.",
+      "files": [],
+      "expectations": [
+        "Resolves the action to `caches-batch` and runs clean-batch.sh --tier caches (not the single-repo caches tier, not tree-batch)",
+        "Runs --dry-run first, surfaces the aggregate reclaimable bytes from the `Summary:` line, and never applies on the first turn",
+        "Uses a single batch-wide AskUserQuestion for the whole fleet, not one confirmation per repo",
+        "Applies the same batch plan captured from the dry-run (--apply --batch-plan <path>), never re-enumerating the fleet at apply"
+      ]
     }
   ]
 }

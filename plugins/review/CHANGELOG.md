@@ -3,6 +3,24 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.0]
+
+### Added
+
+- Deep-scan escalation routing to the official Claude Security plugin (`/claude-security`) from
+  quality-gate security mode and the fanout leaf roster — presence-gated, pointer-only
+  (contract stays upstream at <https://code.claude.com/docs/en/claude-security>), and explicitly
+  not a fan-out leaf. The fanout pre-flight gate checks ask shape before diff resolution, so a
+  whole-repo security-audit ask escalates regardless of diff state.
+
+## [0.14.11]
+
+### Changed
+
+- Fresh-eyes delegation sites now prefer a cross-vendor advisor when one is installed
+  (e.g. the OpenAI Codex plugin, invoked per its own docs), with the fresh-context same-vendor
+  subagent as the stated fallback — presence-gated per the seam-phrasing convention.
+
 ## [0.14.10]
 
 ### Changed

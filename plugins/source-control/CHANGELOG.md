@@ -3,14 +3,398 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.17.1]
+## [0.26.1]
 
 ### Documentation
 
 - `scripts/test-helpers.sh` now points at `docs/conventions/shell-test-helpers/README.md`, the
   repo's owner doc recording that per-plugin shell assert-helper duplication and per-script exit-code
-  taxonomies are deliberate, not drift. No behavior change. Version re-bumped past `#898`'s open
-  `0.17.0` claim (also above `#895`'s and `#840`'s `0.15.10`) to avoid a collision.
+  taxonomies are deliberate, not drift. No behavior change.
+
+## [0.26.0]
+
+### Added
+
+- **`pull-request` gains a `create --pushed --worktree <path>` PR-only entry (`#572`).** For an
+  orchestrated flow where a dispatched worker already committed and pushed inside its own out-of-tree
+  worktree, an out-of-tree orchestrator opens the PR without redoing commit / push / rebase: the mode
+  re-resolves branch and diff from the target worktree (ignoring the session-cwd pre-computed
+  context), asserts the tree is clean and fully pushed, runs body assembly and the pre-create gates,
+  and calls `gh pr create --head <branch>` explicitly. Body shape, `Closes #N` injection, and the
+  required-section gate are the existing `create` mechanics, unchanged. See
+  `skills/pull-request/reference/create.md` §2.7.
+
+### Changed
+
+- **`worktree`'s `create` action now documents that orchestrated (autonomous) provisioning does not
+  use it (`#572`).** An orchestrator that must stay resident to keep dispatching — e.g.
+  `/work-items:work` — cannot invoke `create`, whose `EnterWorktree` terminal transitions the calling
+  session; such runs provision non-interactively via the shared `worktree-create.sh` helper (omitting
+  the `EnterWorktree` step) or a plain `git worktree add`, then work the worktree via `git -C` without
+  entering it.
+
+## [0.25.1]
+
+### Fixed
+
+- **Well-known rung's git-tracked requirement now stated on both resolution surfaces.** #1185's review
+  hardening (an untracked/gitignored file at the well-known path must not drive resolution) landed only
+  in the enforcement resolver. `config-resolution.md` (drafting) and the commit-convention seam README
+  still described rung 2 as firing "when that file exists" while claiming the surfaces were "identical"
+  — false after the fix, and a real divergence risk (drafting would use an untracked file the gate
+  skips). Both specs now require rung 2 to be **git-tracked** and tell the drafting reader how to check
+  it (`git ls-files --error-unmatch`), so drafting and enforcement resolve the same file. Docs-only;
+  the resolver already enforced this.
+
+## [0.25.0]
+
+### Added
+
+- **Well-known default path for the neutral convention SSOT (#163434).** The commit-convention
+  resolver now probes a repo-dogfooded default path,
+  `docs/conventions/source-control/commit-convention.yml`, when the team file declares no explicit
+  `## convention_source` pointer. The common case reads ONE tool-agnostic file with no markdown
+  pointer-parse and nothing in agent-rewritable prose to sever. Fixed 3-rung precedence, identical on
+  the drafting and enforcement surfaces: explicit `convention_source` pointer (relocation override) >
+  well-known default path > markdown-H2 (legacy). Full back-compat — absent both a pointer and the
+  well-known file, resolution is unchanged.
+
+### Changed
+
+- **Setup recommends the neutral SSOT as the default when a second enforcement consumer exists (F1).**
+  When inference detects a commit-msg hook, a CI title check, or a user-stated second consumer,
+  `/source-control:setup apply` now recommends the tool-agnostic neutral file (at the well-known
+  path, pointerless) rather than steering to markdown-primary; it falls back to markdown-only only
+  when this plugin is demonstrably the sole consumer.
+- **`setup check` surfaces neutral-SSOT drift (F3).** Two probes: a broken pointer / neutral file
+  (FAIL — was silent fail-closed), and a resolved neutral file shadowing a stale markdown-H2
+  duplicate (WARN).
+- **Neutral-YAML preamble trimmed to a 1–2 line header (F4).** The self-describing multi-line
+  preamble template is reduced to what the file is and who reads it; the human document proper lives
+  in CONTRIBUTING/AGENTS.md.
+
+## [0.24.0]
+
+### Added
+
+- **`/babysit-loop` — the loop-lane merge lane, plus repo-scoped lane keys on the layered config
+  seam.** New skill wrapping `/source-control:babysit-prs` in a self-paced standing or drain loop
+  over one repository (required `<owner/repo>` argument): each cycle invokes babysit-prs at the
+  resolved tier and scope, layered with a concurrency-safety activity grace window (default 30
+  minutes — a PR whose head moved or that received comments inside it, or a draft carrying WIP
+  signals, is report-only that cycle), do-not-merge respect (strip only behind the explicit
+  `--strip-do-not-merge` flag), the loop-lane escalation contract, and `#502` lane telemetry with a
+  durable machine-readable state block. Autonomy is decomposed into seven dimensions with tiers as
+  named presets; the merge dimension resolves human-only until the target repository's team-tracked
+  config carries loop-lane keys — that tracked file, landed by a reviewable PR, is the recorded
+  lane-enabling act — after which it defaults to the loop-lane convention's baseline rung (human
+  merge for everything except gate-proven C2-mechanical PRs — a work-class test irrespective of
+  author), and its raises bind from the team-tracked config layer only. Shared cross-lane concerns —
+  topology, stop shapes including the drain-terminal state, cycle-budget and expiry semantics,
+  capability tiers, the subagent discipline preamble — are held by citation to the marketplace
+  repository's `docs/conventions/loop-lane/` convention, and the rate-limit guard's operable floor
+  is inlined verbatim per that convention's inline-floor rule. `reference/config-resolution.md`
+  widens accordingly: the layered `.claude/source-control.md` surface now documents the
+  `babysit_loop_*` key family (stop mode, tier preset, per-dimension overrides, grace-window width,
+  cycle budget) alongside the commit-subject/PR-title convention keys, with the merge-rung key
+  declared in the consumer-config layering convention's policy-floor class. The existing
+  user-settings-scoped `babysit_*` `userConfig` keys are untouched — the reference documents the
+  personal-scalar vs repo-policy split.
+
+## [0.23.0]
+
+### Added
+
+- **Neutral tool-agnostic convention SSOT — `convention_source` (#1141, author-directed reopen of
+  #913).** The team-tracked `.claude/source-control.md` may now declare `## convention_source`: a
+  repo-relative flat-scalar YAML file (`subject_pattern`, `pr_title_pattern`, optional
+  `pr_body_required_sections` list or `none`, optional `dialect:` defaulting `posix-ere`) that
+  enforcement (commit-msg hooks, CI) and drafting (any agent) consume as ONE source — decoupling
+  the convention values from the markdown-H2 grammar that previously left consuming machines
+  hand-syncing byte-identical regex copies. Absent pointer → today's behavior, zero action for
+  existing consumers; the path is always repo-declared (no hardcoded doc root, no well-known
+  search list in V1 — recorded decision); the `Conventional Commits` keyword and the pr-title
+  deferral marker work identically on both surfaces; the neutral file is authoritative per key with
+  markdown-H2 fallback, plugin-only keys stay `.claude/`-side, and user/local overlay layers are
+  unchanged. Enforcement contract unchanged (POSIX ERE only, unresolved = no enforcement,
+  team-only policy floor — the pointer too is honored from the team file only); a
+  declared-but-broken pointer or non-`posix-ere` dialect fails closed with a diagnostic.
+  `lib/resolve-convention-pattern.sh` extended (guardrails vendored copy synced byte-identical,
+  guardrails 0.13.0); 14 new resolver test cases (44 total). The incumbent markdown-H2 steelman and
+  the format decision walk-through are recorded in `docs/conventions/commit-convention/README.md`;
+  `setup apply` gains the offer-and-migrate path (spoke section, eval 18) that retires duplicated
+  keys rather than leaving both surfaces authoritative. Monorepo per-directory scoping: out of
+  scope V1, recorded.
+
+## [0.22.0]
+
+### Changed
+
+- **`/setup` clears the skill-quality static gate; Gotchas surface added; hub split (#1140).** The
+  audit flagged MD041/MD013 lint findings, a missing Gotchas surface, and a 453-line hub. Verified
+  against the REPO's actual markdownlint config first (per the item's instruction): this repo
+  disables MD013 and MD041 in `.markdownlint-cli2.jsonc`, so those findings do not apply under the
+  repo's own gate — no lint edits made for them; markdownlint reports clean. A `## Gotchas` section
+  now records real first-contact failure patterns from the live audits (omission-never-resets
+  per-key fallthrough, `none` vs absence, resolved-value inference gating, nested-directory
+  cwd-relative reads, linked-worktree hooks dir, `--since` committer-date vs `%ad` author-date
+  recency skew, same-session stale `userConfig` reads). **Hub-split decision: DONE** (not deferred)
+  — the `apply` convention write path (layer selection, non-interactive update semantics, the
+  7-step interview, the written-file template, per-layer verification scripts) moved verbatim to a
+  progressive-disclosure spoke, `skills/setup/reference/apply-convention.md`, with a normative
+  pointer and summary in the hub; the growth from #1139's consensus-window inference had pushed the
+  hub to 512 lines, over the gate's 500-line hard cap, so the split fell out naturally rather than
+  optionally. Hub now 211 lines; `skill-quality:check` passes with zero errors.
+
+## [0.21.0]
+
+### Changed
+
+- **`/setup` convention inference reads a configurable year-scale consensus window, not
+  `git log -50` (#1139).** A fixed 50-commit tail misses convention shifts and informal variant
+  families entirely — live-run evidence: a 2,122-subject year-scale analysis found a rising
+  ticket-prefix pattern at 78.8% recent vs 71.9% older with Conventional Commits at 0%, invisible
+  at n=50. The history signal is now one
+  `git log --since="<window>" --no-merges --date=short --format='%cd|%s'` pass (committer dates —
+  the same clock `--since` filters by, so a rebased commit can't land in the wrong recency bucket;
+  review-caught during #1139), auto-subjects
+  (`Revert`/`fixup!`/`squash!`; merges via `--no-merges`) excluded, bucket-classified in-context
+  and reported as volume-weighted percentages with a recent-vs-older recency split — the user picks
+  from the evidence table; no bucket is silently promoted into config. Every knob is plugin
+  `userConfig`, never a constant: `setup_inference_window` (git-approxidate, default `1 year`),
+  `setup_inference_recency_days` (default `90`), `setup_inference_min_commits` (default `50`),
+  documented in the README config table. Generic caveats are handled and stated in the report when
+  they apply: shallow clones report the actual covered span, young repos widen to full history and
+  degrade to low-confidence below the threshold, and squash-merge-only repos are flagged as one
+  signal (subjects ARE the PR titles), not two corroborating ones. New setup eval 17 covers the
+  consensus-window inference.
+
+## [0.20.0]
+
+### Added
+
+- **`pr_body_required_sections` accepts the literal keyword `none` — no required sections (#1138).**
+  The key could previously express only a list or absence (absence yields the portable default), so
+  a repo whose team convention is no PR-body sections — real consumer evidence: a repo whose merged
+  PRs are overwhelmingly empty-bodied by design — had no way to state that in config. `none` now
+  resolves to zero required sections, parallel to the sibling keys `trailer_policy` and
+  `pr_body_attribution`: `/pull-request create` drafts no section scaffold and the §2.4.2.2
+  pre-create gate has nothing to require (the §2.4.2.1 closing-keyword check is independent and
+  unchanged; ad hoc `## Related` content from real refs is still never dropped). `none` participates
+  in per-key layering as a **resolved value, not an absence** — a layer declaring `none` overrides a
+  lower layer's list wholesale, while a key unset in every layer still falls through to the portable
+  default (`Summary`, `Test plan`). Documented in `reference/config-resolution.md` and the
+  pr-body-convention seam README (which now owns the value's rationale); `/setup check` renders a
+  resolved `none` as `none (no required sections)` with the winning layer, distinct from the unset
+  row, and the `apply` interview offers `none` for repos whose convention requires no sections. New
+  pull-request evals 19 (team-layer `none` resolves to an empty scaffold) and 20 (`none` wins the
+  per-key override across the three layers) and setup eval 16 (check-report rendering) cover the
+  resolution.
+
+## [0.19.0]
+
+### Added
+
+- **`/source-control:setup` now covers `pr_body_required_sections` (#1032, completing #975's
+  adoption path).** `check` reports the key's effective value across all three layers — a
+  `pr_body_required_sections` row on the effective-configuration table, resolving to the plugin's
+  portable default (`Summary`, `Test plan`) with `won by: plugin default` when no layer sets it,
+  rather than a blank row. `apply`'s interview offers setting it and the written-config template
+  gains the matching `## pr_body_required_sections` section, at parity with every other per-key
+  surface (`subject_pattern`, `pr_title_pattern`, `trailer_policy`, `pr_body_attribution`). The
+  interview deliberately recommends only the plugin's own portable default and never proposes a
+  `Related`/linked-issue section or any other organization-specific list — asking what the repo's
+  actual convention requires, never inventing one, per the plugin's Two-lane convention posture. The
+  interview also states, per-key-fallthrough-aware, when resetting to the portable default over a
+  lower layer that already sets the key requires writing the explicit default list rather than
+  omitting the section — an omission only inherits, it never overrides (review-caught during #1032).
+
+### Fixed
+
+- **`## Related` pre-create gate no longer drops visible text sharing a line with an inline HTML
+  comment (#975/#1029 follow-up, review-caught during #1032).** The comment-aware heading scan
+  previously treated an entire line as comment text once it saw `<!--`, dropping content like
+  `Ran smoke tests <!-- details omitted -->` before the section's non-empty check — a false-fail,
+  since GitHub still renders the visible text outside the comment. The scan now strips only the
+  comment SPAN (single- or multi-line), preserving visible text before, between, and after spans on
+  the same line; a genuinely comment-only line, or a fully-hidden middle line of a multi-line span,
+  still contributes nothing. Defensive pass over the fence/comment interaction: a fence's content is
+  never comment-parsed (comment-marker-shaped text inside a fence stays literal) and a comment's
+  content is never fence-parsed (fence-marker-shaped text inside a comment stays literal), and a
+  heading line carrying a trailing inline comment is still correctly read as a real exit boundary.
+  New eval 18 covers the regression.
+
+## [0.18.0]
+
+### Added
+
+- **Configurable PR-body required-sections scaffold (`pr_body_required_sections`, #975).** A new key
+  on `.claude/source-control.md`, resolved across the same three layers as every other key on that
+  surface (per-key, whole-list override) — see
+  [`reference/config-resolution.md`](reference/config-resolution.md). `/pull-request create` builds
+  one `## <heading>` block per resolved section and a new §2.4.2.2 pre-create gate blocks
+  `gh pr create` when any required section is missing or empty, naming the exact section and the
+  resolved config source (winning layer's file + the key) in its failure message. The gate scans the
+  body BEFORE the config-gated attribution footer is appended, so an empty last required section can
+  never be masked by footer text that carries no `##` heading of its own; the heading scan is also
+  fence- and HTML-comment-aware, so a `## <heading>`-shaped line inside a fenced code sample (e.g. a
+  Summary documenting a PR-body template) or an HTML comment (a commented-out draft section) never
+  counts as a real section boundary. Fence detection matches GFM's actual rules (up to 3 leading
+  spaces before the opener, and a fence closes only on a matching delimiter character — a `~~~` line
+  never closes an open ` ``` ` fence or vice versa), not a bare column-zero triple-delimiter check.
+  Comment text is never counted as section content at all (unlike a fence, which renders visibly and
+  legitimately counts) — a required section whose entire body is an unfilled `<!-- ... -->`
+  placeholder reads as empty, matching both GitHub's own render and a comment-stripping PR-body
+  validator (all five review-caught during #975). Absent everywhere → the bundled portable default:
+  `Summary` and `Test plan` only (research-grounded across GitHub's
+  own guidance, Google's CL-description doc, GitLab's dogfooded default template, and a cross-section
+  of OSS PR templates — see
+  [`docs/conventions/pr-body-convention/README.md`](../../docs/conventions/pr-body-convention/README.md)).
+  A marketplace-level owner doc lands now, ahead of a future CI/enforcement consumer, following the
+  commit-convention seam's two-reads prior art.
+
+### Changed
+
+- **The assembled PR body no longer includes `## Related` by default.** Previously hardcoded and
+  always emitted (defaulting to the literal `N/A`); a `Related` section presumes an issue-tracking
+  convention the plugin cannot assume for every consumer, so it moves to configuration
+  (`pr_body_required_sections` including `Related`) — the two-lane convention posture the fleet
+  already applies elsewhere. A repo that wants the prior behavior declares `Related` in its own
+  `pr_body_required_sections`. The closing-keyword line and its own pre-create gate (§2.4.2.1,
+  formerly the whole of §2.4.2) are unaffected — this is a scaffold-content change only, never a
+  linkage-signal change. When the multi-issue or orphan-PR flow collects genuine `Refs #Y`
+  references, a `## Related` section is still emitted ad hoc to carry them, even when the repo has
+  not configured it as required.
+- **This repository (`claude-code-plugins`) now dogfoods `pr_body_required_sections`.** Its own
+  `.github/workflows/pr-issue-linkage.yml` requires a non-empty `## Related`, which the new portable
+  default no longer guarantees — self-regression atomicity: a change that would break this repo's
+  own CI ships with its own remedy in the same PR, not a follow-up. `.claude/source-control.md`
+  (team layer, root) now sets `pr_body_required_sections` to `Summary, Test plan, Related`, matching
+  this repo's actual gate. This is the **first fleet-adoption instance** of the key — every other
+  consuming repo adopts it the ordinary way, via `/source-control:setup apply`, not by hand-editing a
+  file.
+
+## [0.17.1]
+
+### Changed
+
+- **The team convention file `/source-control:setup apply` writes is now self-describing
+  (#1046, audit f6).** The template's header states, for the reader who does NOT run these
+  plugins, that the file is read by the source-control plugin (and the guardrails
+  commit-convention gate where installed), is inert without them, and is a drafting aid —
+  not team-wide enforcement, which is a commit-msg hook or CI check. The header is part of
+  the template (a reconfiguration run rewrites it in place, never appends a second copy),
+  and prose above the first `##` heading is inert to every consumer by construction: the
+  enforcement resolver reads only the first non-empty body line under a `## <key>` H2 — a
+  regression test in `lib/resolve-convention-pattern.test.sh` now proves a preambled file
+  resolves identically to a bare one. The `apply` report for a team write states the same
+  draft-aid vs enforcement distinction instead of implying the file enforces anything by
+  itself.
+
+## [0.17.0]
+
+### Added
+
+- **Shared worktree-creation helper `scripts/worktree-create.sh` (#399, Phase A).** One helper now
+  owns worktree placement: it computes the external path `<root>/<owner>-<repo>-<slug>`, sanitizes the
+  branch slug, resolves the base ref (`worktree.baseRef` fresh/head, default branch resolved
+  symbolically — never a hardcoded `origin/main`), runs `git worktree add`, and reimplements Claude
+  Code's `.worktreeinclude` copy (the intersection of `.worktreeinclude`-matched and gitignored files),
+  which is bypassed when a worktree is created with `git worktree add` directly. The flag CLI is the
+  stable seam the future `WorktreeCreate` hook (Phase B) will share.
+- **New `worktree_root` userConfig directory key.** The external root `/worktree create` places
+  worktrees under, mirroring the `babysit_worktree_root` shape. When unset, `/worktree create` refuses
+  with guidance rather than falling back to the in-repo `.claude/worktrees/` default.
+
+### Changed
+
+- **`/worktree create` routes through the shared helper instead of `EnterWorktree(name:)` (#399, #400).**
+  It runs `worktree-create.sh`, then enters the created worktree with `EnterWorktree(path:)`. On a
+  non-zero helper exit (notably exit 3, `worktree_root` unconfigured) it stops with the helper's
+  guidance and never falls back to the in-repo path — closing the CLAUDE.md/rules double-load bug
+  (#400, upstream anthropics/claude-code #29599 / #23565) for the interactive path. Entering the
+  external path prompts for approval (not suppressible outside `bypassPermissions`); create.md documents
+  the expected prompt and the declined-approval recovery. The native `WorktreeCreate` hook (Phase B)
+  stays gated on the two empirical upstream gates and is not shipped here.
+
+## [0.16.3]
+
+### Changed
+
+- **Dependency-manager hold-merge login set is now configurable (`#917` W1).** The merge gate held
+  only the built-in `dependabot`/`renovate` product bots (`DEPENDENCY_MANAGER_LOGINS`); a
+  non-dependabot/renovate dependency bot an operator runs slipped the cross-tier hold. The gate now
+  also holds any login in the new `babysit_extra_dependency_manager_logins` userConfig (threaded as
+  the `--extra-dependency-manager-logins` merge-wrapper flag, matching the existing arg-threading of
+  `--approver-bot-logins`); logins are normalized on both sides (casefold, strip `app/` and `[bot]`).
+  Ships empty, so an unconfigured install matches the built-in set alone.
+- **Branch-to-issue grammar is now configurable (`#917` W2).** `parse-branch-issue.sh` hardcoded the
+  `<type>/<N>-<slug>` (and `routine-issue-<N>`) convention, so a repo that places the GitHub issue
+  number differently in its branch names silently failed to derive a `Closes #N` line. The script now
+  accepts an ERE `pattern` positional (last capture group = the numeric GitHub issue number, e.g.
+  `^[^/]+/([0-9]+)-` for `alice/1234-slug`), wired from the new `branch_issue_pattern` userConfig at
+  the `/pull-request create` call site. The placeholder is single-quoted there so an unset value
+  reaches the script as an inert literal (double-quoting a dotted `${…}` name is a Bash
+  `bad substitution`) and falls back to the built-in convention.
+
+## [0.16.2]
+
+### Fixed
+
+- **Babysit worker-worktree head-safety + merge-only freshness (`#548`).** A babysit worker can be
+  assigned a worktree in detached HEAD (its PR branch locked in a sibling/foreign worktree) or on a
+  stale local branch tip behind `origin`; the checkout/freshness mechanics then merged and pushed
+  from that tip, so a stale-tip integration could silently revert the newest branch commit — a
+  near-miss where safety depended on the assigned `HEAD` happening to match, not a guard.
+  - `reference/safety.md` Checkout And Push Invariants now require asserting the assigned worktree's
+    `HEAD` equals the true PR head (`gh pr view --json headRefOid`) before any merge/edit/push (stop
+    on a stale/detached mismatch) and pushing via an explicit refspec (`git push "$PUSH_REMOTE"
+    HEAD:<headRefName>`) to a **fail-closed** destination — `origin` for a same-repo head; for a
+    write-allowed cross-repo head, the fork destination validated by **host + owner/repo** identity,
+    not by remote name: canonicalize the URL `git push` will actually use (`git remote get-url
+    --push`, which honors a `pushurl` that can differ from the fetch URL) and require it to equal the
+    head repo's own URL (`gh api repos/<nameWithOwner> --jq .html_url`), else read-only — fast-forward
+    by construction, never `--force` — so a branch locked by a sibling worktree is not a `git
+    checkout` dead-end.
+  - The worker mechanics are reconciled to that contract: `reference/loop.md` §5.1.2 acquires the head
+    via `gh pr checkout` and asserts `HEAD == the live headRefOid` in every checkout path (already-at-
+    head, sibling-locked `--detach` reuse, and heal-via-checkout), degrading to read-only on mismatch;
+    `SKILL.md` Step 0.2 + cross-tier invariants and `reference/orchestration.md`'s conflict-worker
+    follow the same assertion + upstream refspec push.
+  - **Freshness is now merge-only.** The prior `loop.md` path rebased-and-`--force-with-lease`d
+    linear-history branches, which both violated the skill's own never-force-push invariant
+    (`safety.md` "Never Do Automatically", `orchestration.md`) and was the silent-revert vector.
+    Behind-default branches now always integrate via `git merge` + a fast-forward refspec push (the
+    final squash merge still flattens interim history). **Behavior change:** linear-history branches
+    now carry an interim merge commit during freshness instead of being rebased.
+
+  Enforcement remains agent discipline; whether the head assertion belongs in a deterministic helper
+  is tracked in `#885`.
+
+## [0.16.1]
+
+### Fixed
+
+- **`babysit-prs` worker/autopilot contract now invokes the guarded mutation wrappers by their
+  bundled `bin/` path, not by bare command name (#484).** The bare wrapper names
+  (`source-control-babysit-merge`, `source-control-babysit-resolve-thread`) are not on the Bash
+  tool's `PATH`, so every bare invocation the contract prescribed failed `command not found`
+  (exit 127), forcing workers to hand-roll raw `gh api graphql resolveReviewThread` calls and lose
+  the wrapper's `--allowed-owners` guardrail and JSON `action` receipt. `SKILL.md`,
+  `reference/orchestration.md` (including the worker prompt template), and `reference/safety.md`
+  now invoke each wrapper as `bash "${CLAUDE_PLUGIN_ROOT}/bin/<wrapper>" …` — the same form the
+  read-only sibling scripts under `${CLAUDE_PLUGIN_ROOT}/scripts/` already use. The Guarded
+  Mutation Wrappers posture in `safety.md` is refined to match: launching a wrapper by path runs
+  the wrapper with every guard intact (the merge wrapper still rejects `--allow-unpinned-head`;
+  both still fail closed without `--allowed-owners`), so the only forbidden re-spelling is the raw
+  Python behind them — which bypasses those guards — and piping a wrapper into an interpreter. A
+  one-line pointer in `reference/review-discipline.md` records that the babysit tiers resolve
+  through the wrapper, while its D7.5 keeps the general raw-GraphQL policy for `/pull-request`.
+- **Known residuals, not fixed here.** The `bin/`-path form does not match a pre-approved
+  bare-name `Bash(source-control-babysit-merge:*)` allow rule, so an operator's narrow allowlist
+  entries no longer auto-approve these calls; and the root gap — Claude Code documents a plugin's
+  `bin/` as on the Bash tool's `PATH` while enabled, yet it is empirically absent here — is an
+  upstream/harness matter. Only closing that gap restores bare-name invocation.
 
 ## [0.16.0]
 

@@ -42,10 +42,10 @@
       "id": 4,
       "name": "build-scope-excludes-lint-only-surfaces",
       "prompt": "/toolchain:check all — the working tree changed a GitHub Actions workflow YAML and a plain README, among other files.",
-      "expected_output": "Runs only the ecosystems /toolchain:check covers (dotnet, python, typescript, bash, powershell, markdown). It does NOT run the lint-only `yaml` or `cross-cutting` surfaces — those belong to /toolchain:lint, and cross-cutting's `**` glob is never matched here.",
+      "expected_output": "Runs only the ecosystems /toolchain:check covers (dotnet, python, typescript, bash, powershell, markdown, go). It does NOT run the lint-only `yaml` or `cross-cutting` surfaces — those belong to /toolchain:lint, and cross-cutting's `**` glob is never matched here.",
       "files": [],
       "expectations": [
-        "Runs only the six ecosystems `/toolchain:check` covers (dotnet, python, typescript, bash, powershell, markdown)",
+        "Runs only the seven ecosystems `/toolchain:check` covers (dotnet, python, typescript, bash, powershell, markdown, go)",
         "Does NOT run the `yaml` surface for the workflow file — that surface is `/toolchain:lint`-only",
         "Does NOT run the `cross-cutting` surface — its `**` glob is never matched by `/toolchain:check` (both `yaml` and `cross-cutting` are `/toolchain:lint`-only surfaces)"
       ]

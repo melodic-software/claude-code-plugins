@@ -16,6 +16,8 @@
 #        validation (reads README.md, docs/PLUGIN-ARTIFACT-PROTOCOL.md,
 #        docs/CATALOG-TAXONOMY.md);
 #      - miro-plugin: reads only plugins/miro/**;
+#      - youtube-extraction: reads only plugins/knowledge/skills/youtube-digest/**
+#        and plugins/knowledge/vendor/**;
 #      - hygiene's path-scoped subset — actionlint + the workflow
 #        check-jsonschema (read .github/workflows/**), and the marketplace /
 #        plugin / dependabot check-jsonschema steps (read

@@ -29,19 +29,30 @@
 # macOS/Linux bodies need a driver-side boundary prefix so a substring like
 # "doc/Users/guide" inside a longer word does not false-match.
 #
-# The trailing separator every body ends in is its right boundary: a match
-# needs at least one child segment past the root, so a bare root — the home
-# or checkout directory itself, e.g. C:\Users\Alice, /home/alice, or
-# D:\repos\acme — is intentionally NOT matched. Dropping it re-admits prose
-# false positives (the segment class permits spaces, so "/Users/ for details"
-# would match), and where a bare root ends at a value boundary is
-# format-specific — a driver-owned concern like the left prefix. A consumer
-# that needs bare-root detection adds that right boundary in its own driver.
-HPP_WIN_USER_BODY='[A-Za-z]:(/|\\\\?)Users(/|\\\\?)[^/\\$%<{~]+(~[0-9]+)?(/|\\\\?)'
-HPP_MACOS_USER_BODY='/Users/[^/$<{~]+/'
-HPP_LINUX_USER_BODY='/home/[^/$<{~]+/'
-HPP_WIN_REPO_BODY='[A-Za-z]:(/|\\\\?)repos(/|\\\\?)[^/\\$%<{~]+(~[0-9]+)?(/|\\\\?)'
-# SC1003 false positive: the trailing \\\\ is a deliberate literal-backslash ERE
-# body (a JSON-escaped path separator), not a botched single-quote escape.
-# shellcheck disable=SC1003
-HPP_ESCAPED_WIN_REPO_BODY='[A-Za-z]:\\\\repos\\\\[^\\$%<{~]+(~[0-9]+)?\\\\'
+# Right boundary: the child-segment class itself. Each body requires at least
+# one child segment past its root — a bare root (the home or checkout-parent
+# directory with no child) never matches — but the child needs NO trailing
+# separator: the class excludes whitespace and the double quote, so a match
+# ends at the segment's natural value boundary (EOL, whitespace, quote, or
+# the next separator). A mandatory trailing separator was the original design
+# and inverted detection both ways: a real bare value at end of line
+# ("root = <drive>:/Dev/GitHub") has no trailing separator and was MISSED,
+# while prose satisfied the requirement anyway — the old space-permitting
+# segment class greedily consumed words until a later slash appeared on the
+# same line, flagging comments instead of values. Excluding whitespace from
+# the class is what makes dropping the separator prose-safe: a phrase like
+# "/Users/ for details" cannot match because at least one non-space child
+# character must follow the root.
+HPP_WIN_USER_BODY='[A-Za-z]:(/|\\\\?)Users(/|\\\\?)[^\\$%<{~"[:space:]/]+(~[0-9]+)?'
+HPP_MACOS_USER_BODY='/Users/[^\\$%<{~"[:space:]/]+'
+HPP_LINUX_USER_BODY='/home/[^\\$%<{~"[:space:]/]+'
+# The checkout-parent segment is drive-letter-anchored, so broadening it beyond
+# `repos` to the other common checkout-root names stays false-positive-safe —
+# only a genuine `X:\<root>\<child>\` absolute path matches, never prose. Both
+# lowercase and Capitalized spellings are listed (a regex character class such
+# as `[Rr]` would leave a partial token the docs typos-gate flags). A consumer's
+# OWN checkout root is already caught by the driver's project-root literal scan;
+# this generic body catches references to OTHER machines' checkout paths in
+# written content.
+HPP_WIN_REPO_BODY='[A-Za-z]:(/|\\\\?)(repos|Repos|projects|Projects|dev|Dev)(/|\\\\?)[^\\$%<{~"[:space:]/]+(~[0-9]+)?'
+HPP_ESCAPED_WIN_REPO_BODY='[A-Za-z]:\\\\(repos|Repos|projects|Projects|dev|Dev)\\\\[^\\$%<{~"[:space:]/]+(~[0-9]+)?'

@@ -58,8 +58,8 @@ just a heading
 
 run() {
   # Run from inside the fixture repo so `git rev-parse` resolves to it.
-  (cd "$TMP" \
-    && CHECK_SKILL_SKILLS_ROOT="$SKILLS" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+  (cd "$TMP" &&
+    CHECK_SKILL_SKILLS_ROOT="$SKILLS" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
       bash "$SUT" "$@")
 }
 
@@ -97,6 +97,44 @@ else
   fail "missing skill should exit 1 (rc=$rc)"
 fi
 
+# 4a. Missing bare-name skill hints at CHECK_SKILL_SKILLS_ROOT.
+out="$(run does-not-exist 2>&1)"
+if grep -q 'CHECK_SKILL_SKILLS_ROOT' <<<"$out"; then
+  pass "missing bare-name skill hints at CHECK_SKILL_SKILLS_ROOT"
+else
+  fail "missing bare-name skill should hint at CHECK_SKILL_SKILLS_ROOT: $out"
+fi
+
+# 4b. A plugin:skill name gets targeted installed-skill guidance (exit 1, no
+#     cache-layout reverse-engineering — the checker points the operator at the
+#     root instead).
+out="$(run source-control:setup 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] &&
+  grep -q 'plugin:skill name' <<<"$out" &&
+  grep -q 'CHECK_SKILL_SKILLS_ROOT=~/.claude/plugins/cache' <<<"$out" &&
+  grep -qF '${CLAUDE_PLUGIN_ROOT}/scripts/check-skill.sh' <<<"$out" &&
+  grep -q 'setup' <<<"$out"; then
+  pass "plugin:skill name gets installed-skill resolution guidance"
+else
+  fail "plugin:skill name should get installed-skill guidance (rc=$rc): $out"
+fi
+
+# 4c. A leaf carrying shell syntax is escaped in the pasteable command (paste
+#     safety — a copied command must not execute a substitution). Scope the
+#     check to the rerun-command line: the diagnostic prefix echoes the raw
+#     name (single-quoted, not pasteable) and that echo is fine.
+out="$(run 'x:$(touch pwn)' 2>&1)"
+cmd_line="$(grep 'check-skill.sh' <<<"$out")"
+if grep -qF '$(touch pwn)' <<<"$cmd_line"; then
+  fail "leaf with shell syntax should be escaped in the rerun command, not left bare: $cmd_line"
+elif grep -qF 'touch' <<<"$cmd_line"; then
+  pass "leaf with shell syntax is shell-escaped in the suggested command"
+else
+  fail "leaf-escape assertion did not find the escaped leaf: $cmd_line"
+fi
+[[ -e "$TMP/pwn" ]] && fail "escaping test must not create a file"
+
 # 5. Dropping a committed single-quoted trigger phrase fails (check 3, the
 #    regression-critical path — exercises the git-backed SKILL_REL resolution).
 trig_head='---
@@ -129,11 +167,100 @@ else
   fail "dropped trigger phrase should fail with a trigger-drop message (rc=$rc): $out"
 fi
 
+# 5b. A dropped trigger phrase that reappears verbatim in a SIBLING skill's
+#     description is a trigger MOVE: warns, names the host, and passes — the
+#     listing still routes the phrase (check 3's move exception).
+make_skill mover-src '---
+name: mover-src
+description: "Move fixture. Use when: '"'"'gamma trigger'"'"', '"'"'delta trigger'"'"'."
+---
+
+## Purpose
+
+Committed baseline carrying the phrase that will move.
+'
+git -C "$TMP" add -A
+git -C "$TMP" commit -qm 'add mover-src'
+# Working tree: mover-src drops delta; sibling mover-dst now carries it.
+make_skill mover-src '---
+name: mover-src
+description: "Move fixture. Use when: '"'"'gamma trigger'"'"'."
+---
+
+## Purpose
+
+Working tree drops delta trigger, moved to the sibling below.
+'
+make_skill mover-dst '---
+name: mover-dst
+description: "Move target fixture. Use when: '"'"'delta trigger'"'"'."
+---
+
+## Purpose
+
+Sibling now owning the moved phrase.
+
+## Gotchas
+
+None known.
+'
+out="$(run mover-src 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "moved to sibling skill 'mover-dst'" <<<"$out" && ! grep -q 'dropped trigger keyword' <<<"$out"; then
+  pass "trigger phrase moved to a sibling skill warns and passes (move exception)"
+else
+  fail "moved trigger phrase should warn, name the host, and pass (rc=$rc): $out"
+fi
+
+# 5c. Coincidental overlap is NOT a move: when the sibling already carried the
+#     phrase at the base ref, dropping it here is a real trigger loss for this
+#     skill's routing and still fails (the move exception's base-ref condition).
+make_skill coinc-src '---
+name: coinc-src
+description: "Overlap fixture. Use when: '"'"'epsilon trigger'"'"', '"'"'shared trigger'"'"'."
+---
+
+## Purpose
+
+Committed baseline sharing a phrase with a committed sibling.
+'
+make_skill coinc-peer '---
+name: coinc-peer
+description: "Overlap peer fixture. Use when: '"'"'shared trigger'"'"'."
+---
+
+## Purpose
+
+Committed sibling that carried the shared phrase all along.
+
+## Gotchas
+
+None known.
+'
+git -C "$TMP" add -A
+git -C "$TMP" commit -qm 'add coincidental-overlap fixtures'
+make_skill coinc-src '---
+name: coinc-src
+description: "Overlap fixture. Use when: '"'"'epsilon trigger'"'"'."
+---
+
+## Purpose
+
+Working tree drops the shared phrase; the peer had it at base already.
+'
+out="$(run coinc-src 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q 'dropped trigger keyword' <<<"$out" && ! grep -q 'moved to sibling skill' <<<"$out"; then
+  pass "phrase the sibling carried at base is coincidental overlap — still fails"
+else
+  fail "pre-existing sibling overlap should not count as a move (rc=$rc): $out"
+fi
+
 # 6. A relative skills root resolves against CLAUDE_PROJECT_DIR, not the cwd,
 #    even when invoked from a subdirectory.
 mkdir -p "$TMP/subdir"
-out="$(cd "$TMP/subdir" \
-  && CLAUDE_PROJECT_DIR="$TMP" CHECK_SKILL_SKILLS_ROOT=".claude/skills" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
+out="$(cd "$TMP/subdir" &&
+  CLAUDE_PROJECT_DIR="$TMP" CHECK_SKILL_SKILLS_ROOT=".claude/skills" CHECK_SKILL_SKIP_MARKDOWNLINT=1 \
     bash "$SUT" good-skill 2>&1)"
 rc=$?
 if [[ $rc -eq 0 ]] && grep -q 'PASS' <<<"$out"; then
@@ -241,8 +368,8 @@ git -C "$TMP" add -A
 git -C "$TMP" commit -qm 'baseref v2 drops beta'
 run baseref-skill >/dev/null 2>&1
 rc_head=$?
-out_base="$(cd "$TMP" \
-  && CHECK_SKILL_SKILLS_ROOT="$SKILLS" CHECK_SKILL_SKIP_MARKDOWNLINT=1 CHECK_SKILL_BASE_REF=HEAD^ \
+out_base="$(cd "$TMP" &&
+  CHECK_SKILL_SKILLS_ROOT="$SKILLS" CHECK_SKILL_SKIP_MARKDOWNLINT=1 CHECK_SKILL_BASE_REF=HEAD^ \
     bash "$SUT" baseref-skill 2>&1)"
 rc_base=$?
 if [[ $rc_head -eq 0 ]] && [[ $rc_base -eq 1 ]] && grep -q 'ref beta' <<<"$out_base"; then

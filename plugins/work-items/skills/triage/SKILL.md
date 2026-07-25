@@ -37,7 +37,7 @@ Evaluate **raw intake** — any untriaged item carrying the raw marker, whoever 
 Two rules bound what enters this flow:
 
 - **A PR is an item with attached code.** An unsolicited or external PR enters the same intake as an issue: same states, same machine. Its diff is an **attachment to evaluate** — check it out, run the relevant tests — never an obligation to merge. Read the state names against the code: briefed means a brief exists for what to do with the diff; human-gated means a human should decide the merge.
-- **Never re-triage already-triaged output.** Items born triaged — published by `/work-items:decompose`, or created by a `/work-items:track add` that leaves no raw marker — already carry a routing decision. They never re-enter this flow, and the attention view excludes them by construction (being neither unlabeled nor marked with the raw marker, they fall in none of its buckets). This exclusion keys on **absence of the raw marker**, not authorship and not the mere presence of classification labels: the raw marker (`status:needs-triage`, or being unlabeled) puts an item in scope even alongside default labels, so a team-authored dogfood issue filed with a default `priority:` label *and* the raw marker is in scope (the marker wins), while a `track add` item that carries classification labels but no raw marker is out of scope for the same reason decompose output is. If someone names an already-triaged item explicitly, say it is already triaged and stop.
+- **Never re-triage already-triaged output.** Items born triaged — published by `/work-items:decompose`, or created by a `/work-items:track add` that leaves no raw marker — already carry a routing decision. They never re-enter this flow, and the attention view excludes them by construction (being neither unlabeled nor marked with the raw marker, they fall in none of its buckets). This exclusion keys on **absence of the raw marker**, not authorship and not the mere presence of classification labels: the raw marker (`status:needs-triage` / `priority:needs-triage`, whichever axis the repo files it under) or being unlabeled puts an item in scope even alongside default labels, so a team-authored dogfood issue filed on the status axis with a default `priority:` label *and* the raw marker is in scope (the marker wins), while a `track add` item that carries classification labels but no raw marker is out of scope for the same reason decompose output is. If someone names an already-triaged item explicitly, say it is already triaged and stop.
 
 ## Triage states
 
@@ -45,12 +45,12 @@ State names follow the plugin's vocabulary and the canonical roles ([`${CLAUDE_P
 
 | State | Tracker marker | Meaning |
 |-------|----------------|---------|
-| **raw** | unlabeled or `status:needs-triage` | Untouched intake; every claim in it is unverified |
+| **raw** | unlabeled or the raw marker (`status:needs-triage` / `priority:needs-triage`, whichever axis the repo files it under) | Untouched intake; every claim in it is unverified |
 | **verified** | recorded in triage notes | The claim held up: bug reproduced, or PR diff confirmed to do what it says |
 | **briefed** | brief posted + `status:ready` | Fully specified as a behavioral contract (per [`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md)) |
 | **autonomous-eligible** | role label (default `agent-ready`) | Briefed AND delegable — eligible for autonomous pickup from the frontier |
 
-Side exits from any state: `status:needs-info` (returns to raw when the reporter replies), the human-gated role label (default `needs-human`), or close (wontfix / duplicate / already implemented).
+Side exits from any state: `status:needs-info` (returns to raw when the reporter replies), `status:needs-decision` (awaiting a human or maintainer judgment call), the human-gated role label (default `needs-human`), or close (wontfix / duplicate / already implemented).
 
 **A briefed item takes one of three exits**, distinguished by the decision its brief carries:
 
@@ -64,6 +64,7 @@ raw → verified → briefed
  |        |          ├→ decision-defaulted → autonomous-eligible + status:ready + "Decision defaulted: … — veto before merge"
  |        |          └→ human-gated (role label, default needs-human) — briefed for a human
  |        └→ status:needs-info → raw (on reporter reply)
+ ├→ status:needs-decision: awaiting a human or maintainer judgment call
  └→ close: wontfix | duplicate | already implemented
 ```
 
@@ -74,7 +75,7 @@ Claiming stays coordination state, not a label — assignee + lease via the seam
 Show three buckets (oldest first, one-line summaries):
 
 1. **Unlabeled** — never triaged
-2. **`status:needs-triage`** — explicitly tagged for evaluation
+2. **Raw marker** — `status:needs-triage` / `priority:needs-triage`, whichever axis the repo files it under — explicitly tagged for evaluation
 3. **`status:needs-info` with reporter activity** — reporter replied since last triage note; ready for re-evaluation
 
 List open items and filter into buckets programmatically (adapter: "List items", bare read). When the repo treats external PRs as a request surface, include them and tag each line `[PR]` or `[issue]` — but surface only *external* PRs (a collaborator's in-flight PR is not triage work; this filter is discovery-only, and an explicitly named PR is always triaged regardless of author). Present as a compact table.
@@ -93,8 +94,8 @@ Read the item body, comments, and any linked PRs; for a PR, the diff too (adapte
 
 Classify **bug vs enhancement** first — it steers the rest of the flow (bugs get reproduced; rejected enhancements get ledgered). Then recommend:
 
-- **Type** — bug → `Bug`; enhancement → `Feature` (or `Task` for tracked non-feature work). Native GitHub Issue Type on org repos, set through the seam; `type:` label on personal / non-org repos
-- **Priority label** (`priority:p0-critical` through `priority:p3-low`) — when a directive or category rule sets this label **above** the finding's self-labeled severity, record the original severity in the triage comment (e.g. `priority set to pX by <rule>; reporter severity: <sev>`) so implementers can sub-sort within a priority band. No new labels
+- **Type** — bug → `Bug`; enhancement → `Feature` (or `Task` for tracked non-feature work). Native GitHub Issue Type on org repos, set through the seam; `type:` label on personal / non-org repos. Item title and prefix conventions: [`${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md`](${CLAUDE_PLUGIN_ROOT}/reference/issue-conventions.md)
+- **Priority label** (`priority:p0-critical` through `priority:p3-low`) — default to `priority:p2-medium` when no directive, category rule, or severity signal sets one. `priority:p1-high` is **reserved** for items that block other work or carry an imminent external deadline; `priority:p0-critical` keeps its existing critical semantics. When a directive or category rule sets this label **above** the finding's self-labeled severity, record the original severity in the triage comment (e.g. `priority set to pX by <rule>; reporter severity: <sev>`) so implementers can sub-sort within a priority band. No new labels. This triage-assessed default is deliberately distinct from the `/work-items:track add` filing default (`priority:p3-low`, an untriaged-signal floor rather than a priority assessment)
 - **Target state** — from the state machine above: needs-info, or one of the three briefed exits (delegable, decision-defaulted, human-gated). For a briefed item that carries a decision, apply the **routing test**: is the alternative reversible/maintainer-vetoable (→ **decision-defaulted**: autonomous-eligible role + `status:ready`, recorded with a `Decision defaulted: X — veto before merge` comment) or genuinely open — open design space, product intent, or cross-repo policy (→ **human-gated**)?
 
 **Direction gate.** Recommending is read-only; the gate governs *mutation* — labels, comments, closes, item creation — and which side of it you are on is fixed by how triage was invoked:
@@ -131,7 +132,7 @@ Every outcome is a **transition off raw**, not a layer on top of it. Applying an
 | Already implemented | Close pointing to where the behavior lives; do NOT ledger it (`docs/out-of-scope/` records rejections, not built features) |
 | Won't fix (bug) | Close with rationale comment |
 | Won't fix (enhancement) | Close with rationale comment; when the repo keeps `docs/out-of-scope/`, record the rejection in the matching concept file (re-read + append to "Prior requests", or create the concept file for a first rejection) and link it from the closing comment — applies to enhancement PRs exactly as to issues, so the same request doesn't return as fresh code |
-| Duplicate | Close with link to original |
+| Duplicate | Never `completed`. Close via the adapter's native duplicate mechanic when the provider has one (GitHub: `--duplicate-of`), else not-planned + a `## Duplicate of <ref>` body section (`#<M>` same-repo, qualified `<owner>/<repo>#<M>` or URL cross-repo) + link comment |
 
 For a PR, the outcome addresses the attached code explicitly: adopt the diff (briefed for an agent or human to carry forward), rework it (brief describes the gap between the diff and the verified requirement), or decline it (close with rationale — and the ledger entry when it's a rejected enhancement).
 

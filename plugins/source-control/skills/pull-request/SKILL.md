@@ -33,6 +33,8 @@ Consumer conventions come from the consuming project's own `CLAUDE.md`, `AGENTS.
 
 **PR-body attribution** (the `🤖 Generated with [Claude Code]…` line) resolves from the `pr_body_attribution` key across the same three `source-control.md` layers ([../../reference/config-resolution.md](../../reference/config-resolution.md)) — absent → the default line, `none` → omitted, any other value → that line. It is the PR-body analogue of `/commit`'s `trailer_policy` and gated separately; see [reference/create.md](reference/create.md) §2.4.1 for the assembly.
 
+**Branch-to-issue grammar** — the effective `branch_issue_pattern` is `${user_config.branch_issue_pattern}` (this line is the substituted surface; when it still shows the literal `${user_config.branch_issue_pattern}` token the key is unset). When it holds a real ERE — a POSIX ERE whose LAST capture group is the numeric GitHub issue number, e.g. `^[^/]+/([0-9]+)-` — [reference/create.md](reference/create.md) §2.4.0 fills its `<branch-issue-pattern>` slot with that value; unset uses the built-in `<type>/<N>-<slug>` (and `routine-issue-<N>`) convention.
+
 ## Emit checklist
 
 For PR lifecycle runs spanning 3+ phases, copy `${CLAUDE_PLUGIN_ROOT}/skills/pull-request/templates/checklist.md` into your project's working-notes location (or track it inline) and tick each `- [ ]` as the phase produces its output. Stateful surface; survives `/clear`.
@@ -49,6 +51,7 @@ For PR lifecycle runs spanning 3+ phases, copy `${CLAUDE_PLUGIN_ROOT}/skills/pul
 | `prep review-only` | Phase 1 (partial) | Just review + verify findings |
 | `prep simplify-only` | Phase 1 (partial) | Just simplify + re-verify |
 | `create` | Phase 2 | Branch-name check + commit + push + `gh pr create`. Reports the PR URL and stops |
+| `create --pushed --worktree <path>` | Phase 2 (PR-only) | **PR-only entry for an orchestrated flow** — the branch is already committed and pushed (by a dispatched worker), so this skips commit / push / rebase, re-resolves branch and diff from the given target worktree (not the session cwd), and runs body assembly + gates + `gh pr create --head <branch>`. Used by `/work-items:work`'s orchestrator after its pre-PR gate. See [reference/create.md](reference/create.md) §2.7 |
 | `monitor` | Phase 3 | Watch CI, fix failures, evaluate comments. **Three-tier event delivery: (1) push channel** when your environment ships a GitHub-events channel (an MCP server delivering webhook events into the session) — ~0 idle requests; **(2) Monitor tool** fallback (30s `gh` poll); **(3) plain `gh` polling** in cloud/headless sessions. Check the push channel FIRST per [monitor.md](reference/monitor.md) §3.0.05 before falling back |
 | `comments` | Phase 3.5 | Evaluate/respond to PR comments only |
 | `merge` | Phase 4 | Squash merge + worktree cleanup + verify |

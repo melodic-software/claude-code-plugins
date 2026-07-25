@@ -203,6 +203,68 @@ run "git -c alias.rh='reset --hard' rh (inline git alias, blocked)" "git -c alia
 run "git -c alias.nuke='!git reset --hard' nuke (inline shell alias, blocked)" "git -c alias.nuke='!git reset --hard' nuke" 2
 run "git -c alias.st=status st (safe alias, allowed)" "git -c alias.st=status st" 0
 run "git -c alias.rh='reset --hard' status (alias defined, not run, allowed)" "git -c alias.rh='reset --hard' status" 0
+# --config-env=<key>=<envvar> holds the alias expansion in an ENVIRONMENT VARIABLE, and
+# this guard never reads that value: its origin — an ambient var, an inline/`env` prefix,
+# an `export`, `set -a`, or a nested `bash -c` in any wrapper — is the recurring fail-open
+# surface. An env-defined alias for the INVOKED subcommand is refused by SHAPE alone.
+run "env-defined alias for the invoked sub (blocked by shape)" "git --config-env=alias.rh=AV rh" 2
+run "env-defined alias, two-word --config-env form (blocked)" "git --config-env alias.rh=AV rh" 2
+run "env-defined alias, benign-looking value STILL blocked (value never read)" "git --config-env=alias.st=AV st" 2 AV=status
+run "env-defined alias, case-folded key (blocked)" "git --config-env=alias.RH=AV rh" 2
+run "env-defined alias, non-identifier env name (blocked)" "git --config-env=alias.rh=bad-rh rh" 2
+run "env-defined alias, leading-dash env name (blocked)" "env -- '-AV=x' git --config-env=alias.rh=-AV rh" 2
+run "env value last-wins over an inline decoy for the same key (blocked)" "git -c alias.rh=status --config-env=alias.rh=AV rh" 2
+# Inline (-c/--config) aliases still carry the expansion literally and are resolved.
+run "inline dangerous alias (blocked)" "git -c alias.rh='reset --hard' rh" 2
+run "inline alias, case-folded subcommand (blocked)" "git -c alias.rh='reset --hard' RH" 2
+run "inline alias, case-folded key (blocked)" "git -c alias.RH='reset --hard' rh" 2
+# git also reads the `alias.<sub>.command` subkey as the alias definition
+# (`git -c alias.rh.command='reset --hard' rh` runs it); the guard classifies that
+# spelling as an alias too, inline and by --config-env shape.
+run "inline dangerous .command-subkey alias (blocked)" "git -c alias.rh.command='reset --hard' rh" 2
+run "env-defined .command-subkey alias for the invoked sub (blocked by shape)" "git --config-env=alias.rh.command=AV rh" 2
+run ".command-subkey alias, case-folded key (blocked)" "git -c alias.RH.command='reset --hard' rh" 2
+# A non-`command` alias subkey is not an alias to git, so it must not be blocked.
+run "non-command alias subkey is not an alias (allowed)" "git -c alias.rh.nope='reset --hard' rh" 0
+# MAX-DANGER UNION: which spelling git runs when both are set is version-dependent, so a
+# benign value in one spelling must never mask a dangerous value in the other — the guard
+# blocks if EITHER spelling is dangerous, and allows only when BOTH are benign.
+run "dangerous plain masked by a benign .command (blocked by union)" "git -c alias.rh='reset --hard' -c alias.rh.command=status rh" 2
+run "dangerous .command masked by a benign plain (blocked by union)" "git -c alias.rh=status -c alias.rh.command='reset --hard' rh" 2
+run "dangerous plain, benign .command decoy first (blocked by union)" "git -c alias.rh.command=status -c alias.rh='reset --hard' rh" 2
+run "both spellings benign (allowed)" "git -c alias.rh=status -c alias.rh.command=log rh" 0
+# Union on the --config-env shape path: an env spelling refuses even when the sibling
+# inline spelling is benign (both command-line orders).
+run "env plain spelling refuses despite a benign inline .command (blocked)" "git --config-env=alias.rh=AV -c alias.rh.command=status rh" 2
+run "env .command spelling refuses despite a benign inline plain (blocked)" "git --config-env=alias.rh.command=AV -c alias.rh=status rh" 2
+
+# The env-defined alias is refused wherever it APPEARS, through any wrapper — no env
+# propagation is tracked, so every prior env-carrying bypass (export / set -a / command
+# prefix / bash -c / snapshot-global collision) is closed by construction.
+run "env-defined alias inside an inline '!' shell alias (blocked)" "git -c \"alias.sh=!git --config-env=alias.rh=AV rh\" sh" 2
+# An inline alias whose expansion is itself a `--config-env` alias for the invoked sub
+# runs at recursion depth 2, where the SHAPE refusal must still fire (real git runs it:
+# reverts the worktree). Verified against ground truth.
+run "wrapping inline alias expands to a --config-env alias (depth-2 shape refusal, blocked)" \
+  "git -c alias.rh='--config-env=alias.foo=AV foo' rh" 2 "AV=reset --hard"
+run "env-defined alias inside an env-prefixed bash -c (blocked)" "AV='reset --hard' bash -c 'git --config-env=alias.rh=AV rh'" 2
+run "env-defined alias after export in a shell-alias body (blocked)" "git -c \"alias.sh=!export AV='reset --hard'; git --config-env=alias.rh=AV rh\" sh" 2
+run "env-defined alias after 'then export' in a compound command (blocked)" "git -c 'alias.sh=!if true; then export AV=\"reset --hard\"; fi; git --config-env=alias.rh=AV rh' sh" 2
+run "env-defined alias after 'export NAME; NAME=val' (blocked)" "git -c 'alias.sh=!export AV; AV=\"reset --hard\"; git --config-env=alias.rh=AV rh' sh" 2
+run "env-defined alias after an assignment-prefixed export (blocked)" "git -c 'alias.sh=!AV=\"reset --hard\" export AV; git --config-env=alias.rh=AV rh' sh" 2
+run "env-defined alias after 'set -a; NAME=val' allexport (blocked)" "set -a; AV='reset --hard'; git --config-env=alias.rh=AV rh" 2
+run "env-defined alias whose env name collides with an internal global (blocked)" "git --config-env=alias.rh=HOOK_ENV_SNAPSHOT_OK rh" 2 "HOOK_ENV_SNAPSHOT_OK=reset --hard"
+
+# ACCEPTANCE — decidable safe WITHOUT reading any value, so still allowed:
+run "--config-env setting a NON-alias key (allowed)" "git --config-env=core.pager=PAGERVAR status" 0
+run "--config-env alias for a subcommand that is NOT invoked (allowed)" "git --config-env=alias.foo=AV status" 0
+run "inline value last-wins over an earlier --config-env for the same key (allowed)" "git --config-env=alias.rh=AV -c alias.rh=status rh" 0
+# A `$( )` env name is command-substituted by the shell before git and split by the
+# static parser — neither evaluates it, so no exec and nothing dangerous runs (git-fatal).
+rm -f "$TEST_TMPDIR/pwned-dg"
+run "injection-shaped config-env env name (allowed — never evaluated)" \
+  "git --config-env=alias.rh=\$(touch $TEST_TMPDIR/pwned-dg) rh" 0
+assert_file_absent "config-env injection: no exec for a shell-metachar env name" "$TEST_TMPDIR/pwned-dg"
 run "command -p git reset --hard (command wrapper option, blocked)" "command -p git reset --hard" 2
 run "command -- git reset --hard (command end-of-options, blocked)" "command -- git reset --hard" 2
 run "exec -c git reset --hard (exec wrapper option, blocked)" "exec -c git reset --hard" 2
@@ -253,5 +315,75 @@ if wait_for_sink "$TEL"; then
 else
   bad "telemetry: no envelope written on block"
 fi
+
+# --- PowerShell tool coverage ------------------------------------------------
+# The guard is matched on Bash|PowerShell. PowerShell-simple dangerous ops are
+# caught; push-shaped PowerShell the guard cannot parse fails closed.
+run_pwsh() {
+  local label="$1" command="$2" expected="$3" rc
+  bash "$HOOK" <<<"$(pwsh_command_json "$command")" >/dev/null 2>&1
+  rc=$?
+  assert_exit "$label" "$expected" "$rc"
+}
+run_pwsh "PS: git push --force (blocked)" "git push --force" 2
+run_pwsh "PS: git reset --hard (blocked)" "git reset --hard" 2
+run_pwsh "PS: git push --force-with-lease (allowed — safe force)" "git push --force-with-lease" 0
+run_pwsh "PS: git push (plain, allowed)" "git push origin main" 0
+run_pwsh "PS: git status (allowed)" "git status" 0
+run_pwsh "PS: backtick-continued force push (fail-closed block)" \
+  "$(printf 'git push `\n --force')" 2
+
+# This guard owns destructive non-commit forms (reset/clean/checkout/restore), so
+# unlike the commit/push guards it cannot defer an unparsable NON-commit/push git
+# command — it must fail closed on ANY git-shaped PowerShell it cannot parse.
+run_pwsh "PS: git --% reset --hard (stop-parsing token, fail-closed block)" \
+  "git --% reset --hard" 2
+run_pwsh "PS: git --% clean -fd (stop-parsing token, fail-closed block)" \
+  "git --% clean -fd" 2
+run_pwsh "PS: backtick-continued git reset --hard (fail-closed block)" \
+  "$(printf 'git `\n reset --hard')" 2
+# Single-quoted `$(...)` is deliberately literal PowerShell subexpression text
+# (the construct under test), not a Bash expansion.
+# shellcheck disable=SC2016
+run_pwsh "PS: git checkout via subexpression (fail-closed block)" \
+  'git checkout $(Get-Branch)' 2
+# Negative control: a non-git unparsable PowerShell command is not this guard's
+# concern — no over-block past git.
+# shellcheck disable=SC2016
+run_pwsh "PS: non-git unparsable command (allowed — not git-shaped)" \
+  'Remove-Item $(Get-Foo)' 0
+
+# Launcher-spelling parity (review round 4): the .exe-suffixed spellings of the
+# covered launchers and the `start` alias of Start-Process are the same
+# see-through surface — a spelling gap, not a new launcher class.
+run_pwsh "PS: cmd.exe /c git reset --hard (fail-closed block)" \
+  "cmd.exe /c git reset --hard" 2
+run_pwsh "PS: powershell.exe -Command git reset --hard (fail-closed block)" \
+  "powershell.exe -Command 'git reset --hard'" 2
+run_pwsh "PS: start alias launches git (fail-closed block)" \
+  "start git -ArgumentList 'reset --hard'" 2
+run_pwsh "PS: start alias, no git (allowed)" "start notepad" 0
+# A launcher whose program is a computed expression cannot be proven git-free.
+run_pwsh "PS: Start-Process computed target (fail-closed block)" \
+  "Start-Process ('g'+'it') -ArgumentList 'reset --hard'" 2
+run_pwsh "PS: Start-Process -FilePath computed target (fail-closed block)" \
+  "Start-Process -FilePath ('g'+'it') -ArgumentList 'reset --hard'" 2
+# shellcheck disable=SC2016
+run_pwsh "PS: launcher with variable target (fail-closed block)" \
+  'saps $tool -ArgumentList "reset --hard"' 2
+
+# Review round 6: quoted-string '@' is not a here-string opener; backslash
+# path-qualified git normalizes for the tokenizer; separator-adjacent call
+# operators are git-capable.
+run_pwsh "PS: quoted '@' does not open a here-string (git line not swallowed)" \
+  "$(printf "Write-Output '@'\ngit reset --hard\n'@'")" 2
+run_pwsh "PS: backslash path-qualified git.exe (blocked)" \
+  'C:\Git\cmd\git.exe reset --hard' 2
+run_pwsh "PS: relative .\\git.exe (blocked)" \
+  '.\git.exe reset --hard' 2
+run_pwsh "PS: backslash path-qualified git.exe, safe op (allowed)" \
+  'C:\Git\cmd\git.exe status' 0
+run_pwsh "PS: semicolon-adjacent computed call (fail-closed block)" \
+  "Write-Host ok;& ('g'+'it') reset --hard" 2
 
 report

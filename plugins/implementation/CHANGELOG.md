@@ -3,6 +3,61 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.0]
+
+### Added
+
+- **`implement-dispatch` gains an optional `--wave-cap <N>` argument that overrides the internal 3–5
+  concurrent-wave default (`#573`).** The parameter is the single enforcement point for a
+  caller-configured concurrency ceiling: passed, it caps concurrent dispatch waves at `N`; omitted, the
+  internal 3–5 default stands, so existing callers are unaffected. `/work-items:work` threads its
+  `work_dispatch_concurrency_cap` here (and passes nothing when the key is unset), wiring the
+  previously-inert config to real enforcement. A fractional argument is floored to whole waves and a
+  value below 1 is treated as 1, since a wave is discrete.
+
+## [0.8.0]
+
+### Added
+
+- **`implement-dispatch`'s brief-composition step now covers worker-side worktree provisioning for the
+  autonomous lane (`#572`).** When provisioning is worker-side — the autonomous work-lane, where the
+  orchestrator cannot invoke `/source-control:worktree create` without transitioning its own session —
+  the brief makes materializing the isolated worktree the worker's first step (the non-entering
+  creation seam, or a plain `git worktree add`, worked via `git -C` without entering), and instructs
+  the worker to bring the branch current with the default branch, commit, push, and return the
+  worktree path + branch so the orchestrator can open the PR against the pushed branch. The
+  interactive default — the brief supplies a pre-existing worktree path — is unchanged.
+
+## [0.7.8]
+
+### Changed
+
+- `implement-dispatch`'s fresh-context verifier before marking a phase `[DONE]` (`skills/implement-dispatch/SKILL.md`)
+  now prefers a cross-vendor advisor when one is installed (e.g. the OpenAI Codex plugin, invoked per its own docs), with the fresh-context same-vendor verifier sub-agent as the stated fallback —
+  presence-gated per the seam-phrasing convention.
+
+## [0.7.7]
+
+### Changed
+
+- `implement-dispatch`'s "Compose the brief" step (`skills/implement-dispatch/SKILL.md`) now front-loads
+  CI-hygiene and early-push clauses alongside the existing worktree-cwd clause: no issue-number back-references
+  in code comments (the `comment-hygiene` check flags them; `TODO(#issue)` is the sanctioned exception);
+  any new regular file with a shebang (never a `120000` symlink — `git update-index --chmod=+x` fails on
+  one) must be marked executable on both the worktree and the index, in order — `chmod +x <path>`, then
+  `git add <path>` to stage it (a not-yet-tracked path fails `git update-index --chmod=+x` outright), then
+  `git update-index --chmod=+x <path>` to force the index mode explicitly, since a plain `git add` alone
+  can't be trusted to carry an executable bit across every platform/filesystem (the `exec-bit` check flags
+  a tracked shebang file recorded non-executable); and commit and push as early as practical — before the
+  CI-poll tail — so a mid-flight worker session-limit death never orphans unpushed work. That early commit
+  is a source-only checkpoint; the phase-boundary plan-mark commit (`/implementation:implement` Step 4 item
+  4) still runs separately, orchestrator-side, once the phase's acceptance criteria are verified — a scoped
+  exception to inline mode's combined source+marks commit, noted in "Phase boundaries." PR creation stays
+  out of every worker brief; it belongs to the orchestrator's post-verification flow (Step 5), invoked only
+  after every worker return is verified and the build/test gate passes. Reinforced as Gotchas-section
+  reminders, matching the worktree-cwd clause's existing pattern. Closes #819, where fresh dispatched
+  workers repeatedly learned these same PR-contract constraints via red CI instead of the brief.
+
 ## [0.7.6]
 
 ### Changed

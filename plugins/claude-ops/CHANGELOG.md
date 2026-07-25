@@ -3,14 +3,135 @@
 All notable changes to the `claude-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.17.5]
+## [0.19.2]
 
 ### Documentation
 
 - `hooks/claude-ops-test-helpers.sh` now points at
   `docs/conventions/shell-test-helpers/README.md`, the repo's owner doc recording that per-plugin
   shell assert-helper duplication and per-script exit-code taxonomies are deliberate, not drift. No
-  behavior change. Version bumped past `#844`'s `0.17.4` claim (merged) to avoid a collision.
+  behavior change.
+
+## [0.19.1]
+
+### Fixed
+
+- **`plugins` skill: the default (no-`--marketplace`) path no longer breaks after a mid-session
+  version bump of claude-ops itself (`#1176`, audit finding F1).** `fleet-state.sh`'s
+  `resolve_default_marketplace` exact-matched the running plugin root against the version-pinned
+  `installPath` in `installed_plugins.json`; any time the session's loaded version differed from the
+  installed one — a marketplace `autoUpdate` shortly after session start, or `sync`'s own Step-3
+  self-update — the join found nothing and the skill's primary invocation form failed with "could not
+  resolve the default marketplace". Added a version-agnostic fallback that matches the version-stripped
+  `…/cache/<marketplace>/<plugin>` prefix (exact match still tried first; marketplace stays
+  distinguishable), plus a clearer error that prints the searched root and names the version-skew cause.
+  Covered by a new version-skew case in `fleet-state.test.sh`.
+
+### Changed
+
+- **`context/gotchas.md`: generalized the CRLF gotcha (audit finding F2).** The trailing-`\r` hazard
+  is not `jq`-only — any captured Windows value (`python` `print`, PowerShell interop, `git config`,
+  a CRLF file read) can corrupt a constructed `claude plugin` id so the CLI reports
+  `Plugin "<name>" not found` with the full id passed (marketplace suffix silently corrupted). Rescoped
+  the entry to "any captured value", documented the collision with the bare-name symptom, and
+  cross-referenced the two.
+- **`plugins` SKILL.md: corrected the `install_new` render contract (audit finding F3).** An unset
+  `${user_config.install_new}` renders the literal placeholder (the manifest `default` is not
+  substituted for an unset key; verified against CC 2.1.218) — the common default-config case. The doc
+  now reads that literal placeholder as the expected unset state → use the default `ask` without
+  flagging it as an invalid value; only an explicitly-set unsupported value is the invalid case.
+
+## [0.19.0]
+
+### Added
+
+- **`skill_usage_scope` userConfig — the skill-usage store's home is now scope-selectable
+  (`repo` | `user` | `data-dir`), and the repo scope keeps `git status` clean via a
+  machine-local `.git/info/exclude` entry (`#1151`).** Previously the store was forced into
+  every consuming repo's tree (`.claude/observability/skill-usage.jsonl` as untracked
+  `git status` noise) and the `skill_usage_dir` containment validation made user/machine
+  scope unreachable by config — containment as a ceiling instead of a default. Now: `repo`
+  (default, unchanged location) resolves the contained `skill_usage_dir` subpath under the
+  repo root and idempotently adds the store dir to `.git/info/exclude` (machine-local; never
+  `.gitignore` or tracked files; tracked content is unaffected by ignore semantics; opt out
+  with the new `skill_usage_git_exclude=false` for teams that deliberately commit the
+  telemetry); `user` resolves the same contained subpath under `$HOME` — one cross-repo
+  operator store; `data-dir` writes `${CLAUDE_PLUGIN_DATA}/skill-usage/<repo-slug>` —
+  plugin-owned, update-safe, keyed by repo. Unknown scope values fall back to `repo` with a
+  one-time advisory (prose-validated; the manifest schema has no enum type). Store rows gain
+  `project` (project-root basename, display) and `project_id` (basename + 8-char digest of
+  the physical path — same-basename checkouts stay distinguishable) so cross-repo scopes
+  keep repo identity; the data-dir key uses the same collision-resistant slug, and the
+  exclude line is segment-normalized (a configured `./x` or `x//y` still matches) and
+  glob-escaped (`*` `?` `[` in a configured dir write a literal exclude pattern, not a
+  glob that over-matches sibling dirs). A `skill_usage_dir=.` (repo-root) store excludes
+  the store file (`/skill-usage.jsonl`) rather than the whole tree.
+  **Default-flip decision (recorded):** the default deliberately stays `repo` — the store
+  sits beside `hook-events.jsonl` per the observability skill's project-local posture (that
+  skill reads only `hook-events.jsonl` and the OTEL store, so colocation is convention, not
+  a read dependency), the exclude entry removes the status noise that motivated the change,
+  and flipping would silently relocate existing consumers' data.
+
+## [0.18.3]
+
+### Security
+
+- **`plugins` fleet-state: hook-utils.sh is now resolved only from the script's
+  own location, closing an arbitrary-file `source` via `FLEET_STATE_HOOK_UTILS`.**
+  The test-only `FLEET_STATE_HOOK_UTILS` env override let any caller able to set
+  an environment variable (a project `.claude/settings.json` env block, an
+  inherited shell, another hook) redirect the `source` at an attacker-controlled
+  file, executed with the script's ambient permissions — the existing guard only
+  checked the path existed, not that it was trusted. `hook-utils.sh` is a fixed
+  sibling shipped with the plugin, so it is now loaded unconditionally from the
+  script-relative plugin root; the override was removed rather than gated because,
+  once the path is script-relative, an override can only ever equal that trusted
+  default (both test call sites already resolved to it). `CLAUDE_PLUGIN_ROOT` is
+  no longer consulted for this sibling file (it equals the script-relative root
+  in production); it is still used for marketplace self-resolution. The
+  script-relative path is computed with `builtin cd`/`builtin pwd` and
+  `command dirname` so an inherited environment that exports shell functions of
+  those names (`BASH_FUNC_cd%%` and friends, imported by bash before the script
+  runs) cannot hijack the computation and redirect `source` at an attacker tree.
+  No behavior change in production.
+
+## [0.18.2]
+
+### Changed
+
+- Sync of the shared `hook-utils.sh`: the git-option parser distinguishes `--config-env`
+  (an env-var name) from `-c`/`--config` (an inline value), and a `--config-env` alias for
+  a guarded subcommand is refused by shape rather than by resolving the environment
+  variable's value (`#740`). No behavior change for this plugin — it does not inspect git
+  config values; shipped so consumers receive the shared library update.
+
+## [0.18.1]
+
+### Changed
+
+- **`lanes` skill — document that a relaunch is the only context reset a loop
+  lane gets.** A `/loop` lane re-invokes in the same session and cannot `/clear`
+  itself, so the "restart at ~N% context" discipline has no in-session
+  enforcement; the skill's `restart` (fresh session from the canonical prompt) is
+  the actual reset, and it is operator- or launcher-initiated, not automatic. The
+  SKILL.md now states this so a lane prompt does not wrongly assume per-cycle
+  freshness. Interim documentation ahead of an automatic relaunch trigger. (#551)
+
+## [0.18.0]
+
+### Added
+
+- **`statusMessage` declared on every hook's `hooks.json` handler** (8 handlers)
+  (hook-observability convention, `docs/conventions/hook-observability/`).
+
+### Fixed
+
+- **`skill-usage-audit` and `skill-usage-expansion-audit`'s config-invalid /
+  destination-unwritable skip paths are now user-visible.** Previously
+  agent-only (`additionalContext`), matching neither channel a missing
+  runtime prerequisite requires per the doctrine. Both now route through
+  `hook::emit_skip_notice` gated by `hook::notice_once` (once-per-session
+  `systemMessage` + `additionalContext`).
 
 ## [0.17.4]
 
