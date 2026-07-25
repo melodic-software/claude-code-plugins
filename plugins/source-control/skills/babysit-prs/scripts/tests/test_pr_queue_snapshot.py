@@ -442,6 +442,7 @@ class SinglePrScopeClassifierConsumptionTests(unittest.TestCase):
             "headRefName": "feature",
             "headRefOid": "a" * 40,
             "baseRefName": "main",
+            "baseRefOid": "b" * 40,
             "headRepository": {"nameWithOwner": "owner/repo"},
             "headRepositoryOwner": {"login": "owner"},
             "isCrossRepository": False,
@@ -504,6 +505,13 @@ class SinglePrScopeClassifierConsumptionTests(unittest.TestCase):
         # human-stop their own PR); it just must not re-dispatch a worker.
         self.assertTrue(classified["feedback"]["human_blocking"])
         self.assertEqual(classified["new_feedback"]["human"], [])
+        # The downstream effect, not just the mechanism: the suppressed comment
+        # contributes no dispatch reason. `needs_worker` itself stays True here
+        # on unrelated first-cycle reasons (empty state dir), so asserting on it
+        # would not isolate the self-exclusion.
+        self.assertNotIn(
+            "new_human_blocking_feedback", classified["needs_worker_reasons"]
+        )
 
     def test_foreign_activity_fires_in_single_pr_scope(self) -> None:
         classified = self._classify_single_pr(
