@@ -3,6 +3,20 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.3]
+
+### Fixed
+
+- **`work-loop`'s first-drain C3 ratification admission gate now checks the issue body and
+  comment history for existing ratification evidence before applying `needs-human` or posting a
+  fresh `kind=ratify-c3` comment (`#1348`).** Previously the gate only recognized ratification
+  recorded as an `/work-items:attend-queue` reply on the item's `kind=ratify-c3` marker comment or
+  `first_drain_complete` durable state, so an item whose ratification was instead recorded
+  directly in the issue body (e.g. an `attended triage <date>, operator-ratified` line) — even one
+  already corrected once by a same-day comment restoring it to the frontier after a prior wrong
+  re-queue — flapped back to `needs-human` on a later cycle, reproducing the exact
+  mis-classification the correction had already fixed (observed on `#815`, `#816`, `#965`).
+
 ## [0.24.2]
 
 ### Fixed

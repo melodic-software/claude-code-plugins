@@ -211,15 +211,41 @@ Hard gates that override any classification:
   human-gated regardless of class — such items surface-read as mechanical dependency bumps but are
   trust-on-first-download changes on security-critical surfaces. Workers escalate these, never
   edit them.
-- **First-drain C3 ratification (earn-trust).** A C3 bug-fix-shaped item dispatches only when
-  EITHER it carries its own recorded ratification — the ratification reply
-  `/work-items:attend-queue` writes on the item's `kind=ratify-c3` machine-marked comment, which
-  is the recorded human ratification the autonomy matrix's promotion contract requires — OR
-  `first_drain_complete` is set in durable state (the blanket ratification period is over).
-  Before that, an unratified C3 bug-fix candidate is queued, not dispatched: human-gated role
-  label + a `kind=ratify-c3` comment stating the classification and intended dispatch. Once
-  ratified it returns to the frontier autonomous-eligible and dispatches on a later cycle — the
-  ratification travels with the item, so it is never re-queued.
+- **First-drain C3 ratification (earn-trust).** Before evaluating whether a C3 bug-fix-shaped
+  candidate needs ratification — before ever applying the human-gated role label or posting a
+  fresh `kind=ratify-c3` comment — check two cheap, **already-attended-only** signals in this
+  order, either of which alone is dispatch-eligible outright and skips the rest of this rule:
+  1. **Label pre-check.** The item already carries the resolved autonomous-eligible role label
+     and not the resolved human-gated role label (both from `config.role_labels`, never the
+     default literal). This gate never sets the autonomous-eligible label itself — only
+     `/work-items:attend-queue`'s ratification flip or original triage does — so the label state
+     alone is trustworthy prior-eligibility evidence, not something this gate could have produced
+     on its own.
+  2. **Body ratification marker.** The issue body carries an attended-triage ratification phrase
+     — e.g. `Work-class: C3 (bug-fix-shaped) -- attended triage <date>, operator-ratified.` No
+     skill currently formalizes emitting this marker (it is presently an attended-session prose
+     convention, not a machine contract); recognize the phrase pattern, and if `/work-items:track`
+     or `/work-items:triage` later starts emitting a documented marker, extend recognition to
+     match it exactly rather than accepting free-form "ratification-shaped" prose. **This
+     admission gate itself never writes this phrase into a body** — it is evidence only when
+     found, never something this rule's own unattended execution may author to satisfy itself.
+  Absent both signals, a C3 bug-fix-shaped item dispatches only when EITHER it carries its own
+  recorded ratification — the ratification reply `/work-items:attend-queue` writes on the item's
+  `kind=ratify-c3` machine-marked comment, which is the recorded human ratification the autonomy
+  matrix's promotion contract requires — OR `first_drain_complete` is set in durable state (the
+  blanket ratification period is over). Before that, an unratified C3 bug-fix candidate is queued,
+  not dispatched: human-gated role label + a `kind=ratify-c3` comment stating the classification
+  and intended dispatch. Once ratified (by any of the above paths) it returns to the frontier
+  autonomous-eligible and dispatches on a later cycle — the ratification travels with the item, so
+  it is never re-queued.
+
+  **Manual-check step (no automated test surface for this LLM-executed gate).** Re-run the
+  admission gate against an item whose body carries the ratification marker and which was already
+  corrected once by a "Superseded" comment restoring it to the frontier after a prior wrong
+  re-queue (the exact pattern observed on #815, #816, #965) and confirm the gate now recognizes
+  the label pre-check or body marker and does not re-apply the human-gated role label or post a
+  second `kind=ratify-c3` comment — the fix makes the correction comment unnecessary rather than
+  treating the correction comment itself as a new evidence class.
 - **Security-surface work.** Any security-surface class routes to the frontier capability tier,
   always (per the convention's tier rules).
 
