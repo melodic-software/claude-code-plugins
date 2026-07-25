@@ -23,7 +23,16 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `update-branch` and never pushes), and documented command lines (every `bin/`-path wrapper
   command spelled in `reference/safety.md` and `reference/orchestration.md` is checked against the
   backing CLI's own parser). Catalogue gates fail when a new entry point, wrapper, or
-  command-spelling document arrives without a row.
+  command-spelling document arrives without a row — including the plugin-level
+  `scripts/babysit-readiness-gate.sh`, the one lane entry point outside the skill's scripts
+  directory. Each binding asserts the specific claim rather than a proxy for it: a row claiming
+  the refusal precedes every network call is replayed against a recording `gh` shim and fails if
+  the shim ran at all, an effect row records which way the state directory's file set moved so a
+  rewrite cannot pass as a deletion, and documented flags are checked against the parser's usage
+  block rather than scraped `--help` prose that names flags the CLI rejects. What CI does not
+  bind is stated in the generated doc's "Not covered here" section rather than left to inference:
+  the entry-point **Class** column cannot be proven for the four entry points whose mutation is a
+  GitHub write, because every row runs without network access.
 
 ## [0.26.9]
 

@@ -70,6 +70,27 @@ def state_fingerprint(state_dir: pathlib.Path) -> dict[str, bytes]:
     }
 
 
+def observed_delta(before: dict[str, bytes], after: dict[str, bytes]) -> str:
+    """Which way the state directory's file set moved.
+
+    Directional, because a boolean cannot tell deletion from a rewrite: a reap
+    that rewrote the expired lease instead of removing it would satisfy
+    `before != after` and pass a row whose claim is deletion. Compared over the
+    key set rather than named paths -- a path literal in a drift-detection
+    artifact couples it to the writer's internal layout.
+    """
+    if before == after:
+        return contract.UNCHANGED
+    kept, arrived = set(before), set(after)
+    if arrived > kept:
+        return contract.ADDED
+    if arrived < kept:
+        return contract.REMOVED
+    if arrived == kept:
+        return contract.REWRITTEN
+    return f"mixed: +{sorted(arrived - kept)} -{sorted(kept - arrived)}"
+
+
 def seed(fixture: str, state_dir: pathlib.Path) -> None:
     if fixture == contract.EMPTY_STATE:
         return
@@ -97,6 +118,30 @@ def seed(fixture: str, state_dir: pathlib.Path) -> None:
         lease_path.write_text(json.dumps(record), encoding="utf-8")
         return
     raise AssertionError(f"unknown fixture: {fixture}")
+
+
+def write_gh_shim(directory: pathlib.Path, sentinel: pathlib.Path) -> None:
+    """A `gh` that records the fact it ran and then fails.
+
+    Exit 127 mimics the not-found status a caller is most likely to swallow, so
+    a guard that resolved `@me` before checking scope reaches the same refusal
+    exit code -- and is caught by the sentinel rather than by the exit code.
+    """
+    posix = directory / "gh"
+    posix.write_text(
+        f'#!/usr/bin/env bash\nprintf called > "{sentinel.as_posix()}"\nexit 127\n',
+        encoding="utf-8",
+        newline="\n",
+    )
+    posix.chmod(0o755)
+    if os.name == "nt":
+        # Windows resolves a bare `gh` through PATHEXT, never the extensionless
+        # file above, so the shim needs a .cmd sibling to be reachable at all.
+        (directory / "gh.cmd").write_text(
+            f'@echo off\r\n(echo called) > "{sentinel}"\r\nexit /b 127\r\n',
+            encoding="utf-8",
+            newline="",
+        )
 
 
 def because(row_id: str, claim: str, detail: str = "") -> str:
@@ -161,16 +206,51 @@ class RefusalsFireOnArgumentShape(unittest.TestCase):
                         )
 
     def test_scope_refusal_precedes_every_network_call(self) -> None:
-        # Belt-and-braces on the property that makes this suite stub-free: with
-        # PATH emptied of gh, the fail-closed rows must behave identically.
-        env = dict(os.environ, PATH=tempfile.gettempdir())
-        proc = subprocess.run(
-            [sys.executable, str(contract.plugin_path(contract.MERGE_CLI)), "owner/repo#1"],
-            capture_output=True,
-            text=True,
-            env=env,
-        )
-        self.assertEqual(proc.returncode, 3, proc.stderr)
+        # The rows claiming "no gh invocation at all" are replayed against a
+        # recording shim rather than an emptied PATH. Emptying PATH proves only
+        # that the refusal survives gh being unreachable -- a swallowed lookup
+        # failure falling through to the same exit code would pass it while the
+        # claim stayed false. The shim is the only executable on PATH, so any
+        # attempt to resolve `@me` leaves a sentinel behind.
+        rows = [row for row in contract.REFUSALS if row.gh_free]
+        self.assertTrue(rows, "no refusal row claims network-free refusal")
+        for row in rows:
+            with self.subTest(row=row.id):
+                if BASH is None:
+                    self.skipTest("bash unavailable; the gh shim needs it")
+                with tempfile.TemporaryDirectory() as tmp:
+                    shim_dir = pathlib.Path(tmp)
+                    sentinel = shim_dir / "gh-was-called"
+                    write_gh_shim(shim_dir, sentinel)
+                    env = dict(os.environ, PATH=str(shim_dir))
+                    proc = subprocess.run(
+                        [
+                            sys.executable,
+                            str(contract.plugin_path(row.entry_point)),
+                            *row.argv,
+                        ],
+                        capture_output=True,
+                        text=True,
+                        env=env,
+                        cwd=tempfile.gettempdir(),
+                    )
+                    called = sentinel.exists()
+                self.assertFalse(
+                    called,
+                    because(row.id, row.claim, "the gh shim was invoked"),
+                )
+                self.assertEqual(
+                    proc.returncode,
+                    row.exit_code,
+                    because(row.id, row.claim, f"exit {proc.returncode}: {proc.stderr[:400]}"),
+                )
+                payload = envelope(proc)
+                for key, value in row.envelope_fields:
+                    self.assertEqual(
+                        payload.get(key),
+                        value,
+                        because(row.id, row.claim, f"{key}={payload.get(key)!r}"),
+                    )
 
 
 class PredicatesHoldOverRuntimeData(unittest.TestCase):
@@ -214,12 +294,12 @@ class EffectsReachDiskAsClaimed(unittest.TestCase):
                     because(row.id, row.claim, f"exit {proc.returncode}: {proc.stderr[:400]}"),
                 )
                 self.assertEqual(
-                    before != after,
-                    row.state_changes,
+                    observed_delta(before, after),
+                    row.delta,
                     because(
                         row.id,
                         row.claim,
-                        f"state {'changed' if before != after else 'was untouched'}",
+                        f"observed {observed_delta(before, after)!r}",
                     ),
                 )
 
@@ -248,6 +328,14 @@ class EntryPointCatalogueIsComplete(unittest.TestCase):
             f"skills/babysit-prs/scripts/{path.name}"
             for path in contract.SCRIPTS.glob("*.py")
             if "__main__" in path.read_text(encoding="utf-8")
+        }
+        # The lane is not confined to the skill's own scripts directory: SKILL.md
+        # invokes the plugin-level readiness gate by name, and a shell entry point
+        # there would otherwise evade this gate entirely.
+        present |= {
+            f"scripts/{path.name}"
+            for path in (contract.PLUGIN_ROOT / "scripts").glob("babysit-*.sh")
+            if not path.name.endswith(".test.sh")
         }
         self.assertEqual(
             present - catalogued,
@@ -303,6 +391,25 @@ class EntryPointCatalogueIsComplete(unittest.TestCase):
                     f"`{entry.path}` is classified {entry.mutation} with nothing asserting it",
                 )
 
+    def test_read_only_entry_points_cite_no_mutation_evidence(self) -> None:
+        # The one direction of the Class column CI can bind offline. The reverse
+        # -- proving a mutating class -- cannot be bound for the four entry
+        # points whose mutation is a GitHub write, because every row here runs
+        # without network access; the generated doc's "Not covered here" section
+        # states that gap rather than letting the column read as proven.
+        moves_state = {row.id for row in contract.EFFECTS if row.delta != contract.UNCHANGED}
+        moves_state |= {row.id for row in contract.MECHANISMS}
+        for entry in contract.ENTRY_POINTS:
+            if entry.mutation != contract.READ_ONLY:
+                continue
+            with self.subTest(entry=entry.path):
+                self.assertEqual(
+                    set(entry.backed_by) & moves_state,
+                    set(),
+                    f"`{entry.path}` is classified read-only but cites rows asserting"
+                    " a mutation; reclassify it or move the evidence",
+                )
+
 
 WRAPPER_COMMAND = re.compile(
     r'bash "\$\{CLAUDE_PLUGIN_ROOT\}/(bin/source-control-babysit-[a-z-]+)"'
@@ -332,13 +439,36 @@ def documented_commands(text: str) -> list[tuple[str, str]]:
 
 class DocumentedCommandsMatchTheParsers(unittest.TestCase):
     def _accepted_flags(self, cli: str) -> set[str]:
+        """The parser's registered long options, read from its usage block only.
+
+        Scraping the whole `--help` output would treat any flag NAMED IN PROSE as
+        accepted: every one of these CLIs describes the broad `gh pr merge
+        --admin` grant it exists to replace, so `--admin` would be admitted here
+        while the parser exits 2 on it, and a document carrying that stale flag
+        would pass. Argparse renders the usage block from the registered option
+        strings and nothing else, so it -- not the description, not the help
+        text -- is the registry. It runs from `usage:` to the first blank line.
+        """
         proc = subprocess.run(
             [sys.executable, str(contract.plugin_path(cli)), "--help"],
             capture_output=True,
             text=True,
         )
         self.assertEqual(proc.returncode, 0, f"{cli} --help failed: {proc.stderr}")
-        return set(re.findall(r"--[a-z0-9][a-z0-9-]*", proc.stdout))
+        self.assertTrue(
+            proc.stdout.startswith("usage:"),
+            f"{cli} --help does not open with a usage block; the registry moved",
+        )
+        usage = proc.stdout.split("usage:", 1)[1].split("\n\n", 1)[0]
+        flags = set(re.findall(r"(?<![\w-])--[a-z0-9][a-z0-9-]*", usage))
+        # `--help` is deliberately absent: argparse renders it as `-h` in usage.
+        self.assertTrue(flags, f"{cli} usage block parsed to no long options")
+        return flags
+
+    def test_prose_only_flags_are_not_read_as_accepted(self) -> None:
+        # The regression this parse exists to prevent, pinned: `--admin` appears
+        # in the merge gate's description and is rejected by its parser.
+        self.assertNotIn("--admin", self._accepted_flags(contract.MERGE_CLI))
 
     def test_every_documented_wrapper_command(self) -> None:
         accepted: dict[str, set[str]] = {}

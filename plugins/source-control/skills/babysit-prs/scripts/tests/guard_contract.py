@@ -44,6 +44,7 @@ REFRESH_CLI = "skills/babysit-prs/scripts/refresh_pr_branch.py"
 REVIEW_CLI = "skills/babysit-prs/scripts/request_review.py"
 SNAPSHOT_CLI = "skills/babysit-prs/scripts/pr_queue_snapshot.py"
 FINDINGS_CLI = "skills/babysit-prs/scripts/babysit_findings.py"
+READINESS_GATE = "scripts/babysit-readiness-gate.sh"
 MERGE_WRAPPER = "bin/source-control-babysit-merge"
 RESOLVE_WRAPPER = "bin/source-control-babysit-resolve-thread"
 
@@ -73,6 +74,11 @@ class Refusal:
     # Envelope fields a caller may branch on, asserted by identity. A consumer
     # reading `inScope` needs it present and false, not merely falsy-or-absent.
     envelope_fields: tuple[tuple[str, object], ...] = ()
+    # Rows claiming the refusal precedes every network call. These are replayed
+    # against a recording `gh` shim that is the only executable on PATH, and the
+    # shim must never be invoked -- an emptied PATH alone would let a swallowed
+    # `gh` failure fall through to the same exit code and read as proof.
+    gh_free: bool = False
 
 
 @dataclass(frozen=True)
@@ -106,7 +112,10 @@ class Effect:
     entry_point: str
     argv: tuple[str, ...]
     fixture: str
-    state_changes: bool
+    # WHICH way state moved, not merely that it moved: a boolean lets a reap
+    # that rewrites the expired lease -- or touches an unrelated file -- pass a
+    # row whose claim is deletion. See DELTA_KINDS.
+    delta: str
     exit_code: int
 
 
@@ -171,6 +180,7 @@ REFUSALS: tuple[Refusal, ...] = (
         refused_by=PYTHON_CLI,
         enforced_at="babysit_merge.py::main",
         envelope_fields=(("inScope", False),),
+        gh_free=True,
     ),
     Refusal(
         id="merge.owner-out-of-scope",
@@ -185,6 +195,7 @@ REFUSALS: tuple[Refusal, ...] = (
         refused_by=PYTHON_CLI,
         enforced_at="babysit_merge.py::main",
         envelope_fields=(("inScope", False),),
+        gh_free=True,
     ),
     Refusal(
         id="merge.owner-check-precedes-self-login-resolution",
@@ -205,6 +216,7 @@ REFUSALS: tuple[Refusal, ...] = (
         refused_by=PYTHON_CLI,
         enforced_at="babysit_merge.py::main",
         envelope_fields=(("inScope", False),),
+        gh_free=True,
     ),
     Refusal(
         id="merge.short-expected-head",
@@ -309,6 +321,43 @@ REFUSALS: tuple[Refusal, ...] = (
         enforced_at="bin/source-control-babysit-merge (argument filter loop)",
     ),
     Refusal(
+        id="merge.abbreviated-unpinned-head-refused-by-wrapper",
+        claim=(
+            "The wrapper refusal covers every long-option PREFIX of "
+            "--allow-unpinned-head, not the exact spelling alone. An "
+            "equality-only filter would let `--allow-unpinned-hea` through to an "
+            "abbreviation-resolving parser and reinstate the override the wrapper "
+            "exists to remove, so the prefix family is refused as one."
+        ),
+        entry_point=MERGE_WRAPPER,
+        argv=("owner/repo#1", "--merge", "--allow-unpinned-hea"),
+        exit_code=2,
+        error_contains=("--allow-unpinned-hea",),
+        refused_by=BASH_WRAPPER,
+        enforced_at="bin/source-control-babysit-merge (argument filter loop)",
+    ),
+    Refusal(
+        id="merge.abbreviation-is-not-resolved-by-the-cli",
+        claim=(
+            "The wrapper's prefix filter is belt to the CLI's braces: the parser "
+            "sets allow_abbrev=False, so an abbreviated flag reaching Python "
+            "directly is an unrecognized argument at exit 2 rather than a silently "
+            "resolved override."
+        ),
+        entry_point=MERGE_CLI,
+        argv=(
+            "owner/repo#1",
+            "--allowed-owners",
+            "owner",
+            "--merge",
+            "--allow-unpinned-hea",
+        ),
+        exit_code=2,
+        error_contains=("--allow-unpinned-hea",),
+        refused_by=PYTHON_CLI,
+        enforced_at="babysit_merge.py::main",
+    ),
+    Refusal(
         id="merge.wrapper-reaches-failclosed-cli",
         claim=(
             "The wrapper adds no capability of its own: with no --allowed-owners it hands "
@@ -334,6 +383,7 @@ REFUSALS: tuple[Refusal, ...] = (
         refused_by=PYTHON_CLI,
         enforced_at="babysit_resolve_thread.py::main",
         envelope_fields=(("inScope", False),),
+        gh_free=True,
     ),
     Refusal(
         id="resolve.count-pin-without-thread-id",
@@ -646,6 +696,16 @@ PREDICATES: tuple[Predicate, ...] = (
 EMPTY_STATE = "empty"
 EXPIRED_WORKER_LEASE = "expired-worker-lease"
 
+# Observed movement of the state directory's file set, asserted over the
+# fingerprint's keys rather than named paths -- a path literal here would couple
+# the contract to the lease writer's internal layout, which is exactly the drift
+# this module refuses to encode.
+UNCHANGED = "unchanged"
+ADDED = "files added"
+REMOVED = "files removed"
+REWRITTEN = "same files, new contents"
+DELTA_KINDS = (UNCHANGED, ADDED, REMOVED, REWRITTEN)
+
 EFFECTS: tuple[Effect, ...] = (
     Effect(
         id="lease.acquire-writes-without-apply",
@@ -666,7 +726,7 @@ EFFECTS: tuple[Effect, ...] = (
             "{state_dir}",
         ),
         fixture=EMPTY_STATE,
-        state_changes=True,
+        delta=ADDED,
         exit_code=0,
     ),
     Effect(
@@ -678,7 +738,7 @@ EFFECTS: tuple[Effect, ...] = (
         entry_point=LEASE_CLI,
         argv=("reap", "--state-dir", "{state_dir}"),
         fixture=EXPIRED_WORKER_LEASE,
-        state_changes=False,
+        delta=UNCHANGED,
         exit_code=0,
     ),
     Effect(
@@ -690,7 +750,7 @@ EFFECTS: tuple[Effect, ...] = (
         entry_point=LEASE_CLI,
         argv=("reap", "--state-dir", "{state_dir}", "--apply"),
         fixture=EXPIRED_WORKER_LEASE,
-        state_changes=True,
+        delta=REMOVED,
         exit_code=0,
     ),
 )
@@ -758,6 +818,28 @@ MECHANISMS: tuple[Mechanism, ...] = (
         must_contain=('for arg in "$@"', "--allow-unpinned-head"),
     ),
     Mechanism(
+        id="merge.parser-refuses-abbreviation",
+        claim=(
+            "babysit_merge.py builds its parser with allow_abbrev=False. Argparse's "
+            "default would resolve any unambiguous prefix, so a permission rule "
+            "written against a flag's exact spelling would not cover the prefixes "
+            "that reach the same flag."
+        ),
+        entry_point=MERGE_CLI,
+        must_contain=("allow_abbrev=False",),
+    ),
+    Mechanism(
+        id="resolve.parser-refuses-abbreviation",
+        claim=(
+            "babysit_resolve_thread.py sets allow_abbrev=False for the same reason, "
+            "and it carries more weight here: the resolve wrapper filters nothing, "
+            "so the parser is the only layer refusing an abbreviated "
+            "--allow-unpinned-thread."
+        ),
+        entry_point=RESOLVE_CLI,
+        must_contain=("allow_abbrev=False",),
+    ),
+    Mechanism(
         id="resolve.wrapper-carries-no-filter",
         claim=(
             "ASYMMETRY, stated at the source: the resolve wrapper contains no argument "
@@ -794,7 +876,10 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
         backed_by=(
             "merge.allowlist-absent",
             "merge.unpinned-head-refused-by-wrapper",
+            "merge.abbreviated-unpinned-head-refused-by-wrapper",
+            "merge.abbreviation-is-not-resolved-by-the-cli",
             "merge.wrapper-filters-unpinned-head-in-bash",
+            "merge.parser-refuses-abbreviation",
         ),
     ),
     EntryPoint(
@@ -813,6 +898,7 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
             "resolve.autonomous-bulk-refused",
             "classify.interactive-does-not-require-outdated",
             "resolve.wrapper-carries-no-filter",
+            "resolve.parser-refuses-abbreviation",
         ),
     ),
     EntryPoint(
@@ -897,6 +983,20 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
         mutates_what="nothing",
         gate="n/a",
         claim="Pure classification over supplied input; no write of any kind.",
+        backed_by=(),
+    ),
+    EntryPoint(
+        path=READINESS_GATE,
+        wrapper=None,
+        mutation=READ_ONLY,
+        mutates_what="nothing",
+        gate="n/a",
+        claim=(
+            "The lane's one entry point outside the skill's own scripts directory, "
+            "invoked by name from SKILL.md. It counts findings and classification "
+            "rows over fetched comments and reports READINESS_OK / "
+            "READINESS_BLOCKED; it writes no file and performs no GitHub write."
+        ),
         backed_by=(),
     ),
 )
@@ -1003,14 +1103,22 @@ def render_markdown() -> str:
         " emits plain stderr and no JSON envelope. On a CLI entry point the layer is"
         " always `python-cli` and only the exit code and message are asserted.",
         "",
-        "| ID | Entry point | Invocation | Exit | Refused by | Error names | Enforced at | Claim |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- |",
+        "`No gh` marks the rows whose claim is that the refusal precedes every network"
+        " call. Those are replayed a second time with a recording `gh` shim as the only"
+        " executable on `PATH`, and the assertion is that the shim was never invoked --"
+        " merely removing `gh` from `PATH` would let a swallowed lookup failure fall"
+        " through to the same exit code and read as proof.",
+        "",
+        "| ID | Entry point | Invocation | Exit | Refused by | No gh | Error names"
+        " | Enforced at | Claim |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     for row in REFUSALS:
         names = ", ".join(f"`{token}`" for token in row.error_contains) or "--"
         lines.append(
             f"| `{row.id}` | `{row.entry_point}` | {_argv(row.argv)} | {row.exit_code} "
-            f"| {row.refused_by} | {names} | `{row.enforced_at}` | {_cell(row.claim)} |"
+            f"| {row.refused_by} | {'asserted' if row.gh_free else '--'} | {names} "
+            f"| `{row.enforced_at}` | {_cell(row.claim)} |"
         )
 
     lines += [
@@ -1037,17 +1145,22 @@ def render_markdown() -> str:
         "## Effects: what reaches disk",
         "",
         "Executed offline against a throwaway state directory seeded with `Fixture`."
-        " `State changes` is the observed before/after difference of that directory,"
-        " not a reading of the flag names.",
+        " `State delta` is the observed before/after movement of that directory's file"
+        " set, not a reading of the flag names, and it is directional rather than a"
+        " changed/unchanged boolean: a row claiming deletion asserts that the file set"
+        " strictly shrank, so a reap that rewrote the expired lease -- or touched some"
+        " unrelated file -- fails it instead of passing on \"something changed\". The"
+        " assertion is over the file set, deliberately not over named paths: a path"
+        " literal here would couple this contract to the lease writer's internal"
+        " layout. Advisory `.lock` siblings are excluded from the comparison.",
         "",
-        "| ID | Entry point | Invocation | Fixture | Exit | State changes | Claim |",
+        "| ID | Entry point | Invocation | Fixture | Exit | State delta | Claim |",
         "| --- | --- | --- | --- | --- | --- | --- |",
     ]
     for row in EFFECTS:
         lines.append(
             f"| `{row.id}` | `{row.entry_point}` | {_argv(row.argv)} | {row.fixture} "
-            f"| {row.exit_code} | {'yes' if row.state_changes else 'no'} "
-            f"| {_cell(row.claim)} |"
+            f"| {row.exit_code} | {row.delta} | {_cell(row.claim)} |"
         )
 
     lines += [
@@ -1087,14 +1200,30 @@ def render_markdown() -> str:
         " the deferral note in `scripts/tests/guard_contract.py`.",
         "- Anything requiring a live GitHub response. Every row above runs with no"
         " network access, which is what keeps the suite free of a `gh` stub.",
-        "- Four rendered columns are annotation rather than assertion, and a rule"
+        "- Five rendered columns are annotation rather than assertion, and a rule"
         " must not be written against them as if CI proved them: the entry-point"
-        " table's **Mutates**, **Gate**, and **Claim**, and the refusal table's"
-        " **Enforced at**. The entry-point rows assert the path, the wrapper, the"
-        " class, and that a mutating row names backing rows; nothing reads the"
-        " prose in those three columns. `Predicate.enforced_at` *is* checked --"
-        " `test_anchor_symbol_exists` resolves it -- but `Refusal.enforced_at` is"
-        " not, so a refusal's location may drift without failing CI.",
+        " table's **Class**, **Mutates**, **Gate**, and **Claim**, and the refusal"
+        " table's **Enforced at**. The entry-point rows assert the path and the"
+        " wrapper; nothing reads the prose in those columns."
+        " `Predicate.enforced_at` *is* checked -- `test_anchor_symbol_exists`"
+        " resolves it -- but `Refusal.enforced_at` is not, so a refusal's location"
+        " may drift without failing CI.",
+        "- **Class** carries two partial bindings and one real gap, so read it"
+        " precisely. Bound: a non-read-only row must name at least one backing"
+        " row, and a `read-only` row may not be cited by any effect row that moves"
+        " state or by any mechanism row -- so a read-only entry point that grows"
+        " mutation evidence fails CI. Not bound: that a `mutating` or"
+        " `conditionally mutating` row's cited evidence actually demonstrates the"
+        " class it declares. It cannot be, for the four entry points whose"
+        " mutation is a GitHub write -- the merge gate, the thread resolver,"
+        " `refresh_pr_branch.py`, and `request_review.py`. Every row in this"
+        " contract runs with no network access, by design, so no offline assertion"
+        " can witness their mutation; binding the column would mean either a `gh`"
+        " stub (asserting the stub, not the behavior) or a live-credential CI"
+        " suite. An entry point that turns from conditional to unconditional"
+        " mutation therefore still passes. Trigger to revisit: the first time a"
+        " class changes without a matching row change, or the first offline-"
+        "observable mutation appearing on a GitHub-writing entry point.",
         "",
     ]
     return "\n".join(lines)
