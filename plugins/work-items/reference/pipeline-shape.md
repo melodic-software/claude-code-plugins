@@ -49,7 +49,7 @@ For the Verify lane specifically, where the result is high-stakes and correlated
 risk, prefer a cross-vendor advisor **when one is installed and set up** — e.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs — with the fresh-context same-vendor verifier as the
 fallback, never a route to a command that may not resolve.
 
-The **re-anchor slot** (`re-anchor:*`) is reserved: the re-anchor set is a periodic anchor across lane
+The **re-anchor slot** (`discipline:*`) is reserved: the re-anchor set is a periodic anchor across lane
 execution rather than a human-invoked extra. Its placement in the sequence is left for a later `#513`
 stage; this document reserves the slot and does not yet define its cadence.
 

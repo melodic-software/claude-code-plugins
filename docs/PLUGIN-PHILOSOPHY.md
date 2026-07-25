@@ -233,15 +233,38 @@ conformance audit tracks the gap.
 
 The uniform contract: the skill is named `setup`, sets `disable-model-invocation: true`, and offers
 `check` (read-only inspect and verify) and `apply` (idempotent configure) actions. This is a
-normative target — setup skills that predate this contract are nonconforming until migrated, and
-the fleet conformance audit tracks the gap rather than the doctrine pretending it is closed. Setup
-must be:
+normative target — setup skills that predate this contract are nonconforming until brought into
+conformance, and the fleet conformance audit tracks the gap rather than the doctrine pretending it
+is closed. Setup must be:
 
 - idempotent and safe to rerun;
 - transparent about what it inferred, changed, skipped, or could not verify;
 - limited to configuration the plugin owns;
 - safe for existing files, preserving unrelated user content; and
 - non-interactive when complete arguments are supplied, so automation and headless use remain possible.
+
+Setup is one **plugin-level** `setup` skill, never a per-skill setup action. Setup granularity
+follows install granularity: a plugin installs and is configured as a unit, and its configuration
+surface — tracked project files, external prerequisites, `userConfig` — is plugin-scoped and
+routinely shared across skills, so one `setup` skill is the single discoverable entry point
+(`/<plugin>:setup`) and the one place `disable-model-invocation` is set for configuration, not a
+flag fragmented across per-skill actions. Where distinct skills carry distinct readiness, the one
+setup skill aggregates and reports it per skill.
+
+The verb set is deliberately closed at `check` and `apply` — no standalone `remove`, `reset`, or
+`migrate` verb joins the mandatory contract (teardown, where genuinely needed, rides as a `remove`
+argument to `apply`, per the teardown rule below). `apply` is *state-assessing*: it reads current
+state and converges, which the idempotency and preserve-unrelated-content requirements above already
+demand, named as a verb contract rather than a new bar. It reconciles conservatively — fill absent
+keys at current defaults, preserve keys it does not recognize, and report (never silently rewrite)
+values it cannot reconcile, so an obsolete or renamed key surfaces on re-run instead of sitting
+silently inert. Schema evolution is handled this way, without a separate `migrate` verb: a plugin
+that versions its own config contract may carry a forward, directional, user-confirmed upgrade of a
+recognized older version — still under `apply`, never a separate verb and never a silent write (the
+versioned standards index is the fleet example) — while a plugin that instead takes topic-docs'
+clean-break path relocates by hand with no compatibility tooling. What the clean-break stance rules
+out for either is silent backward-compatibility shims and dual-read windows that translate a changed
+shape behind the user's back. `reset` decomposes to teardown plus `apply`.
 
 Setup may inspect the repository and create or update the plugin's tracked project configuration. It
 must not write into the installed plugin cache, mutate Claude Code user settings, or write
@@ -252,12 +275,35 @@ setup is conforming: `check` verifies and reports, reconfiguration routes throug
 (`/plugin configure <plugin>` — see above), and no `apply` is offered, because the only thing it
 could write is the `pluginConfigs` this contract forbids.
 
+Bare `apply` converges to the configured state and never removes; genuine teardown — converging to
+the *absence* of the plugin's own tracked project config — is the one thing `apply` will not do
+unasked. A plugin that genuinely needs it exposes it as an optional apply-scoped operation (an
+`apply remove`, under the same never-blind, preserve-unrelated discipline), bounded to the tracked
+project config the plugin owns and never to `pluginConfigs` — whose reconfigure-or-clear path stays
+the `/plugin configure` flow the check-only carve-out above routes to. Teardown stays off the
+mandatory contract because it is destructive and, across the fleet today, unexercised — grounds to
+defer it with a trigger, not proof it is never needed: a second plugin needing teardown graduates a
+shared teardown shape into an owner doc before that second adopter — a step the fleet conformance
+audit checks, the same enforcement every convention-registry row rides. The distinction is config versus
+data: removing the plugin's own tracked setup config is teardown, whereas an apply-scoped operation
+that mutates a managed inventory the plugin maintains (a status change over existing entries, say)
+is ordinary `apply` surface, not teardown, and does not trip that trigger.
+
 Two native idioms are the sanctioned initialization surfaces (verified 2026-07-17 against the
 [hooks reference](https://code.claude.com/docs/en/hooks) and
 [plugins reference](https://code.claude.com/docs/en/plugins-reference)): the `Setup` hook event
 (`--init-only`, or `--init`/`--maintenance` in `-p` mode) for headless and CI preparation, and a
 `SessionStart` hook comparing a bundled manifest against its `${CLAUDE_PLUGIN_DATA}` copy for
 runtime-dependency installation.
+
+These native idioms complement the `setup` skill; they do not compete with it, and native-first is
+honored either way. The skill is the interactive, discoverable consumer-configuration face
+(check/apply over tracked project config) — a need no native hook exposes, so the skill is not a
+redundant custom mechanism. The `Setup` hook event and `SessionStart` install hook are the
+unattended faces the same plugin may also carry, and unattended init routes to them rather than a
+custom channel. Where both exist they converge to one idempotent state. The `setup` skill fulfills
+the `setup`-skill requirement above; the headless dimension may be complemented — never replaced —
+by these native idioms.
 
 ## Prerequisites and failure behavior
 
@@ -292,17 +338,21 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Lifecycle artifact protocol | [`docs/PLUGIN-ARTIFACT-PROTOCOL.md`](PLUGIN-ARTIFACT-PROTOCOL.md) |
 | Shared hook utility library | `lib/hook-utils.sh`, synced by `scripts/sync-hook-utils.sh` |
 | Cross-plugin shared-source clusters | `scripts/cross-plugin-source-registry.txt` |
-| Consumer-config layering and precedence | [`docs/conventions/consumer-config-layering/`](conventions/consumer-config-layering/README.md) |
+| Config cascade — consumer-config layering and precedence | [`docs/conventions/config-cascade/`](conventions/config-cascade/README.md) |
 | Commit-convention enforcement seam | [`docs/conventions/commit-convention/`](conventions/commit-convention/README.md) |
+| PR-body required-sections convention | [`docs/conventions/pr-body-convention/`](conventions/pr-body-convention/README.md) |
 | Ecosystem command resolution | [`docs/conventions/ecosystem-commands/`](conventions/ecosystem-commands/README.md) |
 | Hook telemetry | [`docs/conventions/hook-telemetry/`](conventions/hook-telemetry/README.md) |
 | Hook observability (status/failure surfaces) | [`docs/conventions/hook-observability/`](conventions/hook-observability/README.md) |
 | Hook precision (false-positive discipline) | [`docs/conventions/hook-precision/`](conventions/hook-precision/README.md) |
+| Hook config delivery (userConfig→hook channel matrix) | [`docs/conventions/hook-config-delivery/`](conventions/hook-config-delivery/README.md) |
 | Permission-rule hygiene | [`docs/conventions/permission-rule-hygiene/`](conventions/permission-rule-hygiene/README.md) |
 | Repository standards index | [`docs/conventions/standards/`](conventions/standards/README.md) |
 | Skill layout contract and evals schema | `skill-quality` plugin (contract gate + bundled schema) |
 | Review severity vocabulary | `review` plugin (`context/severity.md`) |
 | Seam phrasing (presence-gated fallbacks) | [`docs/conventions/seam-phrasing/`](conventions/seam-phrasing/README.md) |
+| Loop-lane topology, escalation, capability tiers, loop invariants | [`docs/conventions/loop-lane/`](conventions/loop-lane/README.md) |
+| Shell test-helper duplication and exit-code divergence | [`docs/conventions/shell-test-helpers/`](conventions/shell-test-helpers/README.md) |
 
 ## Cross-platform contract
 

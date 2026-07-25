@@ -90,6 +90,70 @@ run "last inline alias value wins (blocked)" \
 run "last inline alias value wins (allowed when the last is harmless)" \
   "git -c alias.c=commit -c alias.c=status c -m x" 0
 
+# --- --config-env aliases are refused by SHAPE -------------------------------
+# `--config-env=<key>=<envvar>` holds the alias expansion in an env var this guard never
+# reads (its origin — an ambient var, an inline/`env` prefix, an `export`, `set -a`, or a
+# nested `bash -c` in any wrapper — is the recurring fail-open surface). An env-defined
+# alias for the INVOKED subcommand is refused by shape; a commit smuggled through it can
+# never be verified. The extra-env below is ignored by the guard.
+run "config-env alias for the invoked sub (blocked by shape)" "git --config-env=alias.c=AV c" 2
+run "config-env alias, two-word --config-env form (blocked)" "git --config-env alias.c=AV c" 2
+run "config-env alias, benign-looking value STILL blocked (value never read)" "git --config-env=alias.st=AV st" 2 AV=status
+run "config-env alias, case-folded key (blocked)" "git --config-env=alias.C=AV c" 2
+run "config-env alias, non-identifier env name (blocked)" "git --config-env=alias.c=bad-name c" 2
+run "config-env alias, leading-dash env name (blocked)" "env -- '-CV=x' git --config-env=alias.c=-CV c" 2
+run "config-env value last-wins over an inline decoy (blocked)" "git -c alias.c=log --config-env=alias.c=AV c" 2
+
+# Refused wherever it APPEARS, through any wrapper — no env propagation is tracked, so
+# every prior env-carrying bypass is closed by construction.
+run "config-env alias inside an inline '!' shell alias (blocked)" "git -c \"alias.sh=!git --config-env=alias.c=AV c --allow-empty -m x\" sh" 2
+# An inline alias whose expansion is itself a `--config-env` alias for the invoked sub
+# runs at recursion depth 2, where the SHAPE refusal must still fire (real git commits).
+run "wrapping inline alias expands to a --config-env alias (depth-2 shape refusal, blocked)" \
+  "git -c alias.c='--config-env=alias.foo=AV foo' c" 2 AV=commit
+run "config-env alias inside an env-prefixed bash -c (blocked)" "AV=commit bash -c 'git --config-env=alias.c=AV c -m x'" 2
+run "config-env alias after export in a shell-alias body (blocked)" "git -c \"alias.sh=!export AV=commit; git --config-env=alias.c=AV c --allow-empty -m x\" sh" 2
+run "config-env alias after 'then export' in a compound command (blocked)" "git -c 'alias.sh=!if true; then export AV=commit; fi; git --config-env=alias.c=AV c --allow-empty -m x' sh" 2
+run "config-env alias after an assignment-prefixed export (blocked)" "git -c 'alias.sh=!AV=commit export AV; git --config-env=alias.c=AV c --allow-empty -m x' sh" 2
+run "config-env alias after 'set -a; NAME=val' allexport (blocked)" "set -a; AV=commit; git --config-env=alias.c=AV c -m x" 2
+run "config-env alias, env name colliding with an internal global (blocked)" "git --config-env=alias.c=HOOK_ENV_SNAPSHOT_OK c" 2 "HOOK_ENV_SNAPSHOT_OK=commit"
+
+# ACCEPTANCE — decidable safe WITHOUT reading a value, so still allowed:
+run "--config-env setting a NON-alias key, canonical commit (allowed)" "git --config-env=user.name=NAMEVAR commit -F -" 0
+run "--config-env alias for a subcommand that is NOT invoked (allowed)" "git --config-env=alias.foo=AV status" 0
+run "inline value last-wins over an earlier --config-env for the same key (allowed)" "git --config-env=alias.c=AV -c alias.c=log c" 0
+# A `$( )` env name is command-substituted by the shell before git and split by the
+# static parser — neither evaluates it, so no exec and (git-fatal) no commit runs.
+rm -f "$TEST_TMPDIR/pwned-nc"
+run "injection-shaped config-env env name (allowed — never evaluated)" \
+  "git --config-env=alias.c=\$(touch $TEST_TMPDIR/pwned-nc) c" 0
+assert_file_absent "config-env injection: no exec for a shell-metachar env name" "$TEST_TMPDIR/pwned-nc"
+
+# --- case-insensitive alias resolution (git folds config names) --------------
+run "inline alias, uppercase subcommand (blocked)" "git -c alias.c=commit C -m x" 2
+run "inline alias, uppercase alias key (blocked)" "git -c alias.C=commit c -m x" 2
+run "inline alias, uppercase both, to canonical form (allowed)" "git -c alias.C=commit C -F -" 0
+
+# --- `alias.<sub>.command` subkey is an alias definition too ------------------
+# git reads the `alias.<sub>.command` subkey as the alias (`git -c alias.c.command=commit
+# c -m x` commits non-canonically); the guard classifies that spelling inline and by shape.
+run "inline .command-subkey alias to commit -m (blocked)" "git -c alias.c.command=commit c -m bypass" 2
+run "config-env .command-subkey alias for the invoked sub (blocked by shape)" "git --config-env=alias.c.command=AV c" 2
+run ".command-subkey alias, case-folded key (blocked)" "git -c alias.C.command=commit c -m x" 2
+# A non-`command` alias subkey is not an alias to git, so it must not be blocked.
+run "non-command alias subkey is not an alias (allowed)" "git -c alias.c.nope=commit c -m bypass" 0
+# MAX-DANGER UNION: which spelling git runs when both are set is version-dependent, so a
+# benign value in one spelling must never mask a commit alias in the other — the guard
+# blocks if EITHER spelling commits non-canonically, and allows only when BOTH are benign.
+run "commit plain masked by a benign .command (blocked by union)" "git -c alias.c=commit -c alias.c.command=status c -m x" 2
+run "commit .command masked by a benign plain (blocked by union)" "git -c alias.c=status -c alias.c.command=commit c -m x" 2
+run "commit plain, benign .command decoy first (blocked by union)" "git -c alias.c.command=status -c alias.c=commit c -m x" 2
+run "both spellings benign non-commit (allowed)" "git -c alias.c=status -c alias.c.command=log c" 0
+# Union on the --config-env shape path: an env spelling refuses even when the sibling
+# inline spelling is benign (both command-line orders).
+run "env plain spelling refuses despite a benign inline .command (blocked)" "git --config-env=alias.c=AV -c alias.c.command=status c" 2
+run "env .command spelling refuses despite a benign inline plain (blocked)" "git --config-env=alias.c.command=AV -c alias.c=status c" 2
+
 # --- other subcommands are untouched -----------------------------------------
 run "git log (allowed)" "git log --oneline -5" 0
 run "git push (allowed)" "git push origin main" 0
@@ -212,6 +276,33 @@ fi
 out=$(bash "$HOOK" <<<"$(command_json "git commit -m 'feat: x'")" 2>&1)
 assert_contains "block message names -F -" "$out" '-F -'
 assert_contains "block message names the skill" "$out" '/commit'
+
+# --- PowerShell tool coverage ------------------------------------------------
+# The canonical PowerShell commit form (a here-string piped to `git commit -F -`)
+# must be allowed exactly as the Bash `-F -` form is; a `-m` PowerShell commit
+# must be blocked; commit-shaped PowerShell the guard cannot parse fails closed.
+run_pwsh() {
+  local label="$1" command="$2" expected="$3" rc
+  bash "$HOOK" <<<"$(pwsh_command_json "$command")" >/dev/null 2>&1
+  rc=$?
+  assert_exit "$label" "$expected" "$rc"
+}
+run_pwsh "PS: canonical here-string | git commit -F - (allowed)" \
+  "$(printf '%s\n%s\n%s' "@'" "feat: x" "'@ | git commit -F -")" 0
+run_pwsh "PS: git commit -m here-string (blocked — not the stdin form)" \
+  "$(printf '%s\n%s\n%s' "git commit -m @'" "feat: x" "'@")" 2
+run_pwsh "PS: git commit -m literal (blocked)" "git commit -m 'feat: x'" 2
+run_pwsh "PS: git commit --amend (allowed — exempt)" "git commit --amend" 0
+run_pwsh "PS: git status (allowed — not a commit)" "git status" 0
+run_pwsh "PS: backtick-continued commit (fail-closed block)" \
+  "$(printf 'git commit -m x `\n --cleanup=verbatim')" 2
+run_pwsh "PS: unbalanced here-string hiding a -m commit (fail-closed block)" \
+  "$(printf '%s\n%s\n%s' "@'" "body" "'X ; git commit -m sneaky")" 2
+
+# The PowerShell block message shows the here-string form, not a Bash heredoc.
+psout=$(bash "$HOOK" <<<"$(pwsh_command_json "git commit -m 'x'")" 2>&1)
+assert_contains "PS block message shows the here-string form" "$psout" "'@ | git commit -F -"
+assert_absent "PS block message omits the Bash heredoc" "$psout" "<<'EOF'"
 
 echo
 echo "passed: $PASS   failed: $FAIL"

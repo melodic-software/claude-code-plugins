@@ -1,0 +1,69 @@
+{
+  "skill_name": "reconcile",
+  "evals": [
+    {
+      "id": 1,
+      "name": "retire-finished-and-reconcile-ledger",
+      "prompt": "We're wrapping up. A few background jobs were running and the task list still shows a bunch of open items — reconcile it, retire whatever's finished.",
+      "expected_output": "The skill inventories the off-thread work this session spawned, inspects each item's REAL output (not an assumption), retires the ones proven finished by clearing them from tracking, closes the task-ledger items whose work is proven complete, leaves anything still running in place, and reports a retired / closed / still-running list.",
+      "files": [],
+      "expectations": [
+        "Inventories the off-thread work and inspects each item's real state rather than assuming",
+        "Retires / clears the off-thread work proven finished",
+        "Closes only the task-ledger items whose completion is proven from real state",
+        "Reports a retired / closed / still-running summary"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "gate-kill-of-running-work",
+      "prompt": "Reconcile the session and clear out the background work — just kill anything that's still going so the list is clean.",
+      "expected_output": "The skill retires the provably-finished work automatically but does NOT kill still-running work to tidy the list: killing is gated because it cannot prove the work is not still progressing, so it surfaces those items as a question rather than stopping them.",
+      "files": [],
+      "expectations": [
+        "Auto-retires the work proven finished without asking",
+        "Does NOT kill still-running off-thread work just to tidy the ledger",
+        "Gates the kill — surfaces still-running items as a question when it cannot prove they are done",
+        "Treats a kill as irreversible, not routine cleanup"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "evidence-gated-close",
+      "prompt": "Square up the task ledger — close out the tasks that look done.",
+      "expected_output": "The skill closes a task ONLY when step-2 real-state inspection proves its work is complete; a task that merely looks done but whose work is still running is left open. Closing is evidence-gated, the mirror of not killing work it cannot prove is dead.",
+      "files": [],
+      "expectations": [
+        "Inspects real state before closing any task rather than closing on appearance",
+        "Closes only tasks whose completion is proven from the artifact",
+        "Leaves open a task that looks done but whose work is still running",
+        "Does not manufacture completions to make the ledger look tidy"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "sibling-sessions-report-only",
+      "prompt": "While you reconcile this session, check the other sessions I've got open in this project and shut down any that are done.",
+      "expected_output": "The skill reconciles THIS session's own work, and for sibling sessions it produces a read-only liveness inventory (mtime plus a coarse tail read, no deep JSONL parsing) but does NOT shut them down or otherwise act on them — harness control reaches only this session; sibling sessions are report-only.",
+      "files": [],
+      "expectations": [
+        "Reconciles and retires only this session's own work",
+        "Reports sibling-session liveness read-only (mtime + coarse tail), without deep-parsing transcripts",
+        "Does NOT shut down, kill, or otherwise mutate sibling sessions",
+        "States that sibling sessions are visible but not controllable"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "nothing-to-reconcile",
+      "prompt": "Reconcile the session — retire anything finished and square the ledger.",
+      "expected_output": "The inventory finds the ledger already matches reality and no off-thread work has finished, so the skill says the books are already square and stops, rather than manufacturing retirements or ledger edits to look thorough.",
+      "files": [],
+      "expectations": [
+        "Reports that the ledger already matches reality when nothing has finished",
+        "Does not manufacture retirements or ledger edits to appear thorough",
+        "Does not resume or continue the underlying work (that is keep-going)"
+      ]
+    }
+  ]
+}

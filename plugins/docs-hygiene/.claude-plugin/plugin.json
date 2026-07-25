@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "docs-hygiene",
-  "version": "0.8.4",
+  "version": "0.8.6",
   "description": "Documentation-hygiene toolkit of six skills: compress (flavor-trim markdown with a semantic-diff safety net), audit-noise (classify markdown noise), extract-ssot (deduplicate repeated content into a single source of truth), audit-encapsulation (detect citations into skill-private surfaces), rename-references (sweep stale references after renames), and audit-derivability (classify whether a whole document earns its existence — could a fresh agent re-derive it from the code?).",
   "author": {
     "name": "Melodic Software",

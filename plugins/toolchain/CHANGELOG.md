@@ -3,6 +3,19 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.0]
+
+### Added
+
+- **`lychee-offline` added to the `cross-cutting` ecosystem default.** The bundled
+  `reference/ecosystems/cross-cutting.yaml` `check-cmd` now runs `lychee --offline --no-progress
+  './**/*.md'` alongside `typos`/`gitleaks`/editorconfig-checker — on-disk link/anchor integrity,
+  network-free (`--offline` skips external URLs; only local file and fragment targets are verified).
+  Opt-in follows the same per-tool-config pattern as the existing cross-cutting tools: an optional
+  `lychee.toml` at repo root customizes the ruleset (exclusions, fragment-check mode), absent means
+  lychee's own defaults. `install-hint` gains the `lycheeverse.lychee` winget package / `lychee`
+  brew formula. Per epic #830 ("lint/static-analysis gap closure"), sub-issue #833.
+
 ## [0.8.0]
 
 ### Added

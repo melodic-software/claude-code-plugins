@@ -1,6 +1,8 @@
 # Status Workflow (read-only)
 
 Report the effective auto-memory posture for the current repo. Change nothing.
+For `status all` (machine-wide), do Steps 1–3 for the current project as usual, then add
+the machine-wide table in Step 3b.
 
 ## Step 1: Read the snapshot
 
@@ -39,6 +41,25 @@ you cannot inspect it, don't assume it is empty.
   Expand `~/` and report the real path, plus whether `MEMORY.md` and topic files exist there.
 - **Store contents.** Report the `MEMORY.md` line count and topic-file count at the effective
   directory (re-list if the effective dir differs from the default).
+
+## Step 3b (only for `status all`): Machine-wide store table
+
+Enumerate every per-project store on this machine:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/skills/stateless/scripts/enumerate-all-projects.sh"
+```
+
+One line per `<config root>/projects/*/memory` dir with MEMORY.md line count and topic-file
+count. Present it as a table (project slug, path, lines, topics). Two caveats to state:
+
+- The enabled/disabled state resolved in Step 3 is machine-wide only for user-scope settings
+  and the OS env var — a per-repo `.claude/settings(.local).json` can override it for that
+  repo, and this enumeration does not visit repos, so report the machine-wide state as
+  "user-scope default; per-repo overrides not scanned" unless the user asks to grep specific
+  repos.
+- A project whose `autoMemoryDirectory` was relocated outside the config root will not appear
+  here; the override is only discoverable from that project's own settings scopes.
 
 ## Step 4: Report
 

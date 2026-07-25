@@ -152,7 +152,29 @@ note() {
 }
 
 if [[ ! -d "$SKILL_DIR" ]]; then
-  err "Skill not found: $SKILL_DIR"
+  # A `plugin:skill` argument is a common miss: the operator wants to gate a
+  # marketplace-INSTALLED skill, but this checker resolves a bare skill name
+  # under one skills root — it deliberately does NOT reverse-engineer Claude
+  # Code's plugin-cache layout to find it. The cache path
+  # (`~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/skills`) is an
+  # internal detail: only the cache's existence is documented, the
+  # `<mp>/<plugin>/<version>` nesting is not, and the version dir changes on
+  # every update (code.claude.com/docs/en/plugins-reference). Point the root at
+  # it explicitly instead. Note the cache is a COPY, not a git checkout, so the
+  # git-backed checks (3 trigger-preservation, 8 vendor, 9 stale-metadata)
+  # correctly no-op there — a "new skill / skipped" result is expected, not a
+  # defect (this is why check 3 cannot compare an installed skill against HEAD).
+  if [[ "$SKILL_NAME" == *:* ]]; then
+    # %q makes the leaf a paste-safe shell token — a malformed name whose leaf
+    # carries shell syntax must not become an executable substitution when the
+    # operator copies the suggested command.
+    q_leaf=$(printf '%q' "${SKILL_NAME##*:}")
+    err "Skill not found: '$SKILL_NAME'. This looks like a plugin:skill name — the checker resolves a bare skill name under one skills root, not Claude Code's internal plugin-cache layout. To gate a marketplace-installed skill, point the root at its installed skills dir:
+    CHECK_SKILL_SKILLS_ROOT=~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/skills bash \"\${CLAUDE_PLUGIN_ROOT}/scripts/check-skill.sh\" $q_leaf
+  The cache is a copy, not a git checkout, so the git-backed checks (3/8/9) no-op there (a 'new skill / skipped' result is expected)."
+  else
+    err "Skill not found: $SKILL_DIR. Set CHECK_SKILL_SKILLS_ROOT (or skill-quality's skills_root) to the directory that CONTAINS '$SKILL_NAME' as a subdirectory."
+  fi
   exit 1
 fi
 if [[ ! -f "$SKILL_MD" ]]; then

@@ -41,6 +41,32 @@ run "cat file (allowed)" "cat README.md" 0
 run "python3 -c json parse (allowed)" \
   "python3 -c \"import json; print(json.loads('{}'))\"" 0
 
+# --- python-write false-positive regression ---------------------------------
+# read-only os.path.*path( helpers end in `path(` and must NOT trip the write
+# indicator; the boundary-anchored `path(` clears them while a real
+# pathlib.Path().write_text still blocks below.
+run "python3 -c os.path.normpath (allowed)" \
+  "python3 -c \"import os; print(os.path.normpath('a/b'))\"" 0
+run "python3 -c os.path.abspath (allowed)" \
+  "python3 -c \"import os; print(os.path.abspath('a'))\"" 0
+run "python3 -c os.path.realpath+relpath (allowed)" \
+  "python3 -c \"import os,sys; print(os.path.realpath(sys.argv[1]), os.path.relpath(sys.argv[1]))\"" 0
+run "python3 -c os.path.commonpath (allowed)" \
+  "python3 -c \"import os; print(os.path.commonpath(['a/b','a/c']))\"" 0
+run "python3 -c os.path.join producer (allowed)" \
+  "python3 -c \"import os; print(os.path.join('a','b'))\"" 0
+run "python3 -c pathlib write_text (blocked)" \
+  "python3 -c \"import pathlib; pathlib.Path('x').write_text('a')\"" 2
+# Path-qualified interpreter: an absolute/relative path to python3 is the same
+# write, so the command-word anchor admits a leading path (and a `.exe` suffix).
+run "abs-path python3 -c open write (blocked)" \
+  "/usr/bin/python3 -c \"open('x','w').write('a')\"" 2
+run "path-qualified python3.exe -c open write (blocked)" \
+  "/c/Python313/python3.exe -c \"open('x','w').write('a')\"" 2
+# The basename anchor must NOT match a longer name that merely ends in python3.
+run "notpython3 -c open (allowed)" \
+  "notpython3 -c \"open('x','w').write('a')\"" 0
+
 # --- Redirect false-positive regression -------------------------------------
 # stderr/fd redirects + /dev/null discards are NOT file-write bypasses, even
 # when an `echo` appears in the same compound command.
@@ -384,5 +410,199 @@ if wait_for_sink "$TEL"; then
 else
   bad "telemetry: no envelope written on block"
 fi
+
+# --- PowerShell tool coverage ------------------------------------------------
+# The guard is matched on Bash|PowerShell. PowerShell file-write forms that
+# bypass the Write/Edit gate are blocked; content-producer scoping is preserved
+# (a tool's own output redirect is allowed, matching the Bash producer scope).
+run_pwsh() {
+  local label="$1" command="$2" expected="$3" rc
+  bash "$HOOK" <<<"$(pwsh_command_json "$command")" >/dev/null 2>&1
+  rc=$?
+  assert_exit "$label" "$expected" "$rc"
+}
+run_pwsh "PS: Set-Content (blocked)" "Set-Content -Path f.txt -Value 'x'" 2
+run_pwsh "PS: Add-Content (blocked)" "Add-Content f.txt 'x'" 2
+run_pwsh "PS: Out-File (blocked)" "'secret' | Out-File creds.txt" 2
+run_pwsh "PS: Tee-Object (blocked)" "'x' | Tee-Object f.txt" 2
+run_pwsh "PS: string > file (blocked)" "'content' > file.txt" 2
+run_pwsh "PS: echo > file (blocked)" "echo hi > out.txt" 2
+run_pwsh "PS: tool output > file (allowed — producer is the tool)" "git diff > out.txt" 0
+run_pwsh "PS: redirect to \$null (allowed — discard)" "git log > \$null" 0
+run_pwsh "PS: Set-Content mentioned in quoted arg (allowed)" "echo 'run Set-Content later'" 0
+run_pwsh "PS: plain git status (allowed)" "git status" 0
+# Alias + backtick-obfuscation regressions (independent security review).
+bt='`'
+run_pwsh "PS: ac alias (Add-Content, blocked)" "ac -Path f.txt -Value x" 2
+run_pwsh "PS: tee alias (Tee-Object, blocked)" "x | tee -FilePath out.txt" 2
+run_pwsh "PS: backtick-escaped Set\`-Content (blocked)" "Set${bt}-Content f.txt x" 2
+# `sc` is sc.exe in PowerShell 7 (service controller), NOT Set-Content — allowed.
+run_pwsh "PS: sc is sc.exe not Set-Content (allowed)" "sc query" 0
+# Expanded write surface (independent security review, round 2).
+run_pwsh "PS: iex opaque run (blocked)" "iex 'Set-Content f.txt x'" 2
+run_pwsh "PS: New-Item -Value (blocked)" "New-Item -Path f -ItemType File -Value 'data'" 2
+run_pwsh "PS: New-Item -ItemType Directory, no -Value (allowed)" "New-Item -Path d -ItemType Directory" 0
+run_pwsh "PS: Export-Csv (blocked)" "\$d | Export-Csv f.csv" 2
+run_pwsh "PS: Export-Clixml (blocked)" "\$d | Export-Clixml f.xml" 2
+run_pwsh "PS: [IO.File]::WriteAllText (blocked)" "[IO.File]::WriteAllText('f','x')" 2
+run_pwsh "PS: StreamWriter (blocked)" "(New-Object IO.StreamWriter 'f').Write('x')" 2
+run_pwsh "PS: variable redirected to file (blocked)" "\$x > f.txt" 2
+# Write-cmdlet alias parity (round 3 review): ni (New-Item), epcsv (Export-Csv).
+run_pwsh "PS: ni -Value alias (blocked)" "ni -Path f -ItemType File -Value 'data'" 2
+run_pwsh "PS: epcsv alias (Export-Csv, blocked)" "\$d | epcsv f.csv" 2
+# `sc` is Set-Content in Windows PowerShell 5.1; matched only in its Set-Content
+# form (a -Value/-Path parameter). sc.exe (PS 7) service calls stay allowed.
+run_pwsh "PS: sc -Path -Value (5.1 Set-Content form, blocked)" "sc -Path f.txt -Value 'x'" 2
+run_pwsh "PS: sc query (sc.exe service, allowed)" "sc query" 0
+run_pwsh "PS: sc start service (sc.exe, allowed)" "sc start W32Time" 0
+# Review round 4: producer-alias, module-qualified, grouped-producer, and
+# quoted-writer-call parity.
+run_pwsh "PS: write alias (Write-Output) > file (blocked)" "write secret > creds.txt" 2
+run_pwsh "PS: module-qualified Set-Content (blocked)" \
+  "Microsoft.PowerShell.Management\\Set-Content -Path f.txt -Value x" 2
+run_pwsh "PS: parenthesized literal > file (blocked)" "('secret') > creds.txt" 2
+run_pwsh "PS: parenthesized Write-Output > file (blocked)" "(Write-Output secret) > creds.txt" 2
+run_pwsh "PS: parenthesized tool output > file (allowed — producer is the tool)" \
+  "(git diff) > out.txt" 0
+run_pwsh "PS: & 'Set-Content' quoted writer call (blocked)" \
+  "& 'Set-Content' -Path f.txt -Value x" 2
+run_pwsh "PS: & 'Invoke-Expression' quoted (blocked)" \
+  "& 'Invoke-Expression' 'Set-Content f x'" 2
+run_pwsh "PS: & quoted non-writer program path (allowed)" \
+  "& 'C:\\tools\\build.exe' arg" 0
+# Review round 5: expression-valued producers and computed call targets.
+run_pwsh "PS: numeric expression > file (blocked)" "36 > out.txt" 2
+run_pwsh "PS: cast expression > file (blocked)" "[char]65 > out.txt" 2
+run_pwsh "PS: & computed writer name (fail-closed block)" \
+  "& ('Set-'+'Content') -Path f.txt -Value x" 2
+run_pwsh "PS: spaced numeric is a value write, tool redirect still allowed" \
+  "git diff 2> err.txt" 0
+# Review round 6: non-success stream producers and separator-adjacent calls.
+run_pwsh "PS: Write-Error 2> file (blocked)" "Write-Error secret 2> creds.txt" 2
+run_pwsh "PS: Write-Warning 3> file (blocked)" "Write-Warning secret 3> creds.txt" 2
+run_pwsh "PS: semicolon-adjacent & 'Set-Content' (blocked)" \
+  "Write-Host ok;& 'Set-Content' -Path f.txt -Value x" 2
+run_pwsh "PS: quoted '@' not a here-string opener (write line not swallowed)" \
+  "$(printf "Write-Output '@'\nSet-Content -Path f.txt -Value x\n'@'")" 2
+
+# Review round 7: fd-dup merge redirects are plumbing, not producers; invoked
+# script blocks are unwrapped like parenthesized producers.
+run_pwsh "PS: tool capture with 2>&1 > file (allowed)" "git status 2>&1 > out.txt" 0
+run_pwsh "PS: Get-ChildItem 2>&1 > file (allowed)" "Get-ChildItem 2>&1 > out.txt" 0
+run_pwsh "PS: echo with 2>&1 > file (still a producer, blocked)" "echo x 2>&1 > f.txt" 2
+run_pwsh "PS: & { Write-Output secret } > file (blocked)" \
+  "& { Write-Output secret } > creds.txt" 2
+run_pwsh "PS: & { git diff } > file (tool producer, allowed)" \
+  "& { git diff } > out.txt" 0
+
+# Interpreter-producer writes under the PowerShell tool: PowerShell is not
+# faithfully bash-tokenizable, so this lane follows the SINK DOCTRINE — block on
+# the mangle-resistant co-occurrence of a raw write indicator (_py_write) AND a
+# python3 token + `-c` inline-code flag (ps::might_write_via_python3), rather than a
+# precise `python3 -c` scan that review rounds defeated. `-c` is REQUIRED so script
+# and module runs stay allowed; MENTIONS over-block (the accepted fail-closed cost).
+run_pwsh "PS: python3 -c open write (blocked)" \
+  "python3 -c \"open('x','w').write('a')\"" 2
+run_pwsh "PS: python3 -c pathlib write_text (blocked)" \
+  "python3 -c \"import pathlib; pathlib.Path('x').write_text('a')\"" 2
+# No write indicator (read-only os.path.normpath) — allowed even with python3 -c.
+run_pwsh "PS: python3 -c read-only os.path.normpath (allowed)" \
+  "python3 -c \"import os; print(os.path.normpath('a/b'))\"" 0
+# `-c` REQUIRED: a script run / module run that merely touches an `open(`-like path
+# is NOT an inline-code write — stays allowed (spares legitimate python3 invocations).
+run_pwsh "PS: python3 script run, open( in an arg, no -c (allowed)" \
+  "python3 build.py --path \"open('x','w')\"" 0
+run_pwsh "PS: python3 -m module run, open( in an arg, no -c (allowed)" \
+  "python3 -m mytool \"open('x','w')\"" 0
+# here-string mention stays inert (blanked before the probe, like the git lane).
+run_pwsh "PS: here-string mentions python3 -c open (allowed)" \
+  "$(printf "@'\npython3 -c open(\n'@\nWrite-Output ok")" 0
+# ACCEPTED OVER-BLOCK (fail-closed): a MENTION of python3 … -c + a write indicator in
+# prose, a line comment, or a quoted string now blocks — the guard cannot prove a
+# non-tokenizable PowerShell command is a mere mention.
+run_pwsh "PS: prose mention of python3 -c open now over-blocks (blocked)" \
+  "Write-Output 'run python3 -c open() later'" 2
+run_pwsh "PS: line-comment mention of python3 -c open now over-blocks (blocked)" \
+  "Write-Output ok # python3 -c open(" 2
+run_pwsh "PS: quoted &{python3 -c open( string now over-blocks (blocked)" \
+  "Write-Output '&{python3 -c open(}'" 2
+# Quoted / path-qualified / brace-glued / backtick-obfuscated python3 with -c: all
+# caught by the token+`-c` probe (quote-intact, backtick-recovered).
+run_pwsh "PS: & 'python3' -c open write (blocked)" \
+  "& 'python3' -c \"open('x','w').write('a')\"" 2
+run_pwsh "PS: & \"python3\" -c open write (blocked)" \
+  "& \"python3\" -c \"open('x','w').write('a')\"" 2
+run_pwsh "PS: backtick-continuation python3 -c open (blocked)" \
+  "$(printf 'python3 `\n-c "open('"'"'x'"'"','"'"'w'"'"').write('"'"'a'"'"')"')" 2
+run_pwsh "PS: & 'C:\\...\\python3.exe' -c open write (blocked)" \
+  "& 'C:\\Python313\\python3.exe' -c \"open('x','w').write('a')\"" 2
+run_pwsh "PS: bare C:\\...\\python3.exe -c open write (blocked)" \
+  "C:\\Python313\\python3.exe -c \"open('x','w').write('a')\"" 2
+run_pwsh "PS: compact &{python3 -c} open write (blocked)" \
+  "&{python3 -c \"open('x','w').write('a')\"}" 2
+run_pwsh "PS: spaced & {python3 -c} open write (blocked)" \
+  "& {python3 -c \"open('x','w').write('a')\"}" 2
+run_pwsh "PS: &{'python3' -c} quoted-in-block open write (blocked)" \
+  "&{'python3' -c \"open('x','w').write('a')\"}" 2
+# Block comment as decoy + real invocation after it: token+`-c` still fires.
+run_pwsh "PS: block-comment decoy then python3 -c open write (blocked)" \
+  "$(printf '<# note #> python3 -c "open('"'"'x'"'"','"'"'w'"'"').write('"'"'a'"'"')"')" 2
+# Arg-splitting: `-c` hidden in -ArgumentList is still a `-c` token (quote-bounded).
+run_pwsh "PS: Start-Process python3 -ArgumentList '-c',open (blocked)" \
+  "Start-Process python3 -ArgumentList '-c','open(\"x\",\"w\").write(\"a\")'" 2
+# Computed `-c`: PowerShell evaluates expression-valued arguments before launching,
+# so `('-'+'c')` builds the flag with no literal `-c` token. A python3 write whose
+# args carry a non-tokenizable subexpression construct (`(…)`, via
+# ps::has_special_constructs on the quote-blanked text) cannot be ruled out — fail
+# closed (sink doctrine), the same construct class the git lane refuses to parse.
+run_pwsh "PS: python3 ('-'+'c') computed flag open write (blocked)" \
+  "python3 ('-'+'c') \"open('x','w').write('a')\"" 2
+run_pwsh "PS: Start-Process -ArgumentList ('-'+'c') computed (blocked)" \
+  "Start-Process python3 -ArgumentList ('-'+'c'),'open(\"x\",\"w\").write(\"a\")'" 2
+# Computed launcher TARGET: `Start-Process -FilePath ('py'+'thon3')` hides the
+# interpreter name itself, so the literal python3-token test cannot see it. A
+# launcher with a computed program arg could be python3 — fail closed (mirrors
+# might_invoke_git). A LITERAL non-python launcher target stays allowed.
+run_pwsh "PS: Start-Process -FilePath ('py'+'thon3') computed target (blocked)" \
+  "Start-Process -FilePath ('py'+'thon3') -ArgumentList '-c','open(\"x\",\"w\").write(\"a\")'" 2
+# Colon-bound parameter binding (`-FilePath:$p`) is the same computed target as the
+# whitespace-separated form — both must fail closed.
+run_pwsh "PS: Start-Process -FilePath:\$p colon-bound computed target (blocked)" \
+  "\$p = 'py'+'thon3'; Start-Process -FilePath:\$p -ArgumentList '-c','open(\"x\",\"w\").write(\"a\")'" 2
+# Options before the computed target: any launcher + an unquoted computed construct
+# fails closed regardless of how many options precede -FilePath.
+run_pwsh "PS: Start-Process -NoNewWindow -FilePath \$exe computed target (blocked)" \
+  "\$exe = 'py'+'thon3'; Start-Process -NoNewWindow -FilePath \$exe -ArgumentList '-c','open(\"x\",\"w\").write(\"a\")'" 2
+run_pwsh "PS: Start-Process notepad (literal non-python launcher, allowed)" \
+  "Start-Process notepad -ArgumentList '-c','open(\"x\",\"w\")'" 0
+# `-c` concatenated with a variable/subexpression: PowerShell joins the adjacent
+# expansion into one `-c<source>` arg, so `python3 -c$code` has no whitespace/quote
+# after `-c`. Fail closed. A longer literal flag (`-config`) is NOT `-c` + code.
+run_pwsh "PS: python3 -c\$code concatenated computed flag (blocked)" \
+  "\$code = 'import pathlib; pathlib.Path(\"x\").write_text(\"a\")'; python3 -c\$code" 2
+run_pwsh "PS: python3 -config longer flag, pathlib in arg (allowed)" \
+  "python3 -config \"pathlib.Path\"" 0
+# A non-python quoted program with a write indicator stays ALLOWED — no python3
+# token, so the co-occurrence probe does not fire (write_bypass allows quoted progs).
+run_pwsh "PS: & 'C:\\...\\app.exe' with open mention (allowed)" \
+  "& 'C:\\Program Files\\app.exe' -c \"print open(\"" 0
+# Call operator with a DOUBLE-QUOTED interpolated target resolves a computed
+# interpreter — fail closed. A SINGLE-quoted target does not interpolate (literal
+# name), so it stays allowed via write_bypass's arbitrary-quoted-program residual.
+run_pwsh "PS: & \"\$env:PYTHON_BIN\" -c interpolated target (blocked)" \
+  "& \"\$env:PYTHON_BIN\" -c \"open('x','w').write('a')\"" 2
+run_pwsh "PS: & '\$x' single-quoted literal target (allowed)" \
+  "& '\$x' -c \"print open(\"" 0
+
+# Review round 8: module-qualified producer heads.
+run_pwsh "PS: module-qualified Write-Output > file (blocked)" \
+  "Microsoft.PowerShell.Utility\\Write-Output secret > f.txt" 2
+run_pwsh "PS: module-qualified Write-Error 2> file (blocked)" \
+  "Microsoft.PowerShell.Utility\\Write-Error secret 2> f.txt" 2
+
+# The block message is shell-agnostic (no 'Bash' assumption).
+psout=$(bash "$HOOK" <<<"$(pwsh_command_json "Set-Content f.txt 'x'")" 2>&1)
+assert_contains "PS write block names Write/Edit" "$psout" "Write or Edit tool"
+assert_absent "PS write block message is shell-agnostic" "$psout" "Bash file-write"
 
 report

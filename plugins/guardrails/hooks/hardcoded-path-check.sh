@@ -72,17 +72,30 @@ NORM_FILE="${FILE//\\//}"
 # --- Scope guard: police only files inside THIS project ---
 # A PreToolUse Write|Edit hook fires on every file write regardless of which
 # repo the target lives in. A file outside the project root is not ours to scan
-# — that repo owns its own path policy. Fail OPEN: when CLAUDE_PROJECT_DIR is
-# unset, fall through and scan rather than skip.
-if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
-  _scope_file="$(hook::normalize_path "$FILE")"
-  _scope_project="$(hook::normalize_path "${CLAUDE_PROJECT_DIR}")"
-  _scope_project="${_scope_project%/}"
-  case "$_scope_file" in
-  "$_scope_project"/*) ;; # inside the project — proceed
-  *) exit 0 ;;            # outside the project — not this hook's concern
-  esac
-fi
+# — that repo owns its own path policy. No active project (CLAUDE_PROJECT_DIR
+# unset) → skip entirely: the target is machine-local (a $HOME dotfile, not a
+# portable repo artifact this guard protects), and the gitignore escape hatch
+# below needs a project root, so scanning here would leave no per-file
+# exemption short of the global kill switch. Deliberately different from
+# secret-pattern-detection, which scans even without a resolvable root —
+# secrets are dangerous anywhere; hardcoded paths only harm portable artifacts.
+[[ -n "${CLAUDE_PROJECT_DIR:-}" ]] || exit 0
+# Same rationale when the project dir resolves but is NOT a git working tree
+# (Claude Code sets CLAUDE_PROJECT_DIR for any directory — a home-directory
+# session is the common case): the target is not a portable repo artifact, and
+# every per-file exemption rung below is unreachable there — the .claude
+# carve-outs don't cover machine-local plugin config, and git check-ignore
+# errors outside a work tree — leaving only the global kill switch. A bare
+# repo also skips (no working tree means no tracked portable artifacts to
+# protect at this path).
+[[ "$(git -C "$CLAUDE_PROJECT_DIR" rev-parse --is-inside-work-tree 2>/dev/null)" == "true" ]] || exit 0
+_scope_file="$(hook::normalize_path "$FILE")"
+_scope_project="$(hook::normalize_path "${CLAUDE_PROJECT_DIR}")"
+_scope_project="${_scope_project%/}"
+case "$_scope_file" in
+"$_scope_project"/*) ;; # inside the project — proceed
+*) exit 0 ;;            # outside the project — not this hook's concern
+esac
 
 # Skip files that legitimately contain path patterns (regex strings). These
 # cannot rely on the gitignore check below because they are tracked.
@@ -100,8 +113,9 @@ esac
 # Skip gitignored files — designated for machine-specific state (settings.local.json,
 # CLAUDE.local.md, .venv/, node_modules/, etc.). git check-ignore does not require
 # the file to exist on disk, so this works for new Write operations too.
-if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]] &&
-  git -C "$CLAUDE_PROJECT_DIR" check-ignore -q "$FILE" 2>/dev/null; then
+# CLAUDE_PROJECT_DIR is guaranteed non-empty here — the scope guard above
+# exited on the no-project case.
+if git -C "$CLAUDE_PROJECT_DIR" check-ignore -q "$FILE" 2>/dev/null; then
   exit 0
 fi
 
@@ -118,14 +132,8 @@ esac
 # Resolve current repo root for the machine-specific-path check. Comments are
 # NOT exempt — examples and "do not use" comments still ship as hardcoded paths
 # in fresh clones, get copy-pasted, and rot. Use placeholders in comments too.
-PROJECT_ROOT=""
-if [[ -n "${CLAUDE_PROJECT_DIR:-}" ]]; then
-  PROJECT_ROOT=$CLAUDE_PROJECT_DIR
-elif PROJECT_ROOT=$(git -C "$(dirname "$FILE")" rev-parse --show-toplevel 2>/dev/null); then
-  :
-else
-  PROJECT_ROOT=""
-fi
+# The scope guard above guarantees CLAUDE_PROJECT_DIR is set.
+PROJECT_ROOT=$CLAUDE_PROJECT_DIR
 
 # hpp::scan_text's repo-path branch matches PROJECT_ROOT as a
 # literal substring and is never OS-suppressed. That is a valid machine-specific
@@ -151,7 +159,7 @@ if [[ -n "$PROJECT_ROOT" ]]; then
     _tl_norm="${_tl_norm%/}"
     _home_norm="$(hook::normalize_path "${HOME:-${USERPROFILE:-}}")"
     _home_norm="${_home_norm%/}"
-    if [[ -n "$_home_norm" && ( "$_tl_norm" == "$_home_norm" || "$_home_norm" == "$_tl_norm"/* ) ]]; then
+    if [[ -n "$_home_norm" && ("$_tl_norm" == "$_home_norm" || "$_home_norm" == "$_tl_norm"/*) ]]; then
       SCAN_ROOT="" # enclosing checkout is home or an ancestor of home — suppress the branch
     else
       SCAN_ROOT="$PROJECT_ROOT"

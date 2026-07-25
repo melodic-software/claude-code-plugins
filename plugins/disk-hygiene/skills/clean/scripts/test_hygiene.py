@@ -7,12 +7,13 @@ import importlib.util
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
 import types
 import unittest
-from contextlib import redirect_stdout
+from contextlib import chdir as chdir_context, redirect_stdout
 from pathlib import Path
 from unittest import mock
 
@@ -162,6 +163,115 @@ class HygieneTests(unittest.TestCase):
         self.assertIn("d:/system volume information", roots)
         self.assertIn("d:/$recycle.bin", roots)
 
+    def test_os_drive_markers_exclude_per_volume_metadata(self) -> None:
+        markers = {
+            str(path).replace("\\", "/").casefold()
+            for path in hygiene.os_drive_markers(
+                platform_key="windows", windows_roots=[Path("C:/"), Path("D:/")]
+            )
+        }
+        # OS-install markers stay; the per-volume metadata every Windows volume
+        # carries — a provisioned non-OS Dev Drive included — must NOT count as
+        # an OS-drive signal, or every drive root would classify OS-managed.
+        self.assertIn("d:/windows", markers)
+        self.assertIn("d:/programdata", markers)
+        self.assertNotIn("d:/system volume information", markers)
+        self.assertNotIn("d:/$recycle.bin", markers)
+
+    def test_os_managed_target_flags_drive_holding_os_install(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            drive = Path(temporary) / "drive"
+            (drive / "Windows").mkdir(parents=True)
+            self.assertTrue(
+                hygiene.is_os_managed_target(
+                    drive, roots=[], markers=[drive / "Windows"]
+                )
+            )
+
+    def test_os_managed_target_ignores_per_volume_metadata_only(self) -> None:
+        # The Dev Drive case: a volume root whose only system-looking folders
+        # are the per-volume metadata every volume carries is NOT OS-managed —
+        # the synthesized OS-install marker does not exist on it.
+        with tempfile.TemporaryDirectory() as temporary:
+            drive = Path(temporary) / "dev-drive"
+            (drive / "System Volume Information").mkdir(parents=True)
+            (drive / "$Recycle.Bin").mkdir()
+            self.assertFalse(
+                hygiene.is_os_managed_target(
+                    drive,
+                    roots=[],
+                    markers=[drive / name for name in ("Windows", "ProgramData")],
+                )
+            )
+
+    def test_os_managed_target_flags_path_within_a_system_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "sysroot"
+            inside = root / "sub"
+            inside.mkdir(parents=True)
+            self.assertTrue(
+                hygiene.is_os_managed_target(inside, roots=[root], markers=[])
+            )
+
+    def test_hard_protection_names_the_target_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / "target"
+            target.mkdir()
+            self.assertIn(
+                "target-root", hygiene.hard_protection(target, target, set())
+            )
+
+    def test_hard_protection_reasons_about_volume_root_purpose(self) -> None:
+        # The cited hard_protection branch is now reasoned, not structural: a
+        # volume-root path is flagged os-managed only when reasoned OS-managed.
+        # No live call path reaches it with a root-shaped entry, so exercise it
+        # directly to lock the intent.
+        path, target = Path("X:/"), Path("Y:/")
+        with (
+            mock.patch.object(hygiene, "is_volume_root", return_value=True),
+            mock.patch.object(hygiene, "is_os_managed_target", return_value=True),
+        ):
+            self.assertIn(
+                "os-managed-root", hygiene.hard_protection(path, target, set())
+            )
+        with (
+            mock.patch.object(hygiene, "is_volume_root", return_value=True),
+            mock.patch.object(hygiene, "is_os_managed_target", return_value=False),
+        ):
+            self.assertNotIn(
+                "os-managed-root", hygiene.hard_protection(path, target, set())
+            )
+
+    def test_hard_protection_exempts_admitted_volume_root_from_mount_reason(
+        self,
+    ) -> None:
+        # Regression: a descendant of an admitted non-OS volume-root target must
+        # not inherit target-is-mount-point from the ancestor walk reaching the
+        # (mounted) volume root — that blanket-protected every entry and defeated
+        # the admitted scan. A nested mount below the target stays blocked.
+        target, child, nested = Path("X:/"), Path("X:/scratch"), Path("X:/mnt")
+        with (
+            mock.patch.object(
+                hygiene, "is_volume_root", side_effect=lambda p: p == target
+            ),
+            mock.patch.object(hygiene, "is_linkish", return_value=False),
+        ):
+            with mock.patch.object(
+                hygiene, "mount_state", side_effect=lambda p, *a: (p == target, None)
+            ):
+                child_reasons = hygiene.hard_protection(child, target, set())
+            self.assertNotIn("target-is-mount-point", child_reasons)
+            self.assertNotIn("nested-mount-point", child_reasons)
+
+            with mock.patch.object(
+                hygiene,
+                "mount_state",
+                side_effect=lambda p, *a: (p in {target, nested}, None),
+            ):
+                nested_reasons = hygiene.hard_protection(nested, target, set())
+            self.assertIn("nested-mount-point", nested_reasons)
+            self.assertNotIn("target-is-mount-point", nested_reasons)
+
     @unittest.skipUnless(
         hygiene.os_key() == "linux", "real mountinfo is available only on Linux"
     )
@@ -304,6 +414,179 @@ class HygieneTests(unittest.TestCase):
             self.assertEqual(2, code)
             self.assertIn("protected shell-folder", output.getvalue())
             self.assertFalse((data_root / "snapshot.json").exists())
+
+    def _scan_target(
+        self,
+        target: Path,
+        data_root: Path,
+        patches: list[object],
+        extra_args: list[str] | None = None,
+    ) -> tuple[int, dict[str, object]]:
+        output = io.StringIO()
+        with (
+            mock.patch.dict(
+                "os.environ", {"CLAUDE_PLUGIN_DATA": str(data_root)}, clear=False
+            ),
+            redirect_stdout(output),
+        ):
+            for patch in patches:
+                self.enterContext(patch)
+            code = hygiene.main(
+                [
+                    "scan",
+                    "--target",
+                    str(target),
+                    "--output",
+                    str(data_root / "snapshot.json"),
+                    *(extra_args or []),
+                ]
+            )
+        return code, json.loads(output.getvalue())
+
+    def _non_os_volume_root_patches(self) -> list[object]:
+        # A drive-letter root is always os.path.ismount True; it holds no
+        # OS-managed content (a Windows Dev Drive), so it is a valid non-OS
+        # volume root rather than a rejected OS root.
+        return [
+            mock.patch.object(hygiene, "is_volume_root", return_value=True),
+            mock.patch.object(hygiene, "is_os_managed_target", return_value=False),
+            mock.patch.object(hygiene, "mount_state", return_value=(True, None)),
+        ]
+
+    def test_non_os_volume_root_without_bound_requires_large_confirmation(self) -> None:
+        # A non-OS volume root is no longer blanket-rejected, but an unbounded
+        # whole-volume walk is gated the same way a home target is (#985's
+        # large-target gate) rather than silently proceeding.
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "dev-drive"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            (target / "scratch.tmp").write_text("x", encoding="utf-8")
+            data_root.mkdir()
+            code, payload = self._scan_target(
+                target, data_root, self._non_os_volume_root_patches()
+            )
+            self.assertEqual(5, code)
+            self.assertEqual("large-target-confirmation-required", payload["status"])
+            self.assertIn("non-os-volume-root", payload["large_target_reasons"])
+            self.assertFalse((data_root / "snapshot.json").exists())
+
+    def test_non_os_volume_root_with_confirmed_flag_scans(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "dev-drive"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            (target / "scratch.tmp").write_text("x", encoding="utf-8")
+            data_root.mkdir()
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                self._non_os_volume_root_patches(),
+                extra_args=["--confirmed-large-scan"],
+            )
+            self.assertEqual(0, code)
+            self.assertEqual("scan-complete", payload["status"])
+            self.assertTrue((data_root / "snapshot.json").exists())
+
+    def test_large_scan_reasons_flags_non_os_volume_root(self) -> None:
+        with (
+            mock.patch.object(hygiene, "is_volume_root", return_value=True),
+            mock.patch.object(hygiene, "is_os_managed_target", return_value=False),
+        ):
+            self.assertEqual(
+                ["non-os-volume-root"], hygiene.large_scan_reasons(Path("X:/"))
+            )
+        # An OS-managed volume root never reaches the gate (denied upstream), and
+        # even called directly it is not named a large target here.
+        with (
+            mock.patch.object(hygiene, "is_volume_root", return_value=True),
+            mock.patch.object(hygiene, "is_os_managed_target", return_value=True),
+        ):
+            self.assertEqual([], hygiene.large_scan_reasons(Path("X:/")))
+
+    def test_scan_denies_os_managed_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "os-root"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            data_root.mkdir()
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                [mock.patch.object(hygiene, "is_os_managed_target", return_value=True)],
+            )
+            self.assertEqual(2, code)
+            self.assertIn("OS-managed roots", payload["error"])
+            self.assertFalse((data_root / "snapshot.json").exists())
+
+    def test_scan_rejects_non_root_mount_point(self) -> None:
+        # A mount point that is not a volume root (a nested or bind mount as the
+        # target) stays hard-blocked — the real cross-boundary danger, unchanged.
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "mounted"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            data_root.mkdir()
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                [
+                    mock.patch.object(
+                        hygiene, "is_os_managed_target", return_value=False
+                    ),
+                    mock.patch.object(hygiene, "is_volume_root", return_value=False),
+                    mock.patch.object(
+                        hygiene, "mount_state", return_value=(True, None)
+                    ),
+                ],
+            )
+            self.assertEqual(2, code)
+            self.assertIn("mount points are not valid audit targets", payload["error"])
+            self.assertFalse((data_root / "snapshot.json").exists())
+
+    def test_preview_denies_os_managed_root_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "orphan.tmp").write_text("x", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            plan = {
+                "version": 1,
+                "tier": "high",
+                "candidates": [candidate("orphan.tmp")],
+            }
+            with mock.patch.object(hygiene, "is_os_managed_target", return_value=True):
+                with self.assertRaisesRegex(hygiene.HygieneError, "OS-managed root"):
+                    hygiene.preview(snapshot, plan)
+
+    def test_preview_allows_non_os_volume_root_snapshot(self) -> None:
+        # Symmetry with scan: a non-OS volume-root snapshot reaches candidate
+        # evaluation instead of a target-level root/mount veto (the confirmation
+        # gate lived at scan; preview must not re-reject the same root).
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "orphan.tmp").write_text("x", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            plan = {
+                "version": 1,
+                "tier": "high",
+                "candidates": [candidate("orphan.tmp")],
+            }
+            with (
+                mock.patch.object(hygiene, "is_volume_root", return_value=True),
+                mock.patch.object(hygiene, "is_os_managed_target", return_value=False),
+                mock.patch.object(hygiene, "mount_state", return_value=(True, None)),
+            ):
+                result = hygiene.preview(snapshot, plan)
+            self.assertEqual("high", result["tier"])
+            self.assertEqual(
+                ["orphan.tmp"], [item["path"] for item in result["candidates"]]
+            )
 
     @unittest.skipUnless(
         shutil.which("git"), "git is required for the VCS regression fixture"
@@ -880,6 +1163,184 @@ class HygieneTests(unittest.TestCase):
             self.assertIn("--max-depth", payload["error"])
             self.assertIn("os_autoclean", payload)
 
+    def _home_target_fixture(self) -> tuple[Path, Path, Path]:
+        """A directory tree standing in for the user home target."""
+        base = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, base, ignore_errors=True)
+        root = base / "home"
+        root.mkdir()
+        (root / "loose.tmp").write_text("x", encoding="utf-8")
+        (root / "nested").mkdir()
+        (root / "nested" / "leaf.txt").write_text("y", encoding="utf-8")
+        data_root = base / "plugin-data"
+        data_root.mkdir()
+        return root, data_root, data_root / "run" / "snapshot.json"
+
+    def _run_home_scan(
+        self, extra_args: list[str]
+    ) -> tuple[int, dict[str, object], Path]:
+        root, data_root, output = self._home_target_fixture()
+        stdout_io = io.StringIO()
+        with (
+            mock.patch.object(hygiene.Path, "home", return_value=root.resolve()),
+            redirect_stdout(stdout_io),
+        ):
+            code = hygiene.main(
+                [
+                    "scan",
+                    "--target",
+                    str(root),
+                    "--output",
+                    str(output),
+                    "--data-root",
+                    str(data_root),
+                    *extra_args,
+                ]
+            )
+        return code, json.loads(stdout_io.getvalue()), output
+
+    def test_home_target_without_bound_requires_confirmation_and_never_walks(
+        self,
+    ) -> None:
+        root, data_root, output = self._home_target_fixture()
+        stdout_io = io.StringIO()
+        with (
+            mock.patch.object(hygiene.Path, "home", return_value=root.resolve()),
+            refuse_call("scan_tree"),
+            redirect_stdout(stdout_io),
+        ):
+            code = hygiene.main(
+                [
+                    "scan",
+                    "--target",
+                    str(root),
+                    "--output",
+                    str(output),
+                    "--data-root",
+                    str(data_root),
+                ]
+            )
+        payload = json.loads(stdout_io.getvalue())
+        self.assertEqual(5, code)
+        self.assertEqual("large-target-confirmation-required", payload["status"])
+        self.assertEqual(["user-home"], payload["large_target_reasons"])
+        self.assertEqual(2, payload["immediate_entries"])
+        self.assertIn("os_autoclean", payload)
+        self.assertFalse(output.exists())
+
+    def test_home_target_with_max_depth_proceeds(self) -> None:
+        code, payload, output = self._run_home_scan(["--max-depth", "1"])
+        self.assertEqual(0, code)
+        self.assertEqual("scan-complete", payload["status"])
+        self.assertTrue(output.exists())
+
+    def test_home_target_with_confirmed_flag_proceeds(self) -> None:
+        code, payload, output = self._run_home_scan(["--confirmed-large-scan"])
+        self.assertEqual(0, code)
+        self.assertEqual("scan-complete", payload["status"])
+        self.assertTrue(output.exists())
+
+    def test_ordinary_subdirectory_is_not_gated(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            root = base / "target"
+            root.mkdir()
+            (root / "junk.tmp").write_text("x", encoding="utf-8")
+            home = base / "home"
+            home.mkdir()
+            data_root = base / "plugin-data"
+            data_root.mkdir()
+            output = data_root / "run" / "snapshot.json"
+            stdout_io = io.StringIO()
+            with (
+                # Home is a different real directory, so identity does not match.
+                mock.patch.object(hygiene.Path, "home", return_value=home.resolve()),
+                redirect_stdout(stdout_io),
+            ):
+                code = hygiene.main(
+                    [
+                        "scan",
+                        "--target",
+                        str(root),
+                        "--output",
+                        str(output),
+                        "--data-root",
+                        str(data_root),
+                    ]
+                )
+            payload = json.loads(stdout_io.getvalue())
+            self.assertEqual(0, code)
+            self.assertEqual("scan-complete", payload["status"])
+
+    def test_home_match_is_by_filesystem_identity_not_case_folded_string(
+        self,
+    ) -> None:
+        # A case-variant spelling resolves to the same directory on a
+        # case-insensitive macOS volume, but os.path.normcase folds case only on
+        # Windows — a string compare would let it bypass the gate. The match is
+        # by filesystem identity, simulated here (CI is case-sensitive Linux) by
+        # having samefile report the two distinct spellings as one file.
+        target = Path("/users/alice")
+        home = Path("/Users/alice")
+        self.assertNotEqual(os.fspath(target), os.fspath(home))
+        with (
+            mock.patch.object(hygiene, "user_home", return_value=home),
+            mock.patch("os.path.samefile", return_value=True) as samefile,
+        ):
+            reasons = hygiene.large_scan_reasons(target)
+        self.assertEqual(["user-home"], reasons)
+        samefile.assert_called_once_with(target, home)
+
+    def test_home_match_treats_unstattable_home_as_no_match(self) -> None:
+        # samefile raises when a path is missing; a home that cannot be stat'd
+        # must be no match, never a crash.
+        with (
+            mock.patch.object(
+                hygiene, "user_home", return_value=Path("/home/missing")
+            ),
+            mock.patch("os.path.samefile", side_effect=FileNotFoundError),
+        ):
+            self.assertEqual([], hygiene.large_scan_reasons(Path("/home/target")))
+
+
+class VersionFloorTests(unittest.TestCase):
+    """The Python floor has one origin: hygiene.MIN_PYTHON."""
+
+    def test_min_python_line_keeps_its_greppable_shape(self) -> None:
+        # setup check and the .test.sh wrappers derive the floor by parsing
+        # this exact line shape out of hygiene.py.
+        source = (SCRIPT_DIR / "hygiene.py").read_text(encoding="utf-8")
+        matches = re.findall(
+            r"^MIN_PYTHON = \((\d+), (\d+)\)$", source, flags=re.MULTILINE
+        )
+        self.assertEqual(1, len(matches))
+        self.assertEqual(tuple(map(int, matches[0])), hygiene.MIN_PYTHON)
+
+    def test_engine_enforces_the_constant_and_names_it_in_the_error(self) -> None:
+        below = (hygiene.MIN_PYTHON[0], hygiene.MIN_PYTHON[1] - 1, 0)
+        with (
+            mock.patch.object(hygiene.sys, "version_info", below),
+            redirect_stdout(io.StringIO()),
+        ):
+            code = hygiene.main(
+                ["scan", "--target", "irrelevant", "--output", "irrelevant"]
+            )
+        self.assertNotEqual(0, code)
+
+    def test_error_message_derives_from_the_constant(self) -> None:
+        floor = ".".join(str(part) for part in hygiene.MIN_PYTHON)
+        below = (hygiene.MIN_PYTHON[0], hygiene.MIN_PYTHON[1] - 1, 0)
+        stdout = io.StringIO()
+        with (
+            mock.patch.object(hygiene.sys, "version_info", below),
+            redirect_stdout(stdout),
+        ):
+            hygiene.main(
+                ["scan", "--target", "irrelevant", "--output", "irrelevant"]
+            )
+        payload = json.loads(stdout.getvalue())
+        self.assertIn(floor, payload["error"])
+
 
 class StandingPolicyTests(unittest.TestCase):
     @staticmethod
@@ -1053,36 +1514,766 @@ class OsAutocleanAdvisoryTests(unittest.TestCase):
         self.assertEqual(expected, advisory["mechanism"])
 
 
+class LeastObservableEnginePathTests(unittest.TestCase):
+    """Direct coverage for the engine paths a consumer can least verify live (F8).
+
+    Each test mocks the OS surface (Win32 handle probe, lsof, the registry,
+    /proc/self/mountinfo encoding, VCS markers) so both CI lanes exercise the
+    same branch regardless of host platform.
+    """
+
+    @staticmethod
+    def fake_windows_ctypes(create_result: int, error_code: int = 0):
+        dll = types.SimpleNamespace(
+            CreateFileW=mock.Mock(return_value=create_result),
+            CloseHandle=mock.Mock(),
+        )
+        fake = types.SimpleNamespace(
+            WinDLL=mock.Mock(return_value=dll),
+            c_wchar_p=object(),
+            c_uint32=object(),
+            c_void_p=lambda value=None: types.SimpleNamespace(value=value),
+            get_last_error=mock.Mock(return_value=error_code),
+        )
+        return fake, dll
+
+    def windows_handle_probe(
+        self, probe: Path, create_result: int, error_code: int = 0
+    ):
+        fake, dll = self.fake_windows_ctypes(create_result, error_code)
+        with mock.patch.object(hygiene, "ctypes", fake):
+            return hygiene.windows_handle_state(probe), dll
+
+    def test_windows_handle_sharing_violation_codes_map_to_open(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            probe = Path(temporary) / "probe.tmp"
+            probe.write_text("busy", encoding="utf-8")
+            for code in (32, 33):  # ERROR_SHARING_VIOLATION / ERROR_LOCK_VIOLATION
+                state, dll = self.windows_handle_probe(probe, -1, code)
+                self.assertEqual(("open", f"win32-error-{code}"), state)
+                dll.CloseHandle.assert_not_called()
+
+    def test_windows_handle_access_denied_codes_map_to_needs_elevation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            probe = Path(temporary) / "probe.tmp"
+            probe.write_text("guarded", encoding="utf-8")
+            for code in (5, 1314):  # ERROR_ACCESS_DENIED / ERROR_PRIVILEGE_NOT_HELD
+                state, _ = self.windows_handle_probe(probe, -1, code)
+                self.assertEqual(("needs_elevation", f"win32-error-{code}"), state)
+
+    def test_windows_handle_unknown_error_fails_closed_as_unverified(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            probe = Path(temporary) / "probe.tmp"
+            probe.write_text("gone", encoding="utf-8")
+            state, _ = self.windows_handle_probe(probe, -1, 2)
+            self.assertEqual(("unverified", "win32-error-2"), state)
+
+    def test_windows_handle_success_reports_clear_and_closes_handle(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            probe = Path(temporary) / "probe.tmp"
+            probe.write_text("idle", encoding="utf-8")
+            state, dll = self.windows_handle_probe(probe, 42)
+            self.assertEqual(("clear", None), state)
+            dll.CloseHandle.assert_called_once()
+
+    def test_windows_handle_directory_probe_uses_backup_semantics(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary) / "held-dir"
+            directory.mkdir()
+            probe = directory / "probe.tmp"
+            probe.write_text("file", encoding="utf-8")
+            _, directory_dll = self.windows_handle_probe(directory, 42)
+            _, file_dll = self.windows_handle_probe(probe, 42)
+        directory_flags = directory_dll.CreateFileW.call_args.args[5]
+        file_flags = file_dll.CreateFileW.call_args.args[5]
+        self.assertEqual(0x02000000, directory_flags)  # FILE_FLAG_BACKUP_SEMANTICS
+        self.assertEqual(0x00000080, file_flags)  # FILE_ATTRIBUTE_NORMAL
+
+    @staticmethod
+    def lsof_result(returncode: int, stdout: str = "", stderr: str = ""):
+        return types.SimpleNamespace(
+            returncode=returncode, stdout=stdout, stderr=stderr
+        )
+
+    def posix_handle_probe(self, path: Path, result=None, side_effect=None):
+        captured: dict[str, list[str]] = {}
+
+        def fake_run(command, **kwargs):
+            captured["command"] = command
+            if side_effect is not None:
+                raise side_effect
+            return result
+
+        with (
+            mock.patch.object(hygiene.shutil, "which", return_value="/usr/bin/lsof"),
+            mock.patch.object(hygiene.subprocess, "run", side_effect=fake_run),
+        ):
+            return hygiene.posix_handle_state(path), captured
+
+    def test_posix_handle_without_lsof_fails_closed(self) -> None:
+        with mock.patch.object(hygiene.shutil, "which", return_value=None):
+            self.assertEqual(
+                ("unverified", "lsof-not-found"),
+                hygiene.posix_handle_state(Path("/anywhere")),
+            )
+
+    def test_posix_handle_open_file_reported_by_lsof(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            probe = Path(temporary) / "probe.tmp"
+            probe.write_text("busy", encoding="utf-8")
+            state, captured = self.posix_handle_probe(
+                probe, self.lsof_result(0, stdout=f"n{probe}\n")
+            )
+        self.assertEqual(("open", "lsof-reported-open-file"), state)
+        self.assertEqual(["--", str(probe)], captured["command"][-2:])
+
+    def test_posix_handle_directory_probe_walks_descendants(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary) / "held-dir"
+            directory.mkdir()
+            state, captured = self.posix_handle_probe(
+                directory, self.lsof_result(1)
+            )
+        self.assertEqual(("clear", None), state)
+        self.assertEqual(["+D", str(directory)], captured["command"][-2:])
+
+    def test_posix_handle_clear_when_lsof_finds_nothing(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            probe = Path(temporary) / "probe.tmp"
+            probe.write_text("idle", encoding="utf-8")
+            state, _ = self.posix_handle_probe(probe, self.lsof_result(1))
+        self.assertEqual(("clear", None), state)
+
+    def test_posix_handle_diagnostics_fail_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            probe = Path(temporary) / "probe.tmp"
+            probe.write_text("busy", encoding="utf-8")
+            state, _ = self.posix_handle_probe(
+                probe,
+                self.lsof_result(
+                    0, stdout=f"n{probe}\n", stderr="lsof: WARNING: unreadable dir"
+                ),
+            )
+        self.assertEqual("unverified", state[0])
+        self.assertTrue(state[1] and state[1].startswith("lsof-diagnostic:"))
+
+    def test_posix_handle_unexpected_exit_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            probe = Path(temporary) / "probe.tmp"
+            probe.write_text("odd", encoding="utf-8")
+            state, _ = self.posix_handle_probe(probe, self.lsof_result(3))
+        self.assertEqual(("unverified", "lsof-exit-3"), state)
+
+    def test_posix_handle_timeout_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            probe = Path(temporary) / "probe.tmp"
+            probe.write_text("slow", encoding="utf-8")
+            state, _ = self.posix_handle_probe(
+                probe, side_effect=subprocess.TimeoutExpired("lsof", 20)
+            )
+        self.assertEqual(("unverified", "lsof-timeout"), state)
+
+    @staticmethod
+    def fake_winreg(values=None, open_error=None):
+        class FakeKey:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc_info):
+                return False
+
+        def open_key(root, key_path):
+            if open_error is not None:
+                raise open_error
+            return FakeKey()
+
+        def query_value_ex(key, name):
+            if values is not None and name in values:
+                return values[name], 4  # REG_DWORD
+            raise OSError(2, "value not found")
+
+        # `import winreg` returns whatever object sys.modules holds; a plain
+        # namespace stands in for the real module on every platform.
+        return types.SimpleNamespace(
+            HKEY_CURRENT_USER=object(),
+            OpenKey=open_key,
+            QueryValueEx=query_value_ex,
+        )
+
+    def test_storage_sense_reads_policy_values(self) -> None:
+        fake = self.fake_winreg({"01": 1, "04": 1, "2048": 7})
+        with mock.patch.dict("sys.modules", {"winreg": fake}):
+            state = hygiene.windows_storage_sense_state()
+        self.assertEqual(
+            {"enabled": True, "temporary_files_cleanup": True, "cadence_days": 7},
+            state,
+        )
+
+    def test_storage_sense_zero_values_read_as_disabled(self) -> None:
+        fake = self.fake_winreg({"01": 0, "04": 0, "2048": 0})
+        with mock.patch.dict("sys.modules", {"winreg": fake}):
+            state = hygiene.windows_storage_sense_state()
+        self.assertEqual(
+            {"enabled": False, "temporary_files_cleanup": False, "cadence_days": 0},
+            state,
+        )
+
+    def test_storage_sense_missing_values_stay_unknown(self) -> None:
+        fake = self.fake_winreg({})
+        with mock.patch.dict("sys.modules", {"winreg": fake}):
+            state = hygiene.windows_storage_sense_state()
+        self.assertEqual(
+            {"enabled": None, "temporary_files_cleanup": None, "cadence_days": None},
+            state,
+        )
+
+    def test_storage_sense_missing_key_reports_unknown_state(self) -> None:
+        fake = self.fake_winreg(open_error=OSError(2, "key not found"))
+        with mock.patch.dict("sys.modules", {"winreg": fake}):
+            state = hygiene.windows_storage_sense_state()
+        self.assertEqual(
+            {"enabled": None, "temporary_files_cleanup": None, "cadence_days": None},
+            state,
+        )
+
+    def test_mountinfo_decoder_decodes_octal_escapes(self) -> None:
+        self.assertEqual(
+            "/mnt/data disk", hygiene._decode_mountinfo_path("/mnt/data\\040disk")
+        )
+        self.assertEqual("/mnt/a\tb", hygiene._decode_mountinfo_path("/mnt/a\\011b"))
+        self.assertEqual(
+            "/mnt/back\\slash", hygiene._decode_mountinfo_path("/mnt/back\\134slash")
+        )
+        self.assertEqual(
+            "/mnt/two  spaces",
+            hygiene._decode_mountinfo_path("/mnt/two\\040\\040spaces"),
+        )
+
+    def test_mountinfo_decoder_leaves_non_octal_sequences_verbatim(self) -> None:
+        self.assertEqual("/plain/path", hygiene._decode_mountinfo_path("/plain/path"))
+        # "8" is not an octal digit, so the sequence is not an escape.
+        self.assertEqual("/mnt/x\\81a", hygiene._decode_mountinfo_path("/mnt/x\\81a"))
+        # Truncated escape at end of string stays verbatim.
+        self.assertEqual("/mnt/x\\04", hygiene._decode_mountinfo_path("/mnt/x\\04"))
+
+    def test_nested_non_git_vcs_marker_is_flagged_and_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = (Path(temporary) / "target").resolve()
+            nested = target / "vendored"
+            (nested / ".hg").mkdir(parents=True)
+            repositories, errors = hygiene.discover_current_repositories(
+                target, target
+            )
+            self.assertIn(nested, repositories)
+            self.assertIn(
+                f"{nested}: non-Git VCS state is not independently verified", errors
+            )
+            self.assertEqual(
+                "vcs-state-unverified", hygiene.tracked_blocker(target, target)
+            )
+
+    def test_enclosing_non_git_vcs_marker_is_flagged(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = (Path(temporary) / "checkout").resolve()
+            inner = root / "inner"
+            (root / ".svn").mkdir(parents=True)
+            inner.mkdir()
+            _, errors = hygiene.discover_current_repositories(root, inner)
+            self.assertIn(
+                f"{root}: non-Git VCS state is not independently verified", errors
+            )
+
+    def test_casefolded_non_git_marker_is_still_flagged(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            target = (Path(temporary) / "target").resolve()
+            nested = target / "vendored"
+            (nested / ".SVN").mkdir(parents=True)
+            repositories, errors = hygiene.discover_current_repositories(
+                target, target
+            )
+            self.assertIn(nested, repositories)
+            self.assertIn(
+                f"{nested}: non-Git VCS state is not independently verified", errors
+            )
+
+
+class HandoffVerifyTests(unittest.TestCase):
+    """handoff-verify: read-only manual-lane revalidation (#1109)."""
+
+    def setUp(self) -> None:
+        patcher = mock.patch.object(hygiene, "standing_policy_paths", return_value=[])
+        self.addCleanup(patcher.stop)
+        patcher.start()
+
+    @staticmethod
+    def clear_probe_mocks():
+        return (
+            mock.patch.object(hygiene, "handle_state", return_value=("clear", None)),
+            mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+        )
+
+    def test_clear_verdict_is_read_only_and_ignores_platform_blockers(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            junk = root / "junk.tmp"
+            junk.write_text("stale", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            handle, vcs = self.clear_probe_mocks()
+            with handle, vcs:
+                result = hygiene.handoff_verify(snapshot, ["junk.tmp"])
+            self.assertEqual("handoff-verify-complete", result["status"])
+            self.assertEqual(1, result["clear"])
+            self.assertEqual(0, result["not_clear"])
+            verdict = result["verdicts"][0]
+            self.assertEqual(
+                {"path": "junk.tmp", "verdict": "clear", "reasons": []}, verdict
+            )
+            # Read-only: the path survives, and the platform execution gate
+            # (which blocks apply on Windows/macOS) must not appear here.
+            self.assertTrue(junk.exists())
+            self.assertNotIn("execution-platform-unsupported", verdict["reasons"])
+
+    def test_gone_verdict_for_removed_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            junk = root / "junk.tmp"
+            junk.write_text("stale", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            junk.unlink()
+            handle, vcs = self.clear_probe_mocks()
+            with handle, vcs:
+                result = hygiene.handoff_verify(snapshot, ["junk.tmp"])
+            self.assertEqual(
+                {"path": "junk.tmp", "verdict": "gone", "reasons": ["no-longer-present"]},
+                result["verdicts"][0],
+            )
+            self.assertEqual(1, result["not_clear"])
+
+    def test_drifted_verdict_for_changed_since_approval_content(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            junk = root / "junk.tmp"
+            junk.write_text("stale", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            junk.write_text("rewritten after approval", encoding="utf-8")
+            handle, vcs = self.clear_probe_mocks()
+            with handle, vcs:
+                result = hygiene.handoff_verify(snapshot, ["junk.tmp"])
+            verdict = result["verdicts"][0]
+            self.assertEqual("drifted", verdict["verdict"])
+            self.assertIn("changed-since-scan", verdict["reasons"])
+
+    def test_drifted_verdict_for_new_descendant(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            stale = root / "stale-cache"
+            stale.mkdir(parents=True)
+            (stale / "old.tmp").write_text("old", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            (stale / "arrived-later.txt").write_text("new", encoding="utf-8")
+            handle, vcs = self.clear_probe_mocks()
+            with handle, vcs:
+                result = hygiene.handoff_verify(snapshot, ["stale-cache"])
+            verdict = result["verdicts"][0]
+            self.assertEqual("drifted", verdict["verdict"])
+            self.assertIn("changed-since-scan", verdict["reasons"])
+
+    def test_contested_verdict_for_live_handle(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "busy.tmp").write_text("held", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            with (
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("open", "win32-error-32")
+                ),
+                mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+            ):
+                result = hygiene.handoff_verify(snapshot, ["busy.tmp"])
+            verdict = result["verdicts"][0]
+            self.assertEqual("contested", verdict["verdict"])
+            # candidate_handle_state prefixes the relative path on Windows.
+            reason = next(
+                value
+                for value in verdict["reasons"]
+                if value.startswith("live-handle")
+            )
+            self.assertIn("win32-error-32", reason)
+
+    def test_contested_verdict_for_vcs_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "tracked.tmp").write_text("tracked", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            with (
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("clear", None)
+                ),
+                mock.patch.object(
+                    hygiene, "tracked_blocker", return_value="vcs-tracked-content"
+                ),
+            ):
+                result = hygiene.handoff_verify(snapshot, ["tracked.tmp"])
+            verdict = result["verdicts"][0]
+            self.assertEqual("contested", verdict["verdict"])
+            self.assertIn("vcs-tracked-content", verdict["reasons"])
+
+    def test_unverified_handle_fails_closed_as_contested(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "murky.tmp").write_text("murky", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            with (
+                mock.patch.object(
+                    hygiene,
+                    "handle_state",
+                    return_value=("unverified", "lsof-not-found"),
+                ),
+                mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+            ):
+                result = hygiene.handoff_verify(snapshot, ["murky.tmp"])
+            verdict = result["verdicts"][0]
+            self.assertEqual("contested", verdict["verdict"])
+            reason = next(
+                value
+                for value in verdict["reasons"]
+                if value.startswith("handle-state-unverified")
+            )
+            self.assertIn("lsof-not-found", reason)
+
+    def test_root_metadata_churn_from_prior_deletion_does_not_refuse(self) -> None:
+        # The motivating scenario for the tolerant root check: deleting one
+        # approved root-level item changes the root's own mtime; the next
+        # item's re-verify must still run and verdict cleanly.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            first = root / "first.tmp"
+            second = root / "second.tmp"
+            first.write_text("stale", encoding="utf-8")
+            second.write_text("stale", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            first.unlink()  # manual-lane deletion of the prior approved item
+            handle, vcs = self.clear_probe_mocks()
+            with handle, vcs:
+                result = hygiene.handoff_verify(snapshot, ["second.tmp"])
+            self.assertEqual(
+                {"path": "second.tmp", "verdict": "clear", "reasons": []},
+                result["verdicts"][0],
+            )
+
+    def test_replaced_root_still_refuses(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "junk.tmp").write_text("stale", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            with mock.patch.object(
+                hygiene, "same_object_identity", return_value=False
+            ):
+                with self.assertRaisesRegex(hygiene.HygieneError, "replaced"):
+                    hygiene.handoff_verify(snapshot, ["junk.tmp"])
+
+    def test_unstatable_path_maps_permission_to_needs_elevation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            guarded = root / "guarded.tmp"
+            guarded.write_text("held", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            real_lstat = Path.lstat
+
+            def selective_lstat(self: Path):
+                if self.name == "guarded.tmp":
+                    raise PermissionError(13, "access denied")
+                return real_lstat(self)
+
+            handle, vcs = self.clear_probe_mocks()
+            with handle, vcs, mock.patch.object(Path, "lstat", selective_lstat):
+                result = hygiene.handoff_verify(snapshot, ["guarded.tmp"])
+            self.assertEqual(
+                {
+                    "path": "guarded.tmp",
+                    "verdict": "contested",
+                    "reasons": ["needs-elevation"],
+                },
+                result["verdicts"][0],
+            )
+
+    def test_unreadable_descendants_are_contested_not_drifted(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            stale = root / "stale-cache"
+            stale.mkdir(parents=True)
+            (stale / "old.tmp").write_text("old", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            handle, vcs = self.clear_probe_mocks()
+            with (
+                handle,
+                vcs,
+                mock.patch.object(
+                    hygiene,
+                    "current_descendants",
+                    side_effect=PermissionError(13, "access denied"),
+                ),
+            ):
+                result = hygiene.handoff_verify(snapshot, ["stale-cache"])
+            verdict = result["verdicts"][0]
+            self.assertEqual("contested", verdict["verdict"])
+            self.assertIn("needs-elevation", verdict["reasons"])
+            self.assertNotIn("changed-since-scan", verdict["reasons"])
+
+    def test_truncated_path_can_never_be_clear(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            deep = root / "outer" / "inner"
+            deep.mkdir(parents=True)
+            (deep / "leaf.tmp").write_text("deep", encoding="utf-8")
+            snapshot = hygiene.scan_tree(
+                root.resolve(), hygiene.load_policy(None), 1
+            )
+            self.assertIn("outer", snapshot["truncated_paths"])
+            handle, vcs = self.clear_probe_mocks()
+            with handle, vcs:
+                result = hygiene.handoff_verify(snapshot, ["outer"])
+            verdict = result["verdicts"][0]
+            self.assertNotEqual("clear", verdict["verdict"])
+            self.assertIn("truncated-not-inventoried", verdict["reasons"])
+
+    def test_vcs_probe_timeout_degrades_to_contested_not_abort(self) -> None:
+        # A hung git must not abort the run with zero verdicts: every
+        # approved path still gets its verdict, the timed-out one contested.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "first.tmp").write_text("stale", encoding="utf-8")
+            (root / "second.tmp").write_text("stale", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            with (
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("clear", None)
+                ),
+                mock.patch.object(
+                    hygiene,
+                    "tracked_blocker",
+                    side_effect=subprocess.TimeoutExpired("git", 20),
+                ),
+            ):
+                result = hygiene.handoff_verify(snapshot, ["first.tmp", "second.tmp"])
+            self.assertEqual(2, len(result["verdicts"]))
+            for verdict in result["verdicts"]:
+                self.assertEqual("contested", verdict["verdict"])
+                self.assertIn("vcs-state-unverified", verdict["reasons"])
+
+    def test_denied_descendant_stat_is_contested_not_drifted(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            stale = root / "stale-cache"
+            stale.mkdir(parents=True)
+            (stale / "sealed.tmp").write_text("sealed", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            real_lstat = Path.lstat
+
+            def selective_lstat(self: Path):
+                if self.name == "sealed.tmp":
+                    raise PermissionError(13, "access denied")
+                return real_lstat(self)
+
+            handle, vcs = self.clear_probe_mocks()
+            with (
+                handle,
+                vcs,
+                mock.patch.object(
+                    hygiene,
+                    "current_descendants",
+                    return_value={"stale-cache", "stale-cache/sealed.tmp"},
+                ),
+                mock.patch.object(Path, "lstat", selective_lstat),
+            ):
+                result = hygiene.handoff_verify(snapshot, ["stale-cache"])
+            verdict = result["verdicts"][0]
+            self.assertEqual("contested", verdict["verdict"])
+            self.assertIn("needs-elevation", verdict["reasons"])
+            self.assertNotIn("changed-since-scan", verdict["reasons"])
+
+    def test_handle_probe_launch_failure_degrades_to_contested(self) -> None:
+        # lsof vanishing between which() and run() (or a ctypes load error)
+        # must contest this path, not abort the run with zero verdicts.
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "first.tmp").write_text("stale", encoding="utf-8")
+            (root / "second.tmp").write_text("stale", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            with (
+                mock.patch.object(
+                    hygiene,
+                    "handle_state",
+                    side_effect=FileNotFoundError(2, "lsof vanished"),
+                ),
+                mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+            ):
+                result = hygiene.handoff_verify(snapshot, ["first.tmp", "second.tmp"])
+            self.assertEqual(2, len(result["verdicts"]))
+            for verdict in result["verdicts"]:
+                self.assertEqual("contested", verdict["verdict"])
+                self.assertIn(
+                    "handle-state-unverified: handle-probe-failed",
+                    verdict["reasons"],
+                )
+
+    def test_validate_handoff_paths_rejects_malformed_input(self) -> None:
+        entries = {"keep/junk.tmp": {}, "keep": {}}
+        cases = [
+            ({"version": 2, "paths": ["keep"]}, "version"),
+            ({"version": 1, "paths": []}, "non-empty"),
+            ({"version": 1, "paths": ["/absolute"]}, "outside or absent"),
+            ({"version": 1, "paths": ["../escape"]}, "outside or absent"),
+            ({"version": 1, "paths": ["not-in-snapshot"]}, "outside or absent"),
+            ({"version": 1, "paths": ["keep", "keep/junk.tmp"]}, "overlap"),
+            ({"version": 1, "paths": ["."]}, "non-root"),
+        ]
+        for payload, message in cases:
+            with self.subTest(payload=payload):
+                with self.assertRaisesRegex(hygiene.HygieneError, message):
+                    hygiene.validate_handoff_paths(payload, entries)
+
+    def test_handoff_verify_subcommand_exit_codes(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            junk = root / "junk.tmp"
+            junk.write_text("stale", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            snapshot_path = Path(temporary) / "snapshot.json"
+            snapshot_path.write_text(json.dumps(snapshot), encoding="utf-8")
+            paths_path = Path(temporary) / "handoff-paths.json"
+            paths_path.write_text(
+                json.dumps({"version": 1, "paths": ["junk.tmp"]}), encoding="utf-8"
+            )
+            argv = [
+                "handoff-verify",
+                "--snapshot",
+                str(snapshot_path),
+                "--paths",
+                str(paths_path),
+            ]
+            handle, vcs = self.clear_probe_mocks()
+            output = io.StringIO()
+            with handle, vcs, redirect_stdout(output):
+                self.assertEqual(0, hygiene.main(argv))
+            payload = json.loads(output.getvalue())
+            self.assertEqual("handoff-verify-complete", payload["status"])
+            self.assertEqual("clear", payload["verdicts"][0]["verdict"])
+            junk.write_text("changed after approval", encoding="utf-8")
+            handle, vcs = self.clear_probe_mocks()
+            output = io.StringIO()
+            with handle, vcs, redirect_stdout(output):
+                self.assertEqual(3, hygiene.main(argv))
+            payload = json.loads(output.getvalue())
+            self.assertEqual("drifted", payload["verdicts"][0]["verdict"])
+            self.assertTrue(junk.exists())
+
+
 class GuardTests(unittest.TestCase):
     @staticmethod
     def python_command() -> str:
         return guard._display_python()
 
-    def run_guard(self, command: str) -> dict[str, object]:
-        stdin = io.StringIO(json.dumps({"tool_input": {"command": command}}))
+    def setUp(self) -> None:
+        # Hermetic kill switch: the guard resolves disk_hygiene_enabled by reading
+        # settings.json files. The plain guard helpers patch the guard's own
+        # `_resolve_user_settings_path` to our owned settings file directly (absent
+        # = enabled default; present-false = audit-only) and stub the managed path
+        # to a temp file — so they never touch the developer's real settings and
+        # never perturb data-root authority resolution. The engine-gate helper
+        # (which must pass --plugin-root to mirror hooks.json) points it at the fake
+        # cache layout below, which derives back to the same owned settings.json.
+        self._cfg = tempfile.TemporaryDirectory()
+        self.addCleanup(self._cfg.cleanup)
+        cfg = Path(self._cfg.name)
+        self._plugin_root = (
+            cfg / "plugins" / "cache" / "melodic-software" / "disk-hygiene" / "1.2.3"
+        )
+        self._plugin_root.mkdir(parents=True)
+        self._settings = cfg / "settings.json"
+        # Managed settings stay absent (points into the temp dir, never written),
+        # so tests never read a real /etc or Program Files managed-settings.json.
+        self._managed = cfg / "managed-settings.json"
+
+    def _set_kill_switch(self, enabled: bool) -> None:
+        if enabled:
+            self._settings.unlink(missing_ok=True)
+            return
+        self._settings.write_text(
+            json.dumps(
+                {
+                    "pluginConfigs": {
+                        "disk-hygiene@melodic-software": {
+                            "options": {"disk_hygiene_enabled": False}
+                        }
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    def _invoke_guard(
+        self, command: str, *, tool_name: str = "Bash", enabled: bool = True
+    ) -> dict[str, object] | None:
+        self._set_kill_switch(enabled)
+        argv = [str(SCRIPT_DIR / "destructive_guard.py")]
+        payload: dict[str, object] = {"tool_input": {"command": command}}
+        if tool_name:
+            payload["tool_name"] = tool_name
+        stdin = io.StringIO(json.dumps(payload))
         stdout = io.StringIO()
         with (
             mock.patch("sys.stdin", stdin),
             redirect_stdout(stdout),
-            mock.patch.dict(
-                "os.environ", {"CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED": "true"}, clear=False
+            mock.patch.object(guard.sys, "argv", argv),
+            # Drive the kill switch through the trusted resolver directly (no env,
+            # no --plugin-root), so data-root authority resolution is untouched.
+            mock.patch.object(
+                guard, "_resolve_user_settings_path", lambda: self._settings
+            ),
+            mock.patch.object(
+                guard.killswitch_config,
+                "managed_settings_path",
+                lambda: self._managed,
             ),
         ):
             self.assertEqual(0, guard.main())
-        return json.loads(stdout.getvalue())
+        value = stdout.getvalue()
+        return json.loads(value) if value.strip() else None
+
+    def run_guard(self, command: str) -> dict[str, object]:
+        result = self._invoke_guard(command, enabled=True)
+        assert result is not None
+        return result
 
     def run_guard_disabled(self, command: str) -> dict[str, object]:
-        stdin = io.StringIO(json.dumps({"tool_input": {"command": command}}))
-        stdout = io.StringIO()
-        with (
-            mock.patch("sys.stdin", stdin),
-            redirect_stdout(stdout),
-            mock.patch.dict(
-                "os.environ", {"CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED": "false"}, clear=False
-            ),
-        ):
-            self.assertEqual(0, guard.main())
-        return json.loads(stdout.getvalue())
+        result = self._invoke_guard(command, enabled=False)
+        assert result is not None
+        return result
+
+    def run_guard_tool(
+        self, command: str, tool_name: str, enabled: bool
+    ) -> dict[str, object] | None:
+        """Drive a specific tool lane with the kill switch set via user settings.
+
+        Post-C′ the switch reaches the guard only by reading ``disk_hygiene_enabled``
+        out of the user ``settings.json`` (located from ``--plugin-root``); the old
+        ``--disk-hygiene-enabled`` argv and ``CLAUDE_PLUGIN_OPTION_*`` env channels
+        are gone. This exercises that one real channel per tool.
+        """
+        return self._invoke_guard(command, tool_name=tool_name, enabled=enabled)
 
     def test_guard_denies_direct_recursive_delete(self) -> None:
         result = self.run_guard("rm -rf /tmp/example")
@@ -1229,6 +2420,77 @@ class GuardTests(unittest.TestCase):
             self.run_guard(malformed)["hookSpecificOutput"]["permissionDecision"],
         )
 
+    def test_guard_allows_exact_handoff_verify_shape(self) -> None:
+        script = SCRIPT_DIR / "hygiene.py"
+        command = (
+            f'"{self.python_command()}" "{script}" handoff-verify '
+            "--snapshot s --paths p"
+        )
+        self.assertEqual(
+            "allow",
+            self.run_guard(command)["hookSpecificOutput"]["permissionDecision"],
+        )
+
+    def test_guard_allows_handoff_verify_in_audit_only_mode(self) -> None:
+        # handoff-verify is read-only, so the kill switch must not block it —
+        # audit-only consumers still get the manual-lane revalidation report.
+        script = SCRIPT_DIR / "hygiene.py"
+        command = (
+            f'"{self.python_command()}" "{script}" handoff-verify '
+            "--snapshot s --paths p"
+        )
+        self.assertEqual(
+            "allow",
+            self.run_guard_disabled(command)["hookSpecificOutput"][
+                "permissionDecision"
+            ],
+        )
+
+    def test_guard_denies_malformed_handoff_verify_shapes(self) -> None:
+        script = SCRIPT_DIR / "hygiene.py"
+        prefix = f'"{self.python_command()}" "{script}" handoff-verify'
+        commands = [
+            f"{prefix} --paths p --snapshot s",  # wrong flag order
+            f"{prefix} --snapshot s",  # missing --paths
+            f"{prefix} --snapshot s --paths p --report r",  # undeclared flag
+            f"{prefix} --snapshot s --paths p extra",  # trailing token
+        ]
+        for command in commands:
+            with self.subTest(command=command):
+                self.assertEqual(
+                    "deny",
+                    self.run_guard(command)["hookSpecificOutput"][
+                        "permissionDecision"
+                    ],
+                )
+
+    def test_guard_allows_exact_kill_switch_probe_invocation(self) -> None:
+        probe = SCRIPT_DIR.parent.parent / "setup" / "scripts" / "kill_switch_probe.py"
+        command = f'"{self.python_command()}" "{probe}"'
+        result = self.run_guard(command)["hookSpecificOutput"]
+        self.assertEqual("allow", result["permissionDecision"])
+
+    def test_guard_allows_kill_switch_probe_in_audit_only_mode(self) -> None:
+        probe = SCRIPT_DIR.parent.parent / "setup" / "scripts" / "kill_switch_probe.py"
+        command = f'"{self.python_command()}" "{probe}"'
+        result = self.run_guard_disabled(command)["hookSpecificOutput"]
+        self.assertEqual("allow", result["permissionDecision"])
+
+    def test_guard_denies_kill_switch_probe_with_arguments(self) -> None:
+        probe = SCRIPT_DIR.parent.parent / "setup" / "scripts" / "kill_switch_probe.py"
+        for suffix in (" --settings-file s", " extra"):
+            command = f'"{self.python_command()}" "{probe}"{suffix}'
+            self.assertEqual(
+                "deny",
+                self.run_guard(command)["hookSpecificOutput"]["permissionDecision"],
+                command,
+            )
+
+    def test_guard_denies_kill_switch_probe_via_bare_python(self) -> None:
+        probe = SCRIPT_DIR.parent.parent / "setup" / "scripts" / "kill_switch_probe.py"
+        result = self.run_guard(f'python "{probe}"')["hookSpecificOutput"]
+        self.assertEqual("deny", result["permissionDecision"])
+
     def test_guard_scan_accepts_optional_policy_and_project_dir(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         base = f'"{self.python_command()}" "{script}" scan --target t --output s'
@@ -1258,21 +2520,274 @@ class GuardTests(unittest.TestCase):
                 command,
             )
 
-    def run_guard_powershell(self, command: str) -> dict[str, object] | None:
+    def run_guard_engine_gate(
+        self, command: str, tool_name: str = "Bash", enabled: bool = True
+    ) -> dict[str, object] | None:
+        """Drive the guard as the plugin-level engine-gate deployment would.
+
+        Supplies ``--mode engine-gate`` plus the ``--plugin-root`` and
+        ``--authorized-data-root`` substitution channels on argv, mirroring the
+        shipped ``hooks/hooks.json`` exec-form registration. ``--plugin-root``
+        points at the hermetic fake cache layout so the kill switch resolves from
+        the owned settings.json — the sole post-C′ channel — while the explicit
+        ``--authorized-data-root`` still drives data-root authority. Returns None
+        when the guard deferred with no output.
+        """
+        self._set_kill_switch(enabled)
+        argv = [
+            str(SCRIPT_DIR / "destructive_guard.py"),
+            "--mode",
+            "engine-gate",
+            "--plugin-root",
+            os.fspath(self._plugin_root),
+            "--authorized-data-root",
+            str(SCRIPT_DIR / "data-root"),
+        ]
         stdin = io.StringIO(
-            json.dumps({"tool_name": "PowerShell", "tool_input": {"command": command}})
+            json.dumps({"tool_name": tool_name, "tool_input": {"command": command}})
         )
         stdout = io.StringIO()
         with (
             mock.patch("sys.stdin", stdin),
             redirect_stdout(stdout),
-            mock.patch.dict(
-                "os.environ", {"CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED": "true"}, clear=False
+            mock.patch.object(guard.sys, "argv", argv),
+            mock.patch.dict("os.environ", {}, clear=True),
+            mock.patch.object(
+                guard.killswitch_config,
+                "managed_settings_path",
+                lambda: self._managed,
             ),
         ):
             self.assertEqual(0, guard.main())
-        value = stdout.getvalue()
-        return json.loads(value) if value.strip() else None
+        text = stdout.getvalue().strip()
+        return json.loads(text) if text else None
+
+    def test_engine_gate_defers_all_non_engine_commands(self) -> None:
+        """Plugin-level deployment must never tax unrelated work in a session."""
+        for tool_name, command in (
+            ("Bash", "git --version"),
+            ("Bash", "rm -rf /tmp/unrelated"),
+            ("PowerShell", "Remove-Item -Recurse C:/tmp/unrelated"),
+            ("PowerShell", "git status --short"),
+        ):
+            self.assertIsNone(
+                self.run_guard_engine_gate(command, tool_name), (tool_name, command)
+            )
+
+    def test_engine_gate_defers_mere_mentions_of_the_engine(self) -> None:
+        """Read-only commands that merely NAME the script must defer (P2 review).
+
+        Runs from a neutral cwd: a bare `hygiene.py` mention in a real consumer
+        session resolves to nothing (or to the consumer's own file) — resolving
+        to the BUNDLED engine (cwd inside the plugin scripts dir) gates by
+        identity, deliberately.
+        """
+        with tempfile.TemporaryDirectory() as tmp, chdir_context(tmp):
+            for tool_name, command in (
+                ("Bash", "git diff -- hygiene.py"),
+                ("Bash", "rg hygiene.py README.md"),
+                ("Bash", "echo hygiene.py"),
+                ("PowerShell", "Select-String -Pattern guard hygiene.py"),
+            ):
+                self.assertIsNone(
+                    self.run_guard_engine_gate(command, tool_name),
+                    (tool_name, command),
+                )
+
+    def test_engine_gate_catches_interpreter_options_before_the_script(self) -> None:
+        """Interpreter options must not slip the kill switch (P1 review)."""
+        script = SCRIPT_DIR / "hygiene.py"
+        result = self.run_guard_engine_gate(
+            f'/usr/bin/python3 -B "{script}" apply --plan p --token t', "Bash", enabled=False
+        )
+        assert result is not None
+        self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
+
+    def test_engine_gate_defers_consumer_owned_hygiene_scripts(self) -> None:
+        """A different existing file named hygiene.py is not this engine (P2 review)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            # realpath expands Windows 8.3 short segments (KYLESE~1): the guard
+            # rejects `~` anywhere in a Bash command as a shell-expansion
+            # character, and this test needs a parseable consumer path.
+            consumer = Path(os.path.realpath(tmp)) / "hygiene.py"
+            consumer.write_text("print('consumer tool')\n", encoding="utf-8")
+            self.assertIsNone(
+                self.run_guard_engine_gate(f'python3 "{consumer}" --help')
+            )
+
+    def test_engine_gate_catches_wrapper_launchers_of_the_bundled_engine(self) -> None:
+        """env / sh -c wrappers around the absolute engine path must gate (P1 review)."""
+        script = SCRIPT_DIR / "hygiene.py"
+        wrapped = self.run_guard_engine_gate(
+            f'/usr/bin/env "{script}" apply --plan p --token t', "Bash", enabled=False
+        )
+        assert wrapped is not None
+        self.assertEqual("deny", wrapped["hookSpecificOutput"]["permissionDecision"])
+        compound = self.run_guard_engine_gate(
+            f'sh -c "{script} apply --plan p --token t"', "Bash", enabled=False
+        )
+        assert compound is not None
+        self.assertEqual("deny", compound["hookSpecificOutput"]["permissionDecision"])
+
+    def test_engine_gate_catches_linked_aliases_of_the_bundled_engine(self) -> None:
+        """A link to the engine under another name must gate by identity (P1 review)."""
+        script = SCRIPT_DIR / "hygiene.py"
+        with tempfile.TemporaryDirectory(dir=SCRIPT_DIR) as tmp:
+            alias = Path(tmp) / "clean-engine"
+            try:
+                os.link(script, alias)
+            except OSError as exc:  # pragma: no cover - filesystem-dependent
+                self.skipTest(f"hard links unavailable here: {exc}")
+            posix_alias = str(alias).replace("\\", "/")
+            result = self.run_guard_engine_gate(
+                f'"{posix_alias}" apply --plan p --token t', "Bash", enabled=False
+            )
+            assert result is not None
+            self.assertEqual(
+                "deny", result["hookSpecificOutput"]["permissionDecision"]
+            )
+            os.unlink(alias)
+
+    def test_engine_gate_catches_alias_beside_shell_operator(self) -> None:
+        """A literal alias path gates even in an operator-carrying command (P1 r6)."""
+        script = SCRIPT_DIR / "hygiene.py"
+        with tempfile.TemporaryDirectory(dir=SCRIPT_DIR) as tmp:
+            alias = Path(tmp) / "clean-engine"
+            try:
+                os.link(script, alias)
+            except OSError as exc:  # pragma: no cover - filesystem-dependent
+                self.skipTest(f"hard links unavailable here: {exc}")
+            posix_alias = str(alias).replace("\\", "/")
+            result = self.run_guard_engine_gate(
+                f'"{posix_alias}" apply --plan p --token t && true', "Bash", enabled=False
+            )
+            assert result is not None
+            self.assertEqual(
+                "deny", result["hookSpecificOutput"]["permissionDecision"]
+            )
+            os.unlink(alias)
+
+    def test_engine_gate_defers_consumer_windows_path_on_powershell(self) -> None:
+        """Backslash consumer paths must defer on PowerShell, not fail closed (P2 r6)."""
+        with tempfile.TemporaryDirectory(dir=SCRIPT_DIR) as tmp:
+            consumer = Path(tmp) / "hygiene.py"
+            consumer.write_text("print('consumer tool')\n", encoding="utf-8")
+            windows_path = str(consumer)  # native backslashes on Windows
+            if "\\" not in windows_path:
+                windows_path = windows_path.replace("/", "\\")
+            self.assertIsNone(
+                self.run_guard_engine_gate(
+                    f"python {windows_path} --help", "PowerShell"
+                )
+            )
+
+    def test_engine_gate_defers_consumer_script_in_compound_commands(self) -> None:
+        """A provably-different hygiene.py defers even beside operators (P2 r7)."""
+        with tempfile.TemporaryDirectory(dir=SCRIPT_DIR) as tmp:
+            consumer = Path(tmp) / "hygiene.py"
+            consumer.write_text("print('consumer tool')\n", encoding="utf-8")
+            posix = str(consumer).replace("\\", "/")
+            self.assertIsNone(
+                self.run_guard_engine_gate(f"python3 {posix} --help && echo done")
+            )
+            self.assertIsNone(
+                self.run_guard_engine_gate(
+                    f"python {posix} --help; echo done", "PowerShell"
+                )
+            )
+
+    def test_engine_gate_still_gates_engine_beside_consumer_decoy(self) -> None:
+        """A decoy consumer file must not launder a real engine invocation (r7)."""
+        script = SCRIPT_DIR / "hygiene.py"
+        with tempfile.TemporaryDirectory(dir=SCRIPT_DIR) as tmp:
+            consumer = Path(tmp) / "hygiene.py"
+            consumer.write_text("print('consumer tool')\n", encoding="utf-8")
+            posix = str(consumer).replace("\\", "/")
+            result = self.run_guard_engine_gate(
+                f'python3 {posix} --help && python3 "{script}" apply --plan p --token t',
+                "Bash",
+                enabled=False,
+            )
+            assert result is not None
+            self.assertEqual(
+                "deny", result["hookSpecificOutput"]["permissionDecision"]
+            )
+
+    def test_engine_gate_catches_path_resolved_engine_after_env_wrapper(self) -> None:
+        """env VAR=... hygiene.py must gate as the effective command (P1 r8)."""
+        result = self.run_guard_engine_gate(
+            f"env PATH={SCRIPT_DIR}:/usr/bin hygiene.py apply --plan p --token t",
+            "Bash",
+            enabled=False,
+        )
+        assert result is not None
+        self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
+
+    def test_engine_gate_catches_engine_after_wrapper_with_option_operands(self) -> None:
+        """Wrapper option operands must not hide the bare engine name (P1 r9)."""
+        result = self.run_guard_engine_gate(
+            f"env -i PATH=/usr/bin nice -n 10 hygiene.py apply --plan p --token t",
+            "Bash",
+            enabled=False,
+        )
+        assert result is not None
+        self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
+
+    def test_engine_gate_catches_non_cpython_launch_of_bundled_engine(self) -> None:
+        """A relative bundled-engine path gates under ANY launcher (P1 r10)."""
+        with chdir_context(SCRIPT_DIR):
+            result = self.run_guard_engine_gate(
+                "pypy3 ./hygiene.py apply --plan p --token t", "Bash", enabled=False
+            )
+        assert result is not None
+        self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
+
+    def test_engine_gate_fails_closed_on_unparsable_marker_commands(self) -> None:
+        """Marker + shell operators/expansions the literal parser rejects → gate."""
+        result = self.run_guard_engine_gate("python3 hygiene.py scan && echo done")
+        assert result is not None
+        self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
+        embedded = self.run_guard_engine_gate('bash -c "python3 hygiene.py scan --target t --output s"')
+        assert embedded is not None
+        self.assertEqual("deny", embedded["hookSpecificOutput"]["permissionDecision"])
+
+    def test_engine_gate_gates_engine_invocations(self) -> None:
+        script = SCRIPT_DIR / "hygiene.py"
+        powershell = self.run_guard_engine_gate(
+            f'& python "{script}" scan --target t --output s', "PowerShell"
+        )
+        assert powershell is not None
+        self.assertEqual(
+            "deny", powershell["hookSpecificOutput"]["permissionDecision"]
+        )
+        malformed = self.run_guard_engine_gate(f'python3 "{script}" apply --oops')
+        assert malformed is not None
+        self.assertEqual(
+            "deny", malformed["hookSpecificOutput"]["permissionDecision"]
+        )
+
+    def test_engine_gate_fails_closed_on_engine_when_disabled(self) -> None:
+        """Engine-referencing Bash under audit-only mode must deny, never defer.
+
+        The argv kill-switch decision logic itself is proven by
+        ``test_kill_switch_blocks_every_lane_via_argv``; this asserts the
+        engine-gate mode routes an engine-referencing command into that logic
+        instead of deferring past it.
+        """
+        script = SCRIPT_DIR / "hygiene.py"
+        result = self.run_guard_engine_gate(
+            f'python3 "{script}" scan --target t --output s', "Bash", enabled=False
+        )
+        assert result is not None
+        self.assertEqual("deny", result["hookSpecificOutput"]["permissionDecision"])
+
+    def run_guard_powershell(self, command: str) -> dict[str, object] | None:
+        return self._invoke_guard(command, tool_name="PowerShell", enabled=True)
+
+    def run_guard_powershell_disabled(
+        self, command: str
+    ) -> dict[str, object] | None:
+        return self._invoke_guard(command, tool_name="PowerShell", enabled=False)
 
     def test_guard_scan_accepts_only_hook_authorized_data_root(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
@@ -1310,7 +2825,6 @@ class GuardTests(unittest.TestCase):
                 for key, value in os.environ.items()
                 if key != "CLAUDE_PLUGIN_DATA"
             }
-            environment["CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED"] = "true"
             stdin = io.StringIO(json.dumps({"tool_input": {"command": command}}))
             stdout = io.StringIO()
             with (
@@ -1327,11 +2841,13 @@ class GuardTests(unittest.TestCase):
     def run_guard_hook_argv(
         self, command: str, authorized: str | None
     ) -> dict[str, object]:
-        """Drive the guard with the data root supplied via hook argv, not the env.
+        """Drive the guard with the data root supplied directly via hook argv.
 
-        Mirrors the skill-frontmatter hook, which substitutes
-        ``--authorized-data-root ${CLAUDE_PLUGIN_DATA}`` into the guard's own argv
-        while CLAUDE_PLUGIN_DATA is absent from the hook process environment.
+        Exercises the ``--authorized-data-root`` channel — the direct path a host
+        that can substitute ``${CLAUDE_PLUGIN_DATA}`` itself (a plugin ``hooks.json``
+        hook) may pass — with CLAUDE_PLUGIN_DATA absent from the process
+        environment. The bundled ``clean`` skill instead uses ``--plugin-root``
+        (see ``run_guard_plugin_root``), the only substitution a skill hook gets.
         """
         argv = [str(SCRIPT_DIR / "destructive_guard.py")]
         if authorized is not None:
@@ -1341,7 +2857,6 @@ class GuardTests(unittest.TestCase):
             for key, value in os.environ.items()
             if key != "CLAUDE_PLUGIN_DATA"
         }
-        environment["CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED"] = "true"
         stdin = io.StringIO(json.dumps({"tool_input": {"command": command}}))
         stdout = io.StringIO()
         with (
@@ -1435,6 +2950,56 @@ class GuardTests(unittest.TestCase):
                 result["hookSpecificOutput"]["permissionDecisionReason"],
             )
 
+    def run_guard_plugin_root(
+        self, command: str, plugin_root: str
+    ) -> dict[str, object]:
+        """Drive the guard exactly as the shipped skill hook does.
+
+        The skill-frontmatter hook passes ``--plugin-root ${CLAUDE_PLUGIN_ROOT}``
+        (the only substitution a skill hook receives) and nothing else; the guard
+        derives the authorized data root from it. CLAUDE_PLUGIN_DATA is absent from
+        the process environment, the exact skill-hook condition.
+        """
+        argv = [str(SCRIPT_DIR / "destructive_guard.py"), "--plugin-root", plugin_root]
+        environment = {
+            key: value
+            for key, value in os.environ.items()
+            if key != "CLAUDE_PLUGIN_DATA"
+        }
+        stdin = io.StringIO(json.dumps({"tool_input": {"command": command}}))
+        stdout = io.StringIO()
+        with (
+            mock.patch("sys.stdin", stdin),
+            redirect_stdout(stdout),
+            mock.patch.object(guard.sys, "argv", argv),
+            mock.patch.dict("os.environ", environment, clear=True),
+        ):
+            self.assertEqual(0, guard.main())
+        return json.loads(stdout.getvalue())
+
+    def test_guard_derives_data_root_from_plugin_root_argv(self) -> None:
+        script = SCRIPT_DIR / "hygiene.py"
+        with tempfile.TemporaryDirectory() as temporary:
+            plugins = Path(temporary).resolve() / "plugins"
+            # The install root is the version leaf under cache/<mkt>/<name>/.
+            plugin_root = plugins / "cache" / "acme" / "disk-hygiene" / "0.4.8"
+            plugin_root.mkdir(parents=True)
+            authorized = str(plugins / "data" / "disk-hygiene-acme")
+            other = str(plugins / "data" / "elsewhere")
+            base = f'"{self.python_command()}" "{script}" scan --target t --output s'
+            self.assertEqual(
+                "allow",
+                self.run_guard_plugin_root(
+                    f'{base} --data-root "{authorized}"', str(plugin_root)
+                )["hookSpecificOutput"]["permissionDecision"],
+            )
+            self.assertEqual(
+                "deny",
+                self.run_guard_plugin_root(
+                    f'{base} --data-root "{other}"', str(plugin_root)
+                )["hookSpecificOutput"]["permissionDecision"],
+            )
+
     def test_argv_authorized_data_root_parses_both_arg_spellings(self) -> None:
         self.assertEqual(
             "/data", guard._argv_authorized_data_root(["--authorized-data-root", "/data"])
@@ -1478,34 +3043,199 @@ class GuardTests(unittest.TestCase):
                     "contains ${ must be preserved as the argv authority",
                 )
 
-    def test_skill_hook_passes_authorized_data_root_flag_matching_constant(
+    def test_resolve_authorized_data_root_derives_from_plugin_root(self) -> None:
+        script = str(SCRIPT_DIR / "destructive_guard.py")
+        plugin_root = os.fspath(
+            Path("/x/plugins/cache/acme/disk-hygiene/0.4.8")
+        )
+        derived = os.fspath(Path("/x/plugins/data/disk-hygiene-acme"))
+        environment = {
+            key: value
+            for key, value in os.environ.items()
+            if key != "CLAUDE_PLUGIN_DATA"
+        }
+        with mock.patch.dict("os.environ", environment, clear=True):
+            with mock.patch.object(
+                guard.sys, "argv", [script, "--plugin-root", plugin_root]
+            ):
+                self.assertEqual(derived, guard.resolve_authorized_data_root())
+            # A direct --authorized-data-root outranks plugin-root derivation.
+            with mock.patch.object(
+                guard.sys,
+                "argv",
+                [script, "--authorized-data-root", "/direct", "--plugin-root", plugin_root],
+            ):
+                self.assertEqual("/direct", guard.resolve_authorized_data_root())
+            # An unresolvable plugin-root layout yields no authority, then env.
+            with mock.patch.object(
+                guard.sys, "argv", [script, "--plugin-root", "/not/a/plugin/layout"]
+            ):
+                self.assertIsNone(guard.resolve_authorized_data_root())
+        with mock.patch.dict(
+            "os.environ", {"CLAUDE_PLUGIN_DATA": "/from-env"}, clear=False
+        ):
+            with mock.patch.object(
+                guard.sys, "argv", [script, "--plugin-root", "/not/a/plugin/layout"]
+            ):
+                self.assertEqual("/from-env", guard.resolve_authorized_data_root())
+
+    def test_plugin_data_root_from_root_follows_documented_layout(self) -> None:
+        # Real marketplace install: the install root is the VERSION leaf under
+        # <plugins>/cache/<marketplace>/<name>/<version>; data is <plugins>/data/<id>
+        # with <id> the sanitized "<name>@<marketplace>". The version is ignored.
+        self.assertEqual(
+            os.fspath(Path("/x/plugins/data/disk-hygiene-melodic-software")),
+            guard._plugin_data_root_from_root(
+                os.fspath(
+                    Path("/x/plugins/cache/melodic-software/disk-hygiene/0.4.8")
+                )
+            ),
+        )
+        # A directly-linked local install omits the <version> leaf; the name is
+        # then the root itself.
+        self.assertEqual(
+            os.fspath(Path("/x/plugins/data/disk-hygiene-melodic-software")),
+            guard._plugin_data_root_from_root(
+                os.fspath(Path("/x/plugins/cache/melodic-software/disk-hygiene"))
+            ),
+        )
+        # The "@" separator and every other disallowed character (".") collapse
+        # to "-", per the documented id-sanitization rule.
+        self.assertEqual(
+            os.fspath(Path("/x/plugins/data/my-plugin-my-market")),
+            guard._plugin_data_root_from_root(
+                os.fspath(Path("/x/plugins/cache/my.market/my.plugin/1.2.3"))
+            ),
+        )
+        # No <plugins>/cache marker, "cache" not under a "plugins" parent, or no
+        # name segment after the marketplace: fail closed.
+        for stray in (
+            "/somewhere/else/plugin",
+            "/a/b",
+            "/x/store/cache/m/n",
+            "/x/plugins/cache/only-marketplace",
+        ):
+            self.assertIsNone(
+                guard._plugin_data_root_from_root(os.fspath(Path(stray))), stray
+            )
+
+    def test_argv_flag_value_parses_both_arg_spellings(self) -> None:
+        self.assertEqual(
+            "false",
+            guard._argv_flag_value(["--disk-hygiene-enabled", "false"], "--disk-hygiene-enabled"),
+        )
+        self.assertEqual(
+            "false",
+            guard._argv_flag_value(["--disk-hygiene-enabled=false"], "--disk-hygiene-enabled"),
+        )
+        self.assertIsNone(
+            guard._argv_flag_value(["--other", "false"], "--disk-hygiene-enabled")
+        )
+        self.assertIsNone(
+            guard._argv_flag_value(["--disk-hygiene-enabled"], "--disk-hygiene-enabled")
+        )
+
+    @staticmethod
+    def _skill_hook_command_and_args() -> tuple[str, list[str]]:
+        """Return the frontmatter guard hook's `command` and parsed `args`."""
+        text = (SCRIPT_DIR.parent / "SKILL.md").read_text(encoding="utf-8")
+        args_line = next(
+            line
+            for line in text.splitlines()
+            if "destructive_guard.py" in line and "args:" in line
+        )
+        args = json.loads(args_line[args_line.index("[") : args_line.rindex("]") + 1])
+        command_line = next(
+            line
+            for line in text.splitlines()
+            if line.strip().startswith("command:")
+        )
+        command = command_line.split(":", 1)[1].strip().strip('"')
+        return command, args
+
+    def test_skill_hook_args_launch_with_only_skill_available_substitutions(
         self,
     ) -> None:
-        """Lock the config<->code seam the fix depends on.
+        """Guard the guard's launch: the hook must reference only skill-available tokens.
+
+        Claude Code refuses to launch a skill-frontmatter hook whose command or
+        args reference any substitution token it does not provide to skill hooks,
+        and treats that refusal as a non-blocking error — so the destructive-action
+        guard silently never runs. Empirically the only token available to a skill
+        hook is `${CLAUDE_PLUGIN_ROOT}`: `${CLAUDE_PLUGIN_DATA}` is plugin-only and
+        `${user_config.*}` is not substituted for skill hooks, and either one
+        reintroduces the fail-open. This asserts the declared tokens are within that
+        allowlist; that the hook then launches is only fully verifiable in a live
+        Claude Code session with the plugin installed.
+        """
+        command, args = self._skill_hook_command_and_args()
+        tokens = set(re.findall(r"\$\{[^}]+\}", command))
+        for value in args:
+            tokens.update(re.findall(r"\$\{[^}]+\}", value))
+        allowed = {"${CLAUDE_PLUGIN_ROOT}"}
+        self.assertLessEqual(
+            tokens,
+            allowed,
+            "skill-hook command/args reference tokens Claude Code does not "
+            f"substitute for skill hooks: {sorted(tokens - allowed)}",
+        )
+
+    def test_skill_hook_passes_plugin_root_flag_matching_constant(self) -> None:
+        """Lock the config<->code seam the data-root derivation depends on.
 
         The frontmatter hook must pass the exact flag literal the guard parses,
-        immediately followed by the ${CLAUDE_PLUGIN_DATA} placeholder. If either
-        side is renamed without the other, the guard silently loses its authority
-        and the engine lane fails closed — the regression this test guards.
+        immediately followed by the ${CLAUDE_PLUGIN_ROOT} token from which the
+        guard derives the authorized data root. If either side is renamed without
+        the other, the guard loses its authority and the engine lane fails closed —
+        the regression this test guards.
         """
-        skill = SCRIPT_DIR.parent / "SKILL.md"
-        text = skill.read_text(encoding="utf-8")
-        args_line = next(
-            (
-                line
-                for line in text.splitlines()
-                if "destructive_guard.py" in line and "args:" in line
-            ),
-            None,
-        )
-        self.assertIsNotNone(args_line, "frontmatter hook args line not found")
-        assert args_line is not None
-        array_text = args_line[args_line.index("[") : args_line.rindex("]") + 1]
-        args = json.loads(array_text)
+        _command, args = self._skill_hook_command_and_args()
         self.assertTrue(args[0].endswith("destructive_guard.py"), args)
-        self.assertIn(guard._AUTHORIZED_DATA_ROOT_FLAG, args)
-        flag_index = args.index(guard._AUTHORIZED_DATA_ROOT_FLAG)
-        self.assertEqual("${CLAUDE_PLUGIN_DATA}", args[flag_index + 1])
+        self.assertIn(guard._PLUGIN_ROOT_FLAG, args)
+        flag_index = args.index(guard._PLUGIN_ROOT_FLAG)
+        self.assertEqual(guard._PLUGIN_ROOT_PLACEHOLDER, args[flag_index + 1])
+
+    @staticmethod
+    def _engine_gate_hook_args() -> list[str]:
+        """Return the plugin-level engine-gate hook's `args` from hooks.json."""
+        hooks_path = SCRIPT_DIR.parents[2] / "hooks" / "hooks.json"
+        config = json.loads(hooks_path.read_text(encoding="utf-8"))
+        entries = config["hooks"]["PreToolUse"]
+        commands = [
+            hook
+            for entry in entries
+            for hook in entry.get("hooks", [])
+            if hook.get("args")
+            and any("destructive_guard.py" in arg for arg in hook["args"])
+        ]
+        assert len(commands) == 1, commands
+        return commands[0]["args"]
+
+    def test_engine_gate_hook_resolves_kill_switch_from_plugin_root_not_user_config(
+        self,
+    ) -> None:
+        """Lock the engine-gate hook seam the kill-switch read now depends on.
+
+        Post-C′ the plugin-level gate resolves ``disk_hygiene_enabled`` by reading
+        user settings located from ``--plugin-root ${CLAUDE_PLUGIN_ROOT}`` — so that
+        flag/token pair is load-bearing for the kill switch, not only the data root.
+        And the bare ``${user_config.disk_hygiene_enabled}`` argument MUST stay
+        removed: an unset-but-defaulted userConfig token drops the whole hook entry
+        (the inert-by-default regression this fix closed). This test fails if either
+        is reverted in hooks.json.
+        """
+        args = self._engine_gate_hook_args()
+        self.assertIn(guard._PLUGIN_ROOT_FLAG, args)
+        flag_index = args.index(guard._PLUGIN_ROOT_FLAG)
+        self.assertEqual(guard._PLUGIN_ROOT_PLACEHOLDER, args[flag_index + 1])
+        self.assertNotIn("--disk-hygiene-enabled", args)
+        for arg in args:
+            self.assertNotIn(
+                "${user_config.",
+                arg,
+                "engine-gate hook must carry no ${user_config.*} token — its "
+                "unset-default form drops the whole hook entry",
+            )
 
     def test_skill_hook_interpreter_is_python3_and_resolves(self) -> None:
         """Lock the guard's launch interpreter and prove it resolves.
@@ -1569,6 +3299,32 @@ class GuardTests(unittest.TestCase):
                 value,
             )
 
+    def test_guard_scan_accepts_single_confirmed_large_scan_flag(self) -> None:
+        script = SCRIPT_DIR / "hygiene.py"
+        base = f'"{self.python_command()}" "{script}" scan --target t --output s'
+        allowed = (
+            f"{base} --confirmed-large-scan",
+            f"{base} --confirmed-large-scan --max-depth 1",
+            f"{base} --max-depth 1 --confirmed-large-scan",
+            f"{base} --confirmed-large-scan --policy p",
+        )
+        denied = (
+            f"{base} --confirmed-large-scan --confirmed-large-scan",
+            f"{base} --confirmed-large-scan v",
+        )
+        for command in allowed:
+            self.assertEqual(
+                "allow",
+                self.run_guard(command)["hookSpecificOutput"]["permissionDecision"],
+                command,
+            )
+        for command in denied:
+            self.assertEqual(
+                "deny",
+                self.run_guard(command)["hookSpecificOutput"]["permissionDecision"],
+                command,
+            )
+
     def test_guard_preview_accepts_optional_authorized_data_root(self) -> None:
         script = SCRIPT_DIR / "hygiene.py"
         with tempfile.TemporaryDirectory() as temporary:
@@ -1619,7 +3375,17 @@ class GuardTests(unittest.TestCase):
             "Remove-Item -Recurse -Force C:/tmp/example",
             "rm C:/tmp/example",
             "del C:/tmp/example",
+            "Clear-RecycleBin -Force",
+            "Microsoft.PowerShell.Management\\Clear-RecycleBin -Force",
+            "Microsoft.PowerShell.Management\\Remove-Item -Recurse C:/tmp/example",
             "[IO.File]::Delete('C:/tmp/example')",
+            "$item.Delete()",
+            "(Get-Item C:/tmp/example).Delete()",
+            "robocopy C:/src C:/dst /MIR",
+            "robocopy C:/src C:/dst /E /PURGE",
+            "robocopy C:/src C:/dst /MOV",
+            "C:\\Windows\\System32\\robocopy.exe C:\\src C:\\dst /MIR",
+            "& 'C:/Windows/System32/robocopy.exe' C:/src C:/dst /PURGE",
             "[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile('x', 'OnlyErrorDialogs', 'SendToRecycleBin')",
         ):
             result = self.run_guard_powershell(command)
@@ -1630,14 +3396,352 @@ class GuardTests(unittest.TestCase):
                 command,
             )
 
+    def test_powershell_bare_name_mentions_defer_but_engine_identity_denies(self) -> None:
+        """F6 (#1112): mentions defer via the invocation classifier; a command
+        whose argument IS the bundled engine still denies — verb names prove
+        nothing under alias/function shadowing (review round on this PR)."""
+        script = SCRIPT_DIR / "hygiene.py"
+        with tempfile.TemporaryDirectory() as tmp, chdir_context(tmp):
+            self.assertIsNone(
+                self.run_guard_powershell("Select-String -Pattern guard hygiene.py")
+            )
+        for command in (
+            f'Select-String -Pattern "def main" {script}',
+            f"Get-Content {script} -TotalCount 5",
+        ):
+            result = self.run_guard_powershell(command)
+            assert result is not None, command
+            self.assertEqual(
+                "deny", result["hookSpecificOutput"]["permissionDecision"], command
+            )
+
+    def test_powershell_engine_invocation_still_denied_after_narrowing(self) -> None:
+        script = SCRIPT_DIR / "hygiene.py"
+        for command in (
+            f'python3 "{script}" scan --target t --output s',
+            f'& python "{script}" scan --target t --output s',
+        ):
+            result = self.run_guard_powershell(command)
+            assert result is not None, command
+            self.assertEqual(
+                "deny", result["hookSpecificOutput"]["permissionDecision"], command
+            )
+
     def test_powershell_read_only_support_work_defers(self) -> None:
         for command in (
             "git status --short",
             "gh pr list --repo owner/repo",
             "Get-ChildItem -Force C:/tmp",
             "Get-Item C:/tmp/example | Select-Object Length",
+            "robocopy C:/src C:/dst /E",
+            "C:\\Windows\\System32\\robocopy.exe C:\\src C:\\dst /E",
+            "Get-Item C:/tmp/example | Select-Object IsDeleted",
         ):
             self.assertIsNone(self.run_guard_powershell(command), command)
+
+    def test_powershell_deletion_spellings_denied_in_audit_only_mode(self) -> None:
+        """Kill switch (B2): audit-only mode must deny PowerShell deletions, not ask."""
+        for command in (
+            "Remove-Item -Recurse -Force C:/tmp/example",
+            "rm C:/tmp/example",
+            "del C:/tmp/example",
+            "Clear-RecycleBin -Force",
+            "Microsoft.PowerShell.Management\\Clear-RecycleBin -Force",
+            "[IO.File]::Delete('C:/tmp/example')",
+            "$item.Delete()",
+            "robocopy C:/src C:/dst /MIR",
+            "[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile('x', 'OnlyErrorDialogs', 'SendToRecycleBin')",
+        ):
+            result = self.run_guard_powershell_disabled(command)
+            assert result is not None, command
+            self.assertEqual(
+                "deny",
+                result["hookSpecificOutput"]["permissionDecision"],
+                command,
+            )
+
+    def test_kill_switch_blocks_every_lane_when_configured_false(self) -> None:
+        """A configured ``disk_hygiene_enabled=false`` in user settings must block
+        deletions on both the PowerShell and Bash lanes. This is the sole delivery
+        channel post-C′: the guard reads the toggle out of the user settings file
+        it locates from ``--plugin-root``; there is no argv or env channel."""
+        script = SCRIPT_DIR / "hygiene.py"
+        powershell = self.run_guard_tool(
+            "Remove-Item -Recurse -Force C:/tmp/example",
+            "PowerShell",
+            enabled=False,
+        )
+        assert powershell is not None
+        self.assertEqual(
+            "deny", powershell["hookSpecificOutput"]["permissionDecision"]
+        )
+        apply_command = (
+            f'"{self.python_command()}" "{script}" apply --execute --snapshot s '
+            f'--plan p --confirm-tier high --approval-token {"a" * 24} --report r'
+        )
+        bash = self.run_guard_tool(apply_command, "Bash", enabled=False)
+        assert bash is not None
+        self.assertEqual("deny", bash["hookSpecificOutput"]["permissionDecision"])
+
+    def test_kill_switch_enabled_gates_apply_as_ask(self) -> None:
+        """With the switch enabled (settings absent → default on), an ``apply`` is
+        gated (``ask``) rather than denied, confirming the resolved toggle — not a
+        hardcoded deny — drives the decision."""
+        script = SCRIPT_DIR / "hygiene.py"
+        apply_command = (
+            f'"{self.python_command()}" "{script}" apply --execute --snapshot s '
+            f'--plan p --confirm-tier high --approval-token {"a" * 24} --report r'
+        )
+        result = self.run_guard_tool(apply_command, "Bash", enabled=True)
+        assert result is not None
+        self.assertEqual("ask", result["hookSpecificOutput"]["permissionDecision"])
+
+
+class DirectReadKillSwitchTests(unittest.TestCase):
+    """The kill switch resolves by reading user-scope pluginConfigs directly.
+
+    Post-C′ the guard ignores the ``--disk-hygiene-enabled`` argv flag and the
+    ``CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED`` env var (both repo-tamperable
+    or un-delivered) and instead reads ``disk_hygiene_enabled`` out of the
+    ``settings.json`` ``pluginConfigs``. The user file is located **solely** from
+    the tamper-resistant ``--plugin-root`` (``${CLAUDE_PLUGIN_ROOT}``), never an
+    environment value; a managed policy at its fixed system path overrides it, and
+    a marker-less (``--plugin-dir``) root leaves no trusted user path. Every
+    absent/degraded read fails closed to enabled (safety on).
+    """
+
+    SCRIPT = str(SCRIPT_DIR / "destructive_guard.py")
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.config_dir = Path(self.tmp.name)
+        # Reconstruct the real install layout so --plugin-root derivation finds
+        # the sibling settings.json: <config>/plugins/cache/<mkt>/<name>/<ver>.
+        self.plugin_root = (
+            self.config_dir
+            / "plugins"
+            / "cache"
+            / "melodic-software"
+            / "disk-hygiene"
+            / "1.2.3"
+        )
+        self.plugin_root.mkdir(parents=True)
+        self.settings = self.config_dir / "settings.json"
+        # Managed settings default to absent; managed tests write this file.
+        self.managed = self.config_dir / "managed-settings.json"
+
+    def _toggle_json(self, value: object) -> str:
+        return json.dumps(
+            {
+                "pluginConfigs": {
+                    "disk-hygiene@melodic-software": {
+                        "options": {"disk_hygiene_enabled": value}
+                    }
+                }
+            }
+        )
+
+    def write_toggle(self, value: object) -> None:
+        self.settings.write_text(self._toggle_json(value), encoding="utf-8")
+
+    def write_managed_toggle(self, value: object) -> None:
+        self.managed.write_text(self._toggle_json(value), encoding="utf-8")
+
+    def write_managed_dropin(self, name: str, value: object) -> None:
+        dropin = self.config_dir / "managed-settings.d"
+        dropin.mkdir(exist_ok=True)
+        (dropin / name).write_text(self._toggle_json(value), encoding="utf-8")
+
+    def resolve(self, argv_tail: list[str], env: dict[str, str]) -> bool:
+        with (
+            mock.patch.object(guard.sys, "argv", [self.SCRIPT, *argv_tail]),
+            mock.patch.dict("os.environ", env, clear=True),
+            mock.patch.object(
+                guard.killswitch_config,
+                "managed_settings_path",
+                lambda: self.managed,
+            ),
+        ):
+            return guard.resolve_disk_hygiene_enabled()
+
+    def plugin_root_argv(self) -> list[str]:
+        return ["--plugin-root", os.fspath(self.plugin_root)]
+
+    def test_configured_false_via_plugin_root_channel_disables(self) -> None:
+        self.write_toggle(False)
+        self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
+
+    def test_configured_true_via_plugin_root_channel_stays_enabled(self) -> None:
+        self.write_toggle(True)
+        self.assertTrue(self.resolve(self.plugin_root_argv(), {}))
+
+    def test_absent_settings_fails_closed_to_enabled(self) -> None:
+        # No settings.json written under the derived path.
+        self.assertTrue(self.resolve(self.plugin_root_argv(), {}))
+
+    def test_degraded_settings_fail_closed_to_enabled(self) -> None:
+        self.settings.write_text("{not json", encoding="utf-8")
+        self.assertTrue(self.resolve(self.plugin_root_argv(), {}))
+
+    def test_env_toggle_is_ignored(self) -> None:
+        # Configured false must hold even though the legacy env var says true...
+        self.write_toggle(False)
+        self.assertFalse(
+            self.resolve(
+                self.plugin_root_argv(),
+                {"CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED": "true"},
+            )
+        )
+        # ...and a legacy env false cannot force audit-only when unconfigured.
+        self.settings.unlink()
+        self.assertTrue(
+            self.resolve(
+                self.plugin_root_argv(),
+                {"CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED": "false"},
+            )
+        )
+
+    def test_legacy_argv_flag_is_ignored(self) -> None:
+        # The dropped --disk-hygiene-enabled flag no longer disables anything.
+        self.assertTrue(
+            self.resolve(
+                [*self.plugin_root_argv(), "--disk-hygiene-enabled", "false"], {}
+            )
+        )
+
+    def test_no_plugin_root_ignores_env_config_dir_and_fails_closed_enabled(
+        self,
+    ) -> None:
+        # Without a trusted --plugin-root (e.g. a --plugin-dir checkout install),
+        # the guard must NOT trust a repo-injectable CLAUDE_CONFIG_DIR: even a
+        # configured `false` reachable only through the environment is ignored and
+        # the switch fails closed to enabled, so a repo cannot forge a settings
+        # path to flip it.
+        self.write_toggle(False)  # config_dir/settings.json
+        self.assertTrue(
+            self.resolve([], {"CLAUDE_CONFIG_DIR": os.fspath(self.config_dir)})
+        )
+
+    def test_plugin_dir_install_ignores_env_user_settings_but_honors_managed(
+        self,
+    ) -> None:
+        # A --plugin-dir root carries no plugins/cache marker, so there is no
+        # trusted user-settings path: a repo-injectable CLAUDE_CONFIG_DIR is
+        # ignored. A managed policy (fixed system path) is still enforced.
+        checkout = self.config_dir / "checkout"  # marker-less root
+        checkout.mkdir()
+        checkout_argv = ["--plugin-root", os.fspath(checkout)]
+        env = {"CLAUDE_CONFIG_DIR": os.fspath(self.config_dir)}
+        self.write_toggle(False)  # reachable only via env -> ignored
+        self.write_managed_toggle(False)  # managed policy -> honored
+        self.assertFalse(self.resolve(checkout_argv, env))
+        # Without the managed policy, the marker-less install fails closed to enabled.
+        self.managed.unlink()
+        self.assertTrue(self.resolve(checkout_argv, env))
+
+    def test_plugin_root_channel_beats_tamperable_config_dir_env(self) -> None:
+        """A repo-injected CLAUDE_CONFIG_DIR cannot override the real settings.
+
+        ``${CLAUDE_PLUGIN_ROOT}`` is substituted by Claude Code from the plugin's
+        true install path and carries provenance a repo env block cannot forge;
+        ``CLAUDE_CONFIG_DIR`` from the environment does not. So the plugin-root
+        channel must win, or a hostile repo re-opens the kill switch by pointing
+        the config dir at a settings.json it controls.
+        """
+        self.write_toggle(False)  # real user settings: audit-only
+        evil = Path(self.tmp.name) / "evil"
+        evil.mkdir()
+        (evil / "settings.json").write_text(
+            json.dumps(
+                {
+                    "pluginConfigs": {
+                        "disk-hygiene@melodic-software": {
+                            "options": {"disk_hygiene_enabled": True}
+                        }
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        self.assertFalse(
+            self.resolve(
+                self.plugin_root_argv(),
+                {"CLAUDE_CONFIG_DIR": os.fspath(evil)},
+            )
+        )
+
+    def test_managed_configured_false_overrides_user_true(self) -> None:
+        # Managed is the highest-precedence, non-overridable scope: an
+        # organization enforcing audit-only must win over a user-enabled toggle.
+        self.write_managed_toggle(False)
+        self.write_toggle(True)
+        self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
+
+    def test_managed_configured_true_overrides_user_false(self) -> None:
+        self.write_managed_toggle(True)
+        self.write_toggle(False)
+        self.assertTrue(self.resolve(self.plugin_root_argv(), {}))
+
+    def test_managed_absent_falls_back_to_user(self) -> None:
+        # No managed file written; the user toggle decides.
+        self.write_toggle(False)
+        self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
+
+    def test_managed_without_toggle_entry_falls_back_to_user(self) -> None:
+        # Managed file exists but carries no disk-hygiene entry (source=default),
+        # so it yields no verdict and the user toggle decides.
+        self.managed.write_text(json.dumps({"pluginConfigs": {}}), encoding="utf-8")
+        self.write_toggle(False)
+        self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
+
+    def test_managed_malformed_falls_back_to_user(self) -> None:
+        self.managed.write_text("{not json", encoding="utf-8")
+        self.write_toggle(False)
+        self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
+
+    def test_installed_marketplace_id_isolates_from_other_marketplace(self) -> None:
+        # A second marketplace's disk-hygiene entry must not mask this install's
+        # configured value: the guard derives its exact <name>@<marketplace> key
+        # from --plugin-root (here disk-hygiene@melodic-software) and matches only
+        # that, rather than aggregating every disk-hygiene@* entry into an
+        # ambiguous read that would fall back to enabled.
+        self.settings.write_text(
+            json.dumps(
+                {
+                    "pluginConfigs": {
+                        "disk-hygiene@melodic-software": {
+                            "options": {"disk_hygiene_enabled": False}
+                        },
+                        "disk-hygiene@other-marketplace": {
+                            "options": {"disk_hygiene_enabled": True}
+                        },
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
+
+    def test_managed_dropin_false_overrides_user(self) -> None:
+        # A false configured only in the managed drop-in directory must win over a
+        # user-enabled toggle, just like the primary managed file.
+        self.write_managed_dropin("10-org-policy.json", False)
+        self.write_toggle(True)
+        self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
+
+    def test_managed_dropin_overrides_primary_managed_file(self) -> None:
+        # Drop-ins are merged over the primary managed file.
+        self.write_managed_toggle(True)
+        self.write_managed_dropin("50-override.json", False)
+        self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
+
+    def test_later_managed_dropin_wins_over_earlier(self) -> None:
+        # Sorted order: 20- overrides 10-.
+        self.write_managed_dropin("10-first.json", True)
+        self.write_managed_dropin("20-second.json", False)
+        self.write_toggle(True)
+        self.assertFalse(self.resolve(self.plugin_root_argv(), {}))
 
 
 if __name__ == "__main__":

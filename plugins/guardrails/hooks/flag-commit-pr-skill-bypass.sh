@@ -9,9 +9,10 @@
 # resolved across user-global (`~/.claude/settings.json`), project
 # (`<repo>/.claude/settings.json`), and local (`.claude/settings.local.json`) in
 # precedence order (user-global is the base, project overrides it, local
-# overrides that) — a plugin enabled ONLY at user-global (a common install) is
-# active in every project, so a probe reading the project file alone
-# false-negatives and this advisory never fires. Uncertain state (no jq, no
+# overrides that — unconditionally; `claude plugin install --scope local` makes
+# a local-only key a first-class state) — a plugin enabled ONLY at user-global
+# (a common install) or ONLY at local scope is active here, so a probe reading
+# the project file alone false-negatives and this advisory never fires. Uncertain state (no jq, no
 # value at any scope) never flags a `gh pr create` call — an advisory firing on
 # unknown state is noise, not signal. A missing jq specifically still surfaces a
 # one-time systemMessage that the guard is disabled
@@ -52,6 +53,14 @@ source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
 
 hook::check_enabled "FLAG_COMMIT_PR_SKILL_BYPASS"
 
+# Bundled PowerShell-command classifier — this guard is matched on both the Bash
+# and the (opt-in) PowerShell tool. Resolved under the plugin root (CC sets
+# CLAUDE_PLUGIN_ROOT; the BASH_SOURCE fallback keeps the contract tests working
+# when it is unset).
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+# shellcheck source=../lib/powershell/ps-command.sh
+source "$PLUGIN_ROOT/lib/powershell/ps-command.sh"
+
 # High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;
 # on older bash it is unset, so default to empty and skip telemetry.
 start=${EPOCHREALTIME:-}
@@ -71,6 +80,14 @@ hook::require_jq "PreToolUse" "guardrails-flag-commit-pr-skill-bypass" "$INPUT"
 
 COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null | tr -d '\r')
 [[ -n "$COMMAND" ]] || exit 0
+TOOL_NAME=$(printf '%s' "$INPUT" | jq -r '.tool_name // "Bash"' 2>/dev/null | tr -d '\r')
+# On the PowerShell tool, neutralize here-strings first so a `gh pr create`
+# mention inside message text is inert and a real invocation after a here-string
+# is still seen. Advisory-only: never blocks, so best-effort is proportionate.
+if [[ "$TOOL_NAME" == "PowerShell" ]]; then
+  ps::blank_herestrings "$COMMAND"
+  COMMAND="$PS_BLANKED"
+fi
 
 # Privacy-safe telemetry subject: `Bash:<first-token>` with leading `sudo` /
 # env-assignment prefixes stripped and the token basenamed. Never the full
@@ -87,7 +104,11 @@ bash_subject() {
   printf 'Bash:%s' "${tok##*/}"
 }
 
-SUBJECT=$(bash_subject "$COMMAND")
+if [[ "$TOOL_NAME" == "Bash" ]]; then
+  SUBJECT=$(bash_subject "$COMMAND")
+else
+  SUBJECT="$TOOL_NAME"
+fi
 
 # Emit one telemetry envelope per run. Advisory guards always report status
 # "ok" (they never block); the finding signal rides in `data.forms` — category
@@ -101,8 +122,8 @@ emit_tel() {
     forms_json=$(printf '%s\n' "${FORMS[@]}" | jq -R . | jq -s . 2>/dev/null) || forms_json="[]"
   fi
   local data
-  data=$(jq -n --arg subject "$SUBJECT" --argjson forms "$forms_json" \
-    '{tool:"Bash",subject:$subject,forms:$forms}' 2>/dev/null) ||
+  data=$(jq -n --arg tool "$TOOL_NAME" --arg subject "$SUBJECT" --argjson forms "$forms_json" \
+    '{tool:$tool,subject:$subject,forms:$forms}' 2>/dev/null) ||
     data='{"tool":"Bash","subject":"","forms":[]}'
   hook::emit_telemetry "flag-commit-pr-skill-bypass" "PreToolUse" "ok" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
@@ -159,8 +180,11 @@ source_control_enabled() {
     lval=$(sc_key_value "$local_settings" "$key")
     effective="$uval"
     [[ -n "$bval" ]] && effective="$bval"
-    # A local override counts only for a key the project settings already declare.
-    [[ -n "$bval" && -n "$lval" ]] && effective="$lval"
+    # Local participates unconditionally: settings precedence is Local >
+    # Project > User, and `claude plugin install --scope local` writes
+    # enabledPlugins to settings.local.json as a first-class standalone state
+    # — a local-only key is real enablement, not noise to ignore.
+    [[ -n "$lval" ]] && effective="$lval"
     [[ "$effective" == "true" ]] && return 0 # any enabled key -> skill available
   done <<<"$keys"
   return 1

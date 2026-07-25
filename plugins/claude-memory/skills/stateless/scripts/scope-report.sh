@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Snapshot the auto-memory posture for the CURRENT repo across every settings scope.
+# Snapshot the auto-memory posture for the CURRENT project (a git repo, or the current
+# directory outside one) across every settings scope.
 #
 # Reports two deterministic things so the skill workflow doesn't hand-derive them:
 #   1. Which settings.json files exist at each scope (managed / user / project / local),
@@ -24,12 +25,12 @@ set -uo pipefail
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   cat <<'EOF'
-scope-report.sh — snapshot auto-memory posture across settings scopes for this repo.
+scope-report.sh — snapshot auto-memory posture across settings scopes for this project.
 
 Usage:
   scope-report.sh [--help]
 
-Prints, for the current working directory's repo:
+Prints, for the current working directory's project (repo root, or the cwd outside a repo):
   - existence of each settings.json scope file (managed / user / project / local)
   - the live CLAUDE_CODE_DISABLE_AUTO_MEMORY environment value (if any)
   - the default auto-memory dir, its MEMORY.md line count, and topic-file count
@@ -86,11 +87,10 @@ else
 fi
 
 echo
-echo "=== Default auto-memory directory (this repo) ==="
+echo "=== Default auto-memory directory (this project) ==="
 if [[ -z "$repo_root" ]]; then
-  echo "Not inside a git repository — outside a repo the project root is used as the key."
-  echo "Run the skill from within the target repo, or set autoMemoryDirectory explicitly."
-  exit 0
+  echo "Not inside a git repository — the current directory is the project key"
+  echo "(memory doc: outside a git repo, the project root is used instead)."
 fi
 
 mem_dir=$(bash "$resolver" 2>/dev/null | tr -d '\r')
@@ -105,5 +105,5 @@ if [[ -f "$mem_dir/MEMORY.md" ]]; then
   topics=$(find "$mem_dir" -maxdepth 1 -name '*.md' ! -name 'MEMORY.md' 2>/dev/null | wc -l | tr -d ' \r')
   echo "MEMORY.md: PRESENT (${lines} lines); topic files: ${topics}"
 else
-  echo "MEMORY.md: absent (no auto-memory written to the default location for this repo)"
+  echo "MEMORY.md: absent (no auto-memory written to the default location for this project)"
 fi

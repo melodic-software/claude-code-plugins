@@ -31,23 +31,6 @@ if [[ "${CLAUDE_PLUGIN_OPTION_CLEAN_DESTRUCTIVE_GUARD_ENABLED:-true}" == "false"
   exit 0
 fi
 
-# jq parses the hook payload. Without it the guard cannot inspect the command,
-# so it goes inactive for this call — announce that on stderr rather than
-# failing open silently (exit 0 keeps the guard non-blocking per its best-effort
-# threat model; install jq to re-enable it).
-if ! command -v jq >/dev/null 2>&1; then
-  echo "clean destructive-guard: jq not found — guard inactive this call (install jq to re-enable)." >&2
-  exit 0
-fi
-
-CMD="$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)"
-[[ -n "$CMD" ]] || exit 0
-
-# Acknowledged path: the skill's confirmation gate prefixes the command.
-if [[ "$CMD" == CLEAN_GUARD_ACK=1\ * ]]; then
-  exit 0
-fi
-
 # rm's recursive (-r/-R/--recursive) and force (-f/--force) flags are matched
 # independently, so separated, reordered, capitalized, and long spellings are
 # caught — not only the adjacent -rf cluster. git's destructive subcommands
@@ -67,8 +50,36 @@ is_destructive() {
     grep -qE '[[:space:]]-[a-zA-Z]*f|[[:space:]]--force([[:space:]]|=|$)' <<<"$cmd"; then
     return 0
   fi
-  grep -qE "git[[:space:]]+${gopt}reset[[:space:]]+--hard|git[[:space:]]+${gopt}checkout[[:space:]]+--[[:space:]]|Remove-Item[[:space:]].*-Recurse" <<<"$cmd"
+  grep -qE "git[[:space:]]+${gopt}reset[[:space:]]+--hard|git[[:space:]]+${gopt}checkout[[:space:]]+--[[:space:]]|git[[:space:]]+${gopt}stash[[:space:]]+(drop|clear)([[:space:]]|$)|Remove-Item[[:space:]].*-Recurse" <<<"$cmd"
 }
+
+# jq parses the hook payload. Without it the ack prefix cannot be verified, so
+# the guard degrades FAIL-CLOSED: destructive patterns matched against the raw
+# JSON payload block unconditionally (no ack path) until jq is installed. JSON
+# escaping (e.g. tabs as \t) can hide whitespace from the patterns, so degraded
+# coverage is best-effort — but a guard that cannot parse must block what it
+# can see, never go silently inert (cf. #983, #532 fail-open class).
+if ! command -v jq >/dev/null 2>&1; then
+  # Quotes become spaces so the patterns' prefix anchors match a command at the
+  # start of a JSON string value ("command":"rm -rf ..." puts a quote before rm).
+  if is_destructive "${INPUT//\"/ }"; then
+    {
+      echo "BLOCKED by the clean skill's destructive guard (degraded mode: jq not found)."
+      echo "Without jq the guard cannot verify the CLEAN_GUARD_ACK acknowledgement, so destructive commands are blocked outright."
+      echo "Install jq to restore the dry-run -> user-confirmation -> CLEAN_GUARD_ACK=1 flow."
+    } >&2
+    exit 2
+  fi
+  exit 0
+fi
+
+CMD="$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)"
+[[ -n "$CMD" ]] || exit 0
+
+# Acknowledged path: the skill's confirmation gate prefixes the command.
+if [[ "$CMD" == CLEAN_GUARD_ACK=1\ * ]]; then
+  exit 0
+fi
 
 if is_destructive "$CMD"; then
   {

@@ -81,11 +81,11 @@
       "id": 7,
       "name": "load-bearing-deletion-uses-fresh-context-spot-test",
       "prompt": "You've read an architecture doc and it looks entirely re-derivable from the code, so you're inclined to delete it. It is load-bearing — several teams rely on it. How do you confirm the deletion is safe?",
-      "expected_output": "Does NOT confirm the deletion from its own (now doc-contaminated) context — having read the doc, it knows the answers and would overestimate derivability (a self-grade). Delegates the empirical spot-test to a FRESH-CONTEXT, NON-FORK subagent that has not seen the doc: it reproduces the doc's key conclusions from native exploration only, then compare. Explicitly rejects `context: fork` because a fork inherits the contaminated history. Convergence confirms derivable; divergence means the doc owns something — keep it.",
+      "expected_output": "Does NOT confirm the deletion from its own (now doc-contaminated) context — having read the doc, it knows the answers and would overestimate derivability (a self-grade). Delegates the empirical spot-test to a FRESH-CONTEXT, NON-FORK subagent that has not seen the doc: it reproduces the doc's key conclusions from native exploration only, then compare. Explicitly avoids the Agent tool's `fork` subagent type because that fork inherits the contaminated conversation (unlike a skill's `context: fork`, which starts blank). Convergence confirms derivable; divergence means the doc owns something — keep it.",
       "files": [],
       "expectations": [
         "Delegates the derivability confirmation to a fresh-context subagent that has NOT seen the doc",
-        "Explicitly uses a non-fork subagent and rejects `context: fork` (fork inherits the contaminated context)",
+        "Explicitly uses a non-fork subagent and avoids the Agent tool's `fork` subagent type (that fork inherits the contaminated conversation)",
         "Frames self-judgment from the doc-contaminated context as unreliable (self-grade / fresh-eyes rationale)",
         "Treats divergence/failure of the fresh agent as evidence the doc owns non-derivable facts (keep)"
       ]
