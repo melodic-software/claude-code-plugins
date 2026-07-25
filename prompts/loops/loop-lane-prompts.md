@@ -554,14 +554,20 @@ letting one "primary" shard write it records a partial pass as the whole.
 >
 > I am present. Recommend, then wait for my direction before mutating.
 >
-> **Stay inside your shard.** The `Shard` line is a **full predicate**, not
-> just a tag: evaluate every clause of it. A row qualifies only when it
-> carries the named tag **and** satisfies any further condition on that line
-> — so `[intake] where item number is odd` selects odd-numbered `[intake]`
-> rows only, and matching the tag alone would put you on a sibling
-> terminal's rows. Do not read, comment on, label, or otherwise mutate any
-> row your full predicate does not select: another terminal owns it and
-> there is no claim protocol to stop you both.
+> **Stay inside your shard — for every mutation.** The `Shard` line is a
+> **full predicate**, not just a tag: evaluate every clause of it. A row
+> qualifies only when it carries the named tag **and** satisfies any further
+> condition on that line — so `[intake] where item number is odd` selects
+> odd-numbered `[intake]` rows only, and matching the tag alone would put you
+> on a sibling terminal's rows. **Never comment on, label, edit, or otherwise
+> mutate a row your full predicate does not select**: another terminal owns
+> it and there is no claim protocol to stop you both.
+>
+> **Reading is unrestricted, and has to be.** Build the full attention view
+> first, exactly as the skill defines it — a row's tag is a property of that
+> view, so you cannot know which rows are yours without reading all of them.
+> Then filter to your predicate and mutate only what survives. Read broadly,
+> write narrowly.
 >
 > **Do not write lane telemetry.** Every attend-queue session upserts its
 > pass report into ONE comment keyed by a fixed marker, and the upsert
@@ -966,14 +972,20 @@ terminals mutating the same row.
 >
 > I am present. Recommend, then wait for my direction before mutating.
 >
-> **Stay inside your shard.** The `Shard` line is a **full predicate**, not
-> just a tag: evaluate every clause of it. A row qualifies only when it
-> carries the named tag **and** satisfies any further condition on that line
-> — so `[intake] where item number is odd` selects odd-numbered `[intake]`
-> rows only, and matching the tag alone would put you on a sibling
-> terminal's rows. Do not read, comment on, label, or otherwise mutate any
-> row your full predicate does not select: another terminal owns it and
-> there is no claim protocol to stop you both.
+> **Stay inside your shard — for every mutation.** The `Shard` line is a
+> **full predicate**, not just a tag: evaluate every clause of it. A row
+> qualifies only when it carries the named tag **and** satisfies any further
+> condition on that line — so `[intake] where item number is odd` selects
+> odd-numbered `[intake]` rows only, and matching the tag alone would put you
+> on a sibling terminal's rows. **Never comment on, label, edit, or otherwise
+> mutate a row your full predicate does not select**: another terminal owns
+> it and there is no claim protocol to stop you both.
+>
+> **Reading is unrestricted, and has to be.** Build the full attention view
+> first, exactly as the skill defines it — a row's tag is a property of that
+> view, so you cannot know which rows are yours without reading all of them.
+> Then filter to your predicate and mutate only what survives. Read broadly,
+> write narrowly.
 >
 > **Do not write lane telemetry.** Every attend-queue session upserts its
 > pass report into ONE comment keyed by a fixed marker, and the upsert
