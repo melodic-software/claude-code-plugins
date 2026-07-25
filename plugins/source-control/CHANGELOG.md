@@ -65,6 +65,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
   network or GitHub access) — and treats a tool-call denial on either as a **FAILED** prerequisite.
   Probing only the `bin/` wrapper would have certified a path the lane's own readiness verdict never
   travels: an allow rule or classifier decision covering one prefix says nothing about the other.
+  A *pass*, though, is only reachability: the classifier decides per call, so a permitted `--help`
+  cannot certify the production argument shapes, and the probes stay `--help`-only on purpose
+  because the merge wrapper's read-only production shape is a live GitHub call a `check` run must
+  not make. The skill states that limit rather than over-claiming, and names what covers the
+  residual gap — a mid-cycle denial is already fail-honest through `READINESS_UNPROVEN` and the
+  §5.5 verbatim verdict quote above.
   The earlier draft only reported settings surfaces as INFO, and instructed enumerating the scopes
   the classifier reads — for which no executable path exists, since the managed scopes are not
   ordinary readable settings files. That clause is dropped in favour of `claude auto-mode config`,

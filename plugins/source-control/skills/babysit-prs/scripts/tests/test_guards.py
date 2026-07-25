@@ -186,6 +186,12 @@ class SetupReachabilityCanaryContract(unittest.TestCase):
             setup,
         )
         self.assertIn("denial on either is a FAILED prerequisite", setup)
+        # A pass is asymmetric with a denial: the classifier decides per call, so
+        # a permitted --help cannot certify the production shapes. The skill must
+        # keep saying so, and must keep naming the mechanism that covers the gap.
+        self.assertIn("A pass is reachability, not a guarantee", setup)
+        self.assertIn("READINESS_UNPROVEN", setup)
+        self.assertIn("quote that stdout verbatim", setup)
         # The dropped scope-enumeration clause must not creep back: managed
         # settings are not locally readable, so it had no executable path.
         self.assertNotIn("not a project's `.claude/` settings", setup)

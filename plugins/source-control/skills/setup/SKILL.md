@@ -156,6 +156,23 @@ diagnostics:
      which form was denied, report the denial verbatim with the remediation below, and never
      retry it or re-spell it as a raw interpreter invocation to get past the denial — that form
      is exactly what the wrapper exists to replace.
+
+     **A pass is reachability, not a guarantee — report it as such.** A permitted `--help` proves
+     the mandated spelling exists and that a call to it got through; it does *not* prove the
+     production shapes (`owner/repo#N --allowed-owners …`, `<N> --extra-self …`) will be
+     permitted, because the classifier decides per call, at call time — the same property that
+     makes a denial here conclusive leaves a pass provisional. The probes stay `--help`-only
+     deliberately: the merge wrapper's read-only production shape is a live GitHub call, so a
+     representative probe would make a `check` run start touching the fleet it was asked to
+     inspect — which the plugin's `babysit-wrapper-help` shell test exists to keep from
+     regressing. The
+     residual gap is covered rather than hidden: a denial that lands mid-cycle instead is
+     fail-honest by the mechanism this section rests on — the gate prints `READINESS_UNPROVEN`,
+     or nothing at all when the call never happened, and
+     `skills/babysit-prs/reference/loop.md` §5.5 requires the per-PR **Gate verdict** line to
+     quote that stdout verbatim, so an unproven readiness surfaces in the report instead of
+     being absorbed. The canary is the proactive convenience; the quoted verdict is the
+     enforcement.
    - **Effective configuration (context for the canary).** Run `claude auto-mode config` and report
      whether its effective rules cover this plugin's bundled scripts. It prints the merged result
      across the scopes the classifier reads `autoMode` from — user settings and managed settings —
