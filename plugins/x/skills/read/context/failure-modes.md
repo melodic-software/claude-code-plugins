@@ -48,6 +48,13 @@ when the file is large.
 A metadata probe first was the alternative and was rejected: it doubles the egress this plugin
 discloses and adds a request whose own response has the same unknown size.
 
+**Spooling bounds the read, it does not shorten the article.** The file holds the whole response, so
+one bounded slice is a window onto it, not the content. Read successive slices until the file is
+exhausted, and only then delete. Deleting after a single slice throws away the tail of exactly the
+long articles this path exists to serve, and returns truncated Markdown that looks complete. If you
+stop early for any reason — a slice budget, an interruption — report the result as partial and say
+what was cut, per the reporting rules below.
+
 Quote the substituted path everywhere it appears — `-o "<path>"`, and the read and delete that follow.
 The resolved directory can contain whitespace, and an unquoted path splits into separate arguments.
 
@@ -130,6 +137,9 @@ Two limits, reported rather than worked around:
   attacker-influenced under this skill's trust model.
 - Report only what the response actually carried. If a field is absent, say it is absent — never
   supply a date, handle, or timestamp by inference.
+- If the spool file was not read to its end, say the result is partial and say where it stops. An
+  article returned from one bounded slice reads as complete and is not; silent truncation here is the
+  same defect as presenting a truncated chain as a whole thread.
 - State which step produced the result whenever it was not step 1, so the reader knows a chain was
   assembled rather than fetched whole.
 

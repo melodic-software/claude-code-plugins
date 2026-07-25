@@ -44,25 +44,32 @@ the receiving process's `argv`.
 Do not escape and do not sanitize. **Match, capture, and rebuild:**
 
 1. Match the input against exactly one of these, anchored at both ends. The `|` characters below are
-   regex alternation — read them literally as written, with no escaping:
+   regex alternation and `(?i: … )` is a case-insensitive group — read both literally as written,
+   with no escaping:
 
    Post:
 
    ```text
-   ^https?://(?:www\.|mobile\.)?(?:x|twitter)\.com/([A-Za-z0-9_]{1,15})/status/([0-9]{1,20})(?:[/?#].*)?$
+   ^(?i:https?://(?:www\.|mobile\.)?(?:x|twitter)\.com)/([A-Za-z0-9_]{1,15})/status/([0-9]{1,20})(?:[/?#].*)?$
    ```
 
    Article:
 
    ```text
-   ^https?://(?:www\.|mobile\.)?(?:x|twitter)\.com/([A-Za-z0-9_]{1,15})/article/([0-9]{1,20})(?:[/?#].*)?$
+   ^(?i:https?://(?:www\.|mobile\.)?(?:x|twitter)\.com)/([A-Za-z0-9_]{1,15})/article/([0-9]{1,20})(?:[/?#].*)?$
    ```
 
    Anonymous article:
 
    ```text
-   ^https?://(?:www\.|mobile\.)?(?:x|twitter)\.com/i/article/([0-9]{1,20})(?:[/?#].*)?$
+   ^(?i:https?://(?:www\.|mobile\.)?(?:x|twitter)\.com)/i/article/([0-9]{1,20})(?:[/?#].*)?$
    ```
+
+   **The `(?i: … )` stops at `.com` deliberately.** RFC 3986 states that "schemes are
+   case-insensitive" (§3.1) and "the host subcomponent is case-insensitive" (§3.2.2), so
+   `HTTPS://X.COM/jack/status/20` is the same resource and must not be refused. The path is not
+   case-insensitive, so `/status/`, `/article/`, and `/i/` stay exact — matching them loosely would
+   admit forms X does not serve.
 
 2. **No match — refuse.** Say the URL is not a recognized X post or article URL and stop. Never
    repair it, never strip characters to force a match, never pass it through anyway.
@@ -132,11 +139,13 @@ expands, so carry the resolved path (forward slashes) and substitute it wherever
 **Every response spools to that file — `-o` is not conditional.** An X Article is routinely shared as
 an ordinary `/status/` link, so the URL never says whether the reply is one sentence or five
 megabytes, and the output mode cannot be chosen from the input. Without `-o` the whole body lands in
-the tool result before anything can bound it. So: always redirect, `Read` the file — a bounded slice
-when it is large — then delete it, **on every exit path**, including the status branches that stop
-before reading. Nonce, quoting, and unconditional delete are all required, and the filename is fixed
-by that template: never derive any part of it from the response body. See
-[`context/failure-modes.md`](context/failure-modes.md).
+the tool result before anything can bound it. So: always redirect, then `Read` the file **through to
+the end** — in successive bounded slices when it is large, never one slice treated as the whole —
+and delete it only after the last read. Delete **on every exit path**, including the status branches
+that stop before reading. If you stop before the file is fully read, say the result is partial and
+why; a truncated slice is never presented as the complete post or article. Nonce, quoting, and
+unconditional delete are all required, and the filename is fixed by that template: never derive any
+part of it from the response body. See [`context/failure-modes.md`](context/failure-modes.md).
 
 **`-w '%{http_code}'` is what reaches stdout.** `-sS` alone prints no status, and with `-o` holding
 the body the code is the only thing printed — observed rather than inferred. A `200` is not itself

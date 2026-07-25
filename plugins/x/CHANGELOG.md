@@ -19,7 +19,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   an `-o` arbitrary-write flag to the receiving process — reproduced at `argv` level in both bash and
   PowerShell. Rebuilding also discards the host and any query string, so the `x.com`, `twitter.com`,
   `www.`, and legacy `mobile.` forms are all accepted and all collapse to a canonical `x.com` URL,
-  and share-tracking tokens are never transmitted.
+  and share-tracking tokens are never transmitted. Scheme and host match case-insensitively via a
+  `(?i: … )` group that stops at `.com` — RFC 3986 makes both case-insensitive (§3.1, §3.2.2) while
+  the path is not — so `HTTPS://X.COM/…` is admitted by the pattern rather than repaired into it.
 - Trust boundary in the skill body: converter output is attacker-authored text, treated as data to
   report and never as instructions, with fetched text barred from introducing any URL, host, or file
   path. Every URL re-enters the gate, including ones supplied at step 3 or surfaced inside fetched
@@ -46,13 +48,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   reported as an empty post.
 - `skills/read/context/failure-modes.md` — progressive-disclosure spoke holding status-code handling,
   Thread Reader miss detection, and the observed-gotchas list.
-- `skills/read/evals/evals.json` — fourteen cases: step-1 resolution (1), chain escalation (2),
+- `skills/read/evals/evals.json` — sixteen cases: step-1 resolution (1), chain escalation (2),
   note-tweet non-escalation (3), `502` handling without a retry loop (4), refusal of a hostile URL
   string (5), tracking-parameter stripping (6), prompt-injection containment (7), a URL harvested
   from fetched content re-entering the gate (8), the missing-`curl` path (9), a note tweet rooting a
   chain still escalating (10), a long post without continuation evidence not escalating (11),
   step-1-success plus step-2-miss reaching step 3 (12), a `200` without conversion treated as
-  failure (13), and the legacy `mobile.twitter.com` host accepted and canonicalized (14).
+  failure (13), the legacy `mobile.twitter.com` host accepted and canonicalized (14), an uppercased
+  scheme and host still matching (15), and a long article read to its end before cleanup (16).
 
 ### Fixed
 
@@ -88,9 +91,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   ordinary `/status/` link, so the URL gives no advance signal of response size and "redirect when it
   is long" is unevaluable when the command is composed. Streaming to stdout instead would put the
   whole body in the tool result before any bound applied. A metadata probe first was rejected — it
-  doubles the disclosed egress and its own response has the same unknown size. The nonce prevents two
-  sessions reading the same post from sharing a path, where the second `curl` would truncate the file
-  between the first request completing and that session's `Read`.
+  doubles the disclosed egress and its own response has the same unknown size. The spool is read
+  through to its end in successive bounded slices before the delete, since a bounded slice is a
+  window onto the file rather than the content: deleting after one would discard the tail of exactly
+  the long articles this path exists to serve and return truncated Markdown that reads as complete.
+  The nonce prevents two sessions reading the same post from sharing a path, where the second `curl`
+  would truncate the file between the first request completing and that session's `Read`.
 - Gate patterns are presented in fenced code blocks rather than a Markdown table. In table cells the
   alternation had to be written `\|` to survive the renderer, and a model reading the raw source
   could take that as a literal backslash-pipe and refuse every `twitter.com` URL.

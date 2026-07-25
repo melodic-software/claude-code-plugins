@@ -169,6 +169,30 @@
         "Rebuilds to the canonical https://x.com/<handle>/status/<id> form",
         "The legacy host never appears in the emitted command or the attribution"
       ]
+    },
+    {
+      "id": 15,
+      "name": "uppercase-scheme-and-host-still-match",
+      "prompt": "/x:read HTTPS://X.COM/jack/status/20",
+      "expected_output": "Matches the post form — the scheme and host are case-insensitive per RFC 3986 — and rebuilds https://x.com/jack/status/20. The uppercase form is not refused and is not repaired into a match either; the pattern itself admits it.",
+      "files": [],
+      "expectations": [
+        "Does not refuse a valid URL solely because its scheme or host is uppercased",
+        "Rebuilds the lowercase canonical https://x.com/<handle>/status/<id> form",
+        "Does not lowercase or otherwise rewrite the input to force a match — the gate matches, captures, and rebuilds as always"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "long-article-is-read-to-the-end-before-cleanup",
+      "prompt": "/x:read https://x.com/trq212/status/2080710971228918066\n\n(The spooled response is far larger than one bounded Read slice.)",
+      "expected_output": "Reads the spool file through to its end in successive bounded slices, then deletes it. Returns the whole article rather than the first slice, and if anything stops the read early, reports the result as partial and says where it stops.",
+      "files": [],
+      "expectations": [
+        "Does not delete the spool file after a single bounded slice",
+        "Never presents the first slice as the complete article",
+        "Reports partial results explicitly when the file is not read to its end"
+      ]
     }
   ]
 }

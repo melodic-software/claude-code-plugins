@@ -31,7 +31,9 @@ failure mode, not the fix.
 
 Rebuilding also drops the host and the query string, so the `x.com`, `twitter.com`, `www.`, and
 legacy `mobile.` forms are all accepted and all collapse to a canonical `x.com` URL, and `?s=`/`?t=`
-share-tracking tokens never reach a third party.
+share-tracking tokens never reach a third party. Scheme and host are matched case-insensitively —
+RFC 3986 makes both case-insensitive while the path is not — so an uppercased link is admitted by the
+pattern rather than repaired into matching it.
 
 The gate is model-honored instruction, not a runtime-enforced control — stated plainly because it is
 the primary defense. The plugin therefore ships **no** shell pre-approval: the network call surfaces
@@ -96,11 +98,11 @@ Only the gate's rebuilt, query-stripped URL, sent to `xtomd.com` and `threadread
 credentials, no repository content, no conversation text. This holds because of the gate — without
 it the request body is attacker-steerable.
 
-Locally, each step-1 call spools its response to one file under the plugin's own data directory and
-deletes it on every exit path. The redirect is unconditional rather than reserved for long articles,
-because an X Article is routinely shared as an ordinary `/status/` link and the URL gives no advance
-signal of response size — streaming instead would put an unbounded third-party body straight into the
-session.
+Locally, each step-1 call spools its response to one file under the plugin's own data directory,
+reads it through to its end, and deletes it on every exit path. The redirect is unconditional rather
+than reserved for long articles, because an X Article is routinely shared as an ordinary `/status/`
+link and the URL gives no advance signal of response size — streaming instead would put an unbounded
+third-party body straight into the session.
 
 Neither vendor identifies its operating entity or publishes a retention policy, so assume every
 submitted URL is logged indefinitely. A consumer who does not accept that egress disables the
