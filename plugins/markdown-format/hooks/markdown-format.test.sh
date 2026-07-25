@@ -656,8 +656,17 @@ rm -f "$FAIL_SINK_FILE"
 # file on Windows. A baseline run (fast sink, no sleep) captures the SAME ambient
 # overhead as the slow run under the SAME capture; subtracting it cancels the
 # overhead and isolates the leak signal. Under a leak the delta is ~SINK_SLEEP;
-# with no leak it is ~0 (± scheduling jitter). Threshold is half the sleep:
-# comfortably above jitter, comfortably below the leak signal.
+# with no leak it is ~0 (± scheduling jitter).
+#
+# THRESHOLD_MS asserts the actual invariant — "did not wait for the sink" —
+# as sleep-minus-a-safety-margin, NOT half the sleep. Halving discarded margin
+# for no gain and was proven too tight empirically (#448 reopen): a clean-main
+# false-fail measured delta=3697ms against the old 3000ms/half-sleep threshold,
+# and load-generated measurements up to ~2150ms (30 concurrent suite runs on
+# Windows Git Bash) confirm noise alone can approach that old threshold. Both
+# SINK_SLEEP and SAFETY_MARGIN_MS below were sized against that data: threshold
+# clears the observed no-leak noise by >1800ms while staying >SAFETY_MARGIN_MS
+# under the unambiguous leak signal (~SINK_SLEEP*1000ms).
 #
 # The baseline is the MINIMUM of several fast runs, not a single sample. A lone
 # baseline that happened to be descheduled longer than the slow run would shrink
@@ -668,7 +677,8 @@ rm -f "$FAIL_SINK_FILE"
 # sample with no leak — only re-fails a green run (fail-safe, re-runnable), so
 # just the baseline needs min-of-N; the slow run stays single (each slow sample
 # costs SINK_SLEEP).
-SINK_SLEEP=6
+SINK_SLEEP=8
+SAFETY_MARGIN_MS=2000
 BASE_SAMPLES=3
 BASE_SINK="$(make_sink "cat >/dev/null")"
 SLOW_SINK="$(make_sink "cat >/dev/null; sleep $SINK_SLEEP")"
@@ -699,7 +709,7 @@ _TS1=$EPOCHREALTIME
 SLOW_MS=$(epoch_delta_ms "$_TS0" "$_TS1")
 
 DELTA_MS=$((SLOW_MS - BASE_MS))
-THRESHOLD_MS=$((SINK_SLEEP * 1000 / 2))
+THRESHOLD_MS=$((SINK_SLEEP * 1000 - SAFETY_MARGIN_MS))
 echo "  (C1 fd1-leak: base=${BASE_MS}ms (min of ${BASE_SAMPLES}) slow=${SLOW_MS}ms delta=${DELTA_MS}ms, threshold <${THRESHOLD_MS}ms, sink sleeps ${SINK_SLEEP}s)"
 if [[ $RC_SLOW -eq 0 ]]; then ok "telemetry/slow-sink: hook exit 0"; else fail "telemetry/slow-sink: hook exit $RC_SLOW"; fi
 if [[ $DELTA_MS -lt $THRESHOLD_MS ]]; then

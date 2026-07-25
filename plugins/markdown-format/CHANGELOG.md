@@ -3,6 +3,22 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.3]
+
+### Fixed
+
+- C1 fd1-leak detector in the hook contract test: the differential threshold
+  introduced in `0.6.2` (ported from `desktop-notification` `#751`) carried the same
+  latent defect — `THRESHOLD_MS` was derived as `SINK_SLEEP * 1000 / 2`, so widening
+  `SINK_SLEEP` widened the threshold proportionally and left the margin unchanged by
+  construction (`#448`, reopened after reproducing on clean `main`: delta=3697ms
+  false-fail with no leak present, in the `desktop-notification` copy this test was
+  ported from). `THRESHOLD_MS` now asserts the real invariant directly —
+  sink-sleep-minus-a-safety-margin, not half the sleep — and `SINK_SLEEP` widens from
+  6s to 8s (still under the 10s ceiling documented against EXIT-cleanup file-locking
+  on Windows) for more absolute separation between ambient noise and the leak signal.
+  No behavior change for this plugin — the hook is untouched; test-only.
+
 ## [0.6.2]
 
 ### Changed
