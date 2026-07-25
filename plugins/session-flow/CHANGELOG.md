@@ -1,5 +1,21 @@
 # Changelog — session-flow plugin
 
+## [0.17.1]
+
+### Changed
+
+- **Setup's `apply` now documents the headless reconfiguration route beside the interactive one.**
+  Every observer tunable is native `userConfig`, and `apply` routed reconfiguration through
+  `/plugin configure session-flow` only. A headless or CI consumer reading that had no path at all,
+  and the obvious guess — re-running `claude plugin install --config` — silently does nothing on an
+  already-installed plugin, so the reader would have concluded the value was set when it was not.
+  The flag's fresh-install-only behavior is now stated where the reconfiguration guidance lives,
+  along with the uninstall-then-reinstall route it forces and the note that one install should carry
+  every key being changed. The recipe passes `-s <scope>` on both halves and `-y` on the uninstall:
+  both commands default to `-s user`, so an unscoped pair removes a separate user record while a
+  project- or local-scoped install keeps loading, and a non-TTY uninstall requires the confirmation
+  flag to run at all.
+
 ## [0.17.0]
 
 ### Changed

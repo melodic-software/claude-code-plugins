@@ -13,7 +13,7 @@ import subprocess
 import tempfile
 import types
 import unittest
-from contextlib import chdir as chdir_context, redirect_stdout
+from contextlib import ExitStack, chdir as chdir_context, redirect_stdout
 from pathlib import Path
 from unittest import mock
 
@@ -1795,6 +1795,138 @@ class LeastObservableEnginePathTests(unittest.TestCase):
             self.assertIn(
                 f"{nested}: non-Git VCS state is not independently verified", errors
             )
+
+
+class TargetRootIdentityTests(unittest.TestCase):
+    """The anchored target root is object identity, not stat identity (#384)."""
+
+    def setUp(self) -> None:
+        patcher = mock.patch.object(hygiene, "standing_policy_paths", return_value=[])
+        self.addCleanup(patcher.stop)
+        patcher.start()
+
+    @staticmethod
+    def churned_root_stat(identity: dict[str, object]):
+        """The live root after an unrelated write: same object, new mtime/size."""
+        return types.SimpleNamespace(
+            st_mode=0o040000,
+            st_size=int(identity["stat_size"]) + 4096,
+            st_mtime_ns=int(identity["mtime_ns"]) + 1_000_000,
+            st_dev=identity["device"],
+            st_ino=identity["inode"],
+        )
+
+    def test_preview_survives_benign_root_churn_between_scan_and_approval(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "orphan.tmp").write_text("temporary", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            plan = {
+                "version": 1,
+                "tier": "high",
+                "candidates": [candidate("orphan.tmp")],
+            }
+            # An unrelated write into the live target during the approval
+            # window flips the root's own mtime and size.
+            (root / "unrelated.log").write_text("later work", encoding="utf-8")
+            with (
+                mock.patch.object(
+                    hygiene, "handle_state", return_value=("clear", None)
+                ),
+                mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+                mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+            ):
+                result = hygiene.preview(snapshot, plan)
+            self.assertEqual("ready-for-explicit-approval", result["status"])
+
+    def test_preview_still_refuses_a_replaced_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "orphan.tmp").write_text("temporary", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            snapshot["target_identity"]["inode"] += 1
+            plan = {
+                "version": 1,
+                "tier": "high",
+                "candidates": [candidate("orphan.tmp")],
+            }
+            with self.assertRaisesRegex(hygiene.HygieneError, "replaced"):
+                hygiene.preview(snapshot, plan)
+
+    @staticmethod
+    def enter_apply_patches(stack: ExitStack, root_stat) -> None:
+        patches = (
+            mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+            mock.patch.object(
+                hygiene,
+                "preview",
+                return_value={
+                    "status": "ready-for-explicit-approval",
+                    "candidates": [],
+                },
+            ),
+            mock.patch.object(hygiene, "hard_protection", return_value=[]),
+            mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+            mock.patch.object(
+                hygiene, "linux_mount_points", return_value=(set(), None)
+            ),
+            mock.patch.object(hygiene, "handle_state", return_value=("clear", None)),
+            mock.patch.object(hygiene.os, "open", return_value=100),
+            mock.patch.object(hygiene.os, "fstat", return_value=root_stat),
+            mock.patch.object(hygiene.os, "close"),
+            mock.patch.object(hygiene.os, "O_DIRECTORY", 0x10000, create=True),
+            mock.patch.object(hygiene.os, "O_NOFOLLOW", 0x20000, create=True),
+        )
+        for patch in patches:
+            stack.enter_context(patch)
+
+    def test_apply_survives_benign_root_churn_between_scan_and_approval(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "orphan.tmp").write_text("temporary", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            plan = {
+                "version": 1,
+                "tier": "high",
+                "candidates": [candidate("orphan.tmp")],
+            }
+            churned = self.churned_root_stat(snapshot["target_identity"])
+            with ExitStack() as stack:
+                self.enter_apply_patches(stack, churned)
+                remove = stack.enter_context(
+                    mock.patch.object(hygiene, "anchored_remove")
+                )
+                report = hygiene.apply_plan(snapshot, plan)
+            remove.assert_called_once()
+            self.assertEqual("completed", report["status"])
+            self.assertEqual(
+                ["orphan.tmp"], [item["path"] for item in report["removed"]]
+            )
+
+    def test_apply_still_refuses_a_replaced_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "target"
+            root.mkdir()
+            (root / "orphan.tmp").write_text("temporary", encoding="utf-8")
+            snapshot = hygiene.scan_tree(root.resolve(), hygiene.load_policy(None))
+            plan = {
+                "version": 1,
+                "tier": "high",
+                "candidates": [candidate("orphan.tmp")],
+            }
+            replaced = self.churned_root_stat(snapshot["target_identity"])
+            replaced.st_ino = snapshot["target_identity"]["inode"] + 1
+            with ExitStack() as stack:
+                self.enter_apply_patches(stack, replaced)
+                remove = stack.enter_context(
+                    mock.patch.object(hygiene, "anchored_remove")
+                )
+                with self.assertRaisesRegex(hygiene.HygieneError, "replaced"):
+                    hygiene.apply_plan(snapshot, plan)
+            remove.assert_not_called()
 
 
 class HandoffVerifyTests(unittest.TestCase):

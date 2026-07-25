@@ -3,6 +3,36 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.6]
+
+### Documentation
+
+- **`wayfind: *` is now documented as a read-only, skill-private routing axis (`#1255`).** Neither
+  the label taxonomy reference nor the shared tracker-seam gotchas said anything about the
+  `wayfind: *` labels a triage lane can encounter — a silence a lane meeting them had no basis to
+  read as "hands off." `reference/label-taxonomy.md` gains a "Skill-private routing markers"
+  section and `reference/tracker-seam.md`'s Gotchas gain a matching entry: both point at
+  `/planning:wayfind` (sole writer, on its own map sub-issues) and the resolving decision
+  (`melodic-software/github-iac#179`) rather than restating the member list. No work-items skill
+  applies, strips, or requires a `wayfind:` value on the items it manages — behavior is unchanged,
+  this closes a documentation gap.
+
+## [0.24.5]
+
+### Fixed
+
+- **`triage` no longer routes to `priority: pN-*` labels that exist in no governed repository
+  (`#1253`).** The live governed priority axis across the fleet is `priority: critical` / `high` /
+  `medium` / `low` / `needs-triage` — the `p0-critical`…`p3-low` scheme `triage`'s priority-label
+  step, `track add`'s filing default, and `dogfood-filing.md` named inline appeared in zero
+  repositories, so an autonomous triage pass that followed the skill literally failed applying a
+  nonexistent label. `triage`, `track add`, and `dogfood-filing.md` now resolve the live `priority:`
+  label set from the bound adapter at action entry (consistent with every other "members from the
+  live set" axis in `label-taxonomy.md`) instead of naming members inline; where prose still shows a
+  concrete value it is marked as an illustrative example, not a routing instruction. The
+  triage-assessed default (mid-urgency tier) vs. `track add` filing default (lowest-urgency tier, an
+  untriaged-signal floor) distinction is preserved.
+
 ## [0.24.4]
 
 ### Documentation

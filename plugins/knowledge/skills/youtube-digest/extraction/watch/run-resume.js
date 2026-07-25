@@ -54,6 +54,7 @@ export async function runResumeCli(argv) {
         sliceDir,
         status: state.status,
         nextPhase,
+        target: state.target ?? null,
         frameSelection: state.frameSelection ?? null,
         continuationPromptPath: continuationPromptPath(sliceDir),
         continuationPrompt,
