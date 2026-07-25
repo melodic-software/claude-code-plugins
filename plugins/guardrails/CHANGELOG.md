@@ -8,18 +8,65 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 ### Added
 
 - `block-dangerous-git` distinguishes the `--force-with-lease` forms instead of
-  treating them all as safe. Bare `--force-with-lease` and
-  `--force-with-lease=<refname>` state no expected value, so git leases against
-  the remote-tracking ref — which [git-push(1)](https://git-scm.com/docs/git-push)
-  warns "interacts very badly with anything that implicitly runs `git fetch`" and
-  is "trivially defeated if some background process is updating refs in the
-  background". Those two forms are now blocked under a new `push-lease-unsafe`
-  form token unless `--force-if-includes` (git 2.30+, git's documented mitigation
-  for exactly these forms) is present.
-  `--force-with-lease=<refname>:<expect>` states the expectation explicitly and
-  passes, as does any lease form paired with `--force-if-includes`. Unique-prefix
+  treating them all as safe, under a new `push-lease-unsafe` form token. A lease
+  passes only when its expectation is one git cannot re-resolve to something
+  newer while the push runs; everything else is blocked, in the two kinds
+  [git-push(1)](https://git-scm.com/docs/git-push) itself treats differently.
+  - **No expected value** — bare `--force-with-lease` and
+    `--force-with-lease=<refname>` lease against the remote-tracking ref, which
+    git warns "interacts very badly with anything that implicitly runs
+    `git fetch`" and is "trivially defeated if some background process is
+    updating refs in the background". Blocked unless `--force-if-includes`
+    (git 2.30+) is present, which git documents as the mitigation for exactly
+    these forms.
+  - **A movable `--force-with-lease=<refname>:<expect>`** — `origin/main`,
+    `HEAD`, a tag, or an *abbreviated* object id (per
+    [gitrevisions](https://git-scm.com/docs/gitrevisions), git resolves a short
+    hex word as a ref before trying it as an object-id prefix, so a tag named
+    `dead` beats the object whose id starts `dead`). Blocked unconditionally:
+    git declares `--force-if-includes` a "no-op" alongside an explicit
+    `:<expect>`, so nothing mitigates this form.
+
+  What passes: `<expect>` a **full-width object id** (40 hex for SHA-1, 64 for
+  SHA-256) or the empty string, which asserts the ref must not exist. git scopes
+  a pin to its own ref, so a bare fallback alongside a pinned entry still governs
+  every other ref being updated. Where one ref carries several lease entries git
+  consults the first and ignores the rest, and the guard follows that same
+  first-match rule rather than latching on any later spelling. A trailing
+  `--no-force-with-lease` cancels every previous lease. Unique-prefix
   abbreviations (`--force-w`, `--force-i`) are handled; a push dry-run still
   disarms the check, and after `--` the words are operands rather than flags.
+
+## [0.15.1]
+
+### Fixed
+
+- **PreToolUse blocking guards were declared with `timeout: 10`/`15` — 40-60x below the platform's
+  own documented `command`-hook default of 600s for `PreToolUse` (only `UserPromptSubmit` (30) and
+  `MessageDisplay` (10) lower it; `PreToolUse` does not — <https://code.claude.com/docs/en/hooks>,
+  fetched 2026-07-25) — causing the harness to kill them before completion under real machine load
+  and let the guarded tool call proceed with no `permissionDecision` from that guard.** Measured at
+  86.1% of PreToolUse runs killed at the declared timeout across 3,923 runs on one machine
+  (melodic-software/claude-code-plugins#1345). Confirmed against this session's own local
+  `~/.claude/projects/*/*.jsonl` transcript: a `hook_cancelled` attachment for
+  `block-convention-violation.sh` (`timedOut: true`, `durationMs: 10184` against `timeoutMs: 10000`)
+  was immediately followed by the guarded Bash tool call executing and returning a real result — the
+  guard's verdict was silently lost, not merely slow. Standalone timing of all seven affected guards
+  in this repo (no concurrent hook load) completed in well under 1.5s each, and the source contains no
+  network calls or unbounded loops — confirming the guards are not inherently slow; the declared
+  timeout was simply provisioned far below what the platform allows and below what real (contended)
+  runs need. `timeout` raised from 10/15 to **60** (10-40x more headroom over the every real duration
+  sample this investigation captured, while staying well short of the 600s platform default so a
+  genuinely hung process is still bounded) for the seven **blocking** PreToolUse guards:
+  `secret-pattern-detection`, `hardcoded-path-check`, `block-no-verify`, `block-dangerous-git`,
+  `block-hook-bypass`, `block-noncanonical-commit`, `block-convention-violation`. The two **advisory**
+  PreToolUse hooks (`flag-commit-pr-skill-bypass`, `workflow-resilience-check`, which never block
+  regardless of outcome) and the PostToolUse hooks are unchanged — a missed advisory notice is not the
+  fail-open security defect this fix addresses. This mitigation narrows the timeout-driven fail-open
+  window; it does not remove it — a harness-killed hook process cannot itself report a decision, and
+  what should happen to the guarded tool call when a *blocking* guard is killed (deny by default vs.
+  today's silent fallback) is a harness-level policy question outside a plugin's control, tracked
+  separately.
 
 ## [0.15.0]
 

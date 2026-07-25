@@ -34,6 +34,8 @@ Part of `check-cmd` (no fix mode — `fix-cmd` only runs the two ruff commands):
 cd "$PROJECT_DIR" && uv run pyright
 ```
 
+pyright is a **hard prerequisite** of the python default once ruff config opts the ecosystem in — it shares the single compound `check-cmd` with ruff, and tool presence is evaluated per ecosystem, not per tool. On a ruff-configured project with pyright absent, the whole ecosystem reports a missing-tool `skip` (dropping ruff coverage too) rather than skipping pyright alone. Install pyright alongside ruff (see the ecosystem's `install-hint`).
+
 ## Gotchas
 
 - **Use `uv run` prefix in uv-managed projects** (a `uv.lock` is the signal) — it ensures the managed virtualenv is used. In pip/poetry projects, use that project's documented invocation instead

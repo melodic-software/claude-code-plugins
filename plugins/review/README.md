@@ -58,9 +58,12 @@ Invoke via `@review:<agent>` or let Claude delegate.
   files when present (the marketplace-wide ecosystem-commands contract,
   `docs/conventions/ecosystem-commands/README.md`), falling back to your documented conventions,
   then its own bundled generic defaults as a last resort.
-- **Graceful degrade.** Optional orchestrator plugins (`pr-review-toolkit`, `code-review`
-  from the official marketplace) add adversarial breadth when installed; every path works
-  without them.
+- **Graceful degrade.** The optional `pr-review-toolkit` orchestrator plugin (from the official
+  marketplace) adds adversarial breadth when installed; every path works without it. Claude
+  Code's bundled `/code-review` command and the managed Code Review GitHub App service are
+  separate built-in/managed surfaces, not marketplace plugins — see the Boundary section of
+  [`skills/quality-gate/context/pr.md`](skills/quality-gate/context/pr.md) for how the `pr` mode
+  relates to them.
 - **Self-contained.** The severity baseline and all mode guidance ship inside the plugin
   and are referenced via `${CLAUDE_PLUGIN_ROOT}`.
 
