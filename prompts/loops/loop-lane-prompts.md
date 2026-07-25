@@ -465,10 +465,14 @@ letting one "primary" shard write it records a partial pass as the whole.
 >
 > I am present. Recommend, then wait for my direction before mutating.
 >
-> **Stay inside your shard.** Work only rows carrying the tag on the
-> `Shard` line. Do not read, comment on, label, or otherwise mutate rows
-> in the other buckets — another terminal owns them and there is no claim
-> protocol to stop you both.
+> **Stay inside your shard.** The `Shard` line is a **full predicate**, not
+> just a tag: evaluate every clause of it. A row qualifies only when it
+> carries the named tag **and** satisfies any further condition on that line
+> — so `[intake] where item number is odd` selects odd-numbered `[intake]`
+> rows only, and matching the tag alone would put you on a sibling
+> terminal's rows. Do not read, comment on, label, or otherwise mutate any
+> row your full predicate does not select: another terminal owns it and
+> there is no claim protocol to stop you both.
 >
 > **Do not write lane telemetry.** Every attend-queue session upserts its
 > pass report into ONE comment keyed by a fixed marker, and the upsert
@@ -794,10 +798,14 @@ terminals mutating the same row.
 >
 > I am present. Recommend, then wait for my direction before mutating.
 >
-> **Stay inside your shard.** Work only rows carrying the tag on the
-> `Shard` line. Do not read, comment on, label, or otherwise mutate rows
-> in the other buckets — another terminal owns them and there is no claim
-> protocol to stop you both.
+> **Stay inside your shard.** The `Shard` line is a **full predicate**, not
+> just a tag: evaluate every clause of it. A row qualifies only when it
+> carries the named tag **and** satisfies any further condition on that line
+> — so `[intake] where item number is odd` selects odd-numbered `[intake]`
+> rows only, and matching the tag alone would put you on a sibling
+> terminal's rows. Do not read, comment on, label, or otherwise mutate any
+> row your full predicate does not select: another terminal owns it and
+> there is no claim protocol to stop you both.
 >
 > **Do not write lane telemetry.** Every attend-queue session upserts its
 > pass report into ONE comment keyed by a fixed marker, and the upsert
