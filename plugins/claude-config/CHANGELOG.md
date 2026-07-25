@@ -50,6 +50,7 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   record makes the plugin's previous "owns no consumer-project configuration" claim false, so `check`
   gains per-layer verification of the record (user-global INFO, team must be tracked, overlay must be
   gitignored) plus malformed-entry reporting, and `apply` gains its one write path.
+
 ## [0.9.3]
 
 ### Added
