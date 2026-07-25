@@ -26,6 +26,7 @@ pages do not make is recorded as unresolved and given no winner.
 - Memory — CLAUDE.md, `.claude/rules/`, auto memory — <https://code.claude.com/docs/en/memory>
 - Skills — <https://code.claude.com/docs/en/skills>
 - Subagents — what loads into a subagent at startup — <https://code.claude.com/docs/en/sub-agents>
+- Output styles — how a style reaches the system prompt — <https://code.claude.com/docs/en/output-styles>
 
 ## Boundary: what C6's population actually is
 
@@ -47,8 +48,13 @@ never picked up by C6. **Neither check reports it.** Route on C6's actual popula
 
 | Pair | Owner |
 |---|---|
-| Both halves inside **project-scope** `CLAUDE.md` / `CLAUDE.local.md` / `.claude/rules/**` | `claude-memory`'s C6 |
-| Anything else — including any pair with a `~/.claude/` side, and any pair involving auto-memory | I15 |
+| Both halves inside **root-level project** `CLAUDE.md` / `CLAUDE.local.md` / `.claude/rules/**` | `claude-memory`'s C6 |
+| Anything else — any `~/.claude/` side, any auto-memory side, **any nested `CLAUDE.md` / `CLAUDE.local.md` side** | I15 |
+
+**Nested memory files are not routed out either**, for the same reason and by the same evidence.
+Phase A inventories every nested `CLAUDE.md` / `CLAUDE.local.md` in the project tree, while C6
+discovers with `find . -maxdepth 1` — so routing a nested pair to C6 hands it to a check that never
+reads the file. "Project-scope" is the wrong predicate; **root-level project** is the right one.
 
 **Auto-memory is deliberately not routed out** for the same reason. `claude-memory` audits `MEMORY.md`
 for size and index integrity, but C6's question names only "CLAUDE.md, CLAUDE.local.md, and rules
@@ -83,7 +89,7 @@ shapes without this gate produces noise, because most surface pairs never co-loa
 | Agent definition (its own subagent) | Always, as that subagent's system prompt — **alongside the full CLAUDE.md hierarchy** | subagents, "What loads at startup" |
 | Skill named in an agent's `skills:` field | Always, in that subagent | subagents: "The full content of each listed skill is injected, not only the description" |
 | Prompt-type hook text | At the matched lifecycle event | **UNVERIFIED** — the hooks page was not fetched |
-| Output style | Unknown | **UNVERIFIED** |
+| Output style (the **active** one) | Every session in the main conversation, appended to the system prompt | output-styles: "Output styles directly modify Claude Code's system prompt"; "read once at session start" |
 
 **An agent definition co-resides with the whole memory layer, and that is a guaranteed pair.** A
 non-fork subagent's initial context contains "every level of the CLAUDE.md hierarchy the main
@@ -97,10 +103,18 @@ skip them." A pair whose only memory-layer half reaches an `Explore` or `Plan` d
 fails gate 1 — and the docs name the correct remediation, which is to restate the rule in the
 delegation prompt rather than to reconcile the two surfaces.
 
-Prompt-type hooks and output styles stay **UNVERIFIED**: Phase A inventories both, so the pass reports
-pairs involving them as `residency-unknown` rather than clearing or classifying them. Gate 1 cannot be
-evaluated against a row this file cannot source, and guessing a load model to satisfy the gate is the
-same error as inventing a precedence winner. Fetch the hooks and output-styles pages to close these.
+**Only the active output style is resident, and only in the main conversation.** A style becomes
+active through the `outputStyle` setting or a plugin's `force-for-plugin`; every other style on disk
+is inventoried but never loaded, so a pair reaching an inactive style fails gate 1 outright. Two
+further bounds from the same page: a style applies "to the main conversation only: a subagent runs its
+own system prompt", with a fork the exception — so an output style never pairs with an agent
+definition except via a fork — and it is read "once at session start", so a mid-session edit is not
+resident until the next session.
+
+Prompt-type hooks stay **UNVERIFIED**: Phase A inventories them, so the pass reports pairs involving
+them as `residency-unknown` rather than clearing or classifying them. Gate 1 cannot be evaluated
+against a row this file cannot source, and guessing a load model to satisfy the gate is the same error
+as inventing a precedence winner. Fetch the hooks page to close it.
 
 **Guaranteed pairs** are any two of {user `CLAUDE.md`, project `CLAUDE.md`, unscoped rules,
 `MEMORY.md`}, and any agent definition against any of them except via `Explore` / `Plan`.
