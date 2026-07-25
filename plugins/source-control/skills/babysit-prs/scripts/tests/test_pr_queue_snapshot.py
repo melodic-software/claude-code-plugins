@@ -273,6 +273,11 @@ class ApproveWithNitsClassification(unittest.TestCase):
         self.assertEqual(result["feedback"]["blocking"], [])
         self.assertEqual(result["new_feedback"]["blocking"], [])
         self.assertEqual(result["feedback"]["material"], [])
+        # classify_pr surfaces four buckets and collect_feedback puts every record
+        # in exactly one, so all four empty means this review was routed to
+        # `ignored` -- the bucket the snapshot shape does not project.
+        self.assertEqual(result["feedback"]["human_blocking"], [])
+        self.assertEqual(result["feedback"]["human"], [])
         self.assertNotIn(
             "1 blocking bot feedback item(s)", result["blockers"]
         )
