@@ -139,9 +139,14 @@ enumerates two roots only — user `${CLAUDE_CONFIG_DIR:-~/.claude}` and project
 (`SKILL.md:76-82`) — so it never reaches the marketplace tree. The **181** shipped
 `plugins/*/skills/*/SKILL.md` files and the plugin READMEs L2's comparison needs are tracked source
 here, distinct from the installed plugin-cache content `:85-88` excludes, yet no enumerated surface
-names them. **Option A must first extend Phase A with a plugin-source surface enumerating the 181
-shipped skills** — not the 187 recursive matches, which would pull upstream `vendor/`
-materializations into a remediation set this repository does not own.
+names them. **Option A must first extend Phase A with a plugin-source surface enumerating both halves
+of the comparison: the 181 shipped `plugins/*/skills/*/SKILL.md` bodies and the 60
+`plugins/*/README.md` files beside them** — one per plugin, enumerated. Enumerating only the skills
+would leave one of the
+pairs the decision above explicitly puts in scope — a skill's stated default against its plugin
+README — with no second side to compare against. The skill half is the **181** direct matches, not
+the 187 recursive ones, which would pull upstream `vendor/` materializations into a remediation set
+this repository does not own.
 
 Note what Option A does *not* buy: Phase A enumerates surface *paths*, not their contents — the reads
 happen inside the Phase B lanes (`SKILL.md:90-108`). Sharing Phase A saves the enumeration, not the
