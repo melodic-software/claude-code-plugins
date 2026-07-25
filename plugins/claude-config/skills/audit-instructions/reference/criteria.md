@@ -329,6 +329,7 @@ skill bodies.
   `~/.claude/CLAUDE.md`, project rules, `CLAUDE.local.md`, and managed policy files." The qualifier
   *the main conversation loads* is what bounds this check: memory documents lazy loading for
   "path-specific rules or lazy-loaded files in subdirectories", so those are outside the guarantee.
+
 ### I15: Cross-surface instruction conflict
 
 Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all.
