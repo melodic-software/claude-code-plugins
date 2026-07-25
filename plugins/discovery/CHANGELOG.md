@@ -11,11 +11,14 @@
   reorder authority: the tier table still ranks that, and the recency gate's changelog cross-check
   stays unconditional. Stopping at an announcement page — the shallowest rung that still carries the
   claim — and reporting a figure as unsourced is the failure this closes. Gate criterion 9 checks it.
-- **Outcome-gate criteria 9 and 10** — 9: for every ACCEPTED vendor-published claim the fetch log must
-  show the rung the claim came from AND a recorded discovery probe for every rung above it, since an
-  unprobed "nothing deeper exists" would let the shallow run this criterion targets nominate its own
-  landing page as the top; an unreachable rung passes only as an enumerated Gap, so the
-  graceful-degradation contract still holds. 10: every reported absence must name both the checked
+- **Outcome-gate criteria 9 and 10** — 9: for every ACCEPTED claim taken from a publisher's own
+  artifacts (vendor, OSS maintainer, or standards body — matching the ladder's own reach), the fetch
+  log must account for every rung above the one the claim came from, each recorded as
+  probed-and-lacking-the-claim or as unreachable-and-enumerated as a Gap. An unprobed "nothing deeper
+  exists" would let the shallow run this criterion targets nominate its own landing page as the top,
+  and a bare probe record would let a run log the deeper artifact it found and source from a
+  shallower rung anyway; the unreachable route keeps the graceful-degradation contract intact. 10:
+  every reported absence must name both the checked
   and the unchecked set. The broad-topic eval gains concrete thresholds and a does-NOT-meet clause so
   criterion 10 is exercised against a real negative rather than passing vacuously, and its
   outcome-gate expectation is updated to match.
