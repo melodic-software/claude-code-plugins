@@ -119,6 +119,82 @@ for nothing.
 
 Reported at `info`, in its own section, naming the live definition and the shadowed one.
 
+### `AGENTS.md` is affirmatively excluded
+
+Task #56, settled empirically — an exclusion with a reason, so it is not re-litigated. The memory doc
+states it verbatim: *"Claude Code reads CLAUDE.md, not AGENTS.md. If your repository already uses
+AGENTS.md for other coding agents, create a CLAUDE.md that imports it…"* Confirmed on v2.1.219 by
+controlled fixtures — `AGENTS.md` alone at root is not in context; with a `CLAUDE.md` beside it only
+the `CLAUDE.md` loads; `/context` Memory Files enumerates exactly the User and Project `CLAUDE.md`
+rows and no `AGENTS.md` row; a subdirectory `AGENTS.md` does not load on a deferred read either. No
+gate exists — no setting key, no env var, no changelog entry.
+
+Two reasons, the second the stronger:
+
+- **An un-imported `AGENTS.md` causes zero behavioral divergence.** It is dead text, not a live
+  surface, and a contradiction between a live surface and dead text is not the pairwise conflict D1
+  detects.
+- **Including it would actively harm.** In a repository following Anthropic's own recommended
+  `@AGENTS.md` import pattern, the content is already reachable *through* `CLAUDE.md` — so D1 would
+  flag `CLAUDE.md` against itself, producing false positives on precisely the repositories that
+  follow official advice.
+
+**Stated as "not an instruction surface in a stock install", never "never present"**, because a
+third-party plugin claims to add the capability and was not inspected. Issue #6235 is open with no
+Anthropic statement of intent — which is also why the harness version is now a recorded input to the
+derived tier ([rerun-contract.md](rerun-contract.md), "The harness version is an undeclared input").
+
+**A dead `AGENTS.md` is nonetheless a real hazard — silent divergence, where the author believes the
+file is read and it is not — and it is routed elsewhere.** That is a *single-surface* finding, not a
+pairwise one, so it does not fit D1's shape. Routed to task #54; not built into D1.
+
+**This repository's own root `AGENTS.md` is the illustration, and both halves must be reported
+together.** Its `CLAUDE.md` was read in full — 64 lines, no `@` import of any kind — and the two
+files differ in size and content, so it is not a symlink. The "never `git add -A`" staging rule lives
+**only** in that dead file and appears on no live repository surface. **But behavior is not actually
+broken**, because the `source-control:commit` skill separately encodes surgical staging. The rule is
+redundantly encoded, not lost. Reporting only the first half would overstate the harm, which is this
+effort's own recorded failure pattern.
+
+### D1 reads the expanded surface, not the file on disk
+
+**A requirement on the check, not an open question.** An imported file is part of the `CLAUDE.md`
+surface by Claude Code's own loading semantics — imported files are expanded and loaded into context
+at launch — so **a detector that reads a file without expanding its imports is reading a different
+surface than the model sees.** D1 expands `@path` imports transitively and resolves symlinks before
+comparing.
+
+Without it, every `@docs/foo.md` import is invisible to D1, and the `AGENTS.md` import pattern above
+is merely one instance of a general blindness. This could not be verified empirically because D1 is
+not built; it is recorded as a build requirement so it is not rediscovered at implementation time.
+
+Two consequences are absorbed elsewhere: identity must distinguish the physical file from the loading
+entry point, or two distinct findings collide on one id
+([rerun-contract.md](rerun-contract.md), "`surface` — the physical file, never the loading entry
+point"), and import depth is bounded at four hops. Also owed to task #34, since it changes the
+catalog entry.
+
+### Type B ships, and does not ship without the allowlist
+
+**Ratified operator decision, 2026-07-24.** Type B — one absolute and one conditional governing the
+same act — is the source article's own headline example, and D1's inclusion of skill bodies rests on
+it. The blind derivation recommended shipping only Types A/C/D first, on the grounds that Type B "is
+a review queue with an irreducible judgement step and will generate false positives until the
+safety-critical allowlist is curated."
+
+**Both derivations are right about different things: this one on scope, theirs on risk.** The
+decision takes both. Type B ships, **and the safety-critical allowlist is a binding prerequisite,
+not advisory.** An allowlist that arrives later produces exactly the High/High "detectors flag
+correct constraint as over-constraint" outcome PLAN.md's risk table already names. Lane B builds both
+together and owns the allowlist's contents, its home, and its stopping condition.
+
+**The allowlist's core must-not-flag fixture, recorded with the decision** — it comes from the blind
+derivation and is better than anything generated here. From `~/.claude/CLAUDE.md`: *"never use the
+AskUserQuestion tool **unless explicitly asked to use it**"* against, two lines earlier, *"When
+asking the user a question (inline **or via AskUserQuestion**)…"*. An absolute carrying its own
+exception, sitting beside a directive that presupposes exactly that exception. A Type B detector
+without the allowlist flags this pair; with it, it must not.
+
 ### Must NOT flag
 
 Each of these is a real case drawn from this repository or from official documentation, per the
@@ -246,6 +322,23 @@ The checks are delegated; the run semantics are not, and the run semantics are t
 the incumbents by hand yields none of the exclusion set, the three-scope inventory, finding identity,
 suppression memory, resumability, or a single human gate per run. Argued in full in
 [proportionality-gate.md](proportionality-gate.md).
+
+**The operator ratified shipping it as a new router, 2026-07-24, and the losing argument is recorded
+because it is a good one.** The blind derivation's ratified D-3 was "No new router". This design
+survives that gate on the gate's own terms — the gate is about *checks*, and the sweep hosts none;
+the run semantics claimed below are owned by no incumbent either derivation names. The source
+article decides neither, so the tiebreak is repository evidence, and there the blind derivation holds
+a fact this one lacked: **issue #1225 is structurally a second repo-wide sweep**, and "two repo-wide
+sweeps become two routers" is a proportionality argument this project's own gate would have taken
+seriously had it seen it.
+
+**The call: ship, and open the #1225 reconciliation as its own row, due before Phase 9** (task #61).
+Not a blocker on three lanes now, and not silently dropped either. What reconciliation would have to
+establish: whether #1225's sweep and `audit-pass` share a target inventory, a report shape, or a
+suppression surface — because sharing any two of the three makes one router the right answer. **What
+would make this decision wrong:** #1225 turning out to need the same three-scope inventory and the
+same finding identity, in which case `audit-pass` should have been a lane inside it rather than a
+sibling.
 
 **PLAN.md's Brief said the opposite until 2026-07-24 and has been corrected**, so the two documents
 no longer disagree about what is being built. The Brief's "Shape: a runbook" line justified itself by
@@ -684,10 +777,26 @@ dispatched by this sweep but owned by task #34. Not edited from this branch.
     — the closest analogue stores bare ids — and the precedent is not transferable: that mechanism
     justifies its bare form by arguing its opt-out can only cause junk to be missed, never removed. A
     findings suppression can hide a real defect and cannot make that argument.
-  - **Claude-specific today, and the caveat is recorded.** Every surface in the audit set is a Claude
-    Code artifact, so a finding about one belongs under `.claude/`. `AGENTS.md` is the case that
-    would break that — cross-vendor by construction, and not currently in the partition. If it enters
-    scope (task #56), the location argument must be re-derived rather than inherited.
+  - **The Claude-specificity argument for `.claude/` fails, and it fails on evidence already in
+    hand.** It read: every surface in the audit set is a Claude Code artifact, so a finding about one
+    belongs under `.claude/`. Task #56 was expected to decide this by settling `AGENTS.md`. **It did
+    not, and repairing the argument by admitting `AGENTS.md` would be wrong** — `AGENTS.md` is
+    affirmatively excluded, above.
+
+    The argument fails for a simpler reason nobody needed #56 for: **the memory docs' own scope table
+    puts `./CLAUDE.md` and `./CLAUDE.local.md` at repository *root*, outside `.claude/`.** Those are
+    live surfaces in the audit set, and they break the Claude-specificity premise by themselves.
+
+    **So the location is re-derived on a different footing.** `.claude/audit-pass.md` is the right
+    home not because every audited surface lives under `.claude/`, but because the *suppression
+    record* is configuration for a Claude Code skill — it is consumed by `audit-pass`, keyed by that
+    skill's finding ids, and meaningless to any other tool. The team layer of the three-layer cascade
+    is where that configuration belongs regardless of where the audited files sit.
+
+    **One tempting support is deliberately not used.** `/init` reads `.cursor/rules/`,
+    `.github/copilot-instructions.md`, and `AGENTS.md` under `CLAUDE_CODE_NEW_INIT=1` — but that is
+    one-shot *generation-time input* to a generated `CLAUDE.md`, not a loaded surface. Citing it as
+    one would be a fresh instance of the same read-it-first failure this effort keeps recording.
   - **One in-repo precedent went the other way and is not being followed:** `review` declined to add
     a config surface for smell suppression, letting it ride existing project docs. Rejected here
     because a suppression that cannot be keyed cannot be checked for staleness, and a stale
