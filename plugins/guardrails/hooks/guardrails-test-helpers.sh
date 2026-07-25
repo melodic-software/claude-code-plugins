@@ -3,6 +3,9 @@
 # Sourced (never *.test.sh-named, so a test runner's glob ignores it) by each
 # hook's *.test.sh after that file sets up its own TEST_TMPDIR + trap. No
 # dependency on any host-repo assertion library — the plugin is standalone.
+#
+# Duplicated across plugins by design, not drift — see
+# docs/conventions/shell-test-helpers/README.md at the repo root.
 
 : "${PASS:=0}"
 : "${FAIL:=0}"
@@ -57,6 +60,11 @@ other_tool_json() {
 }
 command_json() {
   jq -n --arg cmd "$1" '{tool_name:"Bash",tool_input:{command:$cmd}}'
+}
+# PreToolUse payload for the opt-in PowerShell tool: same tool_input.command
+# field as Bash, distinguished by tool_name so dispatch keys on the tool.
+pwsh_command_json() {
+  jq -n --arg cmd "$1" '{tool_name:"PowerShell",tool_input:{command:$cmd}}'
 }
 
 # make_sink <body> -> path to an executable single-command stub sink running

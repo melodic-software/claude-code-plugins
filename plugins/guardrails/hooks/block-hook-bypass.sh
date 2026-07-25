@@ -35,6 +35,14 @@ source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
 
 hook::check_enabled "BLOCK_HOOK_BYPASS"
 
+# Bundled PowerShell-command classifier — this guard is matched on both the Bash
+# and the (opt-in) PowerShell tool. Resolved under the plugin root (CC sets
+# CLAUDE_PLUGIN_ROOT; the BASH_SOURCE fallback keeps the contract tests working
+# when it is unset).
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+# shellcheck source=../lib/powershell/ps-command.sh
+source "$PLUGIN_ROOT/lib/powershell/ps-command.sh"
+
 # High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;
 # on older bash it is unset, so default to empty and skip telemetry (the block
 # still fires). Referencing it bare under `set -u` would abort before exit.
@@ -62,6 +70,7 @@ hook::require_jq "PreToolUse" "guardrails-block-hook-bypass" "$INPUT"
 
 COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null | tr -d '\r')
 [[ -n "$COMMAND" ]] || exit 0
+TOOL_NAME=$(printf '%s' "$INPUT" | jq -r '.tool_name // "Bash"' 2>/dev/null | tr -d '\r')
 
 # Privacy-safe telemetry subject: `Bash:<first-token>` with leading `sudo` /
 # env-assignment prefixes stripped and the token basenamed. Never the full
@@ -78,7 +87,11 @@ bash_subject() {
   printf 'Bash:%s' "${tok##*/}"
 }
 
-SUBJECT=$(bash_subject "$COMMAND")
+if [[ "$TOOL_NAME" == "Bash" ]]; then
+  SUBJECT=$(bash_subject "$COMMAND")
+else
+  SUBJECT="$TOOL_NAME"
+fi
 
 # Emit one telemetry envelope: $1 status, $2 form ("" when not blocked). Gated
 # on the high-res start stamp and the opt-in sink, so the unwired default path
@@ -87,8 +100,8 @@ emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
   local data
-  data=$(jq -n --arg subject "$SUBJECT" --arg form "$2" \
-    '{tool:"Bash",subject:$subject,form:$form}' 2>/dev/null) || data='{"tool":"Bash","subject":"","form":""}'
+  data=$(jq -n --arg tool "$TOOL_NAME" --arg subject "$SUBJECT" --arg form "$2" \
+    '{tool:$tool,subject:$subject,form:$form}' 2>/dev/null) || data='{"tool":"Bash","subject":"","form":""}'
   hook::emit_telemetry "block-hook-bypass" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
@@ -293,7 +306,11 @@ _leading_redir='^([0-9]*(>>?|<)&?|&>>?)[[:space:]]*'
 # exempts a stdout discard (`>/dev/null`) — that's not a Write/Edit bypass.
 _echo_file_out='(^|[^0-9&])>>?[[:space:]]*[^|&>[:space:]]'
 _echo_devnull='(^|[^0-9&])>>?[[:space:]]*/dev/null'
-_py_write='open[[:space:]]*\(|\.write[[:space:]]*\(|pathlib|path[[:space:]]*\('
+# python file-write indicators. `pathlib` / `path(` are identifier-boundary
+# anchored so they match the write-capable `pathlib.Path(` producer but NOT the
+# read-only `os.path.*path(` helpers (`normpath(`, `abspath(`, `realpath(`, …)
+# whose trailing `path(` would otherwise substring-match and false-positive.
+_py_write='open[[:space:]]*\(|\.write[[:space:]]*\(|(^|[^[:alnum:]_])pathlib|(^|[^[:alnum:]_])path[[:space:]]*\('
 
 # Flag ONLY when the producer being redirected into a real file is echo/printf
 # authoring content — not any command string that merely co-mentions an `echo`
@@ -414,10 +431,55 @@ producer_redirect_bypass() {
 block_bypass() {
   local form="$1" reason="$2"
   echo "BLOCKED: $reason" >&2
-  echo "Use the Write or Edit tool instead of Bash file-write workarounds." >&2
+  echo "Use the Write or Edit tool instead of a shell file-write workaround." >&2
   emit_tel "blocked" "$form"
   exit 2
 }
+
+# PowerShell tool: the Bash strip / producer scan below does not model the
+# PowerShell write surface. Detect PowerShell file-write forms (Set-Content /
+# Add-Content / Out-File / Tee-Object, or a content-producer `>`/`>>` redirect)
+# and skip the Bash-specific scans. SCOPE: this closes the write-GATE bypass;
+# secret-pattern and hardcoded-path CONTENT scanning of PowerShell writes stays
+# on the Write|Edit-matched guards (deferred to A2b).
+if [[ "$TOOL_NAME" == "PowerShell" ]]; then
+  if ps::write_bypass "$COMMAND"; then
+    block_bypass "powershell-write" "PowerShell file-write cmdlet/redirect bypasses Write/Edit hooks"
+  fi
+  # Interpreter-producer writes (`python3 -c "<inline code that writes>"`) route
+  # around Write/Edit whichever tool launches them, and ps::write_bypass models only
+  # PowerShell cmdlet/redirect forms. On the BASH tool the precise `python3 -c` scan
+  # (further below) is reliable: strip_literals is genuinely quote-aware, and Bash
+  # has no `<# #>` block comments or `&{}` script blocks. PowerShell is NOT
+  # faithfully bash-tokenizable, and successive review rounds proved that a precise
+  # regex/normalize stack cannot keep up — each round exposed a fresh evasion
+  # (path-qualified target, `&{python3}` script block, quoted-`#` comment
+  # truncation, with block comments and `-ArgumentList` arg-splitting still open).
+  # So this lane CONSCIOUSLY DIVERGES from the Bash lane (justified above) and
+  # follows the repo's SINK DOCTRINE (ps::classify_git_command / ps::might_invoke_git):
+  # do not trust a precise negative on a mangled command — block on the
+  # mangle-resistant CO-OCCURRENCE of
+  #   (a) a write INDICATOR in the raw command (_py_write — the tokens live in the
+  #       quoted `-c` payload, so the scan is raw, exactly as the Bash lane), AND
+  #   (b) a python3 interpreter TOKEN plus a `-c` inline-code flag both present
+  #       (ps::might_write_via_python3, quote-INTACT + backtick-recovered) — where a
+  #       COMPUTED `-c` (`python3 ('-'+'c') …`) is caught by fail-closing on a
+  #       non-tokenizable arg construct when no literal `-c` is present.
+  # `-c` is REQUIRED and position-independent, so a legitimate script/module run
+  # (`python3 build.py`, `python3 -m tool …`) that merely touches an `open(`-like
+  # path is NOT blocked — only inline-code writes are. ACCEPTED OVER-BLOCK (the
+  # fail-closed choice the user approved for this lane): a command that only MENTIONS
+  # `python3 … -c` + a write indicator in prose, a line/block comment, or a quoted
+  # string now blocks; here-string mentions stay inert (blanked first, like the git
+  # lane). ACCEPTED RESIDUAL: a stdin heredoc (`python3 - <<PY … PY`, no `-c`) is
+  # uncovered here, as it is today.
+  ps::blank_herestrings "$COMMAND"
+  if [[ "$COMMAND_LC" =~ $_py_write ]] && ps::might_write_via_python3 "$PS_BLANKED"; then
+    block_bypass "python-write" "python3 -c inline-code file write bypasses Write/Edit hooks"
+  fi
+  emit_tel "ok" ""
+  exit 0
+fi
 
 # cat > file (allow cat without redirect). EXEC_LC (lowercased stripped form) for
 # case-insensitive command-token detection.
@@ -436,7 +498,11 @@ fi
 # the literal-stripped form (EXEC_LC) so prose/commit text merely mentioning it
 # is not a false positive; scan the RAW command (COMMAND_LC) for the write
 # indicators — they legitimately live inside the quoted `-c` payload the strip removes.
-if [[ "$EXEC_LC" =~ (^|[[:space:];|&()]+)python3[[:space:]]+-c ]] &&
+# The command-word boundary admits a leading path (`/` `\` in the class) and an
+# optional `.exe`, so a path-qualified interpreter (`/usr/bin/python3 -c`,
+# `/c/Python313/python3.exe -c`) is the same write — anchored on the python3
+# basename, so `notpython3` (no separator before it) stays inert.
+if [[ "$EXEC_LC" =~ (^|[[:space:];|&()/\\]+)python3(\.exe)?[[:space:]]+-c ]] &&
   [[ "$COMMAND_LC" =~ $_py_write ]]; then
   block_bypass "python-write" "python3 -c file write bypasses Write/Edit hooks"
 fi

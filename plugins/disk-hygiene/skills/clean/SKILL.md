@@ -10,7 +10,7 @@ hooks:
       hooks:
         - type: command
           command: "python3"
-          args: ["${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--authorized-data-root", "${CLAUDE_PLUGIN_DATA}", "--disk-hygiene-enabled", "${user_config.disk_hygiene_enabled}"]
+          args: ["${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive_guard.py", "--plugin-root", "${CLAUDE_PLUGIN_ROOT}"]
 ---
 
 # Disk hygiene
@@ -22,9 +22,15 @@ filename pattern is a discovery hint, never proof that an entry is junk. Read
 ## Arguments and boundaries
 
 Parse `$ARGUMENTS` as optional `--execute`, optional `--policy <file>`, and one target directory.
-`--execute` means “offer the gated lane”; it is not approval. With no target, ask once. Reject a
-filesystem root, mount target, OS-managed root, protected shell-folder root or descendant, missing
-directory, symlink, or Windows reparse point.
+`--execute` means "deletion may be offered" on every platform — the gated engine lane where the
+platform supports it, the manual handoff elsewhere; it is not approval. (Deliberate semantic
+unification, not a restatement: the flag previously read as engine-lane-only, which left the
+manual lane's gate ambiguous — consumer sessions read it both ways.) With no target, ask once. Reject an
+OS-managed root, a non-root mount target, a protected shell-folder root or descendant, a missing
+directory, a symlink, or a Windows reparse point. A whole-volume root that is not OS-managed (a
+Windows Dev Drive) is no longer rejected outright — it is a valid target, but as a known-large root
+it is gated like a home target (see step 1): the scan returns `large-target-confirmation-required`
+unless bounded with `--max-depth` or confirmed with `--confirmed-large-scan`.
 
 - Use `/repo-hygiene:clean` for one repository's caches, build output, Git metadata, or tree reset.
 - For git worktree checkouts (e.g. under a `.worktrees/` directory), hand off to
@@ -42,14 +48,15 @@ directory, symlink, or Windows reparse point.
   running the bundled probe (the guard allows exactly this argument-free shape):
   `"<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/kill_switch_probe.py"` and honor
   the `effective` value it reports; on `degraded: true` proceed as enabled but say the configured
-  value could not be read. In this audit-only mode the guard denies every
-  deletion lane, including the flagged PowerShell mutation spellings, not only the Bash engine
-  apply. The kill-switch value reaches the guard as a runtime-substituted hook argument
-  (`--disk-hygiene-enabled ${user_config.disk_hygiene_enabled}`), so a configured `false` is
-  honored even where the runtime does not inject the `CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED`
-  environment variable; the environment variable is only a fallback. The hook
-  runs in shell-free exec form and reports its absolute Python interpreter and the authorized
-  `--data-root` value in denial guidance. Use that exact interpreter path as `<hook-python>` for
+  value could not be read. The guard now enforces this independently: it resolves the same
+  `disk_hygiene_enabled` toggle by reading it straight from your user `settings.json` (the read is
+  shared with this probe, and the settings file is located from the tamper-resistant
+  `${CLAUDE_PLUGIN_ROOT}` — not the environment), so in audit-only mode it denies every mutation lane
+  outright — the Bash engine `apply` and the PowerShell deletion belt alike. Running the probe still
+  matters so you can state the configured value accurately and stop before proposing work the guard
+  would deny; the guard is the backstop, not the sole enforcer. The hook runs in shell-free exec form and reports its absolute Python
+  interpreter and the authorized `--data-root` value in denial guidance. Use that exact interpreter
+  path as `<hook-python>` for
   every engine call; bare `python`/`python3` is rejected because Bash aliases and functions can
   replace them. If either value is not known yet, submit the otherwise exact scan shape once with
   bare `python`: the guard must deny it and report both, after which retry the scan with the
@@ -71,17 +78,22 @@ stay there, never in the target or `${CLAUDE_PLUGIN_ROOT}`. Run:
   [--max-depth <N>] [--confirmed-large-scan]
 ```
 
-The guard validates `--data-root` against the authorized data root it receives as a
-runtime-substituted hook argument (`${CLAUDE_PLUGIN_DATA}`), so generated state provably lands in the
-plugin data directory even when the shell environment lacks `CLAUDE_PLUGIN_DATA`.
+The guard validates `--data-root` against the plugin data directory it derives from
+`${CLAUDE_PLUGIN_ROOT}` (passed to the guard as `--plugin-root`, the only substitution a
+skill-frontmatter hook receives), confining generated state to the plugin data directory even when
+the guard's own environment lacks `CLAUDE_PLUGIN_DATA`. If the guard cannot recognize the install
+layout it derives no authority and denies `--data-root` engine calls rather than trusting a guessed
+path, so re-run reporting a denial is a coverage gap, not a clean result.
 
 For a large root (a home directory, anything whose recursive walk could exceed the engine's entry
 cap), start with a bounded pass: add `--max-depth 1` to inventory the target's loose files and
 immediate children, then fan out deeper scans per subtree that the evidence justifies. The engine
-backs this with a deterministic gate: a scan whose target resolves to the user home directory and
-carries neither `--max-depth` nor `--confirmed-large-scan` returns `large-target-confirmation-required`
-(after a cheap top-level probe, not a full walk) instead of the unbounded traversal, so a forgotten
-bound never becomes an accidental whole-home scan. `--max-depth` is the preferred bounded response.
+backs this with a deterministic gate: a scan whose target resolves to the user home directory or a
+non-OS volume root (a Windows Dev Drive — an OS-managed root is denied outright and never reaches
+this gate) and carries neither `--max-depth` nor `--confirmed-large-scan` returns
+`large-target-confirmation-required` (after a cheap top-level probe, not a full walk) instead of the
+unbounded traversal, so a forgotten bound never becomes an accidental whole-volume scan. `--max-depth`
+is the preferred bounded response.
 Reserve `--confirmed-large-scan` for a deliberate full walk the human has confirmed — ask with
 `AskUserQuestion` first, exactly as the apply lane requires before an expensive step; a general
 "clean my home directory" is not that confirmation. Every
@@ -205,23 +217,58 @@ token.
 
 ### Unsupported-platform handoff (Windows, macOS)
 
-Preview returns `execution-platform-unsupported` on these platforms, so the engine never deletes
-there. The default outcome is the report. If — and only if — the human reviews the report and
+Preview reports `execution-platform-unsupported` as a per-candidate blocker on these platforms, so
+the engine never deletes there. The default outcome is the report. The manual lane is gated by
+`--execute` exactly as the engine lane is — without it, no deletion lane may be offered on any
+platform. If — and only if — `--execute` was requested and the human reviews the report and
 approves an exact path list in this interactive session (the same `AskUserQuestion` exact-tier-and-
 list bar as the engine lane; a general "clean it up" is still not approval), removal is a manual
 handoff, not an engine plan:
 
-1. Revalidate each path immediately before removal: size, mtime, and kind unchanged since the
-   audit evidence; no reparse point/symlink; any owner process named in the evidence still absent;
-   an exclusive-open probe succeeds (no live handle).
+1. Write the approved exact paths to `<run-dir>/handoff-paths.json` as
+   `{"version": 1, "paths": ["relative/exact.tmp"]}` (snapshot-relative, exact, non-overlapping,
+   never globs), then run the engine's deterministic revalidation immediately before deletion:
+
+   ```text
+   "<hook-python>" "${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py" handoff-verify \
+     --snapshot "<run-dir>/snapshot.json" --paths "<run-dir>/handoff-paths.json" \
+     --data-root "${CLAUDE_PLUGIN_DATA}"
+   ```
+
+   It reruns the engine's identity/reparse/protection/descendant/VCS/handle checks per path
+   against live state and emits one verdict each — `clear`, `drifted` (identity or descendant
+   set changed since the snapshot), `gone` (no longer present), or `contested` (protection,
+   VCS state, a live handle, elevation, or unverifiable state) — and never deletes anything.
+   Act only on verdict-`clear` paths. Additionally confirm any owner process named in the audit
+   evidence is still absent — that evidence is report-level, outside the engine's checks.
+
+   **Verify one path per deletion, not one batch for all.** In a multi-path run, the first
+   path's check ages while every later path is still being walked and probed, so its `clear`
+   is already stale at emission — and staler after each intervening deletion. Pair each
+   deletion with its own fresh single-path handoff-verify run (verify one → delete that one →
+   next); reserve the multi-path form for reporting. A clear verdict is valid only at emission
+   time: delete immediately, and re-run handoff-verify after any delay or interruption.
 2. Prefer reversible removal (Windows Recycle Bin / macOS Trash) over permanent deletion, and say
-   which was used.
-3. Skip and report any path that fails revalidation; never substitute a sibling or retry around a
-   lock.
+   which was used. That reversibility is conditional, not guaranteed: bin size caps, a
+   policy-disabled bin, or a non-NTFS/network volume can silently make the same operation
+   permanent — disclose when a target's volume or policy may turn "reversible" removal permanent.
+3. Container-wide deletion commands (`Clear-RecycleBin`, emptying the Trash, or any "delete
+   everything in this container" spelling) are forbidden in the manual lane — they execute
+   against the live container, so items arriving between approval (or even re-enumeration) and
+   execution die under an approval that never saw them. Satisfy "empty the container" by
+   enumerating the container and deleting per item under steps 1, 2, and 4; items that arrive
+   after enumeration are simply not deleted. This is the engine lane's changed-since-scan threat
+   in the manual lane, where no snapshot token protects execution.
+4. Skip and report any path whose verdict is not `clear`; never substitute a sibling, retry
+   around a lock, or delete under a stale verdict.
 
 The PowerShell guard lane turns deletion spellings into a final human permission prompt (the same
 bar as the engine apply prompt); confirm that prompt only when the command matches the exact
-approved list. Engine invocations from PowerShell stay hard-denied.
+approved list. Engine invocations from PowerShell stay hard-denied. The plugin-level engine gate
+(`hooks/hooks.json`) now registers unconditionally and resolves the kill switch itself by reading
+`disk_hygiene_enabled` from your user `settings.json`; it no longer carries a `${user_config.*}`
+argument, so the unset-default hook-drop that once made it inert on a default install is gone.
+`Bash|PowerShell` PreToolUse hooks fire for the PowerShell tool. See `reference/safety-model.md`.
 
 Summarize removed paths, logical bytes removed, observed free-space delta, and every skip grouped by
 `locked`, `changed-or-link`, `protected`, `needs-elevation`, `handle-state-unverified`, or
@@ -241,13 +288,23 @@ sparse files, hard links, compression, and delayed allocation affect it.
   directory is reopened without following links, matched by device/inode/type, and proven empty after
   its captured children are removed.
 - A directory's contents can change after preview. Apply revalidates each captured entry and removes
-  bottom-up; it never follows a new link or recursively discovers new entries.
+  bottom-up; it never follows a new link or recursively discovers new entries. The manual-handoff
+  lane's container re-enumeration rule applies this same changed-since-scan discipline where no
+  snapshot token exists.
 - `allowed-tools` would pre-approve rather than restrict tools, so this destructive skill intentionally
   grants none. Consumer permission policy remains authoritative.
 - The Bash hook denies unknown commands rather than trying to enumerate deletion spellings. Supporting
-  research uses non-Bash read-only tools; only literal-word bundled scan, preview, and apply shapes
-  using the hook runtime's same absolute executable pass. Shell expansions, globs, splitting/escape
-  forms, operators, redirections, aliases, and exported functions fail closed.
+  research uses non-Bash read-only tools; only literal-word bundled scan, preview, handoff-verify, and
+  apply shapes using the hook runtime's same absolute executable pass. Shell expansions, globs,
+  splitting/escape forms, operators, redirections, aliases, and exported functions fail closed.
+- The guard registers twice: a plugin-level engine gate (`hooks/hooks.json`, `--mode engine-gate`)
+  that receives the data root by plugin-hook substitution and defers instantly on any command not
+  referencing the engine; and this skill's frontmatter belt, which adds the deny-by-default Bash and
+  deletion-spelling PowerShell discipline while cleanup is the active work. Both resolve the kill switch
+  the same single way — reading `disk_hygiene_enabled` from user-scope `pluginConfigs` in
+  `settings.json`, located from the `${CLAUDE_PLUGIN_ROOT}` both receive — so both honor a configured
+  `false`, register unconditionally, and fail closed to enabled when the value is absent or unreadable.
+  Verdicts are idempotent where both fire.
 - The guard hook launches in exec form via `python3`, resolved on `PATH` with no shell (`python3`,
   not bare `python`, because stock macOS and many Linux distros ship only `python3` and a legacy
   `python` 2.x would crash the guard on modern syntax). Enforcement is therefore only as strong as
@@ -261,6 +318,22 @@ sparse files, hard links, compression, and delayed allocation affect it.
   manual-handoff lane already requires and the consumer's baseline permission policy — defense-in-depth
   lost, not preserved. `/disk-hygiene:setup check` reports whether the interpreter resolves on this
   machine.
+- **The kill switch is delivered by reading user settings, not by a hook argument (since 0.9.0).** Earlier
+  versions passed a bare `${user_config.disk_hygiene_enabled}` in `hooks/hooks.json`; a declared userConfig
+  `default` is not implemented upstream (#46477 / #39455 / #39827), so an unset-but-defaulted token was
+  neither substituted nor exported to `CLAUDE_PLUGIN_OPTION_*`, and its presence **dropped the whole hook
+  entry** — making the engine gate inert for any consumer who never set the key. The gate no longer carries
+  a `${user_config.*}` token; both the gate and the belt resolve `disk_hygiene_enabled` by reading it from
+  `pluginConfigs` in `settings.json`. Claude Code honors that key only from user, managed, and `--settings`
+  scope since 2.1.207 (a project/local `settings.json` is ignored), so a hostile repo cannot forge it. The
+  reader reads the **user** file (located from `${CLAUDE_PLUGIN_ROOT}` rather than repo-redirectable
+  environment) and the **managed** enterprise file (highest precedence — a value there wins, so an org can
+  enforce audit-only, with its `managed-settings.d/` drop-in dir merged over it); a session `--settings`
+  file is the one honored source a hook cannot read. Absent or unreadable settings fail closed to enabled.
+- **PreToolUse hooks DO fire for the PowerShell tool** (2.1.218; payload `tool_name` is literally
+  `PowerShell`, confirmed by a live block through that tool). A `Bash|PowerShell` matcher is correct and
+  there is no harness firing divergence — read `tool_name` from the stdin payload, not from an env var
+  (`CLAUDE_TOOL_NAME` does not exist).
 - The PowerShell lane is the inverse tradeoff: it stays open for read-only support work (git, gh,
   metadata probes) and instead hard-denies engine invocations and turns known deletion spellings
   into a final human permission prompt. It is a raised bar, not a fail-closed lane; the engine's

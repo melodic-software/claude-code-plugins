@@ -48,6 +48,59 @@ out="$(run_build --apply)"
 assert_contains "submodule build dir skipped" "$out" "Skip (submodule):"
 assert_file_exists "submodule tracked file preserved" "$TEST_TMPDIR/repo/deps/sub/build/app.js"
 
+# --- manifest / nested-dedup / apply-from-manifest / resume ---
+# Fresh repo so progressive mutation above does not bleed into these cases.
+git init "$TEST_TMPDIR/b2" >/dev/null 2>&1
+git -C "$TEST_TMPDIR/b2" config user.email "t@example.com"
+git -C "$TEST_TMPDIR/b2" config user.name "Test"
+# bin/ with a nested obj/ — both are build dir names; the walk returns both but
+# the ancestor (bin/) must collapse the descendant so the byte total is not
+# double-counted and apply does not chase an already-removed path.
+mkdir -p "$TEST_TMPDIR/b2/bin/obj"
+echo a >"$TEST_TMPDIR/b2/bin/x.dll"
+echo b >"$TEST_TMPDIR/b2/bin/obj/y.dll"
+# A caches-tier target too, to prove --include-caches folds both classes into
+# the one build manifest (no clean-caches.sh subprocess).
+mkdir -p "$TEST_TMPDIR/b2/.pytest_cache"
+echo c >"$TEST_TMPDIR/b2/.pytest_cache/c"
+MANI="$TEST_TMPDIR/b2.manifest"
+
+run_b2() {
+  bash -c "cd '$TEST_TMPDIR/b2' && bash '$BUILD' $*"
+}
+
+out="$(run_b2 --dry-run --include-caches --manifest "$MANI")"
+assert_contains "dry-run prints manifest path" "$out" "Manifest: $MANI"
+# bin/ (nested obj/ deduped) + .pytest_cache = 2 planned.
+assert_contains "nested dir deduped, caches folded in" "$out" "Summary: planned=2 bytes="
+mani_body="$(cat "$MANI")"
+# Structural pin (the manifest is a consumed contract): exact class<TAB>bytes<TAB>path per tier.
+if grep -qE "^build"$'\t'"[0-9]+"$'\t'"bin$" "$MANI"; then
+  pass "build line is class<TAB>bytes<TAB>path"
+else
+  fail "build manifest line format" "build<TAB><int><TAB>bin" "$mani_body"
+fi
+if grep -qE "^caches"$'\t'"[0-9]+"$'\t'"\.pytest_cache$" "$MANI"; then
+  pass "caches line folded into build manifest"
+else
+  fail "folded caches manifest line" "caches<TAB><int><TAB>.pytest_cache" "$mani_body"
+fi
+assert_not_contains "nested obj not a separate entry" "$mani_body" "bin/obj"
+assert_file_exists "dry-run does not mutate" "$TEST_TMPDIR/b2/bin/obj/y.dll"
+
+out="$(run_b2 --apply --manifest "$MANI")"
+rc=$?
+assert_contains "apply-from-manifest removes bin" "$out" "Removed: bin"
+assert_contains "apply summary shape" "$out" "Summary: removed=2 failed=0 bytes="
+assert_exit "apply exit 0" 0 "$rc"
+assert_file_absent "bin gone after apply" "$TEST_TMPDIR/b2/bin/x.dll"
+assert_file_absent "folded cache gone after apply" "$TEST_TMPDIR/b2/.pytest_cache/c"
+
+out="$(run_b2 --apply --manifest "$MANI")"
+rc=$?
+assert_contains "resume removes nothing" "$out" "Summary: removed=0 failed=0 bytes=0"
+assert_exit "resume exit 0" 0 "$rc"
+
 if [[ $FAILED -ne 0 ]]; then
   echo "FAILED: $FAILED test(s)"
   exit 1

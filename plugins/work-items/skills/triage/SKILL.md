@@ -37,7 +37,7 @@ Evaluate **raw intake** — any untriaged item carrying the raw marker, whoever 
 Two rules bound what enters this flow:
 
 - **A PR is an item with attached code.** An unsolicited or external PR enters the same intake as an issue: same states, same machine. Its diff is an **attachment to evaluate** — check it out, run the relevant tests — never an obligation to merge. Read the state names against the code: briefed means a brief exists for what to do with the diff; human-gated means a human should decide the merge.
-- **Never re-triage already-triaged output.** Items born triaged — published by `/work-items:decompose`, or created by a `/work-items:track add` that leaves no raw marker — already carry a routing decision. They never re-enter this flow, and the attention view excludes them by construction (being neither unlabeled nor marked with the raw marker, they fall in none of its buckets). This exclusion keys on **absence of the raw marker**, not authorship and not the mere presence of classification labels: the raw marker (`status:needs-triage`, or being unlabeled) puts an item in scope even alongside default labels, so a team-authored dogfood issue filed with a default `priority:` label *and* the raw marker is in scope (the marker wins), while a `track add` item that carries classification labels but no raw marker is out of scope for the same reason decompose output is. If someone names an already-triaged item explicitly, say it is already triaged and stop.
+- **Never re-triage already-triaged output.** Items born triaged — published by `/work-items:decompose`, or created by a `/work-items:track add` that leaves no raw marker — already carry a routing decision. They never re-enter this flow, and the attention view excludes them by construction (being neither unlabeled nor marked with the raw marker, they fall in none of its buckets). This exclusion keys on **absence of the raw marker**, not authorship and not the mere presence of classification labels: the raw marker (`status:needs-triage` / `priority:needs-triage`, whichever axis the repo files it under) or being unlabeled puts an item in scope even alongside default labels, so a team-authored dogfood issue filed on the status axis with a default `priority:` label *and* the raw marker is in scope (the marker wins), while a `track add` item that carries classification labels but no raw marker is out of scope for the same reason decompose output is. If someone names an already-triaged item explicitly, say it is already triaged and stop.
 
 ## Triage states
 
@@ -45,7 +45,7 @@ State names follow the plugin's vocabulary and the canonical roles ([`${CLAUDE_P
 
 | State | Tracker marker | Meaning |
 |-------|----------------|---------|
-| **raw** | unlabeled or `status:needs-triage` | Untouched intake; every claim in it is unverified |
+| **raw** | unlabeled or the raw marker (`status:needs-triage` / `priority:needs-triage`, whichever axis the repo files it under) | Untouched intake; every claim in it is unverified |
 | **verified** | recorded in triage notes | The claim held up: bug reproduced, or PR diff confirmed to do what it says |
 | **briefed** | brief posted + `status:ready` | Fully specified as a behavioral contract (per [`${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md`](${CLAUDE_PLUGIN_ROOT}/reference/agent-brief.md)) |
 | **autonomous-eligible** | role label (default `agent-ready`) | Briefed AND delegable — eligible for autonomous pickup from the frontier |

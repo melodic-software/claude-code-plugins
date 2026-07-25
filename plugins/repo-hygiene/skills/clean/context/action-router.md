@@ -8,13 +8,15 @@ SKILL.md carries the action table headline; this file carries alias resolution, 
 | --- | --- | --- | --- | --- |
 | `scan` | "Show what's reclaimable" | Read-only inventory | Safe | N/A (no mutation) |
 | `caches` | "Clear tool and linter caches" | `.pytest_cache/`, `.ruff_cache/`, `__pycache__/`, … | Low | **Never** |
-| `build` | "Clear build output and logs" | `bin/`, `obj/`, `dist/`, dotnet clean driver, … | Low | **Never** |
-| `git` | "Prune stale git metadata" | `worktree prune`, `remote prune`, `gc`, branch audit | Low | Prune/gc only after user OK; branch delete always opt-in |
+| `build` | "Clear build output and logs" | `bin/`, `obj/`, `dist/`, `*.binlog`, … | Low | **Never** |
+| `git` | "Prune stale git metadata" | `worktree prune`, `remote prune`, `gc`, branch audit, stash audit | Low | Prune/gc only after user OK; branch delete always opt-in |
+| `stash` | "Audit and triage my stashes" | Read-only per-stash facts (age, source branch, diffstat, PR/merge signal) | Safe | **Never** drops — keep/drop confirmed per stash |
 | `tree` | "Reset working tree like a fresh pull" | `fetch` + `reset --hard` upstream + `clean -fdx` (default-preserve secrets/deps/skill-data; `--include-deps` / `--include-secrets` to widen) | **Destructive** | **Never** |
 | `tree-batch` | "Reset all my repos like a fresh pull" | `tree` across a repo set behind one gate; separator-agnostic skip list; dirty/unpushed skipped unless `--include-dirty` | **Destructive** | **Never** |
 | `all` | "Sweep caches, build artifacts, and git hygiene" | `build` + `git` (not `tree`) | Medium | **Never** |
+| `caches-batch` / `build-batch` / `git-batch` / `all-batch` | "…across all my repos" | the matching selective tier across a repo set, behind one gate ([clean-batch.md](clean-batch.md)) | Low–Medium | **Never** |
 
-**Neither `tree` nor `tree-batch` is part of `all`.** One mistaken sweep must not run a `reset --hard`. (`tree` itself now preserves `.env`, `node_modules/`, `.venv/` by default — see `reference/cleanup-config.md` "tree".)
+**Neither `tree` nor `tree-batch` is part of `all`.** The `*-batch` forms are the fleet siblings of the selective tiers; `tree-batch` is the fleet form of the destructive `tree` tier (separate, with a dirty guard). One mistaken sweep must not run a `reset --hard`. (`tree` itself now preserves `.env`, `node_modules/`, `.venv/` by default — see `reference/cleanup-config.md` "tree".)
 
 ## Token resolution (script)
 
@@ -22,7 +24,7 @@ SKILL.md carries the action table headline; this file carries alias resolution, 
 bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/resolve-clean-action.sh <tokens...>
 ```
 
-Emits `Action: <canonical|menu>`. Single-token aliases:
+Emits `Action: <canonical|menu>`, plus an optional `Note: <text>` line when a leading action token is trailed by free text (a question or a live-session constraint) — advisory context the agent must address, never part of resolution. Single-token aliases:
 
 | Tokens → | Action |
 | --- | --- |
@@ -30,11 +32,16 @@ Emits `Action: <canonical|menu>`. Single-token aliases:
 | `cache`, `caches`, `linter-caches`, `linter` | `caches` |
 | `build`, `artifacts`, `artifact`, `bin`, `obj`, `output` | `build` |
 | `git`, `branches`, `branch`, `prune`, `gc` | `git` |
+| `stash`, `stashes`, `stash-audit` | `stash` |
 | `tree`, `fresh`, `fresh-pull`, `fresh-pull-state`, `pristine`, `reset-tree`, `working-tree` | `tree` |
 | `tree-batch`, `batch`, `fleet`, `multi-repo`, `reset-all` | `tree-batch` |
 | `all`, `sweep`, `everything` | `all` |
+| `caches-batch`, `caches-fleet`, `cache-batch` | `caches-batch` |
+| `build-batch`, `build-fleet`, `artifacts-batch` | `build-batch` |
+| `git-batch`, `git-fleet`, `prune-batch`, `gc-batch` | `git-batch` |
+| `all-batch`, `all-fleet`, `sweep-batch`, `clean-all` | `all-batch` |
 
-Multi-token phrase heuristics (when no single token matches): `reset all`, `all my repos`, `every repo`, `across repos`, `ghq list` → `tree-batch`; `fresh pull`, `fresh clone`, `reset to origin`, `wipe ignored` → `tree`; disk-space phrases → `scan`; stale/merged branch phrases → `git`.
+Multi-token phrase heuristics (when no single token matches): a selective tier word (`caches`/`build`/`git`) plus a fleet signal (`fleet`, `batch`, `all repos`, `across repos`, …) → that tier's `*-batch`. A fleet phrase naming the `all` tier splits on intent: reset/fresh-pull phrasing (`reset all my repos`, `wipe all repos`) → destructive `tree-batch`; a plain fleet cleanup (`clean all repos`, `sweep across all repos`) → selective `all-batch`. Single-repo phrases: `fresh pull`, `fresh clone`, `reset to origin`, `wipe ignored` → `tree`; disk-space phrases → `scan`; stale/merged branch phrases → `git`.
 
 Conflicting tokens → `menu`.
 
@@ -53,10 +60,12 @@ Default when still unsure after one question: **`scan`** (safest).
 | Action | Pre-mutation step | User gate |
 | --- | --- | --- |
 | `scan` | Run `scan.sh` | None |
-| `caches`, `build`, `all` | `preflight.sh` + tier scripts `--dry-run` | `AskUserQuestion` when preflight non-empty OR before `--apply` |
-| `git` | `git-prune.sh --dry-run`, `git-branch-audit.sh` | Before `--apply` prune; before any branch deletion |
+| `caches`, `build`, `all` | `preflight.sh` + tier scripts `--dry-run` (writes a manifest; emits `Manifest:` + `Summary: planned=N bytes=K`) | `AskUserQuestion` when preflight non-empty OR before `--apply` — surface the `bytes` reclaimable total; apply the same manifest (`--apply --manifest <path>`), which emits `Summary: removed=N failed=M bytes=K` and exits non-zero on failure |
+| `git` | `git-prune.sh --dry-run`, `git-branch-audit.sh`, `git-stash-audit.sh` | Before `--apply` prune; before any branch deletion; per-stash keep/drop |
+| `stash` | `git-stash-audit.sh` (read-only) | Per-stash keep/drop — **never** auto-dropped, even a `superseded` advisory |
 | `tree` | `git-tree-reset.sh --dry-run` (always) | **Mandatory** `AskUserQuestion` before `--apply` (surface `PreserveDeps`/`PreserveSecrets`/`AheadCount`); a non-zero `AheadCount` or exit 4 needs explicit unpushed-loss confirmation before `--allow-unpushed`; `--include-secrets` is UNRECOVERABLE — confirm separately; never autonomous |
 | `tree-batch` | `git-tree-reset-batch.sh --dry-run` (always) | **Mandatory** single batch-wide `AskUserQuestion` before `--apply` (surface the per-repo `Outcome`/`Reason`, `Summary`, and `UnmatchedSkip:`); one gate for the whole batch, never per repo; `--include-dirty` re-enables the data-loss vector — confirm separately naming the dirty repos, like `--include-secrets`; never autonomous. Detail: [git-tree-reset-batch.md](git-tree-reset-batch.md) |
+| `caches-batch` / `build-batch` / `git-batch` / `all-batch` | `clean-batch.sh --tier <…> --dry-run` (writes a batch plan; emits `BatchPlan:` + aggregate `Summary: repos=N planned=P bytes=K`) | **Mandatory** single batch-wide `AskUserQuestion` before `--apply` (surface per-repo `Outcome`/`Reason`, `Summary` reclaimable `bytes`, `UnmatchedSkip:`); apply the **same** plan (`CLEAN_GUARD_ACK=1 … --apply --batch-plan <path>`, which errors without the plan) — one gate for the whole batch, never per repo; never autonomous. Detail: [clean-batch.md](clean-batch.md) |
 
 Autonomous sessions (`CLAUDE_CODE_REMOTE`, `/loop`, `/schedule`): destructive tiers (`tree`, `tree-batch`, and `--apply` on caches/build/all) **abort** — same rule as preflight §1.5.
 

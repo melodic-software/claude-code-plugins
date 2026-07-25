@@ -61,3 +61,10 @@ Graceful degradation — where a named step below is not available in the consum
 | A candidate shape is agreed | Hand off to a planning skill if the project has one; else summarize the agreed shape for planning | Consumes the `agreed-shape` entry from the candidate artifact (see `actions/deepening.md`) |
 | During the interview loop | Maintain resolved project vocabulary | Invoke `/domain-driven-design:curate-language` when available in the current session; otherwise update an existing consumer-declared glossary in its own shape |
 | Post-improvement | Review the implemented changes with the project's review tool | Standard diff review |
+
+## Gotchas
+
+Observed failure history — patterns that have actually bitten. Add here when a new one surfaces.
+
+- **The durable candidate artifact is a per-project memory-tier file, never `${CLAUDE_PLUGIN_DATA}`.** That token does not substitute in skill markdown content (it is a hook/monitor/MCP path substitution only), and even resolved it points at a plugin-global dir that collides candidates across projects. The artifact resolves through the marketplace topic-docs convention (the plugin's topic-docs [binding](../../reference/topic-docs.md)) — memory tier, default `.work/<topic-slug>/`. A `${CLAUDE_PROJECT_DIR}/.claude/...` path is also wrong: `.claude/` generated output is reserved for observability, and an unignored artifact there leaks scan output into git.
+- **Scan-agent claims are shipped only after Phase 1.5 reproduction.** Explore agents have a demonstrated error rate: a real run reported a service "registered but never composed — a bug in the seam" that one grep disproved (it *is* consumed, via a different consumer, with tests). Any candidate headed for a `Strong` badge and any runtime-bug / dead-code claim is reproduced against the actual code before it reaches the user-facing report — the report lends every claim its authority, so an unreproduced overstatement is cheap to make and expensive to reputation.

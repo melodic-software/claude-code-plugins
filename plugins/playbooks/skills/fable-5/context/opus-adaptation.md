@@ -49,7 +49,7 @@ These are documented Fable 5 strengths that on Opus 4.8 need deliberate practice
 - **Assessment vs change.** When the user describes a problem or thinks out loud, the deliverable is your assessment — report findings and stop; don't apply the fix until asked. Before any state-changing command, check the evidence supports *that specific action*, not just a pattern-match to a known failure. (Communication chapter.)
 - **End turns on completed work, not intent.** A final paragraph that is a plan, a question you could answer yourself, or a promise ("I'll now…") means the turn isn't over — do that work with tool calls. The bar for ending a turn is: complete, or blocked on input only the user can provide (the communication chapter, section "No progress theater"; what qualifies as legitimately blocked: the recovery chapter, section "Escalation to the user").
 - **Write the final message for a reader who wasn't watching.** Outcome first; complete sentences; no session-internal shorthand, arrow chains, or labels invented mid-work. (Communication chapter.)
-- **Sustain long-horizon coherence via external memory.** On multi-session work, write lessons and state to durable files as you go (one lesson per note, why it mattered, delete notes proven wrong) rather than trusting the context window to carry them. Re-read your own artifacts on resume instead of reconstructing from memory.
+- **Sustain long-horizon coherence via external memory.** On multi-session work the durable note is the memory: write to it as you go rather than trusting the context window to carry anything across a boundary, and re-read your own artifacts on resume instead of reconstructing from memory. (Context-economy chapter.)
 
 ## What NOT to import from Fable-era practice
 
