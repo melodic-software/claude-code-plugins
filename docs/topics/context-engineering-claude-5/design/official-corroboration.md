@@ -83,7 +83,7 @@ S1 carries no token: it is framing with no rule to enforce.
 
 - **`InstructionsLoaded` hook** — "log exactly which instruction files are loaded, when they load,
   and why." A deterministic enumeration of the live instruction surface, better than walking the
-  filesystem and guessing. Candidate mechanism for the runbook's inventory phase.
+  filesystem and guessing. Candidate mechanism for the sweep's inventory phase.
 - **`/context`** — confirms which memory files actually loaded in a session.
 - **`claudeMdExcludes`** — glob-based exclusion of ancestor `CLAUDE.md` files, mergeable across
   settings layers. A remediation option no incumbent proposes.

@@ -1,4 +1,4 @@
-# Skill inventory — what a rightsizing runbook would orchestrate
+# Skill inventory — what the rightsizing sweep would orchestrate
 
 Enumerated 2026-07-24 from `plugins/*/skills/*/SKILL.md`: **60 plugins, 181 skills, 605 markdown
 files and 73,035 markdown lines under `plugins/*/skills/`**. Every skill in the marketplace is a
@@ -22,14 +22,14 @@ requirements this inventory produced.
 
 Descriptions were read in full for the plugins in the Instruments table. Everything else is
 classified from its name and listing description and is marked `candidate` — confirm before wiring
-it into a runbook step.
+it into a sweep step.
 
 ## Precedent: the router already exists
 
 `re-anchor:sweep-all-disciplines` is described as "not a corrector itself, but a router that fans
 out an audit-only subagent per in-scope corrector and then applies their corrections on the main
 thread in a fixed order," with a cheap posture digest at conversation start. That is structurally
-the runbook shape: fan out audit-only lanes, collect, apply in a fixed order. Any runbook built here
+the router shape: fan out audit-only lanes, collect, apply in a fixed order. Whatever is built here
 should follow that pattern rather than invent a second one, and should state why it is not simply a
 new member of that sweep.
 
@@ -57,7 +57,7 @@ new member of that sweep.
 
 | Skill | Why it might belong |
 |---|---|
-| `re-anchor:sweep-all-disciplines` | The router precedent; possibly the correct home rather than a new runbook |
+| `re-anchor:sweep-all-disciplines` | The router precedent; possibly the correct home rather than a new skill |
 | `re-anchor:point-dont-copy` | Pointer-over-copy is the S8 placement rule's nearest incumbent |
 | `re-anchor:tighten-your-output` | Terseness discipline, adjacent to `docs-hygiene:compress` |
 | `re-anchor:recheck-against-upstream` | Existing state is not evidence of its own correctness — the posture the whole pass assumes |
@@ -108,5 +108,5 @@ is the highest-signal dogfood target on this machine.
 
 `~/.claude/**` is chezmoi-managed (source `melodic-software/dotfiles`). Any change the pass proposes
 to a user-scope surface is backfilled through that repo's own flow, never edited in place from an
-agent session. A runbook that proposes user-scope edits must emit them as routed recommendations,
+agent session. A pass that proposes user-scope edits must emit them as routed recommendations,
 matching how `audit-instructions` already treats upstream-owned surfaces.

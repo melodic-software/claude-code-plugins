@@ -1,17 +1,17 @@
-# Context engineering for Claude 5 — source absorption and rightsizing runbook
+# Context engineering for Claude 5 — source absorption and rightsizing pass
 
 ## Brief
 
-Status: **in progress** — shape decided (a runbook), seam resolved, proportionality gate closed.
-Phases 1, 2, 2.5, and 5 are done; design continues at Phase 3.
+Status: **in progress** — shape decided (a component, not a runbook), seam resolved, proportionality
+gate closed. Phases 1, 2, 2.5, and 5 are done; design continues at Phase 3.
 
 ### TLDR
 
 Absorb "The new rules of context engineering for Claude 5 models" into this marketplace and turn it
 into something re-runnable against a git repository, starting with this repo. Most of the source is
-already enforced — by `/doctor` and by `claude-config:audit-instructions`. The value is a **runbook**
-that applies every relevant existing skill in a fixed order, plus detectors for the four gaps
-nothing covers.
+already enforced — by `/doctor` and by `claude-config:audit-instructions`. The value is a **sweep
+skill** — `/claude-config:audit-pass` — that applies every relevant existing skill in a fixed order,
+plus detectors for the gaps nothing covers.
 
 ### The design documents
 
@@ -48,14 +48,28 @@ mismatch is closed here rather than left standing in two places.
 
 - **Scope: everything.** Every section of the source is in scope; no rule is dropped for being
   inconvenient. Rules with no official backing ship marked `OPINION`-tier rather than omitted.
-- **Shape: a runbook**, because the concerns are already distributed across `claude-config`,
-  `claude-memory`, `docs-hygiene`, `skill-quality`, and `plugin-quality`, and the operator's need is
-  that *all of them get applied*, in order, repeatedly, against a named target.
+- **Shape: a component — a sweep skill — not a runbook.** The concerns are already distributed
+  across `claude-config`, `claude-memory`, `docs-hygiene`, `skill-quality`, and `plugin-quality`, and
+  the operator's need is that *all of them get applied*, in order, repeatedly, against a named
+  target.
+
+  **Corrected 2026-07-24. This read "Shape: a runbook", and the reason it gave did not support it.**
+  Distributed concerns plus "all of them get applied" is an argument for **delegation** — which a
+  component that delegates satisfies exactly as well as a runbook does. The proportionality gate
+  asked the question directly and answered it against the runbook framing on evidence:
+  [design/proportionality-gate.md](design/proportionality-gate.md), "Is the sweep a component or a
+  runbook a human could run by hand?". Its argument is that the checks are delegated but the *run
+  semantics* are not, and the run semantics are the product — the derived exclusion set, the
+  three-scope inventory, finding identity, suppression memory, resumability, an advisory lock, and
+  one human gate per run. None of that is reachable by invoking the incumbents by hand, which is the
+  operational definition of a runbook. The gate's answer survived cross-vendor review; the Brief's
+  line did not, so the Brief is what changes.
 - **`re-anchor:sweep-all-disciplines` is the structural precedent** — a router that fans out
-  audit-only lanes and applies corrections in a fixed order. Any runbook here either extends that
+  audit-only lanes and applies corrections in a fixed order. That precedent is about **router
+  mechanics** and is unaffected by the component/runbook correction: the sweep either extends that
   pattern or states why it does not.
 - **`/doctor` is the incumbent for the CLAUDE.md half** and improves on Anthropic's cadence. The
-  runbook invokes or defers to it rather than reimplementing trim and migrate.
+  sweep invokes or defers to it rather than reimplementing trim and migrate.
 - **Conflict review is officially prescribed and only half automated.** The memory doc tells operators
   to periodically review CLAUDE.md, nested CLAUDE.md, and `.claude/rules/` for conflicting
   instructions. **Corrected 2026-07-25 — this previously read "Nothing does it. This is the strongest
@@ -73,7 +87,7 @@ mismatch is closed here rather than left standing in two places.
 ### Coordination
 
 A parallel session is revising the `playbooks:fable-5` skill and may update other skills. This work
-is deliberately downstream-tolerant: the runbook is what cleans up after that session, so it must
+is deliberately downstream-tolerant: the sweep is what cleans up after that session, so it must
 be re-runnable against a moved target rather than assume a frozen tree.
 
 ### Constraints

@@ -21,7 +21,7 @@ rule is worked out, not where it finally lives.
 | § | Subject | Where it goes |
 |---|---|---|
 | S1 | Context is assembled, reused, general | **Excluded — framing.** No rule to enforce. It is the problem statement in `PLAN.md`; nothing is auditable from it. |
-| S2 | 80% removal; `/doctor` | Task #2 (closed — verified). `/doctor` is the incumbent; task #28 decides where the runbook hands off to it. |
+| S2 | 80% removal; `/doctor` | Task #2 (closed — verified). `/doctor` is the incumbent; task #28 decides where the sweep hands off to it. |
 | S3 | Cross-surface conflict | Task #19 — new check I12 in `claude-config:audit-instructions`. The one officially-backed new check. |
 | S4 | Memory / artifacts / skills as destinations | Task #27 — folded into one consolidated C3 revision in `claude-memory:audit`, together with S7's memory half; they are the same rule. |
 | S5 | Rules give way to judgement | **Partly covered** by `audit-instructions` checks I6 + I8, which de-prescribe but carry no a-priori bound on how far. Task #24 supplies the stopping condition, which is the remainder. |

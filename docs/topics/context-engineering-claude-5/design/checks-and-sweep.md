@@ -247,6 +247,13 @@ the incumbents by hand yields none of the exclusion set, the three-scope invento
 suppression memory, resumability, or a single human gate per run. Argued in full in
 [proportionality-gate.md](proportionality-gate.md).
 
+**PLAN.md's Brief said the opposite until 2026-07-24 and has been corrected**, so the two documents
+no longer disagree about what is being built. The Brief's "Shape: a runbook" line justified itself by
+distributed concerns and "all of them get applied" — an argument for *delegation*, which a component
+that delegates satisfies equally. It did not touch the run semantics this section rests on. The gate
+answered the question on evidence, so the Brief is what moved. Recorded in PLAN.md's "Settled" list
+in place, not silently overwritten.
+
 ### Posture
 
 Bare invocation is **read-only**, per the fixed verb meanings — mutation only behind an explicit
