@@ -7,23 +7,26 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 
 ### Fixed
 
-- **`work-loop`'s first-drain C3 ratification admission gate no longer re-queues an item whose
-  body already records a ratification (`#1348`).** The gate recognized ratification only as an
-  `/work-items:attend-queue` reply on the item's `kind=ratify-c3` marker comment or as
-  `first_drain_complete` durable state, so an item whose ratification was recorded directly in the
-  issue body (an `attended triage <date>, operator-ratified` line) — even one already corrected
-  once by a same-day comment restoring it to the frontier — flapped back to `needs-human` on a
-  later cycle and collected a duplicate `kind=ratify-c3` comment, reproducing the exact
-  misclassification the correction had already fixed (observed on `#815`, `#816`, `#965`). The
-  gate now reads the body first and, finding the marker, stops re-applying the human-gated role
-  label and stops posting a second queue comment.
+- **`work-loop`'s first-drain C3 ratification gate no longer posts a duplicate `kind=ratify-c3`
+  queue comment on every cycle (`#1348`).** An item whose ratification was recorded directly in
+  the issue body (an `attended triage <date>, operator-ratified` line) — even one already
+  corrected once by a same-day comment restoring it to the frontier — collected a fresh queue
+  comment each pass, reproducing the noise the correction had already cleaned up (observed on
+  `#815`, `#816`, `#965`). The gate now separates the two queue actions: the `kind=ratify-c3`
+  comment is posted **at most once ever** (keyed on the machine-written marker's own presence),
+  while the human-gated role label converges idempotently on the item's correct state rather than
+  being counted as a repeated event.
 
-  The marker suppresses the **re-queue**, not the gate: free-form body prose is untrusted
-  provenance (the work-class table already routes untrusted provenance to human-gated), and issue
-  bodies are agent- and author-editable, so accepting the phrase as dispatch authority would turn
-  editable prose into an admission bypass. Dispatch still requires machine-marked ratification.
-  The autonomous-eligible role label is likewise **not** ratification evidence — unattended
-  `/work-items:triage` applies it to every briefed delegable item.
+  Body prose is context for the operator, never dispatch authority. Free-form issue bodies are
+  editable by any author or agent and the work-class table already routes untrusted provenance to
+  human-gated, so a body marker is now surfaced in the queue comment — letting the operator
+  confirm and record it machine-marked in one step — instead of admitting the item. Dispatch
+  still requires the `/work-items:attend-queue` ratification reply or `first_drain_complete`. The
+  human-gated label is deliberately kept while machine ratification is absent: `attend-queue`
+  lists a `[ratify]` row only for an item carrying that label plus the marker, so stripping it
+  would make the item invisible to the operator and unratifiable. The autonomous-eligible role
+  label is likewise **not** ratification evidence — unattended `/work-items:triage` applies it to
+  every briefed delegable item.
 
 ## [0.24.6]
 
