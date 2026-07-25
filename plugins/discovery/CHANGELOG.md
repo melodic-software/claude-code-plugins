@@ -47,9 +47,12 @@
   as a dead end: a content-length rejection or a silent truncation is a fetcher limit, not a source
   limit. Recipe — download out of context, confirm the file is the artifact and not a 200
   login/consent/bot-challenge page, extract with whatever extractor the machine has, grep. Each
-  download takes its own claim-and-URL-derived filename — parallel workers sharing a fixed `doc.pdf`
-  could overwrite one another mid-validation and cite the wrong document, and a claim slug alone
-  collides as soon as one claim is chased across two URLs. Extraction is checked for usable text
+  download lands under a claim-and-URL-derived filename inside its own `mktemp -d` directory —
+  parallel workers sharing a fixed `doc.pdf` could overwrite one another mid-validation and cite the
+  wrong document, a claim slug alone collides as soon as one claim is chased across two URLs, and
+  even the full stem collides when two parallel queries chase the same claim to the same URL. The
+  uniqueness rides the directory rather than the filename because BSD `mktemp` replaces only trailing
+  `X`s, so a `…-XXXXXX.<ext>` template fails outright on macOS. Extraction is checked for usable text
   before it counts as a search: an extractor exits 0 on a scanned or image-only PDF and returns
   nothing, so empty or garbled output routes to another extractor, OCR, then escalation rather than
   becoming a false "not found" about a source nobody read. An
