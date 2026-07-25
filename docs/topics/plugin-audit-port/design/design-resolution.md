@@ -22,7 +22,7 @@ surfaced in the plan's decisions table; the owner may still demand a full `/desi
 | Module boundaries | Two standalone plugins (`context-guard`, `plugin-quality`); explicitly NOT an extension of `rate-limit-guard` and NOT joined to `review`/`skill-quality` | B1, B11, B12 |
 | New types/contracts | Snapshot file, zones file, resolver CLI, tracked config file, evidence packet (sketches below) | B12, B15, B8 |
 | Cross-module integration | Soft dependency via documented reader contract (file seam); no manifest `dependencies`; absent/stale → conservative fallback + visible notice | B13 |
-| Execution topology | Two-phase audit: main-thread evidence capture → fresh NAMED subagent (never `context: fork`) | B3, B7 |
+| Execution topology | Two-phase audit: main-thread evidence capture → fresh NAMED subagent (never `context: fork` — the Brief requires a named subagent and a forked skill is anonymous; both start with fresh context) | B3, B7 |
 | Configurability | Tracked `.claude/plugin-quality.md` per config-cascade; user-global `~/.claude/plugin-quality.md`; no `userConfig` v1 | B8 |
 | External integration | Sink = backend-neutral work-item vocabulary; default `gh` issue with draft+confirm egress gate; resolution ladder | B2, B6, B14 |
 | Observability | Zones SSOT readable by both consumers and the operator's statusline (kills display-vs-consumer drift) | B15 |

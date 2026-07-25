@@ -75,8 +75,9 @@ Two new marketplace plugins, two swim-lane PRs, seams-first:
   interview verified statusline schema 2026-07-23 only).
 - `context-guard` is a SEPARATE plugin from `rate-limit-guard` — do not mix concerns (owner
   decision, R2). Reuse the pattern, not the plugin.
-- Deep-audit phase runs in a fresh-context NAMED subagent, never `context: fork` (fork inherits the
-  degraded history — PLUGIN-PHILOSOPHY fresh-eyes doctrine).
+- Deep-audit phase runs in a fresh-context NAMED subagent, never `context: fork` (plugin agents
+  start with fresh context and the Brief requires a NAMED subagent — see the [EXEC-SHAPE] agent
+  decision below).
 - No hardcoded repos, paths, owners; melodic-marketplace targets resolve via inference, never
   baked in.
 - The producer/consumer split holds: audit session never implements fixes in the plugin repo.
@@ -454,7 +455,7 @@ Create `plugins/context-guard/`:
 |---|---|
 | Extend `rate-limit-guard` with the context tee | Owner decision R2: separate concerns; reuse the pattern, not the plugin |
 | Join `review` / `skill-quality` | Fails the distinct-discovery-intent test (playbook Organization) |
-| `context: fork` for the deep audit | Inherits the degraded history the gate exists to escape (fresh-eyes doctrine) |
+| `context: fork` for the deep audit | Brief requires a NAMED subagent; a forked skill is anonymous. Not rejected for inheriting history: the skills reference states a forked skill has no access to the conversation. Conversation inheritance is documented for the Agent tool's separate `fork` subagent type — a different mechanism sharing the word, and one #1258 reports as not inheriting in practice either |
 | Fixed zone bands as tee-contract constants | Zones are per-consumer judgment knobs; unlike the 90% rate-limit floor there is no writer/reader split-brain risk forcing a constant |
 | `userConfig` for sink/inbox | Per-repo-ish policy → tracked config cascade; `pluginConfigs` is user-settings-only |
 | Verbatim 7-step port | Steps 4–5 overlapped; collapsed to one interactive contract-lock step (owner wants improvement, not a copy) |
