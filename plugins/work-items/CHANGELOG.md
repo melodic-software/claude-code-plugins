@@ -3,22 +3,41 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.24.6]
+## [0.24.7]
 
 ### Fixed
 
-- **`work-loop`'s first-drain C3 ratification admission gate now checks the issue body for an
-  existing recorded ratification before applying `needs-human` or posting a fresh
-  `kind=ratify-c3` comment (`#1348`).** Previously the gate only recognized ratification
-  recorded as an `/work-items:attend-queue` reply on the item's `kind=ratify-c3` marker comment or
-  `first_drain_complete` durable state, so an item whose ratification was instead recorded
-  directly in the issue body (e.g. an `attended triage <date>, operator-ratified` line) — even one
-  already corrected once by a same-day comment restoring it to the frontier after a prior wrong
-  re-queue — flapped back to `needs-human` on a later cycle, reproducing the exact
+- **`work-loop`'s first-drain C3 ratification admission gate no longer re-queues an item whose
+  body already records a ratification (`#1348`).** The gate recognized ratification only as an
+  `/work-items:attend-queue` reply on the item's `kind=ratify-c3` marker comment or as
+  `first_drain_complete` durable state, so an item whose ratification was recorded directly in the
+  issue body (an `attended triage <date>, operator-ratified` line) — even one already corrected
+  once by a same-day comment restoring it to the frontier — flapped back to `needs-human` on a
+  later cycle and collected a duplicate `kind=ratify-c3` comment, reproducing the exact
   misclassification the correction had already fixed (observed on `#815`, `#816`, `#965`). The
-  autonomous-eligible role label is deliberately **not** ratification evidence: unattended
-  `/work-items:triage` applies it to every briefed delegable item, so keying on it would admit a
-  never-ratified C3 item on its first drain.
+  gate now reads the body first and, finding the marker, stops re-applying the human-gated role
+  label and stops posting a second queue comment.
+
+  The marker suppresses the **re-queue**, not the gate: free-form body prose is untrusted
+  provenance (the work-class table already routes untrusted provenance to human-gated), and issue
+  bodies are agent- and author-editable, so accepting the phrase as dispatch authority would turn
+  editable prose into an admission bypass. Dispatch still requires machine-marked ratification.
+  The autonomous-eligible role label is likewise **not** ratification evidence — unattended
+  `/work-items:triage` applies it to every briefed delegable item.
+
+## [0.24.6]
+
+### Documentation
+
+- **`wayfind: *` is now documented as a read-only, skill-private routing axis (`#1255`).** Neither
+  the label taxonomy reference nor the shared tracker-seam gotchas said anything about the
+  `wayfind: *` labels a triage lane can encounter — a silence a lane meeting them had no basis to
+  read as "hands off." `reference/label-taxonomy.md` gains a "Skill-private routing markers"
+  section and `reference/tracker-seam.md`'s Gotchas gain a matching entry: both point at
+  `/planning:wayfind` (sole writer, on its own map sub-issues) and the resolving decision
+  (`melodic-software/github-iac#179`) rather than restating the member list. No work-items skill
+  applies, strips, or requires a `wayfind:` value on the items it manages — behavior is unchanged,
+  this closes a documentation gap.
 
 ## [0.24.5]
 
