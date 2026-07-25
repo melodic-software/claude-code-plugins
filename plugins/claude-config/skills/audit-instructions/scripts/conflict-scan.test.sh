@@ -290,6 +290,35 @@ EOF
 assert_eq "a mandate in the next sentence does not classify a neutral mention" "0" \
   "$(bash "$SCRIPT" --count "$FARMANDATE" "$OPTSUBJECT")"
 
+# --- Case 28: two entities at opposite polarity in ONE sentence -------------
+# "Always use `Read`, but never use `Bash`" — the prohibition governs Bash, not
+# Read. A sentence-only boundary lets it flip Read to prohibited, which then
+# fails to pair with a real prohibition on Read and drops the conflict.
+TWOENT="$TEST_TMPDIR/two-entities.md"
+cat >"$TWOENT" <<'EOF'
+Always use `Read`, but never use `Bash` for file inspection.
+EOF
+READNO="$TEST_TMPDIR/read-no.md"
+cat >"$READNO" <<'EOF'
+Never use `Read` for file inspection.
+EOF
+assert_contains "a contrastive clause does not flip the earlier entity" \
+  "$(bash "$SCRIPT" "$TWOENT" "$READNO")" "|Read|"
+
+# --- Case 29: the contrastive clause still classifies its OWN entity ---------
+BASHYES2="$TEST_TMPDIR/bash-yes-2.md"
+cat >"$BASHYES2" <<'EOF'
+Always use `Bash` for file inspection.
+EOF
+assert_contains "the entity inside the contrastive clause is still prohibited" \
+  "$(bash "$SCRIPT" "$BASHYES2" "$TWOENT")" "|Bash|"
+
+# --- Case 30 (MUST NOT FLAG): an ordinary comma is not a clause boundary ----
+# Cutting on every comma would drop the mandate in the worked example, whose
+# entity sits between two commas.
+assert_eq "an ordinary comma does not truncate the window" "1" \
+  "$(bash "$SCRIPT" --count "$MANDATE" "$PROHIBIT")"
+
 # --- Case 16: a missing runtime prerequisite exits 2 ------------------------
 # The tools the script executes are awk and sort, not grep. `mapfile < <(… |
 # sort -u)` swallows a failure inside the process substitution, so an unchecked

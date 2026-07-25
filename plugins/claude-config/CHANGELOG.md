@@ -40,9 +40,10 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   sentence boundary**, so only a polarity token in the entity's own sentence classifies it:
   `X must not be used` is a prohibition, a trailing clause past a full stop is not, and a prohibition
   in the *preceding* sentence no longer overrides the mandate that governs the entity. A boundary is
-  a sentence-ending mark followed by a space, since a bare mark also occurs inside a dotted config
-  path or a version number. An opt-in gate suppresses
-  a pair only when it reads as a **condition** rather than as the subject being described, so
+  a sentence-ending mark followed by a space — a bare mark also occurs inside a dotted config path or
+  a version number — or a comma introducing a contrastive conjunction, so "always use `Read`, but
+  never use `Bash`" classifies each entity on its own clause rather than sharing one polarity. An
+  opt-in gate suppresses a pair only when it reads as a **condition** rather than as the subject, so
   "never use `X` for opt-in prompts" is still classified. Classification and pairing run in a single
   `awk` pass bucketed by entity; a subprocess per mention did not finish on an instruction tree this
   size.
