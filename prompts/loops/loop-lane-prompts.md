@@ -37,9 +37,28 @@ about that repo, not a preference.
   it makes the default `agent-ready` the wrong population, and the counts
   come back empty for a fully-stamped backlog:
 
+  The taxonomy is strict about how that resolution fails: an **absent** file
+  or entry defaults *with a loud warning*, while a **present but malformed**
+  entry — null, empty, or not a string — is a configuration error and never
+  permission to fall back silently. A bare `//` default collapses both cases
+  into a silent substitution, which is the failure mode that queries the
+  wrong population and reports an empty backlog as fact.
+
   ```bash
-  ROLE=$(jq -r '.config.role_labels."autonomous-eligible" // "agent-ready"' \
-    .work-item-tracker.json)
+  ROLE=$(jq -er '
+    if has("config") and (.config | has("role_labels"))
+         and (.config.role_labels | has("autonomous-eligible"))
+    then .config.role_labels."autonomous-eligible"
+         | if type == "string" and length > 0 then .
+           else "MALFORMED" | halt_error(1) end
+    else "" end' .work-item-tracker.json) || {
+      echo "role_labels.autonomous-eligible is malformed — fix the binding" >&2
+      exit 1
+    }
+  if [ -z "$ROLE" ]; then
+    echo "WARNING: no autonomous-eligible mapping; defaulting to agent-ready" >&2
+    ROLE=agent-ready
+  fi
   ```
 
 - **Is a classification source present, and how many items carry one?** The
@@ -249,9 +268,14 @@ no shared state, no contention, and the sharding problem disappears.
 > used for admission." Never apply or change a `work-class:` label. An
 > item without one still goes through the admission gate's own
 > classification, and a candidate the gate cannot confidently classify
-> fails closed to human-gated and is escalated, never worked. What the
-> missing label costs is merge eligibility only. List unstamped items in
-> your cycle report.
+> fails closed to human-gated and is escalated, never worked.
+>
+> **A missing label is not a missing class.** The merge partition accepts a
+> recorded class from the item **body or** labels, so an item carrying a
+> `Work-class: C<n>` body trailer is merge-eligible with no label at all.
+> Report an item as unstamped only when **both** sources are empty —
+> reporting body-stamped items as unstamped drives label provisioning that
+> nothing needs. List genuinely unclassified items in your cycle report.
 >
 > **Worktrees are not yours to remove.** The worker's worktree persists
 > through the whole PR lifecycle and is cleaned up only by whoever merges
@@ -544,9 +568,14 @@ machines; neither on the attended box.
 > used for admission." Never apply or change a `work-class:` label. An
 > item without one still goes through the admission gate's own
 > classification, and a candidate the gate cannot confidently classify
-> fails closed to human-gated and is escalated, never worked. What the
-> missing label costs is merge eligibility only. List unstamped items in
-> your cycle report.
+> fails closed to human-gated and is escalated, never worked.
+>
+> **A missing label is not a missing class.** The merge partition accepts a
+> recorded class from the item **body or** labels, so an item carrying a
+> `Work-class: C<n>` body trailer is merge-eligible with no label at all.
+> Report an item as unstamped only when **both** sources are empty —
+> reporting body-stamped items as unstamped drives label provisioning that
+> nothing needs. List genuinely unclassified items in your cycle report.
 >
 > **Worktrees are not yours to remove.** The worker's worktree persists
 > through the whole PR lifecycle and is cleaned up only by whoever merges
