@@ -176,8 +176,14 @@ same surface kinds, rooted at `plugins/` instead. Concretely, as enumerated in t
 | Plugin-source surface | Count | Glob |
 |---|---|---|
 | Skill bodies | 181 | `plugins/*/skills/*/SKILL.md` |
+| Skill supporting files | 271 | `plugins/*/skills/*/{context,reference}/*.md` |
 | Plugin READMEs | 60 | `plugins/*/README.md` |
 | Agent definitions | 7 | `plugins/*/agents/*.md` |
+
+The supporting-file row is not padding: the existing `skills` scope is defined as "skill bodies **and
+their context/reference files**" (`SKILL.md:65`), those files carry instructions their parent skill
+loads, and there are more of them than there are skill bodies. Enumerating entrypoints alone would
+put the majority of plugin-owned instruction text outside the pass.
 
 The rule is stated by surface kind rather than by that list, because the list goes stale: Phase A's
 existing entries reach `rules/`, `skills/`, `agents/` and `output-styles/` under the user and project
@@ -353,16 +359,33 @@ two delivery mechanisms decided per criterion.
 
 ## Method
 
-Issue #1225 and every ticket in the assessment were read first-hand via `gh issue view`; PR #1096 via
-`gh pr diff`. Population counts were produced by enumerating `plugins/*`,
-`plugins/*/skills/*/SKILL.md`, `plugins/*/agents/*.md`, and `.claude-plugin/marketplace.json`. The
+**This record does assert Claude Code harness behavior, so D-16's fresh-docs mandate binds it.** The
+residency rules the decisions rest on were verified against
+<https://code.claude.com/docs/en/skills>, fetched 2026-07-25:
+
+- **Skill descriptions are resident; bodies are not.** Verbatim: *"In a regular session, skill
+  descriptions are loaded into context so Claude knows what's available, but full skill content only
+  loads when invoked."* This is what makes `description`-versus-body a co-residency pair.
+- **Supporting files load on demand.** Verbatim: skill directories let *"Claude access detailed
+  reference material only when needed"*, referenced from `SKILL.md` *"so Claude knows what each file
+  contains and when to load it"*. Conditional co-residency, not guaranteed.
+- **The listing budget and its drop order.** Verbatim: *"The budget scales at 1% of the model's
+  context window. When the listing overflows, Claude Code drops descriptions starting with the skills
+  you invoke least"* — which is why a `description` is conditionally rather than guaranteed resident,
+  and why the pass must not assume a description it can read on disk is in context.
+- **Plugin READMEs.** The page enumerates what loads — the `CLAUDE.md` family, rules, skill
+  descriptions, skill bodies on invocation, supporting files on demand — and a plugin README appears
+  in none of it. **That is an enumeration argument, not a documented statement**, and it is recorded
+  as such: no page says a README is never loaded. It is the basis for treating README divergence as
+  drift rather than conflict, and if a future page documents README loading, that classification is
+  what changes.
+
+Non-residency claims are sourced the same way: issue #1225 and every ticket in the assessment were
+read first-hand via `gh issue view`, PR #1096 via `gh pr diff`, and population counts were produced
+by enumerating `plugins/*`, the globs in the table above, and `.claude-plugin/marketplace.json`. The
 incumbent search covered skill bodies, frontmatter `description` lines **and** the `reference/`
 catalogs inside skill directories — the last being where C6 was eventually found. The sweep-shape
 search filtered the open-issue list by title for audit/sweep/scan/all-plugin/conformance/catalog/
 criteria/conflict shapes; that list moves week to week and is deliberately not stated as a figure.
 Counts and `path:line` citations were re-verified against the post-#1276 tree, since `main` landed a
 plugin rename during the effort.
-
-No claim about Claude Code harness behavior is asserted here; per D-16 the fresh-docs mandate binds
-changes touching a plugin manifest, marketplace schema, hook contract, or documented harness
-behavior, and this is a prose-only boundary analysis that touches none of them.
