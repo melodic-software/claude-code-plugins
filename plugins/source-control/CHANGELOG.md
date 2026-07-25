@@ -3,6 +3,22 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.2]
+
+### Fixed
+
+- **`babysit-prs` now separates the finding-classification gate from the merge gate (`#601`).** Two
+  differently-named scripts both produced a verdict the docs called "readiness":
+  `babysit-readiness-gate.sh` (classification-row counting — blind to branch rules, thread
+  resolution, and required checks) and `babysit_merge.py` via `source-control-babysit-merge` (the
+  actual GitHub mergeability check). Nothing said which one owns a `MERGE-READY` claim, and the
+  `loop.md` §5.5 checklist paired a single "Readiness: ready for merge" field directly under the
+  classification gate — which produced a false human-facing `MERGE-READY` report on a PR that a
+  `required_review_thread_resolution` ruleset was mechanically blocking. `safety.md` gains "Two
+  Gates, One Merge-Ready Authority" as the single home for the distinction; the checklist now
+  reports the two gates as separate fields, and every "readiness" site that meant *classification*
+  is renamed. Docs-only — no gate behavior and no emitted `READINESS_*` token changed.
+
 ## [0.26.1]
 
 ### Documentation

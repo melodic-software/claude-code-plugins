@@ -58,7 +58,8 @@ Tiered, self-pacing fleet loop over your own open PRs (designed for
   branch fresh, processes every review finding individually with
   GitHub-verified evidence per the plugin-scope shared review discipline,
   mechanically gated by the bundled `babysit-readiness-gate.sh`. Never
-  resolves threads, never merges — readiness is reported. Runs Python-free.
+  resolves threads, never merges — merge-readiness is reported from a
+  read-only merge-gate run. Runs Python-free.
 - **worker** (explicit keyword) — everything safe does, plus auto-resolving
   pre-push-outdated bot threads and merging PRs a deterministic gate proves
   100% ready (`mergeStateStatus == CLEAN` plus explicit cross-checks, with
@@ -189,7 +190,7 @@ Remaining optional environment variables:
 |---|---|---|
 | `FETCH_LOGS_SCRATCH` / `FETCH_LOGS_REPO` | `fetch-logs` | Scratch dir and repo override |
 
-The plugin-scope readiness gate accepts extra posting identities via its
+The plugin-scope finding-classification gate accepts extra posting identities via its
 `--extra-self` flag (fed from `babysit_self_logins`), added to your
 `gh api user` login; its `--self` flag still provides a full override.
 

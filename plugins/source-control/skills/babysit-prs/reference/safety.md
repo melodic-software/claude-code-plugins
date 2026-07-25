@@ -156,6 +156,29 @@ escalate on unresolved-thread count or round number alone.
   against actual thread content, never a conclusion to act on or escalate over.
 - See the Fix-Round Cap in `orchestration.md` for the mechanical cap this verification gates.
 
+## Two Gates, One Merge-Ready Authority
+
+Two different scripts produce a verdict this skill's prose has historically called "readiness".
+They answer different questions and are not interchangeable:
+
+| Script | Question it answers | What it never checks |
+| --- | --- | --- |
+| `${CLAUDE_PLUGIN_ROOT}/scripts/babysit-readiness-gate.sh` — the **finding-classification gate** | Did this iteration individually classify every source finding, and is the iteration checklist complete? | Branch rules, review decision, unresolved threads, required checks, head match — nothing about GitHub's merge state |
+| `source-control-babysit-merge` — the **merge gate** | Is GitHub itself willing to merge this PR right now? | Nothing about finding decomposition |
+
+**Only the merge gate's `ready` field determines merge-readiness.** Any `MERGE-READY` claim —
+a human-facing report, a worker's return, or an autonomous merge decision — must cite a
+merge-gate run whose `ready` is `true`, never `READINESS_OK` from the finding-classification
+gate and never an agent's own reading of the PR. A PR can pass the classification gate and still
+be unmergeable: the classification gate is blind to, for example, a `required_review_thread_resolution`
+ruleset plus deliberately-open review threads, which blocks merge mechanically regardless of
+severity or whether a human already replied. Reporting `MERGE-READY` off the classification gate
+alone has produced a false human-facing report (`#601`).
+
+The classification gate is a **pre-gate**, not a weaker merge gate: it must pass before an
+iteration reports at all, and passing it says only that the findings were decomposed. Both gates
+must be satisfied before a PR is called merge-ready, and only the merge gate can say so.
+
 ## Guarded Mutation Wrappers
 
 The two guarded mutations run **only through their wrapper scripts** —

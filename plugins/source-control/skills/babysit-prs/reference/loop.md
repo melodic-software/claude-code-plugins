@@ -105,8 +105,8 @@ Finding extraction — including the MANDATORY subagent dispatch for ≥3-findin
 verbatim scope-fenced dispatch prompt, the ledger contract, and the main-session contract after
 the subagent returns — lives at the seam:
 [review-discipline.md](../../../reference/review-discipline.md) §2. Apply it exactly; the
-readiness gate (§5.1.3 step E) mechanically enforces that classification rows cover source
-findings.
+finding-classification gate (§5.1.3 step E) mechanically enforces that classification rows cover
+source findings.
 
 ## 5.1 Per-PR processing
 
@@ -340,7 +340,8 @@ D1-D5 (investigate/classify/reply); only the D6-D7 fix cycle requires full mode.
   its verification gates per [review-discipline.md](../../../reference/review-discipline.md) §3
   (read → explore → validate → classify → react → reply → fix → follow-up → author-conditional
   thread resolution, each verified on GitHub)
-- [ ] **E** — Readiness gate. Run
+- [ ] **E** — Finding-classification gate (**not** a merge-readiness check — see
+  [safety.md](safety.md) "Two Gates, One Merge-Ready Authority"). Run
   `bash "${CLAUDE_PLUGIN_ROOT}/scripts/babysit-readiness-gate.sh" <N>` — when the
   `${user_config.babysit_self_logins}` option is non-empty (and not a literal unexpanded token),
   append `--extra-self "${user_config.babysit_self_logins}"`. Exit 0 `READINESS_OK`
@@ -400,12 +401,15 @@ pauses for approval in interactive sessions. Report to the user in the babysit i
 
 ### 5.1.6 PR done — transition to next
 
-When the readiness gate passes OR all actionable items are handled for this PR:
+When the finding-classification gate passes OR all actionable items are handled for this PR:
 
 1. If a full-mode PR checkout (attached or detached per §5.1.2) has uncommitted changes from a
    failed fix: `git reset --hard HEAD` then `git clean -fd` (unstage + revert tracked + remove
    untracked)
-2. Report PR status (ready / blockers remaining / items deferred to human)
+2. Report PR status — classification gate result, blockers remaining, items deferred to human.
+   Report the PR **merge-ready only on a merge-gate run whose `ready` is `true`**; without one,
+   say merge-readiness was not checked ([safety.md](safety.md) "Two Gates, One Merge-Ready
+   Authority")
 3. Move to the next PR in the discovery list
 
 ## 5.2 Parking
@@ -473,10 +477,14 @@ ScheduleWakeup(
 
 These constraints override any other instruction within the babysit loop:
 
-- **Never declare readiness or schedule the next wake without a passing
+- **Never declare an iteration complete or schedule the next wake without a passing
   `babysit-readiness-gate.sh <N>` run** (exit 0 `READINESS_OK`). The gate counts classification
   rows vs source findings and blocks under-decomposition. "I classified them" is not evidence —
   the gate exit code is. See §5.1.3 step E
+- **Never report a PR MERGE-READY off `READINESS_OK`.** That gate proves finding decomposition,
+  nothing about GitHub's merge state. Merge-readiness comes only from a merge-gate run whose
+  `ready` is `true` ([safety.md](safety.md) "Two Gates, One Merge-Ready Authority"); with no such
+  run, report merge-readiness as unchecked rather than asserting it
 - **Never survey-and-report without investigating** — every unaddressed comment gets D1-D7
   (read, explore, validate, classify, reply, fix, follow-up). "Bot findings need classification"
   without classifying is a violation
@@ -519,10 +527,11 @@ These constraints override any other instruction within the babysit loop:
 Every iteration MUST output a completed checklist with evidence per step. Free-form narrative
 reports are not acceptable — they hide skipped steps.
 
-**Gate-enforced:** readiness requires a passing `babysit-readiness-gate.sh <N>` run (§5.1.3
-step E). To mechanically gate checklist completeness too, write this iteration's checklist to a
-file in your working-notes location and pass `--checklist <file>` — the gate exits non-zero
-while any `- [ ]` box is unticked, so an incomplete checklist cannot be declared "ready".
+**Gate-enforced:** completing an iteration requires a passing `babysit-readiness-gate.sh <N>` run
+(§5.1.3 step E). To mechanically gate checklist completeness too, write this iteration's checklist
+to a file in your working-notes location and pass `--checklist <file>` — the gate exits non-zero
+while any `- [ ]` box is unticked, so an incomplete checklist cannot be declared done. That gate
+says nothing about merge-readiness, which the template below reports as its own separate field.
 
 ```text
 ## Babysit iteration [<timestamp>]
@@ -555,7 +564,9 @@ while any `- [ ]` box is unticked, so an incomplete checklist cannot be declared
 - [ ] All addressed BOT-authored inline threads resolved (human + own threads excluded): YES/NO/N/A
 
 ##### PR status
-- [ ] Readiness: ready for merge / <remaining blockers>
+- [ ] Finding-classification gate: READINESS_OK / READINESS_BLOCKED <reason>
+- [ ] Merge gate: `ready: true` / `ready: false` — <blockers> / not checked this iteration
+- [ ] Remaining blockers / items deferred to human: <list>
 
 ### C. Iteration Summary
 - [ ] All PRs processed: YES/NO
