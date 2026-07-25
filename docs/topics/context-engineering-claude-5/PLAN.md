@@ -596,10 +596,13 @@ and memory doc — and the catalog carries a `/doctor` recheck trigger alongside
 triggers, because `/doctor` moves on Anthropic's cadence and a one-time judgement decays.
 
 **Fresh-eyes delegation is designed into the artifacts, not left to the invoker.** The sweep's
-apply-verify step and each detector's self-check are author-verifier arrangements. Each names its
-fresh-context **non-fork** checkpoint — a fork inherits the parent conversation and is not independent
-— with the cross-vendor advisor presence-gated per `docs/conventions/seam-phrasing/` and the
-same-vendor fresh subagent as the stated fallback.
+apply-verify step and each detector's self-check are author-verifier arrangements, governed by
+`docs/PLUGIN-PHILOSOPHY.md` "Fresh-eyes checkpoints" and "Delegation mechanics" — the latter arriving
+with open PR #1096, whose vocabulary this work adopts rather than paralleling. Each checkpoint names
+its fresh-context (non-fork) target, defaulting to the generic rung, and conforms to #1096's
+declaration grammar. The deltas that bind sites here are enumerated in
+[design/checks-and-sweep.md](design/checks-and-sweep.md), "Verification is designed in, not left to
+the invoker".
 
 - **Sanity Check:** each of D1–D7 has a design section naming its detection rule, its remediation, and
   at least one case it must NOT flag.
@@ -607,7 +610,8 @@ same-vendor fresh subagent as the stated fallback.
   path-scoped rule); no remediation anywhere proposes an `@path` import as a context saving —
   `rg -c '@path'` over the detector designs returns hits only in the stated anti-fix warning.
 - **Sanity Check:** the sweep design names its derived exclusion set, its dispatch order, its
-  `/doctor` version floor and absence classification, and its non-fork verification checkpoint.
+  `/doctor` version floor and absence classification, and its fresh-context verification checkpoint
+  in the "Delegation mechanics" vocabulary.
 
 ### Gate — re-evaluate before implementation [TODO]
 
@@ -806,7 +810,8 @@ No runtime code — the deliverables are skills, a catalog, and their evals. Ver
 - **Structural gates** — `/skill-quality:check` on every new or modified skill; `/plugin-quality:audit`
   on the resulting components.
 - **Independence** — findings verified by fresh-context reviewers, never by the context that produced
-  them, per `PLUGIN-PHILOSOPHY.md` "Fresh-eyes checkpoints".
+  them, per `PLUGIN-PHILOSOPHY.md` "Fresh-eyes checkpoints" and "Delegation mechanics"; conformance is
+  gated mechanically by `skill-quality:check` check 21.
 
 ## Alternatives considered
 
@@ -830,7 +835,7 @@ No runtime code — the deliverables are skills, a catalog, and their evals. Ver
 | An apply mutates a registered byte-identical cluster copy or a vendored upstream file, breaking a sync path and reddening CI | Medium | High | Phase 6 derives the exclusion set from `cross-plugin-source-registry.txt` + a `vendor/` rule + `git worktree list`; Phase 10 asserts the drift checks still pass after an apply |
 | ~~The catalog is adopted by four plugins without an owner doc, violating the convention registry~~ | — | — | **Retired.** Phase 2 chose no shared artifact, so there is no cross-plugin catalog to adopt and no registry row is owed |
 | Design documents are pruned at merge, dangling the catalog's traceability anchors | High | Medium | Phase 11 graduates them or relocates the anchors into the shipped catalog before the prune commit |
-| A detector or the sweep self-grades its own output | Medium | High | Phase 6 requires each to name a fresh-context non-fork checkpoint; a fork inherits the parent conversation and is not independent |
+| A detector or the sweep self-grades its own output | Medium | High | Phase 6 requires each to name a fresh-context checkpoint conforming to `PLUGIN-PHILOSOPHY.md` "Delegation mechanics" (PR #1096), whose conformance gate is `skill-quality:check` check 21 |
 | The machinery outweighs the payload: a versioned catalog, a convention-registry owner doc, a seam decision, a re-run contract, and a sweep built to carry one well-grounded detector | High | High | **Fired, and the mitigation worked.** Exactly one detector survived, the operator approved re-deriving the shape, and the catalog, the owner doc, the registry row, and the materialization are gone. What survives is the sweep and the re-run contract, whose justification was never detector count |
 | `OPINION`-tier rules mutate a consumer's instruction corpus under the same banner as documented doctrine | Medium | High | The tier is populated for the first time by this work, so this work defines it: disabled on bare invocation, opt-in, with a severity ceiling — Phase 6 |
 | Idempotence is asserted over detection that is a model judgement and cannot be deterministic | High | High | **Fired, and the first mitigation was itself wrong.** Scoping the gate to the `mechanical` tier did not work: no dispatched check reaches the report without model judgment, and half the dispatched catalog has no tier axis at all. Re-derived into three tiers — derived (model-free: inventory, exclusion set, shadowing, raw candidate rows) carries exact equality; judged carries a tolerance whose violation fails the run; delegated carries neither |

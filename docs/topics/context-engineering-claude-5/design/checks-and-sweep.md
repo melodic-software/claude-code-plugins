@@ -254,10 +254,47 @@ in Phase 8's gates and evals, and never seen by anyone who does not already know
 
 ### Verification is designed in, not left to the invoker
 
-The sweep's apply-verify step and each check's self-check are author-verifier arrangements, so each
-names its fresh-context **non-fork** checkpoint — a fork inherits the parent conversation and is not
-independent. The cross-vendor advisor is presence-gated per `docs/conventions/seam-phrasing/`, with a
-same-vendor fresh subagent as the stated fallback.
+**Governed by `docs/PLUGIN-PHILOSOPHY.md` "Fresh-eyes checkpoints" and "Delegation mechanics" —
+cited, not restated.** The second section arrives with open PR **#1096**, which codifies the same
+doctrine this section had been formulating independently and adds a conformance gate for it
+(`skill-quality:check` check 21). This work adopts #1096's vocabulary and drops its own parallel
+formulation; where the two differ, #1096 wins, because it is the spec owner named in the
+convention registry.
+
+The sweep's apply-verify step and each check's self-check are **author-verifier** arrangements in
+that doctrine's own bias-class vocabulary, so each names its fresh-context (non-fork) checkpoint.
+
+**#1096 is stricter than this document assumed, on five counts, and each binds a site here.**
+
+- **The default rung is a generic fresh-context subagent carrying rich inline instructions**, not a
+  named agent. This document named only the top rung (the cross-vendor advisor) and left the base
+  case unstated. Every checkpoint site below states the generic rung explicitly.
+- **A named agent must clear the named-agent bar** — multi-site dispatch *and* a load-bearing model
+  pin or enforced tool restriction. No checkpoint here clears it today, so none defines one.
+- **Artifact, not story.** The verifier receives the diff or the finding, never the authoring lane's
+  rationale for it. This is a real constraint on the apply-verify step, which would otherwise have
+  handed the verifier the reasoning that produced the fix — re-importing the bias the checkpoint
+  exists to remove.
+- **Model tiers are relative to the session.** A consequential verdict runs at the session tier or
+  above. The apply-verify step and the P4a instability self-check
+  ([rerun-contract.md](rerun-contract.md), P4a) are consequential verdicts and inherit that floor;
+  only mechanical preparation may drop a tier.
+- **Conformance is declared in the skill's own text**, in one of two greppable forms — delegation
+  wording naming the worker, or a `fresh-eyes-exempt` directive from a closed class set with a
+  reason — within a per-file proximity window. The grammar and the class set belong to the spec at
+  `skill-quality`'s `skills/check/reference/fresh-eyes-declarations.md` and are cited by heading, not
+  transcribed here: #1096 is open as of 2026-07-24 and its detector wording is still being amended.
+
+The cross-vendor advisor remains the top rung, presence-gated per `docs/conventions/seam-phrasing/`
+with the generic fresh-context subagent as the stated fallback — unchanged by #1096, which requires
+the same shape.
+
+**Consequence for the artifacts this work ships, named here because it lands on other tasks.** Check
+21's scan surface is a skill's `SKILL.md` plus its internal spoke directories, `reference/` included.
+So `audit-instructions/reference/criteria.md` — where I12 lands (task #34) — and the `audit-pass`
+`SKILL.md` (task #28) are both inside the scanned set. Any line there matching the judgment-language
+heuristic needs conformant declaration wording inside the proximity window or a valid exemption
+directive with a reason. That is an authoring obligation on those two tasks, discovered here.
 
 ### D6 needs a synthetic fixture
 
