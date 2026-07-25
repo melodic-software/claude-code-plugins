@@ -16,6 +16,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `skills/audit/references/component-types/skill.md` composition lens no longer asserts that a
   forked sub-skill "loses history" as a defect; it asks whether the inline-vs-`context: fork`
   choice matches what the step needs, and names the mechanism.
+- `agents/auditor.md` says why it has no conversation history — it is a named subagent rather than
+  a conversation fork — instead of leaving "by design" for the reader to interpret.
 
 ## [0.1.0] - 2026-07-24
 
