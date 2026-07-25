@@ -323,6 +323,27 @@ items", the `--add-label`-vs-`--label` rule under "Edit labels / assignees"). Cr
 
 - **Windows `\r`.** Git Bash adds `\r` to `gh` output through `jq`/`--jq`; end every parsing
   pipeline with `| tr -d '\r'`.
+- **Keep body edits inside the UTF-8-safe pipeline; force UTF-8 anywhere they leave it.**
+  `--json`/`--jq`, `gh api`, the bash `>` redirect, and `--body-file` pass the encoding through
+  untouched, so the read-modify-write shapes above never transcode. That is an encoding guarantee,
+  not a byte-for-byte one: the shapes above normalize line endings and trailing whitespace on
+  purpose (`tr -d '\r'` drops CRs; `$(cat …)` strips trailing newlines, and the `printf '%s\n'`
+  puts exactly one back). Corruption enters when an **ad-hoc** step decodes
+  those bytes with a tool whose default is a legacy code page: the body's UTF-8 is read as Windows
+  ANSI and re-encoded, putting every non-ASCII character at risk — the observed case is em-dash
+  U+2014 arriving back as U+00E2 U+20AC U+201D — and that corrupted copy is then written over the
+  good one. Nothing reports it; every command still exits 0. Two Windows defaults decode this way:
+  Python's `open()` with no `encoding=` (the locale encoding, i.e. the ANSI code page —
+  [PEP 686](https://peps.python.org/pep-0686/) makes UTF-8 the default only in 3.15+) and Windows
+  PowerShell 5.1's `Get-Content` (PowerShell 6+ already defaults to `utf8NoBOM`). Do not reason
+  from the version you happen to be on — state the encoding on both sides of any ad-hoc step,
+  read *and* write. Python reads with `open(path, encoding='utf-8')` or
+  `open(path, 'rb').read().decode('utf-8')` and writes back with
+  `open(path, 'w', encoding='utf-8')` (or run under `PYTHONUTF8=1`, which covers both sides).
+  Windows PowerShell 5.1 reads with `Get-Content -Raw -Encoding utf8` — without `-Raw` you get a
+  line array, not the one string the write below takes — and writes back with
+  `[IO.File]::WriteAllText($p, $s, (New-Object Text.UTF8Encoding $false))`, because there
+  `-Encoding utf8` prepends a BOM and `utf8NoBOM` does not exist (PowerShell 6+ has both).
 - **Rate limits** (verify current values via GitHub REST docs): batch bulk creates to respect
   the secondary content-generation limit — e.g. 30 items per batch with short pauses.
 - **Issue Forms auto-labeling** fires only on web-form creation, not `gh issue create` — apply
