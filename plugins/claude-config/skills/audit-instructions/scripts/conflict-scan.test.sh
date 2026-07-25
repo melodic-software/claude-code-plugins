@@ -290,14 +290,17 @@ EOF
 assert_eq "a mandate in the next sentence does not classify a neutral mention" "0" \
   "$(bash "$SCRIPT" --count "$FARMANDATE" "$OPTSUBJECT")"
 
-# --- Case 16: missing grep exits 2 ------------------------------------------
+# --- Case 16: a missing runtime prerequisite exits 2 ------------------------
+# The tools the script executes are awk and sort, not grep. `mapfile < <(… |
+# sort -u)` swallows a failure inside the process substitution, so an unchecked
+# prerequisite turns into an empty row set and a clean-looking report.
 real_bash=$(command -v bash)
 empty_path_dir="$TEST_TMPDIR/empty-path"
 mkdir -p "$empty_path_dir"
 rc=0
 err_out=$(PATH="$empty_path_dir" "$real_bash" "$SCRIPT" "$CLEAN" 2>&1) || rc=$?
-assert_exit "exit 2 when grep missing" 2 "$rc"
-assert_contains "grep required message" "$err_out" "grep required"
+assert_exit "exit 2 when a prerequisite is missing" 2 "$rc"
+assert_contains "names the missing prerequisite" "$err_out" "awk required"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf '\nAll %d checks passed.\n' "$CASE_NUM"

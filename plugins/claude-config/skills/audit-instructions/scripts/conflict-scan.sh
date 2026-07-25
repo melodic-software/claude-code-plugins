@@ -22,7 +22,7 @@
 # queue; it never reports a conflict.
 #
 # Advisory: prints candidate rows, ALWAYS exits 0 (candidates never fail a run).
-# Requires grep; exits 2 when grep is absent.
+# Requires awk and sort; exits 2 when either is absent.
 #
 # Rows are `fileA:lineA|fileB:lineB|entity|flags`, sorted and de-duplicated.
 # `flags` is `-`, or a `+`-joined list drawn from:
@@ -55,10 +55,10 @@ Usage: conflict-scan.sh [--count|--help] FILE...
   --count    print the integer candidate-pair count only; exit 0
   --help     this message
 
-Advisory — always exits 0 (candidates never fail the run). Requires grep
-(exit 2 when absent). Seeds the mechanical tier of the audit-instructions
-cross-surface conflict pass; the lane refines every candidate against
-reference/conflict-criteria.md. A pair is a candidate, never a finding.
+Advisory — always exits 0 (candidates never fail the run). Requires awk and
+sort (exit 2 when either is absent). Seeds the mechanical tier of the
+audit-instructions cross-surface conflict pass; the lane refines every candidate
+against reference/conflict-criteria.md. A pair is a candidate, never a finding.
 EOF
 }
 
@@ -70,10 +70,16 @@ case "${1:-}" in
   *) ;;
 esac
 
-if ! command -v grep >/dev/null 2>&1; then
-  echo "ERROR: grep required" >&2
-  exit 2
-fi
+# Check the tools this script actually executes. `mapfile < <(… | sort -u)`
+# swallows a failure inside the process substitution, so a missing `awk` or
+# `sort` would otherwise yield an empty row set and a clean-looking report —
+# converting an absent prerequisite into a false "no conflicts found".
+for tool in awk sort; do
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    echo "ERROR: $tool required" >&2
+    exit 2
+  fi
+done
 
 mode="report"
 if [[ "${1:-}" == "--count" ]]; then
