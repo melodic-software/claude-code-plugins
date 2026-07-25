@@ -825,7 +825,7 @@ substantiated.
 | `userConfig`-configurable | **PASS**, by correct owner selection | No `userConfig` is the right answer, not an omission — `PLUGIN-PHILOSOPHY.md` "Configuration ownership and scope" owns a value by *kind*, and audit-pass has no personal-or-administrator scalar. Invocation choices are skill arguments, the suppression record is a consumer-project file, run state is `${CLAUDE_PLUGIN_DATA}` |
 | Plugin-form-safe | **FAIL** | Three `../` reach-outs — see below |
 | No PII or secrets | **PASS** today, with a named forward hazard | See below |
-| Explicit semver | **PASS** | `plugin.json` `0.10.0` with a matching `## [0.10.0]` changelog heading |
+| Explicit semver | **PASS per PR, FAILS across the pair** | Each PR is internally consistent — `claude-config` `0.10.0` and `claude-memory` `0.5.0`, each with a matching changelog heading. But **both PRs bump `claude-config` from `0.9.2` to the same `0.10.0`**, so whichever merges second carries a version already taken. See below |
 | Catalog assignment | **PASS** | `claude-config` is an existing entry already filed `claude-code`; `audit-pass` is a skill inside it, so no new marketplace entry is owed. `CATALOG-TAXONOMY.md` "Assignment principle" confirms subject-over-activity, and its `claude-code` scope requires "the subject to *be* Claude Code" — which it is |
 | Plugin-acceptance security review | **CANNOT CLOSE** | See below |
 
@@ -846,6 +846,15 @@ it first under "Plugin-form caveats (works in-repo, breaks as a plugin)". **The 
 is the right home for the keys; the pointer to it is what has to change** — the plugin needs its own
 bundled statement of the suppression shape, citing the convention by name rather than by relative
 path. Owned by the implementation lane; not edited from this branch.
+
+**The semver collision is a cross-PR defect neither PR can see from inside itself.** Both #1316 and
+#1318 modify `plugins/claude-config/.claude-plugin/plugin.json`, and both take `0.9.2` → **`0.10.0`**.
+Each is internally consistent, so each passes `changelog-parity-gate` on its own branch; the pair is
+not. Whichever merges second lands a manifest version already claimed by the first, with a duplicate
+`## [0.10.0]` changelog heading and no bump relative to the new `main`. **The second PR to merge must
+rebase onto `0.11.0`** with its changelog heading renamed to match. `claude-memory` has no such
+problem — only #1316 touches it (`0.4.0` → `0.5.0`). Recorded here because it is invisible from
+either branch and surfaces only at the second merge, which is the expensive place to find it.
 
 **No PII passes today, and the hazard is in what is not yet built.** The shipped
 `run-contract.md:17-20` scope-prefixes `surface` — "the file's *logical* path, never a

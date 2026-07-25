@@ -243,6 +243,14 @@ would collide or fragment depending on where the operator happened to stand.
   worktrees of one repository on different branches legitimately hold different content and must not
   share a run report.
 
+**Only the discriminator is load-bearing.** `repo-identity` buys a legible state directory and the
+ability to enumerate every run against one repository; it carries no property. The discriminator
+alone separates every report that must be separated, and Assertion 3.3 is satisfied by canonicalizing
+the worktree root rather than by the remote URL. So if remote-URL normalization proves fiddly —
+several remotes, rewritten URLs, no remote at all — **keying on the worktree hash alone loses nothing
+this contract asserts.** Derived in [proportionality-gate.md](proportionality-gate.md), "The run
+contract's own machinery, proportionality-tested per mechanism".
+
 **Suppressions are keyed differently on purpose** — see §4. They are a decision about the
 *repository*, not about a checkout, so they are shared across worktrees and, where the target is a
 repository the operator owns, committed to it.
@@ -332,7 +340,17 @@ Restarting from zero wastes the whole run and, worse, tempts an operator to narr
   report of an uninterrupted run over the same tree. This is the property; everything else in §5 is
   mechanism.
 - **Assertion 5.2** — modify one file belonging to a completed lane, then resume: that lane re-runs
-  and no other completed lane does.
+  and no other completed lane does. **Conditional on the per-lane form — see below.**
+
+**Per-lane digests are the richer of two forms, and which one ships is not settled here.** The
+property at risk is that a run resumed across a tree change produces a report corresponding to no
+single tree state, silently violating P1 while appearing to satisfy it. **A single tree-wide digest
+that refuses to resume a moved tree closes that hole completely**, at a fraction of the manifest
+cost. Per-lane digests buy *partial* resume on top — re-run only the lanes whose inputs moved — which
+is an ergonomic gain of unmeasured size. Phase 10 measures lane cost and interruption frequency
+against the real corpus and picks; **Assertion 5.2 is owed only under the per-lane form**, and
+Assertion 5.1 holds under both. Derived in [proportionality-gate.md](proportionality-gate.md), "The
+run contract's own machinery, proportionality-tested per mechanism".
 
 ## 6. The idempotence properties
 
