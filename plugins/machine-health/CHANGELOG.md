@@ -3,6 +3,36 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.0]
+
+### Fixed
+
+- **The hardcoded `$HOME/.claude/plugins/data/machine-health` fallback is removed from both the
+  `setup` and `audit` skills.** The fallback was not a safe default — it was a second, wrong state
+  root. The directory under `~/.claude/plugins/data/` is named for the plugin's *install identity*
+  (`machine-health-<marketplace>`, or `machine-health-inline` for a `--plugin-dir` session), so the
+  guessed path never names the directory the plugin actually uses. Observed on a real machine: the
+  catalog overlay and a registered custom check sat under `machine-health/` while the audit's
+  `state/` and `logs/` sat under `machine-health-melodic-software/` — a split in which the
+  operator's disabled checks silently stopped taking effect and each half looked complete to
+  whatever wrote it. Both skills now resolve `${CLAUDE_PLUGIN_DATA}` and, when it does not expand,
+  stop and report an unresolved state root instead of substituting a guess. `check` FAILs at that
+  point rather than continuing, because "absent overlay" and "unreadable overlay" are
+  indistinguishable once the root is unknown, and "shipped defaults in effect" would assert more
+  than the evidence supports.
+- **The README no longer states that `${CLAUDE_PLUGIN_DATA}` resolves to
+  `~/.claude/plugins/data/machine-health`.** It does not, for any installed or inline plugin. The
+  migration step that told operators to move `state/` there was directing them into the wrong
+  directory; it now describes how the directory is named and routes to `/machine-health:setup check`
+  to print the resolved path.
+
+### Added
+
+- **`check` reports a split state root.** Because an earlier version wrote the hardcoded path, the
+  check probes that legacy path and any `machine-health-*` sibling of the resolved root, names what
+  each holds, and states that only the resolved root is read. Consolidating is left to the operator
+  — the stray directory holds their data, and this skill neither relocates nor removes files.
+
 ## [0.6.1]
 
 ### Changed

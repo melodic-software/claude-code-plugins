@@ -20,7 +20,7 @@ Two roots, resolved through the plugin's configuration seams:
 | Root | Holds | Resolution |
 |---|---|---|
 | **Report root** (`-OutputBase`) | `reports/` — the human-facing dated reports | `${user_config.report_dir}` when set to a non-empty path; if it is empty or still shows an unexpanded `${user_config.report_dir}` token (option unset), default to `$env:USERPROFILE\Documents\MachineHealth` |
-| **State root** (`-StateBase`) | `state/` (history, latest snapshot, approvals), `logs/`, catalog overlay, custom checks, `TODO.md` proposals | `${CLAUDE_PLUGIN_DATA}` — the per-plugin data directory that survives plugin updates. If that token is unexpanded (running outside plugin context), default to `$HOME/.claude/plugins/data/machine-health` |
+| **State root** (`-StateBase`) | `state/` (history, latest snapshot, approvals), `logs/`, catalog overlay, custom checks, `TODO.md` proposals | `${CLAUDE_PLUGIN_DATA}` — the per-plugin data directory that survives plugin updates. No fallback path: the directory is named for the plugin's install identity, not the plugin, so a literal guess resolves to a different directory and splits state from the overlay. If the token is unexpanded (running outside plugin context), stop and report that the state root cannot be resolved — never substitute a guessed path |
 
 Pass both explicitly to the orchestrator (`-OutputBase <report-root> -StateBase <state-root>`). Never write generated state into the plugin's own install directory — a plugin update replaces it.
 
