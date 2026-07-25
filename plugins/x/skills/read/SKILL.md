@@ -177,11 +177,19 @@ why; a truncated slice is never presented as the complete post or article. Nonce
 unconditional delete are all required, and the filename is fixed by that template: never derive any
 part of it from the response body. See [`context/failure-modes.md`](context/failure-modes.md).
 
-**`-w '%{http_code}'` is what reaches stdout.** `-sS` alone prints no status, and with `-o` holding
-the body the code is the only thing printed — observed rather than inferred. A `200` is not itself
-success: confirm the file carries converted content, validating against the form you asked for —
-under `Accept: text/markdown` success is raw Markdown with no JSON envelope, so a missing `markdown`
-field proves nothing. Both shapes: [`context/failure-modes.md`](context/failure-modes.md).
+**Check curl's exit status first — before the HTTP code, before the body.** A nonzero exit means the
+transfer failed even when `-w` printed `200`, because the status line arrived before the failure did.
+Verified: an over-cap response prints `200` and exits `63`. A nonzero exit is a failed fetch, full
+stop — delete the spool, report the failure, and never read the file. Reading it is the trap: an
+aborted transfer leaves a syntactically valid Markdown prefix that passes every content check and
+reads as a complete post.
+
+**Then `-w '%{http_code}'`.** `-sS` alone prints no status, and with `-o` holding the body the code is
+the only thing printed — observed rather than inferred. A `200` is not itself success either: confirm
+the file carries converted content, validating against the form you asked for — under
+`Accept: text/markdown` success is raw Markdown with no JSON envelope, so a missing `markdown` field
+proves nothing. Both shapes, and the exit codes worth naming:
+[`context/failure-modes.md`](context/failure-modes.md).
 
 ### Step 2 — Thread Reader App (unrolled reply chain)
 

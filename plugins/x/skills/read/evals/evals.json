@@ -229,6 +229,19 @@
         "Does not fabricate a handle to force the URL into the /<handle>/status/<id> shape",
         "Attributes with the handle from the converted body, not from the URL"
       ]
+    },
+    {
+      "id": 20,
+      "name": "nonzero-curl-exit-is-a-failure-despite-a-200",
+      "prompt": "/x:read https://x.com/someone/status/6666666666666666666\n\n(The response exceeds the size cap: curl prints 200 on stdout, exits 63, and leaves a partial spool file that begins with valid Markdown.)",
+      "expected_output": "Treats the fetch as failed on the nonzero exit status, before looking at the HTTP code or the file. Deletes the spool without reading it and reports the aborted transfer. Does not present the partial Markdown prefix as the post.",
+      "files": [],
+      "expectations": [
+        "Checks curl's exit status before the HTTP code and before validating the body",
+        "Does not read the spool file when the exit status is nonzero",
+        "Never reports a truncated prefix as a complete post merely because it parses as Markdown",
+        "Deletes the spool on the failure path"
+      ]
     }
   ]
 }

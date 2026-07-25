@@ -73,8 +73,8 @@ reopen — `'…'\''…'` — rather than falling back to double quotes.
 otherwise share one id-keyed path: the second `curl` truncates it after the first request completes
 but before that session's `Read`, so the first returns empty or half-written Markdown.
 
-**Delete on every exit path, not only after a successful read.** A `429`/`500`/`502`, a timeout, an
-oversized response, or a `200` carrying no converted content all stop before the read — and each
+**Delete on every exit path, not only after a successful read.** A `429`/`500`/`502`, any nonzero
+curl exit, or a `200` carrying no converted content all stop before the read — and each
 leaves a uniquely-named partial or error file behind. Because the nonce makes every attempt a fresh
 filename, repeated failures accumulate rather than overwrite, building exactly the local record of
 what was fetched that the egress section disclaims. Treat the removal as owed the moment the file is
@@ -95,10 +95,36 @@ a chunked reply from a compromised or malfunctioning converter can exceed the st
 byte cap as a courtesy limit and `--max-time` as the real ceiling on how much third-party text can
 arrive.
 
+When either bound *does* fire mid-transfer, it aborts rather than truncating cleanly: curl exits
+nonzero (`63` for the size cap, `28` for the timeout) and leaves a partial spool behind. That is why
+the exit status is checked before the body — see "Step 1 — xtomd status handling" below.
+
 ## Step 1 — xtomd status handling
 
-`-sS` alone prints no status. Because `-o` takes the body, `-w '%{http_code}'` makes the code the
-only thing on stdout — observable rather than inferred from body shape.
+**curl's exit status is the first gate, ahead of the HTTP code.** The two disagree, and the
+disagreement is the dangerous case: `-w` prints the status line curl already received, so a transfer
+that dies afterwards still reports `200`.
+
+Verified against curl 8.19.0 — an over-cap response printed `200` on stdout **and exited 63**:
+
+```console
+$ curl -q -sS --max-filesize 5000 -o spool.md -w '%{http_code}' https://example.invalid/big
+curl: (63) Maximum file size exceeded
+200
+$ echo $?
+63
+```
+
+Exit codes worth naming: `63` size cap exceeded, `28` operation timed out, `18` transfer ended early,
+`6`/`7` could not resolve or connect, `35` TLS handshake failed.
+
+**Any nonzero exit is a failed fetch.** Delete the spool, report it, and do **not** read the file —
+that is the whole point. An aborted transfer leaves a syntactically valid Markdown *prefix* which
+passes every content check in the table below and reads as a complete post. The status code and the
+body shape both look fine; only the exit status says otherwise.
+
+Then, on a zero exit: `-sS` alone prints no status, so with `-o` taking the body, `-w '%{http_code}'`
+makes the code the only thing on stdout — observable rather than inferred from body shape.
 
 **Single-quote every substituted path** — the `-o` target and the subsequent read and delete. Rules
 and the verified expansion hazard are under "Response spooling" above.

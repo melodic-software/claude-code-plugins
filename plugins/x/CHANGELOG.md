@@ -50,6 +50,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   neither direction. Empirically grounded: a genuine 12-post chain returns `isNoteTweet: false` with
   a 346-character root. The flag reports a long-form representation rather than the absence of
   replies, so it suppresses length-only escalation without overriding continuation evidence.
+- curl's **exit status** is checked ahead of the HTTP code and the body. The two disagree when a
+  transfer dies after its status line arrives: verified against curl 8.19.0, an over-cap response
+  prints `200` on stdout and exits `63`. Any nonzero exit is a failed fetch — the spool is deleted
+  unread, because an aborted transfer leaves a syntactically valid Markdown *prefix* that satisfies
+  every content check and reads as a complete post.
 - Status capture (`-w '\n%{http_code}'`) and explicit handling for `400`/`429`/`500`/`502`, timeouts,
   and `200` responses carrying no converted content, so a bot-challenge or stub page is never
   reported as an empty post.
@@ -64,7 +69,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   failure (13), the legacy `mobile.twitter.com` host accepted and canonicalized (14), an uppercased
   scheme and host still matching (15), a long article read to its end before cleanup (16), and a
   plaintext `http://` input upgraded to HTTPS by the rebuild (17), a spool path single-quoted
-  against shell expansion (18), and a handle-less `/i/web/status/` link accepted (19).
+  against shell expansion (18), a handle-less `/i/web/status/` link accepted (19), and a nonzero curl
+  exit treated as failure despite a `200` (20).
 
 ### Fixed
 

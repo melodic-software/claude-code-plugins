@@ -974,7 +974,12 @@ operated by others — so surfaces 5 and 6 carry the weight here.
   submitted URL is logged indefinitely. `--proto '=https'`, `--max-time`, and `--max-filesize` bound
   the transport; no `-L`, so no redirect-driven egress. The byte cap is best-effort rather than
   absolute — before curl 8.4.0 `--max-filesize` does not stop an unknown-length response, so a
-  chunked reply can exceed it and `--max-time` is the bound that always holds.
+  chunked reply can exceed it and `--max-time` is the bound that always holds. When either bound does
+  fire it aborts rather than truncating cleanly, and review found the skill would have read the
+  wreckage: verified against curl 8.19.0, an over-cap transfer prints `200` on stdout while exiting
+  `63`, leaving a partial spool whose Markdown prefix passes every content check. The exit status is
+  now the first gate, ahead of the HTTP code and the body, and a nonzero exit deletes the spool
+  unread.
 
   Those bounds are only enforceable because `-q` leads the invocation. Review surfaced that curl
   reads a default `.curlrc` "even when `--config` is used", skipping it only when `--disable` "is
