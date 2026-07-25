@@ -212,15 +212,27 @@ else
   }
 fi
 
-# The counters below consume this payload as a JSON ARRAY (`.[]`). Anything else
-# — a truncated or hand-edited snapshot, a scalar, an object, an error document a
-# fetch returned with exit 0 — used to reach them unchecked: jq failed, the
-# counts stayed 0, and the gate printed `READINESS_OK findings=0`. That is a
-# ready verdict derived from data the gate never read, which is exactly the
-# fail-open this script exists to close. Validated once here, on the RESOLVED
-# payload, so the snapshot path and the live-fetch path are both covered.
-printf '%s' "$COMMENTS" | jq -e 'type == "array"' >/dev/null || {
-  printf 'babysit-readiness-gate: comment payload is not a JSON array (source: %s)\n' \
+# The counters below consume this payload as a JSON ARRAY (`.[]`) and read
+# `.author` and `.body` off every element. Anything else — a truncated or
+# hand-edited snapshot, a scalar, an object, an error document a fetch returned
+# with exit 0 — used to reach them unchecked: jq failed, the counts stayed 0, and
+# the gate printed `READINESS_OK findings=0`. That is a ready verdict derived
+# from data the gate never read, which is exactly the fail-open this script
+# exists to close. Validated once here, on the RESOLVED payload, so the snapshot
+# path and the live-fetch path are both covered.
+#
+# The container check alone is not enough. `[null]` and `[{}]` are arrays, so
+# they passed it, and the counters' own `.body // ""` then coalesced the missing
+# field to an empty string — the same false-ready verdict, reached through a
+# well-formed container holding elements the gate cannot read. Both fields are
+# required as STRINGS because that is how the counters consume them: `.author`
+# is matched against the self list by identity, `.body` is grepped for severity
+# markers. A non-string in either position is unreadable, not empty.
+printf '%s' "$COMMENTS" | jq -e '
+  type == "array"
+  and all(.[]; type == "object" and (.author | type) == "string" and (.body | type) == "string")
+' >/dev/null || {
+  printf 'babysit-readiness-gate: comment payload is not a JSON array of {author,body} objects (source: %s)\n' \
     "${COMMENTS_JSON:-live fetch}" >&2
   unproven comments-unreadable 4
 }

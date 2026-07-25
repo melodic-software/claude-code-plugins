@@ -89,9 +89,15 @@ All notable changes to the `source-control` plugin are documented here. Format f
   exit status unchecked, so a snapshot that was truncated, hand-edited, or simply not a JSON array
   produced zero findings and a `READINESS_OK findings=0` verdict — a ready claim derived from data
   the gate never read, and the exact fail-open shape this release exists to close. The resolved
-  payload is now shape-checked once (`type == "array"`, so a valid scalar or object is rejected
-  too), the body extractions surface their own failures instead of swallowing them, and every such
-  path routes through `READINESS_UNPROVEN reason=comments-unreadable` at exit 4.
+  payload is now shape-checked once, the body extractions surface their own failures instead of
+  swallowing them, and every such path routes through `READINESS_UNPROVEN reason=comments-unreadable`
+  at exit 4. The check covers the ELEMENTS, not just the container: `type == "array"` alone still
+  admitted `[null]` and `[{}]`, whose missing fields the counters' own `.body // ""` coalesced to an
+  empty string — the same false-ready verdict reached through a well-formed container holding
+  elements the gate cannot read. Every element must now be an object carrying `author` and `body` as
+  strings, which is exactly how the counters consume them (`author` matched against the self list,
+  `body` grepped for severity markers); a non-string in either position is unreadable, not empty. An
+  empty array and an empty `body` string stay legitimate and still reach a verdict.
 - **An identity-lookup failure is no longer reported as a bad argument.** With neither `--self` nor
   `--extra-self` supplied and the supported `gh api user` default failing — expired auth, an
   unreachable API, an offline snapshot replay — the arguments were valid but stdout said

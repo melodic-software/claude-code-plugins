@@ -542,6 +542,38 @@ for shape in '"a string"' '{"author":"x"}' '42'; do
     "$shape_out" "READINESS_OK"
 done
 
+# A well-formed ARRAY holding elements the counters cannot read is the same
+# fail-open one level down: the container check passes, `.body // ""` coalesces
+# the missing field, and the gate reports READINESS_OK findings=0 over data it
+# never read. Both fields are required as strings because that is how the
+# counters consume them — `.author` matched against the self list, `.body`
+# grepped for severity markers.
+for element in '[null]' '[{}]' '[{"author":"x"}]' '[{"body":"[P1] real"}]' \
+  '[{"author":null,"body":"[P1] real"}]' '[{"author":"x","body":42}]' \
+  '[{"author":"x","body":"ok"},null]'; do
+  printf '%s' "$element" >"$TEST_TMPDIR/element.json"
+  element_out=$(bash "$GATE" 323 --comments-json "$TEST_TMPDIR/element.json" --self 'me[bot]' 2>/dev/null)
+  element_rc=$(
+    bash "$GATE" 323 --comments-json "$TEST_TMPDIR/element.json" --self 'me[bot]' >/dev/null 2>&1
+    echo $?
+  )
+  assert_contains "malformed element ($element) carries UNPROVEN" "$element_out" \
+    "READINESS_UNPROVEN reason=comments-unreadable"
+  assert_not_contains "malformed element ($element) never claims READINESS_OK" \
+    "$element_out" "READINESS_OK"
+  assert_exit "malformed element ($element) exit 4" 4 "$element_rc"
+done
+
+# The element check must not reject a well-formed payload. An EMPTY array is a
+# PR with no comments at all, which is legitimately zero findings, and an empty
+# body string is a real comment shape.
+for wellformed in '[]' '[{"author":"me[bot]","body":""}]'; do
+  printf '%s' "$wellformed" >"$TEST_TMPDIR/wellformed.json"
+  wellformed_out=$(bash "$GATE" 324 --comments-json "$TEST_TMPDIR/wellformed.json" --self 'me[bot]' 2>/dev/null)
+  assert_contains "well-formed payload ($wellformed) still reaches a verdict" \
+    "$wellformed_out" "READINESS_OK findings=0"
+done
+
 # --- Identity lookup failure is not a bad argument ---------------------------
 # With no --self/--extra-self and a `gh api user` that fails, the ARGUMENTS are
 # valid; the identity prerequisite is what broke. Reporting bad-args sent the
