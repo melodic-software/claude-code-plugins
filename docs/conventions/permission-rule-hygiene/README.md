@@ -122,6 +122,43 @@ name narrowly:
    the operator to add the bare-name rule once to `~/.claude/settings.json`, and never relies on
    interpreter-wildcard `allowed-tools` for auto-mode-gated actions.
 
+## Known gap — step 1's plugin `bin/` is not delivered on Windows / Git Bash
+
+The plugin `bin/` half of step 1 is documented but does not hold on this platform, so a helper whose
+only permission story is bin/-on-PATH has **no** operative allow rule there. Measured on Windows 11 /
+Git Bash, Claude Code **v2.1.219**, with the owning plugin installed at user scope and reported
+`enabled` by `claude plugin list`:
+
+```console
+$ which source-control-babysit-merge ; echo $?
+which: no source-control-babysit-merge in (...)
+1
+$ echo "$PATH" | tr ':' '\n' | grep -i plugins
+                          # no plugin directory of any kind is on PATH
+```
+
+The absence is **harness-wide, not a packaging defect in one plugin**: a second, unrelated installed
+plugin that also ships a `bin/` is equally absent from `PATH`. The files themselves are fine —
+committed `100755`, present in the install cache, correct shebangs. The feature also is not
+version-gated away: it predates the measured harness.
+
+Two consequences for anyone writing a guarded helper today:
+
+- **Invoke it by its bundled path**, the same form the sibling `scripts/` use. That is deterministic
+  and works now. Resolve `${CLAUDE_PLUGIN_ROOT}` in skill or agent content — it is substituted there,
+  but it is *not* exported to the Bash tool's own environment, so a raw shell expansion yields an
+  empty string ([plugins-reference](https://code.claude.com/docs/en/plugins-reference), Environment
+  variables).
+- **Expect no allow rule to cover it.** `bash` is not one of the wrappers Claude Code strips before
+  matching, so a `bash <path> …` command can only be matched by an interpreter-led rule — which is
+  anti-pattern 1, dropped on entering auto mode. The call therefore reaches the classifier on every
+  invocation. Do not design a helper on the assumption that the operator can pre-approve it.
+
+Until the gap closes upstream, treat step 1's plugin-`bin/` bullet as the intended end state rather
+than a capability to build on, on this platform. A `~/.local/bin` shim is **not** a substitute: a
+static shim pins a version-numbered install path that changes on every plugin update, and a shim that
+resolves the newest directory under the install cache can select an unvetted staging clone.
+
 ## Sources
 
 - Auto-mode drop behavior and decision order — [permission-modes](https://code.claude.com/docs/en/permission-modes#eliminate-prompts-with-auto-mode)
