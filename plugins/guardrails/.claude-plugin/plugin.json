@@ -1,8 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "guardrails",
-  "version": "0.14.2",
-  "description": "Nine safety guards that block secret/credential writes, hardcoded machine-specific paths, git hook-bypass attempts, irreversible git operations (force-push, reset --hard, worktree-wide checkout/restore discards), Bash file-write workarounds that circumvent Write/Edit hooks, commit subjects and gh pr create titles that violate the repo's tracked team convention (when one is declared in .claude/source-control.md), (advisory) hallucinated CLI flags, (advisory) un-throttled Workflow fan-out that risks burst 529s, and (advisory) direct git commit/gh pr create calls bypassing this marketplace's own commit/pull-request skills — each independently toggleable.",
+  "version": "0.15.0",
+  "description": "Twelve safety guards that block secret/credential writes, hardcoded machine-specific paths, git hook-bypass attempts, irreversible git operations (force-push, reset --hard, worktree-wide checkout/restore discards), Bash file-write workarounds that circumvent Write/Edit hooks, commit subjects and gh pr create titles that violate the repo's tracked team convention (when one is declared in .claude/source-control.md), (advisory) hallucinated CLI flags, (advisory) asserted repo paths that do not exist, (advisory) /plugin:skill references that do not resolve, (advisory) un-throttled Workflow fan-out that risks burst 529s, and (advisory) direct git commit/gh pr create calls bypassing this marketplace's own commit/pull-request skills — each independently toggleable.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -66,6 +66,18 @@
       "type": "boolean",
       "title": "cli-flag-verify guard",
       "description": "Advise on hallucinated CLI flags written to files (never blocks)",
+      "default": true
+    },
+    "asserted_path_verify_enabled": {
+      "type": "boolean",
+      "title": "asserted-path-verify guard",
+      "description": "Advise when markdown asserts a repo-relative path that does not exist (never blocks)",
+      "default": true
+    },
+    "skill_reference_verify_enabled": {
+      "type": "boolean",
+      "title": "skill-reference-verify guard",
+      "description": "Advise when markdown cites a /plugin:skill reference this repo owns but cannot resolve (never blocks)",
       "default": true
     },
     "workflow_resilience_check_enabled": {
