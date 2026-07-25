@@ -11,12 +11,12 @@ disable-model-invocation: true
 Settle the **topic-docs** seam for the consuming repo — the marketplace-wide convention for where
 plugin-generated documents land. The discovery plugin writes memory-tier artifacts (`EXPLORE.md`,
 `RESEARCH.md`, one `<slug>/` slice per topic) to `<memory_dir>/<slug>/`, never committed. The
-consumer-side single source of truth is the tracked concern file `.claude/topic-docs.yaml`; its schema
-is published at
-<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/topic-docs.schema.json> —
-every key optional, absent keys mean the documented defaults (`contract_dir: docs/topics`,
-`memory_dir: .work`, `contract_tier: branch`, `vault_backend: docs`). How the discovery skills consume what this skill
-persists: [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md).
+consumer-side single source of truth is the tracked concern file `.claude/topic-docs.yaml`; its shape is
+the convention's `topic-docs.schema.json` — every key optional, absent keys mean the documented defaults
+(`contract_dir: docs/topics`, `memory_dir: .work`, `contract_tier: branch`, `vault_backend: docs`). This
+plugin's binding — how the discovery skills consume what this skill persists, and the pointer to the
+published convention that owns the schema — lives in
+[`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md).
 
 Check-centric per the uniform contract: `check` inspects and reports, `apply` persists. Idempotent:
 re-running reads the current state and offers an update rather than overwriting blind.
