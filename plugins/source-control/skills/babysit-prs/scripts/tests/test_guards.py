@@ -126,10 +126,15 @@ def write_gh_shim(directory: pathlib.Path, sentinel: pathlib.Path) -> None:
     Exit 127 mimics the not-found status a caller is most likely to swallow, so
     a guard that resolved `@me` before checking scope reaches the same refusal
     exit code -- and is caught by the sentinel rather than by the exit code.
+
+    The interpreter is named absolutely. A `/usr/bin/env bash` shebang resolves
+    `bash` through PATH, which the replay below deliberately narrows to this
+    directory alone: the shim would fail to exec, record nothing, and every row
+    would pass without proving anything.
     """
     posix = directory / "gh"
     posix.write_text(
-        f'#!/usr/bin/env bash\nprintf called > "{sentinel.as_posix()}"\nexit 127\n',
+        f'#!{BASH}\nprintf called > "{sentinel.as_posix()}"\nexit 127\n',
         encoding="utf-8",
         newline="\n",
     )
@@ -204,6 +209,39 @@ class RefusalsFireOnArgumentShape(unittest.TestCase):
                             {},
                             because(row.id, row.claim, "no JSON envelope: bash refused"),
                         )
+
+    def test_the_recording_shim_is_reachable(self) -> None:
+        # Guards the guard. The replay below asserts a NEGATIVE -- the sentinel
+        # was never written -- so a shim the isolated PATH cannot execute makes
+        # every row pass while proving nothing. Resolve and invoke it through
+        # the lane's own subprocess seam, so a change to how `gh` is located
+        # cannot leave this probe agreeing with a shim the product would miss.
+        if BASH is None:
+            self.skipTest("bash unavailable; the gh shim needs it")
+        with tempfile.TemporaryDirectory() as tmp:
+            shim_dir = pathlib.Path(tmp)
+            sentinel = shim_dir / "gh-was-called"
+            write_gh_shim(shim_dir, sentinel)
+            probe = subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    "import sys; sys.path.insert(0, sys.argv[1]);"
+                    " import babysit_gh; babysit_gh.gh_capture(['--version'])",
+                    str(contract.SCRIPTS),
+                ],
+                capture_output=True,
+                text=True,
+                env=dict(os.environ, PATH=str(shim_dir)),
+                cwd=tempfile.gettempdir(),
+            )
+            recorded = sentinel.exists()
+        self.assertTrue(
+            recorded,
+            "the recording gh shim is unreachable under the isolated PATH, so"
+            " test_scope_refusal_precedes_every_network_call cannot detect a gh"
+            f" call at all: {probe.stderr[:400]}",
+        )
 
     def test_scope_refusal_precedes_every_network_call(self) -> None:
         # The rows claiming "no gh invocation at all" are replayed against a
