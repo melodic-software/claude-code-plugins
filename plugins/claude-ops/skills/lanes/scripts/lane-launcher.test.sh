@@ -45,7 +45,8 @@ cat >"$REPO/.work/lanes.json" <<'JSON'
   "prompt_dir": ".work",
   "lanes": [
     { "name": "work",    "prompt": "work.md",    "model": "opus",   "effort": "high" },
-    { "name": "babysit", "prompt": "babysit.md", "model": "sonnet", "effort": "medium" },
+    { "name": "babysit", "prompt": "babysit.md", "model": "sonnet", "effort": "medium",
+      "settings": { "pluginConfigs": { "autonomy@test-marketplace": { "options": { "lane_stop_gate_enabled": true } } } } },
     { "name": "decide",  "prompt": "decide.md" }
   ]
 }
@@ -171,6 +172,26 @@ assert_contains "start seeds prompt as placeholder" "$out" "<prompt:"
 assert_not_contains "start hides prompt body" "$out" "You are the babysit lane"
 assert_contains "start launches decide (no model/effort)" "$out" "claude --bg -n decide"
 assert_not_contains "decide has no model flag" "$out" "-n decide --model"
+assert_contains "start passes babysit settings inline" "$out" "--settings"
+assert_contains "start settings carry the lane config object" "$out" "lane_stop_gate_enabled"
+assert_not_contains "work has no settings flag" "$out" "-n work --settings"
+
+# per-lane settings must be a JSON object — a non-object skips that lane only
+cat >"$TMP/badsettings.json" <<'JSON'
+{
+  "prompt_dir": ".work",
+  "lanes": [
+    { "name": "work",   "prompt": "work.md", "settings": "not-an-object" },
+    { "name": "decide", "prompt": "decide.md" }
+  ]
+}
+JSON
+outbad="$(run_launcher start --repo "$REPO" --config "$TMP/badsettings.json" --agents-json "$AGENTS_EMPTY" --dry-run --no-pull --no-update 2>&1)"
+rcbad=$?
+assert_contains "non-object settings skips the lane with an error" "$outbad" "settings must be a JSON object"
+assert_not_contains "non-object settings lane not launched" "$outbad" "claude --bg -n work"
+assert_contains "other lanes still launch past a bad-settings lane" "$outbad" "claude --bg -n decide"
+assert_eq "bad settings surfaces a non-zero exit" 1 "$rcbad"
 
 # refresh step present by default; suppressible
 assert_contains "start pulls by default" "$out" "git -C $REPO pull --ff-only"
