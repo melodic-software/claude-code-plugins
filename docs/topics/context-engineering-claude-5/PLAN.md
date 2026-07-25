@@ -810,6 +810,78 @@ review; repo-agnostic, `userConfig`-configurable, plugin-form-safe, no PII, expl
 assignment per `docs/CATALOG-TAXONOMY.md` — `claude-code`, since the subject *is* Claude Code and the
 taxonomy's assignment principle gives subject priority over activity.
 
+#### The gate, walked against what PRs #1316 and #1318 actually ship
+
+Task #21, walked 2026-07-25 against the gate's own body — `docs/MIGRATION-PLAYBOOK.md` "Per-plugin
+migration gate" and "Plugin-acceptance security review" — rather than against this plan's seven-word
+summary of it, and against the two PRs' shipped files at `origin/feat/audit-pass-criteria` (#1316)
+and `origin/feat/audit-pass-skill` (#1318). **One criterion fails, one cannot close, and two
+divergences from this branch's own design are recorded.** A pass is recorded only where it was
+substantiated.
+
+| Criterion | Verdict | Evidence |
+|---|---|---|
+| Repo-agnostic | **PASS** | `audit-pass/reference/exclusion-set.md` derives every exclusion class and names the empty case: "When the target documents no such registry, **this class is empty**." Zero hardcoded repo, marketplace, or machine identifiers across all four skill files |
+| `userConfig`-configurable | **PASS**, by correct owner selection | No `userConfig` is the right answer, not an omission — `PLUGIN-PHILOSOPHY.md` "Configuration ownership and scope" owns a value by *kind*, and audit-pass has no personal-or-administrator scalar. Invocation choices are skill arguments, the suppression record is a consumer-project file, run state is `${CLAUDE_PLUGIN_DATA}` |
+| Plugin-form-safe | **FAIL** | Three `../` reach-outs — see below |
+| No PII or secrets | **PASS** today, with a named forward hazard | See below |
+| Explicit semver | **PASS** | `plugin.json` `0.10.0` with a matching `## [0.10.0]` changelog heading |
+| Catalog assignment | **PASS** | `claude-config` is an existing entry already filed `claude-code`; `audit-pass` is a skill inside it, so no new marketplace entry is owed. `CATALOG-TAXONOMY.md` "Assignment principle" confirms subject-over-activity, and its `claude-code` scope requires "the subject to *be* Claude Code" — which it is |
+| Plugin-acceptance security review | **CANNOT CLOSE** | See below |
+
+**The failure: three reach-outs to a repo-level document.** Security-review criterion 4 requires a
+plugin reference only files inside itself and forbids `../` reach-outs; migration-gate step 4 says
+the same positively. All three point at the same target,
+`docs/conventions/finding-suppression/README.md`, which PR #1318 creates at the repository root:
+
+- `audit-pass/SKILL.md:163` — `../../../../docs/conventions/finding-suppression/README.md`
+- `audit-pass/reference/run-contract.md:104` — `../../../../../docs/…`
+- `audit-pass/reference/exclusion-set.md:72` — `../../../../../docs/…`
+
+Each resolves correctly in this repository and to **nothing** in an installed plugin, whose cache
+root is the plugin directory. This is not a new hazard — it is precisely this plan's own
+"Horizontal decoupling" grounding finding ("a repo-level doc is unreachable from an installed
+plugin's cache") landing on the artifact that finding was written to protect, and the playbook lists
+it first under "Plugin-form caveats (works in-repo, breaks as a plugin)". **The convention document
+is the right home for the keys; the pointer to it is what has to change** — the plugin needs its own
+bundled statement of the suppression shape, citing the convention by name rather than by relative
+path. Owned by the implementation lane; not edited from this branch.
+
+**No PII passes today, and the hazard is in what is not yet built.** The shipped
+`run-contract.md:17-20` scope-prefixes `surface` — "the file's *logical* path, never a
+machine-absolute one" — so no report emits an operator's home directory. But the shipped contract
+has **no liveness-basis concept at all**, and this branch's
+[design/rerun-contract.md](design/rerun-contract.md) §6 requires a liveness-dependent finding to
+record its basis *as report evidence*, including the launch directory and the effective merged
+`claudeMdExcludes` — patterns that match **absolute paths**. When that lands it must take the same
+scope-prefixed or redacted form `surface` already takes, or the report carries
+`C:\Users\<name>\…` into an artifact §2 explicitly permits redirecting into the target tree. Named
+here so it is a designed-in constraint rather than a Phase 10 discovery.
+
+**The security review cannot be closed by this walk, and recording it as a pass would be false.**
+Two of its own prerequisites are outstanding by this document's reckoning: the adversarial injection
+fixture corpus (Phase 8) and verification that the exclusion-set derivation is not itself an
+injection target (Phase 10), both owed by
+[design/checks-and-sweep.md](design/checks-and-sweep.md), "What this section does not settle". The
+review's surfaces 1, 2, 5, 6, and 7 are all clean — audit-pass ships no hooks, no MCP server, no
+telemetry, no `bin/`, and no `settings.json` `agent` — so the residual is entirely the runtime
+behavior the threat-model section covers.
+
+**Two divergences between this branch's design and what #1318 ships**, recorded as findings against
+the implementation lane and not edited from here:
+
+1. **The shipped `run-contract.md:14` carries `identity = (surface, check, anchor, claim)`** — the
+   superseded tuple, which [design/rerun-contract.md](design/rerun-contract.md) §1 replaced precisely
+   because it cannot express a pairwise finding, and D1 is the deliverable's entire payload. The
+   shipped file also carries no `sites` set, no `anchor/v1` version tag, no `e:`/`s:` granularity
+   discriminator, and no harness-version input. It implements the pre-task-#54 contract.
+2. **Liveness is absent**, per the PII paragraph above — so Assertion 1.1 ships unscoped, and P1's
+   exact equality ships without its liveness-basis clause. Both were falsifiable in that form by
+   correct behavior on a second machine.
+
+Neither divergence is a gate criterion; both would make the shipped contract fail its own
+idempotence claim, which is why they are recorded with the gate rather than after it.
+
 **The acceptance gate is not the whole security review, and assuming it was is a gap this plan
 carried.** That gate checks distribution hygiene — properties of the artifact as a shipped plugin.
 The sweep's exposure is *runtime behavior against hostile input*: it reads arbitrary instruction
