@@ -241,7 +241,14 @@ hook::buffer_stdin() {
   local input="" read_status=0 read_timeout="${CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT:-2}" start_epoch elapsed_ms timeout_ms
   start_epoch=${EPOCHREALTIME:-}
   IFS= read -r -d '' -t "$read_timeout" input || read_status=$?
-  input=$(printf '%s' "$input" | tr -d '\r')
+  # Parameter expansion, not `$(printf … | tr -d …)`: this runs in every hook on
+  # every tool call, and two process spawns per invocation is the single largest
+  # fixed cost in the hook layer on Windows, where fork emulation makes a spawn
+  # cost hundreds of milliseconds. The trailing-newline trim reproduces exactly
+  # what the command substitution used to strip, so the returned payload — and
+  # the emptiness test below — are byte-identical to the previous form.
+  input="${input//$'\r'/}"
+  while [[ "$input" == *$'\n' ]]; do input="${input%$'\n'}"; done
   [[ -n "$input" ]] || return 1
   local jq_rc=0
   if [[ "$read_status" -ne 0 ]] && command -v jq >/dev/null 2>&1; then
@@ -268,6 +275,49 @@ hook::jq_field() {
   field=$(jq -r "(${2} // empty)"' | gsub("\r";"")' <<<"$1" 2>/dev/null)
   [[ -n "$field" ]] || return 1
   printf '%s' "$field"
+}
+
+# Extract several jq fields from a buffered input string in ONE jq process,
+# into the HOOK_JQ_FIELDS array (one element per expression, same order).
+# Each value is CR-stripped, exactly as a per-field `jq -r … | tr -d '\r'`
+# pipeline was. Always returns 0 when given at least one expression: a missing
+# field, a null, or unparsable input yields an empty element, so callers keep
+# their own emptiness checks. Supply each expression's own default
+# (`… // ""`, `… // "Bash"`).
+#   hook::jq_fields "$INPUT" '.tool_name // "Bash"' '.tool_input.command // ""'
+#   TOOL_NAME=${HOOK_JQ_FIELDS[0]} COMMAND=${HOOK_JQ_FIELDS[1]}
+#
+# A hook pays hundreds of milliseconds per process spawn on Windows, so the
+# per-field pipelines this replaces dominated hook latency. Values are joined on
+# U+001E (RECORD SEPARATOR) and split with parameter expansion alone — no
+# subshell, and no constraint on which field may contain newlines, unlike a
+# newline-delimited read. jq strips U+001E from every value before joining, so
+# payload text can never shift a later field into an earlier one — a caller
+# whose earlier field is attacker-influenced (a file path) would otherwise
+# mis-assign the content field and scan the wrong bytes. Stripping is the same
+# contract the per-field pipelines already applied to CR, and removing a
+# character can only merge adjacent text, never split a token, so no detection
+# pattern is weakened.
+#
+# Each expression must yield exactly one value; a multi-output expression
+# (`.[]`) desynchronizes the array.
+hook::jq_fields() {
+  local input="$1" prog="" expr rest field sep=$'\x1e' i n
+  shift
+  HOOK_JQ_FIELDS=()
+  (($#)) || return 1
+  for expr in "$@"; do
+    [[ -n "$prog" ]] && prog+=","
+    prog+="($expr)"
+  done
+  rest=$(jq -r "[$prog]"' | map(tostring | gsub("[\r\u001e]";"")) | join("\u001e")' <<<"$input" 2>/dev/null)
+  n=$#
+  for ((i = 1; i < n; i++)); do
+    field="${rest%%"$sep"*}"
+    rest="${rest#*"$sep"}"
+    HOOK_JQ_FIELDS+=("$field")
+  done
+  HOOK_JQ_FIELDS+=("$rest")
 }
 
 # Reduce a tool + optional Bash command to a privacy-safe subject label. For

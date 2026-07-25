@@ -3,6 +3,24 @@
 All notable changes to the `desktop-notification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.5.2]
+
+### Added
+
+- **`hook::jq_fields` in the shared hook lib (#1345).** Extracts N jq fields in ONE `jq` process
+  instead of N `printf | jq | tr` pipelines, returning them in `HOOK_JQ_FIELDS`. Values are joined on
+  U+001E, which jq strips from each value first so payload text can never shift field alignment. This
+  plugin's own hooks do not call it yet; it arrives with the shared-lib sync.
+
+### Fixed
+
+- **Two process spawns removed from every hook invocation (#1345).** `hook::buffer_stdin` stripped CR
+  with `$(printf '%s' "$input" | tr -d '\r')`; it now uses parameter expansion. On Windows, where
+  `fork` emulation makes each spawn cost hundreds of milliseconds, that command substitution was the
+  largest fixed cost paid by every hook in this plugin on every matching tool call. The buffered
+  payload — including the trailing-newline trim a command substitution performed implicitly — is
+  byte-identical. Carried in via `scripts/sync-hook-utils.sh`; no behavior of this plugin changed.
+
 ## [0.5.1]
 
 ### Changed

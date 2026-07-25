@@ -67,10 +67,11 @@ INPUT=$(hook::buffer_stdin) || {
 
 hook::require_jq "PreToolUse" "guardrails-block-convention-violation" "$INPUT"
 
-TOOL_NAME=$(printf '%s' "$INPUT" | jq -r '.tool_name // "Bash"' 2>/dev/null | tr -d '\r')
-COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null | tr -d '\r')
+hook::jq_fields "$INPUT" '.tool_name // "Bash"' '.cwd // ""' '.tool_input.command // ""'
+TOOL_NAME=${HOOK_JQ_FIELDS[0]}
+HOOK_CWD=${HOOK_JQ_FIELDS[1]}
+COMMAND=${HOOK_JQ_FIELDS[2]}
 [[ -n "$COMMAND" ]] || exit 0
-HOOK_CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null | tr -d '\r')
 
 REPO_ROOT=$(hook::repo_root "${HOOK_CWD:-${CLAUDE_PROJECT_DIR:-.}}")
 RESOLVER="$(dirname "${BASH_SOURCE[0]}")/resolve-convention-pattern.sh"

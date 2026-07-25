@@ -95,10 +95,11 @@ INPUT=$(hook::buffer_stdin) || {
 # (additionalContext), once per session — see docs/conventions/hook-observability/.
 hook::require_jq "PreToolUse" "guardrails-block-noncanonical-commit" "$INPUT"
 
-COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null | tr -d '\r')
+hook::jq_fields "$INPUT" '.tool_name // "Bash"' '.cwd // ""' '.tool_input.command // ""'
+TOOL_NAME=${HOOK_JQ_FIELDS[0]}
+HOOK_CWD=${HOOK_JQ_FIELDS[1]}
+COMMAND=${HOOK_JQ_FIELDS[2]}
 [[ -n "$COMMAND" ]] || exit 0
-HOOK_CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null | tr -d '\r')
-TOOL_NAME=$(printf '%s' "$INPUT" | jq -r '.tool_name // "Bash"' 2>/dev/null | tr -d '\r')
 
 SUBJECT=$(hook::extract_bash_subject "$TOOL_NAME" "$COMMAND")
 

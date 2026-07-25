@@ -7,13 +7,13 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/secret-pattern-detection.sh",
-            "timeout": 15,
+            "timeout": 90,
             "statusMessage": "Checking for secrets..."
           },
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/hardcoded-path-check.sh",
-            "timeout": 15,
+            "timeout": 90,
             "statusMessage": "Checking for hardcoded paths..."
           }
         ]
@@ -24,25 +24,25 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/block-no-verify.sh",
-            "timeout": 10,
+            "timeout": 60,
             "statusMessage": "Checking for --no-verify bypass..."
           },
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/block-dangerous-git.sh",
-            "timeout": 10,
+            "timeout": 60,
             "statusMessage": "Checking for dangerous git commands..."
           },
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/block-hook-bypass.sh",
-            "timeout": 10,
+            "timeout": 60,
             "statusMessage": "Checking for hook-bypass attempts..."
           },
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/flag-commit-pr-skill-bypass.sh",
-            "timeout": 10,
+            "timeout": 60,
             "statusMessage": "Checking commit/PR skill usage..."
           }
         ]
@@ -53,13 +53,13 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/block-noncanonical-commit.sh",
-            "timeout": 10,
+            "timeout": 60,
             "statusMessage": "Checking commit-message convention..."
           },
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/block-convention-violation.sh",
-            "timeout": 10,
+            "timeout": 60,
             "statusMessage": "Checking commit subject / PR title against the team convention..."
           }
         ]
@@ -70,7 +70,7 @@
           {
             "type": "command",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/workflow-resilience-check.sh",
-            "timeout": 10,
+            "timeout": 60,
             "statusMessage": "Checking workflow resilience..."
           }
         ]

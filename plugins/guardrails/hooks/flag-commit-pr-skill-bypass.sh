@@ -78,9 +78,10 @@ INPUT=$(hook::buffer_stdin) || exit 0
 # (additionalContext), once per session — see docs/conventions/hook-observability/.
 hook::require_jq "PreToolUse" "guardrails-flag-commit-pr-skill-bypass" "$INPUT"
 
-COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null | tr -d '\r')
+hook::jq_fields "$INPUT" '.tool_name // "Bash"' '.tool_input.command // ""'
+TOOL_NAME=${HOOK_JQ_FIELDS[0]}
+COMMAND=${HOOK_JQ_FIELDS[1]}
 [[ -n "$COMMAND" ]] || exit 0
-TOOL_NAME=$(printf '%s' "$INPUT" | jq -r '.tool_name // "Bash"' 2>/dev/null | tr -d '\r')
 # On the PowerShell tool, neutralize here-strings first so a `gh pr create`
 # mention inside message text is inert and a real invocation after a here-string
 # is still seen. Advisory-only: never blocks, so best-effort is proportionate.
@@ -192,6 +193,53 @@ source_control_enabled() {
 
 source_control_enabled || exit 0
 
+# Drop paired single-quoted spans, then paired double-quoted ones, from a single
+# line. Single quotes take no escapes; double-quoted spans honor `\"`, matching
+# shell grammar. An unterminated span is left intact.
+#
+# Pure parameter expansion rather than `printf | sed | sed`, and the result is
+# returned in STRIPPED_SPANS rather than on stdout: this is called once per line
+# of the command, and neither a process spawn nor the fork behind a command
+# substitution is affordable per line — three of them put a routine multi-line
+# commit past the hook's whole timeout budget on Windows.
+strip_quoted_spans() {
+  local s="$1" out="" pre rest c n j
+
+  while [[ "$s" == *\'* ]]; do
+    pre="${s%%\'*}"
+    rest="${s#*\'}"
+    [[ "$rest" == *\'* ]] || break
+    out+="$pre"
+    s="${rest#*\'}"
+  done
+  s="$out$s"
+
+  out=""
+  while [[ "$s" == *\"* ]]; do
+    pre="${s%%\"*}"
+    rest="${s#*\"}"
+    n=${#rest}
+    j=0
+    while ((j < n)); do
+      c="${rest:j:1}"
+      case "$c" in
+      '"') break ;;
+      '\') ((j += 2)) ;;
+      *) ((j++)) ;;
+      esac
+    done
+    if ((j < n)); then
+      out+="$pre"
+      s="${rest:j+1}"
+    else
+      out+="$pre\""
+      s="$rest"
+      break
+    fi
+  done
+  STRIPPED_SPANS="$out$s"
+}
+
 # Strip single- and double-quoted literal spans, and drop heredoc bodies
 # wholesale, so the top-level invocation scan below sees shell syntax, not
 # payload text (a commit body mentioning "git commit -m" in prose is not a
@@ -217,8 +265,8 @@ strip_literals() {
       line="${line%%<<*}${line#*"${BASH_REMATCH[0]}"}"
       in_heredoc=1
     fi
-    line=$(printf '%s' "$line" | sed "s/'[^']*'//g" | sed -E 's/"([^"\\]|\\.)*"//g')
-    result+="${line}"$'\n'
+    strip_quoted_spans "$line"
+    result+="${STRIPPED_SPANS}"$'\n'
   done <<<"$cmd"
   printf '%s' "${result%$'\n'}"
 }

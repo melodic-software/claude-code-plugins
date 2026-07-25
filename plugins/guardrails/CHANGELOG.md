@@ -3,6 +3,91 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.0]
+
+### Fixed
+
+- **The PreToolUse guards were failing open: killed at their declared timeout, contributing no
+  verdict (#1345).** Over 3,923 measured PreToolUse runs the overall non-enforcement rate was
+  **86.1%**; individual guards ran 45–100% killed, and several never completed once. A cancelled hook
+  reports no `permissionDecision`, so the guarded tool call proceeded without the guard's answer. The
+  observed "p50 12–19 s" was `timeout + kill-observation overhead`, not a measure of work. Restoring
+  enforcement was prioritized ahead of making anything fast.
+
+### Changed
+
+- **PreToolUse timeouts raised: `Bash|PowerShell` and `Workflow` 10 s → 60 s, `Write|Edit|NotebookEdit`
+  15 s → 90 s (#1345).** Per the current hook documentation the `timeout` field "Defaults: 600 for
+  `command`, `http`, and `mcp_tool`", lowered only by `UserPromptSubmit` (30) and `MessageDisplay`
+  (10) — **PreToolUse is not among them**. The previous 10 s / 15 s were therefore a 60× / 40×
+  reduction below the platform default with no recorded rationale (`git log -S` traces both to the
+  plugin's initial commit). The new values remain 10× and 6.7× below the platform default.
+  Derivation, from the post-fix spawn census and this host's measured costs. The unit price used is
+  437 ms, the measured cost of a `$(printf … | tr -d …)` command substitution — a *two-process
+  pipeline*, deliberately applied as a per-spawn **upper bound**, since the spawns that remain are
+  mostly bare `jq` calls and cost less. Worst remaining
+  `Bash|PowerShell` guard 12 spawns × 437 ms + 380 ms interpreter/sourcing ≈ 5.6 s; × 3 for the
+  measured concurrent-hook-density effect ≈ 16.9 s; × 3 headroom for the residual load amplifier that
+  the diagnosis could not isolate ≈ 50.6 s; the smallest integer multiple of the old 10 s budget that
+  covers it is **6×** → 60 s, applied at the same 1.5 ratio to the content-scanning guards → 90 s.
+  Because matching hooks run in parallel, the worst-case added wait for one tool call is the largest
+  single timeout, not their sum. **Tradeoff for the operator to ratify:** a raised timeout makes the
+  pathological worst-case wait longer; leaving it low is a silent fail-open. A guard that does not run
+  is worse than a guard that is slow.
+
+### Performance
+
+- **External process spawns per Bash tool call cut from 65 to 35 (#1345).** Exact census (shim
+  directory on `PATH`, each shim logging its name then exec-ing the real binary), identical payload
+  before and after:
+
+  | Guard | Before | After |
+  |---|---|---|
+  | `block-no-verify` | 7 | 3 |
+  | `block-dangerous-git` | 7 | 3 |
+  | `block-hook-bypass` | 7 | 3 |
+  | `block-noncanonical-commit` | 9 | 3 |
+  | `block-convention-violation` | 17 | 11 |
+  | `flag-commit-pr-skill-bypass` | 18 | 12 |
+  | `secret-pattern-detection` | 10 | 4 |
+  | `hardcoded-path-check` | 14 | 7 |
+
+  Spawn count is the primary performance criterion because it is exact and load-independent; every
+  wall-time figure on this host is contended and order-of-magnitude only.
+
+  **The stated target was not fully met and the remainder is named.** 35 is above the ≤20 target, and
+  three guards stay above the per-guard target of 4 spawns on a payload they do not act on. What
+  remains: 7 `dirname` command substitutions at the `source` line (one per guard, two in
+  `block-convention-violation`), 5 `awk` calls in `block-convention-violation`, and 6 `jq` calls in
+  `flag-commit-pr-skill-bypass`. The `dirname` substitutions are pure `${BASH_SOURCE[0]%/*}`
+  candidates worth 20% of the remaining spawns; they are deliberately not changed here because the
+  parameter-expansion form diverges when `BASH_SOURCE[0]` carries no `/`, so it needs its own guard
+  and its own review across every hook file.
+
+- **Per-field extraction collapsed into one `jq` process per guard.** Each guard replaced its 2–4
+  hand-rolled `printf | jq | tr` pipelines with a single `hook::jq_fields` call. Detection logic is
+  untouched; the extracted values are unchanged.
+- **`flag-commit-pr-skill-bypass` no longer spawns per line of the command.** `strip_literals` ran
+  `printf | sed | sed` for every line at ~280 ms each, so a 35-line command alone exceeded the whole
+  timeout budget. The quoted-span strip is now pure parameter expansion (`strip_quoted_spans`).
+  Equivalence to the previous sed pair was verified on 20,041 inputs — 41 hand-written cases covering
+  unterminated spans, escaped quotes, nested and adjacent quoting, plus 20,000 fuzzed strings over a
+  quote-heavy alphabet — with byte-identical output on every one. Quote state deliberately still does
+  not carry across lines, exactly as the per-line sed did not.
+- **`hardcoded-path-check` answers two gates with one `git` process.** The
+  `git rev-parse --is-inside-work-tree` probe was redundant with `git check-ignore`, which already
+  distinguishes ignored (0) from not-ignored-inside-a-tree (1) from no-work-tree (128). The probe is
+  retained only on the 128 branch, where it separates "no work tree" from other fatal
+  `check-ignore` errors inside a real tree.
+
+### Added
+
+- **`scripts/hook_latency_report.py`.** Reports per-hook timeout rate and p50/p90 of runs that
+  actually completed, reading `~/.claude/projects/*/*.jsonl` and using the harness's own `timedOut`
+  field as ground truth — so it cannot be fooled by a hook that fails to launch, the trap that made an
+  earlier comparison cite a 2 ms "fast control" that had never executed. Run it before and after a
+  hook change over comparable windows.
+
 ## [0.15.0]
 
 ### Added

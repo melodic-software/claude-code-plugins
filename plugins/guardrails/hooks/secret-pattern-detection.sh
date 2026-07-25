@@ -49,14 +49,22 @@ INPUT=$(hook::buffer_stdin) || {
 # (additionalContext), once per session — see docs/conventions/hook-observability/.
 hook::require_jq "PreToolUse" "guardrails-secret-pattern-detection" "$INPUT"
 
-TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null | tr -d '\r')
+# The content to scan lives under a different key per tool: Write has .content,
+# Edit has .new_string, NotebookEdit has .new_source.
+hook::jq_fields "$INPUT" '.tool_name // ""' '.tool_input.file_path // ""' \
+  '(if .tool_name == "Write" then .tool_input.content
+    elif .tool_name == "Edit" then .tool_input.new_string
+    elif .tool_name == "NotebookEdit" then .tool_input.new_source
+    else null end) // ""'
+TOOL=${HOOK_JQ_FIELDS[0]}
+FILE=${HOOK_JQ_FIELDS[1]}
+CONTENT=${HOOK_JQ_FIELDS[2]}
 
 case "$TOOL" in
 Write | Edit | NotebookEdit) ;;
 *) exit 0 ;;
 esac
 
-FILE=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null | tr -d '\r')
 [[ -n "$FILE" ]] || exit 0
 
 NORM_FILE="$(hook::normalize_path "$FILE")"
@@ -108,14 +116,7 @@ case "$ALLOW_FILE" in
 *) ;; # proceed to content check
 esac
 
-# --- Extract content to check ---
-case "$TOOL" in
-Write) CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.content // empty' 2>/dev/null | tr -d '\r') ;;
-Edit) CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.new_string // empty' 2>/dev/null | tr -d '\r') ;;
-NotebookEdit) CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.new_source // empty' 2>/dev/null | tr -d '\r') ;;
-*) exit 0 ;; # unreachable — $TOOL filtered to Write|Edit|NotebookEdit above
-esac
-[[ -n "${CONTENT:-}" ]] || exit 0
+[[ -n "$CONTENT" ]] || exit 0
 
 # Repo-relative file for telemetry data.file (best-effort prefix strip).
 FILE_REL="$FILE"

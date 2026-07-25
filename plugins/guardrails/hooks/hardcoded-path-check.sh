@@ -56,14 +56,22 @@ INPUT=$(hook::buffer_stdin) || {
 # (additionalContext), once per session — see docs/conventions/hook-observability/.
 hook::require_jq "PreToolUse" "guardrails-hardcoded-path-check" "$INPUT"
 
-TOOL=$(printf '%s' "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null | tr -d '\r')
+# The content to scan lives under a different key per tool: Write has .content,
+# Edit has .new_string, NotebookEdit has .new_source.
+hook::jq_fields "$INPUT" '.tool_name // ""' '.tool_input.file_path // ""' \
+  '(if .tool_name == "Write" then .tool_input.content
+    elif .tool_name == "Edit" then .tool_input.new_string
+    elif .tool_name == "NotebookEdit" then .tool_input.new_source
+    else null end) // ""'
+TOOL=${HOOK_JQ_FIELDS[0]}
+FILE=${HOOK_JQ_FIELDS[1]}
+CONTENT=${HOOK_JQ_FIELDS[2]}
 
 case "$TOOL" in
 Write | Edit | NotebookEdit) ;;
 *) exit 0 ;;
 esac
 
-FILE=$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null | tr -d '\r')
 [[ -n "$FILE" ]] || exit 0
 
 # Normalize path separators for cross-platform case matching.
@@ -80,15 +88,6 @@ NORM_FILE="${FILE//\\//}"
 # secret-pattern-detection, which scans even without a resolvable root —
 # secrets are dangerous anywhere; hardcoded paths only harm portable artifacts.
 [[ -n "${CLAUDE_PROJECT_DIR:-}" ]] || exit 0
-# Same rationale when the project dir resolves but is NOT a git working tree
-# (Claude Code sets CLAUDE_PROJECT_DIR for any directory — a home-directory
-# session is the common case): the target is not a portable repo artifact, and
-# every per-file exemption rung below is unreachable there — the .claude
-# carve-outs don't cover machine-local plugin config, and git check-ignore
-# errors outside a work tree — leaving only the global kill switch. A bare
-# repo also skips (no working tree means no tracked portable artifacts to
-# protect at this path).
-[[ "$(git -C "$CLAUDE_PROJECT_DIR" rev-parse --is-inside-work-tree 2>/dev/null)" == "true" ]] || exit 0
 _scope_file="$(hook::normalize_path "$FILE")"
 _scope_project="$(hook::normalize_path "${CLAUDE_PROJECT_DIR}")"
 _scope_project="${_scope_project%/}"
@@ -110,24 +109,32 @@ case "$NORM_FILE" in
 *) ;;
 esac
 
-# Skip gitignored files — designated for machine-specific state (settings.local.json,
-# CLAUDE.local.md, .venv/, node_modules/, etc.). git check-ignore does not require
-# the file to exist on disk, so this works for new Write operations too.
-# CLAUDE_PROJECT_DIR is guaranteed non-empty here — the scope guard above
-# exited on the no-project case.
-if git -C "$CLAUDE_PROJECT_DIR" check-ignore -q "$FILE" 2>/dev/null; then
-  exit 0
-fi
-
-# Extract content to check — Write has .content, Edit has .new_string,
-# NotebookEdit has .new_source.
-case "$TOOL" in
-Write) CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.content // empty' 2>/dev/null | tr -d '\r') ;;
-Edit) CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.new_string // empty' 2>/dev/null | tr -d '\r') ;;
-NotebookEdit) CONTENT=$(printf '%s' "$INPUT" | jq -r '.tool_input.new_source // empty' 2>/dev/null | tr -d '\r') ;;
-*) exit 0 ;; # unreachable — $TOOL filtered to Write|Edit|NotebookEdit above
+# Two gates, one git process. `check-ignore -q` answers both:
+#
+#   0   the file is gitignored — designated for machine-specific state
+#       (settings.local.json, CLAUDE.local.md, .venv/, node_modules/). The file
+#       need not exist on disk, so this covers a fresh Write too.
+#   1   not ignored, and answering at all proves a working tree — scan it.
+#   128 no working tree (plain directory, bare repo, path outside the tree).
+#
+# The 128 case is where the project dir resolves but is NOT a git working tree
+# (Claude Code sets CLAUDE_PROJECT_DIR for any directory — a home-directory
+# session is the common case): the target is not a portable repo artifact, and
+# every per-file exemption rung is unreachable there — the .claude carve-outs
+# don't cover machine-local plugin config, and check-ignore itself errors —
+# leaving only the global kill switch. A bare repo skips for the same reason:
+# no working tree means no tracked portable artifacts to protect at this path.
+# 128 also covers other fatal check-ignore errors inside a real work tree, so
+# the work-tree probe still runs to tell those two apart and keep scanning the
+# second.
+git -C "$CLAUDE_PROJECT_DIR" check-ignore -q "$FILE" 2>/dev/null
+case $? in
+0) exit 0 ;;
+1) ;;
+*) [[ "$(git -C "$CLAUDE_PROJECT_DIR" rev-parse --is-inside-work-tree 2>/dev/null)" == "true" ]] || exit 0 ;;
 esac
-[[ -n "${CONTENT:-}" ]] || exit 0
+
+[[ -n "$CONTENT" ]] || exit 0
 
 # Resolve current repo root for the machine-specific-path check. Comments are
 # NOT exempt — examples and "do not use" comments still ship as hardcoded paths

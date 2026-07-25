@@ -71,9 +71,10 @@ INPUT=$(hook::buffer_stdin) || {
 # (additionalContext), once per session — see docs/conventions/hook-observability/.
 hook::require_jq "PreToolUse" "guardrails-block-dangerous-git" "$INPUT"
 
-COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null | tr -d '\r')
+hook::jq_fields "$INPUT" '.tool_name // "Bash"' '.tool_input.command // ""'
+TOOL_NAME=${HOOK_JQ_FIELDS[0]}
+COMMAND=${HOOK_JQ_FIELDS[1]}
 [[ -n "$COMMAND" ]] || exit 0
-TOOL_NAME=$(printf '%s' "$INPUT" | jq -r '.tool_name // "Bash"' 2>/dev/null | tr -d '\r')
 
 # Above this length the command is not parsed — a pathologically long command is
 # assumed to be obfuscation and blocked FAIL-CLOSED (generous cap; real git
