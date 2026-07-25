@@ -59,9 +59,9 @@ the boundary clean.
 | Plugins | 60 | `plugins/*` (matches the 60 entries in `.claude-plugin/marketplace.json`) |
 | Agent definitions | 7 | `plugins/plugin-quality/agents/auditor.md`; `plugins/review/agents/` (6 files) |
 | Plugins shipping any `agents/` directory | 2 | `plugin-quality`, `review` |
-| `SKILL.md` files | 188 | `plugins/*/skills/*/SKILL.md` |
+| `SKILL.md` files | 187 | `plugins/*/skills/*/SKILL.md` |
 
-L2 and L3 operate on instruction surfaces — 188 skill bodies plus `CLAUDE.md`, `.claude/rules/`,
+L2 and L3 operate on instruction surfaces — 187 skill bodies plus `CLAUDE.md`, `.claude/rules/`,
 prompt-type hook text, and output styles. #1225's conforming population is **7 files in 2 of 60
 plugins**, widening only to the "would this plugin benefit from one" question over the other 58.
 
@@ -256,6 +256,7 @@ means the ticket claims part of the lane's deliverable, not merely that it is ad
 | **#1219** standing hygiene-sweep routine | No | No — **and it is the consumer** | Found by search, not handed. A *scheduler/composer* of existing hygiene skills with a coverage-state abstraction; it explicitly names #253 as owning its copied-content scanner and states "the routine itself never mutates the repo." It owns no detection surface, so it competes with nothing — it is the natural downstream consumer of whatever L2/L3 ship as checks. **A new router would break it**; checks inside existing plugins are exactly what it composes |
 | **#445** CI-gate backlog | No | No — **fold target if deterministic** | Found by search. The documented shape for an automatable conformance check in this repo: `scripts/check-*.sh` + `.test.sh` + a `ci.yml` lane wired into the `ci-status` needs graph. Any deterministic slice of L2 or L3 folds here rather than becoming a new gate |
 | **#1258** fork subagents do not inherit conversation | No | No | Dependency, not a scope claim. Recorded because the incumbent already dodged it: `audit-instructions` Phase C specifies **fresh-context, non-fork** subagents and states why (`SKILL.md:112-114`). Evidence the incumbent is current, not stale |
+| **#1268** false `context: fork` rationale in the plugin-audit-port record | No | No | Found by search. A single wrong rationale corrected inside `docs/topics/plugin-audit-port/`; same fork-semantics family as #1258 but confined to another topic's design record. Touches no plugin instruction surface and claims no detection mechanism |
 | **#307** backlog-conformance sweep | No | No | Found by search. Sweeps *tracker items* for missing labels/axes — a tracker-API population, not an instruction surface |
 | **#988** fleet conformance: setup skills | No | No | Found by search. Setup-skill presence against the philosophy's setup contract; a per-plugin structural property |
 | **#1224** auto-mode-migration audit | No | No | Found by search. Permission blocks — the permission plane, owned by `claude-config:audit-permission-grants` |
@@ -309,9 +310,9 @@ constraint to respect, not a blocker either lane waits on.
 
 Recorded, not invented. Neither lane should resolve these on its own.
 
-1. **L2's structural home inside `claude-config`** — a new phase in `audit-instructions` (Option A,
-   recommended) versus a new sibling skill (Option B). Both satisfy D-3. Option A changes a shipped
-   skill's published contract.
+1. **L2's structural home inside `claude-config`** — a new phase in `audit-instructions` (Option A)
+   versus a new sibling skill (Option B). Both satisfy D-3. Option A changes a shipped skill's
+   published contract.
 2. **L3's `UNBACKED` mapping** — a fourth authority value versus mapping onto the existing `OPINION`
    tag with a severity ceiling (recommended). The existing tag's intended semantics are documented
    only as a one-line gloss.
