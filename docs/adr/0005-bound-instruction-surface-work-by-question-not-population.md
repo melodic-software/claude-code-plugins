@@ -124,6 +124,14 @@ configuration — the detector would silently omit root `CLAUDE.md` versus proje
 which is the most common contradiction there is. **Route out only when `claude-memory` is installed;
 when it is not, cover that pair here and say so in the report.**
 
+**Routing out is never dropping.** A route is a pointer, not an execution: invoking
+`audit-instructions` alone does not run `claude-memory:audit`, so a pair handed to C6 and then
+forgotten is absent from the one report this placement was chosen to preserve. The routed pair is
+therefore **still surfaced — as an ungraded observation naming both anchors and the skill that owns
+the verdict** — rather than silently omitted. The pass declines to *grade* it; it does not decline to
+*mention* it. That keeps the report's coverage claim true under every combination of installed
+plugins and invocations, which a bare route does not.
+
 `audit-instructions` already presence-gates a route to the same plugin — the I1–I5 hygiene checks at
 `SKILL.md:42-52` — so the *gate* is an existing shape rather than a new one. The *fallback* is
 deliberately different: there the skill emits a one-line pointer and still declines to run the check,
@@ -206,15 +214,27 @@ explicit recheck triggers (`:11-14`). Its consuming skill is report-only with no
 **L3 extends this catalog with I12+ rows** — a `reference/criteria.md` edit plus a `CHANGELOG.md`
 entry and a version bump. Not a new catalog, not a new skill, not a new plugin.
 
-**`UNBACKED` maps onto the existing `OPINION` tag** rather than becoming a fourth authority value,
+**D-2's claims map onto the existing `OPINION` tag** rather than adding a fourth authority value,
 with "disabled by default" expressed as a severity ceiling of `info` plus an explicit default-off
 marker, so the authority axis stays a three-value closed set.
 
-**Either mapping carried the same contract cost, and the fold pays it.** The consuming skill
-publishes that it *"cites each finding to current official prompting doctrine"* (`SKILL.md:15-16`)
-and the catalog repeats the guarantee for itself (`reference/criteria.md:6-9`). A row whose premise
-is that no such line exists puts the skill's output at odds with what its users were promised, so the
-fold widens the consumer's advertised handling of non-official criteria alongside the catalog edit.
+**The mapping is a provenance judgment, not a synonym for "unbacked", and it must not be read as
+one.** `OPINION` means *a practitioner's stated practice*, and that is precisely what D-2's claims
+are: they come from a named, dated, linkable article, so the tag reports their provenance accurately
+and the row carries that source like every other row. Authority is an evidence axis — a default-off
+marker and an `info` ceiling describe enablement and impact, and neither can stand in for it.
+
+**A criterion with no identifiable source at all therefore gets no tag, because it does not enter the
+catalog.** Every row owes "one decisive source line" (`reference/criteria.md:6-9`); a candidate that
+cannot name one fails that contract rather than being labelled `OPINION` to get past it. That is what
+keeps the three-value axis honest: it stays closed because nothing sourceless is admitted, not
+because the sourceless case was folded into a value that misdescribes it.
+
+**The fold still widens the consumer's advertised handling.** The skill publishes that it *"cites
+each finding to current official prompting doctrine"* (`SKILL.md:15-16`) and the catalog repeats the
+guarantee for itself. A row cited to a practitioner article rather than to official doctrine is
+inside the catalog's authority model and outside that sentence, so the sentence changes alongside the
+catalog edit.
 
 ### 5. Deterministic findings follow #445's lane shape; report-only is a ceiling, not a gate
 
