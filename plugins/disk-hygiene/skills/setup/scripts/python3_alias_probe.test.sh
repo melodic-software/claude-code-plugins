@@ -36,4 +36,7 @@ fi
   echo "SKIP: Python ${FLOOR}+ required" >&2
   exit 0
 }
-"$PYTHON" -m unittest -v "$SCRIPT_DIR/test_python3_alias_probe.py"
+# Execute the test file directly (its unittest.main() guard) rather than via
+# `-m unittest <abs path>`, which resolves the path as a module name relative
+# to the caller's cwd and breaks when invoked from outside the checkout.
+"$PYTHON" "$SCRIPT_DIR/test_python3_alias_probe.py" -v
