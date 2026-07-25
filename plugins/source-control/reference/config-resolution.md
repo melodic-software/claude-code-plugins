@@ -116,21 +116,37 @@ ladder (`docs/conventions/loop-lane/README.md` §1 in the marketplace repository
 argument outranks stored config everywhere else in this plugin. `babysit_loop_merge` is the one
 policy-floor key on this surface (the consumer-config layering convention's sanctioned policy-floor
 class, declared here next to its key): **raises bind from the team-tracked layer only** — every
-increase in merge authority is a reviewable, versioned config change, per the loop-lane convention's
-"Merge-rung raises are seam-only" rule. The user-global layer, the local overlay, and an invocation
-argument may each select a *lower* (safer) rung than the effective team-tracked value, never a higher
-one; a raise supplied by any of them is ignored and reported.
+increase in *standing* merge authority is a reviewable, versioned config change, per the loop-lane
+convention's "Merge-rung raises are seam-only" rule. The user-global layer, the local overlay, and an
+invocation argument may each select a *lower* (safer) rung than the effective team-tracked value,
+never a higher one; a raise supplied by any of them is ignored and reported.
+
+**The one named exception: the literal `autopilot` tier argument.** Per the loop-lane convention's
+"one named, explicit-argument exception" (§1), a caller who types `autopilot` as the tier argument
+itself — not inherited from `babysit_loop_tier`, not defaulted — widens *that single invocation's*
+merge dimension up to and including C3, still bounded by the unconditional C4/C5 floor (below). This
+is not a config value and is never persisted: the next invocation that doesn't type `autopilot`
+explicitly reverts to whatever `babysit_loop_merge` resolves to through the normal precedence above.
+It requires baseline adoption (next paragraph) exactly like every other rung.
 
 **Baseline activation is tracked adoption.** The convention's baseline rung — human merge for
 everything except gate-proven C2-mechanical PRs — is the value a repository gets by *adopting* the
 lane, and adoption itself must be a recorded change: no lane ever auto-merges without a reviewed
 change having enabled it (loop-lane convention, "Autonomy ladder (merge authority)"). Concretely:
 while the target repository's team-tracked `.claude/source-control.md` carries no `babysit_loop_*`
-keys, the merge dimension resolves to `human-only`. Landing loop-lane keys in that tracked file — a
-reviewable PR in the target repository — is the recorded, human-ratified lane-enabling act, after
-which an absent merge key defaults to the `c2-mechanical` baseline. A merge-capable tier supplied by
-an invocation keyword or any other layer never substitutes for the tracked adoption: with the tier
-merge-capable but no tracked adoption, merges stay `human-only` and the lane reports why.
+keys, the merge dimension resolves to `human-only`, and the explicit-`autopilot` exception above does
+not apply either — it requires the same adoption every other rung does. Landing loop-lane keys in
+that tracked file — a reviewable PR in the target repository — is the recorded, human-ratified
+lane-enabling act, after which an absent merge key defaults to the `c2-mechanical` baseline. A
+merge-capable tier supplied by an invocation keyword or any other layer never substitutes for the
+tracked adoption: with the tier merge-capable but no tracked adoption, merges stay `human-only` and
+the lane reports why.
+
+**C4/C5 floor, unconditional.** No rung, no seam config, no invocation argument — including the
+explicit-`autopilot` exception above — ever grants merge authority over a `work-class: structural`
+(C4) or `work-class: untrusted-provenance` (C5) item. This is not a `babysit_loop_merge` value; it is
+a ceiling the resolved rung composes under, always, per the autonomy matrix's "never promotes" cells
+(`work-classes.md#suggested-default-predicates`).
 
 ## The three layers
 

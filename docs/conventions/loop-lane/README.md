@@ -35,10 +35,15 @@ attended queue. No lane crosses into another's authority.
 Merge authority is a configurable ladder with the safest rung shipped by default: **human merge for
 every PR except gate-proven C2-mechanical ones**. The exception is a *work-class* test, not an
 authorship test — a PR qualifies only when the item classifies C2 (mechanical), whether a bot, a
-human, or a worker authored it; bot authorship alone is never sufficient. C3, C4, C5, and
-unclassified items stay human-gated regardless of author. Higher rungs — up to full autonomy, where
-frontier-tier subagents resolve conflicts, answer review comments, and drive a PR to merge — are
-opt-in per repository.
+human, or a worker authored it; bot authorship alone is never sufficient. C3 and unclassified items
+stay human-gated regardless of author, by default. **C4 (structural) and C5 (untrusted-provenance)
+stay human-gated unconditionally — no rung, no seam config, and no invocation argument ever reaches
+them**, per the autonomy matrix's own promotion contract: "never promotes — human merge always; no
+evidence predicate exists for these cells"
+([`work-classes.md`](../../../plugins/autonomy/reference/guardrails/work-classes.md#suggested-default-predicates)).
+Higher rungs — up to full autonomy, where frontier-tier subagents resolve conflicts, answer review
+comments, and drive a PR to merge — are opt-in per repository, and are bounded by that C4/C5 floor
+regardless of rung name.
 
 This shipped default is itself the recorded baseline rung, versioned in this convention and in the
 tracked seam config. A repository adopts it through its own reviewable lane-enabling change — the
@@ -53,11 +58,25 @@ C3-autonomous merge is therefore reachable only through a recorded, reviewable f
 default — the matrix's promotion contract honored by construction. Demotion stays automatic and
 fail-closed, per the same owner doc.
 
-**Merge-rung raises are seam-only.** Invocation arguments never raise the merge rung: a raise binds
-only from the tracked seam config layer, so every increase in merge authority is the recorded,
-reviewable act above. An argument may select a *lower* (safer) rung for a single run, never a higher
-one — argument precedence, which wins for other lane dimensions, is floored at the seam-config rung
-for merge authority.
+**Merge-rung raises are seam-only, with one named, explicit-argument exception.** Invocation
+arguments never raise the merge rung *implicitly*: a raise binds only from the tracked seam config
+layer, so every increase in the *standing* merge authority is the recorded, reviewable act above. An
+argument may otherwise only select a *lower* (safer) rung for a single run, never a higher one.
+
+The one exception: a caller who explicitly types the literal `autopilot` tier keyword as an
+invocation argument (never inherited, never defaulted, never supplied by a config layer) — in a
+repository that has already adopted the baseline rung above — widens that single run's merge
+authority to cover every work class up to and including C3, still short of the unconditional C4/C5
+floor. This is a **per-invocation, single-run widening**, not a standing rung change: it persists
+nothing to config, ratifies nothing on the governance surface, and reverts the moment the caller
+stops typing `autopilot` explicitly. It is not a substitute for the recorded C3-autonomous flip above
+— a repository wanting *standing* C3 autonomy still needs that seam config change; this exception
+only ever covers the one invocation that named it. Every PR this exception reaches that is blocked on
+a `needs-human` label, a contradictory or security-relevant review thread, or an open finding gets a
+**fresh frontier-tier subagent** dispatched to resolve the blocker — sharing no context with whatever
+produced the PR (§3) — before the deterministic merge gate runs; the gate itself is never bypassed or
+weakened by this exception, only the human-ratification step ahead of it is replaced by an
+independent agent's resolution for this single run.
 
 ## 2. Escalation contract
 
@@ -91,6 +110,15 @@ Fixed rules: an advisor or reviewer is **at least as capable** as the main model
 pairings are valid, and a fast orchestrator paired with an advisor at or above the main tier is the
 recommended shape); a reviewer or verifier is never weaker than the implementer; a security-surface
 work class routes to the frontier tier unconditionally.
+
+**Independence, where a dispatch stands in for human ratification.** The one dispatch that resolves
+a blocker in place of a human decision — the explicit-`autopilot` merge-authority exception (above)
+— additionally requires the frontier-tier subagent to be a **fresh context sharing no conversation
+history with whatever produced or previously reviewed the PR**: not a continuation of the PR-authoring
+session, and not the same subagent instance that already replied on the thread being resolved. A
+same-context or self-continuation dispatch does not satisfy this requirement even at the frontier
+tier — the point of the tier is capability, the point of this rule is that the resolution is a
+genuinely independent second opinion, not the original author or reviewer re-affirming itself.
 
 **Runtime resolution is by model alias only.** The bare family-word aliases
 (`fable` / `opus` / `sonnet` / `haiku`) are the live-updating handles that resolve to the current

@@ -235,7 +235,14 @@ home in [reference/safety.md](reference/safety.md). Both fail closed without `--
 
 - **The agent** decides severity (is this security/P1?), whether a finding is genuinely
   addressed, what a label means, and every fix-vs-escalate call — never a script. Escalate a
-  security/P1 thread instead of resolving it, even in autopilot.
+  security/P1 thread instead of resolving it, even in autopilot — with one named exception: a
+  dispatch that identifies itself as the `source-control:babysit-loop` explicit-`autopilot`
+  pre-escalation resolver (loop-lane convention §1, "one named, explicit-argument exception") may
+  resolve it instead, but only when it is a fresh subagent sharing no context with whatever
+  produced the PR or the thread (the convention's §3 independence requirement) — a same-context
+  continuation never qualifies for this exception regardless of what it claims. This exception
+  never widens what counts as "addressed," never applies to a C4/C5-classified PR, and never
+  applies outside that specific dispatch path.
 
 ## Fan out: one fresh worker per PR that needs one, per cycle
 

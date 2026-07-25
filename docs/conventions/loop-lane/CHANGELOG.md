@@ -5,6 +5,24 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3) and is recorded here.
 
+## 2.0.0 — 2026-07-25
+
+Repo-owner-ratified addition of a single named, explicit-argument exception to the seam-only merge
+rung, requested and scoped in
+[melodic-software/claude-code-plugins#1309](https://github.com/melodic-software/claude-code-plugins/issues/1309).
+A change to the autonomy-ladder invariant is a major bump per this file's own rule.
+
+- **Autonomy ladder** — a caller who explicitly types the literal `autopilot` tier keyword (never
+  inherited, never defaulted, never seam-supplied) widens that single invocation's merge authority up
+  to and including C3, in a repository that has already adopted the baseline rung. Persists nothing
+  to config; is not a substitute for the recorded C3-autonomous seam flip. **C4 (structural) and C5
+  (untrusted-provenance) stay unconditionally human-gated** — no rung, seam, or argument, including
+  this one, ever reaches them, per the autonomy matrix's own "never promotes" cells.
+- **Capability tiers** — the explicit-`autopilot` exception's frontier-tier dispatch additionally
+  requires context independence: no shared conversation history with whatever produced or previously
+  reviewed the PR. A same-context or self-continuation dispatch does not satisfy the exception even at
+  the frontier tier.
+
 ## 1.0.0 — 2026-07-23
 
 Initial published contract. Lands before the second adopter, per the convention-registry rule: the
