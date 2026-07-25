@@ -30,6 +30,44 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `reference/safety.md`, and `babysit-loop`'s Subagents section state the new boundary. Pinned by
   `test_skill_contract.py`.
 
+## [0.26.3]
+
+### Changed
+
+- **The plugin is now the canonical, sole source for the worktree conventions (#401).** The
+  `babysit-prs` skill's `reference/worktrees.md` states it owns the ephemeral babysit-worktree
+  exemption (lease-scoped cleanup, never a global open-PR prune — machine-enforced by
+  `prune_babysit_worktrees.py`) and that rooting those worktrees outside a repository's discoverable
+  tree keeps them out of enumeration such as `ghq list`; the `worktree` skill states it owns the
+  parallel-session external-root convention going forward. Both close the SSOT gap left by the
+  retired external `ghq-layout-sibling-pr-worktrees` prose doc (physical deletion of that doc is a
+  separate follow-up in the dotfiles repo).
+
+## [0.26.2]
+
+### Fixed
+
+- **`babysit-prs` SKILL.md cadence cross-references now point at the section that owns the wake
+  seconds (#653).** #652 added the engine-backed `recommended_cadence` → `delaySeconds` mapping table
+  to `reference/loop.md` §5.3, alongside the static Python-free degrade ladder already there;
+  `reference/cadence.md` has disclaimed the wake mechanics since #322, owning only the cadence states
+  and thresholds. SKILL.md still described the older split: runbook step 9 and the Reporting closing
+  line sent the reader to `cadence.md` for the wake interval, and the References entry credited
+  `loop.md` with only a "static cadence ladder". The Reporting line was a live wrong-number risk —
+  `cadence.md` states `idle` = daily, while §5.3 documents `ScheduleWakeup` clamping `delaySeconds`
+  to `[60, 3600]`, so inside `/loop` `idle` and `quiet` both wake hourly. All three now cite the §5.3
+  cadence contract, and the step-5 progressive-disclosure trigger for `cadence.md` — which correctly
+  still points there, for the cadence states — now fires on interpreting a state rather than on
+  recommending one. Docs-only; no behavior change.
+
+## [0.26.1]
+
+### Documentation
+
+- `scripts/test-helpers.sh` now points at `docs/conventions/shell-test-helpers/README.md`, the
+  repo's owner doc recording that per-plugin shell assert-helper duplication and per-script exit-code
+  taxonomies are deliberate, not drift. No behavior change.
+
 ## [0.26.0]
 
 ### Added
