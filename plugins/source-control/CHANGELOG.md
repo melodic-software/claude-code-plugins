@@ -17,7 +17,9 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `required_review_thread_resolution` ruleset was mechanically blocking. `safety.md` gains "Two
   Gates, One Merge-Ready Authority" as the single home for the distinction; the checklist now
   reports the two gates as separate fields, and every "readiness" site that meant *classification*
-  is renamed. Docs-only — no gate behavior and no emitted `READINESS_*` token changed.
+  is renamed. No gate code and no emitted `READINESS_*` token changed; note that the §5.5 template
+  is machine-consumed via `--checklist <file>` (R6 blocks on any unticked `- [ ]`), so splitting one
+  status box into three does change what a checklist-gated iteration must tick.
 
 ## [0.26.1]
 

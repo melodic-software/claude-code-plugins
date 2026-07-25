@@ -322,9 +322,9 @@ The snapshot engine and gates are Python (stdlib-only) under
 declared prerequisite for `worker` and `autopilot` (and for engine-backed safe runs): when it
 is absent, `worker`/`autopilot` STOP at entry with a concise remediation message naming the
 prerequisite, and the safe tier degrades gracefully to the Python-free loop in
-[reference/loop.md](reference/loop.md) — discovery via `gh pr list`, readiness via the
-plugin-scope gate script, cadence via the static ladder. Never block a safe iteration on the
-engine's absence.
+[reference/loop.md](reference/loop.md) — discovery via `gh pr list`, finding classification via the
+plugin-scope gate script, cadence via the static ladder. The merge gate is itself Python, so that path cannot assess
+merge-readiness at all: report it unchecked, never inferred from the classification gate. Never block a safe iteration on the engine's absence.
 
 ## Per-PR checklist (safe core — each PR, every iteration)
 

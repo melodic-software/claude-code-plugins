@@ -179,6 +179,10 @@ The classification gate is a **pre-gate**, not a weaker merge gate: it must pass
 iteration reports at all, and passing it says only that the findings were decomposed. Both gates
 must be satisfied before a PR is called merge-ready, and only the merge gate can say so.
 
+The merge gate is Python, so the Python-free degrade (`loop.md`) cannot run it at all. That path
+reports merge-readiness as **unchecked** — an unavailable merge gate is never grounds to promote
+`READINESS_OK` into a merge-ready claim.
+
 ## Guarded Mutation Wrappers
 
 The two guarded mutations run **only through their wrapper scripts** —
