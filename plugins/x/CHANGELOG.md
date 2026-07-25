@@ -70,12 +70,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Security
 
-- No Bash or PowerShell tool pre-approval ships. A prefix permission rule cannot express "and no
-  further flags" — its trailing wildcard admits every appended argument, which would have suppressed
-  the prompt on exactly the injected command above. The step-1 network call therefore prompts,
-  showing the operator the exact command. `allowed-tools` retains only
-  `WebFetch(domain:threadreaderapp.com)`, which involves no shell. A validating `PreToolUse` hook is
-  deferred, with re-introducing a shell grant as its trigger.
+- No shell tool pre-approval ships. A prefix permission rule cannot express "and no further flags" —
+  its trailing wildcard admits every appended argument, which would have suppressed the prompt on
+  exactly the injected command above. The step-1 network call therefore prompts, showing the operator
+  the exact command. `allowed-tools` retains only `WebFetch(domain:threadreaderapp.com)`, which
+  involves no shell. A validating `PreToolUse` hook is deferred, with re-introducing a shell grant as
+  its trigger.
+- Step 1 ships one bash invocation and **no PowerShell variant**; Windows requires Git Bash, declared
+  as a prerequisite. That prompt is the only runtime-enforced control, so it is only as good as what
+  it displays. Every PowerShell-portable form either breaks across `$PSNativeCommandArgumentPassing`
+  modes or moves the request into a curl config file, where `curl.exe -q -K <file>` hides the
+  destination, the `data` reference, any `output` directive, and redirect behavior inside a file no
+  operator approves. A declared platform boundary is the honest cost; an unreadable approval is not.
 - Long-article file redirects are bounded to a `<plugin-data-dir>/x-article-<id>-<nonce>.md` template
   built from the gate-captured id plus a per-invocation nonce — never an agent-chosen path, never one
   derived from fetched content — and the file is deleted once its slice has been read. The nonce
@@ -84,9 +90,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Gate patterns are presented in fenced code blocks rather than a Markdown table. In table cells the
   alternation had to be written `\|` to survive the renderer, and a model reading the raw source
   could take that as a literal backslash-pipe and refuse every `twitter.com` URL.
-- The PowerShell request body drops its backslash escaping. PowerShell single-quoted strings are
-  fully literal, so `'{\"url\":...}'` sends literal backslashes and the server rejects the body as
-  malformed JSON — silently breaking step 1 on Windows without Git Bash.
 - Response validation is scoped to the requested form. The documented step-1 call sends
   `Accept: text/markdown`, whose success response is raw Markdown with no JSON envelope; the earlier
   blanket "`200` with no `markdown` field is a failure" rule therefore classified every successful
@@ -97,13 +100,5 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   a post's long-form representation, and a chain can legitimately begin with a note tweet, so the
   earlier unconditional stop would have returned only the root even when the whole thread was asked
   for. Escalation now requires positive continuation evidence and ignores length in both directions.
-- The Windows PowerShell request is issued through a curl config file (`curl.exe -K <path>`) rather
-  than inline arguments. PowerShell 7.3 changed native-argument parsing in a way Microsoft documents
-  as a breaking change from 5.1, so no inline form is portable: unescaped quotes are stripped under
-  `Legacy` while backslash-escaped quotes arrive literally under `Standard`/`Windows`. A config file
-  leaves the command line with a single unquoted-content argument, so quoting is parsed by curl and
-  the marshalling-mode question does not arise. Both the config and the body file are named for the
-  gate-captured id, so concurrent sessions cannot race on a shared path.
 - Reference files use a `<plugin-data-dir>` slot rather than `${CLAUDE_PLUGIN_DATA}`, per the
-  repository convention that SKILL.md is the only surface where that token expands. PowerShell would
-  in any case read `${NAME}` as its own brace-variable syntax and resolve an undefined variable.
+  repository convention that SKILL.md is the only surface where that token expands.

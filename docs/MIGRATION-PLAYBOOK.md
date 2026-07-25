@@ -908,16 +908,32 @@ operated by others — so surfaces 5 and 6 carry the weight here.
   No kill-switch `userConfig` needed: nothing runs unless the skill is invoked, and scope-level
   `enabledPlugins` is the off switch.
 
-- **Tool pre-approval — no Bash or PowerShell grant.** An earlier draft pre-approved
-  `Bash(curl … https://xtomd.com/api/*)` and a PowerShell mirror. **Removed.** A prefix rule cannot
-  express "and no further flags": the trailing wildcard admits every appended argument, so the grant
-  would have suppressed the prompt on exactly the injected command above. The permissions
-  documentation warns against argument-constraining Bash patterns for this reason. The network call
-  now prompts, showing the operator the exact command — the only runtime-enforced layer available
-  without shipping a hook. `allowed-tools` retains only
-  `WebFetch(domain:threadreaderapp.com)`, which involves no shell. A validating `PreToolUse` hook is
-  the stronger control and is **deferred**, with re-introducing a Bash/PowerShell grant as its
-  trigger.
+- **Tool pre-approval — no shell grant, and the prompt must stay legible.** An earlier draft
+  pre-approved `Bash(curl … https://xtomd.com/api/*)` and a PowerShell mirror. **Removed.** A prefix
+  rule cannot express "and no further flags": the trailing wildcard admits every appended argument,
+  so the grant would have suppressed the prompt on exactly the injected command above. The
+  permissions documentation warns against argument-constraining Bash patterns for this reason. The
+  network call now prompts, showing the operator the exact command — the only runtime-enforced layer
+  available without shipping a hook.
+
+  Review then found that this backstop is only as good as what the prompt *displays*, and that an
+  intermediate Windows design had quietly destroyed it. To dodge a PowerShell quoting-portability
+  problem, the request had been moved into a curl config file; the prompt then showed
+  `curl.exe -q -K <file>`, hiding the destination URL, the `data` reference, any `output` directive,
+  and redirect behavior inside a model-authored file no operator approves. Should attacker-authored
+  content push the model off the gate, the operator would see nothing dangerous — the control failing
+  exactly when it is needed.
+
+  Resolved by **declaring a narrower platform boundary rather than keeping an uninspectable path**:
+  the skill ships one bash invocation, requiring Git Bash on Windows, with no PowerShell variant. Every
+  PowerShell-portable form either breaks across `$PSNativeCommandArgumentPassing` modes or moves
+  request detail out of the prompt. A stated prerequisite is the honest cost; an approval the operator
+  cannot read is not. This is the cross-platform contract's declared-narrower-scope allowance, taken
+  deliberately and recorded at the coupling site.
+
+  `allowed-tools` retains only `WebFetch(domain:threadreaderapp.com)`, which involves no shell. A
+  validating `PreToolUse` hook is the stronger control and is **deferred**, with re-introducing a
+  shell grant as its trigger.
 - **MCP servers (2).** None. The user's stated growth path includes a future MCP surface; that would
   be a new trust surface and re-triggers this review at that version.
 - **Consumer config (3).** No `userConfig`. No credential exists to store — both providers are

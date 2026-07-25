@@ -3,85 +3,29 @@
 Reference detail for `/x:read`. Load when a call fails, returns something unexpected, or you need to
 classify a response.
 
-## Step 1 on Windows PowerShell
+## Windows requires a POSIX shell — no PowerShell path
 
-Without Git Bash the PowerShell tool is the active shell, and `curl` may not resolve to the binary —
-use the explicit `.exe`.
+Step 1 runs the bash invocation in SKILL.md. On Windows that means Git Bash; there is deliberately no
+PowerShell variant. If Git Bash is absent, say so and stop at step 1 — do not improvise a PowerShell
+equivalent.
 
-**Keep every quote off the command line.** PowerShell 7.3 changed native-argument parsing in a way
-Microsoft documents as a breaking change from Windows PowerShell 5.1 (`about_Parsing`, "Passing
-arguments that contain quote characters"; `$PSNativeCommandArgumentPassing` — `Windows`/`Standard`
-preserve embedded quotes, `Legacy` does not). So no inline form is portable: `'{"url":"..."}'` loses
-its quotes under `Legacy`, and `'{\"url\":\"...\"}'` arrives with literal backslashes under
-`Standard`/`Windows`. Rather than pick a mode to bet on, put the whole request in a curl config file
-so the command line has no quotes to marshal at all.
+The reason is the permission prompt, which is this plugin's only runtime-enforced control. The bash
+form puts the destination, the body, the transport bounds, and the absence of `-L` on one command
+line, so approving it means seeing exactly what will happen. Every PowerShell-portable alternative
+moves that detail somewhere the prompt cannot show:
 
-`<plugin-data-dir>` is the concrete absolute path SKILL.md resolved — this file is Read raw, so no
-placeholder in it expands. Substitute the real path before running anything, and never write a
-`${...}` token into a PowerShell command line: PowerShell reads that as its own variable syntax and
-resolves an undefined variable, not an environment value.
+- **Inline JSON is not portable.** PowerShell 7.3 changed native-argument parsing in what Microsoft
+  documents as a breaking change from 5.1 (`about_Parsing`; `$PSNativeCommandArgumentPassing` —
+  `Windows`/`Standard` preserve embedded quotes, `Legacy` does not). `'{"url":"..."}'` loses its
+  quotes under `Legacy`; `'{\"url\":\"...\"}'` arrives with literal backslashes under the others.
+- **A curl config file fixes the quoting and breaks the prompt.** `curl.exe -q -K <file>` shows the
+  operator a filename. The URL, the `data` reference, any `output` directive, and redirect behavior
+  all live inside a model-authored file nobody approves. Should attacker-authored content ever push
+  the model off the gate, the operator sees nothing dangerous — the backstop the security record
+  relies on is gone precisely when it is needed.
 
-**Write the substituted path with forward slashes**, including inside the config file. curl accepts
-them on Windows, and a native backslash form is actively corrupted there: within a quoted config
-value curl recognizes only `\\`, `\"`, `\t`, `\n`, `\r`, and `\v`, and "a backslash preceding any
-other letter is ignored" (curl's manual). A backslash path segment such as `\data\request.json`
-therefore loses both separators and parses as `datarequest.json` — curl cannot open the request file,
-and every step-1 POST fails. Doubling the backslashes also works but is easy to get wrong on a later
-edit; forward slashes are the safer form.
-
-Name both files for the gate-captured id **plus a per-invocation nonce** — say
-`x-request-<id>-<nonce>.json`, the nonce being a short random token generated fresh each time. A
-fixed path is shared state: two concurrent sessions would race between the Write and `curl.exe`
-reading it, and the permission prompt widens that window, so one could fetch the other's URL.
-
-Keying on the id alone is not enough once the cleanup rule below applies. Two sessions reading the
-*same* post would share a path, and the first to finish deletes both files while the second still
-waits at its prompt — so its `curl.exe -K` opens nothing. Identical content stops making a collision
-harmless the moment the files are removed. The nonce keeps each invocation's pair private to it.
-
-Body, at `<plugin-data-dir>/x-request-<id>-<nonce>.json`:
-
-```json
-{"url": "<REBUILT-URL>"}
-```
-
-Config, at `<plugin-data-dir>/x-request-<id>-<nonce>.conf`:
-
-```text
-url = "https://xtomd.com/api/markdown"
-request = "POST"
-header = "Content-Type: application/json"
-header = "Accept: text/markdown"
-data = "@<plugin-data-dir>/x-request-<id>-<nonce>.json"
-proto = "=https"
-max-time = 30
-max-filesize = 5000000
-write-out = "\n%{http_code}\n"
-silent
-show-error
-```
-
-`write-out` is not optional here. This config is the complete request, so without it the status code
-never reaches the transcript and the reporting rule below — capture the code, classify `400`/`429`/
-`500`/`502` — cannot be followed. Its absence is how an error body gets mistaken for content.
-
-Then a command line carrying no embedded quotes for any marshalling mode to strip. `-q` stays first:
-curl reads a default `.curlrc` "even when `--config` is used", so without it a consumer's ambient
-config could re-enable redirect following and defeat the bounds set in the file above.
-
-```powershell
-curl.exe -q -K "<plugin-data-dir>/x-request-<id>-<nonce>.conf"
-```
-
-**Delete both files once the request returns**, success or failure. They are scratch, not state:
-leaving them behind accumulates a file per post read and builds a local history of every X URL
-submitted — which the egress section below explicitly disclaims. Remove the `.json` and the `.conf`
-in the same turn that issues the request.
-
-Quoting inside the config file is parsed by curl, never by PowerShell, so the mode question does not
-arise. The URL written into the body is the gate's rebuilt one, and the config file is authored here
-rather than derived from any response, so the request stays as constrained as the inline form was.
-Where Git Bash is available, the bash form in SKILL.md is the better-exercised path.
+Declaring the narrower platform boundary is the honest trade: one prerequisite, versus a Windows path
+whose approval prompt cannot be trusted.
 
 ## Long-article file redirects
 

@@ -114,18 +114,18 @@ below stop holding. `--proto '=https'` refuses non-HTTPS and no `-L` means the r
 steered to another host. `--max-filesize` is best-effort — `--max-time` is the bound that always
 holds; see [`context/failure-modes.md`](context/failure-modes.md).
 
-On Windows without Git Bash the PowerShell tool is the active shell and needs a different form —
-see [`context/failure-modes.md`](context/failure-modes.md).
+**This bash form is the only supported invocation** — on Windows that means Git Bash. There is no
+PowerShell variant, deliberately: every portable alternative hides the destination and transport
+bounds from the approval prompt, this plugin's only runtime-enforced control. Absent Git Bash, say so
+and stop; reasoning in [`context/failure-modes.md`](context/failure-modes.md).
 
 Drop the `Accept` header for JSON instead — `{markdown, url, author}`. For raw fields (`text`,
 `rawText`, `media`, `quoteTweet`, `isNoteTweet`, engagement counts) POST the same body to
 `/api/fetch`.
 
 **Plugin data directory:** `${CLAUDE_PLUGIN_DATA}` — this file is the only surface where that
-expands, so carry the resolved absolute path and substitute it wherever
-[`context/failure-modes.md`](context/failure-modes.md) says `<plugin-data-dir>`, writing it with
-forward slashes. Never put a `${...}` token on a command line; PowerShell reads it as its own
-variable syntax.
+expands, so carry the resolved path (forward slashes) and substitute it wherever
+[`context/failure-modes.md`](context/failure-modes.md) says `<plugin-data-dir>`.
 
 For a long article, redirect to `<plugin-data-dir>/x-article-<id>-<nonce>.md`, `Read` the slice, then
 delete it. The nonce and the delete are both required — see

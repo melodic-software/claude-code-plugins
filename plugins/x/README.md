@@ -33,9 +33,11 @@ Rebuilding also drops the query string, so `?s=`/`?t=` share-tracking tokens nev
 party.
 
 The gate is model-honored instruction, not a runtime-enforced control — stated plainly because it is
-the primary defense. The plugin therefore ships **no** Bash or PowerShell pre-approval: the network
-call surfaces a permission prompt showing the exact command. A validating `PreToolUse` hook is the
-stronger control and is deferred, with re-introducing a shell grant as its trigger.
+the primary defense. The plugin therefore ships **no** shell pre-approval: the network call surfaces
+a permission prompt showing the exact command, destination and transport bounds included. That
+inspectability is why the invocation stays a single bash command line rather than a config file, and
+why there is no PowerShell path. A validating `PreToolUse` hook is the stronger control and is
+deferred, with re-introducing a shell grant as its trigger.
 
 ## The ladder
 
@@ -62,13 +64,18 @@ Status-code handling, Thread Reader miss detection, and the observed-gotchas lis
 
 ## Prerequisite
 
-`curl` on `PATH`, required for step 1. The xtomd endpoint is POST-only (verified: a GET to
-`/api/markdown` returns a self-describing stub whose body reads `"method":"POST"`), so `WebFetch`
-cannot reach it.
+`curl` on `PATH` **and a POSIX shell**, both required for step 1. The xtomd endpoint is POST-only
+(verified: a GET to `/api/markdown` returns a self-describing stub whose body reads
+`"method":"POST"`), so `WebFetch` cannot reach it.
 
-Absence is always reported — never a silent skip — but step 2 is **not** a general substitute: it
-resolves chains only. Without `curl`, a single post is unreadable and the skill says so rather than
-returning an empty chain lookup that reads as if content were lost.
+**On Windows that means Git Bash.** The plugin ships no PowerShell variant, deliberately: every
+PowerShell-portable form of this request hides the destination and transport bounds from the approval
+prompt, and that prompt is the only runtime-enforced control here. A narrower, declared platform
+boundary is the honest trade against a Windows path whose approval cannot be trusted.
+
+Absence of either prerequisite is always reported — never a silent skip — and step 2 is **not** a
+general substitute: it resolves chains only. Without them a single post is unreadable, and the skill
+says so rather than returning an empty chain lookup that reads as if content were lost.
 
 ## Configuration
 
