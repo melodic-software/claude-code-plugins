@@ -49,16 +49,31 @@ at preview. Backups remain the recovery boundary for user data.
   `skills/clean/scripts/hygiene.py`; `/disk-hygiene:setup check` derives the enforced value from
   there, so treat the number printed here as a convenience copy). Claude Code launches the guard in
   shell-free exec form; guarded engine calls must use the same absolute interpreter reported by that
-  guard, so Bash aliases and functions cannot replace it. The guard is skill-scoped — it fires only
-  within the `clean` skill's context, so driving `hygiene.py` directly outside that skill relies on
-  the engine's built-in containment and preview gate, not the hook. The plugin never downloads a
-  runtime.
+  guard, so Bash aliases and functions cannot replace it. The guard registers on two surfaces: a
+  plugin-level **engine gate** (`hooks/hooks.json`) that acts only on commands referencing the
+  engine — deferring everything else instantly — and enforces the kill switch and data-root
+  authority; and the skill-scoped **belt** inside the `clean` skill's context, which adds the
+  deny-by-default Bash and deletion-spelling PowerShell discipline during active cleanup work. Both
+  surfaces resolve the kill switch by reading `disk_hygiene_enabled` from user-scope `pluginConfigs`
+  in `settings.json` (located from `${CLAUDE_PLUGIN_ROOT}`, honored only from user/managed/`--settings`
+  scope since Claude Code 2.1.207, so a repo cannot forge it), register unconditionally, and fail
+  closed to enabled — the earlier bare-`${user_config.*}` argument that dropped the engine gate on a
+  default install is gone (since 0.9.0). Hook-lifetime caveat: docs
+  scope a skill hook to the component's lifetime, but session-long firing of the belt has been
+  observed on at least one Claude Code build (producer-reported; see issue #1105) — if unrelated
+  commands are denied after a clean run ends, start a new session and see that issue. PreToolUse
+  hooks also fire inside subagents, so fanned-out workers run under the same guards. The plugin
+  never downloads a runtime.
 - Git is optional for ordinary trees. If a target contains or sits inside a Git worktree, Git becomes
   required so tracked content can be proven safe; otherwise cleanup for that subtree is blocked.
 - Windows has the full **audit** lane (Python 3.11's `lstat` reparse metadata plus Win32 APIs
-  exposed by the OS; never invokes UAC) but engine **execution is unsupported**: `preview` returns
-  `execution-platform-unsupported`, and removal is a manual, per-path Recycle-Bin handoff after
-  explicit approval.
+  exposed by the OS; never invokes UAC) but engine **execution is unsupported**: `preview` reports
+  `execution-platform-unsupported` as a per-candidate blocker, and removal is a manual, per-path
+  Recycle-Bin handoff offered only when `--execute` was requested and after explicit approval
+  (the flag gates every deletion lane, manual included). The Recycle-Bin / Trash naming is a model-layer
+  distinction only — the engine treats Windows and macOS identically (execution unsupported); which
+  reversible-removal container the manual lane prefers is the model's instruction, not engine
+  behavior.
 - **Windows `python3` gotcha — the Store alias stub fails the guard open.** The `clean` guard hook
   launches the literal command `python3`. On stock Windows that name resolves to a zero-length
   `WindowsApps\python3.exe` App Execution Alias — a reparse stub that opens the Microsoft Store (or
@@ -149,11 +164,34 @@ hand-cleaning the zone.
 - **MCP / external trust:** no MCP server, agent, dependency, or third-party service is shipped.
 - **Configuration:** one non-sensitive `userConfig` boolean (`disk_hygiene_enabled`, default
   `true`) gating the execution tiers — setting it `false` puts `/disk-hygiene:clean` in audit-only
-  mode. That mode is enforced by the skill, which resolves the toggle through the bundled kill-switch
-  probe and self-enforces; the skill-scoped guard cannot independently enforce it, because a
-  skill-frontmatter hook reaches the guard with neither the `${user_config.*}` substitution nor the
-  `CLAUDE_PLUGIN_OPTION_*` environment variable, though the guard still forces a human prompt before
-  every mutation. A direct `hygiene.py` invocation outside that skill does not read the toggle and
+  mode. Both guard surfaces resolve the toggle by reading `disk_hygiene_enabled` from user-scope
+  `pluginConfigs` in `settings.json` (not the process environment). A configured `false` denies Bash
+  engine invocations outright on the always-on engine gate (whether or not the clean skill is active);
+  PowerShell deletion spellings are denied outright by the skill-scoped belt while `/disk-hygiene:clean`
+  is active (the always-on gate defers on non-engine commands). The read is honored only from user, managed, and
+  `--settings` scope (Claude Code 2.1.207+), so a project or local repo `settings.json` cannot flip
+  it; the user file is located from `${CLAUDE_PLUGIN_ROOT}`, not from repo-redirectable environment, and
+  the managed (enterprise) file at its fixed system path wins as the highest-precedence scope so an org
+  can enforce audit-only (the sibling `managed-settings.d/` drop-in directory is merged over it). An absent
+  or unreadable value fails closed to enabled. The one residual a hook cannot read is a value supplied only
+  via a session `--settings` file. The skill's own kill-switch probe + skill-content value remain a
+  defense-in-depth honoring layer over the guard.
+- **Trust-surface record (0.7.0; updated 0.9.0):** the plugin-level `hooks/hooks.json` PreToolUse
+  registration is a NEW trust surface (a hook that launches in every consumer session), added
+  deliberately for guard-enforced audit-only mode and data-root authority (#1106 decision, Option E —
+  split registration). Its blast radius is bounded by design: exec form (no shell), bundled
+  standard-library script only, instant no-output deferral for any command not referencing the engine,
+  and no new capability beyond what the skill-scoped deployment already did during active cleanup.
+  Known costs, accepted: one `python3` launch per Bash/PowerShell call, and on a machine where
+  `python3` resolves to the Windows Store alias stub the launch fails on every call (tracked with
+  remediation detection in #1110). **0.9.0 delta:** the gate no longer carries a `${user_config.*}`
+  argument (which, unset, dropped the whole hook and left the gate inert on a default install); it now
+  registers unconditionally and resolves the kill switch by **reading** the user `settings.json` and the
+  platform managed-settings.json. The added trust surface is that settings-file *read* — bounded to a
+  single `pluginConfigs` value, from the user file (located from `${CLAUDE_PLUGIN_ROOT}`) and the
+  root-owned managed file at its fixed system path, no write. Both are the plugin's own documented CC
+  config, sanctioned by the acceptance review's operator-home carve-out (criterion 4). This entry is the
+  plugin-acceptance review delta for the change. A direct `hygiene.py` invocation outside that skill does not read the toggle and
   answers only to the engine's own preview/approval-token gate. The toggle can only narrow the
   destructive surface, never widen it (see [the safety model](skills/clean/reference/safety-model.md)
   for the degraded-mode detail). No credentials. Policy comes from an explicit invocation

@@ -13,7 +13,7 @@ Thumbs.db
 .claude/settings.local.json
 .claude/observability/
 .claude/worktrees/
-# source-control convention personal overlay (docs/conventions/consumer-config-layering/README.md
+# source-control convention personal overlay (docs/conventions/config-cascade/README.md
 # "Overlay naming" — the recursive form covers a flat .claude/source-control.local.md and any
 # future folder-form overlay in one line; the plugin's own docs still show the narrower
 # .claude/*.local.* form, tracked separately as "overlay spelling drift")

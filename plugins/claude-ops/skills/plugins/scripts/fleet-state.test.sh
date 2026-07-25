@@ -444,6 +444,35 @@ out=$(run_state "$case_dir" CLAUDE_PLUGIN_ROOT="$case_dir/nowhere-installed")
 rc=$?
 assert_exit "default marketplace: unresolvable root fails loud, doesn't guess" 1 "$rc"
 assert_contains "default marketplace: names the fallback" "$out" "--marketplace"
+assert_contains "default marketplace: error names the searched root" "$out" "nowhere-installed"
+
+# ============================================================================
+# Case: version skew — session's loaded version != installed version.
+# installPath is version-pinned; a mid-session autoUpdate (or sync's own Step-3
+# self-update) makes the running root's version segment differ, so the exact
+# installPath match misses. The version-agnostic parent-prefix fallback must
+# still resolve the marketplace so the bare (no --marketplace) default path
+# keeps working. Real dirs so realpath resolves both consistently.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+skew_parent="$case_dir/cache/market1/this-plugin"
+mkdir -p "$skew_parent/0.18.3" "$skew_parent/0.19.0"
+installed_ver_path="$skew_parent/0.18.3" # the version recorded in installed_plugins.json
+session_ver_path="$skew_parent/0.19.0"   # the version the session actually loaded
+native_installed="$(cygpath -w "$installed_ver_path" 2>/dev/null || echo "$installed_ver_path")"
+write "$case_dir/installed_plugins.json" "$(
+  jq -cn --arg root "$native_installed" \
+    '{version: 1, plugins: {"this-plugin@market1": [{scope: "user", installPath: $root, version: "0.18.3"}]}}'
+)"
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "this-plugin"}]}'
+ARGS=()
+out=$(run_state "$case_dir" CLAUDE_PLUGIN_ROOT="$session_ver_path")
+rc=$?
+assert_exit "version skew: resolves via version-agnostic parent-prefix fallback" 0 "$rc"
+resolved_name=$(jq -r '.marketplace.name' <<<"$out" 2>/dev/null)
+assert_eq "version skew: correct marketplace despite version mismatch" "market1" "$resolved_name"
 
 # ============================================================================
 # Case: jq missing — clear notice, not a bare command-not-found

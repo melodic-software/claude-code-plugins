@@ -9,6 +9,12 @@ import re
 import sys
 from pathlib import Path
 
+_LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+import killswitch_config  # noqa: E402  (path set above; plugin-bundled module)
+
 
 _SHELL_EXPANSION_OR_OPERATOR_CHARS = frozenset("{}$*?[]~`()<>;|&\r\n\t!#")
 
@@ -51,8 +57,15 @@ def _argument(value: str) -> bool:
     return bool(value) and not value.startswith("-")
 
 
-def _literal_shell_words(command: str) -> list[str] | None:
-    """Parse only space-delimited literal words with optional whole-word quotes."""
+def _literal_shell_words(
+    command: str, *, allow_backslash: bool = False
+) -> list[str] | None:
+    """Parse only space-delimited literal words with optional whole-word quotes.
+
+    ``allow_backslash`` permits ``\\`` inside words for surfaces where it is a
+    path separator rather than an escape character (PowerShell commands); the
+    Bash default keeps rejecting it.
+    """
     if not command or any(
         value in _SHELL_EXPANSION_OR_OPERATOR_CHARS for value in command
     ):
@@ -71,7 +84,7 @@ def _literal_shell_words(command: str) -> list[str] | None:
             word = command[index + 1 : end]
             if not word or "'" in word or '"' in word:
                 return None
-            if quote == '"' and "\\\\" in word:
+            if quote == '"' and "\\\\" in word and not allow_backslash:
                 return None
             index = end + 1
             if index < len(command) and command[index] != " ":
@@ -83,7 +96,7 @@ def _literal_shell_words(command: str) -> list[str] | None:
             word = command[index:end]
             if (
                 not word
-                or "\\" in word
+                or ("\\" in word and not allow_backslash)
                 or "'" in word
                 or '"' in word
                 or any(value.isspace() for value in word)
@@ -158,9 +171,178 @@ def _plugin_data_root_from_root(plugin_root: str) -> str | None:
     return None
 
 
-_DISK_HYGIENE_ENABLED_FLAG = "--disk-hygiene-enabled"
-_DISK_HYGIENE_ENABLED_ENV = "CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED"
-_DISK_HYGIENE_ENABLED_PLACEHOLDER = "${user_config.disk_hygiene_enabled}"
+_MODE_FLAG = "--mode"
+_MODE_BELT = "belt"
+_MODE_ENGINE_GATE = "engine-gate"
+_ENGINE_MARKER = "hygiene.py"
+
+
+def _engine_gate_relevant(command: str, tool_name: str = "Bash") -> bool:
+    """Decide whether the plugin-level engine gate should act on ``command``.
+
+    A plugin-level hook fires on every shell call in every session, so a bare
+    mention of the engine's filename (``git diff -- hygiene.py``,
+    ``rg hygiene.py README.md``, ``echo hygiene.py``) must defer — routing
+    mentions into the belt's fail-closed parser would block ordinary work
+    session-wide. The gate acts only on what parses as an INVOCATION:
+
+    - a literal word carrying the engine's filename that is not provably a
+      DIFFERENT file: a word that resolves to an existing file other than the
+      bundled ``hygiene.py`` (a consumer's own ``tools/hygiene.py``) is not this
+      engine and defers; the bundled script itself, or an unresolvable word,
+      stays in play;
+    - such a word counts as an INVOCATION when it is the command itself or ANY
+      earlier word is an interpreter token (``python*``/``py``) — "immediately
+      preceding" is not required, so interpreter options
+      (``python3 -B .../hygiene.py``) cannot slip the gate;
+    - a quoted compound word (e.g. a ``bash -c``/``pwsh -Command`` payload) that
+      carries both the engine marker and an interpreter token;
+    - any command carrying the marker that the literal parser cannot prove is a
+      mere mention (expansions, operators, unparsable quoting) — fail closed
+      into the gate; the belt's own rules then decide.
+
+    A path-like word (containing a separator) that is the SAME FILE as the
+    bundled engine — a symlink or hard link under any name — gates regardless
+    of its filename. Accepted residuals, all of the copy-evasion class the gate
+    can never close (a byte copy is a different file): a PATH-installed alias
+    with no separator, an alias inside a command the literal parser rejects
+    when the marker is absent, and a copied engine. This is a belt, not the
+    authority: an invocation smuggled past it still answers to the engine's own
+    preview/approval-token containment (and to the skill-scoped belt during
+    active cleanup).
+    """
+
+    def _is_interpreter(word: str) -> bool:
+        base = Path(word.casefold()).name
+        return base.startswith("python") or base in {"py", "py.exe"}
+
+    bundled = Path(__file__).resolve().with_name("hygiene.py")
+
+    def _samefile(word: str) -> bool:
+        try:
+            return os.path.samefile(word, bundled)
+        except OSError:
+            return False
+
+    def _same_file_as_bundled(word: str) -> bool:
+        # Separator requirement bounds the no-marker scan to path-like words.
+        if "/" not in word and "\\" not in word:
+            return False
+        return _samefile(word)
+
+    allow_backslash = tool_name == "PowerShell"
+    lowered = command.casefold()
+    if _ENGINE_MARKER not in lowered:
+        # No marker: the only relevant shape is a linked alias of the bundled
+        # engine invoked by path. Unparsable marker-free commands cannot fail
+        # closed (that would gate every command with an operator), so scan
+        # their whitespace tokens for separator-carrying words and identity-
+        # check those — a literal alias path gates even beside an operator.
+        words = _literal_shell_words(command, allow_backslash=allow_backslash)
+        if words is None:
+            return any(
+                _same_file_as_bundled(token.strip("'\""))
+                for token in command.split()
+            )
+        return any(_same_file_as_bundled(word) for word in words)
+    words = _literal_shell_words(command, allow_backslash=allow_backslash)
+    if words is None:
+        # Marker present but not literally parseable (operators, compounds).
+        # Fail closed UNLESS every marker-carrying token is provably a
+        # DIFFERENT existing file (a consumer's own hygiene.py in a compound
+        # command) and no token is the bundled engine under any name.
+        tokens = [token.strip("'\"") for token in command.split()]
+        if any(_same_file_as_bundled(token) for token in tokens):
+            return True
+        marker_tokens = [
+            token for token in tokens if _ENGINE_MARKER in token.casefold()
+        ]
+        if marker_tokens and all(
+            _script_path_key(token) is not None and not _samefile(token)
+            for token in marker_tokens
+        ):
+            return False
+        return True
+    # The effective command word: skip launcher wrappers, VAR=value
+    # assignments, and option words — `env PATH=... hygiene.py apply` makes the
+    # bare marker word the command even though it is not word 0.
+    _WRAPPERS = {
+        "env",
+        "nohup",
+        "nice",
+        "time",
+        "timeout",
+        "setsid",
+        "stdbuf",
+        "sudo",
+        "doas",
+        "exec",
+        "command",
+    }
+    wrapper_indices = [
+        index
+        for index, word in enumerate(words)
+        if Path(word.casefold()).name in _WRAPPERS
+    ]
+    for index, word in enumerate(words):
+        folded = word.casefold()
+        if Path(folded).name == _ENGINE_MARKER:
+            if _samefile(word):
+                # The word IS the bundled engine — gate regardless of launcher
+                # (pypy3, an unknown interpreter, anything). Identity beats
+                # launcher enumeration. Accepted overbreadth: a MENTION of the
+                # bundled engine by a resolving path gates too; real-world
+                # mentions use names that resolve to nothing (deferred below)
+                # or to consumer files (deferred below).
+                return True
+            resolved_key = _script_path_key(word)
+            if resolved_key is not None:
+                # Provably a different existing file — a consumer's own
+                # hygiene.py, not this engine.
+                continue
+            if (
+                index == 0
+                or os.path.isabs(word)
+                or any(_is_interpreter(w) for w in words[:index])
+                or any(w_index < index for w_index in wrapper_indices)
+            ):
+                # An absolute engine path is an invocation target whatever the
+                # launcher, and a bare marker word ANYWHERE after a known
+                # launcher wrapper gates conservatively (wrapper option
+                # operands like `nice -n 10` defeat effective-command
+                # inference, and PATH injection can make the bare name the
+                # command). A deliberate overbreadth: a mere MENTION after a
+                # wrapper (`sudo grep x hygiene.py`) gates too — rare, and the
+                # kill-switch bypass risk outweighs it. Plain-command mentions
+                # (`git diff -- hygiene.py`) still defer.
+                return True
+            continue
+        if _ENGINE_MARKER in folded and " " in word:
+            first_token = folded.split()[0]
+            if Path(first_token).name == _ENGINE_MARKER or _is_interpreter(
+                first_token
+            ):
+                # A quoted compound payload (sh -c / pwsh -Command) whose first
+                # token is the engine or an interpreter is an invocation.
+                return True
+        if _ENGINE_MARKER in folded and "python" in folded:
+            return True
+    return False
+
+
+def resolve_mode() -> str:
+    """Resolve which registration surface launched this guard.
+
+    ``belt`` (default) is the skill-scoped deployment: deny-by-default Bash and
+    deletion-spelling PowerShell discipline, tolerable only while the clean skill
+    is the active work. ``engine-gate`` is the plugin-level deployment: it cares
+    ONLY about engine invocations (kill switch + data-root authority must hold in
+    every session), so any command that does not reference the engine defers
+    instantly — a plugin-level hook must never tax unrelated work. An
+    unrecognized or absent value falls back to ``belt``, the stricter mode.
+    """
+    value = _argv_flag_value(sys.argv[1:], _MODE_FLAG)
+    return value if value in {_MODE_BELT, _MODE_ENGINE_GATE} else _MODE_BELT
 
 
 def _argv_flag_value(argv: list[str], flag: str) -> str | None:
@@ -213,29 +395,118 @@ def resolve_authorized_data_root() -> str | None:
     return os.environ.get(_CLAUDE_PLUGIN_DATA_ENV)
 
 
+def _user_settings_path_from_root(plugin_root: str) -> str | None:
+    """Derive the user ``settings.json`` path from the plugin's install root.
+
+    Claude Code lays a marketplace plugin out at
+    ``<config>/plugins/cache/<marketplace>/<name>/<version>``, and the user
+    settings file is ``<config>/settings.json`` — the sibling of the ``plugins``
+    directory. This anchors on the same ``plugins/cache`` marker as
+    ``_plugin_data_root_from_root`` rather than a fixed depth: the ``plugins``
+    directory is the segment before ``cache``, and ``settings.json`` is its
+    parent's child. A root without that marker yields ``None`` so the caller
+    falls back to the environment.
+    """
+    parts = Path(plugin_root).parts
+    for index in range(1, len(parts)):
+        if (
+            parts[index].casefold() == _PLUGIN_CACHE_DIRNAME
+            and parts[index - 1].casefold() == _PLUGINS_DIRNAME
+        ):
+            plugins_dir = Path(*parts[:index])
+            return os.fspath(plugins_dir.parent / "settings.json")
+    return None
+
+
+def _plugin_id_from_root(plugin_root: str) -> str | None:
+    """Return this install's exact ``<name>@<marketplace>`` ``pluginConfigs`` key.
+
+    Claude Code lays a marketplace plugin out at
+    ``<config>/plugins/cache/<marketplace>/<name>/<version>`` and keys its options
+    under ``<name>@<marketplace>``. Deriving that exact key lets the kill-switch
+    read match only this install, so a second marketplace's ``disk-hygiene`` entry
+    cannot mask this one's configured value. A root without the ``plugins/cache``
+    marker (or missing the name/marketplace segments) yields ``None`` and the read
+    falls back to matching any ``disk-hygiene`` entry.
+    """
+    parts = Path(plugin_root).parts
+    for index in range(1, len(parts)):
+        if (
+            parts[index].casefold() == _PLUGIN_CACHE_DIRNAME
+            and parts[index - 1].casefold() == _PLUGINS_DIRNAME
+        ):
+            if index + 2 >= len(parts):
+                return None
+            marketplace, name = parts[index + 1], parts[index + 2]
+            if not marketplace or not name:
+                return None
+            return f"{name}@{marketplace}"
+    return None
+
+
+def _resolve_user_settings_path() -> Path | None:
+    """Locate the user settings file that carries the kill switch, or ``None``.
+
+    The **only** trusted locator is ``--plugin-root ${CLAUDE_PLUGIN_ROOT}``: Claude
+    Code substitutes the plugin's true install path, which a hostile repo cannot
+    forge, and the user settings file is derived from its ``plugins/cache`` marker.
+    The guard deliberately does **not** fall back to ``CLAUDE_CONFIG_DIR`` / ``HOME``:
+    those are environment values, and a repo ``.claude/settings.json`` ``env`` block
+    reaches hook subprocesses, so trusting them would let a repo point the read at a
+    forged settings file and flip the switch (the exact provenance hole this design
+    closes). When the plugin root carries no marker — e.g. a ``--plugin-dir``
+    checkout install — no trusted user-settings location exists and this returns
+    ``None``; the caller then relies on managed settings (fixed system paths) and
+    otherwise fails closed to enabled.
+    """
+    plugin_root = _argv_flag_value(sys.argv[1:], _PLUGIN_ROOT_FLAG)
+    if plugin_root and plugin_root != _PLUGIN_ROOT_PLACEHOLDER:
+        derived = _user_settings_path_from_root(plugin_root)
+        if derived:
+            return Path(derived)
+    return None
+
+
 def resolve_disk_hygiene_enabled() -> bool:
-    """Resolve the execution kill switch from the hook argv, then the environment.
+    """Resolve the execution kill switch by reading user-scope ``pluginConfigs``.
 
     The kill switch is a safety control: ``false`` is audit-only mode and must
-    prevent every deletion lane. A host supplies the value either as a
-    ``--disk-hygiene-enabled`` argv flag or as the
-    ``CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED`` environment variable; argv wins.
-    A literal, unsubstituted placeholder or an empty value is treated as absent.
+    prevent every deletion lane. The guard reads ``disk_hygiene_enabled`` straight
+    out of the ``settings.json`` files (``lib/killswitch_config.py``, the single
+    reader it shares with the report-only probe) — never the process environment.
+    Since Claude Code 2.1.207 that key is honored only from user, managed, and
+    ``--settings`` scope, never a project or local ``settings.json``
+    (plugins-reference, "User configuration"), so a hostile repo cannot flip the
+    switch. Managed settings are the highest-precedence, non-overridable scope, so
+    a value configured there wins over the user file — that is how an organization
+    enforces audit-only mode. The ``--settings`` file is a session CLI flag a hook
+    cannot observe, the one honored source not read here (see
+    ``killswitch_config.managed_settings_path`` for the full residual list). The
+    environment is rejected on purpose: a repo ``settings.json`` ``env`` block
+    reaches hook subprocesses and carries no provenance a hook could check, so an
+    env-borne toggle (or an env-borne user-settings path) would reopen the hole
+    this closes — hence the user settings file is located from the tamper-resistant
+    ``--plugin-root`` first (see ``_resolve_user_settings_path``), and the managed
+    file from its fixed root-owned system path.
 
-    A skill-frontmatter hook can supply neither reliably: Claude Code substitutes
-    only ``${CLAUDE_PLUGIN_ROOT}`` into a skill hook's args (so
-    ``${user_config.disk_hygiene_enabled}`` cannot be passed on argv), and it does
-    not inject ``CLAUDE_PLUGIN_OPTION_*`` into a skill hook's environment. In that
-    deployment no channel supplies a value and the guard fails safe to enabled —
-    it stays active and still gates every mutation behind the final human prompt,
-    but cannot honor a configured ``false`` by denying outright. Delivering the
-    kill switch to a skill-scoped guard needs a channel skill hooks do not yet
-    have; see the plugin's safety model.
+    Every absent, unreadable, or ambiguous read fails **closed to enabled**: the
+    guard stays active and gates every mutation behind the final human prompt even
+    when it cannot confirm a configured value. Both registration surfaces reach
+    this one resolver — the plugin-level engine gate and the skill-frontmatter belt
+    both run ``main()``, and both receive ``--plugin-root ${CLAUDE_PLUGIN_ROOT}`` —
+    so the belt needs no environment channel it does not have.
     """
-    from_argv = _argv_flag_value(sys.argv[1:], _DISK_HYGIENE_ENABLED_FLAG)
-    if from_argv and from_argv != _DISK_HYGIENE_ENABLED_PLACEHOLDER:
-        return from_argv.strip().lower() != "false"
-    return os.environ.get(_DISK_HYGIENE_ENABLED_ENV, "true").strip().lower() != "false"
+    plugin_root = _argv_flag_value(sys.argv[1:], _PLUGIN_ROOT_FLAG)
+    plugin_id = (
+        _plugin_id_from_root(plugin_root)
+        if plugin_root and plugin_root != _PLUGIN_ROOT_PLACEHOLDER
+        else None
+    )
+    return killswitch_config.resolve_effective(
+        _resolve_user_settings_path(),
+        killswitch_config.managed_settings_path(),
+        plugin_id,
+    )
 
 
 def _is_authorized_data_root(value: str, authority: str | None) -> bool:
@@ -282,7 +553,7 @@ def _consume_optional_pairs(
 
 
 def classify_exact_engine_command(command: str, authority: str | None) -> str | None:
-    """Return scan/preview/apply only for one complete, canonical invocation."""
+    """Return scan/preview/handoff-verify/apply for one canonical invocation."""
     tokens = _literal_shell_words(command)
     if tokens is None:
         return None
@@ -329,6 +600,18 @@ def classify_exact_engine_command(command: str, authority: str | None) -> str | 
             )
         )
         return "preview" if valid else None
+    if tokens[2] == "handoff-verify":
+        valid = (
+            len(tokens) in {7, 9}
+            and tokens[3] == "--snapshot"
+            and _argument(tokens[4])
+            and tokens[5] == "--paths"
+            and _argument(tokens[6])
+            and _consume_optional_pairs(
+                tokens[7:], frozenset({"--data-root"}), authority
+            )
+        )
+        return "handoff-verify" if valid else None
     if tokens[2] == "apply":
         if len(tokens) not in {14, 16}:
             return None
@@ -381,7 +664,13 @@ _POWERSHELL_MUTATION_WORDS = re.compile(
     r"|sendtorecyclebin|deletefile|deletedirectory|removedirectory"
     r")(?![\w-])"
 )
-_POWERSHELL_DOTNET_DELETE = re.compile(r"(?i)::\s*delete")
+_POWERSHELL_DOTNET_DELETE = re.compile(r"(?i)(::\s*delete|\.\s*delete\s*\()")
+# robocopy is an executable normally invocable by full path
+# (C:\Windows\System32\robocopy.exe), so unlike the cmdlet word list its
+# lookbehind must permit path separators before the name.
+_POWERSHELL_ROBOCOPY_PURGE = re.compile(
+    r"(?i)(?<![\w-])robocopy(\.exe)?(?![\w-]).*(/mir|/purge|/mov|/move)(?![\w-])"
+)
 # Module-qualified cmdlet invocations (Module\Cmdlet) put a backslash before the
 # cmdlet name, which the word pattern's lookbehind rejects; cover the deletion
 # cmdlets explicitly (aliases like rm/del cannot be module-qualified).
@@ -403,11 +692,20 @@ def powershell_decision(command: str, enabled: bool) -> tuple[str, str] | None:
     false) it is denied outright, so the kill switch blocks every deletion lane
     and not only the Bash engine lane.
     """
-    if "hygiene.py" in command.casefold():
+    if _engine_gate_relevant(command, "PowerShell"):
+        # Invocation-shaped engine references only — the same classifier the
+        # plugin-level engine gate uses, so read-only text processing that
+        # merely NAMES the script (Select-String over a bare name, git diff)
+        # defers instead of being denied by a raw substring test. A command
+        # whose argument IS the bundled engine (file identity) still denies,
+        # even under a read-verb spelling: PowerShell aliases and profile
+        # functions shadow cmdlet names, so a verb name proves nothing about
+        # what executes — inspect the engine source with non-shell tools.
         return (
             "deny",
             "disk-hygiene engine invocations must go through the Bash tool's "
-            "exact guarded command shapes, not PowerShell.",
+            "exact guarded command shapes, not PowerShell. To READ the engine "
+            "source, use non-shell file tools.",
         )
     match = _POWERSHELL_MUTATION_WORDS.search(command)
     if match:
@@ -425,6 +723,12 @@ def powershell_decision(command: str, enabled: bool) -> tuple[str, str] | None:
             enabled,
             "disk-hygiene flagged the module-qualified deletion spelling "
             f'"{qualified.group(0)}".',
+        )
+    if _POWERSHELL_ROBOCOPY_PURGE.search(command):
+        return _powershell_mutation_verdict(
+            enabled,
+            "disk-hygiene flagged a robocopy mirror/purge/move invocation "
+            "(mass deletion via mirroring).",
         )
     return None
 
@@ -457,7 +761,7 @@ def _bash_denial_guidance(authority: str | None) -> str:
         )
     )
     return (
-        "Disk-hygiene fails closed: Bash is restricted to exact bundled scan, preview, and apply invocations using the hook's absolute Python interpreter "
+        "Disk-hygiene fails closed: Bash is restricted to exact bundled scan, preview, handoff-verify, and apply invocations using the hook's absolute Python interpreter "
         f'"{_display_python()}". Bare python/python3 commands are denied because shell functions and aliases can replace them.'
         + data_sentence
         + " Use non-Bash read-only tools for supporting inspection."
@@ -482,6 +786,13 @@ def main() -> int:
         )
         return 0
 
+    if resolve_mode() == _MODE_ENGINE_GATE and not _engine_gate_relevant(
+        command, tool_name
+    ):
+        # Plugin-level gate: no engine invocation in the command — defer with no
+        # output so unrelated work in every consumer session is untouched.
+        return 0
+
     enabled = resolve_disk_hygiene_enabled()
 
     if tool_name == "PowerShell":
@@ -502,7 +813,7 @@ def main() -> int:
         )
         return 0
     command_kind = classify_exact_engine_command(command, authority)
-    if command_kind in {"scan", "preview"}:
+    if command_kind in {"scan", "preview", "handoff-verify"}:
         print(
             json.dumps(
                 decision(
@@ -523,7 +834,7 @@ def main() -> int:
         )
         return 0
     reason = (
-        "Disk-hygiene execution is disabled; only exact bundled scan and preview invocations are permitted."
+        "Disk-hygiene execution is disabled; only exact bundled scan, preview, and handoff-verify invocations are permitted."
         if command_kind == "apply"
         else _bash_denial_guidance(authority)
     )

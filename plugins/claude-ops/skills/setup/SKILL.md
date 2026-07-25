@@ -31,12 +31,24 @@ table, one remediation line per FAIL. Do not modify anything.
    - empty or unexpanded: INFO — the registry uses `${CLAUDE_PLUGIN_DATA}` (the zero-config default).
    - a configured value: validate containment (below). PASS when contained — it resolves from the
      project root. FAIL when uncontained.
-2. **`skill_usage_dir`** — report the effective skill-usage-log destination:
-   - empty or unexpanded: INFO — the log uses `.claude/observability` (the zero-config default).
-   - a configured value: validate containment. PASS when contained; FAIL when uncontained.
-3. **Containment** — a configured value must be a contained, project-relative path. FAIL any
+2. **`skill_usage_dir` + `skill_usage_scope`** — report the effective skill-usage-log destination:
+   - scope empty, unexpanded, or `repo`: the store resolves under the project root; empty
+     `skill_usage_dir` is INFO — the log uses `.claude/observability` (the zero-config default), kept
+     out of `git status` by a machine-local `.git/info/exclude` entry unless
+     `${user_config.skill_usage_git_exclude}` renders `false`.
+   - scope `user`: INFO — the same contained subpath resolves under `$HOME` (default
+     `~/.claude/observability`), one cross-repo store.
+   - scope `data-dir`: INFO — the store is plugin-owned at
+     `${CLAUDE_PLUGIN_DATA}/skill-usage/<repo-slug>`; `skill_usage_dir` is ignored.
+   - any other scope value: FAIL — the hooks fall back to `repo` with a one-time advisory; remediate
+     to a valid value (`repo` | `user` | `data-dir`).
+   - a configured `skill_usage_dir` (repo/user scopes): validate containment under the scope root.
+     PASS when contained; FAIL when uncontained.
+3. **Containment** — a configured value must be a contained relative path under its base (the project
+   root for `registry_dir` and repo-scope `skill_usage_dir`; `$HOME` for user-scope
+   `skill_usage_dir`). FAIL any
    POSIX/rooted path, Windows drive-qualified or drive-relative path, UNC path, any `..` segment with
-   either separator, and any existing symlink path that resolves outside the project. Do not normalize
+   either separator, and any existing symlink path that resolves outside that base. Do not normalize
    an invalid value into acceptance, and do not run any operation that would use an invalid destination.
 4. **Personal-vs-project** — INFO: both options are personal, user-scoped preferences, not tracked team
    policy. Note the per-machine-vs-repository-resident tradeoff so the reader can choose in `apply`.

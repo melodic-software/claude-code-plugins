@@ -75,7 +75,11 @@ Run `check`, then create or update the config from the supplied arguments.
 
    (`..` is relative to `.claude/` and therefore names `${CLAUDE_PROJECT_DIR}`.)
 4. Write/update with an ordinary file edit, not `git config --file ... --add`: the file may be tracked
-   and the user must see a deterministic diff. Preserve comments and unrelated sections.
+   and the user must see a deterministic diff. Preserve comments and unrelated sections. Prefer a
+   path relative to the config file's directory for any root/repository/canonical target expressible
+   that way — the grammar resolves relative paths from that directory and both forms audit
+   identically, while some consumer environments run a write-time path-portability guard that rejects
+   absolute paths in tracked config.
 5. Verify after remediation — re-run the `check` probes against the written file (never claim success on
    the edit alone):
 
@@ -119,3 +123,14 @@ similar; verify the normalized GitHub remote identity on both sides first.
 - Write Claude Code settings, `pluginConfigs`, the plugin cache, or any machine-local state — the
   config is the consumer's own tracked file.
 - Touch Git remotes, branches, or worktrees.
+
+## Gotchas
+
+- **Absolute paths in tracked config can be rejected by consumer write guards.** A root, repository, or
+  canonical target written as an absolute path may trip a consumer's write-time path-portability guard;
+  the same target written relative to the config file's directory passes and resolves identically, so
+  `apply` prefers the relative form.
+- **A project-scoped config is consumed only from its own project.** Per the Scoping rule above, a
+  config meant to apply from every project belongs at the user-global
+  `~/.claude/repo-fleet-hygiene.conf`, not a per-project path — otherwise the audit silently narrows to
+  the project it was authored in.

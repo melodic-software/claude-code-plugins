@@ -1,3 +1,5 @@
+@AGENTS.md
+
 # Operating rules — AI agents working in this repo
 
 This repository is a private Claude Code plugin marketplace. Plugins here must still be reusable,
@@ -5,29 +7,19 @@ repo-agnostic, configurable by consumers, and safe in plugin form.
 
 ## Fresh-docs mandate (non-negotiable)
 
-Operate only off current official documentation — never training-data recall, never a stale summary.
-Before ANY change to this repo (a new plugin, a manifest edit, a structure change), WebFetch the
-relevant page(s) below for current schema and behavior, and cite the URL. If a fact is not confirmed
-from a fetched page this session, treat it as unverified and say so.
+[`docs/OFFICIAL-DOCS.md`](docs/OFFICIAL-DOCS.md) is the canonical index of every plugin-relevant
+official page, plus the self-updating `llms.txt` master list for anything it omits.
 
-| Topic | Canonical URL |
-|---|---|
-| Create plugins | https://code.claude.com/docs/en/plugins |
-| Plugins reference (schemas, variables, CLI) | https://code.claude.com/docs/en/plugins-reference |
-| Plugin dependencies (version constraints) | https://code.claude.com/docs/en/plugin-dependencies |
-| Create & distribute a marketplace | https://code.claude.com/docs/en/plugin-marketplaces |
-| Discover & install plugins | https://code.claude.com/docs/en/discover-plugins |
-| Skills | https://code.claude.com/docs/en/skills |
-| Slash commands | https://code.claude.com/docs/en/commands |
-| Hooks reference | https://code.claude.com/docs/en/hooks |
-| Subagents | https://code.claude.com/docs/en/sub-agents |
-| Settings | https://code.claude.com/docs/en/settings |
-| Memory — CLAUDE.md, `.claude/rules/`, auto memory | https://code.claude.com/docs/en/memory |
-| The `.claude` directory | https://code.claude.com/docs/en/claude-directory |
-| MCP | https://code.claude.com/docs/en/mcp |
-| Tools reference (monitors) | https://code.claude.com/docs/en/tools-reference |
-| Docs index (discover any other page) | https://code.claude.com/docs/llms.txt |
-| Official-doc index (all plugin-relevant pages) | docs/OFFICIAL-DOCS.md |
+**Scope** — a change touching a plugin manifest, a marketplace schema, a hook contract, or documented
+harness behavior, which includes the contract surface of every plugin component that index covers.
+The discriminator is the surface, not the file: a skill's frontmatter, a subagent's fields, or an
+`.mcp.json` entry is a contract change and is in; that same skill's prose body is a prose edit and is
+out. Formatting and mechanical edits are out.
+
+Inside that scope, operate only off current official documentation — never training-data recall,
+never a stale summary. Before the change, open the index, WebFetch the page(s) it points to for
+current schema and behavior, and cite the URL. If a fact is not confirmed from a page fetched this
+session, treat it as unverified and say so. Non-negotiable.
 
 Machine-readable JSON Schemas (editor validation for the JSON in this repo; Claude Code ignores the
 `$schema` field at load time): `marketplace.json` →
@@ -58,6 +50,6 @@ migration.
 
 ## Branching & PRs
 
-PRs required; squash merge; branch `<type>/<description>`. PR title follows Conventional Commits,
-enforced here by `.github/workflows/pr-title.yml` (squash merge sets the commit subject to the PR
-title). Org convention home: `melodic-software/standards` `conventions/`.
+PRs required; squash merge; branch `<type>/<description>`. `.github/workflows/pr-title.yml` enforces
+the PR-title convention (squash merge sets the commit subject to the PR title). Org convention home:
+`melodic-software/standards` `conventions/`.

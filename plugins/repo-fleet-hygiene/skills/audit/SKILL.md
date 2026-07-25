@@ -1,6 +1,6 @@
 ---
 name: audit
-description: "Audit Git/GitHub hygiene across a fleet of local repositories: find GitHub-merged local branches, merged/missing/prunable/mislinked worktree registrations, and remotes that resolve to a moved or renamed GitHub repository. Read-only and confidence-tiered; emits exact handoffs to repo-hygiene/source-control but never deletes, prunes, repairs, fetches, checks out, or rewrites. Use when: audit repositories, repo fleet hygiene, stale branches across repos, orphaned worktrees across repos, moved repos, renamed GitHub owner, cross-repo git cleanup report."
+description: "Audit Git/GitHub hygiene across a fleet of local repositories: find GitHub-merged local branches, merged/missing/prunable/mislinked worktree registrations, and remotes that resolve to a moved or renamed GitHub repository. Read-only and confidence-tiered; emits exact handoffs to repo-hygiene/source-control but never deletes, prunes, repairs, fetches, checks out, or rewrites. Use when: 'audit repositories', 'repo fleet hygiene', 'stale branches across repos', 'orphaned worktrees across repos', 'moved repos', 'renamed GitHub owner', 'cross-repo git cleanup report'."
 user-invocable: true
 argument-hint: "[--root <dir>]... [--repo <dir>]... [--config <file>] [--canonical <github.com/owner/repo=path>]..."
 allowed-tools:
@@ -100,7 +100,12 @@ do not turn "no verified finding" into "fleet is clean".
 ## Graceful degradation
 
 - Git missing or too old: stop before scanning and give the prerequisite error.
-- Invalid config/override/path: report the exact invalid input and stop; never silently fall back.
+- Invalid config SYNTAX, invalid override, or an invalid CLI-supplied `--repo`/`--root` path: report
+  the exact invalid input and stop; never silently fall back.
+- A config-sourced `fleet.repo`/`fleet.root` path that is missing or not a Git working tree degrades
+  per-entry, not per-run: the entry becomes an `UNKNOWN` `stale-config-entry` finding and the rest of
+  the fleet is still audited (deleting repositories right after an audit must not abort every
+  subsequent run until the config is edited).
 - `gh` missing/unauthenticated or API/timeout failure: continue Git/worktree checks, report GitHub
   evidence as `UNKNOWN`, and make no merged/migration claim. Compatible `timeout`/`gtimeout` is
   preferred; otherwise use the collector's finite TERM-to-KILL Bash watchdog.
@@ -123,3 +128,15 @@ do not turn "no verified finding" into "fleet is clean".
 
 This plugin remains useful if those optional collaborators are absent: the report names the local
 Git/GitHub evidence and target so another tool or human can act.
+
+## Gotchas
+
+- **Which config is consumed depends on where the audit runs.** Config resolution follows the ladder in
+  the Input resolution section: explicit `--config`, else the project-scoped
+  `.claude/repo-fleet-hygiene.conf`, else the user-global one. A project-scoped config is invisible when
+  the audit runs from a different project, so confirm the consumed config named in the report header
+  before trusting a run's scope.
+- **Config paths resolve relative to the config file's directory.** A relative `root`/`repo`/canonical
+  path is anchored at the config directory, not the audit's working directory. Absolute paths work but
+  are what a consumer's write-time path guard flags, so author config via
+  `/repo-fleet-hygiene:setup apply`, which prefers the portable relative form.

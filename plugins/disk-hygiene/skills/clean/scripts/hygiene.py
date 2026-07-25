@@ -952,6 +952,41 @@ def validate_plan(
     return normalized
 
 
+def validate_handoff_paths(
+    payload: dict[str, Any], entries: dict[str, dict[str, Any]]
+) -> list[str]:
+    """Structurally validate a manual-handoff approved-path list.
+
+    Same containment rules as plan candidates (relative, non-root, no
+    traversal, present in the snapshot, non-overlapping) without the plan's
+    tier/evidence envelope: the handoff list is the human-approved exact path
+    list, and the audit report — not this file — carries the evidence.
+    """
+    if payload.get("version") != SCHEMA_VERSION:
+        raise HygieneError("paths file version must be 1")
+    paths = payload.get("paths")
+    if not isinstance(paths, list) or not paths:
+        raise HygieneError("paths must be a non-empty array")
+    normalized: list[str] = []
+    seen: list[PurePosixPath] = []
+    for relative in paths:
+        if not isinstance(relative, str) or not relative or relative in {".", "/"}:
+            raise HygieneError("approved path must be a non-root relative path")
+        pure = PurePosixPath(relative)
+        if pure.is_absolute() or ".." in pure.parts or relative not in entries:
+            raise HygieneError(
+                f"approved path is outside or absent from snapshot: {relative}"
+            )
+        if any(
+            pure == prior or pure in prior.parents or prior in pure.parents
+            for prior in seen
+        ):
+            raise HygieneError(f"approved paths overlap: {relative}")
+        seen.append(pure)
+        normalized.append(relative)
+    return normalized
+
+
 def current_descendants(root: Path, candidate: Path) -> set[str]:
     paths: set[str] = set()
     known_mounts, mount_error = linux_mount_points()
@@ -1253,13 +1288,26 @@ def approval_token(snapshot: dict[str, Any], plan: dict[str, Any]) -> str:
     ).hexdigest()[:24]
 
 
-def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
+def resolve_snapshot_target(
+    snapshot: dict[str, Any], *, strict_root_stat: bool = True
+) -> tuple[Path, set[Path]]:
+    """Re-validate the snapshot's target root against live state and return it.
+
+    Shared by preview and handoff-verify: both must refuse a snapshot whose
+    target root drifted, became a link, a mount point, an OS-managed root, or a
+    protected shell folder since the scan. Preview keeps the full stat identity
+    (size/mtime included) because its approval token binds one immutable state.
+    handoff-verify passes ``strict_root_stat=False`` to tolerate the root
+    directory's own metadata churn — deleting an approved root-level item
+    changes the root's mtime, and the manual lane deletes one item at a time
+    with a re-verify between items — while still refusing a replaced root via
+    the same stable device/inode/type identity apply uses for directories.
+    """
     if (
         snapshot.get("schema_version") != SCHEMA_VERSION
         or snapshot.get("engine") != "disk-hygiene-python-1"
     ):
         raise HygieneError("unsupported snapshot version")
-    baseline_exact_names = baseline_protected_names()
     target_input = Path(snapshot.get("target", "")).absolute()
     if has_linkish_component(target_input):
         raise HygieneError("snapshot target now traverses a link or reparse point")
@@ -1272,12 +1320,27 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
         raise HygieneError("snapshot target is now an OS-managed root")
     if target_mounted and not is_volume_root(target):
         raise HygieneError("snapshot target is a mount point")
-    if has_protected_path_component(target, baseline_exact_names):
+    if has_protected_path_component(target, baseline_protected_names()):
         raise HygieneError(
             "snapshot target is now a protected shell-folder or profile-hive root"
         )
-    if not same_identity(target, snapshot.get("target_identity", {})):
-        raise HygieneError("target root changed since the snapshot")
+    identity = snapshot.get("target_identity", {})
+    if strict_root_stat:
+        if not same_identity(target, identity):
+            raise HygieneError("target root changed since the snapshot")
+    else:
+        try:
+            info = target.lstat()
+        except OSError as exc:
+            raise HygieneError(f"target root state is unverified: {exc}")
+        if not same_object_identity(info, identity):
+            raise HygieneError("target root was replaced since the snapshot")
+    return target, known_mounts
+
+
+def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
+    baseline_exact_names = baseline_protected_names()
+    target, known_mounts = resolve_snapshot_target(snapshot)
     entries = entry_map(snapshot)
     candidates = validate_plan(plan, entries)
     truncated_paths = {
@@ -1387,6 +1450,173 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
         "warning": "Approval is valid only for this tier, exact plan, and snapshot. Re-preview after any change.",
     }
     return payload
+
+
+def handoff_verify(snapshot: dict[str, Any], approved: list[str]) -> dict[str, Any]:
+    """Re-run per-path revalidation for the manual handoff lane, read-only.
+
+    Deterministically reruns the engine's identity/reparse/protection/VCS/
+    handle checks against live state for each approved path and emits a
+    verdict — never a deletion. Platform execution blockers deliberately do
+    not apply: this subcommand exists exactly for the platforms where the
+    engine's own apply lane is unsupported.
+    """
+    target, known_mounts = resolve_snapshot_target(snapshot, strict_root_stat=False)
+    entries = entry_map(snapshot)
+    exact_names = baseline_protected_names() | set(
+        snapshot.get("policy", {}).get("protected_exact_names", [])
+    )
+    truncated_paths = {
+        value
+        for value in snapshot.get("truncated_paths", [])
+        if isinstance(value, str)
+    }
+    globs = [
+        pattern
+        for pattern in snapshot.get("policy", {}).get(
+            "additional_protected_path_globs", []
+        )
+        if isinstance(pattern, str)
+    ]
+    verdicts: list[dict[str, Any]] = []
+    for relative in approved:
+        path = target.joinpath(*PurePosixPath(relative).parts)
+        drifted: set[str] = set()
+        contested: set[str] = set()
+        try:
+            path.lstat()
+        except FileNotFoundError:
+            verdicts.append(
+                {"path": relative, "verdict": "gone", "reasons": ["no-longer-present"]}
+            )
+            continue
+        except PermissionError:
+            verdicts.append(
+                {
+                    "path": relative,
+                    "verdict": "contested",
+                    "reasons": ["needs-elevation"],
+                }
+            )
+            continue
+        except OSError:
+            verdicts.append(
+                {
+                    "path": relative,
+                    "verdict": "contested",
+                    "reasons": ["filesystem-state-unverified"],
+                }
+            )
+            continue
+        contested.update(hard_protection(path, target, exact_names, known_mounts))
+        truncated = any(
+            name == relative
+            or name.startswith(relative + "/")
+            or relative.startswith(name + "/")
+            for name in truncated_paths
+        )
+        expected_paths = {
+            name
+            for name in entries
+            if name == relative or name.startswith(relative + "/")
+        }
+        if truncated:
+            # A truncated path has no captured descendant set, so no live walk
+            # can prove anything about it — never clear (same rationale as the
+            # preview short-circuit).
+            contested.add("truncated-not-inventoried")
+            current_paths = expected_paths
+        else:
+            try:
+                current_paths = current_descendants(target, path)
+            # On failure, treat the live set as unknown rather than empty
+            # (preview's choice): an unreadable subtree is contested, not
+            # provably drifted — "changed" cannot be claimed without a read.
+            except PermissionError:
+                current_paths = expected_paths
+                contested.add("needs-elevation")
+            except (OSError, HygieneError):
+                current_paths = expected_paths
+                contested.add("filesystem-state-unverified")
+        if current_paths != expected_paths:
+            drifted.add("changed-since-scan")
+        for name in expected_paths:
+            entry = entries[name]
+            current = target.joinpath(*PurePosixPath(name).parts)
+            # Distinguish unverifiable descendant state from real drift:
+            # same_identity's blanket OSError->False would report a denied
+            # lstat as changed-since-scan, telling the lane to rescan when
+            # the actual remedy is resolving access (review finding).
+            try:
+                info = current.lstat()
+            except FileNotFoundError:
+                drifted.add("changed-since-scan")
+            except PermissionError:
+                contested.add("needs-elevation")
+            except OSError:
+                contested.add("filesystem-state-unverified")
+            else:
+                if not same_stat_identity(info, entry):
+                    drifted.add("changed-since-scan")
+            contested.update(
+                hard_protection(current, target, exact_names, known_mounts)
+            )
+            relative_current = current.relative_to(target).as_posix()
+            if any(
+                fnmatch.fnmatchcase(relative_current, pattern) for pattern in globs
+            ):
+                contested.add("consumer-protected-path")
+        if not truncated:
+            # A hung git (TimeoutExpired) must degrade to this one path's
+            # contested verdict, not abort the whole run with no verdicts —
+            # the subcommand promises a verdict per approved path.
+            try:
+                vcs = tracked_blocker(path, target)
+            except (OSError, subprocess.SubprocessError):
+                vcs = "vcs-state-unverified"
+            if vcs:
+                contested.add(vcs)
+            # Same degradation rule as the VCS probe: a probe that fails to
+            # LAUNCH (lsof vanishing after which(), a ctypes load error) is
+            # this path's contested verdict, not a whole-run abort.
+            try:
+                state, detail = candidate_handle_state(
+                    target, path, expected_paths
+                )
+            except (OSError, subprocess.SubprocessError):
+                state, detail = "unverified", "handle-probe-failed"
+            if state == "open":
+                contested.add("live-handle" + (f": {detail}" if detail else ""))
+            elif state == "needs_elevation":
+                contested.add("needs-elevation")
+            elif state != "clear":
+                contested.add(
+                    "handle-state-unverified" + (f": {detail}" if detail else "")
+                )
+        verdict = "drifted" if drifted else "contested" if contested else "clear"
+        verdicts.append(
+            {
+                "path": relative,
+                "verdict": verdict,
+                "reasons": sorted(drifted) + sorted(contested),
+            }
+        )
+    clear = sum(1 for item in verdicts if item["verdict"] == "clear")
+    return {
+        "status": "handoff-verify-complete",
+        "target": str(target),
+        "verdicts": verdicts,
+        "clear": clear,
+        "not_clear": len(verdicts) - clear,
+        "note": (
+            "Read-only revalidation for the manual handoff lane; this "
+            "subcommand has no deletion capability. A clear verdict is valid "
+            "only at emission time — in a multi-path run the earliest checks "
+            "age while later paths are still probed, so verify ONE path per "
+            "deletion (verify one, delete that one, then the next) and "
+            "re-verify after any delay. The multi-path form is for reporting."
+        ),
+    }
 
 
 def removal_entries(relative: str, entries: dict[str, dict[str, Any]]) -> list[str]:
@@ -1662,6 +1892,13 @@ def build_parser() -> argparse.ArgumentParser:
             command.add_argument("--confirm-tier", required=True, choices=sorted(TIERS))
             command.add_argument("--approval-token", required=True)
             command.add_argument("--report", required=True)
+    verify = subparsers.add_parser(
+        "handoff-verify",
+        help="re-verify approved paths for the manual handoff lane (read-only)",
+    )
+    verify.add_argument("--snapshot", required=True)
+    verify.add_argument("--paths", required=True)
+    verify.add_argument("--data-root")
     return parser
 
 
@@ -1761,6 +1998,12 @@ def main(argv: list[str] | None = None) -> int:
                 }
             )
         snapshot = load_json(Path(args.snapshot))
+        if args.command == "handoff-verify":
+            approved = validate_handoff_paths(
+                load_json(Path(args.paths)), entry_map(snapshot)
+            )
+            result = handoff_verify(snapshot, approved)
+            return emit(result, 3 if result["not_clear"] else 0)
         plan = load_json(Path(args.plan))
         checked = preview(snapshot, plan)
         if args.command == "preview":

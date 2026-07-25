@@ -51,6 +51,13 @@ readonly CC_ERE='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)
 # shellcheck disable=SC2016  # backticks are a literal part of the deferral marker, not a substitution
 readonly PR_DEFERRAL='Same as `subject_pattern`.'
 
+# Well-known default path for the neutral convention SSOT — the marketplace's
+# own dogfooded docs/conventions/<concern>/ layout. When the team file declares
+# no explicit convention_source pointer, the resolver probes this path so the
+# common case reads ONE tool-agnostic file with no markdown pointer-parse. An
+# explicit pointer always overrides it; see the pointer-resolution block below.
+readonly WELL_KNOWN_NEUTRAL="docs/conventions/source-control/commit-convention.yml"
+
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   sed -n '2,40p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit 0
@@ -73,6 +80,16 @@ esac
 
 # Team-tracked layer only — the enforcement authority (see header).
 readonly TEAM_FILE="$repo_root/.claude/source-control.md"
+
+# --- Neutral convention SSOT (docs/conventions/commit-convention/, #1141) ---
+# The team file MAY declare `## convention_source` naming a repo-relative
+# flat-scalar YAML file (the tool-agnostic SSOT other consumers — commit-msg
+# hooks, CI — read with one sed). When declared, that file is authoritative for
+# the machine keys it carries; a key it omits falls back to the team markdown
+# H2. The pointer is honored from the TEAM file only (same policy floor — a
+# gitignored overlay must not redirect the gate), and a declared-but-broken
+# pointer FAILS CLOSED to no-enforcement with a diagnostic rather than silently
+# re-reading markdown values migration may have retired.
 
 # First non-empty body line under `## <key>`, CR-stripped. Empty when the
 # section is absent or bodyless. Awk over sed: needs section-state, not a line
@@ -97,6 +114,124 @@ h2_value() {
   ' "$file"
 }
 
+# First matching flat-scalar value for a key from the neutral YAML file:
+# `^<key>:` at column 0, CR-stripped, surrounding whitespace trimmed, ONE pair
+# of matching surrounding quotes ('…' or "…") removed. No YAML quote-escape
+# processing — the one-sed extraction contract other consumers rely on can't
+# either, so the seam doc tells authors to write patterns that need no escaping.
+# Full-line `#` comments never match the key anchor; trailing `#` text is NOT
+# stripped (a regex may legitimately contain `#`).
+yaml_value() {
+  local file="$1" k="$2" line v
+  [[ -f "$file" ]] || return 0
+  line="$(grep -m1 -E "^${k}:" "$file" | tr -d '\r')"
+  [[ -n "$line" ]] || return 0
+  v="${line#"${k}":}"
+  v="${v#"${v%%[![:space:]]*}"}"
+  v="${v%"${v##*[![:space:]]}"}"
+  if [[ ${#v} -ge 2 && ("$v" == \'*\' || "$v" == \"*\") && "${v:0:1}" == "${v: -1}" ]]; then
+    v="${v:1:${#v}-2}"
+  fi
+  printf '%s' "$v"
+}
+
+# Resolve the optional neutral-file pointer. Sets NEUTRAL_FILE (empty when no
+# pointer is declared). A declared pointer that cannot be honored — absolute or
+# traversal path, missing file, or a dialect other than posix-ere — disables
+# enforcement (exit 1) with a diagnostic: fail closed, never fall back.
+NEUTRAL_FILE=""
+ptr="$(h2_value "$TEAM_FILE" "convention_source")"
+# Precedence: an explicit convention_source (rung 1) always wins. Absent one,
+# probe the well-known default path (rung 2) so the common case needs no pointer
+# at all; absent that too, resolution falls through to the markdown H2 (rung 3)
+# with full back-compat. The default is a plain repo-relative path and passes the
+# same safety checks below as any pointer.
+#
+# POLICY FLOOR: the well-known rung activates ONLY when the file is git-TRACKED.
+# Unlike an explicit convention_source — whose opt-in is a tracked edit to the
+# team file — this rung has no other tracked signal, so honoring an untracked or
+# gitignored file at this path would let a generated/local artifact silently
+# override team policy (or, if malformed, disable enforcement) on one checkout.
+# git unavailable, or the file untracked -> skip this rung and fall through to
+# the markdown H2 (fail toward the prior behavior, never toward the hole).
+if [[ -z "$ptr" && -f "$repo_root/$WELL_KNOWN_NEUTRAL" ]] &&
+  git -C "$repo_root" ls-files --error-unmatch -- "$WELL_KNOWN_NEUTRAL" >/dev/null 2>&1; then
+  ptr="$WELL_KNOWN_NEUTRAL"
+fi
+if [[ -n "$ptr" ]]; then
+  case "$ptr" in
+  /* | [A-Za-z]:* | *\\* | *..*)
+    # Repo-relative forward-slash paths only: no absolute paths (POSIX or
+    # drive-lettered), no backslash separators, no `..` traversal — a tracked
+    # pointer must not read outside the repository the gate governs.
+    printf '%s\n' "resolve-convention-pattern: convention_source '$ptr' is not a plain repo-relative path (absolute, backslash, or '..' segment); enforcement disabled." >&2
+    exit 1
+    ;;
+  *) ;; # plain repo-relative path — proceed
+  esac
+  NEUTRAL_FILE="$repo_root/$ptr"
+  if [[ ! -f "$NEUTRAL_FILE" ]]; then
+    printf '%s\n' "resolve-convention-pattern: convention_source declares '$ptr' but no such file exists under the repo root; enforcement disabled (fix the pointer or restore the file)." >&2
+    exit 1
+  fi
+  # The lexical checks above don't stop a symlink escape: a repo-relative
+  # pointer can name a symlink (or sit under a symlinked directory) whose
+  # physical target is outside the repository, letting untracked external
+  # content steer the gate. Require a REGULAR file whose physical directory
+  # (pwd -P canonicalizes every symlinked path segment) stays under the
+  # physical repo root. Pure-bash on purpose — the vendored hook copy cannot
+  # assume realpath exists on every consumer machine.
+  if [[ -L "$NEUTRAL_FILE" ]]; then
+    printf '%s\n' "resolve-convention-pattern: convention_source '$ptr' is a symlink; the neutral file must be a regular tracked file — enforcement disabled." >&2
+    exit 1
+  fi
+  canon_root="$(cd "$repo_root" 2>/dev/null && pwd -P)"
+  canon_dir="$(cd "$(dirname "$NEUTRAL_FILE")" 2>/dev/null && pwd -P)"
+  # Pure string-prefix test, not a glob: a `!= "$canon_root/"*` match would let a
+  # glob metacharacter in the physical repo path (`[`, `*`, `?`) be interpreted
+  # rather than compared literally. Compare the leading bytes of "$canon_dir/"
+  # against "$canon_root/" directly.
+  canon_prefix="$canon_root/"
+  canon_dir_slash="$canon_dir/"
+  if [[ -z "$canon_root" || -z "$canon_dir" || "${canon_dir_slash:0:${#canon_prefix}}" != "$canon_prefix" ]]; then
+    printf '%s\n' "resolve-convention-pattern: convention_source '$ptr' resolves outside the repository root (symlinked path segment); enforcement disabled." >&2
+    exit 1
+  fi
+  dialect="$(yaml_value "$NEUTRAL_FILE" dialect)"
+  if [[ -n "$dialect" && "$dialect" != "posix-ere" ]]; then
+    printf '%s\n' "resolve-convention-pattern: convention_source file declares dialect '$dialect'; enforcement consumes posix-ere only — enforcement disabled." >&2
+    exit 1
+  fi
+fi
+
+# A key the neutral file CARRIES must hold a value. Present-but-empty
+# (`subject_pattern:` or `subject_pattern: ''`) is a configuration error, not
+# an omission — silently falling back to the markdown H2 would enforce a stale
+# pattern the migration meant to retire. Runs at top level (not inside a
+# command substitution) so the exit reaches the caller.
+check_neutral_key() {
+  local k="$1"
+  [[ -n "$NEUTRAL_FILE" ]] || return 0
+  grep -q -E "^${k}:" "$NEUTRAL_FILE" || return 0
+  [[ -n "$(yaml_value "$NEUTRAL_FILE" "$k")" ]] && return 0
+  printf '%s\n' "resolve-convention-pattern: convention_source file carries '$k' with an empty value; a carried key must hold a value (delete the line to fall back to the markdown H2) — enforcement disabled." >&2
+  exit 1
+}
+
+# Team-layer value for a machine key: the neutral file when the pointer is
+# declared AND that file carries the key; the team markdown H2 otherwise.
+team_value() {
+  local k="$1" v
+  if [[ -n "$NEUTRAL_FILE" ]]; then
+    v="$(yaml_value "$NEUTRAL_FILE" "$k")"
+    if [[ -n "$v" ]]; then
+      printf '%s' "$v"
+      return 0
+    fi
+  fi
+  h2_value "$TEAM_FILE" "$k"
+}
+
 # Enforcement patterns are POSIX ERE, NOT PCRE. The resolver does not translate
 # a pattern (translating PCRE->ERE by string rewriting is unsound — bracket
 # expressions, POSIX classes, and escaped backslashes all break naive
@@ -118,10 +253,13 @@ is_non_ere() {
   return 1
 }
 
-# Resolve one key's raw value from the team layer, expanding the CC keyword.
+# Resolve one key's raw value from the team layer (neutral file first when the
+# pointer is declared — team_value), expanding the CC keyword. The keyword and
+# the deferral marker work identically on both surfaces: one literal each, no
+# per-surface variants to drift.
 raw_value() {
   local k="$1" v
-  v="$(h2_value "$TEAM_FILE" "$k")"
+  v="$(team_value "$k")"
   [[ -n "$v" ]] || return 0
   if [[ "$v" == "Conventional Commits" ]]; then
     printf '%s' "$CC_ERE"
@@ -130,12 +268,18 @@ raw_value() {
   fi
 }
 
+# Present-but-empty neutral keys fail closed BEFORE resolution (top-level so
+# the exit propagates; both keys checked for pr_title_pattern since its
+# deferral marker re-reads subject_pattern).
+check_neutral_key "$key"
+[[ "$key" == "pr_title_pattern" ]] && check_neutral_key "subject_pattern"
+
 value="$(raw_value "$key")"
 
 # pr_title_pattern deferral: `Same as `subject_pattern`.` enforces the effective
 # subject pattern. Resolve against the raw (pre-expansion) pr_title value.
 if [[ "$key" == "pr_title_pattern" ]]; then
-  raw_pr="$(h2_value "$TEAM_FILE" "pr_title_pattern")"
+  raw_pr="$(team_value "pr_title_pattern")"
   if [[ "$raw_pr" == "$PR_DEFERRAL" ]]; then
     value="$(raw_value "subject_pattern")"
   fi
