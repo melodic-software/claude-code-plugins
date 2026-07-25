@@ -3,6 +3,26 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.5]
+
+### Fixed
+
+- **`babysit-prs` no longer states bare-name wrapper resolution as permanently broken (`#843`).**
+  `safety.md` asserted the bundled wrappers' bare names "are not on the Bash tool's `PATH`", and the
+  two `bin/` wrapper headers presented their bare-command allow-rule rationale as operative fact.
+  Both were wrong in opposite directions. A snapshot corpus on the reporting machine shows plugin
+  `bin/` directories reaching the Bash tool's `PATH` in 35 of 112 sessions — 4 of them carrying this
+  plugin's own `bin/` — so the feature is delivered, then intermittently lost: a plugin's `bin/`
+  arrives only via the session shell snapshot's final `export PATH=` line, and when that line does
+  not land every enabled plugin's `bin/` goes with it
+  ([anthropics/claude-code#68066](https://github.com/anthropics/claude-code/issues/68066)). The
+  original "Windows/Git-Bash never delivers it" reading was a sampling artifact — every reproduction
+  on the issue fell inside one degraded window. Guidance is unchanged and was already correct: the
+  `${CLAUDE_PLUGIN_ROOT}/bin/` path form is canonical because it works in both states. Only the
+  justification changed, and it mattered — a reader who tested on a healthy-snapshot session found
+  the doc contradicting their own shell, and the documented reason to keep using the path form
+  evaporated exactly when it looked safe to drop it.
+
 ## [0.26.4]
 
 ### Fixed

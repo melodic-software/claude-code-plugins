@@ -231,11 +231,16 @@ bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" <args>
 ```
 
 Launching the wrapper by path still runs the wrapper itself, so every wrapper guard stays intact
-— it is not a guard-dodging re-spelling (only invoking the raw Python is). The bundled wrappers'
-bare names are not on the Bash tool's `PATH`, so a bare `source-control-babysit-merge …` fails
-`command not found`; the `${CLAUDE_PLUGIN_ROOT}/bin/` path — resolved exactly as the sibling
-`${CLAUDE_PLUGIN_ROOT}/scripts/` invocations are — is the reliable form. Every command spelled
-below as `source-control-babysit-<x> …` is launched this way.
+— it is not a guard-dodging re-spelling (only invoking the raw Python is). Bare-name resolution is
+**unreliable**, not absent: a plugin's `bin/` reaches the Bash tool's `PATH` only through the
+session shell snapshot's final `export PATH=` line, which intermittently does not land — and when
+it doesn't, every enabled plugin's `bin/` goes with it and a bare `source-control-babysit-merge …`
+fails `command not found`
+([anthropics/claude-code#68066](https://github.com/anthropics/claude-code/issues/68066)). Because
+the failure is per-session and silent, a bare name that resolves today can be gone next session, so
+the `${CLAUDE_PLUGIN_ROOT}/bin/` path — resolved exactly as the sibling
+`${CLAUDE_PLUGIN_ROOT}/scripts/` invocations are — is the form that works in both states. Every
+command spelled below as `source-control-babysit-<x> …` is launched this way.
 
 Capture the wrapper's output first, then parse its JSON in a *separate* step — never pipe the
 wrapper into an interpreter (`… | python`, `… | jq`): an interpreter-in-pipeline trips the
