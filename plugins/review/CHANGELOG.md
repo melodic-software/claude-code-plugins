@@ -3,33 +3,45 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.2]
+
+### Fixed
+
+- Carried the `code-review` framing reconciliation of `0.15.1` into the `fanout` skill, which
+  described the same nonexistent plugin independently: `SKILL.md`'s "Orchestrator plugins" section
+  and `context/findings-normalization.md` both listed `code-review` as one of three optional
+  `claude-plugins-official` orchestrator plugins invoked as `/code-review:code-review`. `SKILL.md`
+  now carries its own "Boundary" section for the two real surfaces, and
+  `findings-normalization.md`'s per-surface parse-contracts table no longer lists `code-review` as
+  a normalized fan-out leaf. Two `fanout` evals (`pr-comment-gate-opt-in`, renamed
+  `unscored-surface-severity-derived-not-invented`) carried the same stale framing and were updated
+  for internal consistency. The two surface descriptions are not restated — `SKILL.md` points at
+  `pr.md`'s Boundary for those and carries only the fan-out-specific reasoning.
+- `fanout`'s exclusion of the bundled command no longer rests on classing a **bare**
+  `/code-review` invocation as PR-mutating. Per <https://code.claude.com/docs/en/code-review>
+  ("Review a diff locally"), bare `/code-review` is report-only — findings arrive in the
+  conversation, and only `--fix` and `--comment` mutate — matching the gate scoping `pr.md` already
+  applies. The Boundary section now states the real reason it is not a normalized leaf (it is
+  itself a multi-agent review of the same diff, with no documented output schema to write a parse
+  contract against) and points the reader at running it directly (review-caught).
+- The README's optional-orchestrator roster also names `codex` (OpenAI Codex marketplace), the
+  other orchestrator `fanout` dispatches, and points at both skills' Boundary sections
+  (review-caught).
+
 ## [0.15.1]
 
 ### Fixed
 
-- Reconciled stale `code-review` framing in the `fanout` skill's `SKILL.md` "Orchestrator
-  plugins" section and `context/findings-normalization.md`: both described `code-review` as one
-  of three optional `claude-plugins-official` marketplace orchestrator plugins, invoked as
-  `/code-review:code-review`. Per current official docs
-  (<https://code.claude.com/docs/en/code-review>), `/code-review` is a bundled built-in command
-  (invoked bare, no plugin namespace) and the "parallel agents / posts PR comments" behavior
-  actually describes the separate managed Code Review GitHub App service — neither is an
-  installable marketplace plugin. `SKILL.md` now documents both surfaces distinctly under a new
-  "Boundary" section (mirroring the pattern `quality-gate`'s `pr.md` already uses, #732), and
-  `findings-normalization.md`'s per-surface parse-contracts table no longer lists `code-review` as
-  a normalized fan-out leaf. Also updated two `fanout` evals (`pr-comment-gate-opt-in`,
-  renamed `unscored-surface-severity-derived-not-invented`) that referenced the same stale
-  "code-review orchestrator plugin" framing, for internal consistency.
-- `README.md`'s "Graceful degrade" bullet named the same nonexistent `code-review` marketplace
-  plugin as an optional install; it now names the two real optional orchestrator plugins
-  (`pr-review-toolkit`, `codex`) and points at the new `Boundary` section for the built-in command
-  and the managed service (review-caught).
-- The `Boundary` section no longer classes a **bare** `/code-review` invocation as PR-mutating. Per
-  the same official page, bare `/code-review` is report-only — findings arrive in the conversation
-  and only `--fix` and `--comment` mutate — so the exclusion rationale now states the real reason
-  (it is itself a multi-agent review of the same diff, with no documented output schema to write a
-  parse contract against) and keeps the PR-mutation gate scoped to `--comment` and the managed
-  service (review-caught).
+- Reconciled stale `code-review` framing in `quality-gate`'s `pr.md` and the plugin README: it
+  described `code-review` as an optional `claude-plugins-official` marketplace plugin invoked as
+  `/code-review:code-review`. Per current official docs, `/code-review` is a bundled built-in
+  command (invoked bare) and the "parallel agents / posts PR comments" behavior actually
+  describes the separate managed Code Review GitHub App service — neither is an installable
+  marketplace plugin. `pr.md` now documents both surfaces distinctly under a Boundary section,
+  mirroring the pattern `code.md` already uses for its own built-in boundary (#266/#735). The
+  section's mutation gate covers only the surfaces that actually write — `--comment` (posts to the
+  PR), `--fix` (mutates the working tree), and the managed service — leaving bare
+  `/code-review <target>` ungated as a read-only option.
 
 ## [0.15.0]
 

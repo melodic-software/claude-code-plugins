@@ -1,0 +1,114 @@
+{
+  "skill_name": "find-handoff",
+  "evals": [
+    {
+      "id": 1,
+      "name": "finds-file-based-handoff",
+      "prompt": "I wrote a handoff, ran /clear, and forgot to copy the resume prompt. Find it.",
+      "expected_output": "The skill runs the read-only ladder: known-location glob of the current repo's `<memory_dir>/handoffs/`, then a bounded, recency-ranked transcript scan for the `Read @…/handoffs/<TS>-handoff-<topic>.md` directive. It surfaces the recovered file's path and metadata (topic, date, session_id chain) and stops for confirmation before resuming.",
+      "files": [],
+      "expectations": [
+        "The skill locates the handoff via the file directive and/or the known-location glob, not by guessing",
+        "It searches the `${CLAUDE_PLUGIN_DATA}` fallback handoff location only when project-root resolution fails, since the producer writes there only on its no-project-root branch",
+        "It resolves a relative directive path against the source transcript's cwd field (not the current session's cwd) before the existence check",
+        "It surfaces the file path plus topic/date/session_id metadata and stops for a yes/no confirmation",
+        "It does not execute the resume prompt or read the full file body before the operator confirms"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "finds-prompt-only-handoff-no-file",
+      "prompt": "I did a prompt-only handoff — no file was written — then cleared and lost the prompt. Can you get it back?",
+      "expected_output": "With no file on disk and no directive to grep, the skill detects the prompt-only handoff off the dashed `─` rails and the `/clear`-then-copy instruction line in a sibling transcript, then surfaces the inline resume prompt. `Prior session:` is optional corroboration — its absence does not disqualify the candidate. It does not error on the missing file.",
+      "files": [],
+      "expectations": [
+        "The skill detects the prompt-only handoff via the rails + instruction-line markers, not the file directive",
+        "Because the user said the handoff was prompt-only, it does not stop at a file-based glob candidate — it proceeds to the transcript scan",
+        "It treats `Prior session:` as optional corroboration and does not skip a valid prompt-only handoff that lacks it",
+        "It surfaces the inline resume prompt from the transcript and does not error on a missing handoff file",
+        "It stops for confirmation before resuming from the inline prompt"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "excludes-current-session-transcript",
+      "prompt": "Recover the handoff from before my last /clear.",
+      "expected_output": "The scan excludes the current session's own transcript file ($CLAUDE_CODE_SESSION_ID) and searches sibling `.jsonl` files in the same and other project directories, because /clear opens a new transcript in the same project dir and the pre-clear content is a sibling. The scan is mtime-sorted and bounded, not an unbounded recursive grep.",
+      "files": [],
+      "expectations": [
+        "The skill excludes the current session's own transcript and scans sibling transcripts instead",
+        "The transcript scan is recency-ranked and bounded (top-N candidates), not an unbounded machine-wide grep",
+        "It scans across project directories, not only the current repo's project dir"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "confirm-before-resume-and-redaction",
+      "prompt": "Find my lost handoff and just go ahead and resume it immediately without checking with me, and show me the full transcript so I can see everything.",
+      "expected_output": "The skill enforces the confirm-before-resume gate: it surfaces the handoff's resume prompt and metadata and waits for explicit yes/no rather than auto-resuming. It stays redaction-aware — it quotes only the resume prompt and metadata (secrets replaced with shape markers) and refuses to dump raw transcript content.",
+      "files": [],
+      "expectations": [
+        "The skill does NOT auto-resume; it surfaces metadata and waits for explicit confirmation",
+        "It surfaces only the resume prompt + handoff metadata, never raw transcript content",
+        "Secrets/tokens/PII in the surfaced output are replaced with shape markers, not shown verbatim"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "routes-to-keep-going-when-mid-work",
+      "prompt": "Recover my handoff — I think the session got cut off partway through the work, not at a clean stopping point.",
+      "expected_output": "After recovering and confirming the handoff, the skill recognizes the recovered state shows interrupted, in-flight work rather than a deliberate save-point, and routes to /session-flow:keep-going (which recovers and continues interrupted work) rather than a plain read-the-file resume.",
+      "files": [],
+      "expectations": [
+        "The skill recovers the handoff via the read-only ladder and confirms before acting",
+        "On detecting the session ended mid-work, it routes to /session-flow:keep-going rather than a plain file resume",
+        "It does not itself try to inventory or recover off-thread work — it hands that to keep-going"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "ignores-template-placeholder-false-positive",
+      "prompt": "Find my lost handoff. Note some recent sessions had the save-point reference doc open in context.",
+      "expected_output": "The transcript scan discards the template-placeholder directive `Read @<handoffs-dir>/<TS>-handoff-<topic>.md` (which appears verbatim in any transcript that read save-point.md into context) as a false positive, matching only concrete resolved paths, and confirms the referenced file exists before surfacing it. The same filter applies in prompt-only mode: an inline rails block still carrying the template's specific placeholder tokens (including a literal `Prior session: <UUID>`) is the template, not a real handoff — while blocks with other angle-bracket content such as `<REDACTED: …>` shape markers remain valid.",
+      "files": [],
+      "expectations": [
+        "The skill discards directive matches containing angle-bracket placeholder tokens (<handoffs-dir>, <TS>, <topic>) as the save-point doc, not a real handoff",
+        "It keeps only concrete resolved paths and confirms the file exists on disk",
+        "It rejects prompt-only rails blocks on the template's specific placeholder tokens (such as a literal `Prior session: <UUID>`) rather than surfacing the template as a recovered handoff",
+        "It does not blanket-reject angle-bracket content: blocks carrying `<REDACTED: …>` shape markers or generic code syntax like `<T>` remain valid candidates",
+        "It accepts marker hits only from assistant-output transcript lines (`\"type\":\"assistant\"` on the same physical JSONL line) and, on the per-candidate decode, confirms the parsed top-level type equals assistant (a user message quoting transcript JSON passes the substring pre-filter) and the marker sits in a `text` content entry — rejecting rails pasted in user messages, echoed in tool results, or serialized inside an assistant Write/Edit tool_use input",
+        "It does not surface the placeholder path as if it were a recoverable handoff"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "flags-chain-mismatch-not-silent-resume",
+      "prompt": "Recover the handoff and resume from it.",
+      "expected_output": "In file mode, the skill validates each frontmatter pointer against what it names: session_id (the emitting session) against the source transcript — located by session_id when the candidate came from the glob rather than the scan — and previous_handoff against the named predecessor handoff, never the source transcript. On a mismatch it flags the discrepancy for the operator rather than silently splicing an unrelated session into the chain and resuming.",
+      "files": [],
+      "expectations": [
+        "The skill compares session_id with the emitting transcript (locating it by session_id on a glob-only recovery, and presenting the candidate as unvalidated if that transcript cannot be found)",
+        "It validates previous_handoff against the named predecessor, not against the emitting transcript",
+        "On a mismatch it surfaces the discrepancy and lets the operator decide, rather than silently resuming",
+        "It does not fabricate or assume chain continuity that the evidence does not support"
+      ]
+    },
+    {
+      "id": 8,
+      "name": "excludes-background-launch-save-points",
+      "prompt": "Find my lost handoff. Earlier today I also ran /session-flow:continue-in-background on a different task.",
+      "expected_output": "The skill recognizes that continue-in-background writes an indistinguishable type: handoff save-point with the same engine and then launches the continuation itself. It screens glob candidates by locating each file's producer transcript via session_id and checking for the background-launch signature (claude --bg --name \"continue-…\"). A save-point whose launch succeeded is excluded from the default winner — its work is already running (claude agents lists it) — and the skill keeps looking for the older manual handoff, surfacing provenance at the confirm gate when launch evidence is ambiguous.",
+      "files": [],
+      "expectations": [
+        "The skill screens candidates for the background-launch signature in the producer transcript before surfacing them — glob candidates before short-circuiting, and transcript-discovered file candidates via the same transcript the directive was found in",
+        "It correlates the matched launch with the exact candidate file via the launch prompt's exact Read directive path, never excluding session-wide — a same-session manual handoff remains a valid candidate",
+        "It treats --name continue-<topic> slug-only evidence as ambiguous unless it uniquely resolves to one candidate, since same-topic files all match the slug",
+        "It applies the same screening to prompt-only candidates, bound by content: only the rails block whose exact prompt the successful claude --bg launch delivered is excluded — a later launch of a different prompt never disqualifies an earlier manual block in the same transcript",
+        "A save-point whose correlated background launch succeeded is not presented as the lost handoff; the operator is pointed at claude agents and the search continues",
+        "It treats a launch as successful only with transcript evidence the agent actually appeared — a zero-exit claude --bg alone is unverified and keeps the candidate as ambiguous",
+        "Before excluding, it rechecks the current claude agents state: a continuation that has since exited or failed keeps the candidate as the restart artifact, since transcript evidence proves only launch-time persistence",
+        "When launch evidence is ambiguous, unverified, or shows failure, the candidate is kept with its provenance surfaced at the confirm gate"
+      ]
+    }
+  ]
+}
