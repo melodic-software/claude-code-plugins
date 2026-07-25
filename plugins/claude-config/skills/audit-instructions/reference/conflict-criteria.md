@@ -122,6 +122,19 @@ as inventing a precedence winner. Fetch the hooks page to close it.
 they only bite once that surface loads. Report the distinction; do not drop conditional pairs, because
 the worked example below is one.
 
+## Known limit: Phase A does not reach the plugin-source surface
+
+Phase A enumerates two roots — user `${CLAUDE_CONFIG_DIR:-~/.claude}` and project `.claude/**`. In a
+marketplace repository that never reaches `plugins/`, so this pass currently runs against the
+surfaces Phase A collects and **several pairs have no second side available**: a skill's stated
+default against its plugin README, and agent definitions shipped inside plugins against the memory
+layer.
+
+ADR 0005 makes extending Phase A a precondition of this placement, and it is tracked as
+[#1421](https://github.com/melodic-software/claude-code-plugins/issues/1421) rather than folded in
+here — it widens what *every* phase reads, not only this one. **Report the limit in the pass's
+tier-transparency line** so a clean result is not read as coverage it does not have.
+
 ## Scope filters findings, never reads
 
 `audit-instructions` takes a scope argument that narrows Phase A's inventory. A pairwise observable
