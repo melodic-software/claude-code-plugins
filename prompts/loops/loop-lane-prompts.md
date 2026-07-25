@@ -92,7 +92,7 @@ into one profile.
   gh issue list --label "$ROLE" --limit 500 --json number,body,labels \
     | jq --argjson valid "$VALID" '
         [.[] | select(
-          (.body | test("(^|\\n)Work-class: C[1-5]( |$)"))
+          (.body | test("(^|\\n)Work-class: C[1-5]( |\\n|$)"))
           or (any(.labels[].name; . as $n | $valid | index($n)))
         )] | length'
   ```
@@ -101,12 +101,16 @@ into one profile.
   `--argjson`** — pipe to `jq` instead of using `--jq`. And jq's regex engine
   does **not** honor `(?m)`, so the trailer is anchored with `(^|\n)`.
 
-  The trailing `( |$)` is a **token boundary, not merely a non-digit**: it
+  The trailing `( |\n|$)` is a **token boundary, not merely a non-digit**: it
   rejects `C12` after matching `C1`, and equally rejects `C2foo` and `C3?`,
   which a `[^0-9]` guard would have counted as canonical. Every widening of
   this pattern inflates the readiness count the rung decision trusts, so keep
   it strict — the canonical trailer always continues with a space or ends the
-  line.
+  line. The `\n` alternative is what makes "ends the line" true: because the
+  engine is not multiline, `$` means end of the whole body, so a bare
+  `Work-class: C2` followed by any further body section matches only via the
+  newline — omit it and a body-stamp repo under-reports to the point of
+  reporting zero.
 
   **Always pass `--limit`** — `gh issue list` silently truncates at 30, so an
   unbounded count under-reports any backlog past that.
@@ -120,22 +124,29 @@ into one profile.
   hole, not a cosmetic omission — it lets a behavioral change be stamped C2
   and merged unattended.
 
-  **Define it fail-closed: every plugin-tree `.md` is runtime until proven
-  inert.** A forward derivation — grep the skill bodies for what they load,
-  then treat the results as the boundary — is tempting and is wrong twice
-  over. It misses every load directive that is not a markdown link (bare
+  **Define it fail-closed: every tracked `.md` in the repository is runtime
+  until proven inert.** A forward derivation — grep the skill bodies for what
+  they load, then treat the results as the boundary — is tempting and is wrong
+  twice over. It misses every load directive that is not a markdown link (bare
   `Read references/shared/*.md` lines, glob directives, paths built at run
   time), and any pattern that strips the originating file yields ambiguous
   bare names: `context/audit.md` alone names three different runtime files
   in this repo. A boundary that silently under-reports is worse than no
   boundary, because it reads as coverage.
 
-  So invert it. **The whole plugin tree is the boundary**; subtraction is
-  per path and needs proof:
+  So invert it. **The whole tracked `.md` set is the boundary**; subtraction
+  is per path and needs proof:
 
   ```bash
-  find plugins -name '*.md'
+  git ls-files '*.md'
   ```
+
+  **A plugin tree is not the outer edge.** Some of the most behavioral
+  Markdown sits outside it: `.claude/source-control.md` supplies the merge
+  rung this very profile reads, and a root `CLAUDE.md` (or `AGENTS.md`)
+  supplies operating rules every agent loads. Start the boundary at
+  `plugins/` and an issue changing either one is ordinary documentation —
+  stamped C2 and merged unattended while it changes lane or agent behavior.
 
   **No filename is inert by convention — `README.md` least of all.** In this
   repo `tools/work-item-tracker/adapters/github/README.md` is the GitHub
@@ -312,6 +323,7 @@ no shared state, no contention, and the sharding problem disappears.
 > /loop /work-items:work-loop
 >
 > Repository: `{{REPO}}`
+> Runtime surfaces in this repo: `{{RUNTIME_SURFACES}}`
 >
 > **Standing authorization.** Autonomous lane. These standing rules are
 > the direction that `/work-items:triage`'s mutation gate and the
@@ -358,6 +370,16 @@ no shared state, no contention, and the sharding problem disappears.
 > An item without a recorded class still goes through the admission gate's
 > own classification, and a candidate the gate cannot confidently classify
 > fails closed to human-gated and is escalated, never worked.
+>
+> **That gate needs the runtime boundary, so it is on the `Runtime surfaces`
+> line above.** A change to any path in it is **never mechanical**, however
+> doc-shaped it looks — those paths are loaded by an agent at run time, so
+> editing one changes behavior. Without the boundary the gate would judge
+> such an item C2 and admit it autonomously. The boundary is fail-closed:
+> a path is runtime unless you can show nothing loads it, per path, and a
+> link grep is not that proof — bare `Read <path>` directives, globs, and
+> `${CLAUDE_PLUGIN_ROOT}`-relative paths return from no link pattern. When
+> you cannot prove a path inert, classify to the higher class.
 >
 > **A missing label is not a missing class.** The merge partition accepts a
 > recorded class from the item **body or** labels, so an item carrying a
@@ -514,9 +536,13 @@ letting one "primary" shard write it records a partial pass as the whole.
 > upsert entirely and put your pass report in this session instead. Only a
 > single-terminal attended session may write it.
 >
-> Use `/planning:interview` to drive an escalated question to a decision,
-> and write the answer back as a comment on the item — the decision lives
-> on the tracker, not in this session.
+> Use `/planning:interview` to drive an escalated question to a decision
+> **when the `planning` plugin is installed here**; otherwise ask the
+> focused questions inline, one at a time, most load-bearing first — the
+> same fallback attend-queue itself specifies, since `work-items` installs
+> independently of `planning` and an unconditional invocation would just
+> stall every escalated row. Either way, write the answer back as a comment
+> on the item — the decision lives on the tracker, not in this session.
 >
 > **Work classes: you propose, I apply — labels and body trailers alike.**
 > The autonomy contract forbids any repo-local agent-writable surface from
@@ -610,18 +636,24 @@ Filled instance for the repository in use as of 2026-07-25.
 | `{{STOP}}` | `--drain` |
 | `{{RUNTIME_SURFACES}}` | see below — derived, not a two-glob list |
 
-- Runtime surfaces: **not** just `SKILL.md` and `reference/*.md`. Under the
-  fail-closed definition above, **all 875 markdown files under `plugins/`**
-  are runtime for classification until individually proven inert —
-  `SKILL.md`, `agents/*.md` (the six installed reviewer agents among them),
+- Runtime surfaces: **not** just `SKILL.md` and `reference/*.md`, and not
+  bounded by `plugins/` either. Under the fail-closed definition above,
+  **every tracked markdown file** (`git ls-files '*.md'`) is runtime for
+  classification until individually proven inert. The plugin tree is the bulk
+  — `SKILL.md`, `agents/*.md` (the six installed reviewer agents among them),
   `context/**` (57 directories), `references/**`, nested `reference/**`, and
-  `templates/**`. Not even `README.md` is safe to exclude by name here:
+  `templates/**` — but the two most behavioral files sit outside it:
+  `.claude/source-control.md` supplies the merge rung, and root `CLAUDE.md`
+  supplies the operating rules every agent in this repo loads. Not even
+  `README.md` is safe to exclude by name here:
   `tools/work-item-tracker/adapters/github/README.md` is the GitHub adapter's
   operations reference, loaded by `reference/tracker-seam.md` and
-  `skills/work/SKILL.md`. Re-run the count rather than reusing this number;
-  it moves with every plugin added.
+  `skills/work/SKILL.md`. Re-run the listing rather than reusing a count; it
+  moves with every plugin added.
 - Merge rung: `c2-mechanical`, live in tracked config on `main`. Raising to
-  `c3-autonomous` is a one-line edit to `.claude/source-control.md`.
+  `c3-autonomous` is a one-line edit to `.claude/source-control.md` — a
+  mechanically trivial one the guardrail matrix does not currently authorize
+  (see "Tier is not the rung" below).
 - Work-class labels: deployed. Exact strings, ascending risk:
   `work-class: read-only`, `work-class: mechanical`, `work-class: scoped`,
   `work-class: structural`, `work-class: untrusted-provenance`.
@@ -662,8 +694,17 @@ overnight without me":
 `full-autonomy` as a rung adds only C4 `structural` and C5
 `untrusted-provenance` on top of `c3-autonomous` — refactors, migrations,
 contract changes, and fork PRs. That is the category least suited to
-landing unattended, for near-zero throughput gain over c3. Recommend
-`c3-autonomous`.
+landing unattended, for near-zero throughput gain over c3, so `full-autonomy`
+is never the answer here.
+
+**But that ranking is not a recommendation to raise.** The governing policy
+is `plugins/autonomy/reference/guardrails.md`'s matrix, which sets C3 merge
+policy to `human merge`, and its promotion table, which defines an auto-merge
+evidence predicate for C2 only — C3 has no auto-merge promotion cell at all.
+Until that policy defines a C3 promotion path, **stay at `c2-mechanical`**:
+the eligible-count arithmetic above says what the seam would do, not what
+the contract permits. Raising the rung anyway is an operator decision to
+override the matrix, and it belongs in a change to the policy first.
 
 Neither rung bypasses classification: an item with **no recorded class in
 either source** — no `Work-class: C<n>` body trailer and no `work-class:`
@@ -684,6 +725,12 @@ machines; neither on the attended box.
 > /loop /work-items:work-loop
 >
 > Repository: `melodic-software/claude-code-plugins`
+> Runtime surfaces in this repo: **every tracked markdown file**
+> (`git ls-files '*.md'`) — the plugin tree is the bulk of it, plus
+> `.claude/source-control.md` (this lane's merge rung) and root
+> `CLAUDE.md` / `AGENTS.md`. No filename is exempt by convention:
+> `tools/work-item-tracker/adapters/github/README.md` is the GitHub
+> adapter's operations reference.
 >
 > **Standing authorization.** Autonomous lane. These standing rules are
 > the direction that `/work-items:triage`'s mutation gate and the
@@ -730,6 +777,16 @@ machines; neither on the attended box.
 > An item without a recorded class still goes through the admission gate's
 > own classification, and a candidate the gate cannot confidently classify
 > fails closed to human-gated and is escalated, never worked.
+>
+> **That gate needs the runtime boundary, so it is on the `Runtime surfaces`
+> line above.** A change to any path in it is **never mechanical**, however
+> doc-shaped it looks — those paths are loaded by an agent at run time, so
+> editing one changes behavior. Without the boundary the gate would judge
+> such an item C2 and admit it autonomously. The boundary is fail-closed:
+> a path is runtime unless you can show nothing loads it, per path, and a
+> link grep is not that proof — bare `Read <path>` directives, globs, and
+> `${CLAUDE_PLUGIN_ROOT}`-relative paths return from no link pattern. When
+> you cannot prove a path inert, classify to the higher class.
 >
 > **A missing label is not a missing class.** The merge partition accepts a
 > recorded class from the item **body or** labels, so an item carrying a
@@ -835,10 +892,13 @@ terminals mutating the same row.
 >
 > Repository: `melodic-software/claude-code-plugins`
 > Shard: `[ratify]`
-> Runtime surfaces in this repo: **every markdown file under `plugins/`** —
-> 875 at last count. `SKILL.md`, `agents/*.md`, `commands/*.md`, and every
-> `reference/**`, `references/**`, `context/**`, `templates/**` file at any
-> depth. No filename is exempt by convention: this repo's
+> Runtime surfaces in this repo: **every tracked markdown file**
+> (`git ls-files '*.md'`) — the plugin tree is the bulk of it (`SKILL.md`,
+> `agents/*.md`, `commands/*.md`, and every `reference/**`, `references/**`,
+> `context/**`, `templates/**` file at any depth), but it is not the edge:
+> `.claude/source-control.md` supplies this lane's merge rung, and root
+> `CLAUDE.md` / `AGENTS.md` supply operating rules every agent loads. No
+> filename is exempt by convention either: this repo's
 > `tools/work-item-tracker/adapters/github/README.md` is the GitHub adapter's
 > operations reference, so even a README edit here can change lane behavior.
 > Treat a path as runtime unless you can show nothing loads it.
@@ -862,9 +922,13 @@ terminals mutating the same row.
 > upsert entirely and put your pass report in this session instead. Only a
 > single-terminal attended session may write it.
 >
-> Use `/planning:interview` to drive an escalated question to a decision,
-> and write the answer back as a comment on the item — the decision lives
-> on the tracker, not in this session.
+> Use `/planning:interview` to drive an escalated question to a decision
+> **when the `planning` plugin is installed here**; otherwise ask the
+> focused questions inline, one at a time, most load-bearing first — the
+> same fallback attend-queue itself specifies, since `work-items` installs
+> independently of `planning` and an unconditional invocation would just
+> stall every escalated row. Either way, write the answer back as a comment
+> on the item — the decision lives on the tracker, not in this session.
 >
 > **Work classes: you propose, I apply — labels and body trailers alike.**
 > The autonomy contract forbids any repo-local agent-writable surface from
@@ -893,8 +957,8 @@ terminals mutating the same row.
 > and a change to any path on the `Runtime surfaces` line is not mechanical
 > no matter how doc-shaped it looks, because those are runtime here.
 >
-> **The boundary is fail-closed.** A markdown path under `plugins/` is
-> runtime unless you can show nothing loads it — and a link grep is not that
+> **The boundary is fail-closed.** Any tracked markdown path is runtime
+> unless you can show nothing loads it — and a link grep is not that
 > proof: skill bodies also load files through bare `Read <path>` directives,
 > globs, and `${CLAUDE_PLUGIN_ROOT}`-relative paths no link pattern returns.
 > **No filename is inert by convention**, `README.md` included — this repo's
