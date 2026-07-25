@@ -26,10 +26,15 @@
 - **The fetch log is now a written output-contract section**, not a term the gate referred to without
   anything producing it. Criteria 6 and 9 are graded against it, so it exists as
   `Claim | URL or command | artifact-ladder rung | tool used | outcome` with, per accepted claim, an
-  entry for the rung the claim came from and one per rung above it — plus its latest-release/changelog
-  entry unconditionally, because criterion 6's cross-check does not depend on which rung supplied the
-  claim, and a claim sourced above the changelog rung would otherwise leave the recency gate graded
-  from recollection. Entries are keyed by claim because
+  entry for the rung the claim came from and one per rung above it — plus, for a claim whose subject
+  ships releases, its latest-release/changelog entry, because criterion 6's cross-check does not
+  depend on which rung supplied the claim, and a claim sourced above the changelog rung would
+  otherwise leave the recency gate graded from recollection. That entry's outcome is the cross-check
+  itself, so it carries its own vocabulary rather than the ladder walk's: the confirmed-latest
+  version and date plus a verdict of `current`, `invalidated`, or `unresolved`. Naming the rung as
+  fetched without that verdict was the same recollection hole one level down — criterion 6 is graded
+  off this log, so a run could file the required row and still derive the currency judgement from
+  memory. Entries are keyed by claim because
   criterion 9 is evaluated per claim and one artifact routinely carries claim A while lacking claim B. Without it criterion 9 could only be
   answered from recollection — which the gate's own preamble says does not bite — and a fresh session
   could not audit the ladder evidence at all.
