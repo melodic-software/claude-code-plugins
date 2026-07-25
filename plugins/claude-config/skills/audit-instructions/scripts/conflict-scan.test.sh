@@ -270,6 +270,26 @@ EOF
 assert_contains "a dot inside a token does not truncate the window" \
   "$(bash "$SCRIPT" "$WEBMANDATE" "$DOTTED")" "|WebFetch|"
 
+# --- Case 26: an opt-in gate in a neighbouring sentence must not suppress ---
+# Both token classes appearing in the raw span is not arbitration; the gate has
+# to govern the entity, which means sharing its sentence.
+FARGATE="$TEST_TMPDIR/far-gate.md"
+cat >"$FARGATE" <<'EOF'
+Never use `AskUserQuestion`. Opt-in is enabled only when set.
+EOF
+assert_eq "an opt-in gate in the next sentence does not suppress" "1" \
+  "$(bash "$SCRIPT" --count "$OPTMANDATE" "$FARGATE")"
+
+# --- Case 27 (MUST NOT FLAG): a mandate in a neighbouring sentence ----------
+# A neutral mention beside an unrelated mandate is not a directive about the
+# entity, and pairing it inflates the review queue.
+FARMANDATE="$TEST_TMPDIR/far-mandate.md"
+cat >"$FARMANDATE" <<'EOF'
+Always run tests. `AskUserQuestion` is documented here.
+EOF
+assert_eq "a mandate in the next sentence does not classify a neutral mention" "0" \
+  "$(bash "$SCRIPT" --count "$FARMANDATE" "$OPTSUBJECT")"
+
 # --- Case 16: missing grep exits 2 ------------------------------------------
 real_bash=$(command -v bash)
 empty_path_dir="$TEST_TMPDIR/empty-path"

@@ -128,14 +128,18 @@ mapfile -t rows < <(
     -v mandate="$MANDATE_ERE" -v exception="$EXCEPTION_ERE" -v gated="$GATED_ERE" \
     -v conditional="$CONDITIONAL_ERE" '
     function classify(file, lineno, ent, prewindow, postwindow, window,   pol, exc, key) {
+      # Every test here reads `window`, which the caller builds from the
+      # sentence-bounded halves plus the mention itself. Nothing classifies an
+      # entity from a neighbouring sentence: a gate, a polarity token or an
+      # exception clause governs the entity only if it shares a sentence with it.
+      #
       # An opt-in gate arbitrates the pair away, but only when it reads as a
       # condition rather than as the subject being described.
       if (window ~ gated && window ~ conditional) return
       # A prohibition governing the entity sits either before it ("never use X")
-      # or immediately after it within the same sentence ("X must not be used").
-      # Beyond a sentence break a trailing prohibition almost always governs a
-      # different object ("… via `X` once. Do not gate per repo"), which is why
-      # the caller truncates postwindow at the first sentence-ending mark.
+      # or after it ("X must not be used"), inside the same sentence either way.
+      # Beyond a sentence break a prohibition almost always governs a different
+      # object ("… via `X` once. Do not gate per repo").
       if (prewindow ~ prohibit || postwindow ~ prohibit) pol = "prohibit"
       else if (window ~ mandate) pol = "mandate"
       else return
@@ -185,10 +189,13 @@ mapfile -t rows < <(
             pretail = substr(pretail, RSTART + 1)
           }
           if (precut > 0) pre = substr(pre, precut + 1)
+          # The full window is rebuilt from the bounded halves plus the mention,
+          # so mandate, gate and exception tests see the same sentence the
+          # polarity tests do rather than the raw span.
           classify(file, lineno, ent, \
             " " pre " ", \
             " " post " ", \
-            " " substr(pad, ws + 1, (e + w) - ws + 1) " ")
+            " " pre " " tolower(ent) " " post " ")
           base = e
           rest = substr(rest, mstart + mlen)
         }
