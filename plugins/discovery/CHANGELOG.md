@@ -39,7 +39,10 @@
   login/consent/bot-challenge page, extract with whatever extractor the machine has, grep. Each
   download takes its own claim-and-URL-derived filename — parallel workers sharing a fixed `doc.pdf`
   could overwrite one another mid-validation and cite the wrong document, and a claim slug alone
-  collides as soon as one claim is chased across two URLs. An
+  collides as soon as one claim is chased across two URLs. Extraction is checked for usable text
+  before it counts as a search: an extractor exits 0 on a scanned or image-only PDF and returns
+  nothing, so empty or garbled output routes to another extractor, OCR, then escalation rather than
+  becoming a false "not found" about a source nobody read. An
   unconfirmed download routes back through the full escalate-on-block order and does not count as the
   recipe having run, so it can never manufacture a premature "unreachable". "Unreachable" is reserved
   for extraction that failed after escalation also failed: an artifact that WAS confirmed, extracted,
