@@ -23,7 +23,11 @@ All notable changes to the `claude-memory` plugin are documented here. Format fo
   findings on one misplaced section. (1) **Auto memory becomes a destination** — the plugin audits it
   as a first-class entity in M1–M4 but never routed content to it, so the destination set predated
   auto memory; the row states that Claude writes it and that asking Claude to remember something
-  lands there rather than in CLAUDE.md. (2) **`@path` imports are named as a non-destination** —
+  lands there rather than in CLAUDE.md — gated on the destination's effective enabled state, because
+  `autoMemoryEnabled: false` in any settings scope or `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` stops Claude
+  writing and loading auto-memory files, so an ungated recommendation to move accumulated learnings
+  out of CLAUDE.md would delete them from every future session rather than relocate them.
+  (2) **`@path` imports are named as a non-destination** —
   imported files load at launch, so a split into imports reorganizes and saves nothing, and the same
   holds for an import inside a path-scoped rule, where the rule's own body defers and the imported
   file does not — carried as an explicitly provenance-marked empirical extension (first-party repro

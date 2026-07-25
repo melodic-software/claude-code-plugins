@@ -65,13 +65,23 @@ not, cut it. Bloated CLAUDE.md files cause Claude to ignore your actual instruct
 | Machine-specific config/preferences | CLAUDE.local.md |
 | Language/framework-specific rules | `.claude/rules/` (path-scoped when that fits) |
 | Reference material needed sometimes | Skills — the body loads on demand; a new skill's listing entry does not (priced below) |
-| Learnings Claude discovered while working, not instructions you authored | Auto memory — Claude writes it; you do not hand-author entries, and asking Claude to remember something lands here rather than in CLAUDE.md |
+| Learnings Claude discovered while working, not instructions you authored | Auto memory — Claude writes it; you do not hand-author entries, and asking Claude to remember something lands here rather than in CLAUDE.md. Available only while auto memory is enabled (gated below) |
 | Deterministic enforcement | Hooks (guaranteed execution) |
 | Compile-time/build-time rules | Analyzers, linters, architecture tests |
 | Information that changes frequently | Neither — keep it out |
 | Content split out of a long CLAUDE.md purely to shorten it | **Not `@path` imports** — imported files load at launch, so the split reorganizes and saves nothing |
 
 Flag content in the wrong layer. WARN severity because moving content is a judgment call.
+
+**Auto memory is a destination only while it is enabled — resolve that before routing to it.** It is
+on by default, but `autoMemoryEnabled: false` in any settings scope, or
+`CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`, turns it off, and Claude then neither writes nor loads
+auto-memory files (<https://code.claude.com/docs/en/memory>). Recommending that accumulated learnings
+leave `CLAUDE.md` for auto memory in that state deletes them from every future session instead of
+relocating them. Resolve the effective state first — the environment variable overrides the setting,
+and the sibling `/claude-memory:stateless` `status` action already resolves both across scopes — and
+when auto memory is off, either name a destination that does load or state that enabling auto memory
+is a precondition of the move rather than proposing it unconditionally.
 
 **Import inside a path-scoped rule — verified, not doc-stated.** A rule whose body is only
 `@some/file.md` has its *imported* content inlined at session start while the rule's own body

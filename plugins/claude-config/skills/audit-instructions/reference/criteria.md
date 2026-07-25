@@ -247,10 +247,20 @@ Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   applies to a session, and two agent definitions execute in separate subagent contexts. Filter the
   comparison set by co-activation before comparing, and compare an agent or output-style definition
   against the surfaces that *do* load alongside it rather than against its own siblings.
-- **Resolve before comparing.** Expand `@path` imports and resolve symlinks first. An imported file's
-  content is live instruction text — imported files load at launch — so a detector that reads only
-  the importing file compares a different surface than the model sees, and every `@docs/foo.md`
-  import is invisible to it.
+- **Resolve before comparing — imports only where the surface implements them.** `@path` expansion is
+  a memory-surface behavior: `CLAUDE.md` at every scope, `CLAUDE.local.md`, and `.claude/rules/` files
+  import additional files, and those files are "expanded and loaded into context at launch"
+  (<https://code.claude.com/docs/en/memory>). Expand imports on those surfaces, and resolve symlinks
+  everywhere, before comparing. An imported file's content is live instruction text, so a detector
+  that reads only the importing file compares a different surface than the model sees, and every
+  `@docs/foo.md` import is invisible to it.
+- **An `@path`-shaped reference in a skill body or agent definition is not an import.** No official
+  page extends import expansion beyond the memory surfaces, and a skill's supporting files are read on
+  demand when the skill needs them rather than loaded at launch
+  (<https://code.claude.com/docs/en/skills>). Expanding one anyway would let I12 report conflicts
+  against instructions that were never in context. Treat it as an ordinary pointer: the pointing line
+  is comparable, the pointed-at file is not — it enters the comparison set only on its own merits, as
+  a skill body or agent definition the inventory already collected.
 - **`AGENTS.md` is deliberately not in the comparison set.** The memory doc's own `AGENTS.md`
   section states it outright — "Claude Code reads `CLAUDE.md`, not `AGENTS.md`" — and prescribes an
   `@AGENTS.md` import or a symlink as the way to make one load

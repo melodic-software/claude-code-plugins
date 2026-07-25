@@ -25,8 +25,11 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   MCP configuration and routes `.mcp.json` mechanics to `claude-config:audit`. The comparison set is
   resolved before it is compared — `@path` imports expanded and symlinks followed, since imported
   files load at launch and a detector reading only the importing file would compare a different
-  surface than the model sees. `AGENTS.md` is affirmatively excluded and the reason recorded: the
-  memory doc states Claude Code reads `CLAUDE.md`, not `AGENTS.md`, so a stock install never loads
+  surface than the model sees. Expansion is scoped to the surfaces that implement imports —
+  `CLAUDE.md` at every scope, `CLAUDE.local.md`, and `.claude/rules/`; an `@path`-shaped reference in
+  a skill body or agent definition points at a file read on demand, so it stays an ordinary pointer
+  rather than putting never-loaded text into the comparison set. `AGENTS.md` is affirmatively
+  excluded and the reason recorded: the memory doc states Claude Code reads `CLAUDE.md`, not `AGENTS.md`, so a stock install never loads
   it, and its content enters only through an import or symlink.
 - **A dedicated cross-surface conflict lane in `audit-instructions` Phase B.** A conflict is a
   relation between two surfaces, so a per-surface lane cannot see the other side and a lane that

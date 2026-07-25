@@ -156,7 +156,8 @@ one surface's files cannot see the other side, and a lane that rescans everythin
 pair in every lane. Every per-surface lane therefore runs its assigned checks **minus I12**, and one
 additional **cross-surface conflict lane** runs I12 alone. That lane receives the whole inventory —
 including the read-only managed-policy text and the out-of-scope counterparts Phase A collected —
-already `@path`-expanded and symlink-resolved, and emits each conflict once, naming both locations.
+already symlink-resolved and `@path`-expanded on the memory surfaces that implement imports, and
+emits each conflict once, naming both locations.
 It is one lane regardless of how many surfaces are in scope, and it counts against the dispatch
 budget below like any other.
 
