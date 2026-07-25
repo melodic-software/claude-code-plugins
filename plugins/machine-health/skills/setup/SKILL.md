@@ -24,8 +24,28 @@ and always interviews.
 ## Resolving the state root
 
 `<StateBase>` is `${CLAUDE_PLUGIN_DATA}` — the per-plugin data directory that survives plugin
-updates. If that token is unexpanded (running outside plugin context), default to
-`$HOME/.claude/plugins/data/machine-health`. Create it if missing.
+updates. Create it if missing.
+
+**There is no hardcoded fallback path, and inventing one is a defect rather than a safety net.** The
+directory under `~/.claude/plugins/data/` is named for the plugin's *install identity*
+(`<name>-<marketplace>`, or `<name>-inline` for a `--plugin-dir` session), not for the plugin. Any
+literal path written here therefore resolves to a **different** directory than the one this plugin
+actually reads and writes — so the overlay and approvals land in one place while the audit's state
+and logs live in another, each half looking complete to whoever wrote it, and the operator's
+disabled checks silently stop taking effect.
+
+So when `${CLAUDE_PLUGIN_DATA}` renders as the literal unexpanded token, **stop**: report that the
+skill is running outside plugin context and cannot resolve its state root, and change nothing.
+Every probe below then reports UNKNOWN rather than INFO — with the root unresolved, an absent
+overlay is indistinguishable from an unreadable one, and reporting "shipped defaults in effect"
+would assert more than the evidence supports.
+
+**Split-state-root report.** Because an earlier version of this skill did write a hardcoded
+`~/.claude/plugins/data/machine-health`, `check` reports a split when it finds one: probe that exact
+legacy path and any `machine-health-*` sibling of the resolved `<StateBase>`, and for each that
+exists and is not `<StateBase>`, name it and list what it holds. Only `<StateBase>` is read.
+Consolidating is the operator's move — moving or deleting the stray root is a decision about their
+data, and this skill neither relocates nor removes files.
 
 ## `check` (read-only)
 
@@ -36,7 +56,9 @@ remediation line per FAIL; modify nothing. The plugin ships a working zero-confi
 shipped catalog, no remediations approved), so an absent overlay or absent approvals file is **INFO**
 (default in effect), never FAIL.
 
-1. **State root** — INFO: the resolved `<StateBase>` path and whether it exists yet.
+1. **State root** — INFO: the resolved `<StateBase>` path and whether it exists yet, plus any split
+   root found. FAIL, and stop before the remaining probes, when the token did not expand: an
+   unresolved root makes every verdict below unfounded.
 2. **Catalog overlay** (`<StateBase>/catalog/checks.local.jsonc`) — INFO when absent (the shipped
    catalog applies unchanged). When present: validate each entry against the overlay schema
    (`${CLAUDE_PLUGIN_ROOT}/skills/audit/references/shared/catalog-overlay.md`) and confirm every
