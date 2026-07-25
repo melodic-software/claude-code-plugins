@@ -66,15 +66,20 @@ declaration in the consuming repo, no managed-file exclusion applies.
 
 ## Arguments
 
-Parse `$ARGUMENTS` for an optional scope filter that narrows which surfaces the inventory collects:
+Parse `$ARGUMENTS` for an optional scope filter. It narrows which surfaces may **produce** findings —
+never which surfaces are read. Phase A always inventories the full comparison set, because I12 is a
+relation between two surfaces and a scoped run still needs the counterpart:
 
-- `claude-md` — user + project CLAUDE.md and CLAUDE.local.md only
-- `rules` — `.claude/rules/` and `~/.claude/rules/` only
-- `skills` — skill bodies and their context/reference files only
-- `agents` — agent definition markdown only
-- `hooks` — prompt-type hook text only
-- `output-styles` — output-style markdown only
-- `all` — every locally-owned surface (default)
+- `claude-md` — findings on user + project CLAUDE.md and CLAUDE.local.md
+- `rules` — findings on `.claude/rules/` and `~/.claude/rules/`
+- `skills` — findings on skill bodies and their context/reference files
+- `agents` — findings on agent definition markdown
+- `hooks` — findings on prompt-type hook text
+- `output-styles` — findings on output-style markdown
+- `all` — findings on every locally-owned surface (default)
+
+A finding still names both sides of a conflict even when one side is out of scope; the filter decides
+which side the run is auditing.
 
 Two flags govern the `OPINION` tier, whose enablement policy the catalog defines:
 
@@ -117,11 +122,13 @@ involving one still carries the no-change representation and its routing recomme
   comparison is impossible if the text is never read. Extract managed hook text under the same
   prompt-text-only, no-secrets handling as the other settings scopes.
 - **Upstream-owned instruction text that is nonetheless live** — installed plugin-cache skill bodies
-  and agent definitions, and any managed materialization. An invoked plugin skill's instructions are
-  in context alongside the project's own, so they can hold one side of a conflict. They are read for
-  comparison only: the existing exclusion from the editable set and the upstream-routing behavior are
-  unchanged, so a finding here routes to the owning repository's tracker and proposes no in-place
-  edit.
+  and agent definitions, `type: "prompt"` handler text in an enabled plugin's `hooks/hooks.json`
+  (a plugin is a supported hook location and `prompt` a supported handler type, so that text is as
+  live as a settings-configured hook), and any managed materialization. An invoked plugin skill's
+  instructions are in context alongside the project's own, so they can hold one side of a conflict.
+  They are read for comparison only, prompt text only and no secret-bearing values: the existing
+  exclusion from the editable set and the upstream-routing behavior are unchanged, so a finding here
+  routes to the owning repository's tracker and proposes no in-place edit.
 - **Every I12 counterpart outside the requested scope.** A scope argument narrows which surfaces may
   *produce* findings, not which are read: a conflict is a relation between two surfaces, so a run
   scoped to `skills` still inventories `CLAUDE.md`, rules, agents, hooks, and output styles as

@@ -95,7 +95,15 @@ Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
 Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: I1–I5 partition.
 
 - **Detect:** only-sometimes-relevant content (a workflow, domain knowledge, one subsystem's
-  quirks) living in an always-loaded surface.
+  quirks) living in a surface that loads **more broadly than the content is relevant**. Two cases,
+  because the surfaces this check runs on are not all always-loaded:
+  - an always-loaded surface — the selected output style, an unscoped rule, root `CLAUDE.md` where
+    the partition allows it;
+  - a surface loaded in full on every use of a component whose own scope is broader than the
+    content's — a skill body or an agent definition covering several concerns, where the content
+    matters to one of them and is in context for all of the others. Establish that breadth before
+    flagging: a skill or agent that exists *only* for the content's concern loads it exactly when it
+    is relevant, and is not a finding.
 - **Remediate:** move it to a skill or a path-scoped rule that loads on demand. **A destination
   qualifies only if it defers loading** — `@path` imports do not, so a split into imports is an
   organizational change and not a context saving, and proposing one satisfies this check's letter

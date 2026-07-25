@@ -35,9 +35,11 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   each conflict once. Phase A backs it with a read-only inventory tier: org-managed policy (the
   managed `CLAUDE.md`, a `claudeMd` settings value, and managed prompt-type hook text), upstream-owned
   but live instruction text (installed plugin-cache skill bodies and agent definitions, managed
-  materializations), and every out-of-scope I12 counterpart — a scope argument narrows which side may
-  produce a finding, never which surfaces are read. Read-only inventory changes no ownership: those
-  surfaces still propose nothing and still route upstream. Prompt-hook text is extracted from
+  materializations, and `type: "prompt"` handler text in an enabled plugin's `hooks/hooks.json`), and
+  every out-of-scope I12 counterpart — a scope argument narrows which side may produce a finding,
+  never which surfaces are read, and the `Arguments` section now says so rather than describing the
+  filter as narrowing the inventory. Read-only inventory changes no ownership: those surfaces still
+  propose nothing and still route upstream. Prompt-hook text is extracted from
   `.claude/settings.local.json` and managed settings as well as project and user `settings.json`,
   prompt text only, never a command line or secret-bearing value.
 - **A no-change representation in the `audit-instructions` report contract.** A finding whose check
@@ -67,6 +69,12 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
 
 ### Changed
 
+- **`audit-instructions` I3 detection now names its real criterion — loaded more broadly than the
+  content is relevant.** The old wording said "always-loaded surface", but none of the non-memory
+  surfaces this check runs on are literally always loaded: a skill body or agent definition loads in
+  full on every use of its component. The second detect case covers exactly that, and requires
+  establishing the component's breadth first — a skill or agent that exists only for the content's
+  concern loads it precisely when it is relevant and is not a finding.
 - **`audit-instructions` I3 remediation now qualifies its destination and prices the move.** A
   destination qualifies only if it defers loading, so `@path` imports do not — a split into imports
   satisfied the check's letter while changing the load profile not at all. A finding must also state
