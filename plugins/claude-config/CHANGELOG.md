@@ -107,6 +107,7 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   owner of the principle, the three anti-patterns, and the correct pattern. What a run actually needs
   was already in-plugin — each check's **Recommend** line — and both files now say so, so a report
   never depends on fetching anything.
+
 ## [0.9.3]
 
 ### Added
