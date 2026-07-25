@@ -172,9 +172,9 @@ Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
 
 - **Detect:** an instruction that asserts a Claude Code *harness* behavior — what a command does,
   what a keystroke saves, what loads into which context window, what a mode persists — where
-  **either** the current official page for that behavior states something incompatible with it,
-  **or** a version-matched reproduction of the asserted behavior fails. The subject is the product,
-  not the model, which is what separates this from I8.
+  **either** the official documentation **for the version the claim is about** states something
+  incompatible with it, **or** a version-matched reproduction of the asserted behavior fails. The
+  subject is the product, not the model, which is what separates this from I8.
 - **Remediate:** correct the claim against the cited page, or cut it and point at the page instead
   of restating it. Where the behavior is version-gated, carry the minimum version with the claim.
 - **Must NOT flag: silence.** A page that no longer mentions a behavior is not evidence the behavior
@@ -182,6 +182,14 @@ Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   repository deliberately keeps empirical smoke tests for behaviors the official pages never
   specified at all. Absence of documentation raises the claim for reproduction; it does not
   establish drift, and it never on its own justifies a removal.
+- **Must NOT flag: a version-gated claim that still reproduces on its own version.** Match the
+  version before matching the text. A claim scoped to a pinned or supported older release is
+  measured against that release, not against the latest page, and **a successful version-matched
+  reproduction settles it** — the latest documentation describing newer behavior is then evidence of
+  a version difference, not of an inaccurate instruction. A claim carrying no version is about
+  current behavior and is measured against the current page. This is the mirror of the remediation
+  above: a catalog that asks authors to carry a minimum version must not then flag the claims that
+  do.
 - **Must NOT flag:** prose that names two adjacent forms and distinguishes them correctly — the
   terminal `claude doctor` being read-only while the in-session `/doctor` applies fixes is the
   canonical pair, and a file that states both is right, not drifting. A bare routing pointer that
