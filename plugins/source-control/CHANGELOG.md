@@ -3,6 +3,23 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.8]
+
+### Fixed
+
+- **`fetch-all-pr-comments.sh` output can choke a downstream Python consumer on Windows
+  (emoji/cp1252 mismatch) (#597).** The script's UTF-8 JSON output commonly carries non-ASCII
+  bytes — bot badge images, reaction emoji — from bot review comments. Reproduced directly: a
+  Python consumer that opens the output (or reads this script's stdout) without an explicit UTF-8
+  encoding inherits the interpreter's default ANSI code page on Windows (cp1252) and raises
+  `UnicodeDecodeError` on those bytes; this repo's own consumers (`babysit_findings.py`) already
+  pin `encoding="utf-8"` explicitly and are unaffected, so the gap is external/downstream
+  consumers. `fetch-all-pr-comments.sh --help` now documents the `PYTHONUTF8=1` (PEP 540)
+  requirement for Windows consumers that don't pin the encoding themselves.
+  `babysit-readiness-gate.sh` — the one `babysit_python` caller that parses this script's
+  comment-JSON schema and lacked the `export PYTHONUTF8=1` convention the two `bin/` babysit
+  wrappers already apply — now sets it too, closing the inconsistency.
+
 ## [0.26.7]
 
 ### Fixed
