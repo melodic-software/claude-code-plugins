@@ -3,6 +3,33 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.0]
+
+### Added
+
+- `asserted-path-verify` (advisory, PostToolUse · Write|Edit): flags a
+  repo-relative path asserted in markdown — in a code span or a link target —
+  that does not exist in the working tree. A candidate is only adjudicated when
+  its leading directory is in the repo, which is what keeps another project's
+  paths, globs, placeholders, and third-party references quiet. Diff-scope only.
+  Deterministic oracle, advisory action: a citation can be deliberately
+  forward-looking and PostToolUse cannot tell.
+- `skill-reference-verify` (advisory, PostToolUse · Write|Edit): flags a
+  `/plugin:skill` reference that does not resolve. Gated twice — it does nothing
+  outside a marketplace repo, and within one it only adjudicates a plugin that
+  repo's own manifests own. Resolves through manifest `name` and skill
+  frontmatter `name`, so a renamed directory still matches. Declared
+  **detect-then-judge**, not deterministic: globbing a plugins tree is exact only
+  where the reference is locally owned.
+- A README enforceability-tier section stating each guard's oracle class, so the
+  detect-then-judge guard cannot be read as deterministic.
+
+### Fixed
+
+- README guard counts were stale before this change: the prose said "nine safety
+  guards" and the table omitted `block-convention-violation` while ten were
+  wired. Counts are now measured against the manifest's toggle set, and the
+  missing row is present.
 ## [0.14.3]
 
 ### Documentation
