@@ -14,11 +14,13 @@ All notable changes to the `source-control` plugin are documented here. Format f
   answer "is anything left to clean up?" saw an empty list while merged PRs' worktrees sat on disk,
   and had to find and `git worktree remove` them by hand. Every directory under `<worktree-root>` now
   appears in the report; an unmappable one is an explicit `action: unrecognized` row carrying its path
-  and the reason, in every mode including `--pr` (scoping narrows which PRs are acted on, never which
-  directories are accounted for). Unrecognized entries are never removed — identity is a precondition
-  for the PR-state and worker-lease checks that authorize removal — and do not fail the run.
-  `reference/worktrees.md` now states the naming convention that was previously only implied by the
-  helper's regex, plus what happens to a directory that breaks it.
+  and the reason, in every mode including `--pr` — an unrecognized entry has no key to match a target
+  against, so leaving it to that filter would hide it from every scoped run (a recognized non-target
+  worktree is out of the caller's declared scope and still appears in an unscoped run). Unrecognized
+  entries are never removed — identity is a precondition for the PR-state and worker-lease checks
+  that authorize removal — and do not fail the run. `reference/worktrees.md` now states the naming
+  convention that was previously only implied by the helper's regex, plus what happens to a
+  directory that breaks it.
 
 ## [0.26.8]
 

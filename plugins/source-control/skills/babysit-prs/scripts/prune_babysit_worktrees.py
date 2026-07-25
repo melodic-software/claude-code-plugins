@@ -227,8 +227,11 @@ def main() -> int:
     exit_code = 0
     for entry in iter_worktrees(root):
         if isinstance(entry, UnrecognizedWorktree):
-            # Reported in every mode, including --pr: the invariant is "no
-            # directory under the root goes unreported", not "no in-scope one".
+            # Reported before the --pr filter below, because an unrecognized
+            # entry has no key and so could never match a target: leaving it to
+            # that filter would hide it from every scoped run forever. A
+            # recognized non-target entry is merely out of the caller's declared
+            # scope and still appears in an unscoped run.
             rows.append(
                 {
                     "path": str(entry.path),
