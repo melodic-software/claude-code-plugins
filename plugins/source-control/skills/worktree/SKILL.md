@@ -20,7 +20,7 @@ Orchestrate git worktree lifecycle from creation through cleanup. **Front-half**
 
 **Why this exists:** worktrees are the isolation mechanism for parallel code changes — multiple Claude Code sessions on different tasks without stepping on each other. In repos where branch protection blocks direct commits to main, every feature, fix, or refactor starts with a worktree or branch; this skill makes that seamless.
 
-This skill is the canonical owner of the parallel-session worktree convention going forward — no external prose doc. Worktrees live at an external `worktree_root` (`<root>/<owner>-<repo>-<slug>`, outside every repository), never as siblings inside a repository's discoverable tree; the abandoned sibling-layout convention polluted repository enumeration and re-triggered the #400 double-load bug.
+This skill is the canonical owner of the parallel-session worktree convention going forward — no external prose doc. Worktrees live at an external `worktree_root` (`<root>/<owner>-<repo>-<slug>`, outside every repository), never nested inside any repository's tree — that nesting invariant is what creation enforces (the abandoned sibling-layout convention re-triggered the #400 double-load bug). Keeping `worktree_root` clear of repository-discovery roots (such as a ghq root) is convention, not machine-checked: creation rejects only paths inside an existing repository, and a discovery-root placement would pollute repository enumeration the same way the sibling layout did — choose the root accordingly.
 
 ## Adapting to your environment (graceful degrade)
 
