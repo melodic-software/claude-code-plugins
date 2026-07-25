@@ -182,12 +182,19 @@ A skill reading this surface:
    `personal-only, not applied` entry and each malformed one. Suppression is visible, never silent,
    and so is a suppression the operator wrote that the contract declined to enact.
 3. Resolves every entry to exactly one of four dispositions, and reports every one but the first:
-   - **SAME, UNCHANGED** — both anchors match, `(check, claim)` match. Applies silently.
-   - **SAME, CHANGED** — exactly one anchor changed, and the other anchor plus `(check, claim, both
-     surfaces)` all match. **Carries forward, marked `needs-reconfirmation`**, surfaced with the
-     changed side named. Never silent: the edit may have *been* the fix attempt, and silently
-     re-suppressing it hides exactly the case the operator most needs to see.
-   - **OLD CLOSED, NEW OPENED** — both anchors changed, or `claim` changed, or a surface changed. The
+   - **SAME, UNCHANGED** — **every** site's anchor matches and `(check, claim)` match. Applies
+     silently. Phrased over the whole `sites` set, which holds one entry for an ordinary finding and
+     two for a pairwise one: a two-anchor phrasing leaves an unchanged single-site entry — the
+     commonest case there is — matching no disposition at all.
+   - **SAME, CHANGED** — a **pairwise** finding only: exactly one anchor changed, and the other
+     anchor plus `(check, claim, both surfaces)` all match, **and exactly one current finding
+     satisfies that**. **Carries forward, marked `needs-reconfirmation`**, surfaced with the changed
+     side named. Never silent: the edit may have *been* the fix attempt, and silently re-suppressing
+     it hides exactly the case the operator most needs to see. With two or more candidates the entry
+     goes stale and every candidate is reported unsuppressed — carrying it to both would suppress a
+     conflict the operator never accepted, and choosing one would depend on iteration order.
+   - **OLD CLOSED, NEW OPENED** — every anchor changed, or `claim` changed, or a surface changed; and
+     any changed anchor on a single-site finding, which has no "other anchor" for the row above. The
      old entry goes **stale**, never silently dropped; the new finding is unsuppressed.
    - **CLOSED** — the finding is absent from the new run entirely. Accounted for as exactly one of:
      matched to an applied fix; matched to a successor by partial match; **retired with its check**,
