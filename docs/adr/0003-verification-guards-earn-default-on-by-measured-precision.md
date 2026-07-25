@@ -67,27 +67,29 @@ sufficient one. Specifically:
    never right trains readers to ignore every advisory, including the ones that are right —
    negative value, not low value.
 
-   **A silent guard is not thereby disqualified.** A corpus may simply contain no violation
-   of the class, which leaves precision *undefined* rather than zero, and a guard for a rare
-   defect is exactly the kind worth having. Distinguish the two outcomes:
+   **A guard that does not fire at all is not thereby disqualified.** A corpus may simply
+   contain no violation of the class, which leaves precision *undefined* rather than zero, and
+   a guard for a rare defect is exactly the kind worth having. The exemption is for **zero
+   findings only** — it is not a low-volume allowance, because precision does not improve with
+   scarcity:
 
    | Sweep result | Reading |
    |---|---|
-   | fires often, no true positives | disqualified — the path guard, 389 findings, 0 real |
-   | silent, or near-silent | inconclusive on precision; establish detection by seeding known defects, then ship if the firing rate stays low |
-   | fires rarely AND precision is acceptable | shippable — the reference guard, 0.51% firing, 57% precision |
+   | **zero findings** — did not fire at all | precision *undefined*, not zero. Inconclusive: establish detection by seeding known defects, then ship if the unseeded firing rate stays acceptable |
+   | fires at all, no true positive | disqualified. Precision is 0% whether the firing count is 389 or 1 — the path guard is the loud case, but a single false finding with no real one fails identically |
+   | fires AND precision is acceptable | shippable — the reference guard, 0.51% firing, 57% precision |
 
-   For a silent sweep the burden shifts to **seeded defects**: plant instances the guard
-   should catch, confirm it catches them, and report the firing rate on the unseeded corpus
-   as the noise figure. Absence of evidence is not the evidence of absence that rule 1 asks
-   for.
+   For a zero-finding sweep the burden shifts to **seeded defects**: plant instances the guard
+   should catch, confirm it catches them, and report the unseeded firing rate — which is zero
+   by construction in this branch — as the noise figure. Absence of evidence is not the
+   evidence of absence that rule 1 asks for.
 
    **"Acceptable precision" is a judgment, and the ADR deliberately does not fix a
    threshold** — the tolerable ratio depends on how costly a false advisory is in the surface
-   being guarded, and a single number would be false precision. But rarity plus one true
-   positive is explicitly NOT sufficient: one real finding among a hundred false ones is a
-   1%-precision guard however rarely it fires, and it fails rule 3's substance for the same
-   reason the path guard did. State the measured precision, name the ratio you consider
+   being guarded, and a single number would be false precision. But rarity is not itself
+   evidence: one real finding among a hundred false ones is a 1%-precision guard however
+   rarely it fires, and it fails for the same reason the path guard did at 23.7%. Scarcity
+   changes the volume of noise, never its ratio. State the measured precision, name the ratio you consider
    acceptable for that surface, and justify it. The reference guard shipped at 57% with the
    remaining noise attributed to a single identified cause — that shape of argument, not the
    bare number, is what earns default-on.
