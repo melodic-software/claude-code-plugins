@@ -42,7 +42,10 @@ cd "$PROJECT_DIR" && golangci-lint run --fix ./...
   only ceilings *its* presence check at the repo root — it does not (and cannot) suppress
   golangci-lint's own home-directory fallback once the tool actually runs.
 - **`go mod tidy -diff` requires Go 1.23+** — the `go-mod-tidy-drift` gate in `go.yaml` uses this
-  flag; on an older toolchain it will error rather than report drift.
+  flag. An older toolchain rejects it outright, so `/toolchain:check` reports the gate as
+  `skip (unsupported: ...)` with the `install-hint` rather than a false drift `FAIL` (the gate's
+  tool-presence-and-capability rule in `check/SKILL.md` §2). Drift goes unchecked until the
+  toolchain is upgraded — the skip is visible in the report, never silent.
 - **GOFLAGS** — a repo-level `GOFLAGS` env var or `go env -w GOFLAGS=...` setting changes build/test
   behavior repo-wide (e.g. `-mod=readonly`); check for one before assuming a bare command failure
   is a real break.
