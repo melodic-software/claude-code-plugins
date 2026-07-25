@@ -4,6 +4,93 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.5.0]
+
+Numbered `0.5.0` rather than the `0.4.0` this branch first claimed: #1261 merged
+first and took that number. The tier is unchanged — still **minor**, now measured
+from `0.4.0` instead of `0.3.2`.
+
+### Added
+
+- **`boris`: four reference buckets for the twenty sections upstream added since
+  the last sync** — [`unknowns.md`](skills/boris/reference/unknowns.md)
+  (96–99, finding your unknowns), [`loops.md`](skills/boris/reference/loops.md)
+  (100–103, the four loop types),
+  [`automation.md`](skills/boris/reference/automation.md) (104–109, `/checkup`
+  and automation as infrastructure), and
+  [`context-engineering.md`](skills/boris/reference/context-engineering.md)
+  (110–115, the Claude 5 context-engineering rules and Opus 5). Buckets follow
+  upstream's own thread grouping — Parts 18, 19, 20–21, and 22.
+
+### Changed
+
+- **`boris`: vendored baseline synced 8.8.1 → 8.13.0** through
+  `/playbooks:update --apply`, never a hand-copy. The delta is additive:
+  sections 1–95 are unchanged, and the counts move 107 → 127 tips across
+  95 → 115 sections. The hub's hardcoded counts (frontmatter description and
+  body), the Topic Index, the Quick Reference, the source-date footer, and the
+  plugin README's pack row all move with them.
+
+## [0.4.0]
+
+### Added
+
+- `fable-5`: a show-moves section in the problem-framing chapter, split out of the
+  unknown-knowns cell so the two signals that gate it — a criterion judgable only on
+  sight, and a description costlier than an example — trigger those moves without firing
+  the whole four-cell pass. It owns the evaluation-capacity precondition (candidates
+  settle nothing when neither party can name what a strong one looks like), the exemplar
+  hunt with its fidelity/cross-language/ask-ordering rules, the read-only reference-tree
+  radius, and the elicitation artifact's distinct completeness bar.
+- `fable-5`: a post-delivery attribution section in the problem-framing chapter — a
+  deliverable returned as *not what was meant* re-runs the quadrant pass before it
+  re-executes. Scoped away from observed defects, which keep routing to the debugging
+  chapter's reproduction-first rule.
+- `fable-5`: a durable-plan presentation rule in the planning chapter — decisions the
+  reader would plausibly veto lead, ranked by the rework a late veto costs, as a second
+  view that never re-sorts the risk-ordered steps.
+- `fable-5`: the context-economy chapter gains a phase-boundary reset (every other reset
+  trigger keys on loss or degradation, none on success), the note's decision content, and
+  the note's disposition at task end so the debris sweep has an answer.
+- `fable-5`: the communication chapter gains the offer-the-round rule for a large question
+  residue, a volunteer question closing that round, a second trigger site for the
+  evaluation-capacity gate, and a closing message that must name behavior which changed in
+  code the diff does not show.
+- `fable-5`: the show-moves section licenses a deliberately divergent spread — several
+  directions differing along the dimension the user cannot put words to — as the
+  extraction instrument when the criterion is recognition-only, handed over for them to
+  react to rather than as an option survey owing a pick.
+
+### Changed
+
+- `fable-5`: the recommend-an-option rule and the attach-a-recommended-answer rule are both
+  narrowed at their own sites: neither fires when the options exist to elicit the ranking
+  criterion itself, because naming a favourite front-loads the judgment being asked for.
+  The carve-out is defined by the missing criterion, not by a missing preference, and
+  resolves without loading another chapter — trigger-gated loading means the communication
+  chapter is often the only one held.
+
+- `fable-5`: `SKILL.md` stated three of the problem-framing chapter trigger's four arms,
+  in both the core-doctrine line and the routing table — the because-clause arm never
+  fired from the always-loaded surface. Both now carry all four.
+- `fable-5`: the problem-framing preamble owns the two priors the chapter's moves rest on
+  — discovery priced against the rework it prevents, rising with what is already built on
+  the unknown; and requests carrying unknowns they do not name. The clauses that
+  previously re-derived the economics now cite it.
+- `fable-5`: ambiguity residue is ordered by downstream work invalidated rather than by
+  how widely its readings diverge; feasibility-shaped unknowns route to the planning
+  chapter instead of a sort that has no branch for them; the blind-spot checklist reads as
+  the software instance of a general move; an undisclosed starting point is asked for when
+  it would change the pass width; and the scope bound is tested in both directions.
+- `fable-5`: the long-horizon-memory bullet in the model-adaptation chapter now points at
+  the context-economy chapter like its five siblings, instead of carrying general doctrine
+  that had no owner elsewhere. The note-granularity and delete-when-disproved rules it used
+  to carry land in the context-economy chapter, which now owns them.
+- `fable-5`: the execution chapter's debris sweep carries one exemption — an artifact built
+  to elicit a preference is not debris while the question it exists to surface is open. It
+  is stated at the sweep itself, so an agent holding only that chapter honors it; the
+  problem-framing chapter cites rather than restates it.
+
 ## [0.3.2]
 
 ### Changed

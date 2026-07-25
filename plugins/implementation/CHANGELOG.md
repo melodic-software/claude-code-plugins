@@ -3,6 +3,16 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.1]
+
+### Changed
+
+- `/implementation:implement` now makes its existing project-policy precedence explicit across the
+  central cadence and its feature and bugfix mode contexts: TDD remains the fallback when the
+  consumer is silent, while a testing-cadence instruction in the consumer's `CLAUDE.md` or rules
+  overrides the fallback. The README documents a concrete tests-after opt-out; no user-scoped
+  `userConfig` option was added. Closes #406.
+
 ## [0.9.0]
 
 ### Added

@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.27.0]
+## [0.28.0]
 
 ### Added
 
@@ -24,6 +24,74 @@ All notable changes to the `source-control` plugin are documented here. Format f
   command spelled in `reference/safety.md` and `reference/orchestration.md` is checked against the
   backing CLI's own parser). Catalogue gates fail when a new entry point, wrapper, or
   command-spelling document arrives without a row.
+
+## [0.26.4]
+
+### Fixed
+
+- **`babysit-prs` now separates the finding-classification gate from the merge gate (`#601`).** Two
+  differently-named scripts both produced a verdict the docs called "readiness":
+  `babysit-readiness-gate.sh` (classification-row counting — blind to branch rules, thread
+  resolution, and required checks) and `babysit_merge.py` via `source-control-babysit-merge` (the
+  actual merge-policy check). Nothing said which one owns a `MERGE-READY` claim, and the
+  `loop.md` §5.5 checklist paired a single "Readiness: ready for merge" field directly under the
+  classification gate — which produced a false human-facing `MERGE-READY` report on a PR that a
+  `required_review_thread_resolution` ruleset was mechanically blocking. `safety.md` gains "Two
+  Gates, One Merge-Ready Authority" as the single home for the distinction; the checklist now
+  reports the two gates as separate fields, and every "readiness" site that meant *classification*
+  is renamed. No gate code and no emitted `READINESS_*` token changed; note that the §5.5 template
+  is machine-consumed via `--checklist <file>` (R6 blocks on any unticked `- [ ]`), so splitting one
+  status box into three does change what a checklist-gated iteration must tick. The new section also
+  states what "both gates satisfied" means on the orchestrator's direct zero-blocker path (a
+  non-draft PR the snapshot reports with zero blockers and no untriaged material feedback goes
+  straight to a merge-gate check with no worker): it takes that check without the worker's per-PR
+  classification-gate run, what keeps the path from a false `MERGE-READY` is the engine's
+  `untriaged_material_feedback` exclusion from `pr_clean_ready_for_direct_gate`, and
+  merge-readiness there still comes only from the merge gate's `ready` field. That `ready` field is
+  the plugin's **full merge-policy** verdict, not a readout of GitHub's mergeability alone —
+  `babysit_merge.py` adds its own policy blockers (dependency-manager author without
+  `--allow-dependency`, non-self author on an unprotected base without `--allow-unprotected`, and
+  an enabled autopilot merge tier's criteria), so `ready: false` may name a plugin hold on a PR
+  GitHub would merge; the docs no longer describe the gate as answering only whether GitHub will
+  merge.
+
+## [0.26.3]
+
+### Changed
+
+- **The plugin is now the canonical, sole source for the worktree conventions (#401).** The
+  `babysit-prs` skill's `reference/worktrees.md` states it owns the ephemeral babysit-worktree
+  exemption (lease-scoped cleanup, never a global open-PR prune — machine-enforced by
+  `prune_babysit_worktrees.py`) and that rooting those worktrees outside a repository's discoverable
+  tree keeps them out of enumeration such as `ghq list`; the `worktree` skill states it owns the
+  parallel-session external-root convention going forward. Both close the SSOT gap left by the
+  retired external `ghq-layout-sibling-pr-worktrees` prose doc (physical deletion of that doc is a
+  separate follow-up in the dotfiles repo).
+
+## [0.26.2]
+
+### Fixed
+
+- **`babysit-prs` SKILL.md cadence cross-references now point at the section that owns the wake
+  seconds (#653).** #652 added the engine-backed `recommended_cadence` → `delaySeconds` mapping table
+  to `reference/loop.md` §5.3, alongside the static Python-free degrade ladder already there;
+  `reference/cadence.md` has disclaimed the wake mechanics since #322, owning only the cadence states
+  and thresholds. SKILL.md still described the older split: runbook step 9 and the Reporting closing
+  line sent the reader to `cadence.md` for the wake interval, and the References entry credited
+  `loop.md` with only a "static cadence ladder". The Reporting line was a live wrong-number risk —
+  `cadence.md` states `idle` = daily, while §5.3 documents `ScheduleWakeup` clamping `delaySeconds`
+  to `[60, 3600]`, so inside `/loop` `idle` and `quiet` both wake hourly. All three now cite the §5.3
+  cadence contract, and the step-5 progressive-disclosure trigger for `cadence.md` — which correctly
+  still points there, for the cadence states — now fires on interpreting a state rather than on
+  recommending one. Docs-only; no behavior change.
+
+## [0.26.1]
+
+### Documentation
+
+- `scripts/test-helpers.sh` now points at `docs/conventions/shell-test-helpers/README.md`, the
+  repo's owner doc recording that per-plugin shell assert-helper duplication and per-script exit-code
+  taxonomies are deliberate, not drift. No behavior change.
 
 ## [0.26.0]
 
