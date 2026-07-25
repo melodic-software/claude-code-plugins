@@ -3,19 +3,59 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.24.3]
+## [0.24.6]
 
 ### Fixed
 
-- **`work-loop`'s first-drain C3 ratification admission gate now checks the issue body and
-  comment history for existing ratification evidence before applying `needs-human` or posting a
-  fresh `kind=ratify-c3` comment (`#1348`).** Previously the gate only recognized ratification
+- **`work-loop`'s first-drain C3 ratification admission gate now checks the issue body for an
+  existing recorded ratification before applying `needs-human` or posting a fresh
+  `kind=ratify-c3` comment (`#1348`).** Previously the gate only recognized ratification
   recorded as an `/work-items:attend-queue` reply on the item's `kind=ratify-c3` marker comment or
   `first_drain_complete` durable state, so an item whose ratification was instead recorded
   directly in the issue body (e.g. an `attended triage <date>, operator-ratified` line) — even one
   already corrected once by a same-day comment restoring it to the frontier after a prior wrong
   re-queue — flapped back to `needs-human` on a later cycle, reproducing the exact
-  mis-classification the correction had already fixed (observed on `#815`, `#816`, `#965`).
+  misclassification the correction had already fixed (observed on `#815`, `#816`, `#965`). The
+  autonomous-eligible role label is deliberately **not** ratification evidence: unattended
+  `/work-items:triage` applies it to every briefed delegable item, so keying on it would admit a
+  never-ratified C3 item on its first drain.
+
+## [0.24.5]
+
+### Fixed
+
+- **`triage` no longer routes to `priority: pN-*` labels that exist in no governed repository
+  (`#1253`).** The live governed priority axis across the fleet is `priority: critical` / `high` /
+  `medium` / `low` / `needs-triage` — the `p0-critical`…`p3-low` scheme `triage`'s priority-label
+  step, `track add`'s filing default, and `dogfood-filing.md` named inline appeared in zero
+  repositories, so an autonomous triage pass that followed the skill literally failed applying a
+  nonexistent label. `triage`, `track add`, and `dogfood-filing.md` now resolve the live `priority:`
+  label set from the bound adapter at action entry (consistent with every other "members from the
+  live set" axis in `label-taxonomy.md`) instead of naming members inline; where prose still shows a
+  concrete value it is marked as an illustrative example, not a routing instruction. The
+  triage-assessed default (mid-urgency tier) vs. `track add` filing default (lowest-urgency tier, an
+  untriaged-signal floor) distinction is preserved.
+
+## [0.24.4]
+
+### Documentation
+
+- **GitHub adapter: force UTF-8 wherever a body edit leaves the UTF-8-safe pipeline (`#1037`).**
+  A new cross-cutting gotcha in `tools/work-item-tracker/adapters/github/README.md` records that the
+  `gh` transports do not transcode, and requires an explicit UTF-8 encoding on both sides of any
+  ad-hoc read or write of a fetched body. No behavior change.
+
+## [0.24.3]
+
+### Fixed
+
+- **Two `discipline`-rename token-sweep misses corrected: `reference/pipeline-shape.md` and
+  `skills/work-loop/SKILL.md` (`#1328`).** The `re-anchor` -> `discipline` plugin rename (`#1276`)
+  rewrote the tokens on these lines but left stale `re-anchor` prose beside them — "re-anchor slot"
+  / "re-anchor set" in `pipeline-shape.md:52`, "presence-gated re-anchor sweep" in
+  `work-loop/SKILL.md:176`. Both now read `discipline`, matching the sibling sites the same rename
+  commit already updated (`docs/conventions/loop-lane/README.md`,
+  `plugins/source-control/skills/babysit-loop/SKILL.md`).
 
 ## [0.24.2]
 
