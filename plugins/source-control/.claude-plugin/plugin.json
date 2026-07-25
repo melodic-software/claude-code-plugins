@@ -1,8 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "source-control",
-  "version": "0.19.1",
-  "description": "Git and GitHub delivery workflow: /commit (Conventional Commits + Co-Authored-By trailer via safe heredoc mechanics), /pull-request (prep, create, CI monitoring, review-comment triage, merge, CI-log fetch), /babysit-prs (self-pacing fleet loop — safe by default; opt-in worker/autopilot tiers add gate-checked merge and thread resolution behind a deterministic Python engine), /worktree (create, status, cleanup, audit for parallel-session isolation), /setup (check the effective commit-subject / PR-title convention merged across its config layers and the babysit-prs config, or apply — interview the repo and write the convention config to a chosen layer), and /resolve-conflicts (intent-first merge/rebase conflict resolution with a semantic-conflict sweep — never --abort). The commit-subject / PR-title convention is configurable via a source-control.md config written by a re-runnable setup skill, layered across a ~/.claude user-global file, the tracked team file, and a gitignored .claude/source-control.local.md personal overlay merged per key; Conventional Commits is the default when no convention is declared.",
+  "version": "0.26.3",
+  "description": "Git and GitHub delivery workflow: /commit (Conventional Commits + Co-Authored-By trailer via safe heredoc mechanics), /pull-request (prep, create, CI monitoring, review-comment triage, merge, CI-log fetch), /babysit-prs (self-pacing fleet loop — safe by default; opt-in worker/autopilot tiers add gate-checked merge and thread resolution behind a deterministic Python engine), /babysit-loop (the loop-lane merge lane: a standing or drain loop that invokes babysit-prs per cycle, configured through repo-scoped babysit_loop_* keys on the layered source-control.md seam, with merge authority human-only until the target repo's tracked config adopts the lane, a gate-proven C2-mechanical baseline once adopted, and merge-rung raises binding from the team-tracked layer only), /worktree (create, status, cleanup, audit for parallel-session isolation), /setup (check the effective commit-subject / PR-title convention merged across its config layers and the babysit-prs config, or apply — interview the repo and write the convention config to a chosen layer), and /resolve-conflicts (intent-first merge/rebase conflict resolution with a semantic-conflict sweep — never --abort). The commit-subject / PR-title convention is configurable via a source-control.md config written by a re-runnable setup skill, layered across a ~/.claude user-global file, the tracked team file, and a gitignored .claude/source-control.local.md personal overlay merged per key; Conventional Commits is the default when no convention is declared.",
   "author": {
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
@@ -172,6 +172,26 @@
       "type": "string",
       "title": "Branch-to-issue grammar (ERE)",
       "description": "POSIX ERE for extracting the numeric GitHub issue number from the current branch name; the LAST capture group holds it and must resolve to digits (Closes #N honors only a numeric issue). Set this for a non-default branch scheme that places the number differently, e.g. '^[^/]+/([0-9]+)-' for 'alice/1234-slug' or '-([0-9]+)$' for 'feat/add-widget-1234'. Absent: the built-in '<type>/<N>-<slug>' (and routine-issue-<N>) convention."
+    },
+    "setup_inference_window": {
+      "type": "string",
+      "title": "Setup inference history window",
+      "description": "git log --since window /source-control:setup samples for commit-subject convention inference (any git-approxidate, e.g. '1 year', '6 months'). Absent: 1 year.",
+      "default": "1 year"
+    },
+    "setup_inference_recency_days": {
+      "type": "number",
+      "title": "Setup inference recency split (days)",
+      "description": "Boundary for the recency split in /source-control:setup's convention-inference report — subjects newer than this many days are the 'recent' bucket, weighted as the live convention when its share diverges from the older bucket. Absent: 90.",
+      "default": 90,
+      "min": 1
+    },
+    "setup_inference_min_commits": {
+      "type": "number",
+      "title": "Setup inference low-confidence threshold (commits)",
+      "description": "Below this many classifiable subjects in the window, /source-control:setup widens inference to full history; still below it, the inference is reported low-confidence rather than authoritative. Absent: 50.",
+      "default": 50,
+      "min": 1
     }
   }
 }

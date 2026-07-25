@@ -1,0 +1,42 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "checks-without-touching-settings",
+      "prompt": "/rate-limit-guard:setup check",
+      "expected_output": "Reports jq presence, the statusline wiring state, tee-file freshness against the 10-minute staleness rule, and the hook kill switch; prints the exact settings.json statusline edit for the operator; edits nothing.",
+      "files": [],
+      "expectations": [
+        "Reads settings.json only; never writes settings, pluginConfigs, or the contract directory",
+        "Reports PASS/FAIL/INFO with one remediation line per FAIL",
+        "Prints the settings.json edit with the resolved plugin-root path and the plugin-update path caveat",
+        "Surfaces the dotfiles-tracking reminder for the operator-owned edit"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "distinguishes-unconfigured-from-wrapper-missing",
+      "prompt": "/rate-limit-guard:setup check\n\nMy settings.json has no statusLine key at all.",
+      "expected_output": "States that no statusline is configured (as opposed to a wrapper missing from an existing command) and prints the standalone wiring variant, not the wrapping variant.",
+      "files": [],
+      "expectations": [
+        "Names the state as no-statusline-configured, not as a broken wrapper",
+        "Prints the standalone bash statusline-tee.sh command with no wrapped command",
+        "Does not offer to apply the edit itself"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "reads-absent-rate-limits-as-reactive-only",
+      "prompt": "/rate-limit-guard:setup check\n\nThe tee file is fresh but has no rate_limits key.",
+      "expected_output": "Reports the fresh-but-windowless snapshot as INFO — this auth exposes no subscription windows, consumers correctly run reactive-only — not as a failure to fix.",
+      "files": [],
+      "expectations": [
+        "Classifies absent rate_limits on a fresh snapshot as expected fail-open behavior",
+        "Does not tell the operator to rewire or reinstall anything for it",
+        "Cites the reader contract as the owner of the fail-open rule"
+      ]
+    }
+  ]
+}

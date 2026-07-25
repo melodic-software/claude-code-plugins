@@ -14,7 +14,7 @@ Trigger: `$ARGUMENTS` is `run-everything` / `everything` / `all`. Distinct from 
 6. **Normalize main-thread** — gather the Workflow's extracted leaf records + the raw orchestrator outputs; run Stage 0 on the orchestrator outputs (the Workflow only extracted the leaf branch), then Stages 1–4 of `findings-normalization.md` over the combined record set. Reconcile per surface against the Workflow's `raw` array: any surface whose raw output is non-empty but yielded zero extracted records gets Stage 0 re-run main-thread on that raw text; whatever still fails to parse goes verbatim into `## Unparsed` — partial extraction never silently drops a surface.
 7. **Persist** per `default-mode.md` "Findings-writer contract"; prepend the DEGRADED block when the fallback was taken.
 
-**Pre-flight gate first:** SKILL.md's pre-flight gate applies to this mode too — an unresolvable base ref or an empty change set (including untracked-only) reports and stops before step 1; with nothing diffable, every leaf would diff an empty tree and return nothing. Do NOT stage files.
+**Pre-flight gate first:** SKILL.md's pre-flight gate applies to this mode too — the ask-shape check routes a whole-repo security-audit ask to the `leaf-roster.md` "Deep-scan escalation" before any diff resolution, and an unresolvable base ref or an empty change set (including untracked-only) reports and stops before step 1; with nothing diffable, every leaf would diff an empty tree and return nothing. Do NOT stage files.
 
 ## Pre-launch availability gate
 

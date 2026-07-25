@@ -3,6 +3,64 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.1]
+
+### Documentation
+
+- `skills/clean/scripts/lib/test-helpers.sh` now points at
+  `docs/conventions/shell-test-helpers/README.md`, the repo's owner doc recording that per-plugin
+  shell assert-helper duplication and per-script exit-code taxonomies are deliberate, not drift. No
+  behavior change.
+
+## [0.7.0]
+
+### Added
+
+- **`stash` action — stash audit and triage across every tier that previously
+  ignored stashes.** `git-stash-audit.sh` reports each stash's age, source
+  branch, diffstat, and a PR/merge signal, with a per-stash keep/drop advisory —
+  and **never drops a stash**; the agent confirms keep-or-drop per entry. A
+  `possibly superseded` / `likely superseded` advisory (source branch merged into
+  `origin/<default>` or via a merged PR) is a hint to raise first, never an
+  autonomous drop. Deduped across linked worktrees by the `--git-common-dir`
+  `StashStore:` key (worktrees share one stash ref). Each stash also carries its
+  stable commit id (`Commit:`) — the safe handle when dropping several, since the
+  `stash@{n}` selector renumbers after every drop — and a confirmed `git stash
+  drop`/`clear` is now covered by the session destructive guard (blocked until the
+  `CLEAN_GUARD_ACK=1` acknowledgement). Runs standalone (`stash`) and as part of
+  the `git` tier. (#996)
+- **Branch audit now surfaces unpushed commits per branch, including no-upstream
+  branches.** A new `Unpushed:` line reports `N ahead of <upstream>` or, for a
+  never-pushed branch, `no upstream, M commits not on origin/<default>` — the
+  latter is invisible to `@{upstream}`-based ahead reporting, so unmerged local
+  work no longer goes unseen. Such branches form their own REVIEW class ranked
+  above generic stale/orphaned, so the unpushed-commit count is the headline. A
+  branch whose upstream is `gone` but that still carries commits not on
+  origin/<default> is held in REVIEW too, rather than offered as a LIKELY-SAFE
+  deletion candidate that would lose those commits. (#998)
+- **The resolver echoes trailing free text as a `Note:` line.** When a leading
+  action token is followed by a question or a live-session constraint (e.g.
+  `all mind the 6 live sessions`), the remainder is emitted as advisory context
+  the agent must address, instead of being silently dropped during action
+  resolution. (#1000)
+
+### Changed
+
+- **Branches checked out in a linked worktree are their own `WORKTREE` bucket, no
+  longer folded into `PROTECTED`.** Such a branch is a real cleanup candidate but
+  `git branch -d` on it fails or, forced, breaks the worktree — so it is
+  subtracted from the deletion set and routed to the worktree-management tool
+  ("clean up the worktree first") rather than mislabeled untouchable. The
+  protected-name checks now rank above the worktree check so a `release/*` or
+  default branch checked out in a worktree stays PROTECTED. `Summary:` gains a
+  `worktree=` count. (#997)
+- **`scan.sh` enumerates through the shared single pruned-walk engine.** The
+  read-only inventory dropped its per-pattern unpruned `find` walks (which still
+  descended `.git/`, `node_modules/`, `.venv/` despite `! -path` filters) for
+  `clean_caches_candidates` / `clean_build_candidates`, so the scan and the
+  mutating caches/build tiers now share one enumeration way and one prune set.
+  (#1011)
+
 ## [0.6.0]
 
 ### Added

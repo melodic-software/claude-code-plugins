@@ -9,10 +9,11 @@ trap 'rm -rf "$TMP"' EXIT
 MOCK_BIN="$TMP/bin"
 mkdir -p "$MOCK_BIN" "$TMP/config" "$TMP/discovered-a" "$TMP/canonical-a" "$TMP/repo-b" "$TMP/old-repo" \
   "$TMP/bad-discovered" "$TMP/bad-canonical" "$TMP/wt-fail" \
-  "$TMP/ref-fail" \
+  "$TMP/ref-fail" "$TMP/rref-fail" "$TMP/dup-a" "$TMP/new-clone" \
   "$TMP/root/acme/root-repo/.git" \
+  "$TMP/emptyroot" \
   "$TMP/wt-a" "$TMP/wt-mismatch" \
-  "$TMP/discovered-c" "$TMP/canonical-c"
+  "$TMP/discovered-c" "$TMP/canonical-c" "$TMP/gone-repo" "$TMP/lost-repo" "$TMP/net-repo"
 : >"$TMP/calls.log"
 
 cat >"$MOCK_BIN/git" <<'EOF'
@@ -47,8 +48,14 @@ rev-parse)
     bad-canonical) printf '%s\n' "$TEST_ROOT/bad-canonical" ;;
     wt-fail) printf '%s\n' "$TEST_ROOT/wt-fail" ;;
     ref-fail) printf '%s\n' "$TEST_ROOT/ref-fail" ;;
+    rref-fail) printf '%s\n' "$TEST_ROOT/rref-fail" ;;
+    dup-a) printf '%s\n' "$TEST_ROOT/dup-a" ;;
+    new-clone) printf '%s\n' "$TEST_ROOT/new-clone" ;;
     root-repo) printf '%s\n' "$TEST_ROOT/root/acme/root-repo" ;;
     discovered-c | canonical-c) printf '%s\n' "$TEST_ROOT/canonical-c" ;;
+    gone-repo) printf '%s\n' "$TEST_ROOT/gone-repo" ;;
+    lost-repo) printf '%s\n' "$TEST_ROOT/lost-repo" ;;
+    net-repo) printf '%s\n' "$TEST_ROOT/net-repo" ;;
     *) exit 1 ;;
     esac
     ;;
@@ -62,8 +69,14 @@ rev-parse)
     bad-canonical) printf '%s\n' "$TEST_ROOT/bad-canonical/.git" ;;
     wt-fail) printf '%s\n' "$TEST_ROOT/wt-fail/.git" ;;
     ref-fail) printf '%s\n' "$TEST_ROOT/ref-fail/.git" ;;
+    rref-fail) printf '%s\n' "$TEST_ROOT/rref-fail/.git" ;;
+    dup-a) printf '%s\n' "$TEST_ROOT/dup-a/.git" ;;
+    new-clone) printf '%s\n' "$TEST_ROOT/new-clone/.git" ;;
     root-repo) printf '%s\n' "$TEST_ROOT/root/acme/root-repo/.git" ;;
     discovered-c | canonical-c) printf '%s\n' "$TEST_ROOT/canonical-c/.git" ;;
+    gone-repo) printf '%s\n' "$TEST_ROOT/gone-repo/.git" ;;
+    lost-repo) printf '%s\n' "$TEST_ROOT/lost-repo/.git" ;;
+    net-repo) printf '%s\n' "$TEST_ROOT/net-repo/.git" ;;
     *) exit 1 ;;
     esac
     ;;
@@ -80,8 +93,14 @@ remote)
     bad-canonical) printf '%s\n' 'https://gitlab.com/other/unrelated.git' ;;
     wt-fail) printf '%s\n' 'https://github.com/acme/wt-fail.git' ;;
     ref-fail) printf '%s\n' 'https://github.com/acme/ref-fail.git' ;;
+    rref-fail) printf '%s\n' 'https://github.com/acme/rref-fail.git' ;;
+    dup-a) printf '%s\n' 'https://github.com/acme/repo-b.git' ;;
+    new-clone) printf '%s\n' 'https://github.com/new/repo.git' ;;
     root-repo) printf '%s\n' 'https://github.com/acme/root-repo.git' ;;
     discovered-c | canonical-c) printf '%s\n' 'https://github.com/acme/repo-c.git' ;;
+    gone-repo) printf '%s\n' 'https://github.com/gone/away.git' ;;
+    lost-repo) printf '%s\n' 'https://github.com/lost/cause.git' ;;
+    net-repo) printf '%s\n' 'https://github.com/gone/net.git' ;;
     *) exit 1 ;;
     esac
   else
@@ -107,11 +126,29 @@ worktree)
   ref-fail)
     printf 'worktree %s\0HEAD ref-main\0branch refs/heads/main\0\0' "$TEST_ROOT/ref-fail"
     ;;
+  rref-fail)
+    printf 'worktree %s\0HEAD rr-main\0branch refs/heads/main\0\0' "$TEST_ROOT/rref-fail"
+    ;;
+  dup-a)
+    printf 'worktree %s\0HEAD dup-main\0branch refs/heads/main\0\0' "$TEST_ROOT/dup-a"
+    ;;
+  new-clone)
+    printf 'worktree %s\0HEAD nc-main\0branch refs/heads/main\0\0' "$TEST_ROOT/new-clone"
+    ;;
   root-repo)
     printf 'worktree %s\0HEAD root-main\0branch refs/heads/main\0\0' "$TEST_ROOT/root/acme/root-repo"
     ;;
   canonical-c)
     printf 'worktree %s\0HEAD main-c\0branch refs/heads/main\0\0' "$TEST_ROOT/canonical-c"
+    ;;
+  gone-repo)
+    printf 'worktree %s\0HEAD gone-main\0branch refs/heads/main\0\0' "$TEST_ROOT/gone-repo"
+    ;;
+  lost-repo)
+    printf 'worktree %s\0HEAD lost-main\0branch refs/heads/main\0\0' "$TEST_ROOT/lost-repo"
+    ;;
+  net-repo)
+    printf 'worktree %s\0HEAD net-main\0branch refs/heads/main\0\0' "$TEST_ROOT/net-repo"
     ;;
   esac
   ;;
@@ -121,23 +158,31 @@ symbolic-ref)
 branch)
   case "$base" in
   canonical-a) printf '%s\n' main ;;
-  repo-b | old-repo | root-repo | wt-fail | ref-fail | canonical-c) printf '%s\n' main ;;
+  repo-b | old-repo | root-repo | wt-fail | ref-fail | rref-fail | dup-a | new-clone | canonical-c | gone-repo | lost-repo | net-repo) printf '%s\n' main ;;
   esac
   ;;
 for-each-ref)
   # refs/remotes/<remote>/ scans (case-branch below) prove a local-only branch never becomes a
   # --head argument to gh: canonical-a's remote mirror deliberately omits feature/mismatch.
+  # repo-b deliberately matches NO case here (empty output, exit 0): it is the empty-remote-
+  # inventory regression fixture for #1119 -- its non-default feature/shared branch has no PR-batch
+  # row, so the exact-fallback gate loop must run over an empty REMOTE_BRANCH_NAMES without
+  # aborting the fleet (unguarded expansion is fatal under set -u on bash <= 4.3) and must report
+  # the skipped lookup as a visible privacy gap.
   if [[ "${3:-}" == refs/remotes/*/ ]]; then
     case "$base" in
     canonical-a)
       printf 'origin\thead-a\0\norigin/main\tmain-a\0\norigin/feature/shared\tsha-a\0\norigin/stale/changed\tdrift-tip\0\n'
       ;;
+    rref-fail) exit 9 ;;
     esac
     exit 0
   fi
   case "$base" in
   canonical-a)
-    printf 'main\tmain-a\0\nfeature/shared\tsha-a\0\nstale/changed\tdrift-tip\0\nfeature/mismatch\tmismatch\0\n'
+    # stale/gone: merged-PR batch row exists at a different OID (drift) but the branch has no
+    # remote-tracking ref -- the drift finding must state the local tip is absent (unpushed).
+    printf 'main\tmain-a\0\nfeature/shared\tsha-a\0\nstale/changed\tdrift-tip\0\nfeature/mismatch\tmismatch\0\nstale/gone\tgone-tip\0\n'
     ;;
   repo-b)
     printf 'main\tmain-b\0\nfeature/shared\tsha-b\0\n'
@@ -145,8 +190,14 @@ for-each-ref)
   old-repo) printf 'main\told-main\0\n' ;;
   wt-fail) printf 'main\twt-main\0\nfeature/fail\tfail-tip\0\n' ;;
   ref-fail) printf 'main\tref-main\0\nfeature/partial\tpartial-tip\0'; exit 9 ;;
+  rref-fail) printf 'main\trr-main\0\nfeature/gated\trr-tip\0\n' ;;
+  dup-a) printf 'main\tdup-main\0\n' ;;
+  new-clone) printf 'main\tnc-main\0\n' ;;
   root-repo) printf 'main\troot-main\0\n' ;;
   canonical-c) printf 'main\tmain-c\0\n' ;;
+  gone-repo) printf 'main\tgone-main\0\n' ;;
+  lost-repo) printf 'main\tlost-main\0\n' ;;
+  net-repo) printf 'main\tnet-main\0\n' ;;
   esac
   ;;
 merge-base) exit 1 ;;
@@ -171,14 +222,21 @@ auth) exit 0 ;;
 api)
   endpoint="${2:-}"
   case "$endpoint" in
+  user)
+    [[ "${MOCK_GH_USER_FAIL:-}" == "1" ]] && exit 1
+    printf 'test-login'
+    ;;
   repos/acme/repo-a) printf 'acme/repo-a\tmain' ;;
   repos/acme/repo-b) printf 'acme/repo-b\tmain' ;;
   repos/acme/root-repo) printf 'acme/root-repo\tmain' ;;
   repos/acme/bad) printf 'acme/bad\tmain' ;;
   repos/acme/wt-fail) printf 'acme/wt-fail\tmain' ;;
   repos/acme/ref-fail) printf 'acme/ref-fail\tmain' ;;
+  repos/acme/rref-fail) printf 'acme/rref-fail\tmain' ;;
   repos/old/repo) printf 'new/repo\tmain' ;;
+  repos/new/repo) printf 'new/repo\tmain' ;;
   repos/acme/repo-c) printf 'acme/repo-c\tmain' ;;
+  repos/gone/net) printf 'gh: connection reset by peer\n' >&2; exit 1 ;;
   *) printf 'gh: Not Found (HTTP 404)\n' >&2; exit 1 ;;
   esac
   ;;
@@ -191,8 +249,10 @@ pr)
   github.com/acme/repo-a)
     printf '18\tfeature/shared\tsha-a\t2026-07-01T00:00:00Z\thttps://github.com/acme/repo-a/pull/18\n'
     printf '42\tstale/changed\tmerged-tip\t2026-07-02T00:00:00Z\thttps://github.com/acme/repo-a/pull/42\n'
+    printf '43\tstale/gone\tother-tip\t2026-07-03T00:00:00Z\thttps://github.com/acme/repo-a/pull/43\n'
     ;;
   github.com/acme/repo-b | github.com/acme/root-repo | github.com/new/repo | github.com/acme/repo-c) ;;
+  github.com/acme/rref-fail) ;;
   github.com/acme/wt-fail)
     printf '88\tfeature/fail\tfail-tip\t2026-07-03T00:00:00Z\thttps://github.com/acme/wt-fail/pull/88\n'
     ;;
@@ -216,14 +276,25 @@ export EVIL_PATH
 cat >"$TMP/config/repo-fleet-hygiene.conf" <<'EOF'
 [fleet]
     root = ../root
+    root = ../emptyroot
     repo = ../discovered-a
     repo = ../repo-b
     repo = ../old-repo
     repo = ../bad-discovered
     repo = ../wt-fail
     repo = ../ref-fail
+    repo = ../rref-fail
+    repo = ../dup-a
+    repo = ../new-clone
+    repo = ../deleted-repo
+    root = ../gone-root
     repo = ../discovered-c
+    repo = ../gone-repo
+    repo = ../lost-repo
+    repo = ../net-repo
     maxDepth = 5
+    ackUnavailable = github.com/Gone/Away
+    ackUnavailable = github.com/gone/net
 [canonical "github.com/acme/repo-a"]
     path = ../canonical-a
 [canonical "github.com/acme/bad"]
@@ -273,7 +344,119 @@ assert_not_contains "repo B branch did not inherit repo A merge" "Target: $TMP/r
 assert_not_contains "invalid canonical state was not combined" "Target: $TMP/bad-canonical ::"
 assert_not_contains "failed worktree inventory suppressed branch candidate" "Target: $TMP/wt-fail :: feature/fail"
 assert_not_contains "partial branch inventory suppressed branch candidate" "Target: $TMP/ref-fail :: feature/partial"
-assert_contains "failed repositories not counted successful" "Summary: repositories=5"
+assert_contains "failed repositories not counted successful" "Summary: repositories=11"
+
+# Duplicate detection keys on the CANONICALIZED identity: old-repo (remote still says old/repo,
+# resolved to new/repo) must pair with new-clone (cloned from new/repo directly).
+if grep -A3 -F "Finding: duplicate-checkout" "$output" | grep -F "Evidence:" | grep -Fq "$TMP/old-repo" &&
+  grep -A3 -F "Finding: duplicate-checkout" "$output" | grep -F "Evidence:" | grep -Fq "$TMP/new-clone"; then
+  printf 'PASS: moved-remote checkout pairs with fresh clone via canonical identity\n'
+else
+  printf 'FAIL: moved-remote checkout pairs with fresh clone via canonical identity\n' >&2
+  failures=$((failures + 1))
+fi
+
+# Stale CONFIG-sourced entries degrade per-entry (deleted-repo, gone-root) and the run continues;
+# a CLI-supplied bad path must still hard-fail (checked in a separate run below).
+assert_contains "stale config repo degrades per-entry" "Finding: stale-config-entry"
+# The script may canonicalize CONFIG_DIR (e.g. /tmp -> its symlink target on Git Bash), so match
+# the stable config-relative suffix rather than the $TMP prefix.
+assert_contains "stale config repo names the path" "config/../deleted-repo"
+assert_contains "stale config root names the path" "config/../gone-root"
+assert_contains "stale root reason names fleet.root" "configured fleet.root path is not a directory"
+
+# Duplicate checkouts of one identity (repo-b + dup-a) get ONE LOW informational finding listing
+# both paths; a single-checkout identity gets none.
+if grep -A3 -F "Finding: duplicate-checkout" "$output" | grep -Fq "Confidence: LOW"; then
+  printf 'PASS: duplicate-checkout stays LOW\n'
+else
+  printf 'FAIL: duplicate-checkout stays LOW\n' >&2
+  failures=$((failures + 1))
+fi
+if grep -A3 -F "Finding: duplicate-checkout" "$output" | grep -F "Evidence:" | grep -Fq "$TMP/repo-b" &&
+  grep -A3 -F "Finding: duplicate-checkout" "$output" | grep -F "Evidence:" | grep -Fq "$TMP/dup-a"; then
+  printf 'PASS: duplicate-checkout lists both checkout paths\n'
+else
+  printf 'FAIL: duplicate-checkout lists both checkout paths\n' >&2
+  failures=$((failures + 1))
+fi
+if grep -A3 -F "Finding: duplicate-checkout" "$output" | grep -Fq "Target: github.com/acme/repo-a"; then
+  printf 'FAIL: single-checkout identity wrongly reported as duplicate\n' >&2
+  failures=$((failures + 1))
+else
+  printf 'PASS: single-checkout identity not reported as duplicate\n'
+fi
+assert_contains "per-root discovered count for a contributing root" "../root: 1 repositories"
+assert_contains "zero-contribution root stays visible in the header" "../emptyroot: 0 repositories"
+
+# Empty remote-ref inventory (repo-b: refs/remotes scan returns nothing with exit 0) must reach
+# and survive the exact-fallback gate loop -- on bash <= 4.3 an unguarded empty-array expansion
+# under set -u aborts the whole fleet -- and the privacy-gated skip must be visible, never silent.
+if grep -A3 -F "Finding: merge-evidence-privacy-gated" "$output" | grep -Fq "Target: $TMP/repo-b"; then
+  printf 'PASS: empty remote inventory survives gate loop and reports privacy gap\n'
+else
+  printf 'FAIL: empty remote inventory survives gate loop and reports privacy gap\n' >&2
+  failures=$((failures + 1))
+fi
+assert_contains "local-only branch named in aggregate privacy gap" \
+  "absent from the local remote-tracking inventory: feature/mismatch"
+# A FAILED remote-ref scan (rref-fail) already reports remote-branch-inventory-unavailable
+# repo-wide; the per-repo privacy-gap aggregate must stay quiet there, not double-report.
+assert_contains "failed remote-ref scan reported repo-wide" "Finding: remote-branch-inventory-unavailable"
+if grep -A3 -F "Finding: merge-evidence-privacy-gated" "$output" | grep -Fq "Target: $TMP/rref-fail"; then
+  printf 'FAIL: failed remote inventory double-reported as privacy gap\n' >&2
+  failures=$((failures + 1))
+else
+  printf 'PASS: failed remote inventory not double-reported as privacy gap\n'
+fi
+
+# Drift push-state evidence: stale/changed has a same-named remote-tracking ref at the SAME OID
+# (pushed); stale/gone has a drift-batch row but NO remote-tracking ref (may be unpushed).
+assert_contains "pushed drift named in evidence" \
+  "current local tip is drift-tip; local tip matches the last-fetched remote-tracking ref (pushed as of the last fetch; verify current remote state before relying on recoverability)"
+assert_contains "unpushed drift named in evidence" \
+  "current local tip is gone-tip; local tip not on the last-fetched remote-tracking ref (drift commits may never have been pushed)"
+
+# Header names the authenticated gh account; a failed login probe degrades to the plain line.
+assert_contains "header names gh account" "GitHub evidence: available (account: test-login)"
+
+# Clean repos say so explicitly instead of ending the section without a marker.
+if grep -A6 -F "Repo: $TMP/root/acme/root-repo" "$output" | grep -Fq "Findings: none"; then
+  printf 'PASS: clean repo emits explicit Findings: none marker\n'
+else
+  printf 'FAIL: clean repo emits explicit Findings: none marker\n' >&2
+  failures=$((failures + 1))
+fi
+if grep -A6 -F "Repo: $TMP/discovered-a" "$output" | grep -Fq "Findings: none"; then
+  printf 'FAIL: finding-bearing repo wrongly emitted Findings: none\n' >&2
+  failures=$((failures + 1))
+else
+  printf 'PASS: finding-bearing repo does not emit Findings: none\n'
+fi
+
+# fleet.ackUnavailable: 404 on an acked identity (mixed-case config entry) is
+# demoted to ACKNOWLEDGED; an unacked 404 stays UNKNOWN; a non-404 failure on
+# an acked identity stays UNKNOWN with its real reason.
+if grep -B2 -F "Target: github.com/gone/away" "$output" | grep -Fq "Confidence: ACKNOWLEDGED"; then
+  printf 'PASS: acked 404 demoted to ACKNOWLEDGED\n'
+else
+  printf 'FAIL: acked 404 demoted to ACKNOWLEDGED\n' >&2
+  failures=$((failures + 1))
+fi
+assert_contains "acked finding names its ack source" "acknowledged known-inaccessible via fleet.ackUnavailable"
+if grep -B2 -F "Target: github.com/lost/cause" "$output" | grep -Fq "Confidence: UNKNOWN"; then
+  printf 'PASS: unacked 404 stays UNKNOWN\n'
+else
+  printf 'FAIL: unacked 404 stays UNKNOWN\n' >&2
+  failures=$((failures + 1))
+fi
+if grep -B2 -F "Target: github.com/gone/net" "$output" | grep -Fq "Confidence: UNKNOWN"; then
+  printf 'PASS: non-404 failure on acked identity stays UNKNOWN\n'
+else
+  printf 'FAIL: non-404 failure on acked identity stays UNKNOWN\n' >&2
+  failures=$((failures + 1))
+fi
+assert_contains "summary counts acknowledged separately" "acknowledged=1"
 
 if grep -Fq -- '--head feature/mismatch' "$CALL_LOG"; then
   printf 'FAIL: local-only branch name was sent to GitHub via --head\n' >&2
@@ -293,6 +476,95 @@ if grep -Fxq 'Handoff: injected-control' "$output" || LC_ALL=C grep -q $'\033' "
   failures=$((failures + 1))
 else
   printf 'PASS: control-bearing path stayed within one encoded field\n'
+fi
+
+# Config resolution ladder: explicit --config > project-scoped > user-global > none,
+# with the consumed source named in the report header.
+assert_contains "explicit config named in header" "(explicit --config)"
+
+mkdir -p "$TMP/proj/.claude" "$TMP/noconf" "$TMP/homeg/.claude" "$TMP/nohome"
+cat >"$TMP/proj/.claude/repo-fleet-hygiene.conf" <<'LADDER'
+[fleet]
+    repo = ../../discovered-a
+LADDER
+cp "$TMP/proj/.claude/repo-fleet-hygiene.conf" "$TMP/homeg/.claude/repo-fleet-hygiene.conf"
+ladder_out="$TMP/ladder.txt"
+
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/proj" HOME="$TMP/nohome" \
+  bash "$SCRIPT" >"$ladder_out"
+if grep -Fq -- "repo-fleet-hygiene.conf (project)" "$ladder_out"; then
+  printf 'PASS: project config auto-probed and named\n'
+else
+  printf 'FAIL: project config auto-probed and named\n' >&2
+  failures=$((failures + 1))
+fi
+
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/noconf" HOME="$TMP/homeg" \
+  bash "$SCRIPT" >"$ladder_out"
+if grep -Fq -- "repo-fleet-hygiene.conf (user-global)" "$ladder_out"; then
+  printf 'PASS: user-global config fallback consumed and named\n'
+else
+  printf 'FAIL: user-global config fallback consumed and named\n' >&2
+  failures=$((failures + 1))
+fi
+
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
+  bash "$SCRIPT" >"$ladder_out"
+if grep -Fq -- "Config: none" "$ladder_out"; then
+  printf 'PASS: no-config run states none was consumed\n'
+else
+  printf 'FAIL: no-config run states none was consumed\n' >&2
+  failures=$((failures + 1))
+fi
+
+# An ALL-stale config must still complete and render its stale-config-entry findings -- the
+# remediation detail matters most exactly when every entry is gone.
+cat >"$TMP/stale-only.conf" <<'STALEONLY'
+[fleet]
+    repo = ./no-such-dir-anywhere
+STALEONLY
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --config "$TMP/stale-only.conf" >"$ladder_out" 2>&1 &&
+  grep -Fq "Finding: stale-config-entry" "$ladder_out" &&
+  grep -Fq "Repositories discovered: 0" "$ladder_out"; then
+  printf 'PASS: all-stale config completes with stale findings instead of hard-failing\n'
+else
+  printf 'FAIL: all-stale config completes with stale findings instead of hard-failing\n' >&2
+  failures=$((failures + 1))
+fi
+
+# The implicit current-project default (no CLI paths, no config) is CLI-equivalent: running the
+# zero-configuration audit from a non-Git directory must still hard-fail, never degrade to a
+# stale-config-entry with an empty source.
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/noconf" HOME="$TMP/nohome" \
+  bash "$SCRIPT" >"$ladder_out" 2>&1; then
+  printf 'FAIL: zero-config non-Git project dir did not hard-fail\n' >&2
+  failures=$((failures + 1))
+elif grep -Fq "not a Git working tree" "$ladder_out" && ! grep -Fq "stale-config-entry" "$ladder_out"; then
+  printf 'PASS: zero-config non-Git project dir hard-fails without stale-config degradation\n'
+else
+  printf 'FAIL: zero-config non-Git project dir hard-fails without stale-config degradation (wrong output)\n' >&2
+  failures=$((failures + 1))
+fi
+
+# A CLI-supplied bad path is a typo, not config drift: the run must still hard-fail.
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --repo "$TMP/never-existed" >"$ladder_out" 2>&1; then
+  printf 'FAIL: CLI-supplied missing repo did not hard-fail\n' >&2
+  failures=$((failures + 1))
+elif grep -Fq "repository directory not found" "$ladder_out"; then
+  printf 'PASS: CLI-supplied missing repo hard-fails\n'
+else
+  printf 'FAIL: CLI-supplied missing repo hard-fails (wrong error)\n' >&2
+  failures=$((failures + 1))
+fi
+
+# A failed authenticated-login probe must degrade the header to the plain line, never block.
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 MOCK_GH_USER_FAIL=1 CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
+  bash "$SCRIPT" >"$ladder_out"
+if grep -Fq -- "GitHub evidence: available" "$ladder_out" && ! grep -Fq -- "(account:" "$ladder_out"; then
+  printf 'PASS: failed account probe degrades to plain header line\n'
+else
+  printf 'FAIL: failed account probe degrades to plain header line\n' >&2
+  failures=$((failures + 1))
 fi
 
 # Exercise the collector's own fail-closed command gate, rather than relying on a denylist that can

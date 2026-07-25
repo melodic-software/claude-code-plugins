@@ -354,6 +354,7 @@ relationship to the contract is fully stated by their table row.
 | Plugin | Writes | Tier(s) | Binding |
 |---|---|---|---|
 | discovery | `EXPLORE.md`, `RESEARCH.md` | memory | delta doc |
+| architecture | `deepening-candidates-<timestamp>.md` (per-lens candidate ledgers) | memory | delta doc |
 | planning | `PRD.md`, `PLAN.md` (Brief), `design/`, opt-in brainstorm persist | contract + memory | delta doc |
 | implementation | `PLAN.md` (Plan/progress), `DEVIATIONS.md`, status summaries | contract + memory | delta doc |
 | verification | `verification/` manifest; baselines, raw captures | contract + memory | delta doc |

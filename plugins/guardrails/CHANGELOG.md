@@ -3,6 +3,142 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.3]
+
+### Documentation
+
+- `hooks/guardrails-test-helpers.sh` now points at
+  `docs/conventions/shell-test-helpers/README.md`, the repo's owner doc recording that per-plugin
+  shell assert-helper duplication and per-script exit-code taxonomies are deliberate, not drift. No
+  behavior change.
+
+## [0.14.2]
+
+### Fixed
+
+- **`block-hook-bypass` no longer lets an interpreter-producer write bypass the gate under the PowerShell
+  tool (live-reproduced bypass).** The PowerShell branch classified only PowerShell cmdlet/redirect write
+  forms (`ps::write_bypass`) and then `exit 0`ed **before** the shell-agnostic scans, so
+  `python3 -c "open('x','w')…"` — the identical command the Bash lane blocks — executed unguarded when
+  issued through the PowerShell tool. Reproduced end-to-end: same command, Bash → blocked, PowerShell →
+  file written. The interpreter rule now also runs on the PowerShell lane. The **Bash** lane keeps its
+  precise `python3 -c` scan (its `strip_literals` is genuinely quote-aware and Bash has no `<# #>` block
+  comments or `&{}` script blocks) and additionally recognizes a **path-qualified** interpreter
+  (`/usr/bin/python3 -c`, `.exe`), anchored on the `python3` basename so `notpython3` stays inert.
+- **The PowerShell lane deliberately DIVERGES from the Bash lane and uses a fail-closed sink instead of a
+  precise scan.** PowerShell is not faithfully bash-tokenizable, and a precise regex/normalize stack could
+  not keep up — successive review rounds each surfaced a fresh evasion (path-qualified target, `&{python3}`
+  script block, quoted-`#` comment truncation, with `<# #>` block comments and `-ArgumentList`
+  arg-splitting still open). Following the repo's SINK DOCTRINE (`ps::classify_git_command` /
+  `ps::might_invoke_git`), the lane now blocks on the mangle-resistant **co-occurrence** of (a) a raw write
+  indicator (`_py_write`) and (b) a python3 interpreter token **plus** a `-c` inline-code flag, both seen
+  on the quote-intact, backtick-recovered command (`ps::might_write_via_python3`). This uniformly closes
+  the quoted / path-qualified / brace-glued / backtick-obfuscated / block-comment / arg-split forms. `-c`
+  is **required** (position-independent), so a legitimate script or module run (`python3 build.py`,
+  `python3 -m tool …`) that merely touches an `open(`-like path is **not** blocked; a **computed** flag
+  (`python3 ('-'+'c') …`, `-ArgumentList ('-'+'c'),…`) is caught by fail-closing on a non-tokenizable arg
+  subexpression (`ps::has_special_constructs`) when no literal `-c` is present, and a computed launcher
+  TARGET that hides the interpreter name (`Start-Process -FilePath ('py'+'thon3') …`, `saps $exe …`) fails
+  closed: any launcher present together with an unquoted computed construct (`$`/`(`) blocks, regardless of
+  how the target is bound or how many options precede it (`-FilePath ('py'+'thon3')`, `-FilePath:$p`,
+  `-NoNewWindow -FilePath $exe`) — while a literal non-python launcher (`Start-Process notepad …`) carries
+  no such construct and stays allowed. A `-c` concatenated with an adjacent variable/subexpression
+  (`python3 -c$code`, `python3 -c(…)`), which PowerShell joins into one `-c<source>` argument, is treated
+  as a computed inline-code flag and fails closed (a longer literal flag like `-config` is not `-c`). A call
+  operator / dot-source of a DOUBLE-quoted interpolated target (`& "$env:PYTHON_BIN" …`, `& "$(…)" …`) runs a
+  computed interpreter and fails closed; a SINGLE-quoted target does not interpolate (`& '$x'` is a literal
+  name) and stays allowed. **Accepted behavior
+  change (fail-closed):** a command that only *mentions* `python3 … -c` + a write indicator in prose, a
+  line/block comment, or a quoted string now **over-blocks** (three prior allow-fixtures flipped to
+  expect-block); here-string mentions stay inert (blanked first, like the git lane). **Accepted residual:**
+  a stdin heredoc (`python3 - <<PY … PY`, no `-c`) is uncovered, as it is today. Regression fixtures cover
+  real `open(`/`pathlib` writes, every evasion form (path-qualified, script block, block comment,
+  arg-split — MUST block), the flipped mention cases (MUST block), and script/module runs + read-only
+  `os.path.normpath` + non-python quoted exe + here-string mention (MUST stay quiet). This was the
+  in-comment "deferred to A2b" gap.
+
+## [0.14.1]
+
+### Fixed
+
+- **`block-hook-bypass` `python-write` no longer false-positives on read-only `os.path.*path(` helpers
+  (#1178).** The `_py_write` write indicator's `path[[:space:]]*\(` was an unanchored substring: it
+  matched `path(` as the suffix of a longer identifier, so a pure path-arithmetic command
+  (`python3 -c "…os.path.normpath(os.path.join(a,b))…"`) — and every other `os.path.*path(` helper
+  (`abspath`, `realpath`, `relpath`, `commonpath`) — was blocked as a file-write bypass despite writing
+  nothing. The `pathlib` / `path(` indicators are now identifier-boundary anchored so they still catch
+  the write-capable `pathlib.Path(` producer while clearing the read-only helpers. Real writes stay
+  blocked (`.write_text(`/`open('f','w')` match independently). Regression fixtures for each `*path(`
+  helper (MUST-stay-quiet) plus a `pathlib.Path().write_text` (MUST-block) added to
+  `block-hook-bypass.test.sh`.
+
+## [0.14.0]
+
+### Changed
+
+- **Vendored convention resolver probes the well-known default neutral path (#163434).** The synced
+  copy of `lib/resolve-convention-pattern.sh` now resolves the neutral convention SSOT by a fixed
+  3-rung precedence: an explicit `## convention_source` pointer, else the well-known default path
+  `docs/conventions/source-control/commit-convention.yml` when present, else the team markdown-H2.
+  The CC-layer content gate enforces the same pattern the drafting side drafts against, with no
+  pointer required in the common case. Back-compat: absent both a pointer and the well-known file,
+  enforcement resolves from the markdown-H2 exactly as before.
+
+## [0.13.0]
+
+### Added
+
+- **Vendored convention resolver understands the neutral convention SSOT (#1141).** The synced copy
+  of `lib/resolve-convention-pattern.sh` now honors a team-tracked `## convention_source` pointer to
+  a repo-relative flat-scalar YAML file: machine keys resolve from that file when it declares them
+  (markdown-H2 fallback per key), the `Conventional Commits` keyword and the `pr_title_pattern`
+  deferral marker work identically on both surfaces, a non-`posix-ere` `dialect:` declaration
+  disables enforcement with a diagnostic, and a declared-but-broken pointer (absolute/backslash/`..`
+  path, missing file) fails closed to no-enforcement rather than silently re-reading markdown values
+  a migration may have retired. Policy floor unchanged: the pointer is honored from the team file
+  only. Seam contract: `docs/conventions/commit-convention/README.md`.
+
+## [0.12.3]
+
+### Fixed
+
+- **`hardcoded-path-check` skips when the project dir is not a git working
+  tree (#1094, residual of #1038).** Claude Code sets `CLAUDE_PROJECT_DIR` for
+  any directory — a home-directory session being the common case — and there
+  the scope guard passed while every per-file exemption rung was unreachable:
+  the `.claude` carve-outs don't cover machine-local plugin config
+  (`~/.claude/<plugin>.conf`), and `git check-ignore` errors outside a work
+  tree, leaving only the global kill switch. The scope guard now also skips
+  when `git rev-parse --is-inside-work-tree` does not report a working tree
+  (same rationale as the #1039 no-project skip: hardcoded paths only harm
+  portable repo artifacts, and a non-worktree project dir has none). Bare
+  repos skip too. README scoping bullet updated; tests pin the skip, the
+  unchanged real-work-tree behavior, and the carve-outs now exercised inside
+  real work trees.
+
+## [0.12.2]
+
+### Fixed
+
+- **Machine-path bodies: right boundary is now the segment class, not a
+  mandatory trailing separator (#1093).** The old bodies required a separator
+  AFTER the child segment, which inverted detection both ways: a real bare
+  path value at end of line (`root = <drive>:/Dev/GitHub`) was MISSED, while
+  prose satisfied the requirement anyway — the space-permitting segment class
+  greedily consumed words until a later slash on the same line, flagging a
+  comment as "Windows repo path detected" while the actual violations passed
+  clean. All five bodies in `machine-path-patterns.sh` now exclude whitespace
+  and the double quote from the child-segment class and drop the trailing
+  separator: bare values at a natural boundary (EOL, whitespace, quote) are
+  detected, prose spans cannot match, and a bare ROOT with no child segment
+  (`C:/Dev`, `/home`) still never matches. The driver's `/Users/Shared`
+  exclusion covers the new bare form. 15 regression cases added (bare values
+  in all five shapes, greedy-prose and root-plus-whitespace negatives, bare
+  `Shared`). Synced-component note: the same pattern change lands upstream in
+  `melodic-software/standards` `components/path-detection/` — the local and
+  upstream copies must stay byte-identical or the next standards sync reverts
+  this fix.
+
 ## [0.12.1]
 
 ### Fixed

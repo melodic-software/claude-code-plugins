@@ -14,3 +14,19 @@ per config-resolution.md's per-key fallthrough, so this file deliberately does n
 - Summary
 - Test plan
 - Related
+
+## babysit_loop_stop_mode
+
+standing
+
+## babysit_loop_tier
+
+worker
+
+## babysit_loop_merge
+
+c2-mechanical
+
+## babysit_loop_grace_window_minutes
+
+30

@@ -1,5 +1,69 @@
 # Changelog — session-flow plugin
 
+## [0.15.1]
+
+### Changed
+
+- All five skills whose pre-computed context block injects the session id
+  (`orient`, `retro`, `running-retro`, `handoff`, `continue-in-background`) now
+  carry a `|| echo "unknown"` fallback on that injection, matching the sibling
+  git injections in the same block. Injection failure, timeout, and stderr
+  semantics are undocumented upstream, so the standing convention is a
+  `|| <fallback>` on every injected command — `skill-quality:check` flags a
+  missing one as an advisory WARN. On this particular line the guard is
+  unreachable in practice (`${VAR:-unknown}` resolves at expansion time, so
+  `echo` receives a formed string and exits 0); it buys block-wide uniformity
+  and a quiet gate, not protection against a failure mode the sibling git lines
+  genuinely have.
+
+## [0.15.0]
+
+### Added
+
+- running-retro: detached-observer substrate + lifecycle. Evolves running-retro
+  from PULL-only (invoked in-session) to a path that can also fire *after* the
+  session ends — a `/loop` structurally cannot. A stdlib-only Python 3.10+ tailer
+  (`skills/running-retro/scripts/observer.py`, launched detached by
+  `arm_observer.py`) outlives the session, tails the transcript out-of-band at
+  zero context cost via a no-persistent-handle poll→open→read-new-bytes→close
+  loop (safe by construction against the Windows share-mode write edge), detects
+  end by mtime-idle, then runs the same checkpoint method headless (a cheap
+  `claude -p`) and appends the redacted findings to this session's ledger. The
+  analysis run is Read-only (`--allowedTools Read` under `--permission-mode
+  dontAsk`) — no code execution over untrusted transcript content — and is the
+  single semantic redaction pass; the transient distilled observations are
+  machine-local (`${CLAUDE_PLUGIN_DATA}/session-flow-observer/`) and deleted
+  after use, so only redacted findings reach the durable ledger. Entry: a new
+  `arm` action on running-retro is primary; an OPT-IN SessionStart hook
+  (`observer_enabled`, default off — zero-config behavior unchanged) automates the
+  same launcher, guarded against self-arming (`CLAUDE_CODE_ENTRYPOINT`, stdin
+  `agent_type`, `source`, analysis-run marker). Untrusted-data boundary cites the
+  shared `reference/off-thread-work.md`. Native Observer-Agents recorded as a
+  deferred alternative (trigger: transcript-level feed / documented-stabilized
+  upstream), substrate kept thin so migration stays cheap. Full substrate +
+  lifecycle in `reference/observer.md`. The plugin now bundles twelve skills.
+- setup: new check-centric skill (`disable-model-invocation`), added because the
+  observer introduced an external prerequisite (Python 3.10+) and a `userConfig`
+  surface — the uniform setup contract's trigger. `check` verifies the observer's
+  prerequisites (Python 3.10+, `jq`, `claude` on PATH) and reports the effective
+  config, flagging the `--bare`/OAuth-auth and idle-threshold hazards; no write
+  path (reconfiguration routes through `/plugin configure`).
+- `userConfig`: the plugin's first config surface — six observer keys
+  (`observer_enabled`, `observer_analysis_enabled`, `observer_analysis_model`
+  [default `claude-haiku-4-5`, the cost lever], `observer_analysis_bare`,
+  `observer_idle_seconds`, `observer_max_seconds`), all defaulting to zero-config
+  behavior.
+- hooks: opt-in `SessionStart` hook (`hooks/observer-arm.sh`) — the plugin's
+  first hook asset; no-ops unless `observer_enabled` is on.
+
+### Notes
+
+- `--bare` on the analysis run is off by default and gated behind
+  `observer_analysis_bare`: verified on CLI 2.1.218, `--bare` drops the OAuth-login
+  credential state and the run reports "Not logged in". The measured cost lever is
+  the model, not `--bare` (which was a projected, never-measured optimization in
+  the design memo). Enable it only where auth is an env-var API key that survives it.
+
 ## [0.14.0]
 
 ### Added

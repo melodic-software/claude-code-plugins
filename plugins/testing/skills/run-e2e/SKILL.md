@@ -39,7 +39,7 @@ On a hard-fail, STOP **and** write a structured verification-environment gap rep
 
 Two keys govern this run: `recording` (`video | gif | off`) and `browser_mode` (`headed | headless`). They live in the consumer-tracked surface `.claude/testing/e2e.md`; [context/e2e-config.md](context/e2e-config.md) owns their definitions, defaults, and precedence. Resolve them before driving:
 
-- Anchor at the repo root, then read every layer of the surface that exists — user-global, team, and local overlay — and merge `recording` and `browser_mode` per key. Report which layer supplied each effective value. The generic layer mechanics (anchoring, reading every layer, provenance, soft-degrade) are the layering contract's — see the [consumer-config layering contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/consumer-config-layering/README.md); this step only names the surface path, the keys, and the per-key merge.
+- Anchor at the repo root, then read every layer of the surface that exists — user-global, team, and local overlay — and merge `recording` and `browser_mode` per key. Report which layer supplied each effective value. The generic layer mechanics (anchoring, reading every layer, provenance, soft-degrade) are the layering contract's — see the [config-cascade contract](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/config-cascade/README.md); this step only names the surface path, the keys, and the per-key merge.
 - An explicit instruction in the session prompt overrides the file layers for that run — the keys are defaults only. The precedence ladder is in [context/e2e-config.md](context/e2e-config.md).
 
 ## Step 3: Drive the run (subagent-isolated)

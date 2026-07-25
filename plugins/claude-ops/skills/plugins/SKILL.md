@@ -125,13 +125,23 @@ schema has no `enum` type — verified against the published schema), default `"
 - `all` — install every not-yet-installed catalog plugin automatically
 - `none` — report them in "Action needed" only, never install
 
-Any other value is invalid; treat it as `ask` and note the invalid value in the report.
+Any explicitly-set value other than these three is invalid; treat it as `ask` and note the invalid
+value in the report.
 
-**Configured value: `${user_config.install_new}`** — a `userConfig` value only reaches this skill's
-own content through this literal `${user_config.KEY}` substitution (Claude Code text-substitutes it
-before the model sees the rendered skill); declaring the option in `plugin.json` alone does not make
-its value readable here. Sync's Step 4 branches on this line's rendered value, not on the option's
-name or description above.
+**Configured value: `${user_config.install_new}`** — Claude Code text-substitutes a `userConfig`
+value into this skill's content before the model sees the rendered skill, but **only when the key is
+explicitly set** in some `pluginConfigs` scope; declaring the option in `plugin.json` alone does not
+make its value readable here. Crucially, the manifest's `"default": "ask"` is **not** substituted for
+an unset key (verified 2026-07-23 against CC 2.1.218: an unset key renders the literal placeholder,
+while a sibling `${CLAUDE_PLUGIN_ROOT}` substitutes in the same render). So for the common
+default-config user — no `pluginConfigs` set anywhere — this line renders as the **literal
+placeholder text** `${user_config.install_new}`, unchanged.
+
+Read that literal placeholder as the **expected unset state → use the default `ask`**, and do NOT
+report it as an invalid value. Only a rendered value that is a real word other than
+`ask`/`all`/`none` (i.e. the key *was* set, to something unsupported) is the invalid-value case worth
+flagging. Sync's Step 4 branches on this line's rendered value — or on the `ask` default when the
+render is the literal placeholder — not on the option's name or description above.
 
 ## Cross-references
 
