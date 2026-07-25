@@ -11,10 +11,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
   (`skills/babysit-prs/reference/orchestration.md`) now hand the worker the worktree's **absolute**
   path and forbid relying on the shell's working directory persisting across separate tool calls:
   every git operation is anchored with `git -C <absolute-worktree-path>` (`status`, `add`, `commit`,
-  `diff`, `log`, `push`), and any command that derives its target from the working directory without
-  a `-C` equivalent — bare `gh`, `fetch-all-pr-comments.sh`, the target repository's own
-  build/test/lint commands — takes a per-call re-`cd` or its own explicit target argument. A
-  one-time `cd` at dispatch is not enough:
+  `diff`, `log`, `push`), every file read/edit/write/glob/search takes an absolute worktree-prefixed
+  path rather than a relative one, and any command that derives its target from the working
+  directory without a `-C` equivalent — bare `gh`, `fetch-all-pr-comments.sh`, the target
+  repository's own build/test/lint commands — takes a per-call re-`cd` or its own explicit target
+  (`GH_REPO`, `FETCH_COMMENTS_OWNER`/`FETCH_COMMENTS_REPO`). A one-time `cd` at dispatch is not
+  enough:
   cwd can drift between a read and the next write, silently committing a branch-owned fix into the
   session's default checkout instead of the assigned worktree. Closes the same correctness gap
   `implementation` 0.7.4 closed in the sibling `implement-dispatch` lane.

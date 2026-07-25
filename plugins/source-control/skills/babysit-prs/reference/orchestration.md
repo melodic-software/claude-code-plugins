@@ -509,14 +509,23 @@ Each worker must:
 - **never rely on the shell's working directory persisting across separate tool calls.** A one-time
   `cd` into the assigned worktree is not enough — cwd can drift back to the session's default
   checkout between a read and the next write, silently committing branch-owned fixes into the wrong
-  repository. Anchor every git operation with `git -C <absolute-worktree-path>` (`status`, `add`,
-  `commit`, `diff`, `log`, `push` — all of them), and for a command that has no `-C` equivalent and
-  derives its target from the working directory (bare `gh`, `fetch-all-pr-comments.sh`, the target
-  repository's own build/test/lint commands), either re-`cd` into the worktree inside that same
-  call or pass the command its own explicit target (`gh -R owner/repo`,
-  `FETCH_COMMENTS_OWNER`/`FETCH_COMMENTS_REPO`). The one helper a worker invokes,
-  `source-control-babysit-resolve-thread`, takes the PR and every thread pin as explicit arguments
-  and reads nothing from the working directory, so it needs no anchoring.
+  repository. Three classes of call need anchoring:
+  - **git** — `git -C <absolute-worktree-path>` on every one (`status`, `add`, `commit`, `diff`,
+    `log`, `push` — all of them).
+  - **file reads and edits** — every path passed to a file-read, edit, write, glob, or search tool
+    is the absolute worktree path or a `<absolute-worktree-path>/…` prefix, never a bare relative
+    path. A relative path resolves against cwd exactly as a shell command does, so a worker can
+    validate a finding against the session's checkout, or overwrite unrelated work in it, while its
+    `git -C` calls correctly target the assigned worktree.
+  - **other commands with no `-C`** that derive their target from the working directory (bare `gh`,
+    `fetch-all-pr-comments.sh`, the target repository's own build/test/lint commands) — either
+    re-`cd` into the worktree inside that same call or pass the command its own explicit target
+    (`GH_REPO=owner/repo` for `gh`, `FETCH_COMMENTS_OWNER`/`FETCH_COMMENTS_REPO` for the
+    comment fetcher).
+
+  The one helper a worker invokes, `source-control-babysit-resolve-thread`, takes the PR and every
+  thread pin as explicit arguments and reads nothing from the working directory, so it needs no
+  anchoring.
 - follow the target repository's `AGENTS.md`, `CLAUDE.md`, signing, commit-message, attribution,
   and push conventions; never add a co-author trailer unless explicitly required
 - stop unless `mutation_policy.branch_write_allowed` is true
@@ -592,11 +601,14 @@ instructions (AGENTS.md, CLAUDE.md). Work only in the assigned worktree, and nev
 shell's working directory persisting across separate tool calls: a one-time cd is not enough,
 because cwd can drift back to this session's default checkout between a read and the next write
 and silently commit into the wrong repository. Anchor every git operation with
-git -C <absolute worktree path> — status, add, commit, diff, log, push, all of them. For a command
-with no -C equivalent that derives its target from the working directory (bare gh,
-fetch-all-pr-comments.sh, the target repository's own build/test/lint commands), either re-cd into
-the worktree inside that same call or pass the command its explicit target
-(gh -R owner/repo, FETCH_COMMENTS_OWNER/FETCH_COMMENTS_REPO).
+git -C <absolute worktree path> — status, add, commit, diff, log, push, all of them. Give every
+file read, edit, write, glob, and search an absolute <absolute worktree path>/... path, never a
+bare relative one — a relative path resolves against cwd too, so you can validate a finding
+against the wrong checkout or overwrite unrelated work in it. For any other command with no -C
+equivalent that derives its target from the working directory (bare gh, fetch-all-pr-comments.sh,
+the target repository's own build/test/lint commands), either re-cd into the worktree inside that
+same call or pass the command its explicit target (GH_REPO=owner/repo for gh,
+FETCH_COMMENTS_OWNER/FETCH_COMMENTS_REPO for the comment fetcher).
 Follow the repository's signing, commit-message, attribution, and push conventions. Never add a co-author
 trailer unless explicitly required. Re-check the PR head SHA before editing and before pushing.
 Stop unless branch writes are allowed. Fix only clear branch-owned CI or bot-review issues.
