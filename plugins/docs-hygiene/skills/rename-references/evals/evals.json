@@ -202,7 +202,7 @@
       "id": 17,
       "name": "mode-is-resolved-by-evidence-not-defaulted",
       "prompt": "/rename-references re-anchor to discipline",
-      "expected_output": "Phase 1 resolves the rename MODE before surveying, using the Phase 0b ladder rather than defaulting: it finds plugins/re-anchor/ (or plugins/discipline/ post-move, read from git) carrying a plugin manifest, and/or /re-anchor:<skill> namespaced invocations in the tree, and concludes container. The resolved mode and the rule that fired appear in the report. If no rule fires it asks the user rather than guessing, and it never infers mode from the token's shape (hyphenation or word-likeness).",
+      "expected_output": "Phase 1 resolves the rename MODE before surveying, using the Phase 0b ladder rather than defaulting: it finds plugins/re-anchor/ (or plugins/discipline/ post-move, read from git) carrying a plugin manifest, and /re-anchor:<skill> namespaced invocations in the tree. It collects all three evidence rules rather than stopping at the first, finds them in agreement, and concludes container. The resolved mode and every rule that fired appear in the report. If no rule fires -- or if the rules disagree -- it asks the user rather than guessing, and it never infers mode from the token's shape (hyphenation or word-likeness).",
       "files": [],
       "expectations": [
         "Mode is resolved in Phase 1, before the survey and bucketing",
@@ -263,7 +263,7 @@
       "id": 22,
       "name": "bare-qualified-id-is-chain-context-not-certain",
       "prompt": "Rename the `t` plugin to `toolkit`. The repo contains git config user.email t@t in test fixtures.",
-      "expected_output": "The bare qualified-id alternative is rated Chain-context, not Certain, so `t@t` is not auto-applied. Excluding dots is necessary but not sufficient -- a dotless address is still a valid address, and this tree contains both `auth_email: \"a@b\"` and `user.email t@t`. The management-verb alternative stays Certain because its verb anchors it; the unanchored alternative is promoted to Certain only when a neighbor confirms it.",
+      "expected_output": "The bare qualified-id alternative is rated Chain-context, not Certain, so `t@t` is not auto-applied. Excluding dots is necessary but not sufficient -- a dotless address is still a valid address, and this tree contains both `auth_email: \"a@b\"` and `user.email t@t`. The management-verb alternative stays Certain because its verb anchors it. The unanchored alternative is promoted to Certain only by a per-occurrence structural signal -- the occurrence IS a key in an enabledPlugins/pluginConfigs map -- never by a management verb elsewhere on the line, which may govern an entirely different plugin.",
       "files": [],
       "expectations": [
         "The unanchored qualified-id form does not auto-apply",
@@ -356,6 +356,42 @@
         "Multiline is identified as required for Form 14's Setext alternative, not only Form 7",
         "The failure mode is a regex error rather than a silent under-match",
         "The consequence named is a stale landing-page title reported as completion"
+      ]
+    },
+    {
+      "id": 30,
+      "name": "toml-manifest-name-declaration-is-matched",
+      "prompt": "Rename the Python package `docs-hygiene` to `doc-care`. Its pyproject.toml declares `name = \"docs-hygiene\"` under [project]. Audit for stale references.",
+      "expected_output": "Form 14's TOML declaration alternative matches it. TOML delimits with `=` rather than `:`, so both the YAML and the JSON alternatives miss it -- and because the mode ladder names pyproject.toml as manifest evidence for selecting CONTAINER mode, missing it routes the package into the mode that suppresses bare-token residue while leaving the one declaration that mode makes load-bearing unmatched: apply mode reports zero actionable stragglers with the package metadata still carrying the old name. The alternative accepts an optionally-quoted key and a basic or literal string value, and rejects `name = \"docs-hygiene-extra\"` and `description = \"docs-hygiene\"`. Because pyproject.toml is a manifest, the declaration is exempt from the title scope rule and the common-word demotion; the same `name=\"...\"` shape in a shell script is NOT, since the exemption is conditioned on the file being a manifest or catalog.",
+      "files": [],
+      "expectations": [
+        "The `=`-delimited TOML declaration is matched, not only the `:`-delimited YAML and JSON shapes",
+        "The contradiction named is that the mode ladder already treats pyproject.toml as container evidence",
+        "The manifest/catalog condition on the exemption is preserved, so shell assignment syntax is not swept in as Certain"
+      ]
+    },
+    {
+      "id": 31,
+      "name": "qualified-id-promotion-binds-to-the-occurrence-not-the-line",
+      "prompt": "Rename the `t` plugin to `toolkit`. A doc line reads: /plugin install foo@acme; email t@t",
+      "expected_output": "`t@t` stays Chain-context and is not auto-applied. The line does carry a management verb, but it governs `foo@acme`, a different plugin -- so a line-level promotion test would rate the unrelated address Certain and apply mode would rewrite it, which is the exact failure the demotion exists to prevent. A verb that actually governs an occurrence is already matched by the management-verb alternative and already Certain, so a line-level check adds no recall and only launders the demotion. The only promotion signal is structural and per-occurrence: the occurrence IS a key in an enabledPlugins/pluginConfigs map.",
+      "files": [],
+      "expectations": [
+        "The unrelated management verb on the same line does not promote the address",
+        "`/plugin install foo@acme` is still reported as a Certain reference in its own right when `foo` is the renamed token",
+        "The promotion signal named is per-occurrence and structural, not line-level"
+      ]
+    },
+    {
+      "id": 32,
+      "name": "conflicting-mode-evidence-asks-instead-of-taking-first-match",
+      "prompt": "Rename the `/test` action to `/verify`. Somewhere in this monorepo an unrelated package manifest declares name = \"test\". Which mode does the sweep pick?",
+      "expected_output": "Neither, unasked. Manifest evidence (rule 3) says container and invocation-shape evidence (rule 4) says identifier, and only the explicit --container/--identifier override short-circuits the ladder -- rules 2 through 4 are evidence to be collected in full and compared, not a precedence order. Taking the earliest would select container mode, whose residue rule suppresses exactly the bare `/test` references that are actionable here, and the rename would falsely complete. On disagreement the sweep falls through to the ask, showing each rule's verdict and the file that produced it. A shared string is not evidence the manifest and the invocation name the same entity; correlation is established from the tree (a manifest whose directory also contains the /<old> definition) or not assumed at all.",
+      "files": [],
+      "expectations": [
+        "Conflicting evidence routes to the user rather than resolving by ladder order",
+        "The named risk is container mode suppressing actionable identifier references",
+        "A shared name is not treated as evidence that the two rules describe the same entity"
       ]
     }
   ]

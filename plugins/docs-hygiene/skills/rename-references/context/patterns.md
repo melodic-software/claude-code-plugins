@@ -209,9 +209,17 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
   address, and this very tree contains `auth_email: "a@b"` and `git config user.email t@t`, both
   of which a container named `a` or `t` would match. Since Certain auto-applies, that would
   rewrite an address. Chain-context keeps the form's recall while routing it through
-  confirmation — the honest rating when the shape cannot fully discriminate. Promote a specific
-  occurrence to Certain only when a neighbor confirms it (a management verb on the line, or an
-  `enabledPlugins` / `pluginConfigs` key context).
+  confirmation — the honest rating when the shape cannot fully discriminate.
+- **Promotion must bind to the SAME occurrence, never to the line.** "A management verb somewhere
+  on the line" is not a promotion test: `/plugin install foo@acme; email t@t` carries a real
+  management command for a DIFFERENT plugin, and a line-level test promotes the unrelated `t@t` to
+  Certain, which auto-applies and rewrites the address — the exact failure the demotion exists to
+  prevent. A verb that actually governs the occurrence is already matched by the management-verb
+  alternative above and already rated Certain, so a line-level verb check adds no recall and only
+  launders. The single promotion signal is therefore structural and per-occurrence: the
+  occurrence IS a key in a plugin-configuration map — `"<old>@<slug>"` immediately followed by
+  `:`, under an `enabledPlugins` / `pluginConfigs` object. Nothing else promotes; when in doubt it
+  stays Chain-context.
 - **Catches:** `<old>` as the ARGUMENT to a management command rather than as the command
   itself — `/plugin install <old>@marketplace`, `/plugin configure <old>`,
   `/plugin enable <old>` — plus the `<old>@<marketplace>` qualified-id form wherever it
@@ -270,12 +278,13 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
 ^`?<old>`?\s*$\n^(=+|-+)\s*$
 ^(name|title):\s*("<old>"|'<old>'|<old>)\s*$
 ^\s*"(name|title)":\s*"<old>"\s*,?\s*$
+^\s*"?(name|title)"?\s*=\s*("<old>"|'<old>')\s*$
 ```
 
 - **Triage default:** Certain
 - **Catches:** an ATX heading whose ENTIRE content is the renamed token — the README H1 that
-  names the thing — and a `name:` / `title:` declaration in YAML frontmatter or a JSON manifest
-  or catalog.
+  names the thing — and a `name` / `title` declaration in YAML frontmatter, a JSON manifest or
+  catalog, or a TOML manifest.
 - **Why the `$` anchor is load-bearing:** it is what makes this Certain rather than
   ambiguous. A heading that merely *contains* the token (`## How re-anchor works`) may well
   be verb usage and belongs in Form 2's ambiguous bucket; a heading that IS the token can
@@ -294,6 +303,21 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
   `docs-hygiene` matches exactly `.claude-plugin/marketplace.json:192` and
   `plugins/docs-hygiene/.claude-plugin/plugin.json:3` — two hits, both real, none elsewhere in the
   tree.
+- **TOML declarations too — the delimiter is `=`, not `:`.** `pyproject.toml` and `Cargo.toml`
+  declare the registered name as `name = "<old>"`, and both the YAML and JSON alternatives require
+  a colon, so neither reaches it. This is not a hypothetical gap: the mode ladder below names
+  `pyproject.toml` as manifest evidence for selecting CONTAINER mode, so without this alternative
+  the skill routes a Python or Rust package into the mode that suppresses bare-token residue while
+  being unable to match the one declaration that mode makes load-bearing — apply mode then reports
+  zero actionable stragglers with the package metadata still carrying the old name. The
+  alternative accepts an optionally-quoted key (both are valid TOML) and a basic or literal string
+  value (`"…"` or `'…'`). Verified against real TOML shapes: `name = "<old>"`, `name="<old>"`,
+  `"name" = "<old>"`, `name = '<old>'`, and `title = "<old>"` all match; `name = "<old>-extra"`
+  and `description = "<old>"` do not.
+- **The `=` shape is why the manifest/catalog qualifier below is load-bearing.** `name="<old>"` is
+  also ordinary shell and `.env` assignment syntax. The exemption that makes a declaration Certain
+  regardless of path applies only when the FILE is a manifest or catalog; in any other file the
+  match is treated as a title match and takes the scope rule and the common-word demotion.
 - **Quote handling:** the YAML alternation accepts a bare, double-quoted, or single-quoted value
   and requires the quotes to PAIR — `"<old>"` and `'<old>'`, never `"<old>'`. A naive
   `["']?<old>["']?` would match the mismatched form, which is not valid YAML. The JSON alternative
@@ -325,8 +349,9 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
      verb usage — the key admits only an identifier. Demoting it would suppress the one hit that
      is certain by construction.
 
-  This exemption covers the declaration alternatives (`name:` / `title:` in frontmatter, and the
-  JSON `"name":` / `"title":` shape) **when the file is a manifest or catalog**. A `title:` in an
+  This exemption covers all three declaration alternatives — `name:` / `title:` in frontmatter,
+  the JSON `"name":` shape, and the TOML `name =` shape — **when the file is a manifest or
+  catalog**, and only then. A `title:` in an
   ordinary document's frontmatter is a document title, not a registration: treat it as a title
   match and apply the scope rule and the common-word demotion to it.
 - **Note:** a plugin/skill README H1 is the landing surface every consumer sees first, and
@@ -463,6 +488,24 @@ stop at the first rule that fires:
 5. **Nothing fired → ASK.** One `AskUserQuestion`: "Is `<old>` a container (plugin, package,
    marketplace entry) or an identifier (skill, mode, action)?" with the evidence checked so far
    shown, so the answer is informed rather than guessed.
+
+**Rules 2–4 are evidence, not precedence — collect ALL of them before stopping.** Only rule 1 is
+authoritative on its own. Stopping at the first rule that fires is safe only while the rules
+cannot disagree, and in a monorepo they routinely do: renaming the `/test` action while some
+unrelated package manifest declares `name = "test"` fires rule 3 for **container**, and the
+`/test` invocations that fire rule 4 for **identifier** are never inspected. Container mode then
+suppresses exactly those bare references as residue and the rename falsely completes — the
+identifier-side failure this ladder exists to prevent, reached BY the ladder.
+
+So evaluate rules 2, 3 and 4 in full and compare their verdicts:
+
+- **All agree** → that is the mode. Record which rules fired.
+- **They disagree** → do NOT take the earliest. Nothing in the evidence establishes that the
+  manifest and the invocation name the SAME entity; a shared string is not a correlation. Fall
+  through to rule 5 and ASK, showing each rule's verdict and the file that produced it, so the
+  answer resolves the actual ambiguity. Correlate first when the tree makes it cheap — a manifest
+  whose directory also contains the `/<old>` definition is one entity, and the conflict
+  dissolves — but never infer the correlation from the name alone.
 
 Do NOT infer mode from the token's shape — hyphenation, length, or whether it looks like a word
 are all uncorrelated with what the thing IS. Never silently default; an unstated default is how

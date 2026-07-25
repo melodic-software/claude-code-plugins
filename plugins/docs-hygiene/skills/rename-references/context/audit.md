@@ -28,8 +28,13 @@ Resolve the rename pair `(old, new)`:
 Then resolve the **rename MODE** — container vs identifier — per [patterns.md](patterns.md)
 "Phase 0b" and its selection ladder (explicit override → filesystem → manifest → invocation
 shape → ask). The pair alone does not determine it, and the mode changes how the bare-token
-residue is bucketed, so resolve it here rather than letting a default apply silently. Carry the
-resolved mode and the rule that fired into the Phase 4 report.
+residue is bucketed, so resolve it here rather than letting a default apply silently.
+
+Only the explicit override short-circuits. **Collect the filesystem, manifest and invocation-shape
+evidence in full and compare their verdicts** — they can disagree in a monorepo where an
+identifier shares a name with an unrelated package, and taking the earliest would silently pick
+container mode and suppress the identifier's actionable references. On disagreement, ASK rather
+than resolve. Carry the resolved mode and every rule that fired into the Phase 4 report.
 
 ### Phase 2: Survey
 

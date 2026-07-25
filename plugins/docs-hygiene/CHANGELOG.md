@@ -71,6 +71,23 @@
   would still auto-rewrite a dotless address. Precedence now carries a per-alternative bucket
   table, container mode defers to it, and `triage.md` registers the alternative in Bucket 2 with
   its own promotion test and a Chain-context floor.
+- **Form 14 matches TOML manifest declarations.** TOML delimits with `=`, so `name = "<old>"` in
+  `pyproject.toml` or `Cargo.toml` reached neither the YAML nor the JSON alternative — while the
+  mode ladder already names `pyproject.toml` as evidence for selecting CONTAINER mode. The skill
+  therefore routed such a package into the mode that suppresses bare-token residue while being
+  unable to match the one declaration that mode makes load-bearing.
+- **Qualified-id promotion binds to the occurrence, not the line.** "A management verb somewhere
+  on the line" promoted an unrelated dotless address to Certain — `/plugin install foo@acme;
+  email t@t` — undoing the demotion. A verb that governs the occurrence is already Certain under
+  the management-verb alternative, so the line-level check added no recall and only laundered.
+  The sole promotion signal is now structural and per-occurrence: the occurrence IS a key in an
+  `enabledPlugins` / `pluginConfigs` map.
+- **The mode ladder collects conflicting evidence instead of taking first-match.** Renaming the
+  `/test` action while an unrelated manifest declares `name = "test"` fired the manifest rule for
+  container and never inspected the `/test` invocations — container mode then suppressed exactly
+  the actionable bare references and the rename falsely completed. Only the explicit override
+  short-circuits; the filesystem, manifest and invocation rules are now collected in full and
+  compared, and disagreement routes to the ask rather than to the earliest rule.
 - **A raw `rg` fallback needs `--hidden`.** Container manifests live in dot-directories
   (`.claude-plugin/`), which bare `rg` skips — so the two alternatives above would return zero on
   exactly the files they exist to reach. The Grep tool and `git grep` need no flag; the

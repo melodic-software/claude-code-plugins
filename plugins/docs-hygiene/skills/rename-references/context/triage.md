@@ -45,8 +45,10 @@ For chain forms (4, 5, 6, 9), check whether at least one neighboring token (with
 
 **Form 13's qualified-id alternative uses its OWN promotion test, not the one above.** It has no
 separator and no chain neighbors, so the 5-char skill-name check does not apply to it. Promote it
-to Certain only on the evidence `patterns.md` "Form 13" names — a management verb elsewhere on the
-line, or an `enabledPlugins` / `pluginConfigs` key context. **A failed promotion leaves it at
+to Certain only on the single per-occurrence signal `patterns.md` "Form 13" names — the occurrence
+IS a key in an `enabledPlugins` / `pluginConfigs` map. A management verb elsewhere on the LINE does
+not promote it: the verb may govern a different plugin entirely, and one that governs this
+occurrence is already Certain under the management-verb alternative. **A failed promotion leaves it at
 Chain-context; it does NOT fall through to Ambiguous** the way a chain form does. Chain-context is
 this alternative's floor, because the form is high-recall and its risk is auto-application, not
 misclassification.
