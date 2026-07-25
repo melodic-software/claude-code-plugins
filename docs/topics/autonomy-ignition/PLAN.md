@@ -338,7 +338,9 @@ accumulation window or the first eligibility claim is hollow and the window re-a
    (`TODO(#778)` in verify-join) — the predicate's "0 human-reverted merges" input cannot
    fail until this lands.
 
-**Sanity Check:** at day 7: predicate stub shows ≥1 week of scheduled fires with zero manual
+**Sanity Check:** at day 7 of the acceptance clock — seven days after the recorded timestamp at
+which the Desktop task's schedule actually flipped to the 15-min grid, NOT day 7 of the original
+accumulation window: predicate stub shows ≥1 week of scheduled fires with zero manual
 INITIATIONS (run history: no manual entries post-warm-up; human merges expected and fine);
 gaps named as dated scope notes in the roadmap PLAN.
 
