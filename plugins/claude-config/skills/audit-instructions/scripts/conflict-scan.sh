@@ -94,7 +94,11 @@ fi
 # CamelCase alone cannot match; requiring the backticks is what keeps every
 # sentence-initial capitalized word out. Backticks are stripped from the entity
 # name, so a backticked and a bare mention of one tool pair with each other.
-ENTITY_ERE='[A-Z][a-z]+([A-Z][a-z]*)+|`[A-Z][a-z]+`'
+# The backtick is built separately rather than written literally: inside a
+# single-quoted pattern shellcheck reads it as an unexpanded command
+# substitution (SC2016), and escaping it inside double quotes is worse to read.
+BACKTICK=$(printf '\140')
+ENTITY_ERE="[A-Z][a-z]+([A-Z][a-z]*)+|${BACKTICK}[A-Z][a-z]+${BACKTICK}"
 # Prohibition tokens — the I6 set, kept semantically identical to
 # instruction-scan.sh so the two scans classify a line's polarity the same way.
 PROHIBIT_ERE='[^a-z](never|do not|don[^a-z]?t|must ?not|mustn[^a-z]?t|should ?not|shouldn[^a-z]?t)[^a-z]'
