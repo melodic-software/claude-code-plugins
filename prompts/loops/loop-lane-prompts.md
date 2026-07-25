@@ -25,6 +25,15 @@ target repo's tracked config (below).
 Fill this once per repository, before first launch. Every answer is a fact
 about that repo, not a preference.
 
+**Run the whole profile from a checkout of `{{REPO}}`.** Every `gh` command
+below reads the *ambient* repository when given no `--repo`, so profiling from
+a neutral directory or a sibling checkout silently describes the wrong backlog
+— and these counts feed the rung decision. The `.work-item-tracker.json` and
+`.claude/source-control.md` reads need that working directory anyway. If you
+must profile from elsewhere, add `--repo {{REPO}}` to **every** `gh` read below
+without exception; one bare command is enough to mix two repositories' numbers
+into one profile.
+
 - **Merge rung** — read `babysit_loop_merge` in the target repo's tracked
   `.claude/source-control.md` on its default branch. Absent or no
   loop-lane keys at all means **every merge is human**, whatever tier you
@@ -150,14 +159,25 @@ about that repo, not a preference.
 2. Decide where this repository records work classes. The merge partition
    accepts **either** an issue-body trailer **or** a label, so a repo may
    adopt on body trailers alone and never provision a label axis. Check what
-   is already there: `gh label list --limit 200 | grep -i work-class`, and
-   grep the item bodies for `Work-class: C<n>` trailers.
+   is already there — from a checkout of the target, or with an explicit
+   `--repo`, for the same reason the profile above states:
+   `gh label list --repo <owner/name> --limit 200 | grep -i work-class`, plus
+   the body-trailer count from the profile's union command.
 3. **Only if you want the label axis** — it is optional, not a prerequisite —
-   provision it before stamping. No lane may create labels; the label set is
-   IaC-owned, and the five members are ratified as aliases of the autonomy
-   program's C1–C5 risk classes with the alias map single-sourced in the
-   label declarations. Add them through the `github-iac` repository that owns
-   that org's labels, not by hand with `gh label create`.
+   provision it before stamping, and **never from a lane**: no lane creates
+   labels, and discovery never implies write permission. Route by what the
+   target repository declares, rather than assuming an owner:
+   - **It declares a label-management source of truth** (a label-as-code repo,
+     a documented process) — route the change there and keep every lane action
+     read-only. Melodic repositories declare `github-iac`; that is this org's
+     answer, not a portable one, so resolve the target's own declaration.
+   - **It declares none** — creating a label needs the user's explicit
+     authorization plus the repository's documented contribution process. Ask;
+     do not run `gh label create` on your own initiative.
+
+   Whichever path, the five members are aliases of the autonomy program's
+   C1–C5 risk classes, with the alias map single-sourced in the label
+   declarations.
 4. Stamp the autonomous-eligible items in whichever source this repo uses, or
    accept that nothing auto-merges. An item with no recorded class in
    **either** source is ineligible at every rung.
