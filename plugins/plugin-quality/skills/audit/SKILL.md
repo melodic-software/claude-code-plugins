@@ -126,10 +126,12 @@ resolution, and **verifies every load-bearing harness-behavior claim against CUR
 docs per topic** (the fresh-docs discipline applies inside the audit — hooks behavior against the
 hooks page, skill loading against the skills page, etc.; never training-data recall). Dispatch this
 step to the `auditor` agent **by name**. Two properties are required and the named agent is what
-supplies both: its context provably excludes this session's evidence, and the dispatch site names
-the worker so it is auditable. Never run the step inline in the main thread, which satisfies
-neither. Any other mechanism must be justified against those two properties — not against what a
-fork does or does not inherit, which is contested (see the plan's caveat on #1258).
+supplies both: its context carries the evidence packet but **not** this session's conversation
+history or prior reasoning, and the dispatch site names the worker so it is auditable. The packet is
+the deliberate channel — the agent reads it as ground truth; what must not cross is the reasoning
+that produced the work under review. Never run the step inline in the main thread, which satisfies
+neither property. Any other mechanism must be justified against those two — not against what a fork
+does or does not inherit, which is contested (see the plan's caveat on #1258).
 
 ### Step 3 — Blindspot + candidate findings (subagent output → user)
 

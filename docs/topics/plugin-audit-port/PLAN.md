@@ -598,7 +598,10 @@ since `$ARGUMENTS` is exactly that channel and
 Each rationale argued from what fork does. The requirement does not depend on that, so it is stated
 positively instead. The deep phase needs two properties:
 
-1. **A context that provably excludes this session's evidence** — the whole point of the gate.
+1. **A context carrying the evidence packet but NOT this session's conversation history or prior
+   reasoning.** The packet is the deliberate channel — `agents/auditor.md`'s procedure opens by
+   reading it as ground truth, and step 1 exists to write it. What must not cross is the reasoning
+   that produced the work under review; that is what a same-context self-check cannot escape.
 2. **A named dispatch target** — the Brief's requirement, and what makes the dispatch site
    auditable: a reader sees which worker runs the deep phase without inferring it from file layout.
 
