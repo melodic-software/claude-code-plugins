@@ -39,6 +39,10 @@ for cmd in \
   "git reset --hard origin/main" \
   "git checkout -- ." \
   "git -C /tmp/x checkout -- ." \
+  "git stash drop" \
+  "git stash drop stash@{0}" \
+  "git stash clear" \
+  "git -C /tmp/x stash drop" \
   "Remove-Item -Recurse -Force obj"; do
   assert_exit "blocks: $cmd" 2 "$(guard_exit "$cmd")"
 done
@@ -53,10 +57,11 @@ assert_contains "block reason names the ack path" "$reason" "CLEAN_GUARD_ACK=1"
 
 assert_exit "ack prefix allows git clean" 0 "$(guard_exit "CLEAN_GUARD_ACK=1 git clean -fdx -e node_modules/")"
 assert_exit "ack prefix allows reset --hard" 0 "$(guard_exit "CLEAN_GUARD_ACK=1 git reset --hard origin/main")"
+assert_exit "ack prefix allows stash drop" 0 "$(guard_exit "CLEAN_GUARD_ACK=1 git stash drop stash@{1}")"
 
 # --- 5. Benign commands pass -----------------------------------------------------
 
-for cmd in "git status" "rm file.txt" "git clean -n" "git clean -nx" "git clean -x" "ls -rf" "dotnet build"; do
+for cmd in "git status" "rm file.txt" "git clean -n" "git clean -nx" "git clean -x" "ls -rf" "dotnet build" "git stash list" "git stash show stash@{0}"; do
   assert_exit "allows: $cmd" 0 "$(guard_exit "$cmd")"
 done
 

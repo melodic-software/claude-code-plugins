@@ -68,6 +68,19 @@
         "The delegation passes resolved absolute paths (parser, session data dir, transcript) plus the subjective-state note, not unexpanded plugin variables",
         "A mandatory redaction pass runs on the subagent findings and again on the ledger write"
       ]
+    },
+    {
+      "id": 7,
+      "name": "arm-action-launches-detached-observer-not-inline-checkpoint",
+      "prompt": "Arm the observer to watch this session in the background and run the retro after it ends.",
+      "expected_output": "On the `arm` action the skill does NOT run the in-session checkpoint. It resolves the current session's transcript, the memory-tier running-retros ledger dir, the plugin work dir, and a Python 3.10+ interpreter, then runs arm_observer.py to launch the detached tailer for this session — the same launcher the opt-in SessionStart hook uses. The launcher returns immediately (fire-and-forget); the observer outlives the session, detects end by mtime-idle, and runs the checkpoint headless afterwards. It points to reference/observer.md for the substrate rather than restating it.",
+      "files": [],
+      "expectations": [
+        "The arm action launches the detached observer via arm_observer.py instead of running the in-session checkpoint",
+        "Inputs are resolved to concrete values (transcript, ledger dir, work dir, interpreter) before launch",
+        "The launch is fire-and-forget and never blocks the session; the observer runs the analysis after the session ends",
+        "It defers substrate/lifecycle detail to reference/observer.md rather than restating it"
+      ]
     }
   ]
 }

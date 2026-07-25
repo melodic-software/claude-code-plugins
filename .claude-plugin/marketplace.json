@@ -269,6 +269,12 @@
       "tags": ["workflow", "handoff", "keep-going", "clean-stop", "resume", "recover", "durable", "retro", "retrospective", "session", "orchestration", "reanchor", "freshness", "skill"]
     },
     {
+      "name": "visualization",
+      "source": "./plugins/visualization",
+      "category": "workflow",
+      "tags": ["visualize", "visualization", "diagram", "mermaid", "chart", "artifact", "render", "skill"]
+    },
+    {
       "name": "tdd",
       "displayName": "TDD",
       "source": "./plugins/tdd",
@@ -280,6 +286,24 @@
       "source": "./plugins/claude-ops",
       "category": "claude-code",
       "tags": ["operations", "observability", "otel", "telemetry", "troubleshooting", "changelog", "dashboard", "claude-code", "skill"]
+    },
+    {
+      "name": "rate-limit-guard",
+      "source": "./plugins/rate-limit-guard",
+      "category": "claude-code",
+      "tags": ["rate-limit", "statusline", "tee", "loop-lane", "stopfailure", "hook"]
+    },
+    {
+      "name": "context-guard",
+      "source": "./plugins/context-guard",
+      "category": "claude-code",
+      "tags": ["context-window", "statusline", "tee", "zones", "context-degradation", "session", "skill"]
+    },
+    {
+      "name": "plugin-quality",
+      "source": "./plugins/plugin-quality",
+      "category": "claude-code",
+      "tags": ["plugin-audit", "audit", "review", "quality", "work-item", "context-guard", "skill"]
     },
     {
       "name": "songwriting",
@@ -357,8 +381,8 @@
       "tags": ["audit", "drift", "documentation", "configuration", "architecture", "verification", "claims", "skill"]
     },
     {
-      "name": "re-anchor",
-      "source": "./plugins/re-anchor",
+      "name": "discipline",
+      "source": "./plugins/discipline",
       "category": "quality",
       "tags": ["re-anchor", "discipline", "corrector", "research", "standards", "duplication", "incumbency", "terseness", "upstream", "conformance", "selection", "communication", "determinism", "consistency", "skills", "audit", "skill"]
     },
@@ -462,6 +486,7 @@
     "claude-config-audit": "claude-config",
     "boris": "playbooks",
     "thariq-skills": "playbooks",
-    "fable-5-playbook": "playbooks"
+    "fable-5-playbook": "playbooks",
+    "re-anchor": "discipline"
   }
 }

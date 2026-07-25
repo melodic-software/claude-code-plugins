@@ -3,6 +3,240 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.0]
+
+### Fixed
+
+- **The `disk_hygiene_enabled` kill switch now enforces on both guard surfaces — closing the
+  inert-by-default engine gate (#1019).** Through 0.8.3 the plugin-level engine gate (`hooks/hooks.json`)
+  carried a bare `${user_config.disk_hygiene_enabled}` argument. Because the declared userConfig `default`
+  is unimplemented upstream (#46477 / #39455 / #39827), an unset-but-defaulted token dropped the whole hook
+  entry, so on a default install the gate never ran; the skill-frontmatter belt could not receive the value
+  either (skill hooks get neither the `${user_config.*}` substitution nor `CLAUDE_PLUGIN_OPTION_*`). Audit-only
+  mode therefore degraded from deny-outright to prompt-gated. Both surfaces now resolve the toggle by
+  **reading it directly** from user-scope `pluginConfigs` in `settings.json`, so a configured `false` is
+  denied outright on the Bash engine lane and the PowerShell deletion lane, whether or not the clean skill
+  is active.
+
+### Changed
+
+- **Kill-switch delivery is a settings read, not a hook argument or environment variable.** The engine gate
+  drops its `${user_config.*}` argument (fixing the hook-drop) and both surfaces call the new shared
+  `lib/killswitch_config.py` reader. The user `settings.json` is located **solely** from the
+  tamper-resistant `${CLAUDE_PLUGIN_ROOT}` both surfaces receive — the guard never falls back to
+  `CLAUDE_CONFIG_DIR`/`HOME` for it, because those are environment values a repo `.claude/settings.json`
+  `env` block can inject into hook subprocesses (carrying no provenance). A marker-less `--plugin-dir`
+  checkout root leaves no trusted user path, so the user scope is skipped and the switch relies on managed
+  settings, failing closed to enabled otherwise. Since Claude Code 2.1.207 `pluginConfigs` is honored only
+  from user, managed, and `--settings` scope (project/local ignored), so a hostile repo cannot forge the
+  value. Every absent, unreadable, or ambiguous read fails **closed to enabled**.
+- **Managed (enterprise) settings are honored as the highest-precedence scope.** The reader also reads the
+  platform managed-settings.json (`/Library/Application Support/ClaudeCode/` on macOS, `/etc/claude-code/`
+  on Linux/WSL, `C:\Program Files\ClaudeCode\` on Windows — a fixed path, not `%ProgramFiles%`-derived, so a
+  repo `env` block cannot redirect it); a value configured there overrides the user file, so an organization
+  can enforce audit-only mode; the sibling `managed-settings.d/` drop-in directory is merged over it
+  (later files win). The reader also matches only this install's exact `<name>@<marketplace>` key
+  (derived from `${CLAUDE_PLUGIN_ROOT}`), so another marketplace's `disk-hygiene` entry cannot mask it. The
+  one residual: a value supplied only through a session `--settings` file (a runtime CLI flag no hook can
+  observe) is not enforced by the guard.
+- **`kill_switch_probe.py` now delegates to the shared reader** (its behavior and single-line JSON output
+  contract unchanged) so the report-only probe and the guard resolve the switch one way, not two.
+- Docs corrected across `clean`/`setup` `SKILL.md`, `reference/safety-model.md`, and `README.md`: the
+  "engine gate is inert until configured" and "audit-only reaches only the model, not the guard" caveats
+  are removed; the guard is again the audit-only backstop.
+
+### Design note
+
+- This supersedes the planned SessionStart-hook + state-file delivery ("C′"). Both guard surfaces are the
+  same script funnelling through one resolve point, so there is nothing to distribute between sessions or
+  surfaces: a direct read is a smaller trust surface (a settings *read*, no state-file *write*), honors a
+  mid-session settings change, and needs no session-start timing dependency. Semantics are unchanged from
+  the locked resolver decision — read user-scope `pluginConfigs`, ignore env, fail closed to enabled.
+
+## [0.8.3]
+
+### Fixed
+
+- **RETRACTS 0.8.2's PowerShell claim, which was wrong (#1195).** 0.8.2 documented that "PreToolUse guards
+  do not intercept PowerShell-tool commands" and scoped the PowerShell lane behind a preview caveat. A
+  fresh-session controlled test falsified that: a `Bash|PowerShell` PreToolUse matcher **does** fire for the
+  PowerShell tool on 2.1.218, the payload `tool_name` is literally `PowerShell`, and a live `Set-Content`
+  through that tool was blocked. There is no harness firing divergence and no preview limitation involved —
+  0.8.2's caveat overstated an un-isolated inference and is removed.
+- **The real defect, now documented accurately: the plugin-level engine gate is inert whenever
+  `disk_hygiene_enabled` is unconfigured.** `hooks/hooks.json` passes a bare
+  `${user_config.disk_hygiene_enabled}`; upstream never implemented the declared userConfig `default`, so an
+  unset-but-defaulted token is neither substituted nor exported as `CLAUDE_PLUGIN_OPTION_*` and its presence
+  **drops the entire hook entry** (proven: token-carrying hooks vanish while token-free controls fire, and
+  return once the key is configured). So the gate has never run for any consumer who never set the key — on
+  Bash and PowerShell alike, which is the real shape of the reported "PowerShell bypass". The skill-scoped
+  belt carries no such token and is unaffected. Every doc that claimed the gate "fires in every session"
+  or that audit-only mode is "guard-enforced" corrected: the `clean` and `setup` `SKILL.md` files,
+  `reference/safety-model.md`, and the consumer `README.md`. The code fix (a delivery channel that does
+  not depend on the unimplemented `default`) is tracked separately.
+  Recheck when the upstream gap closes (#46477 / #39455 / #39827).
+
+## [0.8.2]
+
+### Fixed
+
+- **Docs no longer promise PowerShell-tool deletion protection that does not fire on current builds
+  (inbox `173656`).** `skills/clean/SKILL.md` and `reference/safety-model.md` asserted the PowerShell
+  guard belt "turns deletion spellings into a final human permission prompt" and that a configured
+  `disk_hygiene_enabled=false` blocks the PowerShell lane. On Claude Code 2.1.218 (Windows, reproduced)
+  a `Bash|PowerShell` PreToolUse hook fires for the Bash tool but does **not** intercept
+  PowerShell-*tool* commands — the PowerShell tool is a documented *preview* feature
+  ([tools-reference](https://code.claude.com/docs/en/tools-reference)) and PreToolUse interception of it
+  is not a listed preview limitation, so the belt and the kill switch's reach into the manual PowerShell
+  lane are inert there. The claims are now scoped as the guard's *intended* design with an explicit
+  version-pinned preview caveat + recheck trigger; on Windows the protections that actually hold are the
+  manual lane's per-path `handoff-verify` approval and the consumer's baseline permission policy.
+  Observed effect only — the mechanism (matcher firing vs Windows payload delivery vs `tool_name`) is not
+  yet isolated (recheck by adding a logging `PreToolUse` `matcher: "PowerShell"` hook in a fresh session
+  and confirming it fires for a PowerShell-tool command); the upstream docs-vs-behavior divergence is
+  held for a report once isolated.
+
+## [0.8.1]
+
+### Changed
+
+- **`--execute` now gates every deletion lane, including the manual handoff (#1113, F7).** A
+  deliberate semantic unification, not a restatement: the flag previously read as "offer the gated
+  ENGINE lane", which can never apply on Windows/macOS — leaving the manual lane's gate ambiguous,
+  and consumer sessions read it both ways (one proceeded to manual deletion without `--execute`).
+  The clean skill now states the unified contract in one sentence at the argument definition and
+  requires `--execute` in the manual-handoff precondition, for lane symmetry.
+
+### Fixed
+
+- **Doc corrections from the 0.6.4 consumer audit (#1113, F9/F10).** Safety-model trust boundaries
+  now name standing-policy `additional_hints[].reason` prose as untrusted claims requiring
+  independent evidence (additive-only design means hints cannot authorize, but the prose reached
+  triage reasoning unlabeled). Setup SKILL.md and the README now say `preview` *reports
+  `execution-platform-unsupported` as a per-candidate blocker* rather than "returns" it (it was
+  never a top-level status), and the README states once that the Recycle-Bin / Trash naming is a
+  model-layer distinction only — the engine treats Windows and macOS identically. F10(c)'s
+  restructure-the-hub suggestion is DECLINED with evidence: the repo's `.markdownlint-cli2.jsonc`
+  sets `"MD013": false` (no line-length rule — the complaint came from an out-of-repo lint run) and
+  the skill-quality gate passes the hub at its current length.
+
+## [0.8.0]
+
+### Added
+
+- **`hygiene.py handoff-verify` — deterministic revalidation for the manual lane (#1109).** New
+  read-only subcommand: takes the snapshot plus the human-approved exact path list
+  (`{"version": 1, "paths": [...]}`, same containment rules as plan candidates) and reruns the
+  engine's identity/reparse/protection/descendant/VCS/handle checks per path against live state,
+  emitting one machine-readable verdict each — `clear` / `drifted` / `gone` / `contested` — and
+  never deleting anything. Platform execution blockers deliberately do not apply (the subcommand
+  exists exactly where apply is unsupported); every unverifiable condition fails closed into
+  `contested`. Exit 0 all-clear, exit 3 otherwise. The target-root gate reuses preview's checks but
+  tolerates the root directory's own metadata churn (stable device/inode/type identity instead of
+  full stat identity — deleting an approved root-level item changes the root's mtime, and the
+  manual lane deletes one item at a time with a re-verify between items); a replaced root still
+  refuses. The clean skill's manual-handoff lane now writes `handoff-paths.json`, runs
+  handoff-verify immediately before deletion, and acts only on verdict-`clear` paths — bringing
+  snapshot binding to Windows/macOS without adding an engine deletion lane (captures most of the
+  declined F12 value; #1116's affirmation records this as the intended alternative). The Bash
+  guard admits the exact `handoff-verify --snapshot <s> --paths <p> [--data-root <d>]` shape as a
+  read-only invocation, including in audit-only mode (kill switch keeps blocking every deletion
+  lane; verification is reporting). Safety model documents the verdict vocabulary and the
+  emission-time-only validity of `clear`.
+
+## [0.7.3]
+
+### Added
+
+- **Test coverage for the least-observable engine paths (#1114).** Test-only release — no engine
+  behavior change. The paths a consumer can least verify live now have direct tests with mocked OS
+  surfaces, exercised identically on both CI lanes regardless of host platform:
+  `windows_handle_state` CreateFileW error-code mapping (32/33 → open, 5/1314 → needs_elevation,
+  unknown codes fail closed as unverified; handle closed on success; directory probes use
+  backup semantics), `posix_handle_state` lsof parsing (missing lsof, diagnostics on stderr,
+  unexpected exit codes, and timeouts all fail closed; directory vs file command shapes),
+  `windows_storage_sense_state` registry reads (set/zero/missing values, missing key),
+  `_decode_mountinfo_path` octal decoding (escapes, non-octal and truncated sequences left
+  verbatim), and the non-Git VCS marker branch (nested, enclosing, and casefolded markers all
+  flag `vcs-state-unverified`). No latent engine bugs surfaced while writing them.
+
+## [0.7.2]
+
+### Fixed
+
+- **PowerShell lane narrows the engine deny from substring to invocation classification (#1112).**
+  The lane denied ANY command containing the substring `hygiene.py` — blocking commands that
+  merely NAME the script (live-observed, F6) while a renamed copy evaded it anyway. The engine
+  check now uses the same invocation classifier as the plugin-level gate (bundled-file identity +
+  launcher rules): bare-name and consumer-file mentions defer. Deliberately NOT deferred: a
+  command whose argument IS the bundled engine, even under a read-verb spelling
+  (`Get-Content <engine>`) — PowerShell aliases and profile functions shadow cmdlet names, so a
+  verb name proves nothing about what executes (review finding); the deny message points at
+  non-shell file tools for reading the engine source.
+
+## [0.7.1]
+
+### Fixed
+
+- **PowerShell mutation guard covers instance-method `.Delete()`, and robocopy mirror/purge/move
+  (#1111).** The .NET-delete pattern required `::` before `delete`, so `$item.Delete()` executed
+  with no guard flag (live-observed in the 0.6.4 consumer audit, F4); it now also matches
+  `.Delete(`. `robocopy` with `/MIR`, `/PURGE`, `/MOV`, or `/MOVE` (mass deletion via mirroring)
+  now raises the final ask prompt and is denied in audit-only mode; plain `robocopy /E` copies
+  stay untouched. The truncation family (`Set-Content`, `Out-File`, `New-Item -Force`) is
+  DECLINED with reason: those spellings are ordinary file-writing work, and an ask-tier belt that
+  fires on every write during a cleanup session trades too much friction for a raised bar the
+  engine's own containment already backs — design stays raised-bar-not-fail-closed.
+
+## [0.7.0]
+
+### Added
+
+- **Split guard registration — plugin-level engine gate delivers the kill switch and data-root
+  authority (#1105, #1106, #1107).** The destructive guard now registers on two surfaces. A NEW
+  plugin-level `hooks/hooks.json` PreToolUse hook runs `destructive_guard.py --mode engine-gate`
+  with `${user_config.disk_hygiene_enabled}` and `${CLAUDE_PLUGIN_DATA}` substituted in exec form
+  (both channels docs-verified) — so a configured `false` (audit-only mode) is guard-enforced
+  against engine invocations in every session, and `--data-root` authority no longer depends on
+  reconstruction from the plugin root. In engine-gate mode the guard defers instantly with no
+  output for any command that does not reference the engine, so unrelated work is never taxed. The
+  skill-scoped belt (deny-by-default Bash + deletion-spelling PowerShell discipline) is unchanged
+  and remains scoped to active cleanup. The gate acts on parsed engine INVOCATIONS, not mentions —
+  `git diff -- hygiene.py`, `rg hygiene.py`, or `echo hygiene.py` defer, a word resolving to a
+  DIFFERENT existing file named `hygiene.py` (a consumer's own tool) defers, and interpreter
+  options before the script (`python3 -B`) cannot slip the gate; unparsable
+  marker-carrying commands fail closed into the gate (review finding on the implementation PR). GuardTests now exercise the exact channel set the shipped
+  plugin-level registration receives (`run_guard_engine_gate` grid), closing the
+  tests-prove-undelivered-channels gap. Trust-surface delta recorded in the README's
+  plugin-acceptance security review section. Docs record the observed-vs-documented hook-lifetime
+  discrepancy (session-long belt firing, producer-reported — #1105 tracks the interactive repro)
+  and that PreToolUse hooks fire inside subagents. The maintainer's re-affirmation of the
+  Windows-engine-execution decline (#1116) is recorded in the safety model with its reversal
+  trigger.
+
+## [0.6.5]
+
+### Fixed
+
+- **Manual-handoff lane: container-wide deletions now require immediate pre-execution
+  re-enumeration (#1108).** An approval for a container-wide operation (`Clear-RecycleBin`,
+  emptying the Trash) was bound to a prose item list that could go stale between approval and
+  execution — items landing in the container after approval would be destroyed under an approval
+  that predated their existence (a live near-miss in the 0.6.4 consumer audit, F2). The clean
+  skill's unsupported-platform handoff now forbids container-wide deletion commands outright —
+  review showed even immediate re-enumeration leaves an approval-to-execution window against a
+  live container — and satisfies "empty the container" by per-item deletion under the lane's
+  per-path revalidation, so unenumerated arrivals survive. Also documents that Recycle Bin / Trash reversibility is conditional: bin size caps,
+  policy-disabled bins, or non-NTFS/network volumes can silently make removal permanent.
+  `Clear-RecycleBin` added to the PowerShell guard's mutation words, and module-qualified
+  deletion cmdlets (`Module\Remove-Item`, `Module\Clear-Content`, `Module\Clear-RecycleBin`) now
+  match a companion pattern the word boundary's lookbehind previously rejected (review findings
+  on the same PR; the guard word is defense-in-depth for attempted container ops, which the
+  manual lane now forbids) — the broader F4 spelling additions
+  (`.Delete(`, robocopy purge flags) remain tracked in #1111. Engine-side changed-since-scan
+  gotcha now cross-references the manual lane's re-enumeration rule (closes #1108's third
+  acceptance criterion in both directions).
+
 ## [0.6.4]
 
 ### Fixed

@@ -80,6 +80,15 @@ NORM_FILE="${FILE//\\//}"
 # secret-pattern-detection, which scans even without a resolvable root —
 # secrets are dangerous anywhere; hardcoded paths only harm portable artifacts.
 [[ -n "${CLAUDE_PROJECT_DIR:-}" ]] || exit 0
+# Same rationale when the project dir resolves but is NOT a git working tree
+# (Claude Code sets CLAUDE_PROJECT_DIR for any directory — a home-directory
+# session is the common case): the target is not a portable repo artifact, and
+# every per-file exemption rung below is unreachable there — the .claude
+# carve-outs don't cover machine-local plugin config, and git check-ignore
+# errors outside a work tree — leaving only the global kill switch. A bare
+# repo also skips (no working tree means no tracked portable artifacts to
+# protect at this path).
+[[ "$(git -C "$CLAUDE_PROJECT_DIR" rev-parse --is-inside-work-tree 2>/dev/null)" == "true" ]] || exit 0
 _scope_file="$(hook::normalize_path "$FILE")"
 _scope_project="$(hook::normalize_path "${CLAUDE_PROJECT_DIR}")"
 _scope_project="${_scope_project%/}"

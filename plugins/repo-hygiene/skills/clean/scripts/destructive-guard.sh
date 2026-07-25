@@ -50,7 +50,7 @@ is_destructive() {
     grep -qE '[[:space:]]-[a-zA-Z]*f|[[:space:]]--force([[:space:]]|=|$)' <<<"$cmd"; then
     return 0
   fi
-  grep -qE "git[[:space:]]+${gopt}reset[[:space:]]+--hard|git[[:space:]]+${gopt}checkout[[:space:]]+--[[:space:]]|Remove-Item[[:space:]].*-Recurse" <<<"$cmd"
+  grep -qE "git[[:space:]]+${gopt}reset[[:space:]]+--hard|git[[:space:]]+${gopt}checkout[[:space:]]+--[[:space:]]|git[[:space:]]+${gopt}stash[[:space:]]+(drop|clear)([[:space:]]|$)|Remove-Item[[:space:]].*-Recurse" <<<"$cmd"
 }
 
 # jq parses the hook payload. Without it the ack prefix cannot be verified, so

@@ -7,6 +7,10 @@ handle output are untrusted inputs. The Python boundary parses them without shel
 canonicalizes every selected path under the snapshot root, and rejects absolute paths, traversal,
 overlap, and entries absent from the snapshot.
 
+Standing-policy `additional_hints[].reason` prose is likewise untrusted: the additive-only design
+means a hint can never authorize anything, but its reason text reaches the model's triage reasoning
+unlabeled — treat it as an unverified claim requiring independent evidence, never as a finding.
+
 Candidate patterns are advisory. The model supplies contextual evidence, but the engine alone decides
 whether an exact plan is mechanically eligible. Neither layer may weaken the other:
 
@@ -58,7 +62,45 @@ device/inode/type identity, proves it empty through that descriptor, rechecks th
 identity, and only then calls descriptor-relative `rmdir`. Windows and macOS return
 `execution-platform-unsupported`; their audit and report behavior is unchanged.
 
-The skill-scoped Bash guard accepts only complete literal words in the three declared engine command
+That decline was re-examined and AFFIRMED by the maintainer on 2026-07-23 (issue #1116), against
+the framing "new-trust-surface risk of a Windows deletion lane vs the residual approval-to-execution
+window the decline leaves in the manual lane": with the manual lane's per-item revalidation rules
+and the `handoff-verify` revalidation (#1109, landed), the residual window is small, while a
+descriptor-anchored Windows apply is a large new surface. Recorded reversal trigger: a post-#1109
+near-miss recurrence in the manual lane reopens this as a design issue with full security review.
+
+## Manual-handoff revalidation (`handoff-verify`)
+
+`handoff-verify` brings snapshot binding to the platforms where apply is unsupported, without
+adding an engine deletion lane. It takes the snapshot plus the human-approved exact path list
+(same containment rules as plan candidates: relative, non-root, no traversal, present in the
+snapshot, non-overlapping), re-validates the target root with preview's link/mount/OS-managed/
+protected-path checks but a deliberately tolerant root-identity check — stable device/inode/type
+(the same object identity apply uses for directories) instead of preview's full stat identity,
+because deleting one approved root-level item changes the root's own mtime and the manual lane
+re-verifies between items; a replaced root still refuses. It then reruns the per-path
+identity/reparse/protection/descendant/VCS/handle checks against live state and emits one
+machine-readable verdict per path. It deliberately does not apply platform execution blockers —
+it exists exactly where `execution-platform-unsupported` blocks the engine lane — and it has no
+deletion capability of any kind: the model deletes only verdict-`clear` paths in the manual lane,
+per item, under the final human permission prompt the PowerShell guard raises.
+
+| Verdict | Meaning | Manual-lane action |
+|---|---|---|
+| `clear` | Every check passed against live state at emission time | Delete this exact path immediately — verify one path per deletion, never one batch for all (earlier checks age while later paths are probed) |
+| `gone` | The path no longer exists | Nothing to delete; report it |
+| `drifted` | Identity, kind, or the captured descendant set changed since the snapshot | Keep; the approval no longer describes what is on disk — rescan |
+| `contested` | Protection, VCS state, a live handle, elevation, or unverifiable state | Keep; the reasons list names each contest — resolve and re-verify |
+
+Fail-closed mapping: every unverifiable condition (handle tool missing or timing out, unreadable
+state, truncated coverage) lands in `contested`, never `clear`. A `clear` verdict authorizes
+nothing by itself — it reports that revalidation found no change and no contest at that instant;
+the human approval and the per-item prompt remain the authorization. Verdicts expire immediately:
+any delay or interruption means re-running handoff-verify. Managed-state exclusion stays where it
+always was in the manual lane — model judgment plus human review of the audit report — because
+snapshot entries carry no owner claim for the engine to check.
+
+The skill-scoped Bash guard accepts only complete literal words in the four declared engine command
 shapes. It rejects every Bash expansion family, glob/word-splitting input, redirection, operator,
 escape, and compound-command form before validating arguments. Canonical script-path comparison uses
 the host platform's path case rules; POSIX path identity is never case-folded. A `--data-root` value
@@ -102,18 +144,51 @@ switch. When the guard sees execution enabled they are downgraded to a final hum
 when it sees a configured `false` (audit-only mode) they are denied outright, so the kill switch would
 block deletions on the PowerShell lane too and not only the Bash engine apply.
 
-That kill-switch enforcement is, however, only as reachable as the value is. The guard reads it from a
-`--disk-hygiene-enabled` argv flag or the `CLAUDE_PLUGIN_OPTION_DISK_HYGIENE_ENABLED` environment
-variable, but a skill-frontmatter hook receives neither — Claude Code substitutes only
-`${CLAUDE_PLUGIN_ROOT}` into a skill hook's args and does not inject `CLAUDE_PLUGIN_OPTION_*` into its
-environment. So in the bundled skill deployment the guard defaults to enabled and cannot honor a
-configured `false` by denying; it still forces a human prompt before every mutation, and the model
-itself reads the substituted `disk_hygiene_enabled` value from the skill content and self-enforces
-audit-only. Enforcing the kill switch in the guard needs a delivery channel skill hooks do not yet
-have (a plugin-scoped hook or MCP server that can carry the value, or Claude Code adding
-`${user_config.*}` substitution for skill hooks). Even when the switch is reachable, the PowerShell
-lane is a raised bar, not fail-closed: an unknown mutation spelling passes it, so the engine's own
-containment, revalidation, and platform gates remain the deletion authority.
+**Kill-switch enforcement (since 0.9.0): both surfaces resolve it by reading user settings.** The guard
+registers on two surfaces — the **plugin-level engine gate** (`hooks/hooks.json`, exec form,
+`--mode engine-gate`) and the **skill-scoped belt** (the clean skill's frontmatter hook) — and both
+resolve `disk_hygiene_enabled` the same single way: by reading it from `pluginConfigs` in the
+`settings.json` files, through the shared `lib/killswitch_config.py` reader (the same read the setup
+skill's `kill_switch_probe.py` reports). Neither surface takes the value from the process environment.
+Claude Code honors that key only from user, managed, and `--settings` scope since 2.1.207 — a project or
+local `.claude/settings.json` is ignored — so a hostile repo cannot flip it. The **user** file is located
+from `${CLAUDE_PLUGIN_ROOT}` (the plugin's true install path, which a repo cannot forge) and **never**
+from `CLAUDE_CONFIG_DIR`/`HOME`, which a repo `settings.json` `env` block could inject. A marker-less
+install root (a `--plugin-dir` checkout, whose path has no `plugins/cache` segment) yields no trusted
+user-settings path, so the user scope is skipped there and the switch relies on managed settings, failing
+closed to enabled otherwise. The **managed**
+(enterprise) file at its fixed root-owned system path is read too and, as the highest-precedence
+non-overridable scope, an explicitly configured value there **wins over the user file** — so an
+organization can enforce audit-only mode; the sibling `managed-settings.d/` drop-in directory is merged
+over it (later files win). The one honored source the guard cannot read is a session's `--settings` file
+(a runtime CLI flag no hook observes); a value supplied only there is not enforced. When the value
+resolves `false` (audit-only mode), `false` is guard-enforced — denied outright, not merely prompted — but
+the two surfaces reach different lanes. The **always-on engine gate** enforces it against every Bash
+engine invocation **whether or not the clean skill is active**; it defers (no output) on any command that
+does not reference the engine, so it does **not** see PowerShell deletion spellings. Those are enforced by
+the **skill-scoped belt** (`powershell_decision`) — denied outright in audit-only — only **while the clean
+skill is active**. An absent, unreadable, or ambiguous read fails **closed to enabled**: the guard stays
+active and forces a human prompt before every mutation, so an unreadable toggle never silently disables
+the guard.
+
+This replaces the earlier delivery, where the gate carried a bare `${user_config.disk_hygiene_enabled}`
+argument. Because the declared userConfig `default` is not implemented upstream
+(#46477 / #39455 / #39827), an unset-but-defaulted token was neither substituted nor exported as `CLAUDE_PLUGIN_OPTION_*` and
+its presence **dropped the whole engine-gate hook** — so on a default install the gate never ran at all,
+the real shape of the "PowerShell bypass" originally reported. Reading settings directly needs no
+`default` substitution, so that inert-by-default failure is gone. **Recheck** the tamper and scoping
+premises if 2.1.207's user-scope-only `pluginConfigs` behavior changes upstream.
+
+PreToolUse hooks with a `Bash|PowerShell` matcher fire for the PowerShell tool on 2.1.218 (payload
+`tool_name` is literally `PowerShell`, confirmed by a live block through that tool); there is no harness
+firing divergence. The gate defers instantly (no output) for any command that does not reference the
+engine, so it never taxes unrelated work; its coverage marker is the engine script name, a belt against
+casual invocation, not an authority (renaming the script evades the gate but not the engine's own
+preview/approval-token containment). The model additionally reads the `disk_hygiene_enabled` value from
+the skill content and self-enforces audit-only — now defense-in-depth over the guard, not the only path.
+Even when the switch resolves enabled, the PowerShell lane is a raised bar, not fail-closed: an unknown
+mutation spelling passes it, so the engine's own containment, revalidation, and platform gates remain the
+deletion authority.
 
 A depth-limited scan records every directory it declined to enter in `truncated_paths`. Truncated
 directories have no captured descendant set, so the preview blocks them (and anything beneath them)

@@ -14,6 +14,10 @@ plugin". An owner doc lands before the second consumer adopts the key, not after
 markdown), resolved across the same three layers as every other key on that surface —
 user-global, team-tracked, and a gitignored personal overlay — per
 [`source-control/reference/config-resolution.md`](../../../plugins/source-control/reference/config-resolution.md).
+When the team layer declares a `convention_source` neutral file (the
+[commit-convention seam](../commit-convention/README.md)'s tool-agnostic SSOT), that file may carry
+this key as a flat YAML list (or the keyword `none`) and is then authoritative for the team layer,
+same per-key semantics.
 That document owns the **resolution mechanics**: the value grammar, the three-layer read order, and
 the per-key (whole-list) override semantics. This doc never restates them — it owns the concern's
 *shape* and *rationale*, and points there for *how* a value resolves.
@@ -52,6 +56,26 @@ configuration, not in the plugin's shipped default.
 **`## Related` is never dropped by the mechanism** — a consumer whose convention includes it
 declares `Related` in its own `pr_body_required_sections` list (team-tracked, local overlay, or
 user-global), the same as any other section name. The plugin ships no opinion on it either way.
+
+## `none`: no required sections
+
+The value grammar also accepts the literal keyword `none` — the convention "this repo requires no
+PR-body sections", stated as config rather than left unstatable. A resolved `none` means the
+drafting consumer emits **no** section scaffold and the pre-create gate requires **nothing**; the
+closing-keyword / no-issue-marker mechanism is independent of this key and unaffected.
+
+This exists because "no required sections" is a real team convention, not a hypothetical: consumer
+evidence includes a repo whose merged PRs are 199/200 empty bodies — a deliberate no-body-sections
+practice that previously had no expression in this key (absence yields the portable default, which
+is the opposite of what such a repo wants). `none` parallels the sibling keys `trailer_policy` and
+`pr_body_attribution`, whose `none` values already express "suppress the default" as a resolved
+value.
+
+**`none` is a value, absence is not.** A layer declaring `none` wins the per-key override exactly
+like a list would — it replaces a lower layer's list with zero sections — while a key absent from
+every layer still falls through to the portable default. Layering mechanics live in
+[`config-resolution.md`](../../../plugins/source-control/reference/config-resolution.md); this doc
+only fixes the value's meaning.
 
 ## Resolution semantics
 

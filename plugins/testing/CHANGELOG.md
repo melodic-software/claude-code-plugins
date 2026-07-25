@@ -3,6 +3,14 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.2]
+
+### Changed
+
+- **Doc reference updated for the `config-cascade` seam rename (#1188).** The layering-contract links in
+  `README.md`, `run-e2e/SKILL.md`, and `run-e2e/context/e2e-config.md` now point at
+  `docs/conventions/config-cascade/` (formerly `consumer-config-layering`). No behavior change.
+
 ## [0.3.1]
 
 ### Changed

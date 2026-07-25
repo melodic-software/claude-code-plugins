@@ -10,7 +10,9 @@ Run the branch-audit script — do not reimplement collection inline:
 bash ${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/git-branch-audit.sh
 ```
 
-**Output contract** (per branch): `Branch:`, `Tier:`, `Age days:`, `PR:`, `Reason:`; trailing `Summary: protected=… safe=… likely-safe=… review=…`.
+**Output contract** (per branch): `Branch:`, `Tier:`, `Age days:`, `PR:`, `Unpushed:`, `Reason:`; trailing `Summary: protected=… worktree=… safe=… likely-safe=… review=…`.
+
+**`Unpushed:` line** — commits at risk of loss. With an upstream: `N ahead of <upstream>`. With no upstream: `no upstream, M commits not on origin/<default>` (or `no upstream (no origin/<default> to compare)` when the default branch is unfetched). Never-pushed local work is invisible to `@{upstream}`-based ahead reporting, so this line is the only signal that a no-upstream branch carries unmerged commits — surface it before offering any deletion.
 
 **Default branch resolution** (inside script): `origin/HEAD` symbolic ref → `gh repo view --json defaultBranchRef` → `main`.
 
@@ -24,19 +26,24 @@ The script applies rules in priority order (first match wins). Agent interprets 
 |----------|-----------|------|--------|
 | 1 | Branch = current | PROTECTED | current branch |
 | 2 | Branch = default | PROTECTED | default branch |
-| 3 | Branch in worktree list | PROTECTED | worktree-attached |
-| 4 | Branch glob-matches protected pattern (see list below) | PROTECTED | protected pattern |
+| 3 | Branch glob-matches protected pattern (see list below) | PROTECTED | protected pattern |
+| 4 | Branch checked out in a linked worktree | WORKTREE | checked out in worktree — clean up the worktree first |
 | 5 | `PR` = MERGED and local tip matches PR headRefOid | SAFE | PR merged |
 | 5b | `PR` = MERGED and local tip differs from headRefOid | REVIEW | PR merged but branch has commits since merge |
 | 6 | Branch in git `--merged` ancestry | SAFE | merged (non-squash) |
 | 7 | `PR` = CLOSED | REVIEW | PR closed without merge |
 | 8 | Upstream gone (`: gone]` in `branch -vv`) | LIKELY-SAFE | upstream deleted |
-| 9 | Age > 90 days | REVIEW | stale |
-| 10 | No PR, no tracking, not merged | REVIEW | orphaned |
+| 9 | No upstream, M commits not on origin/default | REVIEW | no upstream, M commits not on origin/<default> |
+| 10 | Age > 90 days | REVIEW | stale |
+| 11 | No PR, no tracking, not merged | REVIEW | orphaned |
 
 Stale threshold: 90 days (`CLEAN_STALE_BRANCH_DAYS` in `cleanup-paths.sh`). Branch can match multiple REVIEW reasons — list all in report.
 
-**Protected branch patterns (priority 4):** exact names and globs that MUST NEVER be offered for deletion — `main`, `master`, `develop`, `release/*`, `hotfix/*`. Matched via bash `case` in `clean_branch_matches_protected_pattern`. Extend with repo-specific long-lived branches if needed (e.g. `staging`, `production`, `deploy/*`).
+**WORKTREE tier (priority 4)** — a branch checked out in a linked worktree is a real cleanup candidate (it may be merged or gone), but `git branch -d` on it fails or, forced, breaks the worktree. It is therefore its own bucket, distinct from PROTECTED: never offer it for deletion here — route the user to the worktree-management tool to remove the worktree first (after which a later audit reclassifies the branch on its merge/PR state). Priority 4 sits below the protected checks so a `release/*` or default branch that also happens to be checked out stays PROTECTED.
+
+**No-upstream class (priority 9)** — a never-pushed branch with commits not on `origin/<default>` is unmerged local work; it ranks above the generic stale/orphaned REVIEW reasons so the unpushed-commit count is the headline. Stays REVIEW (never a deletion candidate) — confirm the commit loss explicitly before any deletion.
+
+**Protected branch patterns (priority 3):** exact names and globs that MUST NEVER be offered for deletion — `main`, `master`, `develop`, `release/*`, `hotfix/*`. Matched via bash `case` in `clean_branch_matches_protected_pattern`. Extend with repo-specific long-lived branches if needed (e.g. `staging`, `production`, `deploy/*`).
 
 **Squash-merge handling:** `git branch --merged` (priority 6) misses squash-merged branches because squash creates a new combined commit. `gh pr list` (priority 5) correctly detects these via PR state. When `gh` is unavailable, squash-merged branches land in REVIEW tier — safe-conservative handling.
 
@@ -47,16 +54,18 @@ Map script output to a table:
 ```markdown
 ## Branch Audit
 
-| Branch | Tier | Age | PR | Reason |
-|--------|------|-----|----|--------|
-| main | PROTECTED | 0d | — | default branch |
-| worktree-worktree-2 | PROTECTED | 0d | — | current branch, worktree-attached |
-| feat/old-thing | SAFE | 45d | #123 MERGED | PR merged |
-| refactor/x | LIKELY-SAFE | 12d | — | upstream gone |
-| experiment | REVIEW | 120d | — | stale (120d), orphaned |
+| Branch | Tier | Age | PR | Unpushed | Reason |
+|--------|------|-----|----|----------|--------|
+| main | PROTECTED | 0d | — | 0 ahead of origin/<default> | default branch |
+| feat/parked | WORKTREE | 3d | — | 0 ahead of origin/feat/parked | checked out in worktree — clean up the worktree first |
+| feat/old-thing | SAFE | 45d | #123 MERGED | 0 ahead of origin/feat/old-thing | PR merged |
+| refactor/x | LIKELY-SAFE | 12d | — | no upstream (no origin/<default> to compare) | upstream gone |
+| draft/local | REVIEW | 4d | — | no upstream, 5 commits not on origin/<default> | no upstream, 5 commits not on origin/<default> |
+| experiment | REVIEW | 120d | — | 0 ahead of origin/experiment | stale (120d), orphaned |
 
-**Summary:** N protected, M safe, P likely-safe, Q review
-**Deletion candidates (M+P):** <branch list>
+**Summary:** N protected, W worktree, M safe, P likely-safe, Q review
+**Deletion candidates (M+P):** <SAFE + LIKELY-SAFE branches only — never WORKTREE or REVIEW>
+**Worktree cleanup first:** <WORKTREE branches — route to the worktree-management tool>
 ```
 
 ## 4.7 Interactive deletion
