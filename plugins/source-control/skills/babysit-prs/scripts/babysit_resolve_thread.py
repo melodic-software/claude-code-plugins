@@ -39,8 +39,9 @@ Deterministic guards encoded here:
   is likewise refused in `--autonomous` mode -- there is no unpinned autonomous
   resolve.
 - `--autonomous` additionally refuses any thread whose fetched comments carry
-  a forbidden-class severity marker: a shields P0/P1 badge, a bracketed
-  [P0]/[P1] marker, the word CRITICAL, or the word "security" in any case.
+  a forbidden-class severity marker: any word-bounded P0/P1 token (shields
+  badge, bracketed marker, or bare prose form such as "P1: ..." / "P1 must
+  fix"), the word CRITICAL, or the word "security" in any case.
   The permission grants that cover this helper state "never a security or P1
   thread" as an absolute condition; this guard is the code behind that
   sentence for the unattended path, and it is deliberately narrower than the
@@ -102,18 +103,23 @@ from babysit_util import configure_stdio, dig, is_json_object
 # avoid false READINESS counts, but the grant names it); uppercase CRITICAL is
 # the word-form of the same forbidden class. A false positive only routes the
 # thread to interactive judgment.
-SEVERITY_BLOCK_BADGE_RE = re.compile(r"/badge/P[01]-")
-SEVERITY_BLOCK_PLAIN_RE = re.compile(r"\[P[01]\]")
+# One word-bounded token covers every supported P0/P1 spelling at once --
+# shields badge (/badge/P1-), bracketed marker ([P1]), and the bare prose
+# forms bots also emit ("P1: blocking regression", "P1 must fix") -- while the
+# boundary keeps P2/P3 markers and embedded strings like AP1000 out. A P2/P3
+# thread that merely MENTIONS P1 in prose does flag; that false positive only
+# routes the thread to interactive judgment, which is the safe direction.
+SEVERITY_BLOCK_P01_RE = re.compile(r"\bP[01]\b")
 SEVERITY_BLOCK_WORD_RE = re.compile(r"\bCRITICAL\b")
 SECURITY_TEXT_RE = re.compile(r"security", re.IGNORECASE)
 
 
 def _has_severity_marker(body: str) -> bool:
-    """True for the forbidden class only: a shields P0/P1 badge, a bracketed
-    [P0]/[P1] marker, the word CRITICAL, or the word "security"."""
+    """True for the forbidden class only: any word-bounded P0/P1 token
+    (badge, bracket, or bare prose form), the word CRITICAL, or the word
+    "security"."""
     return (
-        bool(SEVERITY_BLOCK_BADGE_RE.search(body))
-        or bool(SEVERITY_BLOCK_PLAIN_RE.search(body))
+        bool(SEVERITY_BLOCK_P01_RE.search(body))
         or bool(SEVERITY_BLOCK_WORD_RE.search(body))
         or bool(SECURITY_TEXT_RE.search(body))
     )
