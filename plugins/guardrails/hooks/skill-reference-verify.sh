@@ -87,13 +87,22 @@ done
 # A plugin skill's command segment comes from its frontmatter `name` when set,
 # and from the directory name otherwise. Resolve a (plugin, skill) pair against
 # both so a skill whose directory and command name diverge still resolves.
+#
+# A directory alone is NOT a skill — it must carry a SKILL.md. An empty or
+# leftover `skills/<name>/` would otherwise suppress the advisory for a command
+# that does not exist.
 skill_resolves() {
   local pdir="$1" skill="$2" sd fname
-  [[ -d "$pdir/skills/$skill" ]] && return 0
+  [[ -f "$pdir/skills/$skill/SKILL.md" ]] && return 0
   for sd in "$pdir"/skills/*/SKILL.md; do
     [[ -f "$sd" ]] || continue
-    # Frontmatter `name:`, unquoted or quoted, first occurrence only.
-    fname=$(sed -n '1,40{s/^name:[[:space:]]*["'\'']\{0,1\}\([A-Za-z0-9_-]\{1,\}\)["'\'']\{0,1\}[[:space:]]*$/\1/p;}' "$sd" 2>/dev/null | head -1)
+    # Frontmatter `name:`, quoted or not, tolerating a trailing YAML comment
+    # (`name: renamed # public command`). Comments are stripped first so the
+    # value pattern can stay anchored to end-of-line.
+    fname=$(sed -n '1,40p' "$sd" 2>/dev/null |
+      sed -E 's/[[:space:]]+#.*$//' |
+      sed -nE 's/^name:[[:space:]]*"?'"'"'?([A-Za-z0-9_-]+)"?'"'"'?[[:space:]]*$/\1/p' |
+      head -1)
     [[ "$fname" == "$skill" ]] && return 0
   done
   return 1
