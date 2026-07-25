@@ -101,11 +101,15 @@ operator handoff, never a dispatch, because it is interactive.
 
 ```shell
 /claude-config:audit-pass                    # read-only pass over the current repo
-/claude-config:audit-pass ../other-repo      # a named target
 /claude-config:audit-pass --opinion          # include the default-off OPINION-tier checks
 /claude-config:audit-pass --resume           # resume an interrupted run
 /claude-config:audit-pass --fix              # apply, per-finding confirmed, project scope only
 ```
+
+The target is the active project root, and a `target` argument naming anything else is refused: the
+delegated skills accept no target of their own, so a run pointed elsewhere would report that path
+while every delegated finding came from the active project. Audit another repository by opening it
+as the project.
 
 ## Consumer conventions
 

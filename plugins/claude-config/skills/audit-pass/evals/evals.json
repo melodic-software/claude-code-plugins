@@ -221,11 +221,11 @@
       "id": 19,
       "name": "moving-checkout-makes-the-gate-indeterminate",
       "prompt": "/claude-config:audit-pass I have three other sessions open on this repo and one of them switched branches while your pass was running — did the determinism gate pass?",
-      "expected_output": "No, and it did not fail either: it reports indeterminate. HEAD and the worktree digest are captured at Phase 0 and again at Phase 6, and here they differ, so the tree did not hold still for the duration of the run. Every determinism property is conditioned on an unchanged tree, and that precondition demonstrably did not hold, so P1, P2, and P3 are reported as not evaluated rather than as satisfied, and the report names both captures and what moved. An unfalsifiable passed is worse than an honest indeterminate: it manufactures confidence out of a basis nobody checked and reads identically to a gate that genuinely held.",
+      "expected_output": "No, and it did not fail either: it reports indeterminate. HEAD and the state digest are captured at Phase 0 and again at the audit endpoint, and here they differ, so the tree did not hold still while the lanes were reading it. Every determinism property is conditioned on comparable runs, and that precondition demonstrably did not hold, so P1, P2, and P3 are reported as not evaluated rather than as satisfied, and the report names both captures and what moved. An unfalsifiable passed is worse than an honest indeterminate: it manufactures confidence out of a basis nobody checked and reads identically to a gate that genuinely held.",
       "files": [],
       "expectations": [
         "Reports the determinism gate as indeterminate rather than passed or failed",
-        "Cites the differing Phase 0 and Phase 6 captures of HEAD and the worktree digest as the reason, naming what moved",
+        "Cites the differing Phase 0 and audit-endpoint captures of HEAD and the state digest as the reason, naming what moved",
         "Reports P1 through P3 as not evaluated rather than satisfied, instead of treating indeterminate as a soft pass"
       ]
     },
@@ -233,12 +233,60 @@
       "id": 20,
       "name": "dirty-file-edited-without-changing-the-count",
       "prompt": "/claude-config:audit-pass another session edited a file that was already showing in git status while you ran — same branch, same number of modified files, nothing added or removed. Gate still good?",
-      "expected_output": "No. It reports indeterminate. HEAD is unchanged and the count of dirty paths is unchanged, and neither is what the gate measures: the worktree digest hashes every dirty path paired with the content hash of its current bytes, so editing an already-dirty file changes the digest even though the count holds still. Swapping one dirty path for another is the same class and is caught the same way. A count-based gate would have reported this run as deterministic while different lanes read different states, which is the failure the digest exists to close. The pass's own artifacts — a --report-to path inside the target — are excluded from the digest on the same list that excludes them from the scan, so a redirected run does not invalidate its own gate by writing its report; any other file appearing or changing is still a moved tree.",
+      "expected_output": "No. It reports indeterminate. HEAD is unchanged and the count of dirty paths is unchanged, and neither is what the gate measures: the state digest pairs every path with the content hash of its current bytes, so editing an already-dirty file changes the digest even though the count holds still. Swapping one dirty path for another is the same class and is caught the same way. A count-based gate would have reported this run as deterministic while different lanes read different states, which is the failure the digest exists to close. The pass's own artifacts — a --report-to path inside the target — are excluded from the digest on the same list that excludes them from the scan, so a redirected run does not invalidate its own gate by writing its report; any other file appearing or changing is still a moved tree.",
       "files": [],
       "expectations": [
         "Reports indeterminate even though HEAD and the dirty-path count are both unchanged",
         "Names the per-path content hash, not the count, as what detects the change, and covers the swapped-path case as the same class",
         "States that the pass's own artifacts are excluded from the digest as well as the scan, so a --report-to write does not make the run indeterminate"
+      ]
+    },
+    {
+      "id": 21,
+      "name": "fix-run-does-not-invalidate-its-own-gate",
+      "prompt": "/claude-config:audit-pass --fix you applied four of the fixes I approved and nothing else touched the repo — so is the determinism gate indeterminate now, since the tree obviously changed?",
+      "expected_output": "No. It reports the gate as satisfied. The audit endpoint is captured when the last lane completes, before Phase 5 applies anything, so the measured window is Phase 0 to end-of-lanes — the interval the precondition is actually about, which is whether the tree held still while the lanes were reading it. The accepted edits fall outside that window rather than needing to be subtracted from it, which also avoids having to tell an accepted mutation apart from a coincidental identical one. A separate third capture is taken after Phase 5 and compared against the audit endpoint to confirm the applied set matches the accepted set; that is a mutation-integrity check and is reported separately from the determinism one.",
+      "files": [],
+      "expectations": [
+        "Reports the determinism gate as satisfied rather than indeterminate, despite the tree having changed",
+        "Names the audit endpoint (last lane complete, before Phase 5) as the second capture, and the read window as what the precondition is about",
+        "Distinguishes the post-Phase-5 capture as a separate mutation-integrity check confirming applied matches accepted"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "external-scope-edit-is-indeterminate-not-a-defect",
+      "prompt": "/claude-config:audit-pass I edited ~/.claude/CLAUDE.md between your two runs but the repo itself is untouched — you're reporting different derived findings, is that a bug in the sweep?",
+      "expected_output": "No, and the run must not report it as one. The state digest spans every inventoried scope, not the target repository alone, so the user-scope edit is visible even though the target's HEAD and dirty set are both unchanged. The two runs are therefore not comparable, and the gate reports indeterminate naming the user-scope surface that moved. Reporting a determinism defect instead would be an accusation where an abstention is correct — the derived tier legitimately moves when an inventoried surface changes, because the lanes read those surfaces exactly like project files.",
+      "files": [],
+      "expectations": [
+        "Reports indeterminate and names the user-scope surface as what moved, rather than a determinism defect",
+        "States that the state digest covers every inventoried scope, not only the target repository's dirty paths",
+        "Treats the derived-tier change as legitimate under a changed external surface rather than as a sweep bug"
+      ]
+    },
+    {
+      "id": 23,
+      "name": "instructions-loaded-unavailable-is-reported-not-required",
+      "prompt": "/claude-config:audit-pass I only have claude-config installed — where are you getting the InstructionsLoaded payloads for the memory-layer liveness inventory?",
+      "expected_output": "It does not have them, and it says so rather than requiring them. This plugin wires no InstructionsLoaded hook, the only producer in the marketplace is optional, is a no-op without a telemetry sink, and drops session_start events by default — and the startup events would already have fired before this skill was invoked. So the source is probed, not assumed: absent, it is reported as InstructionsLoaded: unavailable in skipped with the capture prerequisite named, /context alone carries the memory layer, and every memory-layer liveness claim is marked single-sourced. The marking is load-bearing, because the reason for two sources is that neither covers the set alone, and silently presenting a one-source inventory as the two-source result is the under-coverage-reads-as-clean failure the rule exists to prevent. The liveness basis records which sources were live, so a run with the hook and a run without are not comparable.",
+      "files": [],
+      "expectations": [
+        "States that InstructionsLoaded is unavailable in an ordinary install and reports it in skipped rather than failing or silently proceeding",
+        "Marks the resulting memory-layer liveness claims as single-sourced instead of presenting them as the two-source result",
+        "Notes that runs differing in available liveness sources are not comparable, so this cannot fail P1"
+      ]
+    },
+    {
+      "id": 24,
+      "name": "ambiguous-partial-match-leaves-both-unsuppressed",
+      "prompt": "/claude-config:audit-pass one suppressed pairwise conflict now matches two current findings — same unchanged anchor, same surfaces, same check and claim, different changed-side anchors. Carry the suppression to both?",
+      "expected_output": "No, and it does not pick one either. SAME, CHANGED applies only when exactly one candidate satisfies it. With two, the old entry goes stale and every candidate is left unsuppressed and reported, with the ambiguity named and the candidates listed. Carrying it to both would suppress a newly opened conflict the operator never accepted; picking one would be nondeterministic and would break P1 by construction, since the choice depends on iteration order. This is especially reachable under the claim-unqualified fallback, where every claim one check can make at one site pair collapses onto a single identity — so the fail-closed direction also puts a visible cost on the fallback at the point where its imprecision actually costs something.",
+      "files": [],
+      "expectations": [
+        "Requires a unique successor: refuses to carry the suppression to both candidates and refuses to pick one",
+        "Marks the old entry stale and reports every candidate unsuppressed with the ambiguity named",
+        "Names iteration-order nondeterminism as a P1 violation, and the claim-unqualified fallback as what makes the collision ordinary"
       ]
     }
   ]

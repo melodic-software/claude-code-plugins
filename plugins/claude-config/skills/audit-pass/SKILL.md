@@ -83,10 +83,12 @@ attaching. A stale lease means the run was interrupted and its artifact is resum
 not a lock — it excludes nothing, blocks no concurrent read-only run, and grants no exclusivity;
 it only answers the one question resume has to ask and previously could not.
 
-**Capture the target's HEAD commit and worktree digest here, and again at Phase 6.** They are the
-determinism gate's precondition, and a run that never measures it cannot claim it held. The digest
-pairs every dirty path with a hash of its current content, because a *count* holds still while a
-dirty file's contents change underneath the run.
+**Capture the target's HEAD commit and the run's state digest here, and again at the audit endpoint**
+— the moment the last lane completes, before any Phase 5 mutation. They are the determinism gate's
+precondition, and a run that never measures it cannot claim it held. The digest pairs each path with
+a hash of its current content, because a *count* holds still while a dirty file's contents change
+underneath the run, and it spans **every inventoried scope**, because a user-scope or managed-policy
+edit moves what the lanes read while the target's HEAD and dirty set both hold still.
 
 ## Phase 1 — Three-scope inventory, before any check
 
@@ -103,6 +105,28 @@ silently, and under-coverage reads as a clean report. **Neither observes `manage
 `claudeMd` key** — a limitation of these two sources, not a claim about the harness: probe for it and
 name it in `skipped`. Then `/memory`, `/skills`, `/hooks`, `/mcp`, `/permissions`, `/status`, and
 `claude --safe-mode` with a relocated `CLAUDE_CONFIG_DIR` for a clean-room comparison.
+
+**`InstructionsLoaded` is normally UNAVAILABLE, and the run says so rather than requiring it.** This
+plugin wires no `InstructionsLoaded` hook, the only producer in this marketplace
+(`claude-ops/hooks/instructions-loaded-audit.sh`) is optional, is a no-op without a telemetry sink,
+and drops `session_start` events by default — and the startup events this skill would need have
+already fired before it is invoked, so there is nothing to subscribe to at dispatch time even where a
+producer exists. Requiring data the plugin never records would make the memory-layer liveness
+inventory unbuildable in the ordinary installation, which is the one every first operator has.
+
+So the source is **probed, not assumed**, and its absence is a reported state rather than a failure:
+
+- **Present** — a recorded payload set for this session exists and is fresh — take it as ground truth
+  for the memory layer, as specified above.
+- **Absent** — the ordinary case — report `InstructionsLoaded: unavailable` in `skipped`, naming the
+  capture prerequisite that would supply it. `/context` alone then carries the memory layer, and
+  every memory-layer liveness claim in the report is marked **single-sourced**, because the whole
+  reason for two sources is that neither covers the set alone.
+
+Marking is what keeps this honest: a single-sourced inventory is usable, and silently presenting it
+as the two-source result would be the same under-coverage-reads-as-clean failure the two-source rule
+exists to prevent. The liveness basis records which sources were live, so a run with the hook and a
+run without are **not comparable** and cannot fail P1 against each other.
 
 Record, per scope, every surface found **and every surface skipped with its reason**. The inventory
 is a reported derived-tier artifact, so a surface that silently drops out of scope between two runs
@@ -227,10 +251,24 @@ fails the self-check**, the only detector the convergence property has.
 ## Self-check
 
 <!-- fresh-eyes-exempt: deterministic-gate -- the tolerance comparison is set arithmetic over two runs' identity sets; its pass/fail IS the verdict and no judgment enters it -->
-**Establish the precondition first.** If HEAD or the worktree digest moved between the Phase 0 and
-Phase 6 captures — or if two lanes recorded different content for a path they share — the tree did
-not hold still and the gate reports **`indeterminate`**, never `passed`. A shared checkout is the
-normal case, and an unfalsifiable pass manufactures confidence out of a basis nobody measured.
+**Establish the precondition first.** If HEAD or the state digest moved between the Phase 0 and the
+**audit-endpoint** captures — or if two lanes recorded different content for a path they share — the
+tree did not hold still and the gate reports **`indeterminate`**, never `passed`. A shared checkout
+is the normal case, and an unfalsifiable pass manufactures confidence out of a basis nobody measured.
+
+**The audit endpoint is taken before Phase 5, not after it.** Under `--fix`, Phase 5 edits project
+files *by design*, so an endpoint captured after it necessarily differs from Phase 0 — which would
+mark **every successful mutating run** `indeterminate` and skip P1–P3, the gate firing hardest on
+runs that did exactly what was asked. What the precondition is about is whether the tree held still
+*while the lanes were reading it*, and that window closes when the last lane completes. So the
+capture bounds the read window, Phase 0 to end-of-lanes; Phase 5's writes fall outside the measured
+interval rather than needing to be subtracted from it, which also avoids having to tell an accepted
+mutation apart from a coincidental identical one.
+
+A **third** capture is taken after Phase 5 and compared against the audit endpoint, for a different
+purpose: it confirms the applied set matches the accepted set, so a `--fix` run that changed
+something nobody approved is visible. That is a mutation-integrity check, reported separately from
+the determinism one.
 
 When it held, any derived-tier inequality is a defect, and judged-tier growth beyond the tolerance in
 [reference/run-contract.md](reference/run-contract.md) **fails the self-check as an instability

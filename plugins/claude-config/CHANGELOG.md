@@ -30,15 +30,20 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   tiers — derived (exact equality across runs), judged (a stability tolerance whose violation fails
   the run's self-check), delegated (no property) — and every run reports in one line how many
   `OPINION`-tier checks were available, were not run, and the argument that enables them. The
-  determinism gate **measures its own precondition** rather than assuming it: HEAD and a **worktree
-  digest** — every dirty path paired with the content hash of its current bytes — are captured at
-  Phase 0 and again at Phase 6, and a target that moved mid-run reports `indeterminate` rather than
-  `passed`, with the properties marked not evaluated. A count would not do: editing an already-dirty
-  file, or swapping one dirty path for another, holds the count still while different lanes read
-  different states. The pass's own artifacts are excluded from the digest on the same list that
-  excludes them from the scan, so a `--report-to` write does not invalidate the run's own gate. A
-  checkout shared with concurrent sessions is the normal case for the first operator, and an
-  unfalsifiable pass is worse than an honest indeterminate.
+  determinism gate **measures its own precondition** rather than assuming it: HEAD and a **state
+  digest** — every inventoried surface and every dirty path, each paired with the content hash of its
+  current bytes — are captured at Phase 0 and again at the **audit endpoint**, and a target that
+  moved mid-run reports `indeterminate` rather than `passed`, with the properties marked not
+  evaluated. Three things the naive form gets wrong, all closed here: a *count* holds still while an
+  already-dirty file's contents change, so the digest pairs each path with its content; the digest
+  spans **every inventoried scope**, because a `~/.claude/CLAUDE.md` edit moves what the lanes read
+  while the target's HEAD and dirty set both hold still, and reporting that as a defect would be an
+  accusation where an abstention is correct; and the endpoint is captured **before** Phase 5, so a
+  `--fix` run's own accepted edits fall outside the measured read window instead of marking every
+  successful mutating run `indeterminate`. The pass's own artifacts are excluded from the digest on
+  the same list that excludes them from the scan, so a `--report-to` write does not invalidate the
+  run's own gate. A checkout shared with concurrent sessions is the normal case for the first
+  operator, and an unfalsifiable pass is worse than an honest indeterminate.
 - **Finding-suppression convention** (`docs/conventions/finding-suppression/`). Owner doc for the
   suppression record `audit-pass` reads at `.claude/audit-pass.md`: entries store the finding's
   constituents — `check`, `claim`, and every `(surface, anchor)` site — under a derived `finding_id`

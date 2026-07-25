@@ -182,7 +182,7 @@ not unchanged and the idempotence property is unfalsifiable by construction.
 | 2.1 | After a run against a clean git worktree with no redirect, `git status --porcelain` is empty. |
 | 2.2 | With a redirect, a second run's scan set excludes the redirected path, and the two runs' derived identity sets are still equal. |
 | 2.3 | The first run under `--report-to` records the redirected path in its own exclusion artifact before writing the report, whether or not that path already exists. |
-| 2.4 | A run under `--report-to <path-inside-target>` against an otherwise-unchanging tree reports the determinism gate as satisfied, not `indeterminate` — writing its own report does not move its own worktree digest. |
+| 2.4 | A run under `--report-to <path-inside-target>` against an otherwise-unchanging tree reports the determinism gate as satisfied, not `indeterminate` — writing its own report does not move its own state digest. |
 
 ## 3. Run state, keying, and concurrency
 
@@ -303,6 +303,22 @@ verified 2026-07-25).
 A single-site finding has no "other anchor", so row 2 cannot apply to one: a changed anchor on a
 single-site finding falls to row 3.
 
+**Row 2 requires a unique successor, and without that requirement it is not a function.** Two current
+pairwise findings can share the unchanged anchor, both surfaces, `check`, and `claim` while differing
+only in the changed-side anchor — and then *both* satisfy row 2's condition for one old entry. The
+**claim-unqualified fallback makes this ordinary rather than exotic**: with `claim` bound to the bare
+check id, every claim that check can make at one site pair collapses onto one identity, so the
+collision is the expected case for any catalog that has not declared its templates. Carrying the
+entry to both suppresses a newly opened conflict the operator never accepted; picking one is
+nondeterministic and would break P1 by construction, since the choice depends on iteration order.
+
+So: **row 2 applies only when exactly one candidate satisfies it.** With two or more, the old entry
+goes **stale** per 4.2 and *every* candidate is left unsuppressed and reported, with the ambiguity
+named and the candidates listed. That is the fail-closed direction — it re-surfaces a finding the
+operator may re-suppress in one action, where the alternative silently hides one they never saw. It
+also gives the claim-unqualified fallback a visible cost at exactly the point that costs something,
+which is where the coverage note says the imprecision would be felt.
+
 **Row 4 is the detector P2 has been missing.** §6's P2 states that a finding vanishing without a fix
 is a defect — a definition with nothing able to observe it. Requiring every disappearance to be
 accounted for is what turns that definition into a check capable of failing.
@@ -368,17 +384,26 @@ sessions on one repository is the normal case for the operator who runs this fir
 
 So the run **measures** its own precondition:
 
-- At Phase 0 and again at Phase 6, capture the target's **HEAD commit** and its **worktree digest**.
-- **Worktree digest** = `sha256` over every dirty path in sorted order, each paired with the content
-  hash of its current bytes — the path set from `git status --porcelain`, the content hash per path
-  from `git hash-object`, a deleted path paired with a fixed deletion sentinel. **A count is not
-  enough and was the earlier mistake:** editing a dirty file's contents, or swapping one dirty path
-  for another, leaves both HEAD and the count identical, so a count-based gate would evaluate P1–P3
-  as though the tree held still while different lanes in fact read different states. Pairing each
-  path with its content is what makes both of those movements visible.
+- At Phase 0 and again at the **audit endpoint** — the moment the last lane completes, *before* any
+  Phase 5 mutation — capture the target's **HEAD commit** and the run's **state digest**.
+- **State digest** = `sha256` over the inventoried surfaces in sorted order, each paired with the
+  content hash of its current bytes, plus every dirty path in the target worktree on the same terms —
+  path set from `git status --porcelain`, content hash from `git hash-object`, a deleted path paired
+  with a fixed deletion sentinel.
+- **Its scope is every inventoried scope, not the target repository alone.** Restricting it to the
+  target worktree leaves the user-global and managed-policy surfaces outside the measurement, and
+  those are read by the lanes exactly like project files: editing `~/.claude/CLAUDE.md` between runs
+  can move derived script candidates and dead-surface classifications while HEAD and the target's
+  dirty set both hold still. The gate would then report a legitimate external-state change as a
+  determinism **defect** rather than `indeterminate` — an accusation instead of an abstention, which
+  is the worse of the two errors. If Phase 1 inventoried a surface, the digest covers it.
+- **A count is not enough and was the earlier mistake:** editing a dirty file's contents, or swapping
+  one dirty path for another, leaves both HEAD and the count identical, so a count-based gate would
+  evaluate P1–P3 as though the tree held still while different lanes in fact read different states.
+  Pairing each path with its content is what makes both movements visible.
 - **The run's own artifacts are excluded from the digest, on the same list that excludes them from
   the scan.** A `--report-to` path inside the target appears in `git status --porcelain` the moment
-  the report is written, which is between the Phase 0 and Phase 6 captures — so a digest over *every*
+  the report is written, which is between the Phase 0 and audit-endpoint captures — so a digest over *every*
   dirty path makes the redirected run fail its own determinism gate as `indeterminate`, every time,
   purely because it did what it was asked to do. Recording the path in the scan exclusion set does
   not reach the digest; the exclusion has to apply to both, and it is one list precisely so the two
@@ -447,16 +472,18 @@ detection-behavior input not covered by the digest is a defect in the digest.
 - **P5 — the delegated tier is excluded from both properties.** A prompt-based delegate cannot
   contribute to a determinism gate.
 - **P6 — an unestablished precondition yields `indeterminate`.** A run whose start and end captures
-  of HEAD and worktree digest disagree — or whose per-lane input digests disagree on a shared path —
+  of HEAD and state digest disagree — or whose per-lane input digests disagree on a shared path —
   reports the determinism gate as `indeterminate` and does not
   evaluate P1, P2, or P3 for that pair. Their precondition demonstrably did not hold, so a verdict on
   them would be an assertion about a comparison the run never actually made.
 
 | # | Assertion |
 |---|---|
-| 6.1 | A run captures HEAD and the worktree digest at Phase 0 and again at Phase 6, and records both captures in the report. |
+| 6.1 | A run captures HEAD and the state digest at Phase 0 and again at the audit endpoint (last lane complete, before any Phase 5 mutation), and records both captures in the report. |
+| 6.1a | A `--fix` run that applies at least one accepted edit against an otherwise-unchanging tree reports the determinism gate as satisfied, not `indeterminate` — its own accepted mutations fall outside the measured read window. |
+| 6.1b | Editing an inventoried user-scope surface (`~/.claude/CLAUDE.md`) mid-run yields `indeterminate`, even though the target's HEAD and dirty set are both unchanged. |
 | 6.2 | When the two captures differ, the determinism gate reads `indeterminate` — never `passed`, never `failed` — and names both captures and what moved. |
-| 6.2a | Changing a dirty file's contents during a run, or replacing one dirty path with another, changes the worktree digest and yields `indeterminate`, even though HEAD and the number of dirty files are unchanged. |
+| 6.2a | Changing a dirty file's contents during a run, or replacing one dirty path with another, changes the state digest and yields `indeterminate`, even though HEAD and the number of dirty files are unchanged. |
 | 6.2b | Two lanes whose inputs overlap record the same content hash for every shared path; a disagreement yields `indeterminate`. |
 | 6.3 | An `indeterminate` gate is visibly distinct from a passing one in the report, and P1–P3 are reported as not evaluated rather than as satisfied. |
 
