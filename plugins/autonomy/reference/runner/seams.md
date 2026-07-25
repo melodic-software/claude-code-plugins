@@ -30,7 +30,10 @@ repo-local value.
 
 Every executor run hands back exactly one machine-readable envelope at its task boundary. The
 envelope is the runner's single structured return — the carrier the verification, escalation,
-and lifecycle seams consume; there is no second hand-back path. It records why the run stopped,
+and lifecycle seams consume; **there is no second hand-back path**, a runner-new invariant
+about the return leg, distinct from the
+[one-entrypoint invariant](../trigger-dispatch.md#dispatch) governing the claim and dispatch
+legs. It records why the run stopped,
 what terminal outcome that resolves to, a reference to the run's evidence bundle, and the
 handle a human takeover resumes from.
 
@@ -44,9 +47,10 @@ handle a human takeover resumes from.
 ## Queue and lease
 
 The runner claims work through the work-item capability's race-safe lease and its single
-dispatch entrypoint. There is no second claim, dispatch, or escalation mechanism anywhere; the
-lease is the guarantor that one leased item maps to one emitting session, and the lease record
-is protected dispatch data the runner reads, never rewrites.
+dispatch entrypoint — it is a claiming surface, so the
+[one-entrypoint invariant](../trigger-dispatch.md#dispatch) and its scope boundary bind it
+directly. The lease is the guarantor that one leased item maps to one emitting session, and
+the lease record is protected dispatch data the runner reads, never rewrites.
 
 - **Owning contract:** [dispatch](../trigger-dispatch.md#dispatch) and the
   [adapter obligations](../trigger-dispatch.md#adapter-obligations) — cited, never restated.

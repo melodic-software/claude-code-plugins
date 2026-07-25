@@ -36,6 +36,18 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   `OPINION` stay reachable for a future row, and the axis stays a closed three-value set rather than
   widening under every existing consumer.
 
+## [0.9.3]
+
+### Added
+
+- **`setup` evals.** The skill shipped none, against the repo's own rule that a skill carrying
+  behavioral warrants demonstrates them. Four cases cover the behaviors its SKILL.md asserts and
+  nothing else: a bare invocation routes to `check` and writes nothing; a missing `curl` FAILs
+  scoped to `check-plugin-drift.sh` alone rather than downgrading the rest of the audit surface;
+  an install request under `apply` yields platform instructions without executing a package
+  manager, and never reports a prerequisite resolved on an install command's exit code; and an
+  audit request under `setup` routes to the audit skills by name instead of being performed.
+
 ## [0.9.2]
 
 ### Changed

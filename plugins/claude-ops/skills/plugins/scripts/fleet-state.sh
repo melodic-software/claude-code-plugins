@@ -104,6 +104,59 @@ fi
 # instead of calling jq directly so no call site has to remember this.
 jq() { command jq "$@" | tr -d '\r'; }
 
+# --- Large-JSON routing: temp file instead of argv (#1336) ------------------
+# `jq --argjson name "$value"` embeds $value as a literal command-line
+# argument. Several call sites below carry a full marketplace catalog or the
+# composed per-marketplace report; for a large enough marketplace (confirmed
+# against a 273-plugin catalog) the serialized JSON exceeds this
+# platform/shell's argv-length ceiling and jq fails with "Argument list too
+# long" (confirmed on Windows Git Bash/MSYS jq) — a real OS ARG_MAX ceiling
+# everywhere, just reached sooner here. jq_slurp_tmpfile writes a JSON value
+# to a fresh temp file and prints its path so a call site can pass
+# `--slurpfile name "$(jq_slurp_tmpfile "$value")"` instead of
+# `--argjson name "$value"`; payload then travels through the filesystem,
+# never argv, so its size never determines whether jq can be invoked.
+# --slurpfile always yields a one-element array bound to $name, so a
+# converted jq program reads `$name[0]` where it used to read `$name`.
+# Process substitution (`<(...)`) was considered instead of a real temp file,
+# but a native-Windows jq binary does not reliably read the /dev/fd-style
+# paths Git Bash's process substitution produces, so a real file backed by
+# `mktemp` is the portable choice. Every call site invokes jq_slurp_tmpfile
+# inside a `$(...)` command substitution (to capture the printed path), which
+# runs the function in a SUBSHELL — an array append inside it would mutate
+# only the subshell's copy and vanish on return (the same pitfall
+# fleet-state.test.sh's own new_case_dir doc comment calls out for CASE_NUM),
+# so temp files are NOT individually tracked in an array. Instead every one
+# of them is created inside a single per-run temp directory, and the EXIT
+# trap removes that whole directory — a subshell-safe cleanup that needs no
+# shared mutable state, on every exit path (normal completion, `exit`, or an
+# unhandled error under `set -u`).
+_FLEET_STATE_TMPDIR="$(mktemp -d)" || {
+  echo "ERROR: could not create a temp directory for large-JSON routing" >&2
+  exit 2
+}
+trap 'rm -rf "$_FLEET_STATE_TMPDIR"' EXIT
+
+jq_slurp_tmpfile() {
+  local f
+  f=$(mktemp "$_FLEET_STATE_TMPDIR/payload.XXXXXX") || return 1
+  if [[ -z "$1" ]]; then
+    # An empty value only happens when an earlier `jq` read of a source file
+    # (e.g. user/project/local settings.json) already failed — malformed
+    # JSON captures no stdout. `--argjson name ""` used to fail this loud
+    # immediately ("invalid JSON text passed to --argjson"); `--slurpfile`
+    # tolerates a genuinely EMPTY file as "zero JSON values" instead of
+    # erroring, which would silently degrade the report (a null/empty field
+    # instead of the script failing) rather than reproducing the prior
+    # fail-loud behavior. Write a deliberately-invalid token so the
+    # consuming jq call's own parser still errors at this call site.
+    printf '%s' 'FLEET_STATE_INVALID_EMPTY_PAYLOAD' >"$f"
+  else
+    printf '%s' "$1" >"$f"
+  fi
+  printf '%s' "$f"
+}
+
 INSTALLED_JSON="${FLEET_STATE_INSTALLED_JSON:-$HOME/.claude/plugins/installed_plugins.json}"
 MARKETPLACES_JSON="${FLEET_STATE_MARKETPLACES_JSON:-$HOME/.claude/plugins/known_marketplaces.json}"
 USER_SETTINGS="${FLEET_STATE_USER_SETTINGS:-$HOME/.claude/settings.json}"
@@ -168,19 +221,28 @@ fi
 # Union of every id ever mentioned in any scope (raw, unmerged) — used to
 # distinguish "never mentioned anywhere" (missing_from_enabled) from
 # "explicitly false somewhere" (deliberate opt-out, never flipped by sync).
-known_ids=$(jq -cn --argjson u "$user_map" --argjson p "$project_map" --argjson l "$local_map" \
-  '($u + $p + $l) | keys')
+known_ids=$(jq -cn \
+  --slurpfile u "$(jq_slurp_tmpfile "$user_map")" \
+  --slurpfile p "$(jq_slurp_tmpfile "$project_map")" \
+  --slurpfile l "$(jq_slurp_tmpfile "$local_map")" \
+  '($u[0] + $p[0] + $l[0]) | keys')
 
 # Effective value per id: local > project > user.
-effective_map=$(jq -cn --argjson u "$user_map" --argjson p "$project_map" --argjson l "$local_map" \
-  '$u + $p + $l')
+effective_map=$(jq -cn \
+  --slurpfile u "$(jq_slurp_tmpfile "$user_map")" \
+  --slurpfile p "$(jq_slurp_tmpfile "$project_map")" \
+  --slurpfile l "$(jq_slurp_tmpfile "$local_map")" \
+  '$u[0] + $p[0] + $l[0]')
 
 # ids explicitly set to false in ANY scope — a deliberate opt-out, even for a
 # plugin never installed at all (e.g. a team pre-declares "we're not using
 # this" in project settings before anyone runs install). "Missing" (needing
 # an install prompt) excludes these; sync never installs over an opt-out.
-explicit_false_ids=$(jq -cn --argjson u "$user_map" --argjson p "$project_map" --argjson l "$local_map" \
-  '[($u, $p, $l) | to_entries[] | select(.value == false) | .key] | unique')
+explicit_false_ids=$(jq -cn \
+  --slurpfile u "$(jq_slurp_tmpfile "$user_map")" \
+  --slurpfile p "$(jq_slurp_tmpfile "$project_map")" \
+  --slurpfile l "$(jq_slurp_tmpfile "$local_map")" \
+  '[($u[0], $p[0], $l[0]) | to_entries[] | select(.value == false) | .key] | unique')
 
 # --- Normalized current-project root, for the `currentProject` install flag
 current_project_norm=""
@@ -330,10 +392,10 @@ emit_marketplace() {
   # scope, even one never installed at all.
   local missing_from_install
   missing_from_install=$(jq -cn \
-    --argjson catalog "$catalog_ids" \
-    --argjson installed "$installed_ids" \
-    --argjson falseIds "$explicit_false_ids" \
-    '($catalog - $installed) - $falseIds')
+    --slurpfile catalog "$(jq_slurp_tmpfile "$catalog_ids")" \
+    --slurpfile installed "$(jq_slurp_tmpfile "$installed_ids")" \
+    --slurpfile falseIds "$(jq_slurp_tmpfile "$explicit_false_ids")" \
+    '($catalog[0] - $installed[0]) - $falseIds[0]')
 
   # User-scope completeness, distinct from all-scope missing_from_install: a
   # plugin installed only at project/local scope is present all-scope but not
@@ -345,10 +407,10 @@ emit_marketplace() {
 
   local missing_from_user_install
   missing_from_user_install=$(jq -cn \
-    --argjson catalog "$catalog_ids" \
-    --argjson userInstalled "$user_installed_ids" \
-    --argjson falseIds "$explicit_false_ids" \
-    '($catalog - $userInstalled) - $falseIds')
+    --slurpfile catalog "$(jq_slurp_tmpfile "$catalog_ids")" \
+    --slurpfile userInstalled "$(jq_slurp_tmpfile "$user_installed_ids")" \
+    --slurpfile falseIds "$(jq_slurp_tmpfile "$explicit_false_ids")" \
+    '($catalog[0] - $userInstalled[0]) - $falseIds[0]')
 
   local known_at_mp
   known_at_mp=$(jq -c --arg suffix "@$name" '[.[] | select(endswith($suffix))]' <<<"$known_ids")
@@ -365,13 +427,17 @@ emit_marketplace() {
   verifiable_ids=$(jq -c '[.[] | select(.scope == "user" or .currentProject == true) | .id] | unique' <<<"$installed")
 
   local missing_from_enabled
-  missing_from_enabled=$(jq -cn --argjson verifiable_ids "$verifiable_ids" --argjson known "$known_at_mp" \
-    --argjson defaultDisabled "$default_disabled_ids" \
-    '($verifiable_ids - $known) - $defaultDisabled')
+  missing_from_enabled=$(jq -cn \
+    --slurpfile verifiable_ids "$(jq_slurp_tmpfile "$verifiable_ids")" \
+    --slurpfile known "$(jq_slurp_tmpfile "$known_at_mp")" \
+    --slurpfile defaultDisabled "$(jq_slurp_tmpfile "$default_disabled_ids")" \
+    '($verifiable_ids[0] - $known[0]) - $defaultDisabled[0]')
 
   local enabled_at_mp
-  enabled_at_mp=$(jq -cn --argjson known "$known_at_mp" --argjson eff "$effective_map" \
-    'reduce $known[] as $id ({}; . + {($id): $eff[$id]})')
+  enabled_at_mp=$(jq -cn \
+    --slurpfile known "$(jq_slurp_tmpfile "$known_at_mp")" \
+    --slurpfile eff "$(jq_slurp_tmpfile "$effective_map")" \
+    'reduce $known[0][] as $id ({}; . + {($id): $eff[0][$id]})')
 
   # `versionsMatch` separates a benign multi-scope install (project and user
   # scope both pinned to the same version — normal, not actionable) from a
@@ -392,22 +458,22 @@ emit_marketplace() {
     --arg name "$name" \
     --argjson autoUpdate "$([[ "$auto_update" == "true" ]] && echo true || echo false)" \
     --arg lastUpdated "$last_updated" \
-    --argjson catalog "$catalog" \
-    --argjson installed "$installed" \
-    --argjson enabled "$enabled_at_mp" \
-    --argjson missingInstall "$missing_from_install" \
-    --argjson missingUserInstall "$missing_from_user_install" \
-    --argjson missingEnabled "$missing_from_enabled" \
-    --argjson divergences "$divergences" \
+    --slurpfile catalog "$(jq_slurp_tmpfile "$catalog")" \
+    --slurpfile installed "$(jq_slurp_tmpfile "$installed")" \
+    --slurpfile enabled "$(jq_slurp_tmpfile "$enabled_at_mp")" \
+    --slurpfile missingInstall "$(jq_slurp_tmpfile "$missing_from_install")" \
+    --slurpfile missingUserInstall "$(jq_slurp_tmpfile "$missing_from_user_install")" \
+    --slurpfile missingEnabled "$(jq_slurp_tmpfile "$missing_from_enabled")" \
+    --slurpfile divergences "$(jq_slurp_tmpfile "$divergences")" \
     '{
       marketplace: {name: $name, autoUpdate: $autoUpdate, lastUpdated: $lastUpdated},
-      catalog: $catalog,
-      installed: $installed,
-      enabled: $enabled,
-      missing_from_install: $missingInstall,
-      missing_from_user_install: $missingUserInstall,
-      missing_from_enabled: $missingEnabled,
-      divergences: $divergences
+      catalog: $catalog[0],
+      installed: $installed[0],
+      enabled: $enabled[0],
+      missing_from_install: $missingInstall[0],
+      missing_from_user_install: $missingUserInstall[0],
+      missing_from_enabled: $missingEnabled[0],
+      divergences: $divergences[0]
     }'
 }
 
@@ -467,9 +533,9 @@ all)
   while IFS= read -r n; do
     [[ -z "$n" ]] && continue
     block=$(emit_marketplace "$n" || true)
-    result=$(jq -c --arg n "$n" --argjson b "$block" '. + {($n): $b}' <<<"$result")
+    result=$(jq -c --arg n "$n" --slurpfile b "$(jq_slurp_tmpfile "$block")" '. + {($n): $b[0]}' <<<"$result")
   done <<<"$names"
-  jq -cn --argjson m "$result" '{marketplaces: $m}'
+  jq -cn --slurpfile m "$(jq_slurp_tmpfile "$result")" '{marketplaces: $m[0]}'
   ;;
 *)
   echo "ERROR: unreachable mode: $MODE" >&2
