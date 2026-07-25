@@ -319,8 +319,9 @@ Brief's acceptance criteria, and this section is the record of what executed.
    assessment, recorded above with upstream cited rather than restated.
 3. **Phase 3 — reachability.** `planning:draft-goal-condition` (0.26.0).
 4. **Phase 4 — vendored baseline.** `playbooks` boris pack 8.8.1 → 8.13.0
-   (0.4.0); upstream had moved past the 8.12.0 recorded at hand-off, so the
-   delta figures were re-derived.
+   (0.5.0); upstream had moved past the 8.12.0 recorded at hand-off, so the
+   delta figures were re-derived. The bump was renumbered from `0.4.0` when
+   #1261 merged first and claimed that number; the minor tier is unchanged.
 5. **Phase 5 — the five findings.** `autonomy` 0.10.0, `loop-lane` 2.0.0, and
    `rate-limit-guard` 0.2.0 (added under review — it carried its own copy of
    the assumption `loop-lane` §6 retired).

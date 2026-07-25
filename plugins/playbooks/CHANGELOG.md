@@ -4,7 +4,11 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
-## [0.4.0]
+## [0.5.0]
+
+Numbered `0.5.0` rather than the `0.4.0` this branch first claimed: #1261 merged
+first and took that number. The tier is unchanged — still **minor**, now measured
+from `0.4.0` instead of `0.3.2`.
 
 ### Added
 
