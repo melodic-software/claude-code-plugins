@@ -138,8 +138,12 @@ normalize_candidate() {
   /* | [A-Za-z]:[/\\]*) return 0 ;;
   # Home-relative.
   '~'*) return 0 ;;
-  # Escapes the tree; not resolvable against the repo root.
-  ../* | */../*) return 0 ;;
+  # A `../` candidate is NOT rejected here. A markdown link destination is
+  # document-relative, so `../gone.md` from `docs/sub/note.md` is a legitimate
+  # in-repo reference. The caller canonicalizes link destinations against the
+  # document directory and drops only those that resolve outside the repo; a
+  # code-span candidate carrying `../` is dropped there instead, since a
+  # repo-root-relative citation has nothing to ascend from.
   # Glob, brace, or placeholder metacharacters — a pattern, not an assertion.
   *'*'* | *'?'* | *'['* | *']'* | *'{'* | *'}'* | *'<'* | *'>'* | *'$'* | *'('* | *')'* | *'|'* | *'!'*) return 0 ;;
   # Ellipsis stand-ins.
@@ -168,6 +172,49 @@ normalize_candidate() {
 # link is accepted when EITHER base resolves. An advisory guard errs quiet.
 DOC_DIR="$(dirname "$FILE")"
 
+# Collapse `.` and `..` segments lexically, preserving absoluteness. Purely
+# textual on purpose: the target need not exist — that is what is being tested —
+# so `realpath`/`readlink -f` would fail on exactly the inputs that matter.
+# Returns 1 when the path ascends past its own root, which is how "escapes the
+# tree" is detected.
+lexical_normalize() {
+  local p="$1" seg out=() lead=""
+  [[ "$p" == /* ]] && lead=/
+  local IFS=/
+  for seg in $p; do
+    case "$seg" in
+    '' | .) ;;
+    ..)
+      ((${#out[@]})) || return 1
+      unset 'out[-1]'
+      ;;
+    *) out+=("$seg") ;;
+    esac
+  done
+  printf '%s%s' "$lead" "${out[*]}"
+}
+
+# The document's directory as a repo-relative prefix (`docs/sub`), asked of git
+# rather than computed by string surgery.
+#
+# Deriving it as `${DOC_DIR#$REPO_ROOT}` does not work: on Windows `git rev-parse
+# --show-toplevel` returns a drive path (`C:/Users/KyleSexton/…`) while `dirname
+# "$FILE"` returns the MSYS form (`/tmp/…`), so the prefix silently never matches.
+# cygpath does not rescue it either — the MSYS `/tmp` mount resolves through an 8.3
+# short name (`KYLESE~1`), so the two sides still differ. `--show-prefix` sidesteps
+# the whole problem by answering in one universe. Empty outside a work tree, which
+# is correct: hook::repo_root then falls back to this same directory.
+DOC_REL="$(git -C "$DOC_DIR" rev-parse --show-prefix 2>/dev/null | tr -d '\r')"
+DOC_REL="${DOC_REL%/}"
+
+# Resolve a document-relative destination to a repo-relative path, or return 1
+# when it escapes the repo. Since the input is already repo-relative, ascending
+# past its root IS leaving the repo — so lexical_normalize's own failure is the
+# containment test, with no absolute paths involved.
+resolve_within_repo() {
+  lexical_normalize "${DOC_REL:+$DOC_REL/}$1"
+}
+
 declare -A CHECKED=()
 MISSING=()
 
@@ -180,10 +227,25 @@ while IFS= read -r line; do
 
   if [[ "$kind" == "link" ]]; then
     cand=$(maybe_percent_decode "$cand")
-    # Traversal guard, re-applied post-decode: an encoded `../` only becomes
-    # visible here.
+    # Absolute forms are re-checked post-decode; `../` is handled by
+    # canonicalization below, not by rejection.
     case "$cand" in
-    ../* | */../* | /* | [A-Za-z]:[/\\]*) continue ;;
+    /* | [A-Za-z]:[/\\]*) continue ;;
+    *) ;;
+    esac
+    # Resolve document-relative the way a renderer would, then require the result
+    # to stay inside the repo. A `../` that lands in-repo is a legitimate
+    # reference; one that ascends past the root is not ours to adjudicate.
+    if [[ "$cand" == *../* || "$cand" == ../* ]]; then
+      cand=$(resolve_within_repo "$cand") || continue
+      [[ -n "$cand" ]] || continue
+      # Now repo-root-relative, so the doc-dir base no longer applies.
+      kind=link_rooted
+    fi
+  else
+    # A repo-root-relative citation has nothing to ascend from.
+    case "$cand" in
+    ../* | */../*) continue ;;
     *) ;;
     esac
   fi

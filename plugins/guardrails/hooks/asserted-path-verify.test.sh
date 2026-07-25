@@ -23,6 +23,13 @@ source "$HOOK_DIR/guardrails-test-helpers.sh"
 # Neutralize ambient CLAUDE_PROJECT_DIR; cases that need scoping set it.
 unset CLAUDE_PROJECT_DIR
 
+# hook::buffer_stdin bounds its fd0 read at CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT
+# seconds, default 2, and a timeout makes an advisory hook exit 0 silently. A
+# single invocation costs 10-20 s of wall time on a loaded Windows/Git Bash box, so
+# the default bound produces empty output and a false FAIL that looks like a logic
+# defect. Raised here because these cases test detection, not the read bound.
+export CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=30
+
 # A working tree with docs/ and plugins/ present and one real file in each, so
 # the first-segment gate has both a hit and a miss to distinguish.
 REPO="$TEST_TMPDIR/repo"
@@ -222,6 +229,30 @@ assert_silent "document-relative link resolves against the doc dir → silent" "
 # this repo writes both forms, so either base satisfying the check is correct.
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(write_json "$NESTED" 'See [real](docs/real.md).')" 2>&1)
 assert_silent "repo-root path in link syntax from a nested doc → silent" "$OUT"
+
+# A parent-relative link is legitimate and document-relative: from
+# docs/sub/note.md, `../real.md` IS docs/real.md. The old blanket `../` rejection
+# meant these were never checked at all, in either direction.
+mkdir -p "$REPO/docs/sub"
+SUB="$REPO/docs/sub/note.md"
+: >"$SUB"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(write_json "$SUB" 'See [up](../real.md).')" 2>&1)
+RC=$?
+assert_exit "parent-relative link → exit 0" 0 "$RC"
+assert_silent "parent-relative link resolving in-repo → silent" "$OUT"
+
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(write_json "$SUB" 'See [up](../gone.md).')" 2>&1)
+assert_contains "parent-relative link missing in-repo → fires as the resolved path" "$OUT" \
+  "MISSING_PATH: docs/gone.md"
+
+# Ascending past the repo root is not an in-repo reference and must stay quiet.
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(write_json "$SUB" 'See [out](../../../../etc/passwd).')" 2>&1)
+assert_silent "link ascending past the repo root → silent" "$OUT"
+
+# A code span carrying ../ has nothing to ascend from — repo-root-relative by
+# convention — so it stays quiet rather than being resolved against the doc dir.
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(write_json "$SUB" 'Path `../gone.md` in a code span.')" 2>&1)
+assert_silent "code span with ../ → silent" "$OUT"
 
 # A link that resolves against NEITHER base still fires.
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(write_json "$NESTED" 'See [gone](assets/absent.png).')" 2>&1)
