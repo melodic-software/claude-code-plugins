@@ -685,7 +685,7 @@ Work items in order:
 - `node -e "JSON.parse(require('fs').readFileSync('plugins/discovery/skills/research/evals/evals.json'))"` exits 0.
 - `bash scripts/check-skill-portability.sh --all` exits 0 (the bare form is a usage error — the script requires `<base-ref>`, `--all`, or `--paths`).
 
-### Phase 3: `explore/SKILL.md` — same posture, index shape, open-question hand-back [TODO]
+### Phase 3: `explore/SKILL.md` — same posture, index shape, open-question hand-back [DONE]
 
 | File | Action | Rationale |
 |---|---|---|
