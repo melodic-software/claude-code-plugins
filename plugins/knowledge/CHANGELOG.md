@@ -4,6 +4,19 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.9.4]
+
+### Fixed
+
+- **youtube-digest: resume recovers an explicit `--target`** (#1356): `watch --target <repo>`
+  resolved a synthesis target, but nothing in the extraction runtime persisted it —
+  `WatchState` had no target field, and `buildContinuationPrompt()` never told a resumed
+  session where to find it, so an interrupted cross-repo watch lost the resolved target and
+  `resume` had to re-infer or re-ask. `run-watch.js` now accepts `--target <repo>`, threads it
+  into `createWatchState()`, and `watch.json` records the portable name (never a machine-local
+  absolute path). `buildContinuationPrompt()` and `run-resume.js`'s JSON output now surface the
+  recorded target so a resumed session reuses it instead of re-asking.
+
 ## [0.9.3]
 
 ### Fixed
