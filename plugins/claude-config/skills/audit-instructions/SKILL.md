@@ -130,7 +130,12 @@ involving one still carries the no-change representation and its routing recomme
   the same gate for all three: a disabled plugin's cache stays on disk while none of its components
   load, so resolve effective `enabledPlugins` across settings scopes first and inventory only the
   plugins that resolve enabled — a cached body from a disabled plugin would put text Claude cannot
-  load into the comparison corpus. An invoked plugin skill's
+  load into the comparison corpus. Enablement alone is not enough to pick a directory: the cache can
+  hold several versions of one plugin, and a plugin may be installed at more than one scope, so
+  resolve the install record that is actually selected for this project and read **only** that
+  version's path. An unselected or superseded cache directory is as unloadable as a disabled
+  plugin's, and reading it would manufacture conflict and shadowing findings from text no session
+  sees. An invoked plugin skill's
   instructions are in context alongside the project's own, so they can hold one side of a conflict.
   They are read for comparison only, prompt text only and no secret-bearing values: the existing
   exclusion from the editable set and the upstream-routing behavior are unchanged, so a finding here

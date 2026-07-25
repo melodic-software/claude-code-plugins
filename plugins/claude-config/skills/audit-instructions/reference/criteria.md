@@ -122,8 +122,14 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   also makes the skill user-invocable only; `user-invocable: false` does not, and `skillOverrides`
   does not reach plugin skills at all. State the entry as a cost, not a threshold — whether a corpus
   is over its listing budget is a different question and not this check's.
+  **Content taken out of an agent definition needs an agent-reachable destination.** A subagent runs
+  in its own context, and path-scoped rules are invisible there
+  (<https://code.claude.com/docs/en/sub-agents>), so proposing one for instructions the agent needs
+  removes them from every dispatch rather than deferring them. Name a destination the agent itself
+  reaches — a skill the agent's definition invokes or preloads, or text kept in the definition — and
+  never a `paths:`-scoped rule.
 - **Adjacent axis:** this check is load *timing*. Definition-site *locality* — an instruction sitting
-  away from the thing it governs — is I13, and an instruction can be correctly deferred here and
+  away from the thing it governs — is I16, and an instruction can be correctly deferred here and
   still misplaced there.
 - **Source:** best-practices — "only include things that apply broadly. For domain knowledge or
   workflows that are only relevant sometimes, use skills instead."; memory — "splitting into `@path`
