@@ -351,7 +351,7 @@ D1-D5 (investigate/classify/reply); only the D6-D7 fix cycle requires full mode.
   common cause is owner/repo unresolved from a cwd that is not a checkout of the target repo, fixed
   by exporting `FETCH_COMMENTS_OWNER`/`FETCH_COMMENTS_REPO` (inherited into
   `fetch-all-pr-comments.sh`). THEN confirm: all checks terminal + 2-min cooldown
-- [ ] **F** — Per-finding classification table + readiness report (see §5.5)
+- [ ] **F** — Per-finding classification table + PR status report, both gates as separate fields (see §5.5)
 
 **"Done" means GitHub shows evidence.** A per-finding work item is addressed only when the
 verification sub-step confirms the action landed on GitHub. Model memory of "I posted a reply"
