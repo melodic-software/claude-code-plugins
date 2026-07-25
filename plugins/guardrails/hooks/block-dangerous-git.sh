@@ -229,7 +229,7 @@ is_exclude_pathspec() {
 # shellcheck disable=SC2329  # invoked indirectly as the hook::bash_parse_segments callback
 check_segment() {
   local -a w=()
-  local nseg gi k x rest ch sub sub_idx staged worktree dry excl pos opseen if_includes
+  local nseg gi k x rest ch sub sub_idx staged worktree dry excl pos opseen if_includes lease
 
   # A shell -c wrapper (`bash -lc 'git reset --hard'`) executes its operand as
   # a full shell command — re-parse it with the same tokenizer so the wrapped
@@ -328,6 +328,7 @@ check_segment() {
     # lease check disarms while git pushes unmitigated.
     dry=0
     if_includes=0
+    lease=0
     k=$((sub_idx + 1))
     while ((k < nseg)); do
       x="${w[k]}"
@@ -341,6 +342,12 @@ check_segment() {
       --no-*)
         abbrev_match "dry-run" "--${x#--no-}" 2 && dry=0
         abbrev_match "force-if-includes" "--${x#--no-}" 7 && if_includes=0
+        abbrev_match "force-with-lease" "--${x#--no-}" 7 && lease=0
+        # Consume the word here. Falling through would let
+        # `--no-force-with-lease` re-match below as the positive option and
+        # undo the clear that just happened.
+        ((k++))
+        continue
         ;;
       --*)
         if is_push_value_opt "$x"; then
@@ -354,11 +361,25 @@ check_segment() {
           dry=1
         fi
         abbrev_match "force-if-includes" "${x%%=*}" 7 && if_includes=1
+        # 1 = no stated expectation (leases against the remote-tracking ref),
+        # 2 = `=<refname>:<expect>` stated. Last-wins like the two above:
+        # `--no-force-with-lease` cancels it, and the command is then no longer
+        # a lease push at all.
+        if is_lease_opt "$x"; then
+          if [[ "$x" == *=*:* ]]; then lease=2; else lease=1; fi
+        fi
         ;;
       esac
       ((k++))
     done
     ((dry)) && return 0
+    # Decided after the scan, never mid-scan: every one of these options is
+    # last-wins, so an early match cannot be acted on before the segment ends.
+    if ((lease == 1)) && ((!if_includes)); then
+      block "push-lease-unsafe" \
+        "BLOCKED: git push --force-with-lease without an expected value leases against the remote-tracking ref, which a background fetch can satisfy while still clobbering unseen work." \
+        "State the expectation (--force-with-lease=<refname>:<sha>), or add --force-if-includes, or allow via the block_dangerous_git_allow option (add push-lease-unsafe)."
+    fi
     k=$((sub_idx + 1))
     while ((k < nseg)); do
       x="${w[k]}"
@@ -393,17 +414,10 @@ check_segment() {
           "BLOCKED: git push --force is irreversible for anyone sharing the branch." \
           "Use --force-with-lease (refuses to clobber unseen remote work), or allow via the block_dangerous_git_allow option (add push-force)."
         ;;
-      --force-*)
-        # --force exact is handled above; only the two lease-family options and
-        # their unique abbreviations reach here.
-        if abbrev_match "force-if-includes" "${x%%=*}" 7; then
-          : # git no-ops it without a lease, and it is the mitigation with one
-        elif is_lease_opt "$x" && [[ "$x" != *=*:* ]] && ((!if_includes)); then
-          block "push-lease-unsafe" \
-            "BLOCKED: git push --force-with-lease without an expected value leases against the remote-tracking ref, which a background fetch can satisfy while still clobbering unseen work." \
-            "State the expectation (--force-with-lease=<refname>:<sha>), or add --force-if-includes, or allow via the block_dangerous_git_allow option (add push-lease-unsafe)."
-        fi
-        ;;
+      # The lease family is decided in the pre-scan above, not here: every one
+      # of its options is last-wins, so no single occurrence can be acted on
+      # until the segment ends.
+      --force-*) ;;
       +*)
         block "push-force" \
           "BLOCKED: a leading + on a push refspec is a force-push (same as --force)." \
