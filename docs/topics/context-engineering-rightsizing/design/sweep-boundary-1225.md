@@ -135,9 +135,18 @@ therefore inside L2's novel scope. So is every cross-layer pair:
 - a skill's stated default contradicted by the plugin **README** or its own `description` — uncovered.
 - agent definitions, prompt-type hook text, output styles — uncovered.
 
-What C6 *does* cover is a pair this document's original definition plainly admits: project
-`CLAUDE.md` versus `CLAUDE.local.md` versus a project `.claude/rules/` file. Built to its stated
-definition, L2 would land directly on top of C6 for that slice.
+What C6 *does* cover is narrower than this document's original definition assumed, and the gap
+matters because L2 would otherwise inherit it as a false negative. Its discovery step is
+`find . -maxdepth 1` over `CLAUDE.md` / `CLAUDE.local.md`
+(`plugins/claude-memory/skills/audit/context/audit.md:10-15`), so **nested `CLAUDE.md` files never
+enter its population** — while `audit-instructions` Phase A walks the tree for them explicitly
+(`plugins/claude-config/skills/audit-instructions/SKILL.md:79-82`). And its cross-file step compares
+`CLAUDE.md` against `.claude/rules/` **for contradictions** but `CLAUDE.md` against `CLAUDE.local.md`
+**only for redundancy** (`context/audit.md:61-67`); the per-file pass that precedes it cannot see a
+disagreement between two files. So the only pair C6 operationally covers for contradiction is **root
+project `CLAUDE.md` versus project `.claude/rules/`**. That is the slice L2 would land on top of.
+Root-versus-nested `CLAUDE.md`, and `CLAUDE.md` versus `CLAUDE.local.md`, are uncovered and stay
+inside L2's novel scope.
 
 **Corrected ruling: partial incumbent; L2's novel scope is cross-layer contradiction.** Under this
 repository's reuse-or-replace posture, L2 must reuse or explicitly extend C6 rather than
@@ -175,6 +184,13 @@ settled by the evidence, because all three options are structural:
   runs after the lanes and reads across them — and it widens the skill's advertised scope, since the
   `description` (`SKILL.md:3`) and the stated ownership line (`:33`, "instruction **content vs
   current model capability**") describe a per-surface content audit, not a conflict detector.
+  **A second cost, load-bearing in this repository:** Phase A enumerates two roots only — user
+  `${CLAUDE_CONFIG_DIR:-~/.claude}` and project `.claude/**` (`SKILL.md:76-82`) — so it never reaches
+  the marketplace tree. The 187 `plugins/*/skills/*/SKILL.md` files and the plugin READMEs that L2's
+  comparison needs are tracked source here rather than the installed plugin-cache content `:85-88`
+  excludes, yet no enumerated surface names them. Reusing Phase A unchanged would silently omit L2's
+  primary input, so A must first extend Phase A with a plugin-source surface — part of A's cost, not
+  a free inheritance.
 - **Option B — a new sibling skill in `claude-config`.** Leaves `audit-instructions`' phase model and
   advertised scope intact, and keeps its report-only contract (`SKILL.md:25-29`) untouched. Cost: it
   re-derives the surface list unless that enumeration is first extracted to a surface both skills
@@ -193,15 +209,21 @@ content reads happen inside the Phase B lanes (`SKILL.md:90-108`). So sharing Ph
 enumeration, not the reading. No option has a decisive cost advantage on that axis.
 
 **This is an OPEN DECISION for the operator, recorded rather than resolved, and deliberately without
-a recommendation.** All three options satisfy D-3 — a check inside a plugin that already owns the
-surface is not a router. The choice turns on which shipped skill's advertised scope should widen, and
-whether the memory-layer slice should be reused from C6 or re-implemented alongside it. Both are
-judgments about shipped skills' identities rather than something the evidence settles. L2 must not
-pick this unilaterally.
+a recommendation.** None of the three is a router — each lands a check inside a plugin that already
+owns *some* surface in scope, which is what D-3 asks. They do not satisfy it equally, though:
+**Option C does not satisfy D-3 for the non-memory surfaces at all.** `claude-memory`'s own scope
+table routes settings, hooks, MCP, agents and skills to `claude-config` (`SKILL.md:34`), so applying
+C to skill bodies, agent definitions, hook text, READMEs or output styles would place the check in a
+plugin that does not own the surface. C is live as a **memory-layer placement**; taking it for L2's
+whole scope means either splitting the placement in two or rejecting C. The choice turns on which
+shipped skill's advertised scope should widen — a judgment about shipped skills' identities rather
+than something the evidence settles. L2 must not pick this unilaterally.
 
-**What L2 must not do regardless of the choice:** re-implement memory-layer contradiction detection
-from scratch. C6 already covers project `CLAUDE.md` versus `CLAUDE.local.md` versus project
-`.claude/rules/`. Whichever option is picked, that slice is reused or extended, never duplicated.
+**What L2 must not do regardless of the choice:** re-implement the slice C6 operationally covers —
+root project `CLAUDE.md` versus project `.claude/rules/` contradiction. Whichever option is picked,
+that slice is reused or extended, never duplicated. The pairs C6 does *not* reach — nested
+`CLAUDE.md`, and `CLAUDE.md` versus `CLAUDE.local.md` contradiction — are L2's to build or to add to
+C6 as an explicit extension; either way they must not be assumed already covered.
 
 **A ceiling both lanes inherit.** `claude-config` and `claude-memory` are model-invoked, report-only
 skills — `audit-instructions` states "There is no `--fix`" (`SKILL.md:25-29`) and `claude-memory:audit`
@@ -242,9 +264,15 @@ staleness (`:11-14`). Its consuming skill is report-only with no `--fix`
 (`plugins/claude-config/skills/audit-instructions/SKILL.md:25-29`), which is D-2's "report-only,
 never auto-applied" requirement already satisfied at the contract level.
 
-**Consequence for L3.** L3 does not stand up a catalog. It **extends this one with I12+ rows**, and
-the extension is a `reference/criteria.md` edit plus a `CHANGELOG.md` entry and a `version` bump —
-not new machinery.
+**Consequence for L3.** L3 does not stand up a catalog. It **extends this one with I12+ rows** — a
+`reference/criteria.md` edit plus a `CHANGELOG.md` entry and a `version` bump, not new machinery.
+**One caveat, and it binds the open decision below:** a catalog-only edit does not suffice for a row
+carrying no official backing. The consuming skill publishes that it "cites each finding to current
+official prompting doctrine" (`SKILL.md:15-16`), and the catalog repeats it for itself — checks
+"seeded from current official prompting doctrine", each carrying "one decisive source line"
+(`reference/criteria.md:6-9`). A row whose premise is that no such line exists would put the skill's
+output at odds with what its users were promised, so the fold must widen the consumer's advertised
+scope as well as the catalog.
 
 **Why it is not #1225.** #1225's Part 1 codifies conventions for *sub-agent authoring* (existence
 qualifier, frontmatter surface, feature catalog) into the plugin-authoring conventions surface. L3's
@@ -270,6 +298,9 @@ catalog-contract choice this document does not have the evidence to settle — t
 semantics are not documented beyond that one-line gloss. **OPEN DECISION for the operator.**
 Recommendation: map onto `OPINION` and express "disabled by default" as the severity ceiling
 (`info`) plus an explicit default-off marker, so the authority axis stays a three-value closed set.
+**Either branch carries the contract cost recorded above** — the citation guarantee at `SKILL.md:15-16`
+is unconditional and no shipped row exercises `OPINION` today, so whichever mapping is chosen, the
+skill's advertised handling of non-official criteria is part of the same change.
 
 **Verdict: L3 must fold.** It is cleared to proceed as an extension of
 `plugins/claude-config/skills/audit-instructions/reference/criteria.md`, not as a new catalog, and it
