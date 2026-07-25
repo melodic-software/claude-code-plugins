@@ -14,10 +14,11 @@ machines and durable when the session enters auto mode — and is the operative 
 work?"
 
 The principle, the three anti-patterns, and the correct pattern (with official-doc citations) live in
-the marketplace convention:
-[docs/conventions/permission-rule-hygiene](../../../../docs/conventions/permission-rule-hygiene/README.md).
+the marketplace's **permission-rule-hygiene** convention, published at
+<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/permission-rule-hygiene/README.md>.
 The mechanical check definitions (P1/P2/P3, severities, detector invocation) are in
-[reference/criteria.md](reference/criteria.md).
+[reference/criteria.md](reference/criteria.md), which carries every recommendation this skill needs at
+run time — the convention is the doctrine's owner, not a runtime dependency.
 
 ## Scope boundary (route out)
 

@@ -58,6 +58,19 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   frontmatter field, or a typed `argument-hint` instead. `OPINION`-derived, labelled as such in the
   finding, never fix-applied; the detection is unchanged and stays officially backed.
 
+### Fixed
+
+- **`audit-permission-grants` no longer points outside the plugin root.** Both `SKILL.md` and
+  `reference/criteria.md` reached the permission-rule-hygiene convention through a `../` relative
+  link. An installed plugin runs from an isolated cache holding only the plugin's own tree, so the
+  link normalized above the cache root and resolved to nothing — the skill directed a read that
+  cannot succeed in installed form, while resolving fine in a full-repo checkout, which is why it
+  survived. Both now point at the convention's published URL, the form sibling plugins already use
+  for marketplace conventions. Nothing was copied into the plugin: the convention stays the single
+  owner of the principle, the three anti-patterns, and the correct pattern. What a run actually needs
+  was already in-plugin — each check's **Recommend** line — and both files now say so, so a report
+  never depends on fetching anything.
+
 ## [0.9.2]
 
 ### Changed
