@@ -4,6 +4,33 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.5.0]
+
+Numbered `0.5.0` rather than the `0.4.0` this branch first claimed: #1261 merged
+first and took that number. The tier is unchanged — still **minor**, now measured
+from `0.4.0` instead of `0.3.2`.
+
+### Added
+
+- **`boris`: four reference buckets for the twenty sections upstream added since
+  the last sync** — [`unknowns.md`](skills/boris/reference/unknowns.md)
+  (96–99, finding your unknowns), [`loops.md`](skills/boris/reference/loops.md)
+  (100–103, the four loop types),
+  [`automation.md`](skills/boris/reference/automation.md) (104–109, `/checkup`
+  and automation as infrastructure), and
+  [`context-engineering.md`](skills/boris/reference/context-engineering.md)
+  (110–115, the Claude 5 context-engineering rules and Opus 5). Buckets follow
+  upstream's own thread grouping — Parts 18, 19, 20–21, and 22.
+
+### Changed
+
+- **`boris`: vendored baseline synced 8.8.1 → 8.13.0** through
+  `/playbooks:update --apply`, never a hand-copy. The delta is additive:
+  sections 1–95 are unchanged, and the counts move 107 → 127 tips across
+  95 → 115 sections. The hub's hardcoded counts (frontmatter description and
+  body), the Topic Index, the Quick Reference, the source-date footer, and the
+  plugin README's pack row all move with them.
+
 ## [0.4.0]
 
 ### Added

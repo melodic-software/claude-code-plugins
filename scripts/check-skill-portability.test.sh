@@ -142,6 +142,26 @@ else
 fi
 rm -f "$f"
 
+# --- a content line with an inline HTML comment does not act as a comment --
+# line for pending_annot carry-forward purposes (#611): only a genuine
+# block-level `<!--` comment line (opening at start-of-line, modulo leading
+# whitespace) may extend an annotation to the next line. Line 2 below has a
+# hardcoded token AND an inline `<!--` marker that is NOT itself a
+# portability-ok annotation — under the pre-fix bug this made is_comment()
+# true for line 2, which left pending_annot carried over from line 1 instead
+# of resetting it, wrongly excusing line 3's unannotated hit too.
+f="$(tmpfile '<!-- portability-ok: covers only line 2 -->
+diff against origin/main here <!-- unrelated inline note, not an annotation -->
+diff against origin/main again, unannotated')"
+if out="$(scan_paths "$f" 2>&1)"; then
+  fail "content line with inline HTML comment must not carry annotation to line 3, got success: $out"
+elif echo "$out" | grep -q ":3:" && ! echo "$out" | grep -q ":2:"; then
+  ok "content line with inline HTML comment does not extend pending_annot to the next line"
+else
+  fail "expected line 3 flagged and line 2 excused (annotated above), got: $out"
+fi
+rm -f "$f"
+
 # --- whole-file portability-scope declaration passes -----------------------
 f="$(tmpfile '<!-- portability-scope: forge=github — inherent, declared boundary -->
 This skill diffs origin/main and pushes with origin/master.')"
