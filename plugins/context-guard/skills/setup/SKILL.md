@@ -1,19 +1,20 @@
 ---
 name: setup
 description: "Verify the context-guard plugin's wiring on this machine — jq, statusline tee wiring (including a stale plugin-cache path), live-session snapshot freshness — print the exact statusline edit for the operator, and optionally seed ~/.claude/context-guard/zones.json from the shipped defaults. Use when: 'set up context-guard', 'is the context tee working', 'wire the context statusline', a consumer reports zone unknown in a live session, or after a plugin update moved the cache path. Actions: check (read-only; never edits settings), apply (writes ONLY zones.json, on explicit request)."
-argument-hint: "check | apply [reset]"
+argument-hint: "check | apply [defaults]"
 user-invocable: true
 disable-model-invocation: true
 ---
 
 ## Purpose
 
-Setup with the narrow-write carve-out: every prerequisite is either a system tool (`jq`) or an edit
-to the **user's own** `settings.json`, and plugin setup must never mutate Claude Code user settings
-(`docs/PLUGIN-PHILOSOPHY.md`, "Setup is explicit and repeatable"). So `check` inspects, reports
-PASS/FAIL/INFO with one remediation line per FAIL, and **prints the exact statusline edit for the
-operator to apply by hand**. `apply` is scoped to the ONE machine file whose schema this plugin
-owns — `~/.claude/context-guard/zones.json` — and touches nothing else.
+Narrow-write setup, because this plugin's surface splits in two. The statusline wiring lives in the
+**user's own** `settings.json` and the `jq` prerequisite is a system tool: neither is something
+plugin setup may write, so `check` inspects, reports PASS/FAIL/INFO with one remediation line per
+FAIL, and **prints the exact statusline edit for the operator to apply by hand**. But this plugin
+also owns exactly ONE writable artifact — the machine file `~/.claude/context-guard/zones.json`,
+whose schema it defines and whose values the operator may edit — and that is what obliges an
+`apply`. `apply` is scoped to that file and touches nothing else.
 
 The scripts are the source of truth for their own behavior — read
 `${CLAUDE_PLUGIN_ROOT}/scripts/statusline-tee.sh` and
@@ -143,7 +144,9 @@ file if they ever disagree):
      reported; recognized keys that are missing or invalid (non-numeric, inverted, out of range)
      are set to the shipped defaults. An operator's custom-but-valid thresholds are never
      overwritten by a bare `apply`.
-   - `apply reset`: set BOTH recognized band keys to the shipped defaults explicitly.
+   - `apply defaults`: set BOTH recognized band keys to the shipped defaults explicitly. This
+     converges forward to a known state; it is not teardown, and it never removes the file or any
+     key it does not recognize.
    - Both modes **preserve every unrecognized key semantically** — same keys, same JSON values —
      (the file is a shared SSOT the operator's own statusline may extend). Preservation is
      value-level, not lexical: a `jq` merge reserializes the document, so formatting and escape
