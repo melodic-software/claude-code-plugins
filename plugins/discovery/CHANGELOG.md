@@ -14,13 +14,18 @@
 - **Outcome-gate criteria 9 and 10** — 9: the fetch log must show the topmost existing rung for every
   ACCEPTED vendor-published claim, with an unreachable rung passing only as an enumerated Gap so the
   graceful-degradation contract still holds. 10: every reported absence must name both the checked
-  and the unchecked set. The broad-topic eval's outcome-gate expectation is updated to match.
+  and the unchecked set. The broad-topic eval gains a does-NOT-support clause so criterion 10 is
+  exercised by a real absence rather than passing vacuously, and its outcome-gate expectation is
+  updated to match.
 
 ### Changed
 
 - **A fetch size failure now routes into the existing escalate-on-block ladder** rather than reading
   as a dead end: a content-length rejection or a silent truncation is a fetcher limit, not a source
-  limit. Recipe — download out of context, extract with whatever extractor the machine has, grep.
+  limit. Recipe — download out of context, confirm the file is the artifact and not a 200
+  login/consent/bot-challenge page, extract with whatever extractor the machine has, grep. An
+  unconfirmed download routes back to the browser/scraper escalation rungs and does not count as the
+  recipe having run, so it can never manufacture a premature "unreachable".
 - **Absence claims ship their enumeration.** A negative finding states the sources actually checked
   AND the sources left unchecked, never a bare "unsourced" / "not found" — an absence claim is only
   as strong as the set it was checked against. Stated at the `Gaps` output contract, gated by
