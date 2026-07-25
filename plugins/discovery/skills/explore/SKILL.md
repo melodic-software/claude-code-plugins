@@ -25,10 +25,7 @@ These values orient this session only. The project root is an absolute machine p
 - **Cost** — a dispatched run pays the full six dimensions every time; a single-file question does not need an envelope.
 - **The invoking context is already a subagent** — dispatch-by-default is scoped to the main-conversation boundary. Hoisting, not nesting: the outer dispatch already supplied the fresh context, so a second hop only spends the inner agent's own window.
 
-**Two named alternatives:**
-
-- **Built-in Explore subagent** — for raw "where is X / how does Y work" search. Fast, read-only, context-isolated. It skips project memory (convention-blind) and neither runs this 6-dimension workflow nor writes `EXPLORE.md` — pass key constraints in the prompt when conventions matter, and expect to write the artifact yourself. Scale 1→N by dispatching more, each owning a disjoint area.
-- **`/explore-deep`** — this workflow in a forked subagent that loads project memory and persists `EXPLORE.md` itself. Pass explicit scope in the invocation arguments; a fork does not see the parent conversation.
+**One named alternative:** the **built-in Explore subagent**, for raw "where is X / how does Y work" search. Fast, read-only, context-isolated. It skips project memory (convention-blind) and neither runs this 6-dimension workflow nor writes `EXPLORE.md` — pass key constraints in the prompt when conventions matter, and expect to write the artifact yourself. Scale 1→N by dispatching more, each owning a disjoint area.
 
 **Preload-liveness sentinel.** A dispatched agent receives this body through its `skills:` preload, and a preload that fails to resolve is skipped **silently** — logged to the debug log and nowhere else. A dispatched run therefore echoes this token verbatim as `preload_token` in its return payload:
 

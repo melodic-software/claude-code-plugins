@@ -836,7 +836,7 @@ untouched.
 - `CHECK_SKILL_SKILLS_ROOT=plugins/discovery/skills bash plugins/skill-quality/scripts/check-skill.sh research-deep` and `… blindspot` both exit 0 with zero warnings.
 - `git diff --name-only` for this phase shows no change to `blindspot/evals/evals.json` — its `explore-deep` references belong to Phase 5.
 
-### Phase 5: `explore-deep` retirement — conditional [TODO]
+### Phase 5: `explore-deep` retirement — conditional [DONE — RETIRED]
 
 Decision 14 retires `explore-deep` **only once `explorer.md` reproduces its project-memory loading
 and sidecar-on-collision behavior**. This phase evaluates that condition and branches.
@@ -865,6 +865,38 @@ and sidecar-on-collision behavior**. This phase evaluates that condition and bra
 2. Check each against `plugins/discovery/agents/explorer.md` as written in Phase 1.
 3. **Gate:** every behavior reproduced → retire. Any behavior missing → **do not retire**; add it to
    `explorer.md` if cheap, else leave `explore-deep` in place and file the residue as a work item.
+
+   > **GATE PASSED 2026-07-25 — RETIRE. Graded against `explorer.md` as committed at `47d2e459`.**
+   > Behaviors 1, 2, 4, 5, 6, 7, 8 are carried directly, and each of the three the table said to
+   > handle differently was handled as instructed rather than quietly copied: **3** keeps the
+   > refuse-to-guess rule and drops the empty-scope orientation pass, because a dispatched agent with
+   > no scope is a parent-envelope failure rather than a mode — the agent says so and stops; **9** is
+   > deliberately NOT reproduced, per Amendment 9c; **10** was never a behavior, and the defect it
+   > names is moot (see step 4).
+   >
+   > **The two Decision-14 gate conditions specifically:** (A) path-scoped project rules loaded
+   > explicitly, as `explorer.md`'s Step 0, with the reason stated — a subagent does not auto-load
+   > them, and convention-blind findings are how a downstream edit lands against the project's
+   > declared direction. (B) sidecar-on-collision, with the chosen filename surfaced in the return,
+   > and the reason stated — a prior exploration lost to a filename collision is silent and
+   > unrecoverable.
+   >
+   > **The retirement rests on a live behavioral result, not only on a reading.** The Phase 1 probe,
+   > run after Phases 2–3 authored the sentinel, confirmed on a real dispatch that `skills:` preload
+   > lands, `Edit` is genuinely absent from the agent's tool set, the C2 payload comes back with
+   > `verification: pending`, and the artifact set is written to the slice the envelope named. The
+   > mechanism `explorer.md` depends on is therefore observed working, not assumed.
+   >
+   > **One deliberate exception to this phase's zero-live-references check.**
+   > `docs/MIGRATION-PLAYBOOK.md` still contains the string `explore-deep`, in a sentence that says it
+   > was **retired** and why. That is the opposite of a dangling reference: the naming doctrine's
+   > execution-tier rule needed the converse case stated — a tier the base skill CAN reach at runtime
+   > does not earn a sibling — and this retirement is the precedent for it. A grep cannot tell a
+   > historical citation from a live one, so the deviation is recorded here rather than left to look
+   > like an oversight. Every other reference is gone: the routing bullet, both `blindspot` sites, the
+   > README row, both `reference/topic-docs.md` sites, and the `PLUGIN-PHILOSOPHY.md` example, which
+   > now cites `research`/`research-deep` — the pair that genuinely cannot collapse, since its heavy
+   > tier needs `Workflow` and its multi-topic path needs `Agent`.
 
    The retire branch is **not three actions** — a live-reference sweep found seven files outside
    `docs/topics/**` and outside `explore-deep/` that name the skill. Retiring without them ships

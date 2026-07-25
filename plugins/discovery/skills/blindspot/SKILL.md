@@ -61,7 +61,7 @@ copy-start / copy-end markers so the exact text to reuse is unambiguous.
 
 This skill does NOT write `EXPLORE.md` — its deliverable is the user's understanding plus the improved
 prompt. When the scan's findings also serve as stage-1 codebase exploration, offer to hand off to
-`/discovery:explore` (or `/discovery:explore-deep`) to persist the `EXPLORE.md` artifact rather than
+`/discovery:explore` to persist the `EXPLORE.md` artifact rather than
 duplicating that responsibility here.
 
 ## Gotchas

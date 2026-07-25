@@ -15,9 +15,7 @@ Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
 
 External research is mandatory before acting on external facts. Goal: **maximum knowledge, maximum consensus, latest information** from authoritative + official sources. Training data drifts; library APIs change; SEO content farms outrank authoritative sources; AI synthesis tools repackage the same secondary blogs as "multi-source." Cross-tool consensus + primary-source priority + recency verification drive accuracy.
 
-Local counterpart: `/explore` (what IS in the repo). This skill covers what SHOULD BE, per current external sources. For a multi-topic or workflow-driven pass, use `/research-deep`, which layers tiered execution on top of this discipline.
-
-**Philosophy**: more tokens + more time = more accuracy + less rework — insufficient research is the #1 source of rework. Deploy a **research team**, not a single lookup, and give every invocation full depth regardless of task size.
+Local counterpart: `/explore` (what IS in the repo). This skill covers what SHOULD BE, per current external sources. For a multi-topic or workflow-driven pass, use `/research-deep`, which layers tiered execution on top of this discipline. **Philosophy**: more tokens + more time = more accuracy + less rework — insufficient research is the #1 source of rework. Deploy a **research team**, not a single lookup, and give every invocation full depth regardless of task size.
 
 ## Routing — dispatch by default
 
@@ -64,11 +62,15 @@ Full recipes and rationale: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/disci
 
 ## Phase 0: Corpus enumeration (before any query)
 
-**Ask first: is the corpus bounded?** Bounded means finite and enumerable *before* the first query — every skill in a plugin, every endpoint in an API reference, every release between two versions, every vendor in a named comparison. An unbounded topic ("is this approach sound?") has no such set; record that verdict in one line and go to Phase 1.
+**Ask first: is the corpus bounded?** Bounded means finite and enumerable *before* the first query — every skill in a plugin, every endpoint in an API reference, every release between two versions, every vendor in a named comparison. An unbounded topic ("is this approach sound?") has no such set; record that verdict in one line and go to Phase 1. When it IS bounded, **enumerate from a surface that is exhaustive by construction** — a sitemap, an in-repo tree listing, an API index, a release list — never from search results or a curated index that is partial by design, which inherits the blind spot the ledger exists to close. Write `research-checklist.md` into the same memory slice as the artifact, **in exactly this shape** — criterion 11's gate parses it, and it fails closed on a table it cannot read, so a renamed column or a prose status is a FAIL rather than a formatting quibble:
 
-When it IS bounded, **enumerate from a surface that is exhaustive by construction** — a sitemap, an in-repo tree listing, an API index, a release list — never from search results or a curated index that is partial by design, which inherits the blind spot the ledger exists to close. Write `research-checklist.md` into the same memory slice as the artifact, one row per item, with a **per-item depth criterion fixed at enumeration time** ("its `frontmatter` section read end to end", not "researched" — a criterion written afterwards drifts down to whatever the run managed). Mark a row only when its own criterion is met; Phases 1–3 research against the ledger, and criterion 11 grades it by script.
+```markdown
+| # | Corpus item | Depth criterion | Done |
+|---|-------------|-----------------|------|
+| 1 | <item>      | <what counts as covered for THIS item> | [ ] |
+```
 
-Narrowing is legitimate; quiet narrowing is not. A 12-row ledger over a 40-item corpus is a scoped answer when it says so; 40 rows with 28 unmarked is an unfinished one. Full recipe, the exhaustive-surface table, and the fail-closed grading contract: the discipline file's "Corpus enumeration".
+The last column is literally named `Done` and holds `[ ]` or `[x]` — not `Status`, not `DONE`, not prose. Each row carries a **per-item depth criterion fixed at enumeration time** ("its `frontmatter` section read end to end", not "researched" — a criterion written afterwards drifts down to whatever the run managed). Mark a row only when its own criterion is met; Phases 1–3 research against the ledger, and criterion 11 grades it by script. Narrowing is legitimate, quiet narrowing is not: a 12-row ledger over a 40-item corpus is a scoped answer when it says so, while 40 rows with 28 unmarked is an unfinished one. Full recipe and the exhaustive-surface table: the discipline file's "Corpus enumeration".
 
 ## Phase 1: Broad Research (3+ queries, 3+ tool types)
 
@@ -159,15 +161,13 @@ Each criterion is binary — read it off an artifact, not from memory. **Any FAI
 | 10 | Every reported absence names both the sources checked and the sources left unchecked — no bare "unsourced" / "not found" | run | revisit before presenting |
 | 11 | **Coverage ledger fully marked** — when Phase 0 wrote `research-checklist.md`, `${CLAUDE_PLUGIN_ROOT}/scripts/check-coverage-complete.sh <ledger>` exits 0. Cite the **exit status**, not a reading of the table: a model cannot reliably audit its own checklist, and a context that wants to be finished is exactly the one grading it. The script fails closed — a ledger it cannot parse exits 2, and 2 is a FAIL, never a pass. Not applicable when Phase 0 recorded the corpus as unbounded | run, **script verdict** | Phase 0 — cover the unmarked items, or narrow the corpus explicitly |
 
-**Authoritative + consensus, reconciled:** the primary source is the SPINE of each claim; independent corroborators are the CONFIRMATION. When a top-ranked blog consensus contradicts the primary, the primary wins and the conflict is flagged explicitly — consensus never overrides a fetched authoritative source. Subagent returns are Tier 3 (synthesis), not corroborators, until their cited primaries are fetched this turn.
+**Authoritative + consensus, reconciled:** the primary source is the SPINE of each claim; independent corroborators are the CONFIRMATION. When a top-ranked blog consensus contradicts the primary, the primary wins and the conflict is flagged explicitly — consensus never overrides a fetched authoritative source. Subagent returns are Tier 3 (synthesis), not corroborators, until their cited primaries are fetched this turn. Zero tolerance for false positives: a claim that cannot pass the gate is a **Gap**, not a finding — report it as such, never launder it into the answer. Report the gate result (pass, or which criterion failed and what you re-ran); no limit on iterations.
 
 > **Scoped exception — a dispatched run of THIS skill is not a Tier-3 subagent return.** The Tier-3 rule targets an ad-hoc subagent handing back synthesis with no captured primaries, and it stays in force for that. It does not reach a `discovery:researcher` run that executed this discipline and wrote every primary URL into the artifact: **the tier attaches to the artifact and the sources captured in it, never to the transport that carried the pointer.** Read literally without this exception, dispatch-by-default would demote every run to the tier criterion 1 refuses, and this skill's routing section would contradict its own gate. The exception is exactly as wide as its evidence: a return whose artifact does not carry the fetched primaries is Tier 3 like any other summary, and a missing or mismatched `preload_token` means the discipline never ran at all, so that run is discarded rather than tiered.
 
-Zero tolerance for false positives. A claim that can't pass the gate is a **Gap**, not a finding — report it as such, never launder it into the answer. Report the gate result (pass, or which criterion failed + what you re-ran). No limit on iterations.
-
 ## Output Format
 
-Present research findings as:
+Present research findings as — and if invoked standalone present them directly, while inside a larger workflow they feed the subsequent planning step:
 
 1. **Summary** — 2-3 sentence answer to the research question
 2. **Evidence table** — `Claim | Sources (Tier 0/1 entries cite the URL/command fetched THIS turn) | Tier | Tool diversity | Confidence`
@@ -178,13 +178,13 @@ Present research findings as:
 7. **Project fit** — how findings align with the consuming project's conventions and stated direction
 8. **Outcome gate result** — pass, or which criterion failed and what was re-run
 
-If invoked standalone, present findings directly. If invoked as part of a larger workflow, findings feed into the subsequent planning step.
-
 ## Final step: persist artifact for handoff
 
 Write the research output to `<memory_dir>/<slug>/RESEARCH.md` — a memory-tier artifact, never committed, and the authoritative summary of the stage: a fresh session must be able to resume planning reading only it. Destination, slug, and runtime guards resolve per the plugin's topic-docs binding ([`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md)).
 
-**`RESEARCH.md` is always an INDEX**, at every size — not only past an overflow threshold. It carries the Task restatement, a one-line abstract per sidecar copied verbatim from that sidecar's header, a section → file + anchor table, and the Next-stage-handoff. The Output Format's content lives in sibling `RESEARCH-<topic>.md` sidecars in the same directory, each opening with a machine-readable YAML header so a consumer can grep headers, then read exactly one file. Schema, the `sources[]` field criterion 4 is graded against, and the two load-bearing placement rules: `${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md`.
+**`RESEARCH.md` is always an INDEX**, at every size — not only past an overflow threshold. It carries the Task restatement, a one-line abstract per sidecar copied verbatim from that sidecar's header, a section → file + anchor table, and the Next-stage-handoff. The Output Format's content lives in sibling `RESEARCH-<topic>.md` sidecars in the same directory, each opening with a machine-readable YAML header so a consumer can grep headers, then read exactly one file.
+
+**Read [`${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md`](${CLAUDE_PLUGIN_ROOT}/skills/research/context/artifact-shape.md) before writing the first sidecar** — the header is a schema a verifier parses, not a free-form preamble, and an improvised one silently costs criterion 4 its evidence. Non-negotiable: `claims[]` is a LIST, each entry carrying its own `confidence` and its own `sources[]` of `{url, tier, pool}`. A single top-level `confidence` or a flat `sources` list collapses per-claim provenance into a document-level assertion, which is exactly what makes independence ungradeable. The header also carries `topic`, `section`, `abstract`, and `produced_by`.
 
 **Intra-task pivot — delete stale research, don't layer.** If the approach you researched is abandoned mid-task for a different direction *before shipping*, delete the now-stale RESEARCH.md section and re-run the research on the new direction rather than keeping both — a superseded section misleads the planning step into planning against a dead approach.
 
