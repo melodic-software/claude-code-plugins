@@ -61,10 +61,15 @@ reports "already configured".
 1. **`library_dir` mismatch — guidance only.** `library_dir` is a personal `userConfig` scalar;
    never hand-edit `pluginConfigs` or write Claude Code settings. Direct the user to
    `/plugin configure knowledge` (interactive, any time). Headless: `--config` only applies on a
-   fresh install (ignored once installed), so reconfigure via `claude plugin uninstall knowledge`
-   then `claude plugin install knowledge@<marketplace> --config library_dir=<value>`. The rendered
-   value is injected at skill load, so a change takes effect in a fresh session — report the
-   observed value and defer verification to that fresh session; do not claim a change this session.
+   fresh install (ignored once installed), so reconfigure via
+   `claude plugin uninstall knowledge -s <scope>` then
+   `claude plugin install knowledge@<marketplace> -s <scope> --config library_dir=<value>`. Both
+   commands default to `-s user` — pass the scope `claude plugin list` reports for this plugin,
+   and run from that project's directory for a `project`/`local` scope. Defaulting instead
+   uninstalls a separate user-scope record while the effective install stays in place, so the
+   reinstall lands at a scope that does not load. The rendered value is injected at skill load,
+   so a change takes effect in a fresh session — report the observed value and defer verification
+   to that fresh session; do not claim a change this session.
    For a root outside the project and home directories, recommend the portable value forms from the
    README's option table (`~` prefix or `${NAME}` / `%NAME%` env-var reference) instead of a literal
    machine path, which guardrail hardcoded-path checks rightly block.

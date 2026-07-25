@@ -67,9 +67,12 @@ verify-and-route:
   `.claude/observability`). State the tradeoff and let the reader pick — do not prompt.
 - **Reconfiguring a personal option:** `/plugin configure claude-ops` (interactive, any time).
   Headless: `--config` only applies on a fresh install (ignored once installed), so reconfigure via
-  `claude plugin uninstall claude-ops` then
-  `claude plugin install claude-ops@<marketplace> --config registry_dir=<path>`; this skill never
-  writes user settings or `pluginConfigs`.
+  `claude plugin uninstall claude-ops -s <scope>` then
+  `claude plugin install claude-ops@<marketplace> -s <scope> --config registry_dir=<path>`; this
+  skill never writes user settings or `pluginConfigs`. Both commands default to `-s user` — pass
+  the scope `claude plugin list` reports for this plugin, and run from that project's directory
+  for a `project`/`local` scope. Defaulting instead uninstalls a separate user-scope record while
+  the effective install stays in place, so the reinstall lands at a scope that does not load.
 
 After any reconfiguration, rerun `check` and report both observed effective destinations — never claim
 an unobserved change. Re-running `apply` when both destinations are contained (or defaulted) changes

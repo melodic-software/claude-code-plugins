@@ -123,9 +123,13 @@ give, rather than writing a dangling entry.
    set, else `$env:USERPROFILE\Documents\MachineHealth`); to change it, direct the user to
    `/plugin configure machine-health` (interactive, any time) — the option is stored in plugin
    config, not the overlay. Headless: `--config` only applies on a fresh install (ignored once
-   installed), so reconfigure via `claude plugin uninstall machine-health` then
-   `claude plugin install machine-health@<marketplace> --config report_dir=<path>`; this skill never
-   writes user settings or `pluginConfigs`.
+   installed), so reconfigure via `claude plugin uninstall machine-health -s <scope>` then
+   `claude plugin install machine-health@<marketplace> -s <scope> --config report_dir=<path>`.
+   Both commands default to `-s user` — pass the scope `claude plugin list` reports for this
+   plugin, and run from that project's directory for a `project`/`local` scope. Defaulting
+   instead uninstalls a separate user-scope record while the effective install stays in place,
+   so the reinstall lands at a scope that does not load. This skill never writes user settings
+   or `pluginConfigs`.
 
 Re-running `apply` after everything is already set changes nothing and reports "already configured".
 
