@@ -57,7 +57,15 @@ pre-clear content sits in a sibling — never in the current session's own file.
    `session_id`, since this path found no transcript). **Exception — operator says the handoff was
    prompt-only:** then no file is the target (prompt-only writes none), and handoff files
    intentionally accumulate, so a recent file here belongs to some *other* handoff. Skip this
-   short-circuit and go straight to the transcript scan. **v1 scope: current repo only.** The cross-repo *filesystem* sweep (deriving
+   short-circuit and go straight to the transcript scan. **Screen for background-delivery
+   save-points before short-circuiting:** `/session-flow:continue-in-background` writes an
+   indistinguishable `type: handoff` file with the same engine — but its rails prompt was
+   *delivered*, to the agent it launched. Locate the candidate's producer transcript by the file's
+   `session_id` and look for the launch signature (`claude --bg --name "continue-…"`, or the
+   continue-in-background invocation). Launch succeeded → this save-point is not the lost handoff:
+   its work is already running (`claude agents` lists it) — exclude it from the default winner,
+   say so, and keep looking for the older manual handoff. Launch failed or ambiguous → keep the
+   candidate but surface the provenance at the confirm gate. **v1 scope: current repo only.** The cross-repo *filesystem* sweep (deriving
    other repo roots from transcript `cwd` fields) is deferred — step 2's transcript scan already
    recovers handoffs written in other repos, since transcripts are indexed by session, not repo.
 2. **Transcript scan — bounded, recency-ranked, cross-repo.** Enumerate `~/.claude/projects/*/`
@@ -202,3 +210,8 @@ pre-clear content sits in a sibling — never in the current session's own file.
   file lived.
 - **Prompt-only handoffs have no file at all.** Do not error on a missing file — the resume content
   is inline between the rails in the transcript, and that is the recovery.
+- **A background-launch save-point is not a lost handoff.** `continue-in-background` uses the same
+  save-point engine, so its file looks identical — but its rails prompt was delivered, to the
+  launched agent, and resuming it manually duplicates work already running in the background.
+  Screen candidates via the producer transcript's launch signature; exclude successful launches
+  from the default winner and point the operator at `claude agents` instead.

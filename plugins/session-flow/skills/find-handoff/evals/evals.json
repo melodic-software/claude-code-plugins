@@ -91,6 +91,18 @@
         "On a mismatch it surfaces the discrepancy and lets the operator decide, rather than silently resuming",
         "It does not fabricate or assume chain continuity that the evidence does not support"
       ]
+    },
+    {
+      "id": 8,
+      "name": "excludes-background-launch-save-points",
+      "prompt": "Find my lost handoff. Earlier today I also ran /session-flow:continue-in-background on a different task.",
+      "expected_output": "The skill recognizes that continue-in-background writes an indistinguishable type: handoff save-point with the same engine and then launches the continuation itself. It screens glob candidates by locating each file's producer transcript via session_id and checking for the background-launch signature (claude --bg --name \"continue-…\"). A save-point whose launch succeeded is excluded from the default winner — its work is already running (claude agents lists it) — and the skill keeps looking for the older manual handoff, surfacing provenance at the confirm gate when launch evidence is ambiguous.",
+      "files": [],
+      "expectations": [
+        "The skill screens glob candidates for the background-launch signature in the producer transcript before short-circuiting",
+        "A save-point whose background launch succeeded is not presented as the lost handoff; the operator is pointed at claude agents and the search continues",
+        "When launch evidence is ambiguous or shows failure, the candidate is kept with its provenance surfaced at the confirm gate"
+      ]
     }
   ]
 }
