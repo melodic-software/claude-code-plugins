@@ -129,12 +129,13 @@
       "id": 11,
       "name": "title-form-scoped-to-container-owned-documents",
       "prompt": "Rename the `testing` plugin to `test-suite`. Audit for stale references.",
-      "expected_output": "Recognizes that `testing` is an ordinary English word, so Form 14 title matches are demoted to Ambiguous rather than Certain. A heading like `### Testing` in the repository root README (a marketplace category heading, not the container's own document) is NOT auto-applied; only headings in plausibly container-owned files -- the plugin's own README/SKILL/manifest or paths under its directory -- are eligible for Certain, and even those are demoted when the token is a common word.",
+      "expected_output": "Recognizes that `testing` is an ordinary English word, so Form 14 TITLE matches are demoted to Ambiguous rather than Certain. A heading like `### Testing` in the repository root README (a marketplace category heading, not the container's own document) is NOT auto-applied; only headings in plausibly container-owned files -- the plugin's own README/SKILL/manifest or paths under its directory -- are eligible for Certain, and even those are demoted when the token is a common word. The scope rule and the common-word demotion govern the title alternatives only: the plugin's own manifest `\"name\": \"testing\"` declaration is still Certain, because a manifest name key is the registration rather than evidence of one and cannot be verb usage.",
       "files": [],
       "expectations": [
         "A title match outside container-owned files is not rated Certain",
         "An ordinary-word container name demotes title matches regardless of path",
-        "Precedence does not discard the safer classification for an out-of-scope title match"
+        "Precedence does not discard the safer classification for an out-of-scope title match",
+        "The manifest name declaration is exempt from both demotions and stays Certain"
       ]
     },
     {
@@ -189,7 +190,7 @@
       "id": 16,
       "name": "container-position-demotion-survives-in-the-bucket-criteria",
       "prompt": "Rename the `testing` plugin to `test-suite`. The repo root README has a `### Testing` category heading. Show me the triage buckets.",
-      "expected_output": "The `### Testing` heading is reported as Ambiguous, not Certain. triage.md's bucket criteria list container-position Forms 13-15 as Ambiguous whenever the matching form's own scope rules demote it, and audit.md's Certain definition carries the same qualifier -- so the demotion holds no matter which file the reader consults. Span-precedence attributes the occurrence to Form 14 and drops the bare-token duplicate, but does not override the demotion.",
+      "expected_output": "The `### Testing` heading is reported as Ambiguous, not Certain. triage.md's Ambiguous criteria list container-position Forms 14 and 15 as Ambiguous whenever the matching form's own scope rules demote it -- Form 13 is deliberately absent, its demoted alternative landing in Chain-context instead -- and audit.md's Certain definition carries the same qualifier -- so the demotion holds no matter which file the reader consults. Span-precedence attributes the occurrence to Form 14 and drops the bare-token duplicate, but does not override the demotion.",
       "files": [],
       "expectations": [
         "The out-of-scope title match lands Ambiguous in the reported buckets",
@@ -267,7 +268,9 @@
       "expectations": [
         "The unanchored qualified-id form does not auto-apply",
         "The management-verb alternative keeps its Certain rating",
-        "Dot-exclusion is described as insufficient rather than sufficient"
+        "Dot-exclusion is described as insufficient rather than sufficient",
+        "The Chain-context rating survives span-precedence and container-rename mode rather than being flattened back to Certain",
+        "A failed promotion check leaves the alternative at Chain-context rather than dropping it to Ambiguous"
       ]
     },
     {
@@ -316,6 +319,43 @@
         "Sentence-initial `The` is matched as well as lowercase `the`",
         "The token remains case-sensitive",
         "A hyphenated superstring is still not matched"
+      ]
+    },
+    {
+      "id": 27,
+      "name": "json-manifest-name-declaration-is-a-container-position-match",
+      "prompt": "Rename the `docs-hygiene` plugin to `doc-care`. Its manifest is JSON: .claude-plugin/marketplace.json carries `\"name\": \"docs-hygiene\"` indented inside an entry, and plugins/docs-hygiene/.claude-plugin/plugin.json carries the same at line 3. Audit for stale references.",
+      "expected_output": "Form 14's JSON declaration alternative matches both, so the container's registered name is reported as Certain. The YAML alternative is anchored at column zero with an unquoted key and reaches neither; without the JSON alternative no container-position form reaches them, container mode reduces both to excluded Form-2 residue, and the sweep can report zero actionable stragglers while the plugin stays registered under its old name. The scope rule does not demote the marketplace entry for living at the repository root rather than under the container's directory -- a catalog entry is the container's registration, and the quoted `name` key is the proof, so it is exempt from the container-owned-path test.",
+      "files": [],
+      "expectations": [
+        "The indented, quoted JSON name declaration is matched",
+        "The repository-root catalog entry is rated Certain rather than demoted for being outside the container's directory",
+        "The failure prevented is a completion report with the registered container name stale"
+      ]
+    },
+    {
+      "id": 28,
+      "name": "terminal-container-directory-path-stays-actionable",
+      "prompt": "Rename the `docs-hygiene` plugin to `doc-care`. The catalog says `\"source\": \"./plugins/docs-hygiene\"` and the root README links `[docs-hygiene](plugins/docs-hygiene)`. Audit for stale references.",
+      "expected_output": "Form 3's container-root alternative matches both. The earlier path alternatives all require something after the token -- a .md extension, a trailing slash, a known subdirectory -- so a path that ENDS in the container name reaches none of them; container mode then excludes the only remaining hit as bare-token residue and apply mode can finish while the marketplace points at a directory that no longer exists and installation is broken. The alternative excludes an adjacent hyphen at both ends, so `plugins/docs-hygiene-extra` and `x-plugins/docs-hygiene` do not match, and its parent segment is a bounded container-root vocabulary rather than any path segment, because an unconstrained parent would match ordinary prose like `input/output` on a Certain-rated form.",
+      "files": [],
+      "expectations": [
+        "A path terminating in the container name is matched",
+        "Hyphenated superstrings on either side are not matched",
+        "The parent segment is bounded to a container-root vocabulary rather than any segment",
+        "The failure prevented is apply mode completing with the catalog pointing at a vanished directory"
+      ]
+    },
+    {
+      "id": 29,
+      "name": "setext-alternative-is-multiline-enabled-in-the-survey",
+      "prompt": "During the Phase 2 survey I enabled `multiline: true` only for Form 7, the way the survey step lists it. Is Form 14 going to work?",
+      "expected_output": "No. Form 14's Setext alternative contains a literal \\n, and ripgrep's single-line default rejects that outright -- it errors with `the literal \"\\n\" is not allowed in a regex` rather than simply matching nothing. The survey step lists Form 14's Setext alternative alongside Form 7 as requiring multiline for exactly this reason; run without it the pattern is not executable at all, the survey silently loses the form, and a container's landing-page title survives as Form-2 residue that container mode excludes from Certain.",
+      "files": [],
+      "expectations": [
+        "Multiline is identified as required for Form 14's Setext alternative, not only Form 7",
+        "The failure mode is a regex error rather than a silent under-match",
+        "The consequence named is a stale landing-page title reported as completion"
       ]
     }
   ]

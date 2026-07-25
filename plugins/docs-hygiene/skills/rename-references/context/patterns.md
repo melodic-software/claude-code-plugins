@@ -44,12 +44,36 @@ context/<old>\.md
 skills/<old>/
 <old>/SKILL\.md
 <old>/(?:context|reference|references|scripts|evals)/
+(^|[^\w-])(plugins|packages|apps|libs|modules|extensions)/<old>([^\w-]|$)
 ```
 
 - **Triage default:** Certain
 - **Catches:** filesystem path references in markdown links, prose mentions, frontmatter `paths:` globs
 - **Examples:** `[outcome](context/outcome.md)`, `Read /confirm`, `skills/confirm/research/performance.md`
 - **False-positives:** rare — paths are inherently specific
+- **Container-root segment — a path that ENDS in the container name.** The first four alternatives
+  all require something AFTER `<old>`: a `.md` extension, a trailing slash, a known subdirectory.
+  A catalog's `"source": "./plugins/<old>"` and a README link `[x](plugins/<old>)` have nothing
+  after the token, so none of them reach it. Under container mode that leaves the reference as
+  Form 2 residue, excluded from Certain — so apply mode can finish, and the re-sweep report zero
+  actionable stragglers, while the marketplace still points at a directory that no longer exists
+  and installation is broken. Verified on this repository's own tree: renaming `docs-hygiene`, the
+  alternative matches `.claude-plugin/marketplace.json:193` (`"source": "./plugins/docs-hygiene"`),
+  `README.md:108` (`[…](plugins/docs-hygiene)`), and a deep script path — three hits, all real
+  references, no false positives.
+- **Both ends exclude a hyphen, same reason as Forms 13 and 15.** Container directories are
+  kebab-case, so a bare boundary would match inside a superstring. Verified:
+  `plugins/docs-hygiene` matches; `plugins/docs-hygiene-extra`, `plugins/docs-hygienex`, and
+  `x-plugins/docs-hygiene` do not. The trailing class permits `/`, so deep paths under the
+  container directory match too.
+- **Overlap with the earlier alternatives is expected, not a defect.** On
+  `plugins/<old>/SKILL.md` this alternative and `<old>/SKILL\.md` both fire on the same token.
+  Coequal-span dedup ("Phase 0") collapses them to one match — widest match span first — so the
+  occurrence is reported and edited once.
+- **Extend the container-root list** to whatever the consuming repository nests its containers
+  under (`extensions/`, `services/`, `charts/`, …), the same way Form 15's appositive noun class
+  is extended. A bare `<parent>/<old>` with an unconstrained parent is NOT safe: it would match
+  ordinary prose like `input/output`, and this form is Certain.
 - **Note:** if rename includes a path component (e.g., `/test live` → `/test e2e` renamed `context/live.md` → `context/e2e.md`), include path-form patterns even when args don't explicitly mention paths
 
 ## Form 4: Chain prose forward
@@ -245,11 +269,13 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
 ^#{1,6}\s+`?<old>`?\s*$
 ^`?<old>`?\s*$\n^(=+|-+)\s*$
 ^(name|title):\s*("<old>"|'<old>'|<old>)\s*$
+^\s*"(name|title)":\s*"<old>"\s*,?\s*$
 ```
 
 - **Triage default:** Certain
 - **Catches:** an ATX heading whose ENTIRE content is the renamed token — the README H1 that
-  names the thing — and frontmatter `name:` / `title:` declaring it.
+  names the thing — and a `name:` / `title:` declaration in YAML frontmatter or a JSON manifest
+  or catalog.
 - **Why the `$` anchor is load-bearing:** it is what makes this Certain rather than
   ambiguous. A heading that merely *contains* the token (`## How re-anchor works`) may well
   be verb usage and belongs in Form 2's ambiguous bucket; a heading that IS the token can
@@ -259,9 +285,19 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
   Setext shape meant a container's own title had only a Form 2 hit — which container mode
   excludes — and the rename could report completion with the landing-page title still stale.
   Requires `multiline: true`, like Form 7.
-- **Quote handling:** the alternation accepts a bare, double-quoted, or single-quoted value
+- **JSON declarations count, and they are the container's REGISTERED name.** When the manifest or
+  catalog is JSON, the declaration is `"name": "<old>"` — the key is quoted, the line is indented
+  rather than at column zero, and a trailing comma usually follows. The YAML alternative reaches
+  none of that, and no other container-position form reaches it either, so container mode reduced
+  the container's own registered name to excluded Form 2 residue and the sweep could report zero
+  actionable stragglers with the registration stale. Verified on this repository: renaming
+  `docs-hygiene` matches exactly `.claude-plugin/marketplace.json:192` and
+  `plugins/docs-hygiene/.claude-plugin/plugin.json:3` — two hits, both real, none elsewhere in the
+  tree.
+- **Quote handling:** the YAML alternation accepts a bare, double-quoted, or single-quoted value
   and requires the quotes to PAIR — `"<old>"` and `'<old>'`, never `"<old>'`. A naive
-  `["']?<old>["']?` would match the mismatched form, which is not valid YAML.
+  `["']?<old>["']?` would match the mismatched form, which is not valid YAML. The JSON alternative
+  is double-quote-only on both key and value, because JSON admits no other quoting.
 - **False-positives — real, and the reason for the scope rule below.** "A heading that IS the
   token can only be naming it" holds when the token is coined or hyphenated. It FAILS when the
   container has an ordinary-word name: renaming a `testing` plugin matches this repository's own
@@ -269,11 +305,30 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
   plugin matches `plugins/miro/README.md:39` (`## Architecture`, an unrelated design section).
   Both were verified against the tree. Under precedence, a false Certain here is worse than a
   Form 2 hit, because it DISCARDS the safer classification.
-- **Scope rule (required):** rate a title match Certain only when the file is plausibly
-  container-owned — the container's own README/SKILL/manifest, or a path under its directory.
-  A heading match in a file the container does not own is **Ambiguous**, whatever the token
-  looks like. When the token is a common English word, demote every title match to Ambiguous
-  regardless of path.
+- **Scope rule (required) — TITLE alternatives only.** Rate an ATX or Setext title match Certain
+  only when the file is plausibly container-owned — the container's own README/SKILL/manifest, or
+  a path under its directory. A heading match in a file the container does not own is
+  **Ambiguous**, whatever the token looks like. When the token is a common English word, demote
+  every title match to Ambiguous regardless of path.
+- **Manifest and catalog DECLARATIONS are exempt from the scope rule, and from the common-word
+  demotion.** The scope rule exists because a heading is only weak evidence of naming — `##
+  Architecture` may be a section, not a container. A `name` field in a container manifest
+  (`plugin.json`, `package.json`, `pyproject.toml`, …) or in a marketplace/registry catalog is not
+  evidence of naming, it IS the registration; the key is the proof, the same way Form 13's
+  management verb is. Two consequences, both load-bearing for the motivating case:
+  1. **Path is irrelevant.** A catalog lives at the REPOSITORY root, not under the container's
+     directory — `.claude-plugin/marketplace.json` is the marketplace's file carrying an entry
+     FOR the container. Applying the scope rule to it would demote the container's own
+     registration to Ambiguous and the sweep would leave it stale, which is the defect this
+     alternative was added to close.
+  2. **A common-word name is still a registered name.** `"name": "review"` in a manifest cannot be
+     verb usage — the key admits only an identifier. Demoting it would suppress the one hit that
+     is certain by construction.
+
+  This exemption covers the declaration alternatives (`name:` / `title:` in frontmatter, and the
+  JSON `"name":` / `"title":` shape) **when the file is a manifest or catalog**. A `title:` in an
+  ordinary document's frontmatter is a document title, not a registration: treat it as a title
+  match and apply the scope rule and the common-word demotion to it.
 - **Note:** a plugin/skill README H1 is the landing surface every consumer sees first, and
   it is the single most-missed reference in practice — the rename moves the directory, so
   the path-form patterns all pass, and nothing looks at line 1. That is why the form exists;
@@ -345,17 +400,32 @@ as well as across forms.
 
 With that keying, dedup runs AFTER the sweep and BEFORE triage:
 
-1. An OCCURRENCE matched by any of Forms 13–15 is attributed to that form and enters **that
-   form's own triage bucket after its scope rules are applied** — which is Certain by default,
-   but **Ambiguous** whenever the matching form demotes it (Form 14 outside container-owned
-   files, or with a common-word token). Drop the Form 2 (and any chain-form) match for that
-   same SPAN — it is the same reference seen through a weaker lens, not a second finding. A
-   bare-token match elsewhere on the line is a DIFFERENT reference and survives.
+1. An OCCURRENCE matched by any of Forms 13–15 is attributed to that form and enters **whatever
+   bucket the OWNING FORM assigns to the matching alternative, after its scope rules are
+   applied**. Certain is the default, not the outcome — the owning form may assign any of the
+   three buckets, and precedence carries that assignment through unchanged:
+
+   | Owning form and alternative | Bucket |
+   |---|---|
+   | Form 13 management-verb (`/plugin install <old>`) | Certain |
+   | Form 13 bare qualified-id (`<old>@slug`) | **Chain-context** |
+   | Form 14 title, container-owned file, uncommon token | Certain |
+   | Form 14 manifest/catalog declaration | Certain (scope rule does not apply) |
+   | Form 14 title, other file, or common-word token | **Ambiguous** |
+   | Form 15 possessive/appositive, common-NOUN token | **Ambiguous** |
+   | Form 15 otherwise | Certain |
+
+   Drop the Form 2 (and any chain-form) match for that same SPAN — it is the same reference seen
+   through a weaker lens, not a second finding. A bare-token match elsewhere on the line is a
+   DIFFERENT reference and survives.
 
    **Precedence changes WHICH form owns the line, never the safety of its rating.** Attributing
    a line to Form 14 and then forcing it Certain would use precedence to launder a
    demotion — the exact false positive Form 14's scope rule exists to prevent, and worse than
-   the Form 2 hit it replaced. If the owning form demotes, the deduplicated line is Ambiguous.
+   the Form 2 hit it replaced. Enumerating only Certain-and-Ambiguous would do the same to
+   Form 13's qualified-id alternative, whose demotion target is the MIDDLE bucket: flattened to
+   Certain it auto-applies, and apply mode rewrites a dotless address such as `t@t`. Read the
+   bucket off the owning alternative; never off this rule.
 2. Only lines Forms 13–15 did NOT match fall through to Form 2's blocklist rule above.
 
 The Phase 0 rule is therefore scoped to what actually reaches Form 2: it forces a
@@ -406,8 +476,12 @@ The two modes:
 - **Container rename** (a plugin, a marketplace entry, a package) — the thing being renamed is
   a proper name, so a bare-token occurrence is EVIDENCE OF NOTHING: it is as likely to be the
   word used ordinarily as the container referenced. In this mode:
-  1. Forms 13–15 (plus Forms 1 and 3, which are already position-anchored) produce the
-     **Certain** bucket.
+  1. Forms 13–15 (plus Forms 1 and 3, which are already position-anchored) are the forms that
+     can produce the **Certain** bucket — but each match takes the bucket ITS OWN alternative
+     assigns, per the table in "Phase 0". Container mode selects which forms are eligible for
+     Certain; it never promotes an alternative its own form demoted. Form 13's bare qualified-id
+     alternative stays **Chain-context** here, and a scope-demoted Form 14 title stays
+     **Ambiguous** — mode does not launder either.
   2. Form 2's residue — every bare-token line NOT matched by a position-anchored form — is
      **excluded from Certain entirely**, regardless of blocklist membership. Report it as a
      single aggregate count ("126 bare-token occurrences not in container position, not
@@ -457,3 +531,10 @@ A form that does not beat Form 2 on precision is not carrying its weight.
 ## Cross-platform note
 
 All patterns are ripgrep-compatible (PCRE2 subset). Invoke via the Grep tool, NOT raw shell — Grep handles cross-platform path quoting and is faster than spawning `rg`. If a shell fallback is unavoidable, use `git grep -nE` scoped to tracked files or `rg` from the repo root with the Auto-exclusions applied — never `grep -P` (Perl regex doesn't exist on macOS BSD grep). Do not use lookbehinds — Form 1 uses `\B` instead.
+
+**A raw `rg` fallback needs `--hidden`; the Grep tool and `git grep` do not.** Container manifests
+routinely live in DOT-directories — `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`
+— and bare `rg` skips hidden paths by default, so it returns zero for Form 14's declaration
+alternative and Form 3's container-root alternative on exactly the files those alternatives exist
+to reach. Verified on this tree: `rg '"name": "docs-hygiene"'` finds nothing, `rg --hidden` finds
+both manifests, and the Grep tool and `git grep` find both without a flag. Prefer the Grep tool.

@@ -37,7 +37,11 @@ Run all patterns from [patterns.md](patterns.md) in parallel via Grep tool. For 
 
 - Substitute `<old>` with actual old token (escape regex metacharacters)
 - Use `output_mode: "content"` with `-n` for line numbers and `-C 1` for one line of surrounding context
-- Use `multiline: true` for Form 7 (frontmatter chain string)
+- Use `multiline: true` for **Form 7** (frontmatter chain string) **and Form 14's Setext-title
+  alternative** — both patterns contain a literal `\n`, which ripgrep's single-line default
+  REJECTS outright (`the literal "\n" is not allowed in a regex`). Without it the Setext pattern
+  errors rather than under-matching, so the survey silently loses the form and a container's
+  landing-page title survives as Form-2 residue that container mode excludes
 - Apply auto-exclusions per `../SKILL.md` "Auto-exclusions" via `glob` filter or post-filter
 
 **Collect per-OCCURRENCE records, not per-line ones.** `output_mode: "content"` returns matching

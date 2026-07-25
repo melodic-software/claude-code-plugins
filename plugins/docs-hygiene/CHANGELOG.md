@@ -46,6 +46,35 @@
   `auth_email: "a@b"` and `user.email t@t`, which containers named `a` or `t` would match and
   auto-rewrite. The management-verb alternative keeps Certain because its verb anchors it; the
   unanchored one is promoted only when a neighbor confirms it.
+- **Form 14 recognizes JSON name declarations.** When the manifest or catalog is JSON the
+  declaration is `"name": "<old>"` — quoted key, indented, trailing comma — which the
+  column-zero YAML alternative reaches not at all. No other container-position form reached it
+  either, so container mode reduced the container's own REGISTERED name to excluded residue and
+  the sweep could report zero actionable stragglers with the registration stale. The Form 14
+  scope rule is now explicitly scoped to the TITLE alternatives: a manifest or catalog `name`
+  declaration is exempt from it and from the common-word demotion, because the key is the
+  registration rather than evidence of one — without that exemption a repository-root catalog
+  entry demotes to Ambiguous and the defect survives the fix.
+- **Form 3 keeps terminal container directory paths actionable.** Every earlier path alternative
+  requires something AFTER the token — an extension, a trailing slash, a known subdirectory — so
+  a catalog's `"source": "./plugins/<old>"` and a README link `[…](plugins/<old>)` reached none
+  of them, and apply mode could complete with the marketplace pointing at a vanished directory.
+  The new alternative anchors on a bounded container-root segment and excludes an adjacent
+  hyphen at both ends.
+- **The survey enables multiline for Form 14's Setext alternative.** Phase 2 listed
+  `multiline: true` for Form 7 only. The Setext pattern contains a literal `\n`, which ripgrep's
+  single-line default REJECTS outright rather than under-matching, so the form was not
+  executable through the documented pipeline at all.
+- **Form 13's Chain-context demotion is stated consistently across files.** The precedence rule
+  enumerated only Certain and Ambiguous, and `triage.md`'s Chain-context criteria never listed
+  Form 13 — so the classifier apply mode follows flattened the demotion back to Certain and
+  would still auto-rewrite a dotless address. Precedence now carries a per-alternative bucket
+  table, container mode defers to it, and `triage.md` registers the alternative in Bucket 2 with
+  its own promotion test and a Chain-context floor.
+- **A raw `rg` fallback needs `--hidden`.** Container manifests live in dot-directories
+  (`.claude-plugin/`), which bare `rg` skips — so the two alternatives above would return zero on
+  exactly the files they exist to reach. The Grep tool and `git grep` need no flag; the
+  cross-platform note now says so.
 - **`--container` / `--identifier` are registered.** The Phase 0b ladder advertised them as the
   correction mechanism when evidence picks the wrong mode, but they appeared in no flag contract,
   and unknown flags are rejected — so the documented override could not be honored.
