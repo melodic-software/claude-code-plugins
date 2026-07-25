@@ -111,11 +111,19 @@ live is its own trap — but it is not the conflict D1 detects, and folding it i
 finding set with non-conflicts.
 
 The split also buys a property the sweep needs. Detecting a shadowing is **name comparison across a
-known precedence order: mechanical and fully deterministic**, where D1 proper is behavioral. So the
-shadowing finding lands in the **mechanical** tier and contributes to the diff-clean gate, while D1's
-conflict findings sit in the judged tier under the stability tolerance. Merging them would have
-dragged a deterministic check into a non-deterministic section and weakened the determinism property
-for nothing.
+known precedence order: no model in the path**, where D1 proper is a judgement about meaning. So the
+shadowing finding lands in the sweep's **derived** tier and contributes to the diff-clean gate, while
+D1's conflict findings sit in the **judged** tier under the stability tolerance. Merging them would
+have dragged a deterministic check into a non-deterministic section and weakened the determinism
+property for nothing.
+
+**The tier names here are the sweep's, not the host catalog's, and the two vocabularies must not be
+crossed.** `audit-instructions` labels a *check* `mechanical` or `behavioral` by how its ground truth
+is established; [rerun-contract.md](rerun-contract.md) §6 labels a *finding* `derived`, `judged`, or
+`delegated` by whether a model stood between the tree and the report. They are different axes, and
+the mapping is not one-to-one — a `mechanical`-tagged catalog check still produces a **judged**
+finding, because every dispatched check is refined by a lane and re-judged in Phase C. Shadowing is
+derived because the sweep computes it itself, not because of any label a catalog carries.
 
 Reported at `info`, in its own section, naming the live definition and the shadowed one.
 
@@ -407,14 +415,23 @@ the sync path. The run refuses and names the canonical source instead.
   anything" — so it cannot be driven by an unattended run. The handoff is an operator instruction,
   never a dispatch.
 
-  **The stronger form of this claim is unverified and is not relied on.**
+  **The stronger form of this claim is falsified as written, not merely unverified.**
   `plugins/claude-config/skills/audit/context/validation-categories.md:110` asserts "`/doctor` needs
   an interactive TTY", which **overstates what any fetched page says** — and this contract was
-  resting on the same assertion. Marked unverified rather than repeated. It is settleable cheaply
-  (`claude -p "/doctor"` in a throwaway clone) and that is owed at Phase 10; the drift candidate in
-  `validation-categories.md` is a finding against `claude-config`, recorded here and not edited from
-  this branch. Nothing above depends on the TTY claim — the confirmation-prompt quote carries the
-  handoff on its own.
+  resting on the same assertion. Task #54 settled it by counter-example on Claude Code 2.1.220:
+  slash commands **do** resolve headlessly — `claude -p "/context"` exits 0 and returns a full
+  Memory Files enumeration, byte-for-byte identical across two runs in one tree. So the general
+  premise the TTY claim rests on is refuted. `/doctor` itself was not run, so the narrower claim
+  "`/doctor` specifically requires a TTY" is unrefuted but now unsupported — it has lost the general
+  rule it was an instance of.
+
+  **Nothing above depends on it, and the fix is to stop depending on the mechanism.** The handoff
+  rests on the confirmation-gate quote — it "reports findings first and asks for confirmation before
+  changing anything" — which is a documented behavior rather than an inferred capability, and which
+  makes `/doctor` undriveable by an unattended run whether or not a TTY is required. The drift
+  candidate in `validation-categories.md` is a finding against `claude-config`, recorded here and not
+  edited from this branch; the recommended repair is to replace the TTY assertion with that same
+  confirmation-gate quote rather than to delete the line.
 - **`/doctor` is narrower than "Nothing ships that `/doctor` already does" has been read to mean**,
   which *widens* what this work may build. No fetched page says `/doctor` inspects, trims, splits, or
   edits the body of an existing `SKILL.md`; it may propose **dropping** a skill, and nothing
@@ -519,9 +536,15 @@ fixed.
   `schemaVersion`, the run and target identity, the **detection version triple** of every check
   consulted ([rerun-contract.md](rerun-contract.md) P3b — catalog version, host plugin semver, and a
   digest over the prompt text and scripts that decide detection), and then the
-  finding sections: `mechanical`, `behavioral`, `suppressed`, `delegated` (`/doctor`'s output, which
+  finding sections: `derived`, `judged`, `suppressed`, `delegated` (`/doctor`'s output, which
   is diffed by nobody), and `skipped` — every surface excluded, **with its reason**. A silent
   exclusion reads as coverage; that section is what stops it.
+
+  **The section names are the three tiers, and they were `mechanical`/`behavioral` until now.** That
+  was the superseded two-tier vocabulary, and leaving it here would have shipped a report whose
+  sections did not correspond to the properties asserted over them — P1 is stated over the derived
+  tier and P4 over the judged tier, so a consumer diffing a `mechanical` section would be diffing a
+  set no property mentions.
 
 **Resume reads the partial, not the report.** A lane is complete when its terminating record is in
 the JSONL, which makes the completion state derivable from the artifact rather than tracked beside
@@ -648,10 +671,18 @@ Two paths, and they differ in difficulty:
   means an entry that matches nothing is *surfaced*, not ignored — which catches a speculatively
   planted entry. Assertion 4.4's refusal to suppress inside the derived exclusion set closes the
   redirect where suppressing a cluster copy would be pushed to a canonical source.
-- **The identity function bounds a stolen suppression.** `finding_id` binds `(surface, check,
-  anchor, claim)` and the anchor is a content hash, so an entry silences exactly one claim at one
-  content excerpt in one file. It does not generalize to a file, a check, or a repository. That was
-  designed for diffability; it limits blast radius, and is recorded here as doing double duty.
+- **The identity function bounds a stolen suppression.** `finding_id` binds `(check, claim, sites)`,
+  and each site carries a content-derived anchor, so an entry silences exactly one claim at one
+  fixed set of sites. It does not generalize to a file, a check, or a repository. That was designed
+  for diffability; it limits blast radius, and is recorded here as doing double duty.
+
+  **Two corrections to this bullet, because the bound is real but was stated wrongly.** It cited the
+  superseded `(surface, check, anchor, claim)` tuple, which [rerun-contract.md](rerun-contract.md) §1
+  replaced precisely because it could not express a pairwise finding. And it claimed a suppression
+  reaches "one content excerpt in one file" — under a sorted `sites` set a **pairwise** suppression
+  spans **two** surfaces, so the honest bound is one claim across that finding's own site set, not
+  one file. The bound still holds and is still narrow; it is one site wider than advertised for
+  exactly the finding class D1 exists to produce.
 - **The record is diffable and reviewable in the operator's own VCS**, because it lives in the
   target repository. An entry added by any path shows up in `git diff` like any other change. That
   is the control that actually catches this, and it is the operator's, not the sweep's.

@@ -467,9 +467,14 @@ otherwise:
   chezmoi-managed user-scope file, or a registered cluster copy, suppression is central and keyed by
   finding id — an inline marker in a cluster copy would break the sync path the exclusion set exists
   to protect.
-- **The behavioral tolerance is `max(2, ceil(0.10 × |B|))`**, with the floor there so a small
-  behavioral set cannot collapse the tolerance to zero and reintroduce identity by the back door.
+- **The judged-tier tolerance is `max(2, ceil(0.10 × |J(R1)|))`**, with the floor there so a small
+  judged set cannot collapse the tolerance to zero and reintroduce identity by the back door.
   It is a starting calibration, and Phase 10 is what tests it.
+- **Two mechanisms inside the contract were proportionality-tested and moved** —
+  [design/proportionality-gate.md](design/proportionality-gate.md), "The run contract's own
+  machinery, proportionality-tested per mechanism". The state key's `repo-identity` half is
+  legibility rather than correctness, and per-lane input digests are deferred with a Phase 10
+  trigger against a tree-wide refuse-to-resume check that closes the same hole more cheaply.
 
 The original work items follow.
 
@@ -539,12 +544,18 @@ Tasks #19 and #22–#27 (now two new checks plus four edits to existing ones, pe
 **In progress — the design is in [design/checks-and-sweep.md](design/checks-and-sweep.md).** D1's
 detection rule, its five must-not-flag cases, its remediation split by scope, the native-first
 inventory ruling, the sweep's posture, its derived exclusion set, the `/doctor` prerequisite
-contract, the dispatch order, and the `OPINION` discovery line are all written. Naming is dispatched
-**The sweep is named `audit-pass`** — operator's choice from a 32-candidate tournament, with what
+contract, the dispatch order, and the `OPINION` discovery line are all written. **The sweep is named
+`audit-pass`** — operator's choice from a 32-candidate tournament, with what
 that name pays recorded at the naming site so it is not re-litigated. The suppression record is
 resolved as two artifacts: an owner doc under `docs/conventions/` declaring the keys, and the
 instance at `.claude/audit-pass.md`, keyed per finding id with the team layer winning conflicts.
-Still open there: the report schema and the lane decomposition.
+
+**The report schema and the lane decomposition stood open here and are now settled**, in
+[design/checks-and-sweep.md](design/checks-and-sweep.md), "The report and the lanes": two files, an
+append-only `findings.partial.jsonl` written per completed lane and a `findings.json` assembled at
+the end whose sections are the three tiers plus `suppressed` and `skipped`; and lanes keyed as
+**(check × surface class)**, which is the granularity the exclusion set and the three-scope inventory
+already work at.
 
 **One correction that phase drafting forced back upstream.** The first statement of D1's scope
 excluded skills, subagents, and MCP servers wholesale because they "override by name". That misreads

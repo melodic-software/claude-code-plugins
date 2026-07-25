@@ -278,8 +278,27 @@ write; everywhere else suppression is central and keyed by `finding_id`.**
 | A registered byte-identical cluster copy | at the **canonical source**, never the copy | An inline marker in a copy makes it differ from its siblings and breaks the sync path — the same failure the exclusion set exists to prevent |
 
 **The central suppression record** lives at a documented path in the target repository, carries one
-entry per suppressed `finding_id` with a required free-text reason and the date, and is **excluded
+entry per suppressed finding with a required free-text reason and the date, and is **excluded
 from the scan set** — otherwise suppressing a finding changes the tree and perturbs the next run.
+
+**An entry stores the identity's constituents, not only the `finding_id`.** This read "one entry per
+suppressed `finding_id`", and a bare truncated composite hash cannot satisfy two commitments §1
+already makes:
+
+- **Versioned-anchor matching has nothing to recompute from.** §1 adopts `anchor/v1` and SARIF
+  §3.27.17's rule that matching happens on the greatest common version available in both results.
+  An entry holding only a hash computed under `v1` cannot be re-evaluated under `v2` — so the first
+  anchor-algorithm change discards the operator's entire suppression record, which is the exact
+  failure versioning was adopted to prevent. Versioning the anchor and storing only its hash cancel
+  each other out.
+- **The tiered matching table cannot classify a suppressed finding.** Every row turns on *which*
+  component moved — one anchor, both anchors, the `claim`, a `surface`. A stored hash answers only
+  "same or different", so a suppressed finding could never be carried forward as
+  `needs-reconfirmation`; it would go stale on any change.
+
+So each entry carries `check`, `claim` with its bound parameters, the ordered `sites` with each
+anchor's version tag, and the `finding_id` as a **derived convenience field for lookup**, not as the
+stored identity. The reason and date requirements are unchanged.
 
 **Writing a suppression is never an apply.** The inline-marker row above says *where* a suppression
 lives when the pass may edit that file; it does not license the apply step to author one. No fix,
@@ -412,6 +431,44 @@ defect.**
 as a repository defect, and tells a teammate to add an import that already exists and that *they*
 declined. That is worse than missing the finding.
 
+#### Liveness is three-valued, because a run observes the launch set only
+
+The fix above makes liveness an *observed* input rather than a modelled one, which is what keeps a
+dead-surface finding in the derived tier at all. But observation has a horizon, and it is narrower
+than "the tree", so a two-valued live/dead classification is unsound over what a run can actually
+see.
+
+**Measured, not assumed** (task #54, Claude Code 2.1.220): the `InstructionsLoaded` hook payload
+carries `{file_path, memory_type, load_reason, parent_file_path}` — the harness emits the load edge
+natively, so reachability is observable rather than parsed. But a nested `sub/CLAUDE.md` produced
+**no event at session start**, and the model did not know its codeword. What was *not* established
+is whether a genuine nested load later in the session fires an event at all: no `nested_traversal`,
+`path_glob_match`, or compaction-triggered `load_reason` value was ever observed.
+
+**So a one-shot unattended run observes the launch set, and nothing licenses reading absence from
+that set as death.** A nested `CLAUDE.md` that loads only when the model touches its subdirectory is
+neither live at launch nor dead — it is **conditionally live**, and the sweep must carry that as its
+own state:
+
+- **A surface absent from the observed load set is classified `dead` only when no load edge could
+  reach it** — it is outside every ancestor chain of the launch directory, matches no path scope, and
+  is the target of no import. Otherwise it is `conditionally-live`, recorded with the condition.
+- **A `conditionally-live` surface is never reported as a dead-surface finding.** It is enumerated in
+  the inventory, and its state is part of the liveness basis.
+- **The failure this prevents is the worst shape available to a derived-tier check:** classifying a
+  conditionally-live surface as dead yields a finding that is perfectly deterministic — it reproduces
+  exactly, run after run, satisfying P1 — and perfectly wrong. Determinism is not correctness, and
+  this is the one place in the contract where the two most plausibly get confused.
+
+**Ground truth is two sources, not one, and that is a design constraint rather than an
+implementation detail.** `InstructionsLoaded` fires for `CLAUDE.md` and `.claude/rules/*.md` **only**
+— it does not see skill bodies, agent definitions, prompt-type hooks, or output styles, which are
+most of D1's comparison set. `/context` covers more classes (Skills, Custom Agents, MCP Tools, each
+with a Source column) but is markdown with no load edges. A single-source liveness design therefore
+**silently under-covers D1's surface set**, which is the specific way this would fail without
+looking like a failure. Neither source observes the managed-settings `claudeMd` key; that remains
+untested, and is flagged rather than guessed.
+
 **Consequence for the deliverable, stated plainly.** D1 is a judged finding, so the deliverable's
 primary check does not contribute to the diff-clean gate. That was already conceded; what is new is
 that *no* catalog check contributes, so the concession is not specific to D1 and is not evidence
@@ -499,7 +556,7 @@ is the judged-tier set.
   in its own section and diffed
   by nobody.
 
-**Why the tolerance is a floor of 2 rather than a pure percentage.** With a small behavioral set, a
+**Why the tolerance is a floor of 2 rather than a pure percentage.** With a small judged set, a
 percentage rounds to zero and the property becomes identity by the back door — which P4 exists to
 deny. With a large set, the percentage dominates and the floor is irrelevant. The number is a
 starting calibration, not a discovered constant: Phase 10's dogfood run is what tests whether 10% is

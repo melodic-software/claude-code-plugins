@@ -129,6 +129,70 @@ One structural note that lowers the bar this has to clear: the sweep is a **skil
 them — it owns the Claude Code configuration plane and already builds the surface inventory the
 sweep consumes.
 
+#### The run contract's own machinery, proportionality-tested per mechanism
+
+The section above answers "component or runbook". **That is not the same question as "is each
+mechanism inside the run contract carrying its weight", and the cross-vendor review was right that
+this gate re-asked the proportionality question of the catalog and never of the contract** after the
+payload shrank to one detector. Asking it now.
+
+**The test, and the reason it is applied per mechanism rather than to "the run contract".** A verdict
+on the contract as a whole can only come back "necessary", because the argument above already
+establishes that *some* run semantics are the product. Applied to the aggregate it is unfalsifiable —
+the exact defect the blind pass recorded against this gate's own escalation clause ("the gate as
+written cannot fail"). So each mechanism is asked the analogue of the coverage test:
+
+> What does this mechanism buy that a documented limitation does not?
+
+Four mechanisms have never been asked. **The test fired on two of them**, which is the evidence that
+it is a test rather than a ratification.
+
+| Mechanism | Cheaper alternative | Verdict |
+|---|---|---|
+| Advisory lock on applying runs (§3) | "Do not run two applying runs at once", documented | **Keep** |
+| `repo-identity` half of the state key (§3) | Worktree hash alone | **Downgraded** — legibility, not correctness |
+| Per-lane input digests (§5) | Refuse to resume if the tree moved at all | **Deferred with trigger** |
+| Versioned anchor + tiered matching (§1) | Treat any anchor change as a new finding | **Keep** |
+
+- **The advisory lock survives, on a reason that is not the solo-machine one.** Two concurrent
+  applying runs interleave edits to one file and can produce a state neither run reports, and the
+  operator's own record of what happened is the union of two partial reports. A documented
+  limitation is unenforceable exactly where it matters — a second session, a teammate, or CI — and
+  the design is machine- and org-agnostic by default rather than scoped to this operator. The cost is
+  a pid file and a staleness rule, which is small enough that the comparison is not close.
+- **`repo-identity` does not survive as a correctness requirement, and saying so is the point.** The
+  worktree discriminator alone separates every run report that must be separated, and Assertion 3.3
+  — same state key from a subdirectory — is carried by canonicalizing the worktree root, not by the
+  remote URL. What `repo-identity` actually buys is a legible state directory and the ability to
+  enumerate every run against one repository. That is real and worth keeping, but it is **convenience
+  standing in a correctness slot**, and it was not labelled as such. Consequence, recorded so Phase 9
+  does not treat it as load-bearing: if remote-URL normalization turns out fiddly — multiple remotes,
+  rewritten URLs, no remote at all — **keying on the worktree hash alone loses nothing any property
+  depends on.**
+- **Per-lane input digests are an optimization over a cheaper mechanism that preserves the same
+  property, so they are deferred rather than assumed.** The property at risk is that a run resumed
+  across a tree change produces a report corresponding to no single tree state — silently violating
+  P1 while appearing to satisfy it. **A single tree-wide digest that refuses to resume a moved tree
+  closes that hole completely**, at a fraction of the manifest cost. What per-lane digests buy on top
+  is *partial* resume: re-run only the lanes whose inputs moved, instead of restarting. That is an
+  ergonomic gain whose size depends on how often a tree moves mid-run and how expensive a lane is —
+  **both unmeasured.** **Trigger:** Phase 10 measures lane cost and interruption frequency against
+  the real corpus; per-lane digests ship if partial resume saves more than the manifest costs, and
+  the tree-wide form ships otherwise. Assertion 5.2 is scoped to the per-lane form and is not owed
+  under the cheaper one.
+- **Versioned anchors and the tiered matching table survive, and neither can be cheapened.** Both
+  protect the same asset — the operator's accumulated suppression record — against the same failure:
+  an edit near a finding, or a change to the anchor algorithm, silently discarding it. The cheaper
+  alternative (any anchor change opens a new finding) is not a smaller version of the mechanism; it
+  is the failure the mechanism exists to prevent, and it would make an operator re-suppress on every
+  nearby edit until they stopped suppressing at all.
+
+**What this test does not reach.** It asks whether each mechanism is *proportionate*, not whether the
+sweep should exist — that is the section above — and not whether the mechanisms are correctly
+specified, which is [rerun-contract.md](rerun-contract.md)'s own job. Two mechanisms moved, one of
+them out of the correctness argument entirely; that is the answer to the review's charge, and the
+charge was warranted.
+
 #### The rest of the re-derived shape
 
 - **The re-run contract survives, scoped down.** Idempotence is still the headline acceptance
