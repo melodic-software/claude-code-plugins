@@ -3,6 +3,46 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.11]
+
+### Fixed
+
+- **`fetch-all-pr-comments.sh` now emits `in_reply_to_id` for inline review comments (#587).** The
+  script's unified schema never projected the GitHub REST field that marks an inline review comment
+  as a threaded reply, so any caller reading the script's own output saw the key absent (surfacing as
+  `None`/`null` in downstream tooling) even for comments GraphQL confirmed were properly threaded
+  replies. Reproduced against live PR #563 data: the raw `pulls/<pr>/comments` response correctly
+  carries `in_reply_to_id` on reply comments — the script's `jq` projection for the inline surface
+  simply dropped it. Added `in_reply_to_id: .in_reply_to_id` to the inline mapping (sourced from the
+  same raw field GraphQL cross-checks against) and `in_reply_to_id: null` to the general/review
+  mappings, which have no reply-parent concept on their surfaces. Additive schema change — existing
+  consumers that don't read the new key are unaffected. Regression-tested with a threaded-reply
+  fixture.
+
+## [0.26.10]
+
+### Changed
+
+- `babysit-prs`'s Worker Contract and Worker Prompt Template
+  (`skills/babysit-prs/reference/orchestration.md`) now hand the worker the worktree's **absolute**
+  path and forbid relying on the shell's working directory persisting across separate tool calls:
+  every git operation is anchored with `git -C <absolute-worktree-path>` (`status`, `add`, `commit`,
+  `diff`, `log`, `push`), every file read/edit/write/glob/search takes an absolute path rather than
+  a relative one — worktree-prefixed for target-repository files, its own absolute path for a file
+  outside the worktree the worker is told to read, such as a `${CLAUDE_PLUGIN_ROOT}` reference — and
+  any command that derives its target from the working
+  directory without a `-C` equivalent — bare `gh`, `fetch-all-pr-comments.sh`, the target
+  repository's own build/test/lint commands — takes a per-call re-`cd` or its own explicit target
+  (`GH_REPO`, `FETCH_COMMENTS_OWNER`/`FETCH_COMMENTS_REPO`). A one-time `cd` at dispatch is not
+  enough:
+  cwd can drift between a read and the next write, silently committing a branch-owned fix into the
+  session's default checkout instead of the assigned worktree. Closes the same correctness gap
+  `implementation` 0.7.4 closed in the sibling `implement-dispatch` lane. `GH_REPO` is scoped to the
+  `gh` calls it can actually anchor: it selects the remote repository only (`gh help environment`),
+  so a locally-mutating call such as `gh pr checkout` ("Check out a pull request in git", `gh pr
+  checkout --help`) still takes a same-call `cd` — with `GH_REPO` alone it would fetch and switch
+  branches in whatever directory cwd had drifted to.
+
 ## [0.26.9]
 
 ### Fixed
