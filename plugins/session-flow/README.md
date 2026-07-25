@@ -41,10 +41,10 @@ inline.
 
 ### handoff
 
-Writes a mid-session save-point for the `/clear`-and-resume pattern: a durable handoff file (task,
-progress, decisions, files modified, tried-and-ruled-out, next steps, TaskList snapshot) plus a
-copy-paste resume prompt — or prompt-only when follow-ups are small. Handoff files chain via
-`session_id` / `previous_handoff` frontmatter so `retro` can analyze the whole session chain. The
+Writes a mid-session save-point for the `/clear`-and-resume pattern: a durable handoff file — whose
+body sections `reference/structure.md` defines — plus a copy-paste resume prompt, or prompt-only
+when follow-ups are small. Handoff files chain via `session_id` / `previous_handoff` frontmatter so
+`retro` can analyze the whole session chain. The
 skill always STOPS after emitting the save-point — continuing would defeat the purpose. The
 save-point machinery itself (destination resolution, path choice, redaction, rails prompt) lives in
 the shared `reference/save-point.md` engine doc that `continue-in-background` also delivers from.
