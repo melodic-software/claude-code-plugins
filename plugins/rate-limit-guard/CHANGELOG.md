@@ -7,10 +7,11 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
 
 ### Changed
 
-- **The single-account-per-machine text is deduplicated against its owner.** This reader contract
+- **The single-account-per-machine text is repointed at its owner.** This reader contract
   carried its own copy of the assumption while naming loop-lane §6 as its owner, so the copy would
   contradict §6 the moment §6 moved — which it now has: §6 reframes the assumption as a known gap.
-  The framing lives only there. What stays here is local to the guard: the writer already
+  §6 owns the framing; what stays here cites it rather than asserting it independently. What is
+  local to the guard stays local: the writer already
   forward-passes any top-level `account`-matching key, so an identity field costs no plugin change
   the release one appears. The account-identity design itself is `TODO(#1218)`.
 

@@ -185,7 +185,7 @@ comparison is upstream at
   expires seven days after creation (`loop-lane/README.md` §4 already binds
   this).
 
-**Multi-account fan-out is blocked by an existing invariant.** Routines belong
+**Multi-account fan-out is blocked by an undetectable gap.** Routines belong
 to an individual claude.ai account and count against that account's daily run
 allowance, so spreading standing work across the operator's several
 subscriptions is the obvious way to buy headroom at $0. `loop-lane/README.md`
