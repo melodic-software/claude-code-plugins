@@ -18,7 +18,7 @@
     {
       "id": 2,
       "name": "idempotent-preserves-existing-item-dates",
-      "prompt": "/work-items:setup apply",
+      "prompt": "/work-items:setup apply\n\n(.work-item-tracker.json is already bound, and .github/recurring-schedule.json already carries three items with last_checked/next_due dates — one of them already overdue.)",
       "expected_output": "Re-running against an existing schedule preserves each existing item's last_checked and next_due as-is — setup seeds but performs no maintenance, so it never advances the cadence clock — recomputing next_due only when the user explicitly reschedules or changes cadence, and never resetting last_checked to today. New items seed last_checked to today and next_due to today plus the cadence's day count. Blindly resetting an overdue item's dates (which would drop it from the due/work tiers) is avoided.",
       "files": [],
       "expectations": [
@@ -44,7 +44,7 @@
     {
       "id": 4,
       "name": "reconciles-renamed-or-dropped-row-open-item",
-      "prompt": "/work-items:setup apply",
+      "prompt": "/work-items:setup apply\n\n(.work-item-tracker.json is already bound, and .github/recurring-schedule.json already carries several items; over the interview the user renames one row's id and title and drops another.)",
       "expected_output": "When an existing schedule row is renamed or dropped, it looks up that row's open [Maintenance] item under the OLD title, filtering provider search results to an exact [Maintenance] {old title} match (never a mere prefix/substring). A renamed row's item is retitled to the new title (or closed if retiring); a dropped row's item is closed with a note. A rename or drop with no exact-match open item needs no reconciliation.",
       "files": [],
       "expectations": [
@@ -57,15 +57,27 @@
     {
       "id": 5,
       "name": "first-bind-writes-skeleton-only-without-opt-in",
-      "prompt": "/work-items:setup apply",
-      "expected_output": "On a first-time bind (no .work-item-tracker.json, and the schedule absent or carrying an empty items array) a bare apply writes only the minimum viable config: the provider binding, the canonical role-label pass, and the empty {\"items\": []} skeleton that stops due/recheck/work degrading to \"no recurring schedule configured\". It offers seeding exactly once as a single yes/no with skip marked RECOMMENDED; on skip it runs no candidate inference and no per-item interview, and says the schedule can be bulk-seeded later by re-running apply or apply --seed-schedule. With no interactive user (a loop lane or other unattended context) it does not present the offer or block — the skip default applies silently. The role-label pass still runs because it is anchored to the bind, not to the interview, and with zero schedule rows a missing recurring-maintenance label is reported as informational rather than gating the bind.",
+      "prompt": "/work-items:setup apply\n\n(First-time bind: no .work-item-tracker.json exists and .github/recurring-schedule.json is absent. An interactive user is present and answers \"skip\" to the seeding offer.)",
+      "expected_output": "On a first-time bind with no schedule rows, a bare apply writes only the minimum viable config: the provider binding, the canonical role-label pass, and the empty {\"items\": []} skeleton that stops due/recheck/work degrading to \"no recurring schedule configured\". It offers seeding exactly once as a single yes/no with skip marked RECOMMENDED; on skip it runs no candidate inference and no per-item interview, and says the schedule can be bulk-seeded later by re-running apply or apply --seed-schedule. The role-label pass still runs — it is a numbered step of apply's flow anchored right after the bind, not a tail-end offer after the schedule interview — and with zero schedule rows a missing recurring-maintenance label is reported as informational rather than gating the bind.",
       "files": [],
       "expectations": [
         "Writes only the provider binding, the role-label pass, and the empty {\"items\": []} schedule skeleton",
         "Runs no candidate inference and no per-item interview when the seeding offer is skipped",
         "Offers seeding once as a single yes/no with skip marked RECOMMENDED, and points at apply --seed-schedule for bulk-seeding later",
-        "Applies the skip default silently with no interactive user, never blocking on the offer",
-        "Still runs the role-label pass (anchored to the bind), treating a missing recurring-maintenance label as informational when the schedule carries zero rows"
+        "Still runs the role-label pass as a numbered step anchored after the bind, treating a missing recurring-maintenance label as informational when the schedule carries zero rows"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "unattended-first-bind-applies-skip-default-silently",
+      "prompt": "/work-items:setup apply\n\n(First-time bind: no .work-item-tracker.json exists and .github/recurring-schedule.json is absent. This runs unattended — there is no interactive user to answer any question.)",
+      "expected_output": "With no interactive user the seeding offer is never presented and apply never blocks waiting on it: the recommended skip default applies silently, producing the provider binding, the role-label pass, and the empty {\"items\": []} skeleton and nothing else. It runs no candidate inference and no per-item interview, and it does not substitute invented answers for the interview it skipped. It reports that --seed-schedule is the non-interactive way to opt in later.",
+      "files": [],
+      "expectations": [
+        "Never presents the seeding offer and never blocks on it when no interactive user is available",
+        "Applies the skip default silently, producing only the binding, the role-label pass, and the empty {\"items\": []} skeleton",
+        "Runs no candidate inference and no per-item interview, and invents no answers in place of the skipped interview",
+        "Names apply --seed-schedule as the non-interactive way to opt in to seeding"
       ]
     }
   ]
