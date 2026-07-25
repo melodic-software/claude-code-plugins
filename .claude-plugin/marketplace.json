@@ -483,7 +483,7 @@
       "relevance": {
         "topic": "X (Twitter) content",
         "signals": {
-          "hosts": ["x.com", "twitter.com", "xtomd.com", "threadreaderapp.com"]
+          "hosts": ["x.com", "www.x.com", "twitter.com", "www.twitter.com", "mobile.twitter.com", "xtomd.com", "threadreaderapp.com"]
         }
       }
     }

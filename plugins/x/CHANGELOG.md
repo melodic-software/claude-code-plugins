@@ -28,7 +28,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `-L`, so no redirect-driven egress. The byte cap is documented as best-effort — before curl 8.4.0
   `--max-filesize` does not stop an unknown-length response, so `--max-time` is the bound that always
   holds.
-- `-q` leads the curl invocation. curl reads a default `.curlrc` "even when `--config` is used" and
+- `-q` leads every curl invocation. curl reads a default `.curlrc` "even when `--config` is used" and
   skips it only when `--disable` "is used as the first parameter on the command line", so without it
   a consumer's ambient config could set `location` and silently re-enable redirect following,
   defeating the egress bounds above.
@@ -46,12 +46,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   reported as an empty post.
 - `skills/read/context/failure-modes.md` — progressive-disclosure spoke holding status-code handling,
   Thread Reader miss detection, and the observed-gotchas list.
-- `skills/read/evals/evals.json` — fourteen cases covering step-1 resolution, chain escalation,
-  note-tweet non-escalation, `502` handling without a retry loop, prompt-injection containment, the
-  missing-`curl` path, refusal of a hostile URL string, tracking-parameter stripping, a URL harvested
-  from fetched content re-entering the gate, `isNoteTweet` governing escalation in both directions,
-  step-1-success plus step-2-miss reaching step 3, a `200` without conversion treated as failure, and
-  the legacy `mobile.twitter.com` host being accepted and canonicalized.
+- `skills/read/evals/evals.json` — fourteen cases: step-1 resolution (1), chain escalation (2),
+  note-tweet non-escalation (3), `502` handling without a retry loop (4), refusal of a hostile URL
+  string (5), tracking-parameter stripping (6), prompt-injection containment (7), a URL harvested
+  from fetched content re-entering the gate (8), the missing-`curl` path (9), a note tweet rooting a
+  chain still escalating (10), a long post without continuation evidence not escalating (11),
+  step-1-success plus step-2-miss reaching step 3 (12), a `200` without conversion treated as
+  failure (13), and the legacy `mobile.twitter.com` host accepted and canonicalized (14).
 
 ### Fixed
 
