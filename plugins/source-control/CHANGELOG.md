@@ -7,21 +7,31 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Fixed
 
-- **`babysit-prs` no longer states bare-name wrapper resolution as permanently broken (`#843`).**
-  `safety.md` asserted the bundled wrappers' bare names "are not on the Bash tool's `PATH`", and the
-  two `bin/` wrapper headers presented their bare-command allow-rule rationale as operative fact.
-  Both were wrong in opposite directions. A snapshot corpus on the reporting machine shows plugin
-  `bin/` directories reaching the Bash tool's `PATH` in 35 of 112 sessions — 4 of them carrying this
-  plugin's own `bin/` — so the feature is delivered, then intermittently lost: a plugin's `bin/`
-  arrives only via the session shell snapshot's final `export PATH=` line, and when that line does
-  not land every enabled plugin's `bin/` goes with it
-  ([anthropics/claude-code#68066](https://github.com/anthropics/claude-code/issues/68066)). The
-  original "Windows/Git-Bash never delivers it" reading was a sampling artifact — every reproduction
-  on the issue fell inside one degraded window. Guidance is unchanged and was already correct: the
-  `${CLAUDE_PLUGIN_ROOT}/bin/` path form is canonical because it works in both states. Only the
-  justification changed, and it mattered — a reader who tested on a healthy-snapshot session found
-  the doc contradicting their own shell, and the documented reason to keep using the path form
-  evaporated exactly when it looked safe to drop it.
+- **`babysit-prs` states the bare-name wrapper situation accurately (`#843`).** `safety.md` asserted
+  the bundled wrappers' bare names "are not on the Bash tool's `PATH`", and the two `bin/` wrapper
+  headers presented their bare-command allow-rule rationale as operative fact. Both were wrong, in
+  opposite directions. Two corrections, each tied to its source:
+  - **Bare-name resolution is unreliable, not absent.** A local shell-snapshot survey recorded on
+    `#843` found plugin `bin/` directories present on the Bash tool's `PATH` in some sessions and
+    missing in others on the same machine, including sessions carrying this plugin's own `bin/`. The
+    delivery path is the session snapshot's final `export PATH=` line; when it does not land, every
+    enabled plugin's `bin/` goes with it
+    ([anthropics/claude-code#68066](https://github.com/anthropics/claude-code/issues/68066), which
+    reports the same signature on macOS/zsh and supplies the mechanism — the Windows/Git-Bash
+    evidence is the local survey, not that issue). The earlier "never delivered here" reading came
+    from sampling only sessions in which it was missing.
+  - **A path invocation cannot match a bare-name allow rule.** Claude Code strips only a fixed
+    wrapper set before matching Bash rules (`timeout`, `time`, `nice`, `nohup`, `stdbuf`, `command`,
+    `builtin`, `noglob`, bare `xargs` — [permissions](https://code.claude.com/docs/en/permissions));
+    `bash` is not among them. So `Bash(source-control-babysit-merge:*)` does not cover the
+    `bash "…/bin/…"` form this skill uses, and a per-call prompt on these invocations is expected
+    rather than a misconfiguration.
+
+  Guidance is unchanged and was already correct: the `${CLAUDE_PLUGIN_ROOT}/bin/` path form is
+  canonical because it is the only form that runs in both `PATH` states. Only the justification
+  changed, and it mattered — a reader who checked on a session where the bare name *did* resolve
+  found the doc contradicting their own shell, and the documented reason to keep the path form
+  disappeared exactly when it looked safe to drop.
 
 ## [0.26.4]
 
