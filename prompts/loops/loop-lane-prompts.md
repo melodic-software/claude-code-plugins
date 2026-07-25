@@ -68,12 +68,30 @@ about that repo, not a preference.
   in isolation under-reports the merge-eligible population and feeds the rung
   decision a wrong number.
 
+  Match the **canonical grammar**, not a loose substring. The vocabulary is
+  C1–C5, so `C[0-9]` also counts a stray `Work-class: C9`, and a bare
+  `work-class` label test counts an unrelated `work-class: pending`. Both
+  inflate a readiness number the rung decision then trusts. Anchor the trailer
+  to line start and compare labels against the five strings `gh label list`
+  actually returned — substitute them into `VALID` below:
+
   ```bash
   gh label list --limit 200 | grep -i work-class
+  # Substitute the five strings the command above actually returned.
+  VALID='["work-class: read-only","work-class: mechanical","work-class: scoped",
+          "work-class: structural","work-class: untrusted-provenance"]'
   gh issue list --label "$ROLE" --limit 500 --json number,body,labels \
-    --jq '[.[] | select((.body | test("Work-class: C[0-9]"))
-           or (.labels | any(.name | test("work-class"; "i"))))] | length'
+    | jq --argjson valid "$VALID" '
+        [.[] | select(
+          (.body | test("(^|\\n)Work-class: C[1-5]([^0-9]|$)"))
+          or (any(.labels[].name; . as $n | $valid | index($n)))
+        )] | length'
   ```
+
+  Two mechanics worth not rediscovering. `gh issue list` has **no
+  `--argjson`** — pipe to `jq` instead of using `--jq`. And jq's regex engine
+  does **not** honor `(?m)`, so the trailer is anchored with `(^|\n)`; the
+  trailing `([^0-9]|$)` is what rejects `C12` after matching `C1`.
 
   **Always pass `--limit`** — `gh issue list` silently truncates at 30, so an
   unbounded count under-reports any backlog past that.
@@ -409,6 +427,15 @@ row actually carries — item number parity is the reliable one:
 claim, two terminals whose predicates intersect will mutate the same rows
 concurrently. Shards must partition, not overlap.
 
+**Sharding costs you lane telemetry.** attend-queue upserts its pass report
+into one comment keyed by a fixed marker, and that upsert reconciles
+duplicate comments rather than merging concurrent bodies — the last terminal
+to PATCH overwrites every other shard's report. The skill offers no per-shard
+marker, so the only safe answers are: run one terminal and keep telemetry, or
+shard and have every terminal skip the upsert. The prompts below take the
+second, since sharding is the reason to be here. Do not split the difference —
+letting one "primary" shard write it records a partial pass as the whole.
+
 > **=== COPY FROM HERE ===**
 >
 > /work-items:attend-queue
@@ -423,6 +450,14 @@ concurrently. Shards must partition, not overlap.
 > `Shard` line. Do not read, comment on, label, or otherwise mutate rows
 > in the other buckets — another terminal owns them and there is no claim
 > protocol to stop you both.
+>
+> **Do not write lane telemetry.** Every attend-queue session upserts its
+> pass report into ONE comment keyed by a fixed marker, and the upsert
+> reconciles duplicate comments rather than merging concurrent bodies — so
+> with several shards running, the last terminal to PATCH silently erases
+> every other shard's handled-row and guard-mode report. Skip the telemetry
+> upsert entirely and put your pass report in this session instead. Only a
+> single-terminal attended session may write it.
 >
 > Use `/planning:interview` to drive an escalated question to a decision,
 > and write the answer back as a comment on the item — the decision lives
@@ -532,11 +567,13 @@ Filled instance for the repository in use as of 2026-07-25.
 - Work-class labels: deployed. Exact strings, ascending risk:
   `work-class: read-only`, `work-class: mechanical`, `work-class: scoped`,
   `work-class: structural`, `work-class: untrusted-provenance`.
-- Stamped `agent-ready` items, re-counted live on 2026-07-25: **44 open, all
-  44 label-stamped** — 7 `mechanical`, 32 `scoped`, 5 `structural` (33 of
-  them also carry a body trailer). At `c2-mechanical` only the 7 are
-  merge-eligible; at `c3-autonomous`, 39. These move as the backlog drains —
-  re-run the union count rather than quoting this line.
+- Stamped `agent-ready` items, re-counted live on 2026-07-25: **40 open, all
+  40 label-stamped** — 3 `mechanical`, 34 `scoped`, 3 `structural` (25 also
+  carry a body trailer). At `c2-mechanical` only the 3 are merge-eligible;
+  at `c3-autonomous`, 37. **Re-run the union count; never quote this line.**
+  It read 50 when the document was authored and 44 four hours later — the
+  backlog drains underneath it, and a rung decision made from a stale number
+  is a decision about a repository that no longer exists.
 - No autonomy binding file exists, so the C2 promotion evidence above is
   not recorded here.
 - `#820` carries `do-not-merge`; its body embeds a veto-before-merge
@@ -556,8 +593,9 @@ overnight without me":
 
 - **Tier `autopilot`** — in the prompt below. Already maximal.
 - **Merge rung** — one line in `.claude/source-control.md` on `main`.
-  Currently `c2-mechanical`. Change to `c3-autonomous` and 39 of the 44
-  open `agent-ready` items become eligible instead of 7.
+  Currently `c2-mechanical`. Change to `c3-autonomous` and 37 of the 40
+  open `agent-ready` items become eligible instead of 3 (live count,
+  2026-07-25 — re-run it, do not quote it).
 
 `full-autonomy` as a rung adds only C4 `structural` and C5
 `untrusted-provenance` on top of `c3-autonomous` — refactors, migrations,
@@ -734,6 +772,14 @@ terminals mutating the same row.
 > `Shard` line. Do not read, comment on, label, or otherwise mutate rows
 > in the other buckets — another terminal owns them and there is no claim
 > protocol to stop you both.
+>
+> **Do not write lane telemetry.** Every attend-queue session upserts its
+> pass report into ONE comment keyed by a fixed marker, and the upsert
+> reconciles duplicate comments rather than merging concurrent bodies — so
+> with several shards running, the last terminal to PATCH silently erases
+> every other shard's handled-row and guard-mode report. Skip the telemetry
+> upsert entirely and put your pass report in this session instead. Only a
+> single-terminal attended session may write it.
 >
 > Use `/planning:interview` to drive an escalated question to a decision,
 > and write the answer back as a comment on the item — the decision lives
