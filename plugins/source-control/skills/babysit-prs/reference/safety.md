@@ -183,8 +183,9 @@ must be satisfied before a PR is called merge-ready, and only the merge gate can
 path. The classification gate blocks on `findings > 0` with `classified < findings` (or an
 unticked `--checklist`), so it constrains any iteration that actually processed findings. The
 orchestrator's direct zero-blocker path — a non-draft PR the engine snapshot reports with zero
-blockers *and* no untriaged material feedback, which goes straight to a merge-gate check without a
-worker (`SKILL.md`) — never runs the classification gate at all. What keeps that path from
+blockers *and* no untriaged material feedback (`SKILL.md`, "Fan out") — goes straight to a
+merge-gate check without a worker, and so without the worker's per-PR iteration
+classification-gate run (`SKILL.md`, Steps A–F). What keeps that path from
 producing a false `MERGE-READY` is the `untriaged_material_feedback` exclusion in
 `pr_clean_ready_for_direct_gate` (`scripts/babysit_delta.py`): the merge gate never inspects finding
 content, so a PR carrying an undisposed material bot finding is held out of the direct gate rather
@@ -194,9 +195,9 @@ it counts severity markers across *all* comment bodies with no bot/human split, 
 `SUGGESTION`/`CRITICAL`/`IMPORTANT` marker into `feedback["human"]` (non-blocking, and not material
 feedback), so such a PR can reach the direct gate while a classification-gate run would report
 `READINESS_BLOCKED`. Nor does the exclusion by itself force a worker: a *new* material item does
-(`unsuppressible_delta`), but an already-known, still-undisposed one re-dispatches a worker only
-through `quiet_recheck_due`'s periodic fallback, so such a PR may get neither a worker nor the
-direct gate that cycle. That path is gated on the engine's deterministic `needs_worker` delta, never
+(`unsuppressible_delta`, absent a refresh or foreign-activity hold), but an already-known,
+still-undisposed one re-dispatches a worker only through `quiet_recheck_due`'s periodic fallback,
+so such a PR may get neither a worker nor the direct gate that cycle. That path is gated on the engine's deterministic `needs_worker` delta, never
 on an agent's own reading that a PR has nothing outstanding, and merge-readiness on it still comes
 only from the merge gate's `ready` field.
 
