@@ -538,6 +538,38 @@ class DocumentedCommandsMatchTheParsers(unittest.TestCase):
                                 f"{row.doc} spells `{flag}`, which {cli} does not accept",
                             ),
                         )
+                        # The wrapper's accepted set is the narrower of the two.
+                        # A flag the CLI registers but the wrapper filters out is
+                        # a documented command that always exits 2, and checking
+                        # the parser alone would bless exactly the invocation the
+                        # wrapper exists to prevent.
+                        self.assertFalse(
+                            contract.wrapper_denies(wrapper, flag),
+                            because(
+                                row.id,
+                                row.claim,
+                                f"{row.doc} spells `{flag}` through {wrapper},"
+                                " which refuses it before Python runs",
+                            ),
+                        )
+
+    def test_wrapper_denied_flags_are_proven_by_a_refusal_row(self) -> None:
+        # The denial table is data; a refusal row is the evidence. A flag listed
+        # as wrapper-refused with nothing invoking the wrapper to prove it would
+        # be an unbacked claim, which is the shape this contract exists to catch.
+        for wrapper, denied in contract.WRAPPER_DENIED_FLAGS.items():
+            for flag in denied:
+                with self.subTest(wrapper=wrapper, flag=flag):
+                    self.assertTrue(
+                        any(
+                            row.entry_point == wrapper
+                            and row.refused_by == contract.BASH_WRAPPER
+                            and flag in row.argv
+                            for row in contract.REFUSALS
+                        ),
+                        f"`{flag}` is listed as refused by {wrapper} with no"
+                        " bash-wrapper refusal row invoking it",
+                    )
 
     def test_every_doc_naming_a_wrapper_is_covered(self) -> None:
         # A second document growing its own copy of a command line must be added

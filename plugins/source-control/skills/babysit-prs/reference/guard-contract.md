@@ -108,6 +108,13 @@ Asserted against the entry point's source, because the mechanism -- not just the
 
 Documents that spell out copyable `bin/`-path wrapper commands. Every wrapper path is checked to resolve and every flag against the backing CLI's own parser, so a renamed or removed flag fails here instead of in an operator's terminal.
 
+Checked against the WRAPPER boundary, not the parser alone. A wrapper's accepted set is the narrower of the two, so a flag the CLI registers but the wrapper refuses -- `bin/source-control-babysit-merge` and `--allow-unpinned-head`, including its prefixes -- is a documented command that always exits 2, and the parser check alone would bless it. Refusals are the source: every flag listed below is one a `bash-wrapper` refusal row proves that wrapper rejects.
+
+| Wrapper | Refuses |
+| --- | --- |
+| `bin/source-control-babysit-merge` | `--allow-unpinned-head` (and prefixes) |
+| `bin/source-control-babysit-resolve-thread` | nothing |
+
 | ID | Document | Claim |
 | --- | --- | --- |
 | `safety.pinned-command-degradation` | `skills/babysit-prs/reference/safety.md` | reference/safety.md hard-codes fully-argument-pinned bin/-path wrapper command lines for the operator to run when the runtime denies a mutation the gate already proved ready. Every wrapper path in it resolves, and every flag it names is one the backing CLI's parser accepts. |
