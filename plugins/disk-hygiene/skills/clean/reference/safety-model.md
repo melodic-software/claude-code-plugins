@@ -149,8 +149,10 @@ knowingly partial: the flagged set is deletion- and recycle-shaped (plus `roboco
 and .NET `Delete`), so destructive **non-deletion** spellings — `Move-Item`/`mv`, `Rename-Item`,
 overwriting writers (`Set-Content`, `Out-File`, `>`, `New-Item -Force`), and volume operations
 (`Format-Volume`, `Clear-Disk`) — reach the tool with no guard verdict at all, in audit-only mode
-included. Data loss through those spellings is held only by the per-path human approval the manual
-handoff already requires and the consumer's own permission policy, never by this guard.
+included. The only thing standing between them and the filesystem is the consumer's own permission
+policy, never this guard: the manual handoff's per-path approval covers the paths selected for
+removal, so it does not reach what such a command collaterally destroys — a `Move-Item -Force`
+destination, a truncated `Out-File` target, or an entire volume.
 
 TODO(#387): extend the flagged set to those spellings.
 

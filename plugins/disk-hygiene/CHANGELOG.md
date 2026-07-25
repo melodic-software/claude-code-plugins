@@ -12,8 +12,9 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   "known deletion spellings" without stating that destructive non-deletion spellings — `Move-Item`,
   `Rename-Item`, overwriting writers (`Set-Content`/`Out-File`/`>`/`New-Item -Force`), and
   `Format-Volume`/`Clear-Disk` — reach the tool with no guard verdict, audit-only mode included. The
-  gap is now disclosed where the security model is stated, with the per-path human approval and the
-  consumer's permission policy named as its only backstops. Docs only; the guard's behavior is
+  gap is now disclosed where the security model is stated, naming the consumer's permission policy as
+  its only backstop — the manual handoff's per-path approval covers the paths selected for removal, so
+  it does not reach what these spellings collaterally destroy. Docs only; the guard's behavior is
   unchanged and closing the gap is tracked in #387.
 
 ## [0.9.0]
