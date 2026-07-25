@@ -30,18 +30,23 @@ table with one remediation line per FAIL. Do not modify anything. The runtime sc
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit-automation-gaps/scripts/inventory.sh` — jq
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-grants/scripts/permission-rule-check.sh` — jq
 - `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.sh` — grep only (POSIX; no jq)
+- `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/conflict-scan.sh` — awk **and** sort (no jq)
 
 1. **`jq`** — `command -v jq`. FAIL if absent: the JSON-parsing scripts need it (`inventory.sh` degrades
    to an empty inventory; the others `exit 2` with an install remediation). Missing `jq` blocks the three
    JSON-parsing audit skills (`audit`, `audit-automation-gaps`, `audit-permission-grants`);
-   `audit-instructions` scans markdown with grep only and is unaffected.
+   `audit-instructions` scans markdown and is unaffected.
 2. **`curl`** — `command -v curl`. FAIL if absent, but scoped: only the plugin-drift check
    (`check-plugin-drift.sh`) uses it and `exit 2`s without it. The rest of `audit` and the other three
    skills still run — say so in the remediation line.
-3. **Bash shell** — INFO: the scripts are bash (arrays, `[[ ]]`, process substitution, `BASH_SOURCE`),
+3. **`awk` and `sort`** — `command -v awk`, `command -v sort`. FAIL if either is absent: they are what
+   `conflict-scan.sh` executes, and it `exit 2`s without them. Scoped to `audit-instructions`' conflict
+   pass — the rest of that skill and the other three still run. Report them by name rather than as one
+   row, since a minimal shell can carry one and not the other.
+4. **Bash shell** — INFO: the scripts are bash (arrays, `[[ ]]`, process substitution, `BASH_SOURCE`),
    run through Claude Code's Bash tool — the bash shell on every platform, Git Bash on native Windows.
    Report the resolved interpreter; FAIL only if no bash is resolvable.
-4. **Network reachability** — INFO only: `audit`'s drift/freshness fetches read
+5. **Network reachability** — INFO only: `audit`'s drift/freshness fetches read
    `raw.githubusercontent.com`, and a failed fetch degrades to SKIP rather than a setup failure. Do not
    fetch here — `check` performs no network call.
 
