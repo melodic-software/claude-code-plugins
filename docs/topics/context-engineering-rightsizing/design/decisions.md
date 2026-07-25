@@ -165,13 +165,16 @@ when the lane checked. The decision is satisfied — but the requirement to read
 dropping it could not be honored, so **that content is unrecoverable and its salvage value is
 permanently unknown.** Recorded as a real loss, not a clean success.
 
-### Corrections owed to `collision-register.md`
+### Corrections to `collision-register.md` — applied
 
 The register **under-counts writers** on `dot_claude/CLAUDE.md`. It lists three; **PR #319 was a
 fourth**, open and editing that file mid-pass and absent from the register. It merged before
 colliding. The generalizable point is the one that matters: **the register is a point-in-time
 snapshot that was demonstrably incomplete while presented as complete. Re-derive from `gh pr list`
 rather than trusting it.**
+
+Now appended to the register itself, under its user-scope table, with the original rows left
+untouched as the record of what was known.
 
 ### Lane execution status
 
@@ -180,7 +183,7 @@ stopping points.
 
 | Lane | Decisions | Outcome |
 |---|---|---|
-| L0 | design docs | 6 commits, **not pushed**; errata and register correction unapplied |
+| L0 | design docs | committed but **not pushed** at the time of writing; errata and register correction unapplied |
 | L1 | D-7 | **PR #1286 open**; two comments on #1271. Rewrite half unblocked by #1276 merging 02:13:33Z |
 | L2 | D-4 | uncommitted work only; incumbent search must be redone (see below) |
 | L3 | D-4, D-2 | uncommitted work only |
@@ -195,8 +198,8 @@ stopping points.
 Recorded so that no lane's status rests on an unwritten assumption. Each entry states what is
 deferred, why, and the concrete trigger that unblocks it.
 
-**L0 — design docs and contract.** Deferred with work committed but unpublished: 7 commits on
-`feat/context-engineering-rightsizing`, working tree clean, branch **not pushed**, no PR. Consequence
+**L0 — design docs and contract.** Deferred with work committed but unpublished on
+`feat/context-engineering-rightsizing`: working tree clean, branch **not pushed**, no PR. Consequence
 already felt: the 13 digests are on no remote, so L2 could not point at `S2-unhobbling.md` and had to
 duplicate its gate definition. **Trigger:** push the branch and open the PR, disclosing the deliberate
 collision with `docs/context-engineering-claude-5-topic`. Still owed beyond that — file the D-6

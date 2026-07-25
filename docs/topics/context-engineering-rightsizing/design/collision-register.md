@@ -48,6 +48,20 @@ The user-scope half of this effort edits `dot_claude/CLAUDE.md`. Three items alr
 | dotfiles branch `docs/claude-md-github-conventions` | last commit 2026-07-15, no PR | +13 lines to `CLAUDE.md` | **Needs a keep-or-drop call** before this pass edits the file. Nine days stale |
 | dotfiles PR #315 `chore/automode-security` | open | `.chezmoidata/claude.json` only | Low — permission plane, no instruction text |
 
+### Correction — the table above under-counts, and the register is not exhaustive
+
+The rows above are left exactly as scanned; they are the record of what was known, not a claim that
+survived. **There were four writers on `dot_claude/CLAUDE.md`, not three.** dotfiles PR #319
+*"docs(claude): track two on-demand Claude Code reference docs"* was open and editing that file
+(+4 lines) while this pass ran, and does not appear in the table. It merged at
+2026-07-25T01:24:12Z before it collided with anything, so the omission cost nothing — this time.
+Verified from the remote, by changed files rather than by title, after the user-scope lane hit it.
+
+**The generalizable point matters more than the missing row: this register is a point-in-time
+snapshot that was demonstrably incomplete while being presented as complete, and lanes were
+dispatched trusting it.** Re-derive from `gh pr list` at the moment of acting. Treat every verdict
+here as a pointer to what to re-check, never as the answer.
+
 ## Further claims on this subject matter
 
 | Issue | Claims | Disposition |
