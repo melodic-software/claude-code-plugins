@@ -89,12 +89,15 @@ into one profile.
   # Substitute the five strings the command above actually returned.
   VALID='["work-class: read-only","work-class: mechanical","work-class: scoped",
           "work-class: structural","work-class: untrusted-provenance"]'
-  gh issue list --label "$ROLE" --limit 500 --json number,body,labels \
-    | jq --argjson valid "$VALID" '
-        [.[] | select(
-          (.body | test("(^|\\n)Work-class: C[1-5]( |\\r|\\n|$)"))
-          or (any(.labels[].name; . as $n | $valid | index($n)))
-        )] | length'
+  LIMIT=500
+  gh issue list --label "$ROLE" --limit "$LIMIT" --json number,body,labels \
+    | jq --argjson valid "$VALID" --argjson limit "$LIMIT" '
+        {fetched: length,
+         truncated: (length >= $limit),
+         classified: [.[] | select(
+           (.body | test("(^|\\n)Work-class: C[1-5]( |\\r|\\n|$)"))
+           or (any(.labels[].name; . as $n | $valid | index($n)))
+         )] | length}'
   ```
 
   Two mechanics worth not rediscovering. `gh issue list` has **no
@@ -115,8 +118,17 @@ into one profile.
   repository: 7 issue bodies and 5 PR bodies carry CR). Omit either and a
   body-stamp repo under-reports, to the point of reporting zero.
 
-  **Always pass `--limit`** — `gh issue list` silently truncates at 30, so an
-  unbounded count under-reports any backlog past that.
+  **`--limit` is a ceiling, not an all-pages switch.** It is documented as
+  "maximum number of issues to fetch", and its default is 30 — so an
+  unbounded call silently under-reports any backlog past thirty, and a
+  `--limit 500` call silently under-reports one past five hundred. Raising
+  the number only moves the cliff. That is why the command reports
+  `truncated` alongside the count: **if `truncated` is true the classified
+  figure is a floor, not a total, and is not safe to feed a rung decision** —
+  raise `LIMIT` and re-run until it reports false. (`gh api --paginate`
+  fetches every page, but returns raw REST issues without the `gh`-computed
+  fields this query reads, so the explicit ceiling plus a truncation flag is
+  the honest shape here.)
 
   A repository that records classifications only as body trailers is fully
   merge-capable and needs no label provisioning. Conclude "nothing can merge"
@@ -335,9 +347,14 @@ no shared state, no contention, and the sharding problem disappears.
 > all without a human turn. Prefix every comment and item you create with
 > the AI disclaimer specified by triage. You never merge.
 >
-> **Discipline.** Every cycle, and every dispatch brief you compose at
-> every nesting depth, invokes `/discipline:sweep-all`. Do not enumerate
-> the individual disciplines — that skill resolves its own membership and
+> **Discipline.** Invoke `/discipline:sweep-all` **once per cycle, at the
+> cycle root only** — never inside a dispatch brief, and never from a
+> subagent. That skill fans out one audit fork per corrector itself, so a
+> brief that re-invokes it has each fork start another full sweep, and so on
+> down: the fan-out multiplies with depth and burns worker slots and rate
+> limit before any lane work runs. Dispatched subagents inherit the posture
+> the root sweep already set; they do not re-run it. Do not enumerate the
+> individual disciplines either — that skill resolves its own membership and
 > a hand-copied list drifts. If the `discipline` plugin is not installed
 > here, inline the equivalent standing instructions instead: verify claims
 > against authoritative sources before acting, prefer installed skills
@@ -357,6 +374,15 @@ no shared state, no contention, and the sharding problem disappears.
 > to a file in your worktree or a comment on the item. Do not summarize
 > your work back to me. Speak to me only when fully blocked and unable to
 > escalate through the tracker.
+>
+> **One exception: a skill that defines its own return shape wins.** Where a
+> skill's contract specifies what its subagents return, that contract governs
+> and this two-line rule does not apply — `/discipline:sweep-all`'s audit
+> forks are the live case: they must return a full findings ledger (each
+> located finding plus its proposed remedy) and are explicitly forbidden to
+> write files, so both halves of the rule above would break it. Truncating
+> such a return to two lines silently discards the data the parent needs to
+> act on.
 >
 > **Work classes are not yours to set — in either surface.** The autonomy
 > contract is explicit: "no repo-local (agent-writable) surface may supply
@@ -438,9 +464,12 @@ wakeup ceiling for days rather than finishing.
 > subagent that did not produce it. If the two disagree, escalate rather
 > than pick.
 >
-> **Discipline.** Every dispatch brief at every depth invokes
-> `/discipline:sweep-all`. If that plugin is absent here, inline the
-> equivalent standing instructions instead.
+> **Discipline.** Invoke `/discipline:sweep-all` **once per cycle, at the
+> cycle root only** — never inside a dispatch brief, and never from a
+> subagent. That skill fans out its own audit fork per corrector, so
+> re-invoking it inside a brief multiplies the fan-out with every nesting
+> level. Dispatched subagents inherit the posture the root sweep set. If that
+> plugin is absent here, inline the equivalent standing instructions instead.
 >
 > **Dispatch model, every dispatch.** Your root runs on the fast tier and
 > subagents inherit it by default, so the frontier-tier conflict worker this
@@ -451,7 +480,10 @@ wakeup ceiling for days rather than finishing.
 > mechanical log pulls. Never leave it to inherit.
 >
 > **Return contract.** Subagents return at most two lines — verdict plus
-> identifier. Speak to me only when fully blocked.
+> identifier. Speak to me only when fully blocked. **A skill that defines its
+> own return shape wins over this rule** — `/discipline:sweep-all`'s audit
+> forks owe a full findings ledger and may write nothing, so truncating them
+> to two lines would discard exactly what the parent acts on.
 >
 > **Work classes are not yours to set — in either surface.** Never apply or
 > change a `work-class:` label, **and never write a `Work-class: C<n>`
@@ -748,9 +780,14 @@ machines; neither on the attended box.
 > all without a human turn. Prefix every comment and item you create with
 > the AI disclaimer specified by triage. You never merge.
 >
-> **Discipline.** Every cycle, and every dispatch brief you compose at
-> every nesting depth, invokes `/discipline:sweep-all`. Do not enumerate
-> the individual disciplines — that skill resolves its own membership and
+> **Discipline.** Invoke `/discipline:sweep-all` **once per cycle, at the
+> cycle root only** — never inside a dispatch brief, and never from a
+> subagent. That skill fans out one audit fork per corrector itself, so a
+> brief that re-invokes it has each fork start another full sweep, and so on
+> down: the fan-out multiplies with depth and burns worker slots and rate
+> limit before any lane work runs. Dispatched subagents inherit the posture
+> the root sweep already set; they do not re-run it. Do not enumerate the
+> individual disciplines either — that skill resolves its own membership and
 > a hand-copied list drifts. If the `discipline` plugin is not installed
 > here, inline the equivalent standing instructions instead: verify claims
 > against authoritative sources before acting, prefer installed skills
@@ -770,6 +807,15 @@ machines; neither on the attended box.
 > to a file in your worktree or a comment on the item. Do not summarize
 > your work back to me. Speak to me only when fully blocked and unable to
 > escalate through the tracker.
+>
+> **One exception: a skill that defines its own return shape wins.** Where a
+> skill's contract specifies what its subagents return, that contract governs
+> and this two-line rule does not apply — `/discipline:sweep-all`'s audit
+> forks are the live case: they must return a full findings ledger (each
+> located finding plus its proposed remedy) and are explicitly forbidden to
+> write files, so both halves of the rule above would break it. Truncating
+> such a return to two lines silently discards the data the parent needs to
+> act on.
 >
 > **Work classes are not yours to set — in either surface.** The autonomy
 > contract is explicit: "no repo-local (agent-writable) surface may supply
@@ -842,9 +888,12 @@ machines; neither on the attended box.
 > subagent that did not produce it. If the two disagree, escalate rather
 > than pick.
 >
-> **Discipline.** Every dispatch brief at every depth invokes
-> `/discipline:sweep-all`. If that plugin is absent here, inline the
-> equivalent standing instructions instead.
+> **Discipline.** Invoke `/discipline:sweep-all` **once per cycle, at the
+> cycle root only** — never inside a dispatch brief, and never from a
+> subagent. That skill fans out its own audit fork per corrector, so
+> re-invoking it inside a brief multiplies the fan-out with every nesting
+> level. Dispatched subagents inherit the posture the root sweep set. If that
+> plugin is absent here, inline the equivalent standing instructions instead.
 >
 > **Dispatch model, every dispatch.** Your root runs on the fast tier and
 > subagents inherit it by default, so the frontier-tier conflict worker this
@@ -855,7 +904,10 @@ machines; neither on the attended box.
 > mechanical log pulls. Never leave it to inherit.
 >
 > **Return contract.** Subagents return at most two lines — verdict plus
-> identifier. Speak to me only when fully blocked.
+> identifier. Speak to me only when fully blocked. **A skill that defines its
+> own return shape wins over this rule** — `/discipline:sweep-all`'s audit
+> forks owe a full findings ledger and may write nothing, so truncating them
+> to two lines would discard exactly what the parent acts on.
 >
 > **Work classes are not yours to set — in either surface.** Never apply or
 > change a `work-class:` label, **and never write a `Work-class: C<n>`
