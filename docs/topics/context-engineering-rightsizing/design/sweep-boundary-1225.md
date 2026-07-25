@@ -118,20 +118,36 @@ router, and the plugin that already owns the cross-surface instruction inventory
 (`plugins/claude-config/skills/audit-instructions/SKILL.md:3`, `:71-88`). L2 lands in `claude-config`.
 What it lands *as* is not settled by the evidence, because both options are structural:
 
-- **Option A — a new phase in `audit-instructions`.** Reuses the Phase A inventory that already
-  enumerates every surface. Requires changing the skill's phase model: Phase B's per-surface fan-out
-  (`SKILL.md:92`) cannot host a pairwise comparison, so this adds a phase that runs after the lanes
-  and reads across them.
-- **Option B — a new sibling skill in `claude-config`.** Leaves `audit-instructions`' phase model
-  intact and keeps the report-only contract (`SKILL.md:25-29`) unchanged, at the cost of duplicating
-  surface inventory unless that inventory is extracted to a shared surface first.
+- **Option A — a new phase in `audit-instructions`.** Reuses the Phase A surface enumeration
+  (`SKILL.md:71-88`) and keeps one report. Cost: it changes a shipped skill's phase model. Phase B's
+  per-surface fan-out (`SKILL.md:92`) cannot host a pairwise comparison, so this adds a phase that
+  runs after the lanes and reads across them — and it widens the skill's advertised scope, since the
+  `description` (`SKILL.md:3`) and the stated ownership line (`:33`, "instruction **content vs
+  current model capability**") describe a per-surface content audit, not a conflict detector.
+- **Option B — a new sibling skill in `claude-config`.** Leaves `audit-instructions`' phase model and
+  advertised scope intact, and keeps its report-only contract (`SKILL.md:25-29`) untouched. Cost: it
+  re-derives the surface list unless that enumeration is first extracted to a surface both skills
+  read, and it adds a fifth skill to the plugin's listing budget.
 
-**This is an OPEN DECISION for the operator, recorded rather than resolved.** Both options satisfy
-D-3 (a skill inside the plugin that owns the surface is not a router). The choice changes
-`audit-instructions`' published contract, which is beyond a boundary document's authority to settle.
-Recommendation, offered without deciding: **Option A**, because the inventory is the expensive part
-and it already exists — but Option A is a contract change to a shipped skill and needs the operator's
-call before L2 writes code.
+Note what Option A does **not** buy: Phase A enumerates surface *paths*, not their contents — the
+content reads happen inside the Phase B lanes (`SKILL.md:90-108`). So sharing Phase A saves the
+enumeration, not the reading. Neither option has a decisive cost advantage on that axis.
+
+**This is an OPEN DECISION for the operator, recorded rather than resolved, and deliberately without
+a recommendation.** Both options satisfy D-3 — a skill inside the plugin that already owns the
+surface is not a router. The choice turns on whether `audit-instructions`' advertised scope should
+widen to include conflict detection, which is a judgment about a shipped skill's identity rather than
+something the evidence settles. L2 must not pick it unilaterally.
+
+**A ceiling both lanes inherit.** `claude-config` and `claude-memory` are model-invoked, report-only
+skills — `audit-instructions` states "There is no `--fix`" (`SKILL.md:25-29`) and `claude-memory:audit`
+gates its `fix` action behind a prior audit and approval (`SKILL.md:50-55`). A finding that lands in
+either plugin is therefore a **report**, never an enforced gate. Nothing in this repository blocks a
+merge on it. Anything that must actually *fail CI* has a different home — #445's documented
+`scripts/check-*.sh` + `.test.sh` + `ci.yml` lane shape — and that split is deterministic-versus-
+judgment, not L2-versus-L3: each lane may produce findings on both sides of it. L2 and L3 should
+decide per criterion which side a finding falls on, and route the deterministic ones to #445 rather
+than assuming a report-only skill will enforce them.
 
 **Verdict: L2 is cleared to build**, scoped to `claude-config`, blocked only on the
 Option A/B call above. Nothing in #1225, #253, or any other open issue claims this surface.
