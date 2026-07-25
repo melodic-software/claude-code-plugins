@@ -3,6 +3,25 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0]
+
+### Added
+
+- **`audit-instructions` checks I12–I14**, extending the existing `reference/criteria.md` catalog
+  rather than standing up a second one. I12 flags an instruction asserting a Claude Code *harness*
+  behavior that the current official page contradicts — the product, not the model, which is what
+  separates it from I8. I13 flags an `@path` written where `@` carries no import meaning, so the
+  cited content silently never arrives. I14 flags an instruction telling a subagent to read a
+  surface its startup context already contains. Each row carries its must-not-flag cases, and the
+  three new official sources (CLI reference, subagents, skills) join the catalog's source list.
+
+### Changed
+
+- **`Authority` gloss states what an unbacked candidate earns.** A candidate whose only backing is
+  a practitioner's claim becomes a row when an official page states the behavior it asserts, and is
+  eliminated when the search finds none. All fourteen checks remain `ANTHROPIC-DOCS`, and the axis
+  stays a closed three-value set rather than widening under every existing consumer.
+
 ## [0.9.2]
 
 ### Changed

@@ -1,7 +1,7 @@
 # Instruction-Audit Criteria
 
-Version: 1.0.0
-Last updated: 2026-07-21
+Version: 1.1.0
+Last updated: 2026-07-25
 
 The checks the `audit-instructions` skill runs, seeded from current official prompting doctrine.
 Each check carries an evidence tier, an authority tag, a default severity, its surface
@@ -19,15 +19,17 @@ are superseded on each model generation.
   truth is observed model behavior, so findings ship as proposals verified by the delete-and-watch
   loop, never confident removals).
 - **Authority** — `ANTHROPIC-DOCS` (official documentation), `TALK` (a recorded talk), `OPINION`
-  (a practitioner's stated practice). All eleven seeds are `ANTHROPIC-DOCS`.
+  (a practitioner's stated practice). A closed three-value set. All fourteen checks are
+  `ANTHROPIC-DOCS`: a candidate whose only backing is a practitioner's claim earns a row when an
+  official page states the behavior it asserts, and is eliminated when the search finds none.
 - **Severity** — `error` / `warning` / `info`.
 
 **Surface partition.** Checks I1–I5 are the instruction-memory hygiene layer: they apply on
 non-memory surfaces (skill bodies, agent definitions, prompt-type hooks, output styles); on
 memory-layer surfaces (CLAUDE.md, CLAUDE.local.md, `.claude/rules/`, `~/.claude/rules/`) their
 findings route to the `claude-memory` plugin's `audit` skill when it is installed, and fall back
-to the official include/exclude guidance (I1–I5 source below) when it is not. Checks I6–I11 apply
-to all surfaces.
+to the official include/exclude guidance (I1–I5 source below) when it is not. Checks I6–I12 apply
+to all surfaces; I13 and I14 name narrower surface sets in their own rows.
 
 ## Sources
 
@@ -40,6 +42,11 @@ to all surfaces.
 - The `.claude` directory — <https://code.claude.com/docs/en/claude-directory>
 - Refusals and fallback (`reasoning_extraction`) —
   <https://platform.claude.com/docs/en/build-with-claude/refusals-and-fallback>
+- CLI reference (`claude doctor` and the other terminal forms) —
+  <https://code.claude.com/docs/en/cli-reference>
+- Subagents (what loads into a subagent at startup) — <https://code.claude.com/docs/en/sub-agents>
+- Skills (how a skill's supporting files are referenced and loaded) —
+  <https://code.claude.com/docs/en/skills>
 
 ---
 
@@ -158,6 +165,64 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: 
   capability.
 - **Source:** best-practices — "CLI tools are the most context-efficient way to interact with
   external services."
+
+### I12: Stale or misattributed harness-capability claim
+
+Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all.
+
+- **Detect:** an instruction that asserts a Claude Code *harness* behavior — what a command does,
+  what a keystroke saves, what loads into which context window, what a mode persists — which the
+  current official page for that behavior contradicts or no longer documents. The subject is the
+  product, not the model, which is what separates this from I8.
+- **Remediate:** correct the claim against the cited page, or cut it and point at the page instead
+  of restating it. Where the behavior is version-gated, carry the minimum version with the claim.
+- **Must NOT flag:** prose that names two adjacent forms and distinguishes them correctly — the
+  terminal `claude doctor` being read-only while the in-session `/doctor` applies fixes is the
+  canonical pair, and a file that states both is right, not drifting. A bare routing pointer that
+  tells the reader to run a command without claiming what it does. Text that quotes a retired
+  affordance explicitly as retired.
+- **Source:** CLI reference — "Print read-only installation and settings diagnostics from the
+  terminal without starting a session … For the in-session setup checkup that can also apply
+  fixes, run `/doctor`."
+
+### I13: Citation form that does not load
+
+Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: non-memory only
+(skill bodies and their reference files, agent definitions, prompt-type hooks, output styles).
+
+- **Detect:** an `@path` written outside backticks and outside a fenced block on a surface where
+  `@` carries no import meaning, in a sentence that treats it as though the file arrives. Import
+  syntax is a property of the CLAUDE.md family; a skill's supporting files are reached by being
+  named so Claude knows when to read them, so an `@` there is inert text and its content silently
+  never arrives.
+- **Remediate:** cite the file the way that surface actually resolves — a backticked path or a
+  markdown link the reader and the model can both follow.
+- **Must NOT flag:** anything on a memory-layer surface, where `@path` genuinely imports. A
+  package scope (`@anthropic-ai/…`), a decorator, an email address, or a `@username` handle. A
+  backticked `` `@path` ``, which the import parser skips by design and which is the documented
+  way to mention a path without importing it. A path cited without an `@` at all.
+- **Source:** memory — "CLAUDE.md files can import additional files using `@path/to/import`
+  syntax", against skills, where supporting files are instead referenced "so Claude knows what
+  each file contains and when to load it" and no import syntax is defined.
+
+### I14: Retrieval of an already-loaded surface
+
+Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: agent definitions and
+skill bodies.
+
+- **Detect:** an instruction directing the agent to go read a surface that its own startup context
+  already contains — `CLAUDE.md`, `CLAUDE.local.md`, project rules, managed policy files. The read
+  spends a turn to retrieve text that is already present.
+- **Remediate:** cut the retrieval step and state the requirement the read was meant to satisfy.
+- **Must NOT flag:** an instruction to read a surface that is *not* auto-loaded — `AGENTS.md`,
+  contributing guides, ADRs, CI workflow files, per-ecosystem convention docs. Those are ordinary
+  progressive disclosure. An agent whose job is to audit an instruction surface, which must open
+  the file because inspecting it is the work rather than obeying it. A rule restated in a
+  delegation prompt for the built-in Explore and Plan agents, which are documented as the only
+  subagents that skip `CLAUDE.md` and have no per-agent setting to change that.
+- **Source:** subagents, "What loads at startup" — a non-fork subagent's initial context contains
+  "every level of the CLAUDE.md hierarchy the main conversation loads, including
+  `~/.claude/CLAUDE.md`, project rules, `CLAUDE.local.md`, and managed policy files."
 
 ---
 
