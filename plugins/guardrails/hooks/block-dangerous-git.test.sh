@@ -50,6 +50,7 @@ run "git push --force-with-lease --no-force-if-includes --force-if-includes (re-
 run "git push --force-with-lease --force-i --no-force-i (abbreviated negation, blocked)" "git push --force-with-lease --force-i --no-force-i origin main" 2
 run "git push --force-with-lease --force-if-includes --no-force-w (lease negation does not clear the mitigation, allowed)" "git push --force-with-lease --force-if-includes --no-force-w origin main" 0
 run "git push --force-with-lease --force-if-includes --no-dry-run (dry-run negation does not clear the mitigation, allowed)" "git push --force-with-lease --force-if-includes --no-dry-run origin main" 0
+run "git push --force-with-lease=main:abc --no-force-if-includes (stated expectation stands without the mitigation, allowed)" "git push --force-with-lease=main:abc --no-force-if-includes origin main" 0
 run "git push (plain, allowed)" "git push" 0
 run "git push -u origin main (allowed)" "git push -u origin main" 0
 run "git push -o f (option value f, allowed)" "git push -o f origin main" 0
