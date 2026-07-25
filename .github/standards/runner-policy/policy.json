@@ -414,6 +414,27 @@
         "issues": "write"
       }
     },
+    "melodic-software/ci-workflows/.github/workflows/semantic-pr.yml@380612ae1d4e0cc9741efbac7b6ffb3d3da63a04": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "selectorResultInput": "prerequisite-result",
+      "allowedInputs": ["runner", "prerequisite-result"],
+      "allowedSecrets": {}
+    },
+    "melodic-software/ci-workflows/.github/workflows/do-not-merge-gate.yml@380612ae1d4e0cc9741efbac7b6ffb3d3da63a04": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "selectorResultInput": "prerequisite-result",
+      "allowedInputs": ["runner", "prerequisite-result", "label"],
+      "allowedSecrets": {}
+    },
+    "melodic-software/ci-workflows/.github/workflows/pr-issue-linkage.yml@380612ae1d4e0cc9741efbac7b6ffb3d3da63a04": {
+      "routing": "runner-input",
+      "runnerInput": "runner",
+      "selectorResultInput": "prerequisite-result",
+      "allowedInputs": ["runner", "prerequisite-result", "exempt-authors"],
+      "allowedSecrets": {}
+    },
     "melodic-software/ci-workflows/.github/workflows/standards-sync-stuck-automerge-alert.yml@43bc8d0f4b328cba9c579039955b93259b6cc6bf": {
       "routing": "runner-input",
       "runnerInput": "runner",

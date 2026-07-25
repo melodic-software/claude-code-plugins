@@ -29,8 +29,9 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   `CLAUDE.md` at every scope, `CLAUDE.local.md`, and `.claude/rules/`; an `@path`-shaped reference in
   a skill body or agent definition points at a file read on demand, so it stays an ordinary pointer
   rather than putting never-loaded text into the comparison set. `AGENTS.md` is affirmatively
-  excluded and the reason recorded: the memory doc states Claude Code reads `CLAUDE.md`, not `AGENTS.md`, so a stock install never loads
-  it, and its content enters only through an import or symlink.
+  excluded and the reason recorded: the memory doc states Claude Code reads `CLAUDE.md`, not
+  `AGENTS.md`, so a stock install never loads it, and its content enters only through an import or
+  symlink.
 - **A dedicated cross-surface conflict lane in `audit-instructions` Phase B.** A conflict is a
   relation between two surfaces, so a per-surface lane cannot see the other side and a lane that
   rescans everything re-derives the same pair in every lane. Per-surface lanes now run their checks
@@ -106,6 +107,17 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   owner of the principle, the three anti-patterns, and the correct pattern. What a run actually needs
   was already in-plugin — each check's **Recommend** line — and both files now say so, so a report
   never depends on fetching anything.
+## [0.9.3]
+
+### Added
+
+- **`setup` evals.** The skill shipped none, against the repo's own rule that a skill carrying
+  behavioral warrants demonstrates them. Four cases cover the behaviors its SKILL.md asserts and
+  nothing else: a bare invocation routes to `check` and writes nothing; a missing `curl` FAILs
+  scoped to `check-plugin-drift.sh` alone rather than downgrading the rest of the audit surface;
+  an install request under `apply` yields platform instructions without executing a package
+  manager, and never reports a prerequisite resolved on an install command's exit code; and an
+  audit request under `setup` routes to the audit skills by name instead of being performed.
 
 ## [0.9.2]
 

@@ -74,11 +74,10 @@ near-miss recurrence in the manual lane reopens this as a design issue with full
 `handoff-verify` brings snapshot binding to the platforms where apply is unsupported, without
 adding an engine deletion lane. It takes the snapshot plus the human-approved exact path list
 (same containment rules as plan candidates: relative, non-root, no traversal, present in the
-snapshot, non-overlapping), re-validates the target root with preview's link/mount/OS-managed/
-protected-path checks but a deliberately tolerant root-identity check — stable device/inode/type
-(the same object identity apply uses for directories) instead of preview's full stat identity,
-because deleting one approved root-level item changes the root's own mtime and the manual lane
-re-verifies between items; a replaced root still refuses. It then reruns the per-path
+snapshot, non-overlapping), re-validates the target root with the same link/mount/OS-managed/
+protected-path and stable device/inode/type root-identity checks preview and apply use — the root's
+own mtime and size flip whenever any direct child is added or removed, so they are not identity; a
+replaced root still refuses. It then reruns the per-path
 identity/reparse/protection/descendant/VCS/handle checks against live state and emits one
 machine-readable verdict per path. It deliberately does not apply platform execution blockers —
 it exists exactly where `execution-platform-unsupported` blocks the engine lane — and it has no
@@ -144,6 +143,18 @@ switch. When the guard sees execution enabled they are downgraded to a final hum
 when it sees a configured `false` (audit-only mode) they are denied outright, so the kill switch would
 block deletions on the PowerShell lane too and not only the Bash engine apply.
 
+Because this lane enumerates spellings instead of denying unknown commands, its coverage is
+knowingly partial: the flagged set is deletion- and recycle-shaped (plus `robocopy` mirror/purge/move
+and .NET `Delete`), so destructive **non-deletion** spellings — `Move-Item`/`mv`, `Rename-Item`,
+overwriting writers (`Set-Content`, `Out-File`, `>`, `New-Item -Force`), and volume operations
+(`Format-Volume`, `Clear-Disk`) — reach the tool with no guard verdict at all, in audit-only mode
+included. The only thing standing between them and the filesystem is the consumer's own permission
+policy, never this guard: the manual handoff's per-path approval covers the paths selected for
+removal, so it does not reach what such a command collaterally destroys — a `Move-Item -Force`
+destination, a truncated `Out-File` target, or an entire volume.
+
+TODO(#387): extend the flagged set to those spellings.
+
 **Kill-switch enforcement (since 0.9.0): both surfaces resolve it by reading user settings.** The guard
 registers on two surfaces — the **plugin-level engine gate** (`hooks/hooks.json`, exec form,
 `--mode engine-gate`) and the **skill-scoped belt** (the clean skill's frontmatter hook) — and both
@@ -168,8 +179,9 @@ engine invocation **whether or not the clean skill is active**; it defers (no ou
 does not reference the engine, so it does **not** see PowerShell deletion spellings. Those are enforced by
 the **skill-scoped belt** (`powershell_decision`) — denied outright in audit-only — only **while the clean
 skill is active**. An absent, unreadable, or ambiguous read fails **closed to enabled**: the guard stays
-active and forces a human prompt before every mutation, so an unreadable toggle never silently disables
-the guard.
+active and forces a human prompt before every mutation **it sees** — every Bash engine `apply`, and on
+PowerShell only the flagged spellings above — so an unreadable toggle never silently disables the
+guard.
 
 This replaces the earlier delivery, where the gate carried a bare `${user_config.disk_hygiene_enabled}`
 argument. Because the declared userConfig `default` is not implemented upstream

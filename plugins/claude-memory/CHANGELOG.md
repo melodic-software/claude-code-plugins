@@ -44,6 +44,26 @@ All notable changes to the `claude-memory` plugin are documented here. Format fo
   makes the skill user-invocable only; `skillOverrides` does not reach plugin skills. Catalog
   version 1.3.0.
 
+## [0.4.1]
+
+### Fixed
+
+- **`audit` reference: the path-scoping status claim was false.** `reference/official-guidance.md`
+  asserted (dated 2026-04-01) that `.claude/rules/` files "load unconditionally at session start
+  regardless of `paths:` frontmatter", citing four open issues. A first-party repro on Claude Code
+  2.1.219 disproved it: a rule scoped `paths: ["**/*.tsx"]` was absent at session start, present
+  after reading a matching `.tsx` file, and absent again after reading a non-matching one — deferral
+  works in both directions. The cited evidence failed independently too: two of the four issues are
+  closed NOT_PLANNED and never supported the claim (#38487 asks that Write/Edit *also* trigger
+  injection, which presupposes deferral works; #32906 is a docs issue about subagents), and the two
+  still open assert opposite failure modes. The passage now states path scoping as verified working
+  on 2.1.219 as of 2026-07-24, with no version floor claimed since no changelog entry or maintainer
+  comment pins when it changed, and keeps the caveats that do survive: an `@import` inside a
+  path-scoped rule still inlines at session start and defeats the rule; path-scoped content is
+  invisible to subagents, teammates, and skill-forked contexts (#32906, closed NOT_PLANNED —
+  accepted behavior); a new-file Write does not trigger the rule; and before v2.1.211 on-demand
+  rules loaded even when `project` was excluded from `--setting-sources`.
+
 ## [0.4.0]
 
 ### Added

@@ -3,6 +3,31 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.0]
+
+### Changed
+
+- **`draft-goal-condition` is now reachable from lever-selection intent.** Its
+  Step 0 was already the lever-fit router across `/goal`, `/loop`, routines and
+  `/schedule`, a Stop hook, and a one-shot prompt, but the description sold only
+  the drafting half, so "which of these should I use" never reached it. The
+  description now leads with the routing and carries five lever-selection
+  triggers (`'which loop should I use'`, `'/goal or /loop'`,
+  `'should this be a routine'`, `'pick the right autonomy lever'`,
+  `'what kind of loop is this'`). Every pre-existing trigger phrase is
+  preserved, and the rewrite also switches the trigger list to the `Use when:`
+  form the authoring gate expects, clearing a standing warning.
+
+### Fixed
+
+- **`draft-goal-condition` no longer restates the `/goal` condition shape it
+  tells itself never to hardcode.** Step 2 enumerated a four-part shape and
+  Step 3's tightening rule named those parts, while the skill's own gotcha
+  forbids baking the shape into this file — and the restatement had already
+  drifted: the live page prescribes three elements and treats the turn/time
+  clause separately. Both steps now defer to the shape Step 1 reads off the live
+  page.
+
 ## [0.25.0]
 
 ### Added

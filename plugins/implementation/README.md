@@ -77,6 +77,18 @@ Artifact placement is governed by the tracked `.claude/topic-docs.yaml` concern 
 `/planning:setup`, `/verification:setup`) interviews for and persists it. This plugin
 declares no userConfig options.
 
+Testing cadence is project policy. TDD remains the fallback when the consuming project's
+`CLAUDE.md` or rules do not declare another cadence. To opt out, add an explicit project
+instruction, for example:
+
+```markdown
+## Testing
+
+Use tests-after for implementation work; do not use test-first TDD.
+```
+
+`/implementation:implement` follows that project instruction in every execution mode.
+
 ## License
 
 MIT (SPDX-License-Identifier: MIT).

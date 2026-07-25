@@ -10,7 +10,7 @@ shell: bash
 ## Pre-computed context
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Claude session: !`echo "${CLAUDE_CODE_SESSION_ID:-unknown}"`
+Claude session: !`echo "${CLAUDE_CODE_SESSION_ID:-unknown}" || echo "unknown"`
 Uncommitted changes: !`git status --porcelain 2>/dev/null | head -20 || echo "clean"`
 Recent commits: !`git log --oneline -5 2>/dev/null || echo "no commits"`
 
@@ -23,7 +23,7 @@ follow-ups are small — and `/clear`.
 Based on the canonical pattern Anthropic recommends for the `/clear` workflow: put the rest of the
 plan in a handoff file; explain what you tried, what worked, and what didn't, so the next agent with
 fresh context can load that file and nothing else. The save-point captures a *snapshot* of in-flight
-state — including what was tried and ruled out — so the next session doesn't waste effort
+state — including the approaches already ruled out — so the next session doesn't waste effort
 rediscovering dead ends.
 
 This skill delivers the save-point for a MANUAL resume: the user `/clear`s and pastes the resume
@@ -118,13 +118,15 @@ ambiguous.
 - [ ] Position located + next stage named (fresh reads this turn)
 - [ ] Handoff file written to the handoff location (self-ignore guard verified first) with
   frontmatter per the engine's structure doc (`${CLAUDE_PLUGIN_ROOT}/reference/structure.md`)
-- [ ] `previous_handoff` + `previous_session_id` present IF this session continued a prior
-  handoff's task (chain continuity per the same structure doc); omitted otherwise — including when
-  the directory holds only unrelated-task handoffs
-- [ ] All eight body sections present
+- [ ] `previous_handoff` present IF this session continued a prior handoff's task (chain continuity
+  per the same structure doc); omitted otherwise — including when the directory holds only
+  unrelated-task handoffs
+- [ ] Every body section the structure doc defines is present — walked from that doc this turn, not
+  written from memory; a section with nothing to report says so explicitly rather than being omitted
 - [ ] Redaction pass swept the file AND the prompt (secrets/tokens/credentials/PII replaced with
   shape markers)
-- [ ] TaskList snapshot + Reconstitute sections present (OR explicit "exception: 0 active tasks")
+- [ ] TaskList captured with literal recreate calls in the environment section, from a live
+  `TaskList` call this turn (OR an explicit statement that there is nothing to recreate)
 - [ ] Resume prompt emitted between dashed rails, `@`-referencing the file; copy instruction above
   the top rail; `/goal` first line if a goal is active
 - [ ] **EXECUTION STOPS HERE**
@@ -141,7 +143,7 @@ ambiguous.
 ## What this skill does NOT do
 
 - **Does not commit** — handoff docs are durable task state, not source code. Commit ready code
-  changes separately; describe uncommitted work in "Progress"
+  changes separately; describe uncommitted work in the file-roles section
 - **Does not invoke `/clear`** — the user types `/clear`. The skill produces the save-point, emits
   the resume prompt, and stops
 - **Does not launch a background agent** — background delegation is the sibling

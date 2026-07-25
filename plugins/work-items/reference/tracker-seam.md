@@ -208,6 +208,11 @@ bound adapter's operations reference — for GitHub, `${CLAUDE_PLUGIN_ROOT}/tool
   out-of-scope concept file), re-read it from disk — another session may have written since it was
   last in context — and append or merge into what's there rather than rewriting the whole file from
   memory.
+- **`wayfind: *` is another skill's routing state, not classification to apply.** A lane that
+  meets a `wayfind: *` label on an item under evaluation (triage or otherwise) is read-only on
+  it — never apply, strip, or require a `wayfind:` value; it is written only by `/planning:wayfind`
+  on its own map sub-issues (`${CLAUDE_PLUGIN_ROOT}/reference/label-taxonomy.md` "Skill-private
+  routing markers").
 
 ## What these skills do NOT do
 
