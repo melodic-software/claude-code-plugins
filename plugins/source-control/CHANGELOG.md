@@ -3,21 +3,6 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.26.9]
-
-### Added
-
-- **`babysit-prs` single-`--pr` scope now has end-to-end coverage that the resolved self-identity set
-  is consumed, not merely populated (#497).** The ordering fix itself shipped in 0.16.0 (#882), which
-  hoisted `resolve_self_logins` above the single `build_config` call so `--pr` and `--queue` share one
-  config; that PR deliberately left #497's acceptance to be verified separately. Every existing
-  `--pr` test stopped the per-PR loop before `classify_pr` (stubbing `view_pr` to raise), so nothing
-  proved the arms that read `config.self_logins` actually fire in single-PR mode. Two tests now drive
-  a real classification through `build_snapshot`: a self-authored human comment stays human-blocking
-  but is excluded from `new_feedback.human` (no self-inflicted worker re-dispatch), and
-  `detect_foreign_activity` fires on a self-authored trigger-phrase comment absent from the mutation
-  ledger. Both fail when the self set is empty. Tests only; no behavior change.
-
 ## [0.26.8]
 
 ### Fixed
