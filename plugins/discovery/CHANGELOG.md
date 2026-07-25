@@ -11,12 +11,14 @@
   reorder authority: the tier table still ranks that, and the recency gate's changelog cross-check
   stays unconditional. Stopping at an announcement page — the shallowest rung that still carries the
   claim — and reporting a figure as unsourced is the failure this closes. Gate criterion 9 checks it.
-- **Outcome-gate criteria 9 and 10** — 9: the fetch log must show the topmost existing rung for every
-  ACCEPTED vendor-published claim, with an unreachable rung passing only as an enumerated Gap so the
+- **Outcome-gate criteria 9 and 10** — 9: for every ACCEPTED vendor-published claim the fetch log must
+  show the rung the claim came from AND a recorded discovery probe for every rung above it, since an
+  unprobed "nothing deeper exists" would let the shallow run this criterion targets nominate its own
+  landing page as the top; an unreachable rung passes only as an enumerated Gap, so the
   graceful-degradation contract still holds. 10: every reported absence must name both the checked
-  and the unchecked set. The broad-topic eval gains a does-NOT-support clause so criterion 10 is
-  exercised by a real absence rather than passing vacuously, and its outcome-gate expectation is
-  updated to match.
+  and the unchecked set. The broad-topic eval gains concrete thresholds and a does-NOT-meet clause so
+  criterion 10 is exercised against a real negative rather than passing vacuously, and its
+  outcome-gate expectation is updated to match.
 
 ### Changed
 
@@ -25,7 +27,9 @@
   limit. Recipe — download out of context, confirm the file is the artifact and not a 200
   login/consent/bot-challenge page, extract with whatever extractor the machine has, grep. An
   unconfirmed download routes back to the browser/scraper escalation rungs and does not count as the
-  recipe having run, so it can never manufacture a premature "unreachable".
+  recipe having run, so it can never manufacture a premature "unreachable". "Unreachable" is reserved
+  for extraction that failed after escalation also failed: an artifact that WAS confirmed, extracted,
+  and searched is a REACHED source that belongs in the checked set even when the claim is not in it.
 - **Absence claims ship their enumeration.** A negative finding states the sources actually checked
   AND the sources left unchecked, never a bare "unsourced" / "not found" — an absence claim is only
   as strong as the set it was checked against. Stated at the `Gaps` output contract, gated by
