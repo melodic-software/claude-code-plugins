@@ -144,6 +144,15 @@ switch. When the guard sees execution enabled they are downgraded to a final hum
 when it sees a configured `false` (audit-only mode) they are denied outright, so the kill switch would
 block deletions on the PowerShell lane too and not only the Bash engine apply.
 
+Because this lane enumerates spellings instead of denying unknown commands, its coverage is
+knowingly partial: the flagged set is deletion- and recycle-shaped (plus `robocopy` mirror/purge/move
+and .NET `Delete`), so destructive **non-deletion** spellings — `Move-Item`/`mv`, `Rename-Item`,
+overwriting writers (`Set-Content`, `Out-File`, `>`, `New-Item -Force`), and volume operations
+(`Format-Volume`, `Clear-Disk`) — reach the tool with no guard verdict at all, in audit-only mode
+included. Data loss through those spellings is held only by the per-path human approval the manual
+handoff already requires and the consumer's own permission policy, never by this guard.
+TODO(#387): extend the flagged set to those spellings.
+
 **Kill-switch enforcement (since 0.9.0): both surfaces resolve it by reading user settings.** The guard
 registers on two surfaces — the **plugin-level engine gate** (`hooks/hooks.json`, exec form,
 `--mode engine-gate`) and the **skill-scoped belt** (the clean skill's frontmatter hook) — and both

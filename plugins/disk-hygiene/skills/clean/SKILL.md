@@ -336,8 +336,9 @@ sparse files, hard links, compression, and delayed allocation affect it.
   (`CLAUDE_TOOL_NAME` does not exist).
 - The PowerShell lane is the inverse tradeoff: it stays open for read-only support work (git, gh,
   metadata probes) and instead hard-denies engine invocations and turns known deletion spellings
-  into a final human permission prompt. It is a raised bar, not a fail-closed lane; the engine's
-  own containment and the Bash lane remain the deletion authority.
+  into a final human permission prompt. It is a raised bar, not a fail-closed lane — move, rename,
+  overwrite, and volume-format spellings are not flagged at all (`reference/safety-model.md`); the
+  engine's own containment and the Bash lane remain the deletion authority.
 - The guard rejects `~` anywhere in a Bash command as a shell-expansion character, which includes
   Windows 8.3 short names (`SOMEUS~1`). Always pass long-form paths; the guard's own disclosures
   are already long-form.
