@@ -3,6 +3,49 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0]
+
+### Added
+
+- **`audit-instructions` checks I12–I14**, extending the existing `reference/criteria.md` catalog
+  rather than standing up a second one. Each row carries its must-not-flag cases, and the three new
+  official sources (CLI reference, subagents, skills) join the catalog's source list.
+- **I12 — stale or misattributed harness-capability claim.** The subject is the product, not the
+  model, which separates it from I8. Detection needs an official page stating something incompatible
+  with the claim, or a failed reproduction — and each arm is bounded so the check cannot manufacture
+  findings. **Documentation silence is not drift**: pages are rewritten and condensed, and this
+  repository keeps empirical tests for behaviors the docs never specified. **A reproduction must
+  match every stated precondition** — version, OS, setting, account tier, feature flag, launch mode —
+  and a failure without them is inconclusive rather than a finding.
+- **I13 — prose written on the assumption that an `@path` imported**, on a surface where `@` carries
+  no import meaning. The finding is the false premise, not the citation form: an inert `@path` is
+  still a legible path, so "follow `@reference/rules.md`" works and flagging it would report a
+  working instruction. Remediation rewrites the assertion into an explicit read, because swapping the
+  syntax alone leaves the claim false — no citation form imports anything on these surfaces.
+- **I14 — an instruction to read a surface the main conversation already loads at startup.** Bounded
+  to the root `CLAUDE.md`, the user `CLAUDE.md` at the **resolved** `${CLAUDE_CONFIG_DIR:-~/.claude}`,
+  the root `CLAUDE.local.md`, unconditional project rules and managed policy files. Nested
+  `CLAUDE.md` and `CLAUDE.local.md` files and path-scoped rules load lazily and are exempt, as is any
+  read where **the file is the operation's subject** — the startup copy is a launch-time snapshot, so
+  cutting a pre-edit read produces a patch against stale content.
+
+### Changed
+
+- **Recheck triggers now watch every page in the catalog's source list**, not the three originally
+  named. Each check cites one of those pages, so a subset left the new harness-behavior rows
+  depending on pages nothing watched.
+- **The surface partition no longer widens a row.** It said the full catalog applies on non-memory
+  surfaces while I13 and I14 declare narrower surface sets, so a lane could emit I14 findings on
+  prompt-type hooks and output styles the criterion excludes. Each row's own declaration bounds it.
+- **The `description` carries the new checks' trigger vocabulary.** It framed the skill purely as
+  finding instructions the model no longer needs, and only the description is available during skill
+  selection — so a request about a stale harness claim, a non-loading `@path`, or a redundant
+  startup-surface read would not have selected the catalog that answers it.
+- **`Authority` gloss restated descriptively.** It now reads "All fourteen checks are currently
+  `ANTHROPIC-DOCS`" — a statement about the catalog's present contents, not a rule. `TALK` and
+  `OPINION` stay reachable for a future row, and the axis stays a closed three-value set rather than
+  widening under every existing consumer.
+
 ## [0.9.3]
 
 ### Added

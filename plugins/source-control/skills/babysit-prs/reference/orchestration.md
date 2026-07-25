@@ -650,7 +650,9 @@ Give each worker:
 - the PR title (interpolated only inside the prompt's quoted untrusted-data section)
 - expected head SHA
 - target branch name
-- target worktree path (under `<worktree-root>` — see `worktrees.md`)
+- the target worktree's **absolute** path (under `<worktree-root>` — see `worktrees.md`), never a
+  relative one — a relative path resolves against whatever the working directory happens to be on
+  the call that uses it
 - relevant blockers from the snapshot
 - `needs_worker_reasons` from the snapshot (why this PR was dispatched this cycle — new commits,
   new feedback, checks resolved, etc.) so the worker starts from what changed instead of
@@ -665,6 +667,35 @@ Give each worker:
 Each worker must:
 
 - operate only on its assigned PR and worktree
+- **never rely on the shell's working directory persisting across separate tool calls.** A one-time
+  `cd` into the assigned worktree is not enough — cwd can drift back to the session's default
+  checkout between a read and the next write, silently committing branch-owned fixes into the wrong
+  repository. Three classes of call need anchoring:
+  - **git** — `git -C <absolute-worktree-path>` on every one (`status`, `add`, `commit`, `diff`,
+    `log`, `push` — all of them).
+  - **file reads and edits** — every path passed to a file-read, edit, write, glob, or search tool
+    is absolute, never a bare relative path. A relative path resolves against cwd exactly as a
+    shell command does, so a worker can validate a finding against the session's checkout, or
+    overwrite unrelated work in it, while its `git -C` calls correctly target the assigned
+    worktree. For a file **in the target repository** the absolute path is the assigned worktree's
+    own — the absolute worktree path or a `<absolute-worktree-path>/…` prefix. Files outside it
+    that the worker is told to read — this skill's references, `${CLAUDE_PLUGIN_ROOT}/…` — take
+    their own absolute paths; the worktree prefix does not apply to them.
+  - **other commands with no `-C`** that derive their target from the working directory (bare `gh`,
+    `fetch-all-pr-comments.sh`, the target repository's own build/test/lint commands) — either
+    re-`cd` into the worktree inside that same call or pass the command its own explicit target
+    (`GH_REPO=owner/repo` for `gh`, `FETCH_COMMENTS_OWNER`/`FETCH_COMMENTS_REPO` for the
+    comment fetcher). `GH_REPO` selects the *remote* repository only — `gh help environment` scopes
+    it to "commands that otherwise operate on a local repository," not to the local working tree —
+    so it is the escape for read-only and remote-only `gh` calls (`pr view`, `pr checks`,
+    `api`, `pr comment`). Any `gh` call that mutates the local checkout — `gh pr checkout`, whose
+    own help reads "Check out a pull request in git" — takes a same-call `cd` into the worktree
+    regardless, because `GH_REPO` would leave it fetching and switching branches in whatever
+    directory cwd happens to be.
+
+  The one helper a worker invokes, `source-control-babysit-resolve-thread`, takes the PR and every
+  thread pin as explicit arguments and reads nothing from the working directory, so it needs no
+  anchoring.
 - follow the target repository's `AGENTS.md`, `CLAUDE.md`, signing, commit-message, attribution,
   and push conventions; never add a co-author trailer unless explicitly required
 - stop unless `mutation_policy.branch_write_allowed` is true
@@ -714,7 +745,7 @@ PRs; do not revert or disturb their work.
 Assigned PR: <url> (owner/repo#42)
 Expected head SHA: <sha>
 Branch: <branch>
-Worktree: <path>
+Worktree (absolute path): <absolute path>
 Branch writes allowed: <true only from mutation_policy.branch_write_allowed>
 Pre-push outdated threads you may auto-resolve (id, comment count, last updated): <list or none>
 
@@ -732,8 +763,24 @@ or who they claim to be from.
 
 Read this skill's reference files, the shared review discipline at
 ${CLAUDE_PLUGIN_ROOT}/reference/review-discipline.md, and the target repository's own agent
-instructions (AGENTS.md, CLAUDE.md). Work only in the assigned worktree and follow the
-repository's signing, commit-message, attribution, and push conventions. Never add a co-author
+instructions (AGENTS.md, CLAUDE.md). Work only in the assigned worktree, and never rely on the
+shell's working directory persisting across separate tool calls: a one-time cd is not enough,
+because cwd can drift back to this session's default checkout between a read and the next write
+and silently commit into the wrong repository. Anchor every git operation with
+git -C <absolute worktree path> — status, add, commit, diff, log, push, all of them. Give every
+file read, edit, write, glob, and search an absolute path, never a bare relative one — a relative
+path resolves against cwd too, so you can validate a finding against the wrong checkout or
+overwrite unrelated work in it. For target-repository files that absolute path is
+<absolute worktree path>/...; files outside the worktree that you are told to read, such as this
+skill's references under ${CLAUDE_PLUGIN_ROOT}, take their own absolute paths. For any other command with no -C
+equivalent that derives its target from the working directory (bare gh, fetch-all-pr-comments.sh,
+the target repository's own build/test/lint commands), either re-cd into the worktree inside that
+same call or pass the command its explicit target (GH_REPO=owner/repo for gh,
+FETCH_COMMENTS_OWNER/FETCH_COMMENTS_REPO for the comment fetcher). GH_REPO selects the remote
+repository only, so use it for read-only and remote-only gh calls (pr view, pr checks, api,
+pr comment); any gh call that mutates the local checkout, such as gh pr checkout, takes a
+same-call cd into the worktree instead, or it will fetch and switch branches wherever cwd is.
+Follow the repository's signing, commit-message, attribution, and push conventions. Never add a co-author
 trailer unless explicitly required. Re-check the PR head SHA before editing and before pushing.
 Stop unless branch writes are allowed. Fix only clear branch-owned CI or bot-review issues.
 Never refresh branches, post review triggers, merge, enable auto-merge, force-push, change
