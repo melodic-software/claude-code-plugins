@@ -650,6 +650,26 @@ Decision 14 retires `explore-deep` **only once `explorer.md` reproduces its proj
 and sidecar-on-collision behavior**. This phase evaluates that condition and branches.
 
 1. Read `explore-deep/SKILL.md` end to end; enumerate every behavior it carries beyond `/explore`.
+
+   **DONE 2026-07-25 — enumeration below, read against the file at `c583705121`.** Pulled forward out
+   of Phase 5 on purpose: Decision 14's gate is "does `explorer.md` reproduce these", and `explorer.md`
+   is authored in **Phase 1**. Discovering the list only at Phase 5 would mean either a rewrite or a
+   retirement blocked on work Phase 1 could have done. Phase 1 authors against this table; Phase 5
+   grades against it.
+
+   | # | Behavior beyond `/explore` | Site | Phase 1 obligation |
+   |---|---|---|---|
+   | 1 | **Path-scoped project rules loaded explicitly** — a subagent does not auto-load `.claude/rules/`, so scope-relevant rule files are Read before scope work begins | `:30` | **Decision 14 gate condition A.** `explorer.md` must carry this or `explore-deep` cannot retire |
+   | 2 | **Sidecar on collision** — an existing unrelated `EXPLORE.md` diverts the write to `EXPLORE-<scope>.md`, and the filename choice is surfaced in the return | `:50` | **Decision 14 gate condition B.** Same |
+   | 3 | **Scope comes only from `$ARGUMENTS`, with a defined empty-scope fallback** — a general repository-orientation pass, declared as unscoped in *both* artifact and summary | `:32` | Reframe, do not copy: work item 0 settled that `$ARGUMENTS` is empty under preload, so the agent's scope arrives in the dispatch prompt. The *fallback* survives as the refuse-to-guess rule; the empty-scope orientation pass does not, because a dispatched agent with no scope is a parent-envelope failure, not a mode |
+   | 4 | **Absolute project root resolved but never echoed into the artifact** — machine-agnostic relative paths only | `:18` | Carry into `explorer.md`; it is an artifact-portability invariant, independent of dispatch |
+   | 5 | **Read-only boundary stated as instruction, not tool enforcement** — no Edit, no mutating Bash; the only writes are the artifact and the memory root's self-ignoring `.gitignore` guard | `:24` | Already the shape of Phase 1's tool-honesty note. Note the `.gitignore` guard write — it is a second permitted write target and the note must not claim a single one |
+   | 6 | **Outcome gate runs BEFORE the write**, as a binary artifact self-check rather than a did-I-explore-enough recap | `:46` | Carry over, reconciled with C2's `verification: pending` — the producer still renders no verdict on the criteria C2 assigns away |
+   | 7 | **Assumed destinations are flagged in the return summary** under the non-interactive/forked-mode rule | `:48` | Folds into the C2 payload rather than prose |
+   | 8 | **Return shape is bounded** — one 3–5 sentence paragraph, the artifact path, blocking open questions, and explicitly NOT the 7-section report | `:54`–`:60` | Already C2's shape; confirms C2 was derived from a real precedent rather than invented |
+   | 9 | **`!` precompute of branch, working-tree status, and project root** | `:14`–`:16` | **Do not reproduce.** Amendment 9c's rule: precompute fires at every spawn before the agent knows it needs the data, and multiplies under fan-out. Amendment 7 additionally bars correctness from depending on it |
+   | 10 | **Stale `CLAUDE_CODE_FORK_SUBAGENT=1` requirement in the description** | `:3` | Not a behavior — the defect #1267 tracks, doubly wrong for also attaching the gate to `context: fork` rather than the `fork` subagent type. Step 4's disposition covers it |
+
 2. Check each against `plugins/discovery/agents/explorer.md` as written in Phase 1.
 3. **Gate:** every behavior reproduced → retire. Any behavior missing → **do not retire**; add it to
    `explorer.md` if cheap, else leave `explore-deep` in place and file the residue as a work item.
