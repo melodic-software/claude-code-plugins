@@ -292,8 +292,10 @@ unambiguous; ask only where an item genuinely needs the user.
      was retired from the schedule — otherwise the `recurring`-labeled issue lingers unreachable.
    A rename or drop with no exact-match open item needs no reconciliation.
 9. **Verify after remediation.** Re-run the `check` probes on the written binding and schedule — binding
-   validity (including any `config.role_labels` step 2 wrote), JSON validity, unique `id`/`title`,
-   tracked-not-ignored — and report the actual results, never success on the write alone.
+   validity, including that any `config.role_labels` step 2 wrote survived the step-7 write intact and
+   is well-formed; JSON validity; unique `id`/`title`; tracked-not-ignored — and report the actual
+   results, never success on the write alone. This re-run is scoped to those probes: step 6 already
+   owns whether the resolved label exists in the provider, so do not repeat that lookup here.
 
 ## Canonical role labels (optional remap)
 
