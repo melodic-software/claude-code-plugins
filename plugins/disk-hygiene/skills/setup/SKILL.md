@@ -40,16 +40,25 @@ note that re-enabling restores the FAIL semantics.
    absolute interpreter path (guarded engine calls must use the same absolute interpreter
    the guard reports — Bash aliases and functions cannot substitute).
 
-   On Windows, also confirm the name the guard launches is real, not the Store stub. The
-   `clean` guard hook runs the literal command `python3` (`skills/clean/SKILL.md`); on stock
-   Windows `python3` resolves to a zero-length `WindowsApps\python3.exe` App Execution Alias
-   that opens the Microsoft Store instead of an interpreter — so the guard never runs and
-   cannot block, a silent fail-open. After finding the working interpreter above, run the
-   bundled probe with it (it inspects the resolution, never executing the stub):
-   `"<python>" "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/python3_alias_probe.py"`. Only
-   verdict `ok` passes; fail closed on everything else, using the probe's `detail` as the
-   remediation. FAIL on `store-alias-stub` (disable the `python3` App execution alias, or
-   install real Python ahead of WindowsApps on `PATH`) and equally on `indeterminate` — an
+   On Windows, confirm the name the guard launches is real BEFORE anything executes it —
+   including this floor check's own version probe. The `clean` guard hook runs the literal
+   command `python3` (`skills/clean/SKILL.md`); on stock Windows `python3` resolves to a
+   zero-length `WindowsApps\python3.exe` App Execution Alias that opens the Microsoft Store
+   (or hangs) instead of running an interpreter — so the guard never runs and cannot block,
+   a silent fail-open, and executing that name from setup pops the Store instead of probing.
+   Order of operations: (a) locate the resolution without executing it (`Get-Command python3`
+   / `command -v python3` — locating is inspection; running is not); (b) classify it with the
+   bundled inspect-only probe, launched via an interpreter that is NOT the bare name
+   `python3` (`py -3`, `python`, or an absolute interpreter path — any interpreter already
+   proven real):
+   `"<python>" "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/python3_alias_probe.py"`; if no
+   such interpreter exists, apply the probe's own portable signal directly in PowerShell — a
+   zero-length file under a `WindowsApps` path component is the stub
+   (`(Get-Item -Force (Get-Command python3).Source)` → `Length` 0 plus a `ReparsePoint`
+   attribute); (c) only after the verdict is `ok` may the version probe execute `python3`.
+   Only verdict `ok` passes; fail closed on everything else, using the probe's `detail` as
+   the remediation. FAIL on `store-alias-stub` (disable the `python3` App execution alias,
+   or install real Python ahead of WindowsApps on `PATH`) and equally on `indeterminate` — an
    interpreter whose identity the probe could not read is uncertainty about the guard's own
    launch, which fails closed like every other guard-relevant unknown in this plugin, never
    silently passes. `not-found` means the name the guard launches does not resolve at all;

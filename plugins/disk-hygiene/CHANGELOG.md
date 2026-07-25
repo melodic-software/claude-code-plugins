@@ -18,7 +18,11 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   interpreter. `setup check` now runs a bundled inspect-only probe
   (`skills/setup/scripts/python3_alias_probe.py`, covered by `test_python3_alias_probe.py`) that
   classifies the `python3` resolution — zero length under a `WindowsApps` path component is the stub —
-  without executing it. The check fails closed on every verdict except `ok`: the stub and an
+  without executing it, and orders the check so nothing (including the version-floor probe itself)
+  executes the bare name `python3` until that verdict is `ok`: the probe is launched via an
+  already-proven interpreter (`py -3`, `python`, or an absolute path), with a direct PowerShell
+  inspection of the resolved path as the interpreter-less fallback. The check fails closed on every
+  verdict except `ok`: the stub and an
   unreadable-identity (`indeterminate`) verdict both FAIL with remediation (disable the App execution
   alias, or put real Python ahead of WindowsApps on `PATH`), and an absent `python3` folds into the
   floor's missing-interpreter FAIL. The README requirements section documents the vector.
