@@ -31,7 +31,8 @@ Official contracts:
    debug logs, credential stores, or the token itself.
 2. When the plugin is disabled, direct the user to enable `miro` through the `/plugin` interface or
    `claude plugin enable miro`. Claude Code's native prompt collects the required token. Do not run
-   either command for the user and do not hand-edit `pluginConfigs`.
+   either command for the user and do not hand-edit `pluginConfigs`. For a non-interactive install
+   (CI, a fleet bootstrap, a scripted machine setup), point to the headless path below instead.
 3. When the plugin is enabled but its tools are absent, report that startup or configuration failed.
    Direct the user to the `/plugin` Errors view, then to the native configuration prompt for `miro`.
    After configuration, require `/reload-plugins` or a new session before rechecking tool availability.
@@ -44,6 +45,27 @@ Official contracts:
    - Authentication failure directs the user back to Claude Code's native configuration prompt.
    - Network, rate-limit, or service failure is reported as a distinct degraded state; do not tell the
      user to replace a credential unless the response identifies authentication as the cause.
+
+## Headless installation
+
+For a non-interactive install — CI, a fleet bootstrap, a scripted machine setup — seed the token
+on the initial install instead of the interactive `/plugin` prompt:
+
+```shell
+claude plugin install miro@melodic-software --config miro_api_token=<token>
+```
+
+**Fresh-install-only:** `--config` seeds a value only on a fresh install. Re-running it against
+an already-installed `miro` does not update the stored token. To rotate or clear the token later,
+use `/plugin configure miro` (interactive, any time) or uninstall then reinstall with a new
+`--config` value (headless) — never re-run `install --config` against an existing install
+expecting it to take effect.
+
+**Security note:** passing the token as a CLI argument records it in shell history
+(`.bash_history`, `.zsh_history`) and briefly exposes it in the process table
+(`/proc/<pid>/cmdline`, `ps aux`) while the command runs — unlike the interactive `/plugin`
+prompt, which masks input and touches neither surface. In CI/CD, route the value through your
+secrets manager rather than inlining it literally.
 
 ## Output
 

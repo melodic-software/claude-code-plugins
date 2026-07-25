@@ -41,7 +41,8 @@ Official contracts:
 2. When the plugin is disabled (no `dometrain`-scoped tool was ever attempted), direct the user to
    enable it through the `/plugin` interface or `claude plugin enable dometrain`. Claude Code's
    native prompt collects the required key. Do not run either command for the user and do not
-   hand-edit `pluginConfigs`.
+   hand-edit `pluginConfigs`. For a non-interactive install (CI, a fleet bootstrap, a scripted
+   machine setup), point to the headless path below instead.
 3. When the plugin is enabled and a `dometrain`-scoped tool resolves (via direct tool-list
    presence or a successful `ToolSearch` match), report **connected**: the server started and the
    key was supplied. Do not claim the key has valid API access beyond that — a connection-layer
@@ -57,6 +58,22 @@ Official contracts:
      doesn't have.
    - After the user reconfigures the key, require `/reload-plugins` or a new session before
      rechecking tool availability.
+
+## Headless installation
+
+For a non-interactive install — CI, a fleet bootstrap, a scripted machine setup — seed the key
+on the initial install instead of the interactive `/plugin` prompt:
+
+```shell
+claude plugin install dometrain@melodic-software --config dometrain_api_key=<your-key>
+```
+
+**Fresh-install-only:** `--config` seeds a value only on a fresh install. Re-running it against
+an already-installed `dometrain` does not update the stored key. To rotate or clear the key
+later, use `/plugin configure dometrain` (interactive, any time) or uninstall then reinstall with
+a new `--config` value (headless) — never re-run `install --config` against an existing install
+expecting it to take effect. Full detail, including the command-line-exposure caveat, is in the
+README's [Rotating or clearing the key](../../README.md#rotating-or-clearing-the-key) section.
 
 ## Output
 

@@ -3,6 +3,14 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.1]
+
+### Added
+
+- Setup skill documents the headless `claude plugin install --config miro_api_token=<token>`
+  seeding path, its fresh-install-only caveat, and the shell-history/process-table exposure
+  caveat (`docs/PLUGIN-PHILOSOPHY.md` userConfig conformance).
+
 ## [0.2.0]
 
 ### Changed
