@@ -381,8 +381,8 @@
       "tags": ["audit", "drift", "documentation", "configuration", "architecture", "verification", "claims", "skill"]
     },
     {
-      "name": "re-anchor",
-      "source": "./plugins/re-anchor",
+      "name": "discipline",
+      "source": "./plugins/discipline",
       "category": "quality",
       "tags": ["re-anchor", "discipline", "corrector", "research", "standards", "duplication", "incumbency", "terseness", "upstream", "conformance", "selection", "communication", "determinism", "consistency", "skills", "audit", "skill"]
     },
@@ -486,6 +486,7 @@
     "claude-config-audit": "claude-config",
     "boris": "playbooks",
     "thariq-skills": "playbooks",
-    "fable-5-playbook": "playbooks"
+    "fable-5-playbook": "playbooks",
+    "re-anchor": "discipline"
   }
 }
