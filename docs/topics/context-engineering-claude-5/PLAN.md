@@ -932,20 +932,31 @@ review's surfaces 1, 2, 5, 6, and 7 are all clean — audit-pass ships no hooks,
 telemetry, no `bin/`, and no `settings.json` `agent` — so the residual is entirely the runtime
 behavior the threat-model section covers.
 
-**Two divergences between this branch's design and what #1318 ships**, recorded as findings against
-the implementation lane and not edited from here:
+**Two divergences between this branch's design and what #1318 shipped, both since closed.** They are
+kept rather than deleted because the record of what the walk found is the traceability this gate
+rests on — but each is marked with what closed it, since a stale divergence claim on a durable
+surface is the same defect this deliverable exists to detect.
 
-1. **The shipped `run-contract.md:14` carries `identity = (surface, check, anchor, claim)`** — the
+1. ~~**The shipped `run-contract.md:14` carries `identity = (surface, check, anchor, claim)`**~~ — the
    superseded tuple, which [design/rerun-contract.md](design/rerun-contract.md) §1 replaced precisely
    because it cannot express a pairwise finding, and D1 is the deliverable's entire payload. The
-   shipped file also carries no `sites` set, no `anchor/v1` version tag, no `e:`/`s:` granularity
-   discriminator, and no harness-version input. It implements the pre-task-#54 contract.
-2. **Liveness is absent**, per the PII paragraph above — so Assertion 1.1 ships unscoped, and P1's
-   exact equality ships without its liveness-basis clause. Both were falsifiable in that form by
-   correct behavior on a second machine.
+   shipped file also carried no `sites` set, no `anchor/v1` version tag, and no `e:`/`s:` granularity
+   discriminator. **Closed:** #1318 now ships `identity = (check, claim, sites)` with `sites` a
+   canonically sorted set, the `anchor/v1` version tag, and both granularity prefixes.
+2. ~~**Liveness is absent**~~ — Assertion 1.1 shipped unscoped and P1's exact equality shipped without
+   its liveness clause, both falsifiable in that form by correct behavior on a second machine.
+   **Closed:** Assertion 1.1 now reads "for a fixed tree **and a fixed live surface set**", and P1 is
+   conditioned on run comparability.
 
-Neither divergence is a gate criterion; both would make the shipped contract fail its own
-idempotence claim, which is why they are recorded with the gate rather than after it.
+**One sub-claim of divergence 1 outlived it and is now closed too: the missing harness-version
+input.** #1318's P1 was conditioned on tree and live surface set alone, so a harness or
+detection-version change — which legitimately moves the derived tier, since it reads a versioned
+registry of harness behavior — read as a determinism failure. Closed by giving the shipped contract
+the same single **comparability** precondition the design carries: tree, live surface set, detection
+version, and harness version, defined once and cited by every property.
+
+None of these is a gate criterion; each would have made the shipped contract fail its own idempotence
+claim, which is why they are recorded with the gate rather than after it.
 
 **The acceptance gate is not the whole security review, and assuming it was is a gap this plan
 carried.** That gate checks distribution hygiene — properties of the artifact as a shipped plugin.

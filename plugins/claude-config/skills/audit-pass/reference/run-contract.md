@@ -399,12 +399,26 @@ An unfalsifiable `passed` is worse than an honest `indeterminate`: it manufactur
 a precondition nobody checked, and it is indistinguishable in the report from a gate that genuinely
 held.
 
-- **P1 — determinism.** Tree unchanged **and live surface set unchanged** ⇒ `D(R1) = D(R2)`, exactly.
-  Not a subset, not a tolerance. The liveness clause is load-bearing rather than a hedge: startup
-  scope depends on the launch directory and on settings the tree does not contain, so two runs over a
-  byte-identical tree can legitimately see different surfaces. **A liveness change is reported as the
-  cause and never silently absorbed** — a run that quietly attributed a liveness difference to the
-  tree, or to nothing, would be the same silent scope regression P3a exists to catch.
+Every property below is conditioned on the runs being **comparable**, stated here once rather than
+per-property so the clause cannot drift between them:
+
+> `R1` and `R2` are **comparable** when their **target tree**, **live surface set**, **detection
+> version** of every check consulted (its catalog version and a digest over the check's own
+> detection-behavior inputs — the host `SKILL.md`, the criteria catalog and its imports, and any
+> script named for that check), and **harness version** are all equal.
+
+A property asserts nothing about a non-comparable pair, which is reported as **non-comparable naming
+the input that moved** — never as a pass and never as a failure. This is not a hedge: each input
+changes what a *correct* run finds, so comparing across one makes correct behavior indistinguishable
+from a defect, in the false-alarm direction. The live surface set earns its place the same way —
+startup scope depends on the launch directory, the additional-directory set, and settings the tree
+does not contain, so two runs over a byte-identical tree can legitimately see different surfaces. A
+detection-behavior input not covered by the digest is a defect in the digest.
+
+- **P1 — determinism.** `R1` and `R2` comparable ⇒ `D(R1) = D(R2)`, exactly. Not a subset, not a
+  tolerance. **A comparability change is reported as the cause and never silently absorbed** — a run
+  that quietly attributed a liveness or version difference to the tree, or to nothing, would be the
+  same silent scope regression P3a exists to catch.
 - **P2 — convergence, measured against the findings the fixes targeted.** Accepted fixes applied
   between runs ⇒ every finding a fix targeted is absent from R2, and `D(R2) ⊆ D(R1)` still holds.
   **Strictness is conditional, not universal:** `D(R2) ⊊ D(R1)` is required only when at least one
