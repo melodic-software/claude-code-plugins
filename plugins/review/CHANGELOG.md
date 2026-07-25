@@ -3,6 +3,18 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.15.1]
+
+### Fixed
+
+- Reconciled stale `code-review` framing in `quality-gate`'s `pr.md` and the plugin README: it
+  described `code-review` as an optional `claude-plugins-official` marketplace plugin invoked as
+  `/code-review:code-review`. Per current official docs, `/code-review` is a bundled built-in
+  command (invoked bare) and the "parallel agents / posts PR comments" behavior actually
+  describes the separate managed Code Review GitHub App service — neither is an installable
+  marketplace plugin. `pr.md` now documents both surfaces distinctly under a Boundary section,
+  mirroring the pattern `code.md` already uses for its own built-in boundary (#266/#735).
+
 ## [0.15.0]
 
 ### Added
