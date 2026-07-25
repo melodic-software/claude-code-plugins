@@ -513,10 +513,13 @@ Each worker must:
   - **git** — `git -C <absolute-worktree-path>` on every one (`status`, `add`, `commit`, `diff`,
     `log`, `push` — all of them).
   - **file reads and edits** — every path passed to a file-read, edit, write, glob, or search tool
-    is the absolute worktree path or a `<absolute-worktree-path>/…` prefix, never a bare relative
-    path. A relative path resolves against cwd exactly as a shell command does, so a worker can
-    validate a finding against the session's checkout, or overwrite unrelated work in it, while its
-    `git -C` calls correctly target the assigned worktree.
+    is absolute, never a bare relative path. A relative path resolves against cwd exactly as a
+    shell command does, so a worker can validate a finding against the session's checkout, or
+    overwrite unrelated work in it, while its `git -C` calls correctly target the assigned
+    worktree. For a file **in the target repository** the absolute path is the assigned worktree's
+    own — the absolute worktree path or a `<absolute-worktree-path>/…` prefix. Files outside it
+    that the worker is told to read — this skill's references, `${CLAUDE_PLUGIN_ROOT}/…` — take
+    their own absolute paths; the worktree prefix does not apply to them.
   - **other commands with no `-C`** that derive their target from the working directory (bare `gh`,
     `fetch-all-pr-comments.sh`, the target repository's own build/test/lint commands) — either
     re-`cd` into the worktree inside that same call or pass the command its own explicit target
@@ -608,9 +611,11 @@ shell's working directory persisting across separate tool calls: a one-time cd i
 because cwd can drift back to this session's default checkout between a read and the next write
 and silently commit into the wrong repository. Anchor every git operation with
 git -C <absolute worktree path> — status, add, commit, diff, log, push, all of them. Give every
-file read, edit, write, glob, and search an absolute <absolute worktree path>/... path, never a
-bare relative one — a relative path resolves against cwd too, so you can validate a finding
-against the wrong checkout or overwrite unrelated work in it. For any other command with no -C
+file read, edit, write, glob, and search an absolute path, never a bare relative one — a relative
+path resolves against cwd too, so you can validate a finding against the wrong checkout or
+overwrite unrelated work in it. For target-repository files that absolute path is
+<absolute worktree path>/...; files outside the worktree that you are told to read, such as this
+skill's references under ${CLAUDE_PLUGIN_ROOT}, take their own absolute paths. For any other command with no -C
 equivalent that derives its target from the working directory (bare gh, fetch-all-pr-comments.sh,
 the target repository's own build/test/lint commands), either re-cd into the worktree inside that
 same call or pass the command its explicit target (GH_REPO=owner/repo for gh,
