@@ -227,13 +227,27 @@ fi
 # The container check alone is not enough. `[null]` and `[{}]` are arrays, so
 # they passed it, and the counters' own `.body // ""` then coalesced the missing
 # field to an empty string — the same false-ready verdict, reached through a
-# well-formed container holding elements the gate cannot read. Both fields are
-# required as STRINGS because that is how the counters consume them: `.author`
-# is matched against the self list by identity, `.body` is grepped for severity
-# markers. A non-string in either position is unreadable, not empty.
+# well-formed container holding elements the gate cannot read. `.body` is
+# required as a STRING because that is how the counters consume it: it is
+# grepped for severity markers, and a non-string there is unreadable, not empty.
+#
+# `.author` is required to be a string OR null. GitHub returns a null author for
+# a comment whose account was deleted, and `fetch-all-pr-comments.sh` passes that
+# through, so a string-only rule would reject an otherwise valid live snapshot
+# and leave the PR permanently UNPROVEN — fail-closed against the wrong thing.
+# Null is well-defined for both counters: the self list is matched by identity,
+# and a null author is in it for no self login, so the comment counts as a
+# non-self finding source exactly as an unrecognized login would. An ABSENT
+# `author` key is still malformed, which `has("author")` is what separates: jq
+# reports both a null value and a missing key as type "null", and only one of
+# them is a shape GitHub produces.
 printf '%s' "$COMMENTS" | jq -e '
   type == "array"
-  and all(.[]; type == "object" and (.author | type) == "string" and (.body | type) == "string")
+  and all(.[];
+    type == "object"
+    and has("author")
+    and ((.author | type) as $author | $author == "string" or $author == "null")
+    and (.body | type) == "string")
 ' >/dev/null || {
   printf 'babysit-readiness-gate: comment payload is not a JSON array of {author,body} objects (source: %s)\n' \
     "${COMMENTS_JSON:-live fetch}" >&2

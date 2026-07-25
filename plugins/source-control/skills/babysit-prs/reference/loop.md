@@ -583,8 +583,10 @@ unproven*. This is what stops a blocked gate from being indistinguishable from a
 - [ ] All addressed BOT-authored inline threads resolved (human + own threads excluded): YES/NO/N/A
 
 ##### PR status
-- [ ] Finding-classification gate: READINESS_OK / READINESS_BLOCKED <reason> /
-  READINESS_UNPROVEN <reason> — quoted verbatim from the gate's stdout, or
+- [ ] Finding-classification gate: `<paste the gate's READINESS_* line here, whole>` —
+  the captured stdout line exactly as printed, every field included
+  (`findings=`/`classified=`/`checklist=`, `reason=`/`pr=`); an abbreviated form is a
+  reconstruction, and a reconstruction carries no provenance. Or
   `not emitted — harness denied: <exact command>` when the harness blocked the call
 - [ ] Merge gate: `ready: true` / `ready: false` — <blockers> / not checked this iteration
 - [ ] Remaining blockers / items deferred to human: <list>

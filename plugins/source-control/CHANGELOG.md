@@ -98,6 +98,21 @@ All notable changes to the `source-control` plugin are documented here. Format f
   strings, which is exactly how the counters consume them (`author` matched against the self list,
   `body` grepped for severity markers); a non-string in either position is unreadable, not empty. An
   empty array and an empty `body` string stay legitimate and still reach a verdict.
+- **A comment from a deleted GitHub account no longer makes the gate permanently unprovable.** The
+  element check required `.author` to be a string, but GitHub returns `author: null` for a comment
+  whose account was deleted and `fetch-all-pr-comments.sh` passes that through — so one such
+  comment anywhere on a PR rejected the whole live snapshot as unreadable. Fail-closed against the
+  wrong thing: the payload was fine. `.author` is now string-or-null while `.body` stays strictly a
+  string, and a *missing* `author` key is still malformed (`has("author")` is what separates them —
+  jq reports both an explicit null and an absent key as type `null`). A null author reads as
+  non-self on both counters, so the comment counts as a finding source exactly as an unrecognized
+  login would, and can never be credited as a self classification row.
+- **The §5.5 report template no longer offers an abbreviated verdict to paste.** It listed
+  `READINESS_UNPROVEN <reason>` as a shape to choose while the surrounding contract requires
+  quoting the gate's stdout verbatim — but the gate prints `reason=<reason> pr=<n>`, and the
+  OK/BLOCKED forms carry count fields the menu dropped. A worker following the template produced a
+  reconstruction, which carries none of the provenance the verdict contract rests on. The field now
+  requires the captured line exactly as printed.
 - **The guard contract's documented-command check now covers the reachability canary, and stops
   rejecting `--help`.** `skills/setup/SKILL.md` and this changelog both spell out the canary
   invocation, so the completeness gate correctly demanded `DOC_COMMAND_SOURCES` rows for them —

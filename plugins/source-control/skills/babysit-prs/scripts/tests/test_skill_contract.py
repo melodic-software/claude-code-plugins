@@ -167,9 +167,14 @@ class SkillContractTests(unittest.TestCase):
         # with the classification gate is what produced the false report (#601).
         loop = (SKILL.parent / "reference" / "loop.md").read_text(encoding="utf-8")
 
-        self.assertIn(
-            "- [ ] Finding-classification gate: READINESS_OK / READINESS_BLOCKED", loop
-        )
+        self.assertIn("- [ ] Finding-classification gate:", loop)
+        # The field holds the captured line, not a menu of shapes to pick from.
+        # An offered `READINESS_UNPROVEN <reason>` conflicts with quoting stdout
+        # verbatim -- the gate prints `reason=<reason> pr=<n>` -- and a worker
+        # following the abbreviation reports a reconstruction, which carries none
+        # of the provenance the verdict contract rests on.
+        self.assertIn("the captured stdout line exactly as printed", loop)
+        self.assertNotIn("gate: READINESS_OK / READINESS_BLOCKED", loop)
         self.assertIn("- [ ] Merge gate: `ready: true` / `ready: false`", loop)
         self.assertNotIn("Readiness: ready for merge", loop)
         self.assertIn("Never report a PR MERGE-READY off `READINESS_OK`", loop)

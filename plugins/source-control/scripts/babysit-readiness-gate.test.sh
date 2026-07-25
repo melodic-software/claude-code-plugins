@@ -585,11 +585,11 @@ done
 # A well-formed ARRAY holding elements the counters cannot read is the same
 # fail-open one level down: the container check passes, `.body // ""` coalesces
 # the missing field, and the gate reports READINESS_OK findings=0 over data it
-# never read. Both fields are required as strings because that is how the
-# counters consume them — `.author` matched against the self list, `.body`
-# grepped for severity markers.
+# never read. `.body` is required as a string because that is how the counters
+# consume it — grepped for severity markers. `.author` may be a string or null;
+# see the deleted-account case below.
 for element in '[null]' '[{}]' '[{"author":"x"}]' '[{"body":"[P1] real"}]' \
-  '[{"author":null,"body":"[P1] real"}]' '[{"author":"x","body":42}]' \
+  '[{"author":"x","body":42}]' \
   '[{"author":"x","body":"ok"},null]'; do
   printf '%s' "$element" >"$TEST_TMPDIR/element.json"
   element_out=$(bash "$GATE" 323 --comments-json "$TEST_TMPDIR/element.json" --self 'me[bot]' 2>/dev/null)
@@ -613,6 +613,28 @@ for wellformed in '[]' '[{"author":"me[bot]","body":""}]'; do
   assert_contains "well-formed payload ($wellformed) still reaches a verdict" \
     "$wellformed_out" "READINESS_OK findings=0"
 done
+
+# A null `.author` is a real GitHub shape, not a malformed one: a comment whose
+# account was deleted comes back that way and fetch-all-pr-comments.sh passes it
+# through. Rejecting it would leave any PR carrying such a comment permanently
+# UNPROVEN — fail-closed against the wrong thing. It must be READ, and read as
+# NON-self: the self list is matched by identity and null is no login, so the
+# finding counts exactly as an unrecognized author's would.
+printf '%s' '[{"author":null,"body":"[P1] real"}]' >"$TEST_TMPDIR/null-author.json"
+null_author_out=$(bash "$GATE" 325 --comments-json "$TEST_TMPDIR/null-author.json" --self 'me[bot]' 2>/dev/null)
+assert_not_contains "deleted-account author is not unreadable" "$null_author_out" \
+  "READINESS_UNPROVEN"
+assert_contains "deleted-account comment counts as a non-self finding" \
+  "$null_author_out" "findings=1"
+assert_contains "deleted-account finding still gates on classification" \
+  "$null_author_out" "READINESS_BLOCKED reason=under-decomposed"
+# The self side of the same identity rule: a null author must never be credited
+# as a self reply, or a deleted account's table row would classify a finding.
+printf '%s' '[{"author":"claude[bot]","body":"[P1] real"},{"author":null,"body":"| 1 | a | VALID | x |"}]' \
+  >"$TEST_TMPDIR/null-author-selfrow.json"
+null_self_out=$(bash "$GATE" 326 --comments-json "$TEST_TMPDIR/null-author-selfrow.json" --self 'me[bot]' 2>/dev/null)
+assert_contains "null author is never credited as a self classification row" \
+  "$null_self_out" "READINESS_BLOCKED reason=under-decomposed"
 
 # --- Identity lookup failure is not a bad argument ---------------------------
 # With no --self/--extra-self and a `gh api user` that fails, the ARGUMENTS are
