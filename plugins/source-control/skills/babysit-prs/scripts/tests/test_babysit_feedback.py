@@ -11,10 +11,12 @@ from __future__ import annotations
 import pathlib
 import sys
 import unittest
+from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_feedback as fb
+import babysit_gh
 
 HEAD = "a" * 40
 
@@ -245,6 +247,22 @@ class ReviewSupersessionTests(unittest.TestCase):
         self.assertEqual(len(latest), 1)
         self.assertEqual(latest[0]["state"], "APPROVED")
 
+    def test_differently_cased_login_still_collapses_to_one_latest_review(self) -> None:
+        """GitHub logins are case-insensitive: 'Rev' and 'rev' are the same
+        actor, so their reviews must collapse under one latest-review key."""
+        pr = {
+            "latestReviews": [],
+            "reviews": [
+                {"id": 1, "author": {"login": "Rev", "__typename": "User"},
+                 "state": "CHANGES_REQUESTED", "submittedAt": "2026-01-01T00:00:00Z"},
+                {"id": 2, "author": {"login": "rev", "__typename": "User"},
+                 "state": "APPROVED", "submittedAt": "2026-01-02T00:00:00Z"},
+            ],
+        }
+        latest = fb.latest_reviews_by_author(pr)
+        self.assertEqual(len(latest), 1)
+        self.assertEqual(latest[0]["state"], "APPROVED")
+
     def test_commented_review_does_not_clear_decisive_changes_request(self) -> None:
         pr = {
             "latestReviews": [],
@@ -258,6 +276,56 @@ class ReviewSupersessionTests(unittest.TestCase):
         decisive = fb.latest_reviews_by_author(pr, decisive_only=True)
         self.assertEqual(len(decisive), 1)
         self.assertEqual(decisive[0]["state"], "CHANGES_REQUESTED")
+
+
+class StaleLatestReviewsRegressionTests(unittest.TestCase):
+    """#683: a GitHub App bot's `gh pr view --json latestReviews` copy (no
+    `__typename`, no `[bot]` login suffix -- verified live against both the
+    `gh` CLI and a raw `author{login __typename}` GraphQL query for the same
+    PR: only the CLI's `--json` field selection drops the type) must not
+    survive into `collect_feedback` once `rest_hydrate_reviews` has replaced
+    `reviews` with the properly-typed REST list. Reproduces the exact
+    `chatgpt-codex-connector` "new human feedback" misclassification from the
+    issue with the same preview text.
+    """
+
+    def test_hydrated_bot_review_is_not_new_human_feedback(self) -> None:
+        pr = _pr(
+            [],
+            latestReviews=[
+                {
+                    "author": {"login": "chatgpt-codex-connector"},
+                    "id": "",
+                    "state": "COMMENTED",
+                    "submittedAt": "2026-07-20T15:57:46Z",
+                    "body": "### \U0001F4A1 Codex Review\n\nHere are some "
+                            "automated review suggestions for this pull "
+                            "request.",
+                    "commit": {"oid": ""},
+                }
+            ],
+        )
+        rest_rows = [
+            {
+                "id": 4735979958,
+                "user": {"login": "chatgpt-codex-connector[bot]", "type": "Bot"},
+                "state": "COMMENTED",
+                "body": "### \U0001F4A1 Codex Review\n\nHere are some "
+                        "automated review suggestions for this pull request.",
+                "submitted_at": "2026-07-20T15:57:46Z",
+                "commit_id": "e03985e90c20e36553ee464ee4ab4bf4e214d082",
+            }
+        ]
+        with mock.patch.object(babysit_gh, "gh_json", return_value=rest_rows):
+            fb.rest_hydrate_reviews(pr, "owner/repo", 1)
+
+        result = fb.collect_feedback(pr)
+        self.assertEqual(result["human"], [])
+        self.assertEqual(result["human_blocking"], [])
+        self.assertFalse(
+            any(item["author"] == "chatgpt-codex-connector"
+                for item in (*result["human"], *result["human_blocking"]))
+        )
 
 
 class DowngradeHeuristicTests(unittest.TestCase):

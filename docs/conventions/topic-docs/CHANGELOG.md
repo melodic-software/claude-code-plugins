@@ -1,5 +1,21 @@
 # Changelog — topic-docs convention
 
+## 2.2.0 — 2026-07-25
+
+- **"Implementers restate the rules; they do not share a source"** (new,
+  additive guidance). The fleet had left implicit what a setup skill's
+  relationship to this contract is, so byte-identical prose across two
+  setup skills read as copy-paste inviting extraction into
+  `scripts/cross-plugin-source-registry.txt`. It is not: a `SKILL.md` is
+  the instruction surface a session loads and cannot defer at runtime to
+  a document the consuming repo lacks, so every implementer restates.
+  The section names the live evidence — `discovery` and `verification`
+  agreeing byte-for-byte while `planning` already diverges on the
+  memory-root `.gitignore` owner and on the empty-mapping case — states
+  why a shared fragment would be a second owner for rules this contract
+  already owns, and records the trigger that would reopen extraction. No
+  tier, key, slug-spec, or visibility change.
+
 ## 2.1.0 — 2026-07-23
 
 - **Implementers table: architecture row added** (additive). The architecture

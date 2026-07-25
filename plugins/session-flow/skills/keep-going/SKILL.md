@@ -71,7 +71,9 @@ itself the thing this skill removes.
    stood — grounded in a fresh read of any plan / checklist / task
    artifact backing it, not a prior turn's claim — then continue it. When
    the interruption followed a `/session-flow:handoff`, read that file
-   rather than trusting memory.
+   rather than trusting memory — and when the handoff's path was lost (a
+   `/clear` without copying the resume prompt), recover it first with
+   `/session-flow:find-handoff`.
 5. **Report.** One list: recovered, restarted, still-running, and lost /
    unrecoverable.
 
