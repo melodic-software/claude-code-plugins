@@ -157,7 +157,7 @@ Present research findings as:
 
 1. **Summary** — 2-3 sentence answer to the research question
 2. **Evidence table** — `Claim | Sources (Tier 0/1 entries cite the URL/command fetched THIS turn) | Tier | Tool diversity | Confidence`
-3. **Fetch log** — the written record criteria 6 and 9 are graded against, so it is WRITTEN, not recalled. One entry per fetch: `URL or command | artifact-ladder rung | tool used | outcome`. Per accepted claim it carries the entry for the rung the claim came from AND one for every rung ABOVE it, whose outcome states which of the three it was — carries the claim, does not carry it, or unreachable after escalation (which is also a Gap row)
+3. **Fetch log** — the written record criteria 6 and 9 are graded against, so it is WRITTEN, not recalled. One entry per fetch PER CLAIM: `Claim | URL or command | artifact-ladder rung | tool used | outcome`. The claim key is not decoration — criterion 9 is evaluated per accepted claim, and one artifact routinely carries claim A while lacking claim B, so an unkeyed outcome cannot show which claim it answers. Each accepted claim carries the entry for the rung it came from AND one for every rung ABOVE it, whose outcome states which of the three it was — carries the claim, does not carry it, or unreachable after escalation (which is also a Gap row)
 4. **Conflicts** — disagreements between sources (flagged explicitly; primary wins over blog consensus)
 5. **Gaps** — claims not at ≥1 primary + 2 independent corroborators, OR LOW confidence (flagged for follow-up). A gap asserting absence names the sources checked AND the sources left unchecked — never a bare "not found"
 6. **Recency status** — primary-source age per tool/library claim

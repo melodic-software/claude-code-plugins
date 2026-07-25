@@ -25,8 +25,9 @@
 
 - **The fetch log is now a written output-contract section**, not a term the gate referred to without
   anything producing it. Criteria 6 and 9 are graded against it, so it exists as
-  `URL or command | artifact-ladder rung | tool used | outcome` with, per accepted claim, an entry for
-  the rung the claim came from and one per rung above it. Without it criterion 9 could only be
+  `Claim | URL or command | artifact-ladder rung | tool used | outcome` with, per accepted claim, an
+  entry for the rung the claim came from and one per rung above it. Entries are keyed by claim because
+  criterion 9 is evaluated per claim and one artifact routinely carries claim A while lacking claim B. Without it criterion 9 could only be
   answered from recollection — which the gate's own preamble says does not bite — and a fresh session
   could not audit the ladder evidence at all.
 
@@ -36,8 +37,9 @@
   as a dead end: a content-length rejection or a silent truncation is a fetcher limit, not a source
   limit. Recipe — download out of context, confirm the file is the artifact and not a 200
   login/consent/bot-challenge page, extract with whatever extractor the machine has, grep. Each
-  download takes its own filename — parallel workers sharing a fixed `doc.pdf` could overwrite one
-  another mid-validation and cite the wrong document. An
+  download takes its own claim-and-URL-derived filename — parallel workers sharing a fixed `doc.pdf`
+  could overwrite one another mid-validation and cite the wrong document, and a claim slug alone
+  collides as soon as one claim is chased across two URLs. An
   unconfirmed download routes back through the full escalate-on-block order and does not count as the
   recipe having run, so it can never manufacture a premature "unreachable". "Unreachable" is reserved
   for extraction that failed after escalation also failed: an artifact that WAS confirmed, extracted,
