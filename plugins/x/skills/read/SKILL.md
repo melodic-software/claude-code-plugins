@@ -169,13 +169,17 @@ the delete.
 **Every response spools to that file — `-o` is not conditional.** An X Article is routinely shared as
 an ordinary `/status/` link, so the URL never says whether the reply is one sentence or five
 megabytes, and the output mode cannot be chosen from the input. Without `-o` the whole body lands in
-the tool result before anything can bound it. So: always redirect, then `Read` the file **through to
-the end** — in successive bounded slices when it is large, never one slice treated as the whole —
-and delete it only after the last read. Delete **on every exit path**, including the status branches
-that stop before reading. If you stop before the file is fully read, say the result is partial and
-why; a truncated slice is never presented as the complete post or article. Nonce, quoting, and
-unconditional delete are all required, and the filename is fixed by that template: never derive any
-part of it from the response body. See [`context/failure-modes.md`](context/failure-modes.md).
+the tool result before anything can bound it. So: always redirect, then `Read` the file in successive
+bounded slices, and delete it only after the last read. Delete **on every exit path**, including the
+status branches that stop before reading. Nonce, quoting, and unconditional delete are all required,
+and the filename is fixed by that template: never derive any part of it from the response body.
+
+**Read to the end *or* to a total budget, whichever comes first.** Slices bound each tool result, not
+their sum — reading a near-cap response through to EOF still puts every byte in the session, so a
+long or hostile article can exhaust the context before the result is ever reported. Set a cumulative
+budget before the first slice and stop when it is reached. Either way the rule on stopping short is
+the same: say the result is partial and say where it stops. A truncated slice is never presented as
+the complete post or article. See [`context/failure-modes.md`](context/failure-modes.md).
 
 **Check curl's exit status first — before the HTTP code, before the body.** A nonzero exit means the
 transfer failed even when `-w` printed `200`, because the status line arrived before the failure did.

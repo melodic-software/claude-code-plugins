@@ -242,6 +242,30 @@
         "Never reports a truncated prefix as a complete post merely because it parses as Markdown",
         "Deletes the spool on the failure path"
       ]
+    },
+    {
+      "id": 21,
+      "name": "unlisted-non-200-status-is-rejected-before-the-body",
+      "prompt": "/x:read https://x.com/someone/status/7777777777777777777\n\n(The endpoint answers 307. Without -L curl does not follow it: exit status is 0 and the spool holds a short text/plain \"Temporary Redirect\" body.)",
+      "expected_output": "Rejects the response on the status code alone, because success requires exactly 200. Reports the unexpected status and deletes the spool without treating its plaintext body as converted content.",
+      "files": [],
+      "expectations": [
+        "Requires exactly 200 rather than only rejecting the codes named in the status table",
+        "Does not rely on the exit status here — a non-followed redirect exits 0",
+        "Never treats a short plaintext body as Markdown merely because plain text parses as Markdown"
+      ]
+    },
+    {
+      "id": 22,
+      "name": "huge-article-stops-at-the-read-budget-and-says-so",
+      "prompt": "/x:read https://x.com/someone/status/8888888888888888888\n\n(The spooled response is close to the 5 MB transport cap.)",
+      "expected_output": "Reads successive bounded slices up to a cumulative read budget rather than to EOF unconditionally, stops when the budget is reached, deletes the spool, and reports the result as partial with a statement of where it stops.",
+      "files": [],
+      "expectations": [
+        "Bounds the total bytes read into context, not merely each individual slice",
+        "Reports the result as partial rather than presenting the read portion as the whole article",
+        "Still deletes the spool after stopping early"
+      ]
     }
   ]
 }

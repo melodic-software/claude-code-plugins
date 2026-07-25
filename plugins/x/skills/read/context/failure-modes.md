@@ -49,11 +49,21 @@ A metadata probe first was the alternative and was rejected: it doubles the egre
 discloses and adds a request whose own response has the same unknown size.
 
 **Spooling bounds the read, it does not shorten the article.** The file holds the whole response, so
-one bounded slice is a window onto it, not the content. Read successive slices until the file is
-exhausted, and only then delete. Deleting after a single slice throws away the tail of exactly the
-long articles this path exists to serve, and returns truncated Markdown that looks complete. If you
-stop early for any reason — a slice budget, an interruption — report the result as partial and say
-what was cut, per the reporting rules below.
+one bounded slice is a window onto it, not the content. Read successive slices, and only then delete.
+Deleting after a single slice throws away the tail of exactly the long articles this path exists to
+serve, and returns truncated Markdown that looks complete.
+
+**Stop at EOF or at a total budget, whichever comes first.** The two failure modes sit on opposite
+sides of the same rule and the fix for one is the other's cause:
+
+- Stop too early and a truncated prefix gets reported as a whole article.
+- Read unconditionally to EOF and the *cumulative* cost is unbounded — the slices cap each tool
+  result, never their sum. The transport cap is 5 MB, and a response near it consumes the session
+  before the result is ever reported. A hostile converter can aim for exactly that.
+
+So fix a cumulative budget before the first slice and stop when either limit is hit. Whichever ends
+the read, if the file was not exhausted, report the result as partial and say where it stops, per the
+reporting rules below. Silence is the defect, not the truncation.
 
 **Single-quote the substituted path everywhere it appears** — `-o '<path>'`, and the read and delete
 that follow. Two distinct hazards, and only single quotes cover both:
@@ -126,6 +136,14 @@ body shape both look fine; only the exit status says otherwise.
 Then, on a zero exit: `-sS` alone prints no status, so with `-o` taking the body, `-w '%{http_code}'`
 makes the code the only thing on stdout — observable rather than inferred from body shape.
 
+**Success requires exactly `200`. Every other code is a failure, listed or not.** The table below
+names the ones with specific advice; it is not the set of codes that can arrive. A redirect is the
+case that proves the rule — without `-L` curl does not follow it, so a `3xx` completes with **exit
+`0`** and whatever short body the server attached. Verified: a `302` returned exit `0` with the
+status in `-w`; the same shape with a `307` carries a `text/plain` "Temporary Redirect" body. Plain
+text is syntactically valid Markdown, so the body check cannot reject it — only the status code can.
+The same holds for `401`, `403`, and any other unlisted code.
+
 **Single-quote every substituted path** — the `-o` target and the subsequent read and delete. Rules
 and the verified expansion hazard are under "Response spooling" above.
 
@@ -135,6 +153,8 @@ and the verified expansion hazard are under "Response spooling" above.
 | `502` | X unreachable: private, protected, or deleted | Report and stop. Never retry in a loop. |
 | `500` | vendor-side error | Report. At most one retry. |
 | `429` or timeout | rate-limited or hung | Report and stop. Do not hammer. |
+| `3xx` | a redirect, not followed — no `-L` | Report and stop. Exit is `0`; only the code reveals it. |
+| any other non-`200` | unexpected — `401`, `403`, anything unlisted | Report and stop. Never read the spool. |
 | `200` carrying no converted content | a stub or bot-challenge page | Treat as failure, not content. |
 
 **Validate against the form you requested — the two differ.** The documented step-1 call sends

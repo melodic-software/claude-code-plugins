@@ -50,6 +50,14 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   neither direction. Empirically grounded: a genuine 12-post chain returns `isNoteTweet: false` with
   a 346-character root. The flag reports a long-form representation rather than the absence of
   replies, so it suppresses length-only escalation without overriding continuation evidence.
+- Success requires **exactly `200`**; the status table names the codes with specific advice, not the
+  set that can arrive. A redirect proves the point: without `-L` curl does not follow a `3xx`, so it
+  completes with exit `0` and a short `text/plain` body — and plain text is syntactically valid
+  Markdown, so only the status code can reject it.
+- The spool is read to EOF **or to a cumulative read budget, whichever comes first**. Bounded slices
+  cap each tool result, never their sum, so reading a near-cap response through to EOF still puts
+  every byte in the session. Stopping short is allowed; stopping short *silently* is not — a partial
+  read is reported as partial, with where it stops.
 - curl's **exit status** is checked ahead of the HTTP code and the body. The two disagree when a
   transfer dies after its status line arrives: verified against curl 8.19.0, an over-cap response
   prints `200` on stdout and exits `63`. Any nonzero exit is a failed fetch — the spool is deleted
@@ -70,7 +78,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   scheme and host still matching (15), a long article read to its end before cleanup (16), and a
   plaintext `http://` input upgraded to HTTPS by the rebuild (17), a spool path single-quoted
   against shell expansion (18), a handle-less `/i/web/status/` link accepted (19), and a nonzero curl
-  exit treated as failure despite a `200` (20).
+  exit treated as failure despite a `200` (20), an unlisted non-`200` rejected before the body (21),
+  and a near-cap article stopping at the read budget with a partial-result report (22).
 
 ### Fixed
 
