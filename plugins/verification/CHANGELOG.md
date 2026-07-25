@@ -3,6 +3,19 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.5]
+
+### Changed
+
+- **Setup no longer hardcodes a publisher and repository name in the schema reference.** The skill
+  pointed at a `raw.githubusercontent.com/<publisher>/<repo>` URL for `topic-docs.schema.json`,
+  binding a runtime-consulted reference to one forge account inside a plugin that is otherwise
+  publisher-agnostic — a fork, a mirror, or a rename leaves the skill citing someone else's schema.
+  It now names the schema by the convention's own filename and defers to `reference/topic-docs.md`,
+  the binding it already cites one paragraph earlier, which carries the single pointer to the
+  published convention. One coupling site per plugin instead of two, and the one that remains is the
+  file whose job is to cite upstream.
+
 ## [0.3.4]
 
 ### Changed

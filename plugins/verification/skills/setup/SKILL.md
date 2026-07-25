@@ -13,11 +13,10 @@ plugin-generated documents land. The verification plugin writes contract-tier ve
 (distilled, `verified_at_sha`-keyed) and memory-tier baselines and raw captures (machine-bound, never
 committed); how each artifact resolves its tier is owned by
 [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md). The
-consumer-side single source of truth is the tracked concern file `.claude/topic-docs.yaml`; its schema
-is published at
-<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/topic-docs.schema.json> —
-every key optional, absent keys mean the documented defaults (`contract_dir: docs/topics`,
-`memory_dir: .work`, `contract_tier: branch`, `vault_backend: docs`).
+consumer-side single source of truth is the tracked concern file `.claude/topic-docs.yaml`; its shape is
+the convention's `topic-docs.schema.json` — every key optional, absent keys mean the documented defaults
+(`contract_dir: docs/topics`, `memory_dir: .work`, `contract_tier: branch`, `vault_backend: docs`). The
+binding above carries the pointer to the published convention that owns the schema.
 
 This skill offers the shared consumer-side concern file, independent of whether the sibling lifecycle
 plugins `discovery` and `planning` are installed today; each of those offers the same file from its
