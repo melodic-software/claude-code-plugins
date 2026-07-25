@@ -217,6 +217,18 @@
         "The $user segment is never expanded — the emitted path matches the resolved directory exactly",
         "Uses the same escaped form for the -o target, the Read, and the delete"
       ]
+    },
+    {
+      "id": 19,
+      "name": "handle-less-i-web-status-link-is-accepted",
+      "prompt": "/x:read https://x.com/i/web/status/1234567890123456789",
+      "expected_output": "Matches the handle-less post form, captures the numeric id, and rebuilds https://x.com/i/web/status/1234567890123456789. No handle is invented for the rebuilt URL; the author handle in the attribution comes from the converted body as always.",
+      "files": [],
+      "expectations": [
+        "Accepts the /i/web/status/ form rather than refusing it at the gate",
+        "Does not fabricate a handle to force the URL into the /<handle>/status/<id> shape",
+        "Attributes with the handle from the converted body, not from the URL"
+      ]
     }
   ]
 }

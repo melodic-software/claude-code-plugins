@@ -12,6 +12,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `skills/read` — returns an X post, note tweet, or X Article as Markdown via a documented three-step
   fallback ladder: `xtomd.com` `POST /api/markdown` for a single post or article, Thread Reader App
   over `WebFetch` for an unrolled reply chain, then an explicit ask for the remaining post URLs.
+- Handle-less `/i/web/status/<id>` links — the form embeds, feeds, and legacy clients emit — match a
+  separately anchored pattern and rebuild to `https://x.com/i/web/status/<id>`. The shape is kept
+  rather than folded into the handle form: no handle was captured, and inventing one would breach
+  rebuild-from-captures. The two `/i/` patterns are tried before the handle patterns, since `i` is a
+  legal handle character and would otherwise capture `/i/web/status/<id>` as a handle of `i`.
 - Mandatory URL gate ahead of the ladder: anchored match against the post and article forms, outright
   refusal on no match, and rebuild-from-captures (`[A-Za-z0-9_]`, `[0-9]`) that discards the input
   string. Closes an argument-injection surface found in pre-release review, where a URL containing an
@@ -58,8 +63,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   step-1-success plus step-2-miss reaching step 3 (12), a `200` without conversion treated as
   failure (13), the legacy `mobile.twitter.com` host accepted and canonicalized (14), an uppercased
   scheme and host still matching (15), a long article read to its end before cleanup (16), and a
-  plaintext `http://` input upgraded to HTTPS by the rebuild (17), and a spool path single-quoted
-  against shell expansion (18).
+  plaintext `http://` input upgraded to HTTPS by the rebuild (17), a spool path single-quoted
+  against shell expansion (18), and a handle-less `/i/web/status/` link accepted (19).
 
 ### Fixed
 

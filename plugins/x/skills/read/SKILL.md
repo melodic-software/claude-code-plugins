@@ -53,6 +53,12 @@ Do not escape and do not sanitize. **Match, capture, and rebuild:**
    ^(?i:https?://(?:www\.|mobile\.)?(?:x|twitter)\.com)/([A-Za-z0-9_]{1,15})/status/([0-9]{1,20})(?:[/?#].*)?$
    ```
 
+   Handle-less post (`/i/web/status/` — embeds, feeds, and legacy clients):
+
+   ```text
+   ^(?i:https?://(?:www\.|mobile\.)?(?:x|twitter)\.com)/i/web/status/([0-9]{1,20})(?:[/?#].*)?$
+   ```
+
    Article:
 
    ```text
@@ -68,8 +74,8 @@ Do not escape and do not sanitize. **Match, capture, and rebuild:**
    **The `(?i: … )` stops at `.com` deliberately.** RFC 3986 states that "schemes are
    case-insensitive" (§3.1) and "the host subcomponent is case-insensitive" (§3.2.2), so
    `HTTPS://X.COM/jack/status/20` is the same resource and must not be refused. The path is not
-   case-insensitive, so `/status/`, `/article/`, and `/i/` stay exact — matching them loosely would
-   admit forms X does not serve.
+   case-insensitive, so `/status/`, `/article/`, `/i/`, and `/i/web/` stay exact — matching them
+   loosely would admit forms X does not serve.
 
 2. **No match — refuse.** Say the URL is not a recognized X post or article URL and stop. Never
    repair it, never strip characters to force a match, never pass it through anyway.
@@ -78,9 +84,18 @@ Do not escape and do not sanitize. **Match, capture, and rebuild:**
 
    ```
    https://x.com/<handle>/status/<id>
+   https://x.com/i/web/status/<id>
    https://x.com/<handle>/article/<id>
    https://x.com/i/article/<id>
    ```
+
+   The handle-less form keeps its own shape rather than being folded into the handle form — no
+   handle was captured, and inventing one would breach rebuild-from-captures. X resolves
+   `/i/web/status/<id>` to the canonical post, and step 2 needs only the id.
+
+   **Try the two `/i/` forms before the handle forms.** `i` is a legal handle character, so
+   `/i/web/status/<id>` would otherwise be a handle of `i` against a path of `web`, and match
+   nothing. Ordering keeps a genuine `x.com/i/status/<id>` reaching the handle form as before.
 
 Only the rebuilt URL is ever placed in a command. The capture classes are `[A-Za-z0-9_]` and
 `[0-9]`, which cannot express a quote, a space, or a shell metacharacter, so the emitted command is

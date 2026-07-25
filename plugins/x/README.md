@@ -37,6 +37,11 @@ pattern rather than repaired into matching it. The scheme is discarded on rebuil
 so an `http://` link off an old bookmark still matches and the emitted request is `https://`
 regardless; `--proto '=https'` enforces that at runtime.
 
+Four forms match: a post, an article, an anonymous `/i/article/` article, and the handle-less
+`/i/web/status/` post that embeds, feeds, and legacy clients emit. The handle-less form rebuilds to
+`https://x.com/i/web/status/<id>` rather than acquiring an invented handle — the author is read from
+the converted body, never from the URL.
+
 The gate is model-honored instruction, not a runtime-enforced control — stated plainly because it is
 the primary defense. The plugin therefore ships **no** shell pre-approval: the network call surfaces
 a permission prompt showing the exact command, destination and transport bounds included. That
