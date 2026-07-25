@@ -92,7 +92,7 @@ into one profile.
   gh issue list --label "$ROLE" --limit 500 --json number,body,labels \
     | jq --argjson valid "$VALID" '
         [.[] | select(
-          (.body | test("(^|\\n)Work-class: C[1-5]( |\\n|$)"))
+          (.body | test("(^|\\n)Work-class: C[1-5]( |\\r|\\n|$)"))
           or (any(.labels[].name; . as $n | $valid | index($n)))
         )] | length'
   ```
@@ -101,16 +101,19 @@ into one profile.
   `--argjson`** — pipe to `jq` instead of using `--jq`. And jq's regex engine
   does **not** honor `(?m)`, so the trailer is anchored with `(^|\n)`.
 
-  The trailing `( |\n|$)` is a **token boundary, not merely a non-digit**: it
-  rejects `C12` after matching `C1`, and equally rejects `C2foo` and `C3?`,
+  The trailing `( |\r|\n|$)` is a **token boundary, not merely a non-digit**:
+  it rejects `C12` after matching `C1`, and equally rejects `C2foo` and `C3?`,
   which a `[^0-9]` guard would have counted as canonical. Every widening of
   this pattern inflates the readiness count the rung decision trusts, so keep
   it strict — the canonical trailer always continues with a space or ends the
-  line. The `\n` alternative is what makes "ends the line" true: because the
-  engine is not multiline, `$` means end of the whole body, so a bare
-  `Work-class: C2` followed by any further body section matches only via the
-  newline — omit it and a body-stamp repo under-reports to the point of
-  reporting zero.
+  line.
+
+  Both line-ending alternatives are load-bearing, and both are easy to drop as
+  redundant. Because the engine is not multiline, `$` means end of the whole
+  body, so a bare `Work-class: C2` followed by any further body section
+  matches only via `\n`; and a CRLF body needs `\r` (measured on this
+  repository: 7 issue bodies and 5 PR bodies carry CR). Omit either and a
+  body-stamp repo under-reports, to the point of reporting zero.
 
   **Always pass `--limit`** — `gh issue list` silently truncates at 30, so an
   unbounded count under-reports any backlog past that.
@@ -657,13 +660,18 @@ Filled instance for the repository in use as of 2026-07-25.
 - Work-class labels: deployed. Exact strings, ascending risk:
   `work-class: read-only`, `work-class: mechanical`, `work-class: scoped`,
   `work-class: structural`, `work-class: untrusted-provenance`.
-- Stamped `agent-ready` items, re-counted live on 2026-07-25: **38 open, all
-  38 label-stamped** — 3 `mechanical`, 34 `scoped`, 1 `structural`. At
-  `c2-mechanical` only the 3 are merge-eligible; at `c3-autonomous`, 37.
-  **Re-run the union count; never quote this line.** It read 50 when this
-  document was authored, then 44, 40, and 38 over the following hours — the
-  backlog drains underneath it, and a rung decision made from a stale number
-  is a decision about a repository that no longer exists.
+- Stamped `agent-ready` items: **every open one carries a class label**, and
+  the population is overwhelmingly `scoped`, with `mechanical` and
+  `structural` in low single digits. At `c2-mechanical` only the `mechanical`
+  handful is merge-eligible; at `c3-autonomous`, nearly all of them.
+
+  **No absolute count is recorded here, deliberately.** Over one day of
+  authoring this document the open count read 50, 44, 40, 38, 28, then 25 —
+  it fell by three *between two commands in the same session*, because the
+  worker lane drains it continuously. Any number written here is wrong before
+  it is read. Run the union command above and use what it returns; a rung
+  decision made from a quoted figure is a decision about a repository that no
+  longer exists.
 - No autonomy binding file exists, so the C2 promotion evidence above is
   not recorded here.
 - `#820` carries `do-not-merge`; its body embeds a veto-before-merge
@@ -683,9 +691,10 @@ overnight without me":
 
 - **Tier `autopilot`** — in the prompt below. Already maximal.
 - **Merge rung** — one line in `.claude/source-control.md` on `main`.
-  Currently `c2-mechanical`. Change to `c3-autonomous` and 37 of the 38
-  open `agent-ready` items become eligible instead of 3 (live count,
-  2026-07-25 — re-run it, do not quote it). Whether that raise is
+  Currently `c2-mechanical`. Changing it to `c3-autonomous` takes the
+  eligible set from the `mechanical` handful to nearly the whole open
+  `agent-ready` backlog — run the union command for the live figures rather
+  than trusting a number written here. Whether that raise is
   *authorized* is a separate question from whether the seam supports it: the
   guardrail matrix sets C3 merge policy to `human merge` and lists no C3
   auto-merge promotion cell, so the flip is filed as an operator decision
