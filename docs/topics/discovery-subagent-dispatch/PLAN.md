@@ -568,6 +568,31 @@ Work items in order:
    `RESEARCH.md`'s — mirror Phase 2's item 1 for `EXPLORE.md`: `Grep` + `Glob` for anything parsing
    the filename or the artifact's section structure across `plugins/**`, `scripts/**`,
    `.github/workflows/**`, run against post-#1260 `main`, and record the parse paths found.
+0b. **Mechanical sweep — RUN 2026-07-25, hit list below.** Phase 2 work item 2's method, inherited
+   here and run first because `explore/SKILL.md` is **not** among #1260's five files, so its line
+   numbers are stable across the Phase 0 rebase and the sweep does not have to wait. Script:
+   `<session-scratchpad>/sweep-subagent-incompatible.sh`, six pattern classes — filtered tools,
+   instructions presupposing a human turn, plan mode, main-context assertions, inline preferences,
+   and `$ARGUMENTS`. Every hit is a candidate; the disposition column is the judgment.
+
+   | Line | Class | Text | Disposition |
+   |---|---|---|---|
+   | 20 | main-context | "keeping that out of the main conversation is what subagents are for. Three ways to run it" | EDIT — item 1's routing rewrite |
+   | 22 | main-context | built-in Explore subagent bullet, "the main session synthesizes their summaries and persists the artifact" | EDIT — retained as a named alternative, but the synthesis sentence is false once `discovery:explorer` writes the artifact itself |
+   | 23 | main-context | inline `/explore` bullet, "Runs the full 6 dimensions in main context" | EDIT — becomes the escape hatch, with F10's cost reason named alongside tight iteration |
+   | 24 | main-context | `/explore-deep` bullet, incl. the stale `CLAUDE_CODE_FORK_SUBAGENT=1` requirement | EDIT — written so Phase 5 removes a bullet rather than rewriting the section twice |
+   | 26 | main-context | "the main session synthesizes and writes `EXPLORE.md` (built-in Explore agents cannot write it)" | EDIT — the parenthetical stays true of *built-in* Explore agents; the leading clause is false under dispatch and must be scoped to the fan-out case it describes |
+   | 36 | plan-mode | "switch into plan mode for harness-level read-only protection" | EDIT — work item 3b; Filter-1 tools |
+   | 40 | `$ARGUMENTS` | "Explore the following: `$ARGUMENTS`" | EDIT — empty under preload (work item 0); scope arrives in the dispatch prompt |
+   | 42 | main-context | "infer the exploration scope from the current conversation context" | EDIT — a non-fork subagent has none; contradicts the agent body's refuse-to-guess rule |
+   | 66 | user-turn | "**ask the user before investigating**" deleted files | EDIT — work item 3b |
+   | **108** | `$ARGUMENTS` | "The `$ARGUMENTS` value shapes the exploration focus:" | **EDIT — NEW SITE, absent from every hand list including this plan's own Phase 3 items.** Same defect as `:40` and reached only by the sweep. Third confirmation that hand enumeration under-reads this file |
+   | 122 | user-turn | "Surfacing the USER's unknown-unknowns … is the sibling `/discovery:blindspot` skill" | CORRECT UNDER DISPATCH — describes a *sibling skill's* deliverable, issues no instruction to this run |
+   | 134 | user-turn | Output-format item 7, "**Surface these to the USER**" | EDIT — item 3 |
+   | 146 | user-turn | outcome-gate bullet, "Open questions surfaced to the user" | EDIT — item 3 |
+
+   Eleven edits, one correct-under-dispatch, one site (`:108`) that no hand pass had found.
+
 1. **Rewrite the routing section (currently lines 18–26).** It names three ways to explore and
    makes inline the structured default. Post-change: `discovery:explorer` is the default,
    with the built-in Explore subagent and inline retained as named alternatives and the escape-hatch
@@ -610,7 +635,26 @@ Work items in order:
 | `plugins/discovery/skills/blindspot/SKILL.md` | AUDIT, modify only if needed | the plugin's fourth skill; not silently omitted |
 
 **Sibling-skill audit** — the two discovery skills this plan does not otherwise touch still need an
-explicit disposition, or the plugin ships an inconsistent posture:
+explicit disposition, or the plugin ships an inconsistent posture. **The same mechanical sweep was run
+over all three of this phase's files on 2026-07-25** (none is among #1260's five, so the results are
+rebase-stable), which turns the dispositions below from assertions into readings:
+
+- **`setup/SKILL.md` — ZERO hits across all six pattern classes.** No filtered tool, no human-turn
+  instruction, no plan mode, no main-context assertion, no inline preference, no `$ARGUMENTS`. This
+  phase's work on it is therefore purely additive; nothing existing has to be reconciled.
+- **`research-deep/SKILL.md` — every hit is the skill arguing its own inline requirement**, which is
+  exactly what acceptance criterion 9 demands survive. `:18` ("It must run in main context to reach
+  the Workflow tool … a subagent cannot") and `:82` ("Does NOT run the deep pass itself in main
+  context — it dispatches") are the criterion's evidence, in the file, unedited. `:28`'s multi-topic
+  path names the `Agent` tool, which errors even inside a fork — Decision 14's second independent
+  ground. **No edit required**; the audit's job is to confirm Phase 2's routing section does not
+  contradict these, not to change them.
+- **`blindspot/SKILL.md` — hits confirm INLINE-ONLY on the merits, not by inheritance.** `:34`
+  ("**Intake** — ask the user's starting point first (one question)") is a genuine elicitation gate
+  under Decision 11's three-cell test: the answer is not derivable from arguments or prior
+  conversation, and the deliverable is calibrated to it. `:3`, `:20`, `:25`, `:45`, and `:72` all
+  restate that the deliverable *is* a better prompt for the USER — Amendment 5's exclusion, evidenced.
+  `NO-CHANGE` is therefore the recorded outcome with a reason, not a default.
 
 - **`research-deep`** — Decision 14 keeps it, and acceptance criterion 9 requires it to *still*
   dispatch Tier 1 from main context. Its inline-dispatcher requirement rests on independent grounds
