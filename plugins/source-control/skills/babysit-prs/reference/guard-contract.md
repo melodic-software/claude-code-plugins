@@ -4,9 +4,12 @@
      `python tests/guard_contract.py --emit`. Hand edits fail CI. -->
 
 What a host permission classifier, an orchestration prompt, or a downstream
-consumer may assume about this lane's entry points. Every statement below is
-executed as an assertion by `scripts/tests/test_guards.py`; a guard change that
-falsifies one fails CI with a message naming the claim.
+consumer may assume about this lane's entry points. Rows in the refusal,
+predicate, effect, and documented-command tables are executed as assertions by
+`scripts/tests/test_guards.py`; a guard change that falsifies one fails CI with
+a message naming the claim. The columns listed under "Not covered here" are
+rendered from the same data but are not asserted — read those as annotation, not
+as proof.
 
 Cite a row by its ID. IDs are stable; rows are removed only when the behavior is.
 
@@ -107,3 +110,4 @@ Documents that spell out copyable `bin/`-path wrapper commands. Every wrapper pa
 
 - Flag names, types, and defaults are not catalogued. A behavior row exercises the flags it names; a rename or default change elsewhere is not detected. See the deferral note in `scripts/tests/guard_contract.py`.
 - Anything requiring a live GitHub response. Every row above runs with no network access, which is what keeps the suite free of a `gh` stub.
+- Four rendered columns are annotation rather than assertion, and a rule must not be written against them as if CI proved them: the entry-point table's **Mutates**, **Gate**, and **Claim**, and the refusal table's **Enforced at**. The entry-point rows assert the path, the wrapper, the class, and that a mutating row names backing rows; nothing reads the prose in those three columns. `Predicate.enforced_at` *is* checked -- `test_anchor_symbol_exists` resolves it -- but `Refusal.enforced_at` is not, so a refusal's location may drift without failing CI.
