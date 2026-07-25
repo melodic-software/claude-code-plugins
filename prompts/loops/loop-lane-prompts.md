@@ -191,6 +191,27 @@ IDs — the alias tracks the current recommended model and a pinned ID rots.
   only: 200k context and an old cutoff, never for a question about
   current harness behavior.
 
+**A `sonnet` root silently makes every implementer `sonnet` too.** The
+`model` frontmatter field defaults to `inherit`, and neither `/work-items:work`
+nor `implement-dispatch` sets one, so subagents dispatched from a
+`--model sonnet` root run Sonnet — not the strong tier this section promises.
+The three tiers above are aspirational unless something overrides that
+inheritance. Resolution order is: `CLAUDE_CODE_SUBAGENT_MODEL`, then the
+per-invocation `model` parameter, then frontmatter, then the main
+conversation's model
+(<https://code.claude.com/docs/en/sub-agents>, verified 2026-07-25).
+
+Two ways to make the tiering real. Prefer the per-dispatch instruction —
+`CLAUDE_CODE_SUBAGENT_MODEL` is a blunt floor that would also pull mechanical
+greps up off `haiku`:
+
+- **Per-dispatch (recommended).** The lane bodies below carry a standing
+  dispatch-model rule. Because `/loop` re-sends the prompt each iteration,
+  that rule survives compaction — a rule stated once in conversation does not.
+- **Environment floor.** Export `CLAUDE_CODE_SUBAGENT_MODEL=opus` for that
+  lane's shell. It wins over everything, including a deliberate `haiku`
+  per-dispatch choice, so it costs the fast tier entirely.
+
 ```bash
 claude --model sonnet   # worker lane
 claude --model sonnet   # merge lane
@@ -256,6 +277,14 @@ no shared state, no contention, and the sharding problem disappears.
 > against authoritative sources before acting, prefer installed skills
 > over ad-hoc approaches, and re-check work against the active
 > conventions.
+>
+> **Dispatch model, every dispatch.** Your root runs on the fast tier and
+> subagents inherit it by default, so an unqualified dispatch silently runs
+> an implementer at orchestrator strength. Pass an explicit per-invocation
+> `model` on every dispatch: `opus` for anything that reads or edits source,
+> writes a PR, or makes a judgment call; `fable` for conflict resolution and
+> any security-surface work class, unconditionally; `haiku` only for
+> mechanical greps and log pulls. Never leave it to inherit.
 >
 > **Return contract, every subagent, every depth.** Return at most two
 > lines: a verdict token and an identifier or path. Everything else goes
@@ -327,6 +356,14 @@ wakeup ceiling for days rather than finishing.
 > **Discipline.** Every dispatch brief at every depth invokes
 > `/discipline:sweep-all`. If that plugin is absent here, inline the
 > equivalent standing instructions instead.
+>
+> **Dispatch model, every dispatch.** Your root runs on the fast tier and
+> subagents inherit it by default, so the frontier-tier conflict worker this
+> skill requires would silently run at orchestrator strength unless you say
+> otherwise. Pass an explicit per-invocation `model`: `fable` for conflict
+> resolution and every security-surface work class, unconditionally; `opus`
+> for CI fixes, review-comment work, and any judgment call; `haiku` only for
+> mechanical log pulls. Never leave it to inherit.
 >
 > **Return contract.** Subagents return at most two lines — verdict plus
 > identifier. Speak to me only when fully blocked.
@@ -416,9 +453,14 @@ concurrently. Shards must partition, not overlap.
 > recorded class from the item **body or** labels, so a repository with no
 > label axis is still merge-capable through body trailers. Report the
 > absence once, then keep working the queue: grep the trailers, propose
-> classes for untrailered items, and record ratified classes as body
-> trailers instead of labels. Only the label-writing half is unavailable —
-> triage, classification, and escalation all still apply.
+> classes for untrailered items, escalate, and triage.
+>
+> **You never write the class into the body either.** The body is a
+> repo-local agent-writable surface exactly as the label is, and
+> `babysit-loop` reads the trailer to decide merge eligibility — so an agent
+> writing a trailer is an agent manufacturing its own merge eligibility, the
+> one thing the admission rule forbids. Hand me the exact body-edit command
+> to paste, the same way you hand me the label command.
 >
 > For an item with no trailer, propose a class with your reasoning and
 > wait. Two traps: `mechanical` is narrow — deterministic, trivially
@@ -523,8 +565,10 @@ contract changes, and fork PRs. That is the category least suited to
 landing unattended, for near-zero throughput gain over c3. Recommend
 `c3-autonomous`.
 
-Neither rung bypasses classification: an item with no work-class label is
-ineligible at every rung including `full-autonomy`.
+Neither rung bypasses classification: an item with **no recorded class in
+either source** — no `Work-class: C<n>` body trailer and no `work-class:`
+label — is ineligible at every rung including `full-autonomy`. A missing
+label alone costs nothing where a trailer exists.
 
 ---
 
@@ -556,6 +600,14 @@ machines; neither on the attended box.
 > against authoritative sources before acting, prefer installed skills
 > over ad-hoc approaches, and re-check work against the active
 > conventions.
+>
+> **Dispatch model, every dispatch.** Your root runs on the fast tier and
+> subagents inherit it by default, so an unqualified dispatch silently runs
+> an implementer at orchestrator strength. Pass an explicit per-invocation
+> `model` on every dispatch: `opus` for anything that reads or edits source,
+> writes a PR, or makes a judgment call; `fable` for conflict resolution and
+> any security-surface work class, unconditionally; `haiku` only for
+> mechanical greps and log pulls. Never leave it to inherit.
 >
 > **Return contract, every subagent, every depth.** Return at most two
 > lines: a verdict token and an identifier or path. Everything else goes
@@ -618,6 +670,14 @@ machines; neither on the attended box.
 > **Discipline.** Every dispatch brief at every depth invokes
 > `/discipline:sweep-all`. If that plugin is absent here, inline the
 > equivalent standing instructions instead.
+>
+> **Dispatch model, every dispatch.** Your root runs on the fast tier and
+> subagents inherit it by default, so the frontier-tier conflict worker this
+> skill requires would silently run at orchestrator strength unless you say
+> otherwise. Pass an explicit per-invocation `model`: `fable` for conflict
+> resolution and every security-surface work class, unconditionally; `opus`
+> for CI fixes, review-comment work, and any judgment call; `haiku` only for
+> mechanical log pulls. Never leave it to inherit.
 >
 > **Return contract.** Subagents return at most two lines — verdict plus
 > identifier. Speak to me only when fully blocked.
