@@ -26,7 +26,7 @@
 #
 # Exit codes:
 #   0  success — worktree created; path on stdout
-#   2  usage error — unknown/missing flag
+#   2  usage error — unknown/missing flag, or a --name git rejects as a branch
 #   3  refuse — external root unconfigured (guidance on stderr); nothing created
 #   4  environment error — not a git repo, or `git worktree add` failed
 
@@ -43,6 +43,13 @@ Usage:
 
 Options:
   --name <name>       Branch/worktree name (e.g. feat/my-feature). Required.
+                      Max 64 chars; each /-separated segment holds only letters,
+                      digits, dots, underscores, and dashes. Also checked against
+                      git's own branch-name grammar, so a name that satisfies the
+                      character rules but is an illegal ref (feat/foo..bar,
+                      foo.lock, HEAD) is refused (exit 2), not left to git later.
+                      That grammar check runs after the repository is resolved,
+                      so exits 3 and 4 can precede it.
   --root <dir>        External worktree root. Required and must be configured;
                       an empty value or an unexpanded \${user_config.*} token
                       makes the helper refuse (exit 3) rather than fall back to
@@ -95,10 +102,9 @@ fi
 
 # Validate the name up front against the EnterWorktree schema: max 64 chars, and
 # each '/'-separated segment contains only letters, digits, dots, underscores,
-# and dashes. This is a strict subset of what git refs allow, so a validated name
-# is always a creatable branch — reject invalid names loudly (exit 2) here rather
-# than let `git worktree add` fail opaquely downstream. The branch is used
-# verbatim; only the directory slug transforms it.
+# and dashes. Reject invalid names loudly (exit 2) here rather than let
+# `git worktree add` fail opaquely downstream. The branch is used verbatim; only
+# the directory slug transforms it.
 if (( ${#name} > 64 )); then
   printf '%s: --name %q exceeds 64 characters\n' "$PROG" "$name" >&2
   exit 2
@@ -107,6 +113,9 @@ if [[ ! "$name" =~ ^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$ ]]; then
   printf '%s: --name %q is not a valid worktree/branch name (each /-separated segment: letters, digits, dots, underscores, dashes only)\n' "$PROG" "$name" >&2
   exit 2
 fi
+
+# The remaining name check — git's own ref grammar — needs a healthy repository
+# to run in, so it waits until $toplevel is resolved below.
 
 # Refuse-with-guidance: unconfigured root. Treat an empty value or an unexpanded
 # ${user_config.*} token (what Claude Code leaves when the key is unset) as unset.
@@ -150,6 +159,31 @@ fi
 if ! toplevel=$(git -C "$repo_dir" rev-parse --show-toplevel 2>/dev/null); then
   printf '%s: --repo-dir is not inside a git repository: %s\n' "$PROG" "$repo_dir" >&2
   exit 4
+fi
+
+# Second half of name validation: the character class checked above is NOT a
+# subset of git's ref grammar, so it alone cannot uphold the exit-2-for-an-
+# invalid-name contract. `feat/foo..bar` (`..`), `.foo` and `feat/.` (component
+# starting/ending with `.`), `foo.lock` (reserved suffix), `HEAD`, and `-lead`
+# all sit inside the class yet are illegal refs, and would otherwise fail inside
+# `git worktree add` as environment exit 4 — which a caller cannot tell from a
+# genuinely broken environment. Ask git rather than reimplementing its rules.
+#
+# Runs HERE, not beside the character check, and scoped with `-C "$toplevel"`:
+# `--branch` takes a branchname-shorthand and so performs repository discovery,
+# which fails outright when the process's CWD is a stale checkout (a `.git` file
+# naming a gitdir that no longer exists — precisely what this plugin's own
+# worktree cleanup deals with). Inheriting that CWD turned a perfectly valid name
+# into a false exit 2, and the documented invocation omits `--repo-dir`, so the
+# CWD is the default. Deferring past the exit-4 repository probe guarantees a
+# healthy repo to run in and makes a non-zero exit mean the NAME, nothing else.
+# Both streams are discarded: on success `--branch` echoes the name to stdout,
+# which would corrupt the sole-stdout-line output contract, and on failure git's
+# message is superseded by ours. An option-shaped name is read as a ref because
+# git parses no further options after `--branch`.
+if ! git -C "$toplevel" check-ref-format --branch "$name" >/dev/null 2>&1; then
+  printf '%s: --name %q is not a valid git branch name (see: git help check-ref-format)\n' "$PROG" "$name" >&2
+  exit 2
 fi
 
 # parse_owner_repo <url> — derive an `owner<TAB>repo` pair from a remote URL for

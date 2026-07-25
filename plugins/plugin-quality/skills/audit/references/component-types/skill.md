@@ -15,8 +15,9 @@ contract gate) when installed, and lean on its findings; absent, this file is th
   boundaries stated for adjacent intents.
 - **Progressive disclosure** — hub thin; detail in `references/`; each reference linked with a
   one-line load-when pointer. Does the hub stay thin as coverage grows?
-- **Composition** — if it orchestrates other skills, are they loaded inline (not forked, which
-  loses history)? Are the named skills real? Are absent-seam fallbacks stated?
+- **Composition** — if it orchestrates other skills, is each loaded inline or forked
+  (`context: fork` runs the skill body in a subagent with no conversation history), and does that
+  match what the step needs? Are the named skills real? Are absent-seam fallbacks stated?
 - **Scope correctness** — user vs project vs plugin; does it wrongly depend on
   project-specific skills that bias a generic task?
 - **Cloud caveat** — if it must run in cloud/routine contexts, note that user-scoped
