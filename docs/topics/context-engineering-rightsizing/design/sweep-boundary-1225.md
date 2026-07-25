@@ -9,8 +9,10 @@ build against:
 - **L2** — the cross-surface instruction-conflict detector (D-4).
 - **L3** — the evidence-tiered criteria catalog (D-4, D-2).
 
-Every claim below is cited to a file in this repository at the revision this branch forked from, or
-to an issue/PR read first-hand. Counts were produced by enumeration, not estimate.
+Every claim below is cited to a file in this repository or to an issue/PR read first-hand. Counts
+were produced by enumeration, not estimate. Both the counts and the `path:line` citations were
+re-verified against this branch as of its latest correction — **not** against the revision the branch
+forked from, since `main` has landed a plugin rename in the interim.
 
 ## What #1225 owns, in its own words
 
