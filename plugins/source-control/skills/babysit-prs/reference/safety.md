@@ -375,6 +375,13 @@ the wrapper gate has already proven ready and in-tier. That denial is an environ
 ceiling this skill's own contract has no authority over — a normal, expected outcome to plan for,
 not a bug in this skill, a stalled worker, or a reason to retry with broader permissions.
 
+Configuring that host layer means deciding which of this lane's entry points mutate, which flags
+gate which guard, and where each refusal is enforced. Those facts are in
+[reference/guard-contract.md](guard-contract.md), generated from the table
+`scripts/tests/test_guards.py` executes against the real entry points — so a rule written against
+a row cannot silently outlive the guard it cites. Cite a row ID; do not restate the behavior in
+the consuming configuration.
+
 ### Pinned-Command Degradation
 
 When the runtime denies a guarded mutation that this skill's own gate already proved ready —
