@@ -23,12 +23,21 @@
   criterion 10 is exercised against a real negative rather than passing vacuously, and its
   outcome-gate expectation is updated to match.
 
+- **The fetch log is now a written output-contract section**, not a term the gate referred to without
+  anything producing it. Criteria 6 and 9 are graded against it, so it exists as
+  `URL or command | artifact-ladder rung | tool used | outcome` with, per accepted claim, an entry for
+  the rung the claim came from and one per rung above it. Without it criterion 9 could only be
+  answered from recollection — which the gate's own preamble says does not bite — and a fresh session
+  could not audit the ladder evidence at all.
+
 ### Changed
 
 - **A fetch size failure now routes into the existing escalate-on-block ladder** rather than reading
   as a dead end: a content-length rejection or a silent truncation is a fetcher limit, not a source
   limit. Recipe — download out of context, confirm the file is the artifact and not a 200
-  login/consent/bot-challenge page, extract with whatever extractor the machine has, grep. An
+  login/consent/bot-challenge page, extract with whatever extractor the machine has, grep. Each
+  download takes its own filename — parallel workers sharing a fixed `doc.pdf` could overwrite one
+  another mid-validation and cite the wrong document. An
   unconfirmed download routes back through the full escalate-on-block order and does not count as the
   recipe having run, so it can never manufacture a premature "unreachable". "Unreachable" is reserved
   for extraction that failed after escalation also failed: an artifact that WAS confirmed, extracted,
