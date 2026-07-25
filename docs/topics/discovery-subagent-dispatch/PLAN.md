@@ -927,7 +927,7 @@ and sidecar-on-collision behavior**. This phase evaluates that condition and bra
 - Keep branch: `grep -n 'CLAUDE_CODE_FORK_SUBAGENT' plugins/discovery/skills/explore-deep/SKILL.md` shows the corrected, non-gate wording and names `context: fork` as distinct from the `fork` subagent type.
 - Either branch: `claude plugin validate plugins/discovery` exits 0 and `bash scripts/run-plugin-tests.sh` exits 0.
 
-### Phase 6: Manifest, CHANGELOG, README, catalog [TODO]
+### Phase 6: Manifest, CHANGELOG, README, catalog [DONE]
 
 Serialized last on purpose — issue #464 records that same-plugin version bumps plus top-inserted
 CHANGELOG entries serialize concurrent PRs by construction. Touching these first would re-create the
