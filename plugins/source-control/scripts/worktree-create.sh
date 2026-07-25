@@ -66,11 +66,11 @@ Options:
                       JSON content parameter), never a quoted literal or a
                       heredoc body: a value containing the heredoc delimiter
                       line ends the heredoc early and the remainder is parsed
-                      as commands. The file must hold exactly one line; a value
-                      with an embedded newline is rejected (exit 2) rather than
-                      silently truncated. The same unset/empty/unexpanded-token
-                      refuse (exit 3) applies to the file's content. Mutually
-                      exclusive with --root.
+                      as commands. The file's bytes ARE the root, verbatim and
+                      unterminated — a newline anywhere in it, trailing
+                      included, is a usage error (exit 2), never trimmed. The
+                      same unset/empty/unexpanded-token refuse (exit 3) applies
+                      to the file's content. Mutually exclusive with --root.
   --base-ref <ref>    fresh (default) branches from the remote default branch;
                       head branches from the repo's current HEAD. Omitted
                       defaults to fresh; the caller passes the effective Claude
@@ -126,29 +126,27 @@ fi
 # --root-file: read the root from the file rather than a process argument. This
 # is the out-of-band handoff a skill uses when it cannot place the
 # raw-substituted ${user_config.worktree_root} value in shell source safely (see
-# the --root-file usage text above) — the file holds exactly the substituted
-# value (or, when unset, the literal unexpanded ${user_config...} token), placed
-# there through a non-shell channel so no expansion, quote-processing, or
-# heredoc-delimiter matching touches it before it lands here. `read -r` strips
-# only the trailing newline; every other byte — including a single quote, `$`, or
-# backtick — passes through unchanged.
+# the --root-file usage text above) — the file's bytes ARE the root (or, when
+# unset, the literal unexpanded ${user_config...} token), placed there through a
+# non-shell channel so no expansion, quote-processing, or heredoc-delimiter
+# matching touches it before it lands here.
 #
-# A worktree root is a single line by construction. Reading only the first line
-# of a multi-line file would silently discard the rest and proceed with a root
-# the caller never asked for, so a second line is a loud usage error instead.
+# The whole file is the value, byte for byte: a single quote, `$`, or a backtick
+# passes through unchanged, and no line terminator is assumed or stripped. A
+# newline anywhere — trailing included — is therefore a rejection, not a trim.
+# Reading a "first line" instead would silently proceed with a root the caller
+# never asked for, and a trailing newline is indistinguishable from a root whose
+# own last byte is a newline, so neither can be forgiven without guessing.
 if [[ -n "$root_file" ]]; then
   if [[ ! -f "$root_file" ]]; then
     printf '%s: --root-file not found: %s\n' "$PROG" "$root_file" >&2
     exit 2
   fi
-  root_file_lines=0
-  while IFS= read -r _line || [[ -n "$_line" ]]; do
-    (( root_file_lines == 0 )) && root="$_line"
-    root_file_lines=$(( root_file_lines + 1 ))
-  done < "$root_file"
-  if (( root_file_lines > 1 )); then
-    printf '%s: --root-file %s holds %d lines; the worktree root must be a single line (an embedded newline is never a valid root)\n' \
-      "$PROG" "$root_file" "$root_file_lines" >&2
+  root=$(cat "$root_file"; printf x)   # printf x defends the value's own trailing bytes from $( ) stripping
+  root=${root%x}
+  if [[ "$root" == *$'\n'* ]]; then
+    printf '%s: --root-file %s contains a newline byte; the file holds the worktree root verbatim and a path with a newline in it is malformed configuration, not a root to trim\n' \
+      "$PROG" "$root_file" >&2
     exit 2
   fi
 fi

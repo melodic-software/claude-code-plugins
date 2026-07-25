@@ -341,7 +341,7 @@ assert_eq "trailing-slash root yields a single separator" \
 # --- Case: --root and --root-file together are a usage error (exit 2) ---
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 root_file="$TEST_TMPDIR/rootfile-both"
-printf '%s\n' "$TEST_TMPDIR/wtroot-both" > "$root_file"
+printf '%s' "$TEST_TMPDIR/wtroot-both" > "$root_file"
 bash "$HELPER" --name feat/both --root "$TEST_TMPDIR/wtroot-both" --root-file "$root_file" --repo-dir "$repo" >/dev/null 2>&1
 assert_exit "--root and --root-file together exit 2" 2 "$?"
 
@@ -354,11 +354,11 @@ assert_exit "--root-file missing file exit 2" 2 "$?"
 # substitution into skill markdown is raw text, not shell-escaped, so a root
 # containing a single quote, `$`, or a backtick would break an inline --root
 # shell literal. --root-file sidesteps that entirely — the value never passes
-# through a shell literal we write; it is read verbatim from the file.
+# through a shell literal we write; the file's bytes ARE the root.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 root="$TEST_TMPDIR_NATIVE/wtroot13-O'Connor \$weird \`root\`"
 root_file="$TEST_TMPDIR/rootfile-special"
-printf '%s\n' "$root" > "$root_file"
+printf '%s' "$root" > "$root_file"
 out=$(bash "$HELPER" --name feat/special --root-file "$root_file" --repo-dir "$repo" 2>/dev/null)
 assert_exit "--root-file special-char root creates (exit 0)" 0 "$?"
 assert_eq "--root-file special-char root computes the exact path" \
@@ -380,31 +380,47 @@ assert_contains "--root-file empty content names worktree_root key" "$err" "work
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 root_file="$TEST_TMPDIR/rootfile-token"
 # shellcheck disable=SC2016
-printf '%s\n' '${user_config.worktree_root}' > "$root_file"
+printf '%s' '${user_config.worktree_root}' > "$root_file"
 bash "$HELPER" --name feat/token --root-file "$root_file" --repo-dir "$repo" >/dev/null 2>&1
 assert_exit "--root-file unexpanded token refuses exit 3" 3 "$?"
 
-# --- Case: a single-line root with no trailing newline still creates (exit 0) ---
-# The Write-tool handoff carries exactly the substituted value, so the file may
-# end without a terminator. That is one line, not zero.
+# --- Case: a root whose last byte is significant survives intact (exit 0) ---
+# The file's bytes ARE the root, so nothing is stripped from the end. A trailing
+# dot would vanish under any "strip the terminator" reader that guessed wrong.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
-root="$TEST_TMPDIR_NATIVE/wtroot14-noeol"
+root="$TEST_TMPDIR_NATIVE/wtroot14-noeol.d"
 root_file="$TEST_TMPDIR/rootfile-noeol"
 printf '%s' "$root" > "$root_file"
 out=$(bash "$HELPER" --name feat/noeol --root-file "$root_file" --repo-dir "$repo" 2>/dev/null)
-assert_exit "--root-file unterminated single line creates (exit 0)" 0 "$?"
-assert_file_exists "--root-file unterminated single line materialized" "$out/README.md"
+assert_exit "--root-file unterminated value creates (exit 0)" 0 "$?"
+assert_eq "--root-file unterminated value keeps every byte" "$root/acme-widget-feat-noeol" "$out"
+assert_file_exists "--root-file unterminated value materialized" "$out/README.md"
 
-# --- Case: --root-file holding a multi-line value is a usage error (exit 2) ---
-# A newline inside worktree_root is never a valid root. Reading only the first
-# line would silently proceed with a root the caller never asked for; the second
-# line is also exactly the payload a heredoc-delimiter collision would have
-# smuggled into shell source, which is why the handoff is non-shell now.
+# --- Case: --root-file holding an embedded newline is a usage error (exit 2) ---
+# A newline inside worktree_root is never a valid root. Taking only the first
+# line would silently proceed with a root the caller never asked for, and the
+# second line here is exactly the payload a heredoc-delimiter collision would
+# have smuggled into shell source — which is why the handoff is non-shell now.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 root_file="$TEST_TMPDIR/rootfile-multiline"
 printf '%s\n%s\n' "$TEST_TMPDIR/wtroot15-multi" "touch $TEST_TMPDIR/pwned" > "$root_file"
 err=$(bash "$HELPER" --name feat/multi --root-file "$root_file" --repo-dir "$repo" 2>&1 >/dev/null)
-assert_exit "--root-file multi-line content is a usage error (exit 2)" 2 "$?"
-assert_contains "--root-file multi-line error names the single-line rule" "$err" "single line"
+assert_exit "--root-file embedded newline is a usage error (exit 2)" 2 "$?"
+assert_contains "--root-file newline error names the newline" "$err" "newline"
+assert_file_absent "--root-file newline payload never executed" "$TEST_TMPDIR/pwned"
+
+# --- Case: a TRAILING newline is rejected too, not trimmed (exit 2) ---
+# Trimming one terminator is a guess: it is indistinguishable from a root whose
+# own last byte is a newline, and guessing wrong silently creates the worktree
+# somewhere the caller never named. The handoff writes the value unterminated,
+# so a trailing newline means the value really carries one.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+root_file="$TEST_TMPDIR/rootfile-trailing-eol"
+printf '%s\n' "$TEST_TMPDIR/wtroot16-trailing" > "$root_file"
+err=$(bash "$HELPER" --name feat/trailing --root-file "$root_file" --repo-dir "$repo" 2>&1 >/dev/null)
+assert_exit "--root-file trailing newline is a usage error (exit 2)" 2 "$?"
+assert_contains "--root-file trailing-newline error names the newline" "$err" "newline"
+assert_file_absent "--root-file trailing-newline root never materialized" \
+  "$TEST_TMPDIR/wtroot16-trailing/acme-widget-feat-trailing/README.md"
 
 [[ $FAILED -eq 0 ]] || exit 1

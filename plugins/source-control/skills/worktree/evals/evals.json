@@ -104,12 +104,13 @@
       "id": 9,
       "name": "create-root-handoff-is-shell-safe",
       "prompt": "/worktree create feat/o-connor-fixture — how does the skill pass the configured worktree_root into the helper?",
-      "expected_output": "The skill never inlines ${user_config.worktree_root} into a quoted --root shell literal (that substitution is raw text, not shell-escaped, so a root containing a single quote, $, or a backtick would break the literal). Instead it writes the substituted value to a temp file via a quoted heredoc (<<'WT_ROOT_EOF', fully literal — no expansion or quote-processing) and passes that file to the helper with --root-file, matching context/create.md and SKILL.md verbatim. When worktree_root is unset, Claude leaves the literal ${user_config.worktree_root} token, the heredoc writes that token to the file unchanged, and the helper's existing unset guard still fires: exit 3, guidance surfaced verbatim, nothing created, no fallback to EnterWorktree(name: ...).",
+      "expected_output": "The skill never puts ${user_config.worktree_root} into shell source at all — not as a quoted --root literal (that substitution is raw text, not shell-escaped, so a root containing a single quote, $, or a backtick would break the literal) and not inside a heredoc body either (a root whose own body carries the delimiter line ends the heredoc early and the remainder is parsed as commands, which quoting the delimiter cannot prevent). Instead it writes the substituted value to a temp file with the Write tool — a JSON string parameter no shell parses — and passes that file to the helper with --root-file, matching context/create.md and SKILL.md verbatim. When worktree_root is unset, Claude leaves the literal ${user_config.worktree_root} token, Write puts that token in the file unchanged, and the helper's existing unset guard still fires: exit 3, guidance surfaced verbatim, nothing created, no fallback to EnterWorktree(name: ...).",
       "files": [],
       "expectations": [
         "Does NOT render a single-quoted (or otherwise inlined) ${user_config.worktree_root} literal as a --root argument anywhere in the rendered invocation",
-        "Renders the out-of-band handoff: a quoted heredoc (<<'WT_ROOT_EOF' or equivalent fully-literal delimiter) writing the substituted value to a temp file, then --root-file <that file> passed to worktree-create.sh",
-        "Preserves the exit-3 stop-and-surface contract for an unset worktree_root: helper guidance surfaced verbatim, nothing created, no EnterWorktree(name: ...) fallback"
+        "Does NOT render a heredoc carrying the substituted value, quoted delimiter or otherwise — the delimiter-collision hole is exactly what the Write-tool handoff replaces",
+        "Renders the non-shell handoff: a Write tool call whose content is the substituted value, into a file under a mktemp -d directory, then --root-file <that file> passed to worktree-create.sh",
+        "Preserves the exit-3 stop-and-surface contract for an unset worktree_root: helper guidance surfaced verbatim, nothing created, no EnterWorktree(name: ...) fallback — the helper's status is captured before the temp directory is removed, so the cleanup never masks a refusal"
       ]
     }
   ]
