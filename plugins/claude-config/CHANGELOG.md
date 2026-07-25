@@ -32,10 +32,14 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   relation between two surfaces, so a per-surface lane cannot see the other side and a lane that
   rescans everything re-derives the same pair in every lane. Per-surface lanes now run their checks
   minus I12, and one cross-surface lane runs I12 alone over the whole resolved inventory, emitting
-  each conflict once. Phase A backs it: managed policy and every out-of-scope I12 counterpart are
-  inventoried read-only (a scope argument narrows which side may produce a finding, never which
-  surfaces are read), and prompt-hook text is extracted from `.claude/settings.local.json` as well as
-  project and user `settings.json`, prompt text only.
+  each conflict once. Phase A backs it with a read-only inventory tier: org-managed policy (the
+  managed `CLAUDE.md`, a `claudeMd` settings value, and managed prompt-type hook text), upstream-owned
+  but live instruction text (installed plugin-cache skill bodies and agent definitions, managed
+  materializations), and every out-of-scope I12 counterpart — a scope argument narrows which side may
+  produce a finding, never which surfaces are read. Read-only inventory changes no ownership: those
+  surfaces still propose nothing and still route upstream. Prompt-hook text is extracted from
+  `.claude/settings.local.json` and managed settings as well as project and user `settings.json`,
+  prompt text only, never a command line or secret-bearing value.
 - **A no-change representation in the `audit-instructions` report contract.** A finding whose check
   forbids proposing an edit — the I12 managed-policy case, anything routed to an owning repository —
   records `no change proposed` and who owns the resolution instead of a fenced diff, so the per-finding

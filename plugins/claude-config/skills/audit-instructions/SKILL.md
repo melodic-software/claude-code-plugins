@@ -106,12 +106,22 @@ Exclude from the **editable** set, and hold for the routing subsection: auto-mem
 and any managed materialization per the Scope boundary. Record each surface found and each surface
 skipped, so the report's tier-transparency line can name both.
 
-Two surfaces are inventoried **read-only** rather than excluded outright, because a later phase has
-to compare against them even though no proposed edit may ever touch them:
+Some surfaces are inventoried **read-only** rather than excluded outright, because a later phase has
+to compare against them even though no proposed edit may ever touch them. Read-only inventory changes
+nothing about ownership: these surfaces still produce no proposal of their own, and a finding
+involving one still carries the no-change representation and its routing recommendation.
 
-- **Org-managed policy** — the managed-policy `CLAUDE.md` and any `claudeMd` value in managed
-  settings. It is never editable and never produces a proposal, but I12 explicitly owns conflicts
-  where one side is managed policy, and that comparison is impossible if the text is never read.
+- **Org-managed policy** — the managed-policy `CLAUDE.md`, any `claudeMd` value in managed settings,
+  and prompt-type hook text configured in managed settings. All three are live instruction text, and
+  a managed hook contradicting a project skill is exactly the conflict I12 explicitly owns; that
+  comparison is impossible if the text is never read. Extract managed hook text under the same
+  prompt-text-only, no-secrets handling as the other settings scopes.
+- **Upstream-owned instruction text that is nonetheless live** — installed plugin-cache skill bodies
+  and agent definitions, and any managed materialization. An invoked plugin skill's instructions are
+  in context alongside the project's own, so they can hold one side of a conflict. They are read for
+  comparison only: the existing exclusion from the editable set and the upstream-routing behavior are
+  unchanged, so a finding here routes to the owning repository's tracker and proposes no in-place
+  edit.
 - **Every I12 counterpart outside the requested scope.** A scope argument narrows which surfaces may
   *produce* findings, not which are read: a conflict is a relation between two surfaces, so a run
   scoped to `skills` still inventories `CLAUDE.md`, rules, agents, hooks, and output styles as
