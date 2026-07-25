@@ -15,7 +15,7 @@
 # reply-parent concept and always carry null). GitHub sets it to the id of
 # the THREAD-OPENING comment, not the immediately-preceding reply: every
 # reply in a thread carries the same in_reply_to_id (empirically verified
-# against live PR #563 data — every referenced parent in that thread set was
+# against live review-thread data — every referenced parent in that set was
 # itself a root comment), so grouping by `in_reply_to_id // id` recovers
 # thread membership directly. This does not change the documented REST
 # cross-check in reference/review-discipline.md / skills/pull-request/SKILL.md
