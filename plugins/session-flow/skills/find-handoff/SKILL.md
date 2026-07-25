@@ -121,9 +121,13 @@ pre-clear content sits in a sibling — never in the current session's own file.
      present, its value must be a concrete session UUID. **Screen delivered continuations here
      too:** `continue-in-background prompt` emits this same rails block as assistant text and then
      delivers the inline prompt to the agent it launches — check the same transcript after the
-     block for a successful `claude --bg --name "continue-…"` launch of that prompt. A delivered
-     block is not a lost handoff (its work is already running — `claude agents` lists it); exclude
-     it and keep scanning.
+     block for a successful `claude --bg --name "continue-…"` launch. **Bind the launch to the
+     block by content, never by ordering alone:** the producer writes the exact launched prompt to
+     a temp file (visible in the same transcript as the Write preceding the launch) — a launch
+     excludes only the block whose content it delivered; a later launch of a *different* prompt
+     never disqualifies an earlier manual block in the same transcript. A delivered block is not a
+     lost handoff (its work is already running — `claude agents` lists it); exclude it and keep
+     scanning.
    - **Un-escape before surfacing.** Each transcript message is ONE physical JSONL line with its
      text JSON-string-escaped (`\n` for newlines, `\"` for quotes, `\\` for backslashes). A raw grep
      hit is that escaped blob — decode it back to plain text (JSON-unescape the matched string)
@@ -236,5 +240,7 @@ pre-clear content sits in a sibling — never in the current session's own file.
   both a manual handoff and a later background launch under the same `session_id`, and never on
   the `continue-<topic>` slug alone (topic-only: same-topic files all match; ambiguous unless it
   uniquely resolves). Exclude only the correlated, successful launch's file and point the operator
-  at `claude agents` instead. Prompt-only continuations screen the same way: a rails block
-  followed in its transcript by a successful `claude --bg` launch was delivered, not lost.
+  at `claude agents` instead. Prompt-only continuations screen the same way, bound by content: a
+  rails block whose exact prompt a successful `claude --bg` launch delivered (the producer writes
+  it to a temp file in the same transcript first) was delivered, not lost — a later launch of a
+  different prompt never disqualifies an earlier manual block.
