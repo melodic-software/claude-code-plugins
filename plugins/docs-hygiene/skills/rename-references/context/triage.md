@@ -79,6 +79,14 @@ Measured on the `re-anchor` → `discipline` rename, over that plugin's own tree
 134 lines for 8 real defects; Forms 13–15 matched 9. Reach for a position-anchored form before
 reaching for the blocklist.
 
+**Position-anchoring alone does not finish the job.** Forms 13–15 resolve only the lines they
+match; the remaining bare-token lines still reach Form 2 and take its Certain default. What
+removes them is `patterns.md` "Phase 0b — container-rename mode": when the renamed thing is a
+container, bare-token position carries no signal at all, so the residue is excluded from Certain
+and reported as an aggregate rather than as prompts. Mode is decided by WHAT is being renamed,
+which is why it works where the blocklist cannot — it does not depend on anyone having listed
+the token in advance.
+
 **User flow:** present each match individually via `AskUserQuestion` with 3 lines of surrounding context. Three options per match: "rename this", "skip this", "skip remaining ambiguous". Always one-by-one — batched confirmation defeats the safety purpose.
 
 **Why per-match:** "the user just renamed the `confirm` skill" does NOT mean every English use of "confirm" should be replaced. The incident that motivated this skill contained dozens of legitimate "confirm" verb uses (research vocabulary, user-confirmation prompts, domain logic) that MUST be preserved. Per-match confirmation lets the user catch each.

@@ -23,6 +23,27 @@
   Command-argument hits are called out as FUNCTIONAL breaks, not cosmetic ones: a reader
   following `/plugin install <old>@marketplace` gets `plugin-not-found`.
 
+- **Container-rename mode (`patterns.md` Phase 0b) — the rule that actually removes the prompt
+  flood.** Precedence (below) resolves only lines the container forms ALSO matched: 8 of Form 2's
+  134 on the measured fixture. The other 126 are ordinary verb uses no container form touches,
+  and they fall through to Form 2's Certain default. The sweep now declares a MODE at Phase 0
+  from what is being renamed. For a container — a plugin, a marketplace entry, a package — the
+  renamed thing is a proper name, so a bare-token occurrence is evidence of nothing; the residue
+  is excluded from Certain **regardless of blocklist membership** and reported as one aggregate
+  count, surfaced only behind an explicit widen and then as Ambiguous. Mode is a property of what
+  is being renamed, which is why it works where the static blocklist cannot: it does not depend
+  on anyone having listed the token in advance. Fixture result with mode + precedence: 8 Certain
+  findings, 126 reported-not-proposed, 0 confirmation prompts.
+
+- **Form 14 is scoped to container-owned documents.** "A heading that IS the token can only be
+  naming it" holds for a coined or hyphenated name and FAILS for an ordinary-word one — verified
+  against this repository: renaming a `testing` plugin matches `README.md:86` (`### Testing`, a
+  marketplace category heading) and renaming `architecture` matches `plugins/miro/README.md:39`
+  (`## Architecture`, an unrelated design section). Under precedence a false Certain there is
+  worse than a plain Form 2 hit, because it discards the safer classification. A title match is
+  Certain only in plausibly container-owned files, and always Ambiguous when the token is a
+  common English word.
+
 - **Container-position precedence, without which the new forms only ADD hits.** Forms 13–15 are
   strictly more specific than Form 2 — every line they match, Form 2 matches too. The sweep now
   deduplicates by `(file, line)` after collecting and before triage: a container-position match

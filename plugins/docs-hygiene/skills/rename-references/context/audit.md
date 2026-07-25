@@ -35,10 +35,18 @@ Run all patterns from [patterns.md](patterns.md) in parallel via Grep tool. For 
 - Apply auto-exclusions per `../SKILL.md` "Auto-exclusions" via `glob` filter or post-filter
 
 Aggregate matches into a flat list of `{file, line, pattern_form, snippet}` tuples, then apply
-the container-position precedence rule in `patterns.md` "Phase 0" — deduplicate by
-`(file, line)` so a line matched by Forms 13–15 is attributed to that form and its weaker
-Form 2 / chain-form duplicates are dropped. Carry the dropped count into the report's
-"superseded" row. Deduplicate BEFORE Phase 3, or triage will bucket the same reference twice.
+BOTH rules from `patterns.md`, in this order:
+
+1. **Precedence** ("Phase 0") — deduplicate by `(file, line)` so a line matched by Forms 13–15
+   is attributed to that form and its weaker Form 2 / chain-form duplicates are dropped. Carry
+   the dropped count into the report's "superseded" row.
+2. **Container-rename mode** ("Phase 0b") — when the renamed thing is a container, exclude the
+   remaining bare-token residue from Certain entirely and report it as one aggregate count.
+   Precedence alone leaves that residue at Form 2's Certain default; the mode rule is what
+   removes it.
+
+Both run BEFORE Phase 3, or triage will bucket the same reference twice and re-admit the
+residue the mode rule excluded.
 
 ### Phase 3: Triage
 
@@ -85,6 +93,7 @@ Pattern-form breakdown:
 - Form 14 (document title):    <count>
 - Form 15 (possessive/appositive): <count>
 - Form-2 hits superseded by container-position matches: <count>
+- Bare-token occurrences outside container position (container-rename mode; NOT proposed): <count>
 
 Next: invoke `/rename-references <old> to <new>` to apply, or `/rename-references preview <old> to <new>` to dry-run.
 ```

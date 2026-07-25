@@ -110,6 +110,31 @@
         "The report includes the count of Form-2 hits superseded by container-position matches",
         "Ordinary verb uses are not surfaced as rename candidates or as mandatory confirmation prompts"
       ]
+    },
+    {
+      "id": 10,
+      "name": "container-mode-excludes-bare-token-residue-from-certain",
+      "prompt": "Audit the rename of the `re-anchor` plugin to `discipline`. The token is used as an English verb about 130 times across the plugin and it is not in the blocklist.",
+      "expected_output": "Declares container-rename mode at Phase 0. Position-anchored forms produce the Certain bucket; the bare-token residue -- every Form 2 line NOT matched by a position-anchored form -- is excluded from Certain entirely regardless of blocklist membership, and reported as a single aggregate count rather than as per-match confirmation prompts. It does not propose rewriting the verb uses, and it does not ask the user to confirm them one by one.",
+      "files": [],
+      "expectations": [
+        "Container-rename mode is declared and drives the bucketing",
+        "Bare-token residue is excluded from Certain WITHOUT relying on the blocklist",
+        "Residue is reported as an aggregate count, not as per-match prompts",
+        "Deduplication of overlapping lines is not presented as sufficient on its own"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "title-form-scoped-to-container-owned-documents",
+      "prompt": "Rename the `testing` plugin to `test-suite`. Audit for stale references.",
+      "expected_output": "Recognizes that `testing` is an ordinary English word, so Form 14 title matches are demoted to Ambiguous rather than Certain. A heading like `### Testing` in the repository root README (a marketplace category heading, not the container's own document) is NOT auto-applied; only headings in plausibly container-owned files -- the plugin's own README/SKILL/manifest or paths under its directory -- are eligible for Certain, and even those are demoted when the token is a common word.",
+      "files": [],
+      "expectations": [
+        "A title match outside container-owned files is not rated Certain",
+        "An ordinary-word container name demotes title matches regardless of path",
+        "Precedence does not discard the safer classification for an out-of-scope title match"
+      ]
     }
   ]
 }
