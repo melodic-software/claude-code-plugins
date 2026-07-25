@@ -119,22 +119,22 @@ PowerShell variant, deliberately: every portable alternative hides the destinati
 bounds from the approval prompt, this plugin's only runtime-enforced control. Absent Git Bash, say so
 and stop; reasoning in [`context/failure-modes.md`](context/failure-modes.md).
 
-Drop the `Accept` header for JSON instead — `{markdown, url, author}`. For raw fields (`text`,
-`rawText`, `media`, `quoteTweet`, `isNoteTweet`, engagement counts) POST the same body to
-`/api/fetch`.
+Drop the `Accept` header for JSON — `{markdown, url, author}`. For raw fields (`text`, `rawText`,
+`media`, `quoteTweet`, `isNoteTweet`, engagement counts) POST the same body to `/api/fetch`.
 
 **Plugin data directory:** `${CLAUDE_PLUGIN_DATA}` — this file is the only surface where that
 expands, so carry the resolved path (forward slashes) and substitute it wherever
 [`context/failure-modes.md`](context/failure-modes.md) says `<plugin-data-dir>`.
 
-For a long article, redirect to `<plugin-data-dir>/x-article-<id>-<nonce>.md`, `Read` the slice, then
-delete it. The nonce and the delete are both required — see
+For a long article, redirect to a quoted `"<plugin-data-dir>/x-article-<id>-<nonce>.md"`, `Read` the
+slice, then delete it — **on every exit path**, including the status branches that stop before
+reading. Nonce, quoting, and unconditional delete are all required; see
 [`context/failure-modes.md`](context/failure-modes.md). Never derive the path from the response body.
 
-**Capture the status — `-sS` alone prints none.** Append `-w '\n%{http_code}'`. A `200` is not by
-itself success: confirm the response carries converted content, validating against the form you asked
-for — under `Accept: text/markdown` success is raw Markdown with no JSON envelope, so a missing
-`markdown` field proves nothing. Both shapes: [`context/failure-modes.md`](context/failure-modes.md).
+**Capture the status — `-sS` alone prints none.** Append `-w '\n%{http_code}'`. A `200` is not itself
+success: confirm the response carries converted content, validating against the form you asked for —
+under `Accept: text/markdown` success is raw Markdown with no JSON envelope, so a missing `markdown`
+field proves nothing. Both shapes: [`context/failure-modes.md`](context/failure-modes.md).
 
 ### Step 2 — Thread Reader App (unrolled reply chain)
 
