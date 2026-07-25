@@ -847,8 +847,9 @@ is the right home for the keys; the pointer to it is what has to change** — th
 bundled statement of the suppression shape, citing the convention by name rather than by relative
 path. Owned by the implementation lane; not edited from this branch.
 
-**The semver collision is a cross-PR defect neither PR can see from inside itself.** Both #1316 and
-#1318 modify `plugins/claude-config/.claude-plugin/plugin.json`, and both take `0.9.2` → **`0.10.0`**.
+**The semver collision is a cross-PR defect neither PR can see from inside itself.** Both PRs — the
+criteria PR #1316 and the skill PR #1318 — modify
+`plugins/claude-config/.claude-plugin/plugin.json`, and both take `0.9.2` → **`0.10.0`**.
 Each is internally consistent, so each passes `changelog-parity-gate` on its own branch; the pair is
 not. Whichever merges second lands a manifest version already claimed by the first, with a duplicate
 `## [0.10.0]` changelog heading and no bump relative to the new `main`. **The second PR to merge must
