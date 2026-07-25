@@ -12,9 +12,15 @@
 #
 # in_reply_to_id is populated ONLY for type "inline" (the only GitHub REST
 # surface that threads via this field — general/review comments have no
-# reply-parent concept and always carry null). A non-null value is the id of
-# the inline comment this one replies to; use it to confirm thread membership
-# instead of a raw `gh api pulls/<pr>/comments` cross-check.
+# reply-parent concept and always carry null). GitHub sets it to the id of
+# the THREAD-OPENING comment, not the immediately-preceding reply: every
+# reply in a thread carries the same in_reply_to_id (empirically verified
+# against live PR #563 data — every referenced parent in that thread set was
+# itself a root comment), so grouping by `in_reply_to_id // id` recovers
+# thread membership directly. This does not change the documented REST
+# cross-check in reference/review-discipline.md / skills/pull-request/SKILL.md
+# — this script's schema was the only thing missing the field; the raw API
+# was always correct.
 #
 # Usage:
 #   fetch-all-pr-comments.sh <pr-number>
@@ -36,7 +42,7 @@ set -uo pipefail # -e omitted: gh api failures explicitly guarded with || { exit
 PR_NUMBER=""
 
 usage() {
-  sed -n '2,18p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,30p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit 0
 }
 
