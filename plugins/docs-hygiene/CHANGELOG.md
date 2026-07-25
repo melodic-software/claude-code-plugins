@@ -2,6 +2,28 @@
 
 ## [0.9.0]
 
+### Fixed
+
+- **Precedence no longer launders a demotion into a Certain rating.** The dedup rule said a
+  deduplicated line "enters the Certain bucket" unconditionally, which contradicted Form 14's
+  scope rule demoting out-of-scope title matches to Ambiguous — and made eval 11's own
+  expectation unachievable. A deduplicated line now enters **the owning form's bucket after its
+  scope rules apply**. Precedence decides WHICH form owns a line, never how safely it is rated.
+- **Apply mode terminates under container-rename mode.** `apply.md` Phase 6 completed only at
+  `count == 0`, but the residue the mode rule deliberately leaves unrenamed still matches the
+  token forever, so Outcome B looped indefinitely. Phase 6 now evaluates the ACTIONABLE count —
+  the survey after precedence and mode — and reports residue in the hand-off summary.
+- **`--include-bare-token` is registered where flags are parsed.** Phase 0b named it as the way
+  to inspect suppressed residue, but it appeared in neither `SKILL.md`'s `argument-hint` nor
+  `audit-modes.md`'s override table, whose contract errors on unknown flags — so the only
+  documented path to the residue failed. Registered in both, audit-mode only, always Ambiguous.
+- **Form 13's qualified-id form no longer matches email addresses.** `<old>@[\w.-]+` has no
+  management verb anchoring it, so for a container named `info`/`admin`/`support` it matched
+  contact addresses on a Certain-rated form — a silent auto-rewrite. A marketplace slug is
+  kebab-case with no dots while an email domain carries a TLD dot, so the form now accepts
+  `[\w-]` with a `(?![\w.-])` lookahead. Verified: `info@melodic-software` matches;
+  `info@melodicsoftware.com` and `info@example.co.uk` do not.
+
 ### Added
 
 - **`rename-references` gains three container-position pattern forms (13–15), closing the gap

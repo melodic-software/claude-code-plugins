@@ -1,7 +1,7 @@
 ---
 name: rename-references
 description: "Sweep stale references after renames — the syntactic forms token-only grep misses (slash-tokens, paths, chain prose, numbered table rows, frontmatter chains and globs). Use when: 'rename X to Y', 'I renamed X', 'audit rename', 'find stale refs', 'check for stragglers', 'after git mv', 'sweep references', 'rename impact preview', 'find half-renamed state', 'broken refs after rename', 'pre-PR rename check' — actions: audit, audit blast, audit half-rename, audit orphans, apply, preview, blocklist; not for framework migrations or repo-wide dead-reference audits."
-argument-hint: "[action] [<old> [to <new>]] [--include-historical|--include-memory|--include-plan-docs] (e.g., /rename-references audit, /rename-references audit blast /verify to /verify-changes, /rename-references audit half-rename /a to /b, /rename-references audit orphans /a to /b, /rename-references blocklist)"
+argument-hint: "[action] [<old> [to <new>]] [--include-historical|--include-memory|--include-plan-docs|--include-bare-token] (e.g., /rename-references audit, /rename-references audit blast /verify to /verify-changes, /rename-references audit half-rename /a to /b, /rename-references audit orphans /a to /b, /rename-references blocklist)"
 user-invocable: true
 disable-model-invocation: false
 shell: bash

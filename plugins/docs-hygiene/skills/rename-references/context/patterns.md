@@ -175,7 +175,7 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
 
 ```regex
 (^|[^\w/])/plugins?\s+(install|uninstall|configure|enable|disable|update|add|remove)\s+`?<old>\b
-\b<old>@[\w.-]+
+\b<old>@[\w](?:[\w-]*[\w])?(?![\w.-])
 ```
 
 - **Triage default:** Certain
@@ -190,9 +190,18 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
 - **Optional backtick before `<old>`:** these appear inside inline code spans constantly
   (`` `/plugin configure <old>` ``); without `` `? `` the pattern misses the most common
   rendering.
-- **False-positives:** rare. The enclosing management verb is what supplies the
-  disambiguation bare-token position lacks — prose does not accidentally say
-  "/plugin configure" before an English verb.
+- **Email collision, and why the `@`-form excludes dots.** The qualified-id alternative has no
+  management verb in front of it, so on its own `<old>@[\w.-]+` matches an email address
+  whenever the container name is a plausible local part — `info`, `admin`, `support`,
+  `contact`, `dev`. On a Certain-rated form that is a silent auto-rewrite of contact addresses.
+  The discriminator is structural: a marketplace slug is kebab-case with **no dots**, while an
+  email domain always carries a TLD dot. The regex therefore accepts `[\w-]` only and uses a
+  negative lookahead `(?![\w.-])` so a following dot disqualifies the match — verified:
+  `info@melodic-software` matches, `info@melodicsoftware.com` and `info@example.co.uk` do not.
+- **False-positives:** otherwise rare. For the first alternative, the enclosing management verb
+  supplies the disambiguation bare-token position lacks — prose does not accidentally say
+  "/plugin configure" before an English verb. If a consuming marketplace ever allows dots in a
+  slug, demote the `@`-form to Chain-context rather than widening the regex back.
 - **Severity note:** these are FUNCTIONAL breaks, not cosmetic. A reader following
   `/plugin install <old>@marketplace` gets `plugin-not-found`. Rank them above title hits
   when reporting.
@@ -266,9 +275,16 @@ new forms would only ADD hits, leaving the Form 2 flood they exist to avoid full
 
 Deduplicate by `(file, line)` AFTER the sweep and BEFORE triage:
 
-1. A `(file, line)` matched by any of Forms 13–15 is attributed to that form and enters the
-   **Certain** bucket. Drop the Form 2 (and any chain-form) match for that same line — it is
-   the same reference seen through a weaker lens, not a second finding.
+1. A `(file, line)` matched by any of Forms 13–15 is attributed to that form and enters **that
+   form's own triage bucket after its scope rules are applied** — which is Certain by default,
+   but **Ambiguous** whenever the matching form demotes it (Form 14 outside container-owned
+   files, or with a common-word token). Drop the Form 2 (and any chain-form) match for that
+   same line — it is the same reference seen through a weaker lens, not a second finding.
+
+   **Precedence changes WHICH form owns the line, never the safety of its rating.** Attributing
+   a line to Form 14 and then forcing it Certain would use precedence to launder a
+   demotion — the exact false positive Form 14's scope rule exists to prevent, and worse than
+   the Form 2 hit it replaced. If the owning form demotes, the deduplicated line is Ambiguous.
 2. Only lines Forms 13–15 did NOT match fall through to Form 2's blocklist rule above.
 
 The Phase 0 rule is therefore scoped to what actually reaches Form 2: it forces a

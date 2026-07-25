@@ -85,13 +85,23 @@ Then exit. Do not proceed to Phase 6.
 
 ### Phase 6: Re-sweep
 
-Re-run Phase 2 (survey) with the same pattern library and `<old>`. Three possible outcomes:
+Re-run Phase 2 (survey) with the same pattern library and `<old>`.
 
-**Outcome A — count == 0:** rename complete. Proceed to Phase 7.
+**"Count" here means the ACTIONABLE count** — the survey result after applying both
+[patterns.md](patterns.md) "Phase 0" precedence and "Phase 0b" container-rename mode. Under a
+container rename the bare-token residue is deliberately left unrenamed (it is ordinary use of
+the word, not a reference), so those lines still match `<old>` forever. Counting them raw
+means the completion check can never reach zero and Outcome B loops indefinitely. Residue does
+not count toward completion; report it in the Phase 7 summary as the same aggregate the audit
+reports.
 
-**Outcome B — count > 0, all in already-triaged buckets:** Phase 4 user choices missed some matches. Re-present bucket counts and re-confirm. Loop back to Phase 4.
+Three possible outcomes:
 
-**Outcome C — count > 0, NEW pattern form not in library:** Phase 6 pattern-library-evolution trigger. STOP — do not silently apply.
+**Outcome A — actionable count == 0:** rename complete. Proceed to Phase 7.
+
+**Outcome B — actionable count > 0, all in already-triaged buckets:** Phase 4 user choices missed some matches. Re-present bucket counts and re-confirm. Loop back to Phase 4.
+
+**Outcome C — actionable count > 0, NEW pattern form not in library:** Phase 6 pattern-library-evolution trigger. STOP — do not silently apply.
 
 Pattern evolution protocol:
 
@@ -103,7 +113,7 @@ Ask user before automatic re-iteration — they may want to inspect manually fir
 
 ### Phase 7: Hand off
 
-When Phase 6 reports count == 0:
+When Phase 6 reports an actionable count of 0:
 
 1. Summarize what changed:
 

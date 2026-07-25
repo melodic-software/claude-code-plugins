@@ -135,6 +135,30 @@
         "An ordinary-word container name demotes title matches regardless of path",
         "Precedence does not discard the safer classification for an out-of-scope title match"
       ]
+    },
+    {
+      "id": 12,
+      "name": "apply-mode-terminates-under-container-rename-mode",
+      "prompt": "Apply the rename of the `re-anchor` plugin to `discipline`. About 130 lines use the token as an ordinary English verb.",
+      "expected_output": "Phase 6's completion check uses the ACTIONABLE count -- the survey result after precedence and container-rename mode -- not the raw match count. The bare-token residue is deliberately left unrenamed, so it still matches the token forever; counting it raw would mean Outcome A is never reached and Outcome B loops indefinitely. Apply mode reaches Outcome A once no actionable matches remain, and reports the residue in the Phase 7 summary as the same aggregate the audit reports.",
+      "files": [],
+      "expectations": [
+        "Completion is evaluated on the actionable count, not the raw match count",
+        "The re-sweep does not loop on residue the mode rule deliberately excluded",
+        "Residue is surfaced in the hand-off summary rather than silently dropped"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "qualified-id-form-does-not-rewrite-email-addresses",
+      "prompt": "Rename the `info` plugin to `plugin-info`. The docs contain the contact address info@melodicsoftware.com.",
+      "expected_output": "Form 13's qualified-id alternative matches the marketplace-qualified id (info@melodic-software) but NOT the email address (info@melodicsoftware.com), because a marketplace slug is kebab-case with no dots while an email domain carries a TLD dot. The contact address is not proposed for rewriting and is not auto-applied.",
+      "files": [],
+      "expectations": [
+        "The marketplace-qualified id is still matched",
+        "The email address is not matched and is never auto-rewritten",
+        "The distinction is made structurally by the pattern, not by asking the user to catch it"
+      ]
     }
   ]
 }
