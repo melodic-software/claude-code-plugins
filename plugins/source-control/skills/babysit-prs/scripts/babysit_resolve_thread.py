@@ -98,14 +98,19 @@ def _latest_comment_update(comments: list[Any]) -> str | None:
     return max(values) if values else None
 
 
-def project_thread(record: dict[str, Any]) -> dict[str, object]:
+def project_thread(
+    record: dict[str, Any], *, extra_bot_logins: frozenset[str] = frozenset()
+) -> dict[str, object]:
     """Map one shared-paginator record to this CLI's thread shape.
 
     Inspects EVERY fetched participant -- not just the first comment -- so a
     bot-started thread with a human reply is not mistaken for a pure-bot thread.
     `botOnly` and `lastCommentUpdatedAt` fail closed (False / None) when a
     comment page is undisclosed (`comments_truncated`), since a human reply or
-    an edit could be hiding beyond the fetched page.
+    an edit could be hiding beyond the fetched page. `extra_bot_logins` extends
+    structural bot detection the same way it does everywhere else `is_bot` is
+    called (e.g. `actor_kind` in `babysit_classify.py`); it ships empty, so an
+    unconfigured caller still relies on structure alone.
     """
     comments = cast(list[Any], record.get("comments") or [])
     truncated = bool(record.get("comments_truncated"))
@@ -117,6 +122,7 @@ def project_thread(record: dict[str, Any]) -> dict[str, object]:
             is_bot(
                 _comment_author(c).get("login"),
                 _comment_author(c).get("__typename"),
+                extra_bot_logins,
             )
             for c in comments
         )
@@ -145,9 +151,14 @@ def project_thread(record: dict[str, Any]) -> dict[str, object]:
     }
 
 
-def fetch_threads(repo: str, number: int) -> list[dict[str, object]]:
+def fetch_threads(
+    repo: str, number: int, *, extra_bot_logins: frozenset[str] = frozenset()
+) -> list[dict[str, object]]:
     # include_resolved so the caller can see (and skip) already-resolved threads;
     # comments_first=100 to inspect every participant for the bot-only test.
+    def _project(record: dict[str, Any]) -> dict[str, object]:
+        return project_thread(record, extra_bot_logins=extra_bot_logins)
+
     return [
         cast(dict[str, object], record)
         for record in fetch_review_threads(
@@ -155,7 +166,7 @@ def fetch_threads(repo: str, number: int) -> list[dict[str, object]]:
             number,
             include_resolved=True,
             comments_first=100,
-            projection=project_thread,
+            projection=_project,
         )
     ]
 
@@ -201,6 +212,12 @@ def parse_allowed_owners(raw: str | None) -> set[str]:
     if not raw:
         return set()
     return {part.strip().casefold() for part in raw.split(",") if part.strip()}
+
+
+def parse_extra_bot_logins(raw: str | None) -> frozenset[str]:
+    if not raw:
+        return frozenset()
+    return frozenset(part.strip() for part in raw.split(",") if part.strip())
 
 
 def main() -> int:
@@ -268,8 +285,17 @@ def main() -> int:
             "judgment that each finding is addressed."
         ),
     )
+    parser.add_argument(
+        "--extra-bot-logins",
+        default=None,
+        help=(
+            "Comma-separated logins to treat as bots when structural detection "
+            "cannot classify them (ships empty)."
+        ),
+    )
     args = parser.parse_args()
 
+    extra_bot_logins = parse_extra_bot_logins(args.extra_bot_logins)
     allowed = parse_allowed_owners(args.allowed_owners)
     if not allowed:
         print(
@@ -400,7 +426,7 @@ def main() -> int:
         return 3
 
     try:
-        threads = fetch_threads(repo, number)
+        threads = fetch_threads(repo, number, extra_bot_logins=extra_bot_logins)
     except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
         print(json.dumps({"pr": args.pr, "error": f"{type(exc).__name__}: {exc}"}))
         return 2
@@ -474,7 +500,7 @@ def main() -> int:
                     [
                         r
                         for r in results
-                        if not is_bot(r["author"], r["authorType"])
+                        if not is_bot(r["author"], r["authorType"], extra_bot_logins)
                         and r["action"] in ("would-resolve", "resolved")
                     ]
                 ),
