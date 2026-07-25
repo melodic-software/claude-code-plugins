@@ -7,15 +7,19 @@ repo-agnostic, configurable by consumers, and safe in plugin form.
 
 ## Fresh-docs mandate (non-negotiable)
 
+[`docs/OFFICIAL-DOCS.md`](docs/OFFICIAL-DOCS.md) is the canonical index of every plugin-relevant
+official page, plus the self-updating `llms.txt` master list for anything it omits.
+
 **Scope** — a change touching a plugin manifest, a marketplace schema, a hook contract, or documented
-harness behavior. Prose edits, formatting, and mechanical edits are out.
+harness behavior, which includes the contract surface of every plugin component that index covers.
+The discriminator is the surface, not the file: a skill's frontmatter, a subagent's fields, or an
+`.mcp.json` entry is a contract change and is in; that same skill's prose body is a prose edit and is
+out. Formatting and mechanical edits are out.
 
 Inside that scope, operate only off current official documentation — never training-data recall,
-never a stale summary. Before the change, open [`docs/OFFICIAL-DOCS.md`](docs/OFFICIAL-DOCS.md) — the
-canonical index of every plugin-relevant official page, plus the self-updating `llms.txt` master list
-for anything it omits — WebFetch the page(s) it points to for current schema and behavior, and cite
-the URL. If a fact is not confirmed from a page fetched this session, treat it as unverified and say
-so. Non-negotiable.
+never a stale summary. Before the change, open the index, WebFetch the page(s) it points to for
+current schema and behavior, and cite the URL. If a fact is not confirmed from a page fetched this
+session, treat it as unverified and say so. Non-negotiable.
 
 Machine-readable JSON Schemas (editor validation for the JSON in this repo; Claude Code ignores the
 `$schema` field at load time): `marketplace.json` →
