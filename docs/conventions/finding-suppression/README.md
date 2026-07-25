@@ -3,7 +3,8 @@
 Owner doc for the consumer-tracked record that says "this audit finding is known, accepted, and must
 not resurface". It declares the **keys**, the per-entry shape, and the merge form; how the record's
 layers resolve is the [config cascade](../config-cascade/README.md) convention's axis, and this doc
-points there rather than restating it.
+points there rather than restating it. How a consumer *derives* the id and its constituents is that
+consumer's own contract, not this one's.
 
 `contract_version` for the keys below lives in [`CHANGELOG.md`](CHANGELOG.md). The cascade contract
 versions independently, per its own boundary rule.
@@ -45,9 +46,21 @@ Markdown with a fenced YAML block — human-readable in review, greppable from a
 ```yaml
 suppressions:
   3f1a9c02d4b78e55:
-    reason: "Nested CLAUDE.md deliberately tightens the root rule for generated code."
+    check: claude-config/audit-instructions/nested-override
+    claim: nested-tightens-root
+    sites:
+      - surface: .claude/rules/generated.md
+        anchor/v1: "e:9c02d4b78e55:1"
+    reason: "Nested rule deliberately tightens the root rule for generated code."
     date: 2026-07-24
   b7e0d1145aa93c68:
+    check: claude-config/audit-instructions/cross-layer-conflict
+    claim: contradicts
+    sites:
+      - surface: CLAUDE.md
+        anchor/v1: "e:1145aa93c681:1"
+      - surface: "managed:CLAUDE.md"
+        anchor/v1: "e:b7e0d1145aa9:1"
     reason: "Conflicts with org policy; exception requested, tracked in #482."
     date: 2026-07-24
 ```
@@ -58,12 +71,33 @@ suppressions:
 | Key | Type | Required | Meaning |
 |---|---|---|---|
 | `suppressions` | mapping | yes | Entries keyed by the audit's `finding_id`. **A mapping, never a list** — see below. |
+| `suppressions.<finding_id>.check` | string | **yes** | The check that raised it, as the consumer qualifies checks. |
+| `suppressions.<finding_id>.claim` | string | **yes** | The canonical claim id plus bound parameters, never free prose. |
+| `suppressions.<finding_id>.sites` | list of `{surface, anchor/v<N>}` | **yes** | **Every** site the finding is about — two for a cross-surface finding, not one plus a footnote. Order in the file is immaterial; the consumer sorts canonically before hashing. |
 | `suppressions.<finding_id>.reason` | string, non-empty | **yes** | Why this finding is accepted. A suppression with no stated reason cannot be reviewed and cannot be retired. |
 | `suppressions.<finding_id>.date` | ISO-8601 date | **yes** | When it was accepted. Staleness is judged against it. |
 
-Unknown keys are inert, per the cascade's soft-degradation rule. An entry missing `reason` or `date`
+Unknown keys are inert, per the cascade's soft-degradation rule. An entry missing any required key
 is **reported as malformed and does not suppress** — a silent partial parse would turn a formatting
 slip into a lost check.
+
+### Constituents, not a bare id
+
+The id alone is a one-way hash. It answers "is this exact finding still present" and nothing else, so
+a record built on it can only ever classify an entry as matched or gone — a partial match is not
+computable from it, and no carry-forward rule can be written on top of one. Storing the constituents
+is also what lets a human review the record: an operator auditing a year-old entry reads what was
+accepted rather than a hex string.
+
+**The constituents are authoritative and the key is derived from them.** An entry whose stored
+constituents do not hash to its own key is reported as malformed and does not suppress — the same
+disposition a missing `reason` gets, and for the same reason. A hand-edited constituent left beside a
+stale key would otherwise silently stop suppressing, which is a lost decision rather than a lost
+check.
+
+A site's anchor **key** carries the algorithm version (`anchor/v1`), so a site may hold several
+versions at once and an entry written under one keeps matching until both the record and the run have
+moved past it. Comparison uses the greatest version both sides carry.
 
 ### Keyed per entry, never a closed list
 
@@ -104,8 +138,18 @@ A skill reading this surface:
    exists, merge per-key, report the contributing layer, degrade soft on a malformed layer.
 2. Emits a `suppressed` report section listing every suppressed finding with its reason, date, and
    contributing layer. Suppression is visible, never silent.
-3. Reports an entry whose `finding_id` matches no current finding as **stale**, rather than ignoring
-   it. A suppression that has outlived its finding is how a corpus quietly loses a check.
+3. Resolves every entry to exactly one of four dispositions, and reports every one but the first:
+   - **SAME, UNCHANGED** — both anchors match, `(check, claim)` match. Applies silently.
+   - **SAME, CHANGED** — exactly one anchor changed, and the other anchor plus `(check, claim, both
+     surfaces)` all match. **Carries forward, marked `needs-reconfirmation`**, surfaced with the
+     changed side named. Never silent: the edit may have *been* the fix attempt, and silently
+     re-suppressing it hides exactly the case the operator most needs to see.
+   - **OLD CLOSED, NEW OPENED** — both anchors changed, or `claim` changed, or a surface changed. The
+     old entry goes **stale**, never silently dropped; the new finding is unsuppressed.
+   - **CLOSED** — the finding is absent from the new run entirely. Accounted for as exactly one of:
+     matched to an applied fix, matched to a successor by partial match, or reported as an
+     **UNEXPLAINED DISAPPEARANCE**, which fails the consuming skill's own self-check. An unaccounted
+     disappearance is how a corpus quietly loses a check.
 4. **Refuses** a suppression that would be written into a path the audit excludes — a byte-identical
    cluster copy, a vendored tree, a worktree — and names the canonical source instead. Writing a
    marker into a synced copy makes it differ from its siblings and breaks the sync path.
@@ -125,6 +169,16 @@ A skill reading this surface:
 - **No expiry key.** An expiry would be a second staleness mechanism competing with obligation 3,
   which already retires an entry the moment its finding is gone. Revisit if a consumer demonstrates a
   suppression that should lapse while its finding persists.
+- **Constituents are required from the first published contract, not added once a consumer needs
+  them.** This record is operator-authored and commonly committed, so adding required keys later is a
+  migration on somebody else's tracked data — and the migration is not mechanical, because the
+  constituents cannot be recovered from the id they were hashed into.
+- **A one-sided change carries the suppression forward rather than dropping it, but never
+  silently.** The alternative extremes were both rejected: re-reporting from scratch churns a
+  judgement the operator still holds, and re-suppressing silently hides the case where the edit *was*
+  the fix attempt. `needs-reconfirmation` is what makes carrying-forward safe. Tiered matching over a
+  fingerprint that is *stable enough* rather than exact is the prior art here — SARIF devotes
+  Appendix B (Normative) to it, and GitHub's documented mismatch behavior is close-and-reopen.
 - **Claude-specific location, for now.** Every surface the first adopter audits is a Claude Code
   artifact, so a finding about one belongs under `.claude/`. A cross-vendor instruction surface
   entering scope would break that premise, and the location argument must then be re-derived rather
@@ -137,4 +191,10 @@ Conformance is tracked once, in the cascade contract's own
 layered consumer surface in the fleet, and a second table here would be the same rows in two places,
 drifting apart the first time one is updated alone.
 
-The first adopter is `claude-config`'s `audit-pass` skill.
+The first adopter is `claude-config`'s `audit-pass` skill. It carries its own operative copy of what
+it needs at run time — the record's location, the layer merge, the precedence inversion, and its
+entry-disposition table — in that skill's run-contract reference, deliberately and not by oversight:
+a plugin is installed into a cache where no path back to this repository resolves, so a skill that
+reached here to answer a runtime question would answer nothing. This doc remains the cross-consumer
+key contract; it is not a runtime dependency of any plugin, and no plugin should acquire a relative
+path to it.

@@ -4,39 +4,153 @@ Finding identity, where the report lives, run state, resumability, the report sc
 finding tiers with their properties. Every rule here is stated as a condition a test can assert.
 
 Terms: a **run** is one invocation against one **target**; a **lane** is one check applied to one
-surface class; the **scan set** is the set of files a run reads.
+surface class; the **scan set** is the set of files a run reads. A surface is **live** when the
+harness actually loads it for that target — read from `InstructionsLoaded` for the memory layer and
+`/context` for skills, subagents, and MCP tools, never inferred from a filesystem walk alone. The
+**live surface set** is every live surface at the moment a run starts; it can change without the tree
+changing, because startup scope depends on the launch directory and on settings the tree does not
+contain.
 
 ## 1. Finding identity
 
-Prose judgements are undiffable. Identity is a four-part tuple, emitted machine-readably.
+Prose judgements are undiffable. Identity is three parts, emitted machine-readably, and the third is
+a **set** — because a cross-surface finding is about a relation between sites, not about one site
+with a footnote.
 
 ```text
-identity = (surface, check, anchor, claim)
+identity = (check, claim, sites)
+sites    = sorted([(surface, anchor), …])   # one entry, or two for a pairwise finding
 ```
 
-- **`surface`** — the file's *logical* path, never a machine-absolute one. Project-scope surfaces are
-  repo-relative POSIX paths with no leading `./`; user-scope and managed-policy surfaces are
-  scope-prefixed (`user:.claude/CLAUDE.md`, `managed:CLAUDE.md`). A report is then comparable across
-  machines whose absolute paths differ.
 - **`check`** — fully qualified, `<plugin>/<skill>/<check>`. A bare check id is ambiguous across
   catalogs.
-- **`anchor`** — **content-derived, never line-derived**: `sha256(normalized_excerpt)` truncated to
-  12 hex characters. Normalization strips trailing whitespace, collapses internal whitespace runs to
-  one space, and strips surrounding markdown emphasis markers; case is preserved, because these
-  surfaces contain code and identifiers. A human-readable heading path (`## Rules > ### Naming`)
-  travels alongside for legibility only — the hash is what identity compares. A line number would
-  shift whenever anything above it changed, churning the whole report on an unrelated edit.
 - **`claim`** — the check's canonical claim id plus its bound parameters, never free prose. A finding
   names one template from the check's declared set and supplies its parameters; prose is a rendering
   of the claim, never the claim itself.
+- **`sites`** — the set of `(surface, anchor)` pairs the finding is *about*, canonically sorted by
+  the byte ordering of `surface \x1f anchor`. **Sorted, because an ordered pair hashes X-versus-Y
+  differently from Y-versus-X** — the same conflict would then be reported twice and would not
+  survive a re-run that happened to visit the surfaces in the other order.
 
-**`finding_id` = `sha256` of the four fields joined by `\x1f`, truncated to 16 hex characters.**
+**A cross-surface conflict is ONE finding with two sites, never two linked findings.** SARIF reserves
+separate results for "distinct occurrences … which could be corrected independently"
+([§3.27.12](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html), verified 2026-07-24).
+A contradiction between two instruction surfaces is retired by fixing *either* side, so the two sides
+are not independently correctable and are not two results.
+
+**`primary_site` and `related_site` are presentation and remediation fields, OUTSIDE the hash.**
+Which side a report leads with, and which side a `--fix` proposes editing, is a routing judgement —
+project scope is editable, user scope is routed, managed policy never — and routing must be free to
+change without renaming the finding.
+
+### `surface` — the physical file, never the loading entry point
+
+The canonicalized **physical file** the content lives in. Project-scope surfaces are repo-relative
+POSIX paths with no leading `./`; user-scope and managed-policy surfaces are scope-prefixed
+(`user:.claude/CLAUDE.md`, `managed:CLAUDE.md`). A report is then comparable across machines whose
+absolute paths differ.
+
+A symlink resolves to its target. **A target resolving outside the target root takes the
+scope-prefixed logical form**, not the resolved absolute path — otherwise one shared rules file
+symlinked into several repositories yields a different surface in each, and a suppression recorded in
+one is invisible to the rest.
+
+The file that imported the content is a **load edge**, not identity. The harness already emits the
+split: an `InstructionsLoaded` hook payload carries `file_path` (the surface) alongside
+`parent_file_path` (the edge it was loaded through) — verified on Claude Code 2.1.220.
+
+**`load_path`** — the ordered chain of entry points through which a surface loaded — is carried as a
+**non-identity** field for diagnosis, capped at **5 entries** and truncated with an explicit marker
+beyond that. Observed import depth is four hops, so the cap admits the real maximum with one to
+spare. It is outside the hash because the same file reached through a second import path is the same
+content and the same defect.
+
+### `anchor` — content-derived, granularity-discriminated, versioned
+
+**Content-derived, never line-derived.** A line number shifts whenever anything above it changes,
+churning the whole report on an unrelated edit. The anchor field name carries its algorithm version:
+findings emit **`anchor/v1`**, and two sides compare on the **greatest anchor version both carry**
+(the versioned-fingerprint discipline of SARIF
+[§3.27.17](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html), verified 2026-07-24).
+That is the escape hatch: a later algorithm ships as `anchor/v2` alongside `v1`, and a record written
+under `v1` keeps matching until both sides have moved.
+
+Two granularities, discriminated by prefix:
+
+| Granularity | Form | Identity reduces to |
+|---|---|---|
+| Excerpt | `e:<sha256(normalized_excerpt) truncated to 12 hex>:<n>` | `(surface, anchor, check, claim)` |
+| Whole surface | `s:` — bare, no digest | `(surface, check, claim)` |
+
+`<n>` is the 1-based ordinal of this excerpt among identical normalized excerpts in the same surface,
+so a rule repeated verbatim three times yields three distinct anchors rather than one collision.
+
+**A whole-surface finding is content-FREE by construction**, and that is the point: a finding about a
+file *as a whole* — it should not exist, it is unreachable, it duplicates another — must not be
+retired by editing a line inside it. SARIF grounds the same decomposition: "If the region property is
+absent, the `physicalLocation` object refers to the entire artifact"
+([§3.29.4](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html), verified 2026-07-24).
+The consequence must be stated where an operator will meet it: **an `s:` suppression survives every
+edit to the file and does not survive a rename.** A rename is a new surface, so the suppression goes
+stale and is re-reported — correctly, because a renamed file is a decision worth re-judging.
+
+**An `s:` anchor in a two-site finding is a hard error, not a warning.** A pairwise claim asserts a
+relation between two pieces of text; with no excerpt on a side there is nothing to show the operator
+and nothing to fix, and every contradiction between the same two files would collide on one id.
+
+A human-readable heading path (`## Rules > ### Naming`) travels alongside each site for legibility
+only — the anchor is what identity compares.
+
+### Normalization, v1
+
+Applied to the excerpt before hashing. Case is **preserved**, because these surfaces carry code and
+identifiers.
+
+1. Strip trailing whitespace; collapse internal whitespace runs to one space.
+2. Strip surrounding markdown emphasis markers.
+3. **Preserve backticks and the text they delimit.** Stripping them would normalize `` `@README` ``
+   to `@README` — literal text quoted *as an example of an import* would then hash identically to a
+   real import, and a check about imports would fire on prose describing one.
+4. **Strip block-level HTML comments that fall outside a fenced code block.** They are removed before
+   the content reaches the model, so hashing them churns anchors over text no check ever saw. Inside
+   a fence they are content and are kept.
+
+### Two deliberate divergences from GitHub's implementation
+
+Both are stated here together because they share one premise and one dissent, and reading either
+alone makes it look like an ad-hoc exception. **Shared premise:** SARIF's decomposition of a result
+into logical location plus partial fingerprints is adopted wholesale — that is where `sites`, the
+region/no-region granularity split, and versioned anchor names all come from. **Shared dissent:** the
+*input to the hash* is chosen for this corpus, not inherited.
+
+1. **Pairwise identity hashes both sides.** GitHub keys a result on `locations[0]` alone, treating
+   any further location as context. For a cross-surface contradiction the second surface is not
+   context — it is half of what makes the finding true, and dropping it merges every conflict a file
+   has with anything into one identity.
+2. **Whole-surface identity is content-free.** CodeQL's `fingerprints.ts` hashes the file's first
+   line when no region is available. That gives a file-level finding a content dependency it does not
+   have, so an unrelated edit to line 1 retires a suppression about the file's existence.
+
+### `finding_id`
+
+**`sha256` of `check`, `claim`, then each site's `surface` and `anchor` in sorted order, all joined
+by `\x1f`, truncated to 16 hex characters.** A finding carries one `finding_id` per anchor version it
+emits, named for that version. **A suppression entry's key is the `finding_id` computed over the
+anchor versions that entry itself stores**, which is what gives assertion 4.5 a single referent;
+1.9's greatest-common-version rule then selects which of a run's ids is compared against it.
 
 | # | Assertion |
 |---|---|
-| 1.1 | For a fixed tree, `finding_id` is stable across runs, working directories, operating systems, and path separators. |
+| 1.1 | For a fixed tree **and a fixed live surface set**, `finding_id` is stable across runs, working directories, operating systems, and path separators. Liveness is named because it can change with no tree change at all, and an identity claim that ignored it would be false the first time a run started from a different directory. |
 | 1.2 | Inserting an unrelated paragraph above a finding does not change its `finding_id`. |
 | 1.3 | Every emitted finding validates against the report schema, and its `claim` id exists in the cited check's declared template set. An undeclared claim id is a **hard error**, not a warning — that is what stops prose leaking back in. |
+| 1.4 | A pairwise finding discovered as (A, B) and the same finding discovered as (B, A) produce one identical `finding_id`. Swapping `primary_site` and `related_site` does not change it either. |
+| 1.5 | Reaching a surface through a different import chain changes `load_path` and does not change `finding_id`. A `load_path` longer than 5 entries is truncated with an explicit marker rather than dropped silently. |
+| 1.6 | A finding emitted with an `s:` anchor and two sites is rejected as a **hard error**. |
+| 1.7 | Editing any line of a surface leaves an `s:` finding's `finding_id` unchanged; renaming that surface changes it. |
+| 1.8 | An excerpt reading `` `@README` `` and one reading `@README` produce different anchors. Adding, editing, or removing a block-level HTML comment outside a fenced code block changes no anchor; the same edit inside a fence does. |
+| 1.9 | A record carrying only `anchor/v1` still matches a run emitting `anchor/v1` and `anchor/v2`; the comparison uses `v1`, the greatest version both carry. |
+| 1.10 | Two identical normalized excerpts in one surface produce two distinct anchors, differing in `<n>`. |
 
 ## 2. Where the report lives
 
@@ -91,26 +205,76 @@ target.
 ## 4. Suppression, per target class
 
 **The governing rule: an inline marker is permitted only where the pass may write; everywhere else
-suppression is central and keyed by `finding_id`.**
+suppression is central.**
+
+**A central entry stores the finding's constituents, not a bare id.** `check`, `claim`, and **every**
+`(surface, anchor)` site, alongside the required reason and date — with `finding_id` as the mapping
+key derived from them. A bare id is a one-way hash: it can answer "is this exact finding still
+present" and nothing else, so a record built on it cannot compute a tiered match and none of the four
+dispositions below is implementable on top of it. The constituents also make the entry diagnosable by
+a human reviewer — an operator auditing a year-old suppression can read what was accepted instead of
+a hex string. They are required from the first published contract rather than retrofitted, because
+this record is operator-authored and commonly committed: adding required keys later is a migration on
+somebody else's tracked data, and the constituents cannot be recovered from the id they hash into.
 
 | Target class | Suppression site | Why |
 |---|---|---|
 | A project-scope file the pass may edit | inline marker at the finding's site | Local, reviewable in the same diff as the content it governs, and it travels with the content |
-| A file the pass does not own | the central record, keyed by `finding_id` | Editing a file you do not own to silence a report is a boundary violation dressed as configuration |
+| A file the pass does not own | the central record | Editing a file you do not own to silence a report is a boundary violation dressed as configuration |
 | A user-scope file | the central record only; **never** an edit to the file | User-scope surfaces are routed, never edited. An inline marker is an in-place edit by another name |
 | A registered byte-identical cluster copy | at the **canonical source**, never the copy | A marker in a copy makes it differ from its siblings and breaks the sync path |
 
-The central record's path, keys, layering, and required fields are owned by
-[`docs/conventions/finding-suppression`](../../../../../docs/conventions/finding-suppression/README.md).
-It is **excluded from the scan set** — otherwise suppressing a finding changes the tree and perturbs
-the next run.
+**The record and its layers.** `.claude/audit-pass.md` in the target repository, resolved across the
+three config-cascade layers — user-global, team (tracked), and a gitignored local overlay. Layers
+merge **per key**: a later layer's entry for one `finding_id` wins for that id alone, and every id it
+does not mention keeps the earlier layer's entry. A list would be taken whole, so one personal entry
+would silently discard the team's entire accepted set. On a direct conflict for the same id the
+**team layer wins**, inverting the usual precedence — a personal overlay must not weaken a team
+floor, so a personal layer may add or narrow but never override. Every reported entry names its
+contributing layer, which is what makes that inversion auditable rather than merely declared.
+
+The cross-consumer key contract is published separately, as the **finding-suppression** convention in
+this marketplace. This section states what the pass itself needs in order to run, so the skill
+resolves nothing by reaching outside the plugin.
+
+The record is **excluded from the scan set** — otherwise suppressing a finding changes the tree and
+perturbs the next run.
+
+### Matching an entry: the four dispositions
+
+Storing constituents is what makes tiered matching computable at all — a bare id can only ever say
+matched or gone — so the contract states the full table rather than a binary.
+
+Tiered matching is prior art, not an invention. SARIF carries a whole **Appendix B (Normative), "Use
+of fingerprints by result management systems"**, whose subject is that a fingerprint is expected to
+be *stable enough* rather than absolutely stable. GitHub's documented behavior on a mismatch is
+close-and-reopen: "If the filepaths differ for the same result, each time there is a new analysis a
+new alert will be created, and the old one will be closed"
+([SARIF support for code scanning](https://docs.github.com/en/code-security/code-scanning/integrating-with-code-scanning/sarif-support-for-code-scanning),
+verified 2026-07-25).
+
+| Condition | Disposition | Effect on the suppression |
+|---|---|---|
+| Both anchors match, `(check, claim)` match | **SAME, UNCHANGED** | Applies silently, as an exact match always has. |
+| Exactly one anchor changed; the other anchor and `(check, claim, both surfaces)` all match | **SAME, CHANGED** | **Carries forward, marked `needs-reconfirmation`**, surfaced in `suppressed` with the changed side named. Never silent: the edit may have *been* the fix attempt, and silently re-suppressing hides precisely the case the operator most needs to see. |
+| Both anchors changed, **or** `claim` changed, **or** a surface changed | **OLD CLOSED, NEW OPENED** | The old entry goes **stale** per 4.2, never silently dropped. The new finding is unsuppressed. |
+| The finding is absent from the new run entirely | **CLOSED** | Must be **accounted for** as exactly one of: matched to an applied fix; matched to a successor by partial match; or reported as an **UNEXPLAINED DISAPPEARANCE**, which fails the run's self-check exactly as a P4a tolerance breach does. |
+
+A single-site finding has no "other anchor", so row 2 cannot apply to one: a changed anchor on a
+single-site finding falls to row 3.
+
+**Row 4 is the detector P2 has been missing.** §6's P2 states that a finding vanishing without a fix
+is a defect — a definition with nothing able to observe it. Requiring every disappearance to be
+accounted for is what turns that definition into a check capable of failing.
 
 | # | Assertion |
 |---|---|
 | 4.1 | A suppressed finding does not appear in the next run's findings, and appears in the `suppressed` section with its reason, its date, and its contributing cascade layer. |
-| 4.2 | A suppression entry whose `finding_id` matches no finding is reported as **stale** rather than silently ignored. |
+| 4.2 | Every entry resolves to exactly one of the four dispositions above. `SAME, CHANGED` carries the suppression forward and reports it as `needs-reconfirmation` naming the changed side; `OLD CLOSED, NEW OPENED` reports the old entry as **stale** and leaves the new finding unsuppressed. Neither is silent. |
 | 4.3 | Adding a suppression does not change any other finding's `finding_id`. |
 | 4.4 | No suppression mechanism writes to a path in the derived exclusion set. Attempting to suppress a finding in a registered cluster copy makes the run refuse and name the canonical source. |
+| 4.5 | An entry whose stored constituents do not hash to its own key is reported as malformed and does not suppress. The constituents are authoritative; the key is derived from them. |
+| 4.6 | Every finding present in the previous run and absent from this one is accounted for as exactly one of: matched to an applied fix, matched to a successor by partial match, or reported as an **UNEXPLAINED DISAPPEARANCE**. The third fails the run's self-check. |
 
 ## 5. Mid-run resumability
 
@@ -148,10 +312,40 @@ is the question an operator asks first, and it is where a silent scope regressio
 Stated over two runs `R1` then `R2`; `D(R)` is the derived-tier identity set, `J(R)` the judged-tier
 set.
 
-- **P1 — determinism.** Tree unchanged ⇒ `D(R1) = D(R2)`, exactly. Not a subset, not a tolerance.
+### The precondition must be measured, not assumed
+
+Every property below is conditioned on "tree unchanged". **A run cannot assume that precondition of
+itself.** The state key is computed once at Phase 0, and nothing re-validates the tree at Phase 6, so
+a checkout that moves *during a single run* — another session switching branches, pulling, or
+committing underneath it — yields a comparison whose basis silently stopped holding. This is not
+hypothetical: a pass over a shared checkout observed its target move mid-measurement, from one commit
+on one branch to a different commit on another, with a rename landing in between. Several concurrent
+sessions on one repository is the normal case for the operator who runs this first.
+
+So the run **measures** its own precondition:
+
+- At Phase 0 and again at Phase 6, capture the target's **HEAD commit** and its **dirty-file count**.
+- If either differs between the two captures, the determinism gate is reported **`indeterminate`**,
+  never `passed` and never `failed`, naming both captures and what moved.
+- `indeterminate` is a distinct outcome, not a soft pass. It says the run could not establish the
+  basis for the comparison — which is a true statement — where `passed` would assert a stability that
+  was never tested.
+
+An unfalsifiable `passed` is worse than an honest `indeterminate`: it manufactures confidence out of
+a precondition nobody checked, and it is indistinguishable in the report from a gate that genuinely
+held.
+
+- **P1 — determinism.** Tree unchanged **and live surface set unchanged** ⇒ `D(R1) = D(R2)`, exactly.
+  Not a subset, not a tolerance. The liveness clause is load-bearing rather than a hedge: startup
+  scope depends on the launch directory and on settings the tree does not contain, so two runs over a
+  byte-identical tree can legitimately see different surfaces. **A liveness change is reported as the
+  cause and never silently absorbed** — a run that quietly attributed a liveness difference to the
+  tree, or to nothing, would be the same silent scope regression P3a exists to catch.
 - **P2 — convergence.** Accepted fixes applied between runs ⇒ `D(R2) ⊊ D(R1)`, and every member of
   `D(R1) \ D(R2)` corresponds to a fix actually applied. A finding that vanishes without a fix is a
-  defect in the check, not a success.
+  defect in the check, not a success. **Its detector is §4's fourth disposition**: every disappearance
+  is accounted for as a fix, a successor, or an UNEXPLAINED DISAPPEARANCE that fails the self-check.
+  Without that accounting P2 is a definition nothing can observe.
 - **P3 — no spontaneous growth.** Tree and catalog versions unchanged ⇒ `D(R2) ⊆ D(R1)`. The set may
   grow only on a catalog version bump or a change to the tree — and a skill authored between runs is
   a change to the tree.
@@ -168,6 +362,16 @@ set.
   explicit, recorded decision citing the observed distribution.
 - **P5 — the delegated tier is excluded from both properties.** A prompt-based delegate cannot
   contribute to a determinism gate.
+- **P6 — an unestablished precondition yields `indeterminate`.** A run whose start and end captures
+  of HEAD and dirty-file count disagree reports the determinism gate as `indeterminate` and does not
+  evaluate P1, P2, or P3 for that pair. Their precondition demonstrably did not hold, so a verdict on
+  them would be an assertion about a comparison the run never actually made.
+
+| # | Assertion |
+|---|---|
+| 6.1 | A run captures HEAD and dirty-file count at Phase 0 and again at Phase 6, and records both captures in the report. |
+| 6.2 | When the two captures differ, the determinism gate reads `indeterminate` — never `passed`, never `failed` — and names both captures and what moved. |
+| 6.3 | An `indeterminate` gate is visibly distinct from a passing one in the report, and P1–P3 are reported as not evaluated rather than as satisfied. |
 
 The floor of 2 exists because with a small judged set a pure percentage rounds to zero, making P4
 identity by the back door — which P4 exists to deny. With a large set the percentage dominates and
@@ -179,9 +383,17 @@ Two artifacts, because incremental persistence and a sectioned report want diffe
 
 **During the run — `findings.partial.jsonl`.** One JSON object per line, appended as each lane
 completes. Append-only is what makes §5 real: a single JSON document would be rewritten whole on
-every append, which is exactly the operation an interrupted run leaves half-done. Each record carries
-its `lane`, its `tier`, the identity tuple, `finding_id`, and the rendered prose; a lane's final
+every append, which is exactly the operation an interrupted run leaves half-done. A lane's final
 record is its terminating record, which is what marks the lane complete.
+
+Each record separates the two field classes §1 distinguishes, because a reader who cannot tell them
+apart cannot tell which fields a change would rename the finding through:
+
+| Block | Fields | Rule |
+|---|---|---|
+| `identity` | `check`, `claim`, `sites` (each `surface` + versioned `anchor`, canonically sorted) | Hashed into `finding_id`. Nothing else is. |
+| Presentation | `primary_site`, `related_site`, `load_path`, per-site heading path, rendered prose | Carried for reading and remediation. Changing any of them leaves `finding_id` untouched. |
+| Run metadata | `lane`, `tier` | Where the record came from. |
 
 **At the end — `findings.json`.** One document assembled from the partial, carrying `schemaVersion`,
 the run and target identity, the resolved version of every catalog consulted, and then the sections:
@@ -191,7 +403,7 @@ the run and target identity, the resolved version of every catalog consulted, an
 | `inventory` | the three-scope surface list, derived tier |
 | `mechanical` | derived-tier findings, including shadowed definitions |
 | `behavioral` | judged-tier findings |
-| `suppressed` | every suppressed finding with its reason, date, and contributing cascade layer |
+| `suppressed` | every entry with its reason, date, contributing cascade layer, and its disposition — including each `needs-reconfirmation` entry with the changed side named, each stale entry, each malformed entry, and every UNEXPLAINED DISAPPEARANCE |
 | `delegated` | `/doctor`'s output, diffed by nobody |
 | `skipped` | every surface excluded, **with its reason** — a silent exclusion reads as coverage, and this section is what stops it |
 

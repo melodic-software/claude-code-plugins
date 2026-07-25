@@ -67,10 +67,10 @@ instead of the fix channel. So:
 canonical source** as the only place the suppression may be recorded. The same refusal applies to a
 suppression targeting a `vendor/` path or a worktree path.
 
-The permitted alternative is always available: record the suppression centrally, keyed by
-`finding_id`, in the record the
-[finding-suppression convention](../../../../../docs/conventions/finding-suppression/README.md)
-owns. A central entry names the finding without touching the excluded file at all.
+The permitted alternative is always available: record the suppression centrally in
+`.claude/audit-pass.md`, carrying the finding's constituents under its derived `finding_id`, per
+[the run contract's suppression section](run-contract.md). A central entry names the finding without
+touching the excluded file at all.
 
 ## Reporting
 

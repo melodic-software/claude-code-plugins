@@ -125,12 +125,12 @@
       "id": 11,
       "name": "suppressed-section-reports-provenance",
       "prompt": "/claude-config:audit-pass why is this finding not showing up any more?",
-      "expected_output": "A suppressed finding appears in the report's suppressed section with its reason, its date, and which cascade layer supplied the entry — team layer wins a direct conflict for the same finding_id, so a reader must be able to tell a team floor from a personal addition. An entry whose finding_id matches no current finding is reported as stale rather than ignored.",
+      "expected_output": "A suppressed finding appears in the report's suppressed section with its reason, its date, and which cascade layer supplied the entry — team layer wins a direct conflict for the same finding_id, so a reader must be able to tell a team floor from a personal addition. Every entry takes exactly one of four dispositions, and only an exact match is silent.",
       "files": [],
       "expectations": [
         "Lists the finding in a suppressed section with its reason and date rather than omitting it",
         "Names the cascade layer that supplied the suppression entry",
-        "Reports a suppression whose finding_id matches no current finding as stale"
+        "Reports the entry's disposition rather than silently ignoring it, since only an exact match is silent"
       ]
     },
     {
@@ -143,6 +143,90 @@
         "Declines to add criteria to this skill and routes the rule to the owning plugin's catalog",
         "States that this skill contributes run semantics rather than checks",
         "Does not propose a shared criteria file or any cross-plugin file read"
+      ]
+    },
+    {
+      "id": 13,
+      "name": "pairwise-conflict-is-one-finding-with-two-sites",
+      "prompt": "/claude-config:audit-pass the root CLAUDE.md and ~/.claude/CLAUDE.md contradict each other — how does that show up in the report, and will it be the same id if you happen to scan them in the other order?",
+      "expected_output": "One finding carrying two sites, with the same finding_id either way. The sites are a canonically sorted set of (surface, anchor) pairs, so X-versus-Y and Y-versus-X hash identically; an ordered pair would report the one conflict twice and would not survive a re-run that visited the surfaces in the other order. It is not two linked findings, because a contradiction is retired by fixing either side and separate results are reserved for occurrences correctable independently. primary_site and related_site say which side the report leads with and which side a fix would touch, and both sit outside the hash.",
+      "files": [],
+      "expectations": [
+        "Emits one finding carrying both sites rather than two linked findings, citing that either side's fix retires it",
+        "States that the site set is canonically sorted so the two discovery orders produce one identical finding_id",
+        "Keeps primary_site and related_site outside the hash as presentation and remediation fields"
+      ]
+    },
+    {
+      "id": 14,
+      "name": "anchor-granularity-is-discriminated",
+      "prompt": "/claude-config:audit-pass flag this whole rules file as unreachable, and also flag the one contradictory sentence inside it",
+      "expected_output": "Two findings at two granularities, discriminated in the anchor. The whole-surface finding takes a bare s: anchor and its identity reduces to (surface, check, claim) — content-free, so a suppression for it survives every edit to the file and goes stale on a rename, which is correct because a renamed file is worth re-judging. The sentence-level finding takes an e: anchor over the normalized excerpt plus an occurrence ordinal. An s: anchor on a finding carrying two sites is a hard error, since a pairwise claim with no excerpt on a side has nothing to show and nothing to fix.",
+      "files": [],
+      "expectations": [
+        "Uses a bare s: anchor for the whole-surface finding and an e: excerpt anchor for the sentence-level one",
+        "States that the whole-surface identity is content-free, so its suppression survives edits but not a rename",
+        "Treats an s: anchor on a two-site finding as a hard error rather than a warning"
+      ]
+    },
+    {
+      "id": 15,
+      "name": "surface-is-the-physical-file-not-the-entry-point",
+      "prompt": "/claude-config:audit-pass this rules file is @-imported from two different CLAUDE.md files, and on my other machine it is a symlink into a shared repo — is that two findings or one?",
+      "expected_output": "One finding. The surface is the canonicalized physical file the content lives in, never the entry point it was loaded through; the importing file is a load edge, recorded in the non-identity load_path field, capped at five entries and truncated with an explicit marker. Reaching the same content through a second import chain is the same content and the same defect, so load_path is outside the hash. A symlink resolves to its target, and a target resolving outside the target root takes the scope-prefixed logical form — otherwise one shared file yields a different surface per consuming repo and a suppression recorded in one is invisible to the rest.",
+      "files": [],
+      "expectations": [
+        "Emits one finding, with the physical file as surface and the importing files as non-identity load_path entries",
+        "States that changing the import chain changes load_path and not finding_id",
+        "Gives a symlink target outside the target root the scope-prefixed logical form rather than a resolved absolute path"
+      ]
+    },
+    {
+      "id": 16,
+      "name": "liveness-needs-both-ground-truth-sources",
+      "prompt": "/claude-config:audit-pass just use the InstructionsLoaded hook output for the inventory, that tells you exactly what loaded",
+      "expected_output": "Declines to run the inventory on that source alone. InstructionsLoaded covers the memory layer only — CLAUDE.md and .claude/rules/*.md — so Skills, Custom Agents, and MCP Tools would silently drop out of the surface set, and under-coverage reads as a clean report. /context covers those and is also where launch-directory dependence becomes visible. Both are taken, and a disagreement between them is reported rather than resolved by picking a winner. Neither observes managed-settings.json's claudeMd key, which is named as a known gap in the skipped section and probed for rather than assumed.",
+      "files": [],
+      "expectations": [
+        "Refuses the single-source inventory and names what InstructionsLoaded alone would miss",
+        "Takes /context as the second ground-truth source and reports a disagreement between the two rather than picking one",
+        "Names managed-settings.json's claudeMd key as a known gap of both sources rather than asserting how the harness treats it"
+      ]
+    },
+    {
+      "id": 17,
+      "name": "one-sided-change-carries-forward-as-needs-reconfirmation",
+      "prompt": "/claude-config:audit-pass I suppressed this cross-layer conflict last month, then reworded the project-side sentence — is my suppression still good?",
+      "expected_output": "It carries forward, but not silently. Exactly one anchor changed while the other anchor and the check, claim, and both surfaces all still match, which is the SAME-CHANGED disposition: the suppression is kept and marked needs-reconfirmation, surfaced in the suppressed section with the changed side named. It is never re-suppressed silently, because the rewording may itself have been the fix attempt, and that is the case the operator most needs to see. Computing this at all requires the record to store the finding's constituents — check, claim, and every (surface, anchor) site — under the finding_id derived from them; a bare id could only ever say matched or gone.",
+      "files": [],
+      "expectations": [
+        "Carries the suppression forward and marks it needs-reconfirmation rather than dropping it or re-suppressing silently",
+        "Names the side that changed in the suppressed section, citing that the edit may have been the fix attempt",
+        "States that the entry stores check, claim, and every site, with finding_id derived from them"
+      ]
+    },
+    {
+      "id": 18,
+      "name": "unexplained-disappearance-fails-the-self-check",
+      "prompt": "/claude-config:audit-pass three findings from last run are gone and I only fixed one of them — the report looks cleaner, so we're good, right?",
+      "expected_output": "No. Every finding present in the previous run and absent from this one must be accounted for as exactly one of: matched to an applied fix, matched to a successor by partial match, or reported as an UNEXPLAINED DISAPPEARANCE. Two of the three are unaccounted for, so they are reported as unexplained disappearances and the run's self-check fails, exactly as a judged-tier tolerance breach would. This accounting is the only detector the convergence property has: without it, 'a finding that vanishes without a fix is a defect' is a definition nothing can observe, and a silently shrinking report reads as an improvement.",
+      "files": [],
+      "expectations": [
+        "Accounts for every disappeared finding as a fix, a successor, or an unexplained disappearance",
+        "Fails the run's self-check on the unaccounted disappearances rather than treating the smaller report as progress",
+        "Names this accounting as the detector for the convergence property"
+      ]
+    },
+    {
+      "id": 19,
+      "name": "moving-checkout-makes-the-gate-indeterminate",
+      "prompt": "/claude-config:audit-pass I have three other sessions open on this repo and one of them switched branches while your pass was running — did the determinism gate pass?",
+      "expected_output": "No, and it did not fail either: it reports indeterminate. HEAD and the dirty-file count are captured at Phase 0 and again at Phase 6, and here they differ, so the tree did not hold still for the duration of the run. Every determinism property is conditioned on an unchanged tree, and that precondition demonstrably did not hold, so P1, P2, and P3 are reported as not evaluated rather than as satisfied, and the report names both captures and what moved. An unfalsifiable passed is worse than an honest indeterminate: it manufactures confidence out of a basis nobody checked and reads identically to a gate that genuinely held.",
+      "files": [],
+      "expectations": [
+        "Reports the determinism gate as indeterminate rather than passed or failed",
+        "Cites the differing Phase 0 and Phase 6 captures of HEAD and dirty-file count as the reason, naming what moved",
+        "Reports P1 through P3 as not evaluated rather than satisfied, instead of treating indeterminate as a soft pass"
       ]
     }
   ]

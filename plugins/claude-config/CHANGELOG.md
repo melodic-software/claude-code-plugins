@@ -3,7 +3,7 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.10.0]
+## [0.11.0]
 
 ### Added
 
@@ -14,20 +14,35 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   semantics — a three-scope inventory (managed policy read-only, user scope routed as
   recommendations, project scope) taken before any check runs; an exclusion set derived at run time
   from the target's own shared-source registry, the `vendor/` layout rule, `git worktree list`, and
-  the pass's own artifacts, never transcribed; content-derived finding identity; a per-`finding_id`
-  suppression record with staleness reporting; per-lane incremental persistence with resume; and one
-  human gate per run. Read-only on bare invocation, mutation only behind `--fix`, and never an edit
+  the pass's own artifacts, never transcribed; content-derived finding identity; a constituent-keyed
+  suppression record whose entries resolve through a four-way disposition table in which only an exact
+  match is silent — a one-sided anchor change carries forward as `needs-reconfirmation`, a deeper
+  change closes the old entry and opens the new finding, and every disappeared finding is accounted
+  for as a fix, a successor, or an unexplained disappearance that fails the self-check, which is the
+  detector the convergence property previously lacked; per-lane incremental persistence with resume;
+  and one human gate per run. Liveness is read from two ground-truth sources — `InstructionsLoaded`
+  for the memory layer and `/context` for Skills, Custom Agents, and MCP Tools — because either alone
+  under-covers the surface set silently; `managed-settings.json`'s `claudeMd` key is observed by
+  neither and is reported as a known gap. Read-only on bare invocation, mutation only behind `--fix`, and never an edit
   to managed policy or a user-scope file. `/doctor` is an operator handoff rather than a dispatch,
   because it is interactive; when its three-part prerequisite or v2.1.206 version floor is unmet the
   run names it as the missing capability and states what goes unchecked. Findings report in three
   tiers — derived (exact equality across runs), judged (a stability tolerance whose violation fails
   the run's self-check), delegated (no property) — and every run reports in one line how many
-  `OPINION`-tier checks were available, were not run, and the argument that enables them.
+  `OPINION`-tier checks were available, were not run, and the argument that enables them. The
+  determinism gate **measures its own precondition** rather than assuming it: HEAD and dirty-file
+  count are captured at Phase 0 and again at Phase 6, and a target that moved mid-run reports
+  `indeterminate` rather than `passed`, with the properties marked not evaluated. A checkout shared
+  with concurrent sessions is the normal case for the first operator, and an unfalsifiable pass is
+  worse than an honest indeterminate.
 - **Finding-suppression convention** (`docs/conventions/finding-suppression/`). Owner doc for the
-  `finding_id`-keyed suppression record `audit-pass` reads at `.claude/audit-pass.md`: the keys, the
-  required reason and date, per-key merge (never a closed list, which one personal entry would
-  discard whole), the policy-floor precedence inversion where the team layer wins a conflict, and the
-  five obligations on any consuming skill. Layering defers to the config-cascade contract.
+  suppression record `audit-pass` reads at `.claude/audit-pass.md`: entries store the finding's
+  constituents — `check`, `claim`, and every `(surface, anchor)` site — under a derived `finding_id`
+  key, with the constituents authoritative and a key that does not hash from its own body reported
+  malformed. Also the required reason and date, per-key merge (never a closed list, which one personal
+  entry would discard whole), the policy-floor precedence inversion where the team layer wins a
+  conflict, and the five obligations on any consuming skill. Layering defers to the config-cascade
+  contract.
 
 ### Changed
 
