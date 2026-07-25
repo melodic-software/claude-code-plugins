@@ -29,13 +29,22 @@ Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
   judgment-based, the same objection that rules out `invariants`), `salience` (accurate but
   not a word a reader reaches for first), `grounding` (slug already taken).
 
-  The marketplace `renames` map migrates the INSTALLED PLUGIN RECORD automatically — an
-  enabled `re-anchor@melodic-software` resolves to `discipline` instead of failing with
-  `plugin-not-found`. It rewrites nothing else. Qualified invocations stored outside this
-  marketplace — in a consuming repository's instruction files, an agent prompt, a saved
-  workflow, or automation — must be updated by hand: `/re-anchor:<skill>` becomes
-  `/discipline:<skill>`, and `/plugin configure re-anchor` becomes
-  `/plugin configure discipline`.
+  **Migration, and its one manual step.** On Claude Code >= 2.1.193 the marketplace
+  `renames` map is followed at session start: an enabled `re-anchor@melodic-software`
+  loads as `discipline` instead of failing `plugin-not-found`, and the old key is
+  rewritten to the new one in the user, project, and local settings scopes for BOTH
+  `enabledPlugins` and `pluginConfigs` — so configured `batch_exclude` / `batch_promote` /
+  `batch_demote` / `research_deep_verification` values move across with no action. Two
+  edges: managed and policy scopes are read-only to Claude Code and are not rewritten, and
+  if `discipline@melodic-software` already carries its own `pluginConfigs` entry the new
+  id's values win and the old ones are dropped rather than merged. Below 2.1.193 nothing
+  is lost — the rename simply does not migrate, and the old name reports
+  `plugin-not-found`.
+
+  What the map does NOT rewrite is any invocation stored outside settings. In a consuming
+  repository's instruction files, an agent prompt, a saved workflow, or automation,
+  `/re-anchor:<skill>` must become `/discipline:<skill>` and `/plugin configure re-anchor`
+  must become `/plugin configure discipline` by hand.
 
 - **Renamed `sweep-all-disciplines` -> `sweep-all`.** Removes the one genuinely awkward
   pairing the plugin rename introduced (`/discipline:sweep-all-disciplines`). This leaf
