@@ -174,8 +174,8 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
 ## Form 13: Command-argument position
 
 ```regex
-(^|[^\w/])/plugins?\s+(install|uninstall|configure|enable|disable|update|add|remove)\s+`?<old>\b
-\b<old>@[\w]([\w-]*[\w])?([^\w.@-]|$)
+(^|[^\w/-])/plugins?\s+(install|uninstall|configure|enable|disable|update|add|remove)\s+`?<old>([^\w-]|$)
+(^|[^\w-])<old>@[\w]([\w-]*[\w])?([^\w.@-]|$)
 ```
 
 - **Triage default:** Certain
@@ -185,8 +185,17 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
   appears (settings examples, install snippets, `enabledPlugins` / `pluginConfigs` keys).
 - **Why Form 1 misses it:** Form 1 anchors on `/<old>`. Here the slash belongs to `plugin`,
   and `<old>` sits one-to-several words downstream with no slash of its own.
-- **Why the leading `[^\w/]` alternation:** keeps `.../plugin install x` (a path) from
+- **Why the leading `[^\w/-]` alternation:** keeps `.../plugin install x` (a path) from
   matching while still allowing a line start, a space, or a backtick before the slash.
+- **Hyphens bound a word but NOT a container name — both ends exclude them.** Container IDs are
+  kebab-case, so a plain word boundary lets `<old>` match inside a hyphenated SUPERSTRING:
+  renaming `guard` would match `context-guard@marketplace`, and renaming `context` would match
+  `/plugin configure context-guard`. On a Certain-rated form that silently auto-rewrites an
+  unrelated plugin's identifier. Both alternatives therefore exclude an adjacent `-` on each
+  side (`[^\w-]`) instead of relying on a word boundary. Verified against a marketplace where 32
+  plugin names are hyphenated: `/plugin configure context` matches while
+  `/plugin configure context-guard` does not; `context@acme-tools` matches while
+  `context-guard@acme-tools` does not.
 - **Optional backtick before `<old>`:** these appear inside inline code spans constantly
   (`` `/plugin configure <old>` ``); without `` `? `` the pattern misses the most common
   rendering.
@@ -251,13 +260,18 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
 ## Form 15: Possessive and appositive container reference
 
 ```regex
-`?\b<old>\b`?'s\b
+(^|[^\w-])`?<old>`?'s\b
 \bthe `?<old>`? (plugin|skill|marketplace entry|package|module)\b
 ```
 
 - **Triage default:** Certain
 - **Catches:** prose where `<old>` stands in for the CONTAINER — "Report `<old>`'s effective
   configuration", "the `<old>` plugin ships…".
+- **Hyphen boundary, same reason as Form 13.** A word boundary counts a hyphen as a boundary, so
+  the possessive would fire inside a kebab-case superstring — renaming `guard` would match
+  `` `context-guard` ``'s. The leading `(^|[^\w-])` excludes an adjacent hyphen. The appositive
+  alternative is already safe: the noun-class word must follow the token. Verified:
+  `` `guard` ``'s and `guard's` match, `` `context-guard` ``'s does not.
 - **Inline-code wrapping is the common case, not the exception:** in markdown the token is
   usually a code span, so the literal `<old>'s` sequence never appears — it is
   `` `<old>` `` followed by `'s`. The optional backticks are what make this form fire on

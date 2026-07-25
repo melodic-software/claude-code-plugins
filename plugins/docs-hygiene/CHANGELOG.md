@@ -17,6 +17,12 @@
   to inspect suppressed residue, but it appeared in neither `SKILL.md`'s `argument-hint` nor
   `audit-modes.md`'s override table, whose contract errors on unknown flags — so the only
   documented path to the residue failed. Registered in both, audit-mode only, always Ambiguous.
+- **Forms 13 and 15 no longer match inside a hyphenated superstring.** Container IDs are
+  kebab-case, but a word boundary counts a hyphen as a boundary — so renaming `guard` matched
+  `context-guard@marketplace`, and renaming `context` matched `/plugin configure context-guard`.
+  On Certain-rated forms that silently auto-rewrites a DIFFERENT plugin's identifier. Both ends
+  of both forms now exclude an adjacent `-`. Verified against a marketplace where 32 plugin names
+  are hyphenated.
 - **Span coverage collapses COEQUAL matches, not only weaker ones.** Two alternatives of the same
   form can hit one occurrence — `/plugin install <old>@marketplace` matches both of Form 13's.
   Left uncollapsed the count doubles and Phase 5 schedules two targeted Edits, the second failing

@@ -221,6 +221,18 @@
         "Collapsing applies within a form, not only between a stronger and a weaker form",
         "The named failure is a failed second Edit plus an inflated count, not merely a cosmetic duplicate"
       ]
+    },
+    {
+      "id": 19,
+      "name": "hyphenated-superstring-is-not-a-container-match",
+      "prompt": "Rename the `context` plugin to `session-context`. The repo also has a `context-guard` plugin referenced as /plugin configure context-guard and context-guard@acme-tools.",
+      "expected_output": "The `context-guard` references are NOT matched. Container IDs are kebab-case, so a plain word boundary would let `context` match inside the hyphenated superstring `context-guard` and auto-rewrite an unrelated plugin's identifier on a Certain-rated form. Forms 13 and 15 exclude an adjacent hyphen on both sides, so `/plugin configure context` and `context@acme-tools` match while `/plugin configure context-guard` and `context-guard@acme-tools` do not.",
+      "files": [],
+      "expectations": [
+        "A hyphenated superstring containing the token is never matched as the container",
+        "The exact-name references are still matched",
+        "The failure prevented is auto-rewriting a DIFFERENT plugin's identifier, not a cosmetic over-match"
+      ]
     }
   ]
 }
