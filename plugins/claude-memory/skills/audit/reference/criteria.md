@@ -2,7 +2,7 @@
 
 Version: 1.3.0
 Last updated: 2026-07-24
-Source: Official Claude Code docs (code.claude.com/docs/en/memory, code.claude.com/docs/en/best-practices, code.claude.com/docs/en/sub-agents)
+Source: Official Claude Code docs (code.claude.com/docs/en/memory, code.claude.com/docs/en/best-practices, code.claude.com/docs/en/sub-agents, code.claude.com/docs/en/skills)
 
 This file defines every check the audit runs. Each check has a severity, description, and instructions
 for evaluation. The audit applies checks per-entity-type (CLAUDE.md, rules, memory).
@@ -64,7 +64,7 @@ not, cut it. Bloated CLAUDE.md files cause Claude to ignore your actual instruct
 | Always-on project conventions | CLAUDE.md |
 | Machine-specific config/preferences | CLAUDE.local.md |
 | Language/framework-specific rules | `.claude/rules/` (path-scoped when that fits) |
-| Reference material needed sometimes | Skills (on-demand, not always-loaded) |
+| Reference material needed sometimes | Skills — the body loads on demand; a new skill's listing entry does not (priced below) |
 | Learnings Claude discovered while working, not instructions you authored | Auto memory — Claude writes it; you do not hand-author entries, and asking Claude to remember something lands here rather than in CLAUDE.md |
 | Deterministic enforcement | Hooks (guaranteed execution) |
 | Compile-time/build-time rules | Analyzers, linters, architecture tests |
@@ -89,12 +89,25 @@ move, and state the cost alongside it. A rule that must persist across compactio
 in the project-root CLAUDE.md — a recommendation that omits this proposes a silent behavior change in
 long sessions.
 
+A **new** skill carries a second cost the compaction table does not show: the body defers, but the
+listing entry it adds — `name` plus the combined `description` and `when_to_use`, truncated at 1,536
+characters — is always in context, so the saving is the body minus that entry rather than the whole
+body. Moving content into a skill that **already exists** adds no listing entry and does not carry
+this cost. The only field that keeps a description out of context is `disable-model-invocation: true`,
+which also makes the skill user-invocable only; `user-invocable: false` does not, and `skillOverrides`
+does not reach plugin skills at all. State the entry as a cost of the recommended move — whether the
+target's listing budget is oversubscribed is a separate question this check does not answer.
+
 **Why**: Official docs: "For domain knowledge or workflows that are only relevant sometimes, use
 skills instead. Claude loads them on demand without bloating every conversation." And: "Unlike
 CLAUDE.md instructions which are advisory, hooks are deterministic." On imports: "splitting into
 `@path` imports helps organization but doesn't reduce context, since imported files load at launch"
 (code.claude.com/docs/en/memory). The per-destination compaction behavior is quoted with its sources
-in [official-guidance.md](official-guidance.md) rather than restated here.
+in [official-guidance.md](official-guidance.md) rather than restated here. On the listing entry:
+"skill descriptions are loaded into context so Claude knows what's available, but full skill content
+only loads when invoked", the combined `description` and `when_to_use` text "is truncated at 1,536
+characters in the skill listing to reduce context usage", and "Plugin skills are not affected by
+`skillOverrides`" (code.claude.com/docs/en/skills).
 
 ### C4: Specificity [WARN]
 

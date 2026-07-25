@@ -20,7 +20,14 @@ All notable changes to the `claude-memory` plugin are documented here. Format fo
   `reference/official-guidance.md` already recorded the launch-load behavior and no check cited it. (3) **Every move recommendation now prices the destination** against the "Compaction by
   steering method" table that same reference file ships and no check cited — path-scoped rules and
   nested CLAUDE.md return only when a matching file is read again, so a rule that must persist across
-  compaction stays unscoped or in root CLAUDE.md. Catalog version 1.3.0.
+  compaction stays unscoped or in root CLAUDE.md. Pricing extends past compaction to the skill
+  destination the routing table already recommended: a **new** skill defers its body but adds a
+  listing entry — `name` plus the combined `description` and `when_to_use`, truncated at 1,536
+  characters — that is always in context, so part of the cost moves into the always-loaded tier
+  instead of out of it. A move into a skill that already exists adds no entry and is not charged.
+  `disable-model-invocation: true` is the only field that keeps a description out of context, and it
+  makes the skill user-invocable only; `skillOverrides` does not reach plugin skills. Catalog
+  version 1.3.0.
 
 ## [0.4.0]
 

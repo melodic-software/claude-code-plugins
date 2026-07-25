@@ -60,6 +60,8 @@ to all surfaces; I12 routes on the same convention for the narrower case its own
   <https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5>
 - Memory (CLAUDE.md, rules, auto memory) — <https://code.claude.com/docs/en/memory>
 - The `.claude` directory — <https://code.claude.com/docs/en/claude-directory>
+- Skills (what loads when, the listing budget, invocation-control fields) —
+  <https://code.claude.com/docs/en/skills>
 - How features layer (per-surface precedence, routing between surfaces) —
   <https://code.claude.com/docs/en/features-overview>
 - Context window (what survives compaction) — <https://code.claude.com/docs/en/context-window>
@@ -100,14 +102,25 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
   while changing the load profile not at all. **State the move cost with the recommendation:** a
   `paths:`-scoped rule or a nested `CLAUDE.md` is lost after compaction until a matching file is
   read again, so content that must survive compaction stays unscoped or in the project-root
-  `CLAUDE.md`.
+  `CLAUDE.md`. **A *new* skill is not a free destination:** its body defers, but the listing entry it
+  adds — `name` plus the combined `description` and `when_to_use`, truncated at 1,536 characters — is
+  always in context, so the saving is the body minus that entry rather than the whole body. Moving
+  content into a skill that **already exists** adds no listing entry and does not carry this cost.
+  The only field that keeps a description out of context is `disable-model-invocation: true`, which
+  also makes the skill user-invocable only; `user-invocable: false` does not, and `skillOverrides`
+  does not reach plugin skills at all. State the entry as a cost, not a threshold — whether a corpus
+  is over its listing budget is a different question and not this check's.
 - **Adjacent axis:** this check is load *timing*. Definition-site *locality* — an instruction sitting
   away from the thing it governs — is I13, and an instruction can be correctly deferred here and
   still misplaced there.
 - **Source:** best-practices — "only include things that apply broadly. For domain knowledge or
   workflows that are only relevant sometimes, use skills instead."; memory — "splitting into `@path`
   imports helps organization but doesn't reduce context, since imported files load at launch";
-  context-window, "What survives compaction", for the per-destination cost.
+  context-window, "What survives compaction", for the per-destination cost; skills — "skill
+  descriptions are loaded into context so Claude knows what's available, but full skill content only
+  loads when invoked", the combined `description` and `when_to_use` text "is truncated at 1,536
+  characters in the skill listing to reduce context usage", and "Plugin skills are not affected by
+  `skillOverrides`."
 
 ### I4: Inferable or redundant content
 

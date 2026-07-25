@@ -46,7 +46,13 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   destination qualifies only if it defers loading, so `@path` imports do not — a split into imports
   satisfied the check's letter while changing the load profile not at all. A finding must also state
   that a `paths:`-scoped rule or a nested `CLAUDE.md` is lost after compaction until a matching file
-  is read again.
+  is read again. A move into a **new** skill is priced too: the body defers, but the listing entry it
+  adds — `name` plus the combined `description` and `when_to_use`, truncated at 1,536 characters — is
+  always in context, so "move it to a skill" moves part of the cost into the always-loaded tier
+  rather than out of it. A move into a skill that already exists adds no entry and is not charged.
+  `disable-model-invocation: true` is the only field that keeps a description out of context, and it
+  makes the skill user-invocable only; `skillOverrides` does not reach plugin skills. Stated as a
+  cost on the recommendation, never as a budget threshold.
 - **`audit-instructions` I9 remediation names the interface destination.** Where an example block
   exists to enumerate what a caller may pass, the finding names an argument enumeration, a
   frontmatter field, or a typed `argument-hint` instead. `OPINION`-derived, labelled as such in the
