@@ -69,7 +69,7 @@
 # carrying no verdict, so never parse a help run for one:
 #   READINESS_OK findings=<n> classified=<n> checklist=<clean|n/a>
 #   READINESS_BLOCKED reason=<under-decomposed|checklist-incomplete> findings=<n> classified=<n> unticked=<n>
-#   READINESS_UNPROVEN reason=<bad-args|identity-unresolved|prereq-missing|comments-unreadable|fetch-failed> pr=<n|unknown>
+#   READINESS_UNPROVEN reason=<bad-args|identity-unresolved|prereq-missing|comments-unreadable|checklist-unreadable|fetch-failed> pr=<n|unknown>
 #
 # The READINESS_UNPROVEN token is the fail-closed third verdict, and the reason
 # this gate emits on the paths where it used to write stderr only: a caller that
@@ -94,10 +94,13 @@
 #      (reason=identity-unresolved). The two share exit 3 so callers keyed on
 #      the code are unaffected; the reason is what tells an operator whether to
 #      fix the flags or repair the identity prerequisite.
-#   4  prerequisite missing (jq), the PR comment fetch failed, or the resolved
-#      comment payload is not a JSON array — see stderr for the cause
-#      (owner/repo may be unresolved; see Repo resolution above)
-#      (READINESS_UNPROVEN reason=prereq-missing|fetch-failed|comments-unreadable)
+#   4  prerequisite missing (jq), the PR comment fetch failed, the resolved
+#      comment payload is not a JSON array, or a --checklist file that exists
+#      could not be read — see stderr for the cause (owner/repo may be
+#      unresolved; see Repo resolution above). An unreadable checklist is
+#      UNPROVEN rather than clean: zero matches and zero readable lines are the
+#      same count, and only one of them is evidence.
+#      (READINESS_UNPROVEN reason=prereq-missing|fetch-failed|comments-unreadable|checklist-unreadable)
 
 set -uo pipefail
 # Matches the `export PYTHONUTF8=1` convention the bin/ babysit wrappers already
@@ -413,7 +416,16 @@ if [[ -n "$CHECKLIST" ]]; then
     printf 'babysit-readiness-gate: --checklist file not found: %s\n' "$CHECKLIST" >&2
     unproven bad-args 3
   fi
-  unticked=$(grep -cE '^[[:space:]]*-[[:space:]]\[[[:space:]]\]' "$CHECKLIST" || true)
+  # grep exits 1 for "no match" -- a clean checklist -- and 2 for a read
+  # failure. `|| true` collapsed both to an empty count that normalized to
+  # zero, so an unreadable checklist read as `checklist=clean`: a fail-open in
+  # the merge gate. Only the no-match status may be swallowed.
+  grep_status=0
+  unticked=$(grep -cE '^[[:space:]]*-[[:space:]]\[[[:space:]]\]' "$CHECKLIST") || grep_status=$?
+  if ((grep_status > 1)); then
+    printf 'babysit-readiness-gate: --checklist could not be read: %s\n' "$CHECKLIST" >&2
+    unproven checklist-unreadable 4
+  fi
   unticked=${unticked//[^0-9]/}
   unticked=${unticked:-0}
   ((unticked == 0)) && checklist_state="clean" || checklist_state="incomplete"

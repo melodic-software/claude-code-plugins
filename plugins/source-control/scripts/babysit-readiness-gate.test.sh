@@ -498,6 +498,46 @@ unp_out=$(bash "$GATE" 789 --comments-json "$F" --self 'me[bot]' \
 assert_contains "missing-checklist stdout carries UNPROVEN" "$unp_out" \
   "READINESS_UNPROVEN reason=bad-args pr=789"
 
+# A checklist that exists but cannot be READ is UNPROVEN, never clean. grep exits
+# 1 for "no match" and 2 for a read error; `|| true` collapsed both to an empty
+# count that normalized to zero unticked boxes, so an I/O error reported
+# `checklist=clean` — a fail-open in the merge gate. The error is injected with a
+# grep stub because no file mode reproduces it everywhere: a root CI container
+# reads a 000-mode file, and Windows ignores the mode entirely.
+BADGREP_BIN="$TEST_TMPDIR/bin-badgrep"
+mkdir -p "$BADGREP_BIN"
+REAL_GREP=$(command -v grep)
+cat >"$BADGREP_BIN/grep" <<STUB
+#!/usr/bin/env bash
+case "\$*" in
+  *unreadable-checklist.md*)
+    printf 'grep: unreadable-checklist.md: Input/output error\n' >&2
+    exit 2
+    ;;
+esac
+exec "$REAL_GREP" "\$@"
+STUB
+chmod +x "$BADGREP_BIN/grep"
+CKU="$TEST_TMPDIR/unreadable-checklist.md"
+printf -- '- [x] done\n' >"$CKU"
+unp_out=$(PATH="$BADGREP_BIN:$PATH" bash "$GATE" 790 --comments-json "$F" --self 'me[bot]' \
+  --checklist "$CKU" 2>/dev/null)
+assert_contains "unreadable-checklist stdout carries UNPROVEN" "$unp_out" \
+  "READINESS_UNPROVEN reason=checklist-unreadable pr=790"
+assert_contains "unreadable-checklist never claims readiness" "$unp_out" "READINESS_UNPROVEN"
+assert_eq "unreadable-checklist emits exactly one verdict line" 1 "$(verdict_lines "$unp_out")"
+unp_rc=$(
+  PATH="$BADGREP_BIN:$PATH" bash "$GATE" 790 --comments-json "$F" --self 'me[bot]' \
+    --checklist "$CKU" >/dev/null 2>&1
+  echo $?
+)
+assert_exit "unreadable-checklist exit 4" 4 "$unp_rc"
+# The stub must not be a blanket grep failure, or the assertion above would pass
+# for the wrong reason: the same PATH with a readable checklist still verdicts.
+ok_out=$(PATH="$BADGREP_BIN:$PATH" bash "$GATE" 791 --comments-json "$F" --self 'me[bot]' \
+  --checklist "$CK2" 2>/dev/null)
+assert_contains "badgrep stub leaves a readable checklist clean" "$ok_out" "checklist=clean"
+
 # The jq prerequisite is asserted at the source, not by nuking PATH: a PATH that
 # hides jq also hides the interpreter (both live in the same bin dir on the CI
 # image), so the subprocess would report its own 127 rather than the gate's

@@ -13,7 +13,7 @@ All notable changes to the `source-control` plugin are documented here. Format f
   only. A caller grepping stdout for a verdict therefore saw *nothing* on those paths — identical to
   what it sees when the gate was never invoked at all, which is how a blocked gate could be reported
   as readiness. Every *check* run now prints exactly one `READINESS_*` line;
-  `READINESS_UNPROVEN reason=<bad-args|identity-unresolved|prereq-missing|comments-unreadable|fetch-failed> pr=<n>`
+  `READINESS_UNPROVEN reason=<bad-args|identity-unresolved|prereq-missing|comments-unreadable|checklist-unreadable|fetch-failed> pr=<n>`
   joins `READINESS_OK` and `READINESS_BLOCKED`. Exit codes are unchanged, so existing callers keyed
   on them are unaffected.
   `--help` is explicitly outside the contract — it prints usage and exits 0 with no verdict — and
@@ -98,6 +98,14 @@ All notable changes to the `source-control` plugin are documented here. Format f
   strings, which is exactly how the counters consume them (`author` matched against the self list,
   `body` grepped for severity markers); a non-string in either position is unreadable, not empty. An
   empty array and an empty `body` string stay legitimate and still reach a verdict.
+- **An unreadable `--checklist` no longer reads as a clean one.** The R6 count ran
+  `grep -c … || true`, which collapses grep's two distinct nonzero statuses into one: 1 means "no
+  unticked box" — a clean checklist — while 2 means the file could not be read. Both produced an
+  empty count that normalized to zero, so a checklist lost to a permission or I/O error emitted
+  `READINESS_OK … checklist=clean`. Zero matches and zero readable lines are the same number and
+  only one of them is evidence. The read status is now captured: 1 stays clean, anything above it
+  is `READINESS_UNPROVEN reason=checklist-unreadable` at exit 4, alongside the payload fail-open
+  above.
 - **An identity-lookup failure is no longer reported as a bad argument.** With neither `--self` nor
   `--extra-self` supplied and the supported `gh api user` default failing — expired auth, an
   unreachable API, an offline snapshot replay — the arguments were valid but stdout said
