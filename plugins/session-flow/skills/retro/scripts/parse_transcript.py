@@ -14,7 +14,7 @@ Arguments:
     session_id    Single UUID session identifier (positional, backward compat)
     base_path     Base directory containing session JSONL files (positional)
     --sessions    Multiple UUIDs to parse + aggregate (first = current, rest = chained prior)
-    --chain-from  Walk session chain via handoff frontmatter (previous_handoff / previous_session_id)
+    --chain-from  Walk session chain via handoff frontmatter (previous_handoff)
                   starting from the given handoff journal entry file; emits aggregated multi-session output
     --base        Base directory containing session JSONL files (required with --sessions / --chain-from)
     --help        Print help and exit 0
@@ -509,7 +509,7 @@ def _frontmatter_value(line: str) -> str:
 def extract_chain_from_handoff(
     handoff_file: Path, base_path: Path, limit: int = 1000
 ) -> list[str]:
-    """Walk handoff journal-entry chain backwards via previous_handoff / previous_session_id
+    """Walk handoff journal-entry chain backwards via previous_handoff
     frontmatter fields. Returns ordered list of session-ids (current handoff's session_id
     first, then prior). NOTE: callers separately prepend the current $CLAUDE_CODE_SESSION_ID
     if they want it; this function only walks the chain starting from the given file.

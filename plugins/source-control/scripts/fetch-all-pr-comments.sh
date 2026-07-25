@@ -29,6 +29,15 @@
 #   FETCH_COMMENTS_OWNER   default `gh repo view --json owner -q .owner.login`
 #   FETCH_COMMENTS_REPO    default `gh repo view --json name -q .name`
 #
+# Windows Python consumers (#597):
+#   Output commonly carries non-ASCII bytes (bot badge images, reaction
+#   emoji) from bot review comments. A downstream Python consumer on Windows
+#   that opens the JSON output, or reads this script's stdout, WITHOUT an
+#   explicit UTF-8 encoding inherits the interpreter's default ANSI code page
+#   (cp1252) and raises UnicodeDecodeError on those bytes. Either open with
+#   `encoding="utf-8"` (or reconfigure the stream to UTF-8 at runtime), or run
+#   the consumer with `PYTHONUTF8=1` (PEP 540) set in the environment.
+#
 # Exit codes:
 #   0  success (zero or more comments emitted)
 #   1  invalid argument
@@ -42,7 +51,7 @@ set -uo pipefail # -e omitted: gh api failures explicitly guarded with || { exit
 PR_NUMBER=""
 
 usage() {
-  sed -n '2,30p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,39p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit 0
 }
 
