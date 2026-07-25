@@ -13,19 +13,19 @@ governs when this contract must change at all. The narrower minor reading — th
 binding rather than a §4 loop-layer invariant, and that a new trigger is additive guidance — was
 considered and not taken. Each entry below records both cases.
 
-- **Account attribution of the tee record (§6).** Attribution is now normative in three cases: a
-  matching identifier resolves normally, a mismatching one is treated exactly as a stale record
-  (guard mode `unknown`, conservative floor) rather than as headroom, and an unattributed record may
-  be operated on only by DECLARING single-account operation in the binding. This replaces the prior
-  single-account-per-machine assumption, whose stated rationale was descriptive of how the guard
-  happened to be built and which fail-**opened** where the rest of the contract fail-closes; a
-  declaration is auditable where a silent assumption is not. No account identifier exists in the
-  platform schema today, so that limitation is recorded with its resolution trigger — the platform
-  surfacing an account field — rather than left implicit. `rate-limit-guard` 0.2.0 drops its own
-  copy of the retired assumption and cites this section instead. **Bump ambiguity:** §6 is the
-  rate-limit guard binding rather than a §4 loop-layer invariant, which reads as additive guidance
-  and a **minor**; but the change replaces a stated operating assumption every consuming lane
-  inlines, which reads as a change to a shared invariant and a **major**.
+- **Single-account-per-machine is reframed from invariant to known gap (§6).** The previous text
+  said "operation assumes one account per machine" — descriptive of how the guard happened to be
+  built, and fail-**open** where the rest of the contract fail-closes. Same-machine account rotation
+  is real operating practice, so the section now names the gap instead of asserting an assumption,
+  and defers the account-identity design that resolves it to `TODO(#1218)`, which owns all three
+  sides (writer-side identity field, reader-side invalidation of latched state, and the lane-floor
+  re-audit a floor change obliges). `rate-limit-guard` 0.2.0 drops its own duplicate copy and cites
+  this section. **No lane obligation changes:** naming a gap removes false assurance without adding
+  a requirement any lane body would have to inline, which is why the lane-floor fan-out belongs to
+  the design issue and not here. **Bump ambiguity:** §6 is the rate-limit guard binding rather than
+  a §4 loop-layer invariant, and this revision is now framing-only, which reads as additive guidance
+  and a **minor**; but it still revises a stated operating premise every consuming lane inlines,
+  which reads as a change to a shared invariant and a **major**.
 - **Second re-derivation trigger (§Versioning).** Any change relying on an upstream-sourced claim
   now re-verifies that claim against its cited page first and refreshes its date. Previously only a
   new model release triggered re-derivation, so the upstream-sourced claims — `/loop` expiry,

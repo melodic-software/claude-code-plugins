@@ -7,13 +7,12 @@ All notable changes to the `rate-limit-guard` plugin are documented here. Format
 
 ### Changed
 
-- **The single-account-per-machine limitation is replaced by the loop-lane convention's attribution
-  rule, cited rather than restated.** This reader contract carried its own copy of the assumption
-  while naming loop-lane §6 as its owner — so when §6 changed, the copy contradicted the contract it
-  cited. The three attribution cases now live only in §6; this document states what is local to the
-  guard, namely that the platform schema exposes no account identifier today and that the writer
-  already forward-passes any top-level `account`-matching key, so the identifier cases go live with
-  no plugin change the release one appears.
+- **The single-account-per-machine text is deduplicated against its owner.** This reader contract
+  carried its own copy of the assumption while naming loop-lane §6 as its owner, so the copy would
+  contradict §6 the moment §6 moved — which it now has: §6 reframes the assumption as a known gap.
+  The framing lives only there. What stays here is local to the guard: the writer already
+  forward-passes any top-level `account`-matching key, so an identity field costs no plugin change
+  the release one appears. The account-identity design itself is `TODO(#1218)`.
 
 ## [0.1.0]
 

@@ -270,14 +270,27 @@ checkout; each is unclaimed work with a named owner surface.
   only one that works. The key lands in chezmoi-managed `settings.json`, so it
   needs the dotfiles repo's `add-dotfile` / backfill flow rather than a live
   edit.
-- **The skill-listing budget overflow** — several near-fit skills surface as
-  bare names. Declared out of scope at the top of this Brief; it is a live
-  condition, not a hypothetical, and it constrains every future description
-  widening.
+- **The skill-listing budget overflow** — declared out of scope at the top of
+  this Brief, and owned by `TODO(#1271)`, which measures it rather than
+  estimating it. It is a live condition and it constrains every future
+  description widening, including this topic's.
 - **Two pre-existing `skill-quality:check` warnings on the `playbooks` boris
   hub** — unquoted `Use when:` triggers and no Gotchas surface. Left
-  deliberately: quoting `'skills'` / `'hooks'` / `'workflows'` would lock
-  generic phrases into check 3's drop-protection permanently.
+  deliberately, and `#1271` confirms the call: boris is one of only two skills
+  in the tree that populate `when_to_use` at all, so it is that issue's good
+  example rather than an offender. Quoting `'skills'` / `'hooks'` /
+  `'workflows'` would lock generic phrases into check 3's drop-protection
+  permanently.
+
+### Adjacent work this must not collide with
+
+- **`TODO(#1218)`** owns the account-identity design that loop-lane §6 defers
+  to. §6 here is framing-only for exactly that reason.
+- **`TODO(#1219)`** instantiates routine catalog `v1` classes and should adopt
+  the determinism vocabulary this topic corrected — the invariant is *no agent
+  session, zero agent tokens*, and the substrate is a deployment binding.
+- **`TODO(#1220)`** adds a blocked-lever protocol to this same convention and
+  will land on top of its version bump.
 
 ### Interview branches never closed
 

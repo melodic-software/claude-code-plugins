@@ -214,35 +214,26 @@ That reader contract is
 shipped with the `rate-limit-guard` plugin. This convention records the inline-floor rule so the
 values stay byte-identical across lanes; fleet audits check conformance per consumer.
 
-**Account attribution of the tee record.** The tee file is last-writer-wins, so a machine running
-lanes under more than one account would otherwise feed one account's healthy windows to lanes
-running on the exhausted one. Attribution is therefore normative, in three cases:
+**Single-account-per-machine is a known gap, not a safe assumption.** The tee file is
+last-writer-wins and carries no account identifier, so a machine running lanes under more than one
+account feeds one account's healthy windows to lanes running on the exhausted one, and the guard
+cannot detect it. Same-machine account rotation is real operating practice, not a hypothetical.
 
-- **Identifier present and matching** — the record is the reading lane's own; the guard's mode
-  resolves normally.
-- **Identifier present and NOT matching** — the record is treated exactly as a stale one: the guard
-  mode drops to `unknown` and the conservative floor applies, rather than trusting another
-  account's headroom. The identifier is an opaque, non-secret handle parsed as untrusted input (it
-  is user- and agent-influenced); the record never carries a credential.
-- **No identifier** — the record is **unattributed**, and a deployment may operate on it only by
-  DECLARING single-account operation in its binding. The declaration is the whole point: the prior
-  contract assumed one account per machine silently, so a multi-account machine was an undetectable
-  fail-**open** in a contract that fail-closes on every other unresolvable input. A declaration is
-  auditable; a silent assumption is not.
-
-**Known limitation, with its resolution trigger.** No account identifier is available today — the
-platform statusline schema that is the guard's only proactive data source exposes none — so a
-multi-account machine has no conforming configuration beyond the declaration above. That is
-recorded here rather than papered over. **Trigger:** the platform surfacing an account field. The
-guard's writer already forward-passes any top-level key matching `account`, so the identifier
-arrives with no plugin change and the two identifier cases above go live the release it appears
-([`rate-limit-guard` reader contract](../../../plugins/rate-limit-guard/reference/reader-contract.md)).
-
-The premise this replaces was descriptive of how the guard happened to be built rather than
-normative, and it baked a solo-operator posture into a contract whose sibling states that it
-"assumes no machine, org size, or budget"
+This is recorded as a **gap** rather than as an invariant because the previous framing — "operation
+assumes one account per machine" — was descriptive of how the guard happened to be built rather
+than normative, and it fail-**opened** in a contract that fail-closes on every other unresolvable
+input. It also baked a solo-operator posture into a contract whose sibling states that it "assumes
+no machine, org size, or budget"
 ([`routines.md`](../../../plugins/autonomy/reference/routines.md) §Hosting stance) — a
-multi-account machine is an ordinary team and multi-tenant shape, not an exotic one.
+multi-account machine is an ordinary team and multi-tenant shape, not an exotic one. Naming it a
+gap changes no lane's obligations today; it removes the false assurance that nothing is missing.
+
+**The resolution is account identity, and it is designed elsewhere.** `TODO(#1218)` owns the
+design across all three sides — a writer-side identity field in the tee shape, reader-side
+invalidation of latched state on identity change, and the re-audit of every lane body's inlined
+guard floor that a floor change obliges. This section is deliberately not the place that decides
+them: it records the gap and defers, so that when the design lands it replaces a stated gap rather
+than contradicting a stated invariant.
 
 **Guard-mode telemetry.** Each lane records the guard's mode — proactive, reactive, or unknown — in
 its #502 telemetry block every cycle, so a silent degradation to reactive-only stays visible on the
