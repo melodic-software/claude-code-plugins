@@ -333,7 +333,19 @@ five files this work edits and adds outcome-gate criteria 9 and 10 to the table 
 is written against. As of planning it is OPEN, MERGEABLE, 26/26 checks SUCCESS, no requested reviews
 outstanding — it appears mergeable now.
 
-1. Merge #1260.
+> **Scope-change note, 2026-07-25 — Phase 0 step 1 changes from *merge* to *wait for MERGED*.**
+> #1260 is being driven by a **concurrent standing `babysit_loop` worker lane**, not by this session.
+> The repo's own `.claude/source-control.md` declares `babysit_loop_stop_mode: standing`,
+> `babysit_loop_tier: worker`, `babysit_loop_merge: c2-mechanical` — a worker-tier loop with merge
+> authority over gate-proven PRs on this exact repo. Observed live: three commits appeared on
+> `feat/research-primary-source-ladder` from that lane inside one hour, two of them fixing the same
+> Codex finding this session was mid-fix on. The plan's "merge #1260" step assumed a single actor.
+> Merging out from under an active worker lane mid-edit would truncate its work, so this session
+> polls for `MERGED` instead of racing it. What this session did contribute before the lane was
+> identified, and which is now in the PR's history: `b8052a5b` (scope the fetch-log changelog row to
+> release-bearing claims) and `52795d05` (make the size-failure recipe artifact-type-aware).
+
+1. Wait for #1260 to reach `MERGED` — see the scope-change note above; this session does not merge it.
 2. Rebase `feat/discovery-subagent-dispatch` onto updated `main`.
 3. Re-read the post-merge outcome-gate table in `research/SKILL.md`; record the actual criterion
    numbers rather than trusting C2's projection.
@@ -370,6 +382,45 @@ guessed wrong:
 
 Neither may be assumed. A wrong `skills:` value produces exactly F2's failure: skipped preload, debug-log
 warning only, and a confident undisciplined run.
+
+**RESOLVED 2026-07-25 — both gaps closed empirically, plus a third result nobody asked for.** Rig:
+a throwaway `dispatchprobe` plugin loaded via `--plugin-dir`, headless `claude -p`, three plugin-shipped
+agent files with identical bodies and `tools: []` so no agent could Read the skill and forge a value.
+Sentinels appear nowhere in the dispatch prompt. Rig and raw transcripts:
+`<session-scratchpad>/dispatchprobe/`, `probe-a.sh`, `probe-{scoped,bare,miss}.json`.
+
+| Agent | `skills:` value | Result |
+|---|---|---|
+| `scopedprobe` | `dispatchprobe:mandate` | preload landed — `SENTINEL_BODY_LANDED_9931` quoted back |
+| `bareprobe` | `mandate` | preload landed — same sentinel quoted back |
+| `missprobe` | `dispatchprobe:nosuchskill` | `NO_SKILL_CONTENT` — **no error, no refusal, agent ran anyway** |
+
+- **Both reference forms resolve** for an agent preloading a skill in its own plugin. C1's quoted
+  plugin-scoped string is valid, and so is the bare leaf name the docs example uses. The scoped form
+  is what Amendment 9b's `run12` already exercised cross-plugin, so it is now confirmed on both the
+  same-plugin and cross-plugin paths. **Ship the scoped form** — it is the one with evidence on both
+  paths and it survives a future leaf-name collision.
+- **`$ARGUMENTS` is substituted with the EMPTY STRING on the preload path**, not left literal. The
+  probe line `FIELD_ARGS_OPEN $ARGUMENTS FIELD_ARGS_CLOSE` came back as `FIELD_ARGS_OPEN  FIELD_ARGS_CLOSE`
+  — two spaces, the token gone — identically on both resolving agents. Recorded as an inference, not a
+  raw observation: the prompt asked for character-for-character reproduction, so a model could in
+  principle have dropped a literal token rather than reported an empty substitution. Two independent
+  runs agreeing, and the two-space signature being the expected artifact of empty substitution, is why
+  it is treated as settled.
+  **Consequence for Phase 2 work item 4:** `research/SKILL.md:24` (`Research the following topic: $ARGUMENTS`)
+  arrives at a dispatched agent as an instruction with nothing after the colon — not as a visible
+  literal the agent could recognize as unfilled. Combined with `:26`'s "infer from the current
+  conversation context", which a non-fork subagent cannot do, the preloaded body gives the agent no
+  topic and no way to notice. The topic MUST arrive in the dispatch prompt via Decision 8's
+  pre-dispatch envelope, and the agent body's refuse-to-guess rule is what makes the absence loud.
+- **F2's silent-miss premise is now empirically confirmed, not merely doc-quoted.** The negative
+  control declared a skill that does not exist and the agent started, reported `NO_SKILL_CONTENT`, and
+  would have proceeded — no error surfaced to the dispatching parent. This upgrades C2's
+  `preload_token` sentinel from a precaution against a documented behavior to the observed-necessary
+  detector for a failure this rig reproduced on demand.
+- **`${CLAUDE_PLUGIN_ROOT}` expansion re-confirmed** on the preload path (Amendment 9b), and the
+  sibling-file pointer arrived as a working absolute path whose *contents* stayed absent — the
+  progressive-disclosure property Amendment 8 depends on.
 
 | File | Action | Rationale |
 |---|---|---|
