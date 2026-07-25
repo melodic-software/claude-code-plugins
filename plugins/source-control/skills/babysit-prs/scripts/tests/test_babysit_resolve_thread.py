@@ -165,7 +165,12 @@ class SeverityProjection(unittest.TestCase):
         self.assertTrue(rt.project_thread(record)["severityFlagged"])
 
     def test_bare_p1_prose_forms_flag(self) -> None:
-        for body in ("P1: this is a blocking regression", "P1 must fix"):
+        for body in (
+            "P1: this is a blocking regression",
+            "P1 must fix",
+            "p1: blocking regression",
+            "[p1] lowercase marker",
+        ):
             record = self._record([body])
             self.assertTrue(
                 rt.project_thread(record)["severityFlagged"], body

@@ -39,9 +39,9 @@ Deterministic guards encoded here:
   is likewise refused in `--autonomous` mode -- there is no unpinned autonomous
   resolve.
 - `--autonomous` additionally refuses any thread whose fetched comments carry
-  a forbidden-class severity marker: any word-bounded P0/P1 token (shields
-  badge, bracketed marker, or bare prose form such as "P1: ..." / "P1 must
-  fix"), the word CRITICAL, or the word "security" in any case.
+  a forbidden-class severity marker: any word-bounded P0/P1 token in any case
+  (shields badge, bracketed marker, or bare prose form such as "P1: ..." /
+  "p1 must fix"), the word CRITICAL, or the word "security" in any case.
   The permission grants that cover this helper state "never a security or P1
   thread" as an absolute condition; this guard is the code behind that
   sentence for the unattended path, and it is deliberately narrower than the
@@ -104,12 +104,14 @@ from babysit_util import configure_stdio, dig, is_json_object
 # the word-form of the same forbidden class. A false positive only routes the
 # thread to interactive judgment.
 # One word-bounded token covers every supported P0/P1 spelling at once --
-# shields badge (/badge/P1-), bracketed marker ([P1]), and the bare prose
-# forms bots also emit ("P1: blocking regression", "P1 must fix") -- while the
-# boundary keeps P2/P3 markers and embedded strings like AP1000 out. A P2/P3
-# thread that merely MENTIONS P1 in prose does flag; that false positive only
-# routes the thread to interactive judgment, which is the safe direction.
-SEVERITY_BLOCK_P01_RE = re.compile(r"\bP[01]\b")
+# shields badge (/badge/P1-), bracketed marker ([P1]), the bare prose forms
+# bots also emit ("P1: blocking regression", "P1 must fix"), and lowercase
+# variants such as "p1:" or a priority:p1 label fragment -- while the boundary
+# keeps P2/P3 markers and embedded strings like AP1000 out. A thread that
+# merely MENTIONS a p1 token (prose, or a code identifier in a snippet) does
+# flag; that false positive only routes the thread to interactive judgment,
+# which is the safe direction for a resolve guard.
+SEVERITY_BLOCK_P01_RE = re.compile(r"\bP[01]\b", re.IGNORECASE)
 SEVERITY_BLOCK_WORD_RE = re.compile(r"\bCRITICAL\b")
 SECURITY_TEXT_RE = re.compile(r"security", re.IGNORECASE)
 
