@@ -31,6 +31,19 @@ follows. A lane that finds a locked decision wrong reports it and stops; it does
 | D-12 | **Fix the `guardrails` PreToolUse root cause.** p50 12–19s blocking every Bash call, ~1,464 runs in six days; a sibling guard in the same event class runs at 2ms | Not a matcher narrowing, not a disable. Root cause |
 | D-13 | **Remove the zero-usage plugins** except `plugin-quality`, `context-guard` (both shipped the same day) and `visualization` (one hit under a different leaf name) | ~16 plugins, ~7.4k est. resident tokens |
 
+## Operator-reserved calls (ratified 2026-07-25, second round)
+
+These are the questions the section agents explicitly declined to answer, plus the scope boundary.
+
+| # | Decision | Consequence |
+|---|---|---|
+| D-14 | **Execution scope is the collision set plus this effort** — the four sequencing blockers (#1096, #1261, dotfiles #318/#312), the two tickets folded into (#1271, #1225), the two machine-health fixes (D-12, D-13), and this effort's two deliverables. Roughly ten lanes | Not the 24-PR / 255-issue backlog. The 12 stale and draft PRs are **not** in scope; they need their own triage pass |
+| D-15 | **Arbitration stays the repo's default posture.** Deletion is adopted only where a constraint has no current safety rationale | Overrides the article's blanket delete-constraints posture. A lane proposing a deletion must state the constraint's rationale and why it no longer holds |
+| D-16 | **The fresh-docs mandate narrows in scope, not in substance** — it binds changes touching a plugin manifest, marketplace schema, hook contract, or documented harness behavior | Prose and mechanical edits are out. The mandate stays non-negotiable within its scope |
+| D-17 | **Auto-memory: move `autoMemoryEnabled` from `claudeSettings.force` to `claudeSettings.seed`, seeded `false`** | Two decisions, both taken. The tier move ends the silent-revert trap; `seed` writes only when absent, so this machine keeps its current value and every fresh machine starts off. Overrides the S7 agent's `true` recommendation on tracked-drift grounds — the capability unlock is available per machine by toggle |
+| D-18 | **Cut `CLAUDE.md:13-30`** (the doc-URL table) to a pointer at `docs/OFFICIAL-DOCS.md` | Verified strict subset; 29.6% of the file; line 30 already points at the superset. Accepted risk: the mandate's force must come from the rule, not from the URLs being pre-loaded |
+| D-19 | **Vendored `skill-authoring` guidance governs authoring mechanics; this effort's carve-out governs what stays constrained** | Different axes. Where they genuinely collide, upstream wins and the divergence is recorded — a vendored file is never hand-edited |
+
 ## Standing constraints these decisions inherit
 
 - **`~/.claude/settings.json` is chezmoi-managed** — verified: its source is
