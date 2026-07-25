@@ -196,9 +196,22 @@ each.
 | R1 → R2 | Verdict | Suppression |
 |---|---|---|
 | Both anchors match, `(check, claim)` match | SAME, unchanged | applies silently |
-| Exactly one anchor changed, all else matches | SAME, changed | carries forward, marked `needs-reconfirmation`, surfaced with the changed side named |
-| Both anchors changed, or `claim` changed, or a `surface` changed | old CLOSED, new OPENED | old entry goes stale per Assertion 4.2 |
+| Exactly one anchor changed; the other anchor and `(check, claim, both surfaces)` all match | SAME, changed | carries forward, marked `needs-reconfirmation`, surfaced with the changed side named |
+| Both anchors changed, or `claim` changed, or a `surface` changed | old CLOSED, new OPENED | old entry goes stale per Assertion 4.2, never silently dropped |
 | Absent from R2 entirely | CLOSED | accounted for — see below |
+
+**These four rows are a cross-lane contract, not this document's private vocabulary.** The shipped
+`docs/conventions/finding-suppression/` obligation and the `audit-pass` skill's suppression section
+carry the same four, in the same words. A contract and an implementation that disagree from day one
+is worse than either shape alone, and the second row is where they would most plausibly drift —
+partial match is the row an implementation is tempted to collapse into "no match".
+
+**Row 3 has documented prior art, and it is worth naming because it is the *expensive* row.**
+GitHub's code-scanning behavior on a changed location is close-and-reopen: "If the filepaths differ
+for the same result, each time there is a new analysis a new alert will be created, and the old one
+will be closed." That is exactly row 3, and it is why row 2 exists — without a partial-match tier,
+*every* nearby edit takes row 3's path, and the operator's suppression record erodes one edit at a
+time.
 
 **The "changed" row is never silent, and that is the whole point of it:** the edit may itself have
 *been* the fix attempt, so an operator has to see it rather than have a stale suppression quietly
@@ -318,9 +331,25 @@ Rationale, including the injection path this closes:
 
 - **Assertion 4.1** — a suppressed finding does not appear in the next run's report, and appears in a
   `suppressed` section with its reason, so suppression is visible rather than silent.
-- **Assertion 4.2** — a suppression entry whose `finding_id` no longer matches any finding is
-  reported as **stale** rather than silently ignored. A suppression that has outlived its finding is
-  how a corpus quietly loses a check.
+- **Assertion 4.2** — a suppression entry is resolved against the current finding set into **exactly
+  one of three states**, and each has a distinct disposition:
+  - **EXACT** — every stored constituent matches a current finding. The suppression applies
+    silently, per the tiered table's first row.
+  - **PARTIAL** — exactly one anchor differs and the other anchor and `(check, claim, both
+    surfaces)` all match. The suppression **carries forward, marked `needs-reconfirmation`**, and is
+    surfaced with the changed side named. It is **not** stale and must not be dropped.
+  - **NONE** — no current finding matches on the constituents. Reported as **stale** rather than
+    silently ignored. A suppression that has outlived its finding is how a corpus quietly loses a
+    check.
+
+  **This assertion was binary until now, and the binary form is what storing constituents breaks.**
+  It read "a suppression entry whose `finding_id` no longer matches any finding is reported as
+  stale" — a rule with only match and no-match in it. Under that rule the PARTIAL state resolves to
+  `stale`, which **contradicts the tiered table's second row directly**: the table says carry the
+  suppression forward for reconfirmation, and the binary assertion says report it as outlived. An
+  operator editing a line near a suppressed finding would lose the suppression and be told it had
+  expired. Found by the lane implementing the constituent-keyed record, which is the right place to
+  find it: constituent keys shipped beside a binary stale rule are keys with no consumer.
 - **Assertion 4.3** — adding a suppression does not change any other finding's `finding_id`.
 - **Assertion 4.4** — no suppression mechanism writes to a path in the derived exclusion set. Test:
   attempt to suppress a finding in a registered cluster copy; the run refuses and names the canonical
