@@ -178,12 +178,12 @@ start; new automated intake arriving mid-cycle is **reported, never chased**, so
 bot cannot hold a drain open indefinitely.
 
 **Subagent discipline preamble.** Every subagent a lane dispatches carries a standing discipline
-preamble. When the `re-anchor` plugin is installed, the dispatch prompt invokes its sweep —
-sweep-all-disciplines, use-your-skills, do-your-research; when it is absent, the dispatch prompt
+preamble. When the `discipline` plugin is installed, the dispatch prompt invokes its sweep —
+sweep-all, use-your-skills, do-your-research; when it is absent, the dispatch prompt
 inlines the equivalent standing instructions (verify claims against authoritative sources before
 acting, prefer installed skills over ad-hoc approaches, and re-check work against the active
 conventions). The reference is presence-gated with this inline fallback per the
-[seam-phrasing convention](../seam-phrasing/README.md) — `re-anchor` is never a hard dependency.
+[seam-phrasing convention](../seam-phrasing/README.md) — `discipline` is never a hard dependency.
 
 ## 5. Consumers and launch surfaces
 

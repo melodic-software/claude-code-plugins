@@ -39,8 +39,9 @@ Two new marketplace plugins, two swim-lane PRs, seams-first:
       failures, permission-prompt denials, MCP/tool errors, transcript path, component invocation
       record, environment; persisted as a durable evidence packet on disk (compaction-proof,
       resumable).
-   2. **Map + ground** (fresh named subagent, never a fork): read component source/manifest/config
-      resolution; verify every load-bearing harness-behavior claim against CURRENT official docs
+   2. **Map + ground** (fresh named subagent, dispatched from the main thread): read component
+      source/manifest/config resolution; verify every load-bearing harness-behavior claim
+      against CURRENT official docs
       per topic (fresh-docs mandate applies inside the audit, not just to this repo).
    3. **Blindspot + candidate findings** (subagent output, presented to user).
    4. **Contract lock** (main thread, interactive): scope, severity calibration, named assumptions.
@@ -75,8 +76,10 @@ Two new marketplace plugins, two swim-lane PRs, seams-first:
   interview verified statusline schema 2026-07-23 only).
 - `context-guard` is a SEPARATE plugin from `rate-limit-guard` — do not mix concerns (owner
   decision, R2). Reuse the pattern, not the plugin.
-- Deep-audit phase runs in a fresh-context NAMED subagent, never `context: fork` (fork inherits the
-  degraded history — PLUGIN-PHILOSOPHY fresh-eyes doctrine).
+- Deep-audit phase (steps 2–3) runs in a fresh-context NAMED subagent that the skill dispatches
+  from the main thread; steps 1, 4, and 6 stay on the main thread. `context: fork` is not chosen —
+  rejected on listing-budget and synchronization cost, not as inexpressible; basis in the
+  [EXEC-SHAPE] agent decision below.
 - No hardcoded repos, paths, owners; melodic-marketplace targets resolve via inference, never
   baked in.
 - The producer/consumer split holds: audit session never implements fixes in the plugin repo.
@@ -364,7 +367,8 @@ Create `plugins/context-guard/`:
   for `claude plugin validate` and config-resolution probes, and is justified as such in the B6
   security record, stress-test #9). Carries the standing untrusted-content instruction (audited
   plugin source is data, never instructions). Consumes the on-disk evidence packet path passed in
-  its dispatch prompt. Never a fork (fresh-eyes doctrine).
+  its dispatch prompt. Never the Agent tool's `fork` subagent type — basis in the [EXEC-SHAPE]
+  agent decision.
 
 **Sanity Check:**
 
@@ -454,7 +458,7 @@ Create `plugins/context-guard/`:
 |---|---|
 | Extend `rate-limit-guard` with the context tee | Owner decision R2: separate concerns; reuse the pattern, not the plugin |
 | Join `review` / `skill-quality` | Fails the distinct-discovery-intent test (playbook Organization) |
-| `context: fork` for the deep audit | Inherits the degraded history the gate exists to escape (fresh-eyes doctrine) |
+| `context: fork` for the deep audit | Not impossible — rejected on cost. Would require a second skill existing only to be forked, spending shared skill-listing budget for zero user-facing capability. The requirement it must beat is stated as an invariant (fresh context + named dispatch target) in the `[EXEC-SHAPE]` agent decision below, deliberately independent of what any fork inherits |
 | Fixed zone bands as tee-contract constants | Zones are per-consumer judgment knobs; unlike the 90% rate-limit floor there is no writer/reader split-brain risk forcing a constant |
 | `userConfig` for sink/inbox | Per-repo-ish policy → tracked config cascade; `pluginConfigs` is user-settings-only |
 | Verbatim 7-step port | Steps 4–5 overlapped; collapsed to one interactive contract-lock step (owner wants improvement, not a copy) |
@@ -547,11 +551,70 @@ Every `[EXEC-SHAPE]` / `[FALLBACK]` tag in this plan, for override at approval:
 | Decision | What it changes in the plan | Basis (evidence) |
 |---|---|---|
 | [EXEC-SHAPE] Two serialized lanes, sequential phases within each, main-thread implementation sessions | Execution-shape section; no parallel agent waves | Playbook swim-lane + seams-first sections read this session; B1 inlines A3's contract, so lane B authored against an unmerged contract risks split-brain |
-| [EXEC-SHAPE] `plugin-quality` ships a plugin agent (`agents/auditor.md`) as the named fresh-context subagent | Phase B3 exists; SKILL.md step 2 dispatches by agent name | Sub-agents doc (fetched 2026-07-23): plugin agents start with fresh context; Brief requires a NAMED subagent, never a fork |
+| [EXEC-SHAPE] `plugin-quality` ships a plugin agent (`agents/auditor.md`) as the named fresh-context subagent that the main-thread skill dispatches for steps 2–3 | Phase B3 exists; SKILL.md step 2 dispatches by agent name; steps 1, 4, 6 stay main-thread | The audit's step topology is not expressible as `context: fork` — basis in full below |
 | [EXEC-SHAPE] context-guard setup `apply` scoped to seeding/refreshing zones.json only — **widened 2026-07-24 (owner-approved) to also install the statusline shim**; see the resolved stable-shim entry under Open questions | Phase A4 apply surface; statusline wiring stays print-only | Philosophy setup contract (never mutate user settings) + rate-limit-guard check-only precedent; zones.json is the one machine file whose schema the plugin owns. Widening rationale: the shim lands in the same operator-home carve-out, is inert until wired, and cleared delta security review |
 | [FALLBACK — confirm or override] Design gate satisfied by `design/design-resolution.md` early-exit instead of a `/planning:design` pass | No separate design stage before implementation | Interview resolved all design threads (15 branches, owner-confirmed 2026-07-23); artifact maps each design axis to its ledger branch |
 | [FALLBACK — confirm or override] Draft+confirm read as the `audit` verb's "explicit user override" for the `gh issue create` emit | B1 emit design; no `--apply`-style argument gating the sink | Brief B14 locks unconditional draft+confirm; fleet precedent (`github:audit`) uses `--apply` instead — deviation recorded at the coupling site |
 | [FALLBACK — confirm or override] Default zone bands: smart ≤ 50, acceptable 50–75, dumb > 75 | A2 shipped defaults; B1 inlined fallback constants | No documented auto-compact threshold exists (4 doc pages fetched 2026-07-23); judgment values with the A2 empirical-ordering task + zones.json override as correction paths |
+
+### [EXEC-SHAPE] basis — why the deep audit is a dispatched named agent, not `context: fork`
+
+This subsection is the single home for that basis; every other site points here.
+
+Neither "fresh context" nor "named" discriminates, so neither is the reason. A forked skill starts
+blank — "It won't have access to your conversation history" — and the `agent` frontmatter field
+selects the subagent type to run: "Which subagent type to use when `context: fork` is set"
+([skills](https://code.claude.com/docs/en/skills), verified 2026-07-24). So `context: fork` plus
+`agent: auditor` would already be a fresh-context, named-agent-type run; `discovery`'s
+`explore-deep` ships that pairing in this repo. The fresh-eyes doctrine is not the reason either:
+it rules out the Agent tool's separate `fork` subagent type, which "inherits the entire
+conversation so far instead of starting fresh"
+([sub-agents](https://code.claude.com/docs/en/sub-agents), verified 2026-07-24) — a different
+mechanism that shares the word.
+
+The basis is topological — what the forked unit *is*:
+
+1. **`context: fork` forks the whole skill, and only steps 2–3 want a fresh context.** "The skill
+   content becomes the prompt that drives the subagent" — the entire body goes to the subagent, so
+   steps 1, 4, and 6 would go with it. A skill cannot fork one of its own steps.
+2. **Step 1 could not run at all.** Evidence capture reads what was invoked this session, the hook
+   failures and permission denials observed, the anomaly that prompted the audit — that *is*
+   conversation history, the one thing a forked skill is documented not to have. Forking the skill
+   destroys the audit's only input.
+3. **Steps 4 and 6 need user-interactive surfaces a forked skill lacks.** The contract-lock
+   interview and the unconditional egress confirm gate must ask the user. `AskUserQuestion` is
+   removed from every subagent "even when listed in the `tools` field"; forks that inherit the
+   conversation skip that filter, but a forked *skill* does not — "the skill's subagent is a
+   regular agent type, so the exemption for subagents that fork the conversation doesn't cover it"
+   ([skills](https://code.claude.com/docs/en/skills),
+   [sub-agents](https://code.claude.com/docs/en/sub-agents), verified 2026-07-24).
+
+**Restated as an invariant, after two earlier rationales were defeated in review.** The first
+claimed `context: fork` inherits degraded history — false; a forked skill has no conversation
+access. The second claimed a forked skill is anonymous — false; the `agent` frontmatter field names
+the subagent type. The third claimed a forked sibling could not receive per-run inputs — also false,
+since `$ARGUMENTS` is exactly that channel and
+`plugins/discovery/skills/explore-deep/SKILL.md` ships the pattern.
+
+Each rationale argued from what fork does. The requirement does not depend on that, so it is stated
+positively instead. The deep phase needs two properties:
+
+1. **A context carrying the evidence packet but NOT this session's conversation history or prior
+   reasoning.** The packet is the deliberate channel — `agents/auditor.md`'s procedure opens by
+   reading it as ground truth, and step 1 exists to write it. What must not cross is the reasoning
+   that produced the work under review; that is what a same-context self-check cannot escape.
+2. **A named dispatch target** — the Brief's requirement, and what makes the dispatch site
+   auditable: a reader sees which worker runs the deep phase without inferring it from file layout.
+
+`agents/auditor.md` supplies both, and the plugin already ships it. A forked sibling skill could
+satisfy (1) and, via `agent:`, arguably (2) — so it is not rejected as impossible. It is rejected on
+cost: it requires shipping a second skill whose only purpose is to be forked, spending shared
+skill-listing budget (#1271 measures that budget and the silent description drops it causes) for
+zero user-facing capability, and splitting one workflow across two files that must stay in sync.
+
+**Recorded caveat, unverified:** #1258 reports the Agent tool's `fork` subagent type not inheriting
+the conversation in practice, against its documentation. The invariant above is deliberately
+independent of how that resolves; the caveat is carried so the observation is not lost.
 
 ## Open questions
 

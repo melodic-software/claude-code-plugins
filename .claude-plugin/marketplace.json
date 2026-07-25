@@ -381,8 +381,8 @@
       "tags": ["audit", "drift", "documentation", "configuration", "architecture", "verification", "claims", "skill"]
     },
     {
-      "name": "re-anchor",
-      "source": "./plugins/re-anchor",
+      "name": "discipline",
+      "source": "./plugins/discipline",
       "category": "quality",
       "tags": ["re-anchor", "discipline", "corrector", "research", "standards", "duplication", "incumbency", "terseness", "upstream", "conformance", "selection", "communication", "determinism", "consistency", "skills", "audit", "skill"]
     },
@@ -473,6 +473,19 @@
       "source": "./plugins/github",
       "category": "operations",
       "tags": ["github", "audit", "advise", "governance", "org-admin", "billing", "security-posture", "rulesets", "actions-policy", "drift", "skill"]
+    },
+    {
+      "name": "x",
+      "source": "./plugins/x",
+      "category": "discovery",
+      "tags": ["x", "twitter", "markdown", "social", "content-extraction", "skill"],
+      "defaultEnabled": false,
+      "relevance": {
+        "topic": "X (Twitter) content",
+        "signals": {
+          "hosts": ["x.com", "www.x.com", "twitter.com", "www.twitter.com", "mobile.twitter.com", "xtomd.com", "threadreaderapp.com"]
+        }
+      }
     }
   ],
   "renames": {
@@ -486,6 +499,7 @@
     "claude-config-audit": "claude-config",
     "boris": "playbooks",
     "thariq-skills": "playbooks",
-    "fable-5-playbook": "playbooks"
+    "fable-5-playbook": "playbooks",
+    "re-anchor": "discipline"
   }
 }

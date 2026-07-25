@@ -3,6 +3,31 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.2]
+
+### Fixed
+
+- **`babysit-prs` SKILL.md cadence cross-references now point at the section that owns the wake
+  seconds (#653).** #652 added the engine-backed `recommended_cadence` → `delaySeconds` mapping table
+  to `reference/loop.md` §5.3, alongside the static Python-free degrade ladder already there;
+  `reference/cadence.md` has disclaimed the wake mechanics since #322, owning only the cadence states
+  and thresholds. SKILL.md still described the older split: runbook step 9 and the Reporting closing
+  line sent the reader to `cadence.md` for the wake interval, and the References entry credited
+  `loop.md` with only a "static cadence ladder". The Reporting line was a live wrong-number risk —
+  `cadence.md` states `idle` = daily, while §5.3 documents `ScheduleWakeup` clamping `delaySeconds`
+  to `[60, 3600]`, so inside `/loop` `idle` and `quiet` both wake hourly. All three now cite the §5.3
+  cadence contract, and the step-5 progressive-disclosure trigger for `cadence.md` — which correctly
+  still points there, for the cadence states — now fires on interpreting a state rather than on
+  recommending one. Docs-only; no behavior change.
+
+## [0.26.1]
+
+### Documentation
+
+- `scripts/test-helpers.sh` now points at `docs/conventions/shell-test-helpers/README.md`, the
+  repo's owner doc recording that per-plugin shell assert-helper duplication and per-script exit-code
+  taxonomies are deliberate, not drift. No behavior change.
+
 ## [0.26.0]
 
 ### Added
