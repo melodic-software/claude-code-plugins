@@ -1,9 +1,36 @@
-# Locked decisions
+# Rightsize instruction surfaces by incumbent-first arbitration, not blanket constraint deletion
 
-Operator ratified the full recommendation set on 2026-07-25. Each row is binding on every lane that
-follows. A lane that finds a locked decision wrong reports it and stops; it does not re-decide.
+- Status: accepted
+- Date: 2026-07-25
 
-## Scope and posture
+## Context
+
+A practitioner article on context engineering argued that instruction surfaces accrete constraints a
+capable model no longer needs, and prescribed deleting them so the model can use surrounding context
+and judgement instead. Thirteen blind section digests measured that argument against this
+repository's actual instruction surfaces — `CLAUDE.md`, `.claude/rules/`, 181 skill bodies, agent
+definitions, hook text, output styles — each digest produced without sight of the others so agreement
+between them would be evidence rather than echo.
+
+Two forces shaped the outcome. First, roughly a third of the article's claims carry no authoritative
+backing, so adopting them wholesale would trade measured constraints for a practitioner's stated
+practice. Second, and more decisively, the digests kept rediscovering that a proposed remediation
+already shipped somewhere in this repository — the strongest instance being a complete
+evidence-tiered criteria catalog at
+`plugins/claude-config/skills/audit-instructions/reference/criteria.md`, which nobody looking at the
+discovery surface could see.
+
+The competing posture was the article's own: delete constraints by default and let judgement fill the
+gap. This repository had already chosen the opposite where safety is involved, so the real question
+was where each posture applies rather than which wins outright.
+
+## Decision
+
+The operator ratified the full recommendation set on 2026-07-25. Each row below is binding on every
+lane that follows. A lane that finds a locked decision wrong reports it and stops; it does not
+re-decide.
+
+### Scope and posture
 
 | # | Decision | Consequence |
 |---|---|---|
@@ -14,7 +41,7 @@ follows. A lane that finds a locked decision wrong reports it and stops; it does
 | D-5 | **Verifier-subagent pattern stays, narrowed.** Drop blanket dispatch on mechanical behavior-preserving work; keep it where the verdict is subjective or blast radius is wide | Resolves the three-way tension between Opus 5 guidance, Claude Code best practices, and 23 implementing skills |
 | D-6 | **`plugins/playbooks/skills/fable-5/**` is excluded** from this pass | PR #1261 is actively rewriting it |
 
-## Sequencing
+### Sequencing
 
 | # | Decision | Consequence |
 |---|---|---|
@@ -24,14 +51,14 @@ follows. A lane that finds a locked decision wrong reports it and stops; it does
 | D-10 | **Drop the stale dotfiles branch** `docs/claude-md-github-conventions` (+13 lines to `CLAUDE.md`, last commit 2026-07-15, no PR) | One fewer writer on the contested file |
 | D-11 | **Reconcile with issue #1225 before building anything sweep-shaped** | Two repo-wide sweeps become two routers |
 
-## Machine health (from `/doctor`, 2026-07-24)
+### Machine health (from `/doctor`, 2026-07-24)
 
 | # | Decision | Consequence |
 |---|---|---|
 | D-12 | **Fix the `guardrails` PreToolUse root cause.** p50 12–19s blocking every Bash call, ~1,464 runs in six days; a sibling guard in the same event class runs at 2ms | Not a matcher narrowing, not a disable. Root cause |
 | D-13 | **Remove the zero-usage plugins** except `plugin-quality`, `context-guard` (both shipped the same day) and `visualization` (one hit under a different leaf name) | ~16 plugins, ~7.4k est. resident tokens |
 
-## Operator-reserved calls (ratified 2026-07-25, second round)
+### Operator-reserved calls (ratified 2026-07-25, second round)
 
 These are the questions the section agents explicitly declined to answer, plus the scope boundary.
 
@@ -44,17 +71,50 @@ These are the questions the section agents explicitly declined to answer, plus t
 | D-18 | **Cut `CLAUDE.md:13-30`** (the doc-URL table) to a pointer at `docs/OFFICIAL-DOCS.md` | Verified strict subset; 29.6% of the file; line 30 already points at the superset. Accepted risk: the mandate's force must come from the rule, not from the URLs being pre-loaded |
 | D-19 | **Vendored `skill-authoring` guidance governs authoring mechanics; this effort's carve-out governs what stays constrained** | Different axes. Where they genuinely collide, upstream wins and the divergence is recorded — a vendored file is never hand-edited |
 
-## Standing constraints these decisions inherit
+### Standing constraints these decisions inherit
 
 - **`~/.claude/settings.json` is chezmoi-managed** — verified: its source is
   `dot_claude/modify_settings.json`. D-13's plugin disables are therefore a **dotfiles change**, made
   on a feature-branch worktree of `melodic-software/dotfiles`, never an in-place edit. The same holds
   for `~/.claude/CLAUDE.md`.
-- **`.work/` never leaves its checkout.** Anything a later lane must read is committed to
-  `docs/topics/context-engineering-rightsizing/`.
+- **`.work/` never leaves its checkout.** Anything a later lane must read is stated in this ADR, in
+  its sibling ADR on the sweep boundary, or on the tracker — never cited to a working-directory path.
 - **The parallel branch** `docs/context-engineering-claude-5-topic` is still being worked by another
   session. This pass runs independently by operator ruling; the collision is resolved deliberately at
   merge, not by folding.
+
+## Consequences
+
+**Every lane pays an incumbent search before it builds.** D-1 makes the search a precondition rather
+than a courtesy, and the pass proved the cost is worth paying: one of this effort's two deliverables
+dissolved into an extension of a catalog that already existed. The corresponding burden is that a
+careless search is now load-bearing — a false negative authorizes duplicate machinery, which is
+exactly what happened three times before the C6 incumbent was found.
+
+**No new router exists to own instruction-surface findings.** D-3 routes every finding into the
+plugin that already owns the surface, so there is no single place to look for "all instruction-surface
+checks" and each owning plugin's advertised scope has to stretch to cover what lands in it. The gain
+is that a standing hygiene-sweep composer keeps working, because it composes existing plugins rather
+than depending on a new one.
+
+**Constraints are arbitrated, not deleted.** D-15 keeps this repository's safety constraints in place
+and admits the article's deletion posture only where a constraint has no current safety rationale.
+Removing a constraint now costs an argument about why its rationale no longer holds; the benefit is
+that no safety gate is removed by a sweep acting on an unbacked claim.
+
+**Unbacked claims can ship without being trusted.** D-2 gives roughly a third of the article's claims
+a home — marked, disabled by default, severity-capped — instead of forcing a binary adopt-or-discard
+call on material that is real practitioner experience but unverified.
+
+**Findings that must actually fail CI need a different home.** The plugins that own these surfaces
+are model-invoked and report-only, so nothing landing in them blocks a merge. A deterministic finding
+follows the `scripts/check-*.sh` + `.test.sh` + `ci.yml` lane shape documented on
+[#445](https://github.com/melodic-software/claude-code-plugins/issues/445) instead.
+
+**Three of the nineteen decisions did not survive measurement.** The errata below record what broke
+and what still binds. They are kept in this ADR rather than folded into the decisions themselves,
+because an accepted ADR is a historical record: the ratified text stays as ratified, and the
+correction sits beside it.
 
 ## Execution status and errata
 
@@ -93,11 +153,10 @@ confirmed against official documentation**; and a second defect follows — **di
 destructive-operation guard has been silently unenforced for the entire measured window**, which
 needs its own ticket and is not this effort's to fix.
 
-Full evidence lives in the checkout-local memory slice, not in this repository:
-`guardrails-latency-diagnosis.md` under `.work/context-engineering-rightsizing/`. It is raw capture —
-transcript scans and hook-event tallies — which the topic-docs redaction bar keeps out of committed
-material. **It is therefore unreachable from a clone**, and the measurements restated above are the
-committed record. Anyone re-deriving them starts from the transcripts, not from that file.
+The underlying evidence is raw capture — transcript scans and hook-event tallies — which the
+topic-docs redaction bar keeps out of committed material, so it never left the checkout that produced
+it. **The measurements restated above are the committed record**, and anyone re-deriving them starts
+from the transcripts rather than from any file.
 
 ### D-13 — DEFERRED, not executed: the removal set is empty
 
@@ -169,36 +228,33 @@ when the lane checked. The decision is satisfied — but the requirement to read
 dropping it could not be honored, so **that content is unrecoverable and its salvage value is
 permanently unknown.** Recorded as a real loss, not a clean success.
 
-### Corrections to `collision-register.md` — applied
+### The collision register was incomplete while presenting itself as complete
 
-The register **under-counts writers** on `dot_claude/CLAUDE.md`. It lists three; **PR #319 was a
-fourth**, open and editing that file mid-pass and absent from the register. It merged before
-colliding. The generalizable point is the one that matters: **the register is a point-in-time
-snapshot that was demonstrably incomplete while presented as complete. Re-derive from `gh pr list`
-rather than trusting it.**
+The pass maintained a register of in-flight work colliding with this effort. It **under-counted
+writers** on `dot_claude/CLAUDE.md`: it listed three, and **PR #319 was a fourth** — open and editing
+that file mid-pass, absent from the register, merged before colliding.
 
-Now appended to the register itself, under its user-scope table, with the original rows left
-untouched as the record of what was known.
+The register itself was working material and is not preserved. The generalizable lesson is what
+survives, and it is the part that matters: **a collision register is a point-in-time snapshot, and
+this one was demonstrably incomplete while presented as complete. Re-derive collisions from
+`gh pr list` at the moment you need them rather than trusting a recorded snapshot.**
 
-### The digests' `plugins/re-anchor/**` citations were renamed out from under them
+### A rename invalidated the pass's recorded paths
 
-PR #1276 merged 2026-07-25T02:13:33Z, after every digest was captured. It renamed the plugin
-`re-anchor` → **`discipline`** and the skill `sweep-all-disciplines` → **`sweep-all`** across 45
-files. Verified against the tree: `plugins/re-anchor` does not exist; `plugins/discipline/skills/`
-carries `sweep-all`.
+PR #1276 merged 2026-07-25T02:13:33Z, after every measurement in this pass was captured. It renamed
+the plugin `re-anchor` to **`discipline`** and the skill `sweep-all-disciplines` to **`sweep-all`**
+across 45 files. Verified against the tree: `plugins/re-anchor` does not exist;
+`plugins/discipline/skills/` carries `sweep-all`.
 
-**Every `plugins/re-anchor/**` path in the digests therefore resolves nowhere.** Read them as
-`plugins/discipline/**`, and `re-anchor:sweep-all-disciplines` as `discipline:sweep-all`. Affected
-digests: S1, S3, S5, S6, S8, S10, S11, S13.
+**Standing instruction for the deferred lanes.** L2, L3 and L4 resume against targets this pass
+recorded under the old paths, including targets restated in the PR that carried this effort's working
+material. Any such path resolves nowhere today. Read `plugins/re-anchor/` as `plugins/discipline/`,
+and `re-anchor:sweep-all-disciplines` as `discipline:sweep-all` — and re-measure the line numbers
+rather than trusting them, because the rename moved content the old measurements never saw.
 
-**The citations are deliberately not rewritten.** They are dated measurements taken by agents that
-never saw the renamed tree; retargeting paths and line numbers that were not re-measured would
-fabricate precision and destroy the digests' value as an independent record. The rename is recorded
-here instead, once.
-
-**This matters most to the deferred lanes.** L2, L3 and L4 resume against targets recorded under the
-old paths. An incumbent search run against them silently finds nothing and looks conclusive — the
-same failure mode as the `SKILL.md`-scoped search below, arriving by a different route.
+The failure mode this creates is the dangerous one: an incumbent search run against a stale path
+silently finds nothing and looks conclusive — the same false-negative shape as the `SKILL.md`-scoped
+search recorded below, arriving by a different route.
 
 ### Lane execution status
 
@@ -207,7 +263,7 @@ stopping points.
 
 | Lane | Decisions | Outcome |
 |---|---|---|
-| L0 | design docs | committed but **not pushed** at the time of writing; errata and register correction unapplied |
+| L0 | design docs | **PR #1323 open**; this ADR is its durable outcome |
 | L1 | D-7 | **PR #1286 open**; two comments on #1271. Rewrite half unblocked by #1276 merging 02:13:33Z |
 | L2 | D-4 | uncommitted work only; incumbent search must be redone (see below) |
 | L3 | D-4, D-2 | uncommitted work only |
@@ -222,13 +278,12 @@ stopping points.
 Recorded so that no lane's status rests on an unwritten assumption. Each entry states what is
 deferred, why, and the concrete trigger that unblocks it.
 
-**L0 — design docs and contract.** Deferred with work committed but unpublished on
-`feat/context-engineering-rightsizing`: working tree clean, branch **not pushed**, no PR. Consequence
-already felt: the 13 digests are on no remote, so L2 could not point at `S2-unhobbling.md` and had to
-duplicate its gate definition. **Trigger:** push the branch and open the PR, disclosing the deliberate
-collision with `docs/context-engineering-claude-5-topic`. Still owed beyond that — file the D-6
-fable-5 follow-up issue, and append the `#319` correction to `collision-register.md` itself, since it
-currently exists only in this file.
+**L0 — design docs and contract.** Resolved. The work is published as PR #1323, disclosing the
+deliberate collision with `docs/context-engineering-claude-5-topic`, and its durable outcome is this
+ADR. One consequence of the delay is permanent and worth recording: while the working material sat on
+no remote, L2 could not reach the conflict definition it needed and duplicated it instead. That
+definition is now carried in this ADR precisely so no later lane has to. The D-6 fable-5 follow-up is
+filed as [#1324](https://github.com/melodic-software/claude-code-plugins/issues/1324).
 
 **L2 — cross-surface conflict detector (D-4).** Deferred mid-build. Uncommitted work only:
 `plugin.json`, `CHANGELOG.md` and `audit-instructions/SKILL.md` modified, plus three new untracked
@@ -254,6 +309,13 @@ fail-open reading against official documentation. **Do not apply these edits wit
 of their own choosing. **Their worktrees must not be pruned**: L2, L3 and L4's work exists nowhere
 else, and was deliberately left uncommitted rather than sealed behind a fabricated checkpoint.
 
+**How to read the three entries above.** Every file they name is uncommitted in the lane's own
+checkout, so **none of it is reachable from a clone** — the paths describe what a resuming session
+will find in that worktree, and are not citations a reader can follow. What is durable is the
+sentence beside each: L2's known incumbent-search error, L3's verified-sound direction, and L4's
+unmet behavior-preservation precondition. A resumption that cannot find the worktree re-derives from
+those, not from the paths.
+
 **Verification debt.** Only L10 received the fresh-context review this effort's own D-5 requires.
 PRs #1282, #321 and #1286 are unverified, and the four lanes above produced nothing to verify. That
 debt is outstanding and is recorded here rather than assumed discharged.
@@ -274,3 +336,82 @@ from the discovery surface — that skill's own `description` never mentions con
 
 **Any future incumbent search under D-1 must cover `plugins/**` at all depths and all file types.**
 Scoping to `SKILL.md` produces a false negative that looks conclusive.
+
+## The conflict definition D-4 ships against
+
+D-4 commits this repository to a cross-surface instruction-conflict detector. A detector is only as
+good as its definition of the thing it detects, and this pass produced one that is
+checker-implementable rather than impressionistic. It is carried here because it is the single piece
+of the pass's working material that a later lane cannot reconstruct cheaply — L2 already had to
+re-derive it once, from material it could not reach, and duplicated it.
+
+Two properties of the harness shape every criterion. A skill body can only conflict with another
+skill body if both are invoked in one session, so cross-skill-body pairs are **conditional** conflicts
+rather than guaranteed ones. And because skill descriptions are dropped under listing-budget pressure
+starting with the least-invoked skills, *which* description-layer directives are co-resident is
+nondeterministic and history-dependent — **a checker must not assume a description it can read on disk
+is in the model's context.**
+
+### Two directives conflict when all five gates hold
+
+1. **Co-residency** — their surfaces can be simultaneously resident. Guaranteed pairs: any two of
+   {user `CLAUDE.md`, repo `CLAUDE.md`, `.claude/rules/*` without `paths`, `MEMORY.md`}. Conditional
+   pairs: anything involving a skill body, a bundled reference file, or a path-scoped rule.
+2. **Same observable** — both constrain the *same decidable act*, identified by a (verb, object,
+   trigger) triple, not by topic similarity. `AskUserQuestion`-vs-inline-prose is one observable;
+   "emoji in a GitHub reaction" and "emoji in user-facing prose" are two.
+3. **Opposed polarity** — for at least one input satisfying both triggers, the two prescribed actions
+   cannot both be taken. Mandate-vs-prohibition, or two mutually exclusive mandated renderings of one
+   act.
+4. **No arbitration** — neither directive, nor any third resident text, names which wins. An explicit
+   precedence sentence resolves the pair and removes it from the finding set.
+5. **Non-vacuous trigger overlap** — a realistic prompt exists that fires both. Guard rails scoped to
+   disjoint conditions (interactive vs autonomous session, code vs prose) do not overlap.
+
+### Sub-types, by remediation route
+
+- **Type A — direct contradiction.** Both absolute, opposite polarity. Fix: delete one or arbitrate.
+- **Type B — modality collision.** One absolute ("never", "DO NOT"), one conditional ("as
+  appropriate", "when warranted"), same act. **The highest-yield type**: the absolute side reads as a
+  hard rule while the conditional side reads as license, and neither author sees the other. Fix: make
+  the absolute conditional, or make the conditional's escape hatch explicit.
+- **Type C — unarbitrated co-authority.** Two surfaces each assert ownership of one decision with no
+  precedence statement. Fix: add one precedence sentence at the higher surface.
+- **Type D — split-brain.** Two instruction files govern the same behavior but only one is loaded, so
+  the divergence is invisible in-session. Fix: import or symlink so both are resident, or delete the
+  orphan.
+
+### Must-not-flag — the false positives that defeat a naive detector
+
+These are the shapes that look like conflicts on keyword overlap and are not. A detector that flags
+them is worse than no detector, because each one trains its reader to dismiss the report.
+
+- **Different observable, shared keyword.** `plugins/guardrails/hooks/block-hook-bypass.sh` blocks
+  `cat > file` and `echo|printf > file` writes, against harness guidance to use a heredoc for
+  multi-line strings. Gate 2 fails: the hook's observable is *writing a file via shell redirection*,
+  the guidance's is *passing a multi-line string to a command's stdin*. `git commit -F -` heredocs are
+  unaffected, which `plugins/source-control/skills/commit/SKILL.md` depends on. This is a
+  correctly-scoped alignment that reads as a collision.
+- **Different object, same verb.**
+  `plugins/source-control/skills/babysit-prs/reference/loop.md:501` ("Never skip emoji reactions")
+  against a no-emoji output rule — the objects are a GitHub reaction API call and assistant prose.
+- **An absolute carrying its own exception, beside a directive presupposing that exception.** The
+  live instance in the operator's user-global instructions pairs "never use the `AskUserQuestion` tool
+  **unless explicitly asked to use it**" with "when asking the user a question (inline **or via
+  `AskUserQuestion`**), include your recommendation". The second is surface-agnostic and is satisfied
+  by the first's own exception case, so no input prescribes incompatible actions (gate 3 fails) and
+  the absolute arbitrates itself (gate 4 fails). Keyword co-occurrence plus an apparent
+  mandate/prohibition shape makes this the most tempting false positive in the instruction set. It is
+  described by shape rather than cited by line, because that file is machine-local, actively edited,
+  and outside this repository.
+
+### The partial incumbent this definition must be built against
+
+`claude-memory:audit` already ships check **C6 Consistency** at
+`plugins/claude-memory/skills/audit/reference/criteria.md`, which detects contradiction **inside the
+memory layer** — project `CLAUDE.md` versus `CLAUDE.local.md` versus project `.claude/rules/`. Under
+D-1 and this repository's reuse-or-replace posture, that slice is reused or extended, never
+re-implemented. The novel scope is **cross-layer** contradiction: a repo rule against a skill body, a
+user-global rule against a project rule, a skill's stated default against its plugin README, and
+agent definitions, hook text and output styles — none of which C6 covers. The sibling ADR on the
+sweep boundary rules on where that work lands.
