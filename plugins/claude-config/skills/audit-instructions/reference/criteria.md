@@ -217,16 +217,20 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: 
 skill bodies.
 
 - **Detect:** an instruction directing the agent to go read a surface the main conversation loads at
-  startup and therefore already carries — the root `CLAUDE.md`, `~/.claude/CLAUDE.md`,
-  `CLAUDE.local.md`, unconditional project rules (no `paths` frontmatter), and managed policy files.
-  The read spends a turn to retrieve text that is already present.
+  startup and therefore already carries — the **root** `CLAUDE.md`, `~/.claude/CLAUDE.md`, the
+  **root** `CLAUDE.local.md`, unconditional project rules (no `paths` frontmatter), and managed
+  policy files. Root-level is load-bearing in that list: the startup guarantee is scoped to the
+  hierarchy discovered from the launch directory, not to every file of that name in the tree. The
+  read spends a turn to retrieve text that is already present.
 - **Remediate:** cut the retrieval step and state the requirement the read was meant to satisfy.
 - **Must NOT flag: anything that loads on demand rather than at startup.** The guarantee this check
   rests on covers the hierarchy *the main conversation loads*, which is not the whole memory family.
-  **Nested `CLAUDE.md` files in subdirectories and path-scoped rules (`paths` frontmatter) load
-  lazily when work reaches their scope**, so an instruction to read a package-local `CLAUDE.md`
-  before operating in that package can be doing real work. Flag only when the specific file named is
-  one of the startup-loaded set above; when a surface's residency is not established, leave it.
+  **Nested `CLAUDE.md` and nested `CLAUDE.local.md` files in subdirectories, and path-scoped rules
+  (`paths` frontmatter), load lazily when work reaches their scope** — both filename forms, since
+  the lazy-loading behavior is a property of the location rather than of the name. An instruction to
+  read either one before operating in that package can be doing real work. Flag only when the
+  specific file named is one of the startup-loaded set above; when a surface's residency is not
+  established, leave it.
 - **Must NOT flag:** an instruction to read a surface that is *not* auto-loaded — `AGENTS.md`,
   contributing guides, ADRs, CI workflow files, per-ecosystem convention docs. Those are ordinary
   progressive disclosure. An agent whose job is to audit an instruction surface, which must open
