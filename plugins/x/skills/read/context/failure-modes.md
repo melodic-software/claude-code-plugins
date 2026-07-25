@@ -69,8 +69,9 @@ transport cap, so it never truncates real content and never threatens the sessio
 Whichever limit ends the read, if the file was not exhausted, report the result as partial and say
 where it stops, per the reporting rules below. Silence is the defect, not the truncation.
 
-**Single-quote the substituted path everywhere it appears** — `-o '<path>'`, and the read and delete
-that follow. Two distinct hazards, and only single quotes cover both:
+**Single-quote the substituted path at every shell site** — `-o '<path>'` and the delete that
+follows. (`Read` is not a shell site; see below.) Two distinct hazards, and only single quotes cover
+both:
 
 - Unquoted, a resolved directory containing whitespace splits into separate arguments, so the write
   lands somewhere unintended or fails.

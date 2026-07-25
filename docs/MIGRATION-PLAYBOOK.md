@@ -953,7 +953,8 @@ operated by others — so surfaces 5 and 6 carry the weight here.
   on every exit path. A later round found the spool path was double-quoted, which does not contain
   it: bash expands `$name`, runs a backtick or `$(…)` substitution, and consumes a backslash inside
   double quotes. Verified against a directory named ``lit$name-`whoami`.txt`` — the variable expanded
-  and the substitution executed. The path is now single-quoted at every site. Note the asymmetry with
+  and the substitution executed. The path is now single-quoted at every shell site. Note the
+  asymmetry with
   criterion 1: the *URL* is safe by construction because it is rebuilt from quote-free capture
   classes, but the *plugin-data path* comes from the environment, so it carries whatever the
   consumer's home directory contains and must be escaped rather than trusted. No `${CLAUDE_PLUGIN_ROOT}` references beyond the skill body, no
