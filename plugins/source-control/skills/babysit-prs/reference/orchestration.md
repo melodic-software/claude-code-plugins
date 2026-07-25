@@ -414,13 +414,13 @@ rounds uncapped.
 ## Merge Conflict Resolution
 
 This section's autonomous-resolution path applies only in worker and autopilot tiers: default
-(safe) mode always reports a merge conflict as a blocker and never dispatches a conflict resolver.
+(safe) mode always reports a merge conflict as a blocker and never dispatches a conflict worker.
 
 The blocker string a default-mode run actually sees for a `DIRTY`/`CONFLICTING` PR — `"merge
 conflict; dedicated conflict-resolution agent required"` — comes verbatim from the snapshot
 engine, which is mode-agnostic by design (no mode input) and so emits that exact wording no matter
-which tier reads it. Do not read the phrase as an instruction to dispatch the resolver it names: in
-default mode it is reported to the user as-is, and no resolver is dispatched. See `SKILL.md`
+which tier reads it. Do not read the phrase as an instruction to dispatch the worker it names: in
+default mode it is reported to the user as-is, and no conflict worker is dispatched. See `SKILL.md`
 for the same rule stated at the policy layer.
 
 In worker or autopilot, a merge conflict is not an automatic escalation. It is attempted —
@@ -429,13 +429,22 @@ discovered it. A worker's own fix round must not also resolve a conflict it hits
 a worker encounters one (a base refresh, or a fix attempt on a branch already showing
 `mergeStateStatus == CONFLICTING`), it stops immediately, reports the conflict as found — which
 files, what the conflicting hunks appear to be about — and returns without touching conflict
-markers. In worker or autopilot, the orchestrator then dispatches a **dedicated, fresh** resolver
-for that PR whose only job is the conflict; it never resumes the worker that found it. Fresh eyes,
-no attachment to either side, evaluate purely on the merits of both diffs' actual intent. In
-default mode, the orchestrator stops at the report — no resolver is dispatched.
+markers. In worker or autopilot, the orchestrator then dispatches a **dedicated, fresh** conflict
+worker for that PR whose only job is the conflict; it never resumes the worker that found it. Fresh
+eyes, no attachment to either side, evaluate purely on the merits of both diffs' actual intent. In
+default mode, the orchestrator stops at the report — no conflict worker is dispatched.
 
-The operation is split at the **authority** boundary, not the difficulty one. The resolver does
-the reading, the base fetch, the `git merge`, the marker resolution, and the verification —
+**A conflict worker is a worker.** Every rule in this file written for "a worker" — the fan-out
+gate, the concurrency cap, the write-ahead check-in, the pre-dispatch lease recheck, the Worker
+Contract, `safety.md`'s worker boundaries — binds it unchanged, with exactly two differences, both
+below: it resolves the conflict it was dispatched for (the regular worker's "stop, do not resolve"
+does not apply to it), and it does not push. A conflict worker is a second dispatch on a PR already
+worked this cycle, so the Concurrency Guard's "check the worker lease immediately before every
+worker dispatch, with no exception for a follow-up" is exactly the case it was written for: pass
+this run's retained `--token` on that recheck.
+
+The operation is split at the **authority** boundary, not the difficulty one. The conflict worker
+does the reading, the base fetch, the `git merge`, the marker resolution, and the verification —
 entirely inside its assigned worktree, with **no GitHub mutation of any kind**. The orchestrator
 re-asserts the head, re-runs the verification, and performs the single outward-facing step: the
 push. The two contracts below are halves of one operation; neither is complete alone.
@@ -445,24 +454,26 @@ push. The two contracts below are halves of one operation; neither is complete a
 A dispatched subagent starts with a fresh, isolated context window: it "doesn't see your
 conversation history, the skills you've already invoked, or the files Claude has already read.
 Claude composes a delegation message that summarizes the task, and the subagent works from there"
-(<https://code.claude.com/docs/en/sub-agents>, "Context isolation"). Everything a resolver knows
-about its own authority therefore reaches it inside a delegation prompt written by the agent that
-dispatched it.
+(<https://code.claude.com/docs/en/sub-agents>, "Context isolation"). Everything a conflict worker
+knows about its own authority therefore reaches it inside a delegation prompt written by the agent
+that dispatched it.
 
 That is harmless for reading, merging, and testing — none of which leave the worktree. It is not
 harmless for the push. A host runtime whose autonomy gate grants mutation authority only from the
 operator's own turn cannot observe that grant from inside a subagent: the operator's message is
 not in the subagent's context, and an authority level asserted by the delegation prompt is the
-agent authorizing itself, which is precisely what such a gate exists to refuse. A resolver that
-pushes is therefore either blocked by the gate or has routed around it — and a capability that can
-only ever be exercised one of those two ways is a defect, not a feature. Keeping the push with the
-orchestrator, whose context does hold the operator's turn, makes the authority the gate checks the
-same authority the run actually holds.
+agent authorizing itself, which is precisely what such a gate exists to refuse. A conflict worker
+that pushes is therefore either blocked by the gate or has routed around it — and a capability that
+can only ever be exercised one of those two ways is a defect, not a feature. Keeping the push with
+the orchestrator, whose context does hold the operator's turn, makes the authority the gate checks
+the same authority the run actually holds.
 
-Nothing about resolving markers is unsafe in a subagent, so the resolver keeps all of it. Only the
-outward-facing, hard-to-reverse step moves.
+Nothing about resolving markers is unsafe in a subagent, so the conflict worker keeps all of it.
+Only the outward-facing, hard-to-reverse step moves. A regular fix-round worker still pushes its
+own fixes: this split is scoped to conflict resolution, whose merge commit the orchestrator must
+re-verify anyway.
 
-### Resolver Contract (local only — never writes to GitHub)
+### Conflict-Worker Contract (local only — never writes to GitHub)
 
 - **Fetch the live base before merging — always, even in a reused worktree.** Run
   `git fetch origin <base-branch>` immediately before the merge step below, every time, with no
@@ -485,74 +496,98 @@ outward-facing, hard-to-reverse step moves.
   of the PR branch's own diff and of whatever changed on the base branch since divergence. Never
   resolve by blindly keeping "ours" or "theirs" without understanding what each side was trying to
   do. `/source-control:resolve-conflicts` owns that discipline in full — intent recovery per side,
-  compose-by-default, evidence-gated side-dropping, the post-resolution semantic-conflict sweep,
-  and never `--abort`.
+  compose-by-default, evidence-gated side-dropping, and the post-resolution semantic-conflict sweep.
 - **Resolve mechanical conflicts.** A textual/mechanical conflict — formatting, adjacent unrelated
   changes, both sides adding different items to the same list — is fixed, not escalated.
 - **Conclude the merge locally, and stop at the remote boundary.** Stage the resolved paths and
-  conclude the operation (`git merge --continue`) so the worktree is left with an empty
-  `git status --porcelain`, no unmerged paths, and `HEAD` at the merge commit whose first parent is
-  the asserted PR head. That first-parent relationship is what makes the orchestrator's later push
-  a fast-forward — preserving both histories and staying compatible with a repo that requires
-  linear history on its default branch, which the final squash merge enforces, not the PR branch's
-  own interim history. Then stop: **never `git push`**, and never open, comment on, resolve threads
-  on, label, refresh, or merge the PR. The resolver's entire output is a local commit plus its
-  report.
-- **Verify before returning.** After resolving, re-run the repo's relevant tests/lint/build for the
-  affected files. A resolution that only removes conflict markers without verifying correctness is
-  not acceptable. Report the exact commands and their results, named precisely enough for the
-  orchestrator to repeat them — it re-runs them itself before pushing. If verification genuinely is
-  not possible (no coverage for the area, tooling unavailable), return the
-  `verification-impossible` outcome and say exactly what could not be checked; unverified work is
-  never pushed.
-- **Escalate genuine ambiguity.** When the conflict is one where both sides made incompatible
-  design/behavioral decisions about the same logic — not just textually overlapping edits — stop
-  and describe the precise tension for the user instead of guessing. Leave the in-progress merge in
-  the worktree and name that path in the report; never `git merge --abort`, which discards every
-  hunk already resolved and returns the branch exactly as conflicted as before.
+  conclude the operation (`git merge --continue`) so the worktree is left with no unmerged paths, a
+  `git status --porcelain` clean of tracked-file changes, and `HEAD` at the merge commit whose first
+  parent is the asserted PR head. That first-parent relationship is what makes the orchestrator's
+  later push a fast-forward — preserving both histories and staying compatible with a repo that
+  requires linear history on its default branch, which the final squash merge enforces, not the PR
+  branch's own interim history. Amend any post-verification fix into that merge commit rather than
+  stacking a commit on top, so `HEAD` stays the reported merge commit. Then stop:
+  **never `git push`**, and never open, comment on, resolve threads on, label, refresh, or merge
+  the PR. The conflict worker's entire output is a local commit plus its report.
+- **Verify before returning.** After concluding the merge, re-run the repo's relevant
+  tests/lint/build for the affected files. A resolution that only removes conflict markers without
+  verifying correctness is not acceptable. Report the exact commands and their results, named
+  precisely enough for the orchestrator to repeat them — it re-runs them itself before pushing.
+  Untracked build output a verification run leaves behind (coverage, caches, generated artifacts) is
+  not a dirty tree for this contract's purposes and must not be committed; report it if the repo
+  does not already ignore it. If verification genuinely is not possible (no coverage for the area,
+  tooling unavailable), return the `verification-impossible` outcome and say exactly what could not
+  be checked; unverified work is never pushed.
+- **Escalate genuine ambiguity — with the worktree left usable.** When the conflict is one where
+  both sides made incompatible design/behavioral decisions about the same logic — not just textually
+  overlapping edits — stop and describe the precise tension for the user instead of guessing. Never
+  discard the resolution work already done: commit the partial resolution to a local
+  `conflict-wip/<pr-number>` branch (conflicted paths staged as-is), name that branch and the
+  reasoning in the report, and only then `git merge --abort` so the worktree returns to a usable
+  state. An in-progress merge left live blocks every later checkout of that worktree
+  (`loop.md` §5.1.2) and makes the PR unworkable until a human intervenes, so concluding the
+  operation is mandatory even on the escalation path; the abort is safe here precisely because the
+  work is already preserved on that branch.
 - **The fix-round-cap-is-a-backstop framing applies here too.** No artificial low limit on
   resolution attempts, but the same conflict reappearing after several attempts is itself a signal
   to stop and escalate rather than keep retrying blindly (see Fix-Round Cap above).
 - Re-check the head SHA before editing, same as any worker. The pre-push re-check belongs to the
   orchestrator below.
-- **Return exactly one unambiguous outcome**, so the orchestrator's push decision is mechanical:
-  - `resolved` — the merge commit SHA and its first-parent SHA (the asserted PR head), every
-    conflicted path with the resolution taken and why, the verification commands run with their
-    results, and confirmation that `git status --porcelain` is empty.
-  - `escalate` — the precise tension per path, and the worktree path left mid-merge.
-  - `verification-impossible` — the resolution reached, and exactly what could not be verified.
-  - `no-conflict` — the merge found nothing to resolve. Report it rather than treating it as
-    success; a stale local base is the usual cause, and the first bullet is the fix.
+- **Return exactly one unambiguous outcome**, so the orchestrator's push decision is mechanical.
+  The outcomes are distinguished by what exists in the worktree, not by judgment:
+  - `resolved` — a merge commit was created. Report its SHA and its first-parent SHA (the asserted
+    PR head), every conflicted path with the resolution taken and why, the verification commands run
+    with their results, and confirmation that `git status --porcelain` shows no tracked-file changes.
+  - `escalate` — no merge commit; the partial work is on its `conflict-wip/<pr-number>` branch and
+    the merge is aborted. Report the precise tension per path and that branch name.
+  - `verification-impossible` — a merge commit exists but its verification could not be run. Report
+    the resolution reached and exactly what could not be verified.
+  - `no-conflict` — no merge commit was created because the merge found nothing to integrate.
+    Report it rather than treating it as success; a stale local base is the usual cause, and the
+    first bullet is the fix.
 
 ### Orchestrator Contract (the push)
 
 The orchestrator holds that PR's worker lease across the whole operation — acquired before the
-dispatch, heartbeat through it, released only after its own push and cleanup (Concurrency Guard,
-Cleanup). The resolver neither acquires nor releases it, so there is no window in which the push
-happens unleased.
+dispatch, heartbeat through it, and released in finally-style cleanup on **every** outcome, pushed
+or not (Concurrency Guard, Cleanup). The conflict worker neither acquires nor releases it, so there
+is no window in which the push happens unleased.
 
-On the resolver's return, and before pushing anything:
+On the conflict worker's return, and before pushing anything:
 
+- **Require branch writes.** `mutation_policy.branch_write_allowed` must be true for this PR's head
+  repository, exactly as for any worker push (`safety.md`). Absent, the whole operation is
+  read-only: report and stop.
 - **Push only on `resolved`.** Fail closed. `escalate`, `verification-impossible`, `no-conflict`, a
-  report missing any required field, a truncated return, or a resolver that ended without returning
-  at all are each a no-push: report the outcome and end that PR's cycle. A push is never inferred
-  from a resolver that "probably" finished.
-- **Re-assert the head against the merge commit's shape.** Re-read the live PR head
-  (`gh pr view <N> --json headRefOid`) and require it to equal the merge commit's **first parent**
-  (`git -C <worktree> rev-parse HEAD^1`), not the worktree's `HEAD` — `HEAD` is the merge commit
-  now, so the assigned-worktree head assertion (`safety.md`, Checkout And Push Invariants) is
-  checked one commit back. If the live head moved while the resolver worked, do not push: the
-  resolution was computed against a superseded tip. Re-snapshot and dispatch a fresh resolver
-  against the new head.
+  report missing any required field, a truncated return, or a conflict worker that ended without
+  returning at all are each a no-push: report the outcome and end that PR's cycle. A push is never
+  inferred from a conflict worker that "probably" finished.
+- **Re-assert the head against the reported merge commit.** Require `git -C <worktree> rev-parse
+  HEAD` to equal the merge-commit SHA the conflict worker reported, and require that commit to have
+  two parents (`git -C <worktree> rev-list --parents -n 1 HEAD` returns three SHAs) — a
+  single-parent commit means the merge was never concluded, whatever the report claimed. Then
+  re-read the live PR head (`gh pr view <N> --json headRefOid`) and require it to equal that commit's
+  **first parent** (`git -C <worktree> rev-parse HEAD^1`): the assigned-worktree head assertion
+  (`safety.md`, Checkout And Push Invariants) is checked one commit back, because `HEAD` is the
+  merge commit now. If the live head moved while the conflict worker worked, do not push — the
+  resolution was computed against a superseded tip. Recovering means returning the worktree to a
+  clean checkout of the new head (`git -C <worktree> fetch origin <headRefName>`, then re-checkout
+  that head, discarding the superseded merge commit), then re-snapshotting and dispatching a fresh
+  conflict worker. Never hand a new conflict worker a worktree still sitting on the superseded merge
+  commit: its own head assertion would refuse it.
+- **Confirm the worktree carries no uncommitted tracked changes** — `git -C <worktree> status
+  --porcelain --untracked-files=no` empty, and no unmerged paths. Untracked build output from the
+  verification run below does not block the push and is never committed. A worktree with
+  uncommitted tracked changes is preserved and reported, never pushed from and never pruned
+  (Cleanup).
 - **Re-run the verification in the worktree.** Re-run the affected-file tests/lint/build the
-  resolver reported, from that worktree (`git -C <worktree>`, or the repo's own commands run with
-  it as the working directory), and require them green. The invariant is that the agent performing
-  the push has itself seen the checks pass; after the split, the resolver's report is a second
-  agent's claim, not that evidence. A re-run that fails, or that cannot be run, is a no-push
-  escalation.
-- **Confirm the worktree is clean and the merge concluded** — `git -C <worktree> status
-  --porcelain` empty, no unmerged paths. A dirty worktree is preserved and reported, never pushed
-  from and never pruned (Cleanup).
+  conflict worker reported, from that worktree (`git -C <worktree>`, or the repo's own commands run
+  with it as the working directory), and require them green. The invariant is that the agent
+  performing the push has itself seen the checks pass; after the split, the conflict worker's report
+  is a second agent's claim, not that evidence. A re-run that fails, or that cannot be run, is a
+  no-push escalation. Run it in the background and heartbeat the lease between polls — a repo's test
+  suite can exceed the five-minute heartbeat bound the Concurrency Guard calls load-bearing, and a
+  synchronous wait here would let another run stale-take the lease mid-operation.
 - **Push by refspec, never force.** `git -C <worktree> push "$PUSH_REMOTE" HEAD:<headRefName>`,
   where `PUSH_REMOTE` resolves **fail-closed** per `reference/safety.md` (Checkout And Push
   Invariants): `origin` for a same-repo head, the validated fork remote for a write-allowed
@@ -561,7 +596,11 @@ On the resolver's return, and before pushing anything:
   fork head). Given the first-parent assertion this is a fast-forward. Never force, in any tier.
 - **The orchestrator still never resolves.** It does not touch conflict markers, edit the
   resolution, or fix a conflict inline. A resolution it judges wrong is escalated, or handed to
-  another fresh resolver — never corrected in place by the orchestrator.
+  another fresh conflict worker — never corrected in place by the orchestrator.
+
+A no-push outcome is not "integrated": leave that PR's worktree in place rather than running the
+`--prune-open-clean` cleanup on it, so an unpushed merge commit or a `conflict-wip` branch is not
+silently discarded. Release the lease either way.
 
 After the push, the PR carries a new head: any merge decision re-snapshots and runs the pinned
 merge gate against it (`SKILL.md`), exactly as after any other worker push.
@@ -597,8 +636,9 @@ Each worker must:
 - stop if the worktree is dirty, the head SHA changed, or the fix belongs in another
   source-of-truth repo
 - stop and report — never resolve — a merge conflict discovered mid-fix-round; hand off to a
-  dedicated fresh conflict resolver instead (see Merge Conflict Resolution above)
-- commit and push only clear branch-owned fixes
+  dedicated fresh conflict worker instead (see Merge Conflict Resolution above)
+- commit and push only clear branch-owned fixes — except a conflict worker, which commits its
+  resolution locally and never pushes (Merge Conflict Resolution above)
 - **auto-resolve only pre-push-outdated threads.** A worker may resolve a review thread only when
   that thread was already `isOutdated` in the pre-push snapshot it was dispatched with, and only
   through `bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners>
@@ -621,9 +661,8 @@ Each worker must:
 
 ## Worker Prompt Template
 
-Use this for regular fix-round workers only. A conflict resolver is a different job with different
-authority — never hand it this template, modified or not; build its prompt from the
-Conflict-Resolver Prompt Delta below.
+Use this for regular fix-round workers only. A conflict worker has different authority — never hand
+it this template unmodified; build its prompt by applying the Conflict-Worker Prompt Delta below.
 
 Every PR-derived field — title, `needs_worker_reasons`, check names, blocker strings — is
 interpolated **only** inside the quoted untrusted-data section, never into the instruction prose.
@@ -676,34 +715,34 @@ findings remain; only if the ledger reports the cap reached should you stop and 
 state instead. Blocking defects — failing CI, P0/P1, regressions — are never capped; keep fixing
 those. If you hit a merge conflict, do not resolve it yourself — stop, report which files and
 what the conflicting hunks appear to be about, and leave it for a dedicated fresh
-conflict resolver.
+conflict worker.
 
 When complete, report changed files, commands/tests run, commit SHA, push status, and any
 remaining blockers.
 ```
 
-### Conflict-Resolver Prompt Delta
+### Conflict-Worker Prompt Delta
 
-A resolver dispatched under Merge Conflict Resolution above gets its own prompt, built from the
-template above with these differences. They are differences of authority, not of emphasis —
-handing a resolver the unmodified template gives it both a "do not resolve" instruction it must
-disobey and a push capability it must not have.
+A conflict worker dispatched under Merge Conflict Resolution above gets the template above with
+these differences. They are differences of authority, not of emphasis — handing it the unmodified
+template gives it both a "do not resolve" instruction it must disobey and a push capability it must
+not have.
 
-- **Replace** the "do not resolve it yourself" sentence with the Resolver Contract: resolving this
-  conflict is the entire job.
+- **Replace** the "do not resolve it yourself" sentence with the Conflict-Worker Contract:
+  resolving this conflict is the entire job.
 - **Add, affirmatively:** *"Never push, and never make any GitHub mutation. Fetch the base, assert
   `HEAD` equals the expected head SHA, `git merge origin/<base-branch>` (never rebase), resolve the
   markers, conclude the merge locally, run the affected-file tests/lint/build, and return. The
   orchestrator re-asserts the head, re-runs your verification, and pushes."* The regular template
   forbids only *force*-pushing — regular workers do push — so silence here reads as permission.
 - **Add** the required return shape: exactly one of `resolved`, `escalate`,
-  `verification-impossible`, `no-conflict`, with the fields the Resolver Contract lists for it. The
-  orchestrator's push decision is mechanical on this field, so an unshaped narrative return is a
-  no-push.
+  `verification-impossible`, `no-conflict`, with the fields the Conflict-Worker Contract lists for
+  it. The orchestrator's push decision is mechanical on this field, so an unshaped narrative return
+  is a no-push.
 - **Keep** unchanged: the untrusted-data fencing, the worktree scoping, the target repository's own
   conventions, the head re-check before editing, and the no-background-monitor rule.
-- **Drop** the pre-push-outdated thread-resolution grant. A resolver resolves conflicts, not review
-  threads.
+- **Drop** the pre-push-outdated thread-resolution grant. A conflict worker resolves conflicts, not
+  review threads.
 
 ## Fallback
 
