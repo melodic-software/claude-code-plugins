@@ -1,6 +1,6 @@
 ---
 version: 1.1.0
-last-updated: 2026-07-24
+last-updated: 2026-07-25
 ---
 
 # Instruction-Audit Criteria
