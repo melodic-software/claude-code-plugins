@@ -163,8 +163,20 @@ emit_refs() {
 # the line, since a bare-word hunk carries no positional information.
 reconstruct_partial_edit() {
   [[ "$TOOL" == "Edit" && -f "$FILE" ]] || return 0
+  # Anchor tokens come from the hunk with any COMPLETE reference removed first.
+  # A complete reference is already handled by the direct scan, and leaving it in
+  # would contribute its own plugin name as an anchor — `alpha` then matches every
+  # reference to that plugin, including untouched ones on neighbouring lines, which
+  # breaks diff-scope. What remains is the genuinely bare edited text.
+  local residue
+  residue=$(printf '%s' "$SCAN_CONTENT" | sed -E 's#/[a-z][a-z0-9-]*:[a-z][a-z0-9-]*##g')
+  # Minimum anchor length. A substring match on a very short token matches almost
+  # any segment — stripping a reference out of `Run `/alpha:x` now.` leaves the
+  # fragment `un`, which substring-matches `untouched-ghost` on an untouched line
+  # and breaks diff-scope. 4 characters is the shortest command segment worth
+  # anchoring on; below that the token carries no locating power.
   local -a toks=()
-  mapfile -t toks < <(printf '%s' "$SCAN_CONTENT" | grep -oE '[a-z][a-z0-9-]*' 2>/dev/null | sort -u)
+  mapfile -t toks < <(printf '%s' "$residue" | grep -oE '[a-z][a-z0-9-]{3,}' 2>/dev/null | sort -u)
   ((${#toks[@]})) || return 0
   local tok lines ctx=""
   for tok in "${toks[@]}"; do
@@ -174,11 +186,17 @@ reconstruct_partial_edit() {
   [[ -n "$ctx" ]] || return 0
   local saved="$SCAN_CONTENT"
   SCAN_CONTENT=$(printf '%s' "$ctx" | grep -vE '^[[:space:]]*$' | head -40)
-  local ref seg
+  local ref seg plug skl
   while IFS= read -r ref; do
     [[ -n "$ref" ]] || continue
+    plug="${ref#/}"
+    plug="${plug%%:*}"
+    skl="${ref##*:}"
+    # SUBSTRING match, not equality: an Edit can replace part of a segment
+    # (`up` -> `host` turns `/alpha:setup` into `/alpha:sethost`), so the hunk
+    # token is a substring of the segment rather than the whole of it.
     for seg in "${toks[@]}"; do
-      if [[ "${ref#/}" == "$seg:"* || "${ref##*:}" == "$seg" ]]; then
+      if [[ "$plug" == *"$seg"* || "$skl" == *"$seg"* ]]; then
         printf '%s\n' "$ref"
         break
       fi
@@ -191,9 +209,14 @@ declare -A CHECKED=()
 UNRESOLVED=()
 REFS=()
 mapfile -t REFS < <(emit_refs)
-# Only reconstruct when the hunk itself yielded nothing; a full-command hunk
-# already scans correctly and must not be re-scanned from disk.
-((${#REFS[@]})) || mapfile -t REFS < <(reconstruct_partial_edit)
+# Reconstruction runs on EVERY Edit, not only when the hunk yielded nothing. One
+# hunk can both carry a complete reference and change a substring inside another
+# (`setup and placeholder` -> `ghost` plus a literal `/alpha:setup`), so gating on
+# an empty REFS would miss the partial half. Duplicates are harmless — CHECKED
+# dedupes below.
+if [[ "$TOOL" == "Edit" ]]; then
+  mapfile -t -O "${#REFS[@]}" REFS < <(reconstruct_partial_edit)
+fi
 
 for ref in "${REFS[@]}"; do
   [[ -n "$ref" ]] || continue

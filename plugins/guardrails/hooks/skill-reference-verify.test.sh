@@ -264,13 +264,38 @@ assert_contains "reconstruction reports the edited reference" "$OUT" \
 assert_absent "reconstruction does NOT report an untouched neighbour" "$OUT" \
   "untouched-ghost"
 
-# A hunk that already carries a full command must not trigger reconstruction —
-# the normal diff-scope path handles it.
+# A hunk that already carries a full command is scanned directly.
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$PARTIAL2" 'Run `/alpha:ghost-three` now.')" 2>&1)
 assert_contains "full-command hunk → scanned directly" "$OUT" \
   "UNRESOLVED_SKILL: /alpha:ghost-three"
 assert_absent "full-command hunk → no disk reconstruction leakage" "$OUT" \
   "untouched-ghost"
+
+# An Edit can replace PART of a segment: `up` -> `host` turns `/alpha:setup` into
+# `/alpha:sethost`. The hunk token is then a substring of the segment, not the
+# whole of it, so the filter must match on substring.
+SUBST="$REPO/substr.md"
+printf 'Run `/alpha:sethost` to begin.\n' >"$SUBST"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$SUBST" 'host')" 2>&1)
+assert_contains "substring Edit inside a segment → recovered" "$OUT" \
+  "UNRESOLVED_SKILL: /alpha:sethost"
+
+# A hunk carrying BOTH a complete reference and a substring change to another must
+# report both — gating reconstruction on an empty scan would miss the partial half.
+MIXED="$REPO/mixed.md"
+printf 'First `/alpha:ghost-mixed` here.\nSecond `/alpha:audit` is fine.\n' >"$MIXED"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$MIXED" 'ghost-mixed and `/alpha:ghost-direct`')" 2>&1)
+assert_contains "mixed hunk → direct reference reported" "$OUT" \
+  "UNRESOLVED_SKILL: /alpha:ghost-direct"
+assert_contains "mixed hunk → reconstructed reference also reported" "$OUT" \
+  "UNRESOLVED_SKILL: /alpha:ghost-mixed"
+
+# Reconstruction must not double-report a reference reachable both ways.
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$MIXED" 'Run `/alpha:ghost-mixed` again.')" 2>&1)
+assert_contains "reference reachable both ways → reported" "$OUT" \
+  "UNRESOLVED_SKILL: /alpha:ghost-mixed"
+assert_contains "reference reachable both ways → counted once" "$OUT" \
+  "1 skill reference(s) do not resolve"
 
 # ============================ KILL SWITCH ===================================
 
