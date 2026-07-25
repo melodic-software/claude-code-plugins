@@ -13,6 +13,8 @@ process is spawned.
 
 from __future__ import annotations
 
+import contextlib
+import io
 import pathlib
 import sys
 import unittest
@@ -704,6 +706,26 @@ class DependencyHoldIntegrationTests(unittest.TestCase):
         blockers = self._dependency_blockers(result)
         self.assertEqual(len(blockers), 1, result["blockers"])
         self.assertIn(self.DEP_BOT, blockers[0])
+
+
+class NoAbbreviatedFlags(unittest.TestCase):
+    def test_merge_abbreviation_is_rejected(self) -> None:
+        # The permission grants state "no --merge means check-only" as a
+        # condition on literal command text; an abbreviation resolving to
+        # --merge while the text lacks it would let the written command and
+        # resolved behavior diverge.
+        with (
+            mock.patch.object(
+                sys, "argv",
+                ["babysit_merge.py", "owner/repo#1",
+                 "--allowed-owners", "owner", "--mer"],
+            ),
+            contextlib.redirect_stdout(io.StringIO()),
+            mock.patch("sys.stderr", new=io.StringIO()),
+        ):
+            with self.assertRaises(SystemExit) as ctx:
+                merge.main()
+        self.assertEqual(ctx.exception.code, 2)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 # Changelog — discovery plugin
 
-## [0.8.4]
+## [0.8.5]
 
 ### Added
 
@@ -52,7 +52,16 @@
   wrong document, a claim slug alone collides as soon as one claim is chased across two URLs, and
   even the full stem collides when two parallel queries chase the same claim to the same URL. The
   uniqueness rides the directory rather than the filename because BSD `mktemp` replaces only trailing
-  `X`s, so a `…-XXXXXX.<ext>` template fails outright on macOS. Extraction is checked for usable text
+  `X`s, so a `…-XXXXXX.<ext>` template fails outright on macOS. The discovered URL is bound as
+  single-quoted data rather than interpolated into the `curl` line: `$()` and backticks are legal in
+  a URL path and expand inside double quotes, so a hostile link would otherwise run as code before
+  the fetch. The artifact downloads extensionless with `-D` capturing the headers from the same
+  transfer — naming the file by type up front is circular, since the path must exist before the
+  response that reveals the type, and re-fetching to learn it costs a second full transfer of a
+  large or single-use signed download. The recorded `Content-Type` is corroborating evidence in both
+  directions and decisive in neither: a challenge page and the real spec are both `text/html`, and a
+  valid PDF served as `application/octet-stream` is confirmed by its signature rather than rejected
+  for its type — otherwise a complete local download gets reported as unreachable. Extraction is checked for usable text
   before it counts as a search: an extractor exits 0 on a scanned or image-only PDF and returns
   nothing, so empty or garbled output routes to another extractor, OCR, then escalation rather than
   becoming a false "not found" about a source nobody read. An
@@ -68,6 +77,28 @@
   AND the sources left unchecked, never a bare "unsourced" / "not found" — an absence claim is only
   as strong as the set it was checked against. Stated at the `Gaps` output contract, gated by
   criterion 10.
+
+## [0.8.4]
+
+### Changed
+
+- **Setup no longer hardcodes a publisher and repository name in the schema reference.** The skill
+  pointed at a `raw.githubusercontent.com/<publisher>/<repo>` URL for `topic-docs.schema.json`,
+  binding a runtime-consulted reference to one forge account inside a plugin that is otherwise
+  publisher-agnostic — a fork, a mirror, or a rename leaves the skill citing someone else's schema.
+  It now names the schema by the convention's own filename and defers to
+  `reference/topic-docs.md`, this plugin's binding, which already carries the single pointer to the
+  published convention. One coupling site per plugin instead of two, and the one that remains is the
+  file whose job is to cite upstream.
+- **The setup skill now says why its body matches `verification`'s byte-for-byte.** Most of it does,
+  and nothing on the page said whether that was a shared source to extract or a coincidence to
+  leave alone — so the next reader either re-litigates it or "deduplicates" two skills that are
+  supposed to be free to diverge. They are: both restate rules the topic-docs contract and the
+  marketplace setup contract already own, which is what a `SKILL.md` must do since it cannot defer
+  at runtime to a document the consuming repo lacks. `planning` renders the same rules in its own
+  prose and already disagrees with both on two of them. A maintainer note at the block points at
+  the contract's new "Implementers restate the rules" section, which carries the reasoning and the
+  trigger that would reopen extraction.
 
 ## [0.8.3] — 2026-07-24
 

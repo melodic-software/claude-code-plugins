@@ -2,19 +2,39 @@
 
 Reviews an existing GitHub PR with git-history context.
 
-## `code-review` orchestrator plugin (when installed)
+## Boundary — two built-in/managed surfaces, neither a marketplace plugin
 
-When the `code-review` plugin (from the `claude-plugins-official` marketplace) is available, `/code-review:code-review` detects the current branch's PR and runs parallel review agents with confidence scoring against it.
+Two Claude Code surfaces overlap this mode's job on an open PR. Neither is an installable
+`claude-plugins-official` marketplace plugin — both ship with Claude Code itself:
 
-**PR-mutation gate:** its PR mode posts findings as a PR comment, which violates the review modes' report-only contract; when the branch has an open PR, dispatch it only on explicit user opt-in ("post the review comment"), otherwise skip it and name the skip in the review report — fall to the read-only manual path below.
+- **Bundled `/code-review` command** — invoked bare (no plugin namespace), always available,
+  no install required. Pass a PR number as its target (`/code-review 123`) to review that PR
+  locally; it reports correctness bugs plus reuse/simplification/efficiency cleanups. `--fix`
+  applies edits to the working tree and `--comment` posts the findings as inline PR comments —
+  both mutate.
+- **Managed Code Review GitHub App service** — a separate org-level service (Team/Enterprise,
+  enabled once by an Owner in admin settings) that runs multiple review agents in parallel
+  against the PR diff, verifies candidates to filter false positives, and posts the results as
+  inline PR comments tagged by severity. It triggers automatically on PR open/push per the
+  repo's configured behavior, or on demand by commenting `@claude review` on the PR.
+
+**Mutation gate — flags and the managed service, not the bare command:** `/code-review --comment`
+posts inline comments to the PR and triggering the managed service posts a full review; both
+violate the review modes' report-only contract. `--fix` mutates the working tree. Dispatch any of
+those three only on explicit user opt-in ("post the review comment", "apply the fixes"), otherwise
+skip and name the skip in the review report.
+
+Bare `/code-review <target>` is **not** gated: it reports into the session and writes nothing to
+the PR or the working tree, so it stays available as a read-only option alongside the manual path
+below.
 
 ## Manual PR review (default read-only path)
 
-Used when the plugin is absent, or when the opt-in above is withheld:
+Used by default, or alongside a bare `/code-review <target>` pass:
 
 1. `gh pr diff` for the change set (page it — large PRs flood context)
 2. Apply the project's review criteria (or `${CLAUDE_PLUGIN_ROOT}/context/severity.md` baseline) manually, or dispatch this plugin's `code-reviewer` agent against the PR's merge-base diff
-3. When the repository runs its own CI review bot on PR open/sync, note that its coverage still arrives independently
+3. When the repository runs its own CI review bot (e.g. the managed Code Review service) on PR open/sync, note that its coverage still arrives independently
 
 ## Prerequisites
 
