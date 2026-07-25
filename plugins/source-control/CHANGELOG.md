@@ -28,7 +28,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
   the cleanup cannot mask a refusal behind a zero status. `--root-file` treats the file's bytes as the
   root verbatim: a newline anywhere in it, trailing included, is a usage error (exit 2) rather than a
   trimmed terminator or a silently-taken first line — trimming would be indistinguishable from a root
-  whose own last byte is a newline. `--root` is unaffected and stays available for a caller that
+  whose own last byte is a newline. A NUL byte is rejected the same way, checked on the file before
+  the value reaches a shell variable, because command substitution drops NULs and would otherwise
+  collapse `<root>-<NUL>suffix` into a path nobody supplied. The `--root`/`--root-file` mutual
+  exclusion now keys off whether each flag appeared rather than whether its value is non-empty, so
+  `--root '' --root-file <f>` is the usage error it always should have been rather than silently
+  selecting one source. `--root` is otherwise unaffected and stays available for a caller that
   already holds the value as a real process argument (a hook, or direct CLI use). No remaining
   `${user_config.worktree_root}` shell literal in either render site.
 

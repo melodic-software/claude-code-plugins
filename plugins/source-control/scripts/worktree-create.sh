@@ -68,9 +68,11 @@ Options:
                       line ends the heredoc early and the remainder is parsed
                       as commands. The file's bytes ARE the root, verbatim and
                       unterminated — a newline anywhere in it, trailing
-                      included, is a usage error (exit 2), never trimmed. The
-                      same unset/empty/unexpanded-token refuse (exit 3) applies
-                      to the file's content. Mutually exclusive with --root.
+                      included, is a usage error (exit 2), never trimmed, and so
+                      is a NUL byte. The same unset/empty/unexpanded-token
+                      refuse (exit 3) applies to the file's content. Mutually
+                      exclusive with --root: supplying both is a usage error
+                      even when one of the two values is empty.
   --base-ref <ref>    fresh (default) branches from the remote default branch;
                       head branches from the repo's current HEAD. Omitted
                       defaults to fresh; the caller passes the effective Claude
@@ -87,7 +89,9 @@ EOF
 
 name=""
 root=""
+root_given=0
 root_file=""
+root_file_given=0
 base_ref=""
 repo_dir="."
 
@@ -104,8 +108,8 @@ need_value() {
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --name) need_value "$@"; name="$2"; shift 2 ;;
-    --root) need_value "$@"; root="$2"; shift 2 ;;
-    --root-file) need_value "$@"; root_file="$2"; shift 2 ;;
+    --root) need_value "$@"; root="$2"; root_given=1; shift 2 ;;
+    --root-file) need_value "$@"; root_file="$2"; root_file_given=1; shift 2 ;;
     --base-ref) need_value "$@"; base_ref="$2"; shift 2 ;;
     --repo-dir) need_value "$@"; repo_dir="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
@@ -118,7 +122,10 @@ if [[ -z "$name" ]]; then
   exit 2
 fi
 
-if [[ -n "$root" && -n "$root_file" ]]; then
+# Mutual exclusion keys off whether each flag APPEARED, not whether its value is
+# non-empty: `--root '' --root-file f` is still a caller naming two sources, and
+# treating the empty one as absent would silently pick the other.
+if (( root_given && root_file_given )); then
   printf '%s: --root and --root-file are mutually exclusive\n' "$PROG" >&2
   exit 2
 fi
@@ -137,9 +144,19 @@ fi
 # Reading a "first line" instead would silently proceed with a root the caller
 # never asked for, and a trailing newline is indistinguishable from a root whose
 # own last byte is a newline, so neither can be forgiven without guessing.
-if [[ -n "$root_file" ]]; then
+if (( root_file_given )); then
   if [[ ! -f "$root_file" ]]; then
     printf '%s: --root-file not found: %s\n' "$PROG" "$root_file" >&2
+    exit 2
+  fi
+  # A NUL byte has to be caught BEFORE the value reaches a shell variable: command
+  # substitution drops NULs (with a warning on stderr the caller may never see),
+  # which would turn `/root-<NUL>suffix` into `/root-suffix` and create a worktree
+  # at a path nobody supplied. Compare the byte count with and without NULs rather
+  # than matching on one, since the variable can never hold it.
+  if (( $(wc -c < "$root_file") != $(tr -d '\000' < "$root_file" | wc -c) )); then
+    printf '%s: --root-file %s contains a NUL byte; the file holds the worktree root verbatim and no pathname can contain NUL\n' \
+      "$PROG" "$root_file" >&2
     exit 2
   fi
   root=$(cat "$root_file"; printf x)   # printf x defends the value's own trailing bytes from $( ) stripping

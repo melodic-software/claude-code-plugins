@@ -345,6 +345,15 @@ printf '%s' "$TEST_TMPDIR/wtroot-both" > "$root_file"
 bash "$HELPER" --name feat/both --root "$TEST_TMPDIR/wtroot-both" --root-file "$root_file" --repo-dir "$repo" >/dev/null 2>&1
 assert_exit "--root and --root-file together exit 2" 2 "$?"
 
+# --- Case: an EMPTY value does not make a supplied flag count as absent ---
+# The exclusion keys off whether each flag appeared, not whether its value is
+# non-empty; otherwise `--root ''` would let --root-file quietly win (and vice
+# versa) despite the caller naming two sources.
+bash "$HELPER" --name feat/both2 --root "" --root-file "$root_file" --repo-dir "$repo" >/dev/null 2>&1
+assert_exit "--root '' with --root-file still exits 2" 2 "$?"
+bash "$HELPER" --name feat/both3 --root "$TEST_TMPDIR/wtroot-both" --root-file "" --repo-dir "$repo" >/dev/null 2>&1
+assert_exit "--root with --root-file '' still exits 2" 2 "$?"
+
 # --- Case: --root-file pointing at a missing file is a usage error (exit 2) ---
 bash "$HELPER" --name feat/missingfile --root-file "$TEST_TMPDIR/does-not-exist" --repo-dir "$repo" >/dev/null 2>&1
 assert_exit "--root-file missing file exit 2" 2 "$?"
@@ -422,5 +431,18 @@ assert_exit "--root-file trailing newline is a usage error (exit 2)" 2 "$?"
 assert_contains "--root-file trailing-newline error names the newline" "$err" "newline"
 assert_file_absent "--root-file trailing-newline root never materialized" \
   "$TEST_TMPDIR/wtroot16-trailing/acme-widget-feat-trailing/README.md"
+
+# --- Case: a NUL byte in the root file is a usage error (exit 2) ---
+# Command substitution DROPS NUL bytes, so `<root>-<NUL>suffix` would silently
+# collapse to `<root>-suffix` and create a worktree at a path nobody supplied.
+# The check therefore runs on the file, before the value reaches a variable.
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+root_file="$TEST_TMPDIR/rootfile-nul"
+printf '%s\000%s' "$TEST_TMPDIR/wtroot17-nul" "suffix" > "$root_file"
+err=$(bash "$HELPER" --name feat/nul --root-file "$root_file" --repo-dir "$repo" 2>&1 >/dev/null)
+assert_exit "--root-file NUL byte is a usage error (exit 2)" 2 "$?"
+assert_contains "--root-file NUL error names the NUL byte" "$err" "NUL"
+assert_file_absent "--root-file NUL-collapsed path never materialized" \
+  "$TEST_TMPDIR/wtroot17-nulsuffix/acme-widget-feat-nul/README.md"
 
 [[ $FAILED -eq 0 ]] || exit 1
