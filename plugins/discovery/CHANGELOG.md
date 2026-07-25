@@ -55,8 +55,12 @@
   becoming a false "not found" about a source nobody read. An
   unconfirmed download routes back through the full escalate-on-block order and does not count as the
   recipe having run, so it can never manufacture a premature "unreachable". "Unreachable" is reserved
-  for extraction that failed after escalation also failed: an artifact that WAS confirmed, extracted,
-  and searched is a REACHED source that belongs in the checked set even when the claim is not in it.
+  for exhaustion, of which there are two kinds: extraction that failed after escalation also failed,
+  and acquisition that failed through every rung — a source answering the direct fetch and every
+  fallback with a login, challenge, or block never yields an artifact to confirm, and the recorded
+  full walk is what earns the status. Neither covers the opposite mistake: an artifact that WAS
+  confirmed, extracted, and searched is a REACHED source that belongs in the checked set even when
+  the claim is not in it.
 - **Absence claims ship their enumeration.** A negative finding states the sources actually checked
   AND the sources left unchecked, never a bare "unsourced" / "not found" — an absence claim is only
   as strong as the set it was checked against. Stated at the `Gaps` output contract, gated by
