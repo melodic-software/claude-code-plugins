@@ -750,7 +750,7 @@ dispatched by this sweep but owned by task #34. Not edited from this branch.
   self-consistency consulting **no external guidance at all**. "Alignment with current guidance" is a
   property of the criteria catalogs' recheck triggers, which live in the plugins this sweep
   delegates to — so the framing names what is delegated. It is also
-  `re-anchor:recheck-against-upstream`'s trigger space nearly verbatim. Also killed on merit:
+  `discipline:recheck-against-upstream`'s trigger space nearly verbatim. Also killed on merit:
   `audit-sweep`, this document's own former placeholder, because a security sweep is *one* test
   across *many* assets — the inverse of this — and `audit-universe`, which is the rejected `estate`
   wearing an audit hat.

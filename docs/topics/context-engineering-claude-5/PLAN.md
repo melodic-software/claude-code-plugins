@@ -64,7 +64,7 @@ mismatch is closed here rather than left standing in two places.
   one human gate per run. None of that is reachable by invoking the incumbents by hand, which is the
   operational definition of a runbook. The gate's answer survived cross-vendor review; the Brief's
   line did not, so the Brief is what changes.
-- **`re-anchor:sweep-all-disciplines` is the structural precedent** — a router that fans out
+- **`discipline:sweep-all` is the structural precedent** — a router that fans out
   audit-only lanes and applies corrections in a fixed order. That precedent is about **router
   mechanics** and is unaffected by the component/runbook correction: the sweep either extends that
   pattern or states why it does not.
@@ -113,7 +113,7 @@ be re-runnable against a moved target rather than assume a frozen tree.
    native home because it already owns the Claude Code configuration plane and because
    `audit-instructions` already builds the surface inventory the sweep needs.
 
-`re-anchor:sweep-all-disciplines` is the structural precedent, not the home: it is session-posture
+`discipline:sweep-all` is the structural precedent, not the home: it is session-posture
 scoped (what discipline is Claude operating under right now), where this is target scoped (what does
 this repository's instruction surface look like). Same router mechanics, different subject.
 
@@ -731,7 +731,7 @@ Tasks #31, #30, #20. Order matters and is not the task order.
    source its premises rest on.
 2. **Inventory all three scopes before applying any side's fixes.** D1 detects cross-surface conflict;
    it cannot see a repo↔user conflict from a repo-only inventory. `design/skill-inventory.md` names
-   `~/.claude/CLAUDE.md` against the 15-skill `re-anchor` plugin as the most likely conflict site.
+   `~/.claude/CLAUDE.md` against the 15-skill `discipline` plugin as the most likely conflict site.
    Inventorying only the repo would apply fixes against half the picture.
 
    **A second example previously stood here and is struck as false.** It named "a `SessionStart` hook
@@ -881,7 +881,7 @@ No runtime code — the deliverables are skills, a catalog, and their evals. Ver
 | Alternative | Why rejected |
 |---|---|
 | One new dedicated plugin holding every check | Duplicates the surface inventory `audit-instructions` already builds, forces a second install, and files the same subject under a second catalog entry |
-| Extend `re-anchor:sweep-all-disciplines` | Session-posture scoped, not target scoped. Its correctors audit the work in flight; this audits a repository at rest |
+| Extend `discipline:sweep-all` | Session-posture scoped, not target scoped. Its correctors audit the work in flight; this audits a repository at rest |
 | Reimplement the CLAUDE.md trim | `/doctor` already trims, deduplicates, and migrates, on Anthropic's release cadence. The sweep hands off to it |
 | Ship every rule the source states as an enforced check | Four rules have no official backing. They ship `OPINION`-tier so a consumer can weigh them, rather than being enforced as doctrine or silently dropped |
 

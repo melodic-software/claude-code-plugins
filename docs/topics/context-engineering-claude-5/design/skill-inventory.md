@@ -26,7 +26,7 @@ it into a sweep step.
 
 ## Precedent: the router already exists
 
-`re-anchor:sweep-all-disciplines` is described as "not a corrector itself, but a router that fans
+`discipline:sweep-all` is described as "not a corrector itself, but a router that fans
 out an audit-only subagent per in-scope corrector and then applies their corrections on the main
 thread in a fixed order," with a cheap posture digest at conversation start. That is structurally
 the router shape: fan out audit-only lanes, collect, apply in a fixed order. Whatever is built here
@@ -57,13 +57,13 @@ new member of that sweep.
 
 | Skill | Why it might belong |
 |---|---|
-| `re-anchor:sweep-all-disciplines` | The router precedent; possibly the correct home rather than a new skill |
-| `re-anchor:point-dont-copy` | Pointer-over-copy is the S8 placement rule's nearest incumbent |
-| `re-anchor:tighten-your-output` | Terseness discipline, adjacent to `docs-hygiene:compress` |
-| `re-anchor:recheck-against-upstream` | Existing state is not evidence of its own correctness — the posture the whole pass assumes |
-| `re-anchor:reuse-or-replace` | Whether an incumbent should survive at all |
-| `re-anchor:reason-dont-recite` | Precedent is descriptive, never justifying — the argument against keeping a rule because it is there |
-| `re-anchor:use-your-skills` | Whether available skills actually fire; adjacent to `/doctor`'s unused-skill scoring |
+| `discipline:sweep-all` | The router precedent; possibly the correct home rather than a new skill |
+| `discipline:point-dont-copy` | Pointer-over-copy is the S8 placement rule's nearest incumbent |
+| `discipline:tighten-your-output` | Terseness discipline, adjacent to `docs-hygiene:compress` |
+| `discipline:recheck-against-upstream` | Existing state is not evidence of its own correctness — the posture the whole pass assumes |
+| `discipline:reuse-or-replace` | Whether an incumbent should survive at all |
+| `discipline:reason-dont-recite` | Precedent is descriptive, never justifying — the argument against keeping a rule because it is there |
+| `discipline:use-your-skills` | Whether available skills actually fire; adjacent to `/doctor`'s unused-skill scoring |
 | `code-tidying:audit-comment-residue` | The S5 comment-density rule, applied to code rather than instructions |
 | `codebase-health:audit` | Repo-level health framing |
 | `mcp-tools:audit` | MCP surface, feeding check I11 (CLI over MCP where equivalent) |
@@ -84,7 +84,7 @@ contributes nothing to running it. Two properties make them the pass's real work
 - **`setup` skills are a repeated shape.** 30+ plugins ship one. If the rightsizing rules imply a
   change to that shape, it is a 30-file change, not a one-file change — and a strong candidate for
   `docs-hygiene:extract-ssot` before anything else.
-- **The `re-anchor` plugin is 15 skills of pure instruction content.** It is the densest
+- **The `discipline` plugin is 15 skills of pure instruction content.** It is the densest
   concentration of exactly the material this pass audits, and the most likely place for
   cross-surface conflict with `~/.claude/CLAUDE.md`, which states many of the same disciplines as
   standing rules.

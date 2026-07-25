@@ -95,7 +95,7 @@ conformance is not evidence.
 | `bug-report` | one optional non-sensitive directory key; no MCP, hooks, scripts, or bin |
 | `dometrain` | one sensitive key collected natively; a remote MCP server, so no prerequisite `apply` could resolve |
 | `miro` | same shape as `dometrain`, with a bundled server |
-| `re-anchor` | four non-sensitive defaulted string keys; nothing else |
+| `discipline` | four non-sensitive defaulted string keys; nothing else |
 
 `dometrain` and `miro` hold *despite* a service-plus-credential prerequisite, because the credential
 is collected through Claude Code's native prompt and the server is remote or bundled — precisely
