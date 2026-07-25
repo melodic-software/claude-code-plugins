@@ -521,7 +521,13 @@ Each worker must:
     `fetch-all-pr-comments.sh`, the target repository's own build/test/lint commands) — either
     re-`cd` into the worktree inside that same call or pass the command its own explicit target
     (`GH_REPO=owner/repo` for `gh`, `FETCH_COMMENTS_OWNER`/`FETCH_COMMENTS_REPO` for the
-    comment fetcher).
+    comment fetcher). `GH_REPO` selects the *remote* repository only — `gh help environment` scopes
+    it to "commands that otherwise operate on a local repository," not to the local working tree —
+    so it is the escape for read-only and remote-only `gh` calls (`pr view`, `pr checks`,
+    `api`, `pr comment`). Any `gh` call that mutates the local checkout — `gh pr checkout`, whose
+    own help reads "Check out a pull request in git" — takes a same-call `cd` into the worktree
+    regardless, because `GH_REPO` would leave it fetching and switching branches in whatever
+    directory cwd happens to be.
 
   The one helper a worker invokes, `source-control-babysit-resolve-thread`, takes the PR and every
   thread pin as explicit arguments and reads nothing from the working directory, so it needs no
@@ -608,7 +614,10 @@ against the wrong checkout or overwrite unrelated work in it. For any other comm
 equivalent that derives its target from the working directory (bare gh, fetch-all-pr-comments.sh,
 the target repository's own build/test/lint commands), either re-cd into the worktree inside that
 same call or pass the command its explicit target (GH_REPO=owner/repo for gh,
-FETCH_COMMENTS_OWNER/FETCH_COMMENTS_REPO for the comment fetcher).
+FETCH_COMMENTS_OWNER/FETCH_COMMENTS_REPO for the comment fetcher). GH_REPO selects the remote
+repository only, so use it for read-only and remote-only gh calls (pr view, pr checks, api,
+pr comment); any gh call that mutates the local checkout, such as gh pr checkout, takes a
+same-call cd into the worktree instead, or it will fetch and switch branches wherever cwd is.
 Follow the repository's signing, commit-message, attribution, and push conventions. Never add a co-author
 trailer unless explicitly required. Re-check the PR head SHA before editing and before pushing.
 Stop unless branch writes are allowed. Fix only clear branch-owned CI or bot-review issues.

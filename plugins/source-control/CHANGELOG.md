@@ -19,7 +19,11 @@ All notable changes to the `source-control` plugin are documented here. Format f
   enough:
   cwd can drift between a read and the next write, silently committing a branch-owned fix into the
   session's default checkout instead of the assigned worktree. Closes the same correctness gap
-  `implementation` 0.7.4 closed in the sibling `implement-dispatch` lane.
+  `implementation` 0.7.4 closed in the sibling `implement-dispatch` lane. `GH_REPO` is scoped to the
+  `gh` calls it can actually anchor: it selects the remote repository only (`gh help environment`),
+  so a locally-mutating call such as `gh pr checkout` ("Check out a pull request in git", `gh pr
+  checkout --help`) still takes a same-call `cd` — with `GH_REPO` alone it would fetch and switch
+  branches in whatever directory cwd had drifted to.
 
 ## [0.26.9]
 
