@@ -114,8 +114,8 @@ user first.
 
 Phase B judges each surface alone, so a contradiction spanning two surfaces is invisible to it. This
 pass supplies the missing unit: a **pair** of surfaces that both claim authority over one behavior and
-disagree. It consumes Phase A's inventory and re-enumerates nothing. Every criterion for the pass lives
-in [reference/conflict-criteria.md](reference/conflict-criteria.md).
+disagree. It consumes Phase A's inventory and re-enumerates nothing. Every criterion, table and worked
+example lives in [reference/conflict-criteria.md](reference/conflict-criteria.md).
 
 Seed it with the deterministic pre-scan over the inventoried files:
 
@@ -126,18 +126,14 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/conflict-scan.sh" 
 It emits `fileA:lineA|fileB:lineB|entity|flags` candidate pairs; `--count` prints the row count. Like
 the Phase B pre-scan it is advisory and always exits 0, deciding only the gates a text scan can decide,
 so every row is refined against the must-not-flag set rather than reported verbatim. Triage the entity
-first — the scan matches CamelCase by shape, so proper nouns arrive alongside tool names; single-word
-tools are matched only inside backticks.
+first — CamelCase matches by shape, so proper nouns arrive beside tool names; single-word tools match
+only inside backticks.
 
-**Route on the population C6 actually enumerates, not on the name of a layer.** Only a pair with
-**both** halves in project-scope `CLAUDE.md` / `CLAUDE.local.md` / `.claude/rules/**` belongs to
-`claude-memory:audit`'s C6; everything else — including any `~/.claude/` or auto-memory side — stays
-here. [reference/conflict-criteria.md](reference/conflict-criteria.md) carries the table and its
-evidence.
+**Route on the population C6 actually enumerates, not on the name of a layer** — the criteria file's
+routing table is authoritative, and the Scope boundary above states the rule.
 
-**Detect the disagreement; do not adjudicate it.** Where the precedence table cites a documented order,
-name the winner and its source. Where the docs are silent, report the pair as unresolved — the memory
-page's "Claude may pick one arbitrarily" is why the finding is worth reporting at all.
+**Detect the disagreement; do not adjudicate it.** Name a winner only where that file's precedence
+table cites a documented order; otherwise report the pair `unresolved`.
 
 ## Phase C — Verify pass
 
