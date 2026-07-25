@@ -26,7 +26,9 @@ Never discard a pending or failed `StatusContext` because a same-name `CheckRun`
 repositories wiring a comment-driven review gate, a successful CheckRun of that name usually
 means only that the gate workflow ran. The separate `<review-gate-context>` StatusContext is the
 engagement signal: `PENDING` means no qualifying reviewer activity was found after the gate's
-polling window, while `SUCCESS` can reflect activity from an earlier head.
+polling window, while `SUCCESS` can reflect activity from an earlier head. A failing gate is not an
+engagement signal: it is never a trigger candidate, and reaches the operator through the ordinary
+failing-check blocker rather than through an automatic trigger comment.
 
 Therefore, keep both records. Verify completion only from a submitted review or inline review
 comment whose own commit ID equals the current head SHA and whose author has the authoritative
@@ -55,7 +57,7 @@ The helper requires all of these conditions:
 - a non-draft, non-behind, stable current head SHA;
 - an owned, unarchived base with `mutation_policy.review_trigger_allowed`;
 - the PR-scoped worker lease held by the orchestrator;
-- the explicit pending engagement signal — `<review-gate-context>` pending or failing while no
+- the explicit pending engagement signal — `<review-gate-context>` pending while no
   current-head review from the configured reviewer exists — observed in two consecutive
   snapshots at least three minutes apart. This confirmation window is the generic anti-flap
   rule: a status flapping through an asynchronous recompute never triggers a post;

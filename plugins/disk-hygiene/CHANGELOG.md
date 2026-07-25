@@ -3,6 +3,39 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.2]
+
+### Fixed
+
+- **The anchored target root is validated by object identity, so benign directory churn no longer
+  aborts an approved run (#384).** Preview and apply held the target root to full stat identity
+  (`st_mtime_ns` and `st_size` included), but a directory's mtime and size flip whenever any direct
+  child is added or removed. Human approval sits between scan and apply, so any unrelated write into
+  a live target — a home or an active project root, the common case — flipped the root's mtime and
+  aborted the run with "anchored target changed since the snapshot," forcing a full rescan. Both
+  sites now use the stable device/inode/type identity that directory candidates and `handoff-verify`
+  already use; a replaced root still refuses. The check was never wrong-deleting, only over-refusing.
+
+### Changed
+
+- **`resolve_snapshot_target` no longer takes `strict_root_stat`.** With one root-identity standard
+  across preview, apply, and `handoff-verify`, the parameter that selected between them is gone and
+  the single refusal reads "target root was replaced since the snapshot."
+
+## [0.9.1]
+
+### Changed
+
+- **The PowerShell lane's documented coverage now names what it does not flag (#386).**
+  `reference/safety-model.md` and the clean skill's PowerShell gotcha described the lane as gating
+  "known deletion spellings" without stating that destructive non-deletion spellings — `Move-Item`,
+  `Rename-Item`, overwriting writers (`Set-Content`/`Out-File`/`>`/`New-Item -Force`), and
+  `Format-Volume`/`Clear-Disk` — reach the tool with no guard verdict, audit-only mode included. The
+  gap is now disclosed where the security model is stated, naming the consumer's permission policy as
+  its only backstop — the manual handoff's per-path approval covers the paths selected for removal, so
+  it does not reach what these spellings collaterally destroy. Docs only; the guard's behavior is
+  unchanged and closing the gap is tracked in #387.
+
 ## [0.9.0]
 
 ### Fixed

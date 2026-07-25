@@ -535,7 +535,7 @@ def test_chain_from_strips_inline_yaml_comments(tmp_path):
     (handoffs_dir / "20260521T110000Z-handoff-beta.md").write_text(
         "---\ntype: handoff\nsession_id: sid-middle  # REQUIRED\n"
         "previous_handoff: 20260520T100000Z-handoff-alpha.md  # CONDITIONAL\n"
-        "previous_session_id: sid-oldest\n---\nbody\n"
+        "---\nbody\n"
     )
 
     base = tmp_path / "session-data"
@@ -561,12 +561,12 @@ def test_chain_from_breaks_on_pointer_cycle(tmp_path):
     (handoffs_dir / "20260520T100000Z-handoff-alpha.md").write_text(
         "---\ntype: handoff\nsession_id: sid-a\n"
         "previous_handoff: 20260521T110000Z-handoff-beta.md\n"
-        "previous_session_id: sid-b\n---\nbody\n"
+        "---\nbody\n"
     )
     (handoffs_dir / "20260521T110000Z-handoff-beta.md").write_text(
         "---\ntype: handoff\nsession_id: sid-b\n"
         "previous_handoff: 20260520T100000Z-handoff-alpha.md\n"
-        "previous_session_id: sid-a\n---\nbody\n"
+        "---\nbody\n"
     )
 
     base = tmp_path / "session-data"
@@ -651,7 +651,7 @@ def test_chain_from_walks_handoff_pointers(tmp_path):
     (journal_dir / "20260521T110000Z-handoff-beta.md").write_text(
         "---\ntype: handoff\nsession_id: sid-middle\n"
         "previous_handoff: journal/20260520T100000Z-handoff-alpha.md\n"
-        "previous_session_id: sid-oldest\n---\nbody\n"
+        "---\nbody\n"
     )
 
     # Seed transcripts for chained SIDs
@@ -681,7 +681,7 @@ def test_chain_from_walks_flat_layout_pointers(tmp_path):
     (handoffs_dir / "20260521T110000Z-handoff-beta.md").write_text(
         "---\ntype: handoff\nsession_id: sid-middle\n"
         "previous_handoff: 20260520T100000Z-handoff-alpha.md\n"
-        "previous_session_id: sid-oldest\n---\nbody\n"
+        "---\nbody\n"
     )
 
     base = tmp_path / "session-data"
