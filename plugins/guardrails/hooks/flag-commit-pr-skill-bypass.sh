@@ -224,7 +224,7 @@ strip_quoted_spans() {
       c="${rest:j:1}"
       case "$c" in
       '"') break ;;
-      '\') ((j += 2)) ;;
+      \\) ((j += 2)) ;;
       *) ((j++)) ;;
       esac
     done

@@ -294,7 +294,7 @@ hook::jq_field() {
 # newline-delimited read. jq strips U+001E from every value before joining, so
 # payload text can never shift a later field into an earlier one — a caller
 # whose earlier field is attacker-influenced (a file path) would otherwise
-# mis-assign the content field and scan the wrong bytes. Stripping is the same
+# misassign the content field and scan the wrong bytes. Stripping is the same
 # contract the per-field pipelines already applied to CR, and removing a
 # character can only merge adjacent text, never split a token, so no detection
 # pattern is weakened.
