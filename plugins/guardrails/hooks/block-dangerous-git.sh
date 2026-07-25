@@ -11,9 +11,10 @@
 #   restore-dot    — git restore .   (worktree discard; --staged-only is fine)
 #   checkout-force — git checkout -f / switch -f/--discard-changes
 #
-# NOT blocked: --force-with-lease=<refname>:<expect> (the expectation is
-# stated, so no background fetch can satisfy the lease on the pusher's behalf),
-# any lease form paired with --force-if-includes, plain push, soft/mixed reset,
+# NOT blocked: a push whose ONLY lease spellings are --force-with-lease=<refname>:<expect>
+# (each states its expectation, so no background fetch can satisfy the lease on
+# the pusher's behalf), any lease form paired with --force-if-includes, a lease
+# cancelled by a trailing --no-force-with-lease, plain push, soft/mixed reset,
 # clean -n (dry run), path-scoped checkout/restore, and `branch -D` (reflog
 # recovers deleted refs, and sanctioned skill flows issue it inline).
 #
@@ -229,7 +230,7 @@ is_exclude_pathspec() {
 # shellcheck disable=SC2329  # invoked indirectly as the hook::bash_parse_segments callback
 check_segment() {
   local -a w=()
-  local nseg gi k x rest ch sub sub_idx staged worktree dry excl pos opseen if_includes lease
+  local nseg gi k x rest ch sub sub_idx staged worktree dry excl pos opseen if_includes lease_bare
 
   # A shell -c wrapper (`bash -lc 'git reset --hard'`) executes its operand as
   # a full shell command — re-parse it with the same tokenizer so the wrapped
@@ -328,7 +329,7 @@ check_segment() {
     # lease check disarms while git pushes unmitigated.
     dry=0
     if_includes=0
-    lease=0
+    lease_bare=0
     k=$((sub_idx + 1))
     while ((k < nseg)); do
       x="${w[k]}"
@@ -342,7 +343,8 @@ check_segment() {
       --no-*)
         abbrev_match "dry-run" "--${x#--no-}" 2 && dry=0
         abbrev_match "force-if-includes" "--${x#--no-}" 7 && if_includes=0
-        abbrev_match "force-with-lease" "--${x#--no-}" 7 && lease=0
+        # git's --no- form cancels the whole option, both spellings.
+        abbrev_match "force-with-lease" "--${x#--no-}" 7 && lease_bare=0
         # Consume the word here. Falling through would let
         # `--no-force-with-lease` re-match below as the positive option and
         # undo the clear that just happened.
@@ -361,13 +363,17 @@ check_segment() {
           dry=1
         fi
         abbrev_match "force-if-includes" "${x%%=*}" 7 && if_includes=1
-        # 1 = no stated expectation (leases against the remote-tracking ref),
-        # 2 = `=<refname>:<expect>` stated. Last-wins like the two above:
-        # `--no-force-with-lease` cancels it, and the command is then no longer
-        # a lease push at all.
-        if is_lease_opt "$x"; then
-          if [[ "$x" == *=*:* ]]; then lease=2; else lease=1; fi
-        fi
+        # The two spellings are INDEPENDENT, not one state. git scopes
+        # `=<refname>:<expect>` to that ref alone and leaves every other
+        # updated ref on the bare fallback, so an explicit entry never makes a
+        # bare one safe — `git push --force-with-lease --force-with-lease=main:<sha> origin main other`
+        # pins main and leaves `other` leasing against its remote-tracking ref.
+        # Track them separately; only `--no-force-with-lease` clears either.
+        # Only the BARE spelling is tracked. An `=<refname>:<expect>` entry is
+        # scoped by git to that ref alone and says nothing about the others, so
+        # it can never make a bare fallback safe — it is simply not this
+        # check's business.
+        if is_lease_opt "$x" && [[ "$x" != *=*:* ]]; then lease_bare=1; fi
         ;;
       esac
       ((k++))
@@ -375,7 +381,7 @@ check_segment() {
     ((dry)) && return 0
     # Decided after the scan, never mid-scan: every one of these options is
     # last-wins, so an early match cannot be acted on before the segment ends.
-    if ((lease == 1)) && ((!if_includes)); then
+    if ((lease_bare)) && ((!if_includes)); then
       block "push-lease-unsafe" \
         "BLOCKED: git push --force-with-lease without an expected value leases against the remote-tracking ref, which a background fetch can satisfy while still clobbering unseen work." \
         "State the expectation (--force-with-lease=<refname>:<sha>), or add --force-if-includes, or allow via the block_dangerous_git_allow option (add push-lease-unsafe)."
