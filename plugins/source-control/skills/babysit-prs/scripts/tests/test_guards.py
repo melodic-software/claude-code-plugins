@@ -305,7 +305,7 @@ class EntryPointCatalogueIsComplete(unittest.TestCase):
 
 
 WRAPPER_COMMAND = re.compile(
-    r'bash "\$\{CLAUDE_PLUGIN_ROOT\}/(bin/source-control-babysit-[a-z-]+)"([^`]*)'
+    r'bash "\$\{CLAUDE_PLUGIN_ROOT\}/(bin/source-control-babysit-[a-z-]+)"'
 )
 
 
@@ -315,13 +315,19 @@ def documented_commands(text: str) -> list[tuple[str, str]]:
     A command runs to the end of its inline-code span or fenced block, which
     prose wraps across lines, so the tail is truncated at the first blank line
     rather than the first newline. The truncation is done here instead of in the
-    pattern: expressing "not a backtick, and not a blank line" as an alternation
-    backtracks catastrophically on a document this size.
+    pattern: expressing the stop set as an alternation backtracks
+    catastrophically on a document this size. A fenced block may hold several
+    commands, so a tail also stops at the next wrapper invocation -- one greedy
+    tail swallowing its successors would check the later commands' flags against
+    the first command's CLI, or skip them entirely.
     """
-    return [
-        (wrapper, " ".join(tail.split("\n\n", 1)[0].split()))
-        for wrapper, tail in WRAPPER_COMMAND.findall(text)
-    ]
+    matches = list(WRAPPER_COMMAND.finditer(text))
+    commands = []
+    for index, match in enumerate(matches):
+        limit = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+        tail = text[match.end() : limit].split("`", 1)[0].split("\n\n", 1)[0]
+        commands.append((match.group(1), " ".join(tail.split())))
+    return commands
 
 
 class DocumentedCommandsMatchTheParsers(unittest.TestCase):

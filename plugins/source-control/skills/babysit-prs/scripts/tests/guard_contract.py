@@ -737,9 +737,12 @@ MECHANISMS: tuple[Mechanism, ...] = (
     Mechanism(
         id="snapshot.write-state-gates-the-only-write",
         claim=(
-            "pr_queue_snapshot.py's single write is the local snapshot, and --write-state "
-            "is the only thing that reaches it. Nothing on any path writes to GitHub, so "
-            "a flagless invocation is a pure read of the queue."
+            "pr_queue_snapshot.py's only queue-state write is the local snapshot, and "
+            "--write-state is the only thing that reaches it. Nothing on any path writes "
+            "to GitHub, so a flagless invocation reads the queue and persists nothing of "
+            "it. Housekeeping is out of scope per the entry-point table's mutation "
+            "definition: this script loads state unconditionally, so load_state may "
+            "quarantine an already-corrupt state file whatever the flags say."
         ),
         entry_point=SNAPSHOT_CLI,
         must_contain=("if args.write_state:", "save_state("),
@@ -781,7 +784,7 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
         path=MERGE_CLI,
         wrapper=MERGE_WRAPPER,
         mutation=CONDITIONAL,
-        mutates_what="merges the PR on GitHub; writes queue state",
+        mutates_what="merges the PR on GitHub",
         gate="--merge (absent: readiness check only, exit 0 ready / 10 not ready)",
         claim=(
             "Without --merge this is a readiness reporter. With it, the TOCTOU guard "
@@ -882,7 +885,8 @@ ENTRY_POINTS: tuple[EntryPoint, ...] = (
         mutates_what="writes the queue snapshot to local state",
         gate="--write-state (absent: reports the snapshot without persisting it)",
         claim=(
-            "No GitHub write on any path. The only mutation is the local snapshot file."
+            "No GitHub write on any path. The only domain-state mutation is the local "
+            "snapshot file."
         ),
         backed_by=("snapshot.write-state-gates-the-only-write",),
     ),
@@ -964,9 +968,16 @@ def render_markdown() -> str:
     lines += [
         "## Entry points: what mutates",
         "",
-        "`gate` is the condition under which the mutation happens at all. A blank"
-        " wrapper column means the entry point has no `bin/` wrapper and is invoked"
-        " through the interpreter.",
+        "This table scopes `mutation` to DOMAIN state -- GitHub, the queue state file,"
+        " worktrees, and leases -- and `gate` is the condition under which that domain"
+        " mutation happens at all. It is deliberately not a filesystem-write audit: a"
+        " state-touching script performs housekeeping under `--state-dir` whatever its"
+        " flags say, so entering `state_lock` creates the state directory and a `.lock`"
+        " sibling, and `load_state` quarantines an already-corrupt state file by renaming"
+        " it. A classifier granting a gate-less invocation therefore still needs the"
+        " script to be able to write inside `--state-dir`; what the gate withholds is the"
+        " domain mutation, not every byte. A blank wrapper column means the entry point"
+        " has no `bin/` wrapper and is invoked through the interpreter.",
         "",
         "| Entry point | Wrapper | Class | Mutates | Gate | Claim | Backed by |",
         "| --- | --- | --- | --- | --- | --- | --- |",
