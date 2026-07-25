@@ -10,9 +10,20 @@ used as the target set:
 - **181** top-level plugin skills — `ls plugins/*/skills/*/SKILL.md | wc -l`.
 - **187** under `plugins/` including six vendored upstream materializations at
   `plugins/*/skills/*/vendor/SKILL.md`, which are hand-edit-prohibited.
-- The remainder live in git worktrees under `.claude/worktrees/` — three exist, and the directory is
-  gitignored at `.gitignore:15`, so a git-tracked enumeration excludes them for free where a filesystem
-  walk does not.
+- The remainder live in **one** git worktree nested inside the scan root, at
+  `.claude/worktrees/ignition-rebind-note`, which carries its own full copy of the tree. The
+  directory is gitignored at `.gitignore:15`, so a git-tracked enumeration excludes it for free where
+  a filesystem walk does not.
+
+  **This bullet said "three exist" and that count was never derived.** Corrected 2026-07-25 after the
+  cross-vendor review flagged it against PLAN.md's own correction of the same figure. Re-derived by
+  command in the primary checkout: 364 `SKILL.md` tree-wide, 189 under `plugins/`, 175 under
+  `.claude/worktrees/` — the remainder is that single nested worktree exactly, not three. Existence
+  is also root-dependent, which is why the two documents appeared to contradict each other: no
+  `.claude/worktrees/` exists in a sibling task worktree, and `git worktree list` reports 50 entries
+  — the primary checkout plus 49 linked worktrees, nearly all outside the repository entirely, in
+  several unrelated parent directories. The derivation below is
+  robust to every one of those variations, which is the point of deriving rather than transcribing.
 
 Doubling is not the invariant and the exclusion path must not be hardcoded: derive it from
 `git worktree list` plus gitignore-awareness, plus a `vendor/` rule, plus

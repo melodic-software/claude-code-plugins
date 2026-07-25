@@ -64,6 +64,15 @@ The fields:
 - **A symlink target that escapes the target root takes the scope-prefixed logical form.**
   Otherwise one shared rules file yields a different surface per consuming repository. This falls
   out of the scope-prefix rule above and was simply never applied to symlink targets.
+- **An escaped target is also read-only, and that is a separate rule from how it is named.** Raised
+  by the cross-vendor review. Naming it makes it a surface, and the apply posture permits editing any
+  surface the pass may write, protecting only managed-policy and user-scope paths by name — so an
+  applying run pointed at one repository could rewrite a sibling repository's file through the
+  symlink, and the target's own `git status --porcelain` check would stay empty and report nothing,
+  because the write landed outside the tree that command inspects. Every surface whose canonicalized
+  path resolves outside the target root is therefore classified **read-only and routed as a
+  recommendation** — the posture user scope already has — whatever scope prefix it carries. Testable
+  by fixture: an apply against a finding on an escaped target refuses and routes.
 
 ### `anchor` — content-derived, versioned, and granularity-tagged
 
@@ -77,6 +86,15 @@ identity compares.
   available in both results". Matching is on the greatest common version. **This is the highest-value
   adoption here**: every queued improvement to the anchor algorithm changes its output, and without
   versioning the *first* such change silently discards the operator's entire suppression record.
+
+  **Matching on the greatest common version presupposes there is one, and one tagged anchor per site
+  does not supply it.** Raised by the cross-vendor review. Once the algorithm advances, a producer
+  emitting only `v2` against a stored result carrying only `v1` has an empty intersection: the
+  `finding_id` changes, the suppression cannot be carried forward, and the record-loss versioning was
+  adopted to prevent happens on the first bump anyway. So **a site carries every anchor version the
+  run's algorithm can still compute, not only the newest**, for a stated migration window, and
+  matching runs on the greatest version present in both results. How long the window is and when a
+  version retires are Phase 6's; that more than one version is emitted at once is not.
 - **Granularity discriminator.** `e:` for an excerpt, `s:` for a whole surface. A whole-surface
   finding's identity reduces to `(surface, check, claim)` and is **content-free** — SARIF §3.29.4
   backs it: "If the region property is absent, the physicalLocation object refers to the entire
@@ -208,6 +226,19 @@ than quoted. Unverified text does not ship inside quotation marks.
 | Both anchors changed, or `claim` changed, or a `surface` changed | old CLOSED, new OPENED | old entry goes stale per Assertion 4.2, never silently dropped |
 | Absent from R2 entirely | CLOSED | accounted for — see below |
 
+**The rows are phrased pairwise, and the one-site case is stated beside them rather than by rewording
+them.** Raised by the cross-vendor review: every one of I1–I11 is a single-location finding, so its
+`sites` set has one element and "both anchors", "the other anchor", and "both anchors changed" name
+nothing. An ordinary edit to such a finding's excerpt would fall through all four rows and leave it
+with no disposition at all — dropping its suppression or failing Assertion 1.5. The rows are **not**
+reworded, because they are the cross-lane contract described immediately below and re-phrasing them
+here is the drift that paragraph exists to prevent. So, additively, for a one-element `sites` set:
+its single anchor matching is row 1; **row 2 is unreachable**, because a partial match needs a second
+anchor to hold still; a changed anchor, a changed `claim`, or a changed `surface` is row 3, old
+CLOSED and new OPENED with the old entry stale per Assertion 4.2 and never silently dropped; absence
+is row 4. A single-site finding has no partial-match tier — which is the concrete thing row 2 buys
+the pairwise case, and the reason it was worth a tier of its own.
+
 **These four rows are a cross-lane contract, not this document's private vocabulary.** The shipped
 `docs/conventions/finding-suppression/` obligation and the `audit-pass` skill's suppression section
 carry the same four, in the same words. A contract and an implementation that disagree from day one
@@ -232,7 +263,17 @@ an **unexplained disappearance that fails the run's self-check**, the way a P4a 
 does.
 
 - **Assertion 1.5** — every finding present in `R1` and absent from `R2` carries one of the three
-  accounted dispositions. An unaccounted closure fails the run's self-check.
+  accounted dispositions. An unaccounted **derived** closure fails the run's self-check; an
+  unaccounted **judged** closure is counted in P4's instability metric.
+
+  **The two-tier split in this assertion is new, and the unscoped form was inconsistent with P4.**
+  Raised by the cross-vendor review. A judged finding can disappear over an unchanged tree purely
+  because the model judged differently, which P4 explicitly tolerates — yet an unscoped 1.5 fails the
+  run for exactly that. That made judged *removals* deterministic while judged *additions* got a
+  tolerance, which is one detection asked to be two different things. Routing the removal into P4
+  keeps every closure accounted for, which is what this assertion is for, without asserting
+  determinism where §6 has already established there is none. P4's metric is the symmetric difference
+  for this reason.
 
 ## 2. Where the report lives
 
@@ -244,10 +285,20 @@ not unchanged and the idempotence property is unfalsifiable by construction.
 - The operator may redirect the report into the target tree with an explicit argument. When they do,
   the run **must** add that path to the exclusion set for subsequent runs and say so in its output.
   Silently scanning your own previous report is the failure this rule exists to prevent.
+- **A redirect destination is a path the run may create, never one it would audit.** Raised by the
+  cross-vendor review. Excluding the path governs the *next* run, and by then the write has already
+  happened: a redirect naming an existing audited file — a `CLAUDE.md`, a skill body — overwrites it,
+  and the exclusion then hides the corrupted path from the run that would have noticed. That turns an
+  otherwise read-only invocation into a destructive one, which is the single worst outcome available
+  to a read-only default. So a run **refuses** a destination that already exists, and refuses one its
+  own inventory enumerated as a surface, rather than writing and excluding.
 - **Assertion 2.1** — after a run against a clean git worktree with no redirect argument,
   `git status --porcelain` is empty. This is the whole property in one command.
 - **Assertion 2.2** — with the redirect argument, a second run's scan set excludes the redirected
-  path, and the two runs' mechanical identity sets are still equal.
+  path, and the two runs' derived-tier identity sets are still equal.
+- **Assertion 2.3** — a redirect naming an existing file, or naming a path in the run's own scan set,
+  exits non-zero and writes nothing. Test: point the redirect at the target's own `CLAUDE.md`; the
+  file is byte-identical afterward.
 
 ## 3. Run state, keying, and concurrency
 
@@ -278,17 +329,34 @@ repository the operator owns, committed to it.
 
 **Concurrency.**
 
-- A read-only run takes **no lock**. Concurrent read-only runs are safe and are not serialized.
+- A read-only run takes **no lock against another read-only run**. Concurrent read-only runs are safe
+  and are not serialized.
+- **A read-only run is serialized against an applying one**, by a shared/exclusive form of the same
+  lock or by reading from a stable snapshot. Raised by the cross-vendor review: the exclusive lock
+  below excludes a second *applying* run and nothing else, so an unlocked reader overlapping an
+  applier reads some surfaces before mutation and others after, and reports a finding set
+  corresponding to no tree state — the same failure the report-location rule exists to prevent, with
+  nothing in the output to reveal it. Which of the two mechanisms ships is Phase 6's; both satisfy
+  Assertion 3.5, and taking neither does not.
 - An applying run takes an **exclusive advisory lock** at `runs/<state-key>/lock`, containing the
   process id and an ISO-8601 start timestamp.
 - A second applying run for the same `<state-key>` **refuses and exits non-zero** with the holder's
   pid and start time. It does not wait, because a sweep over a large tree can run for a long time and
   a silent queue looks like a hang.
-- A lock whose recorded pid is not alive **and** whose timestamp is older than 30 minutes is stale
+- A lock whose recorded holder is not alive **and** whose timestamp is older than 30 minutes is stale
   and is reclaimed, with the reclamation reported in the run output.
+- **"Not alive" is not decidable from a process id alone, and a stale lock must always have a
+  recovery path.** Raised by the cross-vendor review. Operating systems reuse process ids, so after
+  an applying run crashes its recorded id can name an unrelated long-lived process: the lock is far
+  older than 30 minutes and its id still answers "alive", the conjunction above never fires, and
+  every later applying run for that target is blocked permanently with no documented way out. The
+  lock therefore records a **start identity** beside the process id — a value that differs when the
+  id has been reused, such as the holder's start time — and liveness means both match. Where the
+  platform supplies no such value, the age test alone reclaims and the reclamation is reported. What
+  is binding is that no lock is unreclaimable; which identity discharges it is Phase 6's.
 - **Assertion 3.1** — two applying runs launched concurrently against one target: exactly one
   proceeds, the other exits non-zero naming the holder.
-- **Assertion 3.2** — two read-only runs launched concurrently both complete, and their mechanical
+- **Assertion 3.2** — two read-only runs launched concurrently both complete, and their derived-tier
   identity sets are equal.
 - **Assertion 3.3** — a run launched from a subdirectory of the target produces the same
   `<state-key>` as one launched from the root. Working directory must not be an input.
@@ -304,6 +372,18 @@ inequality could mean a defect or could mean the tree moved, and the run cannot 
   reports both revisions. A determinism claim over a tree that changed underneath it is not a weaker
   claim; it is not a claim at all, and reporting it as either outcome is the error.
 
+  **Strengthened by the cross-vendor review, not replaced: the revision is necessary and not
+  sufficient.** An editor, a hook, or a sibling session can rewrite working-tree files without moving
+  `HEAD`, and then both recorded revisions are equal while the lanes read different trees — 3.4
+  reports a determinism `pass` for a report corresponding to no snapshot, which is the failure the
+  assertion was added to close, arriving through the uncommitted door instead of the committed one.
+  So the run records a **working-tree content digest** beside each revision, over the same
+  enumeration the scan set uses, and `indeterminate` follows when *either* pair differs. The revision
+  is what makes a mismatch legible to an operator; the digest is what makes it detectable at all.
+- **Assertion 3.5** — a read-only run overlapping an applying run against one target never reports a
+  finding set mixing pre-apply and post-apply content. Test: an apply that rewrites a fixture surface
+  while a reader is mid-run; the reader's report matches exactly one of the two tree states.
+
 ## 4. Suppression, per target class
 
 A deliberately-kept finding must not resurface. But "its site" differs by class, and one mechanism
@@ -316,6 +396,17 @@ write; everywhere else suppression is central and keyed by `finding_id`.**
 | A `SKILL.md` or file this pass does not own | central suppression file in the target repo, keyed by `finding_id` | Editing a file you do not own to silence a report is a boundary violation dressed as configuration |
 | A chezmoi-managed `~/.claude/**` file | central, in the user-scope suppression record; **never** an edit to the file | The Brief settles that user-scope surfaces are routed, never edited. An inline marker would be an in-place edit by another name |
 | A registered byte-identical cluster copy | at the **canonical source**, never the copy | An inline marker in a copy makes it differ from its siblings and breaks the sync path — the same failure the exclusion set exists to prevent |
+
+**The inline-marker row is conditioned on the surface being commentable, and one class in scope is
+not.** Raised by the cross-vendor review. A prompt-type hook embedded in JSON has no comment syntax,
+and both available placements fail: a marker in the JSON is not representable, and a marker inside
+the decoded string changes the instruction Claude is actually shown *and* changes the excerpt the
+suppression is keyed to — so the suppression perturbs the very finding it suppresses, and §1's
+decode-then-normalize rule is what makes that unavoidable rather than an implementation slip. So **a
+surface class with no representation for a comment outside the audited value routes to the central
+record**, keyed by `finding_id`, exactly as a file the pass does not own does. This is derived from
+§1's per-class excerpt table rather than observed: this repository has no prompt-type instruction
+hook, so the class is in scope with no local instance.
 
 **The central suppression record** lives at a documented path in the target repository, carries one
 entry per suppressed finding with a required free-text reason and the date, and is **excluded
@@ -336,9 +427,17 @@ already makes:
   "same or different", so a suppressed finding could never be carried forward as
   `needs-reconfirmation`; it would go stale on any change.
 
-So each entry carries `check`, `claim` with its bound parameters, the ordered `sites` with each
-anchor's version tag, and the `finding_id` as a **derived convenience field for lookup**, not as the
-stored identity. The reason and date requirements are unchanged.
+So each entry carries `check`, `claim` with its bound parameters, the ordered `sites` carrying **every
+anchor version the producing run emitted** for each site, and the `finding_id` as a **derived
+convenience field for lookup**, not as the stored identity. The reason and date requirements are
+unchanged.
+
+**"Every version" rather than "its version tag" is the cross-vendor review's correction, and it is
+the half that makes the rest work.** An entry storing one tagged anchor per site has no version in
+common with a result produced under the next algorithm, so greatest-common-version matching has
+nothing to compare and the entry goes stale on the bump — the same record-loss as storing a bare
+hash, reached one step later. §1's migration rule and this storage shape are one mechanism in two
+places; either alone leaves it undischarged.
 
 **Writing a suppression is never an apply.** The inline-marker row above says *where* a suppression
 lives when the pass may edit that file; it does not license the apply step to author one. No fix,
@@ -381,7 +480,17 @@ Restarting from zero wastes the whole run and, worse, tempts an operator to narr
 
 - Findings persist **incrementally, per lane**, as each lane completes — not buffered to the end.
 - A run manifest records, per lane: the lane id, its **input digest**, and its completion state.
-- **Input digest** = `sha256` over the lane's ordered file list paired with each file's content hash.
+- **Input digest** = `sha256` over the lane's ordered file list paired with each file's content hash,
+  **and over the run basis** — the liveness basis (launch directory, effective merged
+  `claudeMdExcludes`, external-import approval state, setting sources), the harness version, and the
+  lane's detection version triple.
+- **The non-file half is not optional, and the digest was file-only until the cross-vendor review.**
+  §6 establishes every one of those values as an input the derived tier depends on. A file-only
+  digest is unmoved when any of them changes, so a resume skips the completed lanes and assembles
+  their stale findings beside freshly executed ones — a report corresponding to no single run basis,
+  which is precisely what Assertion 5.1 claims cannot happen, failing silently while appearing to
+  hold. Either the digest covers the run basis or the resume refuses; proceeding quietly is the one
+  option this rules out.
 - **Resume** re-runs only lanes that are incomplete or whose input digest has changed. A lane whose
   digest is unchanged and whose state is complete is skipped and its findings are carried forward.
 - **Assertion 5.1** — kill a run after lane *k* completes, resume, and the final report equals the
@@ -517,8 +626,17 @@ neither live at launch nor dead — it is **conditionally live**, and the sweep 
 own state:
 
 - **A surface absent from the observed load set is classified `dead` only when no load edge could
-  reach it** — it is outside every ancestor chain of the launch directory, matches no path scope, and
-  is the target of no import. Otherwise it is `conditionally-live`, recorded with the condition.
+  reach it** — it is outside every ancestor chain of the launch directory, **is not a descendant of
+  it**, matches no path scope, and is the target of no import. Otherwise it is `conditionally-live`,
+  recorded with the condition.
+
+  **The descendant clause is the cross-vendor review's, and without it this rule contradicted the
+  paragraph above it.** Ancestor chains are what a launch directory walks *up* through; an ordinary
+  nested `sub/CLAUDE.md` under a root-launched run is a *descendant*, so the unamended test found no
+  reaching edge and classified it `dead` — the exact surface the preceding paragraph establishes as
+  conditionally live, and a false finding in the derived tier, where a false finding reproduces
+  perfectly on every re-run. A descendant memory file is conditionally live unless its traversal is
+  definitively impossible, which nothing a one-shot run observes can establish.
 - **A `conditionally-live` surface is never reported as a dead-surface finding.** It is enumerated in
   the inventory, and its state is part of the liveness basis.
 - **The failure this prevents is the worst shape available to a derived-tier check:** classifying a
@@ -551,13 +669,31 @@ is the judged-tier set.
   parsing, `git worktree list`, name comparison across a fixed precedence order, and a versioned
   registry of harness behavior. The liveness-basis clause is not a weakening: see "Liveness is not a
   function of the tree" above, where the unqualified form is falsifiable by correct behavior.
-- **P2 — convergence.** Accepted fixes applied between `R1` and `R2` ⇒ `D(R2) ⊊ D(R1)`, and every
+- **P2 — convergence, measured in the tier the fix acted on.** Accepted fixes applied between `R1`
+  and `R2` ⇒ every accepted finding is absent from `R2`, in whichever tier it was reported, and every
   member of `D(R1) \ D(R2)` corresponds to a fix that was actually applied. A finding that vanishes
   without a fix is a defect in the check, not a success.
-- **P3 — no spontaneous growth.** Tree unchanged, **detection version** unchanged, **and harness
-  version unchanged** ⇒ `D(R2) ⊆ D(R1)`. The set may grow only on a detection-version bump, a
-  harness-version bump, or a change to the tree — and a skill authored between runs is a change to
-  the tree.
+
+  **The tier clause replaces a strict subset over `D`, and the strict subset was wrong.** Raised by
+  the cross-vendor review. D1 — the deliverable's only new check — is a judged finding and
+  contributes nothing to the derived tier, so fixing one leaves the inventory, the exclusion set,
+  shadowed definitions, and the raw script candidate rows all legitimately identical. `D(R2) ⊊ D(R1)`
+  then *fails* the successful remediation of the primary detector, making the headline convergence
+  gate unsatisfiable for the normal case. Strictness belongs in "every accepted finding is gone",
+  which is the claim convergence is actually making; the containment half over `D` is P3's job and
+  P3 already states it.
+- **P3 — no spontaneous growth.** Tree unchanged, **detection version** unchanged, **harness version**
+  unchanged, **and liveness basis unchanged** ⇒ `D(R2) ⊆ D(R1)`. The set may grow only on a
+  detection-version bump, a harness-version bump, a change to the liveness basis, or a change to the
+  tree — and a skill authored between runs is a change to the tree.
+
+  **The liveness clause was added to P1 and left out here, which made P3 read correct behavior as a
+  defect.** Raised by the cross-vendor review. A changed launch directory, a changed effective
+  `claudeMdExcludes`, a newly declined import, or different `--setting-sources` legitimately produces
+  new derived dead-surface findings over an unmoved tree at an unmoved harness version — the exact
+  case "Liveness is not a function of the tree" above was written for. P3 inherits that amendment for
+  the same reason P1 took it, and omitting it from one of the two was an oversight rather than a
+  distinction.
 - **P3b — "catalog version" was the wrong version, and it left a hole.** Raised by the cross-vendor
   review. P3 originally keyed on `criteria.md`'s version, which covers only the criteria file. **The
   detection behavior for checks I6 and I10 does not live there.** It lives in
@@ -608,8 +744,13 @@ is the judged-tier set.
   made deterministic; an identity function normalizes how a finding is *reported* and cannot make the
   *detection* reproducible. So judged findings are reported in a separate section, excluded from
   P1–P3, and held instead to:
-  - `|J(R2) \ J(R1)| ≤ max(2, ceil(0.10 × |J(R1)|))` over an unchanged tree — **the stated
-    tolerance**, measured across three consecutive runs, with the worst pair taken;
+  - `|J(R1) △ J(R2)| ≤ max(2, ceil(0.10 × |J(R1)|))` over an unchanged tree — **the stated
+    tolerance**, measured across three consecutive runs, with the worst pair taken. **The metric is
+    the symmetric difference, and it was one-directional growth until the cross-vendor review.**
+    Assertion 1.5 routes an unaccounted judged closure here, so removals need somewhere to land; and
+    a metric counting only additions lets a check that silently stops firing pass unremarked, which
+    is the more damaging of the two directions. The constant is unchanged and is still the
+    calibration Phase 10 tests;
   - no member of `J(R2)` contradicts an accepted suppression.
 - **P4a — a violation has a consequence, or the property is decoration.** Exceeding the tolerance
   **fails the run's self-check and is reported as an instability finding against the sweep itself**,
@@ -633,9 +774,10 @@ the right figure, and the figure is expected to move once there is evidence.
 The Phase 4 sanity check asks that this document state the identity tuple, the report location rule,
 the state key, the concurrency posture, the per-class suppression surface, the checkpoint property,
 and each idempotence property **as a condition a test could assert — not as prose intent**. Each is
-above under a numbered assertion. The count is 8 identity/report/state assertions, 4 suppression
+above under a numbered assertion. The count is 13 identity/report/state assertions, 4 suppression
 assertions, 2 resumability assertions, and 8 idempotence properties — P1, P2, P3, P3a, P3b, P4, P4a,
-P5.
+P5. Counted by grep over the assertion labels, not transcribed; the previous figure of 8 predated
+Assertions 1.5 and 3.4 and was already stale before this round added 2.3 and 3.5.
 
 **Two properties are now explicitly scoped rather than universal**, and the scoping is the honest
 form: Assertion 1.1 holds for excerpt-granularity findings, and P1's exact equality holds for a

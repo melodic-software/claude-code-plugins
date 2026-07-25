@@ -39,11 +39,19 @@ covers it, and states what is left over. Verdict values: `COVERED` (an incumbent
 
 ## What the matrix says
 
-Four genuine gaps, in descending order of how much they justify new surface:
+Four genuine remainders, in descending order of how much they justify new surface. **"Gaps" was the
+wrong word and is corrected here** — only S10 and S14 carry a `GAP` verdict; the other three rows are
+`PARTIAL`, meaning an incumbent owns part of the concern and something is left over.
 
-1. **S3 — cross-surface instruction conflict.** No incumbent compares two instruction surfaces
-   against each other. This is the article's own headline failure mode and the only gap with a
-   named, reproducible symptom.
+1. **S3 — cross-surface instruction conflict, *between* layers and beyond the memory layer.**
+   `claude-memory:audit` C6 is the incumbent and it does compare instruction surfaces against each
+   other — **this summary read "no incumbent compares two instruction surfaces" until 2026-07-25,
+   which contradicted the matrix row above and is exactly the mistake that row was corrected for.**
+   The remainder is what C6 does not reach: skill bodies, agent definitions, prompt-type hooks, and
+   output styles; comparison *across* layers rather than within the memory layer; and the
+   managed-policy tier. Anything built here must route memory-layer contradictions to C6 rather than
+   re-detect them, or the two emit duplicate findings for one defect. Still the article's own
+   headline failure mode and still the only remainder with a named, reproducible symptom.
 2. **S10 + S14 — reference quality.** Nothing audits or steers what a plan, spec, or skill points
    at. Distinct from every incumbent, but this is *authoring guidance*, not an auditable defect —
    the shape it should take is undecided.

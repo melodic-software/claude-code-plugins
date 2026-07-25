@@ -532,6 +532,16 @@ fixed.
   completes. Append-only is what makes §5's incremental persistence real rather than aspirational; a
   single JSON document would have to be rewritten whole on every append, which is exactly the
   operation an interrupted run leaves half-done.
+
+  **Append-only is not by itself crash-resumable, and the cross-vendor review is right that the two
+  were conflated here.** A crash or an out-of-space condition mid-append leaves a torn trailing
+  record, and the next resume then either fails to parse the log outright or appends valid JSON after
+  malformed bytes — so the artifact that exists to survive an interruption is the thing the
+  interruption corrupts. Two requirements, stated as constraints on the Phase 6 artifact rather than
+  designed here: **a record is appended as one complete newline-terminated line in a single write**,
+  so a torn line is the only damage shape reachable; and **resume detects an unterminated trailing
+  line, truncates it, and replays that lane** rather than parsing around it. Truncation is safe
+  because the unit is one finding within a lane that is about to be re-run regardless.
 - **At the end:** `findings.json` — a single document assembled from the partial, carrying
   `schemaVersion`, the run and target identity, the **detection version triple** of every check
   consulted ([rerun-contract.md](rerun-contract.md) P3b — catalog version, host plugin semver, and a
@@ -549,6 +559,18 @@ fixed.
 **Resume reads the partial, not the report.** A lane is complete when its terminating record is in
 the JSONL, which makes the completion state derivable from the artifact rather than tracked beside
 it and able to disagree with it.
+
+**Every record carries a lane attempt, and assembly reads the latest terminated attempt only.**
+Raised by the cross-vendor review, and it survives even if every append is atomic — which is why it
+is a second requirement rather than a restatement of the one above. A lane that completed under one
+input digest and re-ran after its inputs moved leaves *both* attempts' finding records in an
+append-only file, and an interrupted attempt leaves complete finding records with no terminator ahead
+of the next attempt's. With completion derived from a terminator and nothing distinguishing one
+attempt from another, final assembly cannot tell a superseded finding from a current one, so it keeps
+both — stale and duplicate findings in a report whose whole value is being diffable. So each record
+carries `(lane, attempt)`, a terminator names the attempt it closes, and assembly takes the
+highest-numbered terminated attempt per lane and ignores the rest. This is also what gives the
+truncation rule above a boundary: what it truncates is one attempt's unterminated tail.
 
 **Lanes are (check × surface class), not (check) and not (file).** Per-check lanes would serialize a
 check across the whole tree and make a mid-run interruption expensive; per-file lanes would multiply
@@ -819,6 +841,19 @@ dispatched by this sweep but owned by task #34. Not edited from this branch.
   - **Policy-floor inversion: the team layer wins on conflict.** A personal overlay suppressing a
     finding the team never accepted is exactly the "personal layer weakens a team standard" shape the
     sanctioned inversion exists for. Declared next to the keys, as the convention requires.
+
+    **Precedence alone does not enforce that floor, and the cross-vendor review found the hole.**
+    Under the per-entry map merge decided directly above, a personal layer adding a finding id the
+    team map does not carry is not a *conflict* at all — there is no team entry for the team layer to
+    win — so the overlay silently suppresses exactly the team-unaccepted finding the inversion claims
+    to prevent, and does it durably, which is the property that makes a suppression worth attacking.
+    The floor is therefore stated as an **authorization** rule rather than a precedence one: an
+    effective suppression requires a key present in the team layer. A personal-only key does not
+    suppress; the finding is reported normally and the unauthorized key is surfaced beside it, the
+    way a stale entry is surfaced rather than ignored. What the personal layer keeps is the move that
+    strengthens rather than weakens — locally *disabling* a team suppression, which surfaces more
+    findings and which the inversion has no reason to block. The key form that expresses a local
+    disable belongs to the owner doc with the rest of the keys.
   - **Reason and date required on every entry.** This has **no precedent** on any suppress path here
     — the closest analogue stores bare ids — and the precedent is not transferable: that mechanism
     justifies its bare form by arguing its opt-out can only cause junk to be missed, never removed. A

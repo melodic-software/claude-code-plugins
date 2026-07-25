@@ -488,8 +488,9 @@ definition before any detector is designed against it.
 - **Second work item — where the run report lives relative to the scan set.** If run 1 writes its
   report into the tree, run 2's tree is not unchanged and the idempotence property is unfalsifiable.
 - **Third work item — run-state keying and concurrency.** `${CLAUDE_PLUGIN_DATA}` is machine-global
-  rather than per-project, and this machine has three worktrees of this repo under `.claude/worktrees/`
-  plus ~96 checkouts under the ghq root. State must be keyed by canonical repository identity, not by
+  rather than per-project, and this machine carries dozens of checkouts of this repository — see the
+  derived counts below, which correct an earlier transcribed figure that stood here too. State must
+  be keyed by canonical repository identity, not by
   working directory, and the concurrent-run posture must be stated (a lock, or documented
   last-write-wins).
 - **Fourth work item — the suppression surface, per target class.** A deliberately-kept finding must
@@ -584,11 +585,17 @@ all verified present:
 - **Worktrees** — derive from `git worktree list` plus gitignore-awareness; a git-tracked enumeration
   excludes them for free where a filesystem walk does not.
 
-  **The narrative claim here was wrong twice and is now checked rather than asserted.** It read
-  "three exist under `.claude/worktrees/`, which is gitignored at `.gitignore:15`". On this machine
-  `.claude/worktrees/` **does not exist**, and `git worktree list` reports **26** registered
-  worktrees, living in a sibling directory outside the repository entirely. The derivation mechanism
-  is robust to both errors — which is the point of deriving rather than transcribing — but a plan
+  **The narrative claim here was wrong and is now checked rather than asserted.** It read "three
+  exist under `.claude/worktrees/`, which is gitignored at `.gitignore:15`". The `.gitignore:15`
+  half is correct; the count and the existence are not, and **existence is root-dependent, which is
+  why this correction itself needed correcting on 2026-07-25**: from a sibling task worktree
+  `.claude/worktrees/` does not exist, while the primary checkout holds exactly **one** nested
+  worktree there — `.claude/worktrees/ignition-rebind-note`, whose own copy of the tree accounts for
+  the entire `SKILL.md` remainder in
+  [design/skill-inventory.md](design/skill-inventory.md). `git worktree list` reports **50** entries,
+  the primary checkout plus 49 linked worktrees, nearly all in directories outside the repository.
+  The derivation mechanism is robust to every one of those variations — which is the point of
+  deriving rather than transcribing — but a plan
   that audits other people's instruction files for stale unverified counts had a stale unverified
   count of its own, twice, in the paragraph arguing for derivation. Counts here are cited by command
   or not at all.
