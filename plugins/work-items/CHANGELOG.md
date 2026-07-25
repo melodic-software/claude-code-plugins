@@ -12,10 +12,11 @@ All notable changes to the `work-items` plugin are documented here. Format follo
   classifier while the sibling `claim` verb on the same script was not, with neither verb carrying
   an explicit `permissions.allow`/`deny` rule — a harness-level tool-call denial that produces no
   script exit code, distinct from the existing exit-`6` capability-unsupported case.
-  `skills/work/SKILL.md` "Step 0" and `skills/track/actions/start.md` — the two callers that branch
-  on that exit code — now instruct treating it the same as exit `6` (report once, skip the
-  stale-lease check, proceed; never retry, never self-widen permissions), with `claim`'s exit-`7`
-  back-off still catching a live foreign lease.
+  All three `reclaim` callers — `skills/work/SKILL.md` "Step 0", `skills/track/actions/start.md`,
+  and `skills/track/actions/audit.md` — now instruct treating it the same as exit `6` (report once,
+  skip, proceed; never retry, never self-widen permissions). `start` still catches a live foreign
+  lease through `claim`'s exit-`7` back-off; `audit` reports the stale-claim pass as **skipped**
+  rather than as zero stale claims, since a denied call checked nothing.
   `tools/work-item-tracker/CONTRACT.md` "Exit codes" now notes this out-of-band failure mode
   explicitly. `reference/permission-preflight.md` records the finding and flags whether an explicit
   allow rule would bypass the classifier for this command shape as an open, unverified question
