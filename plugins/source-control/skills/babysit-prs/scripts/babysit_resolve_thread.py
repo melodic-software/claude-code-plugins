@@ -38,6 +38,16 @@ Deterministic guards encoded here:
   machine-enforced displacement fix is tracked in #571. `--allow-unpinned-thread`
   is likewise refused in `--autonomous` mode -- there is no unpinned autonomous
   resolve.
+- `--autonomous` additionally refuses any thread whose fetched comments carry a
+  severity/security marker: the shared structured-severity vocabulary
+  (CRITICAL/IMPORTANT surviving negation redaction, a shields P0-P3 badge, a
+  bracketed [P0]-[P3] marker) plus the word "security" in any case. The
+  permission grants that cover this helper state "never a security or P1
+  thread" as an absolute condition; this guard is the code behind that
+  sentence for the unattended path. It fails closed: a thread whose comment
+  page is truncated cannot prove the absence of a marker and is refused the
+  same way. Interactive modes are unaffected -- severity judgment there stays
+  with the evaluating agent.
 - `--only-outdated` independently restricts to `isOutdated` threads in any mode.
 - `--thread-id` operates on one agent-vetted thread. Combined with `--resolve`,
   it requires `--expected-comment-count` AND `--expected-last-updated` to pin
@@ -72,11 +82,38 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from typing import Any, cast
 
-from babysit_classify import is_bot
+from babysit_classify import (
+    SEVERITY_BADGE_RE,
+    SEVERITY_PLAIN_RE,
+    has_blocking_severity,
+    is_bot,
+)
 from babysit_gh import fetch_review_threads, gh_capture, parse_repo_number
 from babysit_util import configure_stdio, dig, is_json_object
+
+
+# The word "security" is not in the shared structured-severity vocabulary
+# (which deliberately ignores prose severity words to avoid false READINESS
+# counts), but the permission grants covering this helper say "never a
+# security thread", so the unattended guard matches it as prose. A false
+# positive only routes the thread to interactive judgment.
+SECURITY_TEXT_RE = re.compile(r"security", re.IGNORECASE)
+
+
+def _has_severity_marker(body: str) -> bool:
+    """Deterministic proxy for "a security or P1 thread": the shared
+    structured-severity vocabulary (CRITICAL/IMPORTANT surviving negation
+    redaction, a shields P0-P3 badge, a bracketed [P0]-[P3] marker) plus the
+    word "security"."""
+    return (
+        has_blocking_severity(body)
+        or bool(SEVERITY_BADGE_RE.search(body))
+        or bool(SEVERITY_PLAIN_RE.search(body))
+        or bool(SECURITY_TEXT_RE.search(body))
+    )
 
 
 def _comment_author(comment: object) -> dict[str, object]:
@@ -122,6 +159,13 @@ def project_thread(record: dict[str, Any]) -> dict[str, object]:
         )
     )
     total_count = record.get("comments_total_count")
+    # Fail closed on truncation: an unfetched comment could carry the marker,
+    # so a truncated thread is treated as severity-flagged, not as clean.
+    severity_flagged = truncated or any(
+        isinstance(body := (c.get("body") if is_json_object(c) else None), str)
+        and _has_severity_marker(body)
+        for c in comments
+    )
     return {
         "id": record.get("id"),
         "isResolved": record.get("isResolved", False),
@@ -129,6 +173,7 @@ def project_thread(record: dict[str, Any]) -> dict[str, object]:
         "author": first_author.get("login"),
         "authorType": first_author.get("__typename"),
         "botOnly": bot_only,
+        "severityFlagged": severity_flagged,
         # Live count of ALL comments (not just the fetched page) -- the TOCTOU
         # comparison signal, so a reply beyond the first fetched page is detected.
         "commentCount": total_count if isinstance(total_count, int) else None,
@@ -194,6 +239,10 @@ def classify(
         # unattended: require a deterministic "addressed" signal so the worker
         # cannot resolve a still-current finding and self-satisfy the merge gate
         return "skipped-not-outdated"
+    if autonomous and thread.get("severityFlagged", True):
+        # unattended: never a security or P1 thread. Default True fails closed
+        # when the projection did not compute the signal.
+        return "skipped-severity-marked"
     return "eligible"
 
 
@@ -205,7 +254,13 @@ def parse_allowed_owners(raw: str | None) -> set[str]:
 
 def main() -> int:
     configure_stdio()
-    parser = argparse.ArgumentParser(description=__doc__)
+    # allow_abbrev=False: the permission grants covering this helper state
+    # their conditions as the literal presence or absence of a flag in the
+    # command text. Prefix abbreviation (argparse's default) lets `--i` resolve
+    # to --include-human while the text contains neither, so the written
+    # command and the resolved behavior diverge -- exactly what those
+    # conditions must be able to rule out.
+    parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument("pr", help="owner/repo#number or PR URL")
     parser.add_argument(
         "--allowed-owners",
@@ -422,6 +477,7 @@ def main() -> int:
             "path": thread["path"],
             "isOutdated": thread["isOutdated"],
             "botOnly": thread["botOnly"],
+            "severityFlagged": thread.get("severityFlagged"),
             "commentCount": thread.get("commentCount"),
             "lastCommentUpdatedAt": thread.get("lastCommentUpdatedAt"),
         }
@@ -484,6 +540,9 @@ def main() -> int:
                 "resolvedCount": resolved_count,
                 "skippedNotOutdated": len(
                     [r for r in results if r["action"] == "skipped-not-outdated"]
+                ),
+                "skippedSeverityMarked": len(
+                    [r for r in results if r["action"] == "skipped-severity-marked"]
                 ),
                 "humanThreads": len(
                     [r for r in results if r["action"] == "skipped-human-thread"]
