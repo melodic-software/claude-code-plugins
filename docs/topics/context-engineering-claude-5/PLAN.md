@@ -826,7 +826,7 @@ A run that does not say what it could not reach reports its own blind spots as c
   machine, so every managed-tier scope rule — read-only, never remediated, highest precedence — is
   unexercised rather than confirmed.
 - **User scope is a fixed path, not a hierarchy ancestor.** A `CLAUDE.md` walk upward from the target
-  terminates at `D:\` and never reaches `C:\Users\KyleSexton\.claude\CLAUDE.md`. Any walk
+  terminates at `D:\` and never reaches `C:\Users\<name>\.claude\CLAUDE.md`. Any walk
   implementation needs the fixed-path leg stated as its own step, or user scope is silently missing
   from a run that looks complete.
 - **A worktree lives inside the scan root** — `.claude/worktrees/ignition-rebind-note`, untracked.
