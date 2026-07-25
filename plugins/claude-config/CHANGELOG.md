@@ -32,7 +32,9 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   `OPINION`-tier checks were available, were not run, and the argument that enables them. The
   determinism gate **measures its own precondition** rather than assuming it: HEAD and a **state
   digest** — every inventoried surface and every dirty path, each paired with the content hash of its
-  current bytes — are captured at Phase 0 and again at the **audit endpoint**, and a target that
+  current bytes — are captured at the **scan baseline** (Phase 1's inventory frozen, before any lane
+  reads, since the digest spans that inventory and is not computable before it exists) and again at
+  the **audit endpoint**, and a target that
   moved mid-run reports `indeterminate` rather than `passed`, with the properties marked not
   evaluated. Three things the naive form gets wrong, all closed here: a *count* holds still while an
   already-dirty file's contents change, so the digest pairs each path with its content; the digest

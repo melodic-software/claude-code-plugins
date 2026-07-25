@@ -76,19 +76,28 @@ unable to tell a live run from an interrupted one. Both would then append lane a
 terminating records to one file, and highest-terminated-attempt assembly becomes race-dependent —
 the interruption-tolerance mechanism producing a report neither run performed.
 
-So every active run, read-only included, maintains a **lease** in its own run state on the same
-heartbeat the applying lock uses, and `--resume` reads the lease before it reads the manifest. A
-live lease means the run is still going: resume exits non-zero naming the run id rather than
-attaching. A stale lease means the run was interrupted and its artifact is resumable. The lease is
-not a lock — it excludes nothing, blocks no concurrent read-only run, and grants no exclusivity;
-it only answers the one question resume has to ask and previously could not.
+So every active run, read-only included, maintains a **lease**, and `--resume` reads it before it
+reads the manifest. The lease is fully specified in
+[reference/run-contract.md](reference/run-contract.md) §3 — its path, refresh interval, and
+staleness threshold — because "on the same heartbeat the applying lock uses" named a mechanism that
+did not exist and left the classification unimplementable. A **live** lease means the run is still
+going: resume exits non-zero naming the run id rather than attaching. A **stale** lease means the run
+was interrupted and its artifact is resumable. The lease is not a lock — it excludes nothing, blocks
+no concurrent read-only run, and grants no exclusivity; it answers the one question resume has to ask
+and previously could not.
 
-**Capture the target's HEAD commit and the run's state digest here, and again at the audit endpoint**
-— the moment the last lane completes, before any Phase 5 mutation. They are the determinism gate's
-precondition, and a run that never measures it cannot claim it held. The digest pairs each path with
-a hash of its current content, because a *count* holds still while a dirty file's contents change
-underneath the run, and it spans **every inventoried scope**, because a user-scope or managed-policy
-edit moves what the lanes read while the target's HEAD and dirty set both hold still.
+**The scan baseline is captured after the inventory is frozen and before any lane reads.** The
+digest spans every inventoried scope, so it cannot be computed before Phase 1 has produced that
+inventory — taking it at the top of Phase 0 would either omit the user and managed surfaces, which
+are exactly the mid-run external edits the gate exists to detect, or force an unspecified second
+inventory. So Phase 0 resolves, keys, and locks; Phase 1 freezes the inventory; the **scan baseline**
+— the target's HEAD commit and the run's state digest — is taken at that boundary, and the matching
+**audit endpoint** capture is taken when the last lane completes, before any Phase 5 mutation.
+
+Baseline to endpoint is therefore exactly the window in which lanes read, which is what the
+determinism gate is a claim about — a run that never measures it cannot claim it held. The digest
+pairs each path with a hash of its current content, because a *count* holds still while a dirty
+file's contents change underneath the run.
 
 ## Phase 1 — Three-scope inventory, before any check
 
@@ -263,8 +272,8 @@ fails the self-check**, the only detector the convergence property has.
 ## Self-check
 
 <!-- fresh-eyes-exempt: deterministic-gate -- the tolerance comparison is set arithmetic over two runs' identity sets; its pass/fail IS the verdict and no judgment enters it -->
-**Establish the precondition first.** If HEAD or the state digest moved between the Phase 0 and the
-**audit-endpoint** captures — or if two lanes recorded different content for a path they share — the
+**Establish the precondition first.** If HEAD or the state digest moved between the **scan-baseline**
+and **audit-endpoint** captures — or if two lanes recorded different content for a path they share — the
 tree did not hold still and the gate reports **`indeterminate`**, never `passed`. A shared checkout
 is the normal case, and an unfalsifiable pass manufactures confidence out of a basis nobody measured.
 

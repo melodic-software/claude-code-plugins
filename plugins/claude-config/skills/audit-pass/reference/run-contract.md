@@ -235,9 +235,39 @@ target.
 - A lock whose recorded pid is not alive **and** whose timestamp is older than 30 minutes is stale
   and is reclaimed, with the reclamation reported in the run output.
 
+### The lease — how `--resume` tells a live run from an abandoned one
+
+Every run writes a lease; only an applying run also takes the lock above. The two are separate
+mechanisms and the lease grants no exclusivity: it exists solely so `--resume` can classify an
+incomplete run, which the no-lock read-only policy otherwise makes undecidable.
+
+- **Path** — `runs/<state-key>/<run-id>/lease`, beside that run's own partial artifact, so one lease
+  describes exactly one run and concurrent read-only runs never contend for it.
+- **Contents** — the run id, the process id, an ISO-8601 start timestamp, and a **`heartbeat_at`**
+  timestamp the run rewrites in place.
+- **Refresh** — the holder rewrites `heartbeat_at` every **60 seconds**, and additionally at each
+  lane boundary, so a long single lane cannot look abandoned.
+- **Liveness** — the lease is **live** when `now - heartbeat_at < 5 minutes` — five refresh intervals,
+  chosen so ordinary scheduling delay, a slow filesystem, or a paused VM does not read as a crash.
+  Otherwise it is **stale**.
+- **`--resume` against a live lease exits non-zero**, naming the run id and its `heartbeat_at`, and
+  does not attach. Against a stale lease it takes over the artifact and begins refreshing that lease
+  itself.
+- **A stale lease is never fatal**, which is the property the lock's own recovery rule shares: the
+  worst case is that a run whose process was suspended past the threshold has its artifact adopted,
+  and the attempt-delimiting rule in §7 makes the abandoned attempt's records discardable rather than
+  corrupting.
+- **`heartbeat_at` must not move backwards.** A clock adjustment that rewinds it would make a live
+  run read stale, so a refresh writes `max(now, previous)`.
+
+Interval and threshold are stated here rather than left to Phase 9 because "live or abandoned" is a
+classification two implementations must reach identically or `--resume` is nondeterministic.
+
 | # | Assertion |
 |---|---|
 | 3.1 | Two applying runs launched concurrently against one target: exactly one proceeds, the other exits non-zero naming the holder. |
+| 3.6 | `--resume` against a run whose lease was refreshed within the threshold exits non-zero naming the run id, and the live run's partial artifact is byte-identical afterwards. |
+| 3.7 | `--resume` against a run whose lease has not been refreshed past the threshold adopts the artifact and refreshes the lease itself. |
 | 3.2 | Two read-only runs launched concurrently both complete, and their derived identity sets are equal. |
 | 3.3 | A run launched from a subdirectory produces the same state key as one launched from the root. Working directory is never an input. |
 
@@ -320,10 +350,21 @@ verified 2026-07-25).
 | Both anchors match, `(check, claim)` match | **SAME, UNCHANGED** | Applies silently, as an exact match always has. |
 | Exactly one anchor changed; the other anchor and `(check, claim, both surfaces)` all match | **SAME, CHANGED** | **Carries forward, marked `needs-reconfirmation`**, surfaced in `suppressed` with the changed side named. Never silent: the edit may have *been* the fix attempt, and silently re-suppressing hides precisely the case the operator most needs to see. |
 | Both anchors changed, **or** `claim` changed, **or** a surface changed | **OLD CLOSED, NEW OPENED** | The old entry goes **stale** per 4.2, never silently dropped. The new finding is unsuppressed. |
-| The finding is absent from the new run entirely | **CLOSED** | Must be **accounted for** as exactly one of: matched to an applied fix; matched to a successor by partial match; or reported as an **UNEXPLAINED DISAPPEARANCE**, which fails the run's self-check exactly as a P4a tolerance breach does. |
+| The finding is absent from the new run entirely | **CLOSED** | Must be **accounted for** as exactly one of: matched to an applied fix; matched to a successor by partial match; **retired with its check**, when the check that raised it is absent or renamed in the new run's detection configuration; or reported as an **UNEXPLAINED DISAPPEARANCE**, which fails the run's self-check exactly as a P4a tolerance breach does. |
 
 A single-site finding has no "other anchor", so row 2 cannot apply to one: a changed anchor on a
 single-site finding falls to row 3.
+
+**`retired with its check` is a disposition rather than an exemption, and the difference matters.** A
+delegated catalog that removes or renames a check legitimately makes its findings disappear with no
+fix and no successor, and the unconditional rule called that an UNEXPLAINED DISAPPEARANCE and failed
+the run — the comparability contract already treats a detection-version change as non-comparable, so
+the two disagreed. But suppressing the accounting entirely would be worse: findings would vanish
+silently on any catalog edit, which is the exact shape row 4 exists to detect. So the disappearance
+is still accounted for, still reported, and named as retirement with the retiring check and the
+version transition cited. Any suppression entry keyed to a retired check goes **stale** rather than
+being deleted, because a check that returns under its old name must not silently re-apply a
+suppression the operator has not seen since.
 
 **Row 2 requires a unique successor, and without that requirement it is not a function.** Two current
 pairwise findings can share the unchanged anchor, both surfaces, `check`, and `claim` while differing
@@ -435,7 +476,7 @@ So the run **measures** its own precondition:
   Pairing each path with its content is what makes both movements visible.
 - **The run's own artifacts are excluded from the digest, on the same list that excludes them from
   the scan.** A `--report-to` path inside the target appears in `git status --porcelain` the moment
-  the report is written, which is between the Phase 0 and audit-endpoint captures — so a digest over *every*
+  the report is written, which is between the scan-baseline and audit-endpoint captures — so a digest over *every*
   dirty path makes the redirected run fail its own determinism gate as `indeterminate`, every time,
   purely because it did what it was asked to do. Recording the path in the scan exclusion set does
   not reach the digest; the exclusion has to apply to both, and it is one list precisely so the two
@@ -476,8 +517,17 @@ detection-behavior input not covered by the digest is a defect in the digest.
   tolerance. **A comparability change is reported as the cause and never silently absorbed** — a run
   that quietly attributed a liveness or version difference to the tree, or to nothing, would be the
   same silent scope regression P3a exists to catch.
-- **P2 — convergence, measured against the findings the fixes targeted.** Accepted fixes applied
-  between runs ⇒ every finding a fix targeted is absent from R2, and `D(R2) ⊆ D(R1)` still holds.
+- **P2 — convergence, measured against the findings the fixes targeted.** P2 is the one property
+  whose whole subject is a *changed* tree, so it takes the comparability relation **modulo the
+  accepted mutation set**: `R1` and `R2` are **fix-comparable** when every comparability input except
+  the target tree is equal, and the tree delta between them is exactly the set of edits accepted in
+  `R1` — no more. Stated separately because the unqualified relation excludes precisely the pair P2
+  exists to judge, which would leave the convergence property unevaluable in the normal case; and
+  *"no more"* is what keeps it a real constraint rather than a hole, since a tree delta wider than
+  the accepted set means something else moved and P2 abstains exactly as P1 would. The applied-set
+  comparison the mutation-integrity capture already performs is what makes the delta checkable.
+
+  Fix-comparable ⇒ every finding a fix targeted is absent from R2, and `D(R2) ⊆ D(R1)` still holds.
   **Strictness is conditional, not universal:** `D(R2) ⊊ D(R1)` is required only when at least one
   accepted fix targeted a derived-tier finding. A judged-tier fix need remove nothing from `D` —
   rewriting an over-prescriptive instruction leaves the surface inventory, the exclusion set, the
@@ -511,7 +561,8 @@ detection-behavior input not covered by the digest is a defect in the digest.
 
 | # | Assertion |
 |---|---|
-| 6.1 | A run captures HEAD and the state digest at Phase 0 and again at the audit endpoint (last lane complete, before any Phase 5 mutation), and records both captures in the report. |
+| 6.1 | A run captures HEAD and the state digest at the **scan baseline** (Phase 1 inventory frozen, before any lane reads) and again at the **audit endpoint** (last lane complete, before any Phase 5 mutation), and records both captures in the report. |
+| 6.1c | The scan baseline covers every surface the Phase 1 inventory produced, including user-scope and managed-policy surfaces — it is not computable before that inventory exists. |
 | 6.1a | A `--fix` run that applies at least one accepted edit against an otherwise-unchanging tree reports the determinism gate as satisfied, not `indeterminate` — its own accepted mutations fall outside the measured read window. |
 | 6.1b | Editing an inventoried user-scope surface (`~/.claude/CLAUDE.md`) mid-run yields `indeterminate`, even though the target's HEAD and dirty set are both unchanged. |
 | 6.2 | When the two captures differ, the determinism gate reads `indeterminate` — never `passed`, never `failed` — and names both captures and what moved. |

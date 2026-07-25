@@ -221,11 +221,11 @@
       "id": 19,
       "name": "moving-checkout-makes-the-gate-indeterminate",
       "prompt": "/claude-config:audit-pass I have three other sessions open on this repo and one of them switched branches while your pass was running — did the determinism gate pass?",
-      "expected_output": "No, and it did not fail either: it reports indeterminate. HEAD and the state digest are captured at Phase 0 and again at the audit endpoint, and here they differ, so the tree did not hold still while the lanes were reading it. Every determinism property is conditioned on comparable runs, and that precondition demonstrably did not hold, so P1, P2, and P3 are reported as not evaluated rather than as satisfied, and the report names both captures and what moved. An unfalsifiable passed is worse than an honest indeterminate: it manufactures confidence out of a basis nobody checked and reads identically to a gate that genuinely held.",
+      "expected_output": "No, and it did not fail either: it reports indeterminate. HEAD and the state digest are captured at the scan baseline and again at the audit endpoint, and here they differ, so the tree did not hold still while the lanes were reading it. Every determinism property is conditioned on comparable runs, and that precondition demonstrably did not hold, so P1, P2, and P3 are reported as not evaluated rather than as satisfied, and the report names both captures and what moved. An unfalsifiable passed is worse than an honest indeterminate: it manufactures confidence out of a basis nobody checked and reads identically to a gate that genuinely held.",
       "files": [],
       "expectations": [
         "Reports the determinism gate as indeterminate rather than passed or failed",
-        "Cites the differing Phase 0 and audit-endpoint captures of HEAD and the state digest as the reason, naming what moved",
+        "Cites the differing scan-baseline and audit-endpoint captures of HEAD and the state digest as the reason, naming what moved",
         "Reports P1 through P3 as not evaluated rather than satisfied, instead of treating indeterminate as a soft pass"
       ]
     },
