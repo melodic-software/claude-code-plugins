@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "planning",
-  "version": "0.24.4",
+  "version": "0.26.0",
   "userConfig": {
     "use_ask_user_question": {
       "type": "boolean",
@@ -27,6 +27,8 @@
     "design",
     "design-handoff",
     "devils-advocate",
+    "audit-answers",
+    "validate",
     "plan",
     "stress-test",
     "incumbent",

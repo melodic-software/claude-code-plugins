@@ -184,7 +184,8 @@ Match GitHub's issue-closing keyword set (`close`/`closes`/`closed`/`fix`/`fixes
 
 For `/work-items:work` selection — report whether item `<N>` already has an open PR targeting it
 for closure, so a candidate whose work is in flight is dropped from the pickable frontier rather
-than re-picked. The authoritative signal is **GitHub's own computed close-linkage**, not a text
+than re-picked — and, with the draft-aware reduction below, for `/work-items:work-loop`'s
+drain-exit evaluation. The authoritative signal is **GitHub's own computed close-linkage**, not a text
 match over the PR body: the GraphQL `Issue.closedByPullRequestsReferences` connection returns
 exactly the PRs GitHub links as closing this issue — the same linkage GitHub renders in the
 issue sidebar and acts on for merge-time auto-close. Keep only the `OPEN`-state nodes: a `MERGED`
@@ -198,7 +199,7 @@ open_pr_pages=$(gh api graphql --paginate \
     repository(owner:$owner, name:$repo) {
       issue(number:$n) {
         closedByPullRequestsReferences(first:100, after:$endCursor, includeClosedPrs:false) {
-          nodes { number state }
+          nodes { number state isDraft }
           pageInfo { hasNextPage endCursor }
         }
       }
@@ -210,7 +211,19 @@ open_pr_pages=$(gh api graphql --paginate \
 if printf '%s\n' "$open_pr_pages" | tr -d '\r' | grep -qx true; then echo true; else echo false; fi
 ```
 
-On success emits `true` when at least one **open** PR closes `#<N>`, `false` otherwise. **On query
+On success emits `true` when at least one **open** PR closes `#<N>`, `false` otherwise. The query
+requests `isDraft` so each consumer applies the draft policy its decision needs. The default
+reduction above deliberately **counts drafts**: for the in-flight exclusion, a draft closing PR is
+still work in flight, and re-picking its issue would be exactly the double-dispatch this operation
+prevents. The drain-exit evaluation in `/work-items:work-loop` instead requires an open
+**non-draft** closing PR — for that consumer, reduce with
+
+```bash
+--jq '[.data.repository.issue.closedByPullRequestsReferences.nodes[] | select(.state=="OPEN" and (.isDraft | not))] | any'
+```
+
+which emits `true` only when a ready (non-draft) open PR closes `#<N>`; every other note in this
+section (failure semantics, pagination, `\r` handling) applies to both reductions unchanged. **On query
 failure it emits no boolean and exits non-zero — a failed in-flight check is not `false`.** The
 GraphQL call is captured first and its exit status checked before any reduction: if
 `gh api graphql --paginate` fails (expired token, rate limit, or a network error on a later cursor

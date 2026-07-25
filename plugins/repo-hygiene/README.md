@@ -17,7 +17,7 @@ the conversation, or presents a menu and falls back to the safe `scan`.
 |--------|--------------|------|
 | `scan` | Read-only inventory of reclaimable caches, build output, and stale git refs | Safe |
 | `caches` | Remove tool / linter caches (`.pytest_cache`, `.ruff_cache`, `__pycache__`, `.turbo`, `.vs`, …) | Low |
-| `build` | Remove build artifacts (`bin`/`obj`/`build`/`dist`/`out`/`target`/`TestResults`, `*.binlog`), includes caches; runs a runtime-detected `dotnet clean` when a `*.slnx`/`*.sln` and `dotnet` are present | Low |
+| `build` | Remove build artifacts (`bin`/`obj`/`build`/`dist`/`out`/`target`/`TestResults`, `*.binlog`), includes caches | Low |
 | `git` | Prune stale worktree/remote metadata and gc; audit branches (merged / PR-merged / stale) and delete only on per-branch opt-in | Low |
 | `tree` | Reset the working tree like a fresh pull — `git reset --hard` + `git clean -fdx` | **Destructive** |
 | `tree-batch` | Run `tree` across many repos (`ghq list`, a glob, or an explicit list) behind one confirmation gate, with a separator-agnostic skip list and a dirty-by-default guard | **Destructive** |

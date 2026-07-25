@@ -41,8 +41,11 @@ Audit exact repositories without recursive discovery:
 /repo-fleet-hygiene:audit --repo <repo-root>/github.com/acme/api --repo <repo-root>/github.com/acme/web
 ```
 
-The skill automatically uses `.claude/repo-fleet-hygiene.conf` in the consumer project when present,
-or accepts `--config <path>` explicitly. Explicit CLI roots/repos are additive.
+Config resolution is a whole-file precedence ladder: explicit `--config <path>`, else
+`.claude/repo-fleet-hygiene.conf` in the consumer project, else the user-global
+`~/.claude/repo-fleet-hygiene.conf` (a machine-scoped fleet config that applies from every
+project). The audit report header names which config was consumed. Explicit CLI roots/repos are
+additive.
 
 ## Configuration
 
@@ -92,6 +95,13 @@ or refresh repository metadata as a side effect. Git and `gh` execution is fail-
 accepts only its documented command, option, operand, and environment shapes. A failed worktree or
 branch inventory becomes `UNKNOWN`; partial output is discarded and the repository is not counted as
 successfully audited.
+
+## What this does not answer
+
+"Can I delete this repository safely?" is deletion triage — an inventory of dirty files, stashes,
+and unpushed branches — and belongs to `/repo-hygiene:clean` (its scan/stash/git tiers), which owns
+per-repository disposability analysis. This audit is a read-only cross-repository evidence REPORT;
+it names candidates and hands off, and deliberately does not judge whether a checkout is disposable.
 
 ## Requirements
 

@@ -3,8 +3,9 @@
 How `/session-flow:handoff`, `/session-flow:workflow`, `/session-flow:retro`, and
 `/session-flow:running-retro` resolve where session save-points and ledgers land in a consuming
 repo. These skills read this one document; none bakes its own paths. The read-only
-`/session-flow:orient` skill also reads this binding to *locate* those artifacts for its briefing —
-it resolves the paths, never writes them.
+`/session-flow:orient` and `/session-flow:find-handoff` skills also read this binding to *locate*
+those artifacts (orient for its briefing, find-handoff to resolve the handoffs dir it recovers from)
+— they resolve the paths, never write them.
 
 Implements the topic-docs convention:
 <https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/topic-docs/README.md>.
@@ -24,6 +25,18 @@ Session-flow writes **memory tier only**:
 Timestamps are ISO-basic UTC `YYYYMMDDTHHMMSSZ` per the contract's filename spec. The memory root
 is configurable via the concern file's `memory_dir` key; session-flow never writes the contract
 tier.
+
+The running-retro **detached observer** ([`observer.md`](./observer.md)) writes autonomous post-end
+findings to that same `running-retros/` ledger (matched by `session_id`), so the autonomous and
+in-session checkpoints share one file per session. Its intermediate distilled observations are NOT a
+memory-tier artifact: they are transient, machine-local plugin state under
+`${CLAUDE_PLUGIN_DATA}/session-flow-observer/`, deleted after the analysis run consumes them, and
+never committed — only the redacted findings block reaches the ledger. Before its first ledger
+write the observer runs the contract's self-ignore guard on the resolved memory root — ensuring
+`<memory_dir>/.gitignore` contains a bare `*` (creating or amending it as needed) so the memory-tier
+output is never committed — and, when the memory root is itself a repo root, refuses and does not write
+the ledger there; it never edits the consumer's
+root `.gitignore`.
 
 All three artifacts are memory-tier and therefore checkout-local (contract ≥ 2.0.0): a handoff
 written in one worktree is invisible to a session resuming in another. The workflow checklist is a

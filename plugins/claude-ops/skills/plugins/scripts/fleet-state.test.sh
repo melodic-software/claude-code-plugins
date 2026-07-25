@@ -68,7 +68,6 @@ run_state() {
     FLEET_STATE_MARKETPLACES_JSON="$case_dir/known_marketplaces.json" \
     FLEET_STATE_USER_SETTINGS="$case_dir/user_settings.json" \
     FLEET_STATE_CATALOG_DIR="$case_dir/catalog" \
-    FLEET_STATE_HOOK_UTILS="$SCRIPT_DIR/../../../hooks/hook-utils.sh" \
     "$@" \
     bash "$SCRIPT" "${ARGS[@]}" 2>&1
 }
@@ -365,7 +364,6 @@ out=$(
     FLEET_STATE_MARKETPLACES_JSON="$case_dir/known_marketplaces.json" \
     FLEET_STATE_USER_SETTINGS="$case_dir/user_settings.json" \
     FLEET_STATE_CATALOG_DIR="$case_dir/catalog" \
-    FLEET_STATE_HOOK_UTILS="$SCRIPT_DIR/../../../hooks/hook-utils.sh" \
     bash "$SCRIPT" --marketplace market1 2>&1
 )
 current_flag=$(jq -r '.installed[0].currentProject' <<<"$out" 2>/dev/null)
@@ -446,6 +444,35 @@ out=$(run_state "$case_dir" CLAUDE_PLUGIN_ROOT="$case_dir/nowhere-installed")
 rc=$?
 assert_exit "default marketplace: unresolvable root fails loud, doesn't guess" 1 "$rc"
 assert_contains "default marketplace: names the fallback" "$out" "--marketplace"
+assert_contains "default marketplace: error names the searched root" "$out" "nowhere-installed"
+
+# ============================================================================
+# Case: version skew — session's loaded version != installed version.
+# installPath is version-pinned; a mid-session autoUpdate (or sync's own Step-3
+# self-update) makes the running root's version segment differ, so the exact
+# installPath match misses. The version-agnostic parent-prefix fallback must
+# still resolve the marketplace so the bare (no --marketplace) default path
+# keeps working. Real dirs so realpath resolves both consistently.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+skew_parent="$case_dir/cache/market1/this-plugin"
+mkdir -p "$skew_parent/0.18.3" "$skew_parent/0.19.0"
+installed_ver_path="$skew_parent/0.18.3" # the version recorded in installed_plugins.json
+session_ver_path="$skew_parent/0.19.0"   # the version the session actually loaded
+native_installed="$(cygpath -w "$installed_ver_path" 2>/dev/null || echo "$installed_ver_path")"
+write "$case_dir/installed_plugins.json" "$(
+  jq -cn --arg root "$native_installed" \
+    '{version: 1, plugins: {"this-plugin@market1": [{scope: "user", installPath: $root, version: "0.18.3"}]}}'
+)"
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "this-plugin"}]}'
+ARGS=()
+out=$(run_state "$case_dir" CLAUDE_PLUGIN_ROOT="$session_ver_path")
+rc=$?
+assert_exit "version skew: resolves via version-agnostic parent-prefix fallback" 0 "$rc"
+resolved_name=$(jq -r '.marketplace.name' <<<"$out" 2>/dev/null)
+assert_eq "version skew: correct marketplace despite version mismatch" "market1" "$resolved_name"
 
 # ============================================================================
 # Case: jq missing — clear notice, not a bare command-not-found
@@ -564,11 +591,212 @@ out=$(timeout 10 env \
   FLEET_STATE_MARKETPLACES_JSON="$case_dir/known_marketplaces.json" \
   FLEET_STATE_USER_SETTINGS="$case_dir/user_settings.json" \
   FLEET_STATE_CATALOG_DIR="$case_dir/catalog" \
-  FLEET_STATE_HOOK_UTILS="$SCRIPT_DIR/../../../hooks/hook-utils.sh" \
   bash "$SCRIPT" --marketplace 2>&1)
 rc=$?
 assert_exit "--marketplace no arg: exit 2, not an infinite loop" 2 "$rc"
 assert_contains "--marketplace no arg: actionable error" "$out" "requires a name"
+
+# ============================================================================
+# Case: FLEET_STATE_HOOK_UTILS is no longer honored — a caller-supplied path is
+# never sourced (security regression guard). hook-utils.sh resolves only from
+# the script's own location, so an inherited or hostile environment cannot
+# redirect `source` at an arbitrary file. If a future refactor re-introduces an
+# env-based override, the decoy below is re-sourced and its marker surfaces in
+# the output, failing this case.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": []}'
+write "$case_dir/evil-hook-utils.sh" 'echo "PWNED-HOOK-UTILS-SOURCED"'
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir" "FLEET_STATE_HOOK_UTILS=$case_dir/evil-hook-utils.sh")
+rc=$?
+assert_exit "hook-utils override ignored: runs to completion (exit 0)" 0 "$rc"
+case "$out" in
+*PWNED-HOOK-UTILS-SOURCED*) fail "hook-utils override ignored: caller-supplied path must NOT be sourced" "decoy marker present in output" ;;
+*) pass "hook-utils override ignored: caller-supplied path not sourced" ;;
+esac
+
+# ============================================================================
+# Case: an inherited, exported cd shell function cannot redirect hook-utils
+# resolution (security regression guard). Bash imports environment-exported
+# functions (BASH_FUNC_cd%%) before the script runs; a plain `cd` in the
+# script's root-resolution would then run the attacker's function and make
+# PLUGIN_ROOT_DEFAULT point at an attacker tree, sourcing an arbitrary file.
+# The script uses `builtin cd`, so the exported function is bypassed. If a
+# future refactor drops `builtin`, the hijacked cd redirects resolution to the
+# decoy root below and its marker surfaces in the output, failing this case.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": []}'
+mkdir -p "$case_dir/evilroot/hooks"
+write "$case_dir/evilroot/hooks/hook-utils.sh" 'echo "PWNED-CD-SHADOW-SOURCED"'
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir" "BASH_FUNC_cd%%=() { builtin cd \"$case_dir/evilroot\"; }")
+rc=$?
+assert_exit "exported cd shadow ignored: runs to completion (exit 0)" 0 "$rc"
+case "$out" in
+*PWNED-CD-SHADOW-SOURCED*) fail "exported cd shadow ignored: hijacked cd must NOT redirect source" "decoy marker present in output" ;;
+*) pass "exported cd shadow ignored: hook-utils resolved from real script location" ;;
+esac
+
+# ============================================================================
+# Case: an attacker-controlled PATH cannot redirect hook-utils resolution
+# through the directory resolver (security regression guard). The script
+# derives its own directory with parameter expansion, never an external
+# `dirname`, so a hostile `dirname` planted at the front of PATH is never
+# consulted and hook-utils.sh is still sourced from the real script location.
+# If a future refactor reintroduces `dirname` (or any PATH-resolved tool) on
+# the resolution path, the decoy below is sourced and its marker surfaces,
+# failing this case.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": []}'
+decoy_scripts="$case_dir/evilroot/skills/plugins/scripts"
+mkdir -p "$decoy_scripts" "$case_dir/evilroot/hooks"
+write "$case_dir/evilroot/hooks/hook-utils.sh" 'echo "PWNED-DIRNAME-PATH-SOURCED"'
+attack_bash_bin=$(command -v bash)
+attack_bash_dir=$(dirname "$attack_bash_bin")
+attack_bin_dir="$case_dir/attack-bin"
+mkdir -p "$attack_bin_dir"
+cp "$attack_bash_bin" "$attack_bin_dir/"
+shopt -s nullglob
+for dll in "$attack_bash_dir"/*.dll; do cp "$dll" "$attack_bin_dir/"; done
+shopt -u nullglob
+# A hostile `dirname` that ignores its argument and points the resolver at the
+# decoy tree; reachable only if the script resolves its directory via PATH.
+printf '#!/bin/sh\nprintf "%%s\\n" "%s"\n' "$decoy_scripts" >"$attack_bin_dir/dirname"
+chmod +x "$attack_bin_dir/dirname"
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir" "PATH=$attack_bin_dir")
+case "$out" in
+*PWNED-DIRNAME-PATH-SOURCED*) fail "hostile PATH dirname ignored: PATH-planted dirname must NOT redirect source" "decoy marker present in output" ;;
+*) pass "hostile PATH dirname ignored: hook-utils resolved without an external dirname" ;;
+esac
+
+# ============================================================================
+# Case: an inherited, exported `source` shell function cannot hijack the
+# hook-utils source (security regression guard). Bash imports environment-
+# exported functions (BASH_FUNC_source%%) before the script runs; a plain
+# `source` would then invoke the attacker's function, which receives the
+# correctly resolved real path but can ignore it and run arbitrary code —
+# making the whole trusted-path resolution moot. The script uses `builtin
+# source`, bypassing the exported function. If a future refactor drops
+# `builtin`, the decoy function below runs and its marker surfaces, failing
+# this case.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": []}'
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir" 'BASH_FUNC_source%%=() { echo "PWNED-SOURCE-SHADOW"; }')
+case "$out" in
+*PWNED-SOURCE-SHADOW*) fail "exported source shadow ignored: hijacked source must NOT run" "decoy marker present in output" ;;
+*) pass "exported source shadow ignored: real hook-utils sourced via builtin" ;;
+esac
+
+# ============================================================================
+# Case: large-catalog marketplace does not crash with "Argument list too
+# long" (#1336). fleet-state.sh used to embed full catalog/installed/enabled
+# JSON blobs as literal `jq --argjson` command-line arguments; once a
+# marketplace catalog got large enough (confirmed against a real 273-plugin
+# catalog), the serialized JSON exceeded the platform/shell's argv-length
+# ceiling and jq crashed before emitting anything. Uses a synthetic 500-plugin
+# catalog — well past the 273-plugin real-world repro — fully installed and
+# enabled, so every array in the composed report (catalog, installed, enabled,
+# and all three missing_from_* arrays) carries the full payload through the
+# same code path that used to crash. Asserts the run completes AND produces
+# the same-shaped, semantically-correct output a small catalog would (no
+# silent truncation or partial report — the acceptance criteria's second
+# bullet), not merely that it exits 0.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+big_n=500
+write "$case_dir/known_marketplaces.json" '{"bigmarket": {"source": {"source": "github", "repo": "example/bigmarket"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+# Realistic-length ids (not bare "plugin-0") so the serialized payload's
+# per-entry size is closer to the real-world repro, not an artificially
+# compact worst case.
+jq -cn --argjson n "$big_n" \
+  '{plugins: [range(0;$n) | {name: ("large-catalog-synthetic-plugin-\(.)"), description: "synthetic fixture entry for issue #1336 large-catalog argv-length regression test"}]}' \
+  >"$case_dir/catalog/bigmarket.json"
+jq -cn --argjson n "$big_n" \
+  '{version: 1, plugins: (reduce range(0;$n) as $i ({};
+    . + {("large-catalog-synthetic-plugin-\($i)@bigmarket"): [{scope: "user", installPath: "y", version: "0.1.0"}]}))}' \
+  >"$case_dir/installed_plugins.json"
+jq -cn --argjson n "$big_n" \
+  '{enabledPlugins: (reduce range(0;$n) as $i ({}; . + {("large-catalog-synthetic-plugin-\($i)@bigmarket"): true}))}' \
+  >"$case_dir/user_settings.json"
+ARGS=(--marketplace bigmarket)
+out=$(run_state "$case_dir")
+rc=$?
+assert_exit "large catalog (500 plugins): exit 0, no argv-length crash" 0 "$rc"
+case "$out" in
+*"Argument list too long"*) fail "large catalog: no 'Argument list too long'" "found in output: $out" ;;
+*) pass "large catalog: no 'Argument list too long'" ;;
+esac
+catalog_len=$(jq '.catalog | length' <<<"$out" 2>/dev/null)
+assert_eq "large catalog: full 500-entry catalog reported, not truncated" "$big_n" "$catalog_len"
+installed_len=$(jq '.installed | length' <<<"$out" 2>/dev/null)
+assert_eq "large catalog: full 500-entry installed list reported" "$big_n" "$installed_len"
+missing_install_len=$(jq '.missing_from_install | length' <<<"$out" 2>/dev/null)
+assert_eq "large catalog: every plugin installed, so missing_from_install empty" "0" "$missing_install_len"
+missing_user_install_len=$(jq '.missing_from_user_install | length' <<<"$out" 2>/dev/null)
+assert_eq "large catalog: every plugin user-installed, so missing_from_user_install empty" "0" "$missing_user_install_len"
+missing_enabled_len=$(jq '.missing_from_enabled | length' <<<"$out" 2>/dev/null)
+assert_eq "large catalog: every plugin enabled, so missing_from_enabled empty" "0" "$missing_enabled_len"
+sample_enabled=$(jq -r '.enabled["large-catalog-synthetic-plugin-499@bigmarket"]' <<<"$out" 2>/dev/null)
+assert_eq "large catalog: a spot-checked entry has correct effective-enabled value, not a placeholder" "true" "$sample_enabled"
+
+# ============================================================================
+# Case: malformed user_settings.json still fails loud after the --argjson ->
+# --slurpfile conversion (#1336 fail-loud parity). --slurpfile tolerates a
+# genuinely EMPTY file as "zero JSON values" (yielding null) rather than
+# erroring the way `--argjson name ""` used to when a prior `jq -c
+# '.enabledPlugins // {}'` read failed on malformed source JSON and captured
+# no stdout — so a naive conversion would turn a loud crash into a silent
+# `null`-degraded report. jq_slurp_tmpfile guards this by writing a
+# deliberately-invalid token for an empty value, forcing jq's own parser to
+# still error at the --slurpfile call site. Confirmed against the actual
+# pre-fix script (git history) that this exact fixture already failed loud
+# (nonzero exit) before this issue's change, so this case is locking in
+# existing behavior, not inventing a new contract.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+write "$case_dir/known_marketplaces.json" '{"market1": {"source": {"source": "github", "repo": "example/market1"}, "installLocation": "z", "lastUpdated": "2026-01-01T00:00:00Z"}}'
+write "$case_dir/catalog/market1.json" '{"plugins": [{"name": "alpha"}]}'
+write "$case_dir/installed_plugins.json" '{"version":1,"plugins":{}}'
+write "$case_dir/user_settings.json" '{bad json'
+ARGS=(--marketplace market1)
+out=$(run_state "$case_dir")
+rc=$?
+if [[ "$rc" -eq 0 ]]; then
+  fail "malformed user_settings.json: fails loud, not silently degraded" "expected nonzero exit, got 0 with output: $out"
+else
+  pass "malformed user_settings.json: fails loud, not silently degraded"
+fi
+
+# ============================================================================
+# Case: static guard — no large-payload `--argjson` call site regresses back
+# into fleet-state.sh (#1336). The runtime case above proves the CURRENT
+# script doesn't crash; this guards against a future edit silently
+# reintroducing `--argjson catalog|installed|missing*` (the exact pattern
+# that crashed) alongside the harmless small-boolean `--argjson au|ci` uses
+# this script legitimately keeps (a fixed literal `true`/`false`, never
+# proportional to catalog size). Counts every `--argjson` occurrence in the
+# script body (source lines only, comments excluded) and asserts it matches
+# the fixed count of boolean-only remaining uses.
+# ============================================================================
+CASE_NUM=$((CASE_NUM + 1))
+argjson_code_count=$(grep -v '^\s*#' "$SCRIPT" | grep -c -- '--argjson' || true)
+assert_eq "static guard: --argjson remains only on fixed-size booleans (au/ci/autoUpdate), not catalog-sized payloads" "7" "$argjson_code_count"
 
 # --- Summary -------------------------------------------------------------
 printf '\n%d cases, %d failed\n' "$CASE_NUM" "$FAILED"

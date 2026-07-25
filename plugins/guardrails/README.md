@@ -1,6 +1,6 @@
 # guardrails
 
-A Claude Code plugin bundling nine **safety guards** that catch risky agent
+A Claude Code plugin bundling eleven **safety guards** that catch risky agent
 actions the moment they happen — before a write lands or a bash command runs.
 Each guard is independently toggleable, so you run exactly the subset you want.
 
@@ -16,11 +16,22 @@ Each guard is independently toggleable, so you run exactly the subset you want.
 | **cli-flag-verify** | PostToolUse · Write \| Edit | **Advisory** (exit 0) | Hallucinated CLI flags — a `--flag` written as a command that does not exist in the binary's actual `--help` output. Surfaces via `additionalContext`, never blocks. |
 | **workflow-resilience-check** | PreToolUse · Workflow | **Advisory** (exit 0) | Un-throttled Workflow fan-out — a script calling `parallel()` / `pipeline()` with no wave-cap throttle (`inWaves` / `inWavesPipeline`) and no retry wrapper (`agentRetry`), which risks a burst 529 under wide Opus fan-out. Surfaces a resilience checklist via `additionalContext`, never blocks. |
 | **block-noncanonical-commit** | PreToolUse · Bash | **Blocks** (exit 2) | `git commit` that does not pipe its message via `-F -` / `--file -` — `-m` flattens newlines unpredictably across shells. Exempt: `--amend`, `-C`/`-c`/`--reuse-message`/`--reedit-message`, `--fixup`/`--squash`, `-F <path>`, and any commit taken while a merge/rebase/cherry-pick/revert is in progress. Resolves `bash -lc` wrappers and git aliases (inline `-c` and persisted config alike). |
+| **block-convention-violation** | PreToolUse · Bash | **Blocks** (exit 2) | A commit subject or `gh pr create --title` that violates the team-tracked convention pattern declared in `.claude/source-control.md`. No tracked pattern means no enforcement. Same exemptions as `block-noncanonical-commit`. |
 | **flag-commit-pr-skill-bypass** | PreToolUse · Bash | **Advisory** (exit 0) | Any `gh pr create`, bypassing this marketplace's own `/pull-request create` skill. Only fires when the consuming project's own `.claude/settings.json` enables the `source-control` plugin — silent otherwise. Surfaces via `additionalContext`, never blocks. |
+| **skill-reference-verify** | PostToolUse · Write \| Edit | **Advisory** (exit 0) | A `` `/plugin:skill` `` reference in markdown that does not resolve. Only fires inside a marketplace repo, and only for a plugin that repo's own manifests own — a reference to another marketplace is left alone. Resolves through manifest and frontmatter `name`, so a renamed directory still matches. Surfaces via `additionalContext`, never blocks. |
 
-The six blocking guards feed their stderr message back to Claude as
-actionable fix guidance. The three advisory guards surface their findings the same
+The seven blocking guards feed their stderr message back to Claude as
+actionable fix guidance. The four advisory guards surface their findings the same
 way but always allow the operation.
+
+### Enforceability tiers
+
+Ten guards are **deterministic** — their oracle is a mechanical test with no
+judgment step. `skill-reference-verify` is **detect-then-judge**: globbing a
+plugins tree is exact only inside a marketplace repo that owns the referenced
+plugin, so its finding is a prompt for a human verdict, never a determination and
+never an auto-fix. `cli-flag-verify` is deterministic in its oracle but advisory in
+its action, because a written claim can be deliberately forward-looking.
 
 ### Scope notes
 
@@ -111,12 +122,19 @@ repo-specific policy of their own:
 
 - **Project scoping.** `secret-pattern-detection` and `hardcoded-path-check`
   only police files under `$CLAUDE_PROJECT_DIR`; a write into a sibling repo is
-  that repo's concern. Secret scanning fails **closed** — if the project root
-  cannot be resolved, it scans anyway.
+  that repo's concern. With no active project (`CLAUDE_PROJECT_DIR` unset) —
+  or a project dir that is **not a git working tree** (a home-directory
+  session, say; Claude Code sets the project dir for any directory) — the two
+  diverge by threat model: `hardcoded-path-check` skips entirely — such a
+  target (a `$HOME` dotfile, a machine-local `.claude/*.conf`) is
+  machine-local, not a portable repo artifact, and outside a work tree the
+  gitignore allowlist below could never exempt it — while secret scanning
+  fails **closed** and scans anyway (secrets are dangerous anywhere).
 - **Gitignore is the allowlist.** `hardcoded-path-check` skips any file
   `git check-ignore` matches against your `$CLAUDE_PROJECT_DIR` — put
   machine-local files (`settings.local.json`, `.venv/`, …) in your
-  `.gitignore` and they are exempt automatically.
+  `.gitignore` and they are exempt automatically. (Applies within an active
+  project; with none, the hook already skips per the scoping rule above.)
 - **Secret allowlist.** A generic built-in allowlist exempts dependency caches
   (`.venv/`, `node_modules/`), `.env.example` / `.sample` / `.template`
   placeholders, `tests/fixtures` / `tests/testdata` trees, `settings.local.json`,

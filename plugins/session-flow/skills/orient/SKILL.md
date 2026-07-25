@@ -9,7 +9,7 @@ shell: bash
 ## Pre-computed context
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Claude session: !`echo "${CLAUDE_CODE_SESSION_ID:-unknown}"`
+Claude session: !`echo "${CLAUDE_CODE_SESSION_ID:-unknown}" || echo "unknown"`
 Recent commits: !`git log --oneline -8 2>/dev/null || echo "no commits"`
 Working tree status: !`git status --porcelain 2>/dev/null | head -20 || echo "clean"`
 
@@ -51,9 +51,11 @@ now" matters, not just "what did we just say."
    the tools are present and degrading gracefully when they are not: open
    pull requests (`gh pr list` for the current branch / author), open
    work-items (the consumer's tracker seam), and a glance at work running
-   off this thread (background tasks, monitors, subagents). Report the
-   off-thread work at a glance — do **not** inspect or recover it; that is
-   `/session-flow:keep-going`.
+   off this thread — background tasks, monitors, subagents, and the other
+   off-thread kinds
+   ([`${CLAUDE_PLUGIN_ROOT}/reference/off-thread-work.md`](${CLAUDE_PLUGIN_ROOT}/reference/off-thread-work.md)).
+   Report the off-thread work at a glance — do **not** inspect or recover
+   it; that is `/session-flow:keep-going`.
 
 ## The briefing — four parts
 

@@ -3,6 +3,77 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.0]
+
+### Changed
+
+- **`draft-goal-condition` is now reachable from lever-selection intent.** Its
+  Step 0 was already the lever-fit router across `/goal`, `/loop`, routines and
+  `/schedule`, a Stop hook, and a one-shot prompt, but the description sold only
+  the drafting half, so "which of these should I use" never reached it. The
+  description now leads with the routing and carries five lever-selection
+  triggers (`'which loop should I use'`, `'/goal or /loop'`,
+  `'should this be a routine'`, `'pick the right autonomy lever'`,
+  `'what kind of loop is this'`). Every pre-existing trigger phrase is
+  preserved, and the rewrite also switches the trigger list to the `Use when:`
+  form the authoring gate expects, clearing a standing warning.
+
+### Fixed
+
+- **`draft-goal-condition` no longer restates the `/goal` condition shape it
+  tells itself never to hardcode.** Step 2 enumerated a four-part shape and
+  Step 3's tightening rule named those parts, while the skill's own gotcha
+  forbids baking the shape into this file — and the restatement had already
+  drifted: the live page prescribes three elements and treats the turn/time
+  clause separately. Both steps now defer to the shape Step 1 reads off the live
+  page.
+
+## [0.25.0]
+
+### Added
+
+- **`audit-answers` — independent adversarial validation of a completed
+  `/planning:interview`'s answers.** It runs over any filled ledger, whether the
+  human hand-answered the rounds or the recommendations were auto-accepted. When
+  open branches remain it accepts each one's recommended answer to fill them
+  first (holding the mechanical never-auto floor — `USER-RESERVED` deferred
+  questions and the interview's auto-guard class always route to the human), then
+  dispatches **1–3 fresh-context (non-fork) validator subagents** that re-examine
+  each answer with its **rationale withheld** (audit the decision, not the pitch)
+  and return a per-answer verdict
+  — **CONFIRMED / CHALLENGED / RECLASSIFIED-TO-HUMAN** — plus shaky
+  dependency-chain flags. Triaged confirm: CONFIRMED answers collapse to one
+  line; CHALLENGED and RECLASSIFIED answers become real questions in the
+  `/planning:interview` round format, and the human confirmation round is
+  mandatory. It **validates, never derives** — subagent-invented answers are out
+  of scope (fresh-context independence is real only for checking an answer, not
+  producing one). The adversarial evidence discipline is `devils-advocate`'s,
+  cited rather than duplicated; the dispatch and per-answer verdict contract are
+  purpose-built because the input (a pre-enumerated ledger) and output
+  (per-answer verdicts fed back as interview questions) differ from
+  `devils-advocate`'s plan-artifact stress-test. `/planning:interview` gains one
+  Composition-table row pointing at it (#1043).
+
+## [0.24.5]
+
+### Changed
+
+- **`interview` round-format legibility levers.** The round-header restate now
+  doubles as a **session-hop anchor** that re-grounds a resumed reader before any
+  question; per-question context is capped at one line and used only when the
+  header restate doesn't reach the question or the session just resumed after a
+  gap. The `My recommendation:` line is the **single verdict marker** — no
+  stacked standalone `(RECOMMENDED)` badge, no repeated tag in the Alternatives
+  list. Session-local shorthand is now defined once at first use and parked in
+  the ledger's **shorthand glossary** (ephemeral session vocabulary, distinct
+  from the project's ubiquitous language). A dense round can be offered as an
+  **HTML decision-table artifact** rendering the whole frontier
+  (question / recommendation / alternatives / deciding-what, rows numbered to the
+  terminal `Q<N>`, answers still returned by number, degrading to a fenced
+  markdown table) — a rendering surface, never a round split or question cap.
+  `AskUserQuestion` guidance sharpened to simple selections / binary confirms
+  only. Guidance-only; no new skill, action, or config (#1042).
+
 ## [0.24.4]
 
 ### Changed

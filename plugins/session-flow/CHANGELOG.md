@@ -1,5 +1,160 @@
 # Changelog — session-flow plugin
 
+## [0.16.0]
+
+### Added
+
+- find-handoff: new skill (#976). Recovers a lost handoff after `/clear` — the
+  failure mode where `/session-flow:handoff` wrote a save-point but the operator
+  cleared the session before copying the dashed-rail resume prompt, leaving the
+  fresh session with zero context and no path to the handoff on disk. Runs a
+  read-only detection ladder: known-location glob of the current repo's
+  `<memory_dir>/handoffs/`, then a bounded, recency-ranked scan of transcripts
+  (excluding the current session's own file — `/clear` opens a new transcript in
+  the same project dir, so the pre-clear content is a sibling) for the handoff
+  directive and dashed-rail markers, then a confirm-before-resume gate. Detection
+  is substring matching over transcript JSONL (empirically verified: the
+  `Read @…-handoff-*.md` directive and `─` rails survive verbatim), not JSON
+  parsing — so the skill ships no parser and does not couple to `retro`'s
+  transcript parser. Handles both handoff output modes (file-based and
+  prompt-only, which writes no file). Read-only and redaction-aware throughout:
+  surfaces only the resume prompt + handoff metadata, never raw transcript
+  content. Routes to `/session-flow:keep-going` when the recovered session ended
+  mid-work. Chains in from `keep-going` step 4 when a post-`/clear` session has no
+  known handoff path.
+
+### Changed
+
+- reference/save-point.md: documented the resume-prompt output shape (the
+  `Read @…-handoff-*.md` directive, the `─` rails + instruction line, and
+  `Prior session: <UUID>`) as a stable detection contract `find-handoff` keys
+  off, so a future format change is a knowing break. reference/structure.md notes
+  the `type: handoff` frontmatter is part of the same contract, and
+  reference/topic-docs.md lists `find-handoff` among the skills that read the
+  topic-docs binding to locate the handoffs directory. keep-going step 4 routes
+  to `find-handoff` when the handoff path was lost.
+
+## [0.15.2]
+
+### Fixed
+
+- **`reanchor`'s eval case 7 renamed off the pre-rename plugin name (`#1328`).**
+  `skills/reanchor/evals/evals.json` still named the negative-routing case
+  `negative-routing-rule-discipline-is-re-anchor-plugin` after the `re-anchor` -> `discipline`
+  plugin rename (`#1276`); the case's `expected_output` and `expectations` were rewritten in that
+  commit but its `id` field was missed. Renamed to
+  `negative-routing-rule-discipline-is-discipline-plugin`, matching the sibling
+  `negative-routing-*` case names. No other file references the old name.
+
+## [0.15.1]
+
+### Changed
+
+- All five skills whose pre-computed context block injects the session id
+  (`orient`, `retro`, `running-retro`, `handoff`, `continue-in-background`) now
+  carry a `|| echo "unknown"` fallback on that injection, matching the sibling
+  git injections in the same block. Injection failure, timeout, and stderr
+  semantics are undocumented upstream, so the standing convention is a
+  `|| <fallback>` on every injected command — `skill-quality:check` flags a
+  missing one as an advisory WARN. On this particular line the guard is
+  unreachable in practice (`${VAR:-unknown}` resolves at expansion time, so
+  `echo` receives a formed string and exits 0); it buys block-wide uniformity
+  and a quiet gate, not protection against a failure mode the sibling git lines
+  genuinely have.
+
+## [0.15.0]
+
+### Added
+
+- running-retro: detached-observer substrate + lifecycle. Evolves running-retro
+  from PULL-only (invoked in-session) to a path that can also fire *after* the
+  session ends — a `/loop` structurally cannot. A stdlib-only Python 3.10+ tailer
+  (`skills/running-retro/scripts/observer.py`, launched detached by
+  `arm_observer.py`) outlives the session, tails the transcript out-of-band at
+  zero context cost via a no-persistent-handle poll→open→read-new-bytes→close
+  loop (safe by construction against the Windows share-mode write edge), detects
+  end by mtime-idle, then runs the same checkpoint method headless (a cheap
+  `claude -p`) and appends the redacted findings to this session's ledger. The
+  analysis run is Read-only (`--allowedTools Read` under `--permission-mode
+  dontAsk`) — no code execution over untrusted transcript content — and is the
+  single semantic redaction pass; the transient distilled observations are
+  machine-local (`${CLAUDE_PLUGIN_DATA}/session-flow-observer/`) and deleted
+  after use, so only redacted findings reach the durable ledger. Entry: a new
+  `arm` action on running-retro is primary; an OPT-IN SessionStart hook
+  (`observer_enabled`, default off — zero-config behavior unchanged) automates the
+  same launcher, guarded against self-arming (`CLAUDE_CODE_ENTRYPOINT`, stdin
+  `agent_type`, `source`, analysis-run marker). Untrusted-data boundary cites the
+  shared `reference/off-thread-work.md`. Native Observer-Agents recorded as a
+  deferred alternative (trigger: transcript-level feed / documented-stabilized
+  upstream), substrate kept thin so migration stays cheap. Full substrate +
+  lifecycle in `reference/observer.md`. The plugin now bundles twelve skills.
+- setup: new check-centric skill (`disable-model-invocation`), added because the
+  observer introduced an external prerequisite (Python 3.10+) and a `userConfig`
+  surface — the uniform setup contract's trigger. `check` verifies the observer's
+  prerequisites (Python 3.10+, `jq`, `claude` on PATH) and reports the effective
+  config, flagging the `--bare`/OAuth-auth and idle-threshold hazards; no write
+  path (reconfiguration routes through `/plugin configure`).
+- `userConfig`: the plugin's first config surface — six observer keys
+  (`observer_enabled`, `observer_analysis_enabled`, `observer_analysis_model`
+  [default `claude-haiku-4-5`, the cost lever], `observer_analysis_bare`,
+  `observer_idle_seconds`, `observer_max_seconds`), all defaulting to zero-config
+  behavior.
+- hooks: opt-in `SessionStart` hook (`hooks/observer-arm.sh`) — the plugin's
+  first hook asset; no-ops unless `observer_enabled` is on.
+
+### Notes
+
+- `--bare` on the analysis run is off by default and gated behind
+  `observer_analysis_bare`: verified on CLI 2.1.218, `--bare` drops the OAuth-login
+  credential state and the run reports "Not logged in". The measured cost lever is
+  the model, not `--bare` (which was a projected, never-measured optimization in
+  the design memo). Enable it only where auth is an env-var API key that survives it.
+
+## [0.14.0]
+
+### Added
+
+- reconcile: new skill. The prune-and-reconcile counterpart to
+  `keep-going`'s resume — where keep-going asks "is it stuck, pick it back up",
+  reconcile asks "is anything still running that should be retired, and
+  does the task ledger
+  match reality?" Inventories the off-thread work this session spawned, inspects
+  each item's real state, retires the genuinely finished by clearing them from
+  tracking, and closes this session's task-ledger items whose work is proven
+  complete. Also reports the read-only liveness of sibling sessions in the same
+  project — transcript mtime plus a coarse tail read, never a deep parse of the
+  officially-unstable JSONL. Auto-settles the provably-finished (closing a task
+  is evidence-gated — the mirror of keep-going's "never kill what you cannot
+  prove is dead"); GATES any kill of still-running work, the gate kept in-skill
+  because the three inventory skills' blast radii differ. Fixes this session
+  only: sibling sessions are visible but report-only, and a spawned subagent's
+  internal task list is not readable. MCP / browser / playwright tool-state
+  enumeration is deferred with a trigger (no generic tool-state surface exists;
+  closing user-owned state would be destructive-against-user). The plugin now
+  bundles eleven skills.
+- reference/off-thread-work.md: shared engine doc. The open-ended
+  off-thread-work inventory kinds and the inspect-real-state-first invariant —
+  the mechanics `keep-going`, `orient`, and `reconcile` all share (Rule of
+  Three) — are extracted to a plugin-level reference all three cite via
+  `${CLAUDE_PLUGIN_ROOT}`, each thinned to its own delta (same
+  point-not-copy shape as `reference/topic-docs.md` and re-anchor's
+  `context/re-anchor-audit-correct.md` engine doc). The three skills' autonomy
+  gates are deliberately NOT extracted — different blast radii, kept in-skill.
+
+### Changed
+
+- keep-going: inventory + inspect steps now cite the shared
+  `reference/off-thread-work.md` for the off-thread kinds and the
+  inspect-real-state invariant rather than restating them inline; the duplicated
+  "tools change over time" gotcha (now owned by the shared doc) is removed. The
+  richer Active-verification protocol stays in keep-going (reconcile
+  cites it). Description gains a reciprocal boundary line pointing at
+  `reconcile` for
+  retire/reconcile vs resume; all prior trigger phrases preserved.
+- orient: the off-thread-work glance in "What it reads" now points at the shared
+  `reference/off-thread-work.md` for the full open-ended kinds set while keeping
+  its at-a-glance examples; no behavior change.
+
 ## [0.13.1]
 
 ### Changed
