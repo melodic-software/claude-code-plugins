@@ -76,6 +76,26 @@
   mode ladder already names `pyproject.toml` as evidence for selecting CONTAINER mode. The skill
   therefore routed such a package into the mode that suppresses bare-token residue while being
   unable to match the one declaration that mode makes load-bearing.
+- **Form 14 matches a catalog KEYED by the container, and YAML declarations at any indentation.**
+  The mode ladder names both catalog shapes — a manifest's `name`/`id` field or a key in a
+  registry catalog — but only the field shape had a pattern, and the YAML alternative was anchored
+  at column zero so a nested manifest entry missed. Both selected container mode while their own
+  registration stayed excluded residue. The key-position alternative requires the value to OPEN an
+  object or array, and is Ambiguous outside a manifest or catalog unconditionally: `"<key>": {` is
+  the commonest line shape in JSON (569 in this repository alone), so the file condition is what
+  keeps it from becoming a mass-rewrite vector. A YAML block-mapping catalog key stays a
+  documented gap: it opens with nothing, so the only pattern reaching it would match every nested
+  YAML key.
+- **Container mode's Certain rule is enforced as an allowlist over forms.** It was applied only to
+  the bare-token residue, leaving Forms 8 and 12 — both Certain by default — on the auto-apply
+  path: renaming a `context` plugin would rewrite the unrelated dotted key `context.timeout` and a
+  `{a,context,b}` glob. Forms 1, 3 and 13–15 are the whole eligible set; every other form demotes
+  to Ambiguous, reported per match rather than folded into the aggregate.
+- **The survey rescans multiline matches as blocks.** Per-occurrence records were extracted by
+  re-running each form's pattern against a single returned line, which reproduces nothing for
+  Form 7 and Form 14's Setext alternative — so no record was emitted and the reference vanished
+  between survey and triage, silently, on the two forms added because their references were being
+  missed.
 - **Form 14's declaration alternatives accept `id`, not only `name` and `title`.** The mode ladder
   already selects container mode on `<old>` appearing as the `name`/`id` field of a manifest, so a
   manifest identifying the container by `id` routed into the mode that suppresses bare-token

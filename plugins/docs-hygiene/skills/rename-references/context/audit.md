@@ -52,10 +52,20 @@ Run all patterns from [patterns.md](patterns.md) in parallel via Grep tool. For 
 **Collect per-OCCURRENCE records, not per-line ones.** `output_mode: "content"` returns matching
 LINES, and `--column` reports only the first match on a line — so a line-shaped record gives the
 span rule below nothing to compare and silently degrades it back to line-keyed dedup, restoring
-the false completion eval 14 exists to prevent. For every returned line, re-scan it locally for
+the false completion eval 14 exists to prevent. For every returned match, re-scan it locally for
 ALL occurrences of the form's pattern and emit one record per occurrence:
 `{file, line, start, end, pattern_form, snippet}`. A line with two `<old>` occurrences produces
 two records.
+
+**Rescan the returned BLOCK, not a line, for the multiline forms.** For Form 7 and Form 14's
+Setext alternative the unit Grep returns is a multi-line block, and the pattern only matches
+against that whole block — feeding it one line at a time reproduces NOTHING, so the rescan emits
+no record and the reference vanishes between the survey and triage, silently, on exactly the two
+forms that were added because their references were being missed. Keep the matched block intact,
+run the form's pattern against the block, locate the captured `<old>` span within it, and convert
+that block offset to `(line, start, end)` using the block's own first-line number. Line-by-line
+rescanning is correct for every single-line form and wrong for these two; branch on whether the
+form needs `multiline: true`, which is the same two forms listed above.
 
 With those records, apply BOTH rules from `patterns.md`, in this order:
 
@@ -66,10 +76,13 @@ With those records, apply BOTH rules from `patterns.md`, in this order:
    first — or the count doubles and the second targeted Edit fails on an already-rewritten token.
    A match by Forms 13–15 is attributed to that form and its weaker Form 2 / chain-form duplicates
    are dropped. Carry the dropped count into the report's "superseded" row.
-2. **Container-rename mode** ("Phase 0b") — when the renamed thing is a container, exclude the
-   remaining bare-token residue from Certain entirely and report it as one aggregate count.
-   Precedence alone leaves that residue at Form 2's Certain default; the mode rule is what
-   removes it.
+2. **Container-rename mode** ("Phase 0b") — when the renamed thing is a container, apply the
+   Certain-eligibility ALLOWLIST to every remaining match, not only to the bare-token ones. Forms
+   1, 3 and 13–15 are the whole eligible set: Form 2's residue leaves Certain and is reported as
+   one aggregate count, and **every other form's matches — Forms 4 through 12 — are demoted to
+   Ambiguous**, including Forms 8 and 12, which are Certain by default and would otherwise stay
+   on the auto-apply path and rewrite an unrelated dotted key or glob entry. Precedence alone
+   leaves all of them at their identifier-mode ratings; the mode rule is what removes them.
 
 Both run BEFORE Phase 3, or triage will bucket the same reference twice and re-admit the
 residue the mode rule excluded.
@@ -79,7 +92,9 @@ residue the mode rule excluded.
 Classify each match into one of three buckets per [triage.md](triage.md):
 
 - **Certain** — high-precision form (slash-token, path, frontmatter glob, and the
-  container-position Forms 13–15 **when their own scope rules do not demote them**)
+  container-position Forms 13–15 **when their own scope rules do not demote them**). **Under
+  container-rename mode the eligible set is narrower** — Forms 1, 3 and 13–15 only, so the
+  frontmatter glob (Form 8) and the dot-form (Form 12) are not Certain there
 - **Chain-context** — high-precision form when neighbors confirm context (chain prose with known skill names, numbered rows)
 - **Ambiguous** — bare-token form when `<old>` is in English-verb blocklist, OR chain-form without confirming neighbors
 
@@ -122,6 +137,7 @@ Pattern-form breakdown:
 - Form 15 (possessive/appositive): <count>
 - Form-2 hits superseded by container-position matches: <count>
 - Bare-token occurrences outside container position (container-rename mode; NOT proposed): <count>
+- Forms 4–12 demoted to Ambiguous by the container-mode allowlist: <count>
 
 Next: invoke `/rename-references <old> to <new>` to apply, or `/rename-references preview <old> to <new>` to dry-run.
 ```

@@ -11,7 +11,7 @@ Match patterns where the rename intent is unambiguous regardless of surrounding 
 - Form 1: slash-prefixed token (`\B/<old>\b`) — slash-tokens are skill names by convention; token in `<old>` position is virtually never an English word with a leading slash
 - Form 3: path references (`context/<old>.md`, `skills/<old>/`, and a container-root segment
   ending in the token, `plugins/<old>`) — paths are inherently specific
-- Form 8: frontmatter glob set (`{a,b,<old>,c}`) — brace enumeration is a glob construct, not English prose
+- Form 8: frontmatter glob set (`{a,b,<old>,c}`) — brace enumeration is a glob construct, not English prose. **Identifier mode only:** under container-rename mode Form 8 falls outside the Certain-eligibility allowlist and demotes to Ambiguous, as does Form 12 — a glob set and a dotted key both prove the token is an IDENTIFIER, which is not what a container rename is asking (`patterns.md` "Phase 0b")
 - Forms 13–15 (container-position) — but ONLY the alternatives their own form rates Certain.
   Form 13's management-verb alternative, a Form 14 title in a container-owned file with an
   uncommon token, a Form 14 manifest/catalog `name` declaration (exempt from the scope rule), and
@@ -112,7 +112,9 @@ reaching for the blocklist.
 match; the remaining bare-token lines still reach Form 2 and take its Certain default. What
 removes them is `patterns.md` "Phase 0b — container-rename mode": when the renamed thing is a
 container, bare-token position carries no signal at all, so the residue is excluded from Certain
-and reported as an aggregate rather than as prompts. Mode is decided by WHAT is being renamed,
+and reported as an aggregate rather than as prompts. That mode rule is an ALLOWLIST over forms,
+not a Form 2 filter: Forms 1, 3 and 13–15 are the whole Certain-eligible set, so Forms 8 and 12
+lose their Certain default there too and land in the Ambiguous bucket. Mode is decided by WHAT is being renamed,
 which is why it works where the blocklist cannot — it does not depend on anyone having listed
 the token in advance.
 
