@@ -78,7 +78,7 @@ These are the questions the section agents explicitly declined to answer, plus t
   on a feature-branch worktree of `melodic-software/dotfiles`, never an in-place edit. The same holds
   for `~/.claude/CLAUDE.md`.
 - **`.work/` never leaves its checkout.** Anything a later lane must read is stated in this ADR, in
-  its sibling ADR on the sweep boundary, or on the tracker — never cited to a working-directory path.
+  a companion ADR, or on the tracker — never cited to a working-directory path.
 - **The parallel branch** `docs/context-engineering-claude-5-topic` is still being worked by another
   session. This pass runs independently by operator ruling; the collision is resolved deliberately at
   merge, not by folding.
@@ -370,6 +370,9 @@ is in the model's context.**
 
 ### Sub-types, by remediation route
 
+Types A–C are sub-types **of the five-gate definition above** — each one passes all five gates and
+differs only in remediation route.
+
 - **Type A — direct contradiction.** Both absolute, opposite polarity. Fix: delete one or arbitrate.
 - **Type B — modality collision.** One absolute ("never", "DO NOT"), one conditional ("as
   appropriate", "when warranted"), same act. **The highest-yield type**: the absolute side reads as a
@@ -377,9 +380,18 @@ is in the model's context.**
   the absolute conditional, or make the conditional's escape hatch explicit.
 - **Type C — unarbitrated co-authority.** Two surfaces each assert ownership of one decision with no
   precedence statement. Fix: add one precedence sentence at the higher surface.
-- **Type D — split-brain.** Two instruction files govern the same behavior but only one is loaded, so
-  the divergence is invisible in-session. Fix: import or symlink so both are resident, or delete the
-  orphan.
+**Split-brain is a separate check, not a fourth sub-type.** Two instruction files that govern the
+same behavior while **only one is ever loaded** fail gate 1 by construction: they are never
+simultaneously resident, so no input prescribes incompatible actions and nothing arbitrates because
+nothing collides. Listing it as a conflict sub-type would make it unreachable — an implementation
+applying the gates faithfully discards every instance.
+
+It is still worth detecting, and its observable is different: **divergence between two surfaces that
+are never co-resident**, which is drift rather than conflict. It carries its own criteria (no
+polarity test, no arbitration test — mere disagreement is the finding), its own severity (invisible
+in-session, so it surfaces only under audit), and its own fix: import or symlink so both are
+resident, or delete the orphan. A detector ships it as a distinct check with a distinct name; it must
+not be folded into the conflict set the five gates define.
 
 ### Must-not-flag — the false positives that defeat a naive detector
 
@@ -409,9 +421,21 @@ them is worse than no detector, because each one trains its reader to dismiss th
 
 `claude-memory:audit` already ships check **C6 Consistency** at
 `plugins/claude-memory/skills/audit/reference/criteria.md`, which detects contradiction **inside the
-memory layer** — project `CLAUDE.md` versus `CLAUDE.local.md` versus project `.claude/rules/`. Under
-D-1 and this repository's reuse-or-replace posture, that slice is reused or extended, never
-re-implemented. The novel scope is **cross-layer** contradiction: a repo rule against a skill body, a
-user-global rule against a project rule, a skill's stated default against its plugin README, and
-agent definitions, hook text and output styles — none of which C6 covers. The sibling ADR on the
-sweep boundary rules on where that work lands.
+memory layer**. Under D-1 and this repository's reuse-or-replace posture, that slice is reused or
+extended, never re-implemented.
+
+**The reuse boundary is what C6 operationally covers, not what its description claims**, and the two
+differ: its discovery step is `find . -maxdepth 1` over `CLAUDE.md`/`CLAUDE.local.md` plus
+`find .claude/rules`, and its cross-file step tests `CLAUDE.md` against `.claude/rules/` for
+contradiction but `CLAUDE.md` against `CLAUDE.local.md` only for redundancy. So the one pair it
+covers is root project `CLAUDE.md` versus project `.claude/rules/`, and **the novel scope is every
+contradiction pair outside that** — including three same-layer pairs a "cross-layer" framing would
+silently drop (root versus nested `CLAUDE.md`, `CLAUDE.md` versus `CLAUDE.local.md` for
+contradiction, user-global versus project rules) as well as the cross-layer ones (a repo rule against
+a skill body, a skill's stated default against its plugin README, agent definitions, hook text,
+output styles).
+
+**Where it lands: a new phase in `claude-config`'s `audit-instructions` skill.** Stated here directly
+so this ADR does not depend on another to be actionable; the full option analysis and the cost that
+placement carries — Phase A must first gain a plugin-source surface, since it enumerates only the
+user and project `.claude/**` roots today — are recorded in ADR 0005 on the sweep boundary.
