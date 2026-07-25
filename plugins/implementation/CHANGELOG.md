@@ -3,6 +3,21 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.2]
+
+### Changed
+
+- **`implement`: the phase-boundary handoff step no longer restates `session-flow`'s save-point
+  section list.** It carried a reordered, partial copy of that taxonomy which had already drifted
+  from the owner doc. When `session-flow` is installed the step now defers to
+  `/session-flow:handoff`, which owns the format. Without it, this skill owns the fallback shape, so
+  the step states it directly: the note must stand on its own — what shipped, the decisions made and
+  why, the approaches tried and ruled out, the files modified, anything already applied that must
+  not be repeated, and the ordered remainder — plus the two items specific to a phase boundary, the
+  sanity-check evidence and the next-phase pointer. The fallback is unchanged in substance; what
+  changed is that it is now stated as this skill's own contract rather than as a copy of another
+  plugin's section names.
+
 ## [0.9.1]
 
 ### Changed

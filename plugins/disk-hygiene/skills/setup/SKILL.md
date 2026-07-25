@@ -25,18 +25,19 @@ report a PASS/FAIL/INFO table with one remediation line per FAIL.
 
 When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
 INFO — a deliberately disabled plugin is not broken. Report the probes informationally and
-note that re-enabling restores the FAIL semantics. One exception, and it is about *launching*
-rather than about any single verdict: if step 1 cannot get an interpreter to actually start
-under the literal name `python3`, that stays FAIL with the toggle disabled. Audit-only mode is
-*enforced by* the guard, both guard surfaces launch through that same name, and a guard that
-never starts can neither read nor enforce the configured `false` — so the fail-open is most
-dangerous in exactly this configuration. The exemption therefore covers every non-`ok`
-alias-probe verdict (`store-alias-stub`, `indeterminate`, `not-found`) *and* a nominally `ok`
-resolution whose version probe then fails to launch at all — a corrupt or zero-length binary
-outside `WindowsApps`, a broken shim, a permission error. The probe's `ok` rules out the
-WindowsApps stub, nothing more; execution is the proof. It stops where launching succeeds: an
-interpreter that starts and reports a version below the parsed floor does run the guard, so
-the version floor itself keeps the ordinary FAIL→INFO downgrade.
+note that re-enabling restores the FAIL semantics. One exception: every step-1 failure stays
+FAIL with the toggle disabled. Audit-only mode is *enforced by* the guard, both guard surfaces
+launch through the literal name `python3`, and a guard that never runs can neither read nor
+enforce the configured `false` — so the fail-open is most dangerous in exactly this
+configuration. That covers every non-`ok` alias-probe verdict (`store-alias-stub`,
+`indeterminate`, `not-found`), a nominally `ok` resolution whose version probe then fails to
+launch at all — a corrupt or zero-length binary outside `WindowsApps`, a broken shim, a
+permission error — *and* an interpreter that starts but reports a version below the parsed
+floor. Launching the version probe proves only that something executes, not that it can run
+the guard's own source: Python 3.6, for example, rejects the guard's
+`from __future__ import annotations` and exits without a deny, which PreToolUse treats as
+non-blocking — the same silent fail-open through a different door. Unproven guard execution
+fails closed like every other guard-relevant unknown in this plugin.
 
 1. **Python floor on `PATH`** — the interpreter used by scanning, validation, the
    guard, and cleanup. (The guard registers on two surfaces: a plugin-level engine gate
@@ -67,10 +68,11 @@ the version floor itself keeps the ordinary FAIL→INFO downgrade.
    zero-length file under a `WindowsApps` path component is the stub
    (`(Get-Item -Force (Get-Command python3).Source)` → `Length` 0 plus a `ReparsePoint`
    attribute); (c) only after the verdict is `ok` may the version probe execute `python3` —
-   and distinguish its two failure modes: an interpreter that starts and reports a version
-   below the floor is an ordinary floor miss, while one that fails to launch at all is a
-   guard-launch failure (the guard runs the same name), so it fails closed exactly like a
-   non-`ok` verdict, disabled toggle included.
+   and distinguish its two failure modes for the remediation wording: an interpreter that
+   starts and reports a version below the floor is a floor miss (name the parsed floor),
+   while one that fails to launch at all is a guard-launch failure (the guard runs the same
+   name). Both stay FAIL under a disabled toggle — a below-floor interpreter is not proven
+   able to execute the guard's source, so it fails closed exactly like a non-`ok` verdict.
    Only verdict `ok` passes; fail closed on everything else, using the probe's `detail` as
    the remediation. FAIL on `store-alias-stub` (disable the `python3` App execution alias,
    or install real Python ahead of WindowsApps on `PATH`) and equally on `indeterminate` — an

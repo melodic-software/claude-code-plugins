@@ -286,7 +286,13 @@ in telemetry = Sonnet; live checkout clean; any fire-without-row = Phase 1 defec
 > missed-fire detector is still specced against the hourly cadence (its wiring was already
 > deferred to Phase 4) — re-spec + revalidation against the 15-min slot grid filed as
 > scratch#66; until it lands, individual missed 15-min slots have no automated signal
-> beyond failure tracker items and run history.
+> beyond failure tracker items and run history. Same consequence split as the 2026-07-21
+> pause incident: the C2 PREDICATE window is unaffected by the cadence flip (its span
+> measures mature completions, not slot coverage), but the roadmap ACCEPTANCE clock
+> ("fires on schedule with zero manual kicks for ≥1 week") RESTARTS at the timestamp the
+> Desktop task's schedule actually flips to the 15-min grid — the prior hourly stretch
+> misses three of every four slots under the new grid and cannot count toward a week of
+> on-schedule 15-min operation.
 >
 > **Delegated-merge amendment (recorded 2026-07-22):** during accumulation the de facto
 > merge path has been operator-DELEGATED main-session merges — the interactive main
@@ -332,7 +338,9 @@ accumulation window or the first eligibility claim is hollow and the window re-a
    (`TODO(#778)` in verify-join) — the predicate's "0 human-reverted merges" input cannot
    fail until this lands.
 
-**Sanity Check:** at day 7: predicate stub shows ≥1 week of scheduled fires with zero manual
+**Sanity Check:** at day 7 of the acceptance clock — seven days after the recorded timestamp at
+which the Desktop task's schedule actually flipped to the 15-min grid, NOT day 7 of the original
+accumulation window: predicate stub shows ≥1 week of scheduled fires with zero manual
 INITIATIONS (run history: no manual entries post-warm-up; human merges expected and fine);
 gaps named as dated scope notes in the roadmap PLAN.
 

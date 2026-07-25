@@ -3,7 +3,7 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.9.2]
+## [0.9.3]
 
 ### Fixed
 
@@ -25,17 +25,37 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   verdict except `ok`: the stub and an
   unreadable-identity (`indeterminate`) verdict both FAIL with remediation (disable the App execution
   alias, or put real Python ahead of WindowsApps on `PATH`), and an absent `python3` folds into the
-  floor's missing-interpreter FAIL. The disabled-toggle FAIL→INFO downgrade is exempted on the
-  *launch*, not on a verdict: audit-only mode is enforced by the guard, both guard surfaces launch the
-  literal name `python3`, and a guard that never starts can neither read nor enforce the configured
-  `false`. So every non-`ok` verdict (`store-alias-stub`, `indeterminate`, `not-found`) stays fatal,
-  and so does a nominally `ok` resolution whose version probe then fails to launch at all — a corrupt
-  or zero-length binary outside `WindowsApps`, a broken shim, a permission error; the probe's `ok`
-  rules out the WindowsApps stub and nothing more. The exemption stops where launching succeeds: an
-  interpreter that starts and reports a version below the floor does run the guard, so the version
-  floor keeps the ordinary downgrade. The suite's test wrapper
+  floor's missing-interpreter FAIL. The disabled-toggle FAIL→INFO downgrade is exempted for every
+  step-1 failure: audit-only mode is enforced by the guard, both guard surfaces launch the
+  literal name `python3`, and a guard that never runs can neither read nor enforce the configured
+  `false`. So every non-`ok` verdict (`store-alias-stub`, `indeterminate`, `not-found`) stays fatal;
+  so does a nominally `ok` resolution whose version probe then fails to launch at all — a corrupt
+  or zero-length binary outside `WindowsApps`, a broken shim, a permission error; and so does an
+  interpreter that starts but reports a version below the floor, because launching the version probe
+  proves only that something executes, not that it can run the guard's own source (Python 3.6, for
+  example, rejects the guard's `from __future__ import annotations` and exits without a deny, which
+  PreToolUse treats as non-blocking). The suite's test wrapper
   applies the same inspection to its own interpreter candidates before executing them. The README
   requirements section documents the vector.
+
+## [0.9.2]
+
+### Fixed
+
+- **The anchored target root is validated by object identity, so benign directory churn no longer
+  aborts an approved run (#384).** Preview and apply held the target root to full stat identity
+  (`st_mtime_ns` and `st_size` included), but a directory's mtime and size flip whenever any direct
+  child is added or removed. Human approval sits between scan and apply, so any unrelated write into
+  a live target — a home or an active project root, the common case — flipped the root's mtime and
+  aborted the run with "anchored target changed since the snapshot," forcing a full rescan. Both
+  sites now use the stable device/inode/type identity that directory candidates and `handoff-verify`
+  already use; a replaced root still refuses. The check was never wrong-deleting, only over-refusing.
+
+### Changed
+
+- **`resolve_snapshot_target` no longer takes `strict_root_stat`.** With one root-identity standard
+  across preview, apply, and `handoff-verify`, the parameter that selected between them is gone and
+  the single refusal reads "target root was replaced since the snapshot."
 
 ## [0.9.1]
 
