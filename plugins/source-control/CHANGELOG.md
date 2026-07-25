@@ -3,6 +3,23 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.5]
+
+### Fixed
+
+- **`babysit-prs` worktree pruning no longer gives a false all-clear for a non-conforming directory
+  name (#555).** `prune_babysit_worktrees.py` derives each worktree's PR identity from its directory
+  name, and a directory that did not match `<owner>__<repo>__pr-<number>` was dropped before the
+  report was built — not kept, not removed, not an error, simply absent. A caller reading the JSON to
+  answer "is anything left to clean up?" saw an empty list while merged PRs' worktrees sat on disk,
+  and had to find and `git worktree remove` them by hand. Every directory under `<worktree-root>` now
+  appears in the report; an unmappable one is an explicit `action: unrecognized` row carrying its path
+  and the reason, in every mode including `--pr` (scoping narrows which PRs are acted on, never which
+  directories are accounted for). Unrecognized entries are never removed — identity is a precondition
+  for the PR-state and worker-lease checks that authorize removal — and do not fail the run.
+  `reference/worktrees.md` now states the naming convention that was previously only implied by the
+  helper's regex, plus what happens to a directory that breaks it.
+
 ## [0.26.4]
 
 ### Fixed
