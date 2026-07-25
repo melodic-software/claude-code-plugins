@@ -343,11 +343,20 @@ no shared state, no contention, and the sharding problem disappears.
 > your work back to me. Speak to me only when fully blocked and unable to
 > escalate through the tracker.
 >
-> **Work classes are not yours to set.** The autonomy contract is
-> explicit: "no repo-local (agent-writable) surface may supply the class
-> used for admission." Never apply or change a `work-class:` label. An
-> item without one still goes through the admission gate's own
-> classification, and a candidate the gate cannot confidently classify
+> **Work classes are not yours to set — in either surface.** The autonomy
+> contract is explicit: "no repo-local (agent-writable) surface may supply
+> the class used for admission." Never apply or change a `work-class:`
+> label, **and never write a `Work-class: C<n>` trailer into an item body.**
+> Your standing authorization to triage and classify does not reach these:
+> the merge partition reads the class from body or labels alike, so writing
+> either one is you manufacturing merge eligibility for a PR you authored.
+> That is the single thing this lane must never do — it is a self-certifying
+> producer, and it is why the contract names agent-writable surfaces rather
+> than naming labels. Propose a class in your cycle report and leave the
+> recording to the attended queue's operator.
+>
+> An item without a recorded class still goes through the admission gate's
+> own classification, and a candidate the gate cannot confidently classify
 > fails closed to human-gated and is escalated, never worked.
 >
 > **A missing label is not a missing class.** The merge partition accepts a
@@ -419,9 +428,12 @@ wakeup ceiling for days rather than finishing.
 > **Return contract.** Subagents return at most two lines — verdict plus
 > identifier. Speak to me only when fully blocked.
 >
-> **Work classes are not yours to set.** Never apply or change a
-> `work-class:` label to make a PR merge-eligible. A PR whose close-linked
-> item carries no work class is not eligible at any rung, including
+> **Work classes are not yours to set — in either surface.** Never apply or
+> change a `work-class:` label, **and never write a `Work-class: C<n>`
+> trailer into an item body**, to make a PR merge-eligible. You read the
+> class from body or labels alike, so writing either is you authoring the
+> input to your own merge decision. A PR whose close-linked item carries no
+> recorded class in either source is not eligible at any rung, including
 > full-autonomy. That is the correct outcome, not an obstacle: report it
 > and move on. Manufacturing your own merge eligibility is the one thing
 > this lane must never do.
@@ -506,11 +518,14 @@ letting one "primary" shard write it records a partial pass as the whole.
 > and write the answer back as a comment on the item — the decision lives
 > on the tracker, not in this session.
 >
-> **Work-class labels: you propose, I apply.** The autonomy contract
-> forbids any repo-local agent-writable surface from supplying the class
-> used for admission, and a label you write is exactly that surface. You
-> never run the label command yourself — not even to transcribe a trailer
-> I already ratified. Hand me the exact command to paste.
+> **Work classes: you propose, I apply — labels and body trailers alike.**
+> The autonomy contract forbids any repo-local agent-writable surface from
+> supplying the class used for admission. A label you write is exactly that
+> surface, **and so is an item body you edit** — `babysit-loop` reads the
+> class from either one. You never run the label command yourself, and never
+> write a `Work-class: C<n>` trailer into a body — not even to transcribe a
+> class I already ratified. Hand me the exact command to paste, for whichever
+> surface this repository records classes in.
 >
 > Many items carry an operator-ratified trailer in the body, of the form
 > `Work-class: C3 (bug-fix-shaped) — attended triage <date>,
@@ -700,11 +715,20 @@ machines; neither on the attended box.
 > your work back to me. Speak to me only when fully blocked and unable to
 > escalate through the tracker.
 >
-> **Work classes are not yours to set.** The autonomy contract is
-> explicit: "no repo-local (agent-writable) surface may supply the class
-> used for admission." Never apply or change a `work-class:` label. An
-> item without one still goes through the admission gate's own
-> classification, and a candidate the gate cannot confidently classify
+> **Work classes are not yours to set — in either surface.** The autonomy
+> contract is explicit: "no repo-local (agent-writable) surface may supply
+> the class used for admission." Never apply or change a `work-class:`
+> label, **and never write a `Work-class: C<n>` trailer into an item body.**
+> Your standing authorization to triage and classify does not reach these:
+> the merge partition reads the class from body or labels alike, so writing
+> either one is you manufacturing merge eligibility for a PR you authored.
+> That is the single thing this lane must never do — it is a self-certifying
+> producer, and it is why the contract names agent-writable surfaces rather
+> than naming labels. Propose a class in your cycle report and leave the
+> recording to the attended queue's operator.
+>
+> An item without a recorded class still goes through the admission gate's
+> own classification, and a candidate the gate cannot confidently classify
 > fails closed to human-gated and is escalated, never worked.
 >
 > **A missing label is not a missing class.** The merge partition accepts a
@@ -767,9 +791,12 @@ machines; neither on the attended box.
 > **Return contract.** Subagents return at most two lines — verdict plus
 > identifier. Speak to me only when fully blocked.
 >
-> **Work classes are not yours to set.** Never apply or change a
-> `work-class:` label to make a PR merge-eligible. A PR whose close-linked
-> item carries no work class is not eligible at any rung, including
+> **Work classes are not yours to set — in either surface.** Never apply or
+> change a `work-class:` label, **and never write a `Work-class: C<n>`
+> trailer into an item body**, to make a PR merge-eligible. You read the
+> class from body or labels alike, so writing either is you authoring the
+> input to your own merge decision. A PR whose close-linked item carries no
+> recorded class in either source is not eligible at any rung, including
 > full-autonomy. That is the correct outcome, not an obstacle: report it
 > and move on. Manufacturing your own merge eligibility is the one thing
 > this lane must never do.
@@ -839,11 +866,14 @@ terminals mutating the same row.
 > and write the answer back as a comment on the item — the decision lives
 > on the tracker, not in this session.
 >
-> **Work-class labels: you propose, I apply.** The autonomy contract
-> forbids any repo-local agent-writable surface from supplying the class
-> used for admission, and a label you write is exactly that surface. You
-> never run the label command yourself — not even to transcribe a trailer
-> I already ratified. Hand me the exact command to paste.
+> **Work classes: you propose, I apply — labels and body trailers alike.**
+> The autonomy contract forbids any repo-local agent-writable surface from
+> supplying the class used for admission. A label you write is exactly that
+> surface, **and so is an item body you edit** — `babysit-loop` reads the
+> class from either one. You never run the label command yourself, and never
+> write a `Work-class: C<n>` trailer into a body — not even to transcribe a
+> class I already ratified. Hand me the exact command to paste, for whichever
+> surface this repository records classes in.
 >
 > Many items carry an operator-ratified trailer in the body, of the form
 > `Work-class: C3 (bug-fix-shaped) — attended triage <date>,
