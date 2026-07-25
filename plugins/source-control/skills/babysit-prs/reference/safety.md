@@ -46,7 +46,13 @@ value and its unset fallback.
   other branch locally carrying this PR's work. Require the checkout to be on the PR branch or in
   detached HEAD (a coincidental same-tip match on another branch heals via `gh pr checkout`). This
   extends the head-SHA re-check below — which covered only the head moving *mid-work* — to the moment
-  the worktree is first assigned.
+  the worktree is first assigned. **One codified exception:** the conflict-resolution push in
+  `orchestration.md`'s Orchestrator Contract. There `HEAD` is by construction the local merge commit
+  the conflict worker produced, which the live PR does not carry yet, so the assertion is checked
+  one commit back: the merge commit must have exactly two parents, its **first parent** must equal
+  the live `headRefOid` (re-checked immediately before the push), and its second parent the
+  reported base. Every other condition of that contract still binds, and everywhere outside that
+  push the assertion remains on `HEAD` itself.
 - Re-check the PR head SHA immediately before editing and again immediately before pushing. Stop
   if it changed unexpectedly — someone else moved the branch.
 - **Refspec push to the branch's upstream, never branch checkout.** Do not depend on `git checkout

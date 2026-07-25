@@ -602,7 +602,14 @@ On the conflict worker's return, and before pushing anything:
   commit: its own head assertion would refuse it.
 - **Confirm the worktree carries no uncommitted tracked changes** — `git -C <worktree> status
   --porcelain --untracked-files=no` empty, and no unmerged paths. Untracked build output from the
-  verification run below does not block the push and is never committed. A worktree with
+  verification run below does not block the push and is never committed — but it must not outlive
+  the operation either: the prune helper reads full `git status --short --branch` and classifies
+  any untracked entry as `keep_dirty`, and the next assignment requires a fully clean checkout, so
+  verification byproducts left behind would make an integrated PR's worktree neither prunable nor
+  reusable. Snapshot `git -C <worktree> status --porcelain` before and after the verification
+  re-run; after a successful push, delete exactly the paths the re-run added (a targeted removal of
+  named byproducts, never `git clean`). An untracked entry that predates the re-run is not the
+  orchestrator's to delete: it stays, and is reported. A worktree with
   uncommitted tracked changes is preserved and reported, never pushed from and never pruned
   (Cleanup).
 - **Re-run the verification in the worktree.** Re-run the affected-file tests/lint/build the
@@ -635,9 +642,16 @@ On the conflict worker's return, and before pushing anything:
   resolution, or fix a conflict inline. A resolution it judges wrong is escalated, or handed to
   another fresh conflict worker — never corrected in place by the orchestrator.
 
-A no-push outcome is not "integrated": leave that PR's worktree in place rather than running the
-`--prune-open-clean` cleanup on it, so an unpushed merge commit or a `conflict-wip` branch is not
-silently discarded. Release the lease either way.
+A no-push outcome is not "integrated", and it must not strand the worktree either: left sitting on
+an unpushed merge commit, the checkout fails the next cycle's assigned-worktree head assertion, so
+a transient verification or reporting failure would permanently block automated work on that PR.
+Before releasing the lease, preserve the unpushed merge commit on the same SHA-qualified WIP scheme
+the escalation path uses — `git -C <worktree> branch conflict-wip/<pr-number>-<short-sha>` at that
+commit — then return the PR branch and worktree to the asserted head with
+`git -C <worktree> reset --keep HEAD^1` (the tree is clean, so `--keep` loses nothing; `--hard`
+stays barred). The superseded-tip case above already directs its own recovery to the new live head
+and is unchanged. Still leave the worktree in place rather than running the `--prune-open-clean`
+cleanup on it, and report the WIP branch name. Release the lease either way.
 
 After the push, the PR carries a new head: any merge decision re-snapshots and runs the pinned
 merge gate against it (`SKILL.md`), exactly as after any other worker push.
