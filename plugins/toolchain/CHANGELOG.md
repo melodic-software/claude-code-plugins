@@ -14,9 +14,10 @@ All notable changes to the `toolchain` plugin are documented here. Format follow
   resolved `gates` after build → test → lint: a gate fires when a changed file matches its
   `trigger-globs` (full changed-files set) or unconditionally when `trigger-globs` is omitted,
   runs independent of the build/test/lint short-circuit, reports `skip` when the tool is missing or
-  present-but-too-old to accept the gate's invocation form (an environment capability gap is not
+  its version is verified below the gate's documented floor (an environment capability gap is not
   project drift — a Go 1.22 toolchain skips `go mod tidy -diff` instead of failing every `*.go`
-  change), and on failure surfaces `remediation` and flips Overall to `FAIL`. A gate executes from the same
+  change, while an unexplained rejection such as a typo in a consumer's `cmd` still fails), and on
+  failure surfaces `remediation` and flips Overall to `FAIL`. A gate executes from the same
   location the ecosystem's own build/test/lint use — once per resolved `<project-dir>` for a
   `project-discovery` ecosystem, from the `anchor`'s directory otherwise — so the bundled
   `go.yaml` `go-mod-tidy-drift` gate runs from each `go.mod` root in a monorepo rather than only
