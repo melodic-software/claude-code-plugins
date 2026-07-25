@@ -187,11 +187,19 @@ example is a `#include` chain with `isIncludedBy` — structurally identical to 
 
 ### Matching across runs — the tiered table
 
-The contract had no equivalent, and chasing a churn-proof hash is the wrong goal. SARIF Appendix B
-concedes the problem rather than solving it: a fingerprint "does not need to be absolutely stable;
-it only needs to be stable enough to reduce the number of results that are erroneously reported as
-'new' to a low enough level." So the tiers are specified, and with them what suppression does in
-each.
+The contract had no equivalent, and chasing a churn-proof hash is the wrong goal. **SARIF's
+"Appendix B. (Normative) Use of fingerprints by result management systems" establishes a tolerance
+standard rather than a stability requirement** — its subject is precisely how a result management
+system should use fingerprints that are not perfectly stable. So the tiers are specified, and with
+them what suppression does in each.
+
+**The appendix is Normative, and an earlier draft had this backwards.** It read that SARIF "concedes
+the problem rather than solving it", which understated our own support: a *normative* appendix
+establishing the tolerance is stronger backing for tiered matching than a concession being leaned on
+charitably. **The sentence that framing rested on is deliberately not quoted here** — the OASIS
+single-page HTML truncates before Appendix B on repeated fetch attempts, so nobody has confirmed it
+verbatim. The appendix is cited by its verified title and status and its subject is stated rather
+than quoted. Unverified text does not ship inside quotation marks.
 
 | R1 → R2 | Verdict | Suppression |
 |---|---|---|
@@ -284,6 +292,17 @@ repository the operator owns, committed to it.
   identity sets are equal.
 - **Assertion 3.3** — a run launched from a subdirectory of the target produces the same
   `<state-key>` as one launched from the root. Working directory must not be an input.
+
+**The tree can move under a run, and the self-check must be able to say so.** Found by running the
+pass (Phase 10): the target's `HEAD` and branch both moved mid-measurement, with a plugin rename
+landing in between. The state key is computed once at the start and nothing re-validates it, so
+*"any inequality over an unchanged tree is a defect"* is **unfalsifiable on a shared checkout** — an
+inequality could mean a defect or could mean the tree moved, and the run cannot tell which.
+
+- **Assertion 3.4** — a run records the target's revision **at start and at end**. When they differ,
+  the run's determinism verdict is **`indeterminate`**, never `pass` and never `fail`, and the run
+  reports both revisions. A determinism claim over a tree that changed underneath it is not a weaker
+  claim; it is not a claim at all, and reporting it as either outcome is the error.
 
 ## 4. Suppression, per target class
 
@@ -614,7 +633,7 @@ the right figure, and the figure is expected to move once there is evidence.
 The Phase 4 sanity check asks that this document state the identity tuple, the report location rule,
 the state key, the concurrency posture, the per-class suppression surface, the checkpoint property,
 and each idempotence property **as a condition a test could assert — not as prose intent**. Each is
-above under a numbered assertion. The count is 7 identity/report/state assertions, 4 suppression
+above under a numbered assertion. The count is 8 identity/report/state assertions, 4 suppression
 assertions, 2 resumability assertions, and 8 idempotence properties — P1, P2, P3, P3a, P3b, P4, P4a,
 P5.
 

@@ -767,6 +767,8 @@ Tasks #31, #30, #20. Order matters and is not the task order.
    this machine, where no managed policy file exists today.
 3. **Then apply**, repo first: `claude-code-plugins` itself, recording hit rate, false positives, and
    dispatch cost per check.
+4. **Then route** the user-scope findings. Every one is a recommendation backfilled through
+   `melodic-software/dotfiles` — never an in-place edit.
 
 **This repository cannot exercise every rule, and the gap is measured rather than assumed.** Counted
 at `cbf27e88a9`: **0** `@`-imports in the one root `CLAUDE.md` (63 lines) or in `AGENTS.md`
@@ -783,12 +785,58 @@ fixture** to be validated at all, which is a Phase 6 design obligation rather th
 discovery. The rules still ship: the pass targets organizations, not only this machine, and an
 absent defect class here says nothing about a consumer's tree.
 
-Two further counts that shape what the run will surface: 27 of 181 skill bodies exceed 200 lines and
-the largest is 499, one line under the hard cap; and 73 of 181 already carry a `reference/` or
-`context/` directory, with only 19 genuinely flat — so the progressive-disclosure surface is
-narrower than the raw skill count suggests.
-4. **Then route** the user-scope findings. Every one is a recommendation backfilled through
-   `melodic-software/dotfiles` — never an in-place edit.
+#### Measured — every figure below carries the commit it was derived at
+
+**The design carried baseline numbers with no recorded commit and no script**, which is what let a
+figure go stale unnoticed. These were re-derived by command at **`abe914eace`** and independently
+reproduced in this lane. **The commit is part of each figure**, because the population itself moved:
+this worktree's `plugins/` tree measures 181 skills and a 425-line maximum, while `abe914eace`
+measures 182 and 497. Neither is wrong; a figure without its commit is.
+
+- **The skill listing budget — reproduces.** **131 listing-eligible skills, 80,220 description
+  characters.** Eligibility is *derived*, not assumed: listing-eligible ⟺ `disable-model-invocation`
+  is not `true`. **Zero of the 131 exceed the repo's own 1,536-character per-skill listing cap**, and
+  the longest is 1,161. So the fleet passes its per-skill gate 131 out of 131 while the **ungated
+  aggregate** stands at 80,220 — **the gap is a missing fleet-level cap, not a per-skill one**, which
+  is the finding that sharpens D6. Caveat that travels with the number: the repo fleet is not the
+  installed fleet, so 80,220 is this repository's listing cost, not any consumer's.
+- **The line cap — reproduces, and it is the comparison that matters.** **0 of 182 skill bodies
+  exceed the 500-line hard cap; the maximum is 497** (`source-control/babysit-prs`) — a gate visibly
+  binding, a corpus written *to* its limit. Set against the re-attach cap, 182 of 182 pass the line
+  cap while 14 of 182 exceed truncation. **A conformance rate of 100% and a real defect population
+  of 14 coexist**, because the two caps measure different things.
+- **The re-attach cap — reproduces with a correction**, and the eviction arithmetic **does not**.
+  Both are recorded in [design/article-sections.md](design/article-sections.md), row S1-c, with the
+  divisor and whole-file-versus-body choices stated alongside the count, because each moves the
+  answer more than the corpus change did.
+- **Unreachable support files — did NOT reproduce. The old "~10 across 5 skills" must not ship.**
+  The verified count is **three**, each named, with the resolver-limitation methodology finding that
+  matters more than the count — [design/article-sections.md](design/article-sections.md), row S1-b.
+
+#### Coverage limits this run must state rather than imply
+
+A run that does not say what it could not reach reports its own blind spots as clean.
+
+- **Native-first is unsatisfiable when the runner cannot open a session inside its own target.**
+  `/context`, `/memory`, `/skills`, `/hooks`, `/status`, `InstructionsLoaded` logs, and
+  `--safe-mode` were all unavailable, so the pass degraded to exactly the filesystem-and-git walk the
+  design itself calls *"a candidate set, never the answer"*. Every native-first ruling in
+  [design/checks-and-sweep.md](design/checks-and-sweep.md) is therefore **designed but unexercised**.
+- **The managed tier is entirely untested.** `C:\ProgramData\ClaudeCode` does not exist on this
+  machine, so every managed-tier scope rule — read-only, never remediated, highest precedence — is
+  unexercised rather than confirmed.
+- **User scope is a fixed path, not a hierarchy ancestor.** A `CLAUDE.md` walk upward from the target
+  terminates at `D:\` and never reaches `C:\Users\KyleSexton\.claude\CLAUDE.md`. Any walk
+  implementation needs the fixed-path leg stated as its own step, or user scope is silently missing
+  from a run that looks complete.
+- **A worktree lives inside the scan root** — `.claude/worktrees/ignition-rebind-note`, untracked.
+  A raw filesystem walk double-counts every surface beneath it; `git ls-files` does not. Concrete
+  evidence for the exclusion set's git-tracked-enumeration preference, which was argued from
+  principle before and is now argued from an instance.
+- **The repository has no prompt-type instruction hook.** 15 `hooks.json` files, zero
+  `UserPromptSubmit`; the 13 plugins emitting `additionalContext` do so as `PostToolUse`
+  *diagnostics*, not standing instructions. Worth knowing before I12's surface set promises a
+  prompt-type hook surface it cannot exercise here.
 
 - **Sanity Check:** two consecutive runs over an unchanged tree emit machine-readable finding files
   whose **derived-tier** sections diff clean, per the Phase 4 identity function — including the

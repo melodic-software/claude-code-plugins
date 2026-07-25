@@ -58,13 +58,77 @@ Each row carries two independent answers, because conflating them is what the fi
 | D2 | S6 | extends **I9's Remediate line** in `audit-instructions` | off — `OPINION` | Fails the *evidence* test, not the coverage test — the first draft reported it the other way round. I9 already detects the same artifact (an example block pinning the model's approach); R-A adds only where the information should go instead. `skill-quality:check` cannot host it: its contract is "NO model invocation… reproducible in CI", and representational-equivalence judgement is not reproducible — re-verified 2026-07-24 against open PR #1096's check 21, see "The determinism contract, re-verified against check 21" below. `official-corroboration.md`, the S6 row; `check-skill.sh:4`, the header contract comment, plus `skill-quality:check`'s `SKILL.md`, "Purpose" |
 | D3 | S8 | **new check** in `audit-instructions`, beside I3 | off — `OPINION` (pending S8 re-verification) | Not `extract-ssot`: that refuses below three instances and picks a home by content type, never by proximity to what is governed. Not I3 either — **different axis**: I3 is load *timing*, D3 is definition-site *locality*, and an instruction can be correctly deferred and still misplaced. `extract-ssot/SKILL.md`, "Decision framework" — the Rule of Three gate; `criteria.md`, check I3 |
 | D4 | S13 | extends **I6 and I8** with a stopping condition, `claude-config`-local | **on** — suppressor inversion | Neither I6 nor I8 carries any a-priori bound: I6's escape is a rewrite concession, I8's remediation is unconditional. And no trimming rule outside `claude-config` needs to consult it — every `docs-hygiene` trimmer already owns a local stopping condition. One consumer, so a local check, not a shared artifact. `criteria.md`, checks I6 and I8 |
-| D5 | S10+S14 | **nothing built** | deferred | The one remainder with no incumbent to calibrate. **Trigger:** an official page names artifacts or a reference ranking as normative, or a reproducible defect shape makes it auditable. `coverage-matrix.md`, "What the matrix says", the S10+S14 entry; `official-corroboration.md`, the S10 artifacts row, the S14 row, and the `artifacts` entry under "Out of scope, with reason" |
+| D5 | S10+S14 | **nothing built** | deferred — **trigger split; one half fired** | The one remainder with no incumbent to calibrate. The single trigger conflated two conditions whose verdicts now run opposite ways — see "D5's trigger, split in two" below. `coverage-matrix.md`, "What the matrix says", the S10+S14 entry; `official-corroboration.md`, the S10 artifacts row, the S14 row, and the `artifacts` entry under "Out of scope, with reason" |
 | D6 | S7 remainder | **splits by the surface partition** — tightens I3's Remediate for non-memory surfaces; folds into the C3 revision for memory surfaces | on — `ANTHROPIC-DOCS` | I3 names the right destinations but supplies no qualifying test and no cost: nothing in it says `@path` fails to defer, so an auditor could satisfy its letter and change the load profile not at all. And I3 is contractually barred from memory surfaces, which is where the rule matters most. `criteria.md`, "Surface partition" and check I3; `official-corroboration.md`, the "`@path` imports do not save context" bullet and the compaction-table section |
 | D7 | S4 remainder | folded into **one consolidated C3 revision** in `claude-memory:audit` | on — `ANTHROPIC-DOCS` | Its premise is official policy on an existing page, so it is not a gap — but C3 *already is* the routing table and is missing two rows the plugin's own reference material supplies: auto-memory as a destination, and `@path` as a non-deferring one. **D7 and D6's memory half are the same rule**; filing them separately would emit two findings on one misplaced section. `official-corroboration.md`, the `features-overview` entry under "Pages the plan's list missed"; `claude-memory` `criteria.md`, check C3 |
 
 **One new officially-backed check survives** (D1). One further new check ships `OPINION`-tier and
 default-off (D3). Everything else is an edit to a check that already exists. Nothing lands in
 `docs-hygiene` or `skill-quality` at all.
+
+### D5's trigger, split in two
+
+The row carried one trigger with an `or` in it: *an official page names artifacts or a reference
+ranking as normative, **or** a reproducible defect shape makes it auditable.* Both halves were
+re-checked this session and **they are stale in opposite directions**, which is why one trigger could
+not carry them.
+
+**Clause 1 — the artifacts half is not unbacked, it is contradicted, so it can never fire.** Verified
+by fetching <https://code.claude.com/docs/en/artifacts>. The page is titled "Share session output as
+artifacts" and states, verbatim under "What an artifact is not": *"An artifact is a capture of work,
+not an application."* It defines an artifact as a live interactive page published to claude.ai — one
+self-contained page, CSP-sandboxed, no backend, no external requests. It never names artifacts as a
+context, memory, or instruction destination.
+
+The one place the page touches an instruction surface points the **opposite** way: it tells the
+operator to record a design system in `CLAUDE.md` so Claude can read it *while building* an artifact.
+That is `CLAUDE.md` as a source feeding artifacts, not artifacts as a destination holding
+instructions — the exact inversion of what the trigger waits for.
+
+**So a trigger waiting for a page to call artifacts normative is waiting on a page that currently
+asserts the opposite.** It is converted from a trigger to a **guard with its population measured at
+zero**: artifacts are affirmatively out of the instruction-surface partition, and the must-not-flag
+case is `docs/PLUGIN-ARTIFACT-PROTOCOL.md` — a repository document *about* artifacts, which is not
+itself an artifact and must never be flagged as one. **Re-trigger only if** an official page later
+places artifacts in the context or instruction path, which would be a reversal rather than an
+addition.
+
+**Clause 2 — the code-as-spec half has already fired.** This is the direction nobody was watching,
+and the evidence is a live divergence in this repository. Two artifacts both claim normativity for
+the same schema and have drifted:
+
+| | `machine-health` markdown copy | machine-readable counterpart |
+|---|---|---|
+| Path | `plugins/machine-health/skills/audit/references/shared/output-schema.md`, lines 9–39 | `plugins/machine-health/skills/audit/catalog/schemas/check-result.schema.json`, 109 lines |
+| Dialect | draft-07 | 2020-12 |
+| `required` | 9 fields | 14 fields |
+| `additionalProperties` | absent | `false` |
+
+Verified by reading both files, not transcribed. The markdown copy opens by declaring itself
+normative — *"The schemas below are normative — every check script, every remediation script, and
+the orchestrator must produce output validating against them"* — while the JSON file is the one a
+validator actually consumes. **A script written against the markdown copy emits output the real
+schema rejects**, because five required fields and an `additionalProperties: false` constraint exist
+in one and not the other.
+
+That is exactly the trigger's own condition: a reproducible defect shape that makes the concern
+auditable. **The disposition changes to `deferred with the trigger fired`, and it is recorded as a
+finding rather than a failure** — S14's "rich references" concern has a real, mechanically detectable
+instance, and it is a *duplication* defect (two normative copies of one spec) rather than a ranking
+one. It stays out of *this* deliverable's scope on the unchanged ground that its subject is
+schema duplication rather than instruction content, and it is recorded as a candidate check for
+whichever plugin owns schema conformance — not as new surface here.
+
+**One correction to the evidence as it reached this document:** the JSON schema was cited at
+`catalog/schemas/check-result.schema.json`, a repository-root path. It is not there. The file lives
+**inside the skill** at `plugins/machine-health/skills/audit/catalog/schemas/`, which matters because
+a root-level path would have implied a shared contract surface and it is in fact skill-private. The
+line ranges were correct.
+
+**Nothing ships or unships as a result.** The criteria lane confirmed there is no D5 row anywhere in
+the shipped catalogs — no artifacts row, no reference-ranking row, no S10 or S14 content in either
+host catalog, in `audit-instructions/SKILL.md`, or in its evals. "Deferred with trigger, nothing
+built" required exactly that, and it holds. This is a design-document correction only.
 
 ## Escalation
 
