@@ -96,8 +96,10 @@ pre-clear content sits in a sibling — never in the current session's own file.
      in prompt-only mode, where the whole inline block is what gets surfaced.
    - mtime alone can never pick the winner (multiple sessions land within seconds of each other) —
      the markers do.
-4. **Confirm before resuming — hard gate.** Surface the found handoff's **metadata only**: topic,
-   date, and the `session_id` chain (file mode) or the inline resume prompt (prompt-only mode). Ask
+4. **Confirm before resuming — hard gate.** Surface the found handoff's **metadata only**: the
+   recovered file path (or the original `Read @…` directive as found), topic, date, and the
+   `session_id` chain (file mode) or the inline resume prompt (prompt-only mode) — the path is the
+   thing being recovered, and the operator cannot verify the candidate without it. Ask
    for an explicit yes/no and **stop**. Do not read the file's body, `/clear`, or execute the
    resume prompt before the operator confirms. Resuming the **wrong** handoff is worse than
    recovering none.
@@ -115,8 +117,11 @@ pre-clear content sits in a sibling — never in the current session's own file.
 
 ## Read-only + redaction — hard invariants
 
-- **Read-only.** No writes, no `/clear`, no resume execution before the confirm gate. This skill
-  finds and surfaces; it never mutates state.
+- **Read-only through the confirm gate.** Detection and everything before the operator's
+  confirmation writes nothing, never `/clear`s, never executes the resume. **After** confirmation,
+  control passes to the selected resume path (the handoff's next steps, or
+  `/session-flow:keep-going`), which acts normally — the read-only guarantee covers the recovery,
+  not the resumed work.
 - **Redaction-aware.** Transcripts and handoff files can contain secrets. Quote **only** the resume
   prompt and the handoff metadata — **never** dump raw transcript content. Apply the same
   shape-marker redaction the producer uses (`save-point.md` "Redaction pass"): replace any
@@ -126,7 +131,7 @@ pre-clear content sits in a sibling — never in the current session's own file.
 ## Boundaries — pick the right sibling
 
 - **`/session-flow:handoff`** — the producer. Writes the save-point + resume prompt this skill
-  recovers. find-handoff writes nothing.
+  recovers. find-handoff writes nothing during recovery.
 - **`/session-flow:keep-going`** — recovers and continues **off-thread / interrupted** work. When
   the lost session ended mid-work, this skill hands there. keep-going covers the case where the
   handoff path is *known* but work was interrupted; find-handoff covers the disjoint case where the
@@ -137,8 +142,9 @@ pre-clear content sits in a sibling — never in the current session's own file.
 
 ## What this skill does NOT do
 
-- **Writes nothing** — no files, no memory, no `/clear`, no resume execution before the confirm
-  gate.
+- **Writes nothing during recovery** — no files, no memory, no `/clear`, no resume execution
+  before the confirm gate. Post-confirmation work belongs to the selected resume path, not to this
+  skill's recovery ladder.
 - **Does not dump raw transcript content** — surfaces only the resume prompt + metadata, redacted.
 - **Does not auto-resume** — the confirm-before-resume gate is mandatory; wrong-handoff resumption
   is worse than none.
