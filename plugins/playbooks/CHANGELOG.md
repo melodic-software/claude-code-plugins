@@ -4,6 +4,29 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.5.1]
+
+Runs the context-engineering rightsizing effort's criteria catalog
+(`docs/topics/context-engineering-rightsizing/design/` on `feat/context-engineering-rightsizing`,
+not yet merged to `main`) over `fable-5`, the one subtree decision D-6 excluded from the original
+pass because #1261 was rewriting it concurrently. #1261 merged first; this closes the follow-up
+(#1324).
+
+### Changed
+
+- **`fable-5`: narrow the fresh-context-verifier trigger to exclude mechanical,
+  behavior-preserving batches** — `context/orchestration.md`, section "Fresh-context
+  verification" (the owning site, full reasoning); `SKILL.md`'s core-doctrine distillation and
+  `context/verification.md`'s floor statement both restate the trigger operatively and are
+  narrowed to match, each pointing back to the owning section for the exception's detail.
+  Previously the trigger fired unconditionally after any multi-file edit batch or before any
+  multi-part completion claim; the catalog's S3 digest names this exact blanket dispatch as the
+  D-5 target ("drop blanket dispatch on mechanical behavior-preserving work; keep it where the
+  verdict is subjective or blast radius is wide") and lists `playbooks/fable-5` among the affected
+  files. The carve-out reuses the planning chapter's existing behavior-preserving/behavior-changing
+  distinction rather than inventing a second one, and a subjective verdict or a wide blast radius
+  keeps the original trigger unchanged at all three sites.
+
 ## [0.5.0]
 
 Numbered `0.5.0` rather than the `0.4.0` this branch first claimed: #1261 merged
