@@ -9,9 +9,10 @@ applicability, and one decisive source line (point-don't-copy — the full doctr
 cited URL, not restated here).
 
 **Recheck triggers** — treat these as staleness signals and re-verify the catalog against live
-docs when any fires: a new frontier model release; any change to the two prompting-best-practices
-pages; a change to the Claude Code best-practices page. Model-specific pages (the Fable 5 guide)
-are superseded on each model generation.
+docs when any fires: a new frontier model release; **a change to any page listed under Sources
+below**. Every check cites one of those pages, so the trigger set is the source set — naming a
+subset would leave the harness-behavior rows depending on pages nothing watches. Model-specific
+pages (the Fable 5 guide) are superseded on each model generation.
 
 **Axes.** Three orthogonal axes, never conflated:
 
@@ -19,9 +20,8 @@ are superseded on each model generation.
   truth is observed model behavior, so findings ship as proposals verified by the delete-and-watch
   loop, never confident removals).
 - **Authority** — `ANTHROPIC-DOCS` (official documentation), `TALK` (a recorded talk), `OPINION`
-  (a practitioner's stated practice). A closed three-value set. All fourteen checks are
-  `ANTHROPIC-DOCS`: a candidate whose only backing is a practitioner's claim earns a row when an
-  official page states the behavior it asserts, and is eliminated when the search finds none.
+  (a practitioner's stated practice). A closed three-value set. All fourteen checks are currently
+  `ANTHROPIC-DOCS`.
 - **Severity** — `error` / `warning` / `info`.
 
 **Surface partition.** Checks I1–I5 are the instruction-memory hygiene layer: they apply on
@@ -171,11 +171,17 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: 
 Tier `behavioral` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surfaces: all.
 
 - **Detect:** an instruction that asserts a Claude Code *harness* behavior — what a command does,
-  what a keystroke saves, what loads into which context window, what a mode persists — which the
-  current official page for that behavior contradicts or no longer documents. The subject is the
-  product, not the model, which is what separates this from I8.
+  what a keystroke saves, what loads into which context window, what a mode persists — where
+  **either** the current official page for that behavior states something incompatible with it,
+  **or** a version-matched reproduction of the asserted behavior fails. The subject is the product,
+  not the model, which is what separates this from I8.
 - **Remediate:** correct the claim against the cited page, or cut it and point at the page instead
   of restating it. Where the behavior is version-gated, carry the minimum version with the claim.
+- **Must NOT flag: silence.** A page that no longer mentions a behavior is not evidence the behavior
+  changed — product documentation is routinely rewritten, condensed, or reorganized, and this
+  repository deliberately keeps empirical smoke tests for behaviors the official pages never
+  specified at all. Absence of documentation raises the claim for reproduction; it does not
+  establish drift, and it never on its own justifies a removal.
 - **Must NOT flag:** prose that names two adjacent forms and distinguishes them correctly — the
   terminal `claude doctor` being read-only while the in-session `/doctor` applies fixes is the
   canonical pair, and a file that states both is right, not drifting. A bare routing pointer that
@@ -210,10 +216,17 @@ Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `warning` · Surface
 Tier `mechanical` · Authority `ANTHROPIC-DOCS` · Severity `info` · Surfaces: agent definitions and
 skill bodies.
 
-- **Detect:** an instruction directing the agent to go read a surface that its own startup context
-  already contains — `CLAUDE.md`, `CLAUDE.local.md`, project rules, managed policy files. The read
-  spends a turn to retrieve text that is already present.
+- **Detect:** an instruction directing the agent to go read a surface the main conversation loads at
+  startup and therefore already carries — the root `CLAUDE.md`, `~/.claude/CLAUDE.md`,
+  `CLAUDE.local.md`, unconditional project rules (no `paths` frontmatter), and managed policy files.
+  The read spends a turn to retrieve text that is already present.
 - **Remediate:** cut the retrieval step and state the requirement the read was meant to satisfy.
+- **Must NOT flag: anything that loads on demand rather than at startup.** The guarantee this check
+  rests on covers the hierarchy *the main conversation loads*, which is not the whole memory family.
+  **Nested `CLAUDE.md` files in subdirectories and path-scoped rules (`paths` frontmatter) load
+  lazily when work reaches their scope**, so an instruction to read a package-local `CLAUDE.md`
+  before operating in that package can be doing real work. Flag only when the specific file named is
+  one of the startup-loaded set above; when a surface's residency is not established, leave it.
 - **Must NOT flag:** an instruction to read a surface that is *not* auto-loaded — `AGENTS.md`,
   contributing guides, ADRs, CI workflow files, per-ecosystem convention docs. Those are ordinary
   progressive disclosure. An agent whose job is to audit an instruction surface, which must open
@@ -222,7 +235,9 @@ skill bodies.
   subagents that skip `CLAUDE.md` and have no per-agent setting to change that.
 - **Source:** subagents, "What loads at startup" — a non-fork subagent's initial context contains
   "every level of the CLAUDE.md hierarchy the main conversation loads, including
-  `~/.claude/CLAUDE.md`, project rules, `CLAUDE.local.md`, and managed policy files."
+  `~/.claude/CLAUDE.md`, project rules, `CLAUDE.local.md`, and managed policy files." The qualifier
+  *the main conversation loads* is what bounds this check: memory documents lazy loading for
+  "path-specific rules or lazy-loaded files in subdirectories", so those are outside the guarantee.
 
 ---
 

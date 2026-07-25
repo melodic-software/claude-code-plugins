@@ -12,15 +12,29 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   behavior that the current official page contradicts — the product, not the model, which is what
   separates it from I8. I13 flags an `@path` written where `@` carries no import meaning, so the
   cited content silently never arrives. I14 flags an instruction telling a subagent to read a
-  surface its startup context already contains. Each row carries its must-not-flag cases, and the
-  three new official sources (CLI reference, subagents, skills) join the catalog's source list.
+  surface the main conversation loads at startup and therefore already carries. Each row carries its
+  must-not-flag cases, and the three new official sources (CLI reference, subagents, skills) join the
+  catalog's source list.
 
 ### Changed
 
-- **`Authority` gloss states what an unbacked candidate earns.** A candidate whose only backing is
-  a practitioner's claim becomes a row when an official page states the behavior it asserts, and is
-  eliminated when the search finds none. All fourteen checks remain `ANTHROPIC-DOCS`, and the axis
-  stays a closed three-value set rather than widening under every existing consumer.
+- **Recheck triggers now watch every page in the catalog's source list**, not the three originally
+  named. Each check cites one of those pages, so a subset left the new harness-behavior rows
+  depending on pages nothing watched.
+- **I12 no longer treats documentation silence as drift.** Detection now requires an official page
+  stating something incompatible with the claim, or a failed version-matched reproduction. A page
+  that stops mentioning a behavior is not evidence the behavior changed — pages are routinely
+  rewritten and condensed, and this repository keeps empirical tests for behaviors the docs never
+  specified at all.
+- **I14 is bounded to the surfaces actually loaded at startup.** The subagent guarantee it rests on
+  covers the hierarchy *the main conversation loads*; nested `CLAUDE.md` files and path-scoped rules
+  load lazily when work reaches their scope, so an instruction to read a package-local file before
+  operating there can be doing real work. Flagging it would have removed scoped instructions.
+
+- **`Authority` gloss restated descriptively.** It now reads "All fourteen checks are currently
+  `ANTHROPIC-DOCS`" — a statement about the catalog's present contents, not a rule. `TALK` and
+  `OPINION` stay reachable for a future row, and the axis stays a closed three-value set rather than
+  widening under every existing consumer.
 
 ## [0.9.2]
 
