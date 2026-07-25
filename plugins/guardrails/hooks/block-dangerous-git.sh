@@ -198,10 +198,18 @@ is_lease_opt() { abbrev_match "force-with-lease" "${1%%=*}" 7; }
 # lease against whatever it points at. Accepting the union would let either
 # shape through in the repository where it is a name.
 #
-# Width of the repository the push will run in, resolved at most once per hook
-# run and only on the rare path that sees a hex expectation — the guard shells
-# out nowhere else. 0 means "undeterminable" (no git, no repository), which
-# fails closed: a push cannot succeed there either.
+# Width of the repository at the HOOK'S OWN working directory, resolved at most
+# once per hook run and only on the rare path that sees a hex expectation — the
+# guard shells out nowhere else. 0 means "undeterminable" (no git, no
+# repository), which fails closed: a push cannot succeed there either.
+#
+# Known gap: a compound `cd <elsewhere> && git push …` pushes from a directory
+# this probe never sees, so a hex expectation is judged against the wrong
+# repository when the two hash formats differ. Resolving the cd target would
+# mean evaluating arbitrary shell word expansion, which this guard deliberately
+# does not do (static matching over the literal command string only). The
+# residual case needs a SHA-256 repository, a lease pinned to a full-width hex
+# word that is also a ref name there, and a compound cd into it.
 _repo_oid_width=""
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 repo_oid_width() {
