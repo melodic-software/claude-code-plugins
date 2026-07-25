@@ -319,6 +319,25 @@ assert_contains "the entity inside the contrastive clause is still prohibited" \
 assert_eq "an ordinary comma does not truncate the window" "1" \
   "$(bash "$SCRIPT" --count "$MANDATE" "$PROHIBIT")"
 
+# --- Case 31: a contrastive conjunction with NO comma still splits ----------
+# English does not require the comma, and requiring it left the same false
+# negative one punctuation mark away.
+NOCOMMA="$TEST_TMPDIR/no-comma.md"
+cat >"$NOCOMMA" <<'EOF'
+Always use `Read` but never use `Bash` for file inspection.
+EOF
+assert_contains "an unpunctuated contrastive does not flip the earlier entity"   "$(bash "$SCRIPT" "$NOCOMMA" "$READNO")" "|Read|"
+assert_contains "the entity after an unpunctuated contrastive is still prohibited"   "$(bash "$SCRIPT" "$BASHYES2" "$NOCOMMA")" "|Bash|"
+
+# --- Case 32 (MUST NOT FLAG): temporal `while` is not a contrastive ---------
+# "use X while the flag is set" is one clause; splitting it would drop the
+# mandate that governs the entity. `while` therefore still requires its comma.
+TEMPORAL="$TEST_TMPDIR/temporal.md"
+cat >"$TEMPORAL" <<'EOF'
+Always use `WebFetch` while the offline flag is unset.
+EOF
+assert_eq "temporal 'while' does not split the clause" "1"   "$(bash "$SCRIPT" --count "$TEMPORAL" "$POSTPOSED")"
+
 # --- Case 16: a missing runtime prerequisite exits 2 ------------------------
 # The tools the script executes are awk and sort, not grep. `mapfile < <(… |
 # sort -u)` swallows a failure inside the process substitution, so an unchecked

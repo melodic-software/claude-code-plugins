@@ -41,8 +41,9 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   `X must not be used` is a prohibition, a trailing clause past a full stop is not, and a prohibition
   in the *preceding* sentence no longer overrides the mandate that governs the entity. A boundary is
   a sentence-ending mark followed by a space — a bare mark also occurs inside a dotted config path or
-  a version number — or a comma introducing a contrastive conjunction, so "always use `Read`, but
-  never use `Bash`" classifies each entity on its own clause rather than sharing one polarity. An
+  a version number — or a contrastive conjunction with or without a preceding comma, so "always use
+  `Read` but never use `Bash`" classifies each entity on its own clause rather than sharing one
+  polarity. `while` still requires its comma, being temporal as often as contrastive. An
   opt-in gate suppresses a pair only when it reads as a **condition** rather than as the subject, so
   "never use `X` for opt-in prompts" is still classified. Classification and pairing run in a single
   `awk` pass bucketed by entity; a subprocess per mention did not finish on an instruction tree this

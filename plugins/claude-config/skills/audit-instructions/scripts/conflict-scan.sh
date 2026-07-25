@@ -122,8 +122,12 @@ EXCEPTION_ERE='[^a-z](unless|except|only when|only if|other than)[^a-z]'
 GATED_ERE='(user_config|user config|[^a-z]opt-?in[^a-z]|[^a-z]opted in[^a-z])'
 CONDITIONAL_ERE='[^a-z](only when|only if|unless|requires?|gated|enabled|is on|when set)[^a-z]'
 # Clause boundary — where a polarity window stops. See the window construction
-# below for why the contrastive conjunctions are listed rather than any comma.
-BOUNDARY_ERE='([.;!?] |, (but|while|whereas|though|although|yet)[^a-z])'
+# below for why contrastive conjunctions are listed rather than any comma.
+# The comma is OPTIONAL for the unambiguous contrastives ("always use X but
+# never use Y" reads the same as ", but") and REQUIRED for `while`, which is a
+# temporal conjunction as often as a contrastive one ("use X while the flag is
+# set" must not split).
+BOUNDARY_ERE='([.;!?] |[^a-z],? *(but|whereas|though|although|yet)[^a-z]|, while[^a-z])'
 
 # Polarity is read from a window around each entity mention, not from the whole
 # line. A prose line often carries a prohibition about one object and names an
@@ -189,13 +193,13 @@ mapfile -t rows < <(
           # boundary, leading text after its LAST.
           #
           # A boundary is either a sentence-ending mark followed by a space, or a
-          # comma introducing a CONTRASTIVE conjunction. The space matters: a bare
-          # mark also occurs inside tokens this corpus is full of (a dotted config
-          # path, a version number). The contrastive list matters too, and is
-          # deliberately not "any comma": one sentence can carry two entities at
-          # opposite polarity ("always use X, but never use Y"), while ordinary
-          # comma-separated prose keeps its polarity throughout, so cutting on
-          # every comma would drop the token that does govern the entity.
+          # CONTRASTIVE conjunction with an optional preceding comma. The space
+          # matters: a bare mark also occurs inside tokens this corpus is full of
+          # (a dotted config path, a version number). The contrastive list matters
+          # too, and is deliberately not "any comma": one sentence can carry two
+          # entities at opposite polarity ("always use X but never use Y"), while
+          # ordinary comma-separated prose keeps its polarity throughout, so
+          # cutting on every comma would drop the token that governs the entity.
           post = substr(pad, e + 2, w)
           if (match(post, bnd)) post = substr(post, 1, RSTART - 1)
           pre = substr(pad, ws + 1, s - ws)

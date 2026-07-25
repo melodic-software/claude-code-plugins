@@ -278,8 +278,11 @@ when it precedes the entity within that sentence, or follows it within it — "`
 used" is a prohibition, while "…via `X` once. Do not gate per repo" is a trailing clause about a
 different object, and "Never delete branches. Always use `X` first" is a mandate rather than a
 prohibition inherited from the sentence before it. A boundary is a sentence-ending mark **followed by
-a space** — a bare mark also occurs inside a dotted config path or a version number — **or a comma
-introducing a contrastive conjunction** (`but`, `while`, `whereas`, `though`, `although`, `yet`).
+a space** — a bare mark also occurs inside a dotted config path or a version number — **or a
+contrastive conjunction** (`but`, `whereas`, `though`, `although`, `yet`), with or without a
+preceding comma, since English does not require one. `while` is the exception and still needs its
+comma: unpunctuated, it is temporal at least as often as contrastive ("use `X` while the flag is
+set" is one clause).
 The second form is what keeps one sentence carrying two entities at opposite polarity honest:
 "Always use `Read`, but never use `Bash`" must classify `Read` as a mandate and `Bash` as a
 prohibition. It is deliberately not *any* comma — ordinary comma-separated prose keeps its polarity
