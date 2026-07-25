@@ -22,9 +22,10 @@ All notable changes to the `source-control` plugin are documented here. Format f
   status box into three does change what a checklist-gated iteration must tick. The new section also
   states what "both gates satisfied" means on the orchestrator's direct zero-blocker path (a
   non-draft PR the snapshot reports with zero blockers and no untriaged material feedback goes
-  straight to a merge-gate check with no worker): it reaches that check with zero findings to
-  decompose, so the classification pre-gate is satisfied vacuously rather than skipped, and
-  merge-readiness there still comes only from the merge gate's `ready` field.
+  straight to a merge-gate check with no worker): the classification gate never runs there, what
+  keeps the path from a false `MERGE-READY` is the engine's `untriaged_material_feedback` exclusion
+  from `pr_clean_ready_for_direct_gate`, and merge-readiness there still comes only from the merge
+  gate's `ready` field.
 
 ## [0.26.3]
 

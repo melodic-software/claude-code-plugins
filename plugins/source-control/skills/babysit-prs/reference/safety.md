@@ -184,11 +184,21 @@ path. The classification gate blocks on `findings > 0` with `classified < findin
 unticked `--checklist`), so it constrains any iteration that actually processed findings. The
 orchestrator's direct zero-blocker path — a non-draft PR the engine snapshot reports with zero
 blockers *and* no untriaged material feedback, which goes straight to a merge-gate check without a
-worker (`SKILL.md`) — reaches that check with zero findings to decompose, so the pre-gate is
-satisfied vacuously rather than skipped. That path is gated on the engine's deterministic
-`needs_worker` delta, never on an agent's own reading that a PR has nothing outstanding; when the
-snapshot does report untriaged material feedback, the PR gets a worker and the classification gate
-binds normally. Merge-readiness on that path still comes only from the merge gate's `ready` field.
+worker (`SKILL.md`) — never runs the classification gate at all. What keeps that path from
+producing a false `MERGE-READY` is the `untriaged_material_feedback` exclusion in
+`pr_clean_ready_for_direct_gate` (`scripts/babysit_delta.py`): the merge gate never inspects finding
+content, so a PR carrying an undisposed material bot finding is held out of the direct gate rather
+than merged over it. That exclusion is *not* a guarantee the classification gate would pass there —
+it counts severity markers across *all* comment bodies with no bot/human split, while
+`collect_feedback` routes a top-level human comment or `COMMENTED` review carrying only a
+`SUGGESTION`/`CRITICAL`/`IMPORTANT` marker into `feedback["human"]` (non-blocking, and not material
+feedback), so such a PR can reach the direct gate while a classification-gate run would report
+`READINESS_BLOCKED`. Nor does the exclusion by itself force a worker: a *new* material item does
+(`unsuppressible_delta`), but an already-known, still-undisposed one re-dispatches a worker only
+through `quiet_recheck_due`'s periodic fallback, so such a PR may get neither a worker nor the
+direct gate that cycle. That path is gated on the engine's deterministic `needs_worker` delta, never
+on an agent's own reading that a PR has nothing outstanding, and merge-readiness on it still comes
+only from the merge gate's `ready` field.
 
 The merge gate is Python, so the Python-free degrade (`loop.md`) cannot run it at all. That path
 reports merge-readiness as **unchecked** — an unavailable merge gate is never grounds to promote
