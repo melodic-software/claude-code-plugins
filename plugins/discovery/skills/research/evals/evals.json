@@ -89,7 +89,7 @@
         "Each Phase 2 query traces to a named entry in the written gap/conflict block — no padding queries beyond the gap surface either",
         "Phase 2 includes exactly one falsification query against the Phase 1 leading hypothesis (e.g., searching for 'deprecated', 'known limitations', or a maintainer disclaimer contradicting the hypothesis)",
         "Each claim's primary is fetched directly (the library's official docs / GitHub repo / changelog) this turn — not accepted from a synthesis or SERP summary",
-        "Recency gate is satisfied — the latest upstream changelog/release is fetched this turn and cross-checked against the claims",
+        "Recency gate is satisfied — the latest upstream changelog/release is fetched this turn and cross-checked against the claims, and the fetch log carries that changelog entry per claim even for a claim sourced from a rung above the changelog, so criterion 6 is graded from the log rather than from recollection",
         "Runs the outcome gate before presenting — any claim below the 1-primary + 2-corroborator bar is reported as a Gap, not a finding",
         "Includes a project-fit check against the consuming project's own conventions"
       ]
