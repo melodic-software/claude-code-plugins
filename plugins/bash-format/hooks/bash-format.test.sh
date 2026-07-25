@@ -245,8 +245,73 @@ EOF
   else
     fail "[*] catch-all -> shell file not formatted: $(cat "$REPO_STAR/x.sh")"
   fi
+
+  # A brace-list section naming sh (`[*.{sh,bash}]`) governs shell files:
+  # section_applies_to_shell matches the `{,sh,}` / `{sh,` / `,sh}` shapes, so
+  # formatting opts in. Regression guard for the documented brace-list form,
+  # previously exercised only via section_applies_to_shell's implementation.
+  REPO_BRACE="$WORK/brace-config"
+  new_repo "$REPO_BRACE"
+  printf 'root = true\n[*.{sh,bash}]\nindent_style = space\nindent_size = 2\n' >"$REPO_BRACE/.editorconfig"
+  printf '#!/usr/bin/env bash\nif true; then\necho hi\nfi\n' >"$REPO_BRACE/x.sh"
+  run_hook "$REPO_BRACE/x.sh" >/dev/null
+  if grep -q '^  echo hi$' "$REPO_BRACE/x.sh"; then
+    ok "[*.{sh,bash}] brace-list .editorconfig -> shell file formatted"
+  else
+    fail "[*.{sh,bash}] brace-list -> shell file not formatted: $(cat "$REPO_BRACE/x.sh")"
+  fi
+
+  # A path-prefixed shell glob (`[**/*.sh]`) governs shell files:
+  # section_applies_to_shell keys on the `*.sh` suffix regardless of a leading
+  # path component. Regression guard for the documented path-prefixed form.
+  REPO_PATHGLOB="$WORK/pathglob-config"
+  new_repo "$REPO_PATHGLOB"
+  printf 'root = true\n[**/*.sh]\nindent_style = space\nindent_size = 2\n' >"$REPO_PATHGLOB/.editorconfig"
+  mkdir -p "$REPO_PATHGLOB/src"
+  printf '#!/usr/bin/env bash\nif true; then\necho hi\nfi\n' >"$REPO_PATHGLOB/src/x.sh"
+  run_hook "$REPO_PATHGLOB/src/x.sh" >/dev/null
+  if grep -q '^  echo hi$' "$REPO_PATHGLOB/src/x.sh"; then
+    ok "[**/*.sh] path-prefixed .editorconfig -> shell file formatted"
+  else
+    fail "[**/*.sh] path-prefixed -> shell file not formatted: $(cat "$REPO_PATHGLOB/src/x.sh")"
+  fi
 else
   echo "  (shfmt absent -- gate cases skipped)"
+fi
+
+# --- shfmt < 3.8 --apply-ignore fallback (`|| shfmt -w`) --------------------
+# The format pass calls `shfmt --apply-ignore -w FILE || shfmt -w FILE`: shfmt
+# 3.8+ honors --apply-ignore, older shfmt does not know the flag and fails, so
+# the plain-`-w` fallback must still format. A stub shfmt that REJECTS
+# --apply-ignore (simulating < 3.8) but formats on plain -w proves the fallback
+# runs. Independent of the host's real shfmt: the stub is prepended to PATH.
+STUBDIR="$(mktemp -d -p "$WORK" shfmtstub.XXXXXX)"
+cat >"$STUBDIR/shfmt" <<'STUB'
+#!/usr/bin/env bash
+# Simulate shfmt < 3.8: --apply-ignore is an unknown flag -> fail, no format.
+for a in "$@"; do
+  [[ "$a" == "--apply-ignore" ]] && exit 2
+done
+# Plain `-w FILE` path: rewrite the (last-arg) file to a formatted shape so the
+# caller's fallback branch is observable.
+f="${*: -1}"
+printf '#!/usr/bin/env bash\nif true; then\n  echo hi\nfi\n' >"$f"
+STUB
+chmod +x "$STUBDIR/shfmt"
+REPO_OLDSHFMT="$WORK/old-shfmt"
+new_repo "$REPO_OLDSHFMT"
+printf 'root = true\n[*.sh]\nindent_style = space\nindent_size = 2\n' >"$REPO_OLDSHFMT/.editorconfig"
+printf '#!/usr/bin/env bash\nif true; then\necho hi\nfi\n' >"$REPO_OLDSHFMT/x.sh"
+(
+  cd "$UNRELATED" || exit 1
+  printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO_OLDSHFMT/x.sh" |
+    env -u CLAUDE_PROJECT_DIR PATH="$STUBDIR:$PATH" \
+      CLAUDE_PLUGIN_OPTION_BASH_FORMAT_ENABLED=true bash "$HOOK" >/dev/null
+)
+if grep -q '^  echo hi$' "$REPO_OLDSHFMT/x.sh"; then
+  ok "shfmt<3.8 (--apply-ignore rejected) -> plain -w fallback still formats"
+else
+  fail "shfmt<3.8 fallback did not format: $(cat "$REPO_OLDSHFMT/x.sh")"
 fi
 
 # ============================================================================

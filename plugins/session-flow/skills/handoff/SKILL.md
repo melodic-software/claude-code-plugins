@@ -10,7 +10,7 @@ shell: bash
 ## Pre-computed context
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Claude session: !`echo "${CLAUDE_CODE_SESSION_ID:-unknown}"`
+Claude session: !`echo "${CLAUDE_CODE_SESSION_ID:-unknown}" || echo "unknown"`
 Uncommitted changes: !`git status --porcelain 2>/dev/null | head -20 || echo "clean"`
 Recent commits: !`git log --oneline -5 2>/dev/null || echo "no commits"`
 

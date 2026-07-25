@@ -1,0 +1,55 @@
+{
+  "skill_name": "work-loop",
+  "evals": [
+    {
+      "id": 1,
+      "name": "work-loop-admission-gate-fail-closed-with-hard-gates",
+      "prompt": "/work-items:work-loop\n\nRunning as a /loop autonomous lane whose standing rules authorize triage mutations. The frontier snapshot contains: a C2 mechanical doc fix; a C3 bug-fix-shaped item; a C3 feature-shaped item; an unclassified item; and a C2-looking dependency bump that recomputes a pinned checksum. A workflow bot filed two new advisory issues mid-cycle. Durable state shows first_drain_complete=false.",
+      "expected_output": "The cycle re-reads durable loop state from the telemetry comment first, takes a cycle-start snapshot, and sweeps intake via /work-items:triage in its autonomous lane (standing rules satisfy the direction gate; AI disclaimer on comments). Admission is fail-closed: the C2 item is admitted; the C3 bug-fix item is NOT dispatched because first_drain_complete is false and it carries no recorded ratification — it is queued with the human-gated role label (resolved from config.role_labels) plus a machine-marked kind=ratify-c3 comment; a C3 item already carrying attend-queue's ratification reply would dispatch instead of being re-queued; the C3 feature-shaped and unclassified items are human-gated; the checksum-recomputation bump is human-gated by the path/topic hard gate regardless of its C2 surface reading. Bot-authored advisories route to the human-gated role by default and, arriving mid-cycle, are reported, never chased this cycle. Escalations use the role label plus the machine-marked escalation comment, never a new label. The loop authors PRs only and never merges.",
+      "files": [],
+      "expectations": [
+        "Re-reads the machine-readable durable loop state from the telemetry comment at cycle start rather than trusting conversation context",
+        "Runs the intake sweep via /work-items:triage in its autonomous lane, treating the loop's standing rules as the direction gate and prefixing created comments/items with the AI disclaimer",
+        "Admits the C2 item autonomously; human-gates the C3 feature-shaped item and fail-closes the unclassified item",
+        "Queues the C3 bug-fix item for first-drain ratification (human-gated role label + machine-marked kind=ratify-c3 comment) because first_drain_complete is false AND the item carries no recorded ratification — an item with attend-queue's ratification reply dispatches rather than re-queuing",
+        "Applies the path/topic hard gate: the checksum-recomputation dependency bump is human-gated regardless of classification",
+        "Routes workflow-bot-authored advisory issues to the human-gated role by default, and reports (never chases) intake that arrived after the cycle-start snapshot",
+        "Escalates via the role label resolved from config.role_labels plus a machine-marked escalation comment — never a literal label comparison and never a new label",
+        "Never merges a PR and never asks another lane to merge one"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "work-loop-adaptive-cap-guard-floor-and-572-provisioning",
+      "prompt": "/work-items:work-loop\n\nDurable state: item_cap=2, clean_streak=2, rate_limit_latch=false. This cycle one item completes clean and a second returns a failed verdict after a seam exit 8 backoff. Mid-cycle the tee file at ~/.claude/rate-limit-guard/rate-limits.json shows five_hour used_percentage 93 with a fresh captured_at. One admitted item is stamped frontier-tier in its triage briefing.",
+      "expected_output": "Execution delegates each admitted item to /work-items:work (claim/lease, dispatch, PR contract owned there), with worker-side provisioning owned by /work-items:work (landed #572): the dispatched subagent materializes the item's branch and out-of-tree worktree as its own first step and works via git -C without entering it (via /source-control:worktree's non-entering seam when installed, plain git worktree add otherwise), and the orchestrator never invokes /source-control:worktree create itself since its EnterWorktree terminal would transition the parent session; a worker that cannot provision parks the item and escalates. The frontier-tier item runs at concurrency 1 under the frontier ceiling of 2; the general ceiling applies only to non-frontier tiers. The dirty item (failed verdict; seam exit 8 counts dirty) decrements the cap toward the floor and resets the clean streak; no ramp-up occurs once the 93% trip latches rate_limit_latch. The guard floor is honored as inlined: threshold 90% of either window, pause until the tripped window's resets_at, drain-then-pause (finish in-flight, stop claiming, report), staleness rule with a mandatory session Monitor on the tee file while paused, and untrusted session fields never string-interpolated. The composed budget is stated as item cap times implement-dispatch's per-item wave cap (its internal 3–5 default, or the work_dispatch_concurrency_cap ceiling threaded through as --wave-cap when set, #573), with the loop body's arithmetic over the two factors bounding the fan-out. Telemetry records guard mode and the updated state block.",
+      "files": [],
+      "expectations": [
+        "Delegates per-item execution to /work-items:work without restating selection/claim/lease/dispatch machinery",
+        "Makes worktree provisioning the dispatched worker's own first step (worker-side, owned by /work-items:work — landed #572) — the worker materializes and works via git -C without entering, and the orchestrator never invokes /source-control:worktree create itself because its EnterWorktree terminal would transition the parent session; the worker uses the worktree skill's non-entering seam when installed, plain git worktree add otherwise, and parks + escalates when it cannot provision",
+        "Runs the frontier-tier item at concurrency 1 with adaptive ceiling 2, keeping the general ceiling for non-frontier tiers only",
+        "Counts the failed verdict / seam exit 8 as dirty: cap decrements (floor 1), clean streak resets, and backoff-and-retry applies to the exit 8",
+        "On the 93% reading: drains in-flight work, stops claiming, pauses until the tripped window's resets_at, and arms a session Monitor on the tee file while paused",
+        "Sets rate_limit_latch and refuses cap ramp-up while it is set",
+        "Parses tee-file session fields only with a JSON parser and never string-interpolates them into a shell command or prompt",
+        "States the composed budget (item cap x implement-dispatch wave cap — internal 3–5 default or the work_dispatch_concurrency_cap ceiling threaded in as --wave-cap when set, #573) with the loop body's arithmetic bounding the fan-out",
+        "Persists cap, streak, latch, and guard mode into the telemetry comment's machine-readable state block"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "work-loop-exit-drain-terminal-and-pacing",
+      "prompt": "/work-items:work-loop\n\nCycle end. The cycle-start snapshot shows: list-frontier --autonomous returns nothing; three open issues remain — two have open non-draft PRs that GitHub links as closing them, one is human-gated awaiting an escalation answer. No PR is in flight for the human-gated item.",
+      "expected_output": "The exit evaluation runs against the cycle-start snapshot using the seam frontier check and the bound adapter's Open linked PRs operation (the provider's own computed close-linkage; drafts excluded, query mechanics owned by the adapter). The full exit condition is not met (one open issue has neither closure nor an open non-draft close-linked PR), but every remaining open item is human-gated with no PR in flight — the drain-terminal state — so the lane writes its final report (items closed, PR'd, escalated), updates the telemetry state block, and stops cleanly instead of idling or scheduling another wakeup. Had the loop continued, pacing would be a ScheduleWakeup at cycle end with semantics (clamps, idle backoff, seven-day expiry, #691 budget behavior) held by citation to the loop-lane convention.",
+      "files": [],
+      "expectations": [
+        "Evaluates the exit condition against the cycle-start snapshot, not live re-reads that chase mid-cycle intake",
+        "Uses the seam list-frontier --autonomous emptiness AND the bound adapter's Open linked PRs close-linkage (open, non-draft PRs only; provider query mechanics stay in the adapter) as the two-part exit condition",
+        "Recognizes the drain-terminal state — all remaining open items human-gated/escalated and no PR in flight — and stops cleanly with a report rather than idling forever",
+        "Final report lists items closed, PR'd, and escalated, and the durable state block is updated (first_drain_complete on a full drain)",
+        "When not exiting, schedules the next cycle via ScheduleWakeup and defers pacing/expiry/budget semantics to the loop-lane convention by citation",
+        "On a cycle-budget or seven-day-expiry hit, writes a restart-request into the telemetry state block and stops the loop cleanly rather than attempting to relaunch itself"
+      ]
+    }
+  ]
+}

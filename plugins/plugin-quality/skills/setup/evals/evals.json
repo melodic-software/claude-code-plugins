@@ -1,0 +1,43 @@
+{
+  "skill_name": "setup",
+  "evals": [
+    {
+      "id": 1,
+      "name": "check-reports-acting-account-and-provenance",
+      "prompt": "/plugin-quality:setup check",
+      "expected_output": "Reports gh presence with the ACTING account and host, the context-guard seam state with the resulting dispatch mode, every config layer found, and the effective value of each key with the layer that supplied it; edits nothing.",
+      "files": [],
+      "expectations": [
+        "Names the acting gh account explicitly, not just 'authenticated'",
+        "Reports dispatch mode as zone-informed or conservative based on the snapshot probe",
+        "Effective sink is reported with per-layer provenance (which layer supplied it)",
+        "Read-only: no file writes in check"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "absent-gh-is-info-not-failure",
+      "prompt": "/plugin-quality:setup check\n\ngh is not installed on this machine.",
+      "expected_output": "Classifies missing gh as INFO — the sink ladder ends in the local markdown fallback, so audits still work — rather than a FAIL demanding installation.",
+      "files": [],
+      "expectations": [
+        "Does not block or fail the check on missing gh",
+        "Names the local markdown fallback as the operative sink path",
+        "Still surfaces how to install gh for operators who want the issue sink"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "apply-is-idempotent-and-scoped",
+      "prompt": "/plugin-quality:setup apply sink=markdown-dir markdown_dir=~/audit-items\n\nRun it twice.",
+      "expected_output": "First run writes/converges the tracked .claude/plugin-quality.md (only the named keys; other keys and prose preserved) and reports old->new; second run reports no diff. Recommends the recursive .claude/**/*.local.* gitignore line without touching .gitignore.",
+      "files": [],
+      "expectations": [
+        "Writes only the tracked .claude/plugin-quality.md",
+        "Second identical apply produces no content change and says so",
+        "Never writes the consumer's .gitignore; the overlay line is a surfaced recommendation",
+        "Never creates or edits the user-global or .local layers"
+      ]
+    }
+  ]
+}

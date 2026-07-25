@@ -51,6 +51,7 @@ For PR lifecycle runs spanning 3+ phases, copy `${CLAUDE_PLUGIN_ROOT}/skills/pul
 | `prep review-only` | Phase 1 (partial) | Just review + verify findings |
 | `prep simplify-only` | Phase 1 (partial) | Just simplify + re-verify |
 | `create` | Phase 2 | Branch-name check + commit + push + `gh pr create`. Reports the PR URL and stops |
+| `create --pushed --worktree <path>` | Phase 2 (PR-only) | **PR-only entry for an orchestrated flow** — the branch is already committed and pushed (by a dispatched worker), so this skips commit / push / rebase, re-resolves branch and diff from the given target worktree (not the session cwd), and runs body assembly + gates + `gh pr create --head <branch>`. Used by `/work-items:work`'s orchestrator after its pre-PR gate. See [reference/create.md](reference/create.md) §2.7 |
 | `monitor` | Phase 3 | Watch CI, fix failures, evaluate comments. **Three-tier event delivery: (1) push channel** when your environment ships a GitHub-events channel (an MCP server delivering webhook events into the session) — ~0 idle requests; **(2) Monitor tool** fallback (30s `gh` poll); **(3) plain `gh` polling** in cloud/headless sessions. Check the push channel FIRST per [monitor.md](reference/monitor.md) §3.0.05 before falling back |
 | `comments` | Phase 3.5 | Evaluate/respond to PR comments only |
 | `merge` | Phase 4 | Squash merge + worktree cleanup + verify |

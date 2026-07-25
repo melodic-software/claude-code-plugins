@@ -174,6 +174,106 @@ else
   ok "no shellcheck finding surfaced (SC2086)"
 fi
 
+# --- Case 8: -pyflakes= disabled -> no pyflakes finding (regression) ---------
+# `print(undefined_name)` in a `shell: python` run block is a pyflakes-only
+# finding ("undefined name") with no native actionlint diagnostic. With the
+# integration off, no finding surfaces; when pyflakes is absent actionlint
+# skips the integration regardless, so this never false-fails.
+printf 'name: pyrun\non: push\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: print(undefined_name)\n        shell: python\n' \
+  >"$REPO/.github/workflows/pyrun.yml"
+OUT=$(run_hook "$REPO/.github/workflows/pyrun.yml")
+RC=$?
+if [[ $RC -eq 0 ]]; then ok "python run: block -> exit 0"; else fail "pyrun exit $RC"; fi
+if printf '%s' "$OUT" | grep -qi 'undefined name'; then
+  fail "pyflakes finding surfaced -- -pyflakes= regressed: $OUT"
+else
+  ok "no pyflakes finding surfaced (-pyflakes= holds)"
+fi
+
+# --- Case 9: NO membership guard -- mismatched CLAUDE_PROJECT_DIR still lints
+# Regression for the silent-skip bug: the old hook::read_file_path membership
+# guard silently exited when the file path did not prefix-match
+# CLAUDE_PROJECT_DIR (its concrete trigger: Windows 8.3 short-form paths that
+# GNU realpath does not expand). An advisory PostToolUse linter must lint
+# regardless of project membership -- prove it with a deliberately unrelated
+# CLAUDE_PROJECT_DIR.
+OUT=$(
+  cd "$UNRELATED" || exit 1
+  printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO/.github/workflows/violation.yml" |
+    env CLAUDE_PROJECT_DIR="$UNRELATED" CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED=true bash "$HOOK"
+)
+RC=$?
+if [[ $RC -eq 0 ]] && printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext | contains("missing")' >/dev/null 2>&1; then
+  ok "mismatched CLAUDE_PROJECT_DIR -> still lints (no membership guard)"
+else
+  fail "mismatched CLAUDE_PROJECT_DIR silently skipped lint (rc=$RC out=$OUT)"
+fi
+
+# --- Case 9b: Windows 8.3 short-form path still lints (where available) ------
+# The real-world shape is a SHORT-form prefix (the user/temp dir Claude Code
+# hands out) with a long-form tail -- .github/workflows components are 8.3-safe
+# and arrive unmangled, so the location filter still matches while the old
+# membership guard's realpath comparison did not. cygpath -ms yields the short
+# form with forward slashes (JSON-safe). Only meaningful where cygpath exists
+# AND the volume generates short names; skip silently otherwise.
+if command -v cygpath >/dev/null 2>&1; then
+  SHORT_REPO=$(cygpath -ms "$REPO" 2>/dev/null || true)
+  SHORT="${SHORT_REPO:+$SHORT_REPO/.github/workflows/violation.yml}"
+  if [[ -n "$SHORT" && -f "$SHORT" && "$SHORT_REPO" != "$(cygpath -m "$REPO" 2>/dev/null)" ]]; then
+    OUT=$(
+      cd "$UNRELATED" || exit 1
+      printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$SHORT" |
+        env CLAUDE_PROJECT_DIR="$REPO" CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED=true bash "$HOOK"
+    )
+    RC=$?
+    if [[ $RC -eq 0 ]] && printf '%s' "$OUT" | jq -e '.hookSpecificOutput.additionalContext | contains("missing")' >/dev/null 2>&1; then
+      ok "8.3 short-form path -> still lints"
+    else
+      fail "8.3 short-form path silently skipped (rc=$RC out=$OUT)"
+    fi
+  else
+    echo "note: 8.3 short-name case skipped (no distinct short form on this volume)"
+  fi
+fi
+
+# --- Case 10: actionlint hard failure -> telemetry status error, never ok ----
+# Stub actionlint exits 3 (fatal) -- the lint DID NOT run; the old code read
+# empty-output-as-clean. PATH keeps real tools via exec wrappers.
+ERRBIN="$(mktemp -d -p "$WORK" errbin.XXXXXX)"
+for t in bash jq git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink; do
+  real_t="$(command -v "$t" 2>/dev/null)" || continue
+  [[ -n "$real_t" ]] || continue
+  printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$ERRBIN/$t"
+  chmod +x "$ERRBIN/$t"
+done
+printf '#!/bin/sh\necho "fatal: simulated actionlint failure" >&2\nexit 3\n' >"$ERRBIN/actionlint"
+chmod +x "$ERRBIN/actionlint"
+ERR_TEL="$(mktemp)"
+ERR_SINK="$(make_sink "cat >\"$ERR_TEL\"")"
+OUT_ERR=$(
+  cd "$UNRELATED" || exit 1
+  printf '{"tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO/.github/workflows/clean.yml" |
+    env -u CLAUDE_PROJECT_DIR PATH="$ERRBIN" CLAUDE_PLUGIN_OPTION_ACTIONLINT_ENABLED=true \
+      HOOK_TELEMETRY_SINK="$ERR_SINK" bash "$HOOK"
+)
+RC_ERR=$?
+if [[ $RC_ERR -eq 0 && -z "$OUT_ERR" ]]; then
+  ok "actionlint hard failure -> exit 0, silent on channels (advisory; sink carries the error)"
+else
+  fail "hard-failure (rc=$RC_ERR out=$OUT_ERR)"
+fi
+wait_for_sink "$ERR_TEL"
+if [[ -s "$ERR_TEL" ]]; then
+  if [[ "$(jq -r '.status' "$ERR_TEL")" == "error" ]]; then
+    ok "actionlint hard failure -> telemetry status error (not ok)"
+  else
+    fail "hard-failure telemetry status=$(jq -r '.status' "$ERR_TEL") (must be error)"
+  fi
+else
+  fail "hard-failure: no telemetry envelope written"
+fi
+rm -f "$ERR_TEL"
+
 # ============================================================================
 # Telemetry
 # ============================================================================
@@ -201,7 +301,7 @@ if [[ -s "$TEL" ]]; then
       fail "envelope: $field missing ($(cat "$TEL"))"
     fi
   done
-  if [[ "$(jq -r '.hook' "$TEL")" == "actionlint" ]]; then ok "envelope: hook is actionlint"; else fail "envelope: hook=$(jq -r '.hook' "$TEL")"; fi
+  if [[ "$(jq -r '.hook' "$TEL")" == "actionlint-check" ]]; then ok "envelope: hook is actionlint-check"; else fail "envelope: hook=$(jq -r '.hook' "$TEL")"; fi
   if [[ "$(jq -r '.status' "$TEL")" == "ok" ]]; then ok "envelope: status ok"; else fail "envelope: status=$(jq -r '.status' "$TEL")"; fi
   if [[ "$(jq -r '.schema_version' "$TEL")" == "1.0" ]]; then ok "envelope: schema_version 1.0"; else fail "envelope: schema_version=$(jq -r '.schema_version' "$TEL")"; fi
   if [[ "$(jq '.data.findings | length' "$TEL")" -ge 1 ]]; then ok "envelope: findings populated"; else fail "envelope: findings empty ($(jq '.data.findings' "$TEL"))"; fi

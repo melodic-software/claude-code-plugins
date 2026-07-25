@@ -28,10 +28,11 @@ INFO — a deliberately disabled plugin is not broken. Report the probes informa
 note that re-enabling restores the FAIL semantics.
 
 1. **Python floor on `PATH`** — the interpreter used by scanning, validation, the
-   skill-scoped guard, and cleanup. (The guard is skill-scoped: its PreToolUse hook fires
-   only within the `clean` skill's context, so this skill's own probes — and any direct
-   `hygiene.py` invocation outside `clean` — rely on the engine's built-in containment,
-   not the hook.) The required version has one origin: the `MIN_PYTHON`
+   guard, and cleanup. (The guard registers on two surfaces: a plugin-level engine gate
+   that acts only on engine-referencing commands, and the skill-scoped belt inside the
+   `clean` skill's context. Both register unconditionally and resolve the kill switch by
+   reading `disk_hygiene_enabled` from the user `settings.json`; the deny-by-default belt
+   applies only during `clean`.) The required version has one origin: the `MIN_PYTHON`
    constant in `${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/hygiene.py` — parse it from
    there (`grep -m1 '^MIN_PYTHON' …`) and probe the interpreter against that value; do not
    recite a version number from this file or the README. FAIL if absent or older, naming
@@ -44,11 +45,12 @@ note that re-enabling restores the FAIL semantics.
 3. **Platform posture** — detect the current OS family and report its documented lane per
    the README, keeping the audit and execution lanes visibly separate: Windows (full
    **audit** — `lstat` reparse + Win32, never UAC; engine **execution unsupported** —
-   `preview` returns `execution-platform-unsupported`, removal is a manual, per-path
-   Recycle-Bin handoff after explicit approval), Linux (full audit; execution when
+   `preview` reports `execution-platform-unsupported` as a per-candidate blocker, removal is
+   a manual, per-path Recycle-Bin handoff only under `--execute` and after explicit
+   approval), Linux (full audit; execution when
    `/proc/self/mountinfo` is readable — `lsof` needed only for that optional execution
    lane, absent `lsof` is INFO with the reduced-capability note), macOS (audit/report
-   only by design; manual Trash handoff — INFO, not a defect).
+   only by design; manual Trash handoff only under `--execute` — INFO, not a defect).
 4. **Execution kill switch** — resolve the effective `disk_hygiene_enabled` value
    deterministically; never present an assumed value as the configured one. Run the bundled
    probe with the step-1 interpreter:

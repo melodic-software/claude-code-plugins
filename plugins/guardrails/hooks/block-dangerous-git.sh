@@ -37,6 +37,15 @@ source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
 
 hook::check_enabled "BLOCK_DANGEROUS_GIT"
 
+# Bundled PowerShell-command classifier — the git guards are matched on both the
+# Bash and the (opt-in) PowerShell tool, whose command arrives in the same
+# tool_input.command field with PowerShell grammar. Resolved under the plugin
+# root (CC sets CLAUDE_PLUGIN_ROOT; the BASH_SOURCE fallback keeps the contract
+# tests working when it is unset).
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+# shellcheck source=../lib/powershell/ps-command.sh
+source "$PLUGIN_ROOT/lib/powershell/ps-command.sh"
+
 # High-res start stamp for the telemetry envelope. EPOCHREALTIME is Bash 5.0+;
 # on older bash it is unset, so default to empty and skip telemetry (the block
 # still fires). Referencing it bare under `set -u` would abort before exit.
@@ -64,13 +73,14 @@ hook::require_jq "PreToolUse" "guardrails-block-dangerous-git" "$INPUT"
 
 COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null | tr -d '\r')
 [[ -n "$COMMAND" ]] || exit 0
+TOOL_NAME=$(printf '%s' "$INPUT" | jq -r '.tool_name // "Bash"' 2>/dev/null | tr -d '\r')
 
 # Above this length the command is not parsed — a pathologically long command is
 # assumed to be obfuscation and blocked FAIL-CLOSED (generous cap; real git
 # commands are well under it). The linear parser keeps normal commands cheap.
 MAX_COMMAND_LEN=16384
 
-SUBJECT=$(hook::extract_bash_subject "Bash" "$COMMAND")
+SUBJECT=$(hook::extract_bash_subject "$TOOL_NAME" "$COMMAND")
 
 # Emit one telemetry envelope: $1 status, $2 form ("" when not blocked). Gated
 # on the high-res start stamp and the opt-in sink, so the unwired default path
@@ -79,8 +89,8 @@ emit_tel() {
   [[ -n "$start" ]] || return 0
   hook::telemetry_enabled || return 0
   local data
-  data=$(jq -n --arg subject "$SUBJECT" --arg form "$2" \
-    '{tool:"Bash",subject:$subject,form:$form}' 2>/dev/null) || data='{"tool":"Bash","subject":"","form":""}'
+  data=$(jq -n --arg tool "$TOOL_NAME" --arg subject "$SUBJECT" --arg form "$2" \
+    '{tool:$tool,subject:$subject,form:$form}' 2>/dev/null) || data='{"tool":"Bash","subject":"","form":""}'
   hook::emit_telemetry "block-dangerous-git" "PreToolUse" "$1" "$start" "$data" "${CLAUDE_PROJECT_DIR:-}"
 }
 
@@ -734,6 +744,24 @@ if ((${#COMMAND} > MAX_COMMAND_LEN)); then
   emit_tel "blocked" "too-long"
   exit 2
 fi
+
+# Reduce a PowerShell command to a Bash-tokenizer-faithful form, or fail closed.
+# For the Bash tool this is a no-op (COMMAND unchanged). The classifier's sink is
+# git-presence-based (ps::might_invoke_git), so an unparsable PowerShell command
+# that could reach git at all is blocked — this guard owns destructive non-commit
+# forms (reset/clean/checkout/restore), and an unparsable `git --% reset --hard`
+# must not slip through. A non-git unparsable PowerShell command is not this
+# guard's concern and is allowed.
+ps::classify_git_command "$TOOL_NAME" "$COMMAND"
+case $? in
+2)
+  ps::print_unparsable_git_block_message
+  emit_tel "blocked" "powershell-unparsable"
+  exit 2
+  ;;
+1) exit 0 ;; # non-git PowerShell with an A2b-deferred construct
+*) COMMAND="$PS_SAFE_COMMAND" ;;
+esac
 
 hook::bash_parse_segments "$COMMAND" check_segment
 

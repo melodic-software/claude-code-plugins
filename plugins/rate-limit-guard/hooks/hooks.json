@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "StopFailure": [
+      {
+        "matcher": "rate_limit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/record-rate-limit-stop.sh",
+            "timeout": 10,
+            "statusMessage": "Recording rate-limit stop..."
+          }
+        ]
+      }
+    ]
+  }
+}

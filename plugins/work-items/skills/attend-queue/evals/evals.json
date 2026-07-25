@@ -1,0 +1,35 @@
+{
+  "skill_name": "attend-queue",
+  "evals": [
+    {
+      "id": 1,
+      "name": "attend-queue-one-merged-view-escalations-ratify-intake",
+      "prompt": "/work-items:attend-queue\n\nThe repository has: two open items wearing the human-gated role label, one with a machine-marked work-items:escalation comment (a worker question) and one parked by the operator with no marker; one item whose escalation marker carries kind=ratify-c3; four untriaged items (two unlabeled, one with the raw marker, one status:needs-info where the reporter just replied). The binding remaps human-gated to blocked-on-human.",
+      "expected_output": "One merged attention view, oldest first, rows tagged [escalated], [ratify], and [intake]. The human-gated role resolves from config.role_labels to blocked-on-human and is never compared as the needs-human literal. Only the item with the machine-marked escalation comment appears as [escalated] — the parked item wearing the same label but no marker is excluded, because the marker (not the label) discriminates escalated from parked. The ratify-c3 item appears as [ratify]. The [intake] rows come from composing /work-items:triage's attention view (unlabeled, raw marker, needs-info-with-reply buckets), not from a re-derived bucket definition. Ratifications are worked first at equal age since they unblock the waiting worker loop.",
+      "files": [],
+      "expectations": [
+        "Builds ONE merged view containing escalations, ratifications, and untriaged intake — not separate disconnected reports",
+        "Resolves the human-gated role from config.role_labels (blocked-on-human) and never queries or compares the needs-human default literal after the remap",
+        "Includes as [escalated] only items carrying BOTH the human-gated role label AND a machine-marked work-items:escalation comment; excludes the operator-parked item that has the label but no marker",
+        "Tags the kind=ratify-c3 item as [ratify] and prioritizes ratify rows at equal age",
+        "Sources [intake] rows by composing /work-items:triage's attention view rather than re-deriving its buckets"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "attend-queue-answers-write-back-ratify-and-flip",
+      "prompt": "/work-items:attend-queue\n\nThe operator works three rows: an [escalated] item where the worker asked which of two API shapes to keep; a [ratify] row for a C3 bug-fix admission; and an [intake] bug report. The operator answers the API question, ratifies the C3 admission, and directs triage on the bug.",
+      "expected_output": "For the escalated row, the decision is driven via /planning:interview when the planning plugin is installed (inline focused questions, one at a time, as the documented fallback) and the answer is written back as an issue comment on the item — the decision lives on the tracker, not only in the session — after which the item is flipped: the autonomous-eligible role label applied and the human-gated role label removed in the same edit, both resolved from config.role_labels. For the ratify row, the ratification is recorded as a reply comment and the same single-edit flip applies; the item re-enters the worker loop's frontier — this lane never dispatches or executes it. For the intake row, /work-items:triage runs under its interactive direction gate: recommendation first, mutation only after the operator's direction. Agent-authored comments carry the AI disclaimer.",
+      "files": [],
+      "expectations": [
+        "Uses /planning:interview behind an installed-ness gate with the inline focused-questions fallback documented at the site",
+        "Writes the operator's answer back as an issue comment on the escalated item rather than leaving the decision only in the session",
+        "Flips items in ONE edit that applies the autonomous-eligible role and removes the human-gated role, both resolved from config.role_labels — never leaves an item wearing both roles",
+        "Records the C3 ratification as a reply comment and returns the item to the frontier without executing or dispatching it from this lane",
+        "Runs intake triage through /work-items:triage's interactive direction gate — recommend, wait for direction, then mutate",
+        "Prefixes agent-authored comments with the AI disclaimer",
+        "Never merges a PR and never executes a work item from this lane"
+      ]
+    }
+  ]
+}

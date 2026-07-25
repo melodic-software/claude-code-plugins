@@ -3,7 +3,7 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.6.2]
+## [0.6.3]
 
 ### Fixed
 
@@ -16,6 +16,17 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
   git-working-tree membership when `CLAUDE_PROJECT_DIR` is unset: a file under no
   git working tree is skipped, while a repository file edited in such a session
   is still linted. Behavior when `CLAUDE_PROJECT_DIR` is set is unchanged.
+
+## [0.6.2]
+
+### Changed
+
+- Test-only: the C1 fd1-inheritance-leak detector in the hook contract test now measures the
+  slow-sink cost *differentially* — a baseline (fast sink, min of several runs) subtracted from
+  the slow-sink run — instead of asserting a fixed 2000ms wall-clock bound. The fixed bound sat
+  inside the machine- and load-dependent spawn-overhead band (already ~1.5s per hook on Windows
+  Git Bash, higher under parallel suites) and would false-fail with no leak present. No behavior
+  change for this plugin — the hook is untouched; shipped so the test stays reliable under load.
 
 ## [0.6.1]
 
