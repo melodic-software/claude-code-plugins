@@ -44,13 +44,14 @@ Parse `$ARGUMENTS` first token to determine action. Subsequent tokens are the re
 
 ## Override flags (audit modes)
 
-Three flags toggle auto-exclusions ON. Defaults preserve safety (rename-documenting plan docs / frozen historical notes / memory entries excluded). Long-form only, position-agnostic.
+Four flags widen the sweep. Defaults preserve safety (rename-documenting plan docs / frozen historical notes / memory entries excluded). Long-form only, position-agnostic.
 
 | Flag | Effect | Apply mode? |
 |---|---|---|
 | `--include-historical` | Sweep archived/completed work notes and frozen records of past work | OK |
 | `--include-memory` | Sweep Claude Code auto-memory files (`~/.claude/projects/*/memory/*.md`) and `MEMORY.md` indices | OK |
 | `--include-plan-docs` | Sweep the active plan/work-notes documents that document THIS rename | **AUDIT-MODE ONLY** — apply mode rejects with explicit error (footgun prevention; the plan doc documents the rename — both names appear by design) |
+| `--include-bare-token` | Surface the bare-token residue that container-rename mode suppresses ([patterns.md](context/patterns.md) "Phase 0b"). Always **Ambiguous**, never Certain. Not applicable to `audit orphans`, which sweeps no bare-token form | **AUDIT-MODE ONLY** |
 
 Multiple flags compose. Unknown flags raise an error. Detail in [audit-modes.md](context/audit-modes.md) "Override flags" section.
 

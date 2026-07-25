@@ -151,7 +151,8 @@ Suggest: /rename-references <old> to <new> to apply, OR git rm <old-path> to com
 
 ## Override flags
 
-Four flags, applicable to ALL audit sub-modes (Blast / Half-rename / Orphans) and the base audit.md path:
+Four flags. The first three apply to ALL audit sub-modes (Blast / Half-rename / Orphans) and the
+base audit.md path; `--include-bare-token` applies to every sub-mode except Orphans (see its row):
 
 | Flag | Effect | Apply-mode availability |
 |---|---|---|
