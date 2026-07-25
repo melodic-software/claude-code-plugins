@@ -3,6 +3,37 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.7]
+
+### Fixed
+
+- **`work-loop`'s first-drain C3 ratification gate no longer posts a duplicate `kind=ratify-c3`
+  queue comment on every cycle (`#1348`).** An item whose ratification was recorded directly in
+  the issue body (an `attended triage <date>, operator-ratified` line) — even one already
+  corrected once by a same-day comment restoring it to the frontier — collected a fresh queue
+  comment each pass, reproducing the noise the correction had already cleaned up (observed on
+  `#815`, `#816`, `#965`). The gate now separates the two queue actions: the `kind=ratify-c3`
+  comment is posted **at most once ever** (keyed on a marker comment authored by the tracker
+  seam's configured write identity — a marker pasted by any other commenter is untrusted
+  provenance and never suppresses the queue event), while the role labels converge idempotently on
+  the item's correct state rather than being counted as a repeated event: human-gated applied and
+  autonomous-eligible cleared in the same edit, mirroring `attend-queue`'s
+  never-flip-without-clearing rule. The comment is written before the labels are touched, and a
+  failed comment write leaves the labels alone — an item parked human-gated with no marker sits
+  outside both `list-frontier --autonomous` and `attend-queue`'s `[ratify]` view, which nothing
+  could repair.
+
+  Body prose is context for the operator, never dispatch authority. Free-form issue bodies are
+  editable by any author or agent and the work-class table already routes untrusted provenance to
+  human-gated, so a body marker is now surfaced in the queue comment — letting the operator
+  confirm and record it machine-marked in one step — instead of admitting the item. Dispatch
+  still requires the `/work-items:attend-queue` ratification reply or `first_drain_complete`. The
+  human-gated label is deliberately kept while machine ratification is absent: `attend-queue`
+  lists a `[ratify]` row only for an item carrying that label plus the marker, so stripping it
+  would make the item invisible to the operator and unratifiable. The autonomous-eligible role
+  label is likewise **not** ratification evidence — unattended `/work-items:triage` applies it to
+  every briefed delegable item.
+
 ## [0.24.6]
 
 ### Documentation
