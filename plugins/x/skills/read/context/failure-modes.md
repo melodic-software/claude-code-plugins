@@ -53,7 +53,7 @@ one bounded slice is a window onto it, not the content. Read successive slices, 
 Deleting after a single slice throws away the tail of exactly the long articles this path exists to
 serve, and returns truncated Markdown that looks complete.
 
-**Stop at EOF or at a total budget, whichever comes first.** The two failure modes sit on opposite
+**Stop at EOF or at 256 KB total, whichever comes first.** The two failure modes sit on opposite
 sides of the same rule and the fix for one is the other's cause:
 
 - Stop too early and a truncated prefix gets reported as a whole article.
@@ -61,9 +61,13 @@ sides of the same rule and the fix for one is the other's cause:
   result, never their sum. The transport cap is 5 MB, and a response near it consumes the session
   before the result is ever reported. A hostile converter can aim for exactly that.
 
-So fix a cumulative budget before the first slice and stop when either limit is hit. Whichever ends
-the read, if the file was not exhausted, report the result as partial and say where it stops, per the
-reporting rules below. Silence is the defect, not the truncation.
+**The ceiling is a fixed 256 KB, not a per-invocation judgement.** "Set a budget" is unenforceable:
+faced with a 5 MB response, 5 MB is a budget, and behavior would vary by invocation while the failure
+stayed reachable. 256 KB is roughly two orders of magnitude above a long X Article and two below the
+transport cap, so it never truncates real content and never threatens the session.
+
+Whichever limit ends the read, if the file was not exhausted, report the result as partial and say
+where it stops, per the reporting rules below. Silence is the defect, not the truncation.
 
 **Single-quote the substituted path everywhere it appears** — `-o '<path>'`, and the read and delete
 that follow. Two distinct hazards, and only single quotes cover both:
@@ -78,6 +82,13 @@ that follow. Two distinct hazards, and only single quotes cover both:
 
 If the resolved path contains an apostrophe, close the quoted run, escape that one character, and
 reopen — `'…'\''…'` — rather than falling back to double quotes.
+
+**That escaping is for shell commands only. `Read` takes the raw path.** Its argument is a literal
+filesystem path that no shell parses, so quote characters become part of the filename: a quoted path
+names a file that does not exist, and the `'…'\''…'` form embeds the escape sequence verbatim. Since
+every successful fetch ends in a `Read`, quoting there breaks the plugin's entire happy path — a
+strictly more expensive failure than the expansion hazard the escaping exists to prevent. One path,
+two renderings: escaped at the `-o` target and the delete, raw at the `Read`.
 
 **The nonce and the delete are both load-bearing.** Two sessions reading the same post would
 otherwise share one id-keyed path: the second `curl` truncates it after the first request completes
@@ -144,8 +155,9 @@ status in `-w`; the same shape with a `307` carries a `text/plain` "Temporary Re
 text is syntactically valid Markdown, so the body check cannot reject it — only the status code can.
 The same holds for `401`, `403`, and any other unlisted code.
 
-**Single-quote every substituted path** — the `-o` target and the subsequent read and delete. Rules
-and the verified expansion hazard are under "Response spooling" above.
+**Single-quote the path at shell sites — the `-o` target and the delete — and pass it raw to `Read`.**
+Rules, the verified expansion hazard, and why the two sites differ are under "Response spooling"
+above.
 
 | Code | Meaning | Action |
 |---|---|---|

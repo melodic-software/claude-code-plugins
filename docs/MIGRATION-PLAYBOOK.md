@@ -981,10 +981,17 @@ operated by others — so surfaces 5 and 6 carry the weight here.
   now the first gate, ahead of the HTTP code and the body, and a nonzero exit deletes the spool
   unread. Two further rounds closed the remaining paths by which third-party bytes reach the session:
   success requires exactly `200`, since a non-followed `3xx` completes with exit `0` and a plaintext
-  body that no Markdown check can reject; and the spool is read to a **cumulative** budget rather
-  than unconditionally to EOF, because bounded slices cap each tool result but never their sum, so a
-  response near the 5 MB cap could exhaust the session before the result was reported. Both were
-  reachable by a hostile or malfunctioning converter, which is the threat this criterion assumes.
+  body that no Markdown check can reject; and the spool is read to a **fixed 256 KB cumulative
+  ceiling** rather than unconditionally to EOF, because bounded slices cap each tool result but never
+  their sum, so a response near the 5 MB cap could exhaust the session before the result was
+  reported. The ceiling is a constant rather than a per-invocation budget, since an instruction to
+  "set a budget" is satisfied by choosing the response's own size. Both were reachable by a hostile
+  or malfunctioning converter, which is the threat this criterion assumes.
+
+  A P1 in the same round corrected an over-application of the escaping above: the shell quoting had
+  been extended to the `Read` tool, whose argument is a literal filesystem path that no shell parses.
+  Quotes there become part of the filename, so every successful fetch would have failed to open its
+  own spool. Escaped at the shell sites, raw at `Read` — one path, two renderings.
 
   Those bounds are only enforceable because `-q` leads the invocation. Review surfaced that curl
   reads a default `.curlrc` "even when `--config` is used", skipping it only when `--disable` "is

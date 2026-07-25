@@ -266,6 +266,18 @@
         "Reports the result as partial rather than presenting the read portion as the whole article",
         "Still deletes the spool after stopping early"
       ]
+    },
+    {
+      "id": 23,
+      "name": "read-receives-the-raw-path-not-the-shell-escaped-one",
+      "prompt": "/x:read https://x.com/jack/status/20\n\n(The resolved plugin data directory is /c/Users/dev$user/.claude/plugin-data/x.)",
+      "expected_output": "Single-quotes the path in the curl -o target and in the delete command, but passes the raw unquoted path to the Read tool, so Read opens the same file curl wrote. Quote characters never become part of the filename.",
+      "files": [],
+      "expectations": [
+        "Passes Read a bare filesystem path with no surrounding quote characters",
+        "Still single-quotes the path at the shell sites — the -o target and the delete",
+        "Does not pass the '...'\\''...' shell escape form to Read"
+      ]
     }
   ]
 }

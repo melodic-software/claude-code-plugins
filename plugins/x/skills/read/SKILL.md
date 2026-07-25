@@ -158,13 +158,21 @@ Drop the `Accept` header for JSON — `{markdown, url, author}`. For raw fields 
 expands, so carry the resolved path (forward slashes) and substitute it wherever
 [`context/failure-modes.md`](context/failure-modes.md) says `<plugin-data-dir>`.
 
-**Single-quote the substituted path — double quotes are not enough.** The path is pasted into the
-command as literal text, and inside double quotes bash still expands `$name`, still runs a backtick
-or `$(…)` command substitution, and still consumes a backslash. A home directory containing any of
-those characters would silently retarget the write — or execute the embedded text. Single quotes
-suppress all of it. If the resolved path itself contains an apostrophe, end the quoted run, escape
-that one character, and reopen: `'…'\''…'`. Same escaped form at every later site — the `Read` and
-the delete.
+**Escape the path for the shell, and only for the shell.** Two kinds of site take this path, and they
+want opposite things:
+
+- **Shell commands** — the `curl -o` target and the delete. Single-quote the substituted path. Inside
+  double quotes bash still expands `$name`, still runs a backtick or `$(…)` command substitution, and
+  still consumes a backslash, so a home directory containing any of those would silently retarget the
+  write or execute the embedded text. Single quotes suppress all of it. For an apostrophe in the path
+  itself, close the quoted run, escape that one character, and reopen: `'…'\''…'`.
+- **The `Read` tool** — pass the **raw** path. Its argument is a literal filesystem path that no shell
+  parses, so quotes are taken as part of the filename. A quoted path here names a file that does not
+  exist, and the `'…'\''…'` form embeds the escape sequence literally.
+
+Same path, two renderings. Quoting the `Read` argument breaks every successful fetch, which is the
+more expensive mistake of the two — so treat the shell escaping as belonging to the command, not to
+the path.
 
 **Every response spools to that file — `-o` is not conditional.** An X Article is routinely shared as
 an ordinary `/status/` link, so the URL never says whether the reply is one sentence or five
@@ -174,12 +182,14 @@ bounded slices, and delete it only after the last read. Delete **on every exit p
 status branches that stop before reading. Nonce, quoting, and unconditional delete are all required,
 and the filename is fixed by that template: never derive any part of it from the response body.
 
-**Read to the end *or* to a total budget, whichever comes first.** Slices bound each tool result, not
-their sum — reading a near-cap response through to EOF still puts every byte in the session, so a
-long or hostile article can exhaust the context before the result is ever reported. Set a cumulative
-budget before the first slice and stop when it is reached. Either way the rule on stopping short is
-the same: say the result is partial and say where it stops. A truncated slice is never presented as
-the complete post or article. See [`context/failure-modes.md`](context/failure-modes.md).
+**Read to the end or to 256 KB, whichever comes first.** Slices bound each tool result, not their sum
+— reading a near-cap response through to EOF still puts every byte in the session, so a long or
+hostile article can exhaust the context before the result is ever reported. **256 KB total** is the
+ceiling: a fixed number, not a judgement call, because a budget chosen per invocation can be chosen
+as 5 MB and comply. It is far above any real X Article and far below anything that threatens the
+session. Either way the rule on stopping short is the same: say the result is partial and say where
+it stops. A truncated slice is never presented as the complete post or article. See
+[`context/failure-modes.md`](context/failure-modes.md).
 
 **Check curl's exit status first — before the HTTP code, before the body.** A nonzero exit means the
 transfer failed even when `-w` printed `200`, because the status line arrived before the failure did.

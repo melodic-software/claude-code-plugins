@@ -54,10 +54,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   set that can arrive. A redirect proves the point: without `-L` curl does not follow a `3xx`, so it
   completes with exit `0` and a short `text/plain` body — and plain text is syntactically valid
   Markdown, so only the status code can reject it.
-- The spool is read to EOF **or to a cumulative read budget, whichever comes first**. Bounded slices
-  cap each tool result, never their sum, so reading a near-cap response through to EOF still puts
-  every byte in the session. Stopping short is allowed; stopping short *silently* is not — a partial
-  read is reported as partial, with where it stops.
+- The spool is read to EOF **or to 256 KB total, whichever comes first**. Bounded slices cap each
+  tool result, never their sum, so reading a near-cap response through to EOF still puts every byte
+  in the session. The ceiling is a fixed number rather than a per-invocation judgement: faced with a
+  5 MB response, "set a budget" admits 5 MB. 256 KB sits well above a long X Article and well below
+  the transport cap. Stopping short is allowed; stopping short *silently* is not — a partial read is
+  reported as partial, with where it stops.
 - curl's **exit status** is checked ahead of the HTTP code and the body. The two disagree when a
   transfer dies after its status line arrives: verified against curl 8.19.0, an over-cap response
   prints `200` on stdout and exits `63`. Any nonzero exit is a failed fetch — the spool is deleted
@@ -79,7 +81,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   plaintext `http://` input upgraded to HTTPS by the rebuild (17), a spool path single-quoted
   against shell expansion (18), a handle-less `/i/web/status/` link accepted (19), and a nonzero curl
   exit treated as failure despite a `200` (20), an unlisted non-`200` rejected before the body (21),
-  and a near-cap article stopping at the read budget with a partial-result report (22).
+  a near-cap article stopping at the read budget with a partial-result report (22), and `Read`
+  receiving the raw path while the shell sites stay escaped (23).
 
 ### Fixed
 
@@ -121,9 +124,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the long articles this path exists to serve and return truncated Markdown that reads as complete.
   The nonce prevents two sessions reading the same post from sharing a path, where the second `curl`
   would truncate the file between the first request completing and that session's `Read`. The
-  substituted path is **single**-quoted at every site: double quotes still expand `$name`, still run
-  a backtick or `$(…)` substitution, and still consume a backslash, so a home directory carrying any
-  of those characters would retarget the write or execute the embedded text.
+  substituted path is **single**-quoted at the shell sites — the `-o` target and the delete — because
+  double quotes still expand `$name`, still run a backtick or `$(…)` substitution, and still consume
+  a backslash, so a home directory carrying any of those characters would retarget the write or
+  execute the embedded text. The `Read` tool takes the **raw** path instead: its argument is a
+  literal filesystem path that no shell parses, so quotes would become part of the filename and every
+  successful fetch would fail to open its own spool.
 - Gate patterns are presented in fenced code blocks rather than a Markdown table. In table cells the
   alternation had to be written `\|` to survive the renderer, and a model reading the raw source
   could take that as a literal backslash-pipe and refuse every `twitter.com` URL.
