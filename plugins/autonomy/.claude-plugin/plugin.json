@@ -31,7 +31,7 @@
     "lane_stop_gate_sentinel": {
       "type": "string",
       "title": "lane-stop completion token",
-      "description": "The exact token the agent emits in its final message to declare the lane's goal met and authorize a stop. Match is standalone-token only.",
+      "description": "The exact token the agent emits in its final message to declare the lane's goal met and authorize a stop. Matched only when alone on its own line.",
       "default": "LANE-STOP-OK"
     },
     "lane_stop_gate_marker": {
