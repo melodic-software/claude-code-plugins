@@ -17,7 +17,7 @@ The 5-stage main-thread pipeline that turns heterogeneous free-text findings fro
 
 Line numbers from LLM reviewers drift — treat inferred lines as approximate and keep dedup noise-tolerant.
 
-**Not in this table:** the bundled `/code-review` command and the managed Code Review GitHub App service (SKILL.md "Boundary — built-in/managed surfaces, not marketplace plugins"). Both mutate the PR directly rather than returning findings to normalize, so neither is dispatched as a fan-out leaf here.
+**Not in this table:** the bundled `/code-review` command and the managed Code Review GitHub App service (SKILL.md "Boundary — built-in/managed surfaces, not marketplace plugins"). The managed service posts its findings to the PR rather than returning them to normalize; bare `/code-review` is report-only, but is itself a multi-agent review of the same diff whose output has no documented schema to parse. Neither is dispatched as a fan-out leaf here.
 
 ## Stage 0 — Extraction (Sonnet)
 

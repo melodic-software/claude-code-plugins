@@ -20,6 +20,16 @@ All notable changes to the `review` plugin are documented here. Format follows
   a normalized fan-out leaf. Also updated two `fanout` evals (`pr-comment-gate-opt-in`,
   renamed `unscored-surface-severity-derived-not-invented`) that referenced the same stale
   "code-review orchestrator plugin" framing, for internal consistency.
+- `README.md`'s "Graceful degrade" bullet named the same nonexistent `code-review` marketplace
+  plugin as an optional install; it now names the two real optional orchestrator plugins
+  (`pr-review-toolkit`, `codex`) and points at the new `Boundary` section for the built-in command
+  and the managed service (review-caught).
+- The `Boundary` section no longer classes a **bare** `/code-review` invocation as PR-mutating. Per
+  the same official page, bare `/code-review` is report-only — findings arrive in the conversation
+  and only `--fix` and `--comment` mutate — so the exclusion rationale now states the real reason
+  (it is itself a multi-agent review of the same diff, with no documented output schema to write a
+  parse contract against) and keeps the PR-mutation gate scoped to `--comment` and the managed
+  service (review-caught).
 
 ## [0.15.0]
 
