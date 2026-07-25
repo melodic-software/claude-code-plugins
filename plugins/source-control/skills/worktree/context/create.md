@@ -21,6 +21,7 @@ The name (branch and, via the helper's slug, directory) has these constraints (t
 - Each `/`-separated segment may contain only **letters, digits, dots, underscores, and dashes**
 - Max **64 characters** total
 - `/` is a valid segment separator (enables `feat/my-feature` format)
+- The name must also be a **legal git branch name** (`git check-ref-format --branch`). The character rule above does not imply this — `feat/foo..bar`, `foo.lock`, `.foo`, `HEAD`, and `-lead` all satisfy it yet git rejects them as refs.
 
 Validate the name against these rules. If invalid, explain what's wrong and ask for correction. The helper re-validates defensively and **refuses** a name that violates them (exit 2) rather than let `git worktree add` fail opaquely. The branch keeps the name verbatim; the helper derives the **directory slug** from it (each `/` → `-`).
 

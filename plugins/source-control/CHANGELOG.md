@@ -3,6 +3,24 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.3]
+
+### Fixed
+
+- **`scripts/worktree-create.sh` now refuses a git-illegal `--name` with the documented usage exit 2
+  instead of environment exit 4 (`#1016`).** The up-front character class (letters, digits, dots,
+  underscores, dashes per `/`-separated segment) is not a subset of git's ref grammar, so names like
+  `feat/foo..bar`, `foo.lock`, `.foo`, `HEAD`, and `-lead` passed validation, reached
+  `git worktree add`, and failed there as exit 4 — the code the helper reserves for environment
+  faults. A caller's correction flow keys on exit 2, so an invalid name was indistinguishable from a
+  broken environment. The schema check is now followed by `git check-ref-format --branch`, whose
+  output is discarded on both streams: on success `--branch` echoes the name to stdout, which would
+  break the helper's "created path is the sole stdout line" output contract. Verified across every
+  name the character class admits, `check-ref-format` and `git worktree add -b` agree exactly, so no
+  previously-creatable name is newly refused. `skills/worktree/context/create.md` gains the matching
+  constraint bullet, and the header comment that claimed the character class was "a strict subset of
+  what git refs allow" is corrected.
+
 ## [0.26.2]
 
 ### Fixed

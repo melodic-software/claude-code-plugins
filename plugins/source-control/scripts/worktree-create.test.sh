@@ -273,6 +273,21 @@ assert_contains "unsafe-char refusal explains the rule" "$err" "not a valid work
 # An over-long name (>64 chars) is likewise refused.
 bash "$HELPER" --name "feat/$(printf 'a%.0s' {1..70})" --root "$TEST_TMPDIR/wtroot10" --repo-dir "$repo" >/dev/null 2>&1
 assert_exit "over-64-char name refused (exit 2)" 2 "$?"
+# A name whose characters are all in the allowed class but which git rejects as a
+# branch is refused here (exit 2) rather than reaching `git worktree add` and
+# surfacing as environment exit 4 — the correction flow keys on the usage error.
+for badref in 'feat/foo..bar' 'feat/.' 'foo.lock' 'feat/x.lock' '.foo' 'foo.' 'HEAD' '-lead'; do
+  code=0
+  err=$(bash "$HELPER" --name "$badref" --root "$TEST_TMPDIR/wtroot10c" --repo-dir "$repo" 2>&1 >/dev/null) || code=$?
+  assert_exit "git-invalid ref name $badref refused (exit 2, not 4)" 2 "$code"
+  assert_contains "git-invalid $badref refusal names the branch grammar" "$err" "not a valid git branch name"
+done
+# The ref check must not eat stdout: `git check-ref-format --branch` echoes the
+# name on success, which would corrupt the sole-stdout-line path contract.
+root="$TEST_TMPDIR/wtroot10d"
+out=$(bash "$HELPER" --name "feat/refok" --root "$root" --repo-dir "$repo" 2>/dev/null)
+assert_exit "ref-valid name still creates (exit 0)" 0 "$?"
+assert_eq "ref check leaves stdout as the sole path line" "$root/acme-widget-feat-refok" "$out"
 # A valid multi-segment name keeps the branch verbatim but transforms the slug.
 root="$TEST_TMPDIR/wtroot10b"
 out=$(bash "$HELPER" --name "feat/scope.v2_final-1" --root "$root" --repo-dir "$repo" 2>/dev/null)
