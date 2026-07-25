@@ -6,12 +6,15 @@ Design record: interview rulings (ledger committed in the roadmap topic) +
 
 ## Brief
 
-Ignite the 2→3 loop: the first standing routine (hourly C2 drain) + C2-promotion evidence
-drain on `kyle-sexton/autonomy-demo-scratch` (binding-ratified surfaces `label-kick` +
-`hourly-drain`, execution surface `demo-local-session`). Purpose: accumulate the evidence
-stream whose predicate (≥20 autonomous C2 completions / ≥14 days / 100% deterministic-gate
-pass / 0 human-reverted merges — `plugins/autonomy/reference/guardrails/work-classes.md`)
-makes the C2 auto-merge cell ELIGIBLE. Promotion flips stay human-ratified.
+Ignite the 2→3 loop: the first standing routine (C2 drain — hourly at ignition, re-bound
+2026-07-22 to a **15-min slot grid**; Phase 4 re-bind ratification below) + C2-promotion
+evidence drain on `kyle-sexton/autonomy-demo-scratch` (binding-ratified surfaces
+`label-kick` + `hourly-drain`, execution surface `demo-local-session`). Purpose: accumulate
+the evidence stream whose predicate (≥20 autonomous C2 completions / **≥7-day span under a
+48h merge-maturity guard** — values org-rebound 2026-07-22, scratch#43, from the suggested
+defaults in `plugins/autonomy/reference/guardrails/work-classes.md` / 100%
+deterministic-gate pass / 0 human-reverted merges) makes the C2 auto-merge cell ELIGIBLE.
+Promotion flips stay human-ratified.
 
 **Merge policy during the accumulation window (stress-test ruling, 2026-07-21):** runs open
 PRs and STOP. The human merges — that IS the un-promoted C2 policy (`guardrails.md`: C2
@@ -26,7 +29,7 @@ with no human help, not autonomous merge.
 |---|---|
 | Auth path | Subscription app-session auth (native Desktop task = signed-in session; no API key). CLI fallback uses logged-in CLI subscription auth. |
 | Model per run | Sonnet 5, pinned explicitly on the task AND on the inner dispatch invocation (Max `default` resolves to Opus — never leave unpinned; current `dispatch-item.sh` hardcodes `--model opus` and MUST change). Escalation via native seams; no routing build now. Revisit trigger: drain-PR failure rate exceeding weekly triage. |
-| Schedule | Hourly preset + Desktop **Keep computer awake** ON (Settings → Desktop app → General). Lid-close still sleeps (accepted). |
+| Schedule | Hourly preset (superseded 2026-07-22: re-bound to a 15-min slot grid — Phase 4 re-bind ratification) + Desktop **Keep computer awake** ON (Settings → Desktop app → General). Lid-close still sleeps (accepted). |
 | Failure handling | Reconcile-first, no auto-retry. Failure path files a durable human-gated tracker item (desktop notification is garnish — toasts evaporate during an unattended week). |
 | Budget bound | Native task + plan-window backstop at the session level, PLUS a mechanical per-run bound on the inner invocation (`--max-budget-usd` + wrapper timeout kill; `--max-turns` absent from the installed CLI — verified 2026-07-21) — a number in a doc bounds nothing (roadmap requirement). |
 
@@ -151,7 +154,9 @@ Main thread + operator (machine-local surfaces):
    vocabulary gets its always-allows too; repeat until a prompt-free pass of each path.
 4. **Missed-fire detector**: deterministic script (OS scheduler, zero tokens) comparing run
    history timestamps against the hourly cadence; files a tracker item on gap — the
-   post-reboot/Windows-Update detector the freeze week needs.
+   post-reboot/Windows-Update detector the freeze week needs. (Cadence spec superseded by
+   the 2026-07-22 re-bind: the detector must track the bound cadence, now the 15-min slot
+   grid — scratch#66, see the Phase 4 re-bind note.)
 5. Visibility: native run history + notifications; PRs are the GitHub artifacts; scoreboard =
    verify-join; failure/missed-fire tracker items are the durable signal.
 
@@ -277,7 +282,11 @@ in telemetry = Sonnet; live checkout clean; any fire-without-row = Phase 1 defec
 > today — the only manual runs are pre-window or failed); lease TTL 1h stopgap
 > (TODO plugins#1034 sub-hour protocol); label-kick event-driven dispatch filed
 > (scratch#42) to retire polling waste. Desktop task schedule flip is the operator's
-> single remaining action, gated on the merged attestation code (done).
+> single remaining action, gated on the merged attestation code (done). The Phase 2
+> missed-fire detector is still specced against the hourly cadence (its wiring was already
+> deferred to Phase 4) — re-spec + revalidation against the 15-min slot grid filed as
+> scratch#66; until it lands, individual missed 15-min slots have no automated signal
+> beyond failure tracker items and run history.
 >
 > **Delegated-merge amendment (recorded 2026-07-22):** during accumulation the de facto
 > merge path has been operator-DELEGATED main-session merges — the interactive main
