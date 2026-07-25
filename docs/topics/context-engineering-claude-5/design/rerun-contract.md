@@ -351,9 +351,24 @@ repository the operator owns, committed to it.
   older than 30 minutes and its id still answers "alive", the conjunction above never fires, and
   every later applying run for that target is blocked permanently with no documented way out. The
   lock therefore records a **start identity** beside the process id — a value that differs when the
-  id has been reused, such as the holder's start time — and liveness means both match. Where the
-  platform supplies no such value, the age test alone reclaims and the reclamation is reported. What
-  is binding is that no lock is unreclaimable; which identity discharges it is Phase 6's.
+  id has been reused, such as the holder's start time — and liveness means both match.
+
+  **The no-start-identity fallback was reclaiming live holders, and the cross-vendor review caught
+  it.** Falling back to the age test alone means an applying run that legitimately exceeds 30 minutes
+  — a large target, a slow filesystem, a long human gate — has its lock taken while it is still
+  mutating, a second applier proceeds, and Assertion 3.1 is violated by the very mechanism written to
+  uphold it. Reclaiming a *dead* holder and reclaiming a *slow* one are indistinguishable by age, so
+  age cannot be the sole discriminator on any platform.
+
+  The holder therefore **refreshes a heartbeat in the lock on a fixed interval**, and staleness is a
+  heartbeat that has stopped advancing, not a lock that is old. A run that holds its lock for hours
+  keeps it; a crashed run stops refreshing and is reclaimed within a small multiple of the interval,
+  on every platform, with or without a start identity. Where a start identity is available it still
+  short-circuits the wait, since a reused id is provable rather than inferred. And because a
+  heartbeat can itself be defeated — a suspended process, a clock jump — an **explicit operator
+  override** remains, reported when used. Three rungs, and what is binding is the pair of properties
+  they exist to hold simultaneously: no lock is unreclaimable, and no live holder is reclaimed.
+  Interval, multiple, and override spelling are Phase 6's.
 - **Assertion 3.1** — two applying runs launched concurrently against one target: exactly one
   proceeds, the other exits non-zero naming the holder.
 - **Assertion 3.2** — two read-only runs launched concurrently both complete, and their derived-tier
@@ -663,12 +678,35 @@ against it.
 Stated as assertions over two runs, `R1` then `R2`. `D(R)` is the derived-tier identity set; `J(R)`
 is the judged-tier set.
 
-- **P1 — determinism, over the derived tier.** Tree unchanged **and liveness basis unchanged**
-  between `R1` and `R2` ⇒ `D(R1) = D(R2)`, exactly. Not a subset, not a tolerance: equal. This is
-  assertable because nothing in `D` passes through a model — it is file enumeration, registry
-  parsing, `git worktree list`, name comparison across a fixed precedence order, and a versioned
-  registry of harness behavior. The liveness-basis clause is not a weakening: see "Liveness is not a
-  function of the tree" above, where the unqualified form is falsifiable by correct behavior.
+**Every property below is conditioned on one shared precondition, stated here once rather than
+per-property.** The cross-vendor review found P1 and P4a missing a clause P3 already carried, and
+stating it three times is what allowed two of the three to drift — so the **comparable-runs**
+precondition is defined in one place and the properties cite it:
+
+> `R1` and `R2` are **comparable** when their **target tree**, **liveness basis** (launch directory,
+> effective merged `claudeMdExcludes`, import approvals, setting sources), **detection version
+> triple** of every check consulted, and **harness version** are all equal.
+
+A property asserts nothing about a non-comparable pair. This is not a weakening — it is what makes
+the assertions falsifiable at all. Each of those inputs changes what a correct run finds: a harness
+update legitimately moves the versioned registry of harness behavior that dead-surface
+classification and raw script candidates are read against, and a catalog or prompt change
+legitimately moves what the judged tier reports. Comparing across them makes correct behavior
+indistinguishable from a defect, in the direction that raises a false alarm — the failure mode this
+whole contract exists to avoid. The run already records all four, because all four affect detection;
+the only thing that was missing was applying them uniformly. A non-comparable pair is **reported as
+non-comparable, naming which input moved**, never as a pass and never as a failure: an unfalsifiable
+claim is not a weaker claim, it is not a claim.
+
+- **P1 — determinism, over the derived tier.** `R1` and `R2` **comparable** ⇒ `D(R1) = D(R2)`,
+  exactly. Not a subset, not a tolerance: equal. This is assertable because nothing in `D` passes
+  through a model — it is file enumeration, registry parsing, `git worktree list`, name comparison
+  across a fixed precedence order, and a versioned registry of harness behavior. That last clause is
+  precisely why the comparability precondition has to cover the harness and detection versions and
+  not only the tree and the liveness basis: a versioned registry of harness behavior *is* a function
+  of the harness version, so the paragraph above this one already conceded that a harness update
+  breaks the unqualified form. P1 carried the liveness half and not the version half until the
+  cross-vendor review found the asymmetry.
 - **P2 — convergence, measured in the tier the fix acted on.** Accepted fixes applied between `R1`
   and `R2` ⇒ every accepted finding is absent from `R2`, in whichever tier it was reported, and every
   member of `D(R1) \ D(R2)` corresponds to a fix that was actually applied. A finding that vanishes
@@ -682,10 +720,12 @@ is the judged-tier set.
   gate unsatisfiable for the normal case. Strictness belongs in "every accepted finding is gone",
   which is the claim convergence is actually making; the containment half over `D` is P3's job and
   P3 already states it.
-- **P3 — no spontaneous growth.** Tree unchanged, **detection version** unchanged, **harness version**
-  unchanged, **and liveness basis unchanged** ⇒ `D(R2) ⊆ D(R1)`. The set may grow only on a
-  detection-version bump, a harness-version bump, a change to the liveness basis, or a change to the
-  tree — and a skill authored between runs is a change to the tree.
+- **P3 — no spontaneous growth.** `R1` and `R2` **comparable** ⇒ `D(R2) ⊆ D(R1)`. The set may grow
+  only on a detection-version bump, a harness-version bump, a change to the liveness basis, or a
+  change to the tree — and a skill authored between runs is a change to the tree. That enumeration is
+  exactly the negation of comparability, which is why the precondition is shared rather than restated
+  here: P3 spelled all four out inline, P1 and P4a spelled out fewer, and the divergence was the
+  defect.
 
   **The liveness clause was added to P1 and left out here, which made P3 read correct behavior as a
   defect.** Raised by the cross-vendor review. A changed launch directory, a changed effective
@@ -744,9 +784,15 @@ is the judged-tier set.
   made deterministic; an identity function normalizes how a finding is *reported* and cannot make the
   *detection* reproducible. So judged findings are reported in a separate section, excluded from
   P1–P3, and held instead to:
-  - `|J(R1) △ J(R2)| ≤ max(2, ceil(0.10 × |J(R1)|))` over an unchanged tree — **the stated
-    tolerance**, measured across three consecutive runs, with the worst pair taken. **The metric is
-    the symmetric difference, and it was one-directional growth until the cross-vendor review.**
+  - `|J(R1) △ J(R2)| ≤ max(2, ceil(0.10 × |J(R1)|))` over a **comparable** pair — **the stated
+    tolerance**, measured across three consecutive runs, with the worst pair taken. The tolerance
+    read "over an unchanged tree" until the cross-vendor review, and an unchanged tree is the weakest
+    of the four comparability inputs: a changed catalog or prompt is precisely a change to what the
+    judged tier is asked to find, so the judged set can move far past 10% while every run is correct,
+    and P4a would then fail the sweep for model instability that is not instability at all. This is
+    the same drift as P1's, in the tier where it is most likely, since a catalog revision is the
+    ordinary way this deliverable evolves. **The metric is the symmetric difference, and it was
+    one-directional growth until the cross-vendor review.**
     Assertion 1.5 routes an unaccounted judged closure here, so removals need somewhere to land; and
     a metric counting only additions lets a check that silently stops firing pass unremarked, which
     is the more damaging of the two directions. The constant is unchanged and is still the
