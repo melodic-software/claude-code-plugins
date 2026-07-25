@@ -16,12 +16,12 @@ Regenerate the markdown after editing any table:
 Source anchors are `file.py::symbol`, never line numbers -- a line number in a
 drift-detection artifact is the drift it exists to catch.
 
-DEFERRED: an argparse flag catalogue (every flag's name, type, and default per
-entry point) would additionally catch a renamed flag or a changed default that
-no behavior row exercises. It needs a `build_parser()` extraction across all
-nine entry points, whose parsers are built inside `main()`. Trigger to build it:
-the first time a flag rename or default change ships without a matching update
-here. Tracked on issue #1265.
+TODO(#1265): add an argparse flag catalogue -- every flag's name, type, and
+default per entry point -- which would additionally catch a renamed flag or a
+changed default that no behavior row exercises. Deferred because it needs a
+`build_parser()` extraction across all nine entry points, whose parsers are
+built inside `main()`. Trigger: the first time a flag rename or default change
+ships without a matching update here.
 """
 
 from __future__ import annotations
@@ -70,6 +70,9 @@ class Refusal:
     error_contains: tuple[str, ...]
     refused_by: str
     enforced_at: str
+    # Envelope fields a caller may branch on, asserted by identity. A consumer
+    # reading `inScope` needs it present and false, not merely falsy-or-absent.
+    envelope_fields: tuple[tuple[str, object], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -167,6 +170,7 @@ REFUSALS: tuple[Refusal, ...] = (
         error_contains=("allowed-owners",),
         refused_by=PYTHON_CLI,
         enforced_at="babysit_merge.py::main",
+        envelope_fields=(("inScope", False),),
     ),
     Refusal(
         id="merge.owner-out-of-scope",
@@ -180,6 +184,7 @@ REFUSALS: tuple[Refusal, ...] = (
         error_contains=(),
         refused_by=PYTHON_CLI,
         enforced_at="babysit_merge.py::main",
+        envelope_fields=(("inScope", False),),
     ),
     Refusal(
         id="merge.owner-check-precedes-self-login-resolution",
@@ -199,6 +204,7 @@ REFUSALS: tuple[Refusal, ...] = (
         error_contains=(),
         refused_by=PYTHON_CLI,
         enforced_at="babysit_merge.py::main",
+        envelope_fields=(("inScope", False),),
     ),
     Refusal(
         id="merge.short-expected-head",
@@ -327,6 +333,7 @@ REFUSALS: tuple[Refusal, ...] = (
         error_contains=(),
         refused_by=PYTHON_CLI,
         enforced_at="babysit_resolve_thread.py::main",
+        envelope_fields=(("inScope", False),),
     ),
     Refusal(
         id="resolve.count-pin-without-thread-id",

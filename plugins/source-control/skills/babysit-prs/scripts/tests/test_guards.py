@@ -131,6 +131,15 @@ class RefusalsFireOnArgumentShape(unittest.TestCase):
                     self.assertIn(
                         token, combined, because(row.id, row.claim, combined[:400])
                     )
+                for key, value in row.envelope_fields:
+                    self.assertIn(
+                        key, payload, because(row.id, row.claim, f"no `{key}` in the envelope")
+                    )
+                    self.assertEqual(
+                        payload[key],
+                        value,
+                        because(row.id, row.claim, f"{key}={payload[key]!r}"),
+                    )
                 if row.entry_point.startswith("bin/"):
                     # The observable bash-vs-Python discriminator: a wrapper-level
                     # refusal never reaches the interpreter, so it emits no envelope.
@@ -358,10 +367,11 @@ class DocumentedCommandsMatchTheParsers(unittest.TestCase):
         # A second document growing its own copy of a command line must be added
         # to DOC_COMMAND_SOURCES, not left unchecked.
         covered = {row.doc for row in contract.DOC_COMMAND_SOURCES}
-        skill_root = contract.PLUGIN_ROOT / "skills" / "babysit-prs"
+        # The whole plugin, not just the babysit skill: a command line copied
+        # into a command, agent, or sibling skill drifts exactly the same way.
         naming = {
             str(path.relative_to(contract.PLUGIN_ROOT)).replace("\\", "/")
-            for path in skill_root.rglob("*.md")
+            for path in contract.PLUGIN_ROOT.rglob("*.md")
             if WRAPPER_COMMAND.search(path.read_text(encoding="utf-8"))
         }
         self.assertEqual(
