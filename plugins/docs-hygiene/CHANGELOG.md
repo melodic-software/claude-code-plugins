@@ -76,6 +76,13 @@
   mode ladder already names `pyproject.toml` as evidence for selecting CONTAINER mode. The skill
   therefore routed such a package into the mode that suppresses bare-token residue while being
   unable to match the one declaration that mode makes load-bearing.
+- **Form 14's declaration alternatives accept `id`, not only `name` and `title`.** The mode ladder
+  already selects container mode on `<old>` appearing as the `name`/`id` field of a manifest, so a
+  manifest identifying the container by `id` routed into the mode that suppresses bare-token
+  residue while its `id` declaration stayed unmatched and excluded. The manifest/catalog condition
+  on the declaration exemption is what keeps the widened key set safe — `id="$1"` is ordinary
+  shell assignment syntax — so outside a manifest an `id` match takes the scope rule and the
+  common-word demotion.
 - **Qualified-id promotion binds to the occurrence, not the line.** "A management verb somewhere
   on the line" promoted an unrelated dotless address to Certain — `/plugin install foo@acme;
   email t@t` — undoing the demotion. A verb that governs the occurrence is already Certain under

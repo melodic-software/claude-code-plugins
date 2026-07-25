@@ -393,6 +393,18 @@
         "The named risk is container mode suppressing actionable identifier references",
         "A shared name is not treated as evidence that the two rules describe the same entity"
       ]
+    },
+    {
+      "id": 33,
+      "name": "manifest-id-declaration-is-matched-like-name",
+      "prompt": "Rename the `docs-hygiene` container to `doc-care`. Its manifest identifies it with an `id` field rather than `name`. Audit for stale references.",
+      "expected_output": "All three of Form 14's declaration alternatives accept `id` alongside `name` and `title`, so the declaration is matched and reported as Certain. The mode ladder already selects CONTAINER mode on `<old>` appearing as the name/id field of a manifest, so recognizing only `name` and `title` routed such a manifest into the mode that suppresses bare-token residue while leaving its `id` occurrence as excluded residue -- apply mode could then report zero actionable stragglers with the manifest still registering the old ID. The manifest/catalog condition on the exemption is what keeps the widened key set safe: `id=\"$1\"` is ordinary shell assignment syntax and appears dozens of times in this repository, so outside a manifest an `id` match is treated as a title match and takes the scope rule and the common-word demotion rather than becoming a Certain rename candidate.",
+      "files": [],
+      "expectations": [
+        "An `id` declaration is matched, not only `name` and `title`",
+        "The contradiction named is that the mode ladder already treats an `id` field as container evidence",
+        "Shell `id=` assignments outside a manifest are not rated Certain"
+      ]
     }
   ]
 }

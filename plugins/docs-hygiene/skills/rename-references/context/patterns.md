@@ -276,15 +276,15 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
 ```regex
 ^#{1,6}\s+`?<old>`?\s*$
 ^`?<old>`?\s*$\n^(=+|-+)\s*$
-^(name|title):\s*("<old>"|'<old>'|<old>)\s*$
-^\s*"(name|title)":\s*"<old>"\s*,?\s*$
-^\s*"?(name|title)"?\s*=\s*("<old>"|'<old>')\s*$
+^(name|title|id):\s*("<old>"|'<old>'|<old>)\s*$
+^\s*"(name|title|id)":\s*"<old>"\s*,?\s*$
+^\s*"?(name|title|id)"?\s*=\s*("<old>"|'<old>')\s*$
 ```
 
 - **Triage default:** Certain
 - **Catches:** an ATX heading whose ENTIRE content is the renamed token — the README H1 that
-  names the thing — and a `name` / `title` declaration in YAML frontmatter, a JSON manifest or
-  catalog, or a TOML manifest.
+  names the thing — and a `name` / `title` / `id` declaration in YAML frontmatter, a JSON manifest
+  or catalog, or a TOML manifest.
 - **Why the `$` anchor is load-bearing:** it is what makes this Certain rather than
   ambiguous. A heading that merely *contains* the token (`## How re-anchor works`) may well
   be verb usage and belongs in Form 2's ambiguous bucket; a heading that IS the token can
@@ -314,10 +314,20 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
   value (`"…"` or `'…'`). Verified against real TOML shapes: `name = "<old>"`, `name="<old>"`,
   `"name" = "<old>"`, `name = '<old>'`, and `title = "<old>"` all match; `name = "<old>-extra"`
   and `description = "<old>"` do not.
-- **The `=` shape is why the manifest/catalog qualifier below is load-bearing.** `name="<old>"` is
-  also ordinary shell and `.env` assignment syntax. The exemption that makes a declaration Certain
-  regardless of path applies only when the FILE is a manifest or catalog; in any other file the
-  match is treated as a title match and takes the scope rule and the common-word demotion.
+- **`id` is a declaration key too, and the mode ladder already says so.** Rule 3 of the ladder
+  selects CONTAINER mode when `<old>` is "the `name`/`id` field of such a manifest", so a manifest
+  that identifies the container by `id` routes into the mode that suppresses bare-token residue.
+  Matching only `name` and `title` left that `id` occurrence as excluded residue and apply mode
+  could report zero actionable stragglers with the manifest still registering the old ID. All
+  three declaration alternatives accept `id`.
+- **The `=` shape, and `id`, are why the manifest/catalog qualifier below is load-bearing.**
+  `name="<old>"` and `id="<old>"` are also ordinary shell and `.env` assignment syntax — this
+  repository alone carries ~45 `id=` / `id:` string declarations, nearly all of them shell
+  positional-argument binds in `.sh` files. They cannot collide unless the container's literal
+  name is the assigned value, and the exemption that makes a declaration Certain regardless of
+  path applies only when the FILE is a manifest or catalog. In any other file the match is treated
+  as a title match and takes the scope rule and the common-word demotion. Widening the key set
+  without that condition would make every `id="$1"` in a shell script a Certain rename candidate.
 - **Quote handling:** the YAML alternation accepts a bare, double-quoted, or single-quoted value
   and requires the quotes to PAIR — `"<old>"` and `'<old>'`, never `"<old>'`. A naive
   `["']?<old>["']?` would match the mismatched form, which is not valid YAML. The JSON alternative
@@ -349,9 +359,9 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
      verb usage — the key admits only an identifier. Demoting it would suppress the one hit that
      is certain by construction.
 
-  This exemption covers all three declaration alternatives — `name:` / `title:` in frontmatter,
-  the JSON `"name":` shape, and the TOML `name =` shape — **when the file is a manifest or
-  catalog**, and only then. A `title:` in an
+  This exemption covers all three declaration alternatives, over all three keys (`name`, `title`,
+  `id`) — the frontmatter `name:` shape, the JSON `"name":` shape, and the TOML `name =` shape —
+  **when the file is a manifest or catalog**, and only then. A `title:` in an
   ordinary document's frontmatter is a document title, not a registration: treat it as a title
   match and apply the scope rule and the common-word demotion to it.
 - **Note:** a plugin/skill README H1 is the landing surface every consumer sees first, and
