@@ -1,7 +1,7 @@
 ---
 name: audit-instructions
 description: "Audit locally-owned Claude Code instruction surfaces — user + project CLAUDE.md, .claude/rules, skill bodies, agent definitions, prompt-type hooks, output styles — for instructions current models no longer need: prior-model workarounds, over-prescriptive scaffolding, bare prohibitions, reasoning-echo directives, stale examples. Report-only: emits a findings report with proposed diffs, gated to the human, never auto-applied. Use when: 'after a model upgrade', 'are my instructions holding the model back', 'instructions the model no longer needs', 'too prescriptive', 'audit instructions', 'instruction audit'. Not a brevity pass and not memory-layer hygiene."
-argument-hint: "[scope] — scope: claude-md|rules|skills|agents|hooks|output-styles|all (default: all)"
+argument-hint: "[scope] [--opinion] [--no-stopping-condition] — scope: claude-md|rules|skills|agents|hooks|output-styles|all (default: all)"
 user-invocable: true
 disable-model-invocation: false
 ---
@@ -17,8 +17,9 @@ doctrine, tiers it by how confident the evidence can be, and packages proposed r
 rewrites as a human-gated diff — so instruction surfaces shrink as models get better instead of
 only ever growing.
 
-The check catalog — the eleven checks I1–I11, their evidence tier, authority tag, severity, and
-per-surface applicability — lives in [reference/criteria.md](reference/criteria.md). The
+The check catalog — the checks I1–I13, their evidence tier, authority tag, severity, per-surface
+applicability, and the `OPINION`-tier enablement policy — lives in
+[reference/criteria.md](reference/criteria.md). The
 deterministic pre-scan is
 `${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/instruction-scan.sh`.
 
@@ -39,7 +40,7 @@ concerns its siblings already cover — route rather than re-answer:
   portability is `claude-config:audit-permission-grants`.
 
 On **memory-layer surfaces** (CLAUDE.md, CLAUDE.local.md, `.claude/rules/`, `~/.claude/rules/`),
-this skill runs only the model-era checks I6–I11. It never runs or reports the hygiene checks
+this skill runs only the model-era checks I6–I13. It never runs or reports the hygiene checks
 I1–I5 (line-necessity, length, placement, inferable content, rule-to-hook) on these surfaces —
 that instruction-memory hygiene layer belongs to the `claude-memory` plugin. When that plugin is
 installed, route memory-layer hygiene to its `audit` skill; when it is not installed, emit a single
@@ -47,7 +48,12 @@ one-line pointer to the official CLAUDE.md include/exclude guidance (recorded wi
 [reference/criteria.md](reference/criteria.md)) so the operator knows where that audit lives — this
 skill still does not perform it. Either way, no I1–I5 hygiene finding is ever produced here. On
 **non-memory surfaces** (skill bodies, agent definitions, prompt-type hooks, output styles) the
-full catalog I1–I11 applies — no incumbent auditor covers instruction content there.
+full catalog I1–I13 applies — no incumbent auditor covers instruction content there.
+
+I12 (cross-surface conflict) carries its own narrower routing on the same convention: a contradiction
+wholly inside the memory layer is `claude-memory:audit` check C6's and is not reported here, while one
+with at least one side outside the memory layer, or any side in the managed-policy tier, is this
+skill's. The catalog states the full rule.
 
 **Upstream-owned surfaces are excluded from the editable set.** Installed plugin-cache content is
 owned by the publishing repository, and a managed materialization is owned by whatever upstream
@@ -67,6 +73,14 @@ Parse `$ARGUMENTS` for an optional scope filter that narrows which surfaces the 
 - `hooks` — prompt-type hook text only
 - `output-styles` — output-style markdown only
 - `all` — every locally-owned surface (default)
+
+Two flags govern the `OPINION` tier, whose enablement policy the catalog defines:
+
+- `--opinion` — also run the `OPINION`-tier checks that emit findings (I13 today). Off by default;
+  their findings are capped at `info` and are never applied.
+- `--no-stopping-condition` — disable the `OPINION`-tier stopping condition that bounds I6 and I8.
+  It is on by default because it withholds findings rather than emitting them, so turning it off
+  makes both trimming checks more aggressive, not the audit more conservative.
 
 ## Phase A — Inventory
 
@@ -131,7 +145,15 @@ chat. Present findings as a table:
 
 For each finding, give the proposed removal or rewrite as a fenced diff block. Tier is `mechanical`
 (pattern-detectable) or `behavioral` (its ground truth is observed behavior); authority is the
-check's tag from the catalog. End with a **Routing** subsection listing every excluded upstream-owned
+check's tag from the catalog. An I12 conflict finding names **both** participating locations — it is
+a relation between two instructions, not a property of one line.
+
+Three sections the catalog's `OPINION` policy requires: the shadowed-definition `info` section (live
+definition and inert one, per I12); a **Withheld** subsection naming every I6/I8 proposal the
+stopping condition suppressed and on what ground; and a one-line `OPINION` discovery note — how many
+`OPINION`-tier checks were available, how many did not run, and the argument that enables them.
+
+End with a **Routing** subsection listing every excluded upstream-owned
 or memory-layer surface and where its findings should go, and a **Recommended follow-through**
 subsection: apply an accepted change, then observe whether Claude's behavior actually shifts;
 re-add on the next mistake as the compounding safety net; for example blocks, A/B against the

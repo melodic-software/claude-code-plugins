@@ -3,6 +3,74 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0]
+
+### Added
+
+- **`audit-instructions` check I12 — cross-surface instruction conflict.** Two live instructions
+  that cannot both be satisfied, where no official layering rule already picks a winner. Scoped by
+  routing around the incumbent: a contradiction wholly inside the memory layer is
+  `claude-memory:audit` check C6's and is not reported here, while one with a side outside the memory
+  layer — a skill body, an agent definition, a prompt-type hook, an output style — or any side in the
+  managed-policy tier, is I12's. When `claude-memory` is absent, the run says memory-layer
+  contradictions go unchecked and names the skill that performs them. Remediation splits by scope and
+  never defaults to deletion: reconcile where both sides are operator-owned, report-only against
+  managed policy, route user-scope findings as recommendations. Ships five must-not-flag cases plus a
+  separate `info` report for shadowed same-named skills, subagents, and MCP servers, which are
+  resolved overrides rather than conflicts. The comparison set is resolved before it is compared —
+  `@path` imports expanded and symlinks followed, since imported files load at launch and a detector
+  reading only the importing file would compare a different surface than the model sees. `AGENTS.md`
+  is affirmatively excluded and the reason recorded: Claude Code reads `CLAUDE.md`, not `AGENTS.md`,
+  so a stock install never loads it, and its content enters only through an import.
+- **`audit-instructions` check I13 — definition-site locality.** An instruction governing one named
+  thing while living somewhere other than that thing's own definition. A different axis from I3:
+  I3 is load *timing*, I13 is *locality*, and an instruction can be correctly deferred and still
+  misplaced. `OPINION`-tier, off by default, enabled by `--opinion`, capped at `info`, never applied.
+- **`audit-instructions` stopping condition on I6 and I8.** Neither carried an a-priori bound, so
+  both trimmed without a floor. It withholds a proposal where the instruction guards a
+  high-consequence area (safety gate, irreversible action, security boundary, external contract,
+  genuine ordering) and reports every withholding. `OPINION`-tier but **enabled by default** with an
+  explicit `--no-stopping-condition` opt-out, because it withholds rather than emits — defaulting a
+  suppressor off would delete the only bound on two trimming checks.
+- **`OPINION`-tier enablement policy in the catalog.** Emitting rules default off, `info`-capped,
+  never fix-applied; withholding rules default on; `OPINION`-derived advice inside a backed check
+  follows its host's enablement and is labelled inline. Every run reports how many `OPINION` checks
+  were available, how many did not run, and the argument that enables them.
+- **YAML frontmatter on `reference/criteria.md`** carrying `version` (1.1.0) and `last-updated`,
+  replacing the body-prose version line — a contract surface with three parse paths now stamps its
+  version machine-readably.
+
+### Changed
+
+- **`audit-instructions` I3 remediation now qualifies its destination and prices the move.** A
+  destination qualifies only if it defers loading, so `@path` imports do not — a split into imports
+  satisfied the check's letter while changing the load profile not at all. A finding must also state
+  that a `paths:`-scoped rule or a nested `CLAUDE.md` is lost after compaction until a matching file
+  is read again. A move into a **new** skill is priced too: the body defers, but the listing entry it
+  adds — `name` plus the combined `description` and `when_to_use`, truncated at 1,536 characters — is
+  always in context, so "move it to a skill" moves part of the cost into the always-loaded tier
+  rather than out of it. A move into a skill that already exists adds no entry and is not charged.
+  `disable-model-invocation: true` is the only field that keeps a description out of context, and it
+  makes the skill user-invocable only; `skillOverrides` does not reach plugin skills. Stated as a
+  cost on the recommendation, never as a budget threshold.
+- **`audit-instructions` I9 remediation names the interface destination.** Where an example block
+  exists to enumerate what a caller may pass, the finding names an argument enumeration, a
+  frontmatter field, or a typed `argument-hint` instead. `OPINION`-derived, labelled as such in the
+  finding, never fix-applied; the detection is unchanged and stays officially backed.
+
+### Fixed
+
+- **`audit-permission-grants` no longer points outside the plugin root.** Both `SKILL.md` and
+  `reference/criteria.md` reached the permission-rule-hygiene convention through a `../` relative
+  link. An installed plugin runs from an isolated cache holding only the plugin's own tree, so the
+  link normalized above the cache root and resolved to nothing — the skill directed a read that
+  cannot succeed in installed form, while resolving fine in a full-repo checkout, which is why it
+  survived. Both now point at the convention's published URL, the form sibling plugins already use
+  for marketplace conventions. Nothing was copied into the plugin: the convention stays the single
+  owner of the principle, the three anti-patterns, and the correct pattern. What a run actually needs
+  was already in-plugin — each check's **Recommend** line — and both files now say so, so a report
+  never depends on fetching anything.
+
 ## [0.9.2]
 
 ### Changed

@@ -403,7 +403,7 @@ evidence; re-query the API. The NEVER-do list (§5.4) overrides any other instru
    [reference/review-trigger.md](reference/review-trigger.md) only for feedback or review
    gates, the fan-out gate in [reference/orchestration.md](reference/orchestration.md) only
    before assigning workers, and [reference/cadence.md](reference/cadence.md) only before
-   interpreting a cadence state.
+   recommending cadence.
 
 6. Process stale-branch refreshes and review-trigger posts as orchestrator-only actions before
    assigning workers; each is terminal for that PR's cycle until a later snapshot observes its
@@ -432,7 +432,9 @@ evidence; re-query the API. The NEVER-do list (§5.4) overrides any other instru
    release its worker lease. Never globally prune open-PR worktrees. Release the queue lease in
    finally-style cleanup.
 
-9. Schedule the next wake per the cadence contract in [reference/loop.md](reference/loop.md) §5.3.
+9. Schedule the next wake from the snapshot's `recommended_cadence`
+   ([reference/cadence.md](reference/cadence.md)); the static ladder in
+   [reference/loop.md](reference/loop.md) §5.3 is the Python-free degrade.
 
 ## Reporting
 
@@ -449,7 +451,7 @@ awaiting human execution" with its exact pinned command
 ([reference/safety.md](reference/safety.md)); escalations that need a user decision; and
 suspicious state changes such as missing permissions, changed branch protection, merge
 conflicts, or a head SHA that moved during work. When nothing materially changed, stay silent.
-Recommend the exact next interval per [reference/loop.md](reference/loop.md) §5.3.
+Recommend the exact next interval per [reference/cadence.md](reference/cadence.md).
 
 ## Gotchas
 
@@ -479,7 +481,7 @@ Failure patterns observed in real babysit sessions:
 ## References
 
 - [reference/loop.md](reference/loop.md) — the safe-tier iteration loop (also the Python-free
-  degrade path): discovery, checkout, freshness, checklist, and the §5.3 cadence contract.
+  degrade path): discovery, checkout, freshness, checklist, static cadence ladder.
 - [reference/orchestration.md](reference/orchestration.md) — fan-out gate (`needs_worker` arms), concurrency cap, leases, worker contract + prompt template, conflict resolution, cleanup.
 - [reference/cadence.md](reference/cadence.md) — active/normal/quiet/idle cadence states,
   real-elapsed-time detection, bounded full-sweep interval, persisted counters.

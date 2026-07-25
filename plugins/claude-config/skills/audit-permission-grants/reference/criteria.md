@@ -5,10 +5,11 @@ Last updated: 2026-07-14
 
 This file defines the checks the `audit-permission-grants` audit runs. The **principle, the three
 anti-patterns, and the prescribed correct pattern — with official-doc citations — live in the
-marketplace convention** and are not restated here:
-[docs/conventions/permission-rule-hygiene](../../../../../docs/conventions/permission-rule-hygiene/README.md).
+marketplace's permission-rule-hygiene convention** and are not restated here, published at
+<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/permission-rule-hygiene/README.md>.
 This file is the mechanical check layer: what the detector flags, at what severity, and how to read a
-finding.
+finding. Each check's **Recommend** line below carries the fix in the form the report needs, so a run
+never depends on fetching the convention.
 
 The deterministic spine is
 `bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-permission-grants/scripts/permission-rule-check.sh"` — it scans
