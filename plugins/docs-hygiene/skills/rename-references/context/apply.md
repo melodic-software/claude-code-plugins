@@ -60,6 +60,11 @@ Per-bucket confirmation flow:
 - `AskUserQuestion` per match: "Rename this?" — options: "rename this", "skip this", "skip remaining ambiguous"
 - ALWAYS one-by-one — batched confirmation defeats the safety purpose
 
+**Record every decline as a confirmed skip, keyed by `(file, line, start, end)`.** "skip bucket",
+"skip this" and "skip remaining ambiguous" each produce skip records for the matches they cover.
+Phase 6 subtracts those spans from the actionable count — without the record the same declined
+match re-enters Outcome B on every re-sweep and the loop cannot terminate. See Phase 6.
+
 If user picks "abort" at any prompt, halt and report partial state (no matches edited yet — Edit phase not started).
 
 ### Phase 5: Apply
@@ -100,11 +105,34 @@ means the completion check can never reach zero and Outcome B loops indefinitely
 not count toward completion; report it in the Phase 7 summary as the same aggregate the audit
 reports.
 
+**A DELIBERATE SKIP is not actionable either — track skips and subtract them.** Residue is not
+the only category the sweep leaves matching forever. Every Phase 4 "skip this" / "skip bucket"
+answer leaves a real match in place on purpose, and container mode makes that routine rather
+than rare: it demotes Forms 4–12 to Ambiguous, so an unrelated `context.timeout` reaches the
+user as a per-match prompt and the correct answer is to skip it. Counting a confirmed skip as
+actionable re-presents the same match at Outcome B forever, and the only exits are rewriting a
+known false positive or aborting with a partial result — the identical non-terminating loop the
+residue rule closes, reached through the other door.
+
+So Phase 4 must RECORD each skip as `(file, line, start, end)` — the same occurrence key
+precedence and dedup use — and Phase 6 subtracts those spans from the actionable count. Two
+constraints on the record:
+
+- **Key it by span, not by file or by form.** Skipping one occurrence is not consent to skip a
+  second one on the same line, and the user answered about a specific reference.
+- **A skip is scoped to the sweep that asked.** If Phase 6 discovers a NEW form (Outcome C) and
+  the library is extended, re-ask rather than carrying the old skip across a changed question.
+
+Report skips in the Phase 7 summary as intentionally preserved — never fold them into the
+residue aggregate, which is a different thing: residue was never proposed, a skip was proposed
+and declined.
+
 Three possible outcomes:
 
-**Outcome A — actionable count == 0:** rename complete. Proceed to Phase 7.
+**Outcome A — actionable count == 0:** rename complete. Proceed to Phase 7. Deliberate skips and
+residue may both be non-zero here; that is completion, not a partial result.
 
-**Outcome B — actionable count > 0, all in already-triaged buckets:** Phase 4 user choices missed some matches. Re-present bucket counts and re-confirm. Loop back to Phase 4.
+**Outcome B — actionable count > 0, all in already-triaged buckets:** Phase 4 user choices missed some matches. Re-present bucket counts and re-confirm. Loop back to Phase 4. **Confirmed skips are excluded before this test**, so a match the user declined never re-enters the loop.
 
 **Outcome C — actionable count > 0, NEW pattern form not in library:** Phase 6 pattern-library-evolution trigger. STOP — do not silently apply.
 
@@ -132,11 +160,17 @@ When Phase 6 reports an actionable count of 0:
    Total: <N> matches across <M> files.
    Excluded: <K> plan-doc/historical/memory paths (preserved).
    Bare-token occurrences left as ordinary use (container-rename mode): <R>.
+   Skipped at your confirmation: <S>.
    ```
 
    Emit the `<R>` line only under container-rename mode, and only when `<R>` is non-zero —
    it is what keeps completion from reading as a raw-zero sweep when residue was deliberately
    preserved. Omit it entirely for an identifier rename, which has no residue concept.
+
+   Emit the `<S>` line whenever `<S>` is non-zero, in either mode, and keep it SEPARATE from
+   `<R>`. They are different facts: residue was never proposed, a skip was proposed and
+   declined. Collapsing them hides that the user made a decision, and a reader checking why a
+   surviving `<old>` was left alone needs to know which of the two it was.
 
 2. Suggest follow-up per `../SKILL.md` "Skill chaining":
 

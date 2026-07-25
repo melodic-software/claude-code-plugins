@@ -143,10 +143,11 @@
       "id": 12,
       "name": "apply-mode-terminates-under-container-rename-mode",
       "prompt": "Apply the rename of the `re-anchor` plugin to `discipline`. About 130 lines use the token as an ordinary English verb.",
-      "expected_output": "Phase 6's completion check uses the ACTIONABLE count -- the survey result after precedence and container-rename mode -- not the raw match count. The bare-token residue is deliberately left unrenamed, so it still matches the token forever; counting it raw would mean Outcome A is never reached and Outcome B loops indefinitely. Apply mode reaches Outcome A once no actionable matches remain, and reports the residue in the Phase 7 summary as the same aggregate the audit reports.",
+      "expected_output": "Phase 6's completion check uses the ACTIONABLE count -- the survey result after precedence and container-rename mode, minus any match the user confirmed skipping in Phase 4 -- not the raw match count. Two categories keep matching the token forever: the bare-token residue, deliberately left unrenamed, and a declined match. Counting either would mean Outcome A is never reached and Outcome B loops indefinitely. Apply mode reaches Outcome A once no actionable matches remain, and reports residue and skips as SEPARATE lines in the Phase 7 summary -- residue was never proposed, a skip was proposed and declined.",
       "files": [],
       "expectations": [
         "Completion is evaluated on the actionable count, not the raw match count",
+        "A user-confirmed skip is excluded from the actionable count and reported separately from the residue aggregate",
         "The re-sweep does not loop on residue the mode rule deliberately excluded",
         "Residue is surfaced in the hand-off summary rather than silently dropped"
       ]
@@ -411,7 +412,7 @@
       "id": 34,
       "name": "catalog-keyed-by-container-id-is-matched",
       "prompt": "Rename the `docs-hygiene` plugin to `doc-care`. The registry is keyed by container id rather than carrying a name field: plugins: { \"docs-hygiene\": { ... } }. Audit for stale references.",
-      "expected_output": "Form 14's key-position alternative matches the catalog key. The mode ladder already names both catalog shapes -- the name/id field of a manifest OR a key in a marketplace/registry catalog -- so recognizing only the field shape selected container mode while the registry's own key stayed unmatched Form-2 residue and apply mode could report zero actionable stragglers with the registry still using the old ID. The alternative requires the value to OPEN an object or array, which is what distinguishes a catalog entry from an ordinary scalar setting. Its manifest/catalog condition is mandatory rather than merely helpful: `\"<key>\": {` is the commonest line shape in JSON -- this repository carries 569 of them -- so outside a file established as a manifest or registry catalog the match is Ambiguous unconditionally.",
+      "expected_output": "Form 14's key-position alternative matches the catalog key. The mode ladder already names both catalog shapes -- the name/id field of a manifest OR a key in a marketplace/registry catalog -- so recognizing only the field shape selected container mode while the registry's own key stayed unmatched Form-2 residue and apply mode could report zero actionable stragglers with the registry still using the old ID. The alternative requires the value to OPEN an object or array, which is what distinguishes a catalog entry from an ordinary scalar setting. Its manifest/catalog condition is mandatory rather than merely helpful: `\"<key>\": {` is the commonest line shape in JSON -- this repository carries 569 of them -- so outside a file established as a manifest or registry catalog the match is Ambiguous unconditionally. The key is anchored on the JSON delimiter -- `(^|[{,])` -- not on the line start, so the compact one-line rendering in this prompt matches as well as the pretty-printed one where the key sits alone on its line.",
       "files": [],
       "expectations": [
         "A catalog key naming the container is matched, not only a name/id field",
@@ -442,6 +443,19 @@
         "The multiline forms are rescanned as blocks rather than line by line",
         "The named failure is a dropped record, silently, rather than a partial match",
         "The block offset is converted back to a line-relative span so dedup still works"
+      ]
+    },
+    {
+      "id": 37,
+      "name": "confirmed-skip-does-not-block-completion",
+      "prompt": "Renaming the `context` plugin to `context-tools`. Container mode demoted `context.timeout` to Ambiguous, it prompted me, and I chose \"skip this\" because it is an unrelated config key. The re-sweep still reports it. Am I stuck?",
+      "expected_output": "No -- a confirmed skip is not actionable and must be subtracted from the completion count. Phase 4 records each decline as (file, line, start, end), the same occurrence key precedence and dedup use, and Phase 6 subtracts those spans before testing for completion. Without that, the declined match re-enters Outcome B on every re-sweep and the only exits are rewriting a known false positive or aborting with a partial result -- the same non-terminating loop the residue rule closes, reached through the other door, and container mode makes it routine rather than rare because it demotes Forms 4-12 to per-match prompts. The skip is keyed by span rather than by file or form, since skipping one occurrence is not consent to skip another on the same line, and it is scoped to the sweep that asked: if Phase 6 finds a NEW form and the library is extended, the question changed and the user is re-asked. The hand-off reports skips on their own line, never folded into the residue aggregate -- residue was never proposed, a skip was proposed and declined.",
+      "files": [],
+      "expectations": [
+        "A confirmed skip is excluded from the actionable count so Outcome A is reachable",
+        "Skips are keyed by occurrence span, not by file or by form",
+        "Skips are reported separately from the bare-token residue aggregate",
+        "A skip does not silently carry across a pattern-library extension"
       ]
     }
   ]

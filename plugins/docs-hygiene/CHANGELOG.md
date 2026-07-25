@@ -86,6 +86,18 @@
   keeps it from becoming a mass-rewrite vector. A YAML block-mapping catalog key stays a
   documented gap: it opens with nothing, so the only pattern reaching it would match every nested
   YAML key.
+- **A confirmed skip no longer blocks completion.** The actionable count excluded the container
+  mode's residue but not the matches a user declined at Phase 4, so a deliberate "skip this"
+  re-entered Outcome B on every re-sweep and the only exits were rewriting a known false positive
+  or aborting — the same non-terminating loop the residue rule closes, reached through the other
+  door. The allowlist change above made it routine rather than rare by demoting Forms 4–12 to
+  per-match prompts. Skips are now recorded by occurrence span, subtracted from the count, scoped
+  to the sweep that asked, and reported on their own hand-off line: residue was never proposed, a
+  skip was proposed and declined.
+- **The catalog key anchors on the JSON delimiter, not the line start.** `^\s*` reached only the
+  pretty-printed shape where the key sits alone on a line — not the compact
+  `plugins: { "<old>": { … } }` that the form's own motivating example uses. The anchor is now
+  `(^|[{,])`: a JSON key follows a line start, an opening brace, or a comma, and nothing else.
 - **Container mode's Certain rule is enforced as an allowlist over forms.** It was applied only to
   the bare-token residue, leaving Forms 8 and 12 — both Certain by default — on the auto-apply
   path: renaming a `context` plugin would rewrite the unrelated dotted key `context.timeout` and a

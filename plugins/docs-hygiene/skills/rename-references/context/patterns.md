@@ -279,7 +279,7 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
 ^\s*(name|title|id):\s*("<old>"|'<old>'|<old>)\s*$
 ^\s*"(name|title|id)":\s*"<old>"\s*,?\s*$
 ^\s*"?(name|title|id)"?\s*=\s*("<old>"|'<old>')\s*$
-^\s*("<old>"|<old>)\s*:\s*[{\[]
+(^|[{,])\s*("<old>"|<old>)\s*:\s*[{\[]
 ```
 
 - **Triage default:** Certain
@@ -328,6 +328,16 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
   as `plugins: { "<old>": { … } }` selected container mode while its own key stayed unmatched
   Form 2 residue. The key-position alternative matches a key whose value OPENS an object or array,
   which is what distinguishes a catalog entry from an ordinary scalar setting.
+- **A catalog key is not always the first thing on its line — anchor on the JSON delimiter, not on
+  the line start.** A `^\s*` anchor only reaches the pretty-printed shape where the key sits alone
+  on a line; the compact `plugins: { "<old>": { … } }` puts a parent key and an opening brace in
+  front of it, and that is the very shape this form's own motivating example uses. A left anchor
+  that misses the example it was written for is the recurring failure in this file's history, so
+  the anchor is `(^|[{,])` instead: a JSON key follows a line start, an opening brace, or a
+  comma — nothing else. That covers both renderings with no widening beyond them. Verified:
+  `plugins: { "<old>": {` and an indented `"<old>": {` both match, `{"a":1,"<old>":{}}` matches on
+  the comma, and `"other": { "<old>": "scalar" }` still does not, because the value must open an
+  object or array.
 - **The key-position alternative MUST have the manifest/catalog condition, not merely benefit from
   it.** `"<key>": {` is the commonest line shape in JSON: this repository carries 569 of them. For
   a container with an ordinary-word name an unconditioned key pattern would rate a large slice of
