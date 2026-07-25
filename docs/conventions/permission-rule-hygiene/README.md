@@ -125,9 +125,10 @@ name narrowly:
 ## Known gap — step 1's plugin `bin/` is not delivered on Windows / Git Bash
 
 The plugin `bin/` half of step 1 is documented but does not hold on this platform, so a helper whose
-only permission story is bin/-on-PATH has **no** operative allow rule there. Measured on Windows 11 /
-Git Bash, Claude Code **v2.1.219**, with the owning plugin installed at user scope and reported
-`enabled` by `claude plugin list`:
+only permission story is bin/-on-PATH has **no** operative allow rule there. Behavior on macOS and
+Linux is unverified — probe there rather than reading a Windows-scoped heading as a clearance.
+Measured on Windows 11 / Git Bash, Claude Code **v2.1.219**, with the owning plugin installed at user
+scope and reported `enabled` by `claude plugin list`:
 
 ```console
 $ which source-control-babysit-merge ; echo $?
@@ -151,26 +152,36 @@ Two consequences for anyone writing a guarded helper today:
   variables).
 - **Expect the call to reach the classifier on every invocation.** `bash` is not one of the wrappers
   Claude Code strips before matching, so a rule for a `bash <path> …` command has to name `bash` —
-  making it interpreter-led, i.e. anti-pattern 1, dropped on entering auto mode. Do not assume the
-  operator can pre-approve the helper.
+  making it interpreter-led, i.e. anti-pattern 1. The documented drop categories clearly reach the
+  wildcarded-target form (`Bash(bash <path>*)`); whether they reach a fixed-path form
+  (`Bash(bash <fixed-path>:*)`) is not stated, so that shape is an anti-pattern on convention grounds
+  rather than a confirmed drop. Either way, treat the call as reaching the classifier — do not assume
+  the operator can pre-approve the helper.
 
 Until the gap closes upstream, treat step 1's plugin-`bin/` bullet as the intended end state rather
 than a capability to build on, on this platform. Two substitutes look attractive and are not:
 
 - A **`~/.local/bin` shim**: a static shim pins a version-numbered install path that changes on every
-  plugin update, and a shim that resolves the newest directory under the install cache can select an
-  unvetted staging clone.
+  plugin update.
 - **`env.PATH` in user settings**, which does reach the Bash tool's shell (`env` is applied "to
   subprocesses Claude Code spawns", [settings](https://code.claude.com/docs/en/settings)): it carries
   the same version-pinned-path rot, and overriding `PATH` wholesale in settings is its own hazard.
 
 One candidate is untested rather than rejected. Bash rules accept a wildcard in any position,
-including leading, so a rule anchored on the wrapper's own name — `Bash(*<wrapper-name> *)` — would
-syntactically match the bundled-path invocation without naming an interpreter. **Whether that shape
-survives auto mode is unverified**: the documented drop list enumerates blanket rules, wildcarded
-interpreters, package-manager runners, and `Agent` rules, and says nothing about a leading wildcard
-in the command position. Establish that before building on it, and weigh that such a rule matches the
-name at *any* path, including an unvetted copy.
+including leading, so a rule anchored on the wrapper's own name rather than on the interpreter could
+reach the bundled-path invocation without naming one. Two things have to be established before
+building on it.
+
+- **It has to match the invocation as actually written.** The documented bundled-path form quotes the
+  path, so the character following the wrapper name is a closing quote, not a space — a candidate
+  shaped `Bash(*<wrapper-name> *)` does not match it, and fails before the auto-mode question is even
+  reached. Derive the candidate from the exact command string operators are told to run.
+- **Whether a leading-wildcard rule survives auto mode is unverified.** The documented drop list
+  enumerates blanket rules, wildcarded interpreters, package-manager runners, and `Agent` rules, and
+  says nothing about a leading wildcard in the command position.
+
+Weigh too that a rule anchored on a bare wrapper name matches that name at *any* path, including an
+unvetted copy.
 
 ## Sources
 
