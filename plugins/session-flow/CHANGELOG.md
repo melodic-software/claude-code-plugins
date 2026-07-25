@@ -1,5 +1,17 @@
 # Changelog — session-flow plugin
 
+## [0.15.1]
+
+### Fixed
+
+- All five skills whose pre-computed context block injects the session id
+  (`orient`, `retro`, `running-retro`, `handoff`, `continue-in-background`) now
+  carry a `|| echo "unknown"` fallback on that injection, matching the sibling
+  git injections in the same block. Injection failure, timeout, and stderr
+  semantics are undocumented upstream, so an unguarded command can inline an
+  error string into the prompt; the guard is the pinned convention the
+  `skill-quality:check` gate enforces.
+
 ## [0.15.0]
 
 ### Added
