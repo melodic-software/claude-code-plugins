@@ -3,6 +3,23 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.26.9]
+
+### Fixed
+
+- **`babysit-prs` review-trigger contract now says `pending`, matching the code, and states what a
+  failing gate means (#324).** `reference/review-trigger.md` described the trigger signal as
+  `<review-gate-context>` "pending or failing", while every gate_state comparison in the engine
+  accepts only `pending` (`babysit_review_trigger.py` candidate predicate, `babysit_delta.py`
+  "awaiting requested review"), and `request_signal_pending` is derived solely from a `PENDING`
+  StatusContext with no target URL. The doc's own Engagement Gate Semantics section defines only
+  `PENDING` (no qualifying reviewer activity after the polling window) and `SUCCESS` (may reflect an
+  earlier head) — it gives `FAILING` no engagement meaning — so "or failing" was the erroneous
+  restatement, not the code. Narrowed the sentence to `pending` and recorded the failing semantic
+  once: a failing gate is not an engagement signal and is never a trigger candidate; it is bucketed
+  by `classify_checks` like any other check, so it already reaches the operator through the ordinary
+  failing-check blocker. Documentation and test only; no behavior change.
+
 ## [0.26.8]
 
 ### Fixed
