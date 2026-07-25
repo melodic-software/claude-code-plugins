@@ -524,6 +524,32 @@ the seventh. The chosen field set does not change; the citation does.
 - Neither declares an ignored field — `grep -E '^(hooks|mcpServers|permissionMode):' plugins/discovery/agents/*.md` returns no match (exit 1).
 - **Runtime probe (end-to-end):** dispatch `discovery:researcher` on a small bounded topic; assert (a) the returned text contains the C2 YAML block, (b) `verification: pending` is present, (c) the named artifact exists on disk, (d) the transcript shows the discipline's phase structure, proving `skills:` preload landed.
 
+> **Sequencing correction, 2026-07-25 — the end-to-end probe cannot run inside Phase 1, and moves to
+> immediately after Phase 3.** Not a scope change; an ordering defect in the plan, found by trying to
+> execute it. Two of this phase's own Sanity Checks — the `preload_token` match and the "transcript
+> shows the discipline's phase structure" assertion — are graded against a sentinel that **the
+> preloaded skill carries**, and the skill-side sentinel is authored in Phase 2 (`research`) and
+> Phase 3 (`explore`). Run at Phase 1 the probe would report `preload_token: MISSING` by
+> construction, against agents behaving exactly as specified. That is a false negative on the one
+> check whose entire purpose is to be a true signal, which would train the next reader to discount it.
+>
+> Everything in this phase that can be graded without a live dispatch was run and passed: manifest
+> validation, the `skills:` / `model: inherit` / five-C1-field counts, the load-bearing
+> `! grep -q '^memory:'`, the no-ignored-fields assertion, a well-formed frontmatter block in both
+> files, and markdownlint. **The two agent files are complete as written** — the probe verifies the
+> harness honors them; it is not waiting on further authoring.
+>
+> **Phase 5's gate was also graded here, early and deliberately**, since Decision 14 makes
+> `explore-deep`'s retirement conditional on `explorer.md` reproducing its behaviors and this is the
+> commit that authors them. All ten rows of Phase 5 step 1's table are accounted for in
+> `explorer.md`: (1) path-scoped rules loaded explicitly in its Step 0; (2) sidecar-on-collision with
+> the filename surfaced in the return; (3) scope from the dispatch prompt with refuse-to-guess, and
+> the empty-scope orientation pass deliberately NOT carried over, per the table's own reframing;
+> (4) absolute root resolved but never echoed; (5) read-only-by-instruction with both permitted write
+> targets named; (6) outcome gate before the write; (7) assumed destinations flagged; (8) bounded
+> return shape; (9) `!` precompute deliberately not reproduced, per Amendment 9c; (10) not a
+> behavior. **Phase 5 confirms this grading against the committed file rather than re-deriving it.**
+
 ### Phase 2: `research/SKILL.md` — dispatch posture, Phase 0 corpus enumeration, coverage gate [TODO]
 
 The largest phase. Contract migration, so it opens with a consumer pre-flight.
