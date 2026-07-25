@@ -27,6 +27,11 @@ All notable changes to the `implementation` plugin are documented here. Format f
   consumer is silent, while a testing-cadence instruction in the consumer's `CLAUDE.md` or rules
   overrides the fallback. The README documents a concrete tests-after opt-out; no user-scoped
   `userConfig` option was added. Closes #406.
+- **`implement`: the phase-boundary handoff step no longer restates the save-point section list.**
+  It carried a reordered, partial copy of `session-flow`'s handoff taxonomy that had already drifted
+  from the owner doc. The installed-plugin path now defers to `/session-flow:handoff`, which owns
+  that format; the fallback path names only the two items specific to a phase boundary
+  (sanity-check evidence, next-phase pointer) rather than re-listing the taxonomy.
 
 ## [0.9.0]
 
