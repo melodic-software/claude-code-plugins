@@ -203,7 +203,7 @@ unambiguous; ask only where an item genuinely needs the user.
    present a short summary (item count, each item's `id` / `cadence` / `next_due`, and which are already
    overdue against today). The interview proposes changes against that baseline; nothing is dropped
    without the user confirming. If the file is absent or carries an empty `items` array, say so and
-   settle the opt-in decision above before going further.
+   settle the opt-in decision above before steps 4–5.
 4. **Infer candidate items before asking — steps 4 and 5 run on the seeding path only** (the schedule
    already carries ≥1 item, or seeding was opted into). On the default skipped path, run neither and go
    straight to step 6. Recurring items can't be fully derived, but don't skip the rung — propose

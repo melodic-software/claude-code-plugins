@@ -31,7 +31,7 @@
     {
       "id": 3,
       "name": "writes-tracked-config-ensures-label-unique-keys",
-      "prompt": "/work-items:setup apply\n\nSeed a sensible recurring schedule for this repo.",
+      "prompt": "/work-items:setup apply\n\nSeed a sensible recurring schedule for this repo.\n\n(First-time bind: no .work-item-tracker.json exists and .github/recurring-schedule.json is absent.)",
       "expected_output": "Writes the accepted items to the consumer's tracked .github/recurring-schedule.json (project-root anchored, {\"items\": [ ... ]} root), verifying every final id AND every final title is unique across the array and stopping to prompt on any collision rather than writing a duplicate. It ensures the load-bearing recurring label exists via the bound provider (recommending creation, not treating it as optional) and never writes into the plugin directory or plugin data directory.",
       "files": [],
       "expectations": [
