@@ -171,6 +171,75 @@ EOF
 assert_eq "a 5-char window drops the distant prohibition" "0" \
   "$(CONFLICT_SCAN_WINDOW=5 bash "$SCRIPT" --count "$WIDE" "$AGREE")"
 
+# --- Case 17: postposed prohibition in the entity's OWN sentence is caught ---
+# "X must not be used" puts the prohibition after the entity. Reading only the
+# text before the mention misses it AND lets the mandate regex match "must",
+# silently classifying a prohibition as a mandate.
+POSTPOSED="$TEST_TMPDIR/postposed.md"
+cat >"$POSTPOSED" <<'EOF'
+`WebFetch` must not be used for documentation lookups.
+EOF
+WEBMANDATE="$TEST_TMPDIR/web-mandate.md"
+cat >"$WEBMANDATE" <<'EOF'
+Always use `WebFetch` for documentation lookups.
+EOF
+assert_eq "postposed prohibition pairs with a mandate" "1" \
+  "$(bash "$SCRIPT" --count "$WEBMANDATE" "$POSTPOSED")"
+
+# --- Case 18 (MUST NOT FLAG): postposed prohibition past a sentence break ----
+# Case 5's shape must survive the postposed check: the prohibition sits after a
+# full stop, so it governs a different object.
+assert_not_contains "prohibition past a sentence break still yields no pair" \
+  "$(bash "$SCRIPT" "$TRAILING" "$MANDATE")" "|AskUserQuestion|"
+
+# --- Case 19: a backticked single-word tool is an entity ---------------------
+# `Bash`, `Read`, `Edit` are single words and cannot match CamelCase.
+BASHNO="$TEST_TMPDIR/bash-no.md"
+cat >"$BASHNO" <<'EOF'
+Never use `Bash` for file edits.
+EOF
+BASHYES="$TEST_TMPDIR/bash-yes.md"
+cat >"$BASHYES" <<'EOF'
+Always use `Bash` for file edits.
+EOF
+OUT=$(bash "$SCRIPT" "$BASHYES" "$BASHNO")
+assert_contains "backticked single-word tool is paired" "$OUT" "|Bash|"
+
+# --- Case 20 (MUST NOT FLAG): a bare capitalized word is not an entity -------
+# Requiring the backticks is what keeps sentence-initial words out.
+BAREYES="$TEST_TMPDIR/bare-yes.md"
+cat >"$BAREYES" <<'EOF'
+Always run the suite before you commit.
+EOF
+BARENO="$TEST_TMPDIR/bare-no.md"
+cat >"$BARENO" <<'EOF'
+Never skip the suite before you commit.
+EOF
+assert_eq "bare capitalized words yield no pair" "0" \
+  "$(bash "$SCRIPT" --count "$BAREYES" "$BARENO")"
+
+# --- Case 21: a backticked and a bare mention of one tool pair together ------
+BAREWEB="$TEST_TMPDIR/bare-web.md"
+cat >"$BAREWEB" <<'EOF'
+Never use WebFetch for authenticated URLs.
+EOF
+assert_contains "backtick-stripped entity pairs with a bare mention" \
+  "$(bash "$SCRIPT" "$WEBMANDATE" "$BAREWEB")" "|WebFetch|"
+
+# --- Case 22: "opt-in" as SUBJECT is not arbitration -------------------------
+# Naming an opt-in is not being gated on one. Suppression now additionally
+# requires a conditional marker.
+OPTSUBJECT="$TEST_TMPDIR/opt-subject.md"
+cat >"$OPTSUBJECT" <<'EOF'
+Never use `AskUserQuestion` for opt-in prompts.
+EOF
+OPTMANDATE="$TEST_TMPDIR/opt-mandate.md"
+cat >"$OPTMANDATE" <<'EOF'
+Always use `AskUserQuestion` for every confirmation.
+EOF
+assert_eq "opt-in as subject is not suppressed" "1" \
+  "$(bash "$SCRIPT" --count "$OPTMANDATE" "$OPTSUBJECT")"
+
 # --- Case 16: missing grep exits 2 ------------------------------------------
 real_bash=$(command -v bash)
 empty_path_dir="$TEST_TMPDIR/empty-path"

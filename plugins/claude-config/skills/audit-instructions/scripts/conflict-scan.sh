@@ -88,8 +88,13 @@ fi
 # space-padded, lowercased window, so `[^a-z]` supplies the word boundary that
 # POSIX awk has no `\b` for.
 #
-# Entity shape: CamelCase identifier. Case-SENSITIVE, matched on the raw line.
-ENTITY_ERE='[A-Z][a-z]+([A-Z][a-z]*)+'
+# Entity shape, case-SENSITIVE and matched on the raw line: a CamelCase
+# identifier anywhere, or a single capitalized word INSIDE BACKTICKS. The second
+# alternative is what reaches single-word tools (`Bash`, `Read`, `Edit`), which
+# CamelCase alone cannot match; requiring the backticks is what keeps every
+# sentence-initial capitalized word out. Backticks are stripped from the entity
+# name, so a backticked and a bare mention of one tool pair with each other.
+ENTITY_ERE='[A-Z][a-z]+([A-Z][a-z]*)+|`[A-Z][a-z]+`'
 # Prohibition tokens — the I6 set, kept semantically identical to
 # instruction-scan.sh so the two scans classify a line's polarity the same way.
 PROHIBIT_ERE='[^a-z](never|do not|don[^a-z]?t|must ?not|mustn[^a-z]?t|should ?not|shouldn[^a-z]?t)[^a-z]'
@@ -101,7 +106,11 @@ MANDATE_ERE='[^a-z](must|always|mandator(y|ily)|require[ds]?|shall|use|present|a
 EXCEPTION_ERE='[^a-z](unless|except|only when|only if|other than)[^a-z]'
 # Explicit user-config opt-in gates — SUPPRESSED. An opt-in is arbitration, so
 # the pair is already resolved. Generic by shape, not a per-plugin allowlist.
+# Suppression additionally requires a CONDITIONAL marker, because naming an
+# opt-in is not the same as being gated on one: "never use `X` for opt-in
+# prompts" describes the subject and must still be classified as a prohibition.
 GATED_ERE='(user_config|user config|[^a-z]opt-?in[^a-z]|[^a-z]opted in[^a-z])'
+CONDITIONAL_ERE='[^a-z](only when|only if|unless|requires?|gated|enabled|is on|when set)[^a-z]'
 
 # Polarity is read from a window around each entity mention, not from the whole
 # line. A prose line often carries a prohibition about one object and names an
@@ -116,15 +125,18 @@ mapfile -t rows < <(
   for file in "$@"; do
     [[ -f "$file" ]] && printf '%s\n' "$file"
   done | awk -v w="$WINDOW_CHARS" -v entpat="$ENTITY_ERE" -v prohibit="$PROHIBIT_ERE" \
-    -v mandate="$MANDATE_ERE" -v exception="$EXCEPTION_ERE" -v gated="$GATED_ERE" '
-    function classify(file, lineno, ent, prewindow, window,   pol, exc, key) {
-      # An opt-in gate arbitrates the pair away before polarity is considered.
-      if (window ~ gated) return
-      # A prohibition governing the entity is pre-posed in instruction prose
-      # ("never use X"). A prohibition trailing the entity almost always governs
-      # a different object ("… via `X` … Do not gate per repo"), so only the
-      # text before the mention can make the entity polarity negative.
-      if (prewindow ~ prohibit) pol = "prohibit"
+    -v mandate="$MANDATE_ERE" -v exception="$EXCEPTION_ERE" -v gated="$GATED_ERE" \
+    -v conditional="$CONDITIONAL_ERE" '
+    function classify(file, lineno, ent, prewindow, postwindow, window,   pol, exc, key) {
+      # An opt-in gate arbitrates the pair away, but only when it reads as a
+      # condition rather than as the subject being described.
+      if (window ~ gated && window ~ conditional) return
+      # A prohibition governing the entity sits either before it ("never use X")
+      # or immediately after it within the same sentence ("X must not be used").
+      # Beyond a sentence break a trailing prohibition almost always governs a
+      # different object ("… via `X` once. Do not gate per repo"), which is why
+      # the caller truncates postwindow at the first sentence-ending mark.
+      if (prewindow ~ prohibit || postwindow ~ prohibit) pol = "prohibit"
       else if (window ~ mandate) pol = "mandate"
       else return
       exc = (window ~ exception) ? "yes" : "no"
@@ -145,16 +157,26 @@ mapfile -t rows < <(
         rest = line
         base = 0
         while (match(rest, entpat)) {
-          s = base + RSTART
-          e = s + RLENGTH - 1
-          ent = substr(rest, RSTART, RLENGTH)
+          # RSTART/RLENGTH are global and any later match() clobbers them, so the
+          # loop advance is computed from copies taken before anything else runs.
+          mstart = RSTART
+          mlen = RLENGTH
+          s = base + mstart
+          e = s + mlen - 1
+          ent = substr(rest, mstart, mlen)
+          gsub(/`/, "", ent)
           ws = s - w
           if (ws < 1) ws = 1
+          # Trailing text is cut at the first sentence-ending mark, so only a
+          # prohibition inside the same sentence can flip the polarity.
+          post = substr(pad, e + 2, w)
+          if (match(post, /[.;!?]/)) post = substr(post, 1, RSTART - 1)
           classify(file, lineno, ent, \
             " " substr(pad, ws + 1, s - ws) " ", \
+            " " post " ", \
             " " substr(pad, ws + 1, (e + w) - ws + 1) " ")
           base = e
-          rest = substr(rest, RSTART + RLENGTH)
+          rest = substr(rest, mstart + mlen)
         }
       }
       close(file)

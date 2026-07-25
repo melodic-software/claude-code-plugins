@@ -14,22 +14,33 @@ All notable changes to the `claude-config` plugin are documented here. Format fo
   A recorded as *skipped* (plugin-cache, managed materializations, org policy) as read-only conflict
   participants, since a contradiction is real whether or not this repo may edit either side.
 - **`reference/conflict-criteria.md`.** The five gates a pair must clear (co-residency, same
-  observable, opposed polarity, no arbitration, non-vacuous trigger overlap), the four conflict types
-  and their remediation routes, a precedence table separating what the official docs settle from what
-  they leave unresolved, a 13-case must-not-flag set, and two worked examples.
-- **An explicit boundary against `claude-memory:audit`'s C6 consistency check**, which already grades
-  contradictions inside the memory layer. A pair with both halves in that layer routes to C6; this
-  pass owns cross-layer pairs. `~/.claude/rules/` is ruled outside C6's population, since C6
-  enumerates rules project-relative and resolves a user-level directory only for auto-memory.
+  observable, opposed polarity, no arbitration, non-vacuous trigger overlap), three conflict types
+  and their remediation routes, a residency table covering every surface Phase A inventories, a
+  precedence table separating what the official docs settle from what they leave unresolved, a
+  13-case must-not-flag set, and two worked examples. **Split-brain is not a fourth type**: two files
+  where only one ever loads fails the co-residency gate by construction, so listing it as a conflict
+  type would make it unreachable. It is reported separately as *orphaned instruction drift* — the
+  state a contradiction grows out of, not a contradiction today.
+- **A boundary against `claude-memory:audit`'s C6 consistency check drawn on C6's actual population,
+  not on the name of the layer.** C6 discovers files project-relative (`find . -maxdepth 1` over
+  `CLAUDE.md`/`CLAUDE.local.md`, plus `find .claude/rules`) and its check text names only those
+  files. So only a pair with **both halves in project-scope** `CLAUDE.md` / `CLAUDE.local.md` /
+  `.claude/rules/**` routes to C6. Any pair with a `~/.claude/` side, and any pair involving
+  auto-memory `MEMORY.md`, stays with this pass — routing those out on a layer label would have left
+  them audited by neither skill.
 - **`scripts/conflict-scan.sh` + tests.** Advisory deterministic pre-scan emitting
   `fileA:lineA|fileB:lineB|entity|flags` candidate pairs, always exit 0, matching the existing
-  `instruction-scan.sh` contract. Entities are derived by CamelCase shape rather than a hardcoded
-  tool list, so a tool the scan has never heard of is still covered — the tradeoff being recall over
-  precision, since CamelCase proper nouns match the same shape. Polarity is read from a window
-  around each mention and a prohibition counts only when it precedes the entity, so a prohibition
-  governing a different object elsewhere on the line no longer reads as a conflict. Classification
-  and pairing run in a single `awk` pass bucketed by entity; a subprocess per mention did not finish
-  on an instruction tree this size.
+  `instruction-scan.sh` contract. An entity is a CamelCase identifier anywhere **or a single
+  capitalized word inside backticks** — the second form is what reaches single-word tools (`Bash`,
+  `Read`, `Edit`), and requiring the backticks is what keeps sentence-initial capitalized words out.
+  Neither form is a hardcoded tool list, so a tool the scan has never heard of is still covered.
+  Polarity is read from a window around each mention, and a prohibition counts when it **precedes**
+  the entity or **follows it within the same sentence**, so `X must not be used` classifies as a
+  prohibition while a trailing clause past a sentence break still does not. An opt-in gate suppresses
+  a pair only when it reads as a **condition** rather than as the subject being described, so
+  "never use `X` for opt-in prompts" is still classified. Classification and pairing run in a single
+  `awk` pass bucketed by entity; a subprocess per mention did not finish on an instruction tree this
+  size.
 - **`conflicts` scope argument.** Runs Phase A plus Phase B2 only, so a scheduled hygiene routine can
   compose the conflict check on its own token budget without paying for the full audit.
 

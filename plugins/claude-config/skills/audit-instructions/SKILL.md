@@ -126,10 +126,15 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/audit-instructions/scripts/conflict-scan.sh" 
 It emits `fileA:lineA|fileB:lineB|entity|flags` candidate pairs; `--count` prints the row count. Like
 the Phase B pre-scan it is advisory and always exits 0, deciding only the gates a text scan can decide,
 so every row is refined against the must-not-flag set rather than reported verbatim. Triage the entity
-first — the scan matches CamelCase by shape, so proper nouns arrive alongside tool names.
+first — the scan matches CamelCase by shape, so proper nouns arrive alongside tool names; single-word
+tools are matched only inside backticks.
 
-A pair with **both** halves in the memory layer belongs to `claude-memory:audit`'s C6 check; this pass
-extends C6 outward to cross-layer pairs rather than duplicating it.
+**Route on the population C6 actually enumerates, not on the name of a layer.** A pair with **both**
+halves in **project-scope** `CLAUDE.md` / `CLAUDE.local.md` / `.claude/rules/**` belongs to
+`claude-memory:audit`'s C6 check. Everything else stays here — including any pair with a
+`~/.claude/` side and any pair involving auto-memory `MEMORY.md`, neither of which C6 enumerates.
+[reference/conflict-criteria.md](reference/conflict-criteria.md) carries the routing table and the
+evidence behind it.
 
 **Detect the disagreement; do not adjudicate it.** Where the precedence table cites a documented order,
 name the winner and its source. Where the docs are silent, report the pair as unresolved — the memory
@@ -196,5 +201,6 @@ catalog).
   skill when installed.
 - Does not edit upstream-owned plugin-cache or managed materializations — those findings route to
   the owning repository.
-- Does not grade a contradiction whose two halves both sit in the memory layer — that is
-  `claude-memory:audit`'s C6.
+- Does not grade a contradiction whose two halves both sit in **project-scope** `CLAUDE.md` /
+  `CLAUDE.local.md` / `.claude/rules/**` — that is `claude-memory:audit`'s C6. Pairs reaching
+  `~/.claude/` or auto-memory stay here; C6 does not enumerate them.

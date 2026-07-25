@@ -1,11 +1,15 @@
 # Cross-Surface Conflict Criteria
 
 Version: 1.0.0
-Last updated: 2026-07-24
+Last updated: 2026-07-25
 
-The criteria for the cross-surface conflict pass. Where [criteria.md](criteria.md) judges one surface
-against current model capability, this file judges **two surfaces against each other**: the unit is a
-*pair* of files, and the finding is that both claim authority over one behavior and disagree.
+**The adjudication procedure for check I12.** [criteria.md](criteria.md)'s I12 entry owns the
+definition — what a cross-surface conflict *is*, its comparison set, its import and symlink
+resolution, its `AGENTS.md` exclusion, its remediation-by-scope rules, and its five must-not-flag
+cases. None of that is restated here. This file owns the part a check entry has no room for: **how a
+candidate pair is adjudicated** — whether the two surfaces can even co-load, what the official docs
+settle about precedence and what they refuse to, and the further must-not-flag cases the pre-scan and
+the lane each drop.
 
 The three shared axes (evidence tier, authority, severity) are defined once in
 [criteria.md](criteria.md) and are not restated here.
@@ -21,41 +25,45 @@ pages do not make is recorded as unresolved and given no winner.
 
 - Memory — CLAUDE.md, `.claude/rules/`, auto memory — <https://code.claude.com/docs/en/memory>
 - Skills — <https://code.claude.com/docs/en/skills>
+- Subagents — what loads into a subagent at startup — <https://code.claude.com/docs/en/sub-agents>
 
-## Why this pass exists
+## Boundary: what C6's population actually is
 
-> **Consistency**: if two rules contradict each other, Claude may pick one arbitrarily. Review your
-> CLAUDE.md files, nested CLAUDE.md files in subdirectories, and `.claude/rules/` periodically to
-> remove outdated or conflicting instructions.
-> — memory
+I12 routes a contradiction "wholly inside the memory layer" to `claude-memory:audit`'s **C6
+Consistency** check, and counts `~/.claude/rules/` among the memory-layer surfaces. Those two
+statements do not compose, and the gap is silent.
 
-The official guidance is to perform this review periodically. It names no mechanism that performs it.
-This pass is that mechanism.
+C6 asks its question "across CLAUDE.md, CLAUDE.local.md, and rules files"
+([`plugins/claude-memory/skills/audit/reference/criteria.md`](../../../../claude-memory/skills/audit/reference/criteria.md),
+check C6), and its population is **project-relative**: the audit workflow discovers files with
+`find . -maxdepth 1 -name "CLAUDE.md"` and `find .claude/rules`, and the orphan-rule script scans
+`.claude/rules/*.md`. The plugin resolves a user-level directory only for auto-memory under
+`~/.claude/projects/<slug>/`, never for rules. Its official-guidance reference notes `~/.claude/rules/`
+exists as background and never audits it.
 
-## Boundary: the memory layer already has a contradiction check
-
-`claude-memory`'s `audit` skill ships **C6 Consistency** — "Do any instructions contradict each other
-across CLAUDE.md, CLAUDE.local.md, and rules files?", grading a contradiction FAIL and a redundancy
-WARN ([`plugins/claude-memory/skills/audit/reference/criteria.md`](../../../../claude-memory/skills/audit/reference/criteria.md),
-check C6). It is a live check, not a stray reference: the determinism contract names C6 in the
-judgment tier. This pass **extends** C6 outward rather than re-implementing it.
+So a user-global instruction contradicting a project one — `~/.claude/CLAUDE.md` against project
+`CLAUDE.md`, or `~/.claude/rules/` against `.claude/rules/` — is deferred by I12 as "memory-layer" and
+never picked up by C6. **Neither check reports it.** Route on C6's actual population instead:
 
 | Pair | Owner |
 |---|---|
-| Both halves inside project `CLAUDE.md` / `CLAUDE.local.md` / `.claude/rules/**` / auto-memory | `claude-memory`'s C6 |
-| At least one half outside that set | this pass |
+| Both halves inside **project-scope** `CLAUDE.md` / `CLAUDE.local.md` / `.claude/rules/**` | `claude-memory`'s C6 |
+| Anything else — including any pair with a `~/.claude/` side, and any pair involving auto-memory | I12 |
 
-Route accordingly. When a pair is wholly memory-layer, report it as an observation and point the
-operator at `/claude-memory:audit` rather than grading it here; when that plugin is not installed,
-keep it as a finding so nothing is silently dropped. This mirrors the reciprocal routing
-`claude-memory` already performs for content-fit findings.
+**Auto-memory is deliberately not routed out** for the same reason. `claude-memory` audits `MEMORY.md`
+for size and index integrity, but C6's question names only "CLAUDE.md, CLAUDE.local.md, and rules
+files" — auto-memory is absent from the check text. Routing a `MEMORY.md`-versus-`CLAUDE.md`
+contradiction to C6 would leave it audited by neither skill, so it stays with I12 until C6 widens.
 
-**Ruling: `~/.claude/rules/` is *outside* C6's population**, so a user-global rule contradicting a
-project rule belongs here. C6's own enumeration is project-relative — the audit workflow discovers
-rules with `find .claude/rules`, and the orphan-rule script scans `.claude/rules/*.md`. The plugin
-does resolve a user-level directory, but only for auto-memory under `~/.claude/projects/<slug>/`,
-never for rules. Its official-guidance reference notes `~/.claude/rules/` exists as background and
-never audits it.
+When a pair is wholly project-scope memory-layer, report it as an observation and point the operator
+at `/claude-memory:audit` rather than grading it here; when that plugin is not installed, keep it as a
+finding so nothing is silently dropped. This mirrors the reciprocal routing `claude-memory` already
+performs for content-fit findings.
+
+The durable fix is upstream: C6's population should widen to cover the user scope, at which point this
+table narrows again. Until then, the rule is **route on the population a check actually enumerates,
+never on the name of the layer** — a boundary drawn from a label rather than from the incumbent's
+discovery globs is how a gap this size stays invisible.
 
 ## Prerequisite: co-residency
 
@@ -71,11 +79,34 @@ shapes without this gate produces noise, because most surface pairs never co-loa
 | `.claude/rules/*` with `paths` | Only when a matching file is read | memory: "only apply when Claude is working with files matching the specified patterns" |
 | Skill body | Only once invoked, then for the rest of the session | skills: "a skill's body loads only when it's used" |
 | Auto memory `MEMORY.md` | Every session, first 200 lines or 25KB | memory |
+| Skill bundled `reference/`, `context/` file | Only when Claude reads it | skills: "letting Claude access detailed reference material only when needed" |
+| Agent definition (its own subagent) | Always, as that subagent's system prompt — **alongside the full CLAUDE.md hierarchy** | subagents, "What loads at startup" |
+| Skill named in an agent's `skills:` field | Always, in that subagent | subagents: "The full content of each listed skill is injected, not only the description" |
+| Prompt-type hook text | At the matched lifecycle event | **UNVERIFIED** — the hooks page was not fetched |
+| Output style | Unknown | **UNVERIFIED** |
+
+**An agent definition co-resides with the whole memory layer, and that is a guaranteed pair.** A
+non-fork subagent's initial context contains "every level of the CLAUDE.md hierarchy the main
+conversation loads, including `~/.claude/CLAUDE.md`, project rules, `CLAUDE.local.md`, and managed
+policy files". So an agent definition contradicting a `CLAUDE.md` clears gate 1 outright — it does not
+need the conditional treatment a skill body gets.
+
+**The two exceptions are `Explore` and `Plan`**, which "skip your CLAUDE.md files and the parent
+session's git status", and "there is no frontmatter field or per-agent setting to change which agents
+skip them." A pair whose only memory-layer half reaches an `Explore` or `Plan` delegation therefore
+fails gate 1 — and the docs name the correct remediation, which is to restate the rule in the
+delegation prompt rather than to reconcile the two surfaces.
+
+Prompt-type hooks and output styles stay **UNVERIFIED**: Phase A inventories both, so the pass reports
+pairs involving them as `residency-unknown` rather than clearing or classifying them. Gate 1 cannot be
+evaluated against a row this file cannot source, and guessing a load model to satisfy the gate is the
+same error as inventing a precedence winner. Fetch the hooks and output-styles pages to close these.
 
 **Guaranteed pairs** are any two of {user `CLAUDE.md`, project `CLAUDE.md`, unscoped rules,
-`MEMORY.md`}. **Conditional pairs** involve a skill body, a path-scoped rule, or a nested `CLAUDE.md`
-— real, but they only bite once that surface loads. Report the distinction; do not drop conditional
-pairs, because the worked example below is one.
+`MEMORY.md`}, and any agent definition against any of them except via `Explore` / `Plan`.
+**Conditional pairs** involve a skill body, a path-scoped rule, or a nested `CLAUDE.md` — real, but
+they only bite once that surface loads. Report the distinction; do not drop conditional pairs, because
+the worked example below is one.
 
 ## The five gates
 
@@ -100,8 +131,13 @@ A pair is a conflict only when **all five** hold. Any gate failing removes it fr
   sees the other.
 - **Type C — unarbitrated co-authority.** Two surfaces each assert ownership of one decision with no
   precedence statement. Route: one precedence sentence at the higher surface.
-- **Type D — split-brain.** Two files govern the same behavior but only one is loaded, so the
-  divergence is invisible in-session. Route: import or symlink so both load, or delete the orphan.
+
+**Split-brain is a precursor, not a fourth type.** Two files governing one behavior where only one is
+ever loaded fails gate 1 by construction, so it can never be a conflict finding — listing it as a
+conflict type would either make it unreachable or force the lane to flag non-co-resident files. Report
+it separately as **orphaned instruction drift**: not a contradiction today, but the state a
+contradiction grows out of once the two copies diverge. Route: import or symlink so both load, or
+delete the orphan.
 
 ## Precedence: what the docs settle, and what they do not
 
@@ -159,7 +195,7 @@ False positives are the failure mode. Each case below is either suppressed by th
 |---|---|---|---|
 | 1 | Two directives in the **same file** | pre-scan | not cross-surface by construction |
 | 2 | A mandate conditioned on an explicit **user-config opt-in** | pre-scan | 4 — the opt-in is arbitration |
-| 3 | A prohibition **trailing** the entity and governing a different object | pre-scan | 2 |
+| 3 | A prohibition trailing the entity **past a sentence break**, governing a different object | pre-scan | 2 |
 | 4 | A prohibition **distant** from the entity on a long line | pre-scan | 2 |
 | 5 | Two surfaces that both **mandate** the same entity | pre-scan | 3 |
 | 6 | Disagreement about **different entities** | pre-scan | 2 |
@@ -190,9 +226,17 @@ exception only a human can trigger is not reachable by an invoked skill, so the 
 
 `scripts/conflict-scan.sh` narrows the quadratic search space to a review queue. It decides only the
 four gates a text scan can decide — distinct files, same entity, opposed polarity, and the opt-in
-filter — and emits `fileA:lineA|fileB:lineB|entity|flags`, always exiting 0. Entities are derived by
-CamelCase shape rather than from a hardcoded tool list, so the scan stays correct as the tool surface
-changes.
+filter — and emits `fileA:lineA|fileB:lineB|entity|flags`, always exiting 0.
+
+An entity is a CamelCase identifier anywhere, or a single capitalized word **inside backticks**. The
+second form is what reaches single-word tools (`Bash`, `Read`, `Edit`); requiring the backticks is what
+keeps every sentence-initial capitalized word out. Neither form is a hardcoded tool list, so a tool the
+scan has never heard of is still covered — at the cost of precision, since CamelCase proper nouns match
+the first form.
+
+Polarity is read from a window around the mention. A prohibition counts when it precedes the entity, or
+follows it **within the same sentence** — "`WebFetch` must not be used" is a prohibition, while "…via
+`X` once. Do not gate per repo" is a trailing clause about a different object.
 
 It is advisory. A row is a candidate, never a finding: gates 2 and 5 are not greppable, and the lane
 refines every row against the must-not-flag set above.
@@ -225,12 +269,20 @@ the destructive-action confirmation gate, so resolving toward the CLAUDE.md degr
 mechanism while resolving toward the skill disobeys a standing instruction. Report both anchors and
 let the operator choose.
 
-**2. A skill's `description` against its own body — the divergence class, inside this repo.**
-`claude-memory:audit`'s description sells "memory health" and greps zero for conflict, contradict, or
-consistency, while the skill ships C6, an explicit contradiction check. The two surfaces disagree
-about what the skill does. This is why three independent incumbent searches over skill descriptions
-concluded no conflict detector existed in this repository: a check invisible from the discovery
-surface is, for routing purposes, absent. Type C.
+**2. A near-miss the gates correctly reject — description-versus-body divergence.**
+`claude-memory:audit`'s `description` (in `SKILL.md`) sells "memory health" and greps zero for
+conflict, contradict, or consistency, while `reference/criteria.md` ships C6, an explicit
+contradiction check. Two different files, both readable, genuinely out of step — and the divergence
+has real cost: it is why repeated incumbent searches over skill descriptions concluded no conflict
+detector existed in this repository.
+
+**It is still not a conflict, and the pass must not report it as one.** Gate 3 fails: a description
+that omits a capability does not prescribe an action incompatible with performing it. Nothing about
+"memory health" forbids checking consistency. This is *incompleteness*, which routes to a listing or
+discoverability check — not opposed polarity.
+
+Keep it as the calibration case. An auditor that grades summary omissions as contradictions will bury
+its real findings, and this is the most persuasive-looking instance in the repository.
 
 ## Output format
 
@@ -239,7 +291,8 @@ A conflict finding is a **pair**, so it is reported as one. For each finding giv
 - both anchors as `path:line`, mandate side first
 - the behavior at issue, stated as the (verb, object, trigger) triple
 - the two contradictory claims **quoted verbatim**
-- the conflict type (A–D), and which surfaces are guaranteed versus conditional co-residents
+- the conflict type (A–C), and which surfaces are guaranteed versus conditional co-residents —
+  orphaned instruction drift is reported separately and is not one of these types
 - the precedence verdict: the winner **with its doc citation**, or `unresolved` with the reason
 
 A clean pass ("No cross-surface conflicts found.") is a valid outcome. This pass never edits a file
