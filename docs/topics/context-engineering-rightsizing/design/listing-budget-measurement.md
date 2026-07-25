@@ -343,7 +343,12 @@ surface itself, and relocating them to `when_to_use` *adds* 3 characters per ski
 
 Concretely: **zeroing every character the three named sources can offer still leaves the listing
 above 81,000 characters** (both detectors agree; the independent one lands at 81,410), against a
-40,000 budget at 1M context and 8,000 at 200k. The 73% drop rate observed in §3 would not move.
+40,000 budget at 1M context and 8,000 at 200k. The 73% drop rate observed in §3 would barely move —
+not because dropping is invariant but because the pool is too small to shift it: only characters cut
+from the 35 *granted* descriptions free any budget (the 95 already-dropped ones cost nothing today),
+and the full 1,906 buys about six entries at the size of the cheapest one (`ai-briefing:generate`,
+310 description characters, 312 over its name-only floor). Fact 7's skip-and-continue would readmit
+that handful at most; the overflow itself is untouched.
 
 Name restatement is also narrower than the issue implies. The detector finds 236 characters across
 28 skills, and 120 of those are `re-anchor`'s twelve `"Re-anchor "` prefixes. Outside `re-anchor`
@@ -556,9 +561,11 @@ leave these alone.
    `dometrain:grounding` (398), `context7:lookup` (469, and the only model-invocable skill with no
    trigger block at all). There is nothing to take.
 
-5. **`Actions:` enumerations on multi-verb skills.** `work-items:track`, `skill-quality:check`,
-   `re-anchor:setup`. These tell the model which verb to pass, which is selection information, not
-   documentation. Cutting them turns a correct invocation into a body read.
+5. **`Actions:` enumerations on multi-verb skills.** `work-items:track`, `skill-quality:check`.
+   These tell the model which verb to pass, which is selection information, not documentation.
+   Cutting them turns a correct invocation into a body read. (`re-anchor:setup` carries an
+   `Actions:` enumeration too, but it is `disable-model-invocation` — never in the listing — and
+   `check` is its only action, so it is out of scope here.)
 
 6. **Domain vocabulary in the prose half.** `docs-hygiene:audit-noise`'s "historical citations,
    ghost refs to ephemeral working-directories", `code-tidying:audit-comment-residue`'s four residue
