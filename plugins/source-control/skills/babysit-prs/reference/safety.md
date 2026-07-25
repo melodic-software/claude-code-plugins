@@ -375,6 +375,13 @@ the wrapper gate has already proven ready and in-tier. That denial is an environ
 ceiling this skill's own contract has no authority over — a normal, expected outcome to plan for,
 not a bug in this skill, a stalled worker, or a reason to retry with broader permissions.
 
+Configuring that host layer means deciding which of this lane's entry points mutate, which flags
+gate which guard, and where each refusal is enforced. Those facts are in
+[reference/guard-contract.md](guard-contract.md), generated from the table
+`scripts/tests/test_guards.py` executes against the real entry points — so a rule written against
+a row cannot silently outlive the guard it cites. Cite a row ID; do not restate the behavior in
+the consuming configuration.
+
 **The never-retry rule is disputed for the classifier case, and nothing below settles it.**
 [claude-code-plugins#455](https://github.com/melodic-software/claude-code-plugins/issues/455) is
 open against the first bullet above: it records an auto-mode *classifier* denial that was retried,
@@ -435,7 +442,7 @@ configuration with `claude auto-mode config`.
 **A denied gate is never downgraded to weaker evidence — and the gate now says so itself.**
 `babysit-readiness-gate.sh` emits exactly one `READINESS_*` line on stdout on **every** run,
 failure paths included:
-`READINESS_UNPROVEN reason=<bad-args|identity-unresolved|prereq-missing|comments-unreadable|fetch-failed> pr=<n>`
+`READINESS_UNPROVEN reason=<bad-args|identity-unresolved|prereq-missing|comments-unreadable|checklist-unreadable|fetch-failed> pr=<n>`
 is a third verdict alongside `READINESS_OK` and `READINESS_BLOCKED`, and it means readiness was not
 proven. Readiness is declared by quoting the verdict line verbatim in the iteration report
 ([loop.md](loop.md) §5.5), so a readiness claim with no verdict line to quote is unproven on its

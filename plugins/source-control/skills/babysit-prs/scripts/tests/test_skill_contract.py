@@ -270,7 +270,7 @@ class SkillContractTests(unittest.TestCase):
 
         self.assertIn(
             "READINESS_UNPROVEN reason=<bad-args|identity-unresolved"
-            "|prereq-missing|comments-unreadable|fetch-failed>",
+            "|prereq-missing|comments-unreadable|checklist-unreadable|fetch-failed>",
             safety,
         )
         for marker in (

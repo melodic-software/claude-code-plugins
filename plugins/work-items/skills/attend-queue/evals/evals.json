@@ -30,6 +30,21 @@
         "Prefixes agent-authored comments with the AI disclaimer",
         "Never merges a PR and never executes a work item from this lane"
       ]
+    },
+    {
+      "id": 3,
+      "name": "attend-queue-briefs-before-asking-each-row",
+      "prompt": "/work-items:attend-queue\n\nThe operator works two rows back to back in the same pass.\n\nRow 1 — [escalated] #418 \"Uploader retries transient S3 5xx forever\". The worker's escalation marker asks which retry strategy to keep: (a) capped exponential backoff, 5 attempts then dead-letter — bounded worst-case latency, but a long outage drops uploads to the dead-letter queue; (b) unbounded backoff with a 30-minute ceiling — no upload is ever dropped, but a sustained outage holds worker slots indefinitely. The operator answers: \"take (a), the capped backoff.\"\n\nRow 2 — [ratify] #503 \"Digest CLI crashes on an empty transcript file\". The marker classifies it C3 bug-fix-shaped and states the intended dispatch: the worker loop picks it up autonomously on the next cycle and opens a PR. Ratifying admits it to the autonomous lane; declining leaves it human-gated with the rationale recorded. The operator answers: \"ratified.\"",
+      "expected_output": "Before posing the escalated question, restates which item it concerns (#418 plus its one-line title), the decision being asked (which retry strategy to keep), and the consequence of each of the two presented options as the marker states them — then poses the question and waits, rather than answering it itself. Only after the operator's supplied answer arrives does it write that answer back and move on. Moving to the very next row, the same restatement happens again for the ratify prompt — #503 plus its title, that the decision is whether to ratify the C3 admission, and what ratifying versus declining causes — the operator's context from the escalated row is never assumed to carry over, even though it was the immediately preceding row in the same pass. Neither restatement is dropped or abbreviated for brevity, and neither invents detail the markers do not supply. The ratification is recorded only after the operator's \"ratified\" response, never presumed from the prompt's framing.",
+      "files": [],
+      "expectations": [
+        "Restates item identity (#418 + title), the decision being asked, and the consequence of each option before posing the escalated question",
+        "Restates only the consequences the escalation and ratify markers actually supply — no invented options, outcomes, or placeholder text",
+        "Repeats the same full restatement for the very next row (#503, the ratify prompt, including the intended dispatch and the ratify-versus-decline consequence) rather than assuming context carries over from the prior row in the same pass",
+        "Does not compress or drop the restatement for either row even under a terse output style",
+        "Still performs the row's underlying mechanics (interview/write-back for escalated, ratify-or-decline recording for ratify) after the restatement — the brief precedes the ask, it does not replace it",
+        "Waits for the operator's answer on #418 before advancing to #503, and for the ratify-or-decline response on #503 before recording it — each supplied answer is what unblocks the next step, never a self-answered question"
+      ]
     }
   ]
 }

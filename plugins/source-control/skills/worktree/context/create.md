@@ -64,14 +64,32 @@ Optional renames after creation:
 
 Two steps — the helper creates and places the worktree; `EnterWorktree(path:)` enters it.
 
-1. **Run the shared helper** (it computes the external path, runs `git worktree add`, and copies `.worktreeinclude` files). Add `--base-ref head` only when the effective Claude `worktree.baseRef` setting is `head` (see [Base branch](#base-branch)); otherwise omit it:
+1. **Run the shared helper** (it computes the external path, runs `git worktree add`, and copies `.worktreeinclude` files). Add `--base-ref head` only when the effective Claude `worktree.baseRef` setting is `head` (see [Base branch](#base-branch)); otherwise omit it.
+
+   `${user_config.worktree_root}` substitution into skill content is **raw text substitution, not shell-escaped** (Claude Code docs, [plugins-reference § User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration)) — a configured value containing a single quote (e.g. `~/worktrees/O'Connor`), `$`, or a backtick breaks out of any shell literal we write around it, and **no heredoc delimiter is safe either**: a value whose own body contains a line equal to the delimiter ends the heredoc early and the shell parses the remainder as commands. The value must therefore never reach a shell parser at all. Write it with the **`Write` tool** — the content travels as a JSON string parameter, so every byte lands verbatim and no delimiter, quote, or metacharacter can terminate anything — then hand the file to `--root-file`. Never inline the substitution in a `--root` shell literal or a heredoc body.
+
+   Three steps:
+
+   ```bash
+   root_dir="$(mktemp -d)"; printf '%s\n' "$root_dir"
+   ```
+
+   `Write(file_path: "<printed root_dir>/worktree-root", content: "${user_config.worktree_root}")` — the substituted value is the entire `content`, written byte-exact with nothing appended (no trailing newline).
 
    ```bash
    bash "${CLAUDE_PLUGIN_ROOT}/scripts/worktree-create.sh" \
-     --name "<validated-name>" --root '${user_config.worktree_root}'
+     --name "<validated-name>" --root-file "<root_dir>/worktree-root"
+   status=$?
+   rm -rf "<root_dir>"
+   exit "$status"
    ```
 
-   The helper prints the created worktree path as its **sole stdout line**; capture it.
+   Two details in that last block are load-bearing:
+
+   - **`mktemp -d`, not `mktemp`** — `Write` refuses to overwrite a file it has not read, so the directory must exist and the file inside it must not.
+   - **`status=$?` before the cleanup, `exit "$status"` after** — `rm` almost always succeeds, so leaving it last would make the whole invocation report 0 and hide a helper refusal (exit 3) behind a green result, which step 2's "on a non-zero exit, STOP" would then never see.
+
+   The helper prints the created worktree path as its **sole stdout line**; capture it. When `worktree_root` is unset, Claude leaves the literal `${user_config.worktree_root}` token — `Write` puts that token in the file verbatim, and the helper's existing unset guard still fires (exit 3), same as before. A value carrying a newline byte anywhere — including a trailing one — is rejected loudly by the helper (exit 2); a path with a newline in it is malformed configuration, not a root to silently trim.
 
 2. **On a non-zero exit, STOP — do not create anything else, and never fall back to `EnterWorktree(name:)`** (that would re-create the in-repo `.claude/worktrees/` path and re-trigger #400). The important refusal is **exit 3 (root unconfigured)**: the `worktree_root` key is unset, so the helper declined and printed guidance on stderr. Surface that guidance to the user verbatim — they need to set `worktree_root` (run the worktree setup skill, or `/plugin` configure) — then stop. Other non-zero exits (2 usage, 4 environment — e.g. the branch already exists) surface the helper's stderr and stop likewise.
 

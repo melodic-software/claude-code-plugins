@@ -3,7 +3,7 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.27.0]
+## [0.29.0]
 
 ### Added
 
@@ -98,6 +98,13 @@ All notable changes to the `source-control` plugin are documented here. Format f
   strings, which is exactly how the counters consume them (`author` matched against the self list,
   `body` grepped for severity markers); a non-string in either position is unreadable, not empty. An
   empty array and an empty `body` string stay legitimate and still reach a verdict.
+- **The guard contract's documented-command check now covers the reachability canary, and stops
+  rejecting `--help`.** `skills/setup/SKILL.md` and this changelog both spell out the canary
+  invocation, so the completeness gate correctly demanded `DOC_COMMAND_SOURCES` rows for them —
+  and then rejected the command, because accepted flags are read from the parser's usage block and
+  argparse renders the `--help` pair as `-h` there. `--help` is now added back on the evidence of
+  the check's own call: that invocation *is* `--help` and it exits 0, which is stronger proof of
+  acceptance than the usage text gives any other flag.
 - **An unreadable `--checklist` no longer reads as a clean one.** The R6 count ran
   `grep -c … || true`, which collapses grep's two distinct nonzero statuses into one: 1 means "no
   unticked box" — a clean checklist — while 2 means the file could not be read. Both produced an
@@ -112,6 +119,128 @@ All notable changes to the `source-control` plugin are documented here. Format f
   `reason=bad-args`. Since §5.5 quotes that verdict verbatim, it pointed operators and automation at
   flags that were already correct. The path now emits `reason=identity-unresolved`, keeping exit 3
   so callers keyed on the code are unaffected.
+
+## [0.28.0]
+
+### Added
+
+- **`babysit-prs` guard semantics are now an executable contract (`#1265`).** The facts a host
+  permission classifier has to know about this lane — which entry points mutate, which flags gate
+  which guard, where a refusal is enforced, and how a mutation is actually performed — were
+  restated in prose by every consumer and had nothing detecting drift. They are now a table in
+  `skills/babysit-prs/scripts/tests/guard_contract.py`, executed row by row against the real entry
+  points by `test_guards.py`, and rendered to a citable
+  `skills/babysit-prs/reference/guard-contract.md`. Every row carries the prose claim it backs, so
+  a changed guard fails CI with a message naming the downstream claim that just became false. Five
+  binding kinds: refusals (invoked, exit code and message asserted), predicates (the classifier
+  called directly, because `--autonomous`'s `isOutdated` requirement is a condition over fetched
+  API data that no argument shape expresses), effects (run offline against a throwaway state dir —
+  this is what proves `manage_babysit_lease.py acquire` writes with no `--apply`, contrary to what
+  its flag names suggest), mechanisms (`refresh_pr_branch.py` uses GitHub's server-side
+  `update-branch` and never pushes), and documented command lines (every `bin/`-path wrapper
+  command spelled in `reference/safety.md` and `reference/orchestration.md` is checked against the
+  backing CLI's own parser). Catalogue gates fail when a new entry point, wrapper, or
+  command-spelling document arrives without a row — including the plugin-level
+  `scripts/babysit-readiness-gate.sh`, the one lane entry point outside the skill's scripts
+  directory. Each binding asserts the specific claim rather than a proxy for it: a row claiming
+  the refusal precedes every network call is replayed against a recording `gh` shim and fails if
+  the shim ran at all, an effect row records which way the state directory's file set moved so a
+  rewrite cannot pass as a deletion, and documented flags are checked against the parser's usage
+  block rather than scraped `--help` prose that names flags the CLI rejects. What CI does not
+  bind is stated in the generated doc's "Not covered here" section rather than left to inference:
+  the entry-point **Class** column cannot be proven for the four entry points whose mutation is a
+  GitHub write, because every row runs without network access.
+
+## [0.26.12]
+
+### Fixed
+
+- **`worktree create`'s `worktree_root` handoff is now shell-safe for unset AND special-character
+  values (#965).** `${user_config.worktree_root}` substitution into skill content is RAW text
+  substitution, not shell-escaped (confirmed against the official
+  [plugins-reference § User configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration)
+  docs), so neither quote style around an inline `--root '${user_config.worktree_root}'` literal was
+  fully safe: double-quoted broke on an unset key (`bad substitution`, #898's original finding), and
+  the interim single-quoted fix (#898) broke on a configured value containing a single quote (e.g.
+  `~/worktrees/O'Connor`), `$`, or a backtick. `worktree-create.sh` gains an additive
+  `--root-file <path>` flag that reads the root from a file instead of a process argument; both
+  render sites (`context/create.md`, `SKILL.md`) now write the substituted value to a temp file with
+  the `Write` tool — a JSON string parameter no shell ever parses — and pass `--root-file` instead of
+  inlining the value in a `--root` shell literal. A quoted heredoc is deliberately NOT used: quoting
+  the delimiter suppresses expansion inside the body but cannot prevent delimiter collision, so a
+  value carrying a line equal to the delimiter would end the heredoc early and the shell would parse
+  the remainder as commands. The existing unset guard is reused unchanged: an unset key still leaves
+  the literal `${user_config.worktree_root}` token, which lands in the file verbatim, and the helper
+  still refuses with exit 3 and its guidance — no behavior change on that path. The rendered
+  invocation captures the helper's status before removing the temp directory and re-exits with it, so
+  the cleanup cannot mask a refusal behind a zero status. `--root-file` treats the file's bytes as the
+  root verbatim: a newline anywhere in it, trailing included, is a usage error (exit 2) rather than a
+  trimmed terminator or a silently-taken first line — trimming would be indistinguishable from a root
+  whose own last byte is a newline. A NUL byte is rejected the same way, checked on the file before
+  the value reaches a shell variable, because command substitution drops NULs and would otherwise
+  collapse `<root>-<NUL>suffix` into a path nobody supplied. The `--root`/`--root-file` mutual
+  exclusion now keys off whether each flag appeared rather than whether its value is non-empty, so
+  `--root '' --root-file <f>` is the usage error it always should have been rather than silently
+  selecting one source. `--root` is otherwise unaffected and stays available for a caller that
+  already holds the value as a real process argument (a hook, or direct CLI use). No remaining
+  `${user_config.worktree_root}` shell literal in either render site.
+
+## [0.26.11]
+
+### Fixed
+
+- **`fetch-all-pr-comments.sh` now emits `in_reply_to_id` for inline review comments (#587).** The
+  script's unified schema never projected the GitHub REST field that marks an inline review comment
+  as a threaded reply, so any caller reading the script's own output saw the key absent (surfacing as
+  `None`/`null` in downstream tooling) even for comments GraphQL confirmed were properly threaded
+  replies. Reproduced against live PR #563 data: the raw `pulls/<pr>/comments` response correctly
+  carries `in_reply_to_id` on reply comments — the script's `jq` projection for the inline surface
+  simply dropped it. Added `in_reply_to_id: .in_reply_to_id` to the inline mapping (sourced from the
+  same raw field GraphQL cross-checks against) and `in_reply_to_id: null` to the general/review
+  mappings, which have no reply-parent concept on their surfaces. Additive schema change — existing
+  consumers that don't read the new key are unaffected. Regression-tested with a threaded-reply
+  fixture.
+
+## [0.26.10]
+
+### Changed
+
+- `babysit-prs`'s Worker Contract and Worker Prompt Template
+  (`skills/babysit-prs/reference/orchestration.md`) now hand the worker the worktree's **absolute**
+  path and forbid relying on the shell's working directory persisting across separate tool calls:
+  every git operation is anchored with `git -C <absolute-worktree-path>` (`status`, `add`, `commit`,
+  `diff`, `log`, `push`), every file read/edit/write/glob/search takes an absolute path rather than
+  a relative one — worktree-prefixed for target-repository files, its own absolute path for a file
+  outside the worktree the worker is told to read, such as a `${CLAUDE_PLUGIN_ROOT}` reference — and
+  any command that derives its target from the working
+  directory without a `-C` equivalent — bare `gh`, `fetch-all-pr-comments.sh`, the target
+  repository's own build/test/lint commands — takes a per-call re-`cd` or its own explicit target
+  (`GH_REPO`, `FETCH_COMMENTS_OWNER`/`FETCH_COMMENTS_REPO`). A one-time `cd` at dispatch is not
+  enough:
+  cwd can drift between a read and the next write, silently committing a branch-owned fix into the
+  session's default checkout instead of the assigned worktree. Closes the same correctness gap
+  `implementation` 0.7.4 closed in the sibling `implement-dispatch` lane. `GH_REPO` is scoped to the
+  `gh` calls it can actually anchor: it selects the remote repository only (`gh help environment`),
+  so a locally-mutating call such as `gh pr checkout` ("Check out a pull request in git", `gh pr
+  checkout --help`) still takes a same-call `cd` — with `GH_REPO` alone it would fetch and switch
+  branches in whatever directory cwd had drifted to.
+
+## [0.26.9]
+
+### Fixed
+
+- **`babysit-prs` review-trigger contract now says `pending`, matching the code, and states what a
+  failing gate means (#324).** `reference/review-trigger.md` described the trigger signal as
+  `<review-gate-context>` "pending or failing", while every gate_state comparison in the engine
+  accepts only `pending` (`babysit_review_trigger.py` candidate predicate, `babysit_delta.py`
+  "awaiting requested review"), and `request_signal_pending` is derived solely from a `PENDING`
+  StatusContext with no target URL. The doc's own Engagement Gate Semantics section defines only
+  `PENDING` (no qualifying reviewer activity after the polling window) and `SUCCESS` (may reflect an
+  earlier head) — it gives `FAILING` no engagement meaning — so "or failing" was the erroneous
+  restatement, not the code. Narrowed the sentence to `pending` and recorded the failing semantic
+  once: a failing gate is not an engagement signal and is never a trigger candidate; it is bucketed
+  by `classify_checks` like any other check, so it already reaches the operator through the ordinary
+  failing-check blocker. Documentation and test only; no behavior change.
 
 ## [0.26.8]
 
