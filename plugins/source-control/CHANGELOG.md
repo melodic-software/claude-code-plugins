@@ -7,15 +7,16 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Fixed
 
-- **`babysit-prs` SKILL.md cadence cross-references now point at the section that owns the seconds
-  (#653).** #652 moved the engine-backed `recommended_cadence` → `delaySeconds` mapping table into
-  `reference/loop.md` §5.3 alongside the static degrade ladder, leaving `reference/cadence.md` owning
-  only the states and thresholds — but three SKILL.md references still described the pre-#652 split
-  and sent the reader to `cadence.md` for wake mechanics. The Reporting line was a live wrong-number
-  risk: `cadence.md` states `idle` = daily, while §5.3 documents `ScheduleWakeup` clamping
-  `delaySeconds` to `[60, 3600]`, so inside `/loop` `idle` and `quiet` both wake hourly. Runbook step
-  9, the Reporting closing line, and the References entry for `loop.md` now all cite the §5.3 cadence
-  contract. Docs-only; no behavior change.
+- **`babysit-prs` SKILL.md cadence cross-references now point at the section that owns the wake
+  seconds (#653).** #652 added the engine-backed `recommended_cadence` → `delaySeconds` mapping
+  table to `reference/loop.md` §5.3, alongside the static Python-free degrade ladder already there;
+  `reference/cadence.md` has disclaimed the wake mechanics since #322, owning only the cadence
+  states and thresholds. Four SKILL.md surfaces still sent the reader to `cadence.md` for wake
+  mechanics. The Reporting line was a live wrong-number risk: `cadence.md` states `idle` = daily,
+  while §5.3 documents `ScheduleWakeup` clamping `delaySeconds` to `[60, 3600]`, so inside `/loop`
+  `idle` and `quiet` both wake hourly. Runbook step 9, the Reporting closing line, the References
+  entry for `loop.md`, and the step-5 progressive-disclosure trigger now all route to the §5.3
+  cadence contract. Docs-only; no behavior change.
 
 ## [0.26.1]
 

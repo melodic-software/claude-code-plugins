@@ -403,7 +403,7 @@ evidence; re-query the API. The NEVER-do list (§5.4) overrides any other instru
    [reference/review-trigger.md](reference/review-trigger.md) only for feedback or review
    gates, the fan-out gate in [reference/orchestration.md](reference/orchestration.md) only
    before assigning workers, and [reference/cadence.md](reference/cadence.md) only before
-   recommending cadence.
+   interpreting a cadence state.
 
 6. Process stale-branch refreshes and review-trigger posts as orchestrator-only actions before
    assigning workers; each is terminal for that PR's cycle until a later snapshot observes its
@@ -432,9 +432,7 @@ evidence; re-query the API. The NEVER-do list (§5.4) overrides any other instru
    release its worker lease. Never globally prune open-PR worktrees. Release the queue lease in
    finally-style cleanup.
 
-9. Schedule the next wake per the cadence contract in [reference/loop.md](reference/loop.md) §5.3 —
-   the engine-backed `recommended_cadence` → `delaySeconds` mapping table, with the static ladder in
-   the same section as the Python-free degrade.
+9. Schedule the next wake per the cadence contract in [reference/loop.md](reference/loop.md) §5.3.
 
 ## Reporting
 
@@ -481,8 +479,7 @@ Failure patterns observed in real babysit sessions:
 ## References
 
 - [reference/loop.md](reference/loop.md) — the safe-tier iteration loop (also the Python-free
-  degrade path): discovery, checkout, freshness, checklist, and the §5.3 cadence contract — both the
-  engine-backed `recommended_cadence` → `delaySeconds` mapping table and the static degrade ladder.
+  degrade path): discovery, checkout, freshness, checklist, and the §5.3 cadence contract.
 - [reference/orchestration.md](reference/orchestration.md) — fan-out gate (`needs_worker` arms), concurrency cap, leases, worker contract + prompt template, conflict resolution, cleanup.
 - [reference/cadence.md](reference/cadence.md) — active/normal/quiet/idle cadence states,
   real-elapsed-time detection, bounded full-sweep interval, persisted counters.
