@@ -179,6 +179,17 @@ The classification gate is a **pre-gate**, not a weaker merge gate: it must pass
 iteration reports at all, and passing it says only that the findings were decomposed. Both gates
 must be satisfied before a PR is called merge-ready, and only the merge gate can say so.
 
+"Both gates satisfied" binds the decomposition claim, not a mandatory second script run on every
+path. The classification gate blocks on `findings > 0` with `classified < findings` (or an
+unticked `--checklist`), so it constrains any iteration that actually processed findings. The
+orchestrator's direct zero-blocker path — a non-draft PR the engine snapshot reports with zero
+blockers *and* no untriaged material feedback, which goes straight to a merge-gate check without a
+worker (`SKILL.md`) — reaches that check with zero findings to decompose, so the pre-gate is
+satisfied vacuously rather than skipped. That path is gated on the engine's deterministic
+`needs_worker` delta, never on an agent's own reading that a PR has nothing outstanding; when the
+snapshot does report untriaged material feedback, the PR gets a worker and the classification gate
+binds normally. Merge-readiness on that path still comes only from the merge gate's `ready` field.
+
 The merge gate is Python, so the Python-free degrade (`loop.md`) cannot run it at all. That path
 reports merge-readiness as **unchecked** — an unavailable merge gate is never grounds to promote
 `READINESS_OK` into a merge-ready claim.

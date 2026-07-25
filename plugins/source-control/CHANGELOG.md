@@ -19,7 +19,12 @@ All notable changes to the `source-control` plugin are documented here. Format f
   reports the two gates as separate fields, and every "readiness" site that meant *classification*
   is renamed. No gate code and no emitted `READINESS_*` token changed; note that the §5.5 template
   is machine-consumed via `--checklist <file>` (R6 blocks on any unticked `- [ ]`), so splitting one
-  status box into three does change what a checklist-gated iteration must tick.
+  status box into three does change what a checklist-gated iteration must tick. The new section also
+  states what "both gates satisfied" means on the orchestrator's direct zero-blocker path (a
+  non-draft PR the snapshot reports with zero blockers and no untriaged material feedback goes
+  straight to a merge-gate check with no worker): it reaches that check with zero findings to
+  decompose, so the classification pre-gate is satisfied vacuously rather than skipped, and
+  merge-readiness there still comes only from the merge gate's `ready` field.
 
 ## [0.26.2]
 
