@@ -65,11 +65,16 @@ pre-clear content sits in a sibling — never in the current session's own file.
    (`$CLAUDE_CODE_SESSION_ID`, pre-computed above): `/clear` opened a new file in the same project
    dir, so the pre-clear content is a sibling, never this file.
 3. **Marker detection over candidate tails (grep, read-only).** Scan the tail of each candidate for
-   the contract signals above. **Accept hits only from assistant output:** each transcript event is
-   one physical JSONL line carrying its own role field, so require the matching line to also
-   contain `"type":"assistant"` — a same-line substring check, no JSON parsing. Rails or directives
-   sitting in a user message or a tool result (e.g. a pasted sample, or a doc echoed by a read) are
-   not a handoff emission and must not become candidates.
+   the contract signals above. **Accept hits only from assistant text output**, in two stages:
+   - *Cheap same-line pre-filter:* each transcript event is one physical JSONL line carrying its
+     own role field, so drop any matching line that does not also contain `"type":"assistant"` — a
+     substring check, no parsing. Rails in a user message or a tool result (a pasted sample, a doc
+     echoed by a read) are not a handoff emission.
+   - *Confirm on the per-candidate decode:* when un-escaping the surviving line (below), verify
+     the marker sits in a `message.content` entry whose own `type` is `text`. An assistant
+     `Write`/`Edit` call serializes its file content on an assistant line too, so a `tool_use`
+     input carrying rails (writing a doc or fixture) is not assistant-visible output and not a
+     handoff. This decode is per-candidate — a handful of lines — never a bulk parse.
    - **File mode** — match the `Read @…/handoffs/<TS>-handoff-<topic>.md` directive. **Filter out
      the template placeholder:** a match containing the template's own placeholder tokens
      (`<handoffs-dir>`, `<TS>`, `<topic>`) is the `save-point.md` doc being read into some
@@ -181,9 +186,11 @@ pre-clear content sits in a sibling — never in the current session's own file.
   repo-relative paths; a cross-repo recovery that checks existence from the current session's cwd
   falsely reports the file missing. Read the `cwd` field of the transcript the directive was found
   in and resolve against that.
-- **Markers in user messages and tool results are not handoffs.** A pasted sample or an echoed doc
-  puts the rails on a `"type":"user"` line; only an assistant-output line
-  (`"type":"assistant"`, same physical line as the match) is a handoff emission.
+- **Markers in user messages, tool results, and tool INPUTS are not handoffs.** A pasted sample or
+  an echoed doc puts the rails on a `"type":"user"` line — and an assistant `Write`/`Edit` call
+  carrying rails in its file content serializes on a `"type":"assistant"` line. The same-line role
+  check is only the cheap pre-filter; confirm on the per-candidate decode that the marker sits in
+  an assistant `text` content entry, not a `tool_use` input.
 - **Near-identical mtimes.** Multiple sessions can write within seconds; mtime cannot rank them.
   The directive / rails / `Prior session:` markers break the tie, not the timestamp.
 - **Handoff files live in gitignored dirs far from `$HOME`**, and `memory_dir` is
