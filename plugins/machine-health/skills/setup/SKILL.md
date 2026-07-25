@@ -34,11 +34,14 @@ actually reads and writes — so the overlay and approvals land in one place whi
 and logs live in another, each half looking complete to whoever wrote it, and the operator's
 disabled checks silently stop taking effect.
 
-So when `${CLAUDE_PLUGIN_DATA}` renders as the literal unexpanded token, **stop**: report that the
-skill is running outside plugin context and cannot resolve its state root, and change nothing.
-Every probe below then reports UNKNOWN rather than INFO — with the root unresolved, an absent
-overlay is indistinguishable from an unreadable one, and reporting "shipped defaults in effect"
-would assert more than the evidence supports.
+So when `${CLAUDE_PLUGIN_DATA}` renders as the literal unexpanded token, **stop at step 1 of
+`check`**: report that the skill is running outside plugin context and cannot resolve its state
+root, run no further probe, and write nothing. Continuing would be worse than stopping — with the
+root unresolved, an absent overlay and an unreadable one are the same observation, so every verdict
+below would assert more than the evidence supports. `apply` refuses outright for the same reason:
+there is no root to write to. (This differs from `/machine-health:audit`, which passes a state root
+to an orchestrator that has its own documented fallback ladder; this skill reads and writes the
+overlay directly and has no such rung.)
 
 **Split-state-root report.** Because an earlier version of this skill did write a hardcoded
 `~/.claude/plugins/data/machine-health`, `check` reports a split when it finds one: probe that exact
@@ -56,9 +59,9 @@ remediation line per FAIL; modify nothing. The plugin ships a working zero-confi
 shipped catalog, no remediations approved), so an absent overlay or absent approvals file is **INFO**
 (default in effect), never FAIL.
 
-1. **State root** — INFO: the resolved `<StateBase>` path and whether it exists yet, plus any split
-   root found. FAIL, and stop before the remaining probes, when the token did not expand: an
-   unresolved root makes every verdict below unfounded.
+1. **State root** — INFO: the resolved `<StateBase>` path, whether it exists yet, and any split root
+   found. FAIL and stop here when the token did not expand (see above) — the remaining probes do not
+   run.
 2. **Catalog overlay** (`<StateBase>/catalog/checks.local.jsonc`) — INFO when absent (the shipped
    catalog applies unchanged). When present: validate each entry against the overlay schema
    (`${CLAUDE_PLUGIN_ROOT}/skills/audit/references/shared/catalog-overlay.md`) and confirm every
