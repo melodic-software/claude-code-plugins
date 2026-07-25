@@ -109,6 +109,13 @@ run "#964 benign two-hop chain to canonical commit -F - (allowed)" \
   "git -c alias.c=x -c alias.x='commit -F -' c" 0
 run "#964 alias cycle terminates and allows (no hang)" \
   "git -c alias.a=b -c alias.b=a a" 0
+# A `!` shell alias runs in a NEW git process whose alias-loop guard starts
+# empty, so a body that re-invokes a name from the outer chain is re-expanded
+# there — the reparse must not inherit the outer chain's seen-set.
+run "#964 shell-alias body re-invoking the outer chain name (blocked)" \
+  "git -c alias.a='!git -c alias.a=\"commit --allow-empty -m bypass\" a' a" 2
+run "#964 shell-alias re-invocation, canonical -F - twin (allowed)" \
+  "git -c alias.a='!git -c alias.a=\"commit -F -\" a' a" 0
 
 # --- --config-env aliases are refused by SHAPE -------------------------------
 # `--config-env=<key>=<envvar>` holds the alias expansion in an env var this guard never
@@ -314,6 +321,38 @@ if [[ -d "$PCHAIN/.git" ]]; then
       '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
       bash "$HOOK" >/dev/null 2>&1
     assert_exit "persisted alias chain: $cmd" "$want" $?
+  done
+fi
+
+# --- #964: persisted `!` shell-alias hops -------------------------------------
+# A persisted shell alias spawns a fresh git process (empty alias-loop guard),
+# so a chain that crosses a `!` hop (`alias.sc = !git x2`, `alias.x2 = commit`)
+# must still resolve to the commit. A self- or mutually referential persisted
+# shell alias (`a = !git a`; `ma = !git mb`, `mb = !git ma`) makes real git
+# fork endlessly without ever reaching a subcommand — the hook must terminate
+# and allow, not hang.
+PSHELL="$TEST_TMPDIR/persisted-shell"
+mkdir -p "$PSHELL"
+(
+  cd "$PSHELL" || exit 1
+  git init -q .
+  git config user.email t@e.st
+  git config user.name t
+  git config alias.sc '!git x2'
+  git config alias.x2 commit
+  git config alias.a '!git a'
+  git config alias.ma '!git mb'
+  git config alias.mb '!git ma'
+) >/dev/null 2>&1
+
+if [[ -d "$PSHELL/.git" ]]; then
+  for spec in "git sc -m bypass:2" "git sc -F -:0" "git a:0" "git ma:0"; do
+    cmd="${spec%:*}"
+    want="${spec##*:}"
+    MSYS_NO_PATHCONV=1 jq -n --arg c "$cmd" --arg d "$PSHELL" \
+      '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
+      bash "$HOOK" >/dev/null 2>&1
+    assert_exit "persisted shell-alias hop: $cmd" "$want" $?
   done
 fi
 

@@ -229,7 +229,7 @@ check_segment() {
   # names: a repeat is git's own alias-loop stop (runs nothing, allow-safe), and
   # finite distinct alias keys guarantee termination.
   local exp reparse a alias_rc s seen_hit=0
-  local -a expw=() saved_seen=()
+  local -a expw=() saved_seen=() saved_shell_seen=()
   hook::git_alias_expansion "$sub"
   alias_rc=$?
   if ((alias_rc == 2)); then
@@ -245,8 +245,10 @@ check_segment() {
   fi
   # git stops (runs nothing) if the resolved subcommand is one it already expanded
   # in this chain, so skip the re-expansion on a repeat and let the plain scan
-  # decide. Save/restore the seen-set around BOTH branches so sibling segments and
-  # unwound hops start clean.
+  # decide. Save/restore the seen-sets around BOTH branches so sibling segments
+  # and unwound hops start clean. The set models git's IN-PROCESS alias-loop
+  # guard only: a `!` shell alias spawns a fresh git process whose loop guard
+  # starts empty, so its reparses below run under an emptied set.
   for s in ${HOOK_ALIAS_SEEN[@]+"${HOOK_ALIAS_SEEN[@]}"}; do
     [[ "$s" == "$sub" ]] && {
       seen_hit=1
@@ -255,6 +257,7 @@ check_segment() {
   done
   if ((seen_hit == 0)); then
     saved_seen=(${HOOK_ALIAS_SEEN[@]+"${HOOK_ALIAS_SEEN[@]}"})
+    saved_shell_seen=(${HOOK_SHELL_ALIAS_SEEN[@]+"${HOOK_SHELL_ALIAS_SEEN[@]}"})
     HOOK_ALIAS_SEEN+=("$sub")
     if ((alias_rc == 0)); then
       # Inline alias (-c/--config): each spelling's expansion is literally present. Re-check
@@ -266,9 +269,19 @@ check_segment() {
         [[ -n "$exp" ]] || continue
         inline_alias_handled=1
         if [[ "$exp" == '!'* ]]; then
+          # Shell alias: runs in a NEW git process whose alias-loop guard starts
+          # empty, so the reparse must not inherit this chain's seen-set — a
+          # body that re-invokes a name from the outer chain (`git -c
+          # alias.a='!git -c alias.a="commit -m x" a' a`) is re-expanded there,
+          # not stopped. Termination stays bounded: every inline definition
+          # reachable from the reparse is a strict substring of the parent
+          # segment's text, and persisted-config shell hops are bounded by
+          # HOOK_SHELL_ALIAS_SEEN below.
           reparse="${exp#!}"
           for a in "${w[@]:sub_idx+1}"; do reparse+=" $(printf '%q' "$a")"; done
+          HOOK_ALIAS_SEEN=()
           hook::bash_parse_segments "$reparse" check_segment
+          HOOK_ALIAS_SEEN=(${saved_seen[@]+"${saved_seen[@]}"} "$sub")
         else
           hook::env_s_split "$exp"
           expw=(${HOOK_ENV_S_WORDS[@]+"${HOOK_ENV_S_WORDS[@]}"})
@@ -286,10 +299,33 @@ check_segment() {
       pexp=$(git -C "$(effective_dir "${w[@]}")" config --get "alias.$sub" 2>/dev/null)
       if [[ -n "$pexp" ]]; then
         if [[ "$pexp" == '!'* ]]; then
-          local preparse pa
-          preparse="${pexp#!}"
-          for pa in "${w[@]:sub_idx+1}"; do preparse+=" $(printf '%q' "$pa")"; done
-          hook::bash_parse_segments "$preparse" check_segment
+          # Persisted shell alias: same fresh-process semantics as the inline
+          # `!` branch — reparse under an emptied git-alias seen-set. Unlike
+          # inline definitions, a persisted body does not shrink (it re-reads
+          # the same config value at every hop), so a self- or mutually
+          # referential persisted shell alias (`a = !git a`) would recurse
+          # forever here. Real git forks such a chain endlessly and never
+          # reaches a subcommand, so a REPEAT of the same persisted
+          # name/expansion pair on this analysis path is skipped (allow-safe):
+          # HOOK_SHELL_ALIAS_SEEN, save/restored alongside HOOK_ALIAS_SEEN so
+          # sibling segments and unwound hops start clean, bounds the depth.
+          local pkey pseen_hit=0
+          pkey="$sub="$'\n'"$pexp"
+          for s in ${HOOK_SHELL_ALIAS_SEEN[@]+"${HOOK_SHELL_ALIAS_SEEN[@]}"}; do
+            [[ "$s" == "$pkey" ]] && {
+              pseen_hit=1
+              break
+            }
+          done
+          if ((pseen_hit == 0)); then
+            HOOK_SHELL_ALIAS_SEEN+=("$pkey")
+            local preparse pa
+            preparse="${pexp#!}"
+            for pa in "${w[@]:sub_idx+1}"; do preparse+=" $(printf '%q' "$pa")"; done
+            HOOK_ALIAS_SEEN=()
+            hook::bash_parse_segments "$preparse" check_segment
+            HOOK_ALIAS_SEEN=(${saved_seen[@]+"${saved_seen[@]}"} "$sub")
+          fi
         else
           local -a pexpw=()
           hook::env_s_split "$pexp"
@@ -299,6 +335,7 @@ check_segment() {
       fi
     fi
     HOOK_ALIAS_SEEN=(${saved_seen[@]+"${saved_seen[@]}"})
+    HOOK_SHELL_ALIAS_SEEN=(${saved_shell_seen[@]+"${saved_shell_seen[@]}"})
   fi
 
   [[ "$sub" == "commit" ]] || return 0
@@ -385,7 +422,10 @@ esac
 # own alias-loop guard. Initialized here (not in check_segment, which recurses
 # and would reset it) and save/restored around each recursion; a multi-command
 # line runs check_segment once per top-level segment, each starting from empty.
+# HOOK_SHELL_ALIAS_SEEN bounds persisted-config `!` shell-alias hops (whose
+# bodies never shrink) on one analysis path; same lifecycle.
 HOOK_ALIAS_SEEN=()
+HOOK_SHELL_ALIAS_SEEN=()
 
 hook::bash_parse_segments "$COMMAND" check_segment
 

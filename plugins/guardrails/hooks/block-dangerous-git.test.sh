@@ -309,6 +309,13 @@ run "#964 benign two-hop chain to a safe subcommand (allowed)" \
   "git -c alias.a=b -c alias.b=status a" 0
 run "#964 alias cycle terminates and allows (no hang)" \
   "git -c alias.a=b -c alias.b=a a" 0
+# A `!` shell alias runs in a NEW git process whose alias-loop guard starts
+# empty, so a body that re-invokes a name from the outer chain is re-expanded
+# there — the reparse must not inherit the outer chain's seen-set.
+run "#964 shell-alias body re-invoking the outer chain name (blocked)" \
+  "git -c alias.a='!git -c alias.a=\"reset --hard\" a' a" 2
+run "#964 shell-alias body re-invoking an undefined inner name (allowed, no hang)" \
+  "git -c alias.a='!git a' a" 0
 
 # --- allow-list ---------------------------------------------------------------
 run "allow-list push-force → allowed" "git push --force" 0 \

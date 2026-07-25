@@ -29,13 +29,27 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
     termination guaranteed by the finite set of distinct alias keys. Covers plain
     inline chains, `--config-env` hops, the `alias.<sub>.command` spelling, and
     the commit guard's persisted-config alias chain.
+  - **A `!` shell-alias body no longer inherits the outer chain's alias-loop
+    state** (review finding on the fix above). git's alias-loop guard is
+    in-process only: a `!` alias spawns a NEW git process whose loop guard
+    starts empty, so a body that re-invokes a name from the outer chain
+    (`git -c alias.a='!git -c alias.a="reset --hard" a' a`) is re-expanded
+    there, not stopped. Every `!` reparse now runs under an emptied seen-set
+    (restored afterwards). Termination: inline definitions reachable from a
+    reparse are strict substrings of the parent segment's text, and the commit
+    guard's persisted-config `!` hops — whose bodies never shrink — are bounded
+    by a second save/restore seen-set of persisted name/expansion pairs, where
+    a repeat models real git's endless fork of a self-referential persisted
+    shell alias (`a = !git a`): nothing ever runs, so skipping is allow-safe.
 
-  Guard-local change only (no `hook-utils.sh` change, no cross-plugin sync). The
-  `!` shell-alias re-parse path is unchanged. Test matrices extended in both
-  guards with two- and three-hop chains, the `--config-env` and `.command`
-  second-hop variants, a persisted-config alias chain (fixture repo), and benign
-  controls (safe multi-hop chain allowed; alias cycle terminates and allows
-  without hanging). Closes #964.
+  Guard-local change only (no `hook-utils.sh` change, no cross-plugin sync).
+  Test matrices extended in both guards with two- and three-hop chains, the
+  `--config-env` and `.command` second-hop variants, a persisted-config alias
+  chain (fixture repo), the shell-alias outer-chain re-invocation (blocked) with
+  its canonical/undefined twins (allowed), a persisted chain crossing a `!` hop
+  (blocked / `-F -` allowed), and benign controls (safe multi-hop chain allowed;
+  alias cycle, self- and mutually referential persisted shell aliases terminate
+  and allow without hanging). Closes #964.
 
 ## [0.14.3]
 

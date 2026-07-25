@@ -266,8 +266,9 @@ check_segment() {
   fi
   # git stops (runs nothing) if the resolved subcommand is one it already expanded
   # in this chain, so skip the re-expansion on a repeat and let the plain scan
-  # decide — the `!` shell-alias path is unbounded by this set (its expansion is a
-  # fresh shell command, not a git-alias name).
+  # decide. The set models git's IN-PROCESS alias-loop guard only: a `!` shell
+  # alias spawns a fresh git process whose loop guard starts empty, so its
+  # reparse below runs under an emptied set.
   for s in ${HOOK_ALIAS_SEEN[@]+"${HOOK_ALIAS_SEEN[@]}"}; do
     [[ "$s" == "$sub" ]] && {
       seen_hit=1
@@ -288,9 +289,18 @@ check_segment() {
         # Shell alias: git runs the expansion as a shell command with the
         # invocation's trailing args appended (positional), so append them
         # (shell-quoted) before re-parsing the whole string as a command.
+        # That command runs in a NEW git process whose alias-loop guard starts
+        # empty, so the reparse must not inherit this chain's seen-set: a body
+        # that re-invokes a name from the outer chain (`git -c
+        # alias.a='!git -c alias.a="reset --hard" a' a`) is re-expanded there,
+        # not stopped. Termination stays text-bounded — this guard resolves
+        # only inline aliases, and every definition reachable from the reparse
+        # is a strict substring of the parent segment's text.
         reparse="${exp#!}"
         for a in "${w[@]:sub_idx+1}"; do reparse+=" $(printf '%q' "$a")"; done
+        HOOK_ALIAS_SEEN=()
         hook::bash_parse_segments "$reparse" check_segment
+        HOOK_ALIAS_SEEN=(${saved_seen[@]+"${saved_seen[@]}"} "$sub")
       else
         # Git alias: its expansion is dequoted with shell quoting rules
         # (so `push "--force"` yields --force, not "--force"). Splice the
