@@ -45,7 +45,10 @@ Plugin scripts document their own `Exit:` codes rather than sharing one enum, be
 encodes a different per-script contract, not an arbitrary numbering:
 
 - [`repo-hygiene/skills/clean/scripts/remove-path.sh`](../../../plugins/repo-hygiene/skills/clean/scripts/remove-path.sh) —
-  `0/1/2/3/4`: usage and existence checks plus two named blocking conditions (`blocked`, `unpushed`).
+  `0/1/2/3/4`: usage and existence checks plus two named blocking conditions (`blocked`, `unpushed`),
+  where `1` carries both meanings — the target was already absent, and an `--apply` that left the
+  target present (locked, in use, or crossing a mount) — so the caller retries or reports rather than
+  treating exit 1 as "nothing to do".
 - [`repo-hygiene/skills/clean/scripts/git-tree-reset-batch.sh`](../../../plugins/repo-hygiene/skills/clean/scripts/git-tree-reset-batch.sh) —
   `0/1/2` for the batch runner itself, forwarding a child's `5`/`7` (from
   [`git-tree-reset.sh`](../../../plugins/repo-hygiene/skills/clean/scripts/git-tree-reset.sh)'s own
@@ -60,7 +63,8 @@ denominator or grow branching per caller — neither is simpler than each script
 ## Deferred, not rejected
 
 `guardrails-test-helpers.sh` and `claude-ops-test-helpers.sh` are the one pair above that already
-share a shape closely (both hook-contract helpers with near-identical `ok`/`bad`/`make_sink` bodies).
+share a shape closely (both hook-contract helpers with near-identical `ok`/`bad` bodies; their
+`make_sink` differs in contract — guardrails' takes a stub body, claude-ops' takes a capture file).
 If they converge to byte-identical, vendoring just that pair through the existing `lib/`,
 `sync-*.sh`, and registry mechanism — the same pattern `hook-utils.sh` already uses — is the smaller,
 precedented move, revisited then rather than spread across all five plugins now.
