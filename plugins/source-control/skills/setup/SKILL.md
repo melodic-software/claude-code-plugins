@@ -134,15 +134,31 @@ diagnostics:
 4. **Lane-script reachability under the host permission layer.** The babysit lane declares its own
    bundled scripts — engine, gates, and guarded wrappers — invocable without a per-call permission
    denial as a prerequisite with no degrade tier (`babysit-prs` "Engine and degrade"; the contract
-   is `skills/babysit-prs/reference/safety.md` "Lane-Script Reachability"). Report it here so the
-   operator learns of a gap before a cycle stalls on it. **Nothing can prove reachability from
-   settings alone** — a host safety classifier decides per call, at call time — so probe the
-   operator-side surface, not the outcome: whether an `autoMode` block exists in the scopes the
-   classifier actually reads (user-global and managed settings; not a project's `.claude/`
-   settings), and whether `claude auto-mode config` shows effective rules covering this plugin's
-   bundled scripts. Report the finding as INFO with the operator-side remediation and the
-   [auto-mode configuration reference](https://code.claude.com/docs/en/auto-mode-config) — never
-   FAIL on it (absence is not proof of a denial) and never write the settings.
+   is `skills/babysit-prs/reference/safety.md` "Lane-Script Reachability"). Probe it here so the
+   operator learns of a gap before a cycle stalls on it, in two parts:
+   - **Canary (the load-bearing half).** Run the lane's mandated invocation form against a
+     non-mutating target:
+
+     ```bash
+     bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-merge" --help
+     ```
+
+     This is the exact `bin/`-path spelling the lane uses for every merge, with `--help` so it
+     prints usage and exits 0 without touching the network or GitHub. A **tool-call denial here is
+     a FAILED prerequisite**, not an INFO note: the lane's mandated form is unreachable in this
+     environment, so no tier can gate-prove readiness. Report the denial verbatim with the
+     remediation below. Never retry it, and never re-spell it as a raw interpreter invocation to
+     get past the denial — that form is exactly what the wrapper exists to replace.
+   - **Effective configuration (context for the canary).** Run `claude auto-mode config` and report
+     whether its effective rules cover this plugin's bundled scripts. It already prints the merged
+     result across every scope the classifier reads `autoMode` from — user settings, a
+     `--settings`/SDK-supplied file, and managed settings — so read that output rather than hunting
+     for the underlying files; the managed scopes are not locally readable as ordinary settings
+     files. A missing or narrow-looking block is INFO, never FAIL on its own: settings cannot prove
+     reachability, because a host safety classifier decides per call, at call time. Pair it with the
+     [auto-mode configuration reference](https://code.claude.com/docs/en/auto-mode-config).
+
+   The remediation is always the operator's to apply — never write settings from this skill.
 
 ## `apply` (idempotent)
 

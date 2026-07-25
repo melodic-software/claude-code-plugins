@@ -418,4 +418,71 @@ assert_exit "live-fetch-failure exit 4" 4 "$fetch_rc"
 fetch_err=$(PATH="$NOREPO_BIN:$PATH" bash "$GATE" 123 2>&1 1>/dev/null)
 assert_contains "live-fetch-failure names the env-var override" "$fetch_err" "FETCH_COMMENTS_OWNER"
 
+# --- READINESS_UNPROVEN: no exit path leaves stdout without a verdict --------
+# A caller that greps stdout for a verdict used to see NOTHING on these paths,
+# which reads identically to a run that was never attempted — the ambiguity that
+# let a blocked gate be reported as readiness (#787). Every non-verdict exit must
+# now carry the fail-closed third token, with the exit codes unchanged.
+
+# verdict_lines <stdout> — count of READINESS_* lines, for the exactly-one rule.
+verdict_lines() { printf '%s\n' "$1" | grep -c '^READINESS_' || true; }
+
+unp_out=$(bash "$GATE" 123 --bogus 2>/dev/null)
+assert_contains "unknown-flag stdout carries UNPROVEN" "$unp_out" \
+  "READINESS_UNPROVEN reason=bad-args pr=123"
+assert_eq "unknown-flag emits exactly one verdict line" 1 "$(verdict_lines "$unp_out")"
+
+unp_out=$(bash "$GATE" 2>/dev/null)
+assert_contains "no-args stdout carries UNPROVEN with pr=unknown" "$unp_out" \
+  "READINESS_UNPROVEN reason=bad-args pr=unknown"
+
+unp_out=$(bash "$GATE" 456 --comments-json "$TEST_TMPDIR/absent.json" 2>/dev/null)
+assert_contains "missing-fixture stdout carries UNPROVEN" "$unp_out" \
+  "READINESS_UNPROVEN reason=bad-args pr=456"
+
+unp_out=$(bash "$GATE" 123 --comments-json 2>/dev/null)
+assert_contains "flag-without-value stdout carries UNPROVEN" "$unp_out" \
+  "READINESS_UNPROVEN reason=bad-args"
+
+F=$(mkjson unp-ckl '[{author:"human", body:"LGTM"}]')
+unp_out=$(bash "$GATE" 789 --comments-json "$F" --self 'me[bot]' \
+  --checklist "$TEST_TMPDIR/absent-checklist.md" 2>/dev/null)
+assert_contains "missing-checklist stdout carries UNPROVEN" "$unp_out" \
+  "READINESS_UNPROVEN reason=bad-args pr=789"
+
+# The jq prerequisite is asserted at the source, not by nuking PATH: a PATH that
+# hides jq also hides the interpreter (both live in the same bin dir on the CI
+# image), so the subprocess would report its own 127 rather than the gate's
+# verdict. Assert instead that the jq check routes through unproven — the same
+# source-level contract style as the POSIX-matching assertion above.
+assert_contains "jq prerequisite emits UNPROVEN prereq-missing" "$(cat "$GATE")" \
+  "unproven prereq-missing 4"
+bare_exits=$(grep -cE '^[[:space:]]*exit [34]$' "$GATE" || true)
+assert_eq "no bare exit 3/4 survives (every failure path emits a verdict)" 0 \
+  "${bare_exits//[^0-9]/}"
+
+unp_out=$(PATH="$NOREPO_BIN:$PATH" bash "$GATE" 123 2>/dev/null)
+assert_contains "live-fetch-failure stdout carries UNPROVEN" "$unp_out" \
+  "READINESS_UNPROVEN reason=fetch-failed pr=123"
+
+# The verdict paths stay single-token and never claim UNPROVEN.
+F=$(mkjson unp-ok '[
+  {author:"claude[bot]", body:"### 1. [CRITICAL] a"},
+  {author:"me[bot]", body:"| 1 | a | VALID | fixed |"}
+]')
+ok_out=$(bash "$GATE" 123 --comments-json "$F" --self 'me[bot]' 2>/dev/null)
+assert_eq "READINESS_OK emits exactly one verdict line" 1 "$(verdict_lines "$ok_out")"
+assert_not_contains "READINESS_OK never claims UNPROVEN" "$ok_out" "READINESS_UNPROVEN"
+
+F=$(mkjson unp-blocked '[
+  {author:"claude[bot]", body:"### 1. [CRITICAL] a\n### 2. [IMPORTANT] b"},
+  {author:"me[bot]", body:"| 1 | a | VALID | fixed |"}
+]')
+blocked_out=$(bash "$GATE" 123 --comments-json "$F" --self 'me[bot]' 2>/dev/null)
+assert_eq "READINESS_BLOCKED emits exactly one verdict line" 1 "$(verdict_lines "$blocked_out")"
+assert_not_contains "READINESS_BLOCKED never claims UNPROVEN" "$blocked_out" "READINESS_UNPROVEN"
+
+# --help must document the third verdict, or a worker cannot know to look for it.
+assert_contains "--help documents READINESS_UNPROVEN" "$help_out" "READINESS_UNPROVEN"
+
 [[ $FAILED -eq 0 ]] || exit 1

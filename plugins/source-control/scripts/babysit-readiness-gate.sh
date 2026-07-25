@@ -53,16 +53,28 @@
 #   the target repo), export FETCH_COMMENTS_OWNER and FETCH_COMMENTS_REPO to
 #   override — the gate passes them through to fetch-all-pr-comments.sh.
 #
-# Stdout (machine-readable, always emitted on a check run):
+# Stdout (machine-readable — EXACTLY ONE verdict line on EVERY run, including
+# every failure path, so an absent verdict line can only mean the gate never ran):
 #   READINESS_OK findings=<n> classified=<n> checklist=<clean|n/a>
 #   READINESS_BLOCKED reason=<under-decomposed|checklist-incomplete> findings=<n> classified=<n> unticked=<n>
+#   READINESS_UNPROVEN reason=<bad-args|prereq-missing|fetch-failed> pr=<n|unknown>
+#
+# READINESS_UNPROVEN is the fail-closed third verdict, and the reason this gate
+# emits on the paths where it used to write stderr only: a caller that greps
+# stdout for a verdict saw NOTHING on those paths, which is indistinguishable
+# from a run that was never attempted — the exact confusion that let a blocked
+# gate be reported as readiness (#787). UNPROVEN means readiness was NOT proven;
+# it never licenses substituting live `gh` state (mergeStateStatus, the check
+# rollup) for the gate's verdict. See skills/babysit-prs/reference/safety.md
+# "Lane-Script Reachability". Exit codes are unchanged — the token is additive.
 #
 # Exit codes:
 #   0  ready (decomposition satisfied + checklist clean/absent)
 #   1  blocked (READINESS_BLOCKED names the reason)
-#   3  invalid argument
+#   3  invalid argument (READINESS_UNPROVEN reason=bad-args)
 #   4  prerequisite missing (jq), or the PR comment fetch failed — see stderr
 #      for the cause (owner/repo may be unresolved; see Repo resolution above)
+#      (READINESS_UNPROVEN reason=prereq-missing|fetch-failed)
 
 set -uo pipefail
 
@@ -75,15 +87,24 @@ SELF_CSV=""
 EXTRA_SELF_CSV=""
 
 usage() {
-  sed -n '2,65p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,77p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit 0
+}
+
+# Emit the fail-closed third verdict on stdout, then exit with the code the
+# caller already documents. Every non-verdict exit routes through here so the
+# machine-readable stream never goes silent: silence is reserved for "the gate
+# never ran at all", which is the only state this script cannot report itself.
+unproven() { # unproven <reason> <exit-code>
+  printf 'READINESS_UNPROVEN reason=%s pr=%s\n' "$1" "${PR_NUMBER:-unknown}"
+  exit "$2"
 }
 
 # Assert a flag's value argument is present and not itself a flag, else exit 3.
 require_value() {
   [[ -n "${2:-}" && "$2" != -* ]] || {
     printf 'babysit-readiness-gate: %s requires an argument\n' "$1" >&2
-    exit 3
+    unproven bad-args 3
   }
 }
 
@@ -112,14 +133,14 @@ while (($# > 0)); do
     ;;
   -*)
     printf 'babysit-readiness-gate: unknown flag %q (use --help)\n' "$1" >&2
-    exit 3
+    unproven bad-args 3
     ;;
   *)
     if [[ -z "$PR_NUMBER" ]]; then
       PR_NUMBER="$1"
     else
       printf 'babysit-readiness-gate: unexpected argument %q\n' "$1" >&2
-      exit 3
+      unproven bad-args 3
     fi
     shift
     ;;
@@ -129,12 +150,12 @@ done
 have() { command -v "$1" >/dev/null 2>&1; }
 have jq || {
   printf 'babysit-readiness-gate: jq required\n' >&2
-  exit 4
+  unproven prereq-missing 4
 }
 
 if [[ -z "$PR_NUMBER" && -z "$COMMENTS_JSON" ]]; then
   printf 'babysit-readiness-gate: <pr> required (or --comments-json <file>)\n' >&2
-  exit 3
+  unproven bad-args 3
 fi
 
 # --- Resolve comments JSON (fixture file OR live fetch) -----------------------
@@ -143,14 +164,14 @@ COMMENTS=""
 if [[ -n "$COMMENTS_JSON" ]]; then
   if [[ ! -f "$COMMENTS_JSON" ]]; then
     printf 'babysit-readiness-gate: --comments-json file not found: %s\n' "$COMMENTS_JSON" >&2
-    exit 3
+    unproven bad-args 3
   fi
   COMMENTS="$(cat "$COMMENTS_JSON")"
 else
   COMMENTS="$(bash "$SCRIPT_DIR/fetch-all-pr-comments.sh" "$PR_NUMBER")" || {
     printf 'babysit-readiness-gate: could not fetch comments for PR %s (fetch-all-pr-comments error above).\n' "$PR_NUMBER" >&2
     printf 'babysit-readiness-gate: owner/repo is auto-derived from the current directory (%s) via gh repo view. Run from a checkout of the target repo, or export FETCH_COMMENTS_OWNER and FETCH_COMMENTS_REPO to override.\n' "$PWD" >&2
-    exit 4
+    unproven fetch-failed 4
   }
 fi
 
@@ -172,7 +193,7 @@ else
 fi
 if [[ ${#SELF_LOGINS[@]} -eq 0 ]]; then
   printf 'babysit-readiness-gate: cannot resolve self identity (pass --self or --extra-self)\n' >&2
-  exit 3
+  unproven bad-args 3
 fi
 SELF_JSON="$(printf '%s\n' "${SELF_LOGINS[@]}" | jq -R . | jq -s .)"
 
@@ -307,7 +328,7 @@ checklist_state="n/a"
 if [[ -n "$CHECKLIST" ]]; then
   if [[ ! -f "$CHECKLIST" ]]; then
     printf 'babysit-readiness-gate: --checklist file not found: %s\n' "$CHECKLIST" >&2
-    exit 3
+    unproven bad-args 3
   fi
   unticked=$(grep -cE '^[[:space:]]*-[[:space:]]\[[[:space:]]\]' "$CHECKLIST" || true)
   unticked=${unticked//[^0-9]/}

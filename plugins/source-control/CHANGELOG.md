@@ -7,6 +7,27 @@ All notable changes to the `source-control` plugin are documented here. Format f
 
 ### Added
 
+- **`babysit-readiness-gate.sh` emits a `READINESS_UNPROVEN` verdict instead of going silent
+  (`#787`).** Its header promised a machine-readable verdict on every check run, but the
+  invalid-argument (exit 3) and prerequisite-missing / fetch-failed (exit 4) paths wrote to stderr
+  only. A caller grepping stdout for a verdict therefore saw *nothing* on those paths — identical to
+  what it sees when the gate was never invoked at all, which is how a blocked gate could be reported
+  as readiness. Every run now prints exactly one `READINESS_*` line;
+  `READINESS_UNPROVEN reason=<bad-args|prereq-missing|fetch-failed> pr=<n>` joins `READINESS_OK` and
+  `READINESS_BLOCKED`. Exit codes are unchanged, so existing callers keyed on them are unaffected.
+- **Readiness is declared by quoting the gate's verdict verbatim (`#787`).** `babysit-prs`'s
+  iteration report (`reference/loop.md` §5.5) gains a per-PR **Gate verdict** line carrying the
+  gate's stdout as printed, or `not emitted — harness denied: <exact command>` when the harness
+  blocked the call. Since the gate always prints a verdict, a readiness claim with nothing to quote
+  is unproven on its face. This is the limit of what the gate can enforce and the reason the
+  requirement sits on the report: no script can report its own non-invocation.
+- **A verdict-less readiness claim is never backfilled from live `gh` state (`#787`).**
+  `mergeStateStatus`, the check rollup, and any other live state miss exactly the cross-checks the
+  gate runs (dependency author, unprotected base, self-login exemption, head match), so they are not
+  a substitute verdict. Codified in `skills/babysit-prs/reference/safety.md` "Lane-Script
+  Reachability" and in the loop's NEVER-do list. Pinned-Command Degradation continues to cover the
+  denied-*mutation* case; this covers the denied-*check* case, which has no ready-to-execute handoff
+  because nothing was proven ready.
 - **`babysit-prs` declares auto-mode reachability of its own scripts as a prerequisite (`#787`).**
   A host permission classifier can deny the lane's bundled scripts — including the *read-only*
   merge-readiness check, which mutates nothing — leaving the lane unable to gate-prove readiness.
@@ -15,23 +36,30 @@ All notable changes to the `source-control` plugin are documented here. Format f
   bundled script. The contract lives in `skills/babysit-prs/reference/safety.md` "Lane-Script
   Reachability", which points at the host's auto-mode configuration reference for the permission
   semantics rather than restating them, and names the operator's verification step
-  (`claude auto-mode config`).
-- **A denied readiness gate is reported, never downgraded (`#787`).** The observed failure was the
-  orchestrator substituting live `gh` state (`mergeStateStatus`, check rollup) for the blocked
-  gate's verdict — evidence that misses the gate's dependency-author, unprotected-base, self-login,
-  and head-match cross-checks. A denied check now reports the PR as *readiness unproven — harness
-  blocked the gate* with the exact command attempted. Pinned-Command Degradation continues to cover
-  the denied-*mutation* case; this covers the denied-*check* case, which has no ready-to-execute
-  handoff because nothing was proven ready.
+  (`claude auto-mode config`). The section states its evidence plainly: `#787`'s own denial was of a
+  raw wildcarded-interpreter form that auto mode drops by design and that the `bin/`-path wrapper
+  has since superseded, so the prerequisite generalizes from `melodic-software/dotfiles#315` — where
+  `autoMode.classifyAllShell` suspended twelve purpose-built lane-script grants — rather than
+  reproducing that ticket.
+- **The disputed retry semantics of a classifier denial are flagged, not settled (`#455`).** The
+  Harness Permission Layer's "never retry a harness permission denial" rule is contested by `#455`,
+  which records a classifier denial whose retry succeeded. The new reachability section sits
+  directly beneath that rule and restates it, so a note now marks the question open and points at
+  `#455` — the restatement is inherited, not fresh confirmation.
 
 ### Changed
 
-- **`setup`'s babysit `check` gained a lane-script reachability probe (`#787`).** So the
-  prerequisite surfaces before a cycle rather than mid-cycle. It reports the operator-side surface
-  (an `autoMode` block in the scopes the classifier reads, and `claude auto-mode config` coverage of
-  the plugin's bundled scripts) as INFO with remediation — reachability cannot be proven from
-  settings alone, since a classifier decides per call, so the probe never FAILs and never writes
-  settings.
+- **`setup`'s babysit `check` gained an executable lane-script reachability canary (`#787`).** So
+  the prerequisite surfaces before a cycle rather than mid-cycle. The probe runs the lane's mandated
+  invocation form against a non-mutating target
+  (`bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-merge" --help`, which exits 0 without
+  network or GitHub access) and treats a tool-call denial there as a **FAILED** prerequisite. The
+  earlier draft only reported settings surfaces as INFO, and instructed enumerating the scopes the
+  classifier reads — for which no executable path exists, since the managed scopes are not ordinary
+  readable settings files. That clause is dropped in favour of `claude auto-mode config`, which
+  already prints the effective merged configuration across all three `autoMode` sources (user
+  settings, a `--settings`/SDK-supplied file, and managed settings); it stays INFO, because settings
+  cannot prove what a per-call classifier decides. The probe still never writes settings.
 
 ## [0.26.0]
 

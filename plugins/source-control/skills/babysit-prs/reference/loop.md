@@ -349,7 +349,11 @@ D1-D5 (investigate/classify/reply); only the D6-D7 fix cycle requires full mode.
   re-run. Exit 4 means jq is missing or the comment fetch failed — the stderr names the fix; the
   common cause is owner/repo unresolved from a cwd that is not a checkout of the target repo, fixed
   by exporting `FETCH_COMMENTS_OWNER`/`FETCH_COMMENTS_REPO` (inherited into
-  `fetch-all-pr-comments.sh`). THEN confirm: all checks terminal + 2-min cooldown
+  `fetch-all-pr-comments.sh`). Every run — exit 3 and 4 included — prints exactly one `READINESS_*`
+  line; the failure paths print `READINESS_UNPROVEN`, which is NOT readiness and never licenses
+  substituting live `gh` state for the verdict (see
+  [safety.md](safety.md) §Lane-Script Reachability). **Capture that line verbatim** — §5.5 requires
+  it. THEN confirm: all checks terminal + 2-min cooldown
 - [ ] **F** — Per-finding classification table + readiness report (see §5.5)
 
 **"Done" means GitHub shows evidence.** A per-finding work item is addressed only when the
@@ -477,6 +481,11 @@ These constraints override any other instruction within the babysit loop:
   `babysit-readiness-gate.sh <N>` run** (exit 0 `READINESS_OK`). The gate counts classification
   rows vs source findings and blocks under-decomposition. "I classified them" is not evidence —
   the gate exit code is. See §5.1.3 step E
+- **Never report a readiness verdict the gate did not emit.** The §5.5 readiness line quotes the
+  gate's `READINESS_*` stdout verbatim. `READINESS_UNPROVEN` (the gate ran, reached no verdict) and
+  a harness-denied call (the gate never ran, so there is no line) are both reported as **readiness
+  unproven** — never as ready, and never backfilled from `mergeStateStatus`, the check rollup, or
+  any other live `gh` state. See [safety.md](safety.md) §Lane-Script Reachability
 - **Never survey-and-report without investigating** — every unaddressed comment gets D1-D7
   (read, explore, validate, classify, reply, fix, follow-up). "Bot findings need classification"
   without classifying is a violation
@@ -524,6 +533,13 @@ step E). To mechanically gate checklist completeness too, write this iteration's
 file in your working-notes location and pass `--checklist <file>` — the gate exits non-zero
 while any `- [ ]` box is unticked, so an incomplete checklist cannot be declared "ready".
 
+**Gate verdict, quoted verbatim.** The per-PR "Gate verdict" line carries the gate's `READINESS_*`
+stdout as printed — never paraphrased, never reconstructed from memory. The gate prints exactly one
+such line on every run, so the only way to have none is that the gate never ran; in that case the
+line reads `not emitted — harness denied: <exact command>` and the readiness line reads *readiness
+unproven*. This is what stops a blocked gate from being indistinguishable from a passing one
+([safety.md](safety.md) §Lane-Script Reachability).
+
 ```text
 ## Babysit iteration [<timestamp>]
 
@@ -555,7 +571,9 @@ while any `- [ ]` box is unticked, so an incomplete checklist cannot be declared
 - [ ] All addressed BOT-authored inline threads resolved (human + own threads excluded): YES/NO/N/A
 
 ##### PR status
-- [ ] Readiness: ready for merge / <remaining blockers>
+- [ ] **Gate verdict** (verbatim gate stdout, or `not emitted — harness denied: <exact command>`):
+  `READINESS_OK findings=<n> classified=<n> checklist=<state>`
+- [ ] Readiness: ready for merge / <remaining blockers> / readiness unproven
 
 ### C. Iteration Summary
 - [ ] All PRs processed: YES/NO

@@ -317,6 +317,15 @@ the wrapper gate has already proven ready and in-tier. That denial is an environ
 ceiling this skill's own contract has no authority over — a normal, expected outcome to plan for,
 not a bug in this skill, a stalled worker, or a reason to retry with broader permissions.
 
+**The never-retry rule is disputed for the classifier case, and nothing below settles it.**
+[claude-code-plugins#455](https://github.com/melodic-software/claude-code-plugins/issues/455) is
+open against the first bullet above: it records an auto-mode *classifier* denial that was retried,
+where the retry succeeded — evidence that a classifier verdict may not carry the same finality as a
+rules-layer denial. The Lane-Script Reachability section that follows is about whether the lane's
+own scripts are reachable at all, not about what to do after a denial; read its restatement of the
+denial contract as inherited from the bullet above, not as fresh confirmation of it. Until #455 is
+resolved, treat the retry semantics of a classifier denial specifically as an open question.
+
 ### Lane-Script Reachability (operator prerequisite)
 
 That ceiling reaches the lane's own scripts, not just GitHub-mutating commands. Every tier proves
@@ -327,6 +336,20 @@ which mutates nothing and is still a shell invocation the host may deny. So thos
 invocable without a per-call denial is a declared prerequisite of the lane, on the same footing as
 Python, and unlike Python it has no degrade tier: there is no permission-free path to a proven
 readiness verdict.
+
+**What this prerequisite rests on — and what it does not.** The denial recorded in
+[claude-code-plugins#787](https://github.com/melodic-software/claude-code-plugins/issues/787) was
+of a raw wildcarded-interpreter invocation (`python …/babysit_merge.py …`) — a form auto mode drops
+by design, and a form this file already forbids. #787's own body says the orchestrator reached for
+it *because* the bare `bin/` wrapper was not on PATH; the commit that made the `bin/`-path form the
+mandated spelling landed after that report. So #787 does **not** demonstrate that the sanctioned
+form gets denied, and this section is a generalization from other evidence rather than a
+reproduction of that ticket. The evidence that does hold is
+[dotfiles#315](https://github.com/melodic-software/dotfiles/issues/315): with
+`autoMode.classifyAllShell` enabled, every narrow Bash allow rule is suspended — including twelve
+grants purpose-built for this lane's scripts — so under that configuration even the compliant
+`bash "${CLAUDE_PLUGIN_ROOT}/bin/…"` form reaches the classifier like any other command.
+Reachability is therefore a property of the operator's configuration, never of the path form alone.
 
 The grant is the operator's, never the plugin's — a plugin cannot ship permission rules, and an
 agent must not broaden its own. The allow-rule shape guidance, and the official sources behind it,
@@ -343,12 +366,22 @@ a configuration under which this plugin's bundled scripts, invoked in the path f
 mandates (§Guarded Mutation Wrappers), run without a denial. The operator confirms the effective
 configuration with `claude auto-mode config`.
 
-**A denied gate is never downgraded to weaker evidence.** When the harness blocks the read-only
-merge-readiness check, that PR's readiness is simply **not gate-proven**. `mergeStateStatus`, the
-check rollup, or any other live `gh` state a worker reports is NOT a substitute verdict — it misses
-exactly the cross-checks the gate exists to run (dependency author, unprotected base, self-login
-exemption, head match). Report that PR as **readiness unproven — harness blocked the gate**, name
-the exact command attempted, and surface the prerequisite above once for the cycle rather than
+**A denied gate is never downgraded to weaker evidence — and the gate now says so itself.**
+`babysit-readiness-gate.sh` emits exactly one `READINESS_*` line on stdout on **every** run,
+failure paths included: `READINESS_UNPROVEN reason=<bad-args|prereq-missing|fetch-failed> pr=<n>`
+is a third verdict alongside `READINESS_OK` and `READINESS_BLOCKED`, and it means readiness was not
+proven. Readiness is declared by quoting the verdict line verbatim in the iteration report
+([loop.md](loop.md) §5.5), so a readiness claim with no verdict line to quote is unproven on its
+face. That is both the mechanical half of this rule and its limit: a gate the harness never let run
+cannot report its own non-invocation, which is why the quoted-verdict requirement lives on the
+report rather than inside the script.
+
+When readiness is not gate-proven — an emitted `READINESS_UNPROVEN`, or a call the harness denied
+outright — `mergeStateStatus`, the check rollup, or any other live `gh` state a worker reports is
+NOT a substitute verdict: it misses exactly the cross-checks the gate exists to run (dependency
+author, unprotected base, self-login exemption, head match). Report that PR as **readiness
+unproven**, quoting the verdict line when there is one and naming the exact command attempted when
+the harness blocked the call, and surface the prerequisite above once for the cycle rather than
 re-attempting the call per PR. Pinned-Command Degradation below covers the denied-*mutation* case;
 this clause covers the denied-*check* case, which has no ready-to-execute handoff precisely because
 nothing was ever proven ready.
