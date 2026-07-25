@@ -12,10 +12,16 @@ export PYTHONUTF8=1
 here="$(cd "$(dirname "$(readlink -f "$0" 2>/dev/null || echo "$0")")" && pwd)"
 scripts="$here/../skills/babysit-prs/scripts"
 
+# Refuse the flag AND every long-option prefix of it. The gate's parser now
+# sets allow_abbrev=False, but this wrapper is the allow-rule boundary and must
+# not depend on the interpreter behind it: an exact-equality test alone let
+# `--allow-unpinned-hea` sail through while argparse (with abbreviation on)
+# resolved it to the refused flag. A prefix here can only mean the refused flag
+# or an ambiguous stem of it, so refusing the whole family is exact.
 for arg in "$@"; do
-  if [[ "$arg" == "--allow-unpinned-head" ]]; then
+  if [[ "$arg" == --a* && "--allow-unpinned-head" == "$arg"* ]]; then
     printf '%s\n' \
-      'source-control-babysit-merge: --allow-unpinned-head is not permitted through the wrapper.' \
+      "source-control-babysit-merge: $arg is not permitted through the wrapper (--allow-unpinned-head or a prefix of it)." \
       'Invoke babysit_merge.py directly for interactive unpinned use.' >&2
     exit 2
   fi

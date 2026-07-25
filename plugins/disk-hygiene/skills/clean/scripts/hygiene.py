@@ -1288,20 +1288,16 @@ def approval_token(snapshot: dict[str, Any], plan: dict[str, Any]) -> str:
     ).hexdigest()[:24]
 
 
-def resolve_snapshot_target(
-    snapshot: dict[str, Any], *, strict_root_stat: bool = True
-) -> tuple[Path, set[Path]]:
+def resolve_snapshot_target(snapshot: dict[str, Any]) -> tuple[Path, set[Path]]:
     """Re-validate the snapshot's target root against live state and return it.
 
     Shared by preview and handoff-verify: both must refuse a snapshot whose
     target root drifted, became a link, a mount point, an OS-managed root, or a
-    protected shell folder since the scan. Preview keeps the full stat identity
-    (size/mtime included) because its approval token binds one immutable state.
-    handoff-verify passes ``strict_root_stat=False`` to tolerate the root
-    directory's own metadata churn — deleting an approved root-level item
-    changes the root's mtime, and the manual lane deletes one item at a time
-    with a re-verify between items — while still refusing a replaced root via
-    the same stable device/inode/type identity apply uses for directories.
+    protected shell folder since the scan. The root is held to the same stable
+    device/inode/type identity as directory candidates, not to stat identity:
+    a directory's mtime and size flip whenever any direct child is added or
+    removed, so any unrelated write into a live target during the approval
+    window would otherwise abort the run.
     """
     if (
         snapshot.get("schema_version") != SCHEMA_VERSION
@@ -1325,16 +1321,12 @@ def resolve_snapshot_target(
             "snapshot target is now a protected shell-folder or profile-hive root"
         )
     identity = snapshot.get("target_identity", {})
-    if strict_root_stat:
-        if not same_identity(target, identity):
-            raise HygieneError("target root changed since the snapshot")
-    else:
-        try:
-            info = target.lstat()
-        except OSError as exc:
-            raise HygieneError(f"target root state is unverified: {exc}")
-        if not same_object_identity(info, identity):
-            raise HygieneError("target root was replaced since the snapshot")
+    try:
+        info = target.lstat()
+    except OSError as exc:
+        raise HygieneError(f"target root state is unverified: {exc}")
+    if not same_object_identity(info, identity):
+        raise HygieneError("target root was replaced since the snapshot")
     return target, known_mounts
 
 
@@ -1461,7 +1453,7 @@ def handoff_verify(snapshot: dict[str, Any], approved: list[str]) -> dict[str, A
     not apply: this subcommand exists exactly for the platforms where the
     engine's own apply lane is unsupported.
     """
-    target, known_mounts = resolve_snapshot_target(snapshot, strict_root_stat=False)
+    target, known_mounts = resolve_snapshot_target(snapshot)
     entries = entry_map(snapshot)
     exact_names = baseline_protected_names() | set(
         snapshot.get("policy", {}).get("protected_exact_names", [])
@@ -1754,9 +1746,9 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
     skipped: list[dict[str, str]] = []
     logical_removed = 0
     target_fd = os.open(target, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-    if not same_stat_identity(os.fstat(target_fd), snapshot["target_identity"]):
+    if not same_object_identity(os.fstat(target_fd), snapshot["target_identity"]):
         os.close(target_fd)
-        raise HygieneError("anchored target changed since the snapshot")
+        raise HygieneError("anchored target was replaced since the snapshot")
     known_mounts, mount_error = linux_mount_points()
     if mount_error:
         os.close(target_fd)

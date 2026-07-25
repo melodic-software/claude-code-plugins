@@ -473,6 +473,19 @@
       "source": "./plugins/github",
       "category": "operations",
       "tags": ["github", "audit", "advise", "governance", "org-admin", "billing", "security-posture", "rulesets", "actions-policy", "drift", "skill"]
+    },
+    {
+      "name": "x",
+      "source": "./plugins/x",
+      "category": "discovery",
+      "tags": ["x", "twitter", "markdown", "social", "content-extraction", "skill"],
+      "defaultEnabled": false,
+      "relevance": {
+        "topic": "X (Twitter) content",
+        "signals": {
+          "hosts": ["x.com", "www.x.com", "twitter.com", "www.twitter.com", "mobile.twitter.com", "xtomd.com", "threadreaderapp.com"]
+        }
+      }
     }
   ],
   "renames": {
