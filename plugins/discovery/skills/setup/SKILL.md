@@ -18,6 +18,11 @@ plugin's binding — how the discovery skills consume what this skill persists, 
 published convention that owns the schema — lives in
 [`${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md`](${CLAUDE_PLUGIN_ROOT}/reference/topic-docs.md).
 
+<!-- Maintainer note: the rules below restate the topic-docs and marketplace setup contracts as this
+     skill's own runtime instructions. Matching a sibling plugin's setup skill byte-for-byte is a
+     coincidence of scope, not a shared artifact — the topic-docs contract's "Implementers restate
+     the rules" section records why this is not extracted, and what would reopen that. -->
+
 Check-centric per the uniform contract: `check` inspects and reports, `apply` persists. Idempotent:
 re-running reads the current state and offers an update rather than overwriting blind.
 

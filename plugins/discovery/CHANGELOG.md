@@ -12,6 +12,15 @@
   `reference/topic-docs.md`, this plugin's binding, which already carries the single pointer to the
   published convention. One coupling site per plugin instead of two, and the one that remains is the
   file whose job is to cite upstream.
+- **The setup skill now says why its body matches `verification`'s byte-for-byte.** Most of it does,
+  and nothing on the page said whether that was a shared source to extract or a coincidence to
+  leave alone — so the next reader either re-litigates it or "deduplicates" two skills that are
+  supposed to be free to diverge. They are: both restate rules the topic-docs contract and the
+  marketplace setup contract already own, which is what a `SKILL.md` must do since it cannot defer
+  at runtime to a document the consuming repo lacks. `planning` renders the same rules in its own
+  prose and already disagrees with both on two of them. A maintainer note at the block points at
+  the contract's new "Implementers restate the rules" section, which carries the reasoning and the
+  trigger that would reopen extraction.
 
 ## [0.8.3] — 2026-07-24
 
