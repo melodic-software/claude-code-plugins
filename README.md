@@ -171,7 +171,8 @@ Install one: `/plugin install <plugin-name>@melodic-software`.
 - `docs/hook-migration-audit.md` — point-in-time audit of medley's general-purpose hooks for extraction into `guardrails`/`claude-ops`.
 - `docs/ai-briefing-design.md` — engine/profile/personal split design record for the `ai-briefing` migration (reference adopter of the profiled-folder convention).
 - `docs/CI-RUNNER-ROUTING.md` — local-runner selection, hosted boundaries, and failure recovery.
-- `CLAUDE.md` — operating rules for AI agents working in this repo (fresh-docs mandate + canonical links).
+- `CLAUDE.md` — operating rules for AI agents working in this repo (fresh-docs mandate + plugin design rules).
+- `docs/OFFICIAL-DOCS.md` — canonical index of the official Claude Code doc pages the mandate sends you to.
 
 ## Official documentation
 
