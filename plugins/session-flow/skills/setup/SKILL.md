@@ -65,8 +65,13 @@ installed plugin:
 - **Headless:** `claude plugin install ... --config observer_enabled=true` seeds a value on a *fresh
   install only* — re-running it against an already-installed plugin does not update the stored value.
   So a headless reconfigure is `claude plugin uninstall session-flow` then `claude plugin install
-  session-flow@<marketplace> --config <key>=<value> ...`, supplying every key to change in the one
-  install.
+  session-flow@<marketplace> --config <key>=<value> ...`, supplying **every key whose value should
+  be non-default — not only the keys being changed**. Uninstalling drops the stored `pluginConfigs`
+  entry, so any key omitted from the reinstall silently falls back to the manifest default:
+  reinstalling purely to enable the observer resets a customized `observer_analysis_model`,
+  `observer_idle_seconds`, `observer_analysis_bare`, and `observer_max_seconds`. Run `check` first
+  and record the current values, because after the uninstall there is nothing left to read them
+  from.
 
 ## Gotchas
 
