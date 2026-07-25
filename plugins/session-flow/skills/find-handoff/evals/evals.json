@@ -22,6 +22,7 @@
       "files": [],
       "expectations": [
         "The skill detects the prompt-only handoff via the rails + instruction-line markers, not the file directive",
+        "Because the user said the handoff was prompt-only, it does not stop at a file-based glob candidate — it proceeds to the transcript scan",
         "It treats `Prior session:` as optional corroboration and does not skip a valid prompt-only handoff that lacks it",
         "It surfaces the inline resume prompt from the transcript and does not error on a missing handoff file",
         "It stops for confirmation before resuming from the inline prompt"

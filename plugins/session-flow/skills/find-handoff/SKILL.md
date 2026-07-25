@@ -54,7 +54,10 @@ pre-clear content sits in a sibling — never in the current session's own file.
    no-project-root fallback `${CLAUDE_PLUGIN_DATA}/topic-docs/handoffs/`. Glob `*-handoff-*.md`,
    keep only files whose frontmatter is `type: handoff`, rank by mtime. A strong, recent candidate
    → jump to step 4 (step 5's chain validation then locates the producer transcript by the file's
-   `session_id`, since this path found no transcript). **v1 scope: current repo only.** The cross-repo *filesystem* sweep (deriving
+   `session_id`, since this path found no transcript). **Exception — operator says the handoff was
+   prompt-only:** then no file is the target (prompt-only writes none), and handoff files
+   intentionally accumulate, so a recent file here belongs to some *other* handoff. Skip this
+   short-circuit and go straight to the transcript scan. **v1 scope: current repo only.** The cross-repo *filesystem* sweep (deriving
    other repo roots from transcript `cwd` fields) is deferred — step 2's transcript scan already
    recovers handoffs written in other repos, since transcripts are indexed by session, not repo.
 2. **Transcript scan — bounded, recency-ranked, cross-repo.** Enumerate `~/.claude/projects/*/`
