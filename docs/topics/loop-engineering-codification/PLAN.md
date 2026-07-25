@@ -6,8 +6,8 @@
 
 Answer the loop-engineering question from this repository's own autonomy
 corpus rather than from vendor material, and land the corrections an
-eleven-corrector re-anchor sweep surfaced against that corpus and against
-the `playbooks` vendored baseline.
+eleven-corrector `/discipline:sweep-all` run surfaced against that corpus
+and against the `playbooks` vendored baseline.
 
 ### Goal
 
@@ -247,7 +247,7 @@ deferred-with-trigger shape `boris-video-absorption` already records.
 ### Deferred questions
 
 - Whether contract slices should persist on the default branch at all —
-  fourteen do today, against this convention's own prune-before-merge
+  fifteen do today, against this convention's own prune-before-merge
   lifecycle and its required-check clause. Arbiter: **USER-RESERVED** (a
   lifecycle change is a major contract change). **Still open.**
 - ~~Bump classification for the two corpus findings.~~ **Resolved before the
