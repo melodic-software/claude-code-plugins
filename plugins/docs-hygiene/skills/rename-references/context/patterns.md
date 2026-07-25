@@ -196,8 +196,8 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
   `contact`, `dev`. On a Certain-rated form that is a silent auto-rewrite of contact addresses.
   The discriminator is structural: a marketplace slug is kebab-case with **no dots**, while an
   email domain always carries a TLD dot. The regex therefore accepts `[\w-]` only and uses a
-  negative lookahead `(?![\w.-])` so a following dot disqualifies the match — verified:
-  `info@melodic-software` matches, `info@melodicsoftware.com` and `info@example.co.uk` do not.
+  negative lookahead `(?![\w.-])` so a following dot disqualifies the match — `info@acme-tools`
+  matches, `info@acmetools.com` and `info@example.co.uk` do not.
 - **False-positives:** otherwise rare. For the first alternative, the enclosing management verb
   supplies the disambiguation bare-token position lacks — prose does not accidentally say
   "/plugin configure" before an English verb. If a consuming marketplace ever allows dots in a

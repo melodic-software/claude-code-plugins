@@ -21,8 +21,8 @@
   management verb anchoring it, so for a container named `info`/`admin`/`support` it matched
   contact addresses on a Certain-rated form — a silent auto-rewrite. A marketplace slug is
   kebab-case with no dots while an email domain carries a TLD dot, so the form now accepts
-  `[\w-]` with a `(?![\w.-])` lookahead. Verified: `info@melodic-software` matches;
-  `info@melodicsoftware.com` and `info@example.co.uk` do not.
+  `[\w-]` with a `(?![\w.-])` lookahead. Verified: `info@acme-tools` matches;
+  `info@acmetools.com` and `info@example.co.uk` do not.
 
 ### Added
 

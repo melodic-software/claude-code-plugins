@@ -77,7 +77,7 @@
       "id": 7,
       "name": "container-rename-catches-command-argument-and-title",
       "prompt": "I renamed the plugin `re-anchor` to `discipline`. The directory moved and every qualified `/re-anchor:<skill>` invocation is already updated. Audit for anything still stale.",
-      "expected_output": "The sweep runs the container-position forms (13-15) in addition to Forms 1-12, so it reports the plugin name in command-argument position (`/plugin install re-anchor@melodic-software`, `/plugin configure re-anchor`), a document title that is the bare token (`# re-anchor`), and possessive container prose (\"re-anchor's effective configuration\") as Certain. It does NOT report the English-verb uses (\"each skill re-anchors ONE discipline\") as Certain, and it flags command-argument hits as functional breaks rather than cosmetic ones.",
+      "expected_output": "The sweep runs the container-position forms (13-15) in addition to Forms 1-12, so it reports the plugin name in command-argument position (`/plugin install re-anchor@acme-tools`, `/plugin configure re-anchor`), a document title that is the bare token (`# re-anchor`), and possessive container prose (\"re-anchor's effective configuration\") as Certain. It does NOT report the English-verb uses (\"each skill re-anchors ONE discipline\") as Certain, and it flags command-argument hits as functional breaks rather than cosmetic ones.",
       "files": [],
       "expectations": [
         "Forms 13-15 are run, not only the slash-token and path forms that a directory move already satisfies",
@@ -151,8 +151,8 @@
     {
       "id": 13,
       "name": "qualified-id-form-does-not-rewrite-email-addresses",
-      "prompt": "Rename the `info` plugin to `plugin-info`. The docs contain the contact address info@melodicsoftware.com.",
-      "expected_output": "Form 13's qualified-id alternative matches the marketplace-qualified id (info@melodic-software) but NOT the email address (info@melodicsoftware.com), because a marketplace slug is kebab-case with no dots while an email domain carries a TLD dot. The contact address is not proposed for rewriting and is not auto-applied.",
+      "prompt": "Rename the `info` plugin to `plugin-info`. The docs contain the contact address info@acmetools.com.",
+      "expected_output": "Form 13's qualified-id alternative matches the marketplace-qualified id (info@acme-tools) but NOT the email address (info@acmetools.com), because a marketplace slug is kebab-case with no dots while an email domain carries a TLD dot. The contact address is not proposed for rewriting and is not auto-applied.",
       "files": [],
       "expectations": [
         "The marketplace-qualified id is still matched",
