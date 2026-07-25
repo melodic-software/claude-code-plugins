@@ -68,6 +68,17 @@ class MergeGuardFailsClosed(unittest.TestCase):
         code, _ = run(MERGE, "not-a-ref", "--allowed-owners", "owner")
         self.assertEqual(code, 2)
 
+    def test_allow_unpinned_head_abbreviation_is_rejected(self):
+        # argparse's default prefix-matching would accept an unambiguous
+        # abbreviation like --allow-unpinned-hea as --allow-unpinned-head,
+        # bypassing the wrapper's exact-string guard (source-control-babysit-merge)
+        # against unattended unpinned merges. allow_abbrev=False closes it.
+        code, _ = run(
+            MERGE, "owner/repo#1", "--allowed-owners", "owner",
+            "--merge", "--allow-unpinned-hea",
+        )
+        self.assertEqual(code, 2)
+
     def test_autopilot_tier_without_required_sets_refuses_exit_3(self):
         # The tier's fail-closed core: the umbrella flag alone, with none of its
         # three required sets, refuses before any network access.
