@@ -132,6 +132,48 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("re-snapshot and reassess the new head", paragraph)
         self.assertIn("instead of using `--allow-unpinned-head`", paragraph)
 
+    def test_merge_gate_is_the_sole_merge_ready_authority(self) -> None:
+        # #601: the two gates are separately named and both once called
+        # "readiness"; SKILL.md must name the merge gate's `ready` field as the
+        # only source of a MERGE-READY claim.
+        paragraph = _paragraph_containing(self.skill_text, "**Merge readiness**")
+
+        self.assertIn(
+            "This gate's `ready` field is the sole authority for calling a PR merge-ready",
+            paragraph,
+        )
+        self.assertIn("never the finding-classification gate's `READINESS_OK`", paragraph)
+        self.assertIn("Two Gates, One Merge-Ready Authority", paragraph)
+
+    def test_safety_md_separates_the_two_gates(self) -> None:
+        safety = (SKILL.parent / "reference" / "safety.md").read_text(encoding="utf-8")
+
+        self.assertIn("## Two Gates, One Merge-Ready Authority", safety)
+        self.assertIn(
+            "**Only the merge gate's `ready` field determines merge-readiness.**", safety
+        )
+        for marker in (
+            "finding-classification gate",
+            "babysit-readiness-gate.sh",
+            "source-control-babysit-merge",
+            "never `READINESS_OK`",
+            "pre-gate",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, safety)
+
+    def test_loop_md_reports_the_two_gates_as_separate_fields(self) -> None:
+        # The §5.5 template pairing a single "Readiness: ready for merge" field
+        # with the classification gate is what produced the false report (#601).
+        loop = (SKILL.parent / "reference" / "loop.md").read_text(encoding="utf-8")
+
+        self.assertIn(
+            "- [ ] Finding-classification gate: READINESS_OK / READINESS_BLOCKED", loop
+        )
+        self.assertIn("- [ ] Merge gate: `ready: true` / `ready: false`", loop)
+        self.assertNotIn("Readiness: ready for merge", loop)
+        self.assertIn("Never report a PR MERGE-READY off `READINESS_OK`", loop)
+
     def test_zero_blocker_draft_always_uses_a_worker(self) -> None:
         paragraph = _paragraph_containing(
             self.skill_text, "**Zero-blocker drafts are the exception:**"

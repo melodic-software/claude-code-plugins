@@ -34,7 +34,17 @@
 #   unaddressed — R1+R5), OR when a --checklist file has any "- [ ]" (R6).
 #
 # This is a PURE PREDICATE — detection only, no GitHub writes. The skill runs
-# it before declaring readiness / scheduling the next wake.
+# it before completing an iteration / scheduling the next wake.
+#
+# NOT a merge-readiness check. This gate is blind to branch rules, review
+# decision, unresolved threads, required checks, and head match. Only the merge
+# gate (babysit_merge.py, via the source-control-babysit-merge wrapper) reports
+# whether the PR may be merged -- GitHub's own mergeability AND the plugin's own
+# policy holds (dependency-manager author, unprotected base, autopilot tier).
+# A passing classification verdict is never evidence of that. The token is not
+# spelled at the start of a line here: this header is the --help output, and a
+# caller's ^READINESS_ grep would read documentation as a malformed verdict.
+# See skills/babysit-prs/reference/safety.md "Two Gates, One Merge-Ready Authority".
 #
 # Usage:
 #   babysit-readiness-gate.sh <pr>

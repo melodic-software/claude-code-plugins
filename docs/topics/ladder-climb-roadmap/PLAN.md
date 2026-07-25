@@ -92,7 +92,9 @@ ignites (search-before-create against open issues first).
 ### Phase I: Ignition (#778) — standing routine + evidence drain [TODO]
 
 Sub-topic: `docs/topics/autonomy-ignition/PLAN.md` (authored at Phase I start, inherits the
-interview rulings as design record). Scope, ruled: hourly C2 drain on
+interview rulings as design record). Scope, ruled: hourly C2 drain (cadence re-bound
+2026-07-22 to a 15-min slot grid; predicate span ≥14d re-bound to ≥7d under a 48h
+merge-maturity guard — sub-topic Phase 4 re-bind ratification) on
 `kyle-sexton/autonomy-demo-scratch` via native Desktop scheduled task (fallback: OS scheduler +
 `claude -p`, adopted deliberately only if the native surface fails its smoke test); evidence
 drain = `signal.work_class` stamp + deterministic-gate outcomes + PR-flow merge/revert events
