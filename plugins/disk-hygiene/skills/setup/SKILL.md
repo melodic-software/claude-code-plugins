@@ -25,7 +25,11 @@ report a PASS/FAIL/INFO table with one remediation line per FAIL.
 
 When the plugin's toggle is disabled, every prerequisite absence downgrades from FAIL to
 INFO — a deliberately disabled plugin is not broken. Report the probes informationally and
-note that re-enabling restores the FAIL semantics.
+note that re-enabling restores the FAIL semantics. Exception: step 1's guard-launch
+failures (`store-alias-stub` and `indeterminate`) stay FAIL even with the toggle disabled.
+Audit-only mode is *enforced by* the guard, and both guard surfaces launch through the very
+name the stub shadows — a guard that never starts can neither read nor enforce the
+configured `false`, so the fail-open is most dangerous in exactly this configuration.
 
 1. **Python floor on `PATH`** — the interpreter used by scanning, validation, the
    guard, and cleanup. (The guard registers on two surfaces: a plugin-level engine gate

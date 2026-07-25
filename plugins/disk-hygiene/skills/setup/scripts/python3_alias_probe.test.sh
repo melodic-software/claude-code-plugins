@@ -13,11 +13,21 @@ if [[ -z "$FLOOR" ]]; then
   exit 1
 fi
 
-if command -v python >/dev/null 2>&1; then
-  PYTHON=python
-elif command -v python3 >/dev/null 2>&1; then
-  PYTHON=python3
-else
+# A zero-length candidate under a WindowsApps path component is the Store's App
+# Execution Alias stub — the very artifact this suite tests for. Executing it
+# opens the Microsoft Store (or hangs) instead of running an interpreter, so
+# each candidate is inspected before anything executes it.
+PYTHON=""
+for candidate in python python3; do
+  resolved="$(command -v "$candidate" 2>/dev/null)" || continue
+  lower="$(printf '%s' "$resolved" | tr '[:upper:]' '[:lower:]')"
+  if [[ "$lower" == *windowsapps* && ! -s "$resolved" ]]; then
+    continue
+  fi
+  PYTHON="$candidate"
+  break
+done
+if [[ -z "$PYTHON" ]]; then
   echo "SKIP: Python ${FLOOR}+ not found" >&2
   exit 0
 fi
