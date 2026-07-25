@@ -15,6 +15,7 @@ prune run instead of erroring every run.
 
 from __future__ import annotations
 
+import contextlib
 import io
 import json
 import pathlib
@@ -179,6 +180,43 @@ class MissingRepoErrorDetectionTests(unittest.TestCase):
         self.assertFalse(
             prune.is_missing_repo_error(RuntimeError("gh: rate limit exceeded"))
         )
+
+
+class OrphanedEntryDetectionTests(unittest.TestCase):
+    def test_a_live_linked_worktree_is_not_an_orphan(self) -> None:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
+            tmp = pathlib.Path(td)
+            main = make_repo(tmp)
+            wt = add_worktree(main, tmp / "root", "owner__repo__pr-1")
+
+            self.assertFalse(prune.is_orphaned_entry(wt))
+
+    def test_a_directory_with_no_repository_anywhere_above_it_is_an_orphan(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
+            orphan = pathlib.Path(td) / "owner__repo__pr-2"
+            orphan.mkdir()
+
+            self.assertTrue(prune.is_orphaned_entry(orphan))
+
+    def test_a_directory_answered_by_an_ancestor_checkout_is_an_orphan(
+        self,
+    ) -> None:
+        # `git -C <path>` runs as if git had started in that directory, so
+        # ordinary upward discovery answers from an ancestor checkout when the
+        # worktree root sits inside one -- `git status` succeeds while saying
+        # nothing about this directory. Detecting only `fatal: not a git
+        # repository` would skip the orphan: an open PR would be retained as
+        # keep_open and a closed one would error in `git worktree remove`.
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
+            tmp = pathlib.Path(td)
+            main = make_repo(tmp)
+            orphan = main / "root" / "owner__repo__pr-3"
+            orphan.mkdir(parents=True)
+
+            self.assertEqual(prune.git_status(orphan)[0][:3], "## ")
+            self.assertTrue(prune.is_orphaned_entry(orphan))
 
 
 class AttemptDirectoryRemovalTests(unittest.TestCase):
@@ -480,6 +518,46 @@ class MainSelfHealsAnOrphanedWorktreeEntry(unittest.TestCase):
         self.assertTrue(row["dropped"])
         self.assertFalse(row["lease_dropped"])
         self.assertTrue(row["directory_removed"])
+
+    def test_a_non_empty_orphan_is_reported_unfinished_not_dropped(self) -> None:
+        """`remove_empty_orphan_directory` deliberately never force-deletes a
+        non-empty orphan, so the entry survives at its deterministic
+        one-per-PR path and a replacement worktree cannot be created there.
+        Reporting `dropped: true` there would claim a cleanup that did not
+        happen."""
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
+            tmp = pathlib.Path(td)
+            root = tmp / "root"
+            root.mkdir()
+            orphan_dir = root / "owner__repo__pr-9"
+            orphan_dir.mkdir()
+            (orphan_dir / "uncommitted-work.txt").write_text("keep", encoding="utf-8")
+            state_dir = tmp / "state"
+
+            argv = [
+                "prune_babysit_worktrees.py",
+                "--root",
+                str(root),
+                "--state-dir",
+                str(state_dir),
+                "--apply",
+            ]
+            buffer = io.StringIO()
+            with mock.patch.object(sys, "argv", argv), redirect_stdout(buffer):
+                with contextlib.redirect_stderr(io.StringIO()) as warnings:
+                    exit_code = prune.main()
+            report = json.loads(buffer.getvalue())
+
+            self.assertTrue(orphan_dir.exists())
+
+        self.assertEqual(exit_code, 0)
+        [row] = report["worktrees"]
+        self.assertEqual(row["action"], "drop_orphan")
+        self.assertFalse(row["dropped"])
+        self.assertFalse(row["directory_removed"])
+        self.assertTrue(row["residual_directory"])
+        self.assertIn("not", warnings.getvalue())
+        self.assertIn(str(orphan_dir), warnings.getvalue())
 
     def test_dry_run_reports_the_orphan_without_mutating_it(self) -> None:
         """Without --apply the run is a report: the documented dry-run contract

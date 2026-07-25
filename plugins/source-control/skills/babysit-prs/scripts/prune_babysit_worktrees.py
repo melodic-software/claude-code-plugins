@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -109,6 +110,43 @@ def git_status(path: Path) -> list[str]:
 
 def is_dirty(status: list[str]) -> bool:
     return any(not line.startswith("## ") for line in status)
+
+
+def worktree_toplevel(path: Path) -> Path | None:
+    """The working-tree root git resolves when started in `path`, or `None`
+    when no repository is reachable from there at all.
+
+    `git -C <path>` runs *as if git were started in* that directory
+    (<https://git-scm.com/docs/git#Documentation/git.txt--Cltpathgt>), so
+    ordinary upward discovery still succeeds against an *ancestor* checkout
+    when the babysit worktree root itself sits inside one. Callers compare
+    this against the candidate path to tell "this worktree" from "some
+    ancestor of it".
+    """
+    try:
+        proc = run(["git", "-C", str(path), "rev-parse", "--show-toplevel"])
+    except RuntimeError as exc:
+        if is_missing_repo_error(exc):
+            return None
+        raise
+    text = proc.stdout.strip()
+    return Path(text).resolve() if text else None
+
+
+def is_orphaned_entry(path: Path) -> bool:
+    """Whether `path` no longer is its own git worktree (#816).
+
+    Two ways an entry orphans, and a status probe alone only catches the
+    first: git reports `fatal: not a git repository`, or git silently answers
+    for an ancestor checkout (see `worktree_toplevel`) whose status says
+    nothing about this directory -- under which a closed PR's entry would
+    reach `git worktree remove` and error, and an open PR's would be retained
+    as `keep_open`, in both cases leaving the residual directory forever.
+    """
+    toplevel = worktree_toplevel(path)
+    if toplevel is None:
+        return True
+    return os.path.normcase(str(toplevel)) != os.path.normcase(str(path.resolve()))
 
 
 def is_missing_repo_error(exc: Exception) -> bool:
@@ -327,33 +365,44 @@ def main() -> int:
                     row["lease_expires_at"] = active_lease.get("expires_at") or ""
                     rows.append(row)
                     continue
-                try:
-                    status = git_status(worktree.path)
-                except RuntimeError as exc:
-                    if not is_missing_repo_error(exc):
-                        raise
+                if is_orphaned_entry(worktree.path):
                     # Orphaned entry: the directory survives (matches the
                     # naming convention, so iter_worktrees still lists it)
-                    # but is no longer a valid git worktree. Self-heal
+                    # but is no longer this path's own git worktree. Self-heal
                     # instead of erroring the whole prune on every run --
                     # under --apply only, since self-healing unlinks a lease
                     # record and deletes a directory, and the flagless run is
                     # a report.
                     row["action"] = "drop_orphan"
                     if args.apply:
-                        row.update(
-                            drop_orphaned_worktree(
-                                worktree,
-                                lease_path,
-                                root,
-                                preserve_lease=active_lease is not None,
-                            )
+                        orphan_info = drop_orphaned_worktree(
+                            worktree,
+                            lease_path,
+                            root,
+                            preserve_lease=active_lease is not None,
                         )
-                        row["dropped"] = True
+                        row.update(orphan_info)
+                        # A non-empty orphan is deliberately never
+                        # force-deleted (`remove_empty_orphan_directory`), so
+                        # the entry survives at its deterministic one-per-PR
+                        # path and a replacement worktree cannot be created
+                        # there. Report that as unfinished, in the same
+                        # `residual_directory` vocabulary `remove_worktree`
+                        # uses for its own surviving directory.
+                        row["dropped"] = bool(orphan_info["directory_removed"])
+                        if not row["dropped"]:
+                            row["residual_directory"] = True
+                            print(
+                                "WARNING: orphaned worktree directory is not "
+                                f"empty and was left in place for {worktree.key} "
+                                f"(inspect and clear it by hand): {worktree.path}",
+                                file=sys.stderr,
+                            )
                     else:
                         row["dropped"] = False
                     rows.append(row)
                     continue
+                status = git_status(worktree.path)
                 row["status"] = status
                 if is_dirty(status):
                     row["action"] = "keep_dirty"

@@ -30,7 +30,17 @@ All notable changes to the `source-control` plugin are documented here. Format f
   the orphan cleanup (`preserve_lease`), because the documented scoped form prunes while that lease
   is still held and releases it in the next step (`reference/orchestration.md` "Cleanup") — unlinking
   it here turned a successful cleanup into a `lease does not exist` release failure and dropped
-  ownership early.
+  ownership early. Orphan detection no longer rests on `fatal: not a git repository` alone: `git -C
+  <path>` runs *as if git had started in that directory*
+  ([git-scm.com](https://git-scm.com/docs/git#Documentation/git.txt--Cltpathgt)), so when the
+  worktree root itself sits inside another checkout, ordinary upward discovery answers `git status`
+  from that ancestor and the orphan reads as healthy — an open PR's entry then sticks as `keep_open`
+  and a closed one errors in `git worktree remove`, leaving the directory forever.
+  `is_orphaned_entry` compares `rev-parse --show-toplevel` against the candidate path, so an
+  ancestor's answer is an orphan too. A non-empty orphan — never force-deleted, since git never
+  confirmed its contents safe to discard — is now reported `dropped: false` with
+  `residual_directory: true` and a stderr warning rather than claiming a cleanup that did not
+  happen at a deterministic path where a replacement worktree still cannot be created.
 
 ## [0.26.11]
 
