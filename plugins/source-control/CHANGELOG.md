@@ -25,6 +25,84 @@ All notable changes to the `source-control` plugin are documented here. Format f
   backing CLI's own parser). Catalogue gates fail when a new entry point, wrapper, or
   command-spelling document arrives without a row.
 
+## [0.26.8]
+
+### Fixed
+
+- **`fetch-all-pr-comments.sh` output can choke a downstream Python consumer on Windows
+  (emoji/cp1252 mismatch) (#597).** The script's UTF-8 JSON output commonly carries non-ASCII
+  bytes — bot badge images, reaction emoji — from bot review comments. Reproduced directly: a
+  Python consumer that opens the output (or reads this script's stdout) without an explicit UTF-8
+  encoding inherits the interpreter's default ANSI code page on Windows (cp1252) and raises
+  `UnicodeDecodeError` on those bytes; this repo's own consumers (`babysit_findings.py`) already
+  pin `encoding="utf-8"` explicitly and are unaffected, so the gap is external/downstream
+  consumers. `fetch-all-pr-comments.sh --help` now documents the `PYTHONUTF8=1` (PEP 540)
+  requirement for Windows consumers that don't pin the encoding themselves.
+  `babysit-readiness-gate.sh` — the one `babysit_python` caller that parses this script's
+  comment-JSON schema and lacked the `export PYTHONUTF8=1` convention the two `bin/` babysit
+  wrappers already apply — now sets it too, closing the inconsistency.
+
+## [0.26.7]
+
+### Fixed
+
+- **`babysit-prs` no longer misclassifies a bot's PR-level review comment as "new human feedback"
+  (#683).** `gh pr view --json reviews,latestReviews` (`view_pr`'s `VIEW_FIELDS`) returns each
+  review's `author` as `{login}` only — no `__typename`, no `is_bot`, and a GitHub App bot's login
+  without its `[bot]` suffix; verified live that this is a `gh` CLI JSON-field limitation, not a
+  GraphQL one — a raw `author{login __typename}` query against the same PR correctly reports
+  `__typename: "Bot"`. Both classification call sites (`pr_queue_snapshot.py`,
+  `babysit_feedback.fetch_current_human_stop`) already replace `pr["reviews"]` with the fully-typed
+  REST list (`fetch_pull_request_reviews`), but left `pr["latestReviews"]` untouched. Because
+  `collect_feedback`'s `latest_reviews_by_author` merges both collections keyed by raw login, the
+  same bot actor produced two entries under different keys — one correctly typed (from `reviews`),
+  one not (from `latestReviews`, e.g. `chatgpt-codex-connector` without `[bot]`) — and the untyped
+  duplicate fell through to `actor_kind`'s login-suffix heuristic and landed in `feedback["human"]`.
+  New `babysit_gh.rest_hydrate_reviews` replaces `reviews` with the REST list and drops the stale
+  `latestReviews` in one place, used by both call sites, so `latest_reviews_by_author` derives every
+  actor's latest review from the properly-typed REST list alone.
+
+## [0.26.6]
+
+### Fixed
+
+- **`scripts/worktree-create.sh` now refuses a git-illegal `--name` with the documented usage exit 2
+  instead of environment exit 4 (`#1016`).** The up-front character class (letters, digits, dots,
+  underscores, dashes per `/`-separated segment) is not a subset of git's ref grammar, so names like
+  `feat/foo..bar`, `foo.lock`, `.foo`, `HEAD`, and `-lead` passed validation, reached
+  `git worktree add`, and failed there as exit 4 — the code the helper reserves for environment
+  faults. A caller's correction flow keys on exit 2, so an invalid name was indistinguishable from a
+  broken environment. The schema check is now followed by `git check-ref-format --branch`, whose
+  output is discarded on both streams: on success `--branch` echoes the name to stdout, which would
+  break the helper's "created path is the sole stdout line" output contract. Verified across every
+  name the character class admits, `check-ref-format` and `git worktree add -b` agree exactly, so no
+  previously-creatable name is newly refused. `skills/worktree/context/create.md` gains the matching
+  constraint bullet, and the header comment that claimed the character class was "a strict subset of
+  what git refs allow" is corrected.
+
+  The grammar check runs **after** the repository is resolved and is scoped with `-C "$toplevel"`:
+  `--branch` takes a branchname-shorthand and so performs repository discovery, which dies outright
+  when the process's CWD is a stale checkout (a `.git` file naming a gitdir that no longer exists —
+  what this plugin's own worktree cleanup handles). Run unscoped, that turned a valid name into a
+  false exit 2 from such a directory, and the documented invocation omits `--repo-dir`, so the CWD is
+  the default. Consequence: exits 3 (root unconfigured) and 4 (not a repository) can now precede the
+  grammar refusal, matching how the pre-existing `--base-ref` and empty-slug exit-2 checks already
+  sit after them. The character-class and length checks still run first, before any git call.
+
+## [0.26.5]
+
+### Fixed
+
+- **`babysit_delta.py` and `babysit_feedback.py` now casefold owner/repo/login identity
+  comparisons, matching the already-ratified `.casefold()` convention `pr_queue_snapshot.py`
+  uses for the identical concept (#815).** `head_repository_scope`'s base/head owner and
+  same-repository checks, and `latest_reviews_by_author`'s per-reviewer login key, used
+  `.lower()` instead. Functionally equivalent for GitHub's ASCII-only owner/repo/login
+  alphabet, but a straggler against the sibling scripts' shared convention. Converted to
+  `.casefold()` in both files; added case-insensitivity regression tests covering a
+  differently-cased base repo, head repository, and allowlisted owner, and a differently-cased
+  reviewer login collapsing to one latest review.
+
 ## [0.26.4]
 
 ### Fixed

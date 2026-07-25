@@ -3,6 +3,31 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.5]
+
+### Fixed
+
+- **`triage` no longer routes to `priority: pN-*` labels that exist in no governed repository
+  (`#1253`).** The live governed priority axis across the fleet is `priority: critical` / `high` /
+  `medium` / `low` / `needs-triage` — the `p0-critical`…`p3-low` scheme `triage`'s priority-label
+  step, `track add`'s filing default, and `dogfood-filing.md` named inline appeared in zero
+  repositories, so an autonomous triage pass that followed the skill literally failed applying a
+  nonexistent label. `triage`, `track add`, and `dogfood-filing.md` now resolve the live `priority:`
+  label set from the bound adapter at action entry (consistent with every other "members from the
+  live set" axis in `label-taxonomy.md`) instead of naming members inline; where prose still shows a
+  concrete value it is marked as an illustrative example, not a routing instruction. The
+  triage-assessed default (mid-urgency tier) vs. `track add` filing default (lowest-urgency tier, an
+  untriaged-signal floor) distinction is preserved.
+
+## [0.24.4]
+
+### Documentation
+
+- **GitHub adapter: force UTF-8 wherever a body edit leaves the UTF-8-safe pipeline (`#1037`).**
+  A new cross-cutting gotcha in `tools/work-item-tracker/adapters/github/README.md` records that the
+  `gh` transports do not transcode, and requires an explicit UTF-8 encoding on both sides of any
+  ad-hoc read or write of a fetched body. No behavior change.
+
 ## [0.24.3]
 
 ### Fixed
