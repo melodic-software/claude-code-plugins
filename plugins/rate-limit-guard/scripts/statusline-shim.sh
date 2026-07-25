@@ -21,7 +21,7 @@
 #   tee found      → exec bash <tee> "$@"   (the tee owns transparency from
 #                                            there; see statusline-tee.sh)
 #   tee not found  → exec "$@"              (wrapped statusline runs unchanged;
-#                                            the ONLY loss is the tee file)
+#                                            the ONLY loss is the contract file)
 #   tee not found  → one-line notice        (the shim WAS the whole statusline,
 #     and no wrapped args                    so silence would leave a blank bar)
 # It never edits, never writes, and never touches the contract directory.

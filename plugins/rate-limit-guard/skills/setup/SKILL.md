@@ -54,8 +54,14 @@ owned by `${CLAUDE_PLUGIN_ROOT}/reference/reader-contract.md`.
      (< 0.2.0). Never report the operator's installed copy as drifted on this branch. Remediation:
      `/plugin update rate-limit-guard`, then re-run `check`. Until then the legacy version-pinned
      wiring in step 3 is the only wiring this version can offer.
-3. **Statusline wiring state** — read (never write) the user's `~/.claude/settings.json`, and note
-   any project-level `statusLine` that shadows it. Distinguish four states:
+3. **Statusline wiring state** — read (never write) every settings scope that can carry a
+   `statusLine` (user `~/.claude/settings.json`, project `.claude/settings.json`, local
+   `.claude/settings.local.json`) and determine which one owns the EFFECTIVE command (the most
+   specific scope wins). All wiring states below are evaluated against that effective command,
+   and the printed edit in step 6 targets THAT scope's file — wiring the user file while a
+   project-level `statusLine` shadows it would apply cleanly and never run; when a shadow
+   exists, say so explicitly and print the edit for the shadowing file (or note that removing
+   the override is the alternative). Distinguish FOUR states:
    - **No `statusLine` configured** — the wrapper is not running because nothing is. Print the
      standalone wiring from the template below (the shim is then the whole statusline).
    - **`statusLine` present, command references neither the shim nor `statusline-tee.sh`** —
