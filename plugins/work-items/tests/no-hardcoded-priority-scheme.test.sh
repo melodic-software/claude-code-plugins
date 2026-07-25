@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Regression guard for #1253: skill/reference prose must never route to a
-# `priority:pN-*` label (e.g. `priority:p2-medium`). That scheme exists in no
+# `priority:pN-*` label in either spacing (`priority:p2-medium` or
+# `priority: p2-medium`). That scheme exists in no
 # governed repository — the live fleet-wide `priority:` set is
 # critical/high/medium/low/needs-triage — so an autonomous pass that follows a
 # `pN-*` routing instruction literally fails applying a nonexistent label
@@ -32,7 +33,10 @@ fail() {
 }
 
 # ERE for the banned scheme: priority:p<0-3>-<word>, e.g. priority:p2-medium.
-PATTERN='priority:p[0-3]-[a-z]+'
+# The optional whitespace after the colon matters — the live governed labels are
+# written colon-space (`priority: low`), so a reintroduction is at least as
+# likely to read `priority: p2-medium` as the colon-no-space form.
+PATTERN='priority:[[:space:]]*p[0-3]-[a-z]+'
 
 # --- (1) self-test: the detector catches a synthetic hit -------------------
 fixture_dir="$(mktemp -d)"
@@ -44,6 +48,15 @@ if grep -qE "$PATTERN" "$fixture_file"; then
   ok "detector matches a synthetic priority:pN-* hit"
 else
   fail "detector matches a synthetic priority:pN-* hit" "regex did not match the fixture"
+fi
+
+spaced_fixture="$fixture_dir/synthetic-spaced.md"
+printf 'Default to `priority: p2-medium` when no directive sets one.\n' >"$spaced_fixture"
+
+if grep -qE "$PATTERN" "$spaced_fixture"; then
+  ok "detector matches the colon-space priority: pN-* form"
+else
+  fail "detector matches the colon-space priority: pN-* form" "regex did not match the spaced fixture"
 fi
 
 clean_fixture="$fixture_dir/clean.md"
