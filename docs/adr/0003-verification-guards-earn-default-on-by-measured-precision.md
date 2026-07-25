@@ -55,8 +55,10 @@ been measured against a real corpus.** A sound oracle is a necessary condition, 
 sufficient one. Specifically:
 
 1. **Measure before shipping, on the real corpus, at real scale.** Not a sample, not the
-   contract suite. A passing contract suite proves the oracle; only a corpus sweep proves
-   the scoping. The path guard had 61 green cases and a 23.7% real-world firing rate.
+   contract suite. A passing contract suite is evidence for the cases it contains — nothing
+   more; an input shape absent from the suite can still be misclassified. A corpus sweep is
+   what exposes the scoping. The path guard had 61 green cases and a 23.7% real-world firing
+   rate.
 2. **Report the number in the PR.** "It looks quieter now" is not a measurement. The
    before/after firing rate and precision are the artifact that justifies default-on.
 3. **A guard that fires and is never right disqualifies itself**, however sound its oracle.
@@ -73,15 +75,29 @@ sufficient one. Specifically:
    |---|---|
    | fires often, no true positives | disqualified — the path guard, 389 findings, 0 real |
    | silent, or near-silent | inconclusive on precision; establish detection by seeding known defects, then ship if the firing rate stays low |
-   | fires rarely, true positives present | shippable — the reference guard, 0.51% firing, 57% precision |
+   | fires rarely AND precision is acceptable | shippable — the reference guard, 0.51% firing, 57% precision |
 
    For a silent sweep the burden shifts to **seeded defects**: plant instances the guard
    should catch, confirm it catches them, and report the firing rate on the unseeded corpus
    as the noise figure. Absence of evidence is not the evidence of absence that rule 1 asks
    for.
-4. **Distinguish "wrong oracle" from "wrong scope."** The path guard's oracle was exact; its
-   scope was a repo whose docs describe other repos' trees. That distinction decides whether
-   a guard is deleted or re-filed for rescoping. It was re-filed (#1314).
+
+   **"Acceptable precision" is a judgment, and the ADR deliberately does not fix a
+   threshold** — the tolerable ratio depends on how costly a false advisory is in the surface
+   being guarded, and a single number would be false precision. But rarity plus one true
+   positive is explicitly NOT sufficient: one real finding among a hundred false ones is a
+   1%-precision guard however rarely it fires, and it fails rule 3's substance for the same
+   reason the path guard did. State the measured precision, name the ratio you consider
+   acceptable for that surface, and justify it. The reference guard shipped at 57% with the
+   remaining noise attributed to a single identified cause — that shape of argument, not the
+   bare number, is what earns default-on.
+4. **Distinguish "wrong oracle" from "wrong scope" — by checking, not by assuming.** That
+   distinction decides whether a guard is deleted or re-filed for rescoping, so it is worth
+   establishing rather than inferring from a green suite. For the path guard it was
+   established per finding: each candidate was re-tested against the repo root and confirmed
+   genuinely absent, which is what made "the oracle is exact, the scope is wrong" a finding
+   instead of an assumption. It was re-filed (#1314). Had any candidate turned out to resolve,
+   that would have been an oracle defect the contract suite simply had no case for.
 5. **A guard whose only surface an existing gate owns does not ship at all.** A guard
    duplicating `check-changelog-parity --check-bump` would fire correctly; it would simply
    add no signal the required gate does not already produce, while adding a second place the
