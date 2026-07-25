@@ -76,7 +76,7 @@
         "It keeps only concrete resolved paths and confirms the file exists on disk",
         "It rejects prompt-only rails blocks on the template's specific placeholder tokens (such as a literal `Prior session: <UUID>`) rather than surfacing the template as a recovered handoff",
         "It does not blanket-reject angle-bracket content: blocks carrying `<REDACTED: …>` shape markers or generic code syntax like `<T>` remain valid candidates",
-        "It accepts marker hits only from assistant-output transcript lines (`\"type\":\"assistant\"` on the same physical JSONL line) and, on the per-candidate decode, only from `text` content entries — rejecting rails pasted in user messages, echoed in tool results, or serialized inside an assistant Write/Edit tool_use input",
+        "It accepts marker hits only from assistant-output transcript lines (`\"type\":\"assistant\"` on the same physical JSONL line) and, on the per-candidate decode, confirms the parsed top-level type equals assistant (a user message quoting transcript JSON passes the substring pre-filter) and the marker sits in a `text` content entry — rejecting rails pasted in user messages, echoed in tool results, or serialized inside an assistant Write/Edit tool_use input",
         "It does not surface the placeholder path as if it were a recoverable handoff"
       ]
     },

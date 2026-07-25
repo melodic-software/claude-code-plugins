@@ -97,7 +97,10 @@ pre-clear content sits in a sibling — never in the current session's own file.
      substring check, no parsing. Rails in a user message or a tool result (a pasted sample, a doc
      echoed by a read) are not a handoff emission.
    - *Confirm on the per-candidate decode:* when un-escaping the surviving line (below), verify
-     the marker sits in a `message.content` entry whose own `type` is `text`. An assistant
+     **both** that the decoded event's top-level `type` actually equals `assistant` (the
+     pre-filter is only a substring — a user message *quoting* transcript JSON or docs contains
+     the literal `"type":"assistant"` and would pass it) **and** that the marker sits in a
+     `message.content` entry whose own `type` is `text`. An assistant
      `Write`/`Edit` call serializes its file content on an assistant line too, so a `tool_use`
      input carrying rails (writing a doc or fixture) is not assistant-visible output and not a
      handoff. This decode is per-candidate — a handful of lines — never a bulk parse.
