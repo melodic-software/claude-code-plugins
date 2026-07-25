@@ -1,6 +1,6 @@
 ---
 name: research-deep
-description: "Dispatch deep external research to the heaviest isolated execution tier available — a workflow engine, a forked subagent, or inline as last resort — keeping the main conversation clean while the full research discipline runs. Use for broad, multi-source, comparison, or migration research; for a single small lookup use the research skill directly."
+description: "Dispatch deep external research to the heaviest isolated execution tier available — a workflow engine, a forked subagent, or inline as last resort — keeping the main conversation clean while the full research discipline runs. Itself runs in main context, because a subagent cannot reach the Workflow tool. Use when: 'deep research', 'research these N topics', 'broad multi-source research', 'compare these tools thoroughly', 'migration research', 'exhaustive research on X'; for a single small lookup use the research skill directly, which already dispatches its own subagent."
 argument-hint: "[topic] (e.g., /discovery:research-deep <library> <version> best practices, /discovery:research-deep <framework> <feature> migration guide)"
 user-invocable: true
 disable-model-invocation: false
@@ -74,6 +74,21 @@ Run `/research` inline in this session. No subagent, no workflow. The full `/res
 ## Relationship to `/research` (parent skill)
 
 This variant tracks `/research`'s conventions — same discipline file, same artifact contract, same outcome gate. There is no separate copy here; update the parent and this dispatcher follows.
+
+## Gotchas
+
+- **Feeding a multi-topic ask to an engine.** An engine decomposes ONE question into research
+  angles; given N separable topics, every broad agent researches all N shallowly — N× the cost for
+  worse depth. Run the multi-topic check FIRST, before any tier selection.
+- **Dispatching this skill itself.** It must run in main context: `Workflow` is unavailable in every
+  non-fork subagent, and the multi-topic path needs the `Agent` tool, which errors even inside a
+  fork. A dispatched `/research-deep` silently loses Tier 1 and the N-topic fan-out — the two things
+  it exists for. The sibling `/research` is the one that dispatches.
+- **Accepting a subagent return without cited primaries.** That is ungrounded synthesis, Tier 3 by
+  the discipline's own rule. Instruct every topic agent to cite primary source URLs, and treat a
+  return without them as unfinished rather than as evidence.
+- **Assuming the heaviest tier is available.** Tier selection is engine-biased, but it reads what is
+  actually connected this session and degrades to the next tier rather than failing.
 
 ## What this skill does NOT do
 

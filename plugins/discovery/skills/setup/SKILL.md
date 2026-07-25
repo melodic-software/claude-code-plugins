@@ -52,6 +52,28 @@ Report the effective concern and the guard result as a PASS/FAIL/INFO table. Do 
    enabled — git remains the storage layer because GitBook offers no concurrency-safe,
    lossless write path — so it is deferred and non-writable; durable writes still target `docs` until
    a later reviewed decision enables it.
+5. **Dispatch capability.** `/discovery:explore` and `/discovery:research` dispatch a subagent by
+   default, and that posture degrades rather than breaks on a session that cannot support all of it.
+   Report these as PASS/INFO rows — **never FAIL, and never a blocker**:
+   - **Harness version against the 2.1.219 floor** (`claude --version`). Below it, several behaviors
+     the dispatch design relies on are false rather than merely absent: background became the default
+     subagent execution mode in **2.1.198**, and below **2.1.218** a `context: fork` skill always
+     blocked the invoking turn and the narrow background tool set did not apply to it. Report the
+     observed version and, when it is under the floor, name which of those the session does not have.
+     The skills still run — inline is always available — so this is INFO, not FAIL.
+   - **`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`** — present or absent. Absent is INFO plus the
+     recommendation to set it (`"5"` matches the default depth that applied through 2.1.216), because
+     it only buys **throughput**: without it a dispatched agent fans out sequentially — slower, same
+     coverage. It is not a correctness prerequisite here, because the one control that needs a context
+     which has not seen the work is the outcome-gate verifier, and the parent dispatches that as a
+     **sibling** rather than the agent as a child. Note that env vars are read at session start, so a
+     value set now takes effect next session.
+   - **Fork availability.** Report it as a control, not a gate: forks have been enabled by default
+     since **2.1.161**, and `CLAUDE_CODE_FORK_SUBAGENT` now only forces them on or off. Report it as
+     a control, never as a prerequisite: older text that made forks conditional on setting that
+     variable is stale, and it also attached the variable to skill-level `context: fork` rather than
+     to the `fork` subagent type, which is a different mechanism. The user-facing command is
+     `/subtask` as of **2.1.212**.
 
 ## `apply` (idempotent)
 
@@ -86,6 +108,20 @@ A tracked `.claude/topic-docs.yaml` carrying the chosen values, plus a one-line 
 written and how to re-run this setup to reconfigure. Note in the summary that the concern file governs
 where every discovery skill (`/discovery:explore`, `/discovery:research`, and their `-deep` variants)
 lands handoff artifacts.
+
+## Gotchas
+
+- **A comment-only YAML document parses as `null`** and fails the contract schema's `type: object`.
+  When every chosen value is a default, still write at least one explicit key.
+- **`git check-ignore` on a bare directory misses `**` patterns.** Probe a representative *file* path
+  inside the contract root, or an uncommittable "committed" tier passes the guard.
+- **Prose is an inference source, never the runtime authority.** A working-docs convention described
+  in `CLAUDE.md` is reported as INFO; only `.claude/topic-docs.yaml` governs where artifacts land.
+- **`apply` re-runs must preserve keys this invocation does not set.** Dropping an unmentioned key
+  silently reconfigures a consumer that had chosen it deliberately.
+- **Env vars are read at session start.** A capability the check reports as missing stays missing for
+  the rest of this session even after it is set — the recommendation takes effect next session.
+- **Never edit the consumer's root `.gitignore`.** The memory root gets its own self-ignoring guard.
 
 ## What this skill does NOT do
 

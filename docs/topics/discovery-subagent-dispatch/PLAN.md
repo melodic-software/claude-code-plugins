@@ -774,7 +774,7 @@ Work items in order:
 - `awk 'END{exit NR>=500}' plugins/discovery/skills/explore/SKILL.md` — under the 500-line cap.
 - `node -e "JSON.parse(require('fs').readFileSync('plugins/discovery/skills/explore/evals/evals.json'))"` exits 0.
 
-### Phase 4: `setup/SKILL.md` capability detection + sibling-skill audit [TODO]
+### Phase 4: `setup/SKILL.md` capability detection + sibling-skill audit [DONE]
 
 | File | Action | Rationale |
 |---|---|---|
