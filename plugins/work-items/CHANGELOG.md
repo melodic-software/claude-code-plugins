@@ -3,6 +3,15 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.4]
+
+### Documentation
+
+- **GitHub adapter: force UTF-8 wherever a body edit leaves the UTF-8-safe pipeline (`#1037`).**
+  A new cross-cutting gotcha in `tools/work-item-tracker/adapters/github/README.md` records that the
+  `gh` transports do not transcode, and requires an explicit UTF-8 encoding on both sides of any
+  ad-hoc read or write of a fetched body. No behavior change.
+
 ## [0.24.3]
 
 ### Fixed

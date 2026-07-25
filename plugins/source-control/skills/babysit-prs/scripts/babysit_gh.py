@@ -494,6 +494,31 @@ def fetch_pull_request_reviews(repo: str, number: int) -> list[dict[str, Any]]:
     ]
 
 
+def rest_hydrate_reviews(pr: dict[str, Any], repo: str, number: int) -> None:
+    """Replace `pr["reviews"]` with the fully-typed REST list, in place, and
+    drop the stale `pr["latestReviews"]` `gh pr view --json` carried.
+
+    `gh pr view --json reviews,latestReviews` (`view_pr`'s `VIEW_FIELDS`)
+    returns each review's `author` as `{login}` only -- no `__typename`, no
+    `is_bot`, and a bot's login without its `[bot]` suffix (verified live:
+    GraphQL's own `latestReviews.nodes.author` reports `__typename: "Bot"`
+    for the same actor, so this is a `gh` CLI JSON-field limitation, not a
+    GraphQL one). `fetch_pull_request_reviews` (REST) attaches proper typing
+    via `normalized_rest_author`, so every current classification caller
+    already overwrites `reviews` with it -- but `latestReviews` was left
+    behind untouched. `collect_feedback`'s `latest_reviews_by_author` merges
+    both collections, so the untyped `latestReviews` entry for the same bot
+    actor keyed under a different (suffix-less) login and was not deduped
+    against the correctly-typed `reviews` entry, surfacing as a spurious
+    "new human feedback" line (#683). Dropping `latestReviews` here is safe:
+    the REST `reviews` list is complete and paginated, so
+    `latest_reviews_by_author` already derives the latest review per author
+    from it alone.
+    """
+    pr["reviews"] = fetch_pull_request_reviews(repo, number)
+    pr.pop("latestReviews", None)
+
+
 def fetch_pull_request_review_comments(repo: str, number: int) -> list[dict[str, Any]]:
     return fetch_paginated_api(
         f"repos/{repo}/pulls/{number}/comments?per_page=100",
