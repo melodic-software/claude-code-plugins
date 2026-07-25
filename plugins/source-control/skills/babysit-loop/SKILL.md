@@ -316,8 +316,8 @@ A conflict or blocker needing dedicated resolution is dispatched through babysit
 and conflict-worker contract; this loop adds two lane rules, per the convention. The subagent runs
 at the **frontier capability tier** — capability tiers are order-defined and resolve at runtime by
 model alias only, never a hard-coded model ID. And every dispatch prompt carries the subagent
-discipline preamble: when the `re-anchor` plugin is installed, invoke its sweep
-(sweep-all-disciplines, use-your-skills, do-your-research); when it is absent, inline the
+discipline preamble: when the `discipline` plugin is installed, invoke its sweep
+(sweep-all, use-your-skills, do-your-research); when it is absent, inline the
 equivalent standing instructions (verify claims against authoritative sources before acting, prefer
 installed skills over ad-hoc approaches, and re-check work against the active conventions) —
 presence-gated with that inline fallback, per the convention.

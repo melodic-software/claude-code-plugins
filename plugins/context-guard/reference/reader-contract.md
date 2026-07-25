@@ -169,9 +169,9 @@ above the staleness window, so idle sessions' files are never deleted out from u
   read it by the documented path. `${CLAUDE_PLUGIN_DATA}` resolves per-plugin-identity and would
   hide the seam from every consumer.
 - **No shipped Monitor config.** Consumers that want write-triggered re-evaluation arm their own
-  session Monitor on their snapshot path. The plugin ships no `experimental.monitors` entry — the
-  fleet stance on the experimental Monitors component is Wait (`docs/PLUGIN-PHILOSOPHY.md`,
-  Component stances).
+  session Monitor on their snapshot path. The plugin ships no `experimental.monitors` entry —
+  Monitors is an experimental Claude Code component, and this plugin takes no dependency on one
+  until it stabilizes.
 - **Fixed staleness constant.** The 10-minute value is a contract constant, deliberately not
   configurable: cross-plugin consumers inline the documented value, so a per-user override would
   silently split writer and readers. Band NUMBERS are the one tunable — via `zones.json`, which

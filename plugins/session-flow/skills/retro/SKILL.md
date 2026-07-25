@@ -10,7 +10,7 @@ shell: bash
 ## Pre-computed context
 
 Current branch: !`git branch --show-current 2>/dev/null || echo "unknown"`
-Claude session: !`echo "${CLAUDE_CODE_SESSION_ID:-unknown}"`
+Claude session: !`echo "${CLAUDE_CODE_SESSION_ID:-unknown}" || echo "unknown"`
 Recent commits: !`git log --oneline -5 2>/dev/null || echo "no commits"`
 Working tree status: !`git status --porcelain 2>/dev/null | head -20 || echo "clean"`
 Changed files (staged+unstaged): !`git diff --name-only HEAD 2>/dev/null || echo "none"`
@@ -92,7 +92,7 @@ After the retrospective:
 When the sibling `handoff` skill's save-points exist (the resolved `<memory_dir>/handoffs/`,
 default `.work/handoffs/`; or the consuming repo's documented location), the retro spans the
 whole session CHAIN, not just the current session: the
-parser's `--chain-from` walks `previous_handoff` / `previous_session_id` frontmatter pointers
+parser's `--chain-from` walks `previous_handoff` frontmatter pointers
 backwards from the newest handoff file and aggregates metrics across every chained transcript. See
 `context/session.md` Phase 1.
 

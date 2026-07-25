@@ -246,6 +246,20 @@ would truncate the window mid-clause and lose the polarity token that does gover
 It is advisory. A row is a candidate, never a finding: gates 2 and 5 are not greppable, and the lane
 refines every row against the must-not-flag set above.
 
+**It is also a seed, not the population — and this is a load-bearing limit, not a caveat.** The scan
+only reaches directives that name a *tool-shaped* entity, so an ordinary behavioral pair like
+"Always run tests before committing" against "Never run tests before committing" yields **zero**
+rows: no CamelCase identifier, no backticked capitalized word, nothing to bucket on. That is a common
+and perfectly real Type A conflict.
+
+Widening the entity pattern is not the fix. Precision is already 28% on the tool-shaped rows
+(measured below); admitting arbitrary verb phrases would bury the queue rather than extend it. **The
+lane therefore reads the surfaces in scope, and treats the scan output as a priority ordering rather
+than as its work list.** Concretely: work the emitted rows first because they are cheap and
+pre-bucketed, then read the in-scope surfaces for directive pairs the scan cannot shape-match — a
+mandate and a prohibition over the same act stated in ordinary prose. **A pass that reports only what
+the scanner emitted has not run this check**, and the report says which of the two it did.
+
 **Why it stays advisory rather than becoming a CI gate.** Measured over this repository's own skill
 bodies plus its root `CLAUDE.md`, the scan returns 169 candidate rows in about 2 seconds. 121 of them
 name a CamelCase *proper noun* — `GitHub`, `PowerShell`, `EventStorming`, `GraphQL` — not a directive
