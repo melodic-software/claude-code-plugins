@@ -18,6 +18,16 @@ All notable changes to the `planning` plugin are documented here. Format follows
   General/terminal sessions now frame the recommendation as config for the
   current/next session, applied now; the "Both domains" scope is unchanged. The
   handoff checklist's Step 5 is aligned to the same split.
+- **`interview`'s general-session config recommendation now lands early enough to
+  act on.** With the current/next-session framing, a recommendation first emitted at
+  the stop boundary arrives after the work it was derived from is complete — the
+  general session is terminal, so applying `/model`, effort, or `/advisor` there
+  cannot improve the reached understanding. General/terminal sessions now surface a
+  first read right after the Step 1 survey classifies the domain as general (when
+  survey signals warrant a change), refresh it at the stop boundary, and — when the
+  config was raised only at the end — offer to re-evaluate the reached understanding
+  under the raised config. Engineering timing is unchanged: the downstream execution
+  session has not started yet, so the stop/handoff boundary remains early enough.
 
 ## [0.26.0]
 

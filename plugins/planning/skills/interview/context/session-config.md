@@ -2,13 +2,14 @@
 
 Reference detail for the `## Session-config recommendation (model, effort, advisor)`
 section of `SKILL.md`.
-Read on demand when forming the recommendation at the interview's stop/handoff
-boundary. The interview already reads task complexity and ambiguity to drive its
-rounds; this turns that read into a recommendation for how the session that carries
-the work forward should be configured — the **downstream execution session** an
-engineering session hands off to, or, when the session is terminal with no downstream
-consumer (a general decision, per SKILL.md Step 5), the **current/next session**,
-applied now.
+Read on demand when forming the recommendation — at the stop/handoff boundary for an
+engineering session, or at the early post-survey surface (and again at the stop
+boundary) for a general/terminal session. The interview already reads task complexity
+and ambiguity to drive its rounds; this turns that read into a recommendation for how
+the session that carries the work forward should be configured — the **downstream
+execution session** an engineering session hands off to, or, when the session is
+terminal with no downstream consumer (a general decision, per SKILL.md Step 5), the
+**current/next session**, applied now.
 
 ## Two orthogonal knobs
 
@@ -87,6 +88,18 @@ to the `me`/`auto`/`lock` action. Framing differs by what the session hands off 
 nothing downstream exists — so its recommendation configures the **current or next
 session**, applied now (`/model` for the model, the effort setting for effort,
 `/advisor` for the advisor), not a session that will never exist.
+
+**Timing differs with the consumer.** The engineering recommendation configures a
+session that has not started yet, so the stop/handoff boundary is early enough. A
+general session's consumer is the session already running the interview — a
+recommendation first emitted at the stop boundary lands after the work it was derived
+from is complete. Surface a first read early, right after the Step 1 survey
+classifies the domain as general, whenever the survey's complexity/ambiguity signals
+warrant a config change — applied then, it improves the substantive rounds
+themselves. Refresh it at the stop boundary as config for the current/next session.
+When the config was raised only at the end, or the user declined a mid-session
+change, offer to re-evaluate the reached understanding under the raised config
+instead of leaving the recommendation purely prospective.
 
 ## Inverse direction — mid-task
 
