@@ -12,7 +12,7 @@
 #
 # Record sink: ~/.claude/rate-limit-guard/stop-events.jsonl — the fixed
 # contract path (HOME-anchored, machine-scope, matching the tee file's
-# single-account-per-machine invariant). Deliberately OUTSIDE
+# no-account-id scope). Deliberately OUTSIDE
 # ${CLAUDE_PLUGIN_DATA}: plugin data is cache-isolated per plugin, and this
 # file is a documented cross-plugin artifact seam that sibling-plugin lane
 # sessions must be able to read. One line per detection:

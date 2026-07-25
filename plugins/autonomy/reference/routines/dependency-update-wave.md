@@ -40,8 +40,8 @@ why). No private merge path exists: the wave's changes land only through the mat
 The row is derived through the catalog's mapping rules, never hand-assigned:
 
 1. **Hybrid split.** The class is a hybrid: its detection portion — manifest diff, new
-   version availability — is deterministic, so it routes to plain cron with zero agent
-   tokens and is NOT the routine. The judgment portion — breakage assessment and wave
+   version availability — is deterministic, so it runs with no agent session and zero
+   agent tokens and is NOT the routine. The judgment portion — breakage assessment and wave
    composition — IS the routine and derives through the agent-judgment rules.
 2. **Judgment + output axes.** Agent judgment producing a direct change whose truth is
    mechanically checkable — the CI verdict decides whether the wave is good — derives
