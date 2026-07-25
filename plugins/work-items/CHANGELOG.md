@@ -7,7 +7,7 @@ All notable changes to the `work-items` plugin are documented here. Format follo
 
 ### Documentation
 
-- **GitHub adapter: force UTF-8 wherever a body edit leaves the byte-faithful pipeline (`#1037`).**
+- **GitHub adapter: force UTF-8 wherever a body edit leaves the UTF-8-safe pipeline (`#1037`).**
   A new cross-cutting gotcha in `tools/work-item-tracker/adapters/github/README.md` records that the
   `gh` transports do not transcode, and requires an explicit UTF-8 encoding on both sides of any
   ad-hoc read or write of a fetched body. No behavior change.

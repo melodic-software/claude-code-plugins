@@ -323,9 +323,12 @@ items", the `--add-label`-vs-`--label` rule under "Edit labels / assignees"). Cr
 
 - **Windows `\r`.** Git Bash adds `\r` to `gh` output through `jq`/`--jq`; end every parsing
   pipeline with `| tr -d '\r'`.
-- **Keep body edits inside the byte-faithful pipeline; force UTF-8 anywhere they leave it.**
-  `--json`/`--jq`, `gh api`, the bash `>` redirect, and `--body-file` only move bytes, so the
-  read-modify-write shapes above never transcode. Corruption enters when an **ad-hoc** step decodes
+- **Keep body edits inside the UTF-8-safe pipeline; force UTF-8 anywhere they leave it.**
+  `--json`/`--jq`, `gh api`, the bash `>` redirect, and `--body-file` pass the encoding through
+  untouched, so the read-modify-write shapes above never transcode. That is an encoding guarantee,
+  not a byte-for-byte one: the shapes above normalize line endings and trailing whitespace on
+  purpose (`tr -d '\r'` drops CRs; `$(cat …)` strips trailing newlines, and the `printf '%s\n'`
+  puts exactly one back). Corruption enters when an **ad-hoc** step decodes
   those bytes with a tool whose default is a legacy code page: the body's UTF-8 is read as Windows
   ANSI and re-encoded, putting every non-ASCII character at risk — the observed case is em-dash
   U+2014 arriving back as U+00E2 U+20AC U+201D — and that corrupted copy is then written over the
