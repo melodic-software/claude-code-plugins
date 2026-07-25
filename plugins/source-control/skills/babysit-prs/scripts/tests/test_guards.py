@@ -126,13 +126,16 @@ def write_gh_shim(directory: pathlib.Path, sentinel: pathlib.Path) -> None:
     Exit 127 mimics the not-found status a caller is most likely to swallow, so
     a guard that resolved `@me` before checking scope reaches the same refusal
     exit code -- and is caught by the sentinel rather than by the exit code.
+
+    The interpreter is named absolutely. A `/usr/bin/env bash` shebang resolves
+    `bash` through PATH, which the replay below deliberately narrows to this
+    directory alone: the shim would fail to exec, record nothing, and every row
+    would pass without proving anything.
     """
-    # An absolute interpreter path, not `/usr/bin/env bash`: the shim's whole
-    # point is to be the ONLY thing on PATH, and `env` resolves `bash` through
-    # that same emptied PATH. The shim would then die before writing the
-    # sentinel and the assertion would pass whether or not `gh` was called.
     posix = directory / "gh"
     posix.write_text(
+        # as_posix(), because `shutil.which` hands back a backslash path under
+        # Git Bash on Windows and a shebang is read by the kernel, not a shell.
         f'#!{pathlib.Path(BASH).as_posix()}\nprintf called > "{sentinel.as_posix()}"\nexit 127\n',
         encoding="utf-8",
         newline="\n",
@@ -209,6 +212,39 @@ class RefusalsFireOnArgumentShape(unittest.TestCase):
                             because(row.id, row.claim, "no JSON envelope: bash refused"),
                         )
 
+    def test_the_recording_shim_is_reachable(self) -> None:
+        # Guards the guard. The replay below asserts a NEGATIVE -- the sentinel
+        # was never written -- so a shim the isolated PATH cannot execute makes
+        # every row pass while proving nothing. Resolve and invoke it through
+        # the lane's own subprocess seam, so a change to how `gh` is located
+        # cannot leave this probe agreeing with a shim the product would miss.
+        if BASH is None:
+            self.skipTest("bash unavailable; the gh shim needs it")
+        with tempfile.TemporaryDirectory() as tmp:
+            shim_dir = pathlib.Path(tmp)
+            sentinel = shim_dir / "gh-was-called"
+            write_gh_shim(shim_dir, sentinel)
+            probe = subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    "import sys; sys.path.insert(0, sys.argv[1]);"
+                    " import babysit_gh; babysit_gh.gh_capture(['--version'])",
+                    str(contract.SCRIPTS),
+                ],
+                capture_output=True,
+                text=True,
+                env=dict(os.environ, PATH=str(shim_dir)),
+                cwd=tempfile.gettempdir(),
+            )
+            recorded = sentinel.exists()
+        self.assertTrue(
+            recorded,
+            "the recording gh shim is unreachable under the isolated PATH, so"
+            " test_scope_refusal_precedes_every_network_call cannot detect a gh"
+            f" call at all: {probe.stderr[:400]}",
+        )
+
     def test_scope_refusal_precedes_every_network_call(self) -> None:
         # The rows claiming "no gh invocation at all" are replayed against a
         # recording shim rather than an emptied PATH. Emptying PATH proves only
@@ -227,26 +263,6 @@ class RefusalsFireOnArgumentShape(unittest.TestCase):
                     sentinel = shim_dir / "gh-was-called"
                     write_gh_shim(shim_dir, sentinel)
                     env = dict(os.environ, PATH=str(shim_dir))
-                    # Prove the instrument before trusting its silence. A shim
-                    # that cannot run records nothing, and every row would then
-                    # pass whether or not `gh` was reached -- which is exactly
-                    # the vacuous-assertion failure these rows exist to close.
-                    # Resolved the way the engine resolves it (`babysit_util.
-                    # run_command` calls `shutil.which`), so this probe fails
-                    # only where the real lookup would also fail.
-                    resolved = shutil.which("gh", path=str(shim_dir))
-                    self.assertIsNotNone(
-                        resolved, "the recording gh shim is not reachable through PATH"
-                    )
-                    subprocess.run(
-                        [str(resolved)], capture_output=True, env=env, cwd=tempfile.gettempdir()
-                    )
-                    self.assertTrue(
-                        sentinel.exists(),
-                        "the recording gh shim did not run; the assertion below"
-                        " would be vacuous",
-                    )
-                    sentinel.unlink()
                     proc = subprocess.run(
                         [
                             sys.executable,
