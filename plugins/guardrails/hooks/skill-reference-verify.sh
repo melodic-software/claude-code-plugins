@@ -84,26 +84,40 @@ for m in "${manifests[@]}"; do
   PLUGIN_DIR["$pname"]="$pdir"
 done
 
+# Extract a plugin skill's frontmatter `name`, or nothing when it declares none.
+# Tolerates quoting and a trailing YAML comment (`name: renamed # public
+# command`); comments are stripped first so the value pattern stays anchored to
+# end-of-line.
+skill_frontmatter_name() {
+  sed -n '1,40p' "$1" 2>/dev/null |
+    sed -E 's/[[:space:]]+#.*$//' |
+    sed -nE 's/^name:[[:space:]]*"?'"'"'?([A-Za-z0-9_-]+)"?'"'"'?[[:space:]]*$/\1/p' |
+    head -1
+}
+
 # A plugin skill's command segment comes from its frontmatter `name` when set,
-# and from the directory name otherwise. Resolve a (plugin, skill) pair against
-# both so a skill whose directory and command name diverge still resolves.
+# and from the directory name ONLY when it does not.
 #
-# A directory alone is NOT a skill — it must carry a SKILL.md. An empty or
-# leftover `skills/<name>/` would otherwise suppress the advisory for a command
-# that does not exist.
+# The directory name is not an alias. A `skills/legacy-dir/SKILL.md` declaring
+# `name: renamed` answers to `/plugin:renamed` and NOT to `/plugin:legacy-dir` —
+# treating the directory as a second valid spelling would suppress the advisory
+# for exactly the stale pre-rename references this guard exists to catch.
+#
+# A directory alone is also not a skill: it must carry a SKILL.md, or a leftover
+# empty `skills/<name>/` would suppress the advisory for a command that never
+# existed.
 skill_resolves() {
   local pdir="$1" skill="$2" sd fname
-  [[ -f "$pdir/skills/$skill/SKILL.md" ]] && return 0
+  local direct="$pdir/skills/$skill/SKILL.md"
+  if [[ -f "$direct" ]]; then
+    fname=$(skill_frontmatter_name "$direct")
+    # No declared name → the directory name IS the command segment.
+    [[ -z "$fname" || "$fname" == "$skill" ]] && return 0
+  fi
   for sd in "$pdir"/skills/*/SKILL.md; do
     [[ -f "$sd" ]] || continue
-    # Frontmatter `name:`, quoted or not, tolerating a trailing YAML comment
-    # (`name: renamed # public command`). Comments are stripped first so the
-    # value pattern can stay anchored to end-of-line.
-    fname=$(sed -n '1,40p' "$sd" 2>/dev/null |
-      sed -E 's/[[:space:]]+#.*$//' |
-      sed -nE 's/^name:[[:space:]]*"?'"'"'?([A-Za-z0-9_-]+)"?'"'"'?[[:space:]]*$/\1/p' |
-      head -1)
-    [[ "$fname" == "$skill" ]] && return 0
+    fname=$(skill_frontmatter_name "$sd")
+    [[ -n "$fname" && "$fname" == "$skill" ]] && return 0
   done
   return 1
 }
@@ -111,10 +125,16 @@ skill_resolves() {
 # Candidate references: `/<plugin>:<skill>` inside inline-code spans only. Prose
 # is not scanned — an unbackticked `/a:b` is as likely to be a URL fragment, a
 # Windows drive path, or a time range as a command.
+#
+# The reference need not be the whole span: an invocation commonly carries
+# arguments (`/plugin:skill --apply`, `/plugin:skill <target>`). Take the leading
+# command token from each span rather than requiring the span to match exactly,
+# or argument-bearing invocations — the common form in this repo — go unchecked.
 emit_refs() {
   # shellcheck disable=SC2016  # backticks are literal ERE data, not expansions
-  printf '%s' "$SCAN_CONTENT" | grep -oE '`/[a-z][a-z0-9-]*:[a-z][a-z0-9-]*`' 2>/dev/null |
-    tr -d '`'
+  printf '%s' "$SCAN_CONTENT" | grep -oE '`[^`]+`' 2>/dev/null |
+    sed -E 's/^`+//; s/`+$//' |
+    sed -nE 's|^(/[a-z][a-z0-9-]*:[a-z][a-z0-9-]*)([[:space:]].*)?$|\1|p'
 }
 
 declare -A CHECKED=()

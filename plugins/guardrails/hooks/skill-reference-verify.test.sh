@@ -23,6 +23,13 @@ source "$HOOK_DIR/guardrails-test-helpers.sh"
 unset CLAUDE_PROJECT_DIR
 RC=0
 
+# hook::buffer_stdin bounds its fd0 read at CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT
+# seconds, default 2, and a timeout makes an advisory hook exit 0 silently. A
+# single invocation costs 10-20 s of wall time on a loaded Windows/Git Bash box, so
+# the default bound produces empty output and a false FAIL that looks like a logic
+# defect. Raised here because these cases test detection, not the read bound.
+export CLAUDE_PLUGIN_OPTION_STDIN_READ_TIMEOUT=30
+
 # --- Synthetic marketplace ---------------------------------------------------
 # Two plugins. `alpha`'s manifest name matches its directory. `beta`'s manifest
 # name deliberately DIVERGES from its directory (`beta-dir`), which is what
@@ -116,6 +123,28 @@ assert_contains "skills/ dir without SKILL.md → still unresolved" "$OUT" \
 mk_skill alpha commented-dir 'commented-name # public command'
 OUT=$(run 'Run `/alpha:commented-name`.')
 assert_silent "frontmatter name with trailing YAML comment → resolves" "$OUT"
+
+# The DIRECTORY name of a renamed skill is not an alias. `skills/legacy-dir/`
+# declaring `name: renamed-command` answers to /alpha:renamed-command only — the
+# stale pre-rename spelling must still fire, since suppressing it defeats the
+# guard's whole purpose.
+OUT=$(run 'Stale ref `/alpha:legacy-dir`.')
+assert_contains "renamed skill's directory name is NOT an alias → fires" "$OUT" \
+  "UNRESOLVED_SKILL: /alpha:legacy-dir"
+OUT=$(run 'Current ref `/alpha:renamed-command`.')
+assert_silent "the declared frontmatter name still resolves" "$OUT"
+
+# A skill declaring no frontmatter name answers to its directory name.
+OUT=$(run 'Run `/alpha:setup`.')
+assert_silent "no frontmatter name → directory name is the command" "$OUT"
+
+# An invocation carrying arguments is the common form in this repo. The reference
+# is the leading token of the span, not the whole span.
+OUT=$(run 'Run `/alpha:ghost-arg --apply` now.')
+assert_contains "argument-bearing invocation → leading token extracted" "$OUT" \
+  "UNRESOLVED_SKILL: /alpha:ghost-arg"
+OUT=$(run 'Run `/alpha:audit --dry-run <target>`.')
+assert_silent "argument-bearing invocation of a real skill → silent" "$OUT"
 
 # ============================ MUST STAY QUIET ===============================
 
