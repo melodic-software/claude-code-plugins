@@ -69,7 +69,7 @@
 # carrying no verdict, so never parse a help run for one:
 #   READINESS_OK findings=<n> classified=<n> checklist=<clean|n/a>
 #   READINESS_BLOCKED reason=<under-decomposed|checklist-incomplete> findings=<n> classified=<n> unticked=<n>
-#   READINESS_UNPROVEN reason=<bad-args|prereq-missing|fetch-failed> pr=<n|unknown>
+#   READINESS_UNPROVEN reason=<bad-args|identity-unresolved|prereq-missing|comments-unreadable|fetch-failed> pr=<n|unknown>
 #
 # The READINESS_UNPROVEN token is the fail-closed third verdict, and the reason
 # this gate emits on the paths where it used to write stderr only: a caller that
@@ -88,10 +88,16 @@
 # Exit codes:
 #   0  ready (decomposition satisfied + checklist clean/absent)
 #   1  blocked (READINESS_BLOCKED names the reason)
-#   3  invalid argument (READINESS_UNPROVEN reason=bad-args)
-#   4  prerequisite missing (jq), or the PR comment fetch failed — see stderr
-#      for the cause (owner/repo may be unresolved; see Repo resolution above)
-#      (READINESS_UNPROVEN reason=prereq-missing|fetch-failed)
+#   3  invalid argument (READINESS_UNPROVEN reason=bad-args), or the self
+#      identity could not be resolved with valid arguments — an expired `gh`
+#      auth, an unreachable API, or an offline snapshot replay
+#      (reason=identity-unresolved). The two share exit 3 so callers keyed on
+#      the code are unaffected; the reason is what tells an operator whether to
+#      fix the flags or repair the identity prerequisite.
+#   4  prerequisite missing (jq), the PR comment fetch failed, or the resolved
+#      comment payload is not a JSON array — see stderr for the cause
+#      (owner/repo may be unresolved; see Repo resolution above)
+#      (READINESS_UNPROVEN reason=prereq-missing|fetch-failed|comments-unreadable)
 
 set -uo pipefail
 
@@ -196,6 +202,19 @@ else
   }
 fi
 
+# The counters below consume this payload as a JSON ARRAY (`.[]`). Anything else
+# — a truncated or hand-edited snapshot, a scalar, an object, an error document a
+# fetch returned with exit 0 — used to reach them unchecked: jq failed, the
+# counts stayed 0, and the gate printed `READINESS_OK findings=0`. That is a
+# ready verdict derived from data the gate never read, which is exactly the
+# fail-open this script exists to close. Validated once here, on the RESOLVED
+# payload, so the snapshot path and the live-fetch path are both covered.
+printf '%s' "$COMMENTS" | jq -e 'type == "array"' >/dev/null || {
+  printf 'babysit-readiness-gate: comment payload is not a JSON array (source: %s)\n' \
+    "${COMMENTS_JSON:-live fetch}" >&2
+  unproven comments-unreadable 4
+}
+
 # --- Resolve self authors (whose replies are the classification rows) ---------
 
 SELF_LOGINS=()
@@ -212,9 +231,16 @@ else
   personal_login="$(gh api user --jq .login 2>/dev/null | tr -d '\r')"
   [[ -n "$personal_login" ]] && SELF_LOGINS+=("$personal_login")
 fi
+# Reaching here means neither --self nor --extra-self was supplied AND the
+# supported `gh api user` default failed — expired auth, an unreachable API, or
+# an offline replay of a saved snapshot. The ARGUMENTS were valid, so reporting
+# `reason=bad-args` sends an operator (and the loop report that quotes this
+# verdict verbatim) off to edit flags that are already correct. The prerequisite
+# to repair is the identity lookup, and the reason now says so. The exit code
+# stays 3 for callers already keyed on it.
 if [[ ${#SELF_LOGINS[@]} -eq 0 ]]; then
-  printf 'babysit-readiness-gate: cannot resolve self identity (pass --self or --extra-self)\n' >&2
-  unproven bad-args 3
+  printf 'babysit-readiness-gate: cannot resolve self identity: the gh api user lookup returned no login (pass --self or --extra-self)\n' >&2
+  unproven identity-unresolved 3
 fi
 SELF_JSON="$(printf '%s\n' "${SELF_LOGINS[@]}" | jq -R . | jq -s .)"
 
@@ -252,12 +278,26 @@ CLASSIFY_RE='VALID|INCORRECT|UNCERTAIN'
 # findings visible (codex r3327878326). A classification reply carries a
 # VALID/INCORRECT/UNCERTAIN token, NOT a severity/badge, so it never inflates the
 # finding count; classifications are still counted only from self bodies.
+# Neither extraction suppresses jq's stderr, and both route a non-zero status
+# through the fail-closed verdict. Swallowing them left a jq failure looking
+# exactly like a comment set with no bodies — findings=0, READINESS_OK — so the
+# gate could pass on input it never parsed. The array-shape check above rejects
+# the common malformed payloads; these guards catch what survives it (an array
+# whose elements are not comment objects).
 non_self_bodies="$(printf '%s' "$COMMENTS" |
   jq -r --argjson self "$SELF_JSON" '
-    .[] | select((.author as $a | $self | index($a)) | not) | .body // ""' 2>/dev/null)"
+    .[] | select((.author as $a | $self | index($a)) | not) | .body // ""')" || {
+  printf 'babysit-readiness-gate: could not read comment bodies (source: %s)\n' \
+    "${COMMENTS_JSON:-live fetch}" >&2
+  unproven comments-unreadable 4
+}
 self_bodies="$(printf '%s' "$COMMENTS" |
   jq -r --argjson self "$SELF_JSON" '
-    .[] | select((.author as $a | $self | index($a))) | .body // ""' 2>/dev/null)"
+    .[] | select((.author as $a | $self | index($a))) | .body // ""')" || {
+  printf 'babysit-readiness-gate: could not read comment bodies (source: %s)\n' \
+    "${COMMENTS_JSON:-live fetch}" >&2
+  unproven comments-unreadable 4
+}
 
 # Self classification-table rows are EXCLUDED from the finding corpus: a
 # reply row like `| 1 | CRITICAL: null deref | VALID | ... |` repeats the

@@ -13,8 +13,9 @@ All notable changes to the `source-control` plugin are documented here. Format f
   only. A caller grepping stdout for a verdict therefore saw *nothing* on those paths — identical to
   what it sees when the gate was never invoked at all, which is how a blocked gate could be reported
   as readiness. Every *check* run now prints exactly one `READINESS_*` line;
-  `READINESS_UNPROVEN reason=<bad-args|prereq-missing|fetch-failed> pr=<n>` joins `READINESS_OK` and
-  `READINESS_BLOCKED`. Exit codes are unchanged, so existing callers keyed on them are unaffected.
+  `READINESS_UNPROVEN reason=<bad-args|identity-unresolved|prereq-missing|comments-unreadable|fetch-failed> pr=<n>`
+  joins `READINESS_OK` and `READINESS_BLOCKED`. Exit codes are unchanged, so existing callers keyed
+  on them are unaffected.
   `--help` is explicitly outside the contract — it prints usage and exits 0 with no verdict — and
   the header no longer un-indents a `READINESS_*` token into its own help output, where a caller's
   `^READINESS_` grep read documentation as a malformed verdict. The header is now printed by
@@ -80,6 +81,23 @@ All notable changes to the `source-control` plugin are documented here. Format f
   launched with one under-states the effective rules, so the skill now says to forward it (and to
   report the probe as scope-incomplete when the scope came from an SDK object with no file to
   re-supply). The probe still never writes settings.
+
+### Fixed
+
+- **A malformed comment payload no longer reads as readiness.** `babysit-readiness-gate.sh` fed its
+  counters straight from `--comments-json` (or the live fetch) with jq's stderr suppressed and its
+  exit status unchecked, so a snapshot that was truncated, hand-edited, or simply not a JSON array
+  produced zero findings and a `READINESS_OK findings=0` verdict — a ready claim derived from data
+  the gate never read, and the exact fail-open shape this release exists to close. The resolved
+  payload is now shape-checked once (`type == "array"`, so a valid scalar or object is rejected
+  too), the body extractions surface their own failures instead of swallowing them, and every such
+  path routes through `READINESS_UNPROVEN reason=comments-unreadable` at exit 4.
+- **An identity-lookup failure is no longer reported as a bad argument.** With neither `--self` nor
+  `--extra-self` supplied and the supported `gh api user` default failing — expired auth, an
+  unreachable API, an offline snapshot replay — the arguments were valid but stdout said
+  `reason=bad-args`. Since §5.5 quotes that verdict verbatim, it pointed operators and automation at
+  flags that were already correct. The path now emits `reason=identity-unresolved`, keeping exit 3
+  so callers keyed on the code are unaffected.
 
 ## [0.26.4]
 

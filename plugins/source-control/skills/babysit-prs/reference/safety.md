@@ -434,7 +434,8 @@ configuration with `claude auto-mode config`.
 
 **A denied gate is never downgraded to weaker evidence — and the gate now says so itself.**
 `babysit-readiness-gate.sh` emits exactly one `READINESS_*` line on stdout on **every** run,
-failure paths included: `READINESS_UNPROVEN reason=<bad-args|prereq-missing|fetch-failed> pr=<n>`
+failure paths included:
+`READINESS_UNPROVEN reason=<bad-args|identity-unresolved|prereq-missing|comments-unreadable|fetch-failed> pr=<n>`
 is a third verdict alongside `READINESS_OK` and `READINESS_BLOCKED`, and it means readiness was not
 proven. Readiness is declared by quoting the verdict line verbatim in the iteration report
 ([loop.md](loop.md) §5.5), so a readiness claim with no verdict line to quote is unproven on its

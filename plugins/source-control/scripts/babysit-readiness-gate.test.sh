@@ -413,7 +413,10 @@ case "$*" in
 esac
 STUB
 chmod +x "$NOREPO_BIN/gh"
-fetch_rc=$(PATH="$NOREPO_BIN:$PATH" bash "$GATE" 123 >/dev/null 2>&1; echo $?)
+fetch_rc=$(
+  PATH="$NOREPO_BIN:$PATH" bash "$GATE" 123 >/dev/null 2>&1
+  echo $?
+)
 assert_exit "live-fetch-failure exit 4" 4 "$fetch_rc"
 fetch_err=$(PATH="$NOREPO_BIN:$PATH" bash "$GATE" 123 2>&1 1>/dev/null)
 assert_contains "live-fetch-failure names the env-var override" "$fetch_err" "FETCH_COMMENTS_OWNER"
@@ -465,6 +468,60 @@ unp_out=$(PATH="$NOREPO_BIN:$PATH" bash "$GATE" 123 2>/dev/null)
 assert_contains "live-fetch-failure stdout carries UNPROVEN" "$unp_out" \
   "READINESS_UNPROVEN reason=fetch-failed pr=123"
 
+# --- A malformed comment payload must never read as readiness ----------------
+# A snapshot that exists but does not parse (truncated, hand-edited, an error
+# document a fetch returned with exit 0) used to reach the counters with jq's
+# stderr suppressed: the counts stayed 0 and the gate printed READINESS_OK — a
+# ready verdict derived from data it never read. Every non-array shape must
+# route through the fail-closed verdict instead.
+printf 'not-json' >"$TEST_TMPDIR/malformed.json"
+bad_out=$(bash "$GATE" 321 --comments-json "$TEST_TMPDIR/malformed.json" --self 'me[bot]' 2>/dev/null)
+bad_rc=$(
+  bash "$GATE" 321 --comments-json "$TEST_TMPDIR/malformed.json" --self 'me[bot]' >/dev/null 2>&1
+  echo $?
+)
+assert_contains "malformed snapshot carries UNPROVEN" "$bad_out" \
+  "READINESS_UNPROVEN reason=comments-unreadable pr=321"
+assert_not_contains "malformed snapshot never claims READINESS_OK" "$bad_out" "READINESS_OK"
+assert_exit "malformed snapshot exit 4" 4 "$bad_rc"
+
+# Valid JSON of the wrong TYPE is the same fail-open: `.[]` over a scalar or an
+# object yields no bodies, so parseability alone is not enough — the shape check
+# is what holds.
+for shape in '"a string"' '{"author":"x"}' '42'; do
+  printf '%s' "$shape" >"$TEST_TMPDIR/shape.json"
+  shape_out=$(bash "$GATE" 322 --comments-json "$TEST_TMPDIR/shape.json" --self 'me[bot]' 2>/dev/null)
+  assert_contains "non-array payload ($shape) carries UNPROVEN" "$shape_out" \
+    "READINESS_UNPROVEN reason=comments-unreadable"
+  assert_not_contains "non-array payload ($shape) never claims READINESS_OK" \
+    "$shape_out" "READINESS_OK"
+done
+
+# --- Identity lookup failure is not a bad argument ---------------------------
+# With no --self/--extra-self and a `gh api user` that fails, the ARGUMENTS are
+# valid; the identity prerequisite is what broke. Reporting bad-args sent the
+# operator (and the loop report that quotes this verdict verbatim) to edit flags
+# that were already correct. Exit code stays 3 for callers keyed on it.
+NOAUTH_BIN="$TEST_TMPDIR/bin-noauth"
+mkdir -p "$NOAUTH_BIN"
+cat >"$NOAUTH_BIN/gh" <<'STUB'
+#!/usr/bin/env bash
+printf 'gh: authentication required\n' >&2
+exit 1
+STUB
+chmod +x "$NOAUTH_BIN/gh"
+F=$(mkjson unp-identity '[{author:"human", body:"LGTM"}]')
+ident_out=$(PATH="$NOAUTH_BIN:$PATH" bash "$GATE" 654 --comments-json "$F" 2>/dev/null)
+ident_rc=$(
+  PATH="$NOAUTH_BIN:$PATH" bash "$GATE" 654 --comments-json "$F" >/dev/null 2>&1
+  echo $?
+)
+assert_contains "identity-lookup failure carries its own reason" "$ident_out" \
+  "READINESS_UNPROVEN reason=identity-unresolved pr=654"
+assert_not_contains "identity-lookup failure is not reported as bad-args" "$ident_out" \
+  "reason=bad-args"
+assert_exit "identity-lookup failure keeps exit 3" 3 "$ident_rc"
+
 # The verdict paths stay single-token and never claim UNPROVEN.
 F=$(mkjson unp-ok '[
   {author:"claude[bot]", body:"### 1. [CRITICAL] a"},
@@ -496,7 +553,7 @@ assert_eq "--help emits no verdict line" 0 "$help_verdicts"
 # The header prints by derivation from the comment block, not a hardcoded line
 # range, so growing it can neither truncate the usage text nor spill code in.
 assert_contains "--help still reaches the end of the header" "$help_out" \
-  "reason=prereq-missing|fetch-failed"
+  "reason=prereq-missing|fetch-failed|comments-unreadable"
 assert_not_contains "--help never spills code past the header" "$help_out" \
   "set -uo pipefail"
 

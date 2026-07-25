@@ -269,7 +269,9 @@ class SkillContractTests(unittest.TestCase):
         loop = (reference / "loop.md").read_text(encoding="utf-8")
 
         self.assertIn(
-            "READINESS_UNPROVEN reason=<bad-args|prereq-missing|fetch-failed>", safety
+            "READINESS_UNPROVEN reason=<bad-args|identity-unresolved"
+            "|prereq-missing|comments-unreadable|fetch-failed>",
+            safety,
         )
         for marker in (
             "quoting the verdict line verbatim",

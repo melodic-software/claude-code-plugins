@@ -347,10 +347,12 @@ D1-D5 (investigate/classify/reply); only the D6-D7 fix cycle requires full mode.
   append `--extra-self "${user_config.babysit_self_logins}"`. Exit 0 `READINESS_OK`
   is REQUIRED to proceed. Exit 1 `READINESS_BLOCKED reason=under-decomposed` means
   classification rows < source findings → decompose + classify the missing findings, then
-  re-run. Exit 4 means jq is missing or the comment fetch failed — the stderr names the fix; the
-  common cause is owner/repo unresolved from a cwd that is not a checkout of the target repo, fixed
-  by exporting `FETCH_COMMENTS_OWNER`/`FETCH_COMMENTS_REPO` (inherited into
-  `fetch-all-pr-comments.sh`). Every run — exit 3 and 4 included — prints exactly one `READINESS_*`
+  re-run. Exit 4 means jq is missing, the comment fetch failed, or the comment payload did not parse
+  as a JSON array — the stderr names the fix; the common cause is owner/repo unresolved from a cwd
+  that is not a checkout of the target repo, fixed by exporting
+  `FETCH_COMMENTS_OWNER`/`FETCH_COMMENTS_REPO` (inherited into `fetch-all-pr-comments.sh`). Exit 3
+  with `reason=identity-unresolved` is NOT an argument error — the flags were valid and the
+  `gh api user` identity lookup failed, so repair `gh` auth rather than editing the command. Every run — exit 3 and 4 included — prints exactly one `READINESS_*`
   line; the failure paths print `READINESS_UNPROVEN`, which is NOT a classification verdict and never
   licenses substituting live `gh` state for it (see
   [safety.md](safety.md) §Lane-Script Reachability). **Capture that line verbatim** — §5.5 requires
