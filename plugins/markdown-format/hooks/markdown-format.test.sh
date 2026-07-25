@@ -269,6 +269,28 @@ else
     fail "out-of-tree scratchpad .md was modified: $(cat "$SCRATCH")"
   fi
 
+  # Inherited repository overrides must not decide membership. GIT_DIR and
+  # GIT_WORK_TREE override Git's discovery outright, so `git -C <out-of-tree
+  # dir>` answers with the overridden repository — the same out-of-tree file
+  # would be admitted and linted under that repository's rules. The fixture
+  # carries an unfixable MD024 so a hook that DID run is visible in stdout.
+  SCRATCH_GITDIR="$OUTOFTREE/comment-body-gitdir.md"
+  printf '# Comment\n\n## Section\n\ntext\n\n## Section\n\n* bullet\n' >"$SCRATCH_GITDIR"
+  OUT_GITDIR="$(cd "$UNRELATED" && printf '{"tool_input":{"file_path":"%s"}}' "$SCRATCH_GITDIR" |
+    env -u CLAUDE_PROJECT_DIR GIT_DIR="$REPO/.git" GIT_WORK_TREE="$REPO" \
+      CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+  RC_GITDIR=$?
+  if [[ $RC_GITDIR -eq 0 && -z "$OUT_GITDIR" ]]; then
+    ok "inherited GIT_DIR/GIT_WORK_TREE does not admit an out-of-tree .md"
+  else
+    fail "inherited GIT_DIR/GIT_WORK_TREE admitted an out-of-tree .md (rc=$RC_GITDIR out=$OUT_GITDIR)"
+  fi
+  if grep -q '^\* bullet$' "$SCRATCH_GITDIR"; then
+    ok "out-of-tree .md unmodified under inherited GIT_DIR (no --fix)"
+  else
+    fail "out-of-tree .md was fixed under inherited GIT_DIR: $(cat "$SCRATCH_GITDIR")"
+  fi
+
   # Symlink escape: an IN-repository path whose target is the out-of-tree file.
   # The lexical parent ($REPO) is a git tree, so a lexical membership test would
   # admit it and --fix would rewrite the external target under repo rules. The

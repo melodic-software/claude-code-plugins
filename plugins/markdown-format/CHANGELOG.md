@@ -20,8 +20,10 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
   symlink to an out-of-tree file cannot pull the external target into `--fix`.
   Where no canonicalizer is available the membership test fails closed: a
   symlink whose physical path could not be resolved is skipped rather than
-  admitted on its lexical parent. Behavior when `CLAUDE_PROJECT_DIR` is set is
-  unchanged.
+  admitted on its lexical parent. The membership probe also clears Git's
+  repository-selection and discovery environment variables, so an inherited
+  `GIT_DIR`/`GIT_WORK_TREE` cannot answer for a directory that is not in a
+  working tree. Behavior when `CLAUDE_PROJECT_DIR` is set is unchanged.
 
 ## [0.6.2]
 

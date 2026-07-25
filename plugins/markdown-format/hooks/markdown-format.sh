@@ -57,6 +57,23 @@ case "$FILE" in
 *) exit 0 ;;
 esac
 
+# Does <dir> sit inside a git working tree? Git's repository-selection and
+# discovery environment variables are cleared first: an inherited GIT_DIR or
+# GIT_WORK_TREE (a repository wrapper that launched the session) overrides
+# discovery outright, so `git -C <out-of-tree dir>` would answer with the
+# overridden repository and admit an external file. GIT_COMMON_DIR,
+# GIT_CEILING_DIRECTORIES and GIT_DISCOVERY_ACROSS_FILESYSTEM skew the same
+# probe in the other direction. The verdict must come from the directory alone,
+# never from ambient state. Names per the official environment list —
+# https://git-scm.com/docs/git, "The Git Repository" and "Git Discovery".
+in_git_working_tree() {
+  (
+    unset GIT_DIR GIT_WORK_TREE GIT_COMMON_DIR GIT_CEILING_DIRECTORIES \
+      GIT_DISCOVERY_ACROSS_FILESYSTEM
+    git -C "$1" rev-parse --show-toplevel
+  ) >/dev/null 2>&1
+}
+
 # markdownlint applies repo-doc rules, so when no CLAUDE_PROJECT_DIR anchors
 # membership (e.g. an autonomous session whose cwd is not a repo), scope to
 # git-working-tree containment instead: a scratch/temp .md outside any working
@@ -83,7 +100,7 @@ if [[ -z "${CLAUDE_PROJECT_DIR:-}" ]]; then
   if [[ -L "$FILE" && "$FILE_PHYSICAL" == "$FILE" ]]; then
     exit 0
   fi
-  if ! git -C "$(dirname "$FILE_PHYSICAL")" rev-parse --show-toplevel >/dev/null 2>&1; then
+  if ! in_git_working_tree "$(dirname "$FILE_PHYSICAL")"; then
     exit 0
   fi
 fi
