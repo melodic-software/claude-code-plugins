@@ -81,11 +81,16 @@ if is_block "$OUT"; then fail "sentinel on its own line → still blocked: $OUT"
 OUT="$(run "$(build_input Stop "status: LANE-STOP-OKAYISH maybe" false)")"
 if is_block "$OUT"; then ok "sentinel-as-substring → not a signal, blocked"; else fail "sentinel-as-substring wrongly allowed: $OUT"; fi
 
-# --- Case 5: marker file exists → allow ------------------------------------
+# --- Case 5: marker file exists → allow, and the marker is CONSUMED ---------
+# One marker, one authorized stop: a file left by a prior completed run must
+# not authorize every stop of a later lane run in the same checkout.
 MARK="$WORK/done.marker"
 : >"$MARK"
 OUT="$(run "$(build_input Stop "no token here" false)" CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER="$MARK")"
 if is_block "$OUT"; then fail "marker present → still blocked: $OUT"; else ok "marker file present → stop allowed"; fi
+if [[ -f "$MARK" ]]; then fail "marker not consumed after authorizing a stop"; else ok "marker consumed on use"; fi
+OUT="$(run "$(build_input Stop "no token here" false)" CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER="$MARK")"
+if is_block "$OUT"; then ok "consumed marker no longer authorizes the next stop"; else fail "stale marker path wrongly allowed after consumption: $OUT"; fi
 rm -f "$MARK"
 
 # --- Case 6: marker absent → block -----------------------------------------

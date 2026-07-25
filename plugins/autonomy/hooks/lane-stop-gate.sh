@@ -23,7 +23,8 @@
 # hook cannot re-run the /goal evaluator model):
 #   - the exact sentinel token (default LANE-STOP-OK) in the agent's final
 #     message, matched only when it stands alone on its own line, or
-#   - the existence of the marker file named by lane_stop_gate_marker.
+#   - the existence of the marker file named by lane_stop_gate_marker (consumed
+#     on use, so a prior run's leftover marker never authorizes a later run).
 #
 # Config (userConfig mirror):
 #   CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_ENABLED=true    opt this session in (default false)
@@ -104,7 +105,13 @@ if [[ -n "$SENTINEL" ]]; then
 fi
 
 # Signal 2 — the completion-marker file. Absolute path used as-is; a relative
-# path resolves against the session cwd from the payload.
+# path resolves against the session cwd from the payload. The marker is
+# CONSUMED (deleted) when it authorizes a stop: it lives in the checkout, not
+# the session, so a file left by a prior completed run would otherwise satisfy
+# this check immediately and authorize every stop of a later lane run in the
+# same checkout regardless of that run's goal. One marker, one authorized
+# stop. A failed delete does not un-signal the stop it already authorized —
+# it only means the next run must not rely on that stale file.
 MARKER="${CLAUDE_PLUGIN_OPTION_LANE_STOP_GATE_MARKER:-}"
 if [[ "$SIGNALED" -eq 0 && -n "$MARKER" ]]; then
   case "$MARKER" in
@@ -117,6 +124,7 @@ if [[ "$SIGNALED" -eq 0 && -n "$MARKER" ]]; then
   if [[ -f "$MARKER" ]]; then
     SIGNALED=1
     SIGNAL="marker"
+    rm -f -- "$MARKER" 2>/dev/null || true
   fi
 fi
 

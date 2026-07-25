@@ -88,7 +88,9 @@ allows the stop and alerts the operator via `hooks/lane-notify.sh` (OS toast + t
 local machine only).
 
 Completion is signaled either way (a shell hook cannot re-run the `/goal` evaluator model): the exact
-sentinel token in the agent's final message, or a marker file. It is the settings-scoped,
+sentinel token in the agent's final message, or a marker file. The marker is consumed (deleted) when
+it authorizes a stop — one marker, one stop — so a file left in the checkout by a prior completed
+run never authorizes the stops of a later lane run. It is the settings-scoped,
 cross-session sibling of `/goal`'s session-only completion condition — use `/goal` for a single
 session, this gate for a standing lane.
 
@@ -104,7 +106,10 @@ claude --settings '{"pluginConfigs":{"autonomy@<marketplace>":{"options":{"lane_
 
 `--config <key=value>` is an option of `claude plugin install` (it *persists* the value to user
 settings, enabling the gate for every session — which defeats the default-OFF design), not a flag on
-the session-launch command, so the per-lane path is `--settings` above.
+the session-launch command, so the per-lane path is `--settings` above. The `claude-ops` lane
+launcher wires this per lane: give the lane a `settings` object in its lanes-config entry (see that
+skill's `context/config.md`) and the launcher passes it as `--settings` on every start/restart, so a
+standing lane opts in from tracked config rather than persistent global configuration.
 
 It is fail-open (unreadable stdin / missing `jq` / a `SubagentStop` never trips it) and bounded
 against runaway by the `stop_hook_active` one-nudge guard plus Claude Code's consecutive-block cap.
@@ -120,7 +125,7 @@ The payload is a fixed vocabulary — never the sentinel token, marker path, cwd
 |---|---|---|
 | `lane_stop_gate_enabled` | `false` | Opt this session's lane into the gate. |
 | `lane_stop_gate_sentinel` | `LANE-STOP-OK` | Token the agent emits alone on its own line to declare the goal met. |
-| `lane_stop_gate_marker` | *(unset)* | Marker file whose existence also authorizes a stop (absolute, or relative to the session cwd). |
+| `lane_stop_gate_marker` | *(unset)* | Marker file whose existence also authorizes a stop (absolute, or relative to the session cwd). Consumed on use. |
 | `lane_notify_enabled` | `true` | Master switch for the operator alert. |
 | `lane_notify_os_toast_enabled` | `true` | OS-native toast channel (macOS/Linux). |
 | `lane_notify_terminal_enabled` | `true` | Terminal bell + OSC 9 channel. |
