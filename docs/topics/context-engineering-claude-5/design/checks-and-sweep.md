@@ -405,7 +405,9 @@ fixed.
   single JSON document would have to be rewritten whole on every append, which is exactly the
   operation an interrupted run leaves half-done.
 - **At the end:** `findings.json` — a single document assembled from the partial, carrying
-  `schemaVersion`, the run and target identity, the version of every catalog consulted, and then the
+  `schemaVersion`, the run and target identity, the **detection version triple** of every check
+  consulted ([rerun-contract.md](rerun-contract.md) P3b — catalog version, host plugin semver, and a
+  digest over the prompt text and scripts that decide detection), and then the
   finding sections: `mechanical`, `behavioral`, `suppressed`, `delegated` (`/doctor`'s output, which
   is diffed by nobody), and `skipped` — every surface excluded, **with its reason**. A silent
   exclusion reads as coverage; that section is what stops it.

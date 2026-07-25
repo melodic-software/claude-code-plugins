@@ -199,9 +199,50 @@ is the judged-tier set.
 - **P2 — convergence.** Accepted fixes applied between `R1` and `R2` ⇒ `D(R2) ⊊ D(R1)`, and every
   member of `D(R1) \ D(R2)` corresponds to a fix that was actually applied. A finding that vanishes
   without a fix is a defect in the check, not a success.
-- **P3 — no spontaneous growth.** Tree unchanged and catalog version unchanged ⇒ `D(R2) ⊆ D(R1)`. The
-  set may grow only on a catalog version bump or a change to the tree — and a skill authored between
-  runs is a change to the tree.
+- **P3 — no spontaneous growth.** Tree unchanged and **detection version** unchanged ⇒
+  `D(R2) ⊆ D(R1)`. The set may grow only on a detection-version bump or a change to the tree — and a
+  skill authored between runs is a change to the tree.
+- **P3b — "catalog version" was the wrong version, and it left a hole.** Raised by the cross-vendor
+  review. P3 originally keyed on `criteria.md`'s version, which covers only the criteria file. **The
+  detection behavior for checks I6 and I10 does not live there.** It lives in
+  `audit-instructions`' `SKILL.md`: Phase B names the pre-scan script that emits the I6 and I10
+  candidate rows and instructs the lane that the script "is advisory and a grep cannot judge whether
+  a rationale is genuinely present, so the lane refines every candidate rather than reporting it
+  verbatim"; Phase C prompts the verifier to refute with a specific question and demotes or drops
+  what it defends. Both are prompt text, and **`SKILL.md` carries no version at all.** Rewording
+  either — tightening the refutation prompt, changing what "refines" means — moves the finding set
+  with `criteria.md`'s version untouched, so P3 would report no growth was licensed while growth
+  occurred. The same hole exists for the script itself, which is also unversioned.
+
+  **Fix: P3 keys on a composite detection version, not on a catalog version.** For each dispatched
+  check the run records a `detectionVersion` triple:
+
+  ```text
+  detectionVersion = (catalog_version, host_plugin_version, prompt_digest)
+  ```
+
+  - **`catalog_version`** — the criteria file's own version, as today.
+  - **`host_plugin_version`** — the semver in the owning plugin's `.claude-plugin/plugin.json`. This
+    is the seam that already exists and already moves: the repo requires a manifest bump plus a
+    matching changelog heading for a content change, so editing `SKILL.md` prompt text is *already*
+    a version event. P3 simply has to read that version instead of ignoring it.
+  - **`prompt_digest`** — `sha256` over the check's own detection-behavior inputs, truncated to 12:
+    the host `SKILL.md` and any script it names for that check. It exists because the manifest bump
+    is a **convention** enforced by review, not a mechanism enforced by the file's own bytes; a
+    prompt edit that skips the bump is exactly the silent case P3 must catch. The digest fails
+    closed where the convention fails open.
+
+  A growth in `D` is licensed when any component of the triple changed, and is a **P3 violation
+  reported against the sweep** when none did. The composite is recorded per check in the report's
+  existing per-catalog version block, so a diff of two reports shows which component moved.
+
+  **Two consequences, stated rather than left implicit.** The digest makes an unrelated `SKILL.md`
+  edit — a typo in a Gotchas line — read as a licensed-growth event, which is a false *permission*
+  rather than a false alarm: it lets a real spontaneous growth pass unreported that run. That is the
+  correct direction to fail, because the alternative silently blesses prompt rewrites. And the
+  triple is the reason task **#43** (machine-readable versioning for the catalog) is necessary but
+  not sufficient — versioning `criteria.md` alone does not close this; the plan item should carry
+  both halves.
 - **P3a — the inventory is part of the gate, not scaffolding for it.** The derived tier includes the
   three-scope surface inventory and the exclusion set, so a surface that silently drops out of scope
   between two runs **fails P1**. This is the property the old two-tier split could not express,
@@ -237,7 +278,8 @@ The Phase 4 sanity check asks that this document state the identity tuple, the r
 the state key, the concurrency posture, the per-class suppression surface, the checkpoint property,
 and each idempotence property **as a condition a test could assert — not as prose intent**. Each is
 above under a numbered assertion. The count is 5 identity/report/state assertions, 4 suppression
-assertions, 2 resumability assertions, and 5 idempotence properties.
+assertions, 2 resumability assertions, and 8 idempotence properties — P1, P2, P3, P3a, P3b, P4, P4a,
+P5.
 
 **What this document deliberately does not decide.** The report's concrete schema, the suppression
 file's path and format, and the lane decomposition are Phase 6 design, because they depend on the

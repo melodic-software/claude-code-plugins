@@ -142,8 +142,11 @@ source with explicit staleness triggers — not restated across the skills that 
   [design/article-sections.md](design/article-sections.md).
 - A rerun over an unchanged tree produces the same **derived-tier** result, never a different one. A
   rerun after accepted fixes produces a strictly smaller one. Absent a change to the tree, it grows
-  again only on a catalog version bump — a skill authored between runs legitimately grows it, and the
-  tree is moving under a parallel session. That is the acceptance test for "regular audit";
+  again only on a **detection-version** bump — the catalog version, the host plugin's semver, and a
+  digest over the prompt text and scripts that actually decide detection, because the catalog version
+  alone does not cover `SKILL.md`'s Phase B and Phase C prompts. A skill authored between runs
+  legitimately grows it, and the tree is moving under a parallel session. That is the acceptance test
+  for "regular audit";
   [design/rerun-contract.md](design/rerun-contract.md) specifies it, including the finding-identity
   function that makes "the same set" diffable.
 
@@ -494,8 +497,8 @@ definition before any detector is designed against it.
   resumes from the last completed lane rather than restarting.
 
 Then the properties themselves: unchanged tree yields an identical finding set; accepted fixes yield a
-strictly smaller one; judged-tier findings carry the delete-and-watch follow-through where their host check defines one; the set grows
-again only on a catalog version bump or a change to the tree.
+strictly smaller one; judged-tier findings carry the delete-and-watch follow-through where their host check defines one, or the check's own stated loop where it does not (D1); the set grows
+again only on a detection-version bump or a change to the tree.
 
 - **Sanity Check:** `design/rerun-contract.md` states the identity tuple, the report location rule, the
   state key, the concurrency posture, the per-class suppression surface, the checkpoint property, and
