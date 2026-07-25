@@ -7,6 +7,22 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
 
 ### Fixed
 
+- **`clean-build.sh --apply` no longer accepts `caches`-tier manifest entries
+  without `--include-caches` (wrong-tier bypass).** Both apply paths (resume
+  from a caller-supplied `--manifest`, and the normal build-then-apply flow)
+  passed a fixed `"build caches"` allow-list to `clean_apply_manifest`
+  regardless of `--include-caches`, so a plain build-tier apply still accepted
+  and removed `caches` lines (`.pytest_cache/`, `.ruff_cache/`, …) from a
+  stale or caller-supplied manifest — defeating the tier-isolation guard on
+  the documented `--manifest` surface. The allowed classes are now derived
+  from the apply invocation's own `--include-caches` flag (`build` only when
+  unset, `build caches` when set), so a build-only apply rejects a `caches`
+  line as `Rejected (wrong tier)` and leaves the cache target in place.
+  **Caller-visible:** the manifest-flow's tier now tracks the *apply* call, not
+  the dry-run that built the manifest — the documented `clean-build.sh
+  --include-caches` build-tier flow (`SKILL.md` §3) must repeat
+  `--include-caches` on the `--apply --manifest <path>` step too, or the
+  folded-in `caches` entries are rejected instead of removed.
 - **`clean-batch.sh --apply` now validates the batch plan against the requested
   `--tier` before touching disk.** The apply-time `--tier` was informational only —
   dispatch keyed purely on each plan line's `REPO`/`GITDIR` kind — so a stale or

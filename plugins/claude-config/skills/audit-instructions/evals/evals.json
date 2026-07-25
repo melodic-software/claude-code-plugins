@@ -17,11 +17,11 @@
       "id": 2,
       "name": "scope-boundary-routes-out",
       "prompt": "/claude-config:audit-instructions is my CLAUDE.md too long, and can you prune the always-loaded hygiene lines out of it?",
-      "expected_output": "Recognizes memory-layer hygiene — line budget, whether CLAUDE.md is too long, pruning always-loaded content — as the claude-memory plugin's audit skill's concern. On memory-layer surfaces (CLAUDE.md, CLAUDE.local.md, .claude/rules) this skill runs only the model-era checks I6-I11 and routes the I1-I5 hygiene findings to claude-memory:audit when that plugin is installed, falling back to the official CLAUDE.md include/exclude guidance pointer when it is not, rather than answering the hygiene question itself.",
+      "expected_output": "Recognizes memory-layer hygiene — line budget, whether CLAUDE.md is too long, pruning always-loaded content — as the claude-memory plugin's audit skill's concern. On memory-layer surfaces (CLAUDE.md, CLAUDE.local.md, .claude/rules) this skill runs only the model-era checks I6-I12 and routes the I1-I5 hygiene findings to claude-memory:audit when that plugin is installed, falling back to the official CLAUDE.md include/exclude guidance pointer when it is not, rather than answering the hygiene question itself.",
       "files": [],
       "expectations": [
         "Routes memory-layer hygiene (line budget, 'CLAUDE.md too long', pruning) to the claude-memory plugin's audit skill when installed",
-        "On memory-layer surfaces runs only the model-era checks I6-I11, not the I1-I5 hygiene checks",
+        "On memory-layer surfaces runs only the model-era checks I6-I12, not the I1-I5 hygiene checks",
         "Falls back to the official CLAUDE.md include/exclude guidance pointer when claude-memory is not installed instead of silently skipping"
       ]
     },

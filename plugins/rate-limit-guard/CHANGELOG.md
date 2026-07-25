@@ -3,6 +3,44 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.2.1]
+
+### Changed
+
+- **Setup states the accurate reason it is check-only.** It claimed the check-only carve-out as
+  scoped to plugins whose entire configuration is native `userConfig` — a premise this plugin does
+  not meet, since its statusline wiring lives in the user's own `settings.json`. The conclusion was
+  right and the justification was not. The Purpose now names the condition that actually holds: no
+  writable owned artifact anywhere in the surface. Each of the three surfaces is enumerated with why
+  setup cannot write it, and the machine files under `~/.claude/rate-limit-guard/` are called out as
+  runtime-owned plugin data rather than a fourth, operator-editable surface — which is what
+  distinguishes a plugin that must not invent an `apply` from one that owes a narrow one.
+- **Setup documents the headless reconfiguration route beside the interactive one.** The kill
+  switch's only route was `/plugin configure rate-limit-guard`, leaving a headless consumer with
+  nothing; the obvious guess, re-running `claude plugin install --config`, silently no-ops on an
+  installed plugin. The fresh-install-only behavior and the uninstall-then-reinstall route it forces
+  are now stated where the reconfiguration guidance lives. The recipe passes `-s <scope>` on both
+  halves and `-y` on the uninstall: both commands default to `-s user`, so an unscoped pair removes a
+  separate user record while a project- or local-scoped install keeps loading, and a non-TTY
+  uninstall requires the confirmation flag to run at all.
+- **The reader contract no longer cites a repository-level document.** Its no-`experimental.monitors`
+  note pointed at `docs/PLUGIN-PHILOSOPHY.md`, a path that does not exist in an installed plugin's
+  cache — where this contract is read by sibling-plugin consumers, the citation resolves to nothing.
+  The note now states the reason a reader needs (Monitors is experimental; this plugin takes no
+  dependency on one until it stabilizes) without a pointer that cannot be followed.
+
+## [0.2.0]
+
+### Changed
+
+- **The single-account-per-machine text is repointed at its owner.** This reader contract
+  carried its own copy of the assumption while naming loop-lane §6 as its owner, so the copy would
+  contradict §6 the moment §6 moved — which it now has: §6 reframes the assumption as a known gap.
+  §6 owns the framing; what stays here cites it rather than asserting it independently. What is
+  local to the guard stays local: the writer already
+  forward-passes any top-level `account`-matching key, so an identity field costs no plugin change
+  the release one appears. The account-identity design itself is `TODO(#1218)`.
+
 ## [0.1.0]
 
 ### Added
