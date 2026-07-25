@@ -1,5 +1,17 @@
 # Changelog — session-flow plugin
 
+## [0.15.2]
+
+### Fixed
+
+- **`reanchor`'s eval case 7 renamed off the pre-rename plugin name (`#1328`).**
+  `skills/reanchor/evals/evals.json` still named the negative-routing case
+  `negative-routing-rule-discipline-is-re-anchor-plugin` after the `re-anchor` -> `discipline`
+  plugin rename (`#1276`); the case's `expected_output` and `expectations` were rewritten in that
+  commit but its `id` field was missed. Renamed to
+  `negative-routing-rule-discipline-is-discipline-plugin`, matching the sibling
+  `negative-routing-*` case names. No other file references the old name.
+
 ## [0.15.1]
 
 ### Changed
