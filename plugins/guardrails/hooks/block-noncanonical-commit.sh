@@ -183,8 +183,8 @@ explicit_git_dir() { explicit_global git-dir "$@"; }
 #     there. A shell resolver would send the guard to a repository git never
 #     enters, which is the same defect wearing the opposite bias.
 #
-# So the launch directory too is derived from git's own answers — one probe,
-# `rev-parse --show-toplevel --show-prefix` — never from modelled containment:
+# So the launch directory too is derived from git's own answers — `rev-parse
+# --show-toplevel` and `--show-prefix` — never from modelled containment:
 #
 #   - prefix NONEMPTY: git computed a cd-up path, i.e. it chdirs the body to
 #     the top level. Return the top level, which also canonicalizes for free —
@@ -208,8 +208,8 @@ explicit_git_dir() { explicit_global git-dir "$@"; }
 # --work-tree=<r> -c alias.a='!git commit -F -' a` run outside a tree resolved to
 # nothing and a since-dropped fail-closed branch refused a VALID canonical commit.
 # Replaying them keeps the ask-git property — `git --git-dir=X --work-tree=Y
-# rev-parse --show-toplevel --show-prefix` is still git's own answer, not a
-# reconstruction of one.
+# rev-parse --show-toplevel` is still git's own answer, not a reconstruction of
+# one.
 #
 # Empty means git could not answer — no such directory, or genuinely no work
 # tree. Callers fall back to the literal composed directory (best-available, not
@@ -226,20 +226,39 @@ declare -A _alias_launch_dir=()
 HOOK_ALIAS_LAUNCH_DIR=""
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 alias_launch_dir() {
-  local dir="$1" key out toplevel prefix
+  local dir="$1" key q toplevel prefix nglob a
   shift
-  key="$dir"$'\n'"$*"
+  nglob=$#
+  # Key each argv word %q-encoded, never joined with `$*`: a value-carrying
+  # locating global (`--git-dir 'X --work-tree'`) would otherwise flatten to the
+  # same space-joined string as a differently-bounded argv (`--git-dir X
+  # --work-tree`), and the shared global cache would hand the second segment the
+  # first's answer — a wrong repository, decided fail-open. %q makes each word's
+  # bytes (spaces, newlines) unable to shift a field boundary.
+  printf -v q '%q' "$dir"
+  key="$q"
+  for a in "$@"; do
+    printf -v q '%q' "$a"
+    key+=$'\n'"$q"
+  done
   if [[ -z "${_alias_launch_dir[$key]+x}" ]]; then
-    out=$(git -C "$dir" "$@" rev-parse --show-toplevel --show-prefix 2>/dev/null | tr -d '\r')
-    toplevel="${out%%$'\n'*}"
-    prefix=""
-    [[ "$out" == *$'\n'* ]] && prefix="${out#*$'\n'}"
+    # --show-toplevel and --show-prefix are read in SEPARATE calls, not one
+    # newline-delimited call: a repository path may contain a newline, and
+    # splitting a combined `<toplevel>\n<prefix>` on the first newline would
+    # truncate the toplevel and misread the remainder as a prefix — switching
+    # the walk to the wrong directory, fail-open. `$(…)` strips only the trailing
+    # newline, so each value survives intact including any interior newline. The
+    # prefix call is skipped when the toplevel is empty (git could not answer).
+    toplevel=$(git -C "$dir" "$@" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')
     if [[ -z "$toplevel" ]]; then
       _alias_launch_dir["$key"]=""
-    elif [[ -n "$prefix" || $# -eq 0 ]]; then
-      _alias_launch_dir["$key"]="$toplevel"
     else
-      _alias_launch_dir["$key"]="$dir"
+      prefix=$(git -C "$dir" "$@" rev-parse --show-prefix 2>/dev/null | tr -d '\r')
+      if [[ -n "$prefix" || $nglob -eq 0 ]]; then
+        _alias_launch_dir["$key"]="$toplevel"
+      else
+        _alias_launch_dir["$key"]="$dir"
+      fi
     fi
   fi
   HOOK_ALIAS_LAUNCH_DIR="${_alias_launch_dir[$key]}"

@@ -138,6 +138,27 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
     caller's composed directory. The inside-the-work-tree branch is unchanged, so
     a subdirectory caller still resolves from the top level, as git does.
 
+  - **The launch-directory probe is boundary- and newline-safe** (two review
+    findings on the fix above). Both were fail-open holes in the launch-directory
+    lookup itself:
+    - **The launch-directory CACHE key encoded each argv word `%q`, not `$*`.**
+      Joining the replayed locating globals with `$*` flattened argv boundaries,
+      so `--git-dir 'X --work-tree' --namespace Z` and `--git-dir X --work-tree
+      '--namespace Z'` — which git interprets as different repositories — produced
+      one key. In a payload with two git segments, the first poisoned the shared
+      cache for the second, handing it the first segment's directory while git
+      launched the second elsewhere and ran the caller's non-canonical alias.
+      Keying each word `%q`-encoded makes the key injective on the argv, so no two
+      distinct argvs collide.
+    - **The toplevel and prefix are read in SEPARATE `rev-parse` calls.** One
+      combined `--show-toplevel --show-prefix` call split on the first newline; a
+      repository path containing a newline truncated the toplevel and misread the
+      remainder as a prefix, switching the walk to the wrong directory. Two calls
+      leave each value delimited by nothing but the command substitution's own
+      trailing-newline strip, which cannot corrupt an interior newline. The prefix
+      call is skipped when the toplevel is empty, so the common allow path pays no
+      extra fork.
+
     The invocation's LOCATING globals are replayed onto that probe, not just its
     `-C`. `--git-dir` and `--work-tree` locate a repository as surely as `-C` does
     (git's own usage lists both as globals before `<command>`), and asking without
