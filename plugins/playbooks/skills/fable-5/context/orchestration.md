@@ -60,7 +60,7 @@ A worker's return is recall-grade knowledge per the calibration chapter, section
 
 ## Fresh-context verification
 
-In-context adversarial self-review — the verification chapter, section "Adversarial self-review" — is the floor at every effort level; self-review is a floor, never the final gate for multi-file work, because the context that produced the changes contains the exact assumptions that produced the error and converges on approval rather than detection.
+In-context adversarial self-review — the verification chapter, section "Adversarial self-review" — is the floor at every effort level; wherever the trigger below fires, self-review is never the final gate, because the context that produced the changes contains the exact assumptions that produced the error and converges on approval rather than detection.
 
 The independence gradient runs further than fresh context alone: self-review (floor) < a fresh **same-vendor** context (strips the producer's rationale) < a **different-vendor** model (strips the producer's training priors too — its errors are uncorrelated with yours, so it catches failure classes a same-family reviewer shares). Reach for the strongest independent critic the work warrants; a high-blast-radius verification is the natural place to spend a cross-vendor reviewer **when one is installed and set up** — e.g. the OpenAI Codex plugin, when its documented surface can take this artifact, invoked per its own docs — with the fresh-context same-vendor subagent as the fallback, never a route to a command that may not resolve.
 

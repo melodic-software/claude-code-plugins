@@ -16,8 +16,9 @@ pass because #1261 was rewriting it concurrently. #1261 merged first; this close
 
 - **`fable-5`: narrow the fresh-context-verifier trigger to exclude mechanical,
   behavior-preserving batches** — `context/orchestration.md`, section "Fresh-context
-  verification" (the owning site, full reasoning); `SKILL.md`'s core-doctrine distillation and
-  `context/verification.md`'s floor statement both restate the trigger operatively and are
+  verification" (the owning site, full reasoning); `SKILL.md`'s core-doctrine distillation,
+  `context/verification.md`'s floor statement, the owning section's own floor sentence, and
+  `context/opus-adaptation.md`'s delegation correction all restate the trigger operatively and are
   narrowed to match, each pointing back to the owning section for the exception's detail.
   Previously the trigger fired unconditionally after any multi-file edit batch or before any
   multi-part completion claim; the catalog's S3 digest names this exact blanket dispatch as the
