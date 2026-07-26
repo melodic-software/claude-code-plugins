@@ -119,13 +119,21 @@ fi
 # fallback is a fixed empty-shape object — NOT an interpolation of
 # TOOL/FILE_REL, which could inject quotes or backslashes from a path and
 # corrupt the envelope.
+#
+# Both arrays arrive on STDIN, never as --argjson values. They are uncapped by
+# design, and Windows caps a process command line at 32767 characters — about
+# 1,000 ordinary corrections is 45 KB of JSON, at which point `jq` cannot start
+# and the fallback below would emit an envelope reporting `applied: []` for a
+# file this hook had just rewritten. Telemetry is documented best-effort and
+# lossy, so a dropped envelope is inside contract; one that arrives claiming a
+# heavily-rewritten file was untouched is not. TOOL and FILE_REL stay as
+# arguments: both are bounded by a path length.
 build_data_json() {
-  jq -n \
-    --arg tool "$TOOL" \
-    --arg file "$FILE_REL" \
-    --argjson findings "$1" \
-    --argjson applied "${2:-[]}" \
-    '{tool:$tool,file:$file,findings:$findings,applied:$applied}' 2>/dev/null ||
+  printf '{"findings":%s,"applied":%s}' "$1" "${2:-[]}" |
+    jq -c \
+      --arg tool "$TOOL" \
+      --arg file "$FILE_REL" \
+      '{tool:$tool,file:$file,findings:.findings,applied:.applied}' 2>/dev/null ||
     printf '{"tool":"","file":"","findings":[],"applied":[]}'
 }
 
@@ -278,6 +286,16 @@ fi
 # The key is built and compared inside jq as a JSON string, so a token carrying
 # a shell or glob metacharacter is data throughout and can never widen a match.
 #
+# Membership is an OBJECT lookup, not `index` over an array. `index` is a linear
+# scan, so classification went quadratic exactly when the residual set is large
+# — a minified or generated file where most findings survive the write.
+# Measured: 10,000 all-residual findings took ~15.7s with `index`, past the
+# handler's 15-second timeout, and the file is rewritten BEFORE classification
+# runs, so the timeout lands after the mutation and before any disclosure. Hash
+# lookup does the same 10,000 in ~0.6s. The scale case below therefore covers
+# both an all-applied and an all-residual set: the applied path alone never
+# touches the slow branch.
+#
 # The display lines are rendered here too, capped, so the shell never has to
 # walk the finding set at all.
 #
@@ -296,10 +314,10 @@ CLASSIFIED=$(printf '%s\n@@typos-format-split@@\n%s\n' "$SCAN_OUTPUT" "$RESIDUAL
     def corr1: (.corrections[0] // "");
     (split("\n")) as $lines
     | (($lines | index("@@typos-format-split@@")) // ($lines | length)) as $sep
-    | (parse($lines[($sep + 1):]) | map(keyof)) as $res
+    | ((parse($lines[($sep + 1):]) | map({(keyof): true}) | add) // {}) as $res
     | parse($lines[0:$sep]) as $all
-    | ($all | map(select((keyof) as $key | ($res | index($key)) != null))) as $r
-    | ($all | map(select((keyof) as $key | ($res | index($key)) == null))) as $a
+    | ($all | map(select($res[keyof] != null))) as $r
+    | ($all | map(select($res[keyof] == null))) as $a
     | {
         appliedCount: ($a | length),
         residualCount: ($r | length),

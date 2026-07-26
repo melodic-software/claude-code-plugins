@@ -10,7 +10,8 @@ disable-model-invocation: true
 
 Thin check-centric setup per the uniform contract: `check` inspects and reports, `apply`
 resolves. This plugin owns no consumer-project configuration — rules come from the
-repository's own typos config, and the only tunable is the native `userConfig` toggle. Unlike
+repository's own typos config, and the only tunables are the native `userConfig` options
+(the on/off toggle and the write-mode switch). Unlike
 sibling formatter plugins (Ruff, markdownlint-cli2), typos has no per-repo dependency-manager
 install path — it is a standalone Rust binary installed at the machine level (cargo, Homebrew,
 Conda, pacman, or a pre-built binary), never as a project dependency. `apply` is therefore
@@ -49,7 +50,14 @@ restores the FAIL semantics.
    absence never changes whether the hook runs.
 5. **Hook toggle** — report the effective `typos_format_enabled` value:
    `${user_config.typos_format_enabled}` (unexpanded or empty means default `true`).
-6. **Hook registration** — INFO: confirm the plugin is enabled for this project
+6. **Write mode** — report the effective `typos_format_write_changes` value:
+   `${user_config.typos_format_write_changes}` (unexpanded or empty means default `true`).
+   When it is `false` the hook is in report-only mode: it still runs, still reports findings,
+   and never modifies a file. Report that as **INFO, not PASS** — every prerequisite can pass
+   while the one behavior the consumer came here for is deliberately off, and the commonest
+   reason to invoke this skill is that spell-fixing is not happening. Name the remediation in
+   the same line rather than leaving the reader to infer it.
+7. **Hook registration** — INFO: confirm the plugin is enabled for this project
    (`/plugin` → Installed) rather than parsing settings files.
 
 ## `apply` (idempotent)
@@ -75,6 +83,12 @@ never claim resolved without re-verifying. For everything else `apply` only poin
   directory for a `project`/`local` scope. Defaulting instead uninstalls a separate user-scope
   record while the effective install stays in place, so the reinstall lands at a scope that
   does not load.
+- report-only mode on (`typos_format_write_changes=false`): the hook is working as configured,
+  so this is a configuration answer, not a repair. Say so, then offer the same
+  `/plugin configure typos-format` route (or the scope-preserving uninstall/reinstall
+  `--config typos_format_write_changes=true` recipe above) — and note the alternative that
+  usually fits better: keeping writes on and allow-listing the specific words in the
+  repository's typos config, since report-only turns off every correction to suppress a few.
 - no typos config: offer to create a minimal `_typos.toml` in the repository root only when
   explicitly asked — the plugin imposes no rules of its own.
 

@@ -354,6 +354,72 @@ else
   fail "stub/scale: took ${SCALE_ELAPSED}s — at or over the handler's 15s timeout budget"
 fi
 
+# The telemetry arrays are uncapped, so they hit the same argv ceiling as the
+# finding sets. build_data_json feeds jq on stdin for that reason. The shared
+# hook::emit_telemetry then hands the FINISHED payload over as an --argjson
+# value, which is a fleet-wide fix tracked separately (#1595) — so an oversized
+# envelope is currently dropped rather than delivered. Assert the invariant that
+# holds either way and keeps holding once #1595 lands: telemetry is documented
+# best-effort and lossy, so losing an envelope is inside contract. An envelope
+# that ARRIVES reporting `applied: []` for a file this hook just rewrote 500
+# words in is not — that is the local fallback firing.
+TELSC="$(mktemp)"
+SINKSC="$(make_sink "cat >\"$TELSC\"")"
+run_stub "$STUB_REPO/scale.txt" HOOK_TELEMETRY_SINK="$SINKSC" >/dev/null
+wait_for_sink "$TELSC" 50
+if [[ -s "$TELSC" ]]; then
+  SC_APPLIED=$(jq '.data.applied | length' "$TELSC" 2>/dev/null)
+  SC_FINDINGS=$(jq '.data.findings | length' "$TELSC" 2>/dev/null)
+  # The second run finds nothing left to fix (the first already rewrote the
+  # file), so an accurate envelope here is empty on both arrays — the point is
+  # that it is accurate, not that it is populated.
+  if [[ "$SC_APPLIED" =~ ^[0-9]+$ && "$SC_FINDINGS" =~ ^[0-9]+$ ]]; then
+    ok "stub/scale: the envelope that arrived carries well-formed arrays, not the blank fallback"
+  else
+    fail "stub/scale: envelope malformed at scale: $(cat "$TELSC")"
+  fi
+  if [[ "$(jq -r '.data.file' "$TELSC" 2>/dev/null)" == "" ]]; then
+    fail "stub/scale: envelope arrived with data.file blanked — that is the build_data_json fallback"
+  else
+    ok "stub/scale: envelope names the file (build_data_json did not fall back)"
+  fi
+else
+  ok "stub/scale: oversized envelope was dropped, not falsified (loss is in contract; see #1595)"
+fi
+rm -f "$TELSC"
+
+# --- Scale, residual side: the membership test must not be a linear scan -----
+# The case above is entirely APPLIED corrections, so it never exercises the
+# residual-membership branch. Classifying residuals with a linear `index` over
+# an array is quadratic: 10,000 all-residual findings measured ~15.7s in the jq
+# invocation alone, past the handler's 15-second timeout — and the file is
+# rewritten BEFORE classification, so that timeout lands after the mutation and
+# before any disclosure. A minified or generated file where most findings are
+# ambiguous is exactly that shape. Hash lookup does the same set in ~0.6s.
+: >"$STUB_REPO/scale-residual.txt"
+for _i in $(seq 1 "$SCALE_N"); do
+  printf 'line %s has wnat and disallowme\n' "$_i" >>"$STUB_REPO/scale-residual.txt" # spellchecker:disable-line
+done
+RES_START=$(date +%s)
+OUT_SR=$(run_stub "$STUB_REPO/scale-residual.txt")
+RES_ELAPSED=$(($(date +%s) - RES_START))
+CTX_SR=$(printf '%s' "$OUT_SR" | jq -r '.hookSpecificOutput.additionalContext // empty' 2>/dev/null)
+if printf '%s' "$CTX_SR" | grep -q "$((SCALE_N * 2)) finding(s)\|residual typos findings"; then
+  ok "stub/scale-residual: an all-residual set of $((SCALE_N * 2)) findings is still reported"
+else
+  fail "stub/scale-residual: residual report missing: $CTX_SR"
+fi
+if printf '%s' "$CTX_SR" | grep -q 'REWROTE'; then
+  fail "stub/scale-residual: claimed rewrites for a set where nothing was applied: $CTX_SR"
+else
+  ok "stub/scale-residual: nothing is claimed as rewritten when nothing was applied"
+fi
+if [[ "$RES_ELAPSED" -lt 10 ]]; then
+  ok "stub/scale-residual: completed in ${RES_ELAPSED}s, inside the handler's 15s timeout"
+else
+  fail "stub/scale-residual: took ${RES_ELAPSED}s — quadratic membership regression?"
+fi
+
 # --- A broken write pass must not be read as "everything was applied" --------
 printf 'this has teh typo and wnat too\n' >"$STUB_REPO/break.txt" # spellchecker:disable-line
 OUT_BR=$(run_stub "$STUB_REPO/break.txt" STUB_BREAK=1)

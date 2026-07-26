@@ -36,6 +36,13 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
 - **`data.applied` on the telemetry envelope** — the corrections this run wrote,
   as `{typo, correction, line}`. Additive; `data.findings` keeps its existing
   residual-only meaning and shape.
+- **`/typos-format:setup check` reports the effective write mode.** The setup
+  skill described a single tunable and probed only `typos_format_enabled`, so
+  with `typos_format_write_changes=false` it could report the hook fully
+  operational to a user who invoked it precisely because spell-fixing was not
+  happening. Write mode is now a reported INFO row with its own remediation —
+  including the alternative that usually fits better, allow-listing the specific
+  words rather than turning every correction off.
 - **Stub-driven contract tests for the disclosure surface.** The suite
   previously skipped in full when no `typos` binary was installed, which is the
   CI runner's state — so nothing about this hook was gated there. The
@@ -75,6 +82,24 @@ All notable changes to the `typos-format` plugin are documented here. Format fol
   500 inside the budget; it runs in about 3 seconds against the real binary. The
   residual key is built and compared as a JSON string inside `jq`, so a token
   carrying a shell or glob metacharacter is data throughout.
+- **Residual membership is a hash lookup, not a linear scan.** Classifying with
+  `index` over an array is quadratic exactly when the residual set is large — a
+  minified or generated file where most findings are ambiguous. Measured: 10,000
+  all-residual findings took about 15.7 s inside `jq` alone, past the handler's
+  15-second timeout, and the file is rewritten *before* classification runs, so
+  that timeout lands after the mutation and before any disclosure. The same set
+  takes about 0.6 s keyed by object. The scale cases now cover an all-applied
+  AND an all-residual set: the applied path alone never touches that branch.
+- **The telemetry payload reaches `jq` on stdin too.** `data.findings` and the
+  new `data.applied` are uncapped, so roughly a thousand ordinary corrections
+  (about 45 KB of JSON) exceeded the same command-line ceiling and the fallback
+  would have emitted an envelope reporting `applied: []` for a file this hook
+  had just rewritten. A dropped envelope is inside the best-effort telemetry
+  contract; one that arrives claiming a heavily-rewritten file was untouched is
+  not. The shared `hook::emit_telemetry` still hands the finished payload over
+  as an argument (#1595), so an oversized envelope is currently dropped rather
+  than delivered — the correct failure direction, and what the scale assertion
+  pins.
 - Carriage returns no longer leak into the emitted report. `jq` writes stdout in
   text mode on Windows, so a multi-line value returns CRLF-terminated and
   command substitution strips only the last one, leaving a literal `\r` before
