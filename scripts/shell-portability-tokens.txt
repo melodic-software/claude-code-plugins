@@ -1,0 +1,109 @@
+# Shell-portability-lint token list (issue #1491). Each ACTIVE line is one ERE
+# pattern that scripts/check-shell-portability.sh matches, line-by-line, against
+# changed **/*.sh files. Detects GNU-only constructs that a BSD userland (macOS
+# system grep/sed/date/stat/mktemp/sort — the one platform no CI runner in this
+# repo covers; a Windows runner's Git Bash still ships GNU grep/sed) either
+# rejects outright or silently reinterprets. The motivating near-miss: a
+# `grep -Eq '\brequire\b'` word-boundary escape in
+# plugins/markdown-format/hooks/markdown-format.sh would have made a security
+# predicate fail OPEN (return "nothing unpinnable found" for every input) on
+# BSD grep, with no test on a GNU runner able to catch it. The fix (now on
+# main) is the reference implementation this gate self-tests against.
+#
+# Ownership / growth: this list is the gate's data, deliberately kept OUT of the
+# script — the same shape as scripts/skill-portability-tokens.txt for the
+# sibling portability-lint gate (#531) — so a reviewer re-catch of a GNU-only
+# construct is a one-line data change, never a gate-logic edit.
+#
+# Format: blank lines and lines beginning with `#` are ignored; every other
+# line is an ERE pattern (leading/trailing whitespace trimmed), matched against
+# each non-comment line of a scanned file (a `#`-prefixed line, after leading
+# whitespace, is never scanned for constructs — the class this gate detects is
+# live command syntax, not prose; several legitimate dual-dialect comments in
+# this corpus mention `date -d` / `grep -P` by name only to explain why the
+# GNU/BSD branch below them exists). Labels live in the comment above each
+# pattern, never on the pattern line.
+#
+# Escaping a legitimate hit (see the script header for detection detail):
+#   - an auto-recognized same-line BSD-counterpart guard (readlink -f tried
+#     only after a co-located realpath attempt already failed);
+#   - a per-site recorded exemption: `portability-ok: <reason>`.
+# Direction is deliberately over-flag, not under-flag (see the linked issue's
+# "Two design notes"): a justified false positive costs a reviewer one line: a
+# missed true positive can ship a silent fail-open security predicate.
+
+# --- ACTIVE ---
+
+# GNU-only regex word-boundary/class escapes inside a grep/sed pattern. POSIX
+# ERE/BRE define no `\b`/`\<`/`\>`/`\s`/`\S`/`\w`/`\W`; BSD grep/sed either
+# rejects them or (worse) reads `\b` as a literal `b`, silently turning
+# `\brequire\b` into `brequireb` — matches nothing, exactly the near-miss above.
+# Each token below matches the literal two-character escape sequence.
+\\b
+\\<
+\\>
+\\s
+\\S
+\\w
+\\W
+
+# `grep -P` (PCRE mode) — absent in BSD grep, and in some GNU builds compiled
+# without PCRE support. `P` may appear anywhere in a combined short-option
+# cluster (`-riP`, `-nP`), not only as the cluster's last letter.
+grep[^\n]*[[:space:]]-[A-Za-z]*P[A-Za-z]*([[:space:]]|$)
+--perl-regexp
+
+# `echo -e` — POSIX leaves echo's flag handling unspecified; BSD/macOS sh/bash
+# builtin `echo` treats `-e` as a literal argument, not an escape-interpretation
+# flag. `printf '%b\n'` (or a literal `$'...'` ANSI-C string) is the portable
+# replacement. `e` may appear anywhere in echo's short-option cluster
+# (bash advertises `echo [-neE]`), not only as a standalone `-e`.
+echo[[:space:]]+-[a-zA-Z]*e[a-zA-Z]*([[:space:]]|$)
+
+# `sort -V` (natural/version sort) — a GNU coreutils extension; BSD sort has no
+# `-V`. `V` may appear anywhere in a combined short-option cluster (`-Vr`),
+# not only as the cluster's last letter.
+sort[^\n]*[[:space:]]-[A-Za-z]*V[A-Za-z]*([[:space:]]|$)
+
+# `sed -i` with no suffix argument attached — GNU treats the suffix as
+# optional; BSD sed requires one immediately after `-i` (even an explicit
+# empty string, `-i ''` / `-i ""`, auto-guarded by is_guarded() so the
+# portable BSD-safe idiom is not itself flagged). Does not yet cover every
+# GNU spelling (`-Ei`, `--in-place`, an attached-not-space-separated empty
+# suffix) — see #1513.
+sed[^\n]*-i[[:space:]]+[^[:space:]]
+
+# `readlink -f` (canonicalize) — a GNU coreutils extension; BSD/macOS readlink
+# has no `-f`/`--canonicalize`. Auto-guarded when a `realpath` attempt sits on
+# the same line (the portable-first pattern this repo's own lib/hook-utils.sh
+# already uses: `realpath ... || readlink -f ...`).
+readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)
+
+# --- STAGED (commented until enabled — see #1510 for the enable trigger) ---
+#
+# Before enabling ANY staged class below:
+#   - Audit and EXTEND is_guarded() in check-shell-portability.sh with the
+#     co-located-BSD-counterpart marker the new class needs (mirroring the
+#     readlink -f / realpath guard above) — or migrate/opt-out the corpus
+#     sites an `--all` audit surfaces first.
+#   - `date -d`: real, already-correct dual-dialect code exists today
+#     (plugins/claude-ops/skills/morning-brief/scripts/morning-brief.sh
+#     to_epoch/from_epoch) whose GNU (`date -d`) and BSD (`date -j -f`)
+#     branches are NOT co-located on one line (try-GNU-then-BSD across
+#     statements), so the same-line guard shape above does not cover it.
+# date[^\n]*[[:space:]]-d([[:space:]]|$)
+#
+#   - `stat -c`: mixed in the corpus today — one site
+#     (plugins/repo-hygiene/skills/clean/scripts/remove-path.sh dev_of()) is
+#     already guarded by a co-located `stat -f` fallback; two sites
+#     (plugins/kindle-dedrm/skills/manage/scripts/{status,sync-finalize}.sh)
+#     have no BSD fallback at all — real, currently-unfixed gaps a member
+#     issue should own before this class gates new touches to those files.
+# stat[^\n]*[[:space:]]-c
+#
+#   - `mktemp -p`: ~20 sites today, all shared test-scaffolding
+#     (`mktemp -p "$WORK" sink.XXXXXX`), none with a BSD-portable counterpart
+#     (BSD mktemp has no `-p`; the portable form is `mktemp
+#     "$WORK/sink.XXXXXX"` or `TMPDIR="$WORK" mktemp sink.XXXXXX`) — a real
+#     migration effort, not a one-line guard.
+# mktemp[^\n]*[[:space:]]-p([[:space:]]|$)
