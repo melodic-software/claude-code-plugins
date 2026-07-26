@@ -116,6 +116,14 @@ prune, a `git` plan (no `REPO` records) would skip every build removal. A non-em
 plan applied with `--tier all` must therefore carry both kinds, or it is refused
 the same way. An empty plan plans nothing for either kind and stays a no-op.
 
+Only a structurally well-formed record satisfies that both-kinds requirement — a
+`GITDIR` line naming no representative worktree, or a `REPO` line naming no
+manifest, names no target and so cannot stand in for the tier half it belongs to.
+A malformed record is a different error class from a wrong-tier plan: the plan is
+not refused wholesale, but the record fails closed per-record at apply (structural
+corruption, exit 1, counted in `failed=` and never in `gitdirs=`) rather than being
+reported as a store that vanished after the dry-run.
+
 ### Per-repo outcome
 
 Each repo emits `Repo:` / `Outcome:` / `Reason:`. Outcomes: `would-clean`

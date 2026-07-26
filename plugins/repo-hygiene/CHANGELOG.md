@@ -38,7 +38,17 @@ All notable changes to the `repo-hygiene` plugin are documented here. Format fol
   authorizes both record kinds, a narrower plan would pass every per-record test and
   then run only half the tier (a `build` plan skipping every prune, a `git` plan
   skipping every build removal), so a non-empty plan applied with `--tier all` must
-  carry both a `REPO` and a `GITDIR` record. An empty plan stays a no-op. (#1081)
+  carry both a `REPO` and a `GITDIR` record. An empty plan stays a no-op. Presence
+  is satisfied only by a structurally well-formed record: a truncated `GITDIR` line
+  naming no representative worktree (or a `REPO` line naming no manifest) names no
+  target, so counting it would let a narrower plan clear the `all` requirement and
+  then print `Tier: all` with `gitdirs=1` while performing no Git cleanup at all.
+  Such a record now also fails closed per-record at apply — reported as `malformed
+  plan record`, counted in `failed=` and never in `gitdirs=`, instead of being
+  reported as a store that vanished after the dry-run. **Caller-visible:** a plan
+  carrying a malformed record of the kind the `all` tier still needs is now refused
+  atomically (exit 2, nothing removed) where it previously applied its other half
+  and exited 1. (#1081)
 
 ## [0.7.1]
 

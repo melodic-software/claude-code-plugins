@@ -200,7 +200,7 @@ BPLAN3="$(sed -n 's/^BatchPlan: //p' <<<"$out")"
 rc=0
 out="$(bash "$BATCH" --tier all --apply --batch-plan "$BPLAN3" 2>&1)" || rc=$?
 assert_exit "build plan under --tier all is refused (exit 2)" 2 "$rc"
-assert_contains "missing-GITDIR refusal reported" "$out" "carries no GITDIR record"
+assert_contains "missing-GITDIR refusal reported" "$out" "carries no well-formed GITDIR record"
 assert_not_contains "no apply banner on missing-GITDIR refusal" "$out" "Fleet Clean (apply)"
 assert_file_exists "build dir NOT removed by under-scoped all apply" "$AR3/bin/b"
 
@@ -210,7 +210,7 @@ GPLAN4="$(sed -n 's/^BatchPlan: //p' <<<"$out")"
 rc=0
 out="$(bash "$BATCH" --tier all --apply --batch-plan "$GPLAN4" 2>&1)" || rc=$?
 assert_exit "git plan under --tier all is refused (exit 2)" 2 "$rc"
-assert_contains "missing-REPO refusal reported" "$out" "carries no REPO record"
+assert_contains "missing-REPO refusal reported" "$out" "carries no well-formed REPO record"
 assert_not_contains "no apply banner on missing-REPO refusal" "$out" "Fleet Clean (apply)"
 
 # An EMPTY plan plans nothing for either kind and removes nothing, so the presence
@@ -221,6 +221,66 @@ rc=0
 out="$(bash "$BATCH" --tier all --apply --batch-plan "$EMPTYPLAN" 2>&1)" || rc=$?
 assert_exit "empty plan under --tier all applies as a no-op (exit 0)" 0 "$rc"
 assert_contains "empty all apply reports gitdirs=0" "$out" "gitdirs=0"
+
+# --- 4h. only a STRUCTURALLY WELL-FORMED record satisfies the `all` both-kinds
+#         requirement. A truncated record (`GITDIR\t\t`, `REPO\t\tbuild\t`) names no
+#         target, so counting it as presence would let a narrower plan clear 4g's
+#         check on a record that removes nothing — apply would print `Tier: all` and
+#         a gitdirs= tally while performing no cleanup for that half. The apply loop
+#         fails such a record closed (exit 1, structural corruption) — a distinct
+#         class from 4d/4g's well-formed-but-wrong-tier plan (exit 2, atomic). ---
+AR5="$(mkrepo allrepo5)"
+out="$(bash "$BATCH" --tier build --repo "$AR5")"
+BPLAN5="$(sed -n 's/^BatchPlan: //p' <<<"$out")"
+printf 'GITDIR\t\t\n' >>"$BPLAN5" # truncated: no representative worktree
+rc=0
+out="$(bash "$BATCH" --tier all --apply --batch-plan "$BPLAN5" 2>&1)" || rc=$?
+assert_exit "truncated GITDIR does not satisfy --tier all (exit 2)" 2 "$rc"
+assert_contains "truncated GITDIR still reported as missing" "$out" "carries no well-formed GITDIR record"
+assert_not_contains "no apply banner on truncated-GITDIR refusal" "$out" "Fleet Clean (apply)"
+assert_file_exists "build dir NOT removed by truncated-GITDIR all apply" "$AR5/bin/b"
+
+# The mirror: a truncated REPO record must not satisfy the build half either. The
+# reachable truncation is a missing MANIFEST field (as in 4c) — tab is IFS
+# whitespace, so `read` collapses consecutive tabs and an empty leading field
+# cannot survive plan parsing.
+AR6="$(mkrepo allrepo6)"
+out="$(bash "$BATCH" --tier git --repo "$AR6")"
+GPLAN6="$(sed -n 's/^BatchPlan: //p' <<<"$out")"
+printf 'REPO\t%s\tbuild\t\n' "$AR6" >>"$GPLAN6" # truncated: no manifest path
+rc=0
+out="$(bash "$BATCH" --tier all --apply --batch-plan "$GPLAN6" 2>&1)" || rc=$?
+assert_exit "truncated REPO does not satisfy --tier all (exit 2)" 2 "$rc"
+assert_contains "truncated REPO still reported as missing" "$out" "carries no well-formed REPO record"
+assert_not_contains "no apply banner on truncated-REPO refusal" "$out" "Fleet Clean (apply)"
+assert_file_exists "nothing pruned/removed by truncated-REPO all apply" "$AR6/bin/b"
+
+# The apply-loop half, on the path the `all` presence check does not gate: a
+# truncated GITDIR under --tier git must fail closed and count NO gitdir — never
+# exit 0 with gitdirs=1 for a prune that had no target.
+TRUNCPLAN="$TEST_TMPDIR/trunc-gitdir.plan"
+printf 'GITDIR\t\t\n' >"$TRUNCPLAN"
+rc=0
+out="$(bash "$BATCH" --tier git --apply --batch-plan "$TRUNCPLAN" 2>&1)" || rc=$?
+assert_exit "truncated GITDIR fails closed under --tier git (exit 1)" 1 "$rc"
+assert_contains "truncated GITDIR reported malformed" "$out" "malformed plan record"
+assert_contains "truncated GITDIR counted as a failure, not a gitdir" "$out" "failed=1 bytes=0 gitdirs=0"
+
+# Not over-strict: one valid GITDIR satisfies presence even alongside a malformed
+# sibling — the valid store is still pruned, the malformed record still fails closed.
+AR7="$(mkrepo allrepo7)"
+out="$(bash "$BATCH" --tier all --repo "$AR7")"
+APLAN7="$(sed -n 's/^BatchPlan: //p' <<<"$out")"
+printf 'GITDIR\t\t\n' >>"$APLAN7"
+rc=0
+out="$(bash "$BATCH" --tier all --apply --batch-plan "$APLAN7" 2>&1)" || rc=$?
+assert_exit "valid GITDIR + malformed sibling applies then fails closed (exit 1)" 1 "$rc"
+assert_contains "presence satisfied by the valid record (apply ran)" "$out" "Fleet Clean (apply)"
+assert_contains "valid store still pruned" "$out" "Outcome: pruned"
+assert_contains "malformed sibling reported" "$out" "malformed plan record"
+assert_contains "only the valid GITDIR counted" "$out" "failed=1"
+assert_contains "malformed sibling adds no gitdir" "$out" "gitdirs=1"
+assert_file_absent "valid REPO record still applied" "$AR7/bin/b"
 
 # --- 5. skip list + unmatched skip ---
 out="$(bash "$BATCH" --tier caches --repo "$R1" "$R2" --skip r2 --skip nosuchrepo)"
