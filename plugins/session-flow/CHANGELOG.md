@@ -1,5 +1,26 @@
 # Changelog — session-flow plugin
 
+## [0.17.4]
+
+### Added
+
+- **The detached observer's distilled observations now carry enough structure for the headless
+  running-retro analysis to COMPUTE sequencing/batching/dependency claims, not just drop them.**
+  `summarize_record()` previously stripped every tool call down to its name and every tool result
+  down to a bare count, so `observer.py`'s headless `_analysis_prompt` — despite instructing the
+  analyzer to "group tool-use events by API message id" and check for a dependency before flagging a
+  missed-batching Efficiency finding — had no field it could actually compute either claim from. Two
+  additions close the gap: an assistant event now carries `mid` (the transcript's own API message id,
+  when present) so events sharing one `mid` can be recognized as one batched turn versus separate
+  sequential turns, and both assistant (`calls[].in`) and user (`results[].out`) events now carry a
+  bounded (80-char) preview of each tool call's input/result, keyed by the call's own id, so a later
+  call's input can be checked against an earlier call's output for a genuine dependency. Both fields
+  are omitted (not padded) when the underlying data isn't present, keeping the token-cheap
+  distillation's cost bound intact. `_analysis_prompt` updated to reference the new fields; the
+  in-session checkpoint path (which reads the raw transcript directly) is unaffected. Follow-up from
+  #1473 (PR #1482) and Codex's review of it — filed as #1485, scoped to the schema change deferred out
+  of that PR.
+
 ## [0.17.3]
 
 ### Fixed

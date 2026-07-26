@@ -48,6 +48,33 @@ def now_ts() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
+_PREVIEW_LIMIT = 80  # bounded per-call arg/result preview -- see _preview()
+
+
+def _preview(value: object, limit: int = _PREVIEW_LIMIT) -> str:
+    """Bounded, compact string preview of a tool-call input or result value.
+
+    Token-cheap by design, matching this module's other truncated fields (`say`,
+    `human`): never the full value, just enough of it for a headless dependency
+    check (does a later call's input reference an earlier call's result) without
+    paying full transcript token cost. A dict/list is compacted to JSON first so
+    the preview keeps recognizable keys/values (e.g. a `file_path`) instead of
+    Python's `repr` spacing.
+    """
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        s = value
+    elif isinstance(value, (dict, list)):
+        try:
+            s = json.dumps(value, separators=(",", ":"), default=str)
+        except (TypeError, ValueError):
+            s = str(value)
+    else:
+        s = str(value)
+    return s.strip()[:limit]
+
+
 def summarize_record(rec: dict) -> dict:
     """Token-cheap distillation of one transcript line into a compact event.
 
@@ -56,18 +83,37 @@ def summarize_record(rec: dict) -> dict:
     paying full transcript token cost. Text is truncated to bound size; this is
     NOT redaction -- the observations stay machine-local and are deleted after
     the analysis run.
+
+    Two fields exist ONLY to let a headless analysis run (which never sees the
+    raw transcript) COMPUTE structural claims instead of asserting them:
+      - `mid`: the assistant record's own API message id, when the raw record
+        carries one. Tool-use events sharing one `mid` came from the SAME
+        assistant turn (their calls were batched into one API call); events
+        with different `mid`s (or no `mid` at all -- some records don't carry
+        one) ran as separate, sequential turns.
+      - `calls` / `results`: a bounded preview of each tool call's input and
+        each tool result's output, keyed by the call's own id (`tool_use_id`
+        on the result), so a later call's input can be checked against an
+        earlier call's output for a genuine data dependency before a
+        sequential/unbatched pair is flagged as a missed-batching Efficiency
+        finding.
     """
     t = rec.get("type")
     out: dict = {"t": t, "ts": rec.get("timestamp")}
     if t == "assistant":
         msg = rec.get("message") or {}
         content = msg.get("content") or []
-        tools = [c.get("name") for c in content
-                 if isinstance(c, dict) and c.get("type") == "tool_use"]
+        tool_uses = [c for c in content
+                     if isinstance(c, dict) and c.get("type") == "tool_use"]
         text = " ".join(c.get("text", "") for c in content
                         if isinstance(c, dict) and c.get("type") == "text")
-        if tools:
-            out["tools"] = tools
+        if tool_uses:
+            out["tools"] = [c.get("name") for c in tool_uses]
+            out["calls"] = [{"id": c.get("id"), "in": _preview(c.get("input"))}
+                            for c in tool_uses]
+            mid = msg.get("id")
+            if mid:
+                out["mid"] = mid
         if text.strip():
             out["say"] = text.strip()[:160]
         if msg.get("stop_reason"):
@@ -78,12 +124,15 @@ def summarize_record(rec: dict) -> dict:
         if isinstance(content, str):
             out["human"] = content[:160]
         elif isinstance(content, list):
-            results = sum(1 for c in content
-                          if isinstance(c, dict) and c.get("type") == "tool_result")
+            tool_results = [c for c in content
+                            if isinstance(c, dict) and c.get("type") == "tool_result"]
             humans = [c.get("text", "") for c in content
                       if isinstance(c, dict) and c.get("type") == "text"]
-            if results:
-                out["tool_results"] = results
+            if tool_results:
+                out["tool_results"] = len(tool_results)
+                out["results"] = [{"id": c.get("tool_use_id"),
+                                   "out": _preview(c.get("content"))}
+                                  for c in tool_results]
             if humans and any(h.strip() for h in humans):
                 out["human"] = " ".join(humans).strip()[:160]
     elif t == "system":
@@ -637,6 +686,23 @@ it lands in a durable, portable ledger, so it is critical: sweep every finding, 
 quoted snippet for secrets, tokens, credentials, connection strings, and PII, replacing \
 each with a shape marker.
 
+Compute, don't assert, a structural claim -- a finding describing tool-call sequencing, \
+batching, or delegation must be COMPUTED from these observation fields, never asserted from \
+a narrative impression of the "say"/"human" text. Group an assistant event's tool calls by \
+its "mid" field (the transcript's own API message id): events sharing one "mid" ran as ONE \
+batched turn; events with different "mid"s -- or with no "mid" at all, which happens when \
+the raw record didn't carry one, making that pair's ordering uncomputable -- ran as separate, \
+sequential turns. Before routing a computed sequential/unbatched pair as a missed-batching \
+Efficiency finding, check for a genuine dependency between the calls: compare each \
+assistant event's "calls[].in" preview against the "results[].out" previews of the user \
+events between them (matched by the result's "id" to the call's own "calls[].id") for a data \
+dependency (a later call's input referencing an earlier call's output), and read the \
+surrounding "say" narration for an evident control/resource/side-effect dependency (e.g. a \
+directory created before a file is written into it). A pair that was genuinely dependent was \
+correctly sequential, not a missed batch. Drop a structural claim you cannot compute this way \
+rather than asserting it uncomputed -- an asserted-and-wrong structural claim routes as if \
+verified and is worse than a missed finding.
+
 Inputs (absolute):
 - Distilled observations (pre-filtered event stream, one JSON event per line): {observations}
 - Session id: {session_id}
@@ -644,8 +710,11 @@ Inputs (absolute):
 Do: Read the observations; produce the compact "Checkpoint findings" block exactly as \
 {checkpoint} specifies (metrics line, findings table with category + suggested route, \
 subjective-state assessment noted as unavailable for an autonomous run, new-skill \
-candidates); run the mandatory redaction pass. Return ONLY that block -- no preamble, no \
-echo of the observations."""
+candidates); compute rather than assert any sequencing/batching/delegation claim via the \
+"mid"/"calls"/"results" fields, dropping it if it can't be computed, and checking for a \
+dependency before routing a computed sequential pair as a missed-batching Efficiency \
+finding; run the mandatory redaction pass. Return ONLY that block -- no preamble, no echo \
+of the observations."""
 
 
 def build_parser() -> argparse.ArgumentParser:

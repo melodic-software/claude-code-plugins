@@ -49,19 +49,145 @@ def make_observer(tmp: Path, **overrides):
 class Distillation(unittest.TestCase):
     def test_assistant(self):
         out = observer.summarize_record({"type": "assistant", "message": {
-            "content": [{"type": "tool_use", "name": "Bash"},
+            "id": "msg_01ABC",
+            "content": [{"type": "tool_use", "id": "call_1", "name": "Bash",
+                         "input": {"command": "ls"}},
                         {"type": "text", "text": "x" * 300}],
             "stop_reason": "tool_use"}})
         self.assertEqual(out["tools"], ["Bash"])
         self.assertEqual(out["stop_reason"], "tool_use")
         self.assertLessEqual(len(out["say"]), 160)
+        # Grouping key + bounded per-call preview -- see summarize_record()'s docstring.
+        self.assertEqual(out["mid"], "msg_01ABC")
+        self.assertEqual(out["calls"], [{"id": "call_1", "in": '{"command":"ls"}'}])
+
+    def test_assistant_no_tools_omits_grouping_fields(self):
+        """A text-only turn has nothing to group/preview -- no mid/calls noise."""
+        out = observer.summarize_record({"type": "assistant", "message": {
+            "id": "msg_01ABC", "content": [{"type": "text", "text": "hi"}]}})
+        self.assertNotIn("tools", out)
+        self.assertNotIn("calls", out)
+        self.assertNotIn("mid", out)
+
+    def test_assistant_missing_message_id_omits_mid(self):
+        """A record with no API message id makes that pair's ordering uncomputable --
+        the field is simply absent, never a placeholder that looks computed."""
+        out = observer.summarize_record({"type": "assistant", "message": {
+            "content": [{"type": "tool_use", "id": "call_1", "name": "Bash"}]}})
+        self.assertNotIn("mid", out)
+        self.assertIn("calls", out)
+
+    def test_assistant_two_batched_calls_share_one_record(self):
+        """Two tool_use blocks in ONE assistant record (one API message) is exactly
+        what "batched" means -- both calls carry the SAME mid, reconstructable by
+        grouping the distilled events on that field alone, without the raw transcript."""
+        out = observer.summarize_record({"type": "assistant", "message": {
+            "id": "msg_batch", "content": [
+                {"type": "tool_use", "id": "call_1", "name": "Read",
+                 "input": {"file_path": "a.py"}},
+                {"type": "tool_use", "id": "call_2", "name": "Read",
+                 "input": {"file_path": "b.py"}},
+            ]}})
+        self.assertEqual(out["tools"], ["Read", "Read"])
+        self.assertEqual([c["id"] for c in out["calls"]], ["call_1", "call_2"])
+        self.assertEqual(out["mid"], "msg_batch")
 
     def test_user_and_system(self):
         u = observer.summarize_record({"type": "user", "message": {
-            "content": [{"type": "tool_result"}, {"type": "tool_result"}]}})
+            "content": [{"type": "tool_result", "tool_use_id": "call_1",
+                        "content": "file contents here"},
+                       {"type": "tool_result", "tool_use_id": "call_2",
+                        "content": "more content"}]}})
         self.assertEqual(u["tool_results"], 2)
+        self.assertEqual(u["results"], [
+            {"id": "call_1", "out": "file contents here"},
+            {"id": "call_2", "out": "more content"},
+        ])
         s = observer.summarize_record({"type": "system", "subtype": "stop_hook_summary"})
         self.assertTrue(s["turn_boundary"])
+
+    def test_user_no_tool_results_omits_results_field(self):
+        u = observer.summarize_record({"type": "user", "message": {
+            "content": [{"type": "text", "text": "go ahead"}]}})
+        self.assertNotIn("results", u)
+        self.assertNotIn("tool_results", u)
+
+    def test_sequencing_and_dependency_round_trip(self):
+        """Builds observations from real transcript-shaped records for a genuinely
+        DEPENDENT sequential pair (a Write, then a Read of a path the Write's own
+        result content names) and checks that the distilled fields alone -- without
+        the raw transcript -- let a reader (a) tell the two calls were sequential
+        (different `mid`s) and (b) find the dependency (the second call's `in`
+        preview overlaps the first result's `out` preview), covering both acceptance
+        criteria for #1485 in one round trip.
+        """
+        write_call = observer.summarize_record({"type": "assistant", "message": {
+            "id": "msg_1", "content": [
+                {"type": "tool_use", "id": "call_w", "name": "Write",
+                 "input": {"file_path": "/tmp/out/report.md"}},
+            ]}})
+        write_result = observer.summarize_record({"type": "user", "message": {
+            "content": [{"type": "tool_result", "tool_use_id": "call_w",
+                        "content": "wrote /tmp/out/report.md"}]}})
+        read_call = observer.summarize_record({"type": "assistant", "message": {
+            "id": "msg_2", "content": [
+                {"type": "tool_use", "id": "call_r", "name": "Read",
+                 "input": {"file_path": "/tmp/out/report.md"}},
+            ]}})
+
+        # (a) Sequential, not batched: different `mid`s.
+        self.assertNotEqual(write_call["mid"], read_call["mid"])
+        # (b) Dependency is findable purely from the bounded previews: the later
+        # call's input preview and the earlier result's output preview share the
+        # dependent path, without ever reading the raw transcript.
+        later_in = read_call["calls"][0]["in"]
+        earlier_out = write_result["results"][0]["out"]
+        self.assertIn("/tmp/out/report.md", later_in)
+        self.assertIn("/tmp/out/report.md", earlier_out)
+
+    def test_preview_bounded_for_large_input(self):
+        """No meaningful token-cost regression: an oversized tool input/result is
+        truncated to the bounded preview limit, not carried in full."""
+        big = observer.summarize_record({"type": "assistant", "message": {
+            "id": "msg_big", "content": [
+                {"type": "tool_use", "id": "call_big", "name": "Write",
+                 "input": {"content": "x" * 10_000}},
+            ]}})
+        self.assertLessEqual(len(big["calls"][0]["in"]), observer._PREVIEW_LIMIT)
+
+    def test_preview_helper(self):
+        self.assertEqual(observer._preview(None), "")
+        self.assertEqual(observer._preview("  hi  "), "hi")
+        self.assertEqual(observer._preview({"a": 1}), '{"a":1}')
+        self.assertLessEqual(len(observer._preview("y" * 500, limit=10)), 10)
+
+
+class AnalysisPrompt(unittest.TestCase):
+    """The headless analysis prompt must actually reference the distilled fields
+    #1485 added -- otherwise the analyzer has the capability but is never told to
+    use it, which reproduces the original "can only ever drop the finding" gap
+    under a different cause."""
+
+    def setUp(self):
+        self.prompt = observer._analysis_prompt(
+            observations="/obs.ndjson", checkpoint="/checkpoint.md", session_id="sid")
+
+    def test_references_grouping_key(self):
+        self.assertIn('"mid"', self.prompt)
+        self.assertIn("batched", self.prompt)
+        self.assertIn("sequential", self.prompt)
+
+    def test_references_call_result_preview_fields(self):
+        self.assertIn('"calls', self.prompt)
+        self.assertIn('"results', self.prompt)
+        self.assertIn("dependency", self.prompt)
+
+    def test_drop_if_uncomputable_still_present(self):
+        self.assertIn("Drop", self.prompt)
+        self.assertIn("uncomputed", self.prompt)
+
+    def test_mandatory_redaction_pass_not_crowded_out(self):
+        self.assertIn("MANDATORY redaction pass", self.prompt)
 
 
 class Redaction(unittest.TestCase):
