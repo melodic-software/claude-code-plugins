@@ -20,15 +20,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   documented split-brain hazard where a token-shape `zones.json` would have been rejected
   wholesale in favor of the stale inlined 50/75 table. The compaction override now also
   recognizes context-guard's new evidence-degraded marker
-  (`~/.claude/context-guard/context/<session_id>.compacted`).
+  (`~/.claude/context-guard/context/<session_id>.compacted`). The inlined token shape also carries
+  the contract's version floor: it is computable only when the snapshot's `cli_version` is present,
+  purely numeric dotted, and >= 2.1.132, because before that release the token fields were
+  cumulative session totals and a cumulative value below the window size is indistinguishable from
+  a real occupancy.
 
 ### Added
 
 - **`scripts/zones-inline-drift.test.sh`** — the consumer-lane drift check the reader contract's
   "Inline-floor ownership" rule has always named but nothing implemented: asserts every
   load-bearing inlined floor phrase (staleness window, snapshot/zones/marker paths, both band
-  shapes, the combination-rule sentence) appears in BOTH this skill and the context-guard reader
-  contract after normalization. Runs in the repo's plugin-gate CI job via the shared
+  shapes, the token-shape version floor, the combination-rule sentence) appears in BOTH this skill
+  and the context-guard reader contract after normalization. Runs in the repo's plugin-gate CI job via the shared
   `*.test.sh` discovery; SKIPs cleanly in an installed plugin cache where the sibling contract
   file is unreachable.
 
@@ -117,7 +121,6 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   no external effect.
 - Two evals covering both clauses, including an anti-pattern eval asserting that an unattended
   invocation must not emit externally.
-||||||| parent of 8bef41e051 (feat(context-guard): zone-crossing hooks, token bands, and the workflow continuation router (#1475, #1476))
 
 ## [0.1.2] - 2026-07-25
 

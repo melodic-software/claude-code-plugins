@@ -60,17 +60,48 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   tracks absolute tokens, not window fraction) against per-window-class bands selected by the
   largest class key ≤ `context_window_size`. Shipped token defaults: 200k class 100000/160000,
   1M class 200000/400000 — declared judgment defaults with named anchors (provenance table on
-  #1475), equally low confidence on both rows; `zones.json` is the correction path. A
-  plausibility guard (occupancy > window size → token shape not computable) covers the
-  pre-2.1.132 cumulative-totals field semantics the snapshot cannot version-detect. `zones.json`
+  #1475), equally low confidence on both rows; `zones.json` is the correction path. TWO
+  independent gates protect the token shape: a **version floor** (the snapshot's new `cli_version`
+  must be present, purely numeric dotted, and ≥ 2.1.132 — before that release the token fields
+  were cumulative session totals, and a cumulative value BELOW the window size is
+  indistinguishable from a real occupancy, so numbers alone can never rule it out), and the
+  **plausibility guard** (occupancy > window size → not computable) for corrupt or forged data.
+  `zones.json`
   gains an optional `token_bands` object validated independently of the percentage keys — absent
   is zero-config, so every existing v1 file keeps working unchanged; the percentage keys are
   retained with a recorded retirement trigger (they answer distance-to-compaction, which the
   token shape cannot; they retire when no shipped consumer inlines the percentage floor).
+- **`statusline-tee.sh` tees `cli_version`** — the statusline payload's top-level `version` field
+  (the Claude Code version), copied only when it is a string and never fabricated. It is the
+  signal the token-shape version floor above needs; an absent one simply leaves the percentage
+  shape standing alone.
 - Setup skill seeds/repairs the v2 `zones.json` shape (including adding shipped `token_bands` to
-  a v1 file on `apply`); reader contract documents the occupancy definition, combination rule,
-  version floor/plausibility guard, evidence-degraded marker, hook surface, and band provenance;
-  README updated to the five-part overview.
+  a v1 file on `apply`), and `check` now reports hook **registration**, hook-set **activation**
+  (the `context_guard_hooks_enabled` kill switch read from its configured value, `UNKNOWN` rather
+  than "active" when unreadable), and **gate posture** (`zone_hook_mode`) as three separate facts
+  — equating plugin-enablement with active hooks reported the opposite of the runtime state
+  exactly when an operator was diagnosing missing injections or gating. Reader contract documents
+  the occupancy definition, combination rule, version floor and plausibility guard,
+  evidence-degraded marker, hook surface, and band provenance, and its capability table now
+  classifies per shape rather than dropping the whole reading to `unknown` on one missing field
+  (which contradicted the combination rule it sits above); README updated to the five-part
+  overview.
+
+### Fixed
+
+- **The blocking gate's grace counter is now atomic.** Claude starts matched tools in parallel, so
+  several `PreToolUse` hook processes ran concurrently against one session's counter; a
+  read-modify-write let them all read the same count and record the same increment, so far more
+  than the configured budget was allowed (measured 6–7 allowed of 24 concurrent calls against a
+  budget of 4). Each call now appends one byte and takes the file size as its count — single-byte
+  `O_APPEND` writes do not interleave, so at most `zone_gate_grace_calls` calls can observe a
+  count within budget, and the only residual error is over-denial, the conservative direction for
+  a gate.
+- **`zone_gate_grace_calls` is parsed as base 10.** A digit-only value with a leading zero (`08`)
+  cleared validation but is an octal literal in Bash arithmetic: the comparison errored on the
+  invalid digit, evaluated false, and denied the FIRST call instead of allowing eight. The value
+  is now length-bounded and normalized once, which also keeps the deny reason and the telemetry
+  payload carrying a canonical decimal (`{"grace":08}` was invalid JSON).
 
 ## [0.3.0]
 

@@ -13,8 +13,10 @@
   non-terminals (state hygiene informs the decision, never carries the session). Every ordering
   edge carries its stated purpose in the doc: machine-loss is asked FIRST (a save-point that
   dies with the disk is no save-point), the zero-cost exits precede every writing mechanism,
-  background delegation follows handoff (same save-point engine, different delivery,
-  explicit-request-gated), and `/compact` is the deliberate last resort with the tradeoff owned
+  background delegation precedes handoff (same save-point engine, different delivery, but the
+  strictly narrower gate — it is explicit-request-gated, and the generic handoff question would
+  otherwise swallow it, since a background continuation always passes the work to another agent),
+  and `/compact` is the deliberate last resort with the tradeoff owned
   by handoff's "Fork beats compaction when the window is deep" section (pointer, not copy). Zone
   input is presence-gated on the `context-guard` reader contract with NO inlined band values —
   the router consumes only the zone word and degrades to judgment tests when the seam is absent
@@ -81,7 +83,6 @@
   `sizes-small-ask-single-agent` forces a size classification on a concrete small ask, and
   `tiers-wide-fanout-cheaper-default` asserts the cheaper-tier default at wide fan-out with the
   judgment-heavy stage kept as the explicit exception.
-||||||| parent of 8bef41e051 (feat(context-guard): zone-crossing hooks, token bands, and the workflow continuation router (#1475, #1476))
 
 ## [0.17.13]
 
