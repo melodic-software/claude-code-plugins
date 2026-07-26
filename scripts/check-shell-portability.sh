@@ -178,6 +178,14 @@ scan_file() {
       # after a `||` and to the negation check before a `!`-prefixed call.
       ASSIGN = "([A-Za-z_][A-Za-z0-9_]*=[^;|&[:space:]]*[[:space:]]+)*"
       PREFIXES = ASSIGN "((command|env)[[:space:]]+)?" ASSIGN "(\\\\)?[[:space:]]*"
+      # Characters a shell word may begin after, for the `#` comment test.
+      WORDSTART = " \t;&|(" BT
+      # What may sit between a `!` and the command name it negates BEYOND the
+      # PREFIXES above: an opener that starts a nested command context. A
+      # substitution or subshell is a WORD of the negated pipeline, so the `!`
+      # still governs the command inside it — `! x=$(stat -c …) || stat -f …`
+      # skips the fallback on BSD exactly as the unnested spelling does.
+      NEGOPEN = "(([A-Za-z_][A-Za-z0-9_]*=)?(\\$\\(|" BT "|\\()[[:space:]]*)*"
     }
     function is_annotated(l) { return l ~ /portability-ok:/ }
     function is_comment(l) { return l ~ /^[[:space:]]*#/ }
@@ -277,6 +285,22 @@ scan_file() {
     # Without that state `stat ${file:-name;part} -c %s` read the `;` as a
     # command boundary and the GNU-only `-c` after it was never reached
     # (#1544).
+    #
+    # An INLINE COMMENT is not shell code either. 2.3 rule 10: an unquoted `#`
+    # at the START of a word begins a comment that runs to the newline, so
+    # nothing after it is structural. Two fail-opens came from treating it as
+    # ordinary text (#1544 review round 8):
+    #   echo ok # portability-ok: x \   the trailing backslash is comment text,
+    #   date -d tomorrow                not a continuation — joining the two
+    #                                   carried the annotation onto a
+    #                                   standalone GNU-only command;
+    #   stat -c %s "$f" # || stat -f    a commented-out fallback satisfied the
+    #                                   guard, excusing an unguarded call.
+    # The comment body is masked, so its separators are no longer control
+    # operators. Construct MATCHING is deliberately untouched — it runs on the
+    # original text, so `# see date -d` still reports, the same over-flag
+    # direction that the comment-skip in scan_logical — not this mask — is what
+    # exempts a comment-ONLY line from.
     function mask_quotes(l,   i, c, m, st, top, len) {
       m = ""
       DANGLING_BS = 0
@@ -333,6 +357,13 @@ scan_file() {
           m = m "Q"
           if (c == DQ) st = substr(st, 1, length(st) - 1)
           continue
+        }
+        # Unquoted shell state (U, or inside a `$( )`/backquote body): a `#`
+        # opening a word comments out the rest of the record. A `#` mid-word
+        # (`foo#bar`, `$#`) is an ordinary character and falls through.
+        if (c == "#" && (i == 1 || index(WORDSTART, substr(l, i - 1, 1)) > 0)) {
+          while (i <= len) { m = m "Q"; i++ }
+          break
         }
         if (c == SQ) { m = m "Q"; st = st "S"; continue }
         if (c == DQ) { m = m "Q"; st = st "D"; continue }
@@ -506,10 +537,25 @@ scan_file() {
     # assignment, or both — and none of them changes that the negation applies
     # to the pipeline (#1544). Matching only bare whitespace let
     # `! command stat -c …` and `! LANG=C stat -c …` read as unnegated.
+    #
+    # A `(` is NOT a reason to discard the negation, which is why it is absent
+    # from the truncation class below. Whichever side of the paren the `!` sits,
+    # the conclusion is the same — the fallback does not run on BSD:
+    #   ! x=$(stat -c …) || stat -f …   the substitution exits with the status of
+    #                                   stat, and `!` inverts it, so the `||` is
+    #                                   skipped;
+    #     x=$(! stat -c …) || stat -f … the inner `!` inverts it first.
+    # Truncating at the `$(` lost the outer `!` and admitted the first shape
+    # (#1544 review round 8). A `)` stays a boundary: an outer negation reaching
+    # PAST a closed substitution is a shape this gate has never recognized, and
+    # widening it is not what this finding is about.
+    #
+    # Over-detecting a negation costs a false positive; under-detecting one
+    # admits an unguarded GNU-only call. This is the safe direction to widen.
     function is_negated(q, at,   head) {
       head = substr(q, 1, at - 1)
-      if (match(head, /.*[;|&()]/)) head = substr(head, RSTART + RLENGTH)
-      return head ~ ("(^|[[:space:]])![[:space:]]+" PREFIXES "$")
+      if (match(head, /.*[;|&)]/)) head = substr(head, RSTART + RLENGTH)
+      return head ~ ("(^|[[:space:]]|[(]|" BT ")![[:space:]]+" NEGOPEN PREFIXES "$")
     }
     function is_guarded(q, p, at,   CMDPOS, SEG, PRE, NAME, QP, QL) {
       if (is_negated(q, at)) return 0
@@ -617,7 +663,9 @@ scan_file() {
     # (2.2.3 keeps backslash special before a newline) and NOT inside single
     # quotes (2.2.2 preserves every character), and `\\` at end of line is an
     # escaped backslash, not an escape. A COMMENT never continues — `#` runs to
-    # the newline — so a comment line is handed over whole.
+    # the newline — for a comment-ONLY line through the is_comment() test here,
+    # and for an INLINE comment through the mask, which stops at the `#` and so
+    # never reaches a backslash sitting in comment text.
     {
       if (pending) {
         logical = logical $0

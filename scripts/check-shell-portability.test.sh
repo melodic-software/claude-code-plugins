@@ -1905,6 +1905,78 @@ else
 fi
 rm -f "$f"
 
+# --- an INLINE comment ends the shell code on its line, so a trailing backslash
+# there is comment text and joins nothing. Joining let the comment's own
+# annotation excuse the standalone GNU-only command below it.
+f="$(tmpsh "$(printf '%s\n' \
+  "echo ok # portability-ok: unrelated \\" \
+  'date -d tomorrow +%s')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "the command under a backslash-ended inline comment should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 1 ]] &&
+  echo "$out" | grep -q "PORTABILITY: ${f}:2:"; then
+  ok "a trailing backslash in an INLINE comment does not continue into the next line"
+else
+  fail "expected exactly the line-2 call reported, got: $out"
+fi
+rm -f "$f"
+
+# --- a fallback that is commented out never runs, so it cannot be the guard.
+f="$(tmpsh 'stat -c "%s" "$f" # || stat -f "%z" "$f"')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a commented-out stat -f fallback should fail, got success: $out"
+else
+  ok "a commented-out || fallback does not guard the GNU-only call"
+fi
+rm -f "$f"
+
+# --- masking a comment decides STRUCTURE only. Construct matching still runs on
+# the original text, so a construct named in an inline comment keeps reporting —
+# the documented over-flag, with `portability-ok:` as the escape.
+f="$(tmpsh 'echo ok # see date -d tomorrow')"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  fail "an inline comment naming date -d must still report"
+else
+  ok "comment masking does not disable construct matching inside an inline comment"
+fi
+rm -f "$f"
+
+# --- a `!` outside a substitution or subshell still negates the command inside
+# it: the frame is one WORD of the negated pipeline, so on BSD the failing GNU
+# call is inverted to success and the `||` fallback never runs.
+f="$(tmpsh "$(printf '%s\n' \
+  '! x=$(stat -c "%s" "$f") || stat -f "%z" "$f"' \
+  '! x=`stat -c "%s" "$f"` || stat -f "%z" "$f"' \
+  '! ( stat -c "%s" "$f" ) || stat -f "%z" "$f"')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a negated probe inside a substitution should fail, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 3 ]]; then
+  ok "an outer negation survives a substitution or subshell boundary"
+else
+  fail "expected all three negated-probe spellings flagged, got: $out"
+fi
+rm -f "$f"
+
+# --- and the negation INSIDE the frame, which the boundary rule already caught,
+# must keep flagging: it inverts the same status just one level down.
+f="$(tmpsh 'x=$(! stat -c "%s" "$f") || stat -f "%z" "$f"')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "a negation inside the substitution should fail, got success: $out"
+else
+  ok "a negation inside the substitution is still detected"
+fi
+rm -f "$f"
+
+# --- a `!` that is a TEST operator rather than pipeline negation must not cost
+# a genuine ladder its guard.
+f="$(tmpsh '[[ ! -f "$x" ]] && stat -c "%s" "$f" || stat -f "%z" "$f"')"
+if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
+  ok "a ! inside a test does not read as pipeline negation"
+else
+  fail "the ladder must stay guarded: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
+fi
+rm -f "$f"
+
 echo
 echo "PASS=$PASS FAIL=$FAIL"
 [[ "$FAIL" -eq 0 ]]
