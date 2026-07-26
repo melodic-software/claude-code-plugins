@@ -776,17 +776,21 @@ rm -f "$f"
 # --- attached-value and long-form parent-directory spellings (#1543). GNU
 # getopt takes -p's DIR joined to the cluster, and documents --tmpdir[=DIR] as
 # the equivalent; both are as BSD-incompatible as the whitespace-delimited form
-# a cluster-plus-whitespace boundary alone matched.
+# a cluster-plus-whitespace boundary alone matched. The attached DIR is an
+# arbitrary string, so one whose first segment is alphabetic must flag exactly
+# like `-p/tmp` — verified against GNU coreutils 8.32, where
+# `mktemp -prel/sub name.XXXXXX` creates `rel/sub/name.XXXXXX`.
 f="$(tmpsh "$(printf '%s\n' \
   'mktemp -p/tmp name.XXXXXX' \
+  'mktemp -prel/sub name.XXXXXX' \
   'mktemp --tmpdir=/tmp name.XXXXXX' \
   'mktemp --tmpdir name.XXXXXX')")"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
-  fail "attached -p/DIR and --tmpdir spellings should be flagged, got success: $out"
-elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 3 ]]; then
-  ok "the shipped list flags attached -p/DIR and both --tmpdir spellings"
+  fail "attached -p<DIR> and --tmpdir spellings should be flagged, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 4 ]]; then
+  ok "the shipped list flags both attached -p<DIR> forms and both --tmpdir spellings"
 else
-  fail "expected all 3 parent-directory spellings flagged, got: $out"
+  fail "expected all 4 parent-directory spellings flagged, got: $out"
 fi
 rm -f "$f"
 
@@ -797,6 +801,27 @@ if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   ok "cp -p after a portable mktemp on the same line is not flagged"
 else
   fail "a later command's -p must not be attributed to mktemp, got: $out"
+fi
+rm -f "$f"
+
+# --- ...including the legacy backtick spelling of that substitution (#1543).
+# A closing backtick ends the substitution exactly as `)` ends `$(...)`, so in
+# the VAR=value-prefixed command below the `-p` is cp's, not mktemp's.
+f="$(tmpsh 'tmp=`mktemp` cp -p source target')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  ok "cp -p after a backtick-substituted portable mktemp is not flagged"
+else
+  fail "a closing backtick must end the option scan, got: $out"
+fi
+rm -f "$f"
+
+# --- ...without over-stopping: a `-p` INSIDE the backtick substitution is
+# mktemp's own and must keep flagging.
+f="$(tmpsh 'tmp=`mktemp -p "$d"`')"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "mktemp -p inside a backtick substitution must still be flagged: $out"
+else
+  ok "mktemp -p inside a backtick substitution is still flagged"
 fi
 rm -f "$f"
 

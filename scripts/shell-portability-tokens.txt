@@ -175,18 +175,26 @@ readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)
 # The gap excludes shell command separators (#1543): a physical line is not a
 # command, so `[^\n]*` walked past `;`/`&`/`|` and attributed a later command's
 # flag to mktemp — `tmp=$(mktemp); cp -p source "$tmp"` was reported even
-# though `-p` belongs to `cp`.
+# though `-p` belongs to `cp`. A CLOSING BACKTICK ends a command substitution
+# exactly as `)` ends `$(…)`, so it terminates the scan too: in
+# `` tmp=`mktemp` cp -p source target `` the `-p` is `cp`'s. The backtick is
+# already a boundary character in the `sort --sort=version` token above.
 #
-# Two spellings beyond the whitespace-delimited cluster, both equally
-# GNU-only (#1543):
-#   - ATTACHED value — GNU getopt takes the DIR argument joined to the cluster,
-#     `mktemp -p/tmp name.XXXXXX`. A boundary of `[[:space:]]|$` missed it
-#     entirely, so the cluster may instead be followed by any character that
-#     starts an attached value.
+# The short-option token carries NO trailing boundary, unlike the
+# argument-less `grep -P` / `sort -V` / `echo -e` tokens above. `-p` takes a
+# REQUIRED argument and GNU getopt accepts it ATTACHED to the cluster
+# (`mktemp -p/tmp`, `mktemp -prel/sub`), so the DIR value is an arbitrary
+# string — no character class both admits every attached value and excludes a
+# non-value, and the narrower forms tried in #1543 kept missing attached paths
+# whose first segment is alphabetic. Any `-<letters>p` inside one mktemp
+# command is a short-option cluster containing `-p`; a long option cannot
+# reach it, because `[[:space:]]-[A-Za-z]*p` cannot cross the second `-` of
+# `--`.
+#
 #   - LONG form — `--tmpdir[=DIR]`, documented as the equivalent of `-p`, needs
-#     its own alternative since it shares no short-cluster shape.
-mktemp[^;&|()\n]*[[:space:]]-[A-Za-z]*p([A-Za-z]*([[:space:]|&;()<>]|$)|[^A-Za-z[:space:]])
-mktemp[^;&|()\n]*[[:space:]]--tmpdir([[:space:]|&;()<>]|=|$)
+#     its own token since it shares no short-cluster shape.
+mktemp[^;&|()`\n]*[[:space:]]-[A-Za-z]*p
+mktemp[^;&|()`\n]*[[:space:]]--tmpdir([[:space:]|&;()<>]|=|$)
 
 # --- STAGED (commented until enabled — see #1510 for the enable trigger) ---
 #
