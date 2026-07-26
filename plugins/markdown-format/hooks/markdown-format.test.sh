@@ -1489,6 +1489,12 @@ emit "Summary: $n issues in 1 file"
 kinds="${STUB_RULE_KINDS:-2}"
 codes="MD013 MD032 MD022 MD031 MD040 MD041 MD047 MD009"
 set -- $codes
+# Fail loudly rather than expanding an out-of-range positional parameter, which
+# under `set -u` is a fatal unbound-variable abort several frames from the cause.
+if ((kinds > $#)); then
+  echo "stub: STUB_RULE_KINDS=$kinds exceeds the $# rule codes this stub knows" >&2
+  exit 2
+fi
 i=1
 while ((i <= n)); do
   if ((kinds <= 2)); then
@@ -1645,17 +1651,19 @@ if crlf_escaped "$SYS_RAW"; then
 else
   ok "bounded/crlf: systemMessage carries no carriage returns"
 fi
-# This one documents an invariant rather than guarding one, and saying so is the
-# point. `findings_raw` reaches the envelope through a pipe into `jq -R`, and on
-# Git Bash that pipe performs CRLF→LF translation itself — measured: with the
-# hook's normalization removed, the two assertions above fail while this one
-# still passes, because the array never carried a CR here in the first place. It
-# is kept because the invariant is real and a future refactor that stops piping
-# would make it load-bearing; it is labelled because an assertion that cannot
-# fail on the host that runs it must not be mistaken for coverage.
+# This one is labelled because its discriminating power is PLATFORM-DEPENDENT,
+# and an assertion whose strength varies by host must say so rather than be
+# taken for uniform coverage. `findings_raw` reaches the envelope through a pipe
+# into `jq -R`. Measured on a Windows jq build: with the hook's normalization
+# removed, the two assertions above fail while this one still passes — the CRs
+# are already gone by the time jq emits, so there was nothing here to catch.
+# That is NOT established for the Linux jq this repo's CI runs, which has no
+# text/binary mode distinction and is documented not to strip a trailing CR from
+# CRLF input; there this assertion may genuinely discriminate. Kept either way:
+# on Linux it guards, on Windows it documents.
 TEL_FINDINGS_RAW=$(jq -c '.data.findings' "$TELCR" 2>/dev/null)
 if [[ -n "$TEL_FINDINGS_RAW" ]] && ! crlf_escaped "$TEL_FINDINGS_RAW"; then
-  ok "bounded/crlf: telemetry data.findings carries no carriage returns (invariant, not discriminating on Git Bash)"
+  ok "bounded/crlf: telemetry data.findings carries no carriage returns (discriminating power is platform-dependent)"
 else
   fail "bounded/crlf: carriage returns leaked into data.findings: $TEL_FINDINGS_RAW"
 fi

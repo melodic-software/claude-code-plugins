@@ -10,17 +10,19 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
 - **Carriage returns are normalized once at the source instead of twice at the
   end.** `0.8.1` stripped `CTX` and `SYSMSG` after they were composed, leaving
   `findings_raw` — which becomes `data.findings` — reading the raw linter output.
-  A review called that a live leak on the telemetry channel; measurement says
-  otherwise, and the accurate version is worth recording: that array is built by
-  piping into `jq -R`, and on Git Bash the pipe performs CRLF→LF translation
-  itself, so the array never carried a CR. The normalization is kept anyway,
-  because relying on an incidental property of one platform's pipe behavior is
-  not something the next reader should have to rediscover, and because one strip
-  at the source replaces four downstream strips that would each have to be
-  remembered when a fifth consumer of this output appears. One consequence worth
-  naming: the delta digest is hashed over `findings_raw`, so every digest
-  recorded before this version invalidates once and produces one extra
-  full-detail report per file. Self-correcting, and not a regression.
+  A review called that a live leak on the telemetry channel; on Windows it is
+  not, and the behavior turns out to be platform-specific. That array is built by
+  piping into `jq -R`, and against a Windows jq build the carriage returns are
+  already gone by the time jq emits. That is not established for the Linux jq
+  this repository's CI runs, which has no text/binary mode distinction — there
+  the normalization may be exactly what keeps the array clean. Which is the
+  argument for normalizing at the source rather than downstream: a payload should
+  not depend on which platform's stdio implementation is reading it, and one
+  strip replaces four that would each have to be remembered when a fifth consumer
+  appears. One consequence worth naming: the delta digest is hashed over
+  `findings_raw`, so every digest recorded before this version invalidates once
+  and produces one extra full-detail report per file. Self-correcting, and not a
+  regression.
 - **The carriage-return test could not fail — twice, for two different reasons.**
   It grepped the report for `\r` while the stub that produced that report emitted
   plain LF, so it passed identically whether the stripping code existed or was

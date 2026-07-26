@@ -675,15 +675,21 @@ BASE="$(basename "$FILE")"
 # emitted document as a literal \r. Verified by removing this line: the report
 # and the user-channel message both regain \r escapes.
 #
-# The telemetry `data.findings` array is a different story, and the honest
-# version is worth recording. It is built by piping into `jq -R`, and on Git
-# Bash that pipe already performs CRLF→LF translation — so measurement shows
-# that array never carried a CR even without this line. Normalizing here does
-# not fix a demonstrated leak on that channel; it removes the payload's
-# dependence on an incidental property of one platform's pipe behavior, which is
-# not something the next reader should have to rediscover to reason about this
-# code. The single normalization also replaces four downstream strips that would
-# each have to be remembered when a fifth consumer of this output is added.
+# The telemetry `data.findings` array behaves differently, and the honest
+# version is worth recording because it is platform-specific. That array is
+# built by piping into `jq -R`, and measured against a WINDOWS jq build the CRs
+# are gone by the time jq emits — the reader appears to apply text-mode stdio
+# translation itself, so on that platform the array never carried a CR even
+# without this line. That is NOT established for a Linux jq, which has no
+# text/binary mode distinction and is documented not to strip a trailing CR from
+# CRLF input; there this line may well be what keeps the array clean. CI runs on
+# Linux, so the untested half is the half that gates merges.
+#
+# Which is precisely the argument for normalizing here rather than downstream:
+# the payload should not depend on which platform's stdio implementation is
+# reading it, and the next person should not have to work that out to reason
+# about this code. The single normalization also replaces four downstream strips
+# that would each have to be remembered when a fifth consumer is added.
 #
 # Side effect worth naming: `digest_now` below is hashed over `findings_raw`, so
 # this changes that hash. Every digest recorded before this version invalidates
