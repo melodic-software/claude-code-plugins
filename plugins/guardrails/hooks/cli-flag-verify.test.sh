@@ -226,7 +226,7 @@ assert_contains "bundled verifier missing → visible advisory (systemMessage)" 
   "bundled verifier missing"
 
 # ============================ TELEMETRY ====================================
-TEL="$(mktemp -p "$TEST_TMPDIR")"
+TEL="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
 SINK="$(make_sink "cat >\"$TEL\"")"
 tel_dir="$TEST_TMPDIR/fake-tel"
 mkdir -p "$tel_dir/cache"

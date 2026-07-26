@@ -48,7 +48,7 @@ git -C "$FAKE_REPO" commit --allow-empty -m init -q
 # single executable path, so tests point it at a stub script under $WORK.
 make_sink() {
   local s
-  s="$(mktemp -p "$WORK" sink.XXXXXX)"
+  s="$(mktemp "$WORK/sink.XXXXXX")"
   {
     printf '#!/usr/bin/env bash\n'
     printf '%s\n' "$1"
@@ -377,14 +377,14 @@ if printf '%s' "$PROG" | grep -q 'display notification (item 2 of argv)'; then o
 # Without jq the hook can neither classify the notification nor emit its
 # terminalSequence; the skip must surface via systemMessage (the Notification
 # event has no additionalContext channel) once per session.
-FAKEBIN="$(mktemp -d -p "$WORK" fakebin.XXXXXX)"
+FAKEBIN="$(mktemp -d "$WORK/fakebin.XXXXXX")"
 for t in bash git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink; do
   real_t="$(command -v "$t" 2>/dev/null)" || continue
   [[ -n "$real_t" ]] || continue
   printf '#!/bin/sh\nexec "%s" "$@"\n' "$real_t" >"$FAKEBIN/$t"
   chmod +x "$FAKEBIN/$t"
 done
-JQ_DATA="$(mktemp -d -p "$WORK" plugdata.XXXXXX)"
+JQ_DATA="$(mktemp -d "$WORK/plugdata.XXXXXX")"
 run_nojq() {
   (
     cd "$UNRELATED" || return 1

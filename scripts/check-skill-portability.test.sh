@@ -196,6 +196,25 @@ else
 fi
 rm -f "$f"
 
+# =============================================================================
+# awk operand disambiguation: a scanned file whose name is shaped like an
+# identifier=value assignment must not be silently dropped from the scan
+# (#1513, shared fix with check-shell-portability.sh's identical mechanism —
+# see #1531)
+# =============================================================================
+fx="$(mktemp -d)"
+mkdir -p "$fx/scripts"
+cp "$SCRIPT" "$fx/scripts/"
+printf 'diff against origin/main\n' >"$fx/FOO=bar.md"
+out="$(cd "$fx" && SKILL_PORTABILITY_TOKENS="$TEST_TOKENS" bash scripts/check-skill-portability.sh --paths "FOO=bar.md" 2>&1)"
+rc=$?
+if [[ "$rc" -ne 0 ]] && echo "$out" | grep -q 'COUPLING: FOO=bar\.md:1:'; then
+  ok "a filename shaped like identifier=value is scanned, not silently dropped by awk"
+else
+  fail "an identifier=value-shaped filename must be scanned, not dropped (rc=$rc): $out"
+fi
+rm -rf "$fx"
+
 # --- staged (commented) tokens stay inactive under the REAL token list -----
 f="$(mktemp --suffix=.md)"
 printf '%s\n' 'This agnostic skill mentions dotnet and raw.githubusercontent.com.' >"$f"

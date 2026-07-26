@@ -355,7 +355,7 @@ assert_exit "F1: home-is-checkout, project = subdir of home → exit 0" 0 "$RC"
 assert_silent "F1: home-checkout subdir → no stderr" "$OUT"
 
 # ============================ TELEMETRY ====================================
-TEL="$(mktemp -p "$TEST_TMPDIR")"
+TEL="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
 SINK="$(make_sink "cat >\"$TEL\"")"
 env HOOK_TELEMETRY_SINK="$SINK" CLAUDE_PROJECT_DIR="$TEST_TMPDIR" \
   bash "$HOOK" <<<"$(write_json "$FIXTURE" "cd ${LINUX_HOME}")" >/dev/null 2>&1 || true

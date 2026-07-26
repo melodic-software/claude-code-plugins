@@ -56,7 +56,7 @@ trap cleanup EXIT
 # single executable path, not a command-with-args, so tests point it at a stub.
 make_sink() {
   local s
-  s="$(mktemp -p "$WORK" sink.XXXXXX)"
+  s="$(mktemp "$WORK/sink.XXXXXX")"
   {
     printf '#!/usr/bin/env bash\n'
     printf '%s\n' "$1"
@@ -402,7 +402,7 @@ rm -f "$TELS"
 # Fake-bin dir of exec wrappers (no ruff): a repo with a governing Ruff config
 # but no binary must produce a visible once-per-session skip notice on both
 # channels, silent on the second run. jq removal then exercises the input gate.
-FAKEBIN="$(mktemp -d -p "$WORK" fakebin.XXXXXX)"
+FAKEBIN="$(mktemp -d "$WORK/fakebin.XXXXXX")"
 for t in bash jq git dirname basename cat env printf mktemp mkdir find tr awk grep sed uname sleep cygpath realpath readlink; do
   real_t="$(command -v "$t" 2>/dev/null)" || continue
   [[ -n "$real_t" ]] || continue
@@ -414,7 +414,7 @@ mkdir -p "$REPO_NR"
 git -C "$REPO_NR" init -q
 printf 'line-length = 88\n' >"$REPO_NR/.ruff.toml"
 printf 'x=1\n' >"$REPO_NR/app.py"
-NR_DATA="$(mktemp -d -p "$WORK" plugdata.XXXXXX)"
+NR_DATA="$(mktemp -d "$WORK/plugdata.XXXXXX")"
 run_nr() {
   (
     cd "$UNRELATED" || return 1
@@ -440,7 +440,7 @@ fi
 
 # jq-absent -> visible once-per-session notice (input parsing gate).
 rm -f "$FAKEBIN/jq"
-JQ_DATA="$(mktemp -d -p "$WORK" plugdata.XXXXXX)"
+JQ_DATA="$(mktemp -d "$WORK/plugdata.XXXXXX")"
 OUT_NOJQ=$(
   cd "$UNRELATED" || exit 1
   printf '{"session_id":"test-nojq-1","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO_NR/app.py" |

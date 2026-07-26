@@ -69,7 +69,7 @@ assert_silent "empty stdin is a no-op" "$out"
 # docs/conventions/hook-observability/: this hook previously emitted zero
 # telemetry on any path — repro-first, these cases fail against the pre-fix
 # hook (no HOOK_TELEMETRY_SINK-wired envelope ever appears) and pass after.
-TEL="$(mktemp -p "$TEST_TMPDIR")"
+TEL="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
 SINK="$(make_sink "cat >\"$TEL\"")"
 env HOOK_TELEMETRY_SINK="$SINK" CLAUDE_PROJECT_DIR="$TEST_TMPDIR" \
   bash "$HOOK" <<<"$(workflow_script_json 'await pipeline(FILES, s1)')" >/dev/null 2>&1
@@ -82,7 +82,7 @@ else
   bad "telemetry envelope never appeared (advisory path)"
 fi
 
-TEL2="$(mktemp -p "$TEST_TMPDIR")"
+TEL2="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
 SINK2="$(make_sink "cat >\"$TEL2\"")"
 env HOOK_TELEMETRY_SINK="$SINK2" CLAUDE_PROJECT_DIR="$TEST_TMPDIR" \
   bash "$HOOK" <<<"$(workflow_script_json 'const a = await agent("do x")')" >/dev/null 2>&1

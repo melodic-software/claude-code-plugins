@@ -145,7 +145,7 @@ OUT=$(bash "$HOOK" <<<"$(write_json "/repo/.venv-backup/creds.env" "x='$AWS_TOKE
 assert_exit ".venv-backup impostor → exit 2 (scanned)" 2 "$RC"
 
 # ============================ TELEMETRY ====================================
-TEL="$(mktemp -p "$TEST_TMPDIR")"
+TEL="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
 SINK="$(make_sink "cat >\"$TEL\"")"
 env HOOK_TELEMETRY_SINK="$SINK" CLAUDE_PROJECT_DIR="/repo" \
   bash "$HOOK" <<<"$(write_json "/repo/src/config.env" "config = '$AWS_TOKEN'")" >/dev/null 2>&1 || true
@@ -162,7 +162,7 @@ fi
 # --- basename only, so no username-bearing path lands in the envelope --------
 H="ho""me"
 ABS_FILE="/${H}/alice/secretproj/config.env"
-TELR="$(mktemp -p "$TEST_TMPDIR")"
+TELR="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
 SINKR="$(make_sink "cat >\"$TELR\"")"
 env HOOK_TELEMETRY_SINK="$SINKR" bash "$HOOK" \
   <<<"$(write_json "$ABS_FILE" "config = '$AWS_TOKEN'")" >/dev/null 2>&1 || true

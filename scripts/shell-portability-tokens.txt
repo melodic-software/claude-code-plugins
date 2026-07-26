@@ -128,8 +128,17 @@ sed[^\n]*-i[[:space:]]+[^[:space:]]
 # a `sed` COMMAND token (start of line or a non-identifier character before
 # it, whitespace after) — `-i` alone is common across tools (`grep -i`,
 # `sort -i`...), and a bare `sed` substring match would fire on identifiers
-# that merely contain those three letters (`used="$(grep -Ei ...)"`).
-(^|[^[:alnum:]_])sed([[:space:]][^\n]*)?[[:space:]]-[A-Za-z]*E[A-Za-z]*i([[:space:]]|$)
+# that merely contain those three letters (`used="$(grep -Ei ...)"`). Boundary
+# after the cluster widens to a control operator, a redirection, or a
+# subshell close — NOT a quote or backtick, unlike the sibling `sort -V` /
+# `grep -P` / `echo -e` tokens (#1537/#1546): a quote immediately following
+# `i` with no separating whitespace is exactly the attached-EMPTY-suffix
+# shape (`-Ei''`) deferred two paragraphs up, so including quotes in the
+# boundary would silently un-defer it by making `-Ei''` match at the `i`+`'`
+# junction. An operator-terminated form with no trailing whitespace
+# (`x=$(sed -Ei)`, `sed -Ei|cat`, `sed -Ei; echo done`) is still detected —
+# a whitespace-only boundary silently missed those (#1545).
+(^|[^[:alnum:]_])sed([[:space:]][^\n]*)?[[:space:]]-[A-Za-z]*E[A-Za-z]*i([[:space:]|&;()<>]|$)
 
 # `sed --in-place[=SUFFIX]` (GNU long-form spelling of `-i`) — BSD sed has no
 # long options at all, so this flags suffixed or not (unlike short `-i`, where
@@ -139,8 +148,13 @@ sed[^\n]*-i[[:space:]]+[^[:space:]]
 # `--perl-regexp` / `--version-sort`, the option name `--in-place` is not
 # unique to one tool (several formatters spell their own in-place flag that
 # way), so a bare token would flag a script that merely defines or forwards an
-# unrelated `--in-place` option of its own.
-(^|[^[:alnum:]_])sed([[:space:]][^\n]*)?[[:space:]]--in-place([[:space:]]|=|$)
+# unrelated `--in-place` option of its own. Same operator-terminated boundary
+# as the cluster token above (#1545) — no quote/backtick in the boundary
+# either, kept alongside the pre-existing `=` alternative for the
+# `--in-place=SUFFIX` attached-value form: `x=$(sed --in-place)`,
+# `sed --in-place|cat`, `sed --in-place; echo done` are now detected, not
+# only the whitespace- or `=`-terminated forms.
+(^|[^[:alnum:]_])sed([[:space:]][^\n]*)?[[:space:]]--in-place([[:space:]|&;()<>]|=|$)
 
 # `readlink -f` (canonicalize) — a GNU coreutils extension; BSD/macOS readlink
 # has no `-f`/`--canonicalize`. Auto-guarded when a `realpath` attempt is
@@ -225,17 +239,67 @@ readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)
 # `stat "$file-c"` pass no option at all and were being reported, and the same
 # anchor keeps `stat --dereference` out of the cluster branch.
 (^|[^A-Za-z0-9_-])stat[[:space:]]+([^;&|()\n]*[[:space:]])?(-[A-Za-z]*c|--format|--printf)
+# `mktemp -p` (parent-directory flag) — a GNU coreutils extension; BSD/macOS
+# mktemp has no `-p`. The portable replacement embeds the directory in the
+# positional TEMPLATE argument instead (`mktemp "$DIR/prefix.XXXXXX"`), which
+# both dialects accept identically — see #1527, which migrated the corpus's
+# shared hook-test-scaffolding sites off `-p` before this class went active.
+# `p` may appear anywhere in a combined short-option cluster (`-dp`, `-pd`),
+# not only as a standalone `-p`.
+#
+# The gap excludes shell command separators (#1543): a physical line is not a
+# command, so `[^\n]*` walked past `;`/`&`/`|` and attributed a later command's
+# flag to mktemp — `tmp=$(mktemp); cp -p source "$tmp"` was reported even
+# though `-p` belongs to `cp`. A CLOSING BACKTICK ends a command substitution
+# exactly as `)` ends `$(…)`, so it terminates the scan too: in
+# `` tmp=`mktemp` cp -p source target `` the `-p` is `cp`'s. The backtick is
+# already a boundary character in the `sort --sort=version` token above.
+#
+# The short-option token carries NO trailing boundary, unlike the
+# argument-less `grep -P` / `sort -V` / `echo -e` tokens above. `-p` takes a
+# REQUIRED argument and GNU getopt accepts it ATTACHED to the cluster
+# (`mktemp -p/tmp`, `mktemp -prel/sub`), so the DIR value is an arbitrary
+# string — no character class both admits every attached value and excludes a
+# non-value, and the narrower forms tried in #1543 kept missing attached paths
+# whose first segment is alphabetic. Any `-<letters>p` inside one mktemp
+# command is a short-option cluster containing `-p`; a long option cannot
+# reach it, because `[[:space:]]-[A-Za-z]*p` cannot cross the second `-` of
+# `--`.
+#
+#   - LONG form — `--tmpdir[=DIR]`, documented as the equivalent of `-p`, needs
+#     its own token since it shares no short-cluster shape.
+#
+# Both are anchored to the mktemp COMMAND TOKEN (#1543): `-p` and `--tmpdir`
+# are GNU mktemp's flags, not a flag of every command whose name merely
+# contains "mktemp". Without a leading boundary and the whitespace that must
+# follow the name, `mktemp_wrapper -p /tmp`, `mktempfoo -p /tmp` and
+# `xmktemp --tmpdir=/tmp` all failed the gate.
+#
+# The boundary is defined by SHELL WORD POSITION, not by enumerating which
+# characters a command name may contain — that enumeration cannot be
+# completed, since `+` and `@` are as legal in a name as `-` and `.`. What
+# precedes the real command is instead one of: line start, whitespace, a
+# control operator/redirection/substitution character, a QUOTE (the name
+# itself may be quoted: `'mktemp' -p /tmp`), or `/` (a path separator rather
+# than part of the name, so `/usr/bin/mktemp -p /tmp` is the same GNU-only
+# call and must keep failing). Anything else — `safe-mktemp`, `safe+mktemp`,
+# `safe@mktemp`, `my.mktemp`, `my_mktemp` — is a different command.
+#
+# The optional quote AFTER the name closes the `"…/mktemp" -p` spelling; the
+# whitespace that must follow it is what rejects a run-together suffix such as
+# `mktempfoo`.
+(^|[[:space:]'"`;&|()<>/])mktemp['"]?([[:space:]][^;&|()`\n]*)?[[:space:]]-[A-Za-z]*p
+(^|[[:space:]'"`;&|()<>/])mktemp['"]?([[:space:]][^;&|()`\n]*)?[[:space:]]--tmpdir([[:space:]|&;()<>]|=|$)
 
-# --- STAGED (commented until enabled — see #1528 for the enable trigger) ---
+# --- STAGED (commented until enabled) ---
+#
+# No class is staged today: `date -d` and `stat -c` went active in #1544 and
+# `mktemp -p` in #1543, which between them drained the section. The checklist
+# stays because it is the contract for adding the next one, and because
+# check-shell-portability.sh points here for it.
 #
 # Before enabling ANY staged class below:
 #   - Audit and EXTEND is_guarded() in check-shell-portability.sh with the
 #     co-located-BSD-counterpart marker the new class needs (mirroring the
 #     readlink -f / realpath guard above) — or migrate/opt-out the corpus
 #     sites an `--all` audit surfaces first.
-#   - `mktemp -p`: ~24 files / ~56 call sites today, all shared
-#     test-scaffolding (`mktemp -p "$WORK" sink.XXXXXX`), none with a
-#     BSD-portable counterpart (BSD mktemp has no `-p`; the portable form is
-#     `mktemp "$WORK/sink.XXXXXX"`) — a real migration effort spanning ~13
-#     plugins' release surface, tracked separately: #1528.
-# mktemp[^\n]*[[:space:]]-p([[:space:]]|$)

@@ -195,7 +195,7 @@ run "kill switch off → no-op despite --no-verify" "git commit --no-verify -m t
   CLAUDE_PLUGIN_OPTION_BLOCK_NO_VERIFY_ENABLED=false
 
 # --- Telemetry: block emits a `blocked` envelope ----------------------------
-TEL="$(mktemp -p "$TEST_TMPDIR")"
+TEL="$(mktemp "$TEST_TMPDIR/tmp.XXXXXXXXXX")"
 SINK="$(make_sink "cat >\"$TEL\"")"
 env HOOK_TELEMETRY_SINK="$SINK" CLAUDE_PROJECT_DIR="$TEST_TMPDIR" \
   bash "$HOOK" <<<"$(command_json 'git commit --no-verify -m test')" >/dev/null 2>&1 || true
