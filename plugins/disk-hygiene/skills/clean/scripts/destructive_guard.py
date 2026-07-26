@@ -1052,14 +1052,6 @@ def main() -> int:
             f"destructive_guard: internal error, denying by default "
             f"({type(exc).__name__}: {exc})"
         )
-        # stdout gets the same treatment as a broken stderr, and for the same
-        # reason. A closed stdout pipe makes `_decide`'s decision `print` raise
-        # into this handler; the partially-written JSON stays buffered, the
-        # shutdown flush of it fails, and CPython replaces this deliberate `2`
-        # with `120` — non-blocking, destructive command runs. Nothing on
-        # stdout is wanted on the exit-2 path anyway, so discarding it costs
-        # nothing and keeps the deny.
-        _discard_stream(sys.stdout)
         return 2
     finally:
         # `watchdog` stays None if construction itself raised; cancelling an
