@@ -117,6 +117,32 @@ of the ladder with a warning, never a hard stop. Tolerant reading has a known ed
 key (`check_cmd` for `check-cmd`) passes the default schema check as an inert unknown key — repos
 that want typo protection run `check-jsonschema --no-additional-properties` in their gate.
 
+### Gate execution scope
+
+A `gates[]` item's `cmd` runs, by default (`run-from: ecosystem`, the implicit default when the key
+is omitted), from the same location the ecosystem's own `build-cmd`/`test-cmd`/`check-cmd` use: once
+per `project-discovery` root, the `anchor`'s directory, or `$REPO_ROOT` when the ecosystem defines
+neither — unchanged from pre-`run-from` behavior. Set `run-from: repo-root` to force a single run
+from `$REPO_ROOT` regardless of the ecosystem's `project-discovery` or `anchor`, for a repo-wide
+check (protobuf generation, schema freshness) declared under a `project-discovery` ecosystem that
+would otherwise run once per discovered project root — redundantly at best, failing in roots that
+lack its config at worst. Under `run-from: repo-root`, a `cmd` using the `<files>` placeholder gets
+the full ecosystem-scoped changed-files set (the same base definition the placeholder table above
+gives), not one project's subset — there is no single project root left to scope it to.
+
+For the same reason, `<project-dir>` is **undefined** under `run-from: repo-root`: a single run has
+no one project root to bind it to, and both plausible fallbacks — picking a root arbitrarily, or
+iterating them — contradict the single-run guarantee the key exists to give. A gate `cmd` that uses
+`<project-dir>` while declaring `run-from: repo-root` is a configuration error; a resolver reports it
+as a failure naming the gate and the unresolvable placeholder rather than guessing an expansion. Such
+a gate is per-project by construction and belongs on the `ecosystem` default.
+
+`run-from` is canonical-verb metadata, not a context binding: like `anchor`
+and `project-discovery` (which already fix a gate's default execution location per repo), it is a
+repo-invariant fact about *this* gate's `cmd` that every execution surface must agree on, not a
+per-surface wrapper choice — so it belongs in the ecosystem file alongside them, not in a consuming
+surface's own config.
+
 ## Task-runner deferral (recorded decision)
 
 A task-runner verb SSOT (go-task / just / `lefthook run` wrappers) was evaluated and **deferred**:

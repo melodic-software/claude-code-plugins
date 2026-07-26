@@ -406,6 +406,7 @@ doc before a second plugin adopts it. Fleet audits check conformance per row.
 | Loop-lane topology, escalation, capability tiers, loop invariants | [`docs/conventions/loop-lane/`](conventions/loop-lane/README.md) |
 | Shell test-helper duplication and exit-code divergence | [`docs/conventions/shell-test-helpers/`](conventions/shell-test-helpers/README.md) |
 | Finding suppression (deliberately-kept audit findings) | [`docs/conventions/finding-suppression/`](conventions/finding-suppression/README.md) |
+| Fresh-eyes declaration pattern contract | `skill-quality` plugin (`skills/check/reference/fresh-eyes-declarations.md`) |
 
 ## Cross-platform contract
 
@@ -442,10 +443,11 @@ per concern, cross-platform operation, and stress-testing before presentation.
 ## Fresh-eyes checkpoints
 
 A context that produced work is structurally the weakest place to judge that work: the reasoning that
-made a mistake plausible is still active, so a self-check inherits the bias. A named subagent removes
-it — it starts in its own fresh context window, blind to the reasoning under review. A fork does not: it
-inherits the parent session's full conversation history, so it carries the same bias forward
-([subagents](https://code.claude.com/docs/en/sub-agents), verified 2026-07-18).
+made a mistake plausible is still active, so a self-check inherits the bias. A fresh-context (non-fork)
+subagent — generic or named — removes it: it starts in its own fresh context window, blind to the
+reasoning under review. A fork does not: it inherits the parent session's full conversation history, so
+it carries the same bias forward
+([subagents](https://code.claude.com/docs/en/sub-agents), verified 2026-07-22).
 
 The rule: **a skill step whose output judges work produced in the same context delegates that judgment
 to a fresh-context (non-fork) subagent** — a named subagent that starts with a fresh context window, not
@@ -482,6 +484,82 @@ pass gates behavior and the conventions its linters encode, not scope creep or t
 unchecked; self-judging those stays the same-context judgment the rule targets even when a deterministic gate
 sits downstream. A step that self-reviews both is exempt only for the gated part — the rest is still owed a
 fresh-context pass.
+
+## Delegation mechanics
+
+How a fresh-eyes checkpoint dispatches. The mechanics live here once; a checkpoint site states its
+judgment and its target, never re-derives these rules.
+
+### Dispatch ladder
+
+The default worker is a **generic fresh-context subagent carrying rich inline instructions** — the
+task, the artifact, the criteria, and the output shape all travel in the dispatch prompt. A subagent
+starts with a fresh, isolated context window and does not see the parent conversation
+([subagents](https://code.claude.com/docs/en/sub-agents), verified 2026-07-22), which is exactly the
+independence the checkpoint buys. A skill may prefer an installed **named agent** on the next rung —
+but only when the named-agent bar below is met, and the site always states the generic fallback
+(presence-gate-plus-fallback, [seam phrasing](conventions/seam-phrasing/README.md)). The top rung, for
+high-stakes verdicts where correlated model blind spots are the risk, is a **cross-vendor advisor**
+when one is installed — same presence-gate shape, same generic fallback.
+
+### Inline-template conventions
+
+A dispatch prompt at any rung:
+
+- says **fresh-context** work is expected — the worker judges the artifact it is handed, with no
+  access to the reasoning that produced it;
+- hands over the **artifact, not the story** — the diff, file, or plan itself, never the authoring
+  session's rationale, which would re-import the bias being removed;
+- **degrades when absent** — a preferred named agent or advisor that is not installed routes to the
+  generic fresh-context subagent, never to a command that may not resolve.
+
+### Named-agent bar
+
+A named agent is earned, not default: **the same worker with the same instructions dispatches from
+multiple sites (or repeats via description-triggered direct invocation) AND a model pin or an
+enforced tool restriction is load-bearing.** Otherwise the generic subagent with inline instructions
+is the simpler, equally independent form. On tool cages: an allowlist that includes Bash bars
+Edit/Write and recursive spawning but is **not read-only** — Bash can write; state what the cage
+actually enforces, never "read-only" ([plugin agents support `tools` frontmatter](https://code.claude.com/docs/en/plugins-reference),
+verified 2026-07-22).
+
+### Model tiers
+
+The ladder is relative to the session: **a consequential verdict runs at the session-model tier or
+above, never below; tedious or mechanical preparation may drop one tier.** The heavy default must be
+explicit — an agent definition that omits `model` defaults to `inherit`, the main conversation's
+model ([subagents: model resolution](https://code.claude.com/docs/en/sub-agents#choose-a-model),
+verified 2026-07-22; frontmatter accepts `sonnet`, `opus`, `haiku`, `fable`, a full model ID, or
+`inherit`). Consumers hold one global override knob: `CLAUDE_CODE_SUBAGENT_MODEL`, set via the
+settings `env` map, which overrides both the per-invocation `model` parameter and frontmatter
+([model config: environment variables](https://code.claude.com/docs/en/model-config#environment-variables),
+verified 2026-07-22; `env` applies to every session and spawned subprocess,
+[settings](https://code.claude.com/docs/en/settings), verified 2026-07-22). There is no per-plugin
+model seam — plugin `userConfig` declares only generic typed options with no model semantics
+([plugins reference: user configuration](https://code.claude.com/docs/en/plugins-reference#user-configuration),
+verified 2026-07-22) — so doctrine travels by authoring-time conformance in each skill, not runtime
+configuration.
+
+Tier-to-model mapping, dated 2026-07-22 (recheck trigger: a new Claude model family reaches GA, or
+the session default model changes):
+
+| Tier | Model (2026-07-22) |
+|---|---|
+| Consequential verdict (session tier or above) | Fable 5 / Opus 4.8 |
+| Mechanical prep, one tier down | Sonnet 5 |
+| Bulk mechanical sweeps | Haiku 4.5 |
+
+### Declared patterns
+
+Conformance is declared in the skill text itself, in one of two greppable forms: **delegation
+wording** (the POSIX ERE `fresh[- ]context` on a line that also names the worker or dispatch,
+plus the ladder conventions above) or an **exemption directive** (`<!-- fresh-eyes-exempt: <class> -- <reason> -->`, closed class set
+`deterministic-gate` | `external-input` | `deferred`). The mechanical contract — grammar, classes,
+canonical wording, check semantics — is owned by the `skill-quality` plugin
+(`skills/check/reference/fresh-eyes-declarations.md`), where the conformance check points third-party
+authors; this section carries the rationale and defers the spec there (convention-registry row
+above). The declaration anchors in each skill's own scanned files even when the judgment mechanics
+live in a plugin-level shared spoke — the generic checker cannot assume a plugin layout.
 
 ## Authoritative references
 

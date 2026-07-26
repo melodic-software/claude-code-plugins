@@ -679,6 +679,15 @@ jobs:
         with:
           schemafile: plugins/skill-quality/reference/evals.schema.json
           files: plugins/*/skills/*/evals/evals.json
+      - name: Test the shared listing-budget reporter
+        run: bash plugins/skill-quality/scripts/check-listing-budget.test.sh
+      # Report-only (always exit 0 — see the script's own header): pools every
+      # plugin's skills root into ONE shared aggregate, the shape a consumer who
+      # installs the whole marketplace actually experiences. Runs on every
+      # event, unlike the PR-diff-gated step above, since the aggregate is a
+      # whole-repo property, not a per-change one.
+      - name: Report the shared skill-listing budget across every plugin
+        run: bash plugins/skill-quality/scripts/check-listing-budget.sh plugins/*/skills
 
   # Portability lint: skills declared ecosystem/forge/tracker-agnostic must not
   # ship bare hardcoded stack/forge/branch/tracker defaults — the coupling class
