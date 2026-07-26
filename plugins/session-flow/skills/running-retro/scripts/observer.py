@@ -49,13 +49,7 @@ def now_ts() -> str:
 
 
 _PREVIEW_LIMIT = 80  # bounded per-call arg/result preview -- see _preview()
-_TRUNC_MARKER = "..."  # trailing marker on a cut preview -- see _preview(). ASCII
-# on purpose: this string round-trips through the headless analysis run's stdin
-# (`subprocess.run(..., input=prompt, text=True)`, no explicit `encoding=` on
-# this call today), which encodes with the platform's default text encoding --
-# a non-ASCII marker would risk a `UnicodeEncodeError` outside the retained
-# `except (TimeoutExpired, OSError)` handling on a code page that can't
-# represent it.
+_NARRATION_LIMIT = 160  # bounded `say`/`human` narration -- see _bounded()
 _ID_TAIL_LEN = 8  # bounded id correlation key -- see _short_id()
 
 
@@ -78,8 +72,22 @@ def _short_id(value: object) -> object:
     return s[-_ID_TAIL_LEN:] if len(s) > _ID_TAIL_LEN else s
 
 
-def _preview(value: object, limit: int = _PREVIEW_LIMIT) -> str:
-    """Bounded, compact string preview of a tool-call input or result value.
+def _bounded(text: str, limit: int) -> tuple[str, bool]:
+    """Cut `text` to `limit`, reporting whether it was cut.
+
+    The flag is out-of-band on purpose. An in-band trailing marker cannot be
+    told apart from a value that genuinely ends in those characters (a tool
+    result reading `Processing complete...` is not truncated), and the analysis
+    prompt keys its unknown-vs-absent dependency rule off this signal -- so an
+    ambiguous one either suppresses a computable finding or licenses an
+    asserted-and-wrong one, depending on which way it is misread.
+    """
+    return (text, False) if len(text) <= limit else (text[:limit], True)
+
+
+def _preview(value: object, limit: int = _PREVIEW_LIMIT) -> tuple[str, bool]:
+    """Bounded, compact preview of a tool-call input or result value, paired
+    with whether it was cut (see `_bounded`).
 
     Token-cheap by design, matching this module's other truncated fields (`say`,
     `human`): never the full value, just enough of it for a headless dependency
@@ -95,15 +103,13 @@ def _preview(value: object, limit: int = _PREVIEW_LIMIT) -> str:
     preview keeps recognizable keys/values (e.g. a `file_path`) instead of
     Python's `repr` spacing.
 
-    A cut preview ends in `_TRUNC_MARKER` -- a silent slice would make a
-    dependency-bearing value that happens to fall past the limit look like a
-    clean "no match" (no dependency) rather than "unknown, wasn't in the
-    preview," which would let the analysis prompt assert independence it
-    cannot actually compute. The marker lets the prompt tell the two apart and
-    drop the claim instead, per this module's compute-don't-assert contract.
+    The cut flag is what lets the analysis prompt tell "no dependency in this
+    value" from "the dependency may be past the preview" and drop the claim
+    instead of asserting independence it cannot compute -- this module's
+    compute-don't-assert contract.
     """
     if value is None:
-        return ""
+        return "", False
     if isinstance(value, str):
         s = value
     elif isinstance(value, list):
@@ -116,10 +122,7 @@ def _preview(value: object, limit: int = _PREVIEW_LIMIT) -> str:
         s = _compact_json(value)
     else:
         s = str(value)
-    s = s.strip()
-    if len(s) <= limit:
-        return s
-    return s[:max(limit - len(_TRUNC_MARKER), 0)] + _TRUNC_MARKER
+    return _bounded(s.strip(), limit)
 
 
 def _compact_json(value: object) -> str:
@@ -127,6 +130,23 @@ def _compact_json(value: object) -> str:
         return json.dumps(value, separators=(",", ":"), default=str)
     except (TypeError, ValueError):
         return str(value)
+
+
+def _call_entry(short_id: object, key: str, value: object) -> dict:
+    """One `calls`/`results` entry: correlation id, bounded preview, cut flag."""
+    text, cut = _preview(value)
+    entry = {"id": short_id, key: text}
+    if cut:
+        entry["cut"] = True
+    return entry
+
+
+def _set_narration(out: dict, key: str, text: str) -> None:
+    """Write a bounded `say`/`human` narration and its `<key>_cut` flag."""
+    bounded, cut = _bounded(text, _NARRATION_LIMIT)
+    out[key] = bounded
+    if cut:
+        out[f"{key}_cut"] = True
 
 
 def summarize_record(rec: dict) -> dict:
@@ -148,9 +168,11 @@ def summarize_record(rec: dict) -> dict:
         own API message id (see `_short_id`), when the raw record carries one.
         Tool-use events sharing one `mid` came from the SAME assistant turn
         (their calls were batched into one API call, however many transcript
-        records that turn spans); events with different `mid`s -- or no `mid`
-        at all, which happens when the raw record didn't carry one -- ran as
-        separate, sequential turns.
+        records that turn spans); events with DIFFERENT `mid`s ran as separate,
+        sequential turns. A MISSING `mid` (the raw record carried no id) is
+        neither -- it makes that pair's ordering uncomputable, and the analysis
+        prompt must drop the claim rather than read the absent key as evidence
+        of sequential execution.
       - `calls` / `results`: a bounded preview of each tool call's input and
         each tool result's output, keyed by the call's own bounded id (the
         result's key is its `tool_use_id`), so a later call's input can be
@@ -160,6 +182,12 @@ def summarize_record(rec: dict) -> dict:
         NOT also emitted -- `len(results)` already carries it, and doubling
         the count into two fields is dead cost the token-cheap contract can't
         justify.
+
+    Every bounded field pairs with an out-of-band cut flag when it was
+    truncated -- `cut` on a `calls`/`results` entry, `say_cut`/`human_cut`
+    beside the narration -- so the analysis prompt can tell "the dependency
+    isn't there" from "the dependency may be past the cut". The flag is
+    omitted, never set false, when nothing was cut.
     """
     t = rec.get("type")
     out: dict = {"t": t, "ts": rec.get("timestamp")}
@@ -172,32 +200,31 @@ def summarize_record(rec: dict) -> dict:
                         if isinstance(c, dict) and c.get("type") == "text")
         if tool_uses:
             out["tools"] = [c.get("name") for c in tool_uses]
-            out["calls"] = [{"id": _short_id(c.get("id")),
-                             "in": _preview(c.get("input"))}
+            out["calls"] = [_call_entry(_short_id(c.get("id")), "in", c.get("input"))
                             for c in tool_uses]
             mid = _short_id(msg.get("id"))
             if mid is not None:
                 out["mid"] = mid
         if text.strip():
-            out["say"] = text.strip()[:160]
+            _set_narration(out, "say", text.strip())
         if msg.get("stop_reason"):
             out["stop_reason"] = msg["stop_reason"]
     elif t == "user":
         msg = rec.get("message") or {}
         content = msg.get("content")
         if isinstance(content, str):
-            out["human"] = content[:160]
+            _set_narration(out, "human", content)
         elif isinstance(content, list):
             tool_results = [c for c in content
                             if isinstance(c, dict) and c.get("type") == "tool_result"]
             humans = [c.get("text", "") for c in content
                       if isinstance(c, dict) and c.get("type") == "text"]
             if tool_results:
-                out["results"] = [{"id": _short_id(c.get("tool_use_id")),
-                                   "out": _preview(c.get("content"))}
-                                  for c in tool_results]
+                out["results"] = [
+                    _call_entry(_short_id(c.get("tool_use_id")), "out", c.get("content"))
+                    for c in tool_results]
             if humans and any(h.strip() for h in humans):
-                out["human"] = " ".join(humans).strip()[:160]
+                _set_narration(out, "human", " ".join(humans).strip())
     elif t == "system":
         out["subtype"] = rec.get("subtype")
         if rec.get("subtype") == "stop_hook_summary":
@@ -780,29 +807,38 @@ delegation, or an occurrence count -- MUST be computed from these observation fi
 you write it, never asserted from a narrative impression of the "say"/"human" text. Derive \
 an ordering or batching claim (e.g. "ran sequentially," "no subagent delegation") by \
 grouping an assistant event's tool calls by its "mid" field (the transcript's own API \
-message id): events sharing one "mid" ran as ONE batched turn; events with different \
-"mid"s -- or with no "mid" at all, which happens when the raw record didn't carry one, \
-making that pair's ordering uncomputable -- ran as separate, sequential turns. Derive a \
+message id): events sharing one "mid" ran as ONE batched turn; events with DIFFERENT \
+"mid"s ran as separate, sequential turns. An event with NO "mid" at all -- the raw record \
+carried no id -- is neither: that pair's ordering is UNCOMPUTABLE and the claim must be \
+dropped. A missing grouping key is never evidence of sequential execution. Derive a \
 delegation claim from the "tools" field, which carries each event's tool-call names: a \
 subagent delegation appears there as a "Task"/"Agent" tool name. Derive an occurrence count \
 backing an "Emerging pattern" finding by actually counting matched occurrences. Before \
 routing a computed sequential/unbatched pair as a missed-batching Efficiency finding, check \
-for a genuine dependency between the calls: compare each assistant event's "calls[].in" \
-preview against the "results[].out" previews of the user events between them (matched by \
-the result's "id" to the EARLIER call's own "calls[].id", to identify which prior call each \
-result belongs to) for a data dependency (a later call's input referencing an earlier \
-call's output), and read the surrounding "say" narration for an evident control, resource, \
-or side-effect dependency (a directory created before a file is written into it, an edit \
-made before a test that exercises it runs). A correctly computed sequencing fact is not by \
-itself proof of a missed batching opportunity: a pair that was genuinely dependent was \
-correctly sequential, not a miss. A "calls[].in" or "results[].out" preview ending in \
-"{_TRUNC_MARKER}" was CUT, not empty -- a value past character {_PREVIEW_LIMIT} may still \
-be there; treat a truncated preview as an UNKNOWN dependency check, never as a clean "no \
-match" that licenses the missed-batching finding. When you cannot compute a structural \
-claim from these fields -- grouping key absent, occurrences not actually countable, or the \
-only preview that could show a dependency was truncated -- drop the claim rather than \
-assert it uncomputed: an asserted-and-wrong structural claim routes as if verified and is \
-worse than a missed finding.
+for a genuine dependency between the calls, in all three of these places -- any one of them \
+is enough to make the pair correctly sequential: (a) DATA -- compare the later assistant \
+event's "calls[].in" preview against the "results[].out" previews of the user events \
+between them (matched by the result's "id" to the EARLIER call's own "calls[].id", to \
+identify which prior call each result belongs to), for a later input referencing an earlier \
+output; (b) RESOURCE/SIDE-EFFECT -- compare the EARLIER call's own "calls[].in" preview \
+against the later call's "calls[].in", for a resource the earlier call creates or mutates \
+that the later one names (a shared path, directory, file, or url). A side-effecting call \
+often returns nothing and narrates nothing, so its result preview is empty and (a) alone \
+would read the pair as independent; (c) NARRATION -- read the surrounding "say" text for an \
+evident control, resource, or side-effect dependency (an edit made before a test that \
+exercises it runs). A correctly computed sequencing fact is not by itself proof of a missed \
+batching opportunity: a pair that was genuinely dependent was correctly sequential, not a \
+miss. Any preview or narration whose own event carries a cut flag was CUT, not empty -- a \
+"calls"/"results" entry with "cut": true holds only the first {_PREVIEW_LIMIT} characters \
+of that value, and an event with "say_cut": true or "human_cut": true holds only the first \
+{_NARRATION_LIMIT} characters of that narration; the rest may carry the dependency. Treat \
+every check that rests on a cut value as an UNKNOWN dependency check, never as a clean "no \
+match" that licenses the missed-batching finding. Absence of a cut flag means the value is \
+complete -- judge only by the flag, never by how a preview happens to end. When you cannot \
+compute a structural claim from these fields -- grouping key absent, occurrences not \
+actually countable, or every value that could show a dependency was cut -- drop the claim \
+rather than assert it uncomputed: an asserted-and-wrong structural claim routes as if \
+verified and is worse than a missed finding.
 
 Inputs (absolute):
 - Distilled observations (pre-filtered event stream, one JSON event per line): {observations}

@@ -199,10 +199,10 @@ class Distillation(unittest.TestCase):
         self.assertLessEqual(len(big["calls"][0]["in"]), observer._PREVIEW_LIMIT)
 
     def test_preview_helper(self):
-        self.assertEqual(observer._preview(None), "")
-        self.assertEqual(observer._preview("  hi  "), "hi")
-        self.assertEqual(observer._preview({"a": 1}), '{"a":1}')
-        self.assertLessEqual(len(observer._preview("y" * 500, limit=10)), 10)
+        self.assertEqual(observer._preview(None), ("", False))
+        self.assertEqual(observer._preview("  hi  "), ("hi", False))
+        self.assertEqual(observer._preview({"a": 1}), ('{"a":1}', False))
+        self.assertEqual(observer._preview("y" * 500, limit=10), ("y" * 10, True))
 
     def test_preview_extracts_text_from_content_block_list(self):
         """A real tool_result.content is a list of blocks about as often as a
@@ -211,25 +211,53 @@ class Distillation(unittest.TestCase):
         `{"type":"text","text":...}` syntax instead of the actual content."""
         self.assertEqual(
             observer._preview([{"type": "text", "text": "hello world"}]),
-            "hello world")
+            ("hello world", False))
 
     def test_preview_list_with_no_text_blocks_falls_back_to_json(self):
         """A block list with nothing extractable (e.g. only an image block)
         still gets SOME preview rather than an empty string."""
-        preview = observer._preview([{"type": "image", "source": "x"}])
+        preview, _ = observer._preview([{"type": "image", "source": "x"}])
         self.assertIn("image", preview)
 
-    def test_preview_untruncated_value_has_no_marker(self):
-        self.assertEqual(observer._preview("short"), "short")
-        self.assertFalse(observer._preview("short").endswith(observer._TRUNC_MARKER))
+    def test_untruncated_entry_omits_cut_flag(self):
+        out = observer.summarize_record({"type": "assistant", "message": {
+            "id": "msg_1", "content": [
+                {"type": "tool_use", "id": "call_1", "name": "Bash",
+                 "input": {"command": "ls"}}]}})
+        self.assertNotIn("cut", out["calls"][0])
 
-    def test_preview_truncated_value_ends_in_marker(self):
+    def test_truncated_entry_carries_cut_flag(self):
         """A cut preview must be DISTINGUISHABLE from a short, complete one -- a
         silent slice would make a dependency-bearing value past the limit look
         like a clean 'no match' rather than 'unknown', see #1485 Codex review."""
-        cut = observer._preview("y" * 500, limit=10)
-        self.assertEqual(len(cut), 10)
-        self.assertTrue(cut.endswith(observer._TRUNC_MARKER))
+        out = observer.summarize_record({"type": "assistant", "message": {
+            "id": "msg_1", "content": [
+                {"type": "tool_use", "id": "call_1", "name": "Write",
+                 "input": {"content": "x" * 10_000}}]}})
+        self.assertTrue(out["calls"][0]["cut"])
+        self.assertEqual(len(out["calls"][0]["in"]), observer._PREVIEW_LIMIT)
+
+    def test_value_ending_in_ellipsis_is_not_reported_cut(self):
+        """An in-band trailing marker is ambiguous: a complete tool result that
+        naturally ends in `...` would read as truncated and wrongly suppress an
+        otherwise computable sequencing finding, see #1485 Codex review. The
+        cut signal is out-of-band, so a literal trailing `...` is just text."""
+        u = observer.summarize_record({"type": "user", "message": {
+            "content": [{"type": "tool_result", "tool_use_id": "call_1",
+                         "content": "Processing complete..."}]}})
+        self.assertEqual(u["results"][0]["out"], "Processing complete...")
+        self.assertNotIn("cut", u["results"][0])
+
+    def test_narration_cut_flag(self):
+        """The dependency check reads `say` for a control/resource/side-effect
+        dependency, so a silently cut narration would read as showing none."""
+        short = observer.summarize_record({"type": "assistant", "message": {
+            "id": "msg_1", "content": [{"type": "text", "text": "brief"}]}})
+        self.assertNotIn("say_cut", short)
+        long = observer.summarize_record({"type": "assistant", "message": {
+            "id": "msg_2", "content": [{"type": "text", "text": "z" * 500}]}})
+        self.assertTrue(long["say_cut"])
+        self.assertEqual(len(long["say"]), observer._NARRATION_LIMIT)
 
     def test_mid_preserved_for_falsy_but_not_none_id(self):
         """`mid` must be omitted only when the record truly carries none -- a
@@ -298,8 +326,8 @@ class AnalysisPrompt(unittest.TestCase):
         the raw record had one -- so the prompt must still say that an ABSENT
         grouping key makes the claim uncomputable rather than licensing an
         assertion from impression."""
-        self.assertIn('no "mid" at all', self.prompt)
-        self.assertIn("uncomputable", self.prompt)
+        self.assertIn('NO "mid" at all', self.prompt)
+        self.assertIn("UNCOMPUTABLE", self.prompt)
         rec = observer.summarize_record(
             {"type": "assistant",
              "message": {"content": [{"type": "tool_use", "name": "Read"}]}})
@@ -329,12 +357,31 @@ class AnalysisPrompt(unittest.TestCase):
         self.assertIn('"results', self.prompt)
         self.assertIn("dependency", self.prompt)
 
-    def test_references_truncation_marker_as_unknown_not_absent(self):
-        """A truncated preview must be treated as UNKNOWN, never a clean 'no
-        dependency' -- otherwise the silent-slice gap Codex flagged reproduces
-        the exact asserted-and-wrong finding this whole prompt exists to stop."""
-        self.assertIn(observer._TRUNC_MARKER, self.prompt)
+    def test_references_cut_flags_as_unknown_not_absent(self):
+        """A cut value must be treated as UNKNOWN, never a clean 'no dependency'
+        -- otherwise the silent-slice gap Codex flagged reproduces the exact
+        asserted-and-wrong finding this whole prompt exists to stop. The rule
+        must key off the out-of-band flags, not off how a preview ends."""
+        self.assertIn('"cut": true', self.prompt)
+        self.assertIn('"say_cut"', self.prompt)
+        self.assertIn('"human_cut"', self.prompt)
         self.assertIn("UNKNOWN", self.prompt)
+        self.assertIn("never by how a preview happens to end", self.prompt)
+
+    def test_missing_grouping_key_is_not_asserted_sequential(self):
+        """The no-`mid` case must NOT also be listed as "ran sequentially" --
+        the same clause asserting sequential execution and the drop rule calling
+        it uncomputable are contradictory instructions, see #1485 Codex review."""
+        self.assertIn("never evidence of sequential execution", self.prompt)
+
+    def test_resource_dependency_compares_call_inputs(self):
+        """A side-effecting call (`mkdir /tmp/out` before `Write /tmp/out/x.md`)
+        returns nothing and narrates nothing, so comparing the later input only
+        against earlier RESULTS and narration reads a required sequence as a
+        missed batch -- the earlier call's own input must be in the comparison,
+        see #1485 Codex review."""
+        self.assertIn("against the later call's \"calls[].in\"", self.prompt)
+        self.assertIn("creates or mutates", self.prompt)
 
     def test_drop_if_uncomputable_still_present(self):
         self.assertIn("drop the claim", self.prompt)

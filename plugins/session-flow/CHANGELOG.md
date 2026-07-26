@@ -27,9 +27,20 @@
   an unbounded one; redundant/wasteful bytes (verbose ids, a `tool_results` count now superseded by
   `len(results)`, JSON-dumping a tool-result content-block list instead of extracting its text) were
   cut wherever doing so didn't reduce the analyzer's actual computing capability.
-  `_analysis_prompt` updated to reference the new fields, including a rule that a preview ending in
-  the truncation marker must be treated as an unknown dependency check, never a clean absence — a cut
-  preview that happened to hide a real dependency must not license an asserted-and-wrong finding.
+  Every bounded field pairs with an out-of-band cut flag when it was truncated (`cut` on a
+  `calls`/`results` entry, `say_cut`/`human_cut` beside the narration), so a value cut short of a
+  dependency reads as unknown rather than as a clean absence that would license an
+  asserted-and-wrong finding. The flag is out-of-band rather than a trailing marker in the text
+  because an in-band marker can't be told apart from a value that genuinely ends in those characters
+  (a complete tool result reading `Processing complete...`), which would suppress computable
+  findings in the other direction.
+  `_analysis_prompt` updated to reference the new fields and the cut flags. Its dependency check now
+  compares the earlier call's own `calls[].in` against the later call's, not only the later input
+  against earlier results and narration: a side-effecting call (`mkdir` before a `Write` into that
+  directory) returns nothing and narrates nothing, so a result-only comparison read a required
+  sequence as a missed batch. Its grouping rule no longer both asserts sequential execution for a
+  missing `mid` and calls that case uncomputable — a missing grouping key is now uniformly
+  uncomputable, never evidence of sequential execution.
   `tools` is unaffected and still carries the tool-call names a "delegation" finding needs (a Task/
   Agent tool name), so delegation required no new field — the gap #1485 closes is sequencing/batching/
   dependency only. The in-session checkpoint path (which reads the raw transcript directly) is
