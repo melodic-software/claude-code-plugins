@@ -862,7 +862,7 @@ without testing. Derive a delegation claim from the "tools" field, which carries
 subagent delegation appears there as a "Task"/"Agent" tool name. Derive an occurrence count \
 backing an "Emerging pattern" finding by actually counting matched occurrences. Before \
 routing a computed sequential/unbatched pair as a missed-batching Efficiency finding, check \
-for a genuine dependency between the calls, in all four of these places -- any one of them \
+for a genuine dependency between the calls, in all five of these places -- any one of them \
 is enough to make the pair correctly sequential: (a) DATA -- compare the later assistant \
 event's "calls[].in" preview against the "results[].out" previews of the user events \
 between them (matched by the result's "id" to the EARLIER call's own "calls[].id", to \
@@ -884,7 +884,17 @@ never a missed batch. Where a failure sits in the pair and NONE of that evidence
 exactly these pairs), the pair is UNKNOWN, not independent -- drop the claim. A failure \
 between two calls is never license to report a missed batch; (d) NARRATION -- \
 read the surrounding "say" text for an evident control, resource, or side-effect dependency \
-(an edit made before a test that exercises it runs). A correctly computed sequencing fact \
+(an edit made before a test that exercises it runs); (e) STATE-WIDE CONSUMER -- a later \
+call that reads or verifies the WHOLE working state rather than a named resource (a build, \
+test, lint, typecheck, or VCS command -- "pytest", "go build ./...", "git status") is \
+dependent on any earlier call in the pair that MUTATED state (a Write/Edit, or a Bash \
+command that writes), even though neither input names a shared path and (b) therefore finds \
+nothing: the verification had to observe the mutation, so the two could not have run in \
+parallel. This is the most common sequential pair in a coding session, so treating it as a \
+missed batch is exactly the asserted-and-wrong finding these rules exist to prevent. When \
+you cannot tell from the previews whether the earlier call mutated anything, treat this \
+check as UNKNOWN and drop the pair rather than reporting a missed batch. A correctly \
+computed sequencing fact \
 is not by itself proof of a missed batching opportunity: a pair that was genuinely \
 dependent was correctly sequential, not a miss. Any preview or narration whose own event \
 carries a cut flag is INCOMPLETE, not empty -- a "calls"/"results" entry with "cut": true \

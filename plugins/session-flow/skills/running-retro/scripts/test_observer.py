@@ -489,6 +489,19 @@ class AnalysisPrompt(unittest.TestCase):
         # failure is unknown, and unknown means drop.
         self.assertIn("UNKNOWN, not independent", self.prompt)
 
+    def test_state_wide_consumer_after_a_mutation_is_dependent(self):
+        """`Edit foo.py` then `Bash pytest` shares no path, echoes nothing, and
+        need not be narrated, yet the test had to observe the edit -- the most
+        common sequential pair in a coding session, and the one the resource
+        check (which needs a shared named resource) structurally cannot see
+        (#1485 review)."""
+        self.assertIn("STATE-WIDE CONSUMER", self.prompt)
+        self.assertIn("MUTATED state", self.prompt)
+        # Undecidable mutation drops rather than routing, like every other guard.
+        self.assertIn("whether the earlier call mutated anything", self.prompt)
+        # The clause count in the lead-in must move with the clause list.
+        self.assertIn("all five of these places", self.prompt)
+
     def test_resource_dependency_compares_call_inputs(self):
         """A side-effecting call (`mkdir /tmp/out` before `Write /tmp/out/x.md`)
         returns nothing and narrates nothing, so comparing the later input only

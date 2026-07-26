@@ -42,11 +42,15 @@
   the limit. A `results` entry additionally carries `err` when the call failed, because a failed
   call's own output preview is routinely empty and a later retry is control-dependent on having
   seen that failure.
-  `_analysis_prompt` updated to reference the new fields and flags. Its dependency check is now four
+  `_analysis_prompt` updated to reference the new fields and flags. Its dependency check is now five
   explicit places rather than two, any one of which makes a sequential pair correctly sequential:
   it compares the earlier call's own `calls[].in` against the later call's, since a side-effecting
   call (`mkdir` before a `Write` into that directory) returns nothing and narrates nothing so a
-  result-only comparison read a required sequence as a missed batch; and it treats a retry after an
+  result-only comparison read a required sequence as a missed batch; it treats a state-wide consumer
+  (a build, test, lint, typecheck, or VCS command) after a state mutation as dependent even though
+  neither input names a shared path, since `Edit foo.py` then `Bash pytest` is the most common
+  sequential pair in a coding session and the resource comparison structurally cannot see it, with an
+  undecidable mutation dropping rather than routing; and it treats a retry after an
   `err` result as control-dependent — recognized by a shared resource, repeated arguments, or a
   visible correction of the failed input (`git stats` → `git status`), but never by tool name alone,
   since a failed `Read` of one file followed by a `Read` of another is two independent calls.
