@@ -44,10 +44,14 @@ All notable changes to the `powershell-format` plugin are documented here. Forma
   parser accepts is pinned from the parser too, not left to the quoted-literal
   scan: PowerShell does not require quotes around a command argument, so
   `. $PSScriptRoot\helper.ps1` would otherwise be judged pinnable and then never
-  pinned. A `using module <path>` statement is pinned as well — it is a
-  `UsingStatementAst` rather than a command, so neither the command walk nor a
-  text scan would see it; `using namespace` and `using assembly` name no
-  repository file and are left alone. An extensionless reference resolves through
+  pinned. `using module <path>` and `using assembly <path>` are collected as well
+  — both are `UsingStatementAst` nodes rather than commands, so neither the
+  command walk nor a text scan would see them, and an assembly directive loads a
+  repository DLL exactly as a module directive loads a `.psm1`. An assembly the
+  parser cannot load is reported as a parse error, which already refuses
+  approval, so both directions are closed: loadable is pinned, unloadable is
+  unverifiable. `using namespace` and `using type` name no repository file and are
+  left alone. An extensionless reference resolves through
   PowerShell module resolution, so the `.psd1`/`.psm1`/`.ps1`/`.dll` candidates
   and both directory layouts — `MyModule/MyModule.psd1` and the versioned
   `MyModule/<version>/MyModule.psd1` — are all pinned rather than only an exact

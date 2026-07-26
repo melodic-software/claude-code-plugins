@@ -965,6 +965,46 @@ else
 fi
 rm -rf "$REPO/rules"
 
+# A YAML plain scalar carries no quotes, so the quoted-string scan never saw
+# `customRules: [./rules/local.cjs]` and the module stayed out of the signature:
+# the config-only marker approved, then changing the rule file kept it valid.
+# Approve, then change ONLY the rule module: the approval must be revoked.
+mkdir -p "$REPO/rules"
+cat >"$REPO/rules/plain.cjs" <<'CJS'
+module.exports = { names: ["plain"], description: "noop", tags: [], function: () => {} };
+CJS
+rm -f "$ORIGINAL_CONFIG"
+cat >"$REPO/.markdownlint-cli2.yaml" <<'YAML'
+config:
+  MD013: false
+customRules: [./rules/plain.cjs]
+noBanner: true
+noProgress: true
+YAML
+printf '# Executable config
+
+Clean text.' >"$TRUST_FILE"
+OUT_YAML1="$(cd "$UNRELATED" && printf '{"session_id":"yaml-plain-a","tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+Y_MARKER="$(printf '%s' "$OUT_YAML1" | jq -r '.systemMessage' | sed -n "s/.*mkdir -p '\([^']*\)'.*/\1/p")"
+mkdir -p "$Y_MARKER"
+printf '
+// unreviewed rule revision
+' >>"$REPO/rules/plain.cjs"
+printf '# Executable config
+
+Clean text.' >"$TRUST_FILE"
+OUT_YAML2="$(cd "$UNRELATED" && printf '{"session_id":"yaml-plain-b","tool_input":{"file_path":"%s"}}' "$TRUST_FILE" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$TRUST_DATA" CLAUDE_PLUGIN_OPTION_MARKDOWN_FORMAT_ENABLED=true bash "$HOOK")"
+if [[ -n "$Y_MARKER" ]] && printf '%s' "$OUT_YAML2" | jq -e '.hookSpecificOutput.additionalContext | contains("trust gate")' >/dev/null 2>&1 &&
+  ! has_final_newline "$TRUST_FILE"; then
+  ok "unquoted YAML module path is pinned; module change revokes approval"
+else
+  fail "unquoted YAML module path not pinned: m=$Y_MARKER out=$OUT_YAML2"
+fi
+rm -f "$REPO/.markdownlint-cli2.yaml"
+rm -rf "$REPO/rules"
+
 # The same escape without needing symlink support: a `../` reference reaching a
 # file outside the repository. Runs on every host, so the branch stays covered
 # where the symlink fixture below has to skip.

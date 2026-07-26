@@ -405,20 +405,22 @@ PSSA_OUTPUT=$(PSSA_FILE="$PSSA_FILE_ARG" PSSA_SETTINGS="$PSSA_SETTINGS_ARG" \
                         exit 6
                     }
                 }
-                # `using module ./deps/helper.psm1` loads code but is a
-                # UsingStatementAst, not a CommandAst, so the loop above never
-                # sees it - and the form needs no quotes, so the text scan does
-                # not either. Only the Module kind loads repository code; a
-                # `using namespace` or `using assembly` statement names no
-                # repository file and is left alone. The path must be a constant
-                # (PowerShell requires one), so a hashtable module specification
-                # cannot be pinned and refuses approval.
+                # `using module ./deps/helper.psm1` and `using assembly
+                # ./deps/helper.dll` both load repository code, but are
+                # UsingStatementAst nodes rather than commands, so the loop above
+                # never sees them - and neither form needs quotes, so the text
+                # scan does not either. `using namespace` and `using type` name
+                # no repository file and are left alone. The path must be a
+                # constant (PowerShell requires one), so a hashtable module
+                # specification cannot be pinned and refuses approval.
+                $loadKinds = @(
+                    [System.Management.Automation.Language.UsingStatementKind]::Module,
+                    [System.Management.Automation.Language.UsingStatementKind]::Assembly)
                 $usingAsts = $fileAst.FindAll({
                         param($n) $n -is [System.Management.Automation.Language.UsingStatementAst]
                     }, $true)
                 foreach ($useAst in $usingAsts) {
-                    if ($useAst.UsingStatementKind -ne
-                        [System.Management.Automation.Language.UsingStatementKind]::Module) {
+                    if ($loadKinds -notcontains $useAst.UsingStatementKind) {
                         continue
                     }
                     if ($useAst.Name -is

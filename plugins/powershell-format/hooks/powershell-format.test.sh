@@ -563,8 +563,9 @@ fi
 # also keeps PSScriptAnalyzer's own load of the rule module free of side effects
 # while still exercising the scan (the collector pins the host by literal, then
 # scans it).
-#   using module   a UsingStatementAst, not a CommandAst, and needs no quotes,
-#                  so neither the command walk nor the text scan sees it.
+#   using module   a UsingStatementAst rather than a command, and needing no
+#                  quotes, so neither the command walk nor the text scan sees
+#                  it.
 #                  `using namespace` names no repository file and must stay
 #                  approvable, so it rides along as the negative control.
 #   extensionless  Import-Module resolves through PowerShell module resolution,
@@ -610,6 +611,30 @@ for target in \
     fail "host-module dependency $target not pinned: m=$E_MARKER out=$OUT_EXT2"
   fi
 done
+
+# `using assembly <path>` loads a repository DLL, so its path is collected like a
+# `using module` path. Where the assembly cannot actually be loaded the parser
+# reports it as a parse error, which the gate already treats as unverifiable, so
+# BOTH directions are closed: a loadable assembly is pinned, an unloadable one
+# refuses approval. This asserts the unloadable direction, the one a fixture can
+# create portably (a real assembly would need a compiler at test time).
+cp "$REPO_CRP/rules/LoadHost.psm1" "$WORK/LoadHost.psm1.bak"
+printf '%s\n' 'not-a-real-assembly' >"$REPO_CRP/rules/deps/UsingAsm.dll"
+{
+  printf '%s\n' 'using assembly ./deps/UsingAsm.dll'
+  cat "$WORK/LoadHost.psm1.bak"
+} >"$REPO_CRP/rules/LoadHost.psm1"
+printf "%s\n" "get-childitem -Path '.'" >"$REPO_CRP/crp-asm.ps1"
+OUT_ASM="$(cd "$UNRELATED" && printf '{"session_id":"using-assembly","tool_input":{"file_path":"%s"},"tool_name":"Write"}' "$REPO_CRP/crp-asm.ps1" |
+  env -u CLAUDE_PROJECT_DIR CLAUDE_PLUGIN_DATA="$CRP_DATA" CLAUDE_PLUGIN_OPTION_POWERSHELL_FORMAT_ENABLED=true bash "$HOOK")"
+if printf '%s' "$OUT_ASM" | jq -e '(.systemMessage | contains("trust gate")) and (.systemMessage | contains("mkdir -p") | not)' >/dev/null 2>&1 &&
+  grep -q 'get-childitem' "$REPO_CRP/crp-asm.ps1"; then
+  ok "using assembly naming an unloadable DLL refuses approval"
+else
+  fail "using assembly was not refused: $OUT_ASM"
+fi
+cp "$WORK/LoadHost.psm1.bak" "$REPO_CRP/rules/LoadHost.psm1"
+rm -f "$REPO_CRP/rules/deps/UsingAsm.dll"
 
 # A load target the scan cannot resolve to a file cannot be bound to any
 # approval, so each of these must gate AND refuse approval (no mkdir hint)

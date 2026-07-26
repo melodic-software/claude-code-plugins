@@ -422,10 +422,18 @@ unpinnable_js_specifier() {
 
 MODULE_FILES=()
 collect_module_files() {
-  local item dir str base candidate resolved entry scanned=0
+  local item dir str tag base candidate resolved entry scanned=0
   local queue=("$@")
   local seen_scan=$'\n' seen_module=$'\n'
   local quoted_string_re="\"[^\"]+\"|'[^']+'"
+  # YAML plain scalars carry no quotes, so `customRules: [./rules/local.cjs]`
+  # is invisible to the quoted-string scan and its module would never enter the
+  # signature. Path-shaped bare tokens are therefore harvested too. Restricted
+  # to tokens containing a `/` or `.` below, so an ordinary word (a key name, a
+  # rule id) is not tried as a path; over-collecting a token that resolves to
+  # nothing costs nothing, which is the same over-approximation the quoted scan
+  # already relies on.
+  local plain_token_re="[A-Za-z0-9_.@~/+-]+"
 
   while ((${#queue[@]} > 0)); do
     item="${queue[0]}"
@@ -450,8 +458,17 @@ collect_module_files() {
     esac
     dir="$(dirname "$item")"
     while IFS= read -r str; do
-      str="${str#?}"
-      str="${str%?}"
+      # The stream carries both harvests, each tagged with its kind: Q keeps the
+      # quoted scan's exact prior behavior (strip the delimiters, try every
+      # token), P adds bare tokens and admits only path-shaped ones.
+      tag="${str:0:1}"
+      str="${str:1}"
+      if [[ "$tag" == Q ]]; then
+        str="${str#?}"
+        str="${str%?}"
+      else
+        case "$str" in */* | *.*) ;; *) continue ;; esac
+      fi
       [[ -n "$str" && "$str" != *$'\n'* ]] || continue
       for base in "$dir/$str" "$CONFIG_ROOT/$str"; do
         # Node's CommonJS resolution tries the literal path, then the
@@ -511,7 +528,10 @@ collect_module_files() {
           esac
         done
       done
-    done < <(grep -oE "$quoted_string_re" "$item" 2>/dev/null)
+    done < <(
+      grep -oE "$quoted_string_re" "$item" 2>/dev/null | sed 's/^/Q/'
+      grep -oE "$plain_token_re" "$item" 2>/dev/null | sed 's/^/P/'
+    )
   done
   return 0
 }

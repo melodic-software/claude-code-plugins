@@ -16,7 +16,8 @@ All notable changes to the `markdown-format` plugin are documented here. Format 
   user approves that exact configuration-content state by creating the marker
   directory named in the notice (under `${CLAUDE_PLUGIN_DATA}/trust-approvals`).
   The approval signature is content-addressed over the configuration AND every
-  repository file its string literals resolve to — through Node's CommonJS
+  repository file its string literals — plus, since a YAML plain scalar carries
+  no quotes, its path-shaped bare tokens — resolve to, through Node's CommonJS
   resolution candidates (`.cjs`/`.mjs`/`.js`/`.json`/`.node` extensions and
   directory `package.json`/`index.*` entry points), transitively, bounded — so a
   change to the configuration or to a referenced repository module — e.g. a
