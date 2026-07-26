@@ -197,23 +197,17 @@ class ClassificationCountTests(unittest.TestCase):
                 ]
                 self.assertEqual(bc.count_classified(comments, self.SELF), 0)
 
-    def test_bracketed_aside_is_stripped_like_a_parenthesised_one(self) -> None:
-        """Pins the bracket branch of the aside pattern, which the bash path
-        spells as an awk `[^]]` bracket expression -- a paren-only test would
-        pass even if that branch stripped nothing."""
-        comments = [
-            {"author": "me[bot]", "body": "| 1 | finding | Valid [defer] | noted |"},
-        ]
-        self.assertEqual(bc.count_classified(comments, self.SELF), 1)
-
-    def test_unclosed_aside_fails_closed(self) -> None:
-        """#619: aside removal is what lets "Valid (defer)" read as the bare
-        token. An unclosed aside strips nothing, so the cell stays prose and
-        scores unclassified -- BLOCKED, never a false pass."""
-        comments = [
-            {"author": "me[bot]", "body": "| 1 | finding | Valid (unclosed | pending |"},
-        ]
-        self.assertEqual(bc.count_classified(comments, self.SELF), 0)
+    def test_documented_annotated_dispositions_count(self) -> None:
+        """#619: reference/review-discipline.md specifies `VALID -- fixing`,
+        `VALID (defer)` and `VALID -- fix now` as canonical values. A rule that
+        demanded the token be the WHOLE cell rejected the annotated forms, so a
+        reply written exactly as documented scored unclassified."""
+        for cell in ("VALID — fixing", "VALID (defer)", "VALID — fix now"):
+            with self.subTest(cell=cell):
+                comments = [
+                    {"author": "me[bot]", "body": f"| 1 | a | {cell} | evidence |"},
+                ]
+                self.assertEqual(bc.count_classified(comments, self.SELF), 1)
 
     def test_decorated_disposition_cell_still_counts(self) -> None:
         """The cell anchor permits leading non-letter decoration, so a bolded

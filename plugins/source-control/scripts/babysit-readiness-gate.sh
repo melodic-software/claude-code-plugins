@@ -23,18 +23,19 @@
 #                comments — counted per match, not per line, so N findings on one
 #                line each count (else a multi-finding line under-counts and the
 #                gate false-passes)
-#   classified = TABLE ROWS (`|`-prefixed lines) carrying a CELL that IS a
-#                classification token (VALID|INCORRECT|UNCERTAIN) — the whole
-#                cell, not a cell merely containing or opening with one — across
-#                all SELF replies, one per line, so prose repetition never
-#                inflates the count. Matched CASE-INSENSITIVELY so a
-#                natural-language disposition like "Valid (defer)" still counts,
-#                not only the mandated all-caps token (#619), while table prose
-#                ("| CI check | result is valid |", "| Valid cache entries are
-#                rejected |") does not. "INVALID", "valid2" and "VALID_TOKEN" do
-#                not count as "VALID". Capped at findings so a surplus of rows
-#                cannot mask an unclassified finding (the Python path refines
-#                this to a per-surface credit — see the note below).
+#   classified = TABLE ROWS (`|`-prefixed lines) carrying a CELL that OPENS with
+#                a classification token (VALID|INCORRECT|UNCERTAIN), across all
+#                SELF replies, one per line, so prose repetition never inflates
+#                the count. Matched CASE-INSENSITIVELY so a natural-language
+#                disposition like "Valid (defer)" still counts, not only the
+#                mandated all-caps token (#619). An annotation after the token
+#                must be introduced by punctuation, which is what admits the
+#                documented "VALID — fixing" / "VALID — fix now" forms while
+#                refusing table prose ("| CI check | result is valid |",
+#                "| Valid cache entries are rejected |"). "INVALID", "valid2"
+#                and "VALID_TOKEN" do not count as "VALID". Capped at findings
+#                so a surplus of rows cannot mask an unclassified finding (the
+#                Python path refines this to a per-surface credit — see below).
 #   BLOCK when findings > 0 AND classified < findings (under-decomposed /
 #   unaddressed — R1+R5), OR when a --checklist file has any "- [ ]" (R6).
 #
@@ -332,62 +333,50 @@ SEVERITY_BADGE_RE='/badge/P[0-3]-'
 # range, matching SEVERITY_BADGE_RE) so incidental [P4]+ text cannot inflate
 # the finding count into a false READINESS_BLOCKED.
 SEVERITY_PLAIN_RE='\[P[0-3]\]'
-# A markdown table cell that IS a disposition — not merely one that contains or
-# opens with a disposition word. The cell must hold the token and nothing else
-# but non-word decoration: `|`, decoration, token, decoration, then the next `|`
-# or end of line. Matched case-insensitively (classify_rows lowercases its
-# subject, so the tokens are spelled lowercase here): a worker's
+# A markdown table cell that OPENS with a disposition token — not one that
+# merely contains a disposition word somewhere in its prose. The cell is `|`,
+# non-word decoration, the token, then either the end of the cell or a
+# PUNCTUATED annotation. Matched case-insensitively (classify_rows lowercases
+# its subject, so the tokens are spelled lowercase here): a worker's
 # classification-table reply that writes a natural-language disposition like
 # "Valid (defer)" instead of the mandated all-caps VALID must still count, or
 # the gate reports a false READINESS_BLOCKED even though the finding genuinely
 # was classified (#619).
 #
-# WHOLE-CELL, not anywhere-in-the-row and not merely cell-opening. Each weaker
-# rule credits prose as a disposition and lets an unclassified finding past the
-# under-decomposition gate:
-#   anywhere-in-the-row  `| CI check | result is valid |`
-#   cell-opening         `| 2 | c2 | Valid cache entries are rejected | | |`
-# Requiring the WHOLE cell to be the token also identifies the disposition
-# column more tightly than parsing the table header would: a header-driven rule
-# still credits prose written INTO the Classification column, and it needs a
-# header row at all, which a single-row reply does not carry.
+# The annotation must be introduced by PUNCTUATION — a dash, colon, or opening
+# bracket — never by a bare space. That is the discriminator between the
+# dispositions reference/review-discipline.md documents and prose that happens
+# to start with a disposition word:
+#   documented   `VALID — fixing`  `VALID (defer)`  `VALID — fix now`
+#   prose        `Valid cache entries are rejected`
+# Matching anywhere in the row instead would also credit `| CI check | result is
+# valid |`, and either miss lets an unclassified finding past the
+# under-decomposition gate.
 #
-# The decoration class excludes word characters, not just letters, on BOTH sides
-# of the token: a letters-only class would accept `valid2` and `VALID_TOKEN`,
-# since digits and underscores are not letters. It also excludes `|`, so the run
-# cannot cross a cell boundary. Together those keep "invalid"/"INVALID" from
-# false-matching "valid"/"VALID".
+# The decoration before the token excludes word characters, not just letters, so
+# `2valid` cannot open a cell; the character required after the token is
+# likewise non-word, so `valid2` and `VALID_TOKEN` do not satisfy it. Every
+# class excludes `|`, so no run crosses a cell boundary. Together those keep
+# "invalid"/"INVALID" from false-matching "valid"/"VALID".
 #
 # `babysit_classify.py` carries the same pattern as `_CLASSIFY_CELL`; the
 # convergence fixtures at the bottom of babysit-readiness-gate.test.sh pin the
 # two to the same counts.
-CLASSIFY_CELL_RE='[|][^a-z0-9_|]*(valid|incorrect|uncertain)[^a-z0-9_|]*([|]|$)'
+CLASSIFY_CELL_RE='[|][^a-z0-9_|]*(valid|incorrect|uncertain)([ \t]*[^a-z0-9_ \t|][^|]*)?[ \t]*([|]|$)'
 # The same cell pattern with the `|`-prefixed row anchor prepended, so the rows
 # excluded from the finding corpus and the rows credited as classified cannot
 # drift apart.
 CLASSIFY_ROW_RE="^[[:space:]]*[|].*${CLASSIFY_CELL_RE}"
 
 # classify_rows <count|strip> — the ONE place a line is tested for being a
-# classification row, so the two callers cannot diverge.
-#
-# `count` prints how many lines are classification rows; `strip` prints the
-# lines that are NOT (the finding corpus). The predicate runs on a NORMALIZED
-# copy — lowercased, with parenthesised/bracketed asides removed — while
-# `strip` emits the ORIGINAL line, because normalization would otherwise delete
-# a `[P1]` severity marker from the corpus it is only meant to filter.
-#
-# Removing asides is what lets "Valid (defer)" — the natural-language
-# disposition #619 is about — read as the bare token while "Valid cache entries
-# are rejected" does not. An UNCLOSED aside strips nothing and the cell stays
-# prose: fail-closed, the safe direction for a merge gate.
-# `babysit_classify.py` carries the same normalization as CLASSIFY_ASIDE_RE;
-# the two move together.
+# classification row, so the two callers cannot diverge. `count` prints how many
+# lines are classification rows; `strip` prints the lines that are NOT (the
+# finding corpus). The predicate runs on a lowercased copy while `strip` emits
+# the ORIGINAL line, so the corpus it filters is never itself rewritten.
 classify_rows() {
   awk -v pat="$CLASSIFY_ROW_RE" -v mode="$1" '
     {
-      probe = tolower($0)
-      gsub(/\([^)]*\)|\[[^]]*\]/, "", probe)
-      hit = (probe ~ pat)
+      hit = (tolower($0) ~ pat)
       if (mode == "count") { n += hit } else if (!hit) { print }
     }
     END { if (mode == "count") print n + 0 }

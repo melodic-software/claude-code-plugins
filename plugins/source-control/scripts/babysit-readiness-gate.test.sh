@@ -327,30 +327,19 @@ r=$(run_gate "$F")
 assert_contains "2valid is not a classification -> classified=0" "$r" "classified=0"
 assert_contains "2valid is not a classification -> BLOCKED" "$r" "READINESS_BLOCKED reason=under-decomposed"
 
-# --- Case: a BRACKETED aside is stripped like a parenthesised one (#619) ----
-# Pins the `[^]]` bracket expression in the aside-stripping pattern: a `]` as
-# the first character of a bracket expression is POSIX-literal, but an awk that
-# misparsed it would silently strip nothing — and every paren-only test would
-# still pass, so only this case can catch it.
-F=$(mkjson bracket-aside '[
-  {author:"claude[bot]", body:"### 1. [CRITICAL] a"},
-  {author:"me[bot]", body:"| 1 | finding | Valid [defer] | noted |"}
+# --- Case: the DOCUMENTED annotated dispositions count (#619) ---------------
+# reference/review-discipline.md specifies `VALID — fixing`, `VALID (defer)` and
+# `VALID — fix now` as canonical disposition values. A rule that demanded the
+# token be the whole cell rejected the dash-annotated forms, so a reply written
+# exactly as documented scored unclassified — codex on #1347. Punctuation is
+# what introduces an annotation, so all three count.
+F=$(mkjson documented-dispositions '[
+  {author:"claude[bot]", body:"### 1. [CRITICAL] a\n### 2. [CRITICAL] b\n### 3. [CRITICAL] c"},
+  {author:"me[bot]", body:"| 1 | a | VALID — fixing | x |\n| 2 | b | VALID (defer) | y |\n| 3 | c | VALID — fix now | z |"}
 ]')
 r=$(run_gate "$F")
-assert_contains "bracketed aside stripped -> classified=1" "$r" "classified=1"
-assert_contains "bracketed aside stripped -> READINESS_OK" "$r" "READINESS_OK"
-
-# --- Case: an UNCLOSED aside fails closed (#619) ----------------------------
-# Aside removal is what lets "Valid (defer)" read as the bare token. An
-# unclosed aside strips nothing, so the cell stays prose and scores
-# unclassified — BLOCKED, never a false pass.
-F=$(mkjson unclosed-aside '[
-  {author:"claude[bot]", body:"### 1. [CRITICAL] a"},
-  {author:"me[bot]", body:"| 1 | finding | Valid (unclosed | pending |"}
-]')
-r=$(run_gate "$F")
-assert_contains "unclosed aside -> classified=0" "$r" "classified=0"
-assert_contains "unclosed aside -> BLOCKED" "$r" "READINESS_BLOCKED reason=under-decomposed"
+assert_contains "documented dispositions -> classified=3" "$r" "classified=3"
+assert_contains "documented dispositions -> READINESS_OK" "$r" "READINESS_OK"
 
 # --- Case: a decorated disposition cell still counts (#619) -----------------
 # The cell anchor permits leading non-letter decoration, so a bolded
@@ -606,19 +595,14 @@ F=$(mkjson conv-word-continuation '[
   {author:"me[bot]", body:"| 1 | finding | valid2 | pending |"}
 ]')
 converge "word-continuation" "$F"
-# Aside removal (#619): "Valid (defer)" is a disposition only because the
-# parenthesised aside is stripped first — the normalization must be identical in
-# both paths, not just the cell pattern.
-F=$(mkjson conv-aside '[
-  {author:"claude[bot]", body:"CRITICAL a"},
-  {author:"me[bot]", body:"| 1 | a | Valid (defer) | x |"}
+# The documented annotated dispositions (#619): both paths must accept the
+# punctuated annotation reference/review-discipline.md specifies, or the safe
+# tier and the engine disagree on a reply written exactly as documented.
+F=$(mkjson conv-documented '[
+  {author:"claude[bot]", body:"CRITICAL a\nCRITICAL b"},
+  {author:"me[bot]", body:"| 1 | a | VALID — fixing | x |\n| 2 | b | Valid (defer) | y |"}
 ]')
-converge "aside-stripped-disposition" "$F"
-F=$(mkjson conv-bracket-aside '[
-  {author:"claude[bot]", body:"CRITICAL a"},
-  {author:"me[bot]", body:"| 1 | a | Valid [defer] | x |"}
-]')
-converge "bracket-aside-stripped-disposition" "$F"
+converge "documented-dispositions" "$F"
 
 # --- Case: live fetch failure emits an actionable owner/repo diagnostic ------
 # Run WITHOUT --comments-json from a cwd `gh repo view` cannot resolve: the gate's
