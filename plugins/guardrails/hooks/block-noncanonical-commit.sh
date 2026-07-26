@@ -157,9 +157,22 @@ explicit_global() {
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 explicit_git_dir() { explicit_global git-dir "$@"; }
 
-# Canonical identity of the repository a composed `-C` path lands in, as GIT
-# resolves it. This guard does not model git's path semantics anywhere — it asks
-# git, because every attempt to model them has been a bypass:
+# The directory git launches a `!` shell-alias body in, which is also the hop
+# identity in the shell-alias cycle key. NOT unconditionally the work-tree top
+# level: git chdirs a `!` body to the top level only when it can compute a
+# prefix — when the caller's directory sits INSIDE the effective work tree,
+# which repository DISCOVERY always satisfies. An explicit `--git-dir` or
+# `--work-tree` whose work tree does not contain the caller skips that chdir,
+# and the body runs where the caller stands (after `-C` composition). Verified
+# on git 2.54.0.windows.1 (reported by review on 2.43.0): from `<out>`,
+# `git --git-dir <g> --work-tree <w> -c alias.a='!pwd' a` prints `<out>`, not
+# `<w>` — while the same invocation from `<w>/sub` prints `<w>`. Collapsing to
+# the top level unconditionally aimed the walk at the WRONG repository: a
+# body's `git -C child p` resolved `<w>/child`'s persisted aliases while real
+# git ran `<out>/child`'s.
+#
+# This guard does not model git's path semantics anywhere — it asks git,
+# because every attempt to model them has been a bypass:
 #
 #   - Lexically cancelling `x/..` is wrong when `x` is a symlink: on a POSIX host
 #     `git -C link/.. …` enters the symlink's parent, not the textual one.
@@ -170,43 +183,67 @@ explicit_git_dir() { explicit_global git-dir "$@"; }
 #     there. A shell resolver would send the guard to a repository git never
 #     enters, which is the same defect wearing the opposite bias.
 #
-# `rev-parse --show-toplevel` is git's own answer on whatever platform, so it
-# cannot drift from git's behavior by construction. It also canonicalizes for
-# free: `-C .`, `link/..`, a subdirectory, and any other spelling of one
-# repository all collapse to a single identity, which is what lets the
-# shell-alias cycle key below detect a repeat instead of walking forever.
+# So the launch directory too is derived from git's own answers — one probe,
+# `rev-parse --show-toplevel --show-prefix` — never from modelled containment:
+#
+#   - prefix NONEMPTY: git computed a cd-up path, i.e. it chdirs the body to
+#     the top level. Return the top level, which also canonicalizes for free —
+#     `-C .`, `link/..`, a subdirectory, and any other spelling of one
+#     repository all collapse to a single identity, which is what lets the
+#     shell-alias cycle key below detect a repeat instead of walking forever.
+#   - prefix EMPTY, no locating globals: pure discovery from the top level
+#     itself, so the caller's directory IS the top level; return its canonical
+#     spelling for the same cycle-key collapse.
+#   - prefix EMPTY under explicit locating globals: git does not chdir, so the
+#     body runs in the caller's composed directory, returned LITERALLY for git
+#     to apply its own path semantics downstream. A non-canonical spelling can
+#     mint distinct cycle keys here, so a self-rewriting chain in this shape
+#     terminates on the fail-closed traversal budget, exactly as `-C .`-style
+#     bodies already do.
 #
 # The invocation's LOCATING globals are replayed onto the probe, not just its `-C`.
 # `--git-dir` and `--work-tree` locate a repository as surely as `-C` does (git's
 # own usage lists both as globals before `<command>`), so asking without them
 # answered "no work tree" for a perfectly locatable one: `git --git-dir=<r>/.git
 # --work-tree=<r> -c alias.a='!git commit -F -' a` run outside a tree resolved to
-# nothing and the fail-closed path refused a VALID canonical commit. Replaying them
-# keeps the ask-git property — `git --git-dir=X --work-tree=Y rev-parse
-# --show-toplevel` is still git's own answer, not a reconstruction of one.
+# nothing and a since-dropped fail-closed branch refused a VALID canonical commit.
+# Replaying them keeps the ask-git property — `git --git-dir=X --work-tree=Y
+# rev-parse --show-toplevel --show-prefix` is still git's own answer, not a
+# reconstruction of one.
 #
-# Empty means git could not answer — no such directory, or genuinely no work tree.
-# Callers on the alias-walk path FAIL CLOSED on empty: a guard that cannot determine
-# which repository a command will execute in must not allow it. Nothing off that
-# path calls this, so an ordinary `git commit -F -` never pays a fork.
+# Empty means git could not answer — no such directory, or genuinely no work
+# tree. Callers fall back to the literal composed directory (best-available, not
+# a gate; see the note above check_segment). Nothing off the alias-walk path
+# calls this, so an ordinary `git commit -F -` never pays a fork.
 #
 # Cached per (path + replayed globals), since the same path under a different
 # --git-dir is a different question. The fork is the expensive step and a static
 # guard never moves a repository mid-analysis. Published in a global and assigned by
 # a PLAIN call, never `$(…)`: a command substitution would run it in a subshell and
 # discard the cache.
-# Call as: repo_identity <dir> [locating-global...]
-declare -A _repo_identity=()
-HOOK_REPO_IDENTITY=""
+# Call as: alias_launch_dir <dir> [locating-global...]
+declare -A _alias_launch_dir=()
+HOOK_ALIAS_LAUNCH_DIR=""
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
-repo_identity() {
-  local dir="$1" key
+alias_launch_dir() {
+  local dir="$1" key out toplevel prefix
   shift
   key="$dir"$'\n'"$*"
-  [[ -n "${_repo_identity[$key]+x}" ]] ||
-    _repo_identity["$key"]=$(git -C "$dir" "$@" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')
-  HOOK_REPO_IDENTITY="${_repo_identity[$key]}"
-  [[ -n "$HOOK_REPO_IDENTITY" ]]
+  if [[ -z "${_alias_launch_dir[$key]+x}" ]]; then
+    out=$(git -C "$dir" "$@" rev-parse --show-toplevel --show-prefix 2>/dev/null | tr -d '\r')
+    toplevel="${out%%$'\n'*}"
+    prefix=""
+    [[ "$out" == *$'\n'* ]] && prefix="${out#*$'\n'}"
+    if [[ -z "$toplevel" ]]; then
+      _alias_launch_dir["$key"]=""
+    elif [[ -n "$prefix" || $# -eq 0 ]]; then
+      _alias_launch_dir["$key"]="$toplevel"
+    else
+      _alias_launch_dir["$key"]="$dir"
+    fi
+  fi
+  HOOK_ALIAS_LAUNCH_DIR="${_alias_launch_dir[$key]}"
+  [[ -n "$HOOK_ALIAS_LAUNCH_DIR" ]]
 }
 
 # The locating globals carried by an invocation prefix, as an argv array ready to
@@ -256,16 +293,17 @@ collect_locating_globals() {
 # a self-cycle, and the grandchild's `commit -m` was never reached while real git
 # committed there. HOOK_EFFECTIVE_BASE is save/restored around each `!` reparse.
 #
-# The base a `!` reparse inherits is the outer repository's TOP LEVEL, which is
-# where git documents it runs a shell body from — not the directory the outer
-# command was invoked in. Invoked from `<repo>/sub` with `alias.a = !git -C child
-# a`, git reaches `<repo>/child`; carrying the subdirectory forward made the guard
-# probe `<repo>/sub/child` and miss the nested repository's `commit -m` entirely.
-# repo_identity supplies that top level from git itself.
+# The base a `!` reparse inherits is where git actually LAUNCHES the body —
+# the outer repository's top level when the caller sits inside the effective
+# work tree, the caller's composed directory when explicit locating globals
+# leave git with no prefix to chdir through; alias_launch_dir asks git which.
+# Invoked from `<repo>/sub` with `alias.a = !git -C child a`, git reaches
+# `<repo>/child`; carrying the subdirectory forward made the guard probe
+# `<repo>/sub/child` and miss the nested repository's `commit -m` entirely.
 #
 # What this function returns is a LITERAL composed path, deliberately not a
 # resolved one: it is handed straight to `git -C`, so git applies its own path
-# semantics to it. The guard never normalizes it (see repo_identity).
+# semantics to it. The guard never normalizes it (see alias_launch_dir).
 #
 # Callers must pass only the invocation PREFIX (indices 0..sub_idx), never the whole
 # argv. Words after the subcommand are that subcommand's own arguments — or, for an
@@ -510,15 +548,16 @@ check_segment() {
           # reachable from the reparse is a strict substring of the parent
           # segment's text, and persisted-config shell hops are bounded by
           # HOOK_SHELL_ALIAS_SEEN below. That new process also starts from THIS
-          # segment's repository, so the body's relative `-C` composes onto it.
+          # segment's launch directory, so the body's relative `-C` composes
+          # onto it.
           reparse="${exp#!}"
           for a in "${w[@]:sub_idx+1}"; do reparse+=" $(printf '%q' "$a")"; done
           [[ -n "$seg_dir" ]] || seg_dir="$(effective_dir "${w[@]:0:sub_idx}")"
           collect_locating_globals "${w[@]:0:sub_idx}"
-          repo_identity "$seg_dir" ${locating_globals[@]+"${locating_globals[@]}"} ||
-            HOOK_REPO_IDENTITY="$seg_dir"
+          alias_launch_dir "$seg_dir" ${locating_globals[@]+"${locating_globals[@]}"} ||
+            HOOK_ALIAS_LAUNCH_DIR="$seg_dir"
           HOOK_ALIAS_SEEN=()
-          HOOK_EFFECTIVE_BASE="$HOOK_REPO_IDENTITY"
+          HOOK_EFFECTIVE_BASE="$HOOK_ALIAS_LAUNCH_DIR"
           alias_reexpand_admit shell "$reparse" &&
             hook::bash_parse_segments "$reparse" check_segment
           HOOK_EFFECTIVE_BASE="$saved_base"
@@ -567,9 +606,9 @@ check_segment() {
           # there rests on the fail-closed traversal budget, not on this set.
           local pkey pseen_hit=0
           collect_locating_globals "${w[@]:0:sub_idx}"
-          repo_identity "$seg_dir" ${locating_globals[@]+"${locating_globals[@]}"} ||
-            HOOK_REPO_IDENTITY="$seg_dir"
-          pkey="$HOOK_REPO_IDENTITY"$'\n'"$sub="$'\n'"$pexp"
+          alias_launch_dir "$seg_dir" ${locating_globals[@]+"${locating_globals[@]}"} ||
+            HOOK_ALIAS_LAUNCH_DIR="$seg_dir"
+          pkey="$HOOK_ALIAS_LAUNCH_DIR"$'\n'"$sub="$'\n'"$pexp"
           for s in ${HOOK_SHELL_ALIAS_SEEN[@]+"${HOOK_SHELL_ALIAS_SEEN[@]}"}; do
             [[ "$s" == "$pkey" ]] && {
               pseen_hit=1
@@ -582,7 +621,7 @@ check_segment() {
             preparse="${pexp#!}"
             for pa in "${w[@]:sub_idx+1}"; do preparse+=" $(printf '%q' "$pa")"; done
             HOOK_ALIAS_SEEN=()
-            HOOK_EFFECTIVE_BASE="$HOOK_REPO_IDENTITY"
+            HOOK_EFFECTIVE_BASE="$HOOK_ALIAS_LAUNCH_DIR"
             alias_reexpand_admit shell "$preparse" &&
               hook::bash_parse_segments "$preparse" check_segment
             HOOK_EFFECTIVE_BASE="$saved_base"

@@ -108,15 +108,35 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
 
     The lexical normalizer is deleted rather than patched. Composed `-C` paths are
     now handed to git verbatim, and one primitive —
-    `git -C <dir> rev-parse --show-toplevel` — supplies both the `!` body's base
-    and the canonical repository identity in the shell-alias cycle key, so the
-    guard tracks git's behavior on every platform by construction. Identity also
-    canonicalizes for free: `-C .`, `link/..`, a subdirectory, and every other
-    spelling of one repository collapse to a single key, which is what stops a
-    self-rewriting `-C` chain. Resolution failure **fails closed**, scoped to the
-    alias walk only, so an ordinary `git commit -F -` resolves nothing and forks
-    nothing (measured: 0 git subprocesses; the `-C .` chain stops after 4, not the
-    128 traversal budget; a 20-hop inline chain still forks 0).
+    `git -C <dir> rev-parse --show-toplevel --show-prefix` — supplies both the `!`
+    body's launch directory and the canonical repository identity in the
+    shell-alias cycle key, so the guard tracks git's behavior on every platform by
+    construction. Where git chdirs the body (a nonempty prefix, or pure discovery)
+    identity canonicalizes for free: `-C .`, `link/..`, a subdirectory, and every
+    other spelling of one repository collapse to a single key, which is what stops
+    a self-rewriting `-C` chain. Resolution failure **falls back to the literal
+    composed directory** (best-available, not a gate), scoped to the alias walk
+    only, so an ordinary `git commit -F -` resolves nothing and forks nothing
+    (measured: 0 git subprocesses; the `-C .` chain stops after 4, not the 128
+    traversal budget; a 20-hop inline chain still forks 0).
+
+  - **A `!` shell-alias body under explicit locating globals launches where the
+    CALLER stands, not at the work-tree top level** (`block-noncanonical-commit`;
+    review finding on the fix above). git chdirs a `!` body to the top level only
+    when it can compute a prefix — when the caller's directory sits INSIDE the
+    effective work tree, which repository discovery always satisfies. An explicit
+    `--git-dir`/`--work-tree` whose work tree does not contain the caller skips
+    that chdir: verified on git 2.54.0.windows.1 (reported by review on 2.43.0),
+    from `<out>`, `git --git-dir <g> --work-tree <w> -c alias.a='!git -C child p'
+    a` runs `<out>/child`'s persisted `p`, while the same invocation from
+    `<w>/sub` runs from `<w>`. Collapsing to the top level UNCONDITIONALLY probed
+    the benign `<w>/child` and allowed while real git ran `<out>/child`'s
+    `commit -m` (verified fail-open) — and its mirror false-blocked a canonical
+    commit. The launch directory is now read from git's own answer: nonempty
+    `--show-prefix` (or a probe with no locating globals, i.e. pure discovery)
+    returns the top level, an empty prefix under explicit globals returns the
+    caller's composed directory. The inside-the-work-tree branch is unchanged, so
+    a subdirectory caller still resolves from the top level, as git does.
 
     The invocation's LOCATING globals are replayed onto that probe, not just its
     `-C`. `--git-dir` and `--work-tree` locate a repository as surely as `-C` does
@@ -187,7 +207,11 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   (with its canonical twin allowed), a `-C .` self-reference that must collapse to
   a cycle (with a twin proving a real `commit -m` behind a `-C .` hop still
   blocks), a `!` body invoked from a SUBDIRECTORY that must resolve from the outer
-  repository's top level (canonical twin allowed), a symlinked-parent `-C link/..`
+  repository's top level (canonical twin allowed), a `!` body under explicit
+  `--git-dir`/`--work-tree` whose caller sits OUTSIDE the work tree that must
+  launch in the caller's own child repository (bypass + false-block twins), with
+  the inside-work-tree pair proving the top-level branch is unchanged, a
+  symlinked-parent `-C link/..`
   fixture gated on the platform actually resolving through the symlink (asserted on
   POSIX, skipped loudly on Windows, where git is itself textual), `-C ./././.`
   collapsing to a cycle without a `.`-cancelling pass, `-C sub/..` reaching a

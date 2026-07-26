@@ -670,6 +670,52 @@ if [[ -d "$GLOB/repo/.git" ]]; then
   done
 fi
 
+# --- explicit locating globals: a `!` body launches where the CALLER stands ----
+# git chdirs a `!` body to the work-tree top level only when the caller's
+# directory is INSIDE the effective work tree. With `--git-dir`/`--work-tree`
+# and a caller outside that work tree, the body runs in the caller's directory:
+# from `<out>`, `git --git-dir <g> --work-tree <w> -c alias.a='!unset GIT_DIR
+# GIT_WORK_TREE; git -C child p' a` runs `<out>/child`'s persisted `p`, not
+# `<w>/child`'s (verified via `!pwd` on git 2.54.0.windows.1; reported by review
+# on 2.43.0). Collapsing to the top level unconditionally probed the benign
+# `<w>/child` and allowed while real git committed non-canonically — and its
+# mirror twin false-blocked a canonical commit. The inside-the-work-tree pair
+# pins the other branch: from `<w>/sub` the same invocation still launches at
+# the top level, so the guard must keep resolving `<w>/child` there, not
+# `<w>/sub/child`.
+LAUNCH="$TEST_TMPDIR/launchdir"
+launch_tree() { # <root> <out-child-alias> <work-child-alias> <sub-child-alias>
+  nested_repo "$1/work"
+  nested_repo "$1/work/child"
+  nested_repo "$1/work/sub/child"
+  mkdir -p "$1/out"
+  nested_repo "$1/out/child"
+  git -C "$1/out/child" config alias.p "$2"
+  git -C "$1/work/child" config alias.p "$3"
+  git -C "$1/work/sub/child" config alias.p "$4"
+}
+launch_tree "$LAUNCH/a" 'commit --allow-empty -m bypass' 'commit -F -' 'commit --allow-empty -m bypass'
+launch_tree "$LAUNCH/b" 'commit -F -' 'commit --allow-empty -m bypass' 'commit -F -'
+
+if [[ -d "$LAUNCH/a/out/child/.git" && -d "$LAUNCH/b/out/child/.git" ]]; then
+  launch_body='!unset GIT_DIR GIT_WORK_TREE; git -C child p'
+  for spec in \
+    "a|out|2|caller outside the work tree: ! body resolves the CALLER's child repo" \
+    "b|out|0|caller outside: canonical commit in the caller's child repo is allowed" \
+    "a|work/sub|0|caller inside the work tree: ! body still starts at the top level" \
+    "b|work/sub|2|caller inside: top-level child's commit -m still blocks"; do
+    IFS='|' read -r tree sub want label <<<"$spec"
+    MSYS_NO_PATHCONV=1 jq -n \
+      --arg c "git --git-dir=$LAUNCH/$tree/work/.git --work-tree=$LAUNCH/$tree/work -c alias.a='$launch_body' a" \
+      --arg d "$LAUNCH/$tree/$sub" \
+      '{tool_name:"Bash",tool_input:{command:$c},cwd:$d}' |
+      timeout 30 bash "$HOOK" >/dev/null 2>&1
+    rc=$?
+    ((rc == 124)) && bad "$label: exceeded the 30s ceiling" && continue
+    assert_exit "$label" "$want" "$rc"
+  done
+fi
+
 # --- PowerShell tool coverage ------------------------------------------------
 # The canonical PowerShell commit form (a here-string piped to `git commit -F -`)
 # must be allowed exactly as the Bash `-F -` form is; a `-m` PowerShell commit
