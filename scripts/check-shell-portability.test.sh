@@ -539,6 +539,17 @@ else
 fi
 rm -f "$f" "$tok"
 
+# --- mere co-location is not enough -- the guard requires an actual `||`
+# fallback relationship, mirroring the readlink/realpath guard's rigor.
+tok="$(one_token_list 'stat[[:space:]]+[^\n]*-c')"
+f="$(tmpsh "stat -f '%d' \"\$1\" >/dev/null; stat -c '%d' \"\$1\"")"
+if out="$(scan_paths "$tok" "$f" 2>&1)"; then
+  fail "stat -f;stat -c with no || fallback relationship should fail, got success: $out"
+else
+  ok "stat -f and stat -c with no actual || fallback relationship is still flagged"
+fi
+rm -f "$f" "$tok"
+
 # --- "stat" as a mere prefix of an identifier ("status") followed later by an
 # unrelated -c flag on the same line must not fire (git's own -c name=value).
 tok="$(one_token_list 'stat[[:space:]]+[^\n]*-c')"

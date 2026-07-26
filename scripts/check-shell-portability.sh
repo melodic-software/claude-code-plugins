@@ -185,7 +185,7 @@ scan_file() {
     # Takes the matched pattern text too, so each guard applies only when its
     # own pattern matched — a line that merely mentions "realpath" or
     # "stat -f" elsewhere must not blanket-excuse a different active
-    # pattern's hit on the same line. A further class enables its own marker
+    # pattern hit on the same line. A further class enables its own marker
     # here when it is activated (see the token file STAGED section) — this is
     # deliberately not a generic heuristic, the same posture
     # check-skill-portability.sh takes.
