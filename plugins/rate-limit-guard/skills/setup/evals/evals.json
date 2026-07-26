@@ -5,12 +5,12 @@
       "id": 1,
       "name": "checks-without-touching-settings",
       "prompt": "/rate-limit-guard:setup check",
-      "expected_output": "Reports jq presence, the statusline wiring state, tee-file freshness against the 10-minute staleness rule, and the hook kill switch; prints the exact settings.json statusline edit for the operator; edits nothing.",
+      "expected_output": "Reports jq presence, the installed shim state, the statusline wiring state, tee-file freshness against the 10-minute staleness rule, and the hook kill switch; prints the exact settings.json statusline edit for the operator; edits nothing.",
       "files": [],
       "expectations": [
         "Reads settings.json only; never writes settings, pluginConfigs, or the contract directory",
         "Reports PASS/FAIL/INFO with one remediation line per FAIL",
-        "Prints the settings.json edit with the resolved plugin-root path and the plugin-update path caveat",
+        "Prints the settings.json edit naming the shim's fixed ~/.claude/rate-limit-guard/bin/ path, never a version-pinned plugin-cache path",
         "Surfaces the dotfiles-tracking reminder for the operator-owned edit"
       ]
     },
@@ -22,8 +22,8 @@
       "files": [],
       "expectations": [
         "Names the state as no-statusline-configured, not as a broken wrapper",
-        "Prints the standalone bash statusline-tee.sh command with no wrapped command",
-        "Does not offer to apply the edit itself"
+        "Prints the standalone shim command with no wrapped command",
+        "Does not offer to apply the settings edit itself"
       ]
     },
     {
@@ -36,6 +36,56 @@
         "Classifies absent rate_limits on a fresh snapshot as expected fail-open behavior",
         "Does not tell the operator to rewire or reinstall anything for it",
         "Cites the reader contract as the owner of the fail-open rule"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "flags-legacy-version-pinned-wiring",
+      "prompt": "/rate-limit-guard:setup check\n\nMy settings.json statusLine command is: bash \"~/.claude/plugins/cache/melodic-software/rate-limit-guard/0.1.0/scripts/statusline-tee.sh\" ~/.claude/statusline/render.sh — and that file exists right now.",
+      "expected_output": "Names the wiring as legacy version-pinned even though the file exists today: it stops teeing at the next version bump and breaks the whole statusline once the old version directory is pruned. Prints the shim wiring as the fix, with apply first if the shim is not installed.",
+      "files": [],
+      "expectations": [
+        "Does not treat current file existence as evidence the wiring is healthy",
+        "Names both failure modes: silent tee stop on version bump, and statusline breakage after the ~14-day prune",
+        "Prints the shim-based replacement wiring and sequences apply before the settings edit when the shim is absent"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "apply-installs-shim-byte-identically-and-idempotently",
+      "prompt": "/rate-limit-guard:setup apply",
+      "expected_output": "Copies the shipped statusline-shim.sh byte-identically to ~/.claude/rate-limit-guard/bin/statusline-shim.sh, reports the write (or reports no change on a second identical run), states that the shim is inert until the operator wires it, and prints the wiring edit as the next step.",
+      "files": [],
+      "expectations": [
+        "Writes only ~/.claude/rate-limit-guard/bin/statusline-shim.sh — never settings.json, rate-limits.json, stop-events.jsonl, or the sibling context-guard directory",
+        "Installed copy is byte-identical to the shipped source, not a rewritten or templated variant",
+        "Second identical apply reports no content change",
+        "States that installing the shim starts nothing until the settings.json wiring is applied by the operator"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "composes-without-double-wrapping",
+      "prompt": "/rate-limit-guard:setup check\n\nMy statusLine command is already: bash ~/.claude/context-guard/bin/statusline-shim.sh ~/.claude/statusline/render.sh — I configured context-guard first. Both plugins are installed, but I have never run /rate-limit-guard:setup apply.",
+      "expected_output": "Recognizes the existing sibling-shim wrapper, unwraps it to the operator's own renderer before composing, and prints wiring that runs each tee exactly once. Because this plugin's own shim is not installed yet, it reports that and names apply as the remediation rather than printing wiring naming a file that does not exist.",
+      "files": [],
+      "expectations": [
+        "Treats ~/.claude/statusline/render.sh as the wrapped command — never re-wraps the full existing command, so the context-guard shim appears exactly once in the printed wiring",
+        "Never prints a combined form naming a shim path that is not installed; gates the combined wiring on the sibling shim existing, or directs the operator to run that plugin's apply first",
+        "Explains that a duplicated tee runs and writes on every refresh and adds another ~0.6-0.9 s per refresh",
+        "Still edits nothing — the wiring is printed for the operator to apply"
+      ]
+    },
+    {
+      "id": 7,
+      "name": "uninstall-order-unwrap-before-delete",
+      "prompt": "/rate-limit-guard:setup check\n\nHow do I back this out completely? I want to remove the plugin and everything it put on my machine.",
+      "expected_output": "Gives the two operator cleanup steps in a REQUIRED order: unwrap the statusLine command first, then delete ~/.claude/rate-limit-guard/.",
+      "files": [],
+      "expectations": [
+        "States the order explicitly and gives the reason: deleting the directory first leaves settings.json invoking a missing file, so bash exits 127 and the whole statusline goes down",
+        "Does not present the two steps as order-independent",
+        "Notes that uninstalling the plugin itself is safe on its own — the shim degrades to running the wrapped command"
       ]
     }
   ]

@@ -3,6 +3,175 @@
 All notable changes to the `claude-config` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.12.0]
+
+### Added
+
+- **`audit-pass` skill** (`/claude-config:audit-pass`). One coordinated, ordered, resumable pass over
+  a named target repository's instruction surface. It defines no criteria: every check is delegated
+  to the plugin that owns it through a presence-gated namespaced invocation with a documented
+  fallback, and nothing crosses a plugin boundary but that invocation. What it adds is the run
+  semantics — a three-scope inventory (managed policy read-only, user scope routed as
+  recommendations, project scope) taken before any check runs; an exclusion set derived at run time
+  from the target's own shared-source registry, the `vendor/` layout rule, `git worktree list`, and
+  the pass's own artifacts, never transcribed; content-derived finding identity; a constituent-keyed
+  suppression record whose entries resolve through a four-way disposition table in which only an exact
+  match is silent — a one-sided anchor change carries forward as `needs-reconfirmation`, a deeper
+  change closes the old entry and opens the new finding, and every disappeared finding is accounted
+  for as a fix, a successor, or an unexplained disappearance that fails the self-check, which is the
+  detector the convergence property previously lacked; per-lane incremental persistence with resume;
+  and one human gate per run. Liveness is read from two ground-truth sources — `InstructionsLoaded`
+  for the memory layer and `/context` for Skills, Custom Agents, and MCP Tools — because either alone
+  under-covers the surface set silently; `managed-settings.json`'s `claudeMd` key is observed by
+  neither and is reported as a known gap. Read-only on bare invocation, mutation only behind `--fix`, and never an edit
+  to managed policy or a user-scope file. `/doctor` is an operator handoff rather than a dispatch,
+  because it is interactive; when its three-part prerequisite or v2.1.206 version floor is unmet the
+  run names it as the missing capability and states what goes unchecked. Findings report in three
+  tiers — derived (exact equality across runs), judged (a stability tolerance whose violation fails
+  the run's self-check), delegated (no property) — and every run reports in one line how many
+  `OPINION`-tier checks were available, were not run, and the argument that enables them. The
+  determinism gate **measures its own precondition** rather than assuming it: HEAD and a **state
+  digest** — every inventoried surface and every dirty path, each paired with the content hash of its
+  current bytes — are captured at the **scan baseline** (Phase 1's inventory frozen, before any lane
+  reads, since the digest spans that inventory and is not computable before it exists) and again at
+  the **audit endpoint**, and a target that
+  moved mid-run reports `indeterminate` rather than `passed`, with the properties marked not
+  evaluated. Three things the naive form gets wrong, all closed here: a *count* holds still while an
+  already-dirty file's contents change, so the digest pairs each path with its content; the digest
+  spans **every inventoried scope**, because a `~/.claude/CLAUDE.md` edit moves what the lanes read
+  while the target's HEAD and dirty set both hold still, and reporting that as a defect would be an
+  accusation where an abstention is correct; and the endpoint is captured **before** Phase 5, so a
+  `--fix` run's own accepted edits fall outside the measured read window instead of marking every
+  successful mutating run `indeterminate`. The pass's own artifacts are excluded from the digest on
+  the same list that excludes them from the scan, so a `--report-to` write does not invalidate the
+  run's own gate. A checkout shared with concurrent sessions is the normal case for the first
+  operator, and an unfalsifiable pass is worse than an honest indeterminate.
+- **Finding-suppression convention** (`docs/conventions/finding-suppression/`). Owner doc for the
+  suppression record `audit-pass` reads at `.claude/audit-pass.md`: entries store the finding's
+  constituents — `check`, `claim`, and every `(surface, anchor)` site — under a derived `finding_id`
+  key, with the constituents authoritative and a key that does not hash from its own body reported
+  malformed. Also the required reason and date, per-key merge (never a closed list, which one personal
+  entry would discard whole), the policy-floor precedence inversion where the team layer wins a
+  conflict, and the five obligations on any consuming skill. Layering defers to the config-cascade
+  contract.
+
+### Changed
+
+- **`setup` now covers a consumer-project configuration surface.** `audit-pass`'s tracked suppression
+  record makes the plugin's previous "owns no consumer-project configuration" claim false, so `check`
+  gains per-layer verification of the record (user-global INFO, team must be tracked, overlay must be
+  gitignored) plus malformed-entry reporting, and `apply` gains its one write path.
+
+## [0.11.0]
+
+### Added
+
+- **`audit-instructions` check I15 and Phase B2: cross-surface conflict pass.** Detects two
+  instruction surfaces that both claim authority over one behavior and contradict each other — a unit
+  of judgment the per-surface Phase B lanes are structurally blind to, since each lane sees only one
+  half of a pair. The catalog row owns the definition, comparison set, `@path`/symlink resolution,
+  `AGENTS.md` exclusion, remediation-by-scope and must-not-flag cases; Phase B2 answers it. The pass
+  consumes Phase A's inventory rather than re-enumerating surfaces, and reads surfaces Phase A
+  recorded as *skipped* (plugin-cache, managed materializations, org policy) as read-only conflict
+  participants, since a contradiction is real whether or not this repo may edit either side.
+- **`reference/conflict-criteria.md`.** The five gates a pair must clear (co-residency, same
+  observable, opposed polarity, no arbitration, non-vacuous trigger overlap), three conflict types
+  and their remediation routes, a residency table covering every surface Phase A inventories, a
+  precedence table separating what the official docs settle from what they leave unresolved, a
+  13-case must-not-flag set, and two worked examples. **Split-brain is not a fourth type**: two files
+  where only one ever loads fails the co-residency gate by construction, so listing it as a conflict
+  type would make it unreachable. It is reported separately as *orphaned instruction drift* — the
+  state a contradiction grows out of, not a contradiction today.
+- **A boundary against `claude-memory:audit`'s C6 consistency check drawn on C6's actual population,
+  not on the name of the layer.** C6 discovers files project-relative (`find . -maxdepth 1` over
+  `CLAUDE.md`/`CLAUDE.local.md`, plus `find .claude/rules`) and its check text names only those
+  files. So only a pair with **both halves in root-level project** `CLAUDE.md` / `CLAUDE.local.md` /
+  `.claude/rules/**` routes to C6. Any pair with a `~/.claude/` side, any pair involving auto-memory
+  `MEMORY.md`, and any pair reaching a **nested** `CLAUDE.md` / `CLAUDE.local.md` stays with this
+  pass — C6 discovers with `find . -maxdepth 1` and never reads the nested files, so routing those
+  out on a layer label would have left them audited by neither skill.
+- **`scripts/conflict-scan.sh` + tests.** Advisory deterministic pre-scan emitting
+  `fileA:lineA|fileB:lineB|entity|flags` candidate pairs, always exit 0, matching the existing
+  `instruction-scan.sh` contract. An entity is a CamelCase identifier anywhere **or a single
+  capitalized word inside backticks** — the second form is what reaches single-word tools (`Bash`,
+  `Read`, `Edit`), and requiring the backticks is what keeps sentence-initial capitalized words out.
+  Neither form is a hardcoded tool list, so a tool the scan has never heard of is still covered.
+  Polarity is read from a window around each mention and **both halves of that window stop at a
+  sentence boundary**, so only a polarity token in the entity's own sentence classifies it:
+  `X must not be used` is a prohibition, a trailing clause past a full stop is not, and a prohibition
+  in the *preceding* sentence no longer overrides the mandate that governs the entity. A boundary is
+  a sentence-ending mark followed by a space — a bare mark also occurs inside a dotted config path or
+  a version number — or a contrastive conjunction with or without a preceding comma, so "always use
+  `Read` but never use `Bash`" classifies each entity on its own clause rather than sharing one
+  polarity. `while` still requires its comma, being temporal as often as contrastive. An
+  opt-in gate suppresses a pair only when it reads as a **condition** rather than as the subject, so
+  "never use `X` for opt-in prompts" is still classified. Classification and pairing run in a single
+  `awk` pass bucketed by entity; a subprocess per mention did not finish on an instruction tree this
+  size.
+- **`conflicts` scope argument.** Runs Phase A plus Phase B2 only, so a scheduled hygiene routine can
+  compose the conflict check on its own token budget without paying for the full audit.
+
+### Changed
+
+- `audit-instructions` reports conflicts as **pairs** in their own report subsection — both
+  `path:line` anchors, both claims quoted verbatim, and either a doc-cited precedence winner or an
+  explicit `unresolved`. The skill never picks a winner the official docs do not state.
+
+## [0.10.0]
+
+### Added
+
+- **`audit-instructions` checks I12–I14**, extending the existing `reference/criteria.md` catalog
+  rather than standing up a second one. Each row carries its must-not-flag cases, and the three new
+  official sources (CLI reference, subagents, skills) join the catalog's source list.
+- **I12 — stale or misattributed harness-capability claim.** The subject is the product, not the
+  model, which separates it from I8. Detection needs an official page stating something incompatible
+  with the claim, or a failed reproduction — and each arm is bounded so the check cannot manufacture
+  findings. **Documentation silence is not drift**: pages are rewritten and condensed, and this
+  repository keeps empirical tests for behaviors the docs never specified. **A reproduction must
+  match every stated precondition** — version, OS, setting, account tier, feature flag, launch mode —
+  and a failure without them is inconclusive rather than a finding.
+- **I13 — prose written on the assumption that an `@path` imported**, on a surface where `@` carries
+  no import meaning. The finding is the false premise, not the citation form: an inert `@path` is
+  still a legible path, so "follow `@reference/rules.md`" works and flagging it would report a
+  working instruction. Remediation rewrites the assertion into an explicit read, because swapping the
+  syntax alone leaves the claim false — no citation form imports anything on these surfaces.
+- **I14 — an instruction to read a surface the main conversation already loads at startup.** Bounded
+  to the root `CLAUDE.md`, the user `CLAUDE.md` at the **resolved** `${CLAUDE_CONFIG_DIR:-~/.claude}`,
+  the root `CLAUDE.local.md`, unconditional project rules and managed policy files. Nested
+  `CLAUDE.md` and `CLAUDE.local.md` files and path-scoped rules load lazily and are exempt, as is any
+  read where **the file is the operation's subject** — the startup copy is a launch-time snapshot, so
+  cutting a pre-edit read produces a patch against stale content.
+
+### Changed
+
+- **Recheck triggers now watch every page in the catalog's source list**, not the three originally
+  named. Each check cites one of those pages, so a subset left the new harness-behavior rows
+  depending on pages nothing watched.
+- **The surface partition no longer widens a row.** It said the full catalog applies on non-memory
+  surfaces while I13 and I14 declare narrower surface sets, so a lane could emit I14 findings on
+  prompt-type hooks and output styles the criterion excludes. Each row's own declaration bounds it.
+- **The `description` carries the new checks' trigger vocabulary.** It framed the skill purely as
+  finding instructions the model no longer needs, and only the description is available during skill
+  selection — so a request about a stale harness claim, a non-loading `@path`, or a redundant
+  startup-surface read would not have selected the catalog that answers it.
+- **`Authority` gloss restated descriptively.** It now reads "All fourteen checks are currently
+  `ANTHROPIC-DOCS`" — a statement about the catalog's present contents, not a rule. `TALK` and
+  `OPINION` stay reachable for a future row, and the axis stays a closed three-value set rather than
+  widening under every existing consumer.
+
+## [0.9.3]
+
+### Added
+
+- **`setup` evals.** The skill shipped none, against the repo's own rule that a skill carrying
+  behavioral warrants demonstrates them. Four cases cover the behaviors its SKILL.md asserts and
+  nothing else: a bare invocation routes to `check` and writes nothing; a missing `curl` FAILs
+  scoped to `check-plugin-drift.sh` alone rather than downgrading the rest of the audit surface;
+  an install request under `apply` yields platform instructions without executing a package
+  manager, and never reports a prerequisite resolved on an install command's exit code; and an
+  audit request under `setup` routes to the audit skills by name instead of being performed.
+
 ## [0.9.2]
 
 ### Changed

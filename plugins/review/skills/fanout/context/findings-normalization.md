@@ -18,6 +18,10 @@ The 5-stage main-thread pipeline that turns heterogeneous free-text findings fro
 
 Line numbers from LLM reviewers drift — treat inferred lines as approximate and keep dedup noise-tolerant.
 
+**One row's raw text is not returned to the session:** the `code-review` plugin ends by posting its surviving findings as a PR comment, so the dispatch itself yields no parsable output. After an opted-in dispatch, fetch that comment (`gh pr view <n> --json comments --jq '.comments[-1].body'`, matching the plugin's `### Code review` heading) and feed the body to Stage 0 as this surface's raw text. Skip the retrieval and the row has no input — then the surface is not normalized and belongs in `## Surfaces` as a skip, not silently absent from the report.
+
+**Not in this table:** the bundled `/code-review` command and the managed Code Review GitHub App service (SKILL.md "Boundary — the bundled command and the managed service"), both distinct from the `code-review` plugin row above. The managed service posts its findings to the PR rather than returning them to normalize; bare `/code-review` is report-only, but is itself a multi-agent review of the same diff whose output has no documented schema to parse. Neither is dispatched as a fan-out leaf here.
+
 ## Stage 0 — Extraction (Sonnet)
 
 Per-surface free-text → records `{surface, file, line, line_basis, category, native_severity, native_confidence, raw_text}`.
@@ -34,7 +38,7 @@ Map native severity → the tier vocabulary in effect (the project's own, else `
 - code-reviewer, slice-subagents, pr-review-toolkit: identity mapping (Critical/Important-or-Warning/Suggestion).
 - architecture-guardian: Violation → CRITICAL (broken rule today) or IMPORTANT (drift) by content; **Risk → SUGGESTION + `forward-flag: future` (NEVER a blocking tier)**; Opportunity → SUGGESTION.
 - doc-drift: Stale → IMPORTANT; Missing/Aspirational → SUGGESTION.
-- **Surfaces emitting no severity (e.g. the `code-review` plugin)** → DERIVE from content: bug/correctness → CRITICAL or IMPORTANT by impact; convention-adherence → IMPORTANT; ambiguous → IMPORTANT + `pending: human-tier`. A confidence filter having passed is confidence-of-realness, NOT severity — a high-confidence nitpick is still a nitpick.
+- **Surfaces emitting no severity** → DERIVE from content: bug/correctness → CRITICAL or IMPORTANT by impact; convention-adherence → IMPORTANT; ambiguous → IMPORTANT + `pending: human-tier`. A confidence filter having passed is confidence-of-realness, NOT severity — a high-confidence nitpick is still a nitpick.
 
 ## Stage 2 — Confidence enum (deterministic / Haiku)
 

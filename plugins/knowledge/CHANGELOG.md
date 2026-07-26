@@ -4,6 +4,35 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle — a consumer receives a change
 only after that version increases.
 
+## [0.9.5]
+
+### Fixed
+
+- **Headless reconfigure recipe now preserves install scope (#1406).** The `claude plugin
+  uninstall` → `claude plugin install ... --config` recipe in `skills/setup/SKILL.md` defaulted
+  both halves to `-s user`. When this plugin is installed at `project` or `local` scope, that
+  silently uninstalled a separate user-scope record while the effective project/local install kept
+  loading, and the reinstall landed at a scope that does not load. Both commands now carry
+  `-s <scope>`, sourced from what `claude plugin list` reports for this plugin — the same fix
+  already applied to `session-flow` and `rate-limit-guard` in #1393.
+  The recipe also now requires the reinstall to re-supply **every** key whose value should
+  stay non-default, not only the key being changed: uninstalling drops the stored
+  `pluginConfigs` entry, so an omitted key silently falls back to its manifest default.
+  Record the current values before uninstalling.
+
+## [0.9.4]
+
+### Fixed
+
+- **youtube-digest: resume recovers an explicit `--target`** (#1356): `watch --target <repo>`
+  resolved a synthesis target, but nothing in the extraction runtime persisted it —
+  `WatchState` had no target field, and `buildContinuationPrompt()` never told a resumed
+  session where to find it, so an interrupted cross-repo watch lost the resolved target and
+  `resume` had to re-infer or re-ask. `run-watch.js` now accepts `--target <repo>`, threads it
+  into `createWatchState()`, and `watch.json` records the portable name (never a machine-local
+  absolute path). `buildContinuationPrompt()` and `run-resume.js`'s JSON output now surface the
+  recorded target so a resumed session reuses it instead of re-asking.
+
 ## [0.9.3]
 
 ### Fixed
