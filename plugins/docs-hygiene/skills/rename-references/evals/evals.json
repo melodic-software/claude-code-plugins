@@ -327,7 +327,7 @@
       "id": 27,
       "name": "json-manifest-name-declaration-is-a-container-position-match",
       "prompt": "Rename the `docs-hygiene` plugin to `doc-care`. Its manifest is JSON: .claude-plugin/marketplace.json carries `\"name\": \"docs-hygiene\"` indented inside an entry, and plugins/docs-hygiene/.claude-plugin/plugin.json carries the same at line 3. Audit for stale references.",
-      "expected_output": "Form 14's JSON declaration alternative matches both, so the container's registered name is reported as Certain. The YAML alternative is anchored at column zero with an unquoted key and reaches neither; without the JSON alternative no container-position form reaches them, container mode reduces both to excluded Form-2 residue, and the sweep can report zero actionable stragglers while the plugin stays registered under its old name. The scope rule does not demote the marketplace entry for living at the repository root rather than under the container's directory -- a catalog entry is the container's registration, and the quoted `name` key is the proof, so it is exempt from the container-owned-path test.",
+      "expected_output": "Form 14's JSON declaration alternative matches both, so the container's registered name is reported as Certain. The YAML alternative requires an UNQUOTED key and reaches neither, whatever the indentation; without the JSON alternative no container-position form reaches them, container mode reduces both to excluded Form-2 residue, and the sweep can report zero actionable stragglers while the plugin stays registered under its old name. The scope rule does not demote the marketplace entry for living at the repository root rather than under the container's directory -- a catalog entry is the container's registration, and the quoted `name` key is the proof, so it is exempt from the container-owned-path test.",
       "files": [],
       "expectations": [
         "The indented, quoted JSON name declaration is matched",
@@ -454,8 +454,45 @@
       "expectations": [
         "A confirmed skip is excluded from the actionable count so Outcome A is reachable",
         "Skips are keyed by occurrence span, not by file or by form",
+        "Stored skip spans are remapped as Phase 5 applies edits, so a later occurrence on an already-edited line still subtracts",
         "Skips are reported separately from the bare-token residue aggregate",
         "A skip does not silently carry across a pattern-library extension"
+      ]
+    },
+    {
+      "id": 38,
+      "name": "skip-spans-are-remapped-after-earlier-same-line-edits",
+      "prompt": "Renaming `context` to `context-tools`. One line reads: /plugin configure context; use context.timeout -- I accept the first match and skip the second. Does the skip still subtract on the re-sweep?",
+      "expected_output": "Only because the stored spans are remapped as edits apply. `context-tools` is longer than `context`, so rewriting the accepted Form 13 occurrence shifts every later occurrence on that line right by len(new) - len(old); the Phase 6 rescan then reports different (start, end) for the skipped Form 12 occurrence, the pre-edit span fails to match, and the user is prompted for the deliberate skip again -- the same non-terminating loop, defeated by the very bookkeeping meant to close it. After each Edit at (line, start, end), the delta is added to the start and end of every stored skip span on that line whose start is greater than the edited start. Spans on other lines and earlier spans on the same line are untouched, because a rename replaces in place and adds no lines. The matched snippet is carried alongside the span, and a snippet mismatch after remapping is reported as a bug rather than silently dropping the skip.",
+      "files": [],
+      "expectations": [
+        "The length difference between old and new is identified as what invalidates the stored span",
+        "Only later spans on the same edited line are shifted",
+        "A snippet mismatch after remapping is surfaced rather than silently discarding the skip"
+      ]
+    },
+    {
+      "id": 39,
+      "name": "minified-json-manifest-declaration-is-matched",
+      "prompt": "Rename the `docs-hygiene` plugin to `doc-care`. Its plugin.json is minified: {\"name\":\"docs-hygiene\",\"version\":\"1\"}. Audit for stale references.",
+      "expected_output": "Form 14's JSON declaration alternative matches it. A manifest need not be pretty-printed to be valid, and filesystem evidence still selects container mode for plugins/docs-hygiene/plugin.json -- so a whole-line `^...$` anchor left the registration unmatched and suppressed as residue while apply mode reported completion. The alternative is delimiter-anchored, using the same (^|[{,]) opener and (,|}|$) terminator as the key-position shape, because in JSON a member starts after a line start, an opening brace, or a comma and ends at a comma, a closing brace, or end of line. Widening it does not cost precision: on this repository it still matches exactly the two real manifest declarations. The YAML and TOML alternatives keep their end-of-line anchor deliberately, because both grammars are line-oriented for the shapes manifests actually use; JSON is the one of the three with no line structure at all.",
+      "files": [],
+      "expectations": [
+        "A minified or compact JSON manifest declaration is matched",
+        "The anchor is described as delimiter-aware rather than whole-line",
+        "The YAML and TOML alternatives are not widened along with it, with the line-orientation reason given"
+      ]
+    },
+    {
+      "id": 40,
+      "name": "mode-ladder-lead-in-does-not-say-stop-at-first",
+      "prompt": "Reading Phase 0b, the ladder says to resolve in order. Should I stop as soon as a rule fires?",
+      "expected_output": "Only for rule 1. The lead-in states that just the explicit --container/--identifier override short-circuits, and that rules 2-4 are evidence to be collected in full and compared per the conflict rule below the list. Reading them as a precedence order and stopping at the first that fires is precisely the failure that conflict rule exists to prevent: an unrelated manifest declaring name: test fires rule 3 for container before rule 4 ever inspects the /test invocations, and container mode then suppresses the action's actionable references. The list ordering describes which evidence is cheapest to check first, not which verdict wins.",
+      "files": [],
+      "expectations": [
+        "Only the explicit override is described as short-circuiting",
+        "The ordering is explained as check order, not verdict precedence",
+        "The named failure is container mode suppressing an identifier's actionable references"
       ]
     }
   ]

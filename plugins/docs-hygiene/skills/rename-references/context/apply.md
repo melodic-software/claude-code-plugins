@@ -120,6 +120,18 @@ constraints on the record:
 
 - **Key it by span, not by file or by form.** Skipping one occurrence is not consent to skip a
   second one on the same line, and the user answered about a specific reference.
+- **REMAP the stored spans as Phase 5 applies edits — a span recorded pre-edit does not survive
+  the edit.** `<old>` and `<new>` are different lengths in the general case, so applying an
+  accepted occurrence shifts every LATER occurrence on that same line by
+  `len(<new>) - len(<old>)`. On `/plugin configure <old>; use <old>.timeout` the accepted Form 13
+  match moves the skipped Form 12 match's columns, the Phase 6 rescan reports different
+  `(start, end)`, the stored span fails to subtract, and the user is prompted for the deliberate
+  skip again — the same non-terminating loop, now defeated by the bookkeeping meant to close it.
+  After each Edit at `(line, start, end)`, add the delta to the `start` and `end` of every stored
+  skip span on that line whose `start` is greater than the edited `start`. Spans on other lines
+  and earlier spans on the same line are unaffected, because a rename replaces in place and adds
+  no lines. Carry the matched snippet alongside the span and treat a snippet mismatch after
+  remapping as a bug to report, not a skip to silently drop.
 - **A skip is scoped to the sweep that asked.** If Phase 6 discovers a NEW form (Outcome C) and
   the library is extended, re-ask rather than carrying the old skip across a changed question.
 

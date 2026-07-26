@@ -277,7 +277,7 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
 ^#{1,6}\s+`?<old>`?\s*$
 ^`?<old>`?\s*$\n^(=+|-+)\s*$
 ^\s*(name|title|id):\s*("<old>"|'<old>'|<old>)\s*$
-^\s*"(name|title|id)":\s*"<old>"\s*,?\s*$
+(^|[{,])\s*"(name|title|id)"\s*:\s*"<old>"\s*(,|}|$)
 ^\s*"?(name|title|id)"?\s*=\s*("<old>"|'<old>')\s*$
 (^|[{,])\s*("<old>"|<old>)\s*:\s*[{\[]
 ```
@@ -296,9 +296,29 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
   Setext shape meant a container's own title had only a Form 2 hit — which container mode
   excludes — and the rename could report completion with the landing-page title still stale.
   Requires `multiline: true`, like Form 7.
-- **JSON declarations count, and they are the container's REGISTERED name.** When the manifest or
-  catalog is JSON, the declaration is `"name": "<old>"` — the key is quoted, the line is indented
-  rather than at column zero, and a trailing comma usually follows. The YAML alternative reaches
+- **The JSON declaration is delimiter-anchored, not whole-line-anchored.** A manifest need not be
+  pretty-printed to be valid: `{"name":"<old>","version":"1"}` is a perfectly ordinary minified or
+  compact manifest, and filesystem evidence still selects container mode for it — after which the
+  unmatched declaration is suppressed as residue and apply mode reports completion with the
+  registration stale. A `^…$` anchor requires the field to occupy the whole line and reaches none
+  of that. The alternative uses the same `(^|[{,])` opener and a `(,|}|$)` terminator as the
+  key-position shape below: in JSON a member starts after a line start, `{`, or `,`, and ends at
+  `,`, `}`, or end of line. Verified: `{"name":"<old>","version":"1"}`, `{"name":"<old>"}`,
+  `{"version":"1","name":"<old>"}`, an indented `"name": "<old>",`, a spaced `"name" : "<old>",`,
+  `"title": "<old>"` and `{"id":"<old>"}` all match; `{"name":"<old>-extra",…}`,
+  `{"description":"<old>"}` and a prose line quoting `"name": "<old>"` mid-sentence do not.
+  Precision on this repository is unchanged by the widening: still exactly
+  `.claude-plugin/marketplace.json:192` and `plugins/docs-hygiene/.claude-plugin/plugin.json:3`.
+- **The YAML and TOML alternatives keep their `$` anchor deliberately.** Both grammars are
+  line-oriented for the shapes manifests actually use — block mappings and top-level key/value
+  pairs — so the end-of-line anchor is a real discriminator there rather than an accident of
+  formatting. JSON is the one of the three with no line structure at all. If a consuming
+  repository ships a YAML flow mapping (`{name: <old>}`) or a TOML inline table, treat it the way
+  the YAML block-mapping catalog gap below is treated: resolve by hand, do not widen these two
+  into every-nested-key patterns.
+- **The declaration IS the container's REGISTERED name.** When the manifest or
+  catalog is JSON, the declaration is `"name": "<old>"` — the key is quoted, the line is usually
+  indented rather than at column zero, and a trailing comma usually follows. The YAML alternative reaches
   none of that, and no other container-position form reaches it either, so container mode reduced
   the container's own registered name to excluded Form 2 residue and the sweep could report zero
   actionable stragglers with the registration stale. Verified on this repository: renaming
@@ -524,8 +544,10 @@ Declare the sweep's MODE at Phase 0, from what is being renamed.
 
 **Selecting the mode — a concrete ladder, not a judgment call.** Getting this wrong is costly in
 both directions: identifier mode on a container restores the Form 2 flood, container mode on an
-identifier suppresses bare references that were genuinely actionable. Resolve in this order and
-stop at the first rule that fires:
+identifier suppresses bare references that were genuinely actionable. **Only rule 1
+short-circuits.** Rules 2–4 are evidence to COLLECT IN FULL and compare, per the conflict rule
+below the list — reading them as a precedence order and stopping at the first that fires is the
+failure that rule exists to prevent:
 
 1. **Explicit override.** The invocation says which (`--container` / `--identifier`). Honor it.
 2. **Filesystem evidence — a directory named `<old>` whose parent is a container root.** A

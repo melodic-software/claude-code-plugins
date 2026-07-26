@@ -86,6 +86,21 @@
   keeps it from becoming a mass-rewrite vector. A YAML block-mapping catalog key stays a
   documented gap: it opens with nothing, so the only pattern reaching it would match every nested
   YAML key.
+- **Skip spans are remapped as edits apply.** A span recorded before Phase 5 does not survive the
+  edit: `<old>` and `<new>` differ in length, so rewriting an accepted occurrence shifts every
+  later occurrence on that line and the stored skip no longer subtracts — the non-terminating
+  loop again, defeated by the bookkeeping added to close it. Each Edit now shifts the later
+  stored spans on its line by the delta, and a carried snippet catches any mismatch.
+- **The JSON declaration is delimiter-anchored, not whole-line-anchored.** A minified or compact
+  manifest — `{"name":"<old>","version":"1"}` — is perfectly valid and still selects container
+  mode by filesystem evidence, but a `^…$` anchor required the field to occupy the whole line and
+  left the registration unmatched. Now uses the same `(^|[{,])` / `(,|}|$)` delimiters as the
+  key-position shape; precision on this repository is unchanged. The YAML and TOML alternatives
+  keep their end-of-line anchor deliberately, being line-oriented grammars for the shapes
+  manifests actually use.
+- **The mode-ladder lead-in no longer says "stop at the first rule that fires".** The conflict
+  rule added below the list said to collect rules 2–4 in full and compare; the sentence
+  introducing the list still said the opposite, so the contradiction stood in one file.
 - **A confirmed skip no longer blocks completion.** The actionable count excluded the container
   mode's residue but not the matches a user declined at Phase 4, so a deliberate "skip this"
   re-entered Outcome B on every re-sweep and the only exits were rewriting a known false positive
