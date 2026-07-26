@@ -59,15 +59,20 @@ never sees torn JSON; the file is **last-writer-wins** across all sessions on th
 Windows may be unobservable (API-key and enterprise auth carry limits but expose no
 `rate_limits`). A consumer classifies its guard mode before every pause decision:
 
-| Observation | Mode |
-|---|---|
-| Fresh snapshot with plausible `rate_limits` | **proactive** — apply the operable floor |
-| Tee file absent, stale, missing `rate_limits`, or absurd values | **unknown → reactive-only** |
+| Observation | Scope | Mode |
+|---|---|---|
+| Fresh snapshot with plausible `rate_limits` | whole guard | **proactive** — apply the operable floor |
+| Tee file absent, stale, or missing `rate_limits` | whole guard | **unknown → reactive-only** |
+| Absurd `used_percentage` or `resets_at` | that window | that window **unknown**; the floor still applies to every window still plausible |
+| No window plausible | whole guard | **unknown → reactive-only** |
 
-Absurd values fail open, never closed: a `used_percentage` outside 0–100 or non-numeric, or a
-`resets_at` that is non-numeric, more than 8 days in the future, or already past by more than the
-staleness window, makes that window **unknown** — the consumer never throttles proactively on data
-it cannot trust, and never fabricates a pause.
+The scope column is load-bearing: only the whole-guard rows drop the guard to reactive-only. Absurd
+values fail open, never closed: a `used_percentage` outside 0–100 or non-numeric, or a `resets_at`
+that is non-numeric, more than 8 days in the future, or already past by more than the staleness
+window, makes **that window** unknown — and each window may be independently absent. Keep applying
+the floor to every window still plausible: one absurd window is no reason to ignore a valid window
+already at or above 90, and a trip on the only plausible window is still a trip. The consumer never
+throttles proactively on data it cannot trust, and never fabricates a pause.
 
 **Reactive-only mode:** no proactive throttling. The consumer reacts to the detection records in
 `~/.claude/rate-limit-guard/stop-events.jsonl` (below) and to the rate-limit error text its own
