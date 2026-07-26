@@ -3,7 +3,7 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
-## [0.16.4]
+## [0.17.1]
 
 ### Fixed
 
@@ -219,6 +219,113 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   not refused outright), and benign controls (safe multi-hop chain allowed; alias cycle, self-
   and mutually referential persisted shell aliases terminate and allow without
   hanging). Closes #964.
+
+## [0.17.0]
+
+### Added
+
+- `stale-path-verify` — a twelfth guard, advisory on `PostToolUse` `Write|Edit`
+  of markdown. It flags a repo-relative path cited in an inline code span that
+  this repository's own history shows was **deleted** and that is gone from the
+  working tree.
+
+  This ships the rescope of the `asserted-path-verify` guard withdrawn at
+  0.16.0 (see that release's *Not shipped*), resolving
+  [#1314](https://github.com/melodic-software/claude-code-plugins/issues/1314).
+  The withdrawn guard tested **absence** behind a first-segment gate, inferring
+  that a path was a claim about this tree because its leading directory existed
+  here. That inference is invalid: `docs/`, `scripts/`, `lib/` and `.claude/`
+  are conventional names shared by every repo that uses them, so the gate
+  selected for path *shape* rather than repo *ownership*. Swept across all 975
+  tracked markdown files it fired on 23.7% of them at **zero** precision.
+
+  The gate is now **provenance**: the exact repo-relative path must appear in
+  `git log HEAD --no-renames --diff-filter=D --name-only`. Absence proves
+  nothing on its own — it becomes evidence only against a baseline of presence,
+  and history is the only thing that can establish one.
+  - `--no-renames` is mandatory. Under git's default rename detection a moved
+    file is recorded as `R` and `--name-only` prints only the *new* path, so the
+    stale path never enters the set and the guard silently drops to zero
+    findings. A behavioral test case pins it.
+  - `HEAD`, not `--all`: a path that only ever existed on an abandoned branch is
+    not a stale mainline citation.
+  - The history walk is built lazily, only after a cited path has already failed
+    the working-tree existence test, so the overwhelmingly common quiet path
+    never pays for it.
+  - A shallow clone truncates that history, which would leave the guard inert
+    while appearing healthy, so it emits a visible prerequisite notice naming
+    `git fetch --unshallow` instead.
+  - The walk's exit status is checked before anything is populated. A clone that
+    is not shallow can still fail mid-walk — a partial clone offline, a damaged
+    object store — emitting the deletions it already resolved and then exiting
+    nonzero. Read through a pipe that status is invisible, and a truncated set
+    is indistinguishable from a complete one: the guard would adjudicate against
+    a fraction of history while looking healthy. A failed walk takes the same
+    announced degradation as a shallow clone, and a behavioral test case pins it
+    against a fixture whose walk emits one deletion and then fails
+    (review-caught).
+- An `Edit` that replaces a bare substring **inside** an existing code span is
+  reconstructed from disk, mirroring `skill-reference-verify`. The surrounding
+  backticks are pre-existing and never enter `new_string`, so the hunk holds no
+  complete span to scan and a newly-stale citation would otherwise be missed
+  entirely. Only the lines the hunk's own text occurs in are read back, and only
+  candidates containing one of the hunk's 4+ character word tokens are
+  adjudicated. Both filters are needed to hold diff-scope: a word token alone is
+  short enough to occur in lines the edit never touched — a bare `docs` in
+  unrelated prose matches every citation under `docs/` — so an untouched stale
+  citation elsewhere in the file would fire. Every line of `new_string` is on
+  disk verbatim by `PostToolUse` time, so anchoring on the line can only ever
+  select a subset of what the token would, and the edited line is always in it.
+- The existence gate reads **present**, not reachable. `-e` alone reports false
+  for two paths that are deliberately there: a dangling symlink, where the link
+  exists and only its target does not, and a path tracked at `HEAD` but left
+  unmaterialized by a sparse checkout. Both would otherwise clear the provenance
+  gate and be reported stale, so the gate also accepts `-L` and, for a candidate
+  that has already satisfied provenance, consults index membership.
+- Markdown **link destinations are out of scope**; only inline code spans are
+  scanned. On-disk link integrity belongs to the repo's offline link checker,
+  and under the provenance oracle no link-kind candidate contributed a finding.
+  Dropping them removes the document-directory base, `../` canonicalization,
+  percent-decoding and lexical normalization — a large share of the withdrawn
+  guard's complexity, none of it earning signal.
+- `CHANGELOG.md` writes are excluded, mirroring `skill-reference-verify`: an
+  append-only historical record documents exactly the removed paths this oracle
+  selects for.
+- A finding names the surviving file when exactly one tracked path now carries
+  the cited basename. Basename matching is far too weak to trigger on — `README.md`
+  and `SKILL.md` match hundreds of paths — but once history has established the
+  path was removed, a unique match is very likely where it went.
+
+### Changed
+
+- The guard is declared **detect-then-judge**, not deterministic. Its oracle is
+  mechanical, but the conclusion is not: a doc may cite a removed path
+  deliberately, as a deletion or completion record, and that citation is correct
+  exactly as written.
+- This is a **charter change, not a tightening**. The withdrawn guard claimed to
+  catch hallucinated paths; a provenance gate structurally cannot. An invented
+  path was never in the repository, so it never enters the deleted-path set and
+  the guard stays silent by construction. Separating "asserted about *this* tree"
+  from "documented about a *consumer's* tree" needs a signal a repo-root oracle
+  does not have — both are absent locally and conventionally shaped — so that
+  class is deliberately deferred until one exists.
+- README guard counts and the per-hook kill-switch table are re-measured against
+  the wired hook set rather than carried forward: the prose said "eleven safety
+  guards" and "four advisory guards", and the kill-switch table omitted
+  `block-convention-violation` and `skill-reference-verify` while both were
+  wired and toggleable.
+- The guard is registered as a hook-telemetry producer:
+  `docs/conventions/hook-telemetry/data/stale-path-verify.schema.json` publishes
+  its `data` payload and the convention's implementer table carries the row.
+  Under the convention's discovery contract a sink treats a hook with no
+  matching schema as unknown and ignores its `data`, so an unpublished producer
+  emits telemetry nothing can consume (review-caught).
+- The two degradation branches emit telemetry `status: skipped` rather than
+  `ok`. They run precisely when the deleted-path oracle was unavailable, so
+  reporting `ok` made a sink read an un-run check as a healthy one — the same
+  looks-healthy-while-inert failure the visible prerequisite notice exists to
+  prevent, reintroduced on the observability surface. A behavioral case pins the
+  shallow-clone branch's status (review-caught).
 
 ## [0.16.3]
 
