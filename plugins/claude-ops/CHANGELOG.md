@@ -35,7 +35,9 @@ All notable changes to the `claude-ops` plugin are documented here. Format follo
   hook waits for its payload before failing open" — a total read deadline. It is now an inactivity
   deadline: any byte resets it, so a producer that keeps emitting is bounded by Claude Code's own
   hook timeout rather than by this value, and the bound is read in four slices so a stall is detected
-  within a quarter of the configured interval. Documentation only — the configuration contract users
+  within a quarter of the configured interval — except on a shell without fractional `read -t`
+  (Bash 3.2, the macOS system shell), where the bound is read as one window and the detection can
+  take up to two intervals. Documentation only — the configuration contract users
   read was materially misleading after the shared-library change above.
 
 ## [0.21.5]

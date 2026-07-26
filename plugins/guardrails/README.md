@@ -135,10 +135,14 @@ One further option tunes the hooks' shared plumbing rather than a single guard:
   so a large or slowly-delivered payload is never cut off while it is still
   coming; it fires only once the pipe has gone silent for that long, at which
   point a blocking guard fails **closed** (`exit 2` with a `BLOCKED:` reason)
-  rather than letting an unscanned tool call through. The bound is read in four
-  slices, so a stall is declared within a quarter of the configured interval of
-  it — that quarter is the limit of the approximation, and it errs toward
-  waiting rather than toward calling a live producer dead. A value this shell's
+  rather than letting an unscanned tool call through. On a shell whose `read -t`
+  accepts fractional values the bound is read in four slices, so a stall is
+  declared within a quarter of the configured interval of it — that quarter is
+  the limit of the approximation, and it errs toward waiting rather than toward
+  calling a live producer dead. Where fractional timeouts are unavailable (Bash
+  3.2, the macOS system shell) the bound is read as one window instead, and a
+  producer that sends bytes and then goes silent can take up to **two** intervals
+  to be declared stalled. A value this shell's
   `read -t` will not accept — or `0`, which would make the read consume nothing
   — falls back to the default rather than disabling the guards. You should not
   need to change it.

@@ -83,8 +83,11 @@ back into logging them. A `stdin_read_timeout` option (seconds, default `2`) is
 an **idle** bound on reading each hook's payload: any byte arriving resets it, so
 a large or slowly-delivered payload is never cut off while it is still coming,
 and it fires only once the pipe has gone silent for that long — at which point
-these audit hooks fail open (skip). The bound is read in four slices, so the
-stall is detected within a quarter of the configured interval of it. A producer
+these audit hooks fail open (skip). On a shell whose `read -t` accepts fractional
+values the bound is read in four slices, so the stall is detected within a
+quarter of the configured interval of it; where fractional timeouts are
+unavailable (Bash 3.2, the macOS system shell) it is read as one window and a
+producer that sends bytes then goes silent can take up to two intervals. A producer
 that keeps emitting is bounded by Claude Code's own hook timeout, not by this
 value. A setting this shell's `read -t` will not accept — or `0` — falls back to
 the default.

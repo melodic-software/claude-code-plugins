@@ -25,7 +25,10 @@ All notable changes to the `guardrails` plugin are documented here. Format follo
   is read in four slices, because `read -t` reports only that its window expired and never when
   inside it the last byte arrived — armed as one window, a stall would be declared anywhere between
   one and *two* bounds after the pipe went quiet. Slicing caps that overshoot at a quarter-bound;
-  that residual quarter is the limit of the approximation and always errs toward waiting. Reading on
+  that residual quarter is the limit of the approximation and always errs toward waiting. Slicing
+  needs fractional `read -t`, so on a shell without it (Bash 3.2, the macOS system shell) the bound
+  is read as one window and the one-to-two-bound overshoot remains — documented as such rather than
+  claimed away. Reading on
   stops once the buffer already parses as whole JSON, so the Win32 late-EOF case (payload complete,
   pipe simply never closed) settles at the payload rather than at the bound. Measured: 50 KB drops
   from ~2100 ms to ~20 ms, 200 KB from ~6800 ms to ~85 ms.
