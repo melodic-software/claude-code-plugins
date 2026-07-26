@@ -335,6 +335,26 @@ else
 fi
 rm -f "$f"
 
+# --- an EMPTY quote pair is the one quoted form that must still match (#1546).
+# Quote removal deletes it, so the flag really is passed: on bash,
+# `printf '[%s]\n' -P'' pattern` prints `[-P]` then `[pattern]`, `grep -P'' '\d'`
+# matches a digit where a -P-less grep does not, and `echo -e'' 'a\tb'` emits a
+# real tab. Ignoring these was a false negative, not the accepted narrowing.
+f="$(tmpsh "$(printf '%s\n' \
+  "grep -P'' pattern" \
+  'sort -V"" file' \
+  "echo -e'' value" \
+  "grep -P''" \
+  'sort -V""')")"
+if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
+  fail "empty quote pairs should still be detected, got success: $out"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 5 ]]; then
+  ok "an empty quote pair after an option cluster is still detected"
+else
+  fail "expected all 5 empty-pair forms flagged, got: $out"
+fi
+rm -f "$f"
+
 # --- a process substitution attached to an option word is the same shape as an
 # attached quote, not a redirection (#1546): the shell concatenates `<(`/`>(`
 # into the current word, so bash runs `echo -e<(printf x)` as the single

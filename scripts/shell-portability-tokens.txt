@@ -91,7 +91,15 @@
 # passed. `[<>]([^(]|$)` therefore keeps the redirection boundary
 # (`grep -P ... <file`) while excluding the process-substitution one. Every
 # boundary below that admits `<`/`>` carries the same shape.
-grep[^\n]*[[:space:]]-[A-Za-z]*P[A-Za-z]*([[:space:]|&;()]|[<>]([^(]|$)|$)
+#
+# An EMPTY quote pair is the one quoted form that must still match (#1546).
+# Quote removal deletes it outright, so `grep -P'' pattern` passes the argument
+# `-P` exactly — verified on bash: `printf '[%s]\n' -P'' pattern` prints `[-P]`
+# and `[pattern]`, `grep -P'' '\d'` matches a digit where a `-P`-less grep does
+# not, and `echo -e'' 'a\tb'` emits a real tab. A NONEMPTY pair still opens a
+# word and is still ignored, so `(''|"")?` sits before the boundary rather than
+# inside it: the empty pair is skipped, then a genuine terminator must follow.
+grep[^\n]*[[:space:]]-[A-Za-z]*P[A-Za-z]*(''|"")?([[:space:]|&;()]|[<>]([^(]|$)|$)
 --perl-regexp
 
 # `echo -e` — POSIX leaves echo's flag handling unspecified; BSD/macOS sh/bash
@@ -102,7 +110,7 @@ grep[^\n]*[[:space:]]-[A-Za-z]*P[A-Za-z]*([[:space:]|&;()]|[<>]([^(]|$)|$)
 # operator-terminated boundary as `grep -P` above (#1537): `x=$(echo -e ...)`,
 # `echo -e ...|cat`, `echo -e ...; echo` are detected, not only the
 # whitespace-terminated form.
-echo[[:space:]]+-[a-zA-Z]*e[a-zA-Z]*([[:space:]|&;()]|[<>]([^(]|$)|$)
+echo[[:space:]]+-[a-zA-Z]*e[a-zA-Z]*(''|"")?([[:space:]|&;()]|[<>]([^(]|$)|$)
 
 # `sort -V` (natural/version sort) — a GNU coreutils extension; BSD sort has no
 # `-V`. `V` may appear anywhere in a combined short-option cluster (`-Vr`),
@@ -128,7 +136,7 @@ echo[[:space:]]+-[a-zA-Z]*e[a-zA-Z]*([[:space:]|&;()]|[<>]([^(]|$)|$)
 # of false negative the `--sort=WORD` boundary above was built to avoid, now
 # widened to match it (#1537, found while auditing #1530's own new token for
 # the same defect).
-sort[^\n]*[[:space:]]-[A-Za-z]*V[A-Za-z]*([[:space:]|&;()]|[<>]([^(]|$)|$)
+sort[^\n]*[[:space:]]-[A-Za-z]*V[A-Za-z]*(''|"")?([[:space:]|&;()]|[<>]([^(]|$)|$)
 --version-sort
 sort[^\n]*[[:space:]]--sort(=|[[:space:]]+)['"]?version([[:space:]|&;()'"`]|[<>]([^(]|$)|$)
 
