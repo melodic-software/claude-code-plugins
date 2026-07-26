@@ -809,6 +809,20 @@ def _bash_denial_guidance(authority: str | None) -> str:
 _WATCHDOG_ENV_VAR = "DISK_HYGIENE_GUARD_WATCHDOG_SECONDS"
 _WATCHDOG_DEFAULT_SECONDS = 10.0
 
+# The `timeout` both guard registrations declare (`hooks/hooks.json` and
+# `skills/clean/SKILL.md` frontmatter). Duplicated here because a PreToolUse
+# payload does not carry the hook's own timeout, so the guard cannot read it at
+# runtime; `test_declared_hook_timeouts_match_the_watchdog_ceiling` fails the
+# suite if either registration drifts from this value.
+_DECLARED_HOOK_TIMEOUT_SECONDS = 60.0
+# Headroom the watchdog cannot itself cover: interpreter startup before `main`
+# runs, plus process teardown after `_watchdog_fire`. ADR 0004 measures
+# `python3 -c 'pass'` at 396 ms on this host, and that figure is unbounded from
+# inside the process under EDR or load contention, so the margin is generous
+# rather than tight.
+_HOOK_STARTUP_HEADROOM_SECONDS = 10.0
+_WATCHDOG_MAX_SECONDS = _DECLARED_HOOK_TIMEOUT_SECONDS - _HOOK_STARTUP_HEADROOM_SECONDS
+
 
 def _watchdog_seconds() -> float:
     """The guard's own internal deadline, in seconds (module docstring, AC 5).
@@ -817,7 +831,20 @@ def _watchdog_seconds() -> float:
     value from ``DISK_HYGIENE_GUARD_WATCHDOG_SECONDS`` lets an operator raise
     the deadline on a known-slow filesystem, and any absent, non-numeric,
     non-finite, or non-positive override falls back to the default rather than
-    disarming the watchdog or raising.
+    disarming the watchdog or raising. A valid override above
+    ``_WATCHDOG_MAX_SECONDS`` is clamped to it, not rejected: the operator's
+    intent (wait longer) is honoured as far as it can safely go.
+
+    The clamp is what keeps the two deadline layers ordered. The watchdog is
+    the primary mechanism and the harness ``timeout`` is the backstop, which
+    only holds while the watchdog fires *first* — an override at or above the
+    declared hook timeout inverts that, the harness kills the process instead,
+    and a killed PreToolUse hook yields no ``permissionDecision`` at all, so
+    the guarded command proceeds unguarded (``docs/adr/0004-...``: across
+    15,845 cancelled runs "a killed PreToolUse hook yields ``outcome:
+    'cancelled'`` with no ``permissionDecision``, so the tool call proceeds
+    unguarded"). Clamping keeps the guard's own deny reachable no matter what
+    an operator sets.
 
     The non-finite rejection is load-bearing, not defensive tidiness: ``inf``,
     ``nan``, and overflowing literals such as ``1e400`` all parse cleanly
@@ -827,7 +854,9 @@ def _watchdog_seconds() -> float:
     time_t``. Because that raises on the *background* thread it never reaches
     ``main``'s exit-2 boundary — it would silently disarm the watchdog while
     leaving the guard apparently armed, the exact fail-open shape #1423 exists
-    to close.
+    to close. The clamp does not subsume it: ``nan`` fails every comparison, so
+    ``min(nan, ceiling)`` would return ``nan`` and hand the same broken value
+    to ``Timer``.
     """
     raw = os.environ.get(_WATCHDOG_ENV_VAR)
     if not raw:
@@ -838,7 +867,7 @@ def _watchdog_seconds() -> float:
         return _WATCHDOG_DEFAULT_SECONDS
     if not math.isfinite(value) or value <= 0:
         return _WATCHDOG_DEFAULT_SECONDS
-    return value
+    return min(value, _WATCHDOG_MAX_SECONDS)
 
 
 def _watchdog_fire(deadline: float) -> None:
@@ -852,8 +881,9 @@ def _watchdog_fire(deadline: float) -> None:
     """
     print(
         f"destructive_guard: internal deadline of {deadline:g}s exceeded; "
-        f"denying by default. Raise {_WATCHDOG_ENV_VAR} if this guard "
-        "legitimately needs longer on this filesystem.",
+        f"denying by default. Raise {_WATCHDOG_ENV_VAR} (up to "
+        f"{_WATCHDOG_MAX_SECONDS:g}s) if this guard legitimately needs longer "
+        "on this filesystem.",
         file=sys.stderr,
         flush=True,
     )

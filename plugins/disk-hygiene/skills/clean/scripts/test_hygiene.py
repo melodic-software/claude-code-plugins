@@ -3809,6 +3809,61 @@ class GuardTests(unittest.TestCase):
                 self.assertEqual(guard._WATCHDOG_DEFAULT_SECONDS, resolved)
                 self.assertTrue(math.isfinite(resolved))
 
+    def test_watchdog_seconds_clamps_overrides_below_the_hook_timeout(self) -> None:
+        """An override must never outlive the harness deadline it sits under.
+
+        The watchdog is the primary mechanism and the declared hook `timeout`
+        is the backstop, which only holds while the watchdog fires first. An
+        override at or above the hook timeout inverts that: the harness kills
+        the process instead, and a killed PreToolUse hook yields no
+        `permissionDecision`, so the guarded command proceeds unguarded.
+        """
+        self.assertLess(
+            guard._WATCHDOG_MAX_SECONDS, guard._DECLARED_HOOK_TIMEOUT_SECONDS
+        )
+        self.assertLess(guard._WATCHDOG_DEFAULT_SECONDS, guard._WATCHDOG_MAX_SECONDS)
+        for raw in ("50", "60", "600", "1e300"):
+            with self.subTest(raw=raw):
+                with mock.patch.dict(os.environ, {guard._WATCHDOG_ENV_VAR: raw}):
+                    resolved = guard._watchdog_seconds()
+                self.assertEqual(guard._WATCHDOG_MAX_SECONDS, resolved)
+                self.assertLess(resolved, guard._DECLARED_HOOK_TIMEOUT_SECONDS)
+        # An override under the ceiling is still honoured verbatim.
+        with mock.patch.dict(os.environ, {guard._WATCHDOG_ENV_VAR: "30"}):
+            self.assertEqual(30.0, guard._watchdog_seconds())
+
+    def test_declared_hook_timeouts_match_the_watchdog_ceiling(self) -> None:
+        """Lock the config<->code seam the clamp is derived from.
+
+        `_WATCHDOG_MAX_SECONDS` is computed from a copy of the registrations'
+        `timeout`, because a PreToolUse payload does not carry the hook's own
+        timeout and the guard cannot read it at runtime. Lowering either
+        registration without lowering the constant would let a clamped
+        override still outrun the harness — the fail-open the clamp closes.
+        """
+        hooks_path = SCRIPT_DIR.parents[2] / "hooks" / "hooks.json"
+        config = json.loads(hooks_path.read_text(encoding="utf-8"))
+        declared = [
+            hook.get("timeout")
+            for entry in config["hooks"]["PreToolUse"]
+            for hook in entry.get("hooks", [])
+            if hook.get("args")
+            and any("destructive_guard.py" in arg for arg in hook["args"])
+        ]
+        self.assertEqual([guard._DECLARED_HOOK_TIMEOUT_SECONDS], declared)
+
+        skill_text = (SCRIPT_DIR.parent / "SKILL.md").read_text(encoding="utf-8")
+        timeout_lines = [
+            line
+            for line in skill_text.splitlines()
+            if line.strip().startswith("timeout:")
+        ]
+        self.assertEqual(1, len(timeout_lines), timeout_lines)
+        self.assertEqual(
+            guard._DECLARED_HOOK_TIMEOUT_SECONDS,
+            float(timeout_lines[0].split(":", 1)[1].strip()),
+        )
+
     def test_main_denies_at_exit_2_when_watchdog_cannot_be_constructed(self) -> None:
         """Timer construction is inside the fail-closed boundary.
 

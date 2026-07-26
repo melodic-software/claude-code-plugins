@@ -54,7 +54,7 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   (`plugins/guardrails/CHANGELOG.md` `[0.15.1]`: 10-40x headroom over every real duration sample
   measured, well short of the 600s platform default), not the 20s this plugin started at.
 
-- **Three residual fail-open paths in the new watchdog itself, all reported in review.** (1) Arming
+- **Four residual fail-open paths in the new watchdog itself, all reported in review.** (1) Arming
   the watchdog sat *outside* the exit-2 boundary it protects: under OS thread or memory exhaustion
   `threading.Timer(...)` / `.start()` raises `RuntimeError: can't start new thread`, which reached
   the interpreter's default handler — exit `1`, non-blocking, destructive command proceeds. Failing
@@ -71,11 +71,20 @@ All notable changes to the `disk-hygiene` plugin are documented here. Format fol
   via `hook::buffer_stdin`, `plugins/guardrails/CHANGELOG.md` `[0.8.0]`) — ran with no deadline armed
   at all, so the declared hook `timeout` would fire first and the harness would cancel the hook with
   no `permissionDecision`, the exact non-blocking fail-open #1423 exists to close. The watchdog now
-  arms as the first action inside `main`'s fail-closed boundary, before the stdin read. All three
-  paths are covered by new `GuardTests` cases, including a real-subprocess test with stdin opened as
-  a pipe that is never written to or closed (a stalled read on the host running the suite, not only a
-  Windows Win32-pipe late EOF, reproducing the general "blocked in read" shape without needing that
-  platform specifically); 207 tests pass.
+  arms as the first action inside `main`'s fail-closed boundary, before the stdin read. (4) A valid
+  but large override inverted the two deadline layers: the watchdog is the primary mechanism and the
+  declared hook `timeout` is the backstop, which only holds while the watchdog fires *first*, so
+  `DISK_HYGIENE_GUARD_WATCHDOG_SECONDS=600` meant the harness killed the process instead — and a
+  killed PreToolUse hook yields no `permissionDecision`, so the command proceeds unguarded. Overrides
+  are now clamped to `_WATCHDOG_MAX_SECONDS` (the declared 60s hook timeout less 10s of headroom the
+  watchdog structurally cannot cover: interpreter startup before `main` runs, plus teardown after the
+  timer fires). The guard cannot read its own hook `timeout` — a PreToolUse payload does not carry it —
+  so that value is duplicated in code and pinned to both registrations by
+  `test_declared_hook_timeouts_match_the_watchdog_ceiling`, which fails the suite if either drifts.
+  All four paths are covered by new `GuardTests` cases, including a real-subprocess test with stdin
+  opened as a pipe that is never written to or closed (a stalled read on the host running the suite,
+  not only a Windows Win32-pipe late EOF, reproducing the general "blocked in read" shape without
+  needing that platform specifically); 209 tests pass.
 
 ## [0.9.4]
 
