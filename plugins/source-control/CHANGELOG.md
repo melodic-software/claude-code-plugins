@@ -3,6 +3,23 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.31.3]
+
+### Changed
+
+- **`test_pr_queue_snapshot.py`'s Approve-with-nits integration test now pins the routing by
+  elimination (#578).** The test asserted only that `blocking` and `material` were empty, which does
+  not distinguish "routed to `ignored`" from "routed to a human bucket". It now also asserts
+  `human_blocking` and `human` are empty; since `collect_feedback` places every record in exactly one
+  bucket and `classify_pr` surfaces four, all four empty rules out every bucket the snapshot projects.
+  Elimination alone still could not tell "routed to `ignored`" from "dropped before reaching any
+  bucket", so the test now also calls `collect_feedback` directly on the same fixture — under the
+  same `FeedbackConfig` `classify_pr` passes down — and asserts the record is in `ignored` carrying
+  the `approval_verdict` downgrade marker, which pins the arrival branch rather than only the
+  destination. #578 asked for a direct assertion on `feedback["ignored"]`: that holds at the
+  `collect_feedback` layer, but not on the snapshot's `feedback` mapping, which deliberately does not
+  project `ignored`. Test-only; no behavior change.
+
 ## [0.31.2]
 
 ### Fixed
