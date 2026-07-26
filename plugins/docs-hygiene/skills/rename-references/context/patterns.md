@@ -17,14 +17,25 @@ Substitute `<old>` with the actual old token. Anchor patterns with word boundari
 ## Form 1: Slash-prefixed token (skill name)
 
 ```regex
-\B/<old>\b
+\B/<old>([^\w-]|$)
 ```
 
 - **Triage default:** Certain
 - **Catches:** `/confirm`, `/test live`, `/<skill-name>` references in prose, tables, and frontmatter
 - **Why `\B/`:** word-boundary after slash would match `path/confirm` where slash is a path separator; non-word-boundary before slash means "the slash is not preceded by a word char," which excludes path contexts
-- **Why `\b` after:** prevents `/confirm` matching in `/confirmation`
-- **False-positives:** none typical — slash + identifier + word-boundary is high-precision
+- **Trailing boundary excludes a hyphen, and that is load-bearing on a Certain form.** A bare `\b`
+  prevents `/confirm` matching in `/confirmation` but NOT in `/confirm-changes`, because `\b`
+  treats a hyphen as a word boundary. Slash-command and container names are kebab-case, so
+  renaming `context` matched the unrelated `/context-guard` and — Form 1 being on container
+  mode's Certain allowlist — auto-applied, rewriting another command's name. The consumed
+  `([^\w-]|$)` terminator fixes both cases at once, the same shape Forms 13 and 15 use for the
+  same reason. Verified: `/context`, `/context:sub` (a namespaced invocation, `:` is a valid
+  terminator) and `see /context.` match; `/context-guard`, `/contextual` and `path/context` do
+  not.
+- **The consumed terminator is not part of the reference** — replace only the `/<old>` span and
+  leave it in place, and note that this form now participates in the survey's cursor rule
+  (`audit.md` Phase 2) like the other consume-the-delimiter forms.
+- **False-positives:** none typical — slash + identifier + a non-hyphen boundary is high-precision
 
 ## Form 2: Bare token with word boundary
 
@@ -284,9 +295,9 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
 ```regex
 ^#{1,6}\s+`?<old>`?\s*(#+\s*)?$
 ^`?<old>`?\s*$\n^(=+|-+)\s*$
-^\s*(name|title|id):\s*("<old>"|'<old>'|<old>)\s*$
+^\s*(name|title|id):\s*("<old>"|'<old>'|<old>)(\s+#.*)?\s*$
 (^|[{,])\s*"(name|title|id)"\s*:\s*"<old>"\s*(,|}|$)
-^\s*"?(name|title|id)"?\s*=\s*("<old>"|'<old>')\s*$
+^\s*"?(name|title|id)"?\s*=\s*("<old>"|'<old>')\s*(#.*)?$
 (^|[{,])\s*("<old>"|<old>)\s*:\s*[{\[]
 ```
 
@@ -322,6 +333,29 @@ existing "Frozen historical records" rule already excludes. See `triage.md`
   `{"description":"<old>"}` and a prose line quoting `"name": "<old>"` mid-sentence do not.
   Precision on this repository is unchanged by the widening: still exactly
   `.claude-plugin/marketplace.json:192` and `plugins/docs-hygiene/.claude-plugin/plugin.json:3`.
+- **A declaration may carry an INLINE COMMENT, and the end anchor must let it through.** Both
+  YAML and TOML let a manifest document its own fields — `name: <old> # package name`,
+  `name = "<old>"  # package name` — and an end-anchored alternative rejected the whole line.
+  Filesystem evidence still selects container mode for such a manifest, so the registration went
+  unmatched and was suppressed as residue while apply mode reported completion.
+  **The whitespace before `#` is not decoration in the YAML case.** YAML starts a comment only
+  when `#` follows whitespace; `name: <old>#x` is the single scalar `<old>#x`, NOT `<old>` plus a
+  comment. The YAML alternative therefore requires `(\s+#.*)?` — at least one space — while the
+  TOML one accepts `\s*(#.*)?` because its value is quoted, so the closing quote already ends the
+  string unambiguously. Verified: `name: <old> # package name`, `name: "<old>" # c`,
+  an indented `id: <old>` with a spaced trailing comment, `name = "<old>"  # package name` and
+  `name = "<old>"#c` all match;
+  `name: <old>#x` and `name: <old>-extra # c` do not. JSON is excluded from this because JSON has
+  no comment syntax.
+- **The comment is INSIDE the match but OUTSIDE the reference region.** Widening the anchor means
+  the match now spans text that is documentation rather than declaration, and a comment routinely
+  mentions the thing it documents: `name: <old> # <old> before publishing`. The survey enumerates
+  every `<old>` span inside a match (`audit.md` Phase 2), and these alternatives are Certain and
+  exempt from the common-word demotion inside a manifest — so blind enumeration would emit a
+  second record for the prose and apply mode would rewrite it. **Enumerate only within the
+  declaration VALUE for these two alternatives**; the comment is documentation ABOUT the
+  declaration, never a second declaration. `audit.md` carries the per-form reference-region table
+  this belongs to.
 - **The YAML and TOML alternatives keep their `$` anchor deliberately.** Both grammars are
   line-oriented for the shapes manifests actually use — block mappings and top-level key/value
   pairs — so the end-of-line anchor is a real discriminator there rather than an accident of
