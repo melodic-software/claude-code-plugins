@@ -2344,15 +2344,16 @@ class GuardTests(unittest.TestCase):
         # Managed settings stay absent (points into the temp dir, never written),
         # so tests never read a real /etc or Program Files managed-settings.json.
         self._managed = cfg / "managed-settings.json"
-        # The watchdog deadline is operator-overridable by environment variable —
-        # the guard's own timeout diagnostic tells operators to export it — so a
-        # value already exported in the shell running this suite would leak into
-        # every assertion about the DEFAULT deadline and fail it against a correct
-        # implementation. Strip it for the whole class; the tests that exercise an
-        # override set it explicitly with `mock.patch.dict`.
-        env_patch = mock.patch.dict(os.environ)
-        env_patch.start()
-        self.addCleanup(env_patch.stop)
+        # Hermetic watchdog deadline for the same reason. The guard's own deny
+        # diagnostic tells operators to raise
+        # DISK_HYGIENE_GUARD_WATCHDOG_SECONDS, so it can legitimately be set in
+        # the shell running this suite — and it reaches both the in-process
+        # helpers and the ones that spawn the real script, silently rewriting
+        # what every default-path assertion observes. Cases that want an
+        # override set one explicitly.
+        environ_patch = mock.patch.dict(os.environ)
+        environ_patch.start()
+        self.addCleanup(environ_patch.stop)
         os.environ.pop(guard._WATCHDOG_ENV_VAR, None)
 
     def _set_kill_switch(self, enabled: bool) -> None:
@@ -3909,11 +3910,21 @@ class GuardTests(unittest.TestCase):
         """Wiring check, no real thread: `main` must arm a `Timer` at the
         resolved deadline before calling `_decide`, and cancel it once
         `_decide` returns normally — a real watchdog thread firing here would
-        `os._exit` the test runner, so this substitutes a mock `Timer`."""
+        `os._exit` the test runner, so this substitutes a mock `Timer`.
+
+        Asserts the DEFAULT deadline specifically, so it must not observe an
+        operator's `DISK_HYGIENE_GUARD_WATCHDOG_SECONDS` override leaking in
+        from the test process's real environment — that would assert the
+        override's value instead and fail on an otherwise-correct guard.
+        """
         fake_timer = mock.Mock()
-        with mock.patch.object(
-            guard.threading, "Timer", return_value=fake_timer
-        ) as timer_cls:
+        with (
+            mock.patch.dict(os.environ, {}, clear=False) as patched_environ,
+            mock.patch.object(
+                guard.threading, "Timer", return_value=fake_timer
+            ) as timer_cls,
+        ):
+            patched_environ.pop(guard._WATCHDOG_ENV_VAR, None)
             exit_code, _stdout, _stderr = self._invoke_guard_raw("rm -rf /tmp/example")
         self.assertEqual(0, exit_code)
         timer_cls.assert_called_once_with(
