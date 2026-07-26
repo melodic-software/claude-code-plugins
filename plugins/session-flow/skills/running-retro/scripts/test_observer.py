@@ -157,7 +157,9 @@ class Locking(unittest.TestCase):
                 t.join()
             self.assertEqual(sum(wins), 1, "exactly one racer may win the lock")
 
-    def test_pid_alive_tasklist_call_is_utf8_explicit(self):
+
+class PidAlive(unittest.TestCase):
+    def test_tasklist_call_is_utf8_explicit(self):
         # #1483: _pid_alive's Windows branch shells out to `tasklist`, whose
         # subprocess.run call (unlike #1472's already-fixed _run_analysis) had no
         # explicit encoding= -- Python's default text-mode decode is the platform
