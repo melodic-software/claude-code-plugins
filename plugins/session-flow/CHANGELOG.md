@@ -39,6 +39,18 @@
   it at the confirm gate. The capture is deliberately not a detection key — it is read only from an
   already-qualified candidate, so it admits no new false positives — and it runs through the same
   redaction pass as everything else, since it quotes the operator's original loop prompt verbatim.
+  The capture also runs on the known-location glob short-circuit, which reaches the confirm gate
+  without a transcript in hand: it pulls step 5's `session_id` → `<session_id>.jsonl` lookup ahead
+  of the gate and reads that one file's tail, so the default discovery path surfaces the note too
+  rather than promising it and delivering nothing.
+- **The `/loop` re-arm note is now scoped to `/clear`-then-paste delivery.** The engine is shared
+  with `/session-flow:continue-in-background`, which clears nothing and pastes nothing — it hands
+  the rails prompt straight to a detached agent. The loop therefore stays armed on the foreground
+  session and has nothing to re-arm, while the note's own "after pasting the block above" wording
+  describes a paste that never happens and a follow-up message the reader has nowhere to send.
+  The rule now emits on the paste path only. Transferring the loop *into* the launched agent is
+  deliberately not done: arming a recurring schedule inside a detached session the operator is not
+  watching is a behavior to decide on its own merits, not a side effect of writing a save-point.
 
 ## [0.17.3]
 

@@ -66,7 +66,13 @@ lost session was running under `/loop`, so its absence disqualifies nothing.
    short-circuit ahead of the transcript holding this repo's lost handoff. Glob `*-handoff-*.md`,
    keep only files whose frontmatter is `type: handoff`, rank by mtime. A strong, recent candidate
    → jump to step 4 (step 5's chain validation then locates the producer transcript by the file's
-   `session_id`, since this path found no transcript). **Exception — operator says the handoff was
+   `session_id`, since this path found no transcript) — **but run step 3's re-arm-note capture
+   before that jump**, or this short-circuit surfaces a looping handoff with its `/loop` re-arm
+   missing while step 4 claims to present it. Locate the producer transcript by the candidate's
+   own `session_id` (`<session_id>.jsonl` under `~/.claude/projects/*/` — the same lookup step 5
+   performs, pulled ahead) and capture the note from the tail. That is a bounded, read-only tail
+   read of ONE already-named file, not the step-2 scan reintroduced. Transcript missing or note
+   absent → surface the candidate without a note and say which, never block on it. **Exception — operator says the handoff was
    prompt-only:** then no file is the target (prompt-only writes none), and handoff files
    intentionally accumulate, so a recent file here belongs to some *other* handoff. Skip this
    short-circuit and go straight to the transcript scan. **Screen for background-delivery
@@ -149,9 +155,9 @@ lost session was running under `/loop`, so its absence disqualifies nothing.
      never disqualifies an earlier manual block in the same transcript. A delivered block is not a
      lost handoff (its work is already running — `claude agents` lists it); exclude it and keep
      scanning.
-   - **Capture the below-rail `/loop` re-arm note — both modes.** Once a candidate qualifies on the
-     signals above, also take the re-arm instruction the producer emits directly after the bottom
-     rail (`send /loop [<interval>] <original prompt> as a separate message`, or its
+   - **Capture the below-rail `/loop` re-arm note — every mode, every discovery path.** Once a
+     candidate qualifies on the signals above, also take the re-arm instruction the producer emits
+     directly after the bottom rail (`send /loop [<interval>] <original prompt> as a separate message`, or its
      no-launch-signal variant `if a loop was active, re-arm it with …`). Anchor it to the bottom
      rail and match the note's own wording — never "the lines after the rail", which would widen
      this skill into the raw-transcript dump it forbids. **This is a capture, never a detection

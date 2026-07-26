@@ -112,6 +112,18 @@ copy, which goes stale the moment disk moved on without this conversation seeing
   loop's own first iteration must not run before the continuation it is resuming into. When no
   launch-turn signal is found, say instead: "if a loop was active, re-arm it with
   `/loop [<interval>] <the prompt you originally launched it with>` after pasting the block above."
+
+  **This rule is scoped to the `/clear`-then-paste delivery, and emits nothing on a background
+  launch.** Re-arming exists only because `/clear` destroys the session-scoped schedule. A
+  `/session-flow:continue-in-background` launch clears nothing and pastes nothing — it hands the
+  rails prompt straight to a detached agent — so the loop stays armed on the session that is still
+  sitting there, and there is nothing to re-arm. Emitting the note there would be worse than
+  useless: its own wording ("after pasting the block above") describes a paste that never happens,
+  and the reader has no message to send it in. Detect the delivery path from the citing skill —
+  the engine owns the prompt, the citing skill owns delivery — and emit the note on the paste path
+  only. Transferring the loop INTO the launched agent is deliberately not done: that would arm a
+  recurring schedule inside a detached session the operator is not watching, which is a new
+  behavior to decide on its own merits, not a side effect of writing a save-point.
 - **Combining both:** a command is recognized only at the start of a message
   (<https://code.claude.com/docs/en/commands>), so neither re-arm can ride inside the other's prompt
   argument — text after the command name is just more of that argument, not a second command
