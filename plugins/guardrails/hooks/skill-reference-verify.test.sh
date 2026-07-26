@@ -245,7 +245,7 @@ assert_contains "CHANGELOG-in-name but not a CHANGELOG → still adjudicated" "$
 # PARTIAL-EDIT RECONSTRUCTION. An Edit may replace an arbitrary substring, so a
 # hunk can be a bare word with no command in it. The edit is already applied by
 # PostToolUse time, so the containing reference is recovered from disk, anchored to
-# the hunk's tokens.
+# the hunk's own text.
 PARTIAL="$REPO/partial.md"
 printf 'Run `/alpha:ghost-partial` to begin.\n' >"$PARTIAL"
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$PARTIAL" 'ghost-partial')" 2>&1)
@@ -263,6 +263,23 @@ assert_contains "reconstruction reports the edited reference" "$OUT" \
   "UNRESOLVED_SKILL: /alpha:ghost-two"
 assert_absent "reconstruction does NOT report an untouched neighbour" "$OUT" \
   "untouched-ghost"
+
+# Diff-scope again, against the harder shape from #1453: the hunk is unrelated
+# prose that merely SHARES A WORD TOKEN with an untouched broken reference
+# elsewhere in the same file. Anchoring on the token alone (the pre-fix behavior)
+# pulls that reference in — `legacy` occurs in both `ghost-legacy` and the prose —
+# so the anchor has to be the hunk's own line, which occurs verbatim in exactly
+# the line the edit landed in. Verified to fail against the pre-fix guard (which
+# fired `UNRESOLVED_SKILL: /alpha:ghost-legacy`), the same shape #1432 proved for
+# stale-path-verify's sibling defect.
+SEGSHARE="$REPO/segshare.md"
+printf 'Stale `/alpha:ghost-legacy` here.\nThe legacy naming convention was updated today.\n' \
+  >"$SEGSHARE"
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" \
+  <<<"$(edit_json "$SEGSHARE" 'The legacy naming convention was updated today.')" 2>&1)
+RC=$?
+assert_exit "prose hunk sharing a word token → exit 0" 0 "$RC"
+assert_silent "hunk sharing only a token does not drag in an untouched broken reference" "$OUT"
 
 # A hunk that already carries a full command is scanned directly.
 OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$PARTIAL2" 'Run `/alpha:ghost-three` now.')" 2>&1)
@@ -282,9 +299,14 @@ assert_contains "substring Edit inside a segment → recovered" "$OUT" \
 
 # A hunk carrying BOTH a complete reference and a substring change to another must
 # report both — gating reconstruction on an empty scan would miss the partial half.
+# The two live on separate lines of the SAME hunk: a single Edit's new_string can
+# span several lines of a replaced passage, and each line lands on disk verbatim,
+# so line-anchoring finds the bare-word line while the complete reference on the
+# other line is already caught by the direct scan of the whole hunk.
 MIXED="$REPO/mixed.md"
 printf 'First `/alpha:ghost-mixed` here.\nSecond `/alpha:audit` is fine.\n' >"$MIXED"
-OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" <<<"$(edit_json "$MIXED" 'ghost-mixed and `/alpha:ghost-direct`')" 2>&1)
+OUT=$(CLAUDE_PROJECT_DIR="$REPO" bash "$HOOK" \
+  <<<"$(edit_json "$MIXED" $'ghost-mixed\nAlso now cites `/alpha:ghost-direct`.')" 2>&1)
 assert_contains "mixed hunk → direct reference reported" "$OUT" \
   "UNRESOLVED_SKILL: /alpha:ghost-direct"
 assert_contains "mixed hunk → reconstructed reference also reported" "$OUT" \

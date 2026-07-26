@@ -3,6 +3,26 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.16.2]
+
+### Fixed
+
+- **`skill-reference-verify`'s partial-Edit reconstruction now anchors on the hunk's own lines,
+  not its word tokens (#1453).** The guard's header comment claimed the token filter held the
+  diff-scope contract — a pre-existing unrelated reference sharing a recovered line never fires —
+  but a 4+ character word token is short enough to occur on lines the edit never touched: a hunk of
+  unrelated prose containing `legacy` grepped back every `*-legacy` reference in the file, including
+  an untouched broken one, which then passed the substring gate and fired from an edit that never
+  touched it. Lines are now located by the hunk's own text: every line of `new_string` is on disk
+  verbatim by `PostToolUse` time, so line-anchoring selects a strict subset of what token-anchoring
+  returned and always retains the edited line. The token filter survives as a second gate on the
+  reported candidate rather than as the locator — the same shape `stale-path-verify` was fixed to on
+  `#1432` (`65b4f67c`), ported here to this guard's `/plugin:skill` syntax. A regression test proves
+  the false-positive direction against the pre-fix guard; the existing partial-replacement
+  true-positive cases keep passing, with the composite (complete-reference-plus-bare-word) case
+  reshaped onto a realistic multi-line hunk since a single Edit's `new_string` cannot land in two
+  disjoint places on disk.
+
 ## [0.16.1]
 
 ### Fixed

@@ -148,39 +148,49 @@ emit_refs() {
 }
 
 # Partial-replacement context reconstruction (Edit only), mirroring
-# cli-flag-verify's reconstruct_partial_edit.
+# stale-path-verify's reconstruct_partial_edit (fixed for the same defect class
+# by 65b4f67c, #1432).
 #
 # An Edit may replace an arbitrary substring: swapping `setup` for `ghost` inside
 # an existing `/alpha:setup` leaves `/alpha:ghost` on disk, but the hunk is the
 # bare word `ghost` and carries no command for emit_refs to find, so a
 # newly-broken reference would be silently missed.
 #
-# Recover bounded context: the edit is already applied by PostToolUse time, so pull
-# from disk only the lines carrying one of the hunk's word tokens, scan those, and
-# keep only references whose plugin or skill segment appears in the hunk. That
-# token filter is what preserves the diff-scope contract — a pre-existing unrelated
-# reference sharing one of those lines never fires. The anchor is the token, not
-# the line, since a bare-word hunk carries no positional information.
+# Recover bounded context: the edit is already applied by PostToolUse time, so
+# pull from disk only the lines the hunk's OWN TEXT appears in, scan those, and
+# keep only references whose plugin or skill segment contains one of the hunk's
+# word tokens. Two filters compose to hold the diff-scope contract: the line must
+# be one this hunk's text landed in, and the reported reference must contain
+# edited text.
 reconstruct_partial_edit() {
   [[ "$TOOL" == "Edit" && -f "$FILE" ]] || return 0
-  # Anchor tokens come from the hunk with any COMPLETE reference removed first.
-  # A complete reference is already handled by the direct scan, and leaving it in
-  # would contribute its own plugin name as an anchor — `alpha` then matches every
-  # reference to that plugin, including untouched ones on neighbouring lines, which
-  # breaks diff-scope. What remains is the genuinely bare edited text.
+  # The token filter reads the hunk with any COMPLETE reference removed first. A
+  # complete reference is already handled by the direct scan, and leaving it in
+  # would contribute its own plugin name as a token — `alpha` then passes every
+  # reference to that plugin. What remains is the genuinely bare edited text.
   local residue
   residue=$(printf '%s' "$SCAN_CONTENT" | sed -E 's#/[a-z][a-z0-9-]*:[a-z][a-z0-9-]*##g')
-  # Minimum anchor length. A substring match on a very short token matches almost
+  # Minimum token length. A substring match on a very short token matches almost
   # any segment — stripping a reference out of `Run `/alpha:x` now.` leaves the
-  # fragment `un`, which substring-matches `untouched-ghost` on an untouched line
-  # and breaks diff-scope. 4 characters is the shortest command segment worth
-  # anchoring on; below that the token carries no locating power.
+  # fragment `un`, which substring-matches `untouched-ghost`. 4 characters is the
+  # shortest command segment worth filtering on; below that the token carries no
+  # filtering power.
   local -a toks=()
   mapfile -t toks < <(printf '%s' "$residue" | grep -oE '[a-z][a-z0-9-]{3,}' 2>/dev/null | sort -u)
   ((${#toks[@]})) || return 0
-  local tok lines ctx=""
-  for tok in "${toks[@]}"; do
-    lines=$(grep -F -- "$tok" "$FILE" 2>/dev/null)
+  # Lines are located by the hunk's own lines, never by its tokens. Every line of
+  # new_string is on disk verbatim, so it matches the line the edit landed in; a
+  # token, being shorter, also matches lines the edit never touched — a bare
+  # `legacy` in unrelated prose pulls in every `/alpha:*-legacy` reference on any
+  # line, and an untouched broken one among them would fire. Line-anchoring can
+  # only ever select a subset of what token-anchoring would, and the edited line
+  # is always in that subset.
+  local -a anchors=()
+  mapfile -t anchors < <(printf '%s' "$SCAN_CONTENT" | grep -vE '^[[:space:]]*$' 2>/dev/null)
+  ((${#anchors[@]})) || return 0
+  local anchor lines ctx=""
+  for anchor in "${anchors[@]}"; do
+    lines=$(grep -F -- "$anchor" "$FILE" 2>/dev/null)
     [[ -n "$lines" ]] && ctx+="$lines"$'\n'
   done
   [[ -n "$ctx" ]] || return 0
