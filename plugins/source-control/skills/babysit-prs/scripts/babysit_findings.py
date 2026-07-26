@@ -134,7 +134,7 @@ def fetch_live_comments(repo: str, number: int) -> list[dict[str, Any]]:
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(add_help=True)
+    parser = argparse.ArgumentParser(add_help=True, allow_abbrev=False)
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument("--pr", type=int, help="live PR number to fetch and count")
     source.add_argument("--comments-json", help="comments JSON file (no network)")

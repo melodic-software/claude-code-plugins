@@ -165,12 +165,27 @@ repository root (substitute a non-default resolved `memory_dir` for
 .work/*/RESEARCH.md
 .work/*/RESEARCH-*.md
 .work/*/*-checklist.md
+.work/*/*/EXPLORE.md
+.work/*/*/EXPLORE-*.md
+.work/*/*/RESEARCH.md
+.work/*/*/RESEARCH-*.md
+.work/*/*/*-checklist.md
 ```
 
 The first line carries the memory root's self-ignore file so the copied
 files are ignored in the new worktree from creation; without it they
 surface as untracked until the self-ignore guard heals on the first
 memory-tier write.
+
+The second group carries a **sub-slice** — `<memory_dir>/<slug>/<sub-slug>/`,
+the layout a producer uses when one slice holds more than one run: a
+parallel fan-out assigning a sub-slice per topic, or a run that found the
+slice root already occupied by unrelated work. Glob patterns do not
+descend on their own, so without the nested group a spawned worktree
+carries the top-level index and silently drops every nested index,
+sidecar, and ledger. That partial set is worse than carrying nothing: the
+receiving session sees an artifact and has no way to tell it is
+incomplete.
 
 Also gitignore `.claude/worktrees/` so worktree contents never appear
 as untracked files. Rollout caveats: pulling a commit that adds

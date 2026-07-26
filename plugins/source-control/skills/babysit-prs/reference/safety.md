@@ -257,7 +257,14 @@ auto-mode safety classifier and blocks the call before the wrapper runs.
 - Both wrappers **fail closed**: invoked without `--allowed-owners`, they exit `3` and refuse to
   act. The read-only forms are `source-control-babysit-merge owner/repo#42 --allowed-owners
   <watched-owners>` (merge-readiness gate) and `source-control-babysit-resolve-thread
-  owner/repo#42 --allowed-owners <watched-owners>` (thread list).
+  owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins>`
+  (thread list).
+- **`--extra-bot-logins <extra-bot-logins>` rides on every resolve-thread form**, listing and
+  mutating alike, whenever `babysit_extra_bot_logins` is configured. Bot classification is what
+  decides which threads the resolver may touch at all, and structural detection cannot see a
+  registered non-structural bot account (no `[bot]` suffix, API `__typename` of `User`); omitting
+  the flag silently reclassifies that account's threads as human and skips them in worker tier.
+  Omit the flag only when the key is unset.
 - The merge wrapper mutates only with `--merge --expected-head <post-push-head-sha> --method
   <merge-method>`, and rejects `--allow-unpinned-head` outright — there is no unpinned merge. The
   expected-head pin semantics live in `SKILL.md`; do not re-derive them here.
@@ -395,6 +402,84 @@ gate which guard, and where each refusal is enforced. Those facts are in
 a row cannot silently outlive the guard it cites. Cite a row ID; do not restate the behavior in
 the consuming configuration.
 
+**The never-retry rule is disputed for the classifier case, and nothing below settles it.**
+[claude-code-plugins#455](https://github.com/melodic-software/claude-code-plugins/issues/455) is
+open against the first bullet above: it records an auto-mode *classifier* denial that was retried,
+where the retry succeeded — evidence that a classifier verdict may not carry the same finality as a
+rules-layer denial. The Lane-Script Reachability section that follows is about whether the lane's
+own scripts are reachable at all, not about what to do after a denial; read its restatement of the
+denial contract as inherited from the bullet above, not as fresh confirmation of it. Until #455 is
+resolved, treat the retry semantics of a classifier denial specifically as an open question.
+
+### Lane-Script Reachability (operator prerequisite)
+
+That ceiling reaches the lane's own scripts, not just GitHub-mutating commands. Every tier proves
+readiness with a bundled script — the Python engine and gates under `skills/babysit-prs/scripts/`,
+the guarded wrappers under `bin/`, and the plugin-scope helpers under `scripts/` that the
+Python-free degrade path itself depends on — including the **read-only** merge-readiness check,
+which mutates nothing and is still a shell invocation the host may deny. So those scripts being
+invocable without a per-call denial is a declared prerequisite of the lane, on the same footing as
+Python.
+
+**The no-degrade half is narrower than the prerequisite, and that distinction is the point.** It
+binds the paths that *prove readiness* — the readiness gate and the read-only merge-readiness
+check. Unlike Python those have no degrade tier, because there is no permission-free path to a
+proven readiness verdict, and a verdict that was never produced cannot be handed to anyone. A
+denied *mutation* is not in that set: there the gate has already proven the PR ready, so
+Pinned-Command Degradation below degrades it to a ready-to-execute operator handoff. So the
+prerequisite covers reachability of every bundled script; the no-degrade rule covers the check
+paths only.
+
+**What this prerequisite rests on — and what it does not.** The denial recorded in
+[claude-code-plugins#787](https://github.com/melodic-software/claude-code-plugins/issues/787) was
+of a raw wildcarded-interpreter invocation (`python …/babysit_merge.py …`) — a form auto mode drops
+by design, and a form this file already forbids. #787's own body says the orchestrator reached for
+it *because* the bare `bin/` wrapper was not on PATH; the commit that made the `bin/`-path form the
+mandated spelling landed after that report. So #787 does **not** demonstrate that the sanctioned
+form gets denied, and this section is a generalization from other evidence rather than a
+reproduction of that ticket. The evidence that does hold is
+[dotfiles#315](https://github.com/melodic-software/dotfiles/issues/315): with
+`autoMode.classifyAllShell` enabled, every narrow Bash allow rule is suspended — including twelve
+grants purpose-built for this lane's scripts — so under that configuration even the compliant
+`bash "${CLAUDE_PLUGIN_ROOT}/bin/…"` form reaches the classifier like any other command.
+Reachability is therefore a property of the operator's configuration, never of the path form alone.
+
+The grant is the operator's, never the plugin's — a plugin cannot ship permission rules, and an
+agent must not broaden its own. The allow-rule shape guidance, and the official sources behind it,
+are owned by the marketplace's permission-rule-hygiene convention:
+<https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/conventions/permission-rule-hygiene/README.md>.
+
+Reachability is **not** implied by a `permissions.allow` rule. Whether shell allow rules resolve at
+all while a host safety classifier is active is governed by the host's own auto-mode configuration
+— read [auto-mode-config](https://code.claude.com/docs/en/auto-mode-config) for the current
+semantics of `autoMode.classifyAllShell`, of the prose `autoMode.allow` exceptions, and of which
+settings scopes the classifier reads `autoMode` from; never infer them from this file, and never
+assume a prose entry guarantees a given command runs. What the lane requires is only the outcome:
+a configuration under which this plugin's bundled scripts, invoked in the path forms this file
+mandates (§Guarded Mutation Wrappers), run without a denial. The operator confirms the effective
+configuration with `claude auto-mode config`.
+
+**A denied gate is never downgraded to weaker evidence — and the gate now says so itself.**
+`babysit-readiness-gate.sh` emits exactly one `READINESS_*` line on stdout on **every** run,
+failure paths included:
+`READINESS_UNPROVEN reason=<bad-args|identity-unresolved|prereq-missing|comments-unreadable|checklist-unreadable|fetch-failed> pr=<n>`
+is a third verdict alongside `READINESS_OK` and `READINESS_BLOCKED`, and it means readiness was not
+proven. Readiness is declared by quoting the verdict line verbatim in the iteration report
+([loop.md](loop.md) §5.5), so a readiness claim with no verdict line to quote is unproven on its
+face. That is both the mechanical half of this rule and its limit: a gate the harness never let run
+cannot report its own non-invocation, which is why the quoted-verdict requirement lives on the
+report rather than inside the script.
+
+When readiness is not gate-proven — an emitted `READINESS_UNPROVEN`, or a call the harness denied
+outright — `mergeStateStatus`, the check rollup, or any other live `gh` state a worker reports is
+NOT a substitute verdict: it misses exactly the cross-checks the gate exists to run (dependency
+author, unprotected base, self-login exemption, head match). Report that PR as **readiness
+unproven**, quoting the verdict line when there is one and naming the exact command attempted when
+the harness blocked the call, and surface the prerequisite above once for the cycle rather than
+re-attempting the call per PR. Pinned-Command Degradation below covers the denied-*mutation* case;
+this clause covers the denied-*check* case, which has no ready-to-execute handoff precisely because
+nothing was ever proven ready.
+
 ### Pinned-Command Degradation
 
 When the runtime denies a guarded mutation that this skill's own gate already proved ready —
@@ -424,13 +509,13 @@ assessment. Pin each vetted thread individually (the wrapper accepts exactly one
 per invocation; issue one pinned command per thread) with the thread-pin pair rule above:
 
 ```text
-bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --autonomous --resolve --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
+bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --autonomous --resolve --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
 ```
 
 for the unattended-worker case, or
 
 ```text
-bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --resolve --include-human --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
+bash "${CLAUDE_PLUGIN_ROOT}/bin/source-control-babysit-resolve-thread" owner/repo#42 --allowed-owners <watched-owners> --extra-bot-logins <extra-bot-logins> --resolve --include-human --thread-id <id> --expected-comment-count <n> --expected-last-updated <ts>
 ```
 
 for the autopilot case. This degradation is a successful, material finding to report, not a

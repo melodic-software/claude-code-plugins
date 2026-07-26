@@ -1,6 +1,6 @@
 ---
 name: research-deep
-description: "Dispatch deep external research to the heaviest isolated execution tier available — a workflow engine, a forked subagent, or inline as last resort — keeping the main conversation clean while the full research discipline runs. Use for broad, multi-source, comparison, or migration research; for a single small lookup use the research skill directly."
+description: "Dispatch deep external research to the heaviest isolated execution tier available — a workflow engine, a forked subagent, or inline as last resort — keeping the main conversation clean while the full research discipline runs. Itself runs in main context, because a subagent cannot reach the Workflow tool. Use when: 'deep research', 'research these N topics', 'broad multi-source research', 'compare these tools thoroughly', 'migration research', 'exhaustive research on X'; for a single small lookup use the research skill directly, which already dispatches its own subagent."
 argument-hint: "[topic] (e.g., /discovery:research-deep <library> <version> best practices, /discovery:research-deep <framework> <feature> migration guide)"
 user-invocable: true
 disable-model-invocation: false
@@ -25,7 +25,7 @@ If no topic was provided, infer it from the current conversation — identify th
 
 ## Dispatch decision (multi-topic check, then three tiers)
 
-**Multi-topic check — run FIRST, before any tier.** Count the independent sub-topics in the ask (numbered list, enumerated questions, separable subjects that share no claims). **N ≥ 2 separable topics → do NOT dispatch an engine on the combined blob.** An engine decomposes ONE question into generic research *angles*; fed a multi-topic blob, every broad agent researches all N topics shallowly — N× the wall-clock and tokens for worse depth. Instead: spawn **N parallel topic agents** (Agent tool, `general-purpose`, one per topic, each running the full `/research` discipline; instruct each to cite primary sources by URL — a subagent return without citations is ungrounded synthesis). Each agent writes its own artifact as a sibling `RESEARCH-<topic>.md`; the main session then synthesizes `RESEARCH.md` from the per-topic artifacts. An engine is for a SINGLE contested or deep question that needs falsification rounds and adversarial claim-checking.
+**Multi-topic check — run FIRST, before any tier.** Count the independent sub-topics in the ask (numbered list, enumerated questions, separable subjects that share no claims). **N ≥ 2 separable topics → do NOT dispatch an engine on the combined blob.** An engine decomposes ONE question into generic research *angles*; fed a multi-topic blob, every broad agent researches all N topics shallowly — N× the wall-clock and tokens for worse depth. Instead: spawn **N parallel topic agents** (Agent tool, `general-purpose`, one per topic, each running the full `/research` discipline; instruct each to cite primary sources by URL — a subagent return without citations is ungrounded synthesis). **Give each agent its own sub-slice** — `<memory_dir>/<slug>/<topic-slug>/`, assigned by this session in the dispatch envelope, never chosen by the worker (two workers choosing independently can choose the same one). Each writes the normal `RESEARCH.md` index, its sidecars, and its own `research-checklist.md` inside that sub-slice; those filenames are fixed, so N agents pointed at one slice root would overwrite one another's index and ledger rather than producing separable artifacts. **This session owns each topic's post-dispatch boundary — synthesis is the last step, not the only one.** The `/research` gate assigns its independent-corroboration and HIGH-confidence rows to a fresh verifier precisely because a producing context may not grade its own choices, and a topic worker generally cannot dispatch that verifier: `Agent` is filtered out of every non-fork subagent unless `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` is set. So for **each** topic, this session dispatches the sibling verifier, applies project fit, and writes both results back into that topic's index — before synthesizing. Skipping it produces the worst available artifact: a root `RESEARCH.md` presenting claims as gate-passed when the rows that matter were never graded by anyone. Then synthesize the slice-root `RESEARCH.md` from the per-topic indexes. An engine is for a SINGLE contested or deep question that needs falsification rounds and adversarial claim-checking.
 
 For a single-topic ask, detection is **engine-biased**: prefer the heaviest available tier UNLESS the task is clearly small/targeted. Unknown scope or any doubt → heavier tier.
 
@@ -74,6 +74,21 @@ Run `/research` inline in this session. No subagent, no workflow. The full `/res
 ## Relationship to `/research` (parent skill)
 
 This variant tracks `/research`'s conventions — same discipline file, same artifact contract, same outcome gate. There is no separate copy here; update the parent and this dispatcher follows.
+
+## Gotchas
+
+- **Feeding a multi-topic ask to an engine.** An engine decomposes ONE question into research
+  angles; given N separable topics, every broad agent researches all N shallowly — N× the cost for
+  worse depth. Run the multi-topic check FIRST, before any tier selection.
+- **Dispatching this skill itself.** It must run in main context: `Workflow` is unavailable in every
+  non-fork subagent, and the multi-topic path needs the `Agent` tool, which errors even inside a
+  fork. A dispatched `/research-deep` silently loses Tier 1 and the N-topic fan-out — the two things
+  it exists for. The sibling `/research` is the one that dispatches.
+- **Accepting a subagent return without cited primaries.** That is ungrounded synthesis, Tier 3 by
+  the discipline's own rule. Instruct every topic agent to cite primary source URLs, and treat a
+  return without them as unfinished rather than as evidence.
+- **Assuming the heaviest tier is available.** Tier selection is engine-biased, but it reads what is
+  actually connected this session and degrades to the next tier rather than failing.
 
 ## What this skill does NOT do
 
