@@ -16,6 +16,7 @@ and no row claims it, that is a gap to fix here, not a population to ignore.
 | Worker-escalated (marker kinds `escalated` and `routed-advisory`) | 3 — Attended queue, `[escalated]` |
 | C3 first-drain admissions (marker kind `ratify-c3`) | 3 — Attended queue, `[ratify]` |
 | Autonomous-eligible (role label, default `agent-ready`) | 1 — Worker lane |
+| Ordinary tracked item — priority/category labels, no raw marker, no canonical role (what `/work-items:track add` creates without `--agent-ready`; disjoint from row 1, which is the unlabeled/raw-marked state) | 1 — Worker lane. The frontier is open ∧ unblocked ∧ unassigned, and `list-frontier --autonomous` *excludes* the human-gated role rather than *requiring* the autonomous one — so a role-less item is already a tier-3 candidate |
 | Open PRs (drafts and `do-not-merge` included — evaluated, never force-merged) | 2 — Merge lane |
 | Parked human-gated (role label present, no escalation marker) | 3b — Parked-decision burn-down |
 | Decision-pending status label, where the repository declares one | 3b — Parked-decision burn-down |
@@ -778,14 +779,19 @@ with the operator's signature on them.
 >
 > 1. Open items wearing the human-gated role label with NO machine
 >    escalation-marker comment (first comment line starting
->    `<!-- work-items:escalation`). Resolve the role string from
->    `.work-item-tracker.json` `config.role_labels["human-gated"]`
->    (default `needs-human`) — three-way, never two: an absent file or
->    absent entry falls back to that default WITH a loud warning; a
+>    `<!-- work-items:escalation`). Resolve from `.work-item-tracker.json`
+>    `config.role_labels` BOTH canonical roles this prompt uses — up
+>    front, before any query: `["human-gated"]` (default `needs-human`),
+>    which defines this population, and `["autonomous-eligible"]` (default
+>    `agent-ready`), which the Flip outcome applies. Each resolves
+>    three-way, never two: an absent file or absent entry falls back to
+>    that role's documented default WITH a loud warning; a
 >    present-but-malformed binding (invalid JSON, non-string or empty
 >    value) is a configuration error — stop and report it, never fall back
->    silently. Checking for the marker requires fetching each candidate's
->    comments — page them fully.
+>    silently. Use the resolved strings in every query and every edit —
+>    never the abstract role name, and never a default literal in a repo
+>    that remapped it. Checking for the marker requires fetching each
+>    candidate's comments — page them fully.
 > 2. Open items carrying the repository's decision-pending status label,
 >    where it declares one. Resolve it live
 >    (`gh label list --limit 200 | grep -i status`), never assume the
@@ -841,16 +847,26 @@ with the operator's signature on them.
 > `*This comment was written by an AI agent on the operator's behalf
 > (parked-decision burn-down).*`):
 >
-> - **Flip:** ratified as delegable → apply the autonomous-eligible role
->   and remove the human-gated role in the same edit.
+> - **Flip:** ratified as delegable → ONE edit that applies the resolved
+>   autonomous-eligible role, removes the resolved human-gated role if
+>   present, and clears the resolved decision-pending status label (the
+>   string resolved for population 2) if present. Both removals are
+>   conditional because an item that entered through population 2 may
+>   carry the decision-pending label and no role at all. Leaving that
+>   label on a flipped item leaves it in the next burn-down's inventory
+>   while the worker lane simultaneously owns it — contradictory
+>   ownership, and the same decision put to me again next pass.
 > - **Decide and close:** the item existed to carry a decision → record it,
 >   close.
 > - **Retarget:** the verified state contradicts the item's premise →
->   rewrite the work list in a comment, then flip or re-park as ratified.
+>   rewrite the work list in a comment, then flip (by the Flip rule above,
+>   decision-pending clearing included) or re-park as ratified.
 > - **Re-home:** the root cause lives in another repository per the org's
 >   ownership rules → file there, close here with the link.
-> - **Re-park (open items only):** still blocked → keep the human-gated
->   role and record a NAMED trigger ("revisit when/after …"), so the next
+> - **Re-park (open items only):** still blocked → keep whichever parked
+>   marker the item entered with (the human-gated role, the
+>   decision-pending label, or both — clear neither) and record a NAMED
+>   trigger ("revisit when/after …"), so the next
 >   burn-down's trigger sweep finds it instead of a human's memory. A
 >   decision that must sleep longer than it can stay open gets a successor
 >   item, not a comment on a closed one — the closed-item sweep only looks
@@ -888,6 +904,26 @@ with the operator's signature on them.
 > - **Drain-then-pause:** on a trip, finish in-flight work, stop claiming
 >   new work, pause until the pause end, and report; a hard stop happens
 >   only on explicit user request.
+>
+> Two further reader-contract rules apply alongside the floor (outside the
+> byte-audited block):
+>
+> - **Fail-open capability detection:** tee file absent, stale, missing
+>   `rate_limits`, or absurd values (a `used_percentage` outside 0–100 or
+>   non-numeric; a `resets_at` non-numeric, more than 8 days out, or past
+>   by more than the staleness window) → mode **unknown → reactive-only**;
+>   never throttle proactively on untrusted data and never fabricate a
+>   pause. Reactive-only means no proactive pause at all: react instead to
+>   the detection records in
+>   `~/.claude/rate-limit-guard/stop-events.jsonl` and to the rate-limit
+>   error text this session sees, taking resume timing from that error
+>   text where available and otherwise backing off and retrying. A later
+>   fresh snapshot with plausible windows upgrades the mode back to
+>   proactive. Report the mode in this pass's report.
+> - **Untrusted fields:** session-distinguishing fields (`session_id`,
+>   `session_name`, any future account field) are user/AI-influenced —
+>   parse them only with a JSON parser; never string-interpolate them into
+>   a shell command, another interpreter, or a prompt.
 >
 > For this attended prompt, "stop claiming new work" means: finish the row
 > in hand (including its in-flight verifier), then stop pulling rows and
@@ -1381,14 +1417,19 @@ to the template re-renders here too.
 >
 > 1. Open items wearing the human-gated role label with NO machine
 >    escalation-marker comment (first comment line starting
->    `<!-- work-items:escalation`). Resolve the role string from
->    `.work-item-tracker.json` `config.role_labels["human-gated"]`
->    (default `needs-human`) — three-way, never two: an absent file or
->    absent entry falls back to that default WITH a loud warning; a
+>    `<!-- work-items:escalation`). Resolve from `.work-item-tracker.json`
+>    `config.role_labels` BOTH canonical roles this prompt uses — up
+>    front, before any query: `["human-gated"]` (default `needs-human`),
+>    which defines this population, and `["autonomous-eligible"]` (default
+>    `agent-ready`), which the Flip outcome applies. Each resolves
+>    three-way, never two: an absent file or absent entry falls back to
+>    that role's documented default WITH a loud warning; a
 >    present-but-malformed binding (invalid JSON, non-string or empty
 >    value) is a configuration error — stop and report it, never fall back
->    silently. Checking for the marker requires fetching each candidate's
->    comments — page them fully.
+>    silently. Use the resolved strings in every query and every edit —
+>    never the abstract role name, and never a default literal in a repo
+>    that remapped it. Checking for the marker requires fetching each
+>    candidate's comments — page them fully.
 > 2. Open items carrying the repository's decision-pending status label,
 >    where it declares one. Resolve it live
 >    (`gh label list --limit 200 | grep -i status`), never assume the
@@ -1444,16 +1485,26 @@ to the template re-renders here too.
 > `*This comment was written by an AI agent on the operator's behalf
 > (parked-decision burn-down).*`):
 >
-> - **Flip:** ratified as delegable → apply the autonomous-eligible role
->   and remove the human-gated role in the same edit.
+> - **Flip:** ratified as delegable → ONE edit that applies the resolved
+>   autonomous-eligible role, removes the resolved human-gated role if
+>   present, and clears the resolved decision-pending status label (the
+>   string resolved for population 2) if present. Both removals are
+>   conditional because an item that entered through population 2 may
+>   carry the decision-pending label and no role at all. Leaving that
+>   label on a flipped item leaves it in the next burn-down's inventory
+>   while the worker lane simultaneously owns it — contradictory
+>   ownership, and the same decision put to me again next pass.
 > - **Decide and close:** the item existed to carry a decision → record it,
 >   close.
 > - **Retarget:** the verified state contradicts the item's premise →
->   rewrite the work list in a comment, then flip or re-park as ratified.
+>   rewrite the work list in a comment, then flip (by the Flip rule above,
+>   decision-pending clearing included) or re-park as ratified.
 > - **Re-home:** the root cause lives in another repository per the org's
 >   ownership rules → file there, close here with the link.
-> - **Re-park (open items only):** still blocked → keep the human-gated
->   role and record a NAMED trigger ("revisit when/after …"), so the next
+> - **Re-park (open items only):** still blocked → keep whichever parked
+>   marker the item entered with (the human-gated role, the
+>   decision-pending label, or both — clear neither) and record a NAMED
+>   trigger ("revisit when/after …"), so the next
 >   burn-down's trigger sweep finds it instead of a human's memory. A
 >   decision that must sleep longer than it can stay open gets a successor
 >   item, not a comment on a closed one — the closed-item sweep only looks
@@ -1491,6 +1542,26 @@ to the template re-renders here too.
 > - **Drain-then-pause:** on a trip, finish in-flight work, stop claiming
 >   new work, pause until the pause end, and report; a hard stop happens
 >   only on explicit user request.
+>
+> Two further reader-contract rules apply alongside the floor (outside the
+> byte-audited block):
+>
+> - **Fail-open capability detection:** tee file absent, stale, missing
+>   `rate_limits`, or absurd values (a `used_percentage` outside 0–100 or
+>   non-numeric; a `resets_at` non-numeric, more than 8 days out, or past
+>   by more than the staleness window) → mode **unknown → reactive-only**;
+>   never throttle proactively on untrusted data and never fabricate a
+>   pause. Reactive-only means no proactive pause at all: react instead to
+>   the detection records in
+>   `~/.claude/rate-limit-guard/stop-events.jsonl` and to the rate-limit
+>   error text this session sees, taking resume timing from that error
+>   text where available and otherwise backing off and retrying. A later
+>   fresh snapshot with plausible windows upgrades the mode back to
+>   proactive. Report the mode in this pass's report.
+> - **Untrusted fields:** session-distinguishing fields (`session_id`,
+>   `session_name`, any future account field) are user/AI-influenced —
+>   parse them only with a JSON parser; never string-interpolate them into
+>   a shell command, another interpreter, or a prompt.
 >
 > For this attended prompt, "stop claiming new work" means: finish the row
 > in hand (including its in-flight verifier), then stop pulling rows and
