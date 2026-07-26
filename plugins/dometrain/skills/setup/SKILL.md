@@ -88,17 +88,25 @@ later, use `/plugin configure dometrain` (interactive, any time), or headlessly:
 
 ```shell
 claude plugin list                                          # read the CURRENT scope for dometrain
-claude plugin uninstall dometrain -s <scope>
+claude plugin uninstall dometrain -s <scope> -y
 claude plugin install dometrain@<marketplace> -s <scope> --config dometrain_api_key=<new-key>
+claude plugin enable dometrain -s <scope>
 ```
 
 Never re-run `install --config` against an existing install expecting it to take effect. Read the
-scope from `claude plugin list` and carry that SAME `-s <scope>` through both commands — both
+scope from `claude plugin list` and carry that SAME `-s <scope>` through all three commands — they
 default to `user`, so omitting it against a `project`- or `local`-scope install removes a
 different record than the one that is loading and reinstalls at a scope that does not load,
-leaving the old key in use. For a `project`- or `local`-scope install, run both commands from
-that project directory, since those scopes resolve against the current project. Full detail,
-including the command-line-exposure caveat, is in the README's
+leaving the old key in use. For a `project`- or `local`-scope install, run every command from
+that project directory, since those scopes resolve against the current project.
+
+`-y` on the uninstall is required whenever stdin or stdout is not a TTY — without it a rotation
+run from CI stops at the confirmation prompt with the plugin already uninstalled. The reinstall
+needs its own `enable` for the same reason the initial bootstrap does: uninstalling can drop the
+`enabledPlugins` entry, and a fresh install of a `defaultEnabled: false` plugin lands disabled, so
+a rotation that ends at `install` completes with the new key stored and no tools available.
+
+Full detail, including the command-line-exposure caveat, is in the README's
 [Rotating or clearing the key](../../README.md#rotating-or-clearing-the-key) section.
 
 ## Output
