@@ -3,6 +3,23 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.25.4]
+
+### Fixed
+
+- **`work-loop` and `attend-queue` no longer downgrade the whole rate-limit guard because one window
+  is absurd (#1612).** Both lane bodies inlined the reader contract's mode table — "tee file absent,
+  stale, missing `rate_limits`, or absurd values → mode unknown → reactive-only" — which collapses the
+  guard wholesale as soon as any single value is absurd. Against the floor's "pause when **either**
+  window reports `used_percentage >= 90`", a lane holding one garbage window and one valid window at
+  95% kept claiming work until a reactive rate-limit failure landed, rather than pausing on the window
+  it could still trust. The inlined rule now classifies validity per window: tee file absent, stale, or
+  missing `rate_limits` is still a whole-guard downgrade; an absurd `used_percentage` or `resets_at`
+  makes only that window unknown; the floor keeps applying to every still-plausible window; and
+  reactive-only is reached only when no window is plausible. The rule stays byte-identical across all
+  three lane bodies (the third is `source-control`'s `babysit-loop`). The operable floor's values are
+  unchanged.
+
 ## [0.25.3]
 
 ### Changed

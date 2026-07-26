@@ -3,6 +3,24 @@
 All notable changes to the `rate-limit-guard` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.4]
+
+### Fixed
+
+- **Reader contract: the capability-detection mode table no longer contradicts its own per-window
+  prose (#1612).** The table collapsed "tee file absent, stale, missing `rate_limits`, or absurd
+  values" into one whole-guard `unknown → reactive-only` row, while the prose four lines below scoped
+  an absurd value to "that window". The table is the line consumers copied, so the stricter reading
+  won in practice: a single garbage window dropped the entire guard to reactive-only even with a valid
+  window sitting at or above the 90% pause threshold — the guard failed open in exactly the case where
+  it still had trustworthy data to pause on. The table now carries a **Scope** column and splits that
+  row: tee file absent, stale, or missing `rate_limits` stay whole-guard; an absurd `used_percentage`
+  or `resets_at` makes only that window unknown; and a separate whole-guard row states that
+  reactive-only is reached only when no window is plausible. The prose adds the operative consequence
+  the contract had left implicit — keep applying the floor to every still-plausible window, one absurd
+  window is no reason to ignore a valid window already at or above 90, and a trip on the only
+  plausible window is still a trip. The operable floor's values are unchanged.
+
 ## [0.3.3]
 
 ### Fixed
