@@ -143,8 +143,17 @@ sed[^\n]*-i[[:space:]]+[^[:space:]]
 # a `sed` COMMAND token (start of line or a non-identifier character before
 # it, whitespace after) — `-i` alone is common across tools (`grep -i`,
 # `sort -i`...), and a bare `sed` substring match would fire on identifiers
-# that merely contain those three letters (`used="$(grep -Ei ...)"`).
-(^|[^[:alnum:]_])sed([[:space:]][^\n]*)?[[:space:]]-[A-Za-z]*E[A-Za-z]*i([[:space:]]|$)
+# that merely contain those three letters (`used="$(grep -Ei ...)"`). Boundary
+# after the cluster widens to a control operator, a redirection, or a
+# subshell close — NOT a quote or backtick, unlike the sibling `sort -V` /
+# `grep -P` / `echo -e` tokens (#1537/#1546): a quote immediately following
+# `i` with no separating whitespace is exactly the attached-EMPTY-suffix
+# shape (`-Ei''`) deferred two paragraphs up, so including quotes in the
+# boundary would silently un-defer it by making `-Ei''` match at the `i`+`'`
+# junction. An operator-terminated form with no trailing whitespace
+# (`x=$(sed -Ei)`, `sed -Ei|cat`, `sed -Ei; echo done`) is still detected —
+# a whitespace-only boundary silently missed those (#1545).
+(^|[^[:alnum:]_])sed([[:space:]][^\n]*)?[[:space:]]-[A-Za-z]*E[A-Za-z]*i([[:space:]|&;()<>]|$)
 
 # `sed --in-place[=SUFFIX]` (GNU long-form spelling of `-i`) — BSD sed has no
 # long options at all, so this flags suffixed or not (unlike short `-i`, where
@@ -154,8 +163,13 @@ sed[^\n]*-i[[:space:]]+[^[:space:]]
 # `--perl-regexp` / `--version-sort`, the option name `--in-place` is not
 # unique to one tool (several formatters spell their own in-place flag that
 # way), so a bare token would flag a script that merely defines or forwards an
-# unrelated `--in-place` option of its own.
-(^|[^[:alnum:]_])sed([[:space:]][^\n]*)?[[:space:]]--in-place([[:space:]]|=|$)
+# unrelated `--in-place` option of its own. Same operator-terminated boundary
+# as the cluster token above (#1545) — no quote/backtick in the boundary
+# either, kept alongside the pre-existing `=` alternative for the
+# `--in-place=SUFFIX` attached-value form: `x=$(sed --in-place)`,
+# `sed --in-place|cat`, `sed --in-place; echo done` are now detected, not
+# only the whitespace- or `=`-terminated forms.
+(^|[^[:alnum:]_])sed([[:space:]][^\n]*)?[[:space:]]--in-place([[:space:]|&;()<>]|=|$)
 
 # `readlink -f` (canonicalize) — a GNU coreutils extension; BSD/macOS readlink
 # has no `-f`/`--canonicalize`. Auto-guarded when a `realpath` attempt is
