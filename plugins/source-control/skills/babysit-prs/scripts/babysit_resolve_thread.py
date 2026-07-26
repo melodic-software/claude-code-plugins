@@ -16,7 +16,14 @@ Deterministic guards encoded here:
 - HUMAN-authored threads are NEVER touched. Only threads whose participants are
   all Bots (GraphQL `__typename == "Bot"`, or the structural `*[bot]` App-login
   suffix) are eligible; a human thread is always skipped + reported. Bot identity
-  comes only from API-provided signals -- no hardcoded login list to go stale.
+  comes from API-provided signals, with no hardcoded login list to go stale --
+  the sole exception is `--extra-bot-logins`, the operator-supplied logins
+  (`babysit_extra_bot_logins`) for bot accounts structural detection cannot see
+  (a plain `User` with no `[bot]` suffix). Those logins are treated as bots for
+  eligibility, so a login named there that is actually a human's account makes
+  that human's threads resolvable -- the flag is a deliberate operator opt-in,
+  not a heuristic, and omitting it instead classifies a configured bot's threads
+  as human.
 - Default action is READ-ONLY: list eligible/ineligible threads and what WOULD
   happen. Nothing is resolved without `--resolve`.
 - `--autonomous` is the UNATTENDED-worker guard: a self-resolved thread would
