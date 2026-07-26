@@ -194,20 +194,27 @@ readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)
 #   - LONG form — `--tmpdir[=DIR]`, documented as the equivalent of `-p`, needs
 #     its own token since it shares no short-cluster shape.
 #
-# Both are anchored to the mktemp COMMAND TOKEN the way the `sed -Ei` /
-# `sed --in-place` tokens above are (#1543): `-p` and `--tmpdir` are GNU
-# mktemp's flags, not a flag of every command whose name merely contains
-# "mktemp". Without the leading boundary and the whitespace that must follow
-# the name, `mktemp_wrapper -p /tmp`, `mktempfoo -p /tmp` and
+# Both are anchored to the mktemp COMMAND TOKEN (#1543): `-p` and `--tmpdir`
+# are GNU mktemp's flags, not a flag of every command whose name merely
+# contains "mktemp". Without a leading boundary and the whitespace that must
+# follow the name, `mktemp_wrapper -p /tmp`, `mktempfoo -p /tmp` and
 # `xmktemp --tmpdir=/tmp` all failed the gate.
 #
-# The boundary excludes every character a COMMAND NAME can be built from —
-# alphanumerics plus `_`, `.` and `-` — so `safe-mktemp`, `my.mktemp` and
-# `my_mktemp` are all rejected as different commands. `/` is deliberately NOT
-# excluded: `/usr/bin/mktemp -p /tmp` is the real command reached by absolute
-# path and must keep failing the gate.
-(^|[^[:alnum:]_.-])mktemp([[:space:]][^;&|()`\n]*)?[[:space:]]-[A-Za-z]*p
-(^|[^[:alnum:]_.-])mktemp([[:space:]][^;&|()`\n]*)?[[:space:]]--tmpdir([[:space:]|&;()<>]|=|$)
+# The boundary is defined by SHELL WORD POSITION, not by enumerating which
+# characters a command name may contain — that enumeration cannot be
+# completed, since `+` and `@` are as legal in a name as `-` and `.`. What
+# precedes the real command is instead one of: line start, whitespace, a
+# control operator/redirection/substitution character, a QUOTE (the name
+# itself may be quoted: `'mktemp' -p /tmp`), or `/` (a path separator rather
+# than part of the name, so `/usr/bin/mktemp -p /tmp` is the same GNU-only
+# call and must keep failing). Anything else — `safe-mktemp`, `safe+mktemp`,
+# `safe@mktemp`, `my.mktemp`, `my_mktemp` — is a different command.
+#
+# The optional quote AFTER the name closes the `"…/mktemp" -p` spelling; the
+# whitespace that must follow it is what rejects a run-together suffix such as
+# `mktempfoo`.
+(^|[[:space:]'"`;&|()<>/])mktemp['"]?([[:space:]][^;&|()`\n]*)?[[:space:]]-[A-Za-z]*p
+(^|[[:space:]'"`;&|()<>/])mktemp['"]?([[:space:]][^;&|()`\n]*)?[[:space:]]--tmpdir([[:space:]|&;()<>]|=|$)
 
 # --- STAGED (commented until enabled — see #1510 for the enable trigger) ---
 #

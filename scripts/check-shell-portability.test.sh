@@ -825,18 +825,19 @@ else
 fi
 rm -f "$f"
 
-# --- both mktemp tokens are anchored to the COMMAND TOKEN (#1543), the same
-# way the sed -Ei / --in-place tokens are: `-p` and `--tmpdir` are GNU
-# mktemp's flags, not a flag of every command whose name merely contains
-# "mktemp". The boundary spans every character a command NAME is built from,
-# so a hyphenated or dotted wrapper is as much a different command as an
-# underscored or run-together one.
+# --- both mktemp tokens are anchored to the COMMAND TOKEN (#1543): `-p` and
+# `--tmpdir` are GNU mktemp's flags, not a flag of every command whose name
+# merely contains "mktemp". The boundary is a shell WORD POSITION rather than
+# an enumeration of legal name characters -- `+` and `@` are as legal in a
+# command name as `-` and `.`, so any such enumeration is unfinishable.
 f="$(tmpsh "$(printf '%s\n' \
   'mktemp_wrapper -p /tmp' \
   'my_mktemp -p /tmp' \
   'mktempfoo -p /tmp' \
   'safe-mktemp -p /tmp' \
   'my.mktemp -p /tmp' \
+  'safe+mktemp -p /tmp' \
+  'safe@mktemp --tmpdir=/tmp' \
   'safe-mktemp --tmpdir=/tmp' \
   'xmktemp --tmpdir=/tmp')")"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
@@ -847,20 +848,23 @@ fi
 rm -f "$f"
 
 # --- ...and the real command still flags at every position the anchor admits:
-# line start, after a separator, inside a substitution, and reached by
-# absolute path -- `/` is a path separator, not part of a command name, so
-# /usr/bin/mktemp is the same GNU-only call.
+# line start, after a separator, inside a substitution, reached by absolute
+# path (`/` is a path separator, not part of a name), and with the command
+# token itself quoted -- the shell strips those quotes and runs the same
+# GNU-only mktemp.
 f="$(tmpsh "$(printf '%s\n' \
   'mktemp -p /tmp' \
   'cd /tmp && mktemp -p sub' \
   't=$(mktemp --tmpdir=/tmp)' \
-  '/usr/bin/mktemp -p /tmp')")"
+  '/usr/bin/mktemp -p /tmp' \
+  '"/usr/bin/mktemp" -p /tmp' \
+  "'mktemp' --tmpdir /tmp")")"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "the anchored tokens must still flag real mktemp calls, got success: $out"
-elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 4 ]]; then
-  ok "the anchored tokens still flag mktemp at a line start, after &&, in \$() and by path"
+elif [[ "$(echo "$out" | grep -c "PORTABILITY: ${f}:")" -eq 6 ]]; then
+  ok "the anchored tokens flag mktemp at a line start, after &&, in \$(), by path and quoted"
 else
-  fail "expected all 4 anchored mktemp positions flagged, got: $out"
+  fail "expected all 6 anchored mktemp positions flagged, got: $out"
 fi
 rm -f "$f"
 
