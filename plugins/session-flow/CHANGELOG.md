@@ -1,5 +1,28 @@
 # Changelog — session-flow plugin
 
+## [0.17.2]
+
+### Fixed
+
+- **The save-point engine's resume prompt dropped the `/loop` wrapper.** The engine doc's
+  goal-aware re-arm rule ("Emit the copy/paste resume prompt") had no loop-aware counterpart, so a
+  resume prompt written for a session running under `/loop` read as a bare continuation task.
+  Pasted after `/clear` — which clears every session-scoped scheduled task
+  (<https://code.claude.com/docs/en/scheduled-tasks#limitations>) — that ran the continuation once
+  and silently dropped the recurring behavior, with no error to signal it. `save-point.md` now
+  carries a loop-aware re-arm rule structurally parallel to the goal-aware one: `/loop` or
+  `/loop <interval>` prefixes the resume prompt's own first line (same line — a command's argument
+  starts at the command name and a bare `/loop` alone on its line fires the built-in maintenance
+  prompt instead, per <https://code.claude.com/docs/en/commands> and
+  <https://code.claude.com/docs/en/scheduled-tasks#run-a-prompt-repeatedly-with-%2Floop>). Both
+  re-arm rules now key off a concrete conversational signal — this session's own `/loop` launch turn
+  (corroborated, never gated, by a later `ScheduleWakeup` reschedule) and an established `/goal`
+  call — rather than "infer from conversation" prose. A `/goal` active inside a `/loop` cannot be
+  nested in the same pasted block (a command is recognized only at the message's start, so a second
+  `/goal` line would just become inert prompt text); the rule instead has the reader send `/goal
+  <condition>` as a separate follow-up message. `handoff/SKILL.md`'s two enforcement checklists and
+  `handoff/context/gotchas.md` are updated to match.
+
 ## [0.17.1]
 
 ### Changed

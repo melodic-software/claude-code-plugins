@@ -128,7 +128,8 @@ ambiguous.
 - [ ] TaskList captured with literal recreate calls in the environment section, from a live
   `TaskList` call this turn (OR an explicit statement that there is nothing to recreate)
 - [ ] Resume prompt emitted between dashed rails, `@`-referencing the file; copy instruction above
-  the top rail; `/goal` first line if a goal is active
+  the top rail; `/goal` first line if a goal is active, `/loop` outermost if a loop is active (engine
+  doc, "Emit the copy/paste resume prompt")
 - [ ] **EXECUTION STOPS HERE**
 
 **Prompt-only path:**
@@ -136,7 +137,8 @@ ambiguous.
 - [ ] Prompt-only justified (all auto-detect criteria hold, OR `prompt` explicitly passed)
 - [ ] Redaction pass swept the prompt (secrets/tokens/credentials/PII replaced with shape markers)
 - [ ] Self-contained resume prompt between dashed rails — remaining-work bullets inline
-- [ ] Copy instruction above the rails; `/goal` first line if a goal is active
+- [ ] Copy instruction above the rails; `/goal` first line if a goal is active, `/loop` outermost if
+  a loop is active (engine doc, "Emit the copy/paste resume prompt")
 - [ ] **EXECUTION STOPS HERE** — "small enough" means the prompt captures the work, NOT "small
   enough to skip `/clear` and finish in-session"
 

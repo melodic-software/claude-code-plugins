@@ -82,10 +82,40 @@ copy, which goes stale the moment disk moved on without this conversation seeing
   above the top rail or below the bottom rail, never between.
 - One plain-language instruction sits directly ABOVE the top rail: "`/clear`, then copy everything
   between the dashed lines."
-- **Goal-aware re-arm:** if a `/goal` is active this session (infer from conversation), the FIRST
-  line between the rails starts with literal `/goal` — `/clear` destroys an active goal, so the
-  pasted block must re-arm it. When unsure, omit it and note below the bottom rail: "if a goal was
-  active, prepend `/goal <condition>`."
+- **Goal-aware re-arm:** if a `/goal` is active this session — check for a `/goal` establishing or
+  re-arming call earlier in this conversation with no later stop/completion, not "infer from
+  conversation" prose — the FIRST line between the rails starts with literal `/goal <condition>` —
+  `/clear` destroys an active goal, so the pasted block must re-arm it. When no such call is found,
+  omit it and note below the bottom rail: "if a goal was active, prepend `/goal <condition>`."
+- **Loop-aware re-arm:** if this session is running under `/loop` — check for this session's own
+  `/loop [<interval>] <prompt>` launch turn earlier in the conversation with no later stop (`Esc`, or
+  a `ScheduleWakeup` call carrying `stop: true`), not "infer from conversation" prose. A subsequent
+  `ScheduleWakeup` reschedule call (`stop` absent or `false`) corroborates self-paced mode but is
+  never required to conclude the loop is active — on the loop's first iteration no reschedule has
+  fired yet, so its absence is not evidence of anything. The FIRST line between the rails is literal
+  `/loop` (self-paced) or `/loop <interval>` (fixed-interval, preserving the original interval),
+  immediately followed **on that same line** by the resume prompt's own first line. A command is
+  recognized only at the start of a message and everything after the command name becomes its
+  argument (<https://code.claude.com/docs/en/commands>) — so the wrapper and the directive must share
+  line one; a bare `/loop` with nothing following on that line is read as "no prompt supplied" and
+  fires the built-in maintenance prompt instead, not the resume directive
+  (<https://code.claude.com/docs/en/scheduled-tasks#run-a-prompt-repeatedly-with-%2Floop>). Starting a
+  fresh conversation clears every session-scoped scheduled task
+  (<https://code.claude.com/docs/en/scheduled-tasks#limitations>), so a resume prompt that drops the
+  wrapper runs the continuation once and silently loses the recurring behavior — the same failure
+  class `/goal` re-arm exists to prevent. When no launch-turn signal is found, omit it and note below
+  the bottom rail: "if a loop was active, prepend `/loop [<interval>]` (plus a trailing space) to the
+  first line above."
+- **Combining both:** a command is recognized only at the start of a message
+  (<https://code.claude.com/docs/en/commands>), so `/goal` cannot be nested as a later line inside
+  `/loop`'s own prompt argument — text after line one is just more of that prompt, not a second
+  command invocation, and would silently fail to arm the goal. Emit the `/loop`-wrapped block as
+  above, then note below the bottom rail: "if a goal was also active, send `/goal <condition>` as a
+  separate message right after pasting the block above" — `/goal` is session-scoped and evaluated
+  after every subsequent turn regardless of what invoked it, so arming it in a second message covers
+  the loop's later iterations too. (Nesting a goal condition inside a single `/loop` paste is not
+  attempted here — it is unverified whether one exists, and the reporting issue flagged the exact
+  shape of that combination as a follow-on design question.)
 
 Full-path shape (minimum form — live: bare `─` rails, no fence; shown inside a fence here for
 display):
